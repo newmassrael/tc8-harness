@@ -165,7 +165,8 @@ TEST(EmitMethodReply, DeliversReplyFromServicePort) {
 
     const auto reply = buildMethodResponse(makeCapturedRequest());
     const std::uint16_t kServicePort = 30509;  // tester's offered service port.
-    const int rc = emitMethodReply("lo", reply, kServicePort, htonl(INADDR_LOOPBACK), client_port);
+    const int rc = emitMethodReply("lo", reply, kServicePort,
+                                   MethodEndpoint{htonl(INADDR_LOOPBACK), client_port});
     ASSERT_EQ(rc, 0);
 
     std::uint8_t buf[64] = {};

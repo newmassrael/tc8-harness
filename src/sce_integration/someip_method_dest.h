@@ -16,10 +16,10 @@
 //
 // No literal fallback: an unconfigured field stays 0, so a misconfigured run
 // targets 0.0.0.0:0 and fails loud on connect rather than silently hitting a
-// baked-in address. `MethodRequestDestination` therefore carries no implicit
+// baked-in address. `MethodEndpoint` therefore carries no implicit
 // default (cf. someip_rpc_builder.h) — the endpoint is always sourced here.
 //
-// Byte order matches `MethodRequestDestination`: `dut_iface_ip` is network
+// Byte order matches `MethodEndpoint`: `dut_iface_ip` is network
 // byte order (parsed by `parseIpv4Dotted` straight from `inet_pton`, the same
 // convention `ipv4_be` carries onto `sockaddr_in::sin_addr`), and the ports
 // are host order (the emitter applies `htons`).
@@ -41,10 +41,10 @@ namespace detail {
 // Compose the destination from the configured DUT IP and a port.
 // `port_override` (a `someip::kSi*` constant) names a spawn-variant port the
 // base surface does not carry; 0 means "use the configured transport port".
-inline ::tc8::stimulus::MethodRequestDestination
+inline ::tc8::stimulus::MethodEndpoint
 methodDest(std::uint32_t dut_iface_ip_be, std::uint16_t configured_port,
            std::uint16_t port_override) {
-    ::tc8::stimulus::MethodRequestDestination dest{};
+    ::tc8::stimulus::MethodEndpoint dest{};
     dest.ipv4_be = dut_iface_ip_be;
     dest.port = port_override != 0 ? port_override : configured_port;
     return dest;
@@ -52,13 +52,13 @@ methodDest(std::uint32_t dut_iface_ip_be, std::uint16_t configured_port,
 }  // namespace detail
 
 // DUT Method Request endpoint for the UNRELIABLE (UDP) transport.
-inline ::tc8::stimulus::MethodRequestDestination
+inline ::tc8::stimulus::MethodEndpoint
 someipUdpMethodDest(const ::tc8::TestConfig &cfg, std::uint16_t port_override = 0) {
     return detail::methodDest(cfg.someip.dut_iface_ip, cfg.someip.udp_port, port_override);
 }
 
 // DUT Method Request endpoint for the RELIABLE (TCP) transport.
-inline ::tc8::stimulus::MethodRequestDestination
+inline ::tc8::stimulus::MethodEndpoint
 someipTcpMethodDest(const ::tc8::TestConfig &cfg, std::uint16_t port_override = 0) {
     return detail::methodDest(cfg.someip.dut_iface_ip, cfg.someip.tcp_port, port_override);
 }

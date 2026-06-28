@@ -53,17 +53,16 @@ std::vector<std::uint8_t> buildMethodError(SomeIpRpcMessage t) {
 }
 
 int emitMethodReply(std::string_view iface, const std::vector<std::uint8_t> &reply,
-                    std::uint16_t service_src_port, std::uint32_t client_ip_be,
-                    std::uint16_t client_port) {
+                    std::uint16_t service_src_port, const MethodEndpoint &client_dest) {
     // Server reply: source = the tester's service port (not ephemeral), dest =
     // the DUT client endpoint. Generic UDP mechanics live in sendUdpUnicast.
-    return sendUdpUnicast(reply, iface, service_src_port, client_ip_be, client_port);
+    return sendUdpUnicast(reply, iface, service_src_port, client_dest.ipv4_be, client_dest.port);
 }
 
 namespace {
 
 int requestOnce(const SomeIpRpcMessage &target, std::uint16_t session_id, std::string_view iface,
-                const MethodRequestDestination &dest) {
+                const MethodEndpoint &dest) {
     const int sock = ::socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0) {
         std::fprintf(stderr, "stimulus: socket() failed: %s\n", std::strerror(errno));
@@ -116,7 +115,7 @@ int requestOnce(const SomeIpRpcMessage &target, std::uint16_t session_id, std::s
 }  // namespace
 
 int emitMethodRequestAfter(std::string_view iface, const SomeIpRpcMessage &target,
-                           const MethodRequestTiming &timing, const MethodRequestDestination &dest) {
+                           const MethodRequestTiming &timing, const MethodEndpoint &dest) {
     std::this_thread::sleep_for(timing.pre_emit_wait);
 
     for (int i = 0; i < timing.total_emits; ++i) {
@@ -135,7 +134,7 @@ int emitMethodRequestAfter(std::string_view iface, const SomeIpRpcMessage &targe
 namespace {
 
 int requestOnceTcp(const SomeIpRpcMessage &target, std::uint16_t session_id, std::string_view iface,
-                   const MethodRequestDestination &dest, std::chrono::milliseconds linger) {
+                   const MethodEndpoint &dest, std::chrono::milliseconds linger) {
     const int sock = ::socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
         std::fprintf(stderr, "stimulus: tcp socket() failed: %s\n", std::strerror(errno));
@@ -199,7 +198,7 @@ int requestOnceTcp(const SomeIpRpcMessage &target, std::uint16_t session_id, std
 }  // namespace
 
 int emitMethodRequestTcpAfter(std::string_view iface, const SomeIpRpcMessage &target,
-                              const MethodRequestTiming &timing, const MethodRequestDestination &dest,
+                              const MethodRequestTiming &timing, const MethodEndpoint &dest,
                               const MethodRequestTcpDwell &dwell) {
     std::this_thread::sleep_for(timing.pre_emit_wait);
 
@@ -217,7 +216,7 @@ int emitMethodRequestTcpAfter(std::string_view iface, const SomeIpRpcMessage &ta
 }
 
 int emitMethodRequestTcpAndHold(std::string_view iface, const SomeIpRpcMessage &target,
-                                const MethodRequestDestination &dest,
+                                const MethodEndpoint &dest,
                                 std::chrono::milliseconds pre_emit_wait,
                                 std::chrono::milliseconds dwell_after_send) {
     std::this_thread::sleep_for(pre_emit_wait);
@@ -299,7 +298,7 @@ std::vector<std::uint8_t> buildBundledMethodRequests(
 int emitBundledMethodRequestsUdp(std::string_view iface,
                                  const std::vector<SomeIpRpcMessage> &targets,
                                  std::chrono::milliseconds pre_emit_wait,
-                                 const MethodRequestDestination &dest) {
+                                 const MethodEndpoint &dest) {
     std::this_thread::sleep_for(pre_emit_wait);
 
     if (targets.empty()) {
@@ -354,7 +353,7 @@ int emitBundledMethodRequestsUdp(std::string_view iface,
 int emitBundledMethodRequestsTcp(std::string_view iface,
                                  const std::vector<SomeIpRpcMessage> &targets,
                                  std::chrono::milliseconds pre_emit_wait,
-                                 const MethodRequestDestination &dest,
+                                 const MethodEndpoint &dest,
                                  std::chrono::milliseconds linger) {
     std::this_thread::sleep_for(pre_emit_wait);
 

@@ -369,9 +369,11 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     // `want_service_id` / `want_method_id`: a Request (0x00) or RequestNoReturn
     // (0x01) carrying that service+method. In the SOMEIPCLT topology the DUT is
     // the client, so this is the canonical recognizer for "the DUT called our
-    // offered service" — the client-role mirror of is_offer_service_for. The
-    // reply target is this frame's src_ip / src_port (feed emitMethodReply).
-    // Single source of truth so CLT_RPC cases do not re-spell the type check.
+    // offered service" — the client-role mirror of is_offer_service_for. For a
+    // Request (0x00) the reply target is this frame's src_ip / src_port (feed
+    // emitMethodReply); a RequestNoReturn (0x01) gets NO reply per
+    // PRS_SOMEIP_00701, so do not feed those to emitMethodReply. Single source
+    // of truth so CLT_RPC cases do not re-spell the type check.
     bool is_method_request_for(std::uint16_t want_service_id, std::uint16_t want_method_id) const {
         return service_id == want_service_id && method_id == want_method_id &&
                (message_type == static_cast<std::uint8_t>(someip::MessageType::REQUEST) ||

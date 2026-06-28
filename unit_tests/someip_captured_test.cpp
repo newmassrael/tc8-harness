@@ -455,6 +455,7 @@ TEST(SomeIpCapturedClientRequest, SurfacesHeaderAndReplyTarget) {
     // Recognized as the DUT's client-role request.
     EXPECT_TRUE(c.is_method_request_for(0xF4E7, 0x0008));
     EXPECT_FALSE(c.is_method_request_for(0xF4E7, 0x0009));  // wrong method
+    EXPECT_FALSE(c.is_method_request_for(0xFFFE, 0x0008));  // wrong service
 }
 
 TEST(SomeIpCapturedClientRequest, FireAndForgetIsAClientRequest) {

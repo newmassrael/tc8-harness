@@ -93,19 +93,8 @@ std::vector<std::uint8_t> buildMethodResponse(SomeIpRpcMessage t);
 // of E_OK, so a negative case can drive the spec-forbidden Error+E_OK shape.
 std::vector<std::uint8_t> buildMethodError(SomeIpRpcMessage t);
 
-// Tester server-role reply EMIT (SOMEIPCLT). Transmits a Response/Error
-// datagram (from buildMethodResponse/Error) back to the DUT client that issued
-// the request. Unlike emitMethodRequestAfter (client role, ephemeral source
-// port), a server reply originates from the tester's offered service port
-// `service_src_port` (the port the DUT addressed) and targets the DUT's client
-// source endpoint `client_ip_be`:`client_port` (captured from the DUT's
-// Request). Routes through sendUdpUnicast — the one UDP emit SSOT. Returns 0 on
-// success or the negative sendUdpUnicast sentinel.
-int emitMethodReply(std::string_view iface, const std::vector<std::uint8_t> &reply,
-                    std::uint16_t service_src_port, std::uint32_t client_ip_be,
-                    std::uint16_t client_port);
-
-// Destination of a Method Request — the DUT's per-method endpoint. A pure
+// Destination of a SOME/IP method message (IPv4 ip:port) — the DUT's service
+// endpoint for a request, or its client source endpoint for a tester reply. A pure
 // value type with no implicit default: the endpoint is always topology-
 // derived, never baked in. The conformance literal (172.16.0.2:30502) has
 // its single source of truth in the `--expect` surface / vsomeip.json, not
@@ -113,13 +102,24 @@ int emitMethodReply(std::string_view iface, const std::vector<std::uint8_t> &rep
 // from `cfg.someip`; a zero-initialised value (0.0.0.0:0) is an unconfigured
 // sentinel that fails loud on connect rather than silently targeting a
 // hardcoded address.
-struct MethodRequestDestination {
+struct MethodEndpoint {
     // IPv4 in network byte order (matches `Ipv4Endpoint::ipv4_be` and
     // cfg.someip.dut_iface_ip, both NBO via inet_pton).
     std::uint32_t ipv4_be = 0;
     // Host order; the emitter applies htons.
     std::uint16_t port = 0;
 };
+
+// Tester server-role reply EMIT (SOMEIPCLT). Sends a Response/Error datagram
+// (from buildMethodResponse/Error) back to the DUT client that issued the
+// request. Unlike emitMethodRequestAfter (client role, ephemeral source port),
+// a server reply originates from the tester's offered service port
+// `service_src_port` (the port the DUT addressed) and targets `client_dest`,
+// the DUT's client source endpoint captured from its Request. Routes through
+// sendUdpUnicast — the one UDP emit SSOT. Returns 0 on success or the negative
+// sendUdpUnicast sentinel.
+int emitMethodReply(std::string_view iface, const std::vector<std::uint8_t> &reply,
+                    std::uint16_t service_src_port, const MethodEndpoint &client_dest);
 
 // Tester-side Method Request emit envelope mirrored on `BootTiming` so
 // callers can chain `emitFindServiceBoot` → `emitMethodRequestAfter` with
@@ -144,7 +144,7 @@ struct MethodRequestTiming {
 // any failure; no retry-on-failure (cadence is fixed).
 int emitMethodRequestAfter(std::string_view iface, const SomeIpRpcMessage &target,
                            const MethodRequestTiming &timing,
-                           const MethodRequestDestination &dest);
+                           const MethodEndpoint &dest);
 
 // TCP variant of `emitMethodRequestAfter`. Used by §5.1.5.7 RPC_17 to
 // drive multi-instance Method Request/Response over the reliable TCP
@@ -162,7 +162,7 @@ struct MethodRequestTcpDwell {
 
 int emitMethodRequestTcpAfter(std::string_view iface, const SomeIpRpcMessage &target,
                               const MethodRequestTiming &timing,
-                              const MethodRequestDestination &dest,
+                              const MethodEndpoint &dest,
                               const MethodRequestTcpDwell &dwell = {});
 
 // §5.1.6 SOMEIP_ETS_037 helper. Variant of `emitMethodRequestTcpAfter`
@@ -181,7 +181,7 @@ int emitMethodRequestTcpAfter(std::string_view iface, const SomeIpRpcMessage &ta
 // (= TCP_CLOSE_WAIT on the tester's socket) or ignored it per spec
 // (= TCP_ESTABLISHED).
 int emitMethodRequestTcpAndHold(std::string_view iface, const SomeIpRpcMessage &target,
-                                const MethodRequestDestination &dest,
+                                const MethodEndpoint &dest,
                                 std::chrono::milliseconds pre_emit_wait =
                                     std::chrono::milliseconds(500),
                                 std::chrono::milliseconds dwell_after_send =
@@ -207,12 +207,12 @@ int emitMethodRequestTcpAndHold(std::string_view iface, const SomeIpRpcMessage &
 int emitBundledMethodRequestsUdp(std::string_view iface,
                                  const std::vector<SomeIpRpcMessage> &targets,
                                  std::chrono::milliseconds pre_emit_wait,
-                                 const MethodRequestDestination &dest);
+                                 const MethodEndpoint &dest);
 
 int emitBundledMethodRequestsTcp(std::string_view iface,
                                  const std::vector<SomeIpRpcMessage> &targets,
                                  std::chrono::milliseconds pre_emit_wait,
-                                 const MethodRequestDestination &dest,
+                                 const MethodEndpoint &dest,
                                  std::chrono::milliseconds linger =
                                      std::chrono::milliseconds(500));
 
