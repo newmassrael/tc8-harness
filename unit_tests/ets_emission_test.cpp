@@ -138,6 +138,44 @@ TEST(EmissionController, UnknownDueNameIsIgnored) {
     SUCCEED();
 }
 
+// OEM mode (IEtsExtension::ets8001TriggerDriven() == true): 0x8001/TestEventUINT8
+// is registered as a TRIGGERED source. It must stay silent until triggerEventUINT8
+// arms it (via onTrigger(kBasic)), then fire — the contract that makes an OEM's
+// must-NOT-send-0x8001 subscribe cases sound. Uses the real DefaultTriggerPolicy
+// and the kBasic SSOT name, exactly as EtsImpl + dut_main do.
+TEST(EmissionController, BasicTriggerDrivenStaysSilentUntilTriggered) {
+    EmissionController c;
+    std::vector<uint8_t> got;
+    c.addTriggeredSource(std::string(tc8::dut::ets_event::kBasic),
+                         [&](uint8_t v) { got.push_back(v); });
+    const auto t0 = Clock::now();
+    c.step(t0);                                              // no trigger -> silent
+    c.step(t0 + 1s);
+    EXPECT_TRUE(got.empty());
+    c.onTrigger(tc8::dut::ets_event::kBasic, 0s, 0s, 0ms);   // triggerEventUINT8 path
+    c.step(t0 + 1s + 10ms);                                  // armed single shot -> fires once
+    ASSERT_EQ(got.size(), 1u);
+    EXPECT_EQ(got[0], 0);
+}
+
+// Public mode (default): 0x8001 is CYCLIC, yet triggerEventUINT8 still calls
+// onTrigger(kBasic) uniformly. Because kBasic is not a triggered source the arm is
+// a harmless no-op — only the cyclic cadence fires, with no extra/double beat.
+TEST(EmissionController, ArmingTheCyclicBasicNameDoesNotAddBeats) {
+    EmissionController c;
+    std::vector<uint8_t> got;
+    c.addCyclicSource(std::string(tc8::dut::ets_event::kBasic),
+                      [&](uint8_t v) { got.push_back(v); }, 100ms);
+    const auto t0 = Clock::now();
+    c.onTrigger(tc8::dut::ets_event::kBasic, 0s, 0s, 0ms);  // phantom arm (no triggered source)
+    c.step(t0);            // prime cyclic; arm find-miss-skipped
+    c.step(t0 + 100ms);    // cyclic v=0 only
+    c.step(t0 + 200ms);    // cyclic v=1 only
+    ASSERT_EQ(got.size(), 2u);
+    EXPECT_EQ(got[0], 0);
+    EXPECT_EQ(got[1], 1);
+}
+
 TEST(EmissionController, StartStopRunsTickThread) {
     EmissionController c;
     std::atomic<int> fires{0};

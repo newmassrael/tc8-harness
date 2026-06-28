@@ -288,12 +288,13 @@ public:
     void resetInterface(
         const std::shared_ptr<CommonAPI::ClientId> _client) override;
 
-    // OA TC8 v3.0 Table 1 (p413) trigger methods. triggerEventUINT8 (0x8001) is
-    // a documented no-op: 0x8001 is the DUT's free-running cyclic event (the
-    // pre-existing CI cadence the suite relies on), so its trigger is satisfied
-    // by the always-on emission. The other four forward to the EmissionController
-    // via armEvent(). The argument unit conversion (and its assumption) lives in
-    // armEvent, the single wire boundary.
+    // OA TC8 v3.0 Table 1 (p413) trigger methods. All five forward to the
+    // EmissionController via armEvent(). triggerEventUINT8 (0x8001) arms kBasic,
+    // which is a no-op while 0x8001 stays the public free-running cyclic source
+    // (the controller skips a due name with no triggered source) and becomes a
+    // real trigger when an OEM opts 0x8001 into trigger-driven emission via
+    // IEtsExtension::ets8001TriggerDriven(). The argument unit conversion (and its
+    // assumption) lives in armEvent, the single wire boundary.
     void triggerEventUINT8(
         const std::shared_ptr<CommonAPI::ClientId> _client,
         uint32_t _start, uint32_t _duration, uint32_t _debounceTime) override;

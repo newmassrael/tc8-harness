@@ -26,11 +26,17 @@
 // OWNED by the controller (no hidden function-local statics).
 namespace tc8::dut {
 
-// Canonical triggered-source names — the SSOT shared by EtsImpl (which arms a
+// Canonical emission-source names — the SSOT shared by EtsImpl (which arms a
 // source from its triggerEventX Method) and dut_main (which binds each name to
-// the matching CommonAPI fireTestEventXEvent). One per OA TC8 v3.0 Table 2
-// trigger-driven event.
+// the matching CommonAPI fireTestEventXEvent). kArray/kReliable/kE2E/kMulticast
+// are the OA TC8 v3.0 Table 2 trigger-driven events. kBasic (0x8001) is CYCLIC
+// in the public DUT but is registered as a triggered source when an OEM opts in
+// via IEtsExtension::ets8001TriggerDriven(); naming it here lets
+// EtsImpl::triggerEventUINT8 arm it through the same path as the other four (a
+// no-op while it stays cyclic, since the controller skips a due name that has no
+// triggered source).
 namespace ets_event {
+inline constexpr std::string_view kBasic     = "TestEventUINT8";
 inline constexpr std::string_view kArray     = "TestEventUINT8Array";
 inline constexpr std::string_view kReliable  = "TestEventUINT8Reliable";
 inline constexpr std::string_view kE2E       = "TestEventUINT8E2E";

@@ -70,18 +70,30 @@ int main() {
     // changes from its default-constructed 0.
     impl->setTestFieldUINT8Attribute(static_cast<uint8_t>(0x42));
 
+    // OEM extend seam (O2): no-op in the public DUT. An OEM TU (selected via
+    // TC8_ETS_EXTENSION_SRC) offers its NDA event surface via raw vsomeip and may
+    // opt 0x8001 into trigger-driven emission. Created before the emission engine
+    // because the 0x8001 source kind is chosen from ets8001TriggerDriven().
+    std::unique_ptr<tc8::dut::IEtsExtension> ets_extension = tc8::dut::createEtsExtension();
+
     // Single emission engine (one producer per event). 0x8001/TestEventUINT8 is
-    // a CYCLIC source — the DUT's pre-existing unconditional 250 ms cadence the
-    // §5.1.5 suite relies on. The four new events are TRIGGERED — they fire only
-    // after their triggerEventX Method, so must-NOT-send cases hold. start() is
-    // deferred until after the optional SI2 source is added; stop() runs before
-    // _Exit (which skips dtors). The per-source payload counter is owned by the
-    // controller and passed into each closure (no hidden statics).
+    // CYCLIC by default — the DUT's pre-existing unconditional 250 ms cadence the
+    // §5.1.5 suite relies on — unless the OEM extension opts it into a TRIGGERED
+    // source (armed by triggerEventUINT8), letting its must-NOT-send-0x8001 cases
+    // hold. The four new events are always TRIGGERED — they fire only after their
+    // triggerEventX Method, so must-NOT-send cases hold. start() is deferred until
+    // after the optional SI2 source is added; stop() runs before _Exit (which
+    // skips dtors). The per-source payload counter is owned by the controller and
+    // passed into each closure (no hidden statics).
     tc8::dut::EmissionController emission;
     impl->setEmissionController(&emission);
-    emission.addCyclicSource("TestEventUINT8",
-                             [impl](uint8_t v) { impl->fireTestEventUINT8Event(v); },
-                             std::chrono::milliseconds(250));
+    auto fireBasic = [impl](uint8_t v) { impl->fireTestEventUINT8Event(v); };
+    if (ets_extension->ets8001TriggerDriven()) {
+        emission.addTriggeredSource(std::string(tc8::dut::ets_event::kBasic), fireBasic);
+    } else {
+        emission.addCyclicSource(std::string(tc8::dut::ets_event::kBasic), fireBasic,
+                                 std::chrono::milliseconds(250));
+    }
     emission.addTriggeredSource(std::string(tc8::dut::ets_event::kArray),
                                 [impl](uint8_t v) { impl->fireTestEventUINT8ArrayEvent({v, v, v}); });
     emission.addTriggeredSource(std::string(tc8::dut::ets_event::kReliable),
@@ -91,9 +103,9 @@ int main() {
     emission.addTriggeredSource(std::string(tc8::dut::ets_event::kMulticast),
                                 [impl](uint8_t v) { impl->fireTestEventUINT8MulticastEvent(v); });
 
-    // OEM extend seam (O2): no-op in the public DUT. An OEM TU (selected via
-    // TC8_ETS_EXTENSION_SRC) offers its NDA event surface via raw vsomeip here.
-    std::unique_ptr<tc8::dut::IEtsExtension> ets_extension = tc8::dut::createEtsExtension();
+    // Now that the service is offered, let the OEM extension (O2) emit its NDA
+    // event surface via raw vsomeip. Created above (its ets8001TriggerDriven()
+    // already chose the 0x8001 source kind).
     ets_extension->onRegister();
 
     // §5.1.6 SOMEIP_ETS_089 — bind suspendInterface override to a

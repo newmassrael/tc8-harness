@@ -15,7 +15,8 @@ namespace tc8::dut {
 //
 // Only hooks with a real call site exist (no speculative methods): onRegister
 // (after the service is offered), onTick (each DUT main-loop pass), onStop
-// (shutdown). A subscribe hook is intentionally absent until the DUT has a
+// (shutdown), ets8001TriggerDriven (queried once before the 0x8001 source is
+// registered). A subscribe hook is intentionally absent until the DUT has a
 // subscription call site to drive it.
 class IEtsExtension {
 public:
@@ -23,6 +24,15 @@ public:
     virtual void onRegister() {}
     virtual void onTick() {}
     virtual void onStop() {}
+
+    // Whether the OEM build wants TestEventUINT8 (0x8001) to be TRIGGER-driven
+    // (armed by triggerEventUINT8, method 0x03) instead of the public default of
+    // a free-running 250 ms cyclic source. Default false keeps the public ETS
+    // cadence (ETS_086 / ETS_147-151) byte-identical; an OEM DUT whose spec
+    // requires 0x8001 only on trigger returns true so its must-NOT-send-0x8001
+    // subscribe cases hold. dut_main queries this once, before it registers the
+    // 0x8001 emission source, and chooses cyclic vs triggered accordingly.
+    virtual bool ets8001TriggerDriven() const { return false; }
 };
 
 // Default returns a no-op extension; selected via TC8_ETS_EXTENSION_SRC.

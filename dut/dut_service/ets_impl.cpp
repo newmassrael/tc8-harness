@@ -412,13 +412,18 @@ void EtsImpl::armEvent(std::string_view source, uint32_t start,
     }
 }
 
-// OA TC8 v3.0 Table 1 (p413) trigger methods. triggerEventUINT8 (0x8001) is a
-// no-op: 0x8001 is the free-running cyclic event (the DUT's pre-existing CI
-// cadence), so the trigger is satisfied by the always-on emission. The other
-// four arm their trigger-gated source via armEvent().
+// OA TC8 v3.0 Table 1 (p413) trigger methods — each arms its source via
+// armEvent(). In the public DUT 0x8001/TestEventUINT8 is the free-running cyclic
+// source, so arming kBasic is a harmless no-op (the controller skips a due name
+// that has no triggered source) and the always-on cadence satisfies the trigger.
+// When an OEM opts into a trigger-driven 0x8001
+// (IEtsExtension::ets8001TriggerDriven()), kBasic is a triggered source and the
+// same arm makes it fire — one uniform trigger path for all five events.
 void EtsImpl::triggerEventUINT8(
     const std::shared_ptr<CommonAPI::ClientId> /*_client*/,
-    uint32_t /*_start*/, uint32_t /*_duration*/, uint32_t /*_debounceTime*/) {}
+    uint32_t _start, uint32_t _duration, uint32_t _debounceTime) {
+    armEvent(ets_event::kBasic, _start, _duration, _debounceTime);
+}
 
 void EtsImpl::triggerEventUINT8Array(
     const std::shared_ptr<CommonAPI::ClientId> /*_client*/,
