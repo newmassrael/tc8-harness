@@ -1,12 +1,16 @@
-// Unit test of the DEMO extension's use of the IEtsEventSink seam, against a
-// FAKE sink that records the facade calls — no vsomeip application, no running
-// DUT. SCOPE (honest): this verifies the demo extension drives the interface
-// correctly (offers an event, registers a trigger method, the trigger notifies).
-// It does NOT verify the production VsomeipEtsEventSink's vsomeip mapping
-// (offer_event / create_payload / register_message_handler); that adapter is
-// covered only by compilation (the tc8-dut build) plus the tester<->DUT topology
-// run — EXCEPT its one fallible inbound-marshaling step, payloadBytes(), which is
-// extracted and unit-tested directly below.
+// Unit test of the DEMO extension's use of the IEtsEventSink (server) and
+// IEtsClientControl (client) seams, against FAKES that record the facade calls —
+// no vsomeip application, no running DUT. SCOPE (honest): this verifies the demo
+// extension drives the interfaces correctly — server: offers an event, registers
+// a trigger method, the trigger notifies; client: subscribes/stops on a method,
+// calls a remote method, captures the response, and replies to a readback via the
+// reply-capable onRequest. It does NOT verify the production VsomeipEtsEventSink /
+// VsomeipEtsClientControl vsomeip mapping (request_service / subscribe /
+// create_request / create_response / register_message_handler); those adapters
+// are covered only by compilation (the tc8-dut build), the boot-check's
+// application-resolution assertion, and the tester<->DUT topology run — EXCEPT the
+// one fallible inbound-marshaling step, payloadBytes(), which is extracted and
+// unit-tested directly below.
 
 #include <cstddef>
 #include <cstdint>
@@ -20,6 +24,7 @@
 #include "ets_client_control.h"
 #include "ets_event_sink.h"
 #include "ets_extension.h"
+#include "ets_payload.h"  // payloadBytes (vsomeip-free SSOT, exercised below)
 
 namespace {
 
@@ -83,9 +88,12 @@ public:
     // noinline so GCC analyses this with the generic `const vector&` (unknown
     // size) instead of constant-propagating the size-1 events list inlined from
     // the demo lambda — that full-inlining is what trips a GCC 13
-    // -Wstringop-overflow false positive on the vector-growth memmove. The code
-    // is correct; this just denies the optimizer the constant that confuses it.
-#if defined(__GNUC__)
+    // -Wstringop-overflow false positive on the vector-growth memmove (a known
+    // IPA-CP artifact; a #pragma at the call site does NOT suppress mid-end
+    // warnings). The code is correct; this just denies the optimizer the constant
+    // that confuses it. Scoped to GCC only (Clang defines __GNUC__ but has no such
+    // FP) and capped at GCC 13 so it self-retires when the toolchain advances.
+#if defined(__GNUC__) && !defined(__clang__) && __GNUC__ <= 13
     [[gnu::noinline]]
 #endif
     void subscribeEventgroup(std::uint16_t service, std::uint16_t instance,
@@ -169,7 +177,7 @@ TEST(DemoEtsExtension, TriggerMethodNotifiesEventWithRequestPayload) {
 TEST(DemoEtsExtension, DefaultHooksAreNoOps) {
     // onTick emits nothing on its own (the demo event is trigger-driven, not
     // cyclic); onStop emits no event. With no client control handed here, onStop
-    // also drives no subscribe-stop (that path is covered above).
+    // also drives no subscribe-stop (that path is covered separately, below).
     FakeEtsEventSink sink;
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(sink);

@@ -1,10 +1,8 @@
 #pragma once
 
-#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
-#include <string>
 #include <vector>
 
 namespace tc8::dut {
@@ -74,17 +72,5 @@ public:
 // ets_event_sink.cpp.
 std::unique_ptr<IEtsEventSink> makeEtsEventSink(std::uint16_t service,
                                                 std::uint16_t instance);
-
-// Copy `len` bytes at `data` into a vector, null-safe: returns an empty vector if
-// `data` is null OR `len` is 0. The one fallible piece of inbound marshaling in
-// VsomeipEtsEventSink::onMethod, kept here as an inline (vsomeip-free) function so
-// it is unit-testable without a live vsomeip message (demo_ets_extension_test.cpp)
-// and reused by the message-handler closure (ets_event_sink.cpp).
-inline std::vector<std::uint8_t> payloadBytes(const std::uint8_t* data, std::size_t len) {
-    if (data == nullptr || len == 0) {
-        return {};
-    }
-    return std::vector<std::uint8_t>(data, data + len);
-}
 
 }  // namespace tc8::dut

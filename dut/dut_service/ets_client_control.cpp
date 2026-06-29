@@ -6,10 +6,9 @@
 #include <utility>
 #include <vector>
 
-#include <CommonAPI/CommonAPI.hpp>
 #include <vsomeip/vsomeip.hpp>
 
-#include "ets_event_sink.h"  // payloadBytes — the shared inbound-marshaling SSOT
+#include "ets_vsomeip_app.h"  // acquireCommonApiApplication, messageBytes (SSOT)
 
 namespace tc8::dut {
 namespace {
@@ -52,6 +51,16 @@ public:
                              const std::vector<std::uint16_t>& events, bool reliable,
                              std::uint8_t major) override {
         if (!app_) return;
+        if (events.empty()) {
+            // Precondition guard: with no requested event the eventgroup is never
+            // registered, so vsomeip's discovery emits NO SubscribeEventgroup SD
+            // entry — a silent no-op that would strand the verdict. Fail loud.
+            std::fprintf(stderr,
+                         "tc8-dut: ETS client control - subscribeEventgroup(eg=0x%04X) "
+                         "with no events; no SubscribeEventgroup entry will be sent\n",
+                         eventgroup);
+            return;
+        }
         const auto reliability = reliable ? vsomeip::reliability_type_e::RT_RELIABLE
                                           : vsomeip::reliability_type_e::RT_UNRELIABLE;
         const std::set<vsomeip::eventgroup_t> egs{eventgroup};
@@ -114,10 +123,8 @@ public:
                     type != vsomeip::message_type_e::MT_ERROR) {
                     return;  // only client-side responses/errors are the reaction
                 }
-                const auto pl = msg->get_payload();
                 handler(static_cast<std::uint8_t>(msg->get_return_code()),
-                        payloadBytes(pl ? pl->get_data() : nullptr,
-                                     pl ? pl->get_length() : 0));
+                        messageBytes(msg));
             });
     }
 
@@ -180,16 +187,11 @@ public:
 }  // namespace
 
 std::unique_ptr<IEtsClientControl> makeEtsClientControl() {
-    // Same application-keying contract as makeEtsEventSink: CommonAPI's default
-    // connection creates the vsomeip application under CommonAPI::DEFAULT_CONNECTION_ID
-    // (the empty string), which keys vsomeip's application map — NOT the display
-    // name. Retrieve it by the connection id so the client surface shares the
-    // CommonAPI service's one routing client.
-    auto app = vsomeip::runtime::get()->get_application(CommonAPI::DEFAULT_CONNECTION_ID);
+    // Shared application-keying contract (see acquireCommonApiApplication) — the
+    // client surface rides the CommonAPI service's one routing client. The stderr
+    // line on a miss preserves "OEM client surface disabled" for the boot-check.
+    auto app = acquireCommonApiApplication("client control", "client surface");
     if (!app) {
-        std::fprintf(stderr,
-                     "tc8-dut: ETS client control - CommonAPI vsomeip application "
-                     "(default connection) not found; OEM client surface disabled\n");
         return std::make_unique<NullEtsClientControl>();
     }
     return std::make_unique<VsomeipEtsClientControl>(std::move(app));

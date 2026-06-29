@@ -1,11 +1,12 @@
 #include "ets_event_sink.h"
 
-#include <cstdio>
+#include <memory>
 #include <set>
 #include <utility>
 
-#include <CommonAPI/CommonAPI.hpp>
 #include <vsomeip/vsomeip.hpp>
+
+#include "ets_vsomeip_app.h"  // acquireCommonApiApplication, messageBytes (SSOT)
 
 namespace tc8::dut {
 namespace {
@@ -60,9 +61,7 @@ public:
         app_->register_message_handler(
             service_, instance_, method_id,
             [handler = std::move(handler)](const std::shared_ptr<vsomeip::message>& msg) {
-                const auto pl = msg ? msg->get_payload() : nullptr;
-                handler(payloadBytes(pl ? pl->get_data() : nullptr,
-                                     pl ? pl->get_length() : 0));
+                handler(messageBytes(msg));
             });
     }
 
@@ -71,16 +70,20 @@ public:
         std::function<std::vector<std::uint8_t>(const std::vector<std::uint8_t>&)> handler)
         override {
         registered_methods_.push_back(method_id);
-        // Capture a copy of the application shared_ptr (not `this`) so the handler
-        // can send the response without depending on this sink's lifetime.
-        auto app = app_;
+        // Capture a WEAK ref to the application (not a strong shared_ptr, and not
+        // `this`): the handler is stored INSIDE the application's handler registry,
+        // so a strong capture would form an application->handler->application cycle
+        // that nothing breaks under std::_Exit. The runtime itself holds the app by
+        // weak_ptr for the same reason; mirror it and lock() per call.
+        std::weak_ptr<vsomeip::application> weak_app = app_;
         app_->register_message_handler(
             service_, instance_, method_id,
-            [app, handler = std::move(handler)](const std::shared_ptr<vsomeip::message>& msg) {
+            [weak_app, handler = std::move(handler)](
+                const std::shared_ptr<vsomeip::message>& msg) {
                 if (!msg) return;
-                const auto pl = msg->get_payload();
-                auto out = handler(payloadBytes(pl ? pl->get_data() : nullptr,
-                                                pl ? pl->get_length() : 0));
+                auto app = weak_app.lock();
+                if (!app) return;
+                auto out = handler(messageBytes(msg));
                 auto response = vsomeip::runtime::get()->create_response(msg);
                 response->set_payload(vsomeip::runtime::get()->create_payload(out));
                 app->send(response);
@@ -113,21 +116,11 @@ public:
 
 std::unique_ptr<IEtsEventSink> makeEtsEventSink(std::uint16_t service,
                                                 std::uint16_t instance) {
-    // CommonAPI's default connection — the one registerService(domain, instance,
-    // stub) uses — creates its vsomeip application via create_application() with
-    // CommonAPI::DEFAULT_CONNECTION_ID (the empty string), and vsomeip keys its
-    // application map by that create-time id. So the application the CommonAPI ETS
-    // service owns lives under DEFAULT_CONNECTION_ID, NOT under its display name
-    // (which resolves from VSOMEIP_APPLICATION_NAME and never keys the map).
-    // Retrieve it by the connection id; looking it up by display name was the
-    // original bug that left the event surface silently disabled. Referencing the
-    // CommonAPI symbol (not a bare "") keeps this in step if CommonAPI ever
-    // changes its default connection id.
-    auto app = vsomeip::runtime::get()->get_application(CommonAPI::DEFAULT_CONNECTION_ID);
+    // Shared application-keying contract (see acquireCommonApiApplication). The
+    // stderr line on a miss preserves "OEM event surface disabled" — the string
+    // the boot-check greps for.
+    auto app = acquireCommonApiApplication("event sink", "event surface");
     if (!app) {
-        std::fprintf(stderr,
-                     "tc8-dut: ETS event sink - CommonAPI vsomeip application "
-                     "(default connection) not found; OEM event surface disabled\n");
         return std::make_unique<NullEtsEventSink>();
     }
     return std::make_unique<VsomeipEtsEventSink>(std::move(app), service, instance);

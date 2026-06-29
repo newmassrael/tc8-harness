@@ -42,7 +42,9 @@ public:
     // ids and `reliable` selects their transport (true => TCP/RT_RELIABLE, false
     // => UDP/RT_UNRELIABLE). request_service is implied (called internally).
     // vsomeip then emits a SubscribeEventgroup SD entry once the service is
-    // found.
+    // found. PRECONDITION: `events` MUST be non-empty — with no registered event
+    // vsomeip's discovery sends NO SubscribeEventgroup entry (the implementation
+    // guards this and logs rather than silently no-op).
     //
     // The wire TTL is governed by vsomeip configuration, NOT this call — vsomeip
     // subscribe() carries no TTL argument. A duration-bounded subscription is

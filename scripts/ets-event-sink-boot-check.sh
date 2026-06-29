@@ -37,6 +37,11 @@ if grep -q "OEM event surface disabled" "$log"; then
     echo "      (regression in makeEtsEventSink / CommonAPI app keying)" >&2
     exit 1
 fi
+if grep -q "OEM client surface disabled" "$log"; then
+    echo "FAIL: ETS client-control could not resolve the CommonAPI application" >&2
+    echo "      (regression in makeEtsClientControl / CommonAPI app keying)" >&2
+    exit 1
+fi
 
-echo "PASS: ETS event-sink resolved the CommonAPI application"
+echo "PASS: ETS event-sink and client-control resolved the CommonAPI application"
 exit 0
