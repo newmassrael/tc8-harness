@@ -690,6 +690,11 @@ target_include_directories(tc8-harness PRIVATE
 )
 target_link_libraries(tc8-harness PRIVATE
     tc8_someiptp
+    # tc8_e2e (AUTOSAR E2E Profile 5/11 checker engine) is linked so out-of-tree
+    # cases injected via TC8_EXTRA_CASE_DIRS can resolve tc8::e2e::Profile*Checker
+    # for E2E verdicts. No in-tree consumer references it, so the static archive
+    # contributes no objects to the base binary (nothing to dead-strip differently).
+    tc8_e2e
     vsomeip3
     CommonAPI
     CommonAPI-SomeIP
