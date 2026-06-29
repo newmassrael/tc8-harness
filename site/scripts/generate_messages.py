@@ -1189,7 +1189,9 @@ def _packet_view(packet: dict) -> dict:
         # Decoder names some SD entry fields differently from the
         # C++ ``SomeIpSdEntry`` struct the SCXML conds reference. Mirror
         # them under the cond-expected names so ``sd_entries[0].index_first``
-        # / ``num_opt1`` / ``num_opt2`` resolve concrete.
+        # / ``num_opt1`` / ``num_opt2`` resolve concrete. These names hand-mirror
+        # the C++ SdEntry fields (src/sce_integration/someip_captured.h); keep in
+        # sync — see docs/tech-debt.md TD-01.
         for e in sd_entries:
             if not isinstance(e, dict):
                 continue

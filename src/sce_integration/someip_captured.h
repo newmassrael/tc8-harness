@@ -604,6 +604,9 @@ inline std::uint8_t peekSdEntry0Type(const std::uint8_t *payload, std::size_t pa
 // Decode one 16-byte SD entry at `src` into `dst`. Both Type 1 and Type 2
 // tail interpretations are filled so guards can pick the matching view
 // without re-decoding the raw bytes.
+// NOTE: this wire layout is hand-mirrored by the site tooling
+// (site/scripts/decode_pcap.py + generate_messages.py) — keep all three in sync;
+// see docs/tech-debt.md TD-01.
 inline void decodeSdEntry(SdEntry &dst, const std::uint8_t *src) {
     dst.type = src[0];
     dst.index_first = src[1];

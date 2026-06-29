@@ -534,7 +534,12 @@ def _dissect_someip(payload: bytes, p: Packet) -> None:
 
 
 def _dissect_sd_payload(payload: bytes, p: Packet, base_fields: dict) -> None:
-    """Parse SD entries + options after the 16 B SOME/IP header."""
+    """Parse SD entries + options after the 16 B SOME/IP header.
+
+    NOTE: this wire decode hand-mirrors the C++ authoritative decoder
+    (src/sce_integration/someip_captured.h decodeSdEntry); keep them in sync —
+    see docs/tech-debt.md TD-01.
+    """
     if len(payload) < 8:
         p.summary = "SOME/IP-SD (truncated)"
         return
