@@ -21,10 +21,12 @@
 
 namespace tc8::dut {
 
-// vsomeip application name — the single name CommonAPI registers the DUT's
-// vsomeip application under, used to retrieve that same application by name (no
-// second routing client). Matches vsomeip.json `applications[].name` and the
-// VSOMEIP_APPLICATION_NAME launch env.
+// vsomeip application DISPLAY name — matches vsomeip.json `applications[].name`
+// and the VSOMEIP_APPLICATION_NAME launch env. NOTE: this name does NOT key the
+// vsomeip runtime application map. CommonAPI registers the DUT's app under its
+// default *connection id* (the empty string), which is how the ETS event-sink
+// retrieves the shared application (see dut_service/ets_event_sink.h) — never by
+// this display name.
 inline constexpr const char* kApplicationName = "tc8-dut";
 
 // SOME/IP service identity.

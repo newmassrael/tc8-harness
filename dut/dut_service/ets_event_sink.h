@@ -16,8 +16,9 @@ namespace tc8::dut {
 // service already uses, so there is NO second vsomeip application (no coexisting
 // routing client) and NO copy of the public fidl. Kept vsomeip-free so an OEM TU
 // includes only this header; the concrete sink wraps the real
-// vsomeip::application (ets_event_sink.cpp), obtained by name. The public default
-// extension never uses it. See claudedocs/ets-dut-public-completion-and-oem-seam-design.md.
+// vsomeip::application (ets_event_sink.cpp), obtained by the CommonAPI connection
+// id. The public default extension never uses it.
+// See claudedocs/ets-dut-public-completion-and-oem-seam-design.md.
 class IEtsEventSink {
 public:
     virtual ~IEtsEventSink() = default;
@@ -46,13 +47,13 @@ public:
 // Build a vsomeip-backed IEtsEventSink over the CommonAPI ETS service's OWN
 // vsomeip application, so the extension shares the one routing client (no second
 // vsomeip application). The application is retrieved from the runtime by the
-// CommonAPI connection id, NOT by display name: registerService uses CommonAPI's
-// default connection, whose id is the empty string, so vsomeip keys the app under
-// "" (its display name resolving from VSOMEIP_APPLICATION_NAME is a separate
-// concern that never keys the map). `app_name` is only a fallback for a
-// non-default named connection. Events and method handlers are scoped to
-// `service`/`instance`. Call only AFTER the CommonAPI service is registered (that
-// synchronously creates the application).
+// CommonAPI connection id (CommonAPI::DEFAULT_CONNECTION_ID, the empty string),
+// because registerService uses CommonAPI's default connection and vsomeip keys
+// its application map by that create-time id. The app's display name (from
+// VSOMEIP_APPLICATION_NAME / kApplicationName) never keys the map, so it must NOT
+// be used to retrieve the application — that was the original bug. Events and
+// method handlers are scoped to `service`/`instance`. Call only AFTER the
+// CommonAPI service is registered (that synchronously creates the application).
 //
 // If the application is not found, returns a no-op sink and logs to stderr — the
 // public DUT, whose default extension never uses the sink, is unaffected. Never
@@ -60,8 +61,7 @@ public:
 //
 // This header stays vsomeip-free; the wrapping of vsomeip::application lives in
 // ets_event_sink.cpp.
-std::unique_ptr<IEtsEventSink> makeEtsEventSink(const std::string& app_name,
-                                                std::uint16_t service,
+std::unique_ptr<IEtsEventSink> makeEtsEventSink(std::uint16_t service,
                                                 std::uint16_t instance);
 
 // Copy `len` bytes at `data` into a vector, null-safe: returns an empty vector if

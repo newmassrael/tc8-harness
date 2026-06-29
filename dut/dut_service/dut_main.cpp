@@ -74,17 +74,13 @@ int main() {
 
     // OEM event sink (O2): the CommonAPI service's OWN vsomeip application, so the
     // extension shares one routing client (no second app). makeEtsEventSink
-    // retrieves it by CommonAPI's default connection id (empty string) — see its
-    // header; the name below is only the non-default-connection fallback, sourced
-    // from VSOMEIP_APPLICATION_NAME with tc8::dut::kApplicationName as the bare-run
-    // default. Declared before the extension so it outlives it; the
-    // sink also unregisters its vsomeip handlers on destruction, so a captured
-    // reference cannot dangle on a graceful shutdown (today the DUT std::_Exit()s
-    // at the end of main, which skips both dtors — see the exit comment below).
-    const char* app_name = std::getenv("VSOMEIP_APPLICATION_NAME");
-    std::unique_ptr<tc8::dut::IEtsEventSink> ets_sink = tc8::dut::makeEtsEventSink(
-        app_name != nullptr ? app_name : tc8::dut::kApplicationName,
-        tc8::dut::kServiceId, tc8::dut::kInstanceId);
+    // retrieves it by CommonAPI's default connection id — see its header. Declared
+    // before the extension so it outlives it; the sink also unregisters its vsomeip
+    // handlers on destruction, so a captured reference cannot dangle on a graceful
+    // shutdown (today the DUT std::_Exit()s at the end of main, which skips both
+    // dtors — see the exit comment below).
+    std::unique_ptr<tc8::dut::IEtsEventSink> ets_sink =
+        tc8::dut::makeEtsEventSink(tc8::dut::kServiceId, tc8::dut::kInstanceId);
 
     // OEM extend seam (O2): no-op in the public DUT. An OEM TU (selected via
     // TC8_ETS_EXTENSION_SRC) offers its NDA event surface on the sink above and

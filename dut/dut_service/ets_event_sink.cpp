@@ -4,6 +4,7 @@
 #include <set>
 #include <utility>
 
+#include <CommonAPI/CommonAPI.hpp>
 #include <vsomeip/vsomeip.hpp>
 
 namespace tc8::dut {
@@ -11,8 +12,9 @@ namespace {
 
 // IEtsEventSink over a live vsomeip::application, scoped to one service/instance.
 // offer_event / notify / register_message_handler all run on the SAME application
-// the CommonAPI ETS service uses (obtained by name in makeEtsEventSink), so the
-// OEM event surface adds to the existing offer with no second routing client.
+// the CommonAPI ETS service uses (obtained by CommonAPI connection id in
+// makeEtsEventSink), so the OEM event surface adds to the existing offer with no
+// second routing client.
 class VsomeipEtsEventSink : public IEtsEventSink {
 public:
     VsomeipEtsEventSink(std::shared_ptr<vsomeip::application> app,
@@ -85,34 +87,23 @@ public:
 
 }  // namespace
 
-std::unique_ptr<IEtsEventSink> makeEtsEventSink(const std::string& app_name,
-                                                std::uint16_t service,
+std::unique_ptr<IEtsEventSink> makeEtsEventSink(std::uint16_t service,
                                                 std::uint16_t instance) {
-    auto rt = vsomeip::runtime::get();
-
     // CommonAPI's default connection — the one registerService(domain, instance,
-    // stub) uses — creates its vsomeip application via create_application("")
-    // because CommonAPI's DEFAULT_CONNECTION_ID is the empty string. vsomeip keys
-    // its application map by the name PASSED to create_application, so the app
-    // lives under "" even though its DISPLAY name resolves from
-    // VSOMEIP_APPLICATION_NAME (e.g. "tc8-dut"). Retrieve it by the connection id,
-    // NOT the display name: get_application("tc8-dut") never matches that key, so
-    // the previous name-based lookup always missed and the event surface was
-    // silently disabled.
-    auto app = rt->get_application(std::string());
-
-    // Fallback for a non-default CommonAPI connection, which keys the map by its
-    // own connection id; if that id equals the application name, this recovers it.
-    if (!app && !app_name.empty()) {
-        app = rt->get_application(app_name);
-    }
-
+    // stub) uses — creates its vsomeip application via create_application() with
+    // CommonAPI::DEFAULT_CONNECTION_ID (the empty string), and vsomeip keys its
+    // application map by that create-time id. So the application the CommonAPI ETS
+    // service owns lives under DEFAULT_CONNECTION_ID, NOT under its display name
+    // (which resolves from VSOMEIP_APPLICATION_NAME and never keys the map).
+    // Retrieve it by the connection id; looking it up by display name was the
+    // original bug that left the event surface silently disabled. Referencing the
+    // CommonAPI symbol (not a bare "") keeps this in step if CommonAPI ever
+    // changes its default connection id.
+    auto app = vsomeip::runtime::get()->get_application(CommonAPI::DEFAULT_CONNECTION_ID);
     if (!app) {
         std::fprintf(stderr,
                      "tc8-dut: ETS event sink - CommonAPI vsomeip application "
-                     "(default connection \"\", fallback '%s') not found; "
-                     "OEM event surface disabled\n",
-                     app_name.c_str());
+                     "(default connection) not found; OEM event surface disabled\n");
         return std::make_unique<NullEtsEventSink>();
     }
     return std::make_unique<VsomeipEtsEventSink>(std::move(app), service, instance);
