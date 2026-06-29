@@ -284,3 +284,16 @@ target_sources(demo_ets_extension_test PRIVATE
 target_include_directories(demo_ets_extension_test PRIVATE
     ${PROJECT_SOURCE_DIR}/dut/dut_service
     ${PROJECT_SOURCE_DIR}/examples/demo_ets_extension)
+
+# Boot-time regression guard for the PRODUCTION ETS event-sink (makeEtsEventSink).
+# The demo test above drives the seam logic with a fake sink (vsomeip-free), but
+# cannot prove the real VsomeipEtsEventSink retrieves the CommonAPI-owned vsomeip
+# application — the part that silently broke. This boots the real tc8-dut and
+# asserts it resolved that application (no "OEM event surface disabled"), pinning
+# the CommonAPI/vsomeip application-keying contract makeEtsEventSink relies on.
+# Gated on the real DUT target (present only when CommonAPI/vsomeip are found).
+if(TARGET tc8-dut)
+    add_test(NAME ets_event_sink_boot
+        COMMAND ${PROJECT_SOURCE_DIR}/scripts/ets-event-sink-boot-check.sh
+                $<TARGET_FILE:tc8-dut>)
+endif()
