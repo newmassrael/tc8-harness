@@ -11,6 +11,7 @@
 #include "sce_integration/test_runner.h"
 #include "stimulus/someip_rpc_builder.h"
 #include "stimulus/someip_sd_builder.h"
+#include "stimulus/tcp_server.h"
 
 #include "someip_ets_097_sm.h"
 

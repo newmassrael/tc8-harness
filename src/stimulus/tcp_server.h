@@ -21,6 +21,23 @@ namespace tc8::stimulus {
 // the server-role builders (buildMethodResponse / buildEventNotification /
 // packSomeIpMessages) which produce the bytes sent over a connection.
 
+// Open a TCP listener bound to `iface`'s IPv4 + `port`. SO_REUSEADDR is set so
+// successive cases on the same port skip TIME_WAIT recycling. Returns the
+// listening fd on success (caller closes), or a negative errno-derived sentinel
+// on failure. This is the bind+listen SSOT the `TcpServer` ctor builds on; a
+// case may also call it directly for the §5.1.6 SOMEIP_ETS_097 "refuse then
+// accept" shape, where the absence of a listener makes the kernel emit RST on
+// any SYN to the closed port (ECONNREFUSED on the DUT side, no active tester
+// action) and constructing the listener partway through flips refuse -> accept.
+int openTcpListener(std::string_view iface, std::uint16_t port);
+
+// accept() with a poll-driven timeout. Returns 1 if an inbound connection was
+// accepted (the accepted fd is immediately closed; ETS_097 only needs the
+// wire-side handshake completion), 0 if the timeout elapsed without an accept,
+// or a negative errno-derived sentinel on failure. The listener fd is left open
+// so the caller can chain accept calls / close on its own timing.
+int acceptTcpOnce(int listen_fd, std::chrono::milliseconds timeout);
+
 // One accepted DUT->tester TCP connection. RAII: owns the accepted fd and closes
 // it (sending the tester's FIN) on destruction. Move-only.
 class TcpConnection {

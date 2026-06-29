@@ -10,7 +10,7 @@
 #include <cstdio>
 #include <cstring>
 
-#include "stimulus/someip_rpc_builder.h"  // openTcpListener — the bind+listen SSOT.
+#include "stimulus/iface_addr.h"  // ipv4OfInterface — the bind address for the listener.
 
 namespace tc8::stimulus {
 
@@ -225,6 +225,81 @@ std::optional<TcpConnection> TcpServer::acceptOne(std::chrono::milliseconds time
     ep.ipv4_be = peer.sin_addr.s_addr;
     ep.port = ntohs(peer.sin_port);
     return TcpConnection{conn_fd, ep};
+}
+
+// --- bind+listen / accept primitives (the SSOT TcpServer is built on) ---
+
+int openTcpListener(std::string_view iface, std::uint16_t port) {
+    const int sock = ::socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) {
+        std::fprintf(stderr, "stimulus: tcp listen socket() failed: %s\n",
+                     std::strerror(errno));
+        return -1;
+    }
+
+    const int reuse = 1;
+    if (::setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
+        std::fprintf(stderr, "stimulus: tcp listen SO_REUSEADDR failed: %s\n",
+                     std::strerror(errno));
+        ::close(sock);
+        return -2;
+    }
+
+    const std::uint32_t if_addr = ipv4OfInterface(iface);
+    if (if_addr == 0) {
+        std::fprintf(stderr,
+                     "stimulus: interface '%.*s' has no IPv4 address — "
+                     "cannot bind tcp listener\n",
+                     static_cast<int>(iface.size()), iface.data());
+        ::close(sock);
+        return -3;
+    }
+
+    sockaddr_in addr{};
+    addr.sin_family      = AF_INET;
+    addr.sin_addr.s_addr = if_addr;
+    addr.sin_port        = htons(port);
+    if (::bind(sock, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) < 0) {
+        std::fprintf(stderr, "stimulus: tcp listen bind(%u) failed: %s\n",
+                     port, std::strerror(errno));
+        ::close(sock);
+        return -4;
+    }
+    if (::listen(sock, 1) < 0) {
+        std::fprintf(stderr, "stimulus: tcp listen(%u) failed: %s\n",
+                     port, std::strerror(errno));
+        ::close(sock);
+        return -5;
+    }
+    return sock;
+}
+
+int acceptTcpOnce(int listen_fd, std::chrono::milliseconds timeout) {
+    if (listen_fd < 0) {
+        return -1;
+    }
+    pollfd pfd{};
+    pfd.fd     = listen_fd;
+    pfd.events = POLLIN;
+    const int rc = ::poll(&pfd, 1, static_cast<int>(timeout.count()));
+    if (rc < 0) {
+        std::fprintf(stderr, "stimulus: tcp accept poll failed: %s\n",
+                     std::strerror(errno));
+        return -2;
+    }
+    if (rc == 0) {
+        return 0;  // Timed out — no inbound connection.
+    }
+    sockaddr_in peer{};
+    socklen_t   peer_len = sizeof(peer);
+    const int   accepted = ::accept(listen_fd, reinterpret_cast<sockaddr *>(&peer), &peer_len);
+    if (accepted < 0) {
+        std::fprintf(stderr, "stimulus: tcp accept failed: %s\n",
+                     std::strerror(errno));
+        return -3;
+    }
+    ::close(accepted);
+    return 1;
 }
 
 }  // namespace tc8::stimulus

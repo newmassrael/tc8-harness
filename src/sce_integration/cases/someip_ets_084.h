@@ -16,6 +16,7 @@
 
 #include "stimulus/someip_rpc_builder.h"
 #include "stimulus/someip_sd_builder.h"
+#include "stimulus/tcp_server.h"
 
 #include "someip_ets_084_sm.h"
 
