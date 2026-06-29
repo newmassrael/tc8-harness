@@ -29,7 +29,15 @@ namespace tc8::stimulus {
 // accept" shape, where the absence of a listener makes the kernel emit RST on
 // any SYN to the closed port (ECONNREFUSED on the DUT side, no active tester
 // action) and constructing the listener partway through flips refuse -> accept.
-int openTcpListener(std::string_view iface, std::uint16_t port);
+//
+// `non_blocking` sets O_NONBLOCK on the listener so accept() never blocks (it
+// returns EAGAIN instead) — required when the listener is drained from a single
+// non-blocking event loop (TcpAcceptService); failing to set it returns a
+// sentinel rather than handing back a blocking fd. `backlog` is the listen()
+// queue depth: 1 suits the synchronous one-accept cases; raise it when several
+// DUT connections may be pending at once (autonomous multi-instance connects).
+int openTcpListener(std::string_view iface, std::uint16_t port, bool non_blocking = false,
+                    int backlog = 1);
 
 // accept() with a poll-driven timeout. Returns 1 if an inbound connection was
 // accepted (the accepted fd is immediately closed; ETS_097 only needs the
@@ -99,8 +107,11 @@ class TcpServer {
     // Opens the listener (SO_REUSEADDR, via openTcpListener). Pass `port` 0 to
     // bind a kernel-chosen ephemeral port and read it back via `port()`. On
     // failure valid() is false and the negative errno is logged; check valid()
-    // before accept.
-    TcpServer(std::string_view iface, std::uint16_t port);
+    // before accept. `non_blocking`/`backlog` forward to openTcpListener (see
+    // there): the synchronous accept cases keep the blocking, backlog-1 defaults;
+    // TcpAcceptService passes a non-blocking listener with a deeper backlog.
+    TcpServer(std::string_view iface, std::uint16_t port, bool non_blocking = false,
+              int backlog = 1);
     TcpServer(TcpServer &&o) noexcept;
     TcpServer &operator=(TcpServer &&o) noexcept;
     TcpServer(const TcpServer &) = delete;

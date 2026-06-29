@@ -1,6 +1,7 @@
 #include "stimulus/tcp_server.h"
 
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <poll.h>
 #include <sys/socket.h>
@@ -163,8 +164,8 @@ bool TcpConnection::waitForPeerFin(std::chrono::milliseconds timeout) {
 
 // --- TcpServer ---
 
-TcpServer::TcpServer(std::string_view iface, std::uint16_t port)
-    : listen_fd_(openTcpListener(iface, port)) {}
+TcpServer::TcpServer(std::string_view iface, std::uint16_t port, bool non_blocking, int backlog)
+    : listen_fd_(openTcpListener(iface, port, non_blocking, backlog)) {}
 
 TcpServer::TcpServer(TcpServer &&o) noexcept : listen_fd_(o.listen_fd_) { o.listen_fd_ = -1; }
 
@@ -214,8 +215,14 @@ std::optional<TcpConnection> TcpServer::acceptOne(std::chrono::milliseconds time
     socklen_t plen = sizeof(peer);
     const int conn_fd = ::accept(listen_fd_, reinterpret_cast<sockaddr *>(&peer), &plen);
     if (conn_fd < 0) {
-        std::fprintf(stderr, "stimulus: TcpServer::acceptOne accept failed: %s\n",
-                     std::strerror(errno));
+        // On a non-blocking listener, EAGAIN/EWOULDBLOCK means the backlog
+        // emptied between poll() and accept() (e.g. a SYN withdrawn by RST), and
+        // ECONNABORTED means the peer aborted the half-open connection — both are
+        // benign "nothing to accept right now", not failures, so do not log them.
+        if (errno != EAGAIN && errno != EWOULDBLOCK && errno != ECONNABORTED) {
+            std::fprintf(stderr, "stimulus: TcpServer::acceptOne accept failed: %s\n",
+                         std::strerror(errno));
+        }
         return std::nullopt;
     }
     // peer.sin_addr.s_addr is already network byte order (matches
@@ -229,7 +236,7 @@ std::optional<TcpConnection> TcpServer::acceptOne(std::chrono::milliseconds time
 
 // --- bind+listen / accept primitives (the SSOT TcpServer is built on) ---
 
-int openTcpListener(std::string_view iface, std::uint16_t port) {
+int openTcpListener(std::string_view iface, std::uint16_t port, bool non_blocking, int backlog) {
     const int sock = ::socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
         std::fprintf(stderr, "stimulus: tcp listen socket() failed: %s\n",
@@ -265,11 +272,23 @@ int openTcpListener(std::string_view iface, std::uint16_t port) {
         ::close(sock);
         return -4;
     }
-    if (::listen(sock, 1) < 0) {
+    if (::listen(sock, backlog) < 0) {
         std::fprintf(stderr, "stimulus: tcp listen(%u) failed: %s\n",
                      port, std::strerror(errno));
         ::close(sock);
         return -5;
+    }
+    if (non_blocking) {
+        // Make accept() non-blocking for single-thread event-loop drains. Fail
+        // loud (close + sentinel) rather than return a blocking fd the caller
+        // believes is non-blocking — that would risk stalling the capture thread.
+        const int flags = ::fcntl(sock, F_GETFL, 0);
+        if (flags < 0 || ::fcntl(sock, F_SETFL, flags | O_NONBLOCK) < 0) {
+            std::fprintf(stderr, "stimulus: tcp listen O_NONBLOCK failed: %s\n",
+                         std::strerror(errno));
+            ::close(sock);
+            return -6;
+        }
     }
     return sock;
 }
