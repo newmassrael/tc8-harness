@@ -20,6 +20,12 @@ inline constexpr std::size_t kMaxExpectedPayload = 256;
 // `test_config.h` can aggregate it without pulling in the full
 // `SomeIpExpected` layout, and so ADL-dispatched helpers on the Named
 // Context types can include `test_config.h` without a cycle.
+//
+// The SCE Named Context `SomeIpExpected` DERIVES from this struct (data-only
+// base) — every field is declared once here and inherited there, so the DTO
+// and the Named Context cannot drift. Add a new `--expect` field to THIS
+// struct (plus the `expect_parser.cpp` key table); `applyTestConfig` copies
+// the whole base in one assignment, so there is no per-field copy to forget.
 struct SomeIpExpectations {
     std::uint16_t service_id = 0;
     std::uint16_t instance_id = 0;

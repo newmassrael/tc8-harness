@@ -32,71 +32,16 @@ namespace tc8 {
 // this context in their SCXML so the SCE codegen emits a uniform two-arg
 // state-machine constructor; `TestRunner<SM>` always constructs both
 // captured and expected unconditionally.
-struct SomeIpExpected {
-    std::uint16_t service_id = 0;
-    std::uint16_t instance_id = 0;
-    std::uint8_t major_version = 0;
-    std::uint32_t ttl = 0;
-    std::uint32_t minor_version = 0;
-    // Type 2 entry field — SubscribeEventgroup / Ack entries carry this
-    // instead of minor_version. Used by FORMAT_28.
-    std::uint16_t eventgroup_id = 0;
-
-    // §5.1.5.5 OPTIONS endpoint values. See `SomeIpExpectations` doc-
-    // comment in `someip_expectations.h` for semantics.
-    std::uint32_t dut_iface_ip = 0;
-    std::uint16_t udp_port = 0;
-    std::uint16_t tcp_port = 0;
-
-    // SD multicast destination address (NBO). Compared against
-    // `SomeIpCaptured::dst_ip` by §5.1.5.4 SD_BEHAVIOR_03/_04 to
-    // verify the DUT answers FindService with a multicast OfferService.
-    std::uint32_t sd_multicast_ip = 0;
-
-    // Multicast eventgroup endpoint values consumed by §5.1.5.5
-    // OPTIONS_11 (IPv4) and OPTIONS_14 (port). See `SomeIpExpectations`
-    // doc-comment in `someip_expectations.h` for byte-order semantics.
-    std::uint32_t mcast_ipv4 = 0;
-    std::uint16_t mcast_port = 0;
-
-    // Tester's own subscribe endpoint (NBO ip, host-order port). Lets a unicast
-    // SubscribeAck/Nack or Notification case assert the reply DESTINATION equals
-    // the tester (`captured.dst_ip == expected.tester_ipv4`) — the DUT-side
-    // endpoints above only cover the source half. See `SomeIpExpectations`.
-    std::uint32_t tester_ipv4 = 0;
-    std::uint16_t tester_udp_port = 0;
-
-    // Second tester/ECU source IP (IP_ADDRESS_2, NBO). Mirrors the
-    // `SomeIpExpectations` field of the same name — see that struct's doc for
-    // semantics; lets a two-client Sender-IP case assert the DUT discriminated
-    // the second ECU. 0 = unset.
-    std::uint32_t tester_ipv4_2 = 0;
-
-    // Configured DUT timing thresholds (ms) an absolute-timing case asserts the
-    // captured `frame_delta_us()` against. Mirrors the `SomeIpExpectations`
-    // fields of the same name — see that struct's doc for semantics; 0 = unset.
-    std::uint32_t sd_initial_delay_min_ms = 0;
-    std::uint32_t sd_initial_delay_max_ms = 0;
-    std::uint32_t sd_repetition_base_delay_ms = 0;
-    std::uint32_t sd_repetitions_max = 0;
-    std::uint32_t sd_cyclic_offer_delay_ms = 0;
-    std::uint32_t sd_request_response_delay_ms = 0;
-    std::uint32_t sd_timing_tolerance_ms = 0;
-    std::uint32_t sd_raw_startup_ms = 0;
-    std::uint32_t can_ets_cycle_0_ms = 0;
-    std::uint32_t can_ets_cycle_1_ms = 0;
-    std::uint32_t can_delay_time_ms = 0;
-    std::uint32_t can_start_offset_ms = 0;
-    std::uint32_t can_timing_tolerance_ms = 0;
-
-    // Expected L7 payload for a Method-Response echo assertion (see
-    // `SomeIpExpectations`). `payload_view()` exposes the valid prefix as a
-    // string_view so an ETS cond reads
-    // `captured.payload_equals(expected.payload_view())` — the single-dot
-    // form SCE's rewriter requires for both contexts.
-    std::array<std::uint8_t, kMaxExpectedPayload> payload{};
-    std::uint32_t payload_len = 0;
-
+// Every expected value is a `SomeIpExpectations` DTO field, INHERITED (not
+// composed) so SCXML conditions keep the single-dot `cpp:expected.service_id`
+// form SCE's expression rewriter requires — it rewrites `expected.X` into
+// `this->expected_->X` but not `expected.X.Y`. This is the same data-only-base
+// idiom the captured contexts use (cf. `captured_l4_ports.h`, where
+// `SomeIpCaptured` reads inherited `src_port` single-dot). Declaring the fields
+// ONCE in the base is the SSOT: a new `--expect` field is added to
+// `SomeIpExpectations` alone and cannot drift between the DTO and this Named
+// Context. This struct adds only the payload accessor.
+struct SomeIpExpected : SomeIpExpectations {
     std::string_view payload_view() const {
         return std::string_view(reinterpret_cast<const char *>(payload.data()),
                                 payload_len);
@@ -109,46 +54,25 @@ struct SomeIpExpected {
 // means adding a matching overload in its own header; missing overloads
 // fail at compile time rather than silently skipping configuration.
 inline void applyTestConfig(SomeIpExpected &e, const TestConfig &cfg) {
-    e.service_id = cfg.someip.service_id;
-    e.instance_id = cfg.someip.instance_id;
-    e.major_version = cfg.someip.major_version;
-    e.ttl = cfg.someip.ttl;
-    e.minor_version = cfg.someip.minor_version;
-    e.eventgroup_id = cfg.someip.eventgroup_id;
-    e.dut_iface_ip = cfg.someip.dut_iface_ip;
-    e.udp_port = cfg.someip.udp_port;
-    e.tcp_port = cfg.someip.tcp_port;
-    e.sd_multicast_ip = cfg.someip.sd_multicast_ip;
-    e.mcast_ipv4 = cfg.someip.mcast_ipv4;
-    e.mcast_port = cfg.someip.mcast_port;
-    e.tester_ipv4 = cfg.someip.tester_ipv4;
-    e.tester_ipv4_2 = cfg.someip.tester_ipv4_2;
-    e.tester_udp_port = cfg.someip.tester_udp_port;
-    e.sd_initial_delay_min_ms = cfg.someip.sd_initial_delay_min_ms;
-    e.sd_initial_delay_max_ms = cfg.someip.sd_initial_delay_max_ms;
-    e.sd_repetition_base_delay_ms = cfg.someip.sd_repetition_base_delay_ms;
-    e.sd_repetitions_max = cfg.someip.sd_repetitions_max;
-    e.sd_cyclic_offer_delay_ms = cfg.someip.sd_cyclic_offer_delay_ms;
-    e.sd_request_response_delay_ms = cfg.someip.sd_request_response_delay_ms;
-    e.sd_timing_tolerance_ms = cfg.someip.sd_timing_tolerance_ms;
-    e.sd_raw_startup_ms = cfg.someip.sd_raw_startup_ms;
-    e.can_ets_cycle_0_ms = cfg.someip.can_ets_cycle_0_ms;
-    e.can_ets_cycle_1_ms = cfg.someip.can_ets_cycle_1_ms;
-    e.can_delay_time_ms = cfg.someip.can_delay_time_ms;
-    e.can_start_offset_ms = cfg.someip.can_start_offset_ms;
-    e.can_timing_tolerance_ms = cfg.someip.can_timing_tolerance_ms;
-    // payload is a per-case default (setExpectedPayload via the traits'
-    // applyExpectedDefaults hook); `--expect payload=` overrides it ONLY when
-    // explicitly set, so the conformant default survives a positive run and the
-    // negative harness's wrong value wins. Unconditional copy would wipe the
-    // case-local default with the empty CLI default on every positive run.
-    // `payload_len == 0` means *unset* (keep the default), so an expectation of
-    // a genuinely empty echo is not expressible through this path — a case that
-    // needs it asserts `captured.payload_len == 0` directly in SCXML (cf. ETS_003).
-    if (cfg.someip.payload_len > 0) {
-        e.payload = cfg.someip.payload;
-        e.payload_len = cfg.someip.payload_len;
+    // One memberwise copy of the shared base subobject pulls EVERY CLI
+    // `--expect` scalar (identity, endpoints, SD/CAN timing thresholds) across
+    // in a single assignment, so a field added to the `SomeIpExpectations` DTO
+    // can never be silently forgotten here — the per-field copy this replaced
+    // was exactly that drift hazard.
+    SomeIpExpectations effective = cfg.someip;
+    // payload is the lone override-only-when-set field: a case installs a
+    // conformant default via setExpectedPayload (its applyExpectedDefaults
+    // hook) and `--expect payload=` overrides it ONLY when explicitly given
+    // (payload_len > 0). Preserve the case default when the CLI leaves it
+    // unset — an unconditional copy would wipe it with the empty CLI default
+    // on every positive run. `payload_len == 0` means *unset* (keep default),
+    // so a genuinely empty echo is asserted via `captured.payload_len == 0` in
+    // SCXML (cf. ETS_003), not through this path.
+    if (effective.payload_len == 0) {
+        effective.payload = e.payload;
+        effective.payload_len = e.payload_len;
     }
+    static_cast<SomeIpExpectations &>(e) = effective;
 }
 
 // Set a case-local expected L7 payload default — the conformant echo a

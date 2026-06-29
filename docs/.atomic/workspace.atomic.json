@@ -6454,10 +6454,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/sce_integration/someip_expected.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/stimulus/someip_sd_builder.h",
           "kind": "implements"
         }
@@ -6565,10 +6561,6 @@
         },
         {
           "file": "src/sce_integration/someip_expectations.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/sce_integration/someip_expected.h",
           "kind": "implements"
         },
         {
