@@ -3,16 +3,17 @@
   TC8 §5.1.5.1.27 SOMEIPSRV_FORMAT_27: The Reserved field immediately
   following the TTL field of the Type 2 entry (bytes 12..13, upper
   12 bits) shall be zero. The lower 4 bits of byte 13 carry the
-  subscribe Counter; guard masks it out (0xFFF0) before comparing.
+  subscribe Counter; the decoder splits it off into `counter`, so the
+  guard compares the 12-bit `entry_reserved` field directly.
 
   Conformance-bridge note: TC8 v3.0 §5.1.5 references AUTOSAR R4.1
   Rev 3 SOMEIPSD §6.7.5.x, which defined byte 13 as a 1-byte Reserved
   field (no Counter sub-field). R4.2+ (specifically PRS_SOMEIPSD_00787
   / _00789) carved the lower 4 bits out for Subscribe Counter
-  mirroring; vsomeip 3.7.1 obeys the newer layout. Masking the lower
-  4 bits is therefore not a deviation from R4.2+ — it's a bridge that
-  preserves the FORMAT_27 invariant ("upper 12 bits of byte 13 are
-  zero") while accepting a non-zero Counter that the R4.1 spec didn't
+  mirroring; vsomeip 3.7.1 obeys the newer layout. Reading the 12-bit
+  `entry_reserved` directly is therefore not a deviation from R4.2+ —
+  it's a bridge that preserves the FORMAT_27 invariant ("upper 12 bits
+  of byte 13 are zero") while accepting a non-zero Counter the R4.1 spec didn't
   anticipate. A strict-R4.1 DUT under this same guard lands green
   (Counter would be 0).
 -->
@@ -37,10 +38,10 @@
       <send event="deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.sd_entries[0].type == 0x07 and (captured.sd_entries[0].reserved_counter &amp; 0xFFF0) == 0"
+                cond="cpp:captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].entry_reserved == 0"
                 target="pass"/>
     <transition event="someip_notification"
-                cond="cpp:captured.sd_entries[0].type == 0x07 and (captured.sd_entries[0].reserved_counter &amp; 0xFFF0) != 0"
+                cond="cpp:captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].entry_reserved != 0"
                 target="fail_reserved_bits"/>
     <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>

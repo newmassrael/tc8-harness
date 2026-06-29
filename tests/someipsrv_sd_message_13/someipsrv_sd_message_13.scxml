@@ -8,8 +8,8 @@
   identity. Reserved | Counter occupies bytes 12..13 (Type 2 layout):
   spec asserts Reserved (upper 12 bits) is zero, and a fresh Subscribe
   carries Counter (lower 4 bits) zero — vsomeip echoes both back, so
-  reserved_counter == 0 is the strict shape (mirroring SD_MESSAGE_15's
-  Nack-side check).
+  entry_reserved == 0 and counter == 0 is the strict shape (mirroring
+  SD_MESSAGE_15's Nack-side check).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -22,7 +22,7 @@
   <sce:use template="../_templates/someipsrv_sd_field_check.sce-template.xml"
            presence_gate="true"
            entry_type="0x07"
-           pass_expr="captured.sd_entries[0].ttl == 0xFFFFFF and captured.sd_entries[0].reserved_counter == 0 and captured.sd_entries[0].service_id == expected.service_id and captured.sd_entries[0].instance_id == expected.instance_id and captured.sd_entries[0].eventgroup_id == expected.eventgroup_id and captured.sd_entries[0].major_version == expected.major_version"
+           pass_expr="captured.sd_entries[0].ttl == 0xFFFFFF and captured.sd_entries[0].entry_reserved == 0 and captured.sd_entries[0].counter == 0 and captured.sd_entries[0].service_id == expected.service_id and captured.sd_entries[0].instance_id == expected.instance_id and captured.sd_entries[0].eventgroup_id == expected.eventgroup_id and captured.sd_entries[0].major_version == expected.major_version"
            fail_state="fail_ack_field"
            fail_reason="subscribe_ack_field_mismatch"/>
 </scxml>

@@ -1201,12 +1201,13 @@ def _packet_view(packet: dict) -> dict:
                 e.setdefault("num_opt1", e["n_options_first"])
             if "n_options_second" in e:
                 e.setdefault("num_opt2", e["n_options_second"])
-            # ``reserved_counter`` is the 32-bit (reserved+counter)
-            # field per PRS_SOMEIPSD_00220. Decoder doesn't break it
-            # out today, but tc8-dut never sets either half non-zero
-            # (counter is 0, reserved must be 0) — synthesise 0 so
-            # ``(reserved_counter & 0xFFF0) == 0`` style guards settle.
-            e.setdefault("reserved_counter", 0)
+            # bytes 12..13 = Reserved(12b) | Counter(4b). decode_pcap breaks
+            # these out for Subscribe/Ack entries; synthesise 0 for entries the
+            # decoder left without them (Find/Offer, or synthetic messages) so
+            # ``entry_reserved == 0`` / ``counter == 0`` guards settle. tc8-dut
+            # never sets either half non-zero.
+            e.setdefault("entry_reserved", 0)
+            e.setdefault("counter", 0)
     sd_options = fields.get("sd_options")
     if isinstance(sd_options, list):
         fields.setdefault("sd_option_count", len(sd_options))

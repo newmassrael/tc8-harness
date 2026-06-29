@@ -22,7 +22,7 @@
   <sce:use template="../_templates/someipsrv_sd_field_check.sce-template.xml"
            presence_gate="true"
            entry_type="0x07"
-           pass_expr="captured.sd_entries[0].ttl == 0 and captured.sd_entries[0].instance_id == expected.instance_id and captured.sd_entries[0].eventgroup_id == expected.eventgroup_id and captured.sd_entries[0].major_version == expected.major_version and captured.sd_entries[0].reserved_counter == 0"
+           pass_expr="captured.sd_entries[0].ttl == 0 and captured.sd_entries[0].instance_id == expected.instance_id and captured.sd_entries[0].eventgroup_id == expected.eventgroup_id and captured.sd_entries[0].major_version == expected.major_version and captured.sd_entries[0].entry_reserved == 0 and captured.sd_entries[0].counter == 0"
            fail_state="fail_echo_fields"
            fail_reason="nack_entry_echo_fields_mismatch"/>
 </scxml>

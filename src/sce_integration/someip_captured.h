@@ -66,9 +66,20 @@ struct SdEntry {
     // Type 1 interpretation of bytes 12..15.
     std::uint32_t minor_version = 0;
 
-    // Type 2 interpretation of bytes 12..15.
-    std::uint16_t reserved_counter = 0;  // bytes 12..13 (Reserved | Counter).
-    std::uint16_t eventgroup_id = 0;     // bytes 14..15.
+    // Type 2 interpretation of bytes 12..13 (Reserved:12 | Counter:4), decoded
+    // into the SAME named fields the stimulus side sets on
+    // SubscribeEventgroupTarget, so a verdict reads back exactly what a case
+    // wrote (one data model on both sides). Both are public SOME/IP-SD fields.
+    // `counter` (4-bit, TR_SOMEIP §7.1.3) distinguishes parallel subscriptions
+    // of the same eventgroup.
+    // `entry_reserved` (12-bit) is decoded RAW on purpose: any entry flag a
+    // vendor encodes there — e.g. an Initial-Data-Requested bit — is
+    // implementation-defined, so the OEM masks `entry_reserved` itself rather
+    // than the public core naming a specific bit (symmetric with
+    // someip_sd_builder.h SubscribeEventgroupTarget::entry_reserved).
+    std::uint16_t entry_reserved = 0;  // bytes 12..13, high 12 bits.
+    std::uint8_t counter = 0;          // bytes 12..13, low 4 bits.
+    std::uint16_t eventgroup_id = 0;   // bytes 14..15.
 };
 
 // Single SOME/IP-SD option (TR_SOMEIP §7.3 Options Array). Wire layout for IPv4
@@ -606,7 +617,10 @@ inline void decodeSdEntry(SdEntry &dst, const std::uint8_t *src) {
               static_cast<std::uint32_t>(src[11]);
     dst.minor_version = (static_cast<std::uint32_t>(src[12]) << 24) | (static_cast<std::uint32_t>(src[13]) << 16) |
                         (static_cast<std::uint32_t>(src[14]) << 8) | static_cast<std::uint32_t>(src[15]);
-    dst.reserved_counter = static_cast<std::uint16_t>((static_cast<std::uint16_t>(src[12]) << 8) | src[13]);
+    const std::uint16_t reserved_counter_word =
+        static_cast<std::uint16_t>((static_cast<std::uint16_t>(src[12]) << 8) | src[13]);
+    dst.entry_reserved = static_cast<std::uint16_t>((reserved_counter_word >> 4) & 0x0FFF);
+    dst.counter = static_cast<std::uint8_t>(reserved_counter_word & 0x0F);
     dst.eventgroup_id = static_cast<std::uint16_t>((static_cast<std::uint16_t>(src[14]) << 8) | src[15]);
 }
 

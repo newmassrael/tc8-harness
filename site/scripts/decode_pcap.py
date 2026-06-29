@@ -565,6 +565,10 @@ def _dissect_sd_payload(payload: bytes, p: Packet, base_fields: dict) -> None:
         if e_type in (0x00, 0x01):
             e["minor_version"] = struct.unpack(">I", tail)[0]
         elif e_type in (0x06, 0x07):
+            # bytes 12..13 = Reserved(12b) | Counter(4b) — same split as the C++
+            # decodeSdEntry and the builder pack, so site conds read the same
+            # entry_reserved / counter fields the harness verdicts use.
+            e["entry_reserved"] = (((tail[0] << 8) | tail[1]) >> 4) & 0x0FFF
             e["counter"] = tail[1] & 0x0F
             e["eventgroup_id"] = struct.unpack(">H", tail[2:4])[0]
         entries.append(e)

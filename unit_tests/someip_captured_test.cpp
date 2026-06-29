@@ -589,3 +589,40 @@ TEST(SomeIpCapturedDutSdRecognizers, FindSubscribeStopDiscriminated) {
     EXPECT_FALSE(c.is_find_service_from_dut(0xFFFF));
     EXPECT_FALSE(c.is_stop_subscribe(0xF4E7, 0x0005));
 }
+
+// Pins decodeSdEntry's Reserved:12 | Counter:4 split of a SubscribeEventgroup
+// entry's bytes 12..13 into the same named fields the stimulus builder packs
+// (`(entry_reserved << 4) | (counter & 0x0F)`), so a verdict reads back what a
+// case set. Guards against an accidental nibble swap in the decoder.
+TEST(SomeIpCapturedSdEntry, SubscribeEntryReservedCounterSplit) {
+    std::uint8_t raw[16] = {};
+    raw[0] = 0x06;   // SubscribeEventgroup entry.
+    raw[12] = 0xAB;  // bytes 12..13 = 0xABC3 -> Reserved=0xABC, Counter=0x3.
+    raw[13] = 0xC3;
+    tc8::SdEntry e;
+    tc8::decodeSdEntry(e, raw);
+    EXPECT_EQ(e.entry_reserved, 0x0ABCu);  // high 12 bits
+    EXPECT_EQ(e.counter, 0x3u);            // low 4 bits
+
+    // Pure reserved field (counter zero).
+    raw[12] = 0xFF;
+    raw[13] = 0xF0;
+    tc8::decodeSdEntry(e, raw);
+    EXPECT_EQ(e.entry_reserved, 0x0FFFu);
+    EXPECT_EQ(e.counter, 0x0u);
+
+    // All-distinct nibbles with a full 4-bit counter — exercises the upper
+    // counter bits (0x4/0x8) and 0xF, strengthening swap / mask-width detection.
+    raw[12] = 0x24;
+    raw[13] = 0x6F;
+    tc8::decodeSdEntry(e, raw);
+    EXPECT_EQ(e.entry_reserved, 0x246u);
+    EXPECT_EQ(e.counter, 0xFu);
+
+    // Spec-canonical all-zero entry decodes both to 0.
+    raw[12] = 0x00;
+    raw[13] = 0x00;
+    tc8::decodeSdEntry(e, raw);
+    EXPECT_EQ(e.entry_reserved, 0x0000u);
+    EXPECT_EQ(e.counter, 0x0u);
+}
