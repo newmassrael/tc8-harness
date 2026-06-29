@@ -9,6 +9,7 @@
 #include <CommonAPI/CommonAPI.hpp>
 
 #include "ets2_impl.h"
+#include "ets_client_control.h"
 #include "ets_emission.h"
 #include "ets_event_sink.h"
 #include "ets_extension.h"
@@ -82,6 +83,14 @@ int main() {
     std::unique_ptr<tc8::dut::IEtsEventSink> ets_sink =
         tc8::dut::makeEtsEventSink(tc8::dut::kServiceId, tc8::dut::kInstanceId);
 
+    // OEM client control (O2, CLT topology): the same CommonAPI-owned vsomeip
+    // application, used CLIENT-side so the extension can drive the DUT to
+    // subscribe to a tester-offered eventgroup (no second app). Declared before
+    // the extension so it outlives it — an extension that stores the reference in
+    // onRegisterClientControl uses it from its method handlers and onStop.
+    std::unique_ptr<tc8::dut::IEtsClientControl> ets_client =
+        tc8::dut::makeEtsClientControl();
+
     // OEM extend seam (O2): no-op in the public DUT. An OEM TU (selected via
     // TC8_ETS_EXTENSION_SRC) offers its NDA event surface on the sink above and
     // may opt 0x8001 into trigger-driven emission. Created before the emission
@@ -114,6 +123,11 @@ int main() {
                                 [impl](uint8_t v) { impl->fireTestEventUINT8E2EEvent(v); });
     emission.addTriggeredSource(std::string(tc8::dut::ets_event::kMulticast),
                                 [impl](uint8_t v) { impl->fireTestEventUINT8MulticastEvent(v); });
+
+    // Hand the OEM extension its client-control facade BEFORE onRegister, so an
+    // extension that subscribes from a method handler (registered in onRegister)
+    // already holds the reference. No-op for the public default extension.
+    ets_extension->onRegisterClientControl(*ets_client);
 
     // Now that the service is offered, let the OEM extension (O2) offer its NDA
     // event surface on the sink. Created above (its ets8001TriggerDriven()

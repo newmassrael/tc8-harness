@@ -17,6 +17,7 @@
 #include <gtest/gtest.h>
 
 #include "demo_ets_extension.h"
+#include "ets_client_control.h"
 #include "ets_event_sink.h"
 #include "ets_extension.h"
 
@@ -50,6 +51,47 @@ public:
     std::vector<Offer> offers;
     std::vector<Notification> notifications;
     std::map<std::uint16_t, std::function<void(const std::vector<std::uint8_t>&)>> handlers;
+};
+
+// Records every IEtsClientControl call so a test can assert what the extension
+// drove on the client surface (vsomeip-free, no running DUT).
+class FakeEtsClientControl : public tc8::dut::IEtsClientControl {
+public:
+    struct Subscribe {
+        std::uint16_t service;
+        std::uint16_t instance;
+        std::uint16_t eventgroup;
+        std::vector<std::uint16_t> events;
+        bool reliable;
+        std::uint8_t major;
+    };
+    struct Stop {
+        std::uint16_t service;
+        std::uint16_t instance;
+        std::uint16_t eventgroup;
+    };
+
+    // noinline so GCC analyses this with the generic `const vector&` (unknown
+    // size) instead of constant-propagating the size-1 events list inlined from
+    // the demo lambda — that full-inlining is what trips a GCC 13
+    // -Wstringop-overflow false positive on the vector-growth memmove. The code
+    // is correct; this just denies the optimizer the constant that confuses it.
+#if defined(__GNUC__)
+    [[gnu::noinline]]
+#endif
+    void subscribeEventgroup(std::uint16_t service, std::uint16_t instance,
+                             std::uint16_t eventgroup,
+                             const std::vector<std::uint16_t>& events, bool reliable,
+                             std::uint8_t major) override {
+        subscribes.push_back({service, instance, eventgroup, events, reliable, major});
+    }
+    void stopSubscribeEventgroup(std::uint16_t service, std::uint16_t instance,
+                                 std::uint16_t eventgroup) override {
+        stops.push_back({service, instance, eventgroup});
+    }
+
+    std::vector<Subscribe> subscribes;
+    std::vector<Stop> stops;
 };
 
 }  // namespace
@@ -87,8 +129,9 @@ TEST(DemoEtsExtension, TriggerMethodNotifiesEventWithRequestPayload) {
 }
 
 TEST(DemoEtsExtension, DefaultHooksAreNoOps) {
-    // onTick / onStop carry no demo behavior; onTick must not emit on its own
-    // (the demo event is trigger-driven, not cyclic).
+    // onTick emits nothing on its own (the demo event is trigger-driven, not
+    // cyclic); onStop emits no event. With no client control handed here, onStop
+    // also drives no subscribe-stop (that path is covered above).
     FakeEtsEventSink sink;
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(sink);
@@ -100,6 +143,56 @@ TEST(DemoEtsExtension, DefaultHooksAreNoOps) {
 
     // The demo opts 0x8001 cyclic-vs-triggered to the public default (cyclic).
     EXPECT_FALSE(ext.ets8001TriggerDriven());
+}
+
+TEST(DemoEtsExtension, SubscribeMethodDrivesClientControl) {
+    FakeEtsEventSink sink;
+    FakeEtsClientControl client;
+    tc8::dut::DemoEtsExtension ext;
+    // Mirror dut_main's order: client control handed before onRegister.
+    ext.onRegisterClientControl(client);
+    ext.onRegister(sink);
+
+    // The subscribe method is registered and nothing is subscribed until it fires.
+    ASSERT_EQ(sink.handlers.count(tc8::dut::kDemoSubscribeMethod), 1u);
+    EXPECT_TRUE(client.subscribes.empty());
+
+    // Firing it drives one subscribe to the synthetic target eventgroup (UDP).
+    sink.handlers[tc8::dut::kDemoSubscribeMethod]({});
+    ASSERT_EQ(client.subscribes.size(), 1u);
+    const auto& s = client.subscribes[0];
+    EXPECT_EQ(s.service, tc8::dut::kDemoTargetService);
+    EXPECT_EQ(s.instance, tc8::dut::kDemoTargetInstance);
+    EXPECT_EQ(s.eventgroup, tc8::dut::kDemoTargetEventgroup);
+    EXPECT_EQ(s.events, (std::vector<std::uint16_t>{tc8::dut::kDemoTargetEvent}));
+    EXPECT_FALSE(s.reliable);
+    EXPECT_EQ(s.major, tc8::dut::kDemoTargetMajor);
+}
+
+TEST(DemoEtsExtension, OnStopStopsSubscription) {
+    FakeEtsEventSink sink;
+    FakeEtsClientControl client;
+    tc8::dut::DemoEtsExtension ext;
+    ext.onRegisterClientControl(client);
+    ext.onRegister(sink);
+
+    ext.onStop();
+    ASSERT_EQ(client.stops.size(), 1u);
+    EXPECT_EQ(client.stops[0].service, tc8::dut::kDemoTargetService);
+    EXPECT_EQ(client.stops[0].instance, tc8::dut::kDemoTargetInstance);
+    EXPECT_EQ(client.stops[0].eventgroup, tc8::dut::kDemoTargetEventgroup);
+}
+
+TEST(DemoEtsExtension, SubscribeMethodIsNoOpWithoutClientControl) {
+    // Without onRegisterClientControl the handler captured a null facade — firing
+    // it must not crash and drives nothing. onStop is likewise a no-op.
+    FakeEtsEventSink sink;
+    tc8::dut::DemoEtsExtension ext;
+    ext.onRegister(sink);
+    ASSERT_EQ(sink.handlers.count(tc8::dut::kDemoSubscribeMethod), 1u);
+    sink.handlers[tc8::dut::kDemoSubscribeMethod]({});  // no client → no-op, no crash
+    ext.onStop();
+    SUCCEED();
 }
 
 // payloadBytes() — the extracted inbound-marshaling step from

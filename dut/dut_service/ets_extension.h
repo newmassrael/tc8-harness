@@ -10,6 +10,12 @@ namespace tc8::dut {
 // ets_event_sink.h for the full definition.
 class IEtsEventSink;
 
+// The client-role facade an extension drives the DUT's subscribe surface
+// through. Defined in ets_client_control.h; forward-declared here for the same
+// by-reference reason. Segregated from IEtsEventSink so an event-only extension
+// never depends on the client surface.
+class IEtsClientControl;
+
 // Extend seam (O2 path) for events/methods the OEM owns but that are NOT in the
 // public fidl — e.g. the OEM's NDA event surface. The OEM offers them through the
 // IEtsEventSink passed to onRegister/onTick (the CommonAPI service's own vsomeip
@@ -24,14 +30,22 @@ class IEtsEventSink;
 // (after the service is offered — offer events + register method handlers on the
 // sink), onTick (each DUT main-loop pass — drive cyclic/duration-windowed
 // notifies), onStop (shutdown), ets8001TriggerDriven (queried once before the
-// 0x8001 source is registered). A subscribe hook is intentionally absent until
-// the DUT has a subscription call site to drive it.
+// 0x8001 source is registered), onRegisterClientControl (handed the client-role
+// facade once, before onRegister, for the CLT topology where the DUT subscribes).
 class IEtsExtension {
 public:
     virtual ~IEtsExtension() = default;
     virtual void onRegister(IEtsEventSink& sink) { (void)sink; }
     virtual void onTick(IEtsEventSink& sink) { (void)sink; }
     virtual void onStop() {}
+
+    // Hand the extension the DUT's client-role facade (subscribe / stop) ONCE,
+    // before onRegister, so an extension that subscribes from a method handler
+    // registered in onRegister already holds the reference. The facade outlives
+    // the extension (dut_main owns it), so the extension may store the reference
+    // and use it from later onTick / onStop calls. Default no-op: an event-only
+    // extension ignores the client surface entirely (interface segregation).
+    virtual void onRegisterClientControl(IEtsClientControl& client) { (void)client; }
 
     // Whether the OEM build wants TestEventUINT8 (0x8001) to be TRIGGER-driven
     // (armed by triggerEventUINT8, method 0x03) instead of the public default of
