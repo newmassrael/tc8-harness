@@ -437,7 +437,7 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
         return 2;
     }
 
-    // Accept an optional "suite:" qualifier (e.g. "hkmc:SOMEIPSRV_RPC_01"). An
+    // Accept an optional "suite:" qualifier (e.g. "vendorx:SOMEIPSRV_RPC_01"). An
     // unqualified id resolves only if it is unique across suites; a cross-suite
     // id (same id in tc8 + an injected catalog) is ambiguous and must be
     // qualified. The in-tree single-suite case is unaffected (unique id).

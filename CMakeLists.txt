@@ -409,7 +409,7 @@ function(tc8_add_case case_dir origin suite)
     get_filename_component(case_id ${case_dir} NAME)
 
     # Suite identity matches the registry's, which is case-insensitive: normalise
-    # to lower case so a root declared "HKMC" and the registry's "hkmc" never
+    # to lower case so a root declared "VENDORX" and the registry's "vendorx" never
     # diverge across the configure/runtime boundary. Empty or the default-suite
     # name selects the in-tree default.
     string(TOLOWER "${suite}" _suite)

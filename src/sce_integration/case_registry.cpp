@@ -160,7 +160,7 @@ std::vector<const CaseEntry *> CaseRegistry::listSorted(bool include_deprecated)
     std::sort(out.begin(), out.end(), [](const CaseEntry *a, const CaseEntry *b) {
         // Suite is the primary axis so each catalog groups together. Inter-suite
         // order is deterministic-but-arbitrary (case-insensitive lexicographic);
-        // it is NOT guaranteed that "tc8" sorts first — an OEM suite like "hkmc"
+        // it is NOT guaranteed that "tc8" sorts first — an OEM suite like "vendorx"
         // sorts before it. With no injected suite this is a no-op (single suite).
         if (!equalsIgnoreAsciiCase(a->suite, b->suite)) {
             return lessIgnoreAsciiCase(a->suite, b->suite);

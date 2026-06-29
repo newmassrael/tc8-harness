@@ -254,13 +254,13 @@ TEST(CaseRegistryDeathTest, DuplicateIdAborts) {
 TEST(CaseRegistry, SameIdDifferentSuitesCoexist) {
     CaseRegistry reg;
     reg.add(makeEntry("ARP_01"));                 // suite "tc8"
-    reg.add(makeEntryInSuite("hkmc", "ARP_01"));  // must NOT abort
+    reg.add(makeEntryInSuite("vendorx", "ARP_01"));  // must NOT abort
     const CaseEntry *t = reg.find("tc8", "ARP_01");
-    const CaseEntry *h = reg.find("hkmc", "ARP_01");
+    const CaseEntry *h = reg.find("vendorx", "ARP_01");
     ASSERT_NE(t, nullptr);
     ASSERT_NE(h, nullptr);
     EXPECT_EQ(t->suite, "tc8");
-    EXPECT_EQ(h->suite, "hkmc");
+    EXPECT_EQ(h->suite, "vendorx");
     EXPECT_EQ(reg.find("ARP_01"), nullptr);  // ambiguous across suites
 }
 
@@ -273,18 +273,18 @@ TEST(CaseRegistry, FindSuiteIdNonexistentSuiteReturnsNull) {
 
 TEST(CaseRegistry, FindSuiteIdIsCaseInsensitiveOnBothAxes) {
     CaseRegistry reg;
-    reg.add(makeEntryInSuite("hkmc", "SOMEIPSRV_RPC_01"));
-    EXPECT_NE(reg.find("HKMC", "someipsrv_rpc_01"), nullptr);  // suite + id both ci
-    EXPECT_NE(reg.find("hkmc", "SOMEIPSRV_RPC_01"), nullptr);
+    reg.add(makeEntryInSuite("vendorx", "SOMEIPSRV_RPC_01"));
+    EXPECT_NE(reg.find("VENDORX", "someipsrv_rpc_01"), nullptr);  // suite + id both ci
+    EXPECT_NE(reg.find("vendorx", "SOMEIPSRV_RPC_01"), nullptr);
 }
 
 // A duplicate within the SAME suite still aborts.
 TEST(CaseRegistryDeathTest, DuplicateSuiteIdAborts) {
     ::testing::FLAGS_gtest_death_test_style = "threadsafe";
     CaseRegistry reg;
-    reg.add(makeEntryInSuite("hkmc", "ARP_01"));
-    EXPECT_DEATH_IF_SUPPORTED(reg.add(makeEntryInSuite("hkmc", "ARP_01")),
-                              "duplicate case registration for 'hkmc:ARP_01'");
+    reg.add(makeEntryInSuite("vendorx", "ARP_01"));
+    EXPECT_DEATH_IF_SUPPORTED(reg.add(makeEntryInSuite("vendorx", "ARP_01")),
+                              "duplicate case registration for 'vendorx:ARP_01'");
 }
 
 // Out-of-tree capture-filter escape hatch: bpfExpressionOf<T>() reads the
