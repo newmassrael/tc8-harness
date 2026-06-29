@@ -1,0 +1,153 @@
+// Single source of truth (SSOT) for the SOME/IP-SD wire field layout
+// (TR_SOMEIP / PRS_SOMEIPSD Section 7 message format). X-macro form,
+// consumed two ways so the layout is written exactly once:
+//
+//   * C++ (authoritative): #included directly by
+//     src/sce_integration/someip_captured.h, which #defines the relevant
+//     TC8_SD_* macros so each row expands into a field read against the
+//     shared ::tc8::sd_wire::readBe primitive. Zero parsing, cannot drift
+//     from this file because it literally expands it.
+//   * Python (site mirror): parsed by tools/gen_someip_sd_wire.py, which
+//     GENERATES site/scripts/someip_sd_wire_generated.py. CI runs
+//     `python3 tools/gen_someip_sd_wire.py --check` as a freshness gate so
+//     the committed mirror can never lag this file.
+//
+// Every value-bearing line MUST be a TC8_SD_* macro invocation so the C
+// preprocessor can expand or ignore it; all prose lives in // comments.
+// See docs/tech-debt.md TD-01 for why this SSOT exists.
+//
+// Each field row decodes as:
+//   value = (big_endian(base[off .. off+size)) >> shift) & mask
+// The (off,size,shift,mask) quadruple is stated once here and both
+// languages derive the read from it. shift/mask is what lets the sub-byte
+// bit slices be declared rather than hand-coded in each language: the
+// NumberOfOpt1/2 nibbles and the Reserved(12b)|Counter(4b) split (the
+// split that motivated TD-01) are ordinary rows below.
+//
+// Macro signatures:
+//   TC8_SD_ENTRY_FIELD(group, member, off, size, shift, mask)
+//       Field of the 16-byte SD entry, `off` from the entry start. `group`
+//       is common | service | eventgroup. C++ fills every group (the
+//       SdEntry struct carries both tail interpretations on every entry);
+//       the Python mirror emits a tail group only for the entry types that
+//       use it (see TC8_SD_ENTRY_TYPE).
+//   TC8_SD_ENTRY_TYPE(type, group)
+//       SD entry Type byte -> tail group. Python-only; C++ ignores it.
+//   TC8_SD_HEADER_FIELD(member, off, size, shift, mask)
+//       SD header field, readable once >= 4 payload bytes are present.
+//   TC8_SD_ENTRIESLEN_FIELD(member, off, size, shift, mask)
+//       LengthOfEntriesArray, readable once >= 8 payload bytes are present
+//       (its own row so the C++ side keeps the two payload-length guards).
+//   TC8_SD_OPTION_FIELD(member, off, size, shift, mask)
+//       IPv4 endpoint/multicast/sd-endpoint option field, `off` from the
+//       option start.
+//   TC8_SD_OPTION_ADDR(member, off)
+//       4-byte IPv4 address at `off`. C++ keeps it in network byte order in
+//       a uint32 (memcpy); the Python mirror renders dotted-decimal.
+//   TC8_SD_OPTION_TYPE(type)
+//       Option Type byte that carries the IPv4 endpoint tail. Python-only.
+//
+// Self-defaulting: a consumer #defines only the macros it wants; the rest
+// default to empty here and are #undef-ed at the bottom, so each include
+// site stays terse. (X-macro files carry no include guard on purpose.)
+
+#ifndef TC8_SD_ENTRY_FIELD
+#define TC8_SD_ENTRY_FIELD(group, member, off, size, shift, mask)
+#define TC8_SD_DEFAULTED_ENTRY_FIELD
+#endif
+#ifndef TC8_SD_ENTRY_TYPE
+#define TC8_SD_ENTRY_TYPE(type, group)
+#define TC8_SD_DEFAULTED_ENTRY_TYPE
+#endif
+#ifndef TC8_SD_HEADER_FIELD
+#define TC8_SD_HEADER_FIELD(member, off, size, shift, mask)
+#define TC8_SD_DEFAULTED_HEADER_FIELD
+#endif
+#ifndef TC8_SD_ENTRIESLEN_FIELD
+#define TC8_SD_ENTRIESLEN_FIELD(member, off, size, shift, mask)
+#define TC8_SD_DEFAULTED_ENTRIESLEN_FIELD
+#endif
+#ifndef TC8_SD_OPTION_FIELD
+#define TC8_SD_OPTION_FIELD(member, off, size, shift, mask)
+#define TC8_SD_DEFAULTED_OPTION_FIELD
+#endif
+#ifndef TC8_SD_OPTION_ADDR
+#define TC8_SD_OPTION_ADDR(member, off)
+#define TC8_SD_DEFAULTED_OPTION_ADDR
+#endif
+#ifndef TC8_SD_OPTION_TYPE
+#define TC8_SD_OPTION_TYPE(type)
+#define TC8_SD_DEFAULTED_OPTION_TYPE
+#endif
+
+// --- SD header (TR_SOMEIP Section 7.3: Flags + 24-bit Reserved) -------------
+TC8_SD_HEADER_FIELD(sd_flags,        0, 1, 0, 0xFF)
+TC8_SD_HEADER_FIELD(sd_reserved,     1, 3, 0, 0xFFFFFF)
+TC8_SD_ENTRIESLEN_FIELD(sd_entries_len, 4, 4, 0, 0xFFFFFFFF)
+
+// --- SD entry, common fields (bytes 0..11 of the 16-byte entry) -------------
+TC8_SD_ENTRY_FIELD(common, type,          0, 1, 0, 0xFF)
+TC8_SD_ENTRY_FIELD(common, index_first,   1, 1, 0, 0xFF)
+TC8_SD_ENTRY_FIELD(common, index_second,  2, 1, 0, 0xFF)
+TC8_SD_ENTRY_FIELD(common, num_opt1,      3, 1, 4, 0x0F)
+TC8_SD_ENTRY_FIELD(common, num_opt2,      3, 1, 0, 0x0F)
+TC8_SD_ENTRY_FIELD(common, service_id,    4, 2, 0, 0xFFFF)
+TC8_SD_ENTRY_FIELD(common, instance_id,   6, 2, 0, 0xFFFF)
+TC8_SD_ENTRY_FIELD(common, major_version, 8, 1, 0, 0xFF)
+TC8_SD_ENTRY_FIELD(common, ttl,           9, 3, 0, 0xFFFFFF)
+
+// --- SD entry, Type 1 tail (FindService 0x00, OfferService 0x01) ------------
+TC8_SD_ENTRY_FIELD(service, minor_version, 12, 4, 0, 0xFFFFFFFF)
+
+// --- SD entry, Type 2 tail (Subscribe 0x06, SubscribeAck/Nack 0x07) ---------
+// bytes 12..13 = Reserved(12b) | Counter(4b); bytes 14..15 = Eventgroup ID.
+TC8_SD_ENTRY_FIELD(eventgroup, entry_reserved, 12, 2, 4, 0x0FFF)
+TC8_SD_ENTRY_FIELD(eventgroup, counter,        12, 2, 0, 0x0F)
+TC8_SD_ENTRY_FIELD(eventgroup, eventgroup_id,  14, 2, 0, 0xFFFF)
+
+// Entry Type -> tail group (Python mirror emits the matching tail only).
+TC8_SD_ENTRY_TYPE(0x00, service)
+TC8_SD_ENTRY_TYPE(0x01, service)
+TC8_SD_ENTRY_TYPE(0x06, eventgroup)
+TC8_SD_ENTRY_TYPE(0x07, eventgroup)
+
+// --- SD IPv4 option tail (Endpoint 0x04 / Multicast 0x14 / SD-Endpoint 0x24)
+// Shared 12-byte layout; offsets are from the option start (Length at 0).
+TC8_SD_OPTION_FIELD(reserved1, 3, 1, 0, 0xFF)
+TC8_SD_OPTION_ADDR(ipv4, 4)
+TC8_SD_OPTION_FIELD(reserved2, 8, 1, 0, 0xFF)
+TC8_SD_OPTION_FIELD(l4_proto,  9, 1, 0, 0xFF)
+TC8_SD_OPTION_FIELD(port,     10, 2, 0, 0xFFFF)
+
+TC8_SD_OPTION_TYPE(0x04)
+TC8_SD_OPTION_TYPE(0x14)
+TC8_SD_OPTION_TYPE(0x24)
+
+#ifdef TC8_SD_DEFAULTED_ENTRY_FIELD
+#undef TC8_SD_DEFAULTED_ENTRY_FIELD
+#undef TC8_SD_ENTRY_FIELD
+#endif
+#ifdef TC8_SD_DEFAULTED_ENTRY_TYPE
+#undef TC8_SD_DEFAULTED_ENTRY_TYPE
+#undef TC8_SD_ENTRY_TYPE
+#endif
+#ifdef TC8_SD_DEFAULTED_HEADER_FIELD
+#undef TC8_SD_DEFAULTED_HEADER_FIELD
+#undef TC8_SD_HEADER_FIELD
+#endif
+#ifdef TC8_SD_DEFAULTED_ENTRIESLEN_FIELD
+#undef TC8_SD_DEFAULTED_ENTRIESLEN_FIELD
+#undef TC8_SD_ENTRIESLEN_FIELD
+#endif
+#ifdef TC8_SD_DEFAULTED_OPTION_FIELD
+#undef TC8_SD_DEFAULTED_OPTION_FIELD
+#undef TC8_SD_OPTION_FIELD
+#endif
+#ifdef TC8_SD_DEFAULTED_OPTION_ADDR
+#undef TC8_SD_DEFAULTED_OPTION_ADDR
+#undef TC8_SD_OPTION_ADDR
+#endif
+#ifdef TC8_SD_DEFAULTED_OPTION_TYPE
+#undef TC8_SD_DEFAULTED_OPTION_TYPE
+#undef TC8_SD_OPTION_TYPE
+#endif

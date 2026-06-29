@@ -16,6 +16,7 @@
 #include "sce_integration/captured_l4_ports.h"
 #include "sce_integration/captured_payload_snapshot.h"
 #include "sce_integration/captured_trace.h"
+#include "sce_integration/someip_sd_wire.h"
 #include "test_config.h"
 
 namespace tc8 {
@@ -603,28 +604,17 @@ inline std::uint8_t peekSdEntry0Type(const std::uint8_t *payload, std::size_t pa
 
 // Decode one 16-byte SD entry at `src` into `dst`. Both Type 1 and Type 2
 // tail interpretations are filled so guards can pick the matching view
-// without re-decoding the raw bytes.
-// NOTE: this wire layout is hand-mirrored by the site tooling
-// (site/scripts/decode_pcap.py + generate_messages.py) — keep all three in sync;
-// see docs/tech-debt.md TD-01.
+// without re-decoding the raw bytes; the entry field layout (offsets, widths,
+// and the bit slices) is owned by someip_sd_wire.def and expanded here, so
+// the C++ decoder is a direct consumer of the SSOT, not a hand-mirror of it.
+// The Python site mirror derives from the same .def — see docs/tech-debt.md
+// TD-01.
 inline void decodeSdEntry(SdEntry &dst, const std::uint8_t *src) {
-    dst.type = src[0];
-    dst.index_first = src[1];
-    dst.index_second = src[2];
-    dst.num_opt1 = static_cast<std::uint8_t>((src[3] >> 4) & 0x0F);
-    dst.num_opt2 = static_cast<std::uint8_t>(src[3] & 0x0F);
-    dst.service_id = static_cast<std::uint16_t>((static_cast<std::uint16_t>(src[4]) << 8) | src[5]);
-    dst.instance_id = static_cast<std::uint16_t>((static_cast<std::uint16_t>(src[6]) << 8) | src[7]);
-    dst.major_version = src[8];
-    dst.ttl = (static_cast<std::uint32_t>(src[9]) << 16) | (static_cast<std::uint32_t>(src[10]) << 8) |
-              static_cast<std::uint32_t>(src[11]);
-    dst.minor_version = (static_cast<std::uint32_t>(src[12]) << 24) | (static_cast<std::uint32_t>(src[13]) << 16) |
-                        (static_cast<std::uint32_t>(src[14]) << 8) | static_cast<std::uint32_t>(src[15]);
-    const std::uint16_t reserved_counter_word =
-        static_cast<std::uint16_t>((static_cast<std::uint16_t>(src[12]) << 8) | src[13]);
-    dst.entry_reserved = static_cast<std::uint16_t>((reserved_counter_word >> 4) & 0x0FFF);
-    dst.counter = static_cast<std::uint8_t>(reserved_counter_word & 0x0F);
-    dst.eventgroup_id = static_cast<std::uint16_t>((static_cast<std::uint16_t>(src[14]) << 8) | src[15]);
+#define TC8_SD_ENTRY_FIELD(group, member, off, size, shift, mask) \
+    dst.member = static_cast<decltype(dst.member)>(              \
+        ::tc8::sd_wire::readBe(src + (off), (size), (shift), (mask)));
+#include "someip_sd_wire.def"
+#undef TC8_SD_ENTRY_FIELD
 }
 
 // Parse the SD payload layout (TR_SOMEIP §7.3): 4-byte header (Flags + Reserved),
@@ -639,15 +629,20 @@ inline void parseSdHeaderInto(SomeIpCaptured &c, const std::uint8_t *payload, st
     if (payload == nullptr || payload_len < 4) {
         return;
     }
-    c.sd_flags = payload[0];
-    c.sd_reserved = (static_cast<std::uint32_t>(payload[1]) << 16) | (static_cast<std::uint32_t>(payload[2]) << 8) |
-                    static_cast<std::uint32_t>(payload[3]);
+#define TC8_SD_HEADER_FIELD(member, off, size, shift, mask) \
+    c.member = static_cast<decltype(c.member)>(            \
+        ::tc8::sd_wire::readBe(payload + (off), (size), (shift), (mask)));
+#include "someip_sd_wire.def"
+#undef TC8_SD_HEADER_FIELD
 
     if (payload_len < 8) {
         return;
     }
-    c.sd_entries_len = (static_cast<std::uint32_t>(payload[4]) << 24) | (static_cast<std::uint32_t>(payload[5]) << 16) |
-                       (static_cast<std::uint32_t>(payload[6]) << 8) | static_cast<std::uint32_t>(payload[7]);
+#define TC8_SD_ENTRIESLEN_FIELD(member, off, size, shift, mask) \
+    c.member = static_cast<decltype(c.member)>(                \
+        ::tc8::sd_wire::readBe(payload + (off), (size), (shift), (mask)));
+#include "someip_sd_wire.def"
+#undef TC8_SD_ENTRIESLEN_FIELD
 
     // Parse entries. Each entry is 16 bytes and lives at payload offset
     // 8 + i*16. Stop early if the payload is truncated mid-entry, the
@@ -770,14 +765,18 @@ inline void parseSdOptionsInto(SomeIpCaptured &c, const std::uint8_t *payload, s
                                       opt_type == sd_option_type::kIpv4SdEndpoint) &&
                                      opt_total >= 12;
         if (decode_endpoint) {
-            dst.reserved1 = o[3];
-            // memcpy of 4 wire bytes preserves network byte order — the
-            // resulting `ipv4` uint32 compares equal to expected.* values
-            // produced by inet_pton (which stores `addr.s_addr` in NBO).
-            std::memcpy(&dst.ipv4, &o[4], 4);
-            dst.reserved2 = o[8];
-            dst.l4_proto = o[9];
-            dst.port = static_cast<std::uint16_t>((static_cast<std::uint16_t>(o[10]) << 8) | o[11]);
+            // Field layout owned by someip_sd_wire.def (TD-01 SSOT). The
+            // TC8_SD_OPTION_ADDR row memcpy's the 4 wire bytes, preserving
+            // network byte order — the resulting `ipv4` uint32 compares
+            // equal to expected.* values produced by inet_pton (which
+            // stores `addr.s_addr` in NBO).
+#define TC8_SD_OPTION_FIELD(member, off, size, shift, mask) \
+            dst.member = static_cast<decltype(dst.member)>( \
+                ::tc8::sd_wire::readBe(o + (off), (size), (shift), (mask)));
+#define TC8_SD_OPTION_ADDR(member, off) std::memcpy(&dst.member, o + (off), 4);
+#include "someip_sd_wire.def"
+#undef TC8_SD_OPTION_FIELD
+#undef TC8_SD_OPTION_ADDR
         }
 
         // Configuration Option (type 0x01): a Reserved byte then the DNS TXT-like

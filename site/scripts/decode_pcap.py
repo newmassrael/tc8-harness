@@ -23,6 +23,12 @@ import struct
 import sys
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
+
+# SOME/IP-SD wire decode generated from the C++ authoritative decoder's SSOT
+# (src/sce_integration/someip_sd_wire.def) by tools/gen_someip_sd_wire.py.
+# This script runs with its own directory on sys.path[0], so the sibling
+# import resolves without path juggling. See docs/tech-debt.md TD-01.
+import someip_sd_wire_generated as sd_wire
 from typing import Optional
 
 
@@ -477,13 +483,6 @@ _SD_OPTION_TYPES = {
     0x14: "IPv4Multicast", 0x16: "IPv6Multicast",
     0x24: "IPv4SdEndpoint", 0x26: "IPv6SdEndpoint",
 }
-# Option types whose wire payload is the 8-byte IPv4 endpoint shape
-# (1B Reserved + 4B IPv4 + 1B Reserved + 1B L4 + 2B Port). The Endpoint /
-# Multicast / SD Endpoint variants differ only in semantics; the bytes
-# they carry are identical, so the same parse path covers all three.
-_SD_IPV4_OPTION_TYPES = (0x04, 0x14, 0x24)
-
-
 def _looks_like_someip(buf: bytes) -> bool:
     """Heuristic: 16 B header with protocol_version==0x01 + known msg_type."""
     if len(buf) < 16:
@@ -536,47 +535,29 @@ def _dissect_someip(payload: bytes, p: Packet) -> None:
 def _dissect_sd_payload(payload: bytes, p: Packet, base_fields: dict) -> None:
     """Parse SD entries + options after the 16 B SOME/IP header.
 
-    NOTE: this wire decode hand-mirrors the C++ authoritative decoder
-    (src/sce_integration/someip_captured.h decodeSdEntry); keep them in sync —
-    see docs/tech-debt.md TD-01.
+    NOTE: the byte-level field layout is NOT hand-written here — it is decoded
+    by someip_sd_wire_generated (sd_wire.*), which is generated from the same
+    SSOT the C++ authoritative decoder expands, so the two cannot drift. This
+    function owns only the positional walking (entries/options arrays). The
+    entry/option field NAMES are the canonical ones the C++ struct uses
+    (index_first / num_opt1 / ...), so the SCXML cond view needs no remapping.
+    See docs/tech-debt.md TD-01.
     """
     if len(payload) < 8:
         p.summary = "SOME/IP-SD (truncated)"
         return
-    flags = payload[0]
-    # 24-bit Reserved field per PRS_SOMEIPSD §4.2 SD message layout —
-    # MUST be 0x000000. Surface so SOMEIPSRV_FORMAT_10's conformance
-    # cond can compare against the wire value rather than UNKNOWN.
-    sd_reserved = (payload[1] << 16) | (payload[2] << 8) | payload[3]
-    entries_len = struct.unpack(">I", payload[4:8])[0]
+    hdr = sd_wire.decode_sd_header(payload)
+    # sd_flags + 24-bit Reserved (PRS_SOMEIPSD §4.2 SD message layout; Reserved
+    # MUST be 0x000000). Surfaced so SOMEIPSRV_FORMAT_10's cond compares the
+    # wire value rather than UNKNOWN.
+    flags = hdr["sd_flags"]
+    sd_reserved = hdr["sd_reserved"]
+    entries_len = sd_wire.decode_sd_entries_len(payload)
     i = 8
     entries: list[dict] = []
     end_entries = min(i + entries_len, len(payload))
     while i + 16 <= end_entries:
-        e_type = payload[i]
-        idx1, idx2 = payload[i + 1], payload[i + 2]
-        nopts = payload[i + 3]
-        nopts1, nopts2 = (nopts >> 4) & 0x0F, nopts & 0x0F
-        svc_id, inst_id = struct.unpack(">HH", payload[i + 4:i + 8])
-        major = payload[i + 8]
-        ttl = (payload[i + 9] << 16) | (payload[i + 10] << 8) | payload[i + 11]
-        tail = payload[i + 12:i + 16]
-        e: dict = {
-            "type": e_type, "service_id": svc_id, "instance_id": inst_id,
-            "major_version": major, "ttl": ttl,
-            "index_first_options": idx1, "index_second_options": idx2,
-            "n_options_first": nopts1, "n_options_second": nopts2,
-        }
-        if e_type in (0x00, 0x01):
-            e["minor_version"] = struct.unpack(">I", tail)[0]
-        elif e_type in (0x06, 0x07):
-            # bytes 12..13 = Reserved(12b) | Counter(4b) — same split as the C++
-            # decodeSdEntry and the builder pack, so site conds read the same
-            # entry_reserved / counter fields the harness verdicts use.
-            e["entry_reserved"] = (((tail[0] << 8) | tail[1]) >> 4) & 0x0FFF
-            e["counter"] = tail[1] & 0x0F
-            e["eventgroup_id"] = struct.unpack(">H", tail[2:4])[0]
-        entries.append(e)
+        entries.append(sd_wire.decode_sd_entry(payload, i, payload[i]))
         i += 16
 
     options: list[dict] = []
@@ -594,17 +575,13 @@ def _dissect_sd_payload(payload: bytes, p: Packet, base_fields: dict) -> None:
                 "length": o_len,
             }
             # Per PRS_SOMEIPSD §4.2.2 IPv4 endpoint / multicast /
-            # sd-endpoint options share the same 8-byte wire payload
-            # (reserved+ipv4+reserved+l4_proto+port). Surface every
-            # field the SCXML grammar checks against — including the
-            # spec-MUST reserved bytes so conformance asserts can
-            # observe wire reality, not a synthesised value.
-            if o_type in _SD_IPV4_OPTION_TYPES and o_end - (j + 3) >= 8:
-                entry["reserved1"] = payload[j + 3]
-                entry["ipv4"] = _ip(payload[j + 4:j + 8])
-                entry["reserved2"] = payload[j + 8]
-                entry["l4_proto"] = payload[j + 9]
-                entry["port"] = struct.unpack(">H", payload[j + 10:j + 12])[0]
+            # sd-endpoint options share the same wire payload
+            # (reserved+ipv4+reserved+l4_proto+port). The field layout and
+            # the set of carrying Type bytes both come from the SSOT mirror,
+            # so the spec-MUST reserved bytes and the port are observed from
+            # wire reality, never a synthesised value.
+            if o_type in sd_wire.SD_IPV4_OPTION_TYPES and o_end - (j + 3) >= 8:
+                entry.update(sd_wire.decode_sd_option_ipv4(payload, j))
             options.append(entry)
             j = o_end
 

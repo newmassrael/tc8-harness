@@ -1186,28 +1186,16 @@ def _packet_view(packet: dict) -> dict:
         # conds use ``sd_entries_len >= 16 and (sd_entries_len % 16) == 0``
         # which requires the byte form, not the entry count.
         fields.setdefault("sd_entries_len", len(sd_entries) * 16)
-        # Decoder names some SD entry fields differently from the
-        # C++ ``SomeIpSdEntry`` struct the SCXML conds reference. Mirror
-        # them under the cond-expected names so ``sd_entries[0].index_first``
-        # / ``num_opt1`` / ``num_opt2`` resolve concrete. These names hand-mirror
-        # the C++ SdEntry fields (src/sce_integration/someip_captured.h); keep in
-        # sync — see docs/tech-debt.md TD-01.
+        # decode_pcap emits the canonical C++ SdEntry field names directly
+        # (index_first / index_second / num_opt1 / num_opt2 / ...), generated
+        # from the same SSOT the harness expands, so no name remap is needed
+        # here. Still default the Type 2 tail to 0 on entries the decoder
+        # leaves without it (Find/Offer, or synthetic messages) so
+        # ``entry_reserved == 0`` / ``counter == 0`` guards settle; tc8-dut
+        # never sets either half non-zero. See docs/tech-debt.md TD-01.
         for e in sd_entries:
             if not isinstance(e, dict):
                 continue
-            if "index_first_options" in e:
-                e.setdefault("index_first", e["index_first_options"])
-            if "index_second_options" in e:
-                e.setdefault("index_second", e["index_second_options"])
-            if "n_options_first" in e:
-                e.setdefault("num_opt1", e["n_options_first"])
-            if "n_options_second" in e:
-                e.setdefault("num_opt2", e["n_options_second"])
-            # bytes 12..13 = Reserved(12b) | Counter(4b). decode_pcap breaks
-            # these out for Subscribe/Ack entries; synthesise 0 for entries the
-            # decoder left without them (Find/Offer, or synthetic messages) so
-            # ``entry_reserved == 0`` / ``counter == 0`` guards settle. tc8-dut
-            # never sets either half non-zero.
             e.setdefault("entry_reserved", 0)
             e.setdefault("counter", 0)
     sd_options = fields.get("sd_options")

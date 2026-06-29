@@ -209,6 +209,16 @@ jobs:
         # it. --check fails on a stale mirror OR a C++ value drift. Pure-Python.
         run: python3 tools/gen_wire_manifest.py --check
 
+      - name: SOME/IP-SD wire-decode SSOT gate
+        # The SD wire field layout (entry/option offsets, widths, bit slices)
+        # lives once in src/sce_integration/someip_sd_wire.def. The C++
+        # authoritative decoder (someip_captured.h) #includes it directly, and
+        # this tool generates the Python site mirror
+        # (site/scripts/someip_sd_wire_generated.py). --check fails on a stale
+        # mirror AND runs a golden-vector self-test that catches a wrong
+        # offset/width in the .def. Pure-Python. See docs/tech-debt.md TD-01.
+        run: python3 tools/gen_someip_sd_wire.py --check
+
       - name: timing_serial cadence-lane drift gate
         # Every sub-second cadence case (*_within_us predicate) must be classified
         # for the smoke serial lane (timing_serial:true in inventory_overrides, or
