@@ -1,7 +1,5 @@
 #pragma once
 
-#include <cstdint>
-
 #include "icmpv4_expectations.h"
 #include "test_config.h"
 
@@ -29,18 +27,15 @@ namespace tc8 {
 // emits a uniform two-arg state-machine constructor. The trade-off
 // matches the §5.1 SOMEIPSRV split (FORMAT_01..13 also declare the
 // unused expected context).
-struct Icmpv4Expected {
-    std::uint32_t tester_ip    = 0;  // network byte order
-    std::uint32_t dut_iface_ip = 0;  // network byte order
-    std::uint16_t echo_id  = 0;
-    std::uint16_t echo_seq = 0;
-};
+// Inherits every field from the Icmpv4Expectations DTO (data-only base), so the
+// fields are declared once and the DTO and this Named Context cannot drift.
+// Add a new `--expect icmpv4.` field to Icmpv4Expectations (plus the
+// expect_parser.cpp key table); applyTestConfig copies the base in one
+// assignment.
+struct Icmpv4Expected : Icmpv4Expectations {};
 
 inline void applyTestConfig(Icmpv4Expected &e, const TestConfig &cfg) {
-    e.tester_ip    = cfg.icmpv4.tester_ip;
-    e.dut_iface_ip = cfg.icmpv4.dut_iface_ip;
-    e.echo_id      = cfg.icmpv4.echo_id;
-    e.echo_seq     = cfg.icmpv4.echo_seq;
+    static_cast<Icmpv4Expectations &>(e) = cfg.icmpv4;
 }
 
 }  // namespace tc8

@@ -27,6 +27,14 @@ namespace tc8 {
 // the expectation unset falls into its `fail_*` sink — the failure
 // reason plus the CLI banner lets the operator notice the missing
 // configuration without another layer of validation plumbing.
+//
+// Unlike its Ipv4/Icmpv4/Arp/SomeIp siblings, this Named Context does NOT
+// derive from a `Dhcpv4Expectations` data-only base: it carries three
+// server-emulation fields (server_id_be / offered_ip_be / second_server_id_be)
+// that are not CLI-DTO fields and hold non-zero constexpr defaults, so
+// applyTestConfig copies only dut_iface_mac and leaves them at their defaults.
+// A base derivation would keep those three as derived-only members (the
+// SomeIpExpected base+extra pattern); deferred until they need CLI override.
 struct Dhcpv4Expected {
     std::array<std::uint8_t, 6> dut_iface_mac{};
 

@@ -288,10 +288,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/sce_integration/arp_expected.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/test_runner.h",
           "kind": "implements"
         },
@@ -423,10 +419,6 @@
         },
         {
           "file": "src/sce_integration/arp_expectations.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/sce_integration/arp_expected.h",
           "kind": "implements"
         },
         {
@@ -1872,10 +1864,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/sce_integration/arp_expected.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/cases/ipv4_autoconf_network_partitions_01.h",
           "kind": "implements"
         },
@@ -2553,10 +2541,6 @@
         },
         {
           "file": "src/sce_integration/ipv4_expectations.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/sce_integration/ipv4_expected.h",
           "kind": "implements"
         },
         {

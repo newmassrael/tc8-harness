@@ -1,7 +1,5 @@
 #pragma once
 
-#include <cstdint>
-
 #include "ipv4_expectations.h"
 #include "test_config.h"
 
@@ -18,21 +16,15 @@ namespace tc8 {
 // `tester_ip` field is carried for symmetry with the ICMPv4/ARP Named
 // Contexts and so future §4.4.4.6 / §4.4.4.2 cases that need a
 // symmetric assertion on the tester side have the value already wired.
-struct Ipv4Expected {
-    std::uint32_t tester_ip    = 0;  // network byte order
-    std::uint32_t dut_iface_ip = 0;  // network byte order
-    // §4.6.5.5 UI_07/_08 caller-specified IP axis SCXML side. See
-    // `Ipv4Expectations` doc for the stimulus-vs-SCXML asymmetry that
-    // enables strict-axis NEG_ROWS.
-    std::uint32_t dut_alias_ip    = 0;
-    std::uint32_t tester_alias_ip = 0;
-};
+// Inherits every field from the Ipv4Expectations DTO (data-only base), so the
+// fields are declared once and the DTO and this Named Context cannot drift —
+// the same idiom SomeIpExpected and the captured contexts use. Add a new
+// `--expect ipv4.` field to Ipv4Expectations (plus the expect_parser.cpp key
+// table); applyTestConfig copies the whole base in one assignment.
+struct Ipv4Expected : Ipv4Expectations {};
 
 inline void applyTestConfig(Ipv4Expected &e, const TestConfig &cfg) {
-    e.tester_ip       = cfg.ipv4.tester_ip;
-    e.dut_iface_ip    = cfg.ipv4.dut_iface_ip;
-    e.dut_alias_ip    = cfg.ipv4.dut_alias_ip;
-    e.tester_alias_ip = cfg.ipv4.tester_alias_ip;
+    static_cast<Ipv4Expectations &>(e) = cfg.ipv4;
 }
 
 }  // namespace tc8
