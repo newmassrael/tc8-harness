@@ -188,15 +188,35 @@ TEST(BuildFindService, ReservedOverrideSetsHeaderReservedBytes) {
     EXPECT_EQ(b[19], 0xEFu);
 }
 
+TEST(BuildFindServiceWithOption, ReservedDefaultsToZero) {
+    FindServiceParams p{};
+    const Ipv4Endpoint ep{0x030010AC, 0x8765, 0x11};
+    const auto b = buildFindServiceWithOption(p, ep);
+    ASSERT_EQ(b.size(), 56u);
+    EXPECT_EQ(b[17], 0x00u);
+    EXPECT_EQ(b[18], 0x00u);
+    EXPECT_EQ(b[19], 0x00u);
+}
+
 TEST(BuildFindServiceWithOption, ReservedOverrideSetsHeaderReservedBytes) {
     FindServiceParams p{};
     p.sd_reserved = 0x123456;
     const Ipv4Endpoint ep{0x030010AC, 0x8765, 0x11};
     const auto b = buildFindServiceWithOption(p, ep);
-    ASSERT_GE(b.size(), 20u);
+    ASSERT_EQ(b.size(), 56u);  // size invariant to the reserved value
     EXPECT_EQ(b[17], 0x12u);
     EXPECT_EQ(b[18], 0x34u);
     EXPECT_EQ(b[19], 0x56u);
+    // Adjacent fields must be uncorrupted by the reserved write: Flags (16),
+    // Entries-Array length (20..23 = 16), entry type (24 = 0x00 Find), and
+    // Options-Array length (40..43 = 12, one IPv4 endpoint option).
+    EXPECT_EQ(b[16], 0xC0u);
+    EXPECT_EQ(b[20], 0x00u);
+    EXPECT_EQ(b[21], 0x00u);
+    EXPECT_EQ(b[22], 0x00u);
+    EXPECT_EQ(b[23], 0x10u);
+    EXPECT_EQ(b[24], 0x00u);
+    EXPECT_EQ(b[43], 0x0Cu);
 }
 
 }  // namespace

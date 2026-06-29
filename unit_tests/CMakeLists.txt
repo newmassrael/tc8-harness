@@ -145,7 +145,7 @@ target_link_libraries(client_mode_wire_test PRIVATE
 add_test(NAME client_mode_wire_test COMMAND client_mode_wire_test)
 
 tc8_add_unit_test(expect_parser_test)
-tc8_add_unit_test(subscribe_builder_test)
+tc8_add_unit_test(someip_sd_builder_test)
 # Tester server-role RPC reply builders (buildMethodResponse/buildMethodError):
 # byte-level assertions pin the SOME/IP header per PRS_SOMEIP_00701/00757 and
 # the Request-ID echo the DUT client correlates on.
