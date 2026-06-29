@@ -186,6 +186,7 @@ bool applyExpectToken(std::string_view token, ::tc8::SomeIpExpectations &e) {
         {"sd_cyclic_offer_delay_ms", &SomeIpExpectations::sd_cyclic_offer_delay_ms},
         {"sd_request_response_delay_ms", &SomeIpExpectations::sd_request_response_delay_ms},
         {"sd_timing_tolerance_ms", &SomeIpExpectations::sd_timing_tolerance_ms},
+        {"sd_raw_startup_ms", &SomeIpExpectations::sd_raw_startup_ms},
         {"can_ets_cycle_0_ms", &SomeIpExpectations::can_ets_cycle_0_ms},
         {"can_ets_cycle_1_ms", &SomeIpExpectations::can_ets_cycle_1_ms},
         {"can_delay_time_ms", &SomeIpExpectations::can_delay_time_ms},

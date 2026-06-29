@@ -82,6 +82,7 @@ struct SomeIpExpected {
     std::uint32_t sd_cyclic_offer_delay_ms = 0;
     std::uint32_t sd_request_response_delay_ms = 0;
     std::uint32_t sd_timing_tolerance_ms = 0;
+    std::uint32_t sd_raw_startup_ms = 0;
     std::uint32_t can_ets_cycle_0_ms = 0;
     std::uint32_t can_ets_cycle_1_ms = 0;
     std::uint32_t can_delay_time_ms = 0;
@@ -130,6 +131,7 @@ inline void applyTestConfig(SomeIpExpected &e, const TestConfig &cfg) {
     e.sd_cyclic_offer_delay_ms = cfg.someip.sd_cyclic_offer_delay_ms;
     e.sd_request_response_delay_ms = cfg.someip.sd_request_response_delay_ms;
     e.sd_timing_tolerance_ms = cfg.someip.sd_timing_tolerance_ms;
+    e.sd_raw_startup_ms = cfg.someip.sd_raw_startup_ms;
     e.can_ets_cycle_0_ms = cfg.someip.can_ets_cycle_0_ms;
     e.can_ets_cycle_1_ms = cfg.someip.can_ets_cycle_1_ms;
     e.can_delay_time_ms = cfg.someip.can_delay_time_ms;

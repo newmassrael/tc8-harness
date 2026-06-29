@@ -100,6 +100,13 @@ struct SomeIpExpectations {
     std::uint32_t sd_request_response_delay_ms = 0;
     std::uint32_t sd_timing_tolerance_ms = 0;
 
+    // SD raw-startup latency threshold: the residual service-discovery
+    // activation latency measured with the configured INITIAL_DELAY forced to
+    // 0, so the first Offer's delay reflects only the DUT's own start-up cost.
+    // Distinct from sd_initial_delay_max_ms (the configured Initial-Wait MAX) —
+    // reusing it would conflate two independent SD start-up test variables.
+    std::uint32_t sd_raw_startup_ms = 0;
+
     // CAN-encapsulated SOME/IP cadence / delay timers (periodic cycle,
     // delay time after a message, start offset). The CAN Message IDs and
     // payload encoding stay OEM-side; only the configured timer values live

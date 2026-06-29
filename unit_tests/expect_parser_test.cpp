@@ -125,6 +125,7 @@ TEST(ApplyExpectToken, TimingThresholdKeys) {
     EXPECT_TRUE(applyExpectToken("sd_cyclic_offer_delay_ms=2000", e));
     EXPECT_TRUE(applyExpectToken("sd_request_response_delay_ms=15", e));
     EXPECT_TRUE(applyExpectToken("sd_timing_tolerance_ms=5", e));
+    EXPECT_TRUE(applyExpectToken("sd_raw_startup_ms=7", e));
     EXPECT_TRUE(applyExpectToken("can_ets_cycle_0_ms=200", e));
     EXPECT_TRUE(applyExpectToken("can_ets_cycle_1_ms=500", e));
     EXPECT_TRUE(applyExpectToken("can_delay_time_ms=20", e));
@@ -132,6 +133,7 @@ TEST(ApplyExpectToken, TimingThresholdKeys) {
     EXPECT_TRUE(applyExpectToken("can_timing_tolerance_ms=2", e));
     EXPECT_EQ(e.sd_initial_delay_min_ms, 10u);
     EXPECT_EQ(e.sd_cyclic_offer_delay_ms, 2000u);
+    EXPECT_EQ(e.sd_raw_startup_ms, 7u);
     EXPECT_EQ(e.sd_repetitions_max, 3u);
     EXPECT_EQ(e.can_ets_cycle_0_ms, 200u);
     EXPECT_EQ(e.can_start_offset_ms, 100u);
@@ -145,6 +147,7 @@ TEST(ApplyExpectToken, TimingThresholdKeys) {
     applyTestConfig(exp, cfg);
     EXPECT_EQ(exp.sd_cyclic_offer_delay_ms, 2000u);
     EXPECT_EQ(exp.sd_timing_tolerance_ms, 5u);
+    EXPECT_EQ(exp.sd_raw_startup_ms, 7u);
     EXPECT_EQ(exp.can_ets_cycle_0_ms, 200u);
 }
 
