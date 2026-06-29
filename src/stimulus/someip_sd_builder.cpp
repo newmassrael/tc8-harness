@@ -178,7 +178,7 @@ std::vector<std::uint8_t> buildOfferService(const OfferServiceTarget &t) {
     b.push_back(kReturnCode);
 
     b.push_back(kSdFlags);
-    putBe24(b, 0);
+    putBe24(b, 0);  // Reserved 0; see FindServiceParams::sd_reserved.
     putBe32(b, kEntriesLen);
 
     b.push_back(kEntryTypeOffer);
@@ -239,7 +239,7 @@ buildOfferServiceWithEndpoint(const OfferServiceWithEndpointTarget &t) {
     b.push_back(kReturnCode);
 
     b.push_back(kSdFlags);
-    putBe24(b, 0);
+    putBe24(b, 0);  // Reserved 0; see FindServiceParams::sd_reserved.
     putBe32(b, kEntriesLen);
 
     // OfferService entry referencing 1 option in run 1.
@@ -441,7 +441,7 @@ std::vector<std::uint8_t> buildSubscribeEventgroup(const SubscribeEventgroupPara
 
     // SD header: flags + 24-bit reserved.
     b.push_back(p.sd_flags);
-    putBe24(b, 0);
+    putBe24(b, 0);  // Reserved 0; see FindServiceParams::sd_reserved.
 
     // Length of Entries Array. ETS_123/_124/_125 inject malformed values
     // via SubscribeEventgroupParams::entries_len_override; canonical is 16
@@ -586,7 +586,7 @@ buildMultiSubscribeEventgroup(const MultiSubscribeEventgroupParams &p) {
     b.push_back(kReturnCode);
 
     b.push_back(p.sd_flags);
-    putBe24(b, 0);
+    putBe24(b, 0);  // Reserved 0; see FindServiceParams::sd_reserved.
 
     putBe32(b, entries_len);
 
