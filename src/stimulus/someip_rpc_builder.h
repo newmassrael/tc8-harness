@@ -10,6 +10,7 @@
 
 #include "someip/protocol.h"             // MessageType / ReturnCode (shared wire constants).
 #include "stimulus/arp_builder.h"        // kEthBroadcast (Ethernet dst default, SSOT).
+#include "stimulus/endpoint.h"           // Endpoint — MethodEndpoint aliases it (SSOT).
 #include "stimulus/someip_sd_builder.h"  // BootTiming for shared envelope.
 
 namespace tc8::stimulus {
@@ -95,22 +96,26 @@ std::vector<std::uint8_t> buildMethodResponse(SomeIpRpcMessage t);
 // of E_OK, so a negative case can drive the spec-forbidden Error+E_OK shape.
 std::vector<std::uint8_t> buildMethodError(SomeIpRpcMessage t);
 
+// Event Notification (PRS_SOMEIP_00701 message type 0x02 NOTIFICATION). Forces
+// message_type to NOTIFICATION; the event is identified by `t.method_id` (the
+// event ID with its high bit set, e.g. 0x8001), `t.client_id` defaults to 0x0000
+// — not forced — (a notification carries no Request ID), and `t.payload` is the
+// serialised event / field value. Used in the SERVER-role topology where the
+// tester delivers events (and field initial values) to a subscribed DUT client.
+// Reuses the `buildMethodRequest` header core (one SOME/IP framing SSOT) and
+// honours `length_override` for the deliberately-malformed cases.
+std::vector<std::uint8_t> buildEventNotification(SomeIpRpcMessage t);
+
 // Destination of a SOME/IP method message (IPv4 ip:port) — the DUT's service
-// endpoint for a request, or its client source endpoint for a tester reply. A pure
-// value type with no implicit default: the endpoint is always topology-
-// derived, never baked in. The conformance literal (172.16.0.2:30502) has
-// its single source of truth in the `--expect` surface / vsomeip.json, not
-// here. Build it via `tc8::sce::someipUdp/TcpMethodDest`, which sources it
-// from `cfg.someip`; a zero-initialised value (0.0.0.0:0) is an unconfigured
-// sentinel that fails loud on connect rather than silently targeting a
-// hardcoded address.
-struct MethodEndpoint {
-    // IPv4 in network byte order (matches `Ipv4Endpoint::ipv4_be` and
-    // cfg.someip.dut_iface_ip, both NBO via inet_pton).
-    std::uint32_t ipv4_be = 0;
-    // Host order; the emitter applies htons.
-    std::uint16_t port = 0;
-};
+// endpoint for a request, or its client source endpoint for a tester reply.
+// Aliases the canonical `Endpoint` (stimulus/endpoint.h): no implicit default,
+// always topology-derived, never baked in. The conformance literal
+// (172.16.0.2:30502) has its single source of truth in the `--expect` surface /
+// vsomeip.json, not here. Build it via `tc8::sce::someipUdp/TcpMethodDest`, which
+// sources it from `cfg.someip`; a zero-initialised value (0.0.0.0:0) is an
+// unconfigured sentinel that fails loud on connect rather than silently targeting
+// a hardcoded address.
+using MethodEndpoint = Endpoint;
 
 // Tester server-role reply EMIT (SOMEIPCLT). Sends a Response/Error datagram
 // (from buildMethodResponse/Error) back to the DUT client that issued the
@@ -122,6 +127,35 @@ struct MethodEndpoint {
 // sendUdpUnicast sentinel.
 int emitMethodReply(std::string_view iface, const std::vector<std::uint8_t> &reply,
                     std::uint16_t service_src_port, const MethodEndpoint &client_dest);
+
+// Tester server-role event Notification EMIT (SOMEIPCLT). Delivers a Notification
+// (from `buildEventNotification`) from the tester's offered event source port
+// `service_src_port` to the subscribed DUT's endpoint `client_dest` — the
+// endpoint the DUT advertised in its SubscribeEventgroup option. Shares the
+// server→client UDP transport with `emitMethodReply` (both route through
+// `sendUdpUnicast`, the one UDP emit SSOT); the distinct name keeps event-delivery
+// call sites self-documenting. Returns 0 on success or the negative
+// `sendUdpUnicast` sentinel.
+int emitEventNotification(std::string_view iface, const std::vector<std::uint8_t> &notification,
+                          std::uint16_t service_src_port, const MethodEndpoint &client_dest);
+// The other two delivery transports have no per-transport wrapper (a wrapper
+// would just rename the underlying SSOT): for MULTICAST delivery call
+// `sendUdpMulticast(buildEventNotification(...), ...)`; for TCP delivery write the
+// notification bytes onto an accepted `TcpConnection::send` (stimulus/tcp_server.h).
+
+// Concatenate already-built SOME/IP messages into one buffer for the "multiple
+// SOME/IP messages in one L4 packet" cases (two messages in one UDP datagram, or
+// in one TCP segment). Each `messages[i]` is a full SOME/IP message (from
+// buildEventNotification / buildMethodResponse / buildMethodRequest); the result
+// is sent as a single datagram (`emitEventNotification`) or written to one TCP
+// segment (`TcpConnection::send`). The helper does NOT pad or realign — UNALIGNED
+// packing is produced by a per-message `length_override` at build time (a message
+// whose Length disagrees with its byte count makes the next message start
+// unaligned). Pure (no I/O). Sibling of `buildBundledMethodRequests`, which
+// builds-then-concats Requests over a fresh socket; this concats already-built
+// messages of any kind — kept separate to avoid an extra vector-of-vector
+// allocation in the request path.
+std::vector<std::uint8_t> packSomeIpMessages(const std::vector<std::vector<std::uint8_t>> &messages);
 
 // Tester-side Method Request emit envelope mirrored on `BootTiming` so
 // callers can chain `emitFindServiceBoot` → `emitMethodRequestAfter` with

@@ -219,5 +219,199 @@ TEST(BuildFindServiceWithOption, ReservedOverrideSetsHeaderReservedBytes) {
     EXPECT_EQ(b[43], 0x0Cu);
 }
 
+// --- SubscribeEventgroupAck/Nack (entry type 0x07) — tester SERVER-role ---
+
+// Reference Ack matching the makeRef() Subscribe so an answer echoes the same
+// identity the DUT would have subscribed to.
+SubscribeEventgroupAckParams makeAckRef() {
+    SubscribeEventgroupAckParams p{};
+    p.target.service_id = 0xF4E7;
+    p.target.instance_id = 0x0001;
+    p.target.eventgroup_id = 0x0042;
+    p.target.major_version = 0x01;
+    p.target.ttl = 3;
+    p.target.counter = 0x0;
+    p.session_id = 0x0001;
+    p.sd_flags = 0xC0;
+    return p;
+}
+
+TEST(BuildSubscribeEventgroupAck, UnicastAckIs44BytesNoOptions) {
+    const auto b = buildSubscribeEventgroupAck(makeAckRef());
+    // No multicast endpoint → no options: 16 SOME/IP + 4 SD + 4 EntriesLen
+    // + 16 entry + 4 OptionsLen = 44.
+    ASSERT_EQ(b.size(), 44u);
+    // SOME/IP header: SD service/method, Length 36, NOTIFICATION/E_OK.
+    EXPECT_EQ(b[0], 0xFFu);
+    EXPECT_EQ(b[1], 0xFFu);
+    EXPECT_EQ(b[2], 0x81u);
+    EXPECT_EQ(b[3], 0x00u);
+    EXPECT_EQ(b[7], 36u);    // Length field (8 + 28)
+    EXPECT_EQ(b[14], 0x02u);  // message type = NOTIFICATION
+    EXPECT_EQ(b[15], 0x00u);  // return code = E_OK
+    // SD flags + EntriesLen.
+    EXPECT_EQ(b[16], 0xC0u);
+    EXPECT_EQ(b[23], 0x10u);  // EntriesLen = 16
+    // Entry: type 0x07, no options referenced.
+    EXPECT_EQ(b[24], 0x07u);
+    EXPECT_EQ(b[27], 0x00u);  // #Opt1=0 | #Opt2=0
+    EXPECT_EQ(b[28], 0xF4u);  // Service ID
+    EXPECT_EQ(b[29], 0xE7u);
+    EXPECT_EQ(b[33], 0x00u);  // TTL = 0x000003 (Ack)
+    EXPECT_EQ(b[34], 0x00u);
+    EXPECT_EQ(b[35], 0x03u);
+    EXPECT_EQ(b[38], 0x00u);  // Eventgroup ID = 0x0042
+    EXPECT_EQ(b[39], 0x42u);
+    // OptionsLen = 0.
+    EXPECT_EQ(b[40], 0x00u);
+    EXPECT_EQ(b[41], 0x00u);
+    EXPECT_EQ(b[42], 0x00u);
+    EXPECT_EQ(b[43], 0x00u);
+}
+
+TEST(BuildSubscribeEventgroupAck, NackIsTtlZero) {
+    // Same shape as the Ack; the Nack is signalled by TTL == 0 (no separate
+    // entry type) — the only delta is the 24-bit TTL field at bytes 33..35.
+    SubscribeEventgroupAckParams p = makeAckRef();
+    p.target.ttl = 0;
+    const auto b = buildSubscribeEventgroupAck(p);
+    ASSERT_EQ(b.size(), 44u);
+    EXPECT_EQ(b[24], 0x07u);  // still entry type 0x07
+    EXPECT_EQ(b[33], 0x00u);
+    EXPECT_EQ(b[34], 0x00u);
+    EXPECT_EQ(b[35], 0x00u);
+}
+
+TEST(BuildSubscribeEventgroupAck, CounterAndEntryReservedShareByte13) {
+    SubscribeEventgroupAckParams p = makeAckRef();
+    p.target.entry_reserved = 0x801;  // reserved = 1000 0000 0001
+    p.target.counter = 0x5;
+    const auto b = buildSubscribeEventgroupAck(p);
+    // (0x801 << 4) | 0x5 = 0x8015, big-endian at bytes 36..37.
+    EXPECT_EQ(b[36], 0x80u);
+    EXPECT_EQ(b[37], 0x15u);
+    EXPECT_EQ(b[38], 0x00u);  // eventgroup ID unshifted
+    EXPECT_EQ(b[39], 0x42u);
+}
+
+TEST(BuildSubscribeEventgroupAck, MulticastEndpointAddsReferencedOption) {
+    SubscribeEventgroupAckParams p = makeAckRef();
+    // 239.0.0.3:0x8765 over UDP as the event multicast group.
+    p.target.multicast_endpoint = Ipv4Endpoint{0x030000EF, 0x8765, 0x11};
+    const auto b = buildSubscribeEventgroupAck(p);
+    // 44 + 12 = 56 bytes, one referenced option.
+    ASSERT_EQ(b.size(), 56u);
+    EXPECT_EQ(b[7], 48u);     // Length field (8 + 40)
+    EXPECT_EQ(b[27], 0x10u);  // #Opt1=1 | #Opt2=0
+    EXPECT_EQ(b[43], 0x0Cu);  // OptionsLen = 12
+    // IPv4 Multicast option: Length 9 (BE), Type 0x14, Reserved 0.
+    EXPECT_EQ(b[44], 0x00u);
+    EXPECT_EQ(b[45], 0x09u);
+    EXPECT_EQ(b[46], 0x14u);
+    EXPECT_EQ(b[47], 0x00u);
+    // Group address 239.0.0.3 from ipv4_be = 0x030000EF (wire-order bytes).
+    EXPECT_EQ(b[48], 0xEFu);
+    EXPECT_EQ(b[49], 0x00u);
+    EXPECT_EQ(b[50], 0x00u);
+    EXPECT_EQ(b[51], 0x03u);
+    EXPECT_EQ(b[52], 0x00u);  // Reserved
+    EXPECT_EQ(b[53], 0x11u);  // L4 = UDP
+    EXPECT_EQ(b[54], 0x87u);  // Port BE
+    EXPECT_EQ(b[55], 0x65u);
+}
+
+// Offer SD-flags override + StopOffer (ttl 0) — a server-role case drives a
+// specific Reboot flag across an Offer stream, and ttl 0 emits a StopOffer.
+TEST(BuildOfferService, SdFlagsDefaultAndOverrideAndStopOffer) {
+    OfferServiceTarget t{};
+    const auto def = buildOfferService(t);
+    ASSERT_GE(def.size(), 17u);
+    EXPECT_EQ(def[16], 0xC0u);  // default Reboot=1 Unicast=1
+    t.sd_flags = 0x40;          // Reboot=0 Unicast=1
+    const auto ovr = buildOfferService(t);
+    ASSERT_GE(ovr.size(), 17u);
+    EXPECT_EQ(ovr[16], 0x40u);
+    // ttl == 0 → StopOfferService: the 24-bit entry TTL (bytes 33..35) is 0.
+    OfferServiceTarget stop{};
+    stop.ttl = 0;
+    const auto s = buildOfferService(stop);
+    ASSERT_GE(s.size(), 36u);
+    EXPECT_EQ(s[33], 0x00u);
+    EXPECT_EQ(s[34], 0x00u);
+    EXPECT_EQ(s[35], 0x00u);
+}
+
+// Byte-pins for the two builders that route through appendSdHeader but had no
+// dedicated coverage before the SSOT migration — proves the shared preamble
+// emits the same bytes for the Offer-with-endpoint and multi-entry shapes.
+TEST(BuildOfferServiceWithEndpoint, HeaderEntryAndOption) {
+    OfferServiceWithEndpointTarget t{};
+    t.service.service_id = 0xF4E8;
+    t.service.session_id = 0x0001;
+    t.endpoint.ipv4_be = 0x030010AC;  // 172.16.0.3
+    t.endpoint.port = 0x8765;
+    t.endpoint.l4proto = 0x11;
+    const auto b = buildOfferServiceWithEndpoint(t);
+    ASSERT_EQ(b.size(), 56u);
+    // SD header preamble via appendSdHeader.
+    EXPECT_EQ(b[0], 0xFFu);
+    EXPECT_EQ(b[1], 0xFFu);
+    EXPECT_EQ(b[2], 0x81u);
+    EXPECT_EQ(b[3], 0x00u);
+    EXPECT_EQ(b[7], 48u);     // Length
+    EXPECT_EQ(b[14], 0x02u);  // NOTIFICATION
+    EXPECT_EQ(b[16], 0xC0u);  // flags
+    EXPECT_EQ(b[23], 0x10u);  // EntriesLen
+    EXPECT_EQ(b[24], 0x01u);  // entry type Offer
+    EXPECT_EQ(b[27], 0x10u);  // #Opt1=1
+    EXPECT_EQ(b[43], 0x0Cu);  // OptionsLen
+    EXPECT_EQ(b[46], 0x04u);  // IPv4 Endpoint option type
+}
+
+TEST(BuildMultiSubscribeEventgroup, HeaderAndTwoEntries) {
+    MultiSubscribeEventgroupParams p{};
+    p.entries = {SubscribeEventgroupTarget{}, SubscribeEventgroupTarget{}};
+    p.entries[1].eventgroup_id = 0x0005;
+    p.tester_endpoint.ipv4_be = 0x030010AC;
+    p.tester_endpoint.port = 0x8765;
+    p.tester_endpoint.l4proto = 0x11;
+    p.session_id = 0x0001;
+    const auto b = buildMultiSubscribeEventgroup(p);
+    // 16 header + 4 SD + 4 EntriesLen + 32 (two entries) + 4 OptionsLen + 12 option.
+    ASSERT_EQ(b.size(), 72u);
+    EXPECT_EQ(b[0], 0xFFu);
+    EXPECT_EQ(b[2], 0x81u);
+    EXPECT_EQ(b[14], 0x02u);  // NOTIFICATION
+    EXPECT_EQ(b[16], 0xC0u);  // flags
+    EXPECT_EQ(b[23], 0x20u);  // EntriesLen = 32 (two entries)
+    EXPECT_EQ(b[24], 0x06u);  // first entry type Subscribe
+    EXPECT_EQ(b[40], 0x06u);  // second entry type Subscribe (16B later)
+}
+
+TEST(BuildSubscribeEventgroupNack, ForcesTtlZeroIgnoringTargetTtl) {
+    // The named Nack wrapper overwrites target.ttl to 0 (Nack) while echoing
+    // every other field, regardless of the ttl the caller left set.
+    SubscribeEventgroupAckParams p = makeAckRef();
+    p.target.ttl = 9;  // must be ignored.
+    p.target.counter = 0x5;
+    const auto b = buildSubscribeEventgroupNack(p);
+    ASSERT_EQ(b.size(), 44u);
+    EXPECT_EQ(b[24], 0x07u);  // entry type 0x07
+    EXPECT_EQ(b[33], 0x00u);  // TTL forced to 0
+    EXPECT_EQ(b[34], 0x00u);
+    EXPECT_EQ(b[35], 0x00u);
+    EXPECT_EQ(b[37], 0x05u);  // counter still echoed
+    EXPECT_EQ(b[39], 0x42u);  // eventgroup still echoed
+}
+
+TEST(BuildSubscribeEventgroupAck, MulticastOptionTypeOverride) {
+    SubscribeEventgroupAckParams p = makeAckRef();
+    p.target.multicast_endpoint = Ipv4Endpoint{0x030000EF, 0x8765, 0x11};
+    p.target.multicast_option_type = 0x77;  // drive an unknown option type
+    const auto b = buildSubscribeEventgroupAck(p);
+    ASSERT_EQ(b.size(), 56u);
+    EXPECT_EQ(b[46], 0x77u);
+}
+
 }  // namespace
 }  // namespace tc8::stimulus

@@ -52,11 +52,39 @@ std::vector<std::uint8_t> buildMethodError(SomeIpRpcMessage t) {
     return buildMethodRequest(t);
 }
 
+std::vector<std::uint8_t> buildEventNotification(SomeIpRpcMessage t) {
+    t.message_type = someip::MessageType::NOTIFICATION;
+    return buildMethodRequest(t);
+}
+
 int emitMethodReply(std::string_view iface, const std::vector<std::uint8_t> &reply,
                     std::uint16_t service_src_port, const MethodEndpoint &client_dest) {
     // Server reply: source = the tester's service port (not ephemeral), dest =
     // the DUT client endpoint. Generic UDP mechanics live in sendUdpUnicast.
     return sendUdpUnicast(reply, iface, service_src_port, client_dest.ipv4_be, client_dest.port);
+}
+
+int emitEventNotification(std::string_view iface, const std::vector<std::uint8_t> &notification,
+                          std::uint16_t service_src_port, const MethodEndpoint &client_dest) {
+    // Unicast event delivery is the same server->client transport as a method
+    // reply (source = the tester's offered port, dest = the subscribed DUT
+    // endpoint), so it delegates to the one transport function rather than
+    // re-spelling the sendUdpUnicast call. Multicast and TCP delivery use
+    // sendUdpMulticast / TcpConnection::send directly (no per-transport wrapper).
+    return emitMethodReply(iface, notification, service_src_port, client_dest);
+}
+
+std::vector<std::uint8_t> packSomeIpMessages(const std::vector<std::vector<std::uint8_t>> &messages) {
+    std::size_t total = 0;
+    for (const auto &m : messages) {
+        total += m.size();
+    }
+    std::vector<std::uint8_t> packed;
+    packed.reserve(total);
+    for (const auto &m : messages) {
+        packed.insert(packed.end(), m.begin(), m.end());
+    }
+    return packed;
 }
 
 namespace {

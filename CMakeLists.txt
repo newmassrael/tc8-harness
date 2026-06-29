@@ -258,6 +258,7 @@ add_executable(tc8-harness
     src/stimulus/arp_builder.cpp
     src/stimulus/arp_responder.cpp
     src/stimulus/method_responder.cpp
+    src/stimulus/tcp_server.cpp
     src/stimulus/dot1q.cpp
     src/stimulus/dhcpv4_frame_builder.cpp
     src/stimulus/ipv4_frame_builder.cpp

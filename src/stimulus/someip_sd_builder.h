@@ -334,6 +334,12 @@ struct OfferServiceTarget {
     std::uint32_t ttl           = 3;
     std::uint32_t minor_version = 0;
     std::uint16_t session_id    = 0x0001;
+    // SD Flags byte (Reboot bit7 | Unicast bit6). Default 0xC0 = Reboot=1
+    // Unicast=1, the canonical post-boot Offer. A server-role case overrides the
+    // Reboot flag (e.g. 0x40 Reboot=0) so the DUT's reboot-detection tracker is
+    // exercised across an Offer stream; the session_id above is the matching
+    // counter (TR_SOMEIP §4.2.1 reboot semantics).
+    std::uint8_t  sd_flags      = 0xC0;
 };
 
 // 44-byte SOME/IP-SD OfferService datagram (16-byte SOME/IP header + 28-byte
@@ -413,5 +419,79 @@ int emitMultiSubscribeEventgroupRaw(std::string_view iface,
                                     std::chrono::milliseconds pre_emit_wait =
                                         std::chrono::milliseconds(500),
                                     const SubscribeDestination &dest = {});
+
+// --- Tester SERVER-role SD answer surface (SOMEIPCLT topology) ---
+//
+// In the SERVER-role (tester-offers, DUT-subscribes) topology the DUT issues a
+// SubscribeEventgroup and the tester must answer with a SubscribeEventgroupAck
+// (TR_SOMEIP §7.4.2 SD entry type 0x07). There is no separate Nack entry type:
+// TTL > 0 is the Ack, TTL == 0 is the Nack — the TTL discriminates, exactly as
+// `buildOfferService` uses TTL for Offer vs StopOffer. Build the answer from the
+// captured Subscribe's identity so the DUT correlates it (echo
+// Service/Instance/Major/Eventgroup/Counter), and target the captured client's
+// own SD endpoint.
+
+// Identity of a SubscribeEventgroupAck/Nack entry — the "what we are answering"
+// half. Mirrors `SubscribeEventgroupTarget`, with TTL carrying the Ack/Nack
+// discriminator and an optional multicast delivery endpoint.
+struct SubscribeEventgroupAckTarget {
+    std::uint16_t service_id = 0xF4E7;     // SERVICE-ID-1 (echo the Subscribe).
+    std::uint16_t instance_id = 0x0001;
+    std::uint16_t eventgroup_id = 0x0001;
+    std::uint8_t major_version = 1;
+    std::uint32_t ttl = 3;                 // seconds; > 0 = Ack, 0 = Nack (entry type 0x07).
+    std::uint8_t counter = 0;              // 4-bit counter, echoes the Subscribe (TR_SOMEIP §7.1.3).
+    // 12-bit Reserved field of the entry (bytes 12-13, sharing the 16-bit word
+    // with the 4-bit counter) — same override semantics as
+    // `SubscribeEventgroupTarget::entry_reserved`; default unset → spec-canonical 0.
+    std::optional<std::uint16_t> entry_reserved;
+    // Multicast delivery endpoint advertised in the Ack's option (TR_SOMEIP
+    // §7.4.3): the group:port the client joins for multicast event delivery.
+    // Set → the Ack references one option (run 1, a 56-byte Ack); unset (the
+    // default) → unicast events, no options referenced (a 44-byte Ack).
+    std::optional<Ipv4Endpoint> multicast_endpoint;
+    // Option type for `multicast_endpoint` (TR_SOMEIP §7.4.3): 0x14 = IPv4
+    // Multicast Option, the canonical type for an Ack's event-delivery group.
+    // Overridable for a case that drives an unknown/alternate option type.
+    std::uint8_t multicast_option_type = 0x14;
+};
+
+// Full parameters for one SubscribeEventgroupAck datagram — identity plus the
+// server-side emit state. Used by the low-level `buildSubscribeEventgroupAck`.
+struct SubscribeEventgroupAckParams {
+    SubscribeEventgroupAckTarget target{};
+    std::uint16_t session_id = 0x0001;     // server SD session counter.
+    std::uint8_t sd_flags = 0xC0;          // Reboot=1 Unicast=1, same cadence as Offer.
+};
+
+// Builds the SOME/IP-SD SubscribeEventgroupAck/Nack datagram (entry type 0x07):
+// 44 bytes when `target.multicast_endpoint` is unset (no options, SOME/IP
+// Length 36), 56 bytes when set (one referenced IPv4 Multicast option, Length
+// 48) — the Ack/Offer parallel of `buildOfferService` vs
+// `buildOfferServiceWithEndpoint`. TTL == 0 makes it a Nack. Caller owns the
+// UDP/IP/Ethernet encapsulation (`emitSubscribeEventgroupAck`).
+std::vector<std::uint8_t> buildSubscribeEventgroupAck(const SubscribeEventgroupAckParams &p);
+
+// Tester server-role SubscribeEventgroupAck/Nack EMIT. Sends the answer from the
+// tester's SD port (30490 — the server's SD endpoint) to the DUT client's SD
+// endpoint `client_sd_dest`. That endpoint is the SOURCE of the captured
+// Subscribe (this frame's src_ip) and is runtime-derived, so it has NO default —
+// the caller must pass it (mirroring `MethodEndpoint`'s deliberate no-default
+// rule), preventing a silent fall-back to a hardcoded address. Source port = SD
+// port so the DUT accepts it as a valid SD message, exactly as `sendSdUnicast`.
+// Returns 0 on success or the negative `sendUdpUnicast` sentinel.
+int emitSubscribeEventgroupAck(std::string_view iface, const SubscribeEventgroupAckParams &p,
+                               const SubscribeDestination &client_sd_dest);
+
+// SubscribeEventgroupNack — the TTL == 0 form of the same entry type 0x07. There
+// is no separate Nack entry type in SOME/IP-SD; this forces `target.ttl = 0` and
+// delegates to the Ack builder (one wire SSOT), the force-and-delegate idiom of
+// `buildMethodError` over `buildMethodRequest`. There is intentionally no
+// `emitSubscribeEventgroupNack`: the emit asymmetry mirrors the RPC family, where
+// `emitMethodReply` serves Response and Error alike — to emit a Nack, pass the
+// caller's params with `target.ttl == 0` to `emitSubscribeEventgroupAck` (or emit
+// this builder's bytes). The caller's `target.ttl` is overwritten to 0; every
+// other field (Service/Instance/Eventgroup/Counter/Session/Reboot) is echoed.
+std::vector<std::uint8_t> buildSubscribeEventgroupNack(SubscribeEventgroupAckParams p);
 
 }  // namespace tc8::stimulus

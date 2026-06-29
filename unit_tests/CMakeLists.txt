@@ -27,6 +27,7 @@ add_library(tc8_harness_testable STATIC
     ${PROJECT_SOURCE_DIR}/src/stimulus/arp_builder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/arp_responder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/method_responder.cpp
+    ${PROJECT_SOURCE_DIR}/src/stimulus/tcp_server.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/dot1q.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/ipv4_frame_builder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/icmpv4_builder.cpp
@@ -159,6 +160,10 @@ tc8_add_unit_test(arp_responder_test)
 # built Eth+IPv4+UDP+SOME/IP Request frame, with no privilege. The live AF_PACKET
 # socket plumbing shares the ArpResponder pattern (privileged path covered there).
 tc8_add_unit_test(method_responder_test)
+# Tester-as-TCP-server accept surface (SOMEIPCLT): TcpServer/TcpConnection over a
+# loopback round-trip — accept + peer endpoint, server send, peer-FIN observe,
+# multi-accept. No privilege (loopback only); no DUT required.
+tc8_add_unit_test(tcp_server_test)
 tc8_add_unit_test(ipv4_frame_builder_test)
 tc8_add_unit_test(icmp_echo_test)
 tc8_add_unit_test(icmpv4_builder_test)

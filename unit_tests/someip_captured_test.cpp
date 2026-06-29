@@ -553,3 +553,39 @@ TEST(CapturedFrameTimingListenWindow, SurvivesPerFrameFill) {
     EXPECT_EQ(c.observed_ts_us, c.listen_window_open_ts_us + 250'000LL);
     EXPECT_EQ(c.delta_from_listen_window_us(), 250'000LL);
 }
+
+// SOMEIPCLT DUT client-role SD recognizers: the DUT FindServices, Subscribes and
+// StopSubscribes; these distinguish the three over the shared SD header
+// (service_id 0xFFFF) and the first entry's type / TTL.
+TEST(SomeIpCapturedDutSdRecognizers, FindSubscribeStopDiscriminated) {
+    tc8::SomeIpCaptured c;
+    c.service_id = 0xFFFF;  // SD header service.
+    c.sd_entry_count = 1;
+
+    // FindService (entry type 0x00) for service 0xF4E7.
+    c.sd_entries[0].type = 0x00;
+    c.sd_entries[0].service_id = 0xF4E7;
+    EXPECT_TRUE(c.is_find_service_from_dut(0xF4E7));
+    EXPECT_TRUE(c.is_find_service_from_dut(0xFFFF));   // wildcard matches any service
+    EXPECT_FALSE(c.is_find_service_from_dut(0xF4E8));  // wrong service
+    EXPECT_FALSE(c.is_subscribe_for(0xF4E7, 0x0005));  // a Find is not a Subscribe
+
+    // SubscribeEventgroup (entry type 0x06) with a live TTL.
+    c.sd_entries[0].type = 0x06;
+    c.sd_entries[0].ttl = 3;
+    c.sd_entries[0].eventgroup_id = 0x0005;
+    EXPECT_TRUE(c.is_subscribe_for(0xF4E7, 0x0005));
+    EXPECT_FALSE(c.is_subscribe_for(0xF4E7, 0x0001));   // wrong eventgroup
+    EXPECT_FALSE(c.is_subscribe_for(0xF4E8, 0x0005));   // wrong service
+    EXPECT_FALSE(c.is_stop_subscribe(0xF4E7, 0x0005));  // TTL > 0 is not a Stop
+
+    // StopSubscribe = same entry type 0x06 with TTL 0.
+    c.sd_entries[0].ttl = 0;
+    EXPECT_TRUE(c.is_stop_subscribe(0xF4E7, 0x0005));
+    EXPECT_FALSE(c.is_subscribe_for(0xF4E7, 0x0005));   // TTL 0 is not a live Subscribe
+
+    // A non-SD frame (header service != 0xFFFF) matches none of them.
+    c.service_id = 0xF4E7;
+    EXPECT_FALSE(c.is_find_service_from_dut(0xFFFF));
+    EXPECT_FALSE(c.is_stop_subscribe(0xF4E7, 0x0005));
+}

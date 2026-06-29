@@ -179,5 +179,104 @@ TEST(EmitMethodReply, DeliversReplyFromServicePort) {
     EXPECT_EQ(ntohs(from.sin_port), kServicePort);
 }
 
+// --- Event Notification (message type 0x02) — tester SERVER-role delivery ---
+
+// Identity of an event the tester-server pushes to a subscribed DUT: method_id
+// is the event ID (high bit set), client_id stays 0 (a notification carries no
+// Request ID), payload is the serialised event value.
+SomeIpRpcMessage makeEvent() {
+    SomeIpRpcMessage t{};
+    t.service_id = 0xF4E7;
+    t.method_id = 0x8001;   // TestEventUINT8 — event ID, high bit set.
+    t.session_id = 0x0005;  // server event session counter.
+    t.payload = {0x42};     // one event byte.
+    return t;
+}
+
+TEST(BuildEventNotification, MessageTypeIsNotificationWithEventId) {
+    const auto b = buildEventNotification(makeEvent());
+    ASSERT_EQ(b.size(), 17u);  // 16-byte header + 1 payload byte.
+    // Message ID: service 0xF4E7, event/method 0x8001.
+    EXPECT_EQ(b[0], 0xF4u);
+    EXPECT_EQ(b[1], 0xE7u);
+    EXPECT_EQ(b[2], 0x80u);
+    EXPECT_EQ(b[3], 0x01u);
+    // Length = 8 + 1 payload = 9.
+    EXPECT_EQ(b[7], 0x09u);
+    // Request ID: client 0x0000 (notification has none), session 0x0005.
+    EXPECT_EQ(b[8], 0x00u);
+    EXPECT_EQ(b[9], 0x00u);
+    EXPECT_EQ(b[10], 0x00u);
+    EXPECT_EQ(b[11], 0x05u);
+    // Proto=1, iface=1, msg_type=0x02 NOTIFICATION, return_code=0x00 E_OK.
+    EXPECT_EQ(b[14], 0x02u);
+    EXPECT_EQ(b[15], 0x00u);
+    EXPECT_EQ(b[16], 0x42u);  // event payload.
+}
+
+TEST(BuildEventNotification, ForcesNotificationOverPreSetTpNotification) {
+    // The wrapper must FORCE message_type to NOTIFICATION (0x02), clearing the
+    // TP-Flag — starting from TP_NOTIFICATION (0x22) the byte must be 0x02.
+    SomeIpRpcMessage t = makeEvent();
+    t.message_type = ::tc8::someip::MessageType::TP_NOTIFICATION;  // 0x22
+    const auto b = buildEventNotification(t);
+    ASSERT_GE(b.size(), 16u);
+    EXPECT_EQ(b[14], 0x02u);
+}
+
+// emitEventNotification delivers the event from the tester's SERVICE (event)
+// port to the subscribed DUT endpoint — same server->client transport as
+// emitMethodReply. Loopback round-trip, no DUT required.
+TEST(EmitEventNotification, DeliversNotificationFromServicePort) {
+    const int rx = ::socket(AF_INET, SOCK_DGRAM, 0);
+    ASSERT_GE(rx, 0);
+    sockaddr_in ra{};
+    ra.sin_family = AF_INET;
+    ra.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    ra.sin_port = 0;  // kernel picks the subscribed-client port.
+    ASSERT_EQ(::bind(rx, reinterpret_cast<sockaddr *>(&ra), sizeof(ra)), 0);
+    sockaddr_in bound{};
+    socklen_t bl = sizeof(bound);
+    ASSERT_EQ(::getsockname(rx, reinterpret_cast<sockaddr *>(&bound), &bl), 0);
+    const std::uint16_t client_port = ntohs(bound.sin_port);
+    timeval tv{1, 0};
+    ::setsockopt(rx, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    const auto notif = buildEventNotification(makeEvent());
+    const std::uint16_t kEventPort = 30510;  // tester's offered event source port.
+    const int rc = emitEventNotification("lo", notif, kEventPort,
+                                         MethodEndpoint{htonl(INADDR_LOOPBACK), client_port});
+    ASSERT_EQ(rc, 0);
+
+    std::uint8_t buf[64] = {};
+    sockaddr_in from{};
+    socklen_t fl = sizeof(from);
+    const ssize_t n = ::recvfrom(rx, buf, sizeof(buf), 0, reinterpret_cast<sockaddr *>(&from), &fl);
+    ::close(rx);
+    ASSERT_EQ(n, static_cast<ssize_t>(notif.size()));
+    EXPECT_EQ(std::vector<std::uint8_t>(buf, buf + n), notif);
+    EXPECT_EQ(ntohs(from.sin_port), kEventPort);
+}
+
+// packSomeIpMessages — the multiple-SOME/IP-in-one-L4-packet enabler (two
+// messages in one UDP datagram or TCP segment). Pure concatenation in order; the
+// caller's per-message length_override drives any unalignment.
+TEST(PackSomeIpMessages, ConcatenatesMessagesInOrder) {
+    const auto a = buildEventNotification(makeEvent());
+    SomeIpRpcMessage second = makeEvent();
+    second.session_id = 0x0006;
+    second.payload = {0x99};
+    const auto b = buildEventNotification(second);
+
+    const auto packed = packSomeIpMessages({a, b});
+    ASSERT_EQ(packed.size(), a.size() + b.size());
+    EXPECT_EQ(std::vector<std::uint8_t>(packed.begin(), packed.begin() + a.size()), a);
+    EXPECT_EQ(std::vector<std::uint8_t>(packed.begin() + a.size(), packed.end()), b);
+}
+
+TEST(PackSomeIpMessages, EmptyInputYieldsEmpty) {
+    EXPECT_TRUE(packSomeIpMessages({}).empty());
+}
+
 }  // namespace
 }  // namespace tc8::stimulus

@@ -397,6 +397,45 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
                 message_type == static_cast<std::uint8_t>(someip::MessageType::REQUEST_NO_RETURN));
     }
 
+    // --- SOMEIPCLT DUT client-role SD recognizers ---
+    //
+    // In the CLT topology the DUT is the client: it emits FindService (0x00),
+    // SubscribeEventgroup (0x06, ttl > 0) and StopSubscribeEventgroup (0x06,
+    // ttl == 0 — same entry type, TTL discriminates). These mirror
+    // is_offer_service_for for the inbound DUT direction so a CLT case answers
+    // (emitSubscribeEventgroupAck / emitMethodReply) without re-spelling the
+    // entry-type + id checks. The reply target is this frame's src_ip / src_port.
+    // `want_service_id == 0xFFFF` matches any service (a wildcard FindService).
+    // Like is_offer_service_for, these inspect sd_entries[0] only (the DUT's
+    // client-role SD messages carry the relevant entry first); a future case that
+    // needs a non-first entry would match over sd_entries[0..sd_entry_count).
+
+    // DUT FindService for `want_service_id` (first entry type 0x00).
+    bool is_find_service_from_dut(std::uint16_t want_service_id) const {
+        return service_id == 0xFFFF && sd_entry_count >= 1 &&
+               sd_entries[0].type == 0x00 &&
+               (want_service_id == 0xFFFF || sd_entries[0].service_id == want_service_id);
+    }
+
+    // DUT SubscribeEventgroup for `(want_service_id, want_eventgroup_id)` with a
+    // live TTL (> 0). A StopSubscribe (TTL 0) returns false here — use
+    // is_stop_subscribe for that.
+    bool is_subscribe_for(std::uint16_t want_service_id, std::uint16_t want_eventgroup_id) const {
+        return service_id == 0xFFFF && sd_entry_count >= 1 &&
+               sd_entries[0].type == 0x06 && sd_entries[0].ttl > 0 &&
+               sd_entries[0].service_id == want_service_id &&
+               sd_entries[0].eventgroup_id == want_eventgroup_id;
+    }
+
+    // DUT StopSubscribeEventgroup for `(want_service_id, want_eventgroup_id)` —
+    // a SubscribeEventgroup entry (type 0x06) whose TTL is 0 (TR_SOMEIP §7.4.2).
+    bool is_stop_subscribe(std::uint16_t want_service_id, std::uint16_t want_eventgroup_id) const {
+        return service_id == 0xFFFF && sd_entry_count >= 1 &&
+               sd_entries[0].type == 0x06 && sd_entries[0].ttl == 0 &&
+               sd_entries[0].service_id == want_service_id &&
+               sd_entries[0].eventgroup_id == want_eventgroup_id;
+    }
+
     // Returns true when at least one parsed option matches `(type, l4)`.
     // Used by OPTIONS_06/13/15 guards that assert "an IPv4 Endpoint
     // Option with L4-Proto = X is present" without committing to a fixed

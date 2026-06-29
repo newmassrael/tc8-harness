@@ -24,6 +24,39 @@ using someip::putBe16;
 using someip::putBe24;
 using someip::putBe32;
 
+namespace {
+
+// The 24-byte preamble shared by EVERY SOME/IP-SD builder: the 16-byte SOME/IP
+// header (routed through the wire.h `appendHeader` SSOT) followed by the SD
+// sub-header (Flags 1B | 24-bit Reserved) and the Length-of-Entries-Array (4B).
+// For SD the Message ID is fixed (service 0xFFFF / method 0x8100, the latter
+// overridable only by the ETS Method-ID-mutation case), with NOTIFICATION /
+// E_OK; only `session_id`, `length`, `flags`, `reserved` and `entries_len` vary.
+// This is the single source of truth for the preamble layout — the per-builder
+// hand-rolled copies are gone, so a header-field change lands in one place.
+void appendSdHeader(std::vector<std::uint8_t> &b, std::uint16_t session_id,
+                    std::uint32_t length, std::uint8_t flags, std::uint32_t entries_len,
+                    std::uint32_t reserved = 0, std::uint16_t method_id = 0x8100) {
+    someip::Header h;
+    h.service_id = 0xFFFF;
+    h.method_id = method_id;
+    h.length = length;
+    h.client_id = 0x0000;
+    h.session_id = session_id;
+    h.protocol_version = 0x01;
+    h.interface_version = 0x01;
+    h.message_type = static_cast<std::uint8_t>(someip::MessageType::NOTIFICATION);
+    h.return_code = static_cast<std::uint8_t>(someip::ReturnCode::E_OK);
+    someip::appendHeader(b, h);
+
+    // SD sub-header: Flags byte + 24-bit Reserved + Length-of-Entries-Array.
+    b.push_back(flags);
+    putBe24(b, reserved);
+    putBe32(b, entries_len);
+}
+
+}  // namespace
+
 std::vector<std::uint8_t> buildFindService(const FindServiceParams &p) {
     // SOME/IP-SD TR_SOMEIP §7.3 wire layout:
     //   [SOME/IP header 16B] [Flags 1B | Reserved 3B] [EntriesLen 4B]
@@ -33,13 +66,6 @@ std::vector<std::uint8_t> buildFindService(const FindServiceParams &p) {
     //         = 28 bytes.
     // SOME/IP length field counts bytes from Request ID onwards:
     //   8 (request_id + proto/iface/msgtype/retcode) + 28 (payload) = 36.
-    constexpr std::uint16_t kServiceIdSd = 0xFFFF;
-    constexpr std::uint16_t kMethodIdSd = 0x8100;
-    constexpr std::uint16_t kClientId = 0x0000;
-    constexpr std::uint8_t kProtoVer = 0x01;
-    constexpr std::uint8_t kIfaceVer = 0x01;
-    constexpr std::uint8_t kMsgTypeNotif = static_cast<std::uint8_t>(someip::MessageType::NOTIFICATION);
-    constexpr std::uint8_t kReturnCode = static_cast<std::uint8_t>(someip::ReturnCode::E_OK);
     constexpr std::uint32_t kLengthField = 36;
     constexpr std::uint32_t kEntriesLen = 16;
     constexpr std::uint32_t kOptionsLen = 0;
@@ -48,23 +74,7 @@ std::vector<std::uint8_t> buildFindService(const FindServiceParams &p) {
     std::vector<std::uint8_t> b;
     b.reserve(44);
 
-    // SOME/IP header.
-    putBe16(b, kServiceIdSd);
-    putBe16(b, kMethodIdSd);
-    putBe32(b, kLengthField);
-    putBe16(b, kClientId);
-    putBe16(b, p.session_id);
-    b.push_back(kProtoVer);
-    b.push_back(kIfaceVer);
-    b.push_back(kMsgTypeNotif);
-    b.push_back(kReturnCode);
-
-    // SD header: flags + 24-bit reserved.
-    b.push_back(p.sd_flags);
-    putBe24(b, p.sd_reserved);
-
-    // Length of Entries Array.
-    putBe32(b, kEntriesLen);
+    appendSdHeader(b, p.session_id, kLengthField, p.sd_flags, kEntriesLen, p.sd_reserved);
 
     // FindService entry (16B).
     b.push_back(kEntryTypeFind);
@@ -88,13 +98,6 @@ std::vector<std::uint8_t> buildFindServiceWithOption(const FindServiceParams &p,
     // 56 B = 16 (SOME/IP header) + 4 (flags+reserved) + 4 (entries_len)
     //      + 16 (entry) + 4 (options_len) + 12 (one IPv4 Endpoint option).
     // Length field = 56 - 8 (header bytes before request_id) = 48.
-    constexpr std::uint16_t kServiceIdSd = 0xFFFF;
-    constexpr std::uint16_t kMethodIdSd = 0x8100;
-    constexpr std::uint16_t kClientId = 0x0000;
-    constexpr std::uint8_t kProtoVer = 0x01;
-    constexpr std::uint8_t kIfaceVer = 0x01;
-    constexpr std::uint8_t kMsgTypeNotif = static_cast<std::uint8_t>(someip::MessageType::NOTIFICATION);
-    constexpr std::uint8_t kReturnCode = static_cast<std::uint8_t>(someip::ReturnCode::E_OK);
     constexpr std::uint32_t kLengthField = 48;
     constexpr std::uint32_t kEntriesLen = 16;
     constexpr std::uint32_t kOptionsLen = 12;
@@ -105,19 +108,7 @@ std::vector<std::uint8_t> buildFindServiceWithOption(const FindServiceParams &p,
     std::vector<std::uint8_t> b;
     b.reserve(56);
 
-    putBe16(b, kServiceIdSd);
-    putBe16(b, kMethodIdSd);
-    putBe32(b, kLengthField);
-    putBe16(b, kClientId);
-    putBe16(b, p.session_id);
-    b.push_back(kProtoVer);
-    b.push_back(kIfaceVer);
-    b.push_back(kMsgTypeNotif);
-    b.push_back(kReturnCode);
-
-    b.push_back(p.sd_flags);
-    putBe24(b, p.sd_reserved);
-    putBe32(b, kEntriesLen);
+    appendSdHeader(b, p.session_id, kLengthField, p.sd_flags, kEntriesLen, p.sd_reserved);
 
     // FindService entry — option present but UNREFERENCED (#Opt1=0).
     b.push_back(kEntryTypeFind);
@@ -151,35 +142,16 @@ std::vector<std::uint8_t> buildOfferService(const OfferServiceTarget &t) {
     // Wire layout mirrors buildFindService — 16 B SOME/IP + 4 B SD flags/
     // reserved + 4 B EntriesLen=16 + 16 B Type-0x01 entry + 4 B OptionsLen=0
     // = 44 B. Length field counts from request_id forward = 8 + 28 = 36.
-    constexpr std::uint16_t kServiceIdSd  = 0xFFFF;
-    constexpr std::uint16_t kMethodIdSd   = 0x8100;
-    constexpr std::uint16_t kClientId     = 0x0000;
-    constexpr std::uint8_t  kProtoVer     = 0x01;
-    constexpr std::uint8_t  kIfaceVer     = 0x01;
-    constexpr std::uint8_t  kMsgTypeNotif = static_cast<std::uint8_t>(someip::MessageType::NOTIFICATION);
-    constexpr std::uint8_t  kReturnCode   = static_cast<std::uint8_t>(someip::ReturnCode::E_OK);
     constexpr std::uint32_t kLengthField  = 36;
     constexpr std::uint32_t kEntriesLen   = 16;
     constexpr std::uint32_t kOptionsLen   = 0;
     constexpr std::uint8_t  kEntryTypeOffer = 0x01;
-    constexpr std::uint8_t  kSdFlags      = 0xC0;
 
     std::vector<std::uint8_t> b;
     b.reserve(44);
 
-    putBe16(b, kServiceIdSd);
-    putBe16(b, kMethodIdSd);
-    putBe32(b, kLengthField);
-    putBe16(b, kClientId);
-    putBe16(b, t.session_id);
-    b.push_back(kProtoVer);
-    b.push_back(kIfaceVer);
-    b.push_back(kMsgTypeNotif);
-    b.push_back(kReturnCode);
-
-    b.push_back(kSdFlags);
-    putBe24(b, 0);  // Reserved 0; see FindServiceParams::sd_reserved.
-    putBe32(b, kEntriesLen);
+    // Reboot|Unicast flags; OEM SUBSCRIBE/SD_BEHAVIOR override the Reboot bit.
+    appendSdHeader(b, t.session_id, kLengthField, t.sd_flags, kEntriesLen);
 
     b.push_back(kEntryTypeOffer);
     b.push_back(0);                 // IndexFirstOptionRun
@@ -209,18 +181,10 @@ buildOfferServiceWithEndpoint(const OfferServiceWithEndpointTarget &t) {
     // Wire layout: 16 B SOME/IP + 4 B SD flags + 4 B EntriesLen + 16 B
     // Type 0x01 entry + 4 B OptionsLen + 12 B IPv4 Endpoint option = 56 B.
     // Length field = 8 + 4 + 4 + 16 + 4 + 12 = 48.
-    constexpr std::uint16_t kServiceIdSd     = 0xFFFF;
-    constexpr std::uint16_t kMethodIdSd      = 0x8100;
-    constexpr std::uint16_t kClientId        = 0x0000;
-    constexpr std::uint8_t  kProtoVer        = 0x01;
-    constexpr std::uint8_t  kIfaceVer        = 0x01;
-    constexpr std::uint8_t  kMsgTypeNotif    = static_cast<std::uint8_t>(someip::MessageType::NOTIFICATION);
-    constexpr std::uint8_t  kReturnCode      = static_cast<std::uint8_t>(someip::ReturnCode::E_OK);
     constexpr std::uint32_t kLengthField     = 48;
     constexpr std::uint32_t kEntriesLen      = 16;
     constexpr std::uint32_t kOptionsLen      = 12;
     constexpr std::uint8_t  kEntryTypeOffer  = 0x01;
-    constexpr std::uint8_t  kSdFlags         = 0xC0;
     constexpr std::uint16_t kOptionBodyLen   = 9;       // IPv4 Endpoint body size.
     constexpr std::uint8_t  kOptionTypeIpv4  = 0x04;    // IPv4 Endpoint.
     constexpr std::uint8_t  kEntryOptionRef  = 0x10;    // #Opt1=1 | #Opt2=0.
@@ -228,19 +192,8 @@ buildOfferServiceWithEndpoint(const OfferServiceWithEndpointTarget &t) {
     std::vector<std::uint8_t> b;
     b.reserve(56);
 
-    putBe16(b, kServiceIdSd);
-    putBe16(b, kMethodIdSd);
-    putBe32(b, kLengthField);
-    putBe16(b, kClientId);
-    putBe16(b, t.service.session_id);
-    b.push_back(kProtoVer);
-    b.push_back(kIfaceVer);
-    b.push_back(kMsgTypeNotif);
-    b.push_back(kReturnCode);
-
-    b.push_back(kSdFlags);
-    putBe24(b, 0);  // Reserved 0; see FindServiceParams::sd_reserved.
-    putBe32(b, kEntriesLen);
+    // Reboot|Unicast flags; OEM overrides the Reboot bit.
+    appendSdHeader(b, t.service.session_id, kLengthField, t.service.sd_flags, kEntriesLen);
 
     // OfferService entry referencing 1 option in run 1.
     b.push_back(kEntryTypeOffer);
@@ -372,13 +325,9 @@ std::vector<std::uint8_t> buildSubscribeEventgroup(const SubscribeEventgroupPara
     // Payload = 4 + 4 + 16 + 4 + 12 = 40 bytes.
     // SOME/IP length field counts bytes from Request ID onwards:
     //   8 (request_id + proto/iface/msgtype/retcode) + 40 (payload) = 48.
-    constexpr std::uint16_t kServiceIdSd = 0xFFFF;
+    // Only the SD Method ID default survives as a constant — the rest of the
+    // header is emitted by appendSdHeader. ETS_178 overrides it via method_id_override.
     constexpr std::uint16_t kMethodIdSd = 0x8100;
-    constexpr std::uint16_t kClientId = 0x0000;
-    constexpr std::uint8_t kProtoVer = 0x01;
-    constexpr std::uint8_t kIfaceVer = 0x01;
-    constexpr std::uint8_t kMsgTypeNotif = static_cast<std::uint8_t>(someip::MessageType::NOTIFICATION);
-    constexpr std::uint8_t kReturnCode = static_cast<std::uint8_t>(someip::ReturnCode::E_OK);
     constexpr std::uint32_t kLengthFieldCanonical = 48;
     constexpr std::uint32_t kEntriesLenCanonical = 16;
     constexpr std::uint32_t kOptionsLenCanonical = 12;
@@ -428,25 +377,11 @@ std::vector<std::uint8_t> buildSubscribeEventgroup(const SubscribeEventgroupPara
     std::vector<std::uint8_t> b;
     b.reserve(56 + p.extra_trailing_payload.size());
 
-    // SOME/IP header.
-    putBe16(b, kServiceIdSd);
-    putBe16(b, method_id_field);
-    putBe32(b, length_with_trailing);
-    putBe16(b, kClientId);
-    putBe16(b, p.session_id);
-    b.push_back(kProtoVer);
-    b.push_back(kIfaceVer);
-    b.push_back(kMsgTypeNotif);
-    b.push_back(kReturnCode);
-
-    // SD header: flags + 24-bit reserved.
-    b.push_back(p.sd_flags);
-    putBe24(b, 0);  // Reserved 0; see FindServiceParams::sd_reserved.
-
-    // Length of Entries Array. ETS_123/_124/_125 inject malformed values
-    // via SubscribeEventgroupParams::entries_len_override; canonical is 16
-    // (one Type 2 entry).
-    putBe32(b, entries_len_field);
+    // Header preamble via the SD SSOT. ETS_178 drives method_id_field;
+    // ETS_123/_124/_125 inject a malformed entries_len_field; the Reserved
+    // field is canonically 0 here (FindService owns the reserved override).
+    appendSdHeader(b, p.session_id, length_with_trailing, p.sd_flags, entries_len_field,
+                   /*reserved=*/0, method_id_field);
 
     // SubscribeEventgroup entry (16B, Type 2).
     b.push_back(kEntryTypeSubscribe);
@@ -547,13 +482,6 @@ buildMultiSubscribeEventgroup(const MultiSubscribeEventgroupParams &p) {
     // Same wire layout as buildSubscribeEventgroup but the entries
     // array carries N Type 2 entries instead of 1. All entries share
     // one option run (run 0 → single IPv4 Endpoint option in run 1).
-    constexpr std::uint16_t kServiceIdSd = 0xFFFF;
-    constexpr std::uint16_t kMethodIdSd = 0x8100;
-    constexpr std::uint16_t kClientId = 0x0000;
-    constexpr std::uint8_t kProtoVer = 0x01;
-    constexpr std::uint8_t kIfaceVer = 0x01;
-    constexpr std::uint8_t kMsgTypeNotif = static_cast<std::uint8_t>(someip::MessageType::NOTIFICATION);
-    constexpr std::uint8_t kReturnCode = static_cast<std::uint8_t>(someip::ReturnCode::E_OK);
     constexpr std::uint8_t kEntryTypeSubscribe = 0x06;
     constexpr std::uint16_t kOptionBodyLen = 9;
     constexpr std::uint8_t kOptionTypeIpv4 = 0x04;
@@ -575,20 +503,9 @@ buildMultiSubscribeEventgroup(const MultiSubscribeEventgroupParams &p) {
     std::vector<std::uint8_t> b;
     b.reserve(16 + 4 + 4 + entries_len + 4 + kOptionsLen);
 
-    putBe16(b, kServiceIdSd);
-    putBe16(b, kMethodIdSd);
-    putBe32(b, length_field);
-    putBe16(b, kClientId);
-    putBe16(b, p.session_id);
-    b.push_back(kProtoVer);
-    b.push_back(kIfaceVer);
-    b.push_back(kMsgTypeNotif);
-    b.push_back(kReturnCode);
-
-    b.push_back(p.sd_flags);
-    putBe24(b, 0);  // Reserved 0; see FindServiceParams::sd_reserved.
-
-    putBe32(b, entries_len);
+    // EntriesLen may be a deliberately-malformed ETS_114 value; the Length field
+    // above still counts the ACTUAL entry bytes (the internal-consistency hook).
+    appendSdHeader(b, p.session_id, length_field, p.sd_flags, entries_len);
 
     for (const auto &t : p.entries) {
         b.push_back(kEntryTypeSubscribe);
@@ -709,6 +626,79 @@ int emitSubscribeEventgroupOnce(std::string_view iface,
                                 std::uint16_t session_id, std::uint8_t sd_flags,
                                 std::uint8_t l4proto, const SubscribeDestination &dest) {
     return subscribeOnce(target, sd_flags, session_id, iface, dest, l4proto);
+}
+
+std::vector<std::uint8_t> buildSubscribeEventgroupAck(const SubscribeEventgroupAckParams &p) {
+    // SOME/IP-SD entry type 0x07 (SubscribeEventgroupAck/Nack). The Type 2 entry
+    // shape matches the SubscribeEventgroup; TTL > 0 = Ack, TTL == 0 = Nack.
+    // Without a multicast endpoint the answer references no options (28-byte SD
+    // payload, Length 36); with one it references a single IPv4 Multicast option
+    // (40-byte payload, Length 48) — the Ack analogue of buildOfferService vs
+    // buildOfferServiceWithEndpoint.
+    constexpr std::uint32_t kEntriesLen = 16;
+    constexpr std::uint8_t kEntryTypeSubscribeAck = 0x07;
+    constexpr std::uint16_t kOptionBodyLen = 9;  // IPv4 Multicast option body size.
+    constexpr std::uint8_t kEntryOptionRef = 0x10;  // #Opt1=1 | #Opt2=0 (one option, run 1).
+
+    const bool has_option = p.target.multicast_endpoint.has_value();
+    const std::uint32_t options_len = has_option ? 12u : 0u;
+    // Length counts from Request ID onward: 8 + SD flags(4) + EntriesLen(4)
+    // + entry(16) + OptionsLen(4) + option bytes.
+    const std::uint32_t length_field = 8 + 4 + 4 + kEntriesLen + 4 + options_len;
+
+    std::vector<std::uint8_t> b;
+    b.reserve(16 + 4 + 4 + 16 + 4 + options_len);
+
+    appendSdHeader(b, p.session_id, length_field, p.sd_flags, kEntriesLen);
+
+    // SubscribeEventgroupAck entry (16B, Type 0x07).
+    b.push_back(kEntryTypeSubscribeAck);
+    b.push_back(0);  // IndexFirstOptionRun
+    b.push_back(0);  // IndexSecondOptionRun
+    b.push_back(has_option ? kEntryOptionRef : static_cast<std::uint8_t>(0));
+    putBe16(b, p.target.service_id);
+    putBe16(b, p.target.instance_id);
+    b.push_back(p.target.major_version);
+    putBe24(b, p.target.ttl);  // ttl == 0 -> Nack per SD entry type 0x07.
+    // Reserved (12b) | Counter (4b), same layout as the SubscribeEventgroup entry.
+    const std::uint16_t entry_reserved = p.target.entry_reserved.value_or(0) & 0x0FFF;
+    putBe16(b, static_cast<std::uint16_t>((entry_reserved << 4) | (p.target.counter & 0x0F)));
+    putBe16(b, p.target.eventgroup_id);
+
+    putBe32(b, options_len);
+
+    // IPv4 Multicast option (12B) — only when the eventgroup is delivered by
+    // multicast; the address bytes stream MSB-first from `ipv4_be` (already
+    // network byte order).
+    if (has_option) {
+        const Ipv4Endpoint &ep = *p.target.multicast_endpoint;
+        putBe16(b, kOptionBodyLen);
+        b.push_back(p.target.multicast_option_type);  // canonical 0x14 (IPv4 Multicast)
+        b.push_back(0);  // Reserved
+        b.push_back(static_cast<std::uint8_t>((ep.ipv4_be >> 0) & 0xFF));
+        b.push_back(static_cast<std::uint8_t>((ep.ipv4_be >> 8) & 0xFF));
+        b.push_back(static_cast<std::uint8_t>((ep.ipv4_be >> 16) & 0xFF));
+        b.push_back(static_cast<std::uint8_t>((ep.ipv4_be >> 24) & 0xFF));
+        b.push_back(0);  // Reserved
+        b.push_back(ep.l4proto);
+        putBe16(b, ep.port);
+    }
+
+    return b;
+}
+
+int emitSubscribeEventgroupAck(std::string_view iface, const SubscribeEventgroupAckParams &p,
+                               const SubscribeDestination &client_sd_dest) {
+    // Server answer: source port = SD port (the tester's server SD endpoint),
+    // destination = the DUT client's SD endpoint. sendSdUnicast binds the SD
+    // source port so the DUT accepts the message as valid SD.
+    return sendSdUnicast(buildSubscribeEventgroupAck(p), iface, client_sd_dest.ipv4_be,
+                         client_sd_dest.port);
+}
+
+std::vector<std::uint8_t> buildSubscribeEventgroupNack(SubscribeEventgroupAckParams p) {
+    p.target.ttl = 0;  // TTL 0 makes the entry type 0x07 a Nack.
+    return buildSubscribeEventgroupAck(p);
 }
 
 int emitSubscribeEventgroupRaw(std::string_view iface,
