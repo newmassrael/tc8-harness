@@ -39,6 +39,13 @@ struct FindServiceParams {
     // Reboot=1 Unicast=1 (0xC0) until Session ID wraps 0xFFFF -> 0x0000
     // per SD §4.2.1; drops to Unicast-only (0x40) only after the wrap.
     std::uint8_t sd_flags = 0xC0;
+
+    // SD header 24-bit Reserved field (the 3 bytes after the Flags byte).
+    // Canonically 0; a case sets non-zero bits to verify the DUT ignores
+    // undefined Reserved bits in a FindService SD header per the SOME/IP-SD
+    // reserved-handling requirement (PRS_SOMEIPSD_00307). Only the low 24
+    // bits are emitted (putBe24).
+    std::uint32_t sd_reserved = 0;
 };
 
 // Timing envelope for the tester-side SD boot sequences lives in

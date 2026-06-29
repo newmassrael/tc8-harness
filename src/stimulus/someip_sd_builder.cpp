@@ -61,7 +61,7 @@ std::vector<std::uint8_t> buildFindService(const FindServiceParams &p) {
 
     // SD header: flags + 24-bit reserved.
     b.push_back(p.sd_flags);
-    putBe24(b, 0);
+    putBe24(b, p.sd_reserved);
 
     // Length of Entries Array.
     putBe32(b, kEntriesLen);
@@ -116,7 +116,7 @@ std::vector<std::uint8_t> buildFindServiceWithOption(const FindServiceParams &p,
     b.push_back(kReturnCode);
 
     b.push_back(p.sd_flags);
-    putBe24(b, 0);
+    putBe24(b, p.sd_reserved);
     putBe32(b, kEntriesLen);
 
     // FindService entry — option present but UNREFERENCED (#Opt1=0).

@@ -165,5 +165,39 @@ TEST(BuildSubscribeEventgroup, SessionIdIsBigEndian) {
     EXPECT_EQ(b[11], 0x34u);
 }
 
+// The SD header sits right after the 16-byte SOME/IP header, so the Flags
+// byte is at offset 16 and the 24-bit Reserved field at offsets 17..19.
+TEST(BuildFindService, ReservedDefaultsToZero) {
+    FindServiceParams p{};
+    const auto b = buildFindService(p);
+    ASSERT_GE(b.size(), 20u);
+    EXPECT_EQ(b[16], 0xC0u);  // default Flags (Reboot|Unicast)
+    EXPECT_EQ(b[17], 0x00u);
+    EXPECT_EQ(b[18], 0x00u);
+    EXPECT_EQ(b[19], 0x00u);
+}
+
+TEST(BuildFindService, ReservedOverrideSetsHeaderReservedBytes) {
+    FindServiceParams p{};
+    p.sd_reserved = 0xABCDEF;
+    const auto b = buildFindService(p);
+    ASSERT_GE(b.size(), 20u);
+    EXPECT_EQ(b[16], 0xC0u);  // Flags unaffected by the Reserved override
+    EXPECT_EQ(b[17], 0xABu);
+    EXPECT_EQ(b[18], 0xCDu);
+    EXPECT_EQ(b[19], 0xEFu);
+}
+
+TEST(BuildFindServiceWithOption, ReservedOverrideSetsHeaderReservedBytes) {
+    FindServiceParams p{};
+    p.sd_reserved = 0x123456;
+    const Ipv4Endpoint ep{0x030010AC, 0x8765, 0x11};
+    const auto b = buildFindServiceWithOption(p, ep);
+    ASSERT_GE(b.size(), 20u);
+    EXPECT_EQ(b[17], 0x12u);
+    EXPECT_EQ(b[18], 0x34u);
+    EXPECT_EQ(b[19], 0x56u);
+}
+
 }  // namespace
 }  // namespace tc8::stimulus
