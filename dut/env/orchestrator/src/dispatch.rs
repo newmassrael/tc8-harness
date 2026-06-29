@@ -320,6 +320,18 @@ fn expect_args(cfg: &Config, dut_mac: &str) -> Vec<String> {
     ex(&mut e, "mcast_ipv4", &id.mcast_ipv4);
     ex(&mut e, "mcast_port", &id.mcast_port);
 
+    // SD start-up timing (vsomeip.json service-discovery) — the SD start-up delay
+    // checks compare their captured Initial-Wait / Repetition / cyclic-Offer
+    // windows against these; inert for every other case (the harness reads only
+    // what its case references). Must stay in lockstep with smoke-test.sh's
+    // TC8_DUT_EXPECT.
+    let t = &cfg.sd_timing;
+    ex(&mut e, "sd_initial_delay_min_ms", &t.sd_initial_delay_min_ms);
+    ex(&mut e, "sd_initial_delay_max_ms", &t.sd_initial_delay_max_ms);
+    ex(&mut e, "sd_repetition_base_delay_ms", &t.sd_repetition_base_delay_ms);
+    ex(&mut e, "sd_repetitions_max", &t.sd_repetitions_max);
+    ex(&mut e, "sd_cyclic_offer_delay_ms", &t.sd_cyclic_offer_delay_ms);
+
     // ARP static group (ARP_DUT_EXPECT_STATIC)
     ex(&mut e, "arp.tester_ip", &cfg.tester_ip4);
     ex(&mut e, "arp.dut_iface_ip", &cfg.dut_ip4);
@@ -405,7 +417,7 @@ mod tests {
     }
 
     fn fake_cfg() -> Config {
-        use crate::config::DutIdentity;
+        use crate::config::{DutIdentity, DutSdTiming};
         Config {
             root: "/x".into(),
             harness: "/x".into(),
@@ -425,6 +437,13 @@ mod tests {
                 ttl: "3".into(),
                 mcast_ipv4: "224.244.224.246".into(),
                 mcast_port: "30495".into(),
+            },
+            sd_timing: DutSdTiming {
+                sd_initial_delay_min_ms: "10".into(),
+                sd_initial_delay_max_ms: "100".into(),
+                sd_repetition_base_delay_ms: "200".into(),
+                sd_repetitions_max: "3".into(),
+                sd_cyclic_offer_delay_ms: "2000".into(),
             },
             backstop_sec: 240,
         }

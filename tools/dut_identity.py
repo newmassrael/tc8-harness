@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Extract the SOME/IP identity the tester must assert from the DUT's own
-vsomeip.json — the single home of these values, since the DUT advertises exactly
-what that file declares.
+"""Extract the SOME/IP identity AND SD start-up timing the tester must assert
+from the DUT's own vsomeip.json — the single home of these values, since the DUT
+advertises exactly what that file declares.
 
 smoke-test.sh sources the output to build its `--expect` surface, deriving the
 identity at runtime instead of re-stating it as bash literals. The Rust
@@ -80,6 +80,17 @@ def extract(cfg_path: Path) -> dict[str, str]:
         "ttl": _require(sd, "ttl", "service-discovery"),
         "mcast_ipv4": _require(mcast, "address", "services[0].eventgroups[*].multicast"),
         "mcast_port": _require(mcast, "port", "services[0].eventgroups[*].multicast"),
+        # SD start-up timing the tester asserts for the SD start-up delay checks
+        # (AUTOSAR SD Initial-Wait / Repetition / cyclic-Offer phases), derived
+        # from the SAME service-discovery block so the expected window can
+        # never drift from what the DUT actually runs. vsomeip already stores these
+        # in milliseconds (and repetitions_max as a count), so they map 1:1 to the
+        # harness's sd_* expect fields — no unit conversion here.
+        "sd_initial_delay_min_ms": _require(sd, "initial_delay_min", "service-discovery"),
+        "sd_initial_delay_max_ms": _require(sd, "initial_delay_max", "service-discovery"),
+        "sd_repetition_base_delay_ms": _require(sd, "repetitions_base_delay", "service-discovery"),
+        "sd_repetitions_max": _require(sd, "repetitions_max", "service-discovery"),
+        "sd_cyclic_offer_delay_ms": _require(sd, "cyclic_offer_delay", "service-discovery"),
     }
 
 

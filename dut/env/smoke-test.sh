@@ -156,7 +156,9 @@ while IFS='=' read -r _k _v; do
     [[ -n "$_k" ]] && DUT_ID["$_k"]="$_v"
 done <<< "$_id_dump"
 for _need in service_id instance_id udp_port tcp_port sd_multicast_ip ttl \
-             mcast_ipv4 mcast_port; do
+             mcast_ipv4 mcast_port \
+             sd_initial_delay_min_ms sd_initial_delay_max_ms \
+             sd_repetition_base_delay_ms sd_repetitions_max sd_cyclic_offer_delay_ms; do
     [[ -n "${DUT_ID[$_need]:-}" ]] || {
         echo "smoke-test.sh: DUT identity missing '$_need' from $VSOMEIP_CFG" >&2
         exit 1
@@ -182,6 +184,15 @@ TC8_DUT_EXPECT=(
     # eventgroup 0x0008 (vsomeip.json eventgroup multicast block).
     --expect "mcast_ipv4=${DUT_ID[mcast_ipv4]}"
     --expect "mcast_port=${DUT_ID[mcast_port]}"
+    # SD start-up timing (vsomeip.json service-discovery) — the SD start-up delay
+    # checks (AUTOSAR SD Initial-Wait / Repetition / cyclic-Offer phases) compare
+    # their captured windows against these. Must stay in lockstep with the
+    # orchestrator's dispatch::expect_args (parity-check diffs the two surfaces).
+    --expect "sd_initial_delay_min_ms=${DUT_ID[sd_initial_delay_min_ms]}"
+    --expect "sd_initial_delay_max_ms=${DUT_ID[sd_initial_delay_max_ms]}"
+    --expect "sd_repetition_base_delay_ms=${DUT_ID[sd_repetition_base_delay_ms]}"
+    --expect "sd_repetitions_max=${DUT_ID[sd_repetitions_max]}"
+    --expect "sd_cyclic_offer_delay_ms=${DUT_ID[sd_cyclic_offer_delay_ms]}"
 )
 
 # ARP §4.2 cases compare captured Sender Hardware Address (ARP_13),

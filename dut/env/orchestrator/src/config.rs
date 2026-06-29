@@ -36,6 +36,26 @@ pub struct DutIdentity {
     pub mcast_port: String,
 }
 
+/// DUT SOME/IP-SD start-up timing — derived from the SAME `vsomeip.json`
+/// `service-discovery` block, kept SEPARATE from `DutIdentity` because timing is a
+/// distinct concern from identity. Feeds the `sd_*` `--expect` fields the SD
+/// start-up delay checks compare against (`dispatch::expect_args`). vsomeip
+/// stores these in milliseconds (and `sd_repetitions_max` as a count), so the
+/// string values pass straight through to the harness CLI with no conversion —
+/// the same contract as `DutIdentity`.
+pub struct DutSdTiming {
+    /// vsomeip `service-discovery.initial_delay_min`.
+    pub sd_initial_delay_min_ms: String,
+    /// vsomeip `service-discovery.initial_delay_max`.
+    pub sd_initial_delay_max_ms: String,
+    /// vsomeip `service-discovery.repetitions_base_delay`.
+    pub sd_repetition_base_delay_ms: String,
+    /// vsomeip `service-discovery.repetitions_max`.
+    pub sd_repetitions_max: String,
+    /// vsomeip `service-discovery.cyclic_offer_delay`.
+    pub sd_cyclic_offer_delay_ms: String,
+}
+
 /// Resolved paths and wire constants for one orchestrator run.
 pub struct Config {
     /// Repo root (TC8_ROOT or the cwd). Sudo preserves the cwd but strips the
@@ -55,6 +75,8 @@ pub struct Config {
     pub dut_ip4: String,
     /// DUT SOME/IP identity derived from vsomeip.json.
     pub identity: DutIdentity,
+    /// DUT SOME/IP-SD start-up timing derived from vsomeip.json.
+    pub sd_timing: DutSdTiming,
     /// Harness watchdog backstop (seconds). Single-homed in `wire::BACKSTOP_SEC`
     /// (generated from tools/wire.def), the same source bash's
     /// `HARNESS_BACKSTOP_SEC` reads via $TC8_WIRE_BACKSTOP_SEC.
@@ -113,6 +135,26 @@ fn parse_dut_identity(vsomeip_cfg: &Path) -> Result<DutIdentity> {
     })
 }
 
+/// Derive the DUT SD start-up timing from vsomeip.json (service-discovery block).
+/// Self-contained (re-reads the file) to mirror `parse_dut_identity` — the file is
+/// tiny and the two parsers stay independently legible.
+fn parse_dut_sd_timing(vsomeip_cfg: &Path) -> Result<DutSdTiming> {
+    let text = std::fs::read_to_string(vsomeip_cfg)
+        .with_context(|| format!("reading vsomeip.json at {}", vsomeip_cfg.display()))?;
+    let v: serde_json::Value = serde_json::from_str(&text)
+        .with_context(|| format!("parsing vsomeip.json at {}", vsomeip_cfg.display()))?;
+    let sd = v
+        .get("service-discovery")
+        .context("vsomeip.json: service-discovery block missing")?;
+    Ok(DutSdTiming {
+        sd_initial_delay_min_ms: jstr(sd, "initial_delay_min", "service-discovery")?,
+        sd_initial_delay_max_ms: jstr(sd, "initial_delay_max", "service-discovery")?,
+        sd_repetition_base_delay_ms: jstr(sd, "repetitions_base_delay", "service-discovery")?,
+        sd_repetitions_max: jstr(sd, "repetitions_max", "service-discovery")?,
+        sd_cyclic_offer_delay_ms: jstr(sd, "cyclic_offer_delay", "service-discovery")?,
+    })
+}
+
 impl Config {
     pub fn resolve() -> Result<Config> {
         // smoke-test.sh derives ROOT from its own location (readlink -f $0 →
@@ -125,6 +167,7 @@ impl Config {
         };
         let vsomeip_cfg = env_path("VSOMEIP_CFG", root.join("dut/dut_service/vsomeip.json"));
         let identity = parse_dut_identity(&vsomeip_cfg)?;
+        let sd_timing = parse_dut_sd_timing(&vsomeip_cfg)?;
         // PID-scoped scratch: a concurrent run gets a distinct /tmp prefix, so
         // worker symlinks / vsomeip UDS sockets never collide and the startup
         // stale-GC can key teardown on the owner PID. NOTE: the netns names
@@ -147,6 +190,7 @@ impl Config {
             dut_ip4: env::var("TC8_TOPOLOGY_DUT_IP")
                 .unwrap_or_else(|_| crate::wire::DUT_IP.into()),
             identity,
+            sd_timing,
             backstop_sec: crate::wire::BACKSTOP_SEC,
             root,
         })
@@ -171,6 +215,7 @@ mod tests {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
         let vsomeip = root.join("dut/dut_service/vsomeip.json");
         let rust = parse_dut_identity(&vsomeip).expect("rust parse_dut_identity");
+        let timing = parse_dut_sd_timing(&vsomeip).expect("rust parse_dut_sd_timing");
         let out = std::process::Command::new("python3")
             .arg(root.join("tools/dut_identity.py"))
             .arg(&vsomeip)
@@ -195,6 +240,11 @@ mod tests {
             ("ttl", &rust.ttl),
             ("mcast_ipv4", &rust.mcast_ipv4),
             ("mcast_port", &rust.mcast_port),
+            ("sd_initial_delay_min_ms", &timing.sd_initial_delay_min_ms),
+            ("sd_initial_delay_max_ms", &timing.sd_initial_delay_max_ms),
+            ("sd_repetition_base_delay_ms", &timing.sd_repetition_base_delay_ms),
+            ("sd_repetitions_max", &timing.sd_repetitions_max),
+            ("sd_cyclic_offer_delay_ms", &timing.sd_cyclic_offer_delay_ms),
         ];
         for (key, rust_val) in pairs {
             assert_eq!(py.get(key), Some(rust_val), "parser drift on '{key}'");
