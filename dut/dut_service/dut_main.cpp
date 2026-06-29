@@ -8,6 +8,7 @@
 
 #include <CommonAPI/CommonAPI.hpp>
 
+#include "client_mode_proxy.h"
 #include "ets2_impl.h"
 #include "ets_client_control.h"
 #include "ets_emission.h"
@@ -55,23 +56,44 @@ int main() {
     auto runtime = CommonAPI::Runtime::get();
     auto impl = tc8::dut::createEtsStub();
 
-    if (!runtime->registerService(kDomain, kInstance, impl)) {
-        std::fprintf(stderr, "tc8-dut: registerService failed\n");
-        // Hard-exit — avoid static destructors running vsomeip shutdown
-        // against a half-initialised routing manager, which hangs the process.
-        std::_Exit(1);
-    }
-    std::printf("tc8-dut: %s registered (domain=%s instance=%s)\n",
-                kInterface, kDomain, kInstance);
+    // Client-role (CLT) topology: the DUT is a pure CLIENT of the primary ETS service
+    // (0xF4E7), so in client-only mode it must NOT offer 0xF4E7 — a local offer
+    // makes vsomeip satisfy the OEM client subscribe IN-PROCESS (local Ack, no
+    // wire SubscribeEventgroup), so the tester (server) never sees it. The seam
+    // factories still need the CommonAPI-owned vsomeip application (retrieved by
+    // DEFAULT_CONNECTION_ID); CommonAPI keys BOTH services and proxies on that one
+    // connection, so building a proxy creates the SAME application WITHOUT offering
+    // any service. Kept alive (client_only_app) for the whole run. Server-role
+    // setup below (offer / emission / SI2 / suspend) is gated on !client_only.
+    const bool client_only = envFlagOn("TC8_DUT_CLIENT_ONLY");
+    std::unique_ptr<tc8::dut::ClientModeProxyRunner> client_only_app;
+    if (client_only) {
+        client_only_app = std::make_unique<tc8::dut::ClientModeProxyRunner>();
+        if (!client_only_app->start()) {
+            std::fprintf(stderr, "tc8-dut: client-only application bring-up failed\n");
+            std::_Exit(1);
+        }
+        std::printf("tc8-dut: client-only mode — %s NOT offered; app created via proxy\n",
+                    kInterface);
+    } else {
+        if (!runtime->registerService(kDomain, kInstance, impl)) {
+            std::fprintf(stderr, "tc8-dut: registerService failed\n");
+            // Hard-exit — avoid static destructors running vsomeip shutdown
+            // against a half-initialised routing manager, which hangs the process.
+            std::_Exit(1);
+        }
+        std::printf("tc8-dut: %s registered (domain=%s instance=%s)\n",
+                    kInterface, kDomain, kInstance);
 
-    // §5.1.6 SOMEIP_ETS_121 — seed TestFieldUINT8 (notifier 0x8006) with a
-    // non-default value so CommonAPI has a payload to send as the field's
-    // initial Notification on each SubscribeEventgroupAck. Without a set value
-    // vsomeip logs "Event payload not (yet) set" and skips the initial event,
-    // so the Explicit Initial Data Control path stays unobservable. A non-zero
-    // value is required because the setter only pushes to vsomeip when the value
-    // changes from its default-constructed 0.
-    impl->setTestFieldUINT8Attribute(static_cast<uint8_t>(0x42));
+        // §5.1.6 SOMEIP_ETS_121 — seed TestFieldUINT8 (notifier 0x8006) with a
+        // non-default value so CommonAPI has a payload to send as the field's
+        // initial Notification on each SubscribeEventgroupAck. Without a set value
+        // vsomeip logs "Event payload not (yet) set" and skips the initial event,
+        // so the Explicit Initial Data Control path stays unobservable. A non-zero
+        // value is required because the setter only pushes to vsomeip when the value
+        // changes from its default-constructed 0.
+        impl->setTestFieldUINT8Attribute(static_cast<uint8_t>(0x42));
+    }
 
     // OEM event sink (O2): the CommonAPI service's OWN vsomeip application, so the
     // extension shares one routing client (no second app). makeEtsEventSink
@@ -106,23 +128,29 @@ int main() {
     // after the optional SI2 source is added; stop() runs before _Exit (which
     // skips dtors). The per-source payload counter is owned by the controller and
     // passed into each closure (no hidden statics).
+    // Server-role event emission: fires Notifications through the (registered)
+    // stub, so it is set up only when the DUT offers the service. In client-only
+    // mode the stub is never registered (its CommonAPI adapter is unbound), so
+    // firing would be invalid — skip the whole engine.
     tc8::dut::EmissionController emission;
-    impl->setEmissionController(&emission);
-    auto fireBasic = [impl](uint8_t v) { impl->fireTestEventUINT8Event(v); };
-    if (ets_extension->ets8001TriggerDriven()) {
-        emission.addTriggeredSource(std::string(tc8::dut::ets_event::kBasic), fireBasic);
-    } else {
-        emission.addCyclicSource(std::string(tc8::dut::ets_event::kBasic), fireBasic,
-                                 std::chrono::milliseconds(250));
+    if (!client_only) {
+        impl->setEmissionController(&emission);
+        auto fireBasic = [impl](uint8_t v) { impl->fireTestEventUINT8Event(v); };
+        if (ets_extension->ets8001TriggerDriven()) {
+            emission.addTriggeredSource(std::string(tc8::dut::ets_event::kBasic), fireBasic);
+        } else {
+            emission.addCyclicSource(std::string(tc8::dut::ets_event::kBasic), fireBasic,
+                                     std::chrono::milliseconds(250));
+        }
+        emission.addTriggeredSource(std::string(tc8::dut::ets_event::kArray),
+                                    [impl](uint8_t v) { impl->fireTestEventUINT8ArrayEvent({v, v, v}); });
+        emission.addTriggeredSource(std::string(tc8::dut::ets_event::kReliable),
+                                    [impl](uint8_t v) { impl->fireTestEventUINT8ReliableEvent(v); });
+        emission.addTriggeredSource(std::string(tc8::dut::ets_event::kE2E),
+                                    [impl](uint8_t v) { impl->fireTestEventUINT8E2EEvent(v); });
+        emission.addTriggeredSource(std::string(tc8::dut::ets_event::kMulticast),
+                                    [impl](uint8_t v) { impl->fireTestEventUINT8MulticastEvent(v); });
     }
-    emission.addTriggeredSource(std::string(tc8::dut::ets_event::kArray),
-                                [impl](uint8_t v) { impl->fireTestEventUINT8ArrayEvent({v, v, v}); });
-    emission.addTriggeredSource(std::string(tc8::dut::ets_event::kReliable),
-                                [impl](uint8_t v) { impl->fireTestEventUINT8ReliableEvent(v); });
-    emission.addTriggeredSource(std::string(tc8::dut::ets_event::kE2E),
-                                [impl](uint8_t v) { impl->fireTestEventUINT8E2EEvent(v); });
-    emission.addTriggeredSource(std::string(tc8::dut::ets_event::kMulticast),
-                                [impl](uint8_t v) { impl->fireTestEventUINT8MulticastEvent(v); });
 
     // The server sink + client control handed to every extension hook as one
     // context (owned here for the whole run). Now that the service is offered, let
@@ -137,21 +165,23 @@ int main() {
     // unregisterService translates to vsomeip stop_offer_service (wire:
     // StopOfferService entry with ttl == 0); registerService translates
     // to offer_service (wire: OfferService entry with ttl > 0).
-    impl->setSuspendCallback([runtime, impl](uint32_t start_ms, uint32_t duration_ms) {
-        std::thread([runtime, impl, start_ms, duration_ms]() {
-            if (start_ms > 0) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(start_ms));
-            }
-            runtime->unregisterService(kDomain, kInterface, kInstance);
-            std::printf("tc8-dut: suspendInterface — service stopped for %u ms\n", duration_ms);
-            std::this_thread::sleep_for(std::chrono::milliseconds(duration_ms));
-            if (!runtime->registerService(kDomain, kInstance, impl)) {
-                std::fprintf(stderr, "tc8-dut: suspendInterface re-register failed\n");
-            } else {
-                std::printf("tc8-dut: suspendInterface — service resumed\n");
-            }
-        }).detach();
-    });
+    if (!client_only) {
+        impl->setSuspendCallback([runtime, impl](uint32_t start_ms, uint32_t duration_ms) {
+            std::thread([runtime, impl, start_ms, duration_ms]() {
+                if (start_ms > 0) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(start_ms));
+                }
+                runtime->unregisterService(kDomain, kInterface, kInstance);
+                std::printf("tc8-dut: suspendInterface — service stopped for %u ms\n", duration_ms);
+                std::this_thread::sleep_for(std::chrono::milliseconds(duration_ms));
+                if (!runtime->registerService(kDomain, kInstance, impl)) {
+                    std::fprintf(stderr, "tc8-dut: suspendInterface re-register failed\n");
+                } else {
+                    std::printf("tc8-dut: suspendInterface — service resumed\n");
+                }
+            }).detach();
+        });
+    }
 
     // §5.1.5.3 SD_MESSAGE_01/_02 + §5.1.5.7 RPC_14/_17 require two
     // instances of SERVICE-ID-1. Gated on TC8_DUT_INSTANCE_2 so the
@@ -159,7 +189,7 @@ int main() {
     // Each instance gets its own EtsImpl so per-instance state
     // (fieldA storage) doesn't leak between dispatchers.
     std::shared_ptr<tc8::dut::EtsImpl> impl2;
-    if (envFlagOn("TC8_DUT_INSTANCE_2")) {
+    if (!client_only && envFlagOn("TC8_DUT_INSTANCE_2")) {
         impl2 = std::make_shared<tc8::dut::EtsImpl>();
         if (!runtime->registerService(kDomain, kInstance2, impl2)) {
             std::fprintf(stderr, "tc8-dut: registerService(%s) failed\n", kInstance2);
@@ -173,7 +203,7 @@ int main() {
     // (SERVICE-ID-2 = 0xF4E8). Gated on TC8_DUT_SERVICE_2 so the
     // baseline single-service deployment is unaffected.
     std::shared_ptr<tc8::dut::Ets2Impl> impl_si2;
-    if (envFlagOn("TC8_DUT_SERVICE_2")) {
+    if (!client_only && envFlagOn("TC8_DUT_SERVICE_2")) {
         impl_si2 = std::make_shared<tc8::dut::Ets2Impl>();
         if (!runtime->registerService(kDomain, kInstanceSi2, impl_si2)) {
             std::fprintf(stderr, "tc8-dut: registerService(%s) failed\n", kInstanceSi2);
@@ -235,19 +265,23 @@ int main() {
     // (impl_si2, when registered) gets its own cyclic TestEventUINT8 so RPC_02 has
     // a Notification to observe. Both ride the single EmissionController — there
     // is no separate event thread.
-    if (impl_si2) {
-        emission.addCyclicSource("TestEventUINT8.SI2",
-                                 [impl_si2](uint8_t v) { impl_si2->fireTestEventUINT8Event(v); },
-                                 std::chrono::milliseconds(250));
+    if (!client_only) {
+        if (impl_si2) {
+            emission.addCyclicSource("TestEventUINT8.SI2",
+                                     [impl_si2](uint8_t v) { impl_si2->fireTestEventUINT8Event(v); },
+                                     std::chrono::milliseconds(250));
+        }
+        emission.start();
     }
-    emission.start();
 
     while (!g_stop.load()) {
         ets_extension->onTick(ets_ctx);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
     }
 
-    emission.stop();
+    if (!client_only) {
+        emission.stop();
+    }
     ets_extension->onStop(ets_ctx);
     testability.stop();
     upper_tester.stop();

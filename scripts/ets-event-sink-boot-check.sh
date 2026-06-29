@@ -43,5 +43,37 @@ if grep -q "OEM client surface disabled" "$log"; then
     exit 1
 fi
 
-echo "PASS: ETS event-sink and client-control resolved the CommonAPI application"
+# Client-only mode (TC8_DUT_CLIENT_ONLY=1, the client-role CLT topology): the DUT must
+# NOT offer the primary ETS service, yet the seam must STILL resolve the
+# CommonAPI-owned vsomeip application — created here via a proxy on the default
+# connection instead of registerService. Guards the client-only design: a
+# regression that re-offered the service (local subscribe satisfaction, no wire
+# SubscribeEventgroup) or failed to create the app would surface here. Own
+# base-path so it never collides with the server-mode app above.
+clog="$work/dut-client-only.log"
+mkdir -p "$work/co"
+timeout 5 env \
+    TC8_DUT_CLIENT_ONLY=1 \
+    COMMONAPI_CONFIG="$ROOT/dut/dut_service/commonapi.ini" \
+    VSOMEIP_CONFIGURATION="$ROOT/dut/dut_service/vsomeip.json" \
+    VSOMEIP_APPLICATION_NAME=tc8-dut \
+    VSOMEIP_BASE_PATH="$work/co" \
+    "$DUT_BIN" >"$clog" 2>&1
+
+if ! grep -q "client-only mode" "$clog"; then
+    echo "FAIL: TC8_DUT_CLIENT_ONLY did not engage client-only mode" >&2
+    tail -20 "$clog" >&2
+    exit 1
+fi
+if grep -q "registered (domain=" "$clog"; then
+    echo "FAIL: client-only DUT still offered the primary ETS service" >&2
+    echo "      (would satisfy the OEM client subscribe locally — no wire frame)" >&2
+    exit 1
+fi
+if grep -q "OEM client surface disabled" "$clog"; then
+    echo "FAIL: client-only seam could not resolve the CommonAPI app (proxy path)" >&2
+    exit 1
+fi
+
+echo "PASS: seam resolves in server mode AND client-only mode (no primary offer)"
 exit 0
