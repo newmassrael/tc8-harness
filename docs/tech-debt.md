@@ -117,3 +117,36 @@ The remaining headers are low-drift, so converting them is worthwhile for
 uniformity but not urgent. Doing them one protocol at a time keeps each change
 reviewable. Pick up arp/ipv4/udp/tcp/icmpv4/dhcpv4 in that rough order of how
 often each header's decode is touched.
+
+## TD-03 — `--expect` key strings hand-duplicated across producers and the consumer
+
+**Status:** OPEN (accepted). **Logged:** 2026-06-30.
+
+**What.** Every `--expect` field name is a bare string literal repeated across the
+two producers that derive it from `vsomeip.json` (`tools/dut_identity.py` and the
+orchestrator `dut/env/orchestrator/src/config.rs` + `dispatch.rs`), the bash
+emitter (`dut/env/smoke-test.sh`), and the C++ consumer table
+(`src/cli/expect_parser.cpp` → `src/sce_integration/someip_expectations.h`). The
+key `"sd_initial_delay_min_ms"` (and its four SD-timing siblings, plus the older
+identity keys) thus lives as an unshared literal in 4–5 places. A rename in one
+is not a compile error in bash/Python.
+
+**Risk if left.** Partially gated: the orchestrator parity-check diffs the bash vs
+Rust `--expect` dumps, and `config_test.rs` asserts the Python keys match the Rust
+struct — so a producer-side typo is caught. The genuine gap is the CONSUMER side:
+nothing mechanically ties `expect_parser.cpp`'s key strings to the producers, so a
+rename there silently drops the field to its `0` sentinel and the SCXML guard then
+compares against 0 (a false-pass risk, not a crash). This is the long-standing
+shape for ALL expect keys, not specific to the SD-timing five.
+
+**Textbook fix (deferred — cross-cutting).** A single key registry (e.g. a
+`tc8_expect_keys.def` X-macro, the same idiom as the wire/verdict `.def`s)
+`#include`d by `expect_parser.cpp` and emitted for the bash/Python/Rust producers,
+behind a `--check` freshness gate — so the key set is single-sourced and a missing
+consumer entry fails loud.
+
+**Why deferred.** It spans every `--expect` field across four languages, so it is a
+focused refactor of its own, not something to fold into a feature commit. The
+SD-timing addition (2026-06-30) followed the established pattern exactly and is
+guarded by the two existing parity/lockstep tests; it added 5 instances to a
+pre-existing class rather than introducing a new defect.

@@ -65,6 +65,11 @@ if ! grep -q "client-only mode" "$clog"; then
     tail -20 "$clog" >&2
     exit 1
 fi
+if ! grep -q "ClientTarget proxy built" "$clog"; then
+    echo "FAIL: client-only app-creation proxy did not build" >&2
+    tail -20 "$clog" >&2
+    exit 1
+fi
 if grep -q "registered (domain=" "$clog"; then
     echo "FAIL: client-only DUT still offered the primary ETS service" >&2
     echo "      (would satisfy the OEM client subscribe locally — no wire frame)" >&2

@@ -46,6 +46,24 @@ bool envFlagOn(const char* name) {
     return v != nullptr && v[0] != '\0' && v[0] != '0';
 }
 
+// Bring up the CommonAPI-owned vsomeip application WITHOUT offering any service,
+// for client-only mode. CommonAPI has no offer-free app-creation primitive —
+// registerService and buildProxy are its only two app-creation triggers, both
+// keyed on DEFAULT_CONNECTION_ID — so the seam factories (which retrieve
+// get_application("")) resolve the app either way. We build a proxy purely as the
+// app-creation vehicle: ClientModeProxyRunner is reused here ONLY for that side
+// effect, NOT its ETS_097 role (subscribe() is never called), and the proxy's
+// FindService for its target is harmless unrelated SD traffic. The returned
+// runner OWNS the application and MUST be kept alive for the whole run.
+std::unique_ptr<tc8::dut::ClientModeProxyRunner> bringUpClientOnlyApplication() {
+    auto app = std::make_unique<tc8::dut::ClientModeProxyRunner>();
+    if (!app->start()) {
+        std::fprintf(stderr, "tc8-dut: client-only application bring-up failed\n");
+        std::_Exit(1);
+    }
+    return app;
+}
+
 }  // namespace
 
 int main() {
@@ -54,28 +72,25 @@ int main() {
     std::signal(SIGTERM, onSignal);
 
     auto runtime = CommonAPI::Runtime::get();
-    auto impl = tc8::dut::createEtsStub();
 
     // Client-role (CLT) topology: the DUT is a pure CLIENT of the primary ETS service
     // (0xF4E7), so in client-only mode it must NOT offer 0xF4E7 — a local offer
     // makes vsomeip satisfy the OEM client subscribe IN-PROCESS (local Ack, no
     // wire SubscribeEventgroup), so the tester (server) never sees it. The seam
     // factories still need the CommonAPI-owned vsomeip application (retrieved by
-    // DEFAULT_CONNECTION_ID); CommonAPI keys BOTH services and proxies on that one
-    // connection, so building a proxy creates the SAME application WITHOUT offering
-    // any service. Kept alive (client_only_app) for the whole run. Server-role
-    // setup below (offer / emission / SI2 / suspend) is gated on !client_only.
+    // DEFAULT_CONNECTION_ID); building a proxy creates it WITHOUT offering any
+    // service (see bringUpClientOnlyApplication). Server-role objects below — the
+    // EtsImpl stub, emission engine, SI2/instance-2 offers, suspend callback — are
+    // created/wired only when !client_only, so none is allocated in client-only.
     const bool client_only = envFlagOn("TC8_DUT_CLIENT_ONLY");
+    std::shared_ptr<tc8::dut::EtsImpl> impl;  // server-role stub; unset in client-only
     std::unique_ptr<tc8::dut::ClientModeProxyRunner> client_only_app;
     if (client_only) {
-        client_only_app = std::make_unique<tc8::dut::ClientModeProxyRunner>();
-        if (!client_only_app->start()) {
-            std::fprintf(stderr, "tc8-dut: client-only application bring-up failed\n");
-            std::_Exit(1);
-        }
+        client_only_app = bringUpClientOnlyApplication();
         std::printf("tc8-dut: client-only mode — %s NOT offered; app created via proxy\n",
                     kInterface);
     } else {
+        impl = tc8::dut::createEtsStub();
         if (!runtime->registerService(kDomain, kInstance, impl)) {
             std::fprintf(stderr, "tc8-dut: registerService failed\n");
             // Hard-exit — avoid static destructors running vsomeip shutdown
@@ -216,7 +231,10 @@ int main() {
     // TC8 §4.8.5 Upper Tester channel. UDP-bound listeners for
     // ADDRESSING_01/02 receive-probing and FRAGMENTS_05 send-triggering.
     // Independent of the SOME/IP stack — vsomeip owns 30490..30510,
-    // UT lives on 20000 (data) + 30600 (RPC).
+    // UT lives on 20000 (data) + 30600 (RPC). The UT and testability endpoints
+    // below are the role-INDEPENDENT control plane (they drive the DUT, not the
+    // SOME/IP server surface), so they run in client-only mode too — deliberately
+    // NOT gated on !client_only, unlike the server-role offer/emission/SI2/suspend.
     // The §4.5 and §4.7 autoconf + DHCP opcode families and the interface
     // enumeration are POSIX-host-specific, so they live in PosixUtExtensions and
     // register onto the platform-agnostic core. `ut_ext` is declared first so it
@@ -291,7 +309,11 @@ int main() {
     if (impl2) {
         runtime->unregisterService(kDomain, kInterface, kInstance2);
     }
-    runtime->unregisterService(kDomain, kInterface, kInstance);
+    // The primary service is unregistered only if it was offered — client-only
+    // mode never registered it (a no-op unregister just logs a CommonAPI warning).
+    if (!client_only) {
+        runtime->unregisterService(kDomain, kInterface, kInstance);
+    }
     std::printf("tc8-dut: unregistered, exiting\n");
     // Hard-exit: vsomeip application destructor blocks during static dtor
     // chain (routing manager shutdown handshake against itself). _Exit
