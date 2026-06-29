@@ -43,8 +43,8 @@ struct FindServiceParams {
     // SD header 24-bit Reserved field (the 3 bytes after the Flags byte).
     // Canonically 0; a case sets non-zero bits to verify the DUT ignores
     // undefined Reserved bits in a FindService SD header per the SOME/IP-SD
-    // reserved-handling requirement (PRS_SOMEIPSD_00307). Only the low 24
-    // bits are emitted (putBe24). The sibling Offer/Subscribe SD builders
+    // reserved-handling requirement (PRS_SOMEIPSD_00307). Must fit in 24 bits
+    // (the field is 3 bytes); putBe24 asserts otherwise. The sibling Offer/Subscribe SD builders
     // hardcode their Reserved field to 0 — give their Params the same override
     // when a case needs to flip THEIR Reserved bits (no shared field yet, by
     // YAGNI: FindService is the only current consumer).

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -37,6 +38,12 @@ inline void putBe16(std::vector<std::uint8_t> &b, std::uint16_t v) {
 }
 
 inline void putBe24(std::vector<std::uint8_t> &b, std::uint32_t v) {
+    // The wire field is exactly 3 bytes; the SD TTL and Reserved fields are
+    // both 24-bit, so a value above 24 bits is a caller bug, not a value to
+    // silently truncate. Assert in debug; a release build keeps the low-24
+    // write (no behaviour change to conformant callers, all of which pass
+    // <= 0xFFFFFF).
+    assert((v >> 24) == 0 && "putBe24: value exceeds 24 bits");
     b.push_back(static_cast<std::uint8_t>((v >> 16) & 0xFF));
     b.push_back(static_cast<std::uint8_t>((v >> 8) & 0xFF));
     b.push_back(static_cast<std::uint8_t>(v & 0xFF));
