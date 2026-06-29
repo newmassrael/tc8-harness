@@ -42,6 +42,17 @@ public:
     // destruction so a captured `&sink` cannot dangle (see ets_event_sink.cpp).
     virtual void onMethod(std::uint16_t method_id,
                           std::function<void(const std::vector<std::uint8_t>&)> handler) = 0;
+
+    // Register a REQUEST/RESPONSE `handler` for `method_id`: the handler receives
+    // the request payload and RETURNS the response payload, which the DUT sends
+    // back as a SOME/IP Response (return code E_OK). This is the complement of
+    // onMethod (fire-and-forget) for OEM methods that must REPLY — e.g. a
+    // last-error / last-value readback that is not in the public fidl, so
+    // CommonAPI does not serve it. Same vsomeip-thread + unregister-on-destroy
+    // contract as onMethod.
+    virtual void onRequest(
+        std::uint16_t method_id,
+        std::function<std::vector<std::uint8_t>(const std::vector<std::uint8_t>&)> handler) = 0;
 };
 
 // Build a vsomeip-backed IEtsEventSink over the CommonAPI ETS service's OWN

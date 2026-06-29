@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
+#include <mutex>
 #include <vector>
 
 #include "ets_client_control.h"  // IEtsClientControl
@@ -13,9 +15,10 @@ namespace tc8::dut {
 // starter an OEM adapts to offer its OWN (NDA) surface on the shared vsomeip
 // application, selected at configure time via TC8_ETS_EXTENSION_SRC (see
 // demo_ets_extension.cpp). It exercises the SERVER-role IEtsEventSink (offerEvent
-// + onMethod in onRegister, notify from the registered trigger) AND the
-// CLIENT-role IEtsClientControl (subscribe to a tester-offered eventgroup on a
-// method Request, unsubscribe on shutdown) — the client-role (CLT) topology shape.
+// + onMethod + the reply-capable onRequest) AND the CLIENT-role
+// IEtsClientControl (subscribe/stop, plus an RPC call whose Response it captures)
+// — the client-role (CLT) topology shape: the tester drives a method, the DUT
+// subscribes or calls back, and a readback method replies with what it observed.
 //
 // The IDs are deliberately synthetic — outside the public ETS event range
 // (0x80xx), its eventgroups (0x0002/0x0005/0x0007), and the trigger-method range
@@ -28,12 +31,17 @@ inline constexpr std::uint16_t kDemoEventgroupB    = 0x00F5;
 inline constexpr std::uint16_t kDemoTriggerMethod  = 0x07F0;
 
 // CLIENT-role demo: a synthetic tester-offered service the demo DUT subscribes to
-// when kDemoSubscribeMethod is Requested, and unsubscribes from on shutdown.
+// (kDemoSubscribeMethod) and RPC-calls (kDemoCallMethod), and the local control
+// methods that drive/read it back (kDemoReadbackMethod replies with the last
+// captured Response payload via the reply-capable onRequest).
 inline constexpr std::uint16_t kDemoTargetService    = 0x7F02;
 inline constexpr std::uint16_t kDemoTargetInstance   = 0x0001;
 inline constexpr std::uint16_t kDemoTargetEventgroup = 0x00F7;
 inline constexpr std::uint16_t kDemoTargetEvent      = 0x7F80;
+inline constexpr std::uint16_t kDemoTargetMethod     = 0x7F81;
 inline constexpr std::uint16_t kDemoSubscribeMethod  = 0x07F1;
+inline constexpr std::uint16_t kDemoCallMethod       = 0x07F2;
+inline constexpr std::uint16_t kDemoReadbackMethod   = 0x07F3;
 inline constexpr std::uint8_t  kDemoTargetMajor      = 0x01;
 
 // Header-only so the hermetic test can instantiate it directly (no link step)
@@ -75,6 +83,34 @@ public:
                                   /*reliable=*/false, kDemoTargetMajor);
                           }
                       });
+
+        // RPC-CLIENT demo: capture the target method's Response into shared state,
+        // call it on kDemoCallMethod, and reply with the captured payload on the
+        // readback Request. The closures capture a COPY of the shared_ptr (not
+        // `this`), so the response handler (a vsomeip thread) and the readback
+        // reply (another) safely outlive this extension and serialise on the
+        // state's mutex — the cross-thread pattern an OEM readback needs.
+        if (client != nullptr) {
+            auto last = last_response_;
+            client->onResponse(kDemoTargetService, kDemoTargetInstance, kDemoTargetMethod,
+                               [last](std::uint8_t rc,
+                                      const std::vector<std::uint8_t>& payload) {
+                                   std::lock_guard<std::mutex> lock(last->mutex);
+                                   last->return_code = rc;
+                                   last->payload = payload;
+                               });
+            sink.onMethod(kDemoCallMethod,
+                          [client](const std::vector<std::uint8_t>& payload) {
+                              client->callMethod(kDemoTargetService, kDemoTargetInstance,
+                                                 kDemoTargetMethod, payload,
+                                                 /*reliable=*/false, kDemoTargetMajor);
+                          });
+            sink.onRequest(kDemoReadbackMethod,
+                           [last](const std::vector<std::uint8_t>&) {
+                               std::lock_guard<std::mutex> lock(last->mutex);
+                               return last->payload;
+                           });
+        }
     }
 
     // Stop the demo subscription on shutdown. Runs on the DUT main thread (not a
@@ -89,7 +125,16 @@ public:
     }
 
 private:
+    // Last Response observed for the target method, shared with the vsomeip-thread
+    // handlers via shared_ptr so they neither dangle nor race (guarded by mutex).
+    struct LastResponse {
+        std::mutex mutex;
+        std::uint8_t return_code = 0;
+        std::vector<std::uint8_t> payload;
+    };
+
     IEtsClientControl* client_ = nullptr;
+    std::shared_ptr<LastResponse> last_response_ = std::make_shared<LastResponse>();
 };
 
 }  // namespace tc8::dut

@@ -47,10 +47,19 @@ public:
                   std::function<void(const std::vector<std::uint8_t>&)> handler) override {
         handlers[method_id] = std::move(handler);
     }
+    void onRequest(
+        std::uint16_t method_id,
+        std::function<std::vector<std::uint8_t>(const std::vector<std::uint8_t>&)> handler)
+        override {
+        request_handlers[method_id] = std::move(handler);
+    }
 
     std::vector<Offer> offers;
     std::vector<Notification> notifications;
     std::map<std::uint16_t, std::function<void(const std::vector<std::uint8_t>&)>> handlers;
+    std::map<std::uint16_t,
+             std::function<std::vector<std::uint8_t>(const std::vector<std::uint8_t>&)>>
+        request_handlers;
 };
 
 // Records every IEtsClientControl call so a test can assert what the extension
@@ -89,9 +98,38 @@ public:
                                  std::uint16_t eventgroup) override {
         stops.push_back({service, instance, eventgroup});
     }
+    void callMethod(std::uint16_t service, std::uint16_t instance, std::uint16_t method,
+                    const std::vector<std::uint8_t>& payload, bool reliable,
+                    std::uint8_t major) override {
+        calls.push_back({service, instance, method, payload, reliable, major});
+    }
+    void onResponse(std::uint16_t service, std::uint16_t instance, std::uint16_t method,
+                    std::function<void(std::uint8_t, const std::vector<std::uint8_t>&)>
+                        handler) override {
+        response_service = service;
+        response_instance = instance;
+        response_method = method;
+        response_handler = std::move(handler);
+    }
+
+    struct Call {
+        std::uint16_t service;
+        std::uint16_t instance;
+        std::uint16_t method;
+        std::vector<std::uint8_t> payload;
+        bool reliable;
+        std::uint8_t major;
+    };
 
     std::vector<Subscribe> subscribes;
     std::vector<Stop> stops;
+    std::vector<Call> calls;
+    // The single onResponse registration the demo makes; a test fires it to
+    // simulate the tester's Response arriving on a vsomeip thread.
+    std::uint16_t response_service = 0;
+    std::uint16_t response_instance = 0;
+    std::uint16_t response_method = 0;
+    std::function<void(std::uint8_t, const std::vector<std::uint8_t>&)> response_handler;
 };
 
 }  // namespace
@@ -193,6 +231,51 @@ TEST(DemoEtsExtension, SubscribeMethodIsNoOpWithoutClientControl) {
     sink.handlers[tc8::dut::kDemoSubscribeMethod]({});  // no client → no-op, no crash
     ext.onStop();
     SUCCEED();
+}
+
+TEST(DemoEtsExtension, CallMethodDrivesClientControl) {
+    FakeEtsEventSink sink;
+    FakeEtsClientControl client;
+    tc8::dut::DemoEtsExtension ext;
+    ext.onRegisterClientControl(client);
+    ext.onRegister(sink);
+
+    ASSERT_EQ(sink.handlers.count(tc8::dut::kDemoCallMethod), 1u);
+    EXPECT_TRUE(client.calls.empty());
+
+    const std::vector<std::uint8_t> request{0x11, 0x22};
+    sink.handlers[tc8::dut::kDemoCallMethod](request);
+
+    ASSERT_EQ(client.calls.size(), 1u);
+    const auto& c = client.calls[0];
+    EXPECT_EQ(c.service, tc8::dut::kDemoTargetService);
+    EXPECT_EQ(c.instance, tc8::dut::kDemoTargetInstance);
+    EXPECT_EQ(c.method, tc8::dut::kDemoTargetMethod);
+    EXPECT_EQ(c.payload, request);
+    EXPECT_FALSE(c.reliable);
+    EXPECT_EQ(c.major, tc8::dut::kDemoTargetMajor);
+}
+
+TEST(DemoEtsExtension, ResponseIsCapturedAndReadbackReplies) {
+    FakeEtsEventSink sink;
+    FakeEtsClientControl client;
+    tc8::dut::DemoEtsExtension ext;
+    ext.onRegisterClientControl(client);
+    ext.onRegister(sink);
+
+    // The demo registered a response handler for the target method and a
+    // reply-capable readback method.
+    EXPECT_EQ(client.response_method, tc8::dut::kDemoTargetMethod);
+    ASSERT_TRUE(static_cast<bool>(client.response_handler));
+    ASSERT_EQ(sink.request_handlers.count(tc8::dut::kDemoReadbackMethod), 1u);
+
+    // Before any response the readback replies empty.
+    EXPECT_TRUE(sink.request_handlers[tc8::dut::kDemoReadbackMethod]({}).empty());
+
+    // Simulate the tester's Response arriving; the readback then replies with it.
+    const std::vector<std::uint8_t> response{0xAB, 0xCD};
+    client.response_handler(0x00, response);
+    EXPECT_EQ(sink.request_handlers[tc8::dut::kDemoReadbackMethod]({}), response);
 }
 
 // payloadBytes() — the extracted inbound-marshaling step from

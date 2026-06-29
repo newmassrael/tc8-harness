@@ -66,6 +66,27 @@ public:
             });
     }
 
+    void onRequest(
+        std::uint16_t method_id,
+        std::function<std::vector<std::uint8_t>(const std::vector<std::uint8_t>&)> handler)
+        override {
+        registered_methods_.push_back(method_id);
+        // Capture a copy of the application shared_ptr (not `this`) so the handler
+        // can send the response without depending on this sink's lifetime.
+        auto app = app_;
+        app_->register_message_handler(
+            service_, instance_, method_id,
+            [app, handler = std::move(handler)](const std::shared_ptr<vsomeip::message>& msg) {
+                if (!msg) return;
+                const auto pl = msg->get_payload();
+                auto out = handler(payloadBytes(pl ? pl->get_data() : nullptr,
+                                                pl ? pl->get_length() : 0));
+                auto response = vsomeip::runtime::get()->create_response(msg);
+                response->set_payload(vsomeip::runtime::get()->create_payload(out));
+                app->send(response);
+            });
+    }
+
 private:
     std::shared_ptr<vsomeip::application> app_;
     vsomeip::service_t  service_;
@@ -83,6 +104,9 @@ public:
     void notify(std::uint16_t, const std::vector<std::uint8_t>&) override {}
     void onMethod(std::uint16_t,
                   std::function<void(const std::vector<std::uint8_t>&)>) override {}
+    void onRequest(
+        std::uint16_t,
+        std::function<std::vector<std::uint8_t>(const std::vector<std::uint8_t>&)>) override {}
 };
 
 }  // namespace

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -10,12 +11,13 @@ namespace tc8::dut {
 // sibling of the server-role IEtsEventSink (ets_event_sink.h). Where the sink
 // lets an OEM extension OFFER an event surface (offer/notify/handle), this seam
 // lets the extension drive the DUT as a SOME/IP CLIENT: subscribe the DUT to a
-// tester-offered eventgroup so vsomeip emits a SubscribeEventgroup SD entry, and
-// stop that subscription (StopSubscribe). It is the missing call site the
+// tester-offered eventgroup (so vsomeip emits a SubscribeEventgroup SD entry) and
+// stop that subscription (StopSubscribe), and issue an RPC Request to a tester
+// method and capture its Response/Error. It is the missing call site the
 // client-role (CLT) topology needs — the DUT is the client there, and the
 // existing in-tree client paths (the ets3 CommonAPI proxy, the raw-UDP
 // FindService runner) target a HARDCODED service/eventgroup, so they cannot
-// drive an arbitrary subscribe.
+// drive an arbitrary subscribe or call.
 //
 // Kept vsomeip-free so an OEM TU (and the hermetic test) includes only this
 // header; the concrete seam wraps the real vsomeip::application
@@ -23,11 +25,11 @@ namespace tc8::dut {
 // connection id, so it shares the one routing client (no second application).
 // The public default extension never uses it.
 //
-// Roles are split into two seams ON PURPOSE (interface segregation): an
+// Roles are split from IEtsEventSink ON PURPOSE (interface segregation): an
 // event-only OEM extension depends only on IEtsEventSink and never sees this
-// client surface. RPC-client drive (a Request + a forwarded-error/last-value
-// readback) is a deliberately separate, future addition — this seam is scoped to
-// SD/PubSub subscribe only.
+// client surface. The complement on the SERVER seam is IEtsEventSink::onRequest
+// (the DUT REPLIES to a tester Request — e.g. an OEM last-error / last-value
+// readback), which a client-role extension pairs with onResponse here.
 // See claudedocs/ets-dut-public-completion-and-oem-seam-design.md.
 class IEtsClientControl {
 public:
@@ -56,6 +58,26 @@ public:
     // TTL 0). Safe to call for a subscription that was never started (no-op).
     virtual void stopSubscribeEventgroup(std::uint16_t service, std::uint16_t instance,
                                          std::uint16_t eventgroup) = 0;
+
+    // Send a SOME/IP Request from the DUT (client role) to `method` on the
+    // tester's `service`/`instance`/`major`, with `payload`, over UDP
+    // (reliable=false) or TCP (reliable=true). request_service is implied. The
+    // Response/Error arrives asynchronously and is delivered to a handler
+    // registered with onResponse() for the same `service`/`instance`/`method`.
+    virtual void callMethod(std::uint16_t service, std::uint16_t instance,
+                            std::uint16_t method,
+                            const std::vector<std::uint8_t>& payload, bool reliable,
+                            std::uint8_t major) = 0;
+
+    // Register `handler` for Responses AND Errors to `method` on
+    // `service`/`instance` — the reaction surface a client-role verdict observes
+    // (return code + payload, "last received" semantics). The handler runs on a
+    // vsomeip thread, so it must not block; it is unregistered when the control
+    // is destroyed so a captured reference cannot dangle.
+    virtual void onResponse(
+        std::uint16_t service, std::uint16_t instance, std::uint16_t method,
+        std::function<void(std::uint8_t return_code,
+                           const std::vector<std::uint8_t>& payload)> handler) = 0;
 };
 
 // Build a vsomeip-backed IEtsClientControl over the CommonAPI ETS service's OWN
