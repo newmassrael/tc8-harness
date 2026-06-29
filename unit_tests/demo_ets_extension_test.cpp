@@ -144,8 +144,10 @@ public:
 
 TEST(DemoEtsExtension, OnRegisterOffersEventAndArmsTrigger) {
     FakeEtsEventSink sink;
+    FakeEtsClientControl client;
+    tc8::dut::EtsExtensionContext ctx{sink, client};
     tc8::dut::DemoEtsExtension ext;
-    ext.onRegister(sink);
+    ext.onRegister(ctx);
 
     // The demo event is offered on its two demo eventgroups, exactly once.
     ASSERT_EQ(sink.offers.size(), 1u);
@@ -161,8 +163,10 @@ TEST(DemoEtsExtension, OnRegisterOffersEventAndArmsTrigger) {
 
 TEST(DemoEtsExtension, TriggerMethodNotifiesEventWithRequestPayload) {
     FakeEtsEventSink sink;
+    FakeEtsClientControl client;
+    tc8::dut::EtsExtensionContext ctx{sink, client};
     tc8::dut::DemoEtsExtension ext;
-    ext.onRegister(sink);
+    ext.onRegister(ctx);
 
     // Firing the registered trigger notifies the demo event, echoing the
     // request payload — the core "method drives event" seam behavior.
@@ -174,17 +178,17 @@ TEST(DemoEtsExtension, TriggerMethodNotifiesEventWithRequestPayload) {
     EXPECT_EQ(sink.notifications[0].payload, request);
 }
 
-TEST(DemoEtsExtension, DefaultHooksAreNoOps) {
-    // onTick emits nothing on its own (the demo event is trigger-driven, not
-    // cyclic); onStop emits no event. With no client control handed here, onStop
-    // also drives no subscribe-stop (that path is covered separately, below).
+TEST(DemoEtsExtension, OnTickEmitsNothing) {
+    // onTick emits no event on its own (the demo event is trigger-driven, not
+    // cyclic). onStop's subscribe-stop is covered by OnStopStopsSubscription.
     FakeEtsEventSink sink;
+    FakeEtsClientControl client;
+    tc8::dut::EtsExtensionContext ctx{sink, client};
     tc8::dut::DemoEtsExtension ext;
-    ext.onRegister(sink);
+    ext.onRegister(ctx);
     sink.notifications.clear();
 
-    ext.onTick(sink);
-    ext.onStop();
+    ext.onTick(ctx);
     EXPECT_TRUE(sink.notifications.empty());
 
     // The demo opts 0x8001 cyclic-vs-triggered to the public default (cyclic).
@@ -194,10 +198,9 @@ TEST(DemoEtsExtension, DefaultHooksAreNoOps) {
 TEST(DemoEtsExtension, SubscribeMethodDrivesClientControl) {
     FakeEtsEventSink sink;
     FakeEtsClientControl client;
+    tc8::dut::EtsExtensionContext ctx{sink, client};
     tc8::dut::DemoEtsExtension ext;
-    // Mirror dut_main's order: client control handed before onRegister.
-    ext.onRegisterClientControl(client);
-    ext.onRegister(sink);
+    ext.onRegister(ctx);
 
     // The subscribe method is registered and nothing is subscribed until it fires.
     ASSERT_EQ(sink.handlers.count(tc8::dut::kDemoSubscribeMethod), 1u);
@@ -218,35 +221,23 @@ TEST(DemoEtsExtension, SubscribeMethodDrivesClientControl) {
 TEST(DemoEtsExtension, OnStopStopsSubscription) {
     FakeEtsEventSink sink;
     FakeEtsClientControl client;
+    tc8::dut::EtsExtensionContext ctx{sink, client};
     tc8::dut::DemoEtsExtension ext;
-    ext.onRegisterClientControl(client);
-    ext.onRegister(sink);
+    ext.onRegister(ctx);
 
-    ext.onStop();
+    ext.onStop(ctx);
     ASSERT_EQ(client.stops.size(), 1u);
     EXPECT_EQ(client.stops[0].service, tc8::dut::kDemoTargetService);
     EXPECT_EQ(client.stops[0].instance, tc8::dut::kDemoTargetInstance);
     EXPECT_EQ(client.stops[0].eventgroup, tc8::dut::kDemoTargetEventgroup);
 }
 
-TEST(DemoEtsExtension, SubscribeMethodIsNoOpWithoutClientControl) {
-    // Without onRegisterClientControl the handler captured a null facade — firing
-    // it must not crash and drives nothing. onStop is likewise a no-op.
-    FakeEtsEventSink sink;
-    tc8::dut::DemoEtsExtension ext;
-    ext.onRegister(sink);
-    ASSERT_EQ(sink.handlers.count(tc8::dut::kDemoSubscribeMethod), 1u);
-    sink.handlers[tc8::dut::kDemoSubscribeMethod]({});  // no client → no-op, no crash
-    ext.onStop();
-    SUCCEED();
-}
-
 TEST(DemoEtsExtension, CallMethodDrivesClientControl) {
     FakeEtsEventSink sink;
     FakeEtsClientControl client;
+    tc8::dut::EtsExtensionContext ctx{sink, client};
     tc8::dut::DemoEtsExtension ext;
-    ext.onRegisterClientControl(client);
-    ext.onRegister(sink);
+    ext.onRegister(ctx);
 
     ASSERT_EQ(sink.handlers.count(tc8::dut::kDemoCallMethod), 1u);
     EXPECT_TRUE(client.calls.empty());
@@ -267,9 +258,9 @@ TEST(DemoEtsExtension, CallMethodDrivesClientControl) {
 TEST(DemoEtsExtension, ResponseIsCapturedAndReadbackReplies) {
     FakeEtsEventSink sink;
     FakeEtsClientControl client;
+    tc8::dut::EtsExtensionContext ctx{sink, client};
     tc8::dut::DemoEtsExtension ext;
-    ext.onRegisterClientControl(client);
-    ext.onRegister(sink);
+    ext.onRegister(ctx);
 
     // The demo registered a response handler for the target method and a
     // reply-capable readback method.

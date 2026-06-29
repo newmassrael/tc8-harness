@@ -48,13 +48,8 @@ inline constexpr std::uint8_t  kDemoTargetMajor      = 0x01;
 // and the OEM can subclass/adapt it inline.
 class DemoEtsExtension : public IEtsExtension {
 public:
-    // Store the client-role facade, handed once before onRegister, so the
-    // subscribe-method handler and onStop can drive the DUT's client surface.
-    void onRegisterClientControl(IEtsClientControl& client) override {
-        client_ = &client;
-    }
-
-    void onRegister(IEtsEventSink& sink) override {
+    void onRegister(EtsExtensionContext& ctx) override {
+        IEtsEventSink& sink = ctx.sink;
         // Offer the demo event, then arm a trigger method that notifies it with
         // the request payload — the realistic "DUT emits event X when method Y
         // is called" shape. The handler captures `&sink` and runs on a vsomeip
@@ -70,18 +65,16 @@ public:
 
         // CLIENT demo: when the tester Requests kDemoSubscribeMethod, drive the
         // DUT to subscribe (UDP) to the synthetic target eventgroup. Capture the
-        // facade POINTER by value (valid from onRegisterClientControl, which runs
-        // first) instead of `this`, so the vsomeip-thread handler holds no
-        // reference to this extension — the same lifetime discipline as `&sink`.
-        IEtsClientControl* client = client_;
+        // client POINTER (the context's facade is owned by dut_main for the whole
+        // run) instead of `this`, so the vsomeip-thread handler holds no reference
+        // to this extension — the same lifetime discipline as `&sink`.
+        IEtsClientControl* client = &ctx.client;
         sink.onMethod(kDemoSubscribeMethod,
                       [client](const std::vector<std::uint8_t>&) {
-                          if (client != nullptr) {
-                              client->subscribeEventgroup(
-                                  kDemoTargetService, kDemoTargetInstance,
-                                  kDemoTargetEventgroup, {kDemoTargetEvent},
-                                  /*reliable=*/false, kDemoTargetMajor);
-                          }
+                          client->subscribeEventgroup(
+                              kDemoTargetService, kDemoTargetInstance,
+                              kDemoTargetEventgroup, {kDemoTargetEvent},
+                              /*reliable=*/false, kDemoTargetMajor);
                       });
 
         // RPC-CLIENT demo: capture the target method's Response into shared state,
@@ -90,38 +83,33 @@ public:
         // `this`), so the response handler (a vsomeip thread) and the readback
         // reply (another) safely outlive this extension and serialise on the
         // state's mutex — the cross-thread pattern an OEM readback needs.
-        if (client != nullptr) {
-            auto last = last_response_;
-            client->onResponse(kDemoTargetService, kDemoTargetInstance, kDemoTargetMethod,
-                               [last](std::uint8_t rc,
-                                      const std::vector<std::uint8_t>& payload) {
-                                   std::lock_guard<std::mutex> lock(last->mutex);
-                                   last->return_code = rc;
-                                   last->payload = payload;
-                               });
-            sink.onMethod(kDemoCallMethod,
-                          [client](const std::vector<std::uint8_t>& payload) {
-                              client->callMethod(kDemoTargetService, kDemoTargetInstance,
-                                                 kDemoTargetMethod, payload,
-                                                 /*reliable=*/false, kDemoTargetMajor);
-                          });
-            sink.onRequest(kDemoReadbackMethod,
-                           [last](const std::vector<std::uint8_t>&) {
+        auto last = last_response_;
+        client->onResponse(kDemoTargetService, kDemoTargetInstance, kDemoTargetMethod,
+                           [last](std::uint8_t rc,
+                                  const std::vector<std::uint8_t>& payload) {
                                std::lock_guard<std::mutex> lock(last->mutex);
-                               return last->payload;
+                               last->return_code = rc;
+                               last->payload = payload;
                            });
-        }
+        sink.onMethod(kDemoCallMethod,
+                      [client](const std::vector<std::uint8_t>& payload) {
+                          client->callMethod(kDemoTargetService, kDemoTargetInstance,
+                                             kDemoTargetMethod, payload,
+                                             /*reliable=*/false, kDemoTargetMajor);
+                      });
+        sink.onRequest(kDemoReadbackMethod,
+                       [last](const std::vector<std::uint8_t>&) {
+                           std::lock_guard<std::mutex> lock(last->mutex);
+                           return last->payload;
+                       });
     }
 
     // Stop the demo subscription on shutdown. Runs on the DUT main thread (not a
-    // vsomeip handler), so it may touch client_ directly. Safe even if the
-    // subscribe method was never Requested — stopSubscribeEventgroup is a no-op
-    // for an unknown subscription.
-    void onStop() override {
-        if (client_ != nullptr) {
-            client_->stopSubscribeEventgroup(kDemoTargetService, kDemoTargetInstance,
-                                             kDemoTargetEventgroup);
-        }
+    // vsomeip handler). Safe even if the subscribe method was never Requested —
+    // stopSubscribeEventgroup is a no-op for an unknown subscription.
+    void onStop(EtsExtensionContext& ctx) override {
+        ctx.client.stopSubscribeEventgroup(kDemoTargetService, kDemoTargetInstance,
+                                           kDemoTargetEventgroup);
     }
 
 private:
@@ -133,7 +121,6 @@ private:
         std::vector<std::uint8_t> payload;
     };
 
-    IEtsClientControl* client_ = nullptr;
     std::shared_ptr<LastResponse> last_response_ = std::make_shared<LastResponse>();
 };
 

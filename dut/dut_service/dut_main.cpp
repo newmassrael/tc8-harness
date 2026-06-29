@@ -85,9 +85,9 @@ int main() {
 
     // OEM client control (O2, CLT topology): the same CommonAPI-owned vsomeip
     // application, used CLIENT-side so the extension can drive the DUT to
-    // subscribe to a tester-offered eventgroup (no second app). Declared before
-    // the extension so it outlives it — an extension that stores the reference in
-    // onRegisterClientControl uses it from its method handlers and onStop.
+    // subscribe to / call a tester-offered service (no second app). Declared
+    // before the extension so it outlives the EtsExtensionContext that hands it to
+    // every hook; the extension's vsomeip-thread handlers capture it by reference.
     std::unique_ptr<tc8::dut::IEtsClientControl> ets_client =
         tc8::dut::makeEtsClientControl();
 
@@ -124,15 +124,13 @@ int main() {
     emission.addTriggeredSource(std::string(tc8::dut::ets_event::kMulticast),
                                 [impl](uint8_t v) { impl->fireTestEventUINT8MulticastEvent(v); });
 
-    // Hand the OEM extension its client-control facade BEFORE onRegister, so an
-    // extension that subscribes from a method handler (registered in onRegister)
-    // already holds the reference. No-op for the public default extension.
-    ets_extension->onRegisterClientControl(*ets_client);
-
-    // Now that the service is offered, let the OEM extension (O2) offer its NDA
-    // event surface on the sink. Created above (its ets8001TriggerDriven()
-    // already chose the 0x8001 source kind).
-    ets_extension->onRegister(*ets_sink);
+    // The server sink + client control handed to every extension hook as one
+    // context (owned here for the whole run). Now that the service is offered, let
+    // the OEM extension (O2) offer its NDA event surface and wire any client
+    // subscribe/calls. No-op for the public default extension (its
+    // ets8001TriggerDriven() already chose the 0x8001 source kind above).
+    tc8::dut::EtsExtensionContext ets_ctx{*ets_sink, *ets_client};
+    ets_extension->onRegister(ets_ctx);
 
     // §5.1.6 SOMEIP_ETS_089 — bind suspendInterface override to a
     // detached unregister/re-register cycle. CommonAPI's
@@ -245,12 +243,12 @@ int main() {
     emission.start();
 
     while (!g_stop.load()) {
-        ets_extension->onTick(*ets_sink);
+        ets_extension->onTick(ets_ctx);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
     }
 
     emission.stop();
-    ets_extension->onStop();
+    ets_extension->onStop(ets_ctx);
     testability.stop();
     upper_tester.stop();
     if (impl_si2) {
