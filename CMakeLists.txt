@@ -11,26 +11,11 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # so they do not contribute to this warning set. `-Werror` IS on by default
 # (TC8_WARNINGS_AS_ERRORS, below) now that the first-party tree is clean —
 # opt out with `-DTC8_WARNINGS_AS_ERRORS=OFF`.
-function(tc8_enable_strict_warnings target)
-    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-        target_compile_options(${target} PRIVATE
-            -Wall
-            -Wextra
-            -Wpedantic
-            -Wshadow
-            -Wconversion
-            -Wsign-conversion
-            -Wnon-virtual-dtor
-            -Wold-style-cast
-            -Woverloaded-virtual
-            -Wdouble-promotion
-            -Wformat=2
-        )
-        if(TC8_WARNINGS_AS_ERRORS)
-            target_compile_options(${target} PRIVATE -Werror)
-        endif()
-    endif()
-endfunction()
+#
+# The flag set + the tc8_enable_strict_warnings() target helper live in a shared
+# module so the separate lwIP DUT sub-project (dut/lwip_dut) applies the exact
+# same flags without a hand-copied second list that could drift.
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/tc8_strict_warnings.cmake)
 
 option(TC8_WARNINGS_AS_ERRORS
     "Promote compiler warnings to errors on first-party targets"
