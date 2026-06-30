@@ -106,6 +106,24 @@ public:
                                  std::uint16_t eventgroup) override {
         stops.push_back({service, instance, eventgroup});
     }
+    void onSubscriptionStatus(std::uint16_t service, std::uint16_t instance,
+                              std::uint16_t eventgroup,
+                              std::function<void(bool)> handler) override {
+        status_service = service;
+        status_instance = instance;
+        status_eventgroup = eventgroup;
+        status_handler = std::move(handler);
+    }
+    void offerControlMethod(
+        std::uint16_t service, std::uint16_t instance, std::uint16_t method,
+        std::uint8_t major,
+        std::function<void(const std::vector<std::uint8_t>&)> handler) override {
+        control_service = service;
+        control_instance = instance;
+        control_method = method;
+        control_major = major;
+        control_handler = std::move(handler);
+    }
     void callMethod(std::uint16_t service, std::uint16_t instance, std::uint16_t method,
                     const std::vector<std::uint8_t>& payload, bool reliable,
                     std::uint8_t major) override {
@@ -138,6 +156,19 @@ public:
     std::uint16_t response_instance = 0;
     std::uint16_t response_method = 0;
     std::function<void(std::uint8_t, const std::vector<std::uint8_t>&)> response_handler;
+    // The single onSubscriptionStatus registration the demo makes; a test fires it
+    // to simulate the tester's SubscribeEventgroupAck/Nack on a vsomeip thread.
+    std::uint16_t status_service = 0;
+    std::uint16_t status_instance = 0;
+    std::uint16_t status_eventgroup = 0;
+    std::function<void(bool)> status_handler;
+    // The single offerControlMethod registration the demo makes; a test fires it
+    // to simulate the tester's control Request arriving on a vsomeip thread.
+    std::uint16_t control_service = 0;
+    std::uint16_t control_instance = 0;
+    std::uint16_t control_method = 0;
+    std::uint8_t control_major = 0;
+    std::function<void(const std::vector<std::uint8_t>&)> control_handler;
 };
 
 }  // namespace
@@ -230,6 +261,72 @@ TEST(DemoEtsExtension, OnStopStopsSubscription) {
     EXPECT_EQ(client.stops[0].service, tc8::dut::kDemoTargetService);
     EXPECT_EQ(client.stops[0].instance, tc8::dut::kDemoTargetInstance);
     EXPECT_EQ(client.stops[0].eventgroup, tc8::dut::kDemoTargetEventgroup);
+}
+
+TEST(DemoEtsExtension, ControlMethodDeliversSubscribeInClientOnly) {
+    FakeEtsEventSink sink;
+    FakeEtsClientControl client;
+    tc8::dut::EtsExtensionContext ctx{sink, client};
+    tc8::dut::DemoEtsExtension ext;
+    ext.onRegister(ctx);
+
+    // The demo offers a CONTROL service + method that is distinct from the
+    // subscribe target (offering the target would self-route the subscribe).
+    EXPECT_EQ(client.control_service, tc8::dut::kDemoControlService);
+    EXPECT_EQ(client.control_instance, tc8::dut::kDemoControlInstance);
+    EXPECT_EQ(client.control_method, tc8::dut::kDemoControlSubscribeMethod);
+    EXPECT_EQ(client.control_major, tc8::dut::kDemoTargetMajor);
+    EXPECT_NE(client.control_service, tc8::dut::kDemoTargetService);
+    ASSERT_TRUE(static_cast<bool>(client.control_handler));
+
+    // Firing the control method drives the subscribe — the delivery path a
+    // client-only DUT uses when its server-sink onMethod never fires.
+    EXPECT_TRUE(client.subscribes.empty());
+    client.control_handler({});
+    ASSERT_EQ(client.subscribes.size(), 1u);
+    EXPECT_EQ(client.subscribes[0].service, tc8::dut::kDemoTargetService);
+    EXPECT_EQ(client.subscribes[0].eventgroup, tc8::dut::kDemoTargetEventgroup);
+}
+
+TEST(DemoEtsExtension, SubscriptionStatusBoundsLifetimeFromEstablishment) {
+    FakeEtsEventSink sink;
+    FakeEtsClientControl client;
+    tc8::dut::EtsExtensionContext ctx{sink, client};
+    tc8::dut::DemoEtsExtension ext;
+    ext.onRegister(ctx);
+
+    // The demo observes its target eventgroup's subscription status.
+    EXPECT_EQ(client.status_service, tc8::dut::kDemoTargetService);
+    EXPECT_EQ(client.status_instance, tc8::dut::kDemoTargetInstance);
+    EXPECT_EQ(client.status_eventgroup, tc8::dut::kDemoTargetEventgroup);
+    ASSERT_TRUE(static_cast<bool>(client.status_handler));
+
+    // Before establishment, ticks arm nothing — no stop is issued.
+    for (int i = 0; i < tc8::dut::kDemoSubscriptionTicks + 1; ++i) ext.onTick(ctx);
+    EXPECT_TRUE(client.stops.empty());
+
+    // A Nack (established=false) must not arm the lifetime either.
+    client.status_handler(false);
+    for (int i = 0; i < tc8::dut::kDemoSubscriptionTicks + 1; ++i) ext.onTick(ctx);
+    EXPECT_TRUE(client.stops.empty());
+
+    // Establishment (Ack) arms the bounded lifetime: held for exactly
+    // kDemoSubscriptionTicks ticks, then stopped once — the timer is anchored to
+    // establishment, not to onRegister/startup.
+    client.status_handler(true);
+    for (int i = 0; i < tc8::dut::kDemoSubscriptionTicks - 1; ++i) {
+        ext.onTick(ctx);
+        EXPECT_TRUE(client.stops.empty());  // not yet expired
+    }
+    ext.onTick(ctx);  // the expiring tick
+    ASSERT_EQ(client.stops.size(), 1u);
+    EXPECT_EQ(client.stops[0].service, tc8::dut::kDemoTargetService);
+    EXPECT_EQ(client.stops[0].instance, tc8::dut::kDemoTargetInstance);
+    EXPECT_EQ(client.stops[0].eventgroup, tc8::dut::kDemoTargetEventgroup);
+
+    // After expiry, further ticks do not re-stop (no spurious second StopSubscribe).
+    ext.onTick(ctx);
+    EXPECT_EQ(client.stops.size(), 1u);
 }
 
 TEST(DemoEtsExtension, CallMethodDrivesClientControl) {
