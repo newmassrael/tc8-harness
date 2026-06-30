@@ -72,9 +72,12 @@ jobs:
           path: .pcap-data
 
       - name: Decode pcaps to PacketCapture JSON
-        # decode_pcap.py auto-detects tester/DUT MAC+IP from the first
-        # frames (the harness assigns random locally-administered MACs
-        # per veth pair, so static fixture values would not match a
+        # `tc8-harness decode-pcap` replays each saved pcap through the
+        # harness's own authoritative wire decoder (src/dissect +
+        # *_captured.h) — the single decoder, no second Python one (see
+        # docs/tech-debt.md TD-05). It auto-detects tester/DUT MAC+IP from
+        # the first frames (the harness assigns random locally-administered
+        # MACs per veth pair, so static fixture values would not match a
         # live capture). Outcome is derived per-case from the JUnit XML
         # produced by the smoke run above so Linux-known-fail cases
         # (e.g. IPV4_REASSEMBLY_11/_13) land with a 'fail' badge on
@@ -109,13 +112,13 @@ jobs:
             cid=${name^^}
             outcome="${OUTCOMES[$cid]:-pass}"
             # Evidence Export — harness emits <pcap>.trace.json alongside
-            # every retained .pcap. decode_pcap.py merges the trace under
-            # ``captured_trace`` so the site walker renders the timeline
-            # from the harness's recorded transitions (single SSOT).
+            # every retained .pcap. decode-pcap merges the trace verbatim
+            # under ``captured_trace`` so the site walker renders the
+            # timeline from the harness's recorded transitions (single SSOT).
             trace="${pcap%.pcap}.trace.json"
             trace_arg=()
             [[ -s "$trace" ]] && trace_arg=(--trace-json "$trace")
-            if python3 site/scripts/decode_pcap.py "$cid" "$outcome" "$pcap" \
+            if ./build/tc8-harness decode-pcap "$cid" "$outcome" "$pcap" \
                  --captured-at "$captured_at" \
                  "${trace_arg[@]}" \
                  --out ".pcap-data/site/src/data/pcap/${cid}.json"; then

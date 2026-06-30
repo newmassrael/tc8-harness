@@ -209,25 +209,14 @@ jobs:
         # it. --check fails on a stale mirror OR a C++ value drift. Pure-Python.
         run: python3 tools/gen_wire_manifest.py --check
 
-      - name: SOME/IP-SD wire-decode SSOT gate
-        # The SD wire field layout (entry/option offsets, widths, bit slices)
-        # lives once in src/sce_integration/someip_sd_wire.def. The C++
-        # authoritative decoder (someip_captured.h) #includes it directly, and
-        # this tool generates the Python site mirror
-        # (site/scripts/someip_sd_wire_generated.py). --check fails on a stale
-        # mirror AND runs a golden-vector self-test that catches a wrong
-        # offset/width in the .def. Pure-Python. See docs/tech-debt.md TD-01.
-        run: python3 tools/gen_someip_sd_wire.py --check
-
-      - name: DHCPv4 BOOTP wire-decode SSOT gate
-        # The BOOTP fixed-header layout (op..chaddr offsets + magic cookie)
-        # lives once in src/sce_integration/dhcpv4_wire.def. The C++
-        # authoritative decoder (dhcpv4_wire.h, used by packet_pipeline.cpp)
-        # #includes it directly, and this tool generates the Python site mirror
-        # (site/scripts/dhcpv4_wire_generated.py). --check fails on a stale
-        # mirror AND runs a golden-vector self-test that catches a wrong
-        # offset/width in the .def. Pure-Python. See docs/tech-debt.md TD-02.
-        run: python3 tools/gen_dhcpv4_wire.py --check
+      # The SOME/IP-SD and DHCPv4 BOOTP wire layouts live once in
+      # src/sce_integration/{someip_sd_wire,dhcpv4_wire}.def, #included directly
+      # by the C++ authoritative decoder (someip_captured.h / dhcpv4_wire.h).
+      # They formerly also generated Python site mirrors for a second wire
+      # decoder; that decoder is gone — the site now replays pcaps through the
+      # harness (`tc8-harness decode-pcap`), so each .def has a single C++
+      # consumer and needs no cross-language freshness gate. See
+      # docs/tech-debt.md TD-05.
 
       - name: DUT identity cross-check gate
         # The DUT's primary + secondary identity (service/instance/ports/unicast IP/

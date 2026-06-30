@@ -27,17 +27,6 @@ if ! python3 "$HERE/../tools/gen_wire_manifest.py" --check >/dev/null; then
     exit 1
 fi
 
-# SOME/IP-SD wire-decode mirror (site/scripts/someip_sd_wire_generated.py) must
-# match the single source src/sce_integration/someip_sd_wire.def (also #included
-# by someip_captured.h). --check also runs a golden-vector self-test that catches
-# a wrong offset/width in the .def itself.
-if ! python3 "$HERE/../tools/gen_someip_sd_wire.py" --check >/dev/null; then
-    echo "pre-commit: SOME/IP-SD wire mirror STALE or .def self-test failed — run:" >&2
-    echo "    python3 tools/gen_someip_sd_wire.py" >&2
-    python3 "$HERE/../tools/gen_someip_sd_wire.py" --check >&2 || true
-    exit 1
-fi
-
 # timing_serial drift guard: every sub-second cadence case (*_within_us) must be
 # classified for the smoke serial lane (timing_serial:true, or EXEMPT with a
 # window-margin reason). Stops a new cadence case silently joining the contended

@@ -331,7 +331,8 @@ def extract_runs(case: dict, ctx: dict) -> dict:
 def extract_pcap(case: dict, ctx: dict) -> dict:
     """Inline the per-case packet capture JSON if one exists.
 
-    Files are written by ``scripts/decode_pcap.py`` (CI step) to
+    Files are written by ``tc8-harness decode-pcap`` (CI step, replaying each
+    saved pcap through the harness's authoritative wire decoder) to
     ``site/src/data/pcap/<CASE_ID>.json``. The shape is documented in the
     site types (``PacketCapture``).
     """
