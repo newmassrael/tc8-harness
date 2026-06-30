@@ -183,6 +183,18 @@ target_link_libraries(pending_requests_test PRIVATE
     GTest::gtest GTest::gtest_main)
 add_test(NAME pending_requests_test COMMAND pending_requests_test)
 
+# DUT-side pollable drain owner (dut/dut_service/pollable_host.h): the receiver an
+# extension adopts via IEtsIoHost, drained on the DUT main loop. Backs a fake
+# pollable with a non-blocking socketpair so the poll()/onReadable() drain path is
+# exercised without a DUT or vsomeip.
+add_executable(pollable_host_test pollable_host_test.cpp)
+target_include_directories(pollable_host_test PRIVATE
+    ${PROJECT_SOURCE_DIR}/dut/dut_service
+    ${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(pollable_host_test PRIVATE
+    GTest::gtest GTest::gtest_main)
+add_test(NAME pollable_host_test COMMAND pollable_host_test)
+
 tc8_add_unit_test(expect_parser_test)
 tc8_add_unit_test(someip_sd_builder_test)
 # Tester server-role RPC reply builders (buildMethodResponse/buildMethodError):

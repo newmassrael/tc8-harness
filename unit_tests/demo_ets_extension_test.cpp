@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <memory>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -25,6 +26,7 @@
 #include "ets_control_channel.h"
 #include "ets_event_sink.h"
 #include "ets_extension.h"
+#include "ets_io_host.h"
 #include "ets_payload.h"  // payloadBytes (vsomeip-free SSOT, exercised below)
 
 namespace {
@@ -177,13 +179,25 @@ public:
     std::function<void(const std::vector<std::uint8_t>&)> control_handler;
 };
 
+// Records the pollables an extension adopts. The demo adopts none, so this only
+// satisfies the context's io reference; `adopted` is here so a future demo that
+// adopts a receiver can be asserted on.
+class FakeEtsIoHost : public tc8::dut::IEtsIoHost {
+public:
+    void adoptPollable(std::unique_ptr<tc8::IPollableService> service) override {
+        adopted.push_back(std::move(service));
+    }
+    std::vector<std::unique_ptr<tc8::IPollableService>> adopted;
+};
+
 }  // namespace
 
 TEST(DemoEtsExtension, OnRegisterOffersEventAndArmsTrigger) {
     FakeEtsEventSink sink;
     FakeEtsClientControl client;
     FakeEtsControlChannel control;
-    tc8::dut::EtsExtensionContext ctx{sink, client, control};
+    FakeEtsIoHost io;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control, io};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 
@@ -203,7 +217,8 @@ TEST(DemoEtsExtension, TriggerMethodNotifiesEventWithRequestPayload) {
     FakeEtsEventSink sink;
     FakeEtsClientControl client;
     FakeEtsControlChannel control;
-    tc8::dut::EtsExtensionContext ctx{sink, client, control};
+    FakeEtsIoHost io;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control, io};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 
@@ -223,7 +238,8 @@ TEST(DemoEtsExtension, OnTickEmitsNothing) {
     FakeEtsEventSink sink;
     FakeEtsClientControl client;
     FakeEtsControlChannel control;
-    tc8::dut::EtsExtensionContext ctx{sink, client, control};
+    FakeEtsIoHost io;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control, io};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
     sink.notifications.clear();
@@ -239,7 +255,8 @@ TEST(DemoEtsExtension, SubscribeMethodDrivesClientControl) {
     FakeEtsEventSink sink;
     FakeEtsClientControl client;
     FakeEtsControlChannel control;
-    tc8::dut::EtsExtensionContext ctx{sink, client, control};
+    FakeEtsIoHost io;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control, io};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 
@@ -263,7 +280,8 @@ TEST(DemoEtsExtension, OnStopStopsSubscription) {
     FakeEtsEventSink sink;
     FakeEtsClientControl client;
     FakeEtsControlChannel control;
-    tc8::dut::EtsExtensionContext ctx{sink, client, control};
+    FakeEtsIoHost io;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control, io};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 
@@ -278,7 +296,8 @@ TEST(DemoEtsExtension, ControlMethodDeliversSubscribeInClientOnly) {
     FakeEtsEventSink sink;
     FakeEtsClientControl client;
     FakeEtsControlChannel control;
-    tc8::dut::EtsExtensionContext ctx{sink, client, control};
+    FakeEtsIoHost io;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control, io};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 
@@ -305,7 +324,8 @@ TEST(DemoEtsExtension, SubscriptionStatusBoundsLifetimeFromEstablishment) {
     FakeEtsEventSink sink;
     FakeEtsClientControl client;
     FakeEtsControlChannel control;
-    tc8::dut::EtsExtensionContext ctx{sink, client, control};
+    FakeEtsIoHost io;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control, io};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 
@@ -347,7 +367,8 @@ TEST(DemoEtsExtension, CallMethodDrivesClientControl) {
     FakeEtsEventSink sink;
     FakeEtsClientControl client;
     FakeEtsControlChannel control;
-    tc8::dut::EtsExtensionContext ctx{sink, client, control};
+    FakeEtsIoHost io;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control, io};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 
@@ -371,7 +392,8 @@ TEST(DemoEtsExtension, ResponseIsCapturedAndReadbackReplies) {
     FakeEtsEventSink sink;
     FakeEtsClientControl client;
     FakeEtsControlChannel control;
-    tc8::dut::EtsExtensionContext ctx{sink, client, control};
+    FakeEtsIoHost io;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control, io};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 

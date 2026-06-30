@@ -16,6 +16,8 @@
 #include "ets_event_sink.h"
 #include "ets_extension.h"
 #include "ets_fault.h"
+#include "ets_io_host.h"
+#include "pollable_host.h"
 #include "posix_socket_backend.h"
 #include "posix_stack_probe.h"
 #include "posix_ut_extensions.h"
@@ -113,13 +115,21 @@ int main() {
     std::unique_ptr<tc8::dut::IEtsControlChannel> ets_control =
         tc8::dut::makeEtsControlChannel();
 
-    // The server sink + client control + control channel handed to every extension
-    // hook as one context (owned here for the whole run). Now that the service is
-    // offered (in server mode) and the application exists (both modes), let the OEM
-    // extension (O2) offer its NDA event surface and wire any client subscribe/calls.
-    // No-op for the public default extension (its ets8001TriggerDriven() already
-    // chose the 0x8001 source kind in the ServerRole constructor above).
-    tc8::dut::EtsExtensionContext ets_ctx{*ets_sink, *ets_client, *ets_control};
+    // Runtime-I/O host: an extension that needs raw receive (e.g. a UDP receiver on
+    // ports vsomeip does not own) adopts a pollable here, and the main loop below
+    // drains it. Owned here so it outlives the EtsExtensionContext, like the facades
+    // above. The public default extension adopts nothing — the host stays empty and
+    // the loop keeps its prior sleep cadence.
+    tc8::dut::PollableHost ets_io;
+
+    // The server sink + client control + control channel + I/O host handed to every
+    // extension hook as one context (owned here for the whole run). Now that the
+    // service is offered (in server mode) and the application exists (both modes),
+    // let the OEM extension (O2) offer its NDA event surface and wire any client
+    // subscribe/calls. No-op for the public default extension (its
+    // ets8001TriggerDriven() already chose the 0x8001 source kind in the ServerRole
+    // constructor above).
+    tc8::dut::EtsExtensionContext ets_ctx{*ets_sink, *ets_client, *ets_control, ets_io};
     ets_extension->onRegister(ets_ctx);
 
     // TC8 §4.8.5 Upper Tester channel. UDP-bound listeners for
@@ -181,9 +191,21 @@ int main() {
         server->startEmission();
     }
 
+    // onTick fires on a steady ~200 ms cadence (the OEM extension's cyclic /
+    // duration-windowed hook); between ticks the loop drains any pollable receiver
+    // the extension adopted, waking immediately on incoming data instead of sleeping
+    // blind. With no adopted receiver, drainReady is a 200 ms sleep — so the onTick
+    // cadence is byte-identical to the prior sleep loop.
+    auto next_tick = std::chrono::steady_clock::now();
     while (!g_stop.load()) {
-        ets_extension->onTick(ets_ctx);
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        if (std::chrono::steady_clock::now() >= next_tick) {
+            ets_extension->onTick(ets_ctx);
+            next_tick = std::chrono::steady_clock::now() + std::chrono::milliseconds(200);
+        }
+        const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                   next_tick - std::chrono::steady_clock::now())
+                                   .count();
+        ets_io.drainReady(remaining > 0 ? static_cast<int>(remaining) : 0);
     }
 
     if (server) {

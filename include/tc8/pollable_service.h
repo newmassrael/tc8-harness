@@ -12,6 +12,13 @@ namespace tc8 {
 // concurrency (the single-thread model IStimulusScheduler::schedule and
 // testability::Reactor both follow).
 //
+// The DUT side reuses this same seam: an ETS extension adopts a pollable receiver
+// via IEtsIoHost (dut/dut_service/ets_io_host.h) and the DUT main loop's
+// PollableHost drains it. One interface and the same single-thread, must-not-block
+// drain contract, across two loops — the tester capture loop calls onReadable() on
+// a fixed cadence, the DUT main loop poll()-gates it on readiness — so the contract
+// below (non-blocking fd, onReadable must not block) holds for both.
+//
 // Why the seam exists: schedule() / scheduleAfterStateEntry() run a fire-and-
 // forget ACTION and return, so an object they build dies at once; but a service
 // like stimulus::ArpResponder (answer the DUT's ARP for a tester-spoofed source

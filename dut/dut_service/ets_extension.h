@@ -22,17 +22,25 @@ class IEtsClientControl;
 // subscribe/call) so a pure-drive extension never depends on offer_service.
 class IEtsControlChannel;
 
+// The runtime-I/O host — an extension adopts a pollable receiver (e.g. a raw UDP
+// receiver the OEM owns and decodes) that the DUT main loop drains. Defined in
+// ets_io_host.h; forward-declared here for the same by-reference reason.
+// Segregated from the SOME/IP role facades so an extension that needs no raw I/O
+// never depends on it.
+class IEtsIoHost;
+
 // The collaborators handed to every extension hook: the SERVER-role event sink,
-// the CLIENT-role outbound control, and the inbound control channel — all owned by
-// dut_main for the whole run. Bundling them gives every hook a uniform, complete
-// context — no "param for the sink but hand-once-and-store for the client"
-// asymmetry — and lets a future seam join here without changing any hook
-// signature. Holds references (never null); the struct definition only needs the
-// forward declarations above.
+// the CLIENT-role outbound control, the inbound control channel, and the runtime-
+// I/O host — all owned by dut_main for the whole run. Bundling them gives every
+// hook a uniform, complete context — no "param for the sink but hand-once-and-store
+// for the client" asymmetry — and lets a future seam join here without changing any
+// hook signature. Holds references (never null); the struct definition only needs
+// the forward declarations above.
 struct EtsExtensionContext {
     IEtsEventSink& sink;
     IEtsClientControl& client;
     IEtsControlChannel& control;
+    IEtsIoHost& io;
 };
 
 // Extend seam (O2 path) for events/methods the OEM owns but that are NOT in the
