@@ -229,6 +229,15 @@ jobs:
         # offset/width in the .def. Pure-Python. See docs/tech-debt.md TD-02.
         run: python3 tools/gen_dhcpv4_wire.py --check
 
+      - name: --expect key schema SSOT gate
+        # Every accepted --expect key + its kind + its group prefix lives once in
+        # src/cli/tc8_expect_keys.def; expect_parser.cpp is GENERATED from it
+        # (cannot drift/omit). This checks the hand-written producers
+        # (orchestrator dispatch.rs, smoke-test.sh, dut_identity.py) emit only
+        # keys present in that registry, so none is silently dropped by the
+        # consumer to a zero sentinel. Pure-Python. See docs/tech-debt.md TD-03.
+        run: python3 tools/check_expect_keys.py
+
       - name: timing_serial cadence-lane drift gate
         # Every sub-second cadence case (*_within_us predicate) must be classified
         # for the smoke serial lane (timing_serial:true in inventory_overrides, or

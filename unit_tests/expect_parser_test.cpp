@@ -408,6 +408,54 @@ TEST(ApplyExpectToken_Dhcpv4, RejectsMalformedValue) {
     EXPECT_FALSE(applyExpectToken("dhcpv4.dut_iface_mac=aa:bb:cc:dd:ee", e));
 }
 
+// SOME/IP endpoint/identity IP + port keys (the table rows not covered by the
+// SD-timing / tester-endpoint tests above), to exercise the generated IPV4 and
+// U16 someip table entries end to end.
+TEST(ApplyExpectToken, SomeIpEndpointKeys) {
+    ::tc8::SomeIpExpectations e{};
+    EXPECT_TRUE(applyExpectToken("dut_iface_ip=172.16.0.2", e));
+    EXPECT_TRUE(applyExpectToken("sd_multicast_ip=224.244.224.245", e));
+    EXPECT_TRUE(applyExpectToken("mcast_ipv4=224.244.224.246", e));
+    EXPECT_TRUE(applyExpectToken("udp_port=30509", e));
+    EXPECT_TRUE(applyExpectToken("tcp_port=30510", e));
+    EXPECT_TRUE(applyExpectToken("mcast_port=30495", e));
+    EXPECT_EQ(e.dut_iface_ip, 0x0200'10ACu);  // NBO: AC 10 00 02
+    EXPECT_EQ(e.udp_port, 30509u);
+    EXPECT_EQ(e.tcp_port, 30510u);
+    EXPECT_EQ(e.mcast_port, 30495u);
+    EXPECT_FALSE(applyExpectToken("udp_port=0x10000", e));  // u16 overflow rejected
+}
+
+TEST(ApplyExpectToken_Icmpv4, AcceptsAllKeys) {
+    ::tc8::Icmpv4Expectations e{};
+    EXPECT_TRUE(applyExpectToken("icmpv4.tester_ip=172.16.0.1", e));
+    EXPECT_TRUE(applyExpectToken("icmpv4.dut_iface_ip=172.16.0.2", e));
+    EXPECT_TRUE(applyExpectToken("icmpv4.echo_id=0x1234", e));
+    EXPECT_TRUE(applyExpectToken("icmpv4.echo_seq=0x5678", e));
+    EXPECT_EQ(e.tester_ip, 0x0100'10ACu);
+    EXPECT_EQ(e.dut_iface_ip, 0x0200'10ACu);
+    EXPECT_EQ(e.echo_id, 0x1234u);
+    EXPECT_EQ(e.echo_seq, 0x5678u);
+    EXPECT_FALSE(applyExpectToken("icmpv4.echo_id=0x10000", e));   // u16 overflow
+    EXPECT_FALSE(applyExpectToken("echo_id=0x1234", e));           // missing prefix
+    EXPECT_FALSE(applyExpectToken("icmpv4.bogus=1", e));           // unknown key
+}
+
+TEST(ApplyExpectToken_Ipv4, AcceptsAllKeys) {
+    ::tc8::Ipv4Expectations e{};
+    EXPECT_TRUE(applyExpectToken("ipv4.tester_ip=172.16.0.1", e));
+    EXPECT_TRUE(applyExpectToken("ipv4.dut_iface_ip=172.16.0.2", e));
+    EXPECT_TRUE(applyExpectToken("ipv4.dut_alias_ip=172.16.0.3", e));
+    EXPECT_TRUE(applyExpectToken("ipv4.tester_alias_ip=172.16.0.4", e));
+    EXPECT_EQ(e.tester_ip, 0x0100'10ACu);
+    EXPECT_EQ(e.dut_iface_ip, 0x0200'10ACu);
+    EXPECT_EQ(e.dut_alias_ip, 0x0300'10ACu);
+    EXPECT_EQ(e.tester_alias_ip, 0x0400'10ACu);
+    EXPECT_FALSE(applyExpectToken("dut_iface_ip=172.16.0.2", e));  // missing prefix
+    EXPECT_FALSE(applyExpectToken("ipv4.bogus=1", e));             // unknown key
+    EXPECT_FALSE(applyExpectToken("ipv4.dut_iface_ip=999.0.0.1", e));  // malformed
+}
+
 // --expect-extra: applyExpectTokens routes each raw token to the OEM
 // Context's own applyExpectToken via ADL (no core edit), and a token the
 // OEM parser declines is silently skipped — the OEM owns its key space.

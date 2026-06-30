@@ -134,33 +134,41 @@ options START offset is shared (`kOptionsOff`).
 
 ## TD-03 — `--expect` key strings hand-duplicated across producers and the consumer
 
-**Status:** OPEN (accepted). **Logged:** 2026-06-30.
+**Status:** RESOLVED (2026-06-30). **Logged:** 2026-06-30.
 
-**What.** Every `--expect` field name is a bare string literal repeated across the
-two producers that derive it from `vsomeip.json` (`tools/dut_identity.py` and the
-orchestrator `dut/env/orchestrator/src/config.rs` + `dispatch.rs`), the bash
-emitter (`dut/env/smoke-test.sh`), and the C++ consumer table
-(`src/cli/expect_parser.cpp` → `src/sce_integration/someip_expectations.h`). The
-key `"sd_initial_delay_min_ms"` (and its four SD-timing siblings, plus the older
-identity keys) thus lives as an unshared literal in 4–5 places. A rename in one
-is not a compile error in bash/Python.
+**What (the original debt).** Every `--expect` field name was a bare string literal
+repeated across the producers that derive it from `vsomeip.json`
+(`tools/dut_identity.py` and the orchestrator `dut/env/orchestrator/src/dispatch.rs`),
+the bash emitter (`dut/env/smoke-test.sh`), and the C++ consumer
+(`src/cli/expect_parser.cpp`). A key thus lived as an unshared literal in 4–5
+places, and a rename in one was not a compile error in bash/Python.
 
-**Risk if left.** Partially gated: the orchestrator parity-check diffs the bash vs
-Rust `--expect` dumps, and `config_test.rs` asserts the Python keys match the Rust
-struct — so a producer-side typo is caught. The genuine gap is the CONSUMER side:
-nothing mechanically ties `expect_parser.cpp`'s key strings to the producers, so a
-rename there silently drops the field to its `0` sentinel and the SCXML guard then
-compares against 0 (a false-pass risk, not a crash). This is the long-standing
-shape for ALL expect keys, not specific to the SD-timing five.
+**Risk (the original).** Partially gated: the orchestrator parity-check diffs the
+bash vs Rust `--expect` dumps, and `config_test.rs` asserts the Python keys match
+the Rust struct — so a producer-side typo was caught. The genuine gap was the
+CONSUMER: nothing mechanically tied `expect_parser.cpp`'s key strings to a
+registry, so a rename OR omission there silently dropped the field to its `0`
+sentinel and the SCXML guard then compared against 0 (a false-pass, not a crash).
 
-**Textbook fix (deferred — cross-cutting).** A single key registry (e.g. a
-`tc8_expect_keys.def` X-macro, the same idiom as the wire/verdict `.def`s)
-`#include`d by `expect_parser.cpp` and emitted for the bash/Python/Rust producers,
-behind a `--check` freshness gate — so the key set is single-sourced and a missing
-consumer entry fails loud.
+**Resolution.** The `--expect` schema is now written once, in
+`src/cli/tc8_expect_keys.def` (X-macro form): one row per key carrying its group,
+the group's namespace prefix, and its value kind (U8/U16/U24/U32/IPV4/MAC/payload).
+The consumer is GENERATED from it — `expect_parser.cpp` expands the `.def` to build
+each group's lookup table — so it accepts exactly the registry's key set and can
+neither drift from nor omit a key (the property TD-01's wire decoder has). Two
+further guards make it textbook-safe:
 
-**Why deferred.** It spans every `--expect` field across four languages, so it is a
-focused refactor of its own, not something to fold into a feature commit. The
-SD-timing addition (2026-06-30) followed the established pattern exactly and is
-guarded by the two existing parity/lockstep tests; it added 5 instances to a
-pre-existing class rather than introducing a new defect.
+- Type safety: every key's setter dereferences the target member by its real type
+  (key == member name), and `applyField<KIND>` `static_assert`s the kind against
+  the member type, so a row whose kind disagrees with the field is a compile error.
+- Producer validation: `tools/check_expect_keys.py` (CI `build-test`, alongside the
+  wire/verdict `.def` gates) parses the registry and fails if any hand-written
+  producer (dispatch.rs / smoke-test.sh / dut_identity.py) emits a key absent from
+  it — i.e. a key the generated consumer would silently drop.
+
+The producers stay hand-written: they map keys to deployment VALUES (vsomeip.json
+paths, bash vars), which is producer-specific and not the schema's concern. The
+correct SSOT boundary is therefore "registry is authoritative for accepted keys
+(consumer generated); producers validated against it", not full producer
+generation. `unit_tests/expect_parser_test.cpp` pins the per-kind parse/range
+behaviour across all seven groups.

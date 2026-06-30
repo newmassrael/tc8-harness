@@ -4,10 +4,13 @@
 
 #include <array>
 #include <cerrno>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <iterator>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 
 namespace tc8::cli {
@@ -90,401 +93,232 @@ bool parseMac(std::string_view text, std::array<std::uint8_t, 6> &out) {
     return false;
 }
 
-bool applyExpectToken(std::string_view token, ::tc8::SomeIpExpectations &e) {
-    const auto eq = token.find('=');
+// --- Generated `--expect` key tables (SSOT: src/cli/tc8_expect_keys.def) -----
+//
+// The accepted key set, each key's value kind, and each group's `--expect`
+// namespace prefix all live in tc8_expect_keys.def. Every overload below
+// builds its lookup table by expanding that file, so the parser cannot accept
+// an unlisted key nor silently drop a listed one. The setter dereferences the
+// target member by its real type, so a row whose `kind` disagrees with the
+// member type is a compile error. See docs/tech-debt.md TD-03.
+namespace {
+
+// Value kinds. U24 (SD TTL) and U32 members are both uint32; the kind only
+// narrows the accepted numeric range.
+enum class EKind { U8, U16, U24, U32, IPV4, MAC };
+
+constexpr std::uint64_t ekindMax(EKind k) {
+    switch (k) {
+        case EKind::U8:  return 0xFFull;
+        case EKind::U16: return 0xFFFFull;
+        case EKind::U24: return 0xFFFFFFull;
+        case EKind::U32: return 0xFFFFFFFFull;
+        default:         return 0;  // IPV4/MAC are not range-checked numerically
+    }
+}
+
+constexpr std::size_t ekindStorage(EKind k) {
+    switch (k) {
+        case EKind::U8:  return 1;
+        case EKind::U16: return 2;
+        case EKind::U24: return 4;  // stored in a uint32 member
+        case EKind::U32: return 4;
+        default:         return 0;
+    }
+}
+
+// Parse `v` per kind `K` and assign into `member` (its real type). The
+// static_asserts pin the .def `kind` to the member type at compile time.
+template <EKind K, class M>
+bool applyField(std::string_view v, M &member) {
+    if constexpr (K == EKind::IPV4) {
+        static_assert(std::is_same_v<M, std::uint32_t>,
+                      "IPV4 key must target a uint32 (network byte order) member");
+        std::uint32_t ip = 0;
+        if (!parseIpv4Dotted(v, ip)) {
+            return false;
+        }
+        member = ip;
+        return true;
+    } else if constexpr (K == EKind::MAC) {
+        static_assert(std::is_same_v<M, std::array<std::uint8_t, 6>>,
+                      "MAC key must target a std::array<uint8_t, 6> member");
+        return parseMac(v, member);
+    } else {
+        static_assert(std::is_integral_v<M> && std::is_unsigned_v<M>,
+                      "numeric key must target an unsigned integral member");
+        static_assert(sizeof(M) == ekindStorage(K),
+                      "numeric key kind width does not match member size");
+        std::uint64_t n = 0;
+        if (!parseNumeric(v, n) || n > ekindMax(K)) {
+            return false;
+        }
+        member = static_cast<M>(n);
+        return true;
+    }
+}
+
+// The colon-separated hex byte list — fills two members, so it is handled
+// outside the single-member applyField setter.
+bool applyPayload(std::string_view val, ::tc8::SomeIpExpectations &e) {
+    if (val.empty()) {
+        return false;
+    }
+    std::array<std::uint8_t, ::tc8::kMaxExpectedPayload> bytes{};
+    std::uint32_t len = 0;
+    std::size_t cursor = 0;
+    while (true) {
+        const std::size_t colon = val.find(':', cursor);
+        const std::size_t end = (colon == std::string_view::npos) ? val.size() : colon;
+        std::uint8_t b = 0;
+        if (len >= bytes.size() || !parseHexOctet(val.substr(cursor, end - cursor), b)) {
+            return false;
+        }
+        bytes[len++] = b;
+        if (colon == std::string_view::npos) {
+            break;
+        }
+        cursor = colon + 1;
+    }
+    e.payload = bytes;
+    e.payload_len = len;
+    return true;
+}
+
+// One row of a group's key table: the key string and a type-safe setter.
+struct EKey {
+    std::string_view name;
+    bool (*apply)(void *e, std::string_view v);
+};
+
+// Strip `prefix`, split `key=value`, look the key up in `table`, apply it.
+// Returns true only when the key is recognised AND its value parsed; a missing
+// prefix, missing '=', unknown key, or bad value all return false (the caller
+// chains the protocol-scoped overloads and reports one error if all decline).
+template <class T>
+bool matchExpect(std::string_view token, std::string_view prefix, T &e,
+                 const EKey *table, std::size_t count) {
+    if (token.substr(0, prefix.size()) != prefix) {
+        return false;
+    }
+    const std::string_view body = token.substr(prefix.size());
+    const auto eq = body.find('=');
     if (eq == std::string_view::npos) {
         return false;
     }
-    const std::string_view key = token.substr(0, eq);
-    const std::string_view val = token.substr(eq + 1);
+    const std::string_view key = body.substr(0, eq);
+    const std::string_view val = body.substr(eq + 1);
+    for (std::size_t i = 0; i < count; ++i) {
+        if (key == table[i].name) {
+            return table[i].apply(&e, val);
+        }
+    }
+    return false;
+}
 
-    // Endpoint-IP keys take a dotted-decimal value rather than a numeric
-    // token, so they're parsed before the generic numeric branch (which
-    // would reject `172.16.0.2` as malformed).
-    if (key == "dut_iface_ip") {
-        std::uint32_t ip = 0;
-        if (!parseIpv4Dotted(val, ip)) {
-            return false;
-        }
-        e.dut_iface_ip = ip;
-        return true;
-    }
-    if (key == "sd_multicast_ip") {
-        std::uint32_t ip = 0;
-        if (!parseIpv4Dotted(val, ip)) {
-            return false;
-        }
-        e.sd_multicast_ip = ip;
-        return true;
-    }
-    if (key == "mcast_ipv4") {
-        std::uint32_t ip = 0;
-        if (!parseIpv4Dotted(val, ip)) {
-            return false;
-        }
-        e.mcast_ipv4 = ip;
-        return true;
-    }
-    if (key == "tester_ipv4") {
-        std::uint32_t ip = 0;
-        if (!parseIpv4Dotted(val, ip)) {
-            return false;
-        }
-        e.tester_ipv4 = ip;
-        return true;
-    }
-    if (key == "tester_ipv4_2") {
-        std::uint32_t ip = 0;
-        if (!parseIpv4Dotted(val, ip)) {
-            return false;
-        }
-        e.tester_ipv4_2 = ip;
-        return true;
-    }
-    if (key == "payload") {
-        // Colon-separated hex byte list (e.g. payload=00:00:34:68) — the
-        // expected L7 echo asserted by ETS Method-Response conds. Empty or
-        // over-`kMaxExpectedPayload` is rejected so a malformed token fails
-        // loud instead of leaving a stale/partial expectation.
-        if (val.empty()) {
-            return false;
-        }
-        std::array<std::uint8_t, kMaxExpectedPayload> bytes{};
-        std::uint32_t len = 0;
-        std::size_t cursor = 0;
-        while (true) {
-            const std::size_t colon = val.find(':', cursor);
-            const std::size_t end = (colon == std::string_view::npos) ? val.size() : colon;
-            std::uint8_t b = 0;
-            if (len >= bytes.size() || !parseHexOctet(val.substr(cursor, end - cursor), b)) {
-                return false;
-            }
-            bytes[len++] = b;
-            if (colon == std::string_view::npos) {
-                break;
-            }
-            cursor = colon + 1;
-        }
-        e.payload = bytes;
-        e.payload_len = len;
-        return true;
-    }
+// Per-group `--expect` namespace prefixes, generated from the .def GROUP rows.
+#define TC8_EXPECT_GROUP(group, prefix) constexpr std::string_view ekPrefix_##group = prefix;
+#include "cli/tc8_expect_keys.def"
+#undef TC8_EXPECT_GROUP
 
-    std::uint64_t n = 0;
-    if (!parseNumeric(val, n)) {
-        return false;
-    }
+}  // namespace
 
-    // Timing thresholds all share one uniform uint32 ms shape (unlike the
-    // identity/port keys below, each with its own narrower range), so a
-    // (key, member) table handles them without a dozen identical branches.
-    static constexpr std::pair<std::string_view, std::uint32_t SomeIpExpectations::*> kTimingKeys[] = {
-        {"sd_initial_delay_min_ms", &SomeIpExpectations::sd_initial_delay_min_ms},
-        {"sd_initial_delay_max_ms", &SomeIpExpectations::sd_initial_delay_max_ms},
-        {"sd_repetition_base_delay_ms", &SomeIpExpectations::sd_repetition_base_delay_ms},
-        {"sd_repetitions_max", &SomeIpExpectations::sd_repetitions_max},
-        {"sd_cyclic_offer_delay_ms", &SomeIpExpectations::sd_cyclic_offer_delay_ms},
-        {"sd_request_response_delay_ms", &SomeIpExpectations::sd_request_response_delay_ms},
-        {"sd_timing_tolerance_ms", &SomeIpExpectations::sd_timing_tolerance_ms},
-        {"sd_raw_startup_ms", &SomeIpExpectations::sd_raw_startup_ms},
-        {"can_ets_cycle_0_ms", &SomeIpExpectations::can_ets_cycle_0_ms},
-        {"can_ets_cycle_1_ms", &SomeIpExpectations::can_ets_cycle_1_ms},
-        {"can_delay_time_ms", &SomeIpExpectations::can_delay_time_ms},
-        {"can_start_offset_ms", &SomeIpExpectations::can_start_offset_ms},
-        {"can_timing_tolerance_ms", &SomeIpExpectations::can_timing_tolerance_ms},
+// Each overload builds its lookup table by expanding tc8_expect_keys.def with
+// its own group's sub-macro; every other group's rows default to empty.
+bool applyExpectToken(std::string_view token, ::tc8::SomeIpExpectations &e) {
+    static constexpr EKey kKeys[] = {
+#define TC8_EK_someip(kind, name)                                            \
+    EKey{#name, [](void *ep, std::string_view v) {                           \
+             return applyField<EKind::kind>(                                 \
+                 v, static_cast<::tc8::SomeIpExpectations *>(ep)->name);      \
+         }},
+#define TC8_EKP_someip(name)                                                 \
+    EKey{#name, [](void *ep, std::string_view v) {                           \
+             return applyPayload(v, *static_cast<::tc8::SomeIpExpectations *>(ep)); \
+         }},
+#include "cli/tc8_expect_keys.def"
+#undef TC8_EK_someip
+#undef TC8_EKP_someip
     };
-    for (const auto &tk : kTimingKeys) {
-        if (key == tk.first) {
-            if (n > 0xFFFFFFFFu) {
-                return false;
-            }
-            e.*(tk.second) = static_cast<std::uint32_t>(n);
-            return true;
-        }
-    }
-
-    if (key == "service_id") {
-        if (n > 0xFFFF) {
-            return false;
-        }
-        e.service_id = static_cast<std::uint16_t>(n);
-    } else if (key == "instance_id") {
-        if (n > 0xFFFF) {
-            return false;
-        }
-        e.instance_id = static_cast<std::uint16_t>(n);
-    } else if (key == "major_version") {
-        if (n > 0xFF) {
-            return false;
-        }
-        e.major_version = static_cast<std::uint8_t>(n);
-    } else if (key == "ttl") {
-        if (n > 0xFFFFFF) {
-            return false;  // SD TTL is 24-bit
-        }
-        e.ttl = static_cast<std::uint32_t>(n);
-    } else if (key == "minor_version") {
-        if (n > 0xFFFFFFFFu) {
-            return false;
-        }
-        e.minor_version = static_cast<std::uint32_t>(n);
-    } else if (key == "eventgroup_id") {
-        if (n > 0xFFFF) {
-            return false;
-        }
-        e.eventgroup_id = static_cast<std::uint16_t>(n);
-    } else if (key == "udp_port") {
-        if (n > 0xFFFF) {
-            return false;
-        }
-        e.udp_port = static_cast<std::uint16_t>(n);
-    } else if (key == "tcp_port") {
-        if (n > 0xFFFF) {
-            return false;
-        }
-        e.tcp_port = static_cast<std::uint16_t>(n);
-    } else if (key == "mcast_port") {
-        if (n > 0xFFFF) {
-            return false;
-        }
-        e.mcast_port = static_cast<std::uint16_t>(n);
-    } else if (key == "tester_udp_port") {
-        if (n > 0xFFFF) {
-            return false;
-        }
-        e.tester_udp_port = static_cast<std::uint16_t>(n);
-    } else {
-        return false;
-    }
-    return true;
+    return matchExpect(token, ekPrefix_someip, e, kKeys, std::size(kKeys));
 }
 
 bool applyExpectToken(std::string_view token, ::tc8::ArpExpectations &e) {
-    constexpr std::string_view kPrefix = "arp.";
-    if (token.size() <= kPrefix.size() || token.substr(0, kPrefix.size()) != kPrefix) {
-        return false;
-    }
-    const std::string_view body = token.substr(kPrefix.size());
-    const auto eq = body.find('=');
-    if (eq == std::string_view::npos) {
-        return false;
-    }
-    const std::string_view key = body.substr(0, eq);
-    const std::string_view val = body.substr(eq + 1);
-
-    if (key == "dut_iface_ip") {
-        std::uint32_t ip = 0;
-        if (!parseIpv4Dotted(val, ip)) {
-            return false;
-        }
-        e.dut_iface_ip = ip;
-    } else if (key == "tester_ip") {
-        std::uint32_t ip = 0;
-        if (!parseIpv4Dotted(val, ip)) {
-            return false;
-        }
-        e.tester_ip = ip;
-    } else if (key == "dut_iface_mac") {
-        std::array<std::uint8_t, 6> mac{};
-        if (!parseMac(val, mac)) {
-            return false;
-        }
-        e.dut_iface_mac = mac;
-    } else if (key == "tester_mac") {
-        std::array<std::uint8_t, 6> mac{};
-        if (!parseMac(val, mac)) {
-            return false;
-        }
-        e.tester_mac = mac;
-    } else if (key == "tester_mac2") {
-        std::array<std::uint8_t, 6> mac{};
-        if (!parseMac(val, mac)) {
-            return false;
-        }
-        e.tester_mac2 = mac;
-    } else if (key == "tester_mac3") {
-        std::array<std::uint8_t, 6> mac{};
-        if (!parseMac(val, mac)) {
-            return false;
-        }
-        e.tester_mac3 = mac;
-    } else if (key == "tester_linklocal_ip") {
-        std::uint32_t ip = 0;
-        if (!parseIpv4Dotted(val, ip)) {
-            return false;
-        }
-        e.tester_linklocal_ip = ip;
-    } else {
-        return false;
-    }
-    return true;
+    static constexpr EKey kKeys[] = {
+#define TC8_EK_arp(kind, name)                                               \
+    EKey{#name, [](void *ep, std::string_view v) {                           \
+             return applyField<EKind::kind>(                                 \
+                 v, static_cast<::tc8::ArpExpectations *>(ep)->name);         \
+         }},
+#include "cli/tc8_expect_keys.def"
+#undef TC8_EK_arp
+    };
+    return matchExpect(token, ekPrefix_arp, e, kKeys, std::size(kKeys));
 }
 
 bool applyExpectToken(std::string_view token, ::tc8::DutIdentity &e) {
-    constexpr std::string_view kPrefix = "dut.";
-    if (token.size() <= kPrefix.size() || token.substr(0, kPrefix.size()) != kPrefix) {
-        return false;
-    }
-    const std::string_view body = token.substr(kPrefix.size());
-    const auto eq = body.find('=');
-    if (eq == std::string_view::npos) {
-        return false;
-    }
-    const std::string_view key = body.substr(0, eq);
-    const std::string_view val = body.substr(eq + 1);
-
-    if (key == "ip") {
-        std::uint32_t ip = 0;
-        if (!parseIpv4Dotted(val, ip)) {
-            return false;
-        }
-        e.ip = ip;
-    } else if (key == "mac") {
-        std::array<std::uint8_t, 6> mac{};
-        if (!parseMac(val, mac)) {
-            return false;
-        }
-        e.mac = mac;
-    } else {
-        return false;
-    }
-    return true;
+    static constexpr EKey kKeys[] = {
+#define TC8_EK_dut(kind, name)                                               \
+    EKey{#name, [](void *ep, std::string_view v) {                           \
+             return applyField<EKind::kind>(                                 \
+                 v, static_cast<::tc8::DutIdentity *>(ep)->name);            \
+         }},
+#include "cli/tc8_expect_keys.def"
+#undef TC8_EK_dut
+    };
+    return matchExpect(token, ekPrefix_dut, e, kKeys, std::size(kKeys));
 }
 
 bool applyExpectToken(std::string_view token, ::tc8::ArpStimulusConfig &e) {
-    constexpr std::string_view kPrefix = "arp_stimulus.";
-    if (token.size() <= kPrefix.size() || token.substr(0, kPrefix.size()) != kPrefix) {
-        return false;
-    }
-    const std::string_view body = token.substr(kPrefix.size());
-    const auto eq = body.find('=');
-    if (eq == std::string_view::npos) {
-        return false;
-    }
-    const std::string_view key = body.substr(0, eq);
-    const std::string_view val = body.substr(eq + 1);
-
-    if (key == "ut_cache_conditioning_s") {
-        std::uint64_t n = 0;
-        if (!parseNumeric(val, n) || n > 0xFFFF) {
-            return false;
-        }
-        e.ut_cache_conditioning_s = static_cast<std::uint16_t>(n);
-    } else {
-        return false;
-    }
-    return true;
+    static constexpr EKey kKeys[] = {
+#define TC8_EK_arp_stimulus(kind, name)                                      \
+    EKey{#name, [](void *ep, std::string_view v) {                           \
+             return applyField<EKind::kind>(                                 \
+                 v, static_cast<::tc8::ArpStimulusConfig *>(ep)->name);       \
+         }},
+#include "cli/tc8_expect_keys.def"
+#undef TC8_EK_arp_stimulus
+    };
+    return matchExpect(token, ekPrefix_arp_stimulus, e, kKeys, std::size(kKeys));
 }
 
 bool applyExpectToken(std::string_view token, ::tc8::Icmpv4Expectations &e) {
-    constexpr std::string_view kPrefix = "icmpv4.";
-    if (token.size() <= kPrefix.size() || token.substr(0, kPrefix.size()) != kPrefix) {
-        return false;
-    }
-    const std::string_view body = token.substr(kPrefix.size());
-    const auto eq = body.find('=');
-    if (eq == std::string_view::npos) {
-        return false;
-    }
-    const std::string_view key = body.substr(0, eq);
-    const std::string_view val = body.substr(eq + 1);
-
-    if (key == "tester_ip") {
-        std::uint32_t ip = 0;
-        if (!parseIpv4Dotted(val, ip)) {
-            return false;
-        }
-        e.tester_ip = ip;
-    } else if (key == "dut_iface_ip") {
-        std::uint32_t ip = 0;
-        if (!parseIpv4Dotted(val, ip)) {
-            return false;
-        }
-        e.dut_iface_ip = ip;
-    } else if (key == "echo_id") {
-        std::uint64_t n = 0;
-        if (!parseNumeric(val, n) || n > 0xFFFFu) {
-            return false;
-        }
-        e.echo_id = static_cast<std::uint16_t>(n);
-    } else if (key == "echo_seq") {
-        std::uint64_t n = 0;
-        if (!parseNumeric(val, n) || n > 0xFFFFu) {
-            return false;
-        }
-        e.echo_seq = static_cast<std::uint16_t>(n);
-    } else {
-        return false;
-    }
-    return true;
+    static constexpr EKey kKeys[] = {
+#define TC8_EK_icmpv4(kind, name)                                            \
+    EKey{#name, [](void *ep, std::string_view v) {                           \
+             return applyField<EKind::kind>(                                 \
+                 v, static_cast<::tc8::Icmpv4Expectations *>(ep)->name);      \
+         }},
+#include "cli/tc8_expect_keys.def"
+#undef TC8_EK_icmpv4
+    };
+    return matchExpect(token, ekPrefix_icmpv4, e, kKeys, std::size(kKeys));
 }
 
 bool applyExpectToken(std::string_view token, ::tc8::Ipv4Expectations &e) {
-    constexpr std::string_view kPrefix = "ipv4.";
-    if (token.size() <= kPrefix.size() || token.substr(0, kPrefix.size()) != kPrefix) {
-        return false;
-    }
-    const std::string_view body = token.substr(kPrefix.size());
-    const auto eq = body.find('=');
-    if (eq == std::string_view::npos) {
-        return false;
-    }
-    const std::string_view key = body.substr(0, eq);
-    const std::string_view val = body.substr(eq + 1);
-
-    if (key == "tester_ip") {
-        std::uint32_t ip = 0;
-        if (!parseIpv4Dotted(val, ip)) {
-            return false;
-        }
-        e.tester_ip = ip;
-    } else if (key == "dut_iface_ip") {
-        std::uint32_t ip = 0;
-        if (!parseIpv4Dotted(val, ip)) {
-            return false;
-        }
-        e.dut_iface_ip = ip;
-    } else if (key == "dut_alias_ip") {
-        std::uint32_t ip = 0;
-        if (!parseIpv4Dotted(val, ip)) {
-            return false;
-        }
-        e.dut_alias_ip = ip;
-    } else if (key == "tester_alias_ip") {
-        std::uint32_t ip = 0;
-        if (!parseIpv4Dotted(val, ip)) {
-            return false;
-        }
-        e.tester_alias_ip = ip;
-    } else {
-        return false;
-    }
-    return true;
+    static constexpr EKey kKeys[] = {
+#define TC8_EK_ipv4(kind, name)                                              \
+    EKey{#name, [](void *ep, std::string_view v) {                           \
+             return applyField<EKind::kind>(                                 \
+                 v, static_cast<::tc8::Ipv4Expectations *>(ep)->name);        \
+         }},
+#include "cli/tc8_expect_keys.def"
+#undef TC8_EK_ipv4
+    };
+    return matchExpect(token, ekPrefix_ipv4, e, kKeys, std::size(kKeys));
 }
 
 bool applyExpectToken(std::string_view token, ::tc8::Dhcpv4Expectations &e) {
-    constexpr std::string_view kPrefix = "dhcpv4.";
-    if (token.size() <= kPrefix.size() || token.substr(0, kPrefix.size()) != kPrefix) {
-        return false;
-    }
-    const std::string_view body = token.substr(kPrefix.size());
-    const auto eq = body.find('=');
-    if (eq == std::string_view::npos) {
-        return false;
-    }
-    const std::string_view key = body.substr(0, eq);
-    const std::string_view val = body.substr(eq + 1);
-
-    if (key == "dut_iface_mac") {
-        std::array<std::uint8_t, 6> mac{};
-        if (!parseMac(val, mac)) {
-            return false;
-        }
-        e.dut_iface_mac = mac;
-    } else {
-        return false;
-    }
-    return true;
+    static constexpr EKey kKeys[] = {
+#define TC8_EK_dhcpv4(kind, name)                                            \
+    EKey{#name, [](void *ep, std::string_view v) {                           \
+             return applyField<EKind::kind>(                                 \
+                 v, static_cast<::tc8::Dhcpv4Expectations *>(ep)->name);      \
+         }},
+#include "cli/tc8_expect_keys.def"
+#undef TC8_EK_dhcpv4
+    };
+    return matchExpect(token, ekPrefix_dhcpv4, e, kKeys, std::size(kKeys));
 }
 
 }  // namespace tc8::cli

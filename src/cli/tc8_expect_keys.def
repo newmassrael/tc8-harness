@@ -1,0 +1,198 @@
+// Single source of truth (SSOT) for the `--expect key=value` schema: every
+// key the harness accepts, which expectation struct it targets, the `--expect`
+// namespace prefix of its group, and the value kind (parser + range). X-macro
+// form, consumed two ways so the key set is written exactly once:
+//
+//   * C++ (authoritative): #included by src/cli/expect_parser.cpp, which
+//     #defines the TC8_EK_<group> macros so each row expands into a typed
+//     setter entry of that group's lookup table. The parser is GENERATED from
+//     this file, so it cannot accept a key absent here nor silently omit one
+//     present here. (key == member name for every row; the setter dereferences
+//     the member by its real type, so a wrong `kind` is a compile error.)
+//   * Python (validation): parsed by tools/gen_expect_keys.py, which checks
+//     that every key the producers emit (tools/dut_identity.py, the Rust
+//     orchestrator, dut/env/smoke-test.sh) is present here. CI runs
+//     `python3 tools/gen_expect_keys.py --check` as the freshness gate.
+//
+// See docs/tech-debt.md TD-03 for why this SSOT exists. The producers stay
+// hand-written (they map keys to deployment values, e.g. vsomeip.json paths,
+// which are not this file's concern); only their key NAMES are validated here.
+//
+// Every value-bearing line MUST be a TC8_EXPECT_* macro invocation so the C
+// preprocessor can expand or ignore it; all prose lives in // comments.
+//
+// Macro signatures:
+//   TC8_EXPECT_GROUP(group, prefix)
+//       Declares a key group and its `--expect` namespace prefix (the SOME/IP
+//       group has no prefix). `group` is the C-identifier dispatch tag.
+//   TC8_EXPECT_KEY(group, kind, name)
+//       A scalar / IPv4 / MAC key. `kind` in
+//       U8 | U16 | U24 | U32 | IPV4 | MAC and selects parser + range; the
+//       target member is `name` (key == member name). U24 (SD TTL) and U32
+//       members are both uint32; the kind only narrows the accepted range.
+//   TC8_EXPECT_PAYLOAD(group, name)
+//       The colon-separated hex byte list key. Distinct macro because it fills
+//       two members (the byte array + its length), so it does not fit the
+//       single-member TC8_EXPECT_KEY setter.
+//
+// Dispatch + self-defaulting: TC8_EXPECT_KEY / TC8_EXPECT_PAYLOAD always route
+// to per-group sub-macros (TC8_EK_<group> / TC8_EKP_<group>); a consumer
+// #defines only the sub-macro(s) for the group it is building, and the rest
+// default to empty here so each include emits one group only. (X-macro files
+// carry no include guard on purpose.)
+
+#define TC8_EXPECT_KEY(group, kind, name) TC8_EK_##group(kind, name)
+#define TC8_EXPECT_PAYLOAD(group, name)   TC8_EKP_##group(name)
+
+#ifndef TC8_EXPECT_GROUP
+#define TC8_EXPECT_GROUP(group, prefix)
+#define TC8_EXPECT_GROUP_DEFAULTED
+#endif
+#ifndef TC8_EK_someip
+#define TC8_EK_someip(kind, name)
+#define TC8_EK_someip_DEFAULTED
+#endif
+#ifndef TC8_EKP_someip
+#define TC8_EKP_someip(name)
+#define TC8_EKP_someip_DEFAULTED
+#endif
+#ifndef TC8_EK_arp
+#define TC8_EK_arp(kind, name)
+#define TC8_EK_arp_DEFAULTED
+#endif
+#ifndef TC8_EK_dut
+#define TC8_EK_dut(kind, name)
+#define TC8_EK_dut_DEFAULTED
+#endif
+#ifndef TC8_EK_arp_stimulus
+#define TC8_EK_arp_stimulus(kind, name)
+#define TC8_EK_arp_stimulus_DEFAULTED
+#endif
+#ifndef TC8_EK_icmpv4
+#define TC8_EK_icmpv4(kind, name)
+#define TC8_EK_icmpv4_DEFAULTED
+#endif
+#ifndef TC8_EK_ipv4
+#define TC8_EK_ipv4(kind, name)
+#define TC8_EK_ipv4_DEFAULTED
+#endif
+#ifndef TC8_EK_dhcpv4
+#define TC8_EK_dhcpv4(kind, name)
+#define TC8_EK_dhcpv4_DEFAULTED
+#endif
+
+// --- Groups and their `--expect` namespace prefixes -------------------------
+TC8_EXPECT_GROUP(someip,       "")
+TC8_EXPECT_GROUP(arp,          "arp.")
+TC8_EXPECT_GROUP(dut,          "dut.")
+TC8_EXPECT_GROUP(arp_stimulus, "arp_stimulus.")
+TC8_EXPECT_GROUP(icmpv4,       "icmpv4.")
+TC8_EXPECT_GROUP(ipv4,         "ipv4.")
+TC8_EXPECT_GROUP(dhcpv4,       "dhcpv4.")
+
+// --- SOME/IP (SomeIpExpectations, no prefix) --------------------------------
+// SOME/IP service identity (SOMEIPSRV chapter).
+TC8_EXPECT_KEY(someip, U16, service_id)
+TC8_EXPECT_KEY(someip, U16, instance_id)
+TC8_EXPECT_KEY(someip, U8,  major_version)
+TC8_EXPECT_KEY(someip, U24, ttl)             // SD TTL is 24-bit
+TC8_EXPECT_KEY(someip, U32, minor_version)
+TC8_EXPECT_KEY(someip, U16, eventgroup_id)
+// Endpoint identity (OfferService IPv4 options) + SD multicast group.
+TC8_EXPECT_KEY(someip, IPV4, dut_iface_ip)
+TC8_EXPECT_KEY(someip, U16,  udp_port)
+TC8_EXPECT_KEY(someip, U16,  tcp_port)
+TC8_EXPECT_KEY(someip, IPV4, sd_multicast_ip)
+TC8_EXPECT_KEY(someip, IPV4, mcast_ipv4)
+TC8_EXPECT_KEY(someip, U16,  mcast_port)
+// Tester's own subscribe endpoint + second source IP.
+TC8_EXPECT_KEY(someip, IPV4, tester_ipv4)
+TC8_EXPECT_KEY(someip, U16,  tester_udp_port)
+TC8_EXPECT_KEY(someip, IPV4, tester_ipv4_2)
+// SD start-up state-machine timers (Initial-Wait / Repetition / Main phase).
+TC8_EXPECT_KEY(someip, U32, sd_initial_delay_min_ms)
+TC8_EXPECT_KEY(someip, U32, sd_initial_delay_max_ms)
+TC8_EXPECT_KEY(someip, U32, sd_repetition_base_delay_ms)
+TC8_EXPECT_KEY(someip, U32, sd_repetitions_max)
+TC8_EXPECT_KEY(someip, U32, sd_cyclic_offer_delay_ms)
+TC8_EXPECT_KEY(someip, U32, sd_request_response_delay_ms)
+TC8_EXPECT_KEY(someip, U32, sd_timing_tolerance_ms)
+TC8_EXPECT_KEY(someip, U32, sd_raw_startup_ms)
+// CAN-encapsulated SOME/IP cadence / delay timers.
+TC8_EXPECT_KEY(someip, U32, can_ets_cycle_0_ms)
+TC8_EXPECT_KEY(someip, U32, can_ets_cycle_1_ms)
+TC8_EXPECT_KEY(someip, U32, can_delay_time_ms)
+TC8_EXPECT_KEY(someip, U32, can_start_offset_ms)
+TC8_EXPECT_KEY(someip, U32, can_timing_tolerance_ms)
+// Expected L7 Method-Response echo payload (fills payload + payload_len).
+TC8_EXPECT_PAYLOAD(someip, payload)
+
+// --- ARP (ArpExpectations, "arp." prefix) -----------------------------------
+TC8_EXPECT_KEY(arp, IPV4, dut_iface_ip)
+TC8_EXPECT_KEY(arp, IPV4, tester_ip)
+TC8_EXPECT_KEY(arp, MAC,  dut_iface_mac)
+TC8_EXPECT_KEY(arp, MAC,  tester_mac)
+TC8_EXPECT_KEY(arp, MAC,  tester_mac2)
+TC8_EXPECT_KEY(arp, MAC,  tester_mac3)
+TC8_EXPECT_KEY(arp, IPV4, tester_linklocal_ip)
+
+// --- DUT wire identity (DutIdentity, "dut." prefix) -------------------------
+TC8_EXPECT_KEY(dut, IPV4, ip)
+TC8_EXPECT_KEY(dut, MAC,  mac)
+
+// --- ARP stimulus knobs (ArpStimulusConfig, "arp_stimulus." prefix) ---------
+TC8_EXPECT_KEY(arp_stimulus, U16, ut_cache_conditioning_s)
+
+// --- ICMPv4 (Icmpv4Expectations, "icmpv4." prefix) --------------------------
+TC8_EXPECT_KEY(icmpv4, IPV4, tester_ip)
+TC8_EXPECT_KEY(icmpv4, IPV4, dut_iface_ip)
+TC8_EXPECT_KEY(icmpv4, U16,  echo_id)
+TC8_EXPECT_KEY(icmpv4, U16,  echo_seq)
+
+// --- IPv4 (Ipv4Expectations, "ipv4." prefix) --------------------------------
+TC8_EXPECT_KEY(ipv4, IPV4, tester_ip)
+TC8_EXPECT_KEY(ipv4, IPV4, dut_iface_ip)
+TC8_EXPECT_KEY(ipv4, IPV4, dut_alias_ip)
+TC8_EXPECT_KEY(ipv4, IPV4, tester_alias_ip)
+
+// --- DHCPv4 (Dhcpv4Expectations, "dhcpv4." prefix) --------------------------
+TC8_EXPECT_KEY(dhcpv4, MAC, dut_iface_mac)
+
+#undef TC8_EXPECT_KEY
+#undef TC8_EXPECT_PAYLOAD
+#ifdef TC8_EXPECT_GROUP_DEFAULTED
+#undef TC8_EXPECT_GROUP_DEFAULTED
+#undef TC8_EXPECT_GROUP
+#endif
+#ifdef TC8_EK_someip_DEFAULTED
+#undef TC8_EK_someip_DEFAULTED
+#undef TC8_EK_someip
+#endif
+#ifdef TC8_EKP_someip_DEFAULTED
+#undef TC8_EKP_someip_DEFAULTED
+#undef TC8_EKP_someip
+#endif
+#ifdef TC8_EK_arp_DEFAULTED
+#undef TC8_EK_arp_DEFAULTED
+#undef TC8_EK_arp
+#endif
+#ifdef TC8_EK_dut_DEFAULTED
+#undef TC8_EK_dut_DEFAULTED
+#undef TC8_EK_dut
+#endif
+#ifdef TC8_EK_arp_stimulus_DEFAULTED
+#undef TC8_EK_arp_stimulus_DEFAULTED
+#undef TC8_EK_arp_stimulus
+#endif
+#ifdef TC8_EK_icmpv4_DEFAULTED
+#undef TC8_EK_icmpv4_DEFAULTED
+#undef TC8_EK_icmpv4
+#endif
+#ifdef TC8_EK_ipv4_DEFAULTED
+#undef TC8_EK_ipv4_DEFAULTED
+#undef TC8_EK_ipv4
+#endif
+#ifdef TC8_EK_dhcpv4_DEFAULTED
+#undef TC8_EK_dhcpv4_DEFAULTED
+#undef TC8_EK_dhcpv4
+#endif
