@@ -323,7 +323,8 @@ void UpperTesterServer::handleGetReceivedUdp(const std::uint8_t *p, std::size_t 
         writeBe16(body, plen);
         const std::size_t copy_len =
             rec->payload.size() < kMaxPayload ? rec->payload.size() : kMaxPayload;
-        body.insert(body.end(), rec->payload.begin(), rec->payload.begin() + copy_len);
+        body.insert(body.end(), rec->payload.begin(),
+                    rec->payload.begin() + static_cast<std::ptrdiff_t>(copy_len));
     } else {
         body.push_back(0x00);  // not received
     }

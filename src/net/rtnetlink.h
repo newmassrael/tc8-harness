@@ -35,6 +35,34 @@ inline T *nlmsgData(::nlmsghdr *nlh) {
     return reinterpret_cast<T *>(reinterpret_cast<char *>(nlh) + NLMSG_HDRLEN);
 }
 
+// Netlink message / attribute iteration, mirroring the glibc NLMSG_OK/NLMSG_NEXT
+// and RTA_OK/RTA_NEXT macros but with their int/unsigned conversions made
+// explicit, so a caller walking a dump under the strict first-party set
+// (-Wsign-conversion) does not inherit the macros' implicit narrowing. `*len` is
+// the remaining buffer length, decremented as each step advances past the
+// aligned message/attribute. Same single-source rationale as nlmsgData: the macro
+// conversions live here once, never open-coded at a call site.
+inline bool nlmsgOk(const ::nlmsghdr *nh, int len) {
+    return len >= static_cast<int>(sizeof(::nlmsghdr)) &&
+           nh->nlmsg_len >= sizeof(::nlmsghdr) &&
+           nh->nlmsg_len <= static_cast<std::uint32_t>(len);
+}
+inline ::nlmsghdr *nlmsgNext(::nlmsghdr *nh, int *len) {
+    const std::uint32_t aligned = NLMSG_ALIGN(nh->nlmsg_len);
+    *len -= static_cast<int>(aligned);
+    return reinterpret_cast<::nlmsghdr *>(reinterpret_cast<char *>(nh) + aligned);
+}
+inline bool rtaOk(const ::rtattr *rta, int len) {
+    return len >= static_cast<int>(sizeof(::rtattr)) &&
+           static_cast<std::size_t>(rta->rta_len) >= sizeof(::rtattr) &&
+           static_cast<unsigned int>(rta->rta_len) <= static_cast<unsigned int>(len);
+}
+inline const ::rtattr *rtaNext(const ::rtattr *rta, int *len) {
+    const int aligned = RTA_ALIGN(rta->rta_len);
+    *len -= aligned;
+    return reinterpret_cast<const ::rtattr *>(reinterpret_cast<const char *>(rta) + aligned);
+}
+
 // Append a netlink rtattr (type + payload) at byte offset *off within `buf`,
 // advancing *off past the RTA-aligned attribute and returning the written
 // attribute so a caller building a nested container can fix up its rta_len after

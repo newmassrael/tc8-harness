@@ -38,6 +38,10 @@ add_library(tc8_testability_core STATIC
 # -pthread. All PUBLIC so an out-of-tree consumer inherits them transitively.
 target_link_libraries(tc8_testability_core PUBLIC
     tc8_testability_ports tc8_wire Threads::Threads)
+# vsomeip-free first-party core — gets the full strict set (unlike tc8-dut, whose
+# CommonAPI/vsomeip generated sources force its exclusion). The ports & adapters
+# split exists precisely so this protocol logic carries no third-party noise.
+tc8_enable_strict_warnings(tc8_testability_core)
 
 # The POSIX adapter implements the testability port and frames ICMP via tc8_wire;
 # it does NOT call into the ProtocolServer, so it depends on the ports + tc8_wire,
@@ -49,6 +53,7 @@ target_include_directories(tc8_posix_backend PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
 target_link_libraries(tc8_posix_backend PUBLIC tc8_testability_ports tc8_wire)
+tc8_enable_strict_warnings(tc8_posix_backend)
 
 add_library(tc8_testability_server INTERFACE)
 target_link_libraries(tc8_testability_server INTERFACE
@@ -70,6 +75,7 @@ target_include_directories(tc8_upper_tester_server PUBLIC
     ${PROJECT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
+tc8_enable_strict_warnings(tc8_upper_tester_server)
 
 # OEM override seams (compile-time source-selection — same idiom as
 # TC8_ETS_FIDL / TC8_CASE_OVERRIDE_DIRS, so the repo has ONE injection

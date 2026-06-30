@@ -260,8 +260,9 @@ bool PosixSocketBackend::flushDynamicArp(const std::string &ifname) {
             break;
         }
         int len = static_cast<int>(r);
-        for (::nlmsghdr *nh = reinterpret_cast<::nlmsghdr *>(buf); NLMSG_OK(nh, len);
-             nh = NLMSG_NEXT(nh, len)) {
+        for (::nlmsghdr *nh = reinterpret_cast<::nlmsghdr *>(buf);
+             ::tc8::net::rtnl::nlmsgOk(nh, len);
+             nh = ::tc8::net::rtnl::nlmsgNext(nh, &len)) {
             if (nh->nlmsg_type == NLMSG_DONE) {
                 done = true;
                 break;
@@ -282,7 +283,8 @@ bool PosixSocketBackend::flushDynamicArp(const std::string &ifname) {
             const ::rtattr *rta = reinterpret_cast<const ::rtattr *>(
                 reinterpret_cast<const char *>(nd) + NLMSG_ALIGN(sizeof(*nd)));
             int rtlen = static_cast<int>(nh->nlmsg_len - NLMSG_LENGTH(sizeof(*nd)));
-            for (; RTA_OK(rta, rtlen); rta = RTA_NEXT(rta, rtlen)) {
+            for (; ::tc8::net::rtnl::rtaOk(rta, rtlen);
+                 rta = ::tc8::net::rtnl::rtaNext(rta, &rtlen)) {
                 if (rta->rta_type == NDA_DST && RTA_PAYLOAD(rta) == sizeof(std::uint32_t)) {
                     std::uint32_t dst_be = 0;
                     std::memcpy(&dst_be, RTA_DATA(rta), sizeof(dst_be));
