@@ -54,7 +54,7 @@ struct SomeIpFrame {
     // sentinel because a reassembled byte stream has no datagram boundary
     // (the same UDP-only convention as `observed_ts_us`). Surfaced into
     // `SomeIpCaptured` so a case can assert the DUT packed N messages into
-    // one datagram (e.g. CAN-encapsulated SOME/IP batching).
+    // one datagram (which PRS_SOMEIP permits via message concatenation).
     std::uint16_t datagram_msg_index = 0;
     std::uint16_t datagram_msg_count = 0;
 };

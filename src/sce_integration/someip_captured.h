@@ -167,8 +167,8 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     // 0-based position within that datagram and `datagram_msg_count` the
     // total number of SOME/IP messages the datagram carried (1 = sole
     // message). Lets a case assert the DUT concatenated N messages into one
-    // UDP payload (PRS_SOMEIP permits it; e.g. CAN-encapsulated SOME/IP
-    // batching). `datagram_msg_count` stays 0 for SOME/IP-over-
+    // UDP payload (PRS_SOMEIP permits message concatenation).
+    // `datagram_msg_count` stays 0 for SOME/IP-over-
     // TCP (a reassembled byte stream has no datagram boundary), so gate any
     // datagram-packing assertion on a UDP case — on TCP it reads 0, never a
     // spurious 1. Because the dispatcher delivers a datagram's messages in
