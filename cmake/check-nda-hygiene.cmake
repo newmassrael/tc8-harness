@@ -3,14 +3,18 @@
 # OEM-proprietary material (frame layouts, ports, signal/PDU databases, cluster
 # maps, timings, keys, test-case / document IDs) lives in the separate, private
 # OEM UTM repository. This check fails the build if a confidentiality *banner* —
-# the usual signature of pasted proprietary content — appears in the tracked
-# source, so a leak fails CI rather than a reviewer's eye.
+# the usual signature of pasted proprietary content — OR a known OEM-proprietary
+# *identifier* appears in the tracked source, so a leak fails CI rather than a
+# reviewer's eye.
 #
-# It deliberately matches uppercase banners only (CONFIDENTIAL, DO NOT
-# DISTRIBUTE, ...), not the lowercase word "proprietary" the design comments use
-# to *describe* the NDA boundary. It is a backstop, not a substitute for the
-# mnemosyne citation gate or review: it catches marked content, not unmarked
-# proprietary values. Run as the `nda_hygiene` CTest. Invoke with
+# It matches two things: (1) uppercase confidentiality banners (CONFIDENTIAL, DO
+# NOT DISTRIBUTE, ...), not the lowercase word "proprietary" the design comments
+# use to *describe* the NDA boundary; and (2) a small denylist of OEM identifiers
+# that have no public-spec meaning, so their presence is an unmarked-content leak
+# the banner check alone misses — the OEM CAN-requirement ids (DS_CN_n) and the
+# OEM name (HKMC). It is a backstop, not a substitute for the mnemosyne citation
+# gate or review: it catches marked banners and these known OEM tokens, not every
+# unmarked proprietary value. Run as the `nda_hygiene` CTest. Invoke with
 # -DTC8_SOURCE_DIR=<repo root>.
 cmake_minimum_required(VERSION 3.16)
 
@@ -18,12 +22,19 @@ if(NOT DEFINED TC8_SOURCE_DIR)
     message(FATAL_ERROR "check-nda-hygiene: TC8_SOURCE_DIR must be set")
 endif()
 
-set(_markers "CONFIDENTIAL|DO NOT DISTRIBUTE|INTERNAL USE ONLY|RESTRICTED DISTRIBUTION|PROPRIETARY AND CONFIDENTIAL")
+# Uppercase confidentiality banners — the usual signature of pasted content.
+set(_banners "CONFIDENTIAL|DO NOT DISTRIBUTE|INTERNAL USE ONLY|RESTRICTED DISTRIBUTION|PROPRIETARY AND CONFIDENTIAL")
+# OEM-proprietary identifiers with no public-spec meaning: the OEM CAN-requirement
+# ids (DS_CN_0001..., from the OEM NDA spec) and the OEM name. Distinct from RFC /
+# public-spec section refs (e.g. "RFC 6298 §5.3"), which the patterns do not match.
+set(_oem_ids "DS_CN_[0-9]|HKMC")
+set(_markers "${_banners}|${_oem_ids}")
 # Interface/case-definition files (.fidl/.fdepl/.scxml) are scanned too: they
 # are exactly the surfaces whose public/OEM boundary the ETS and case headers
 # document, so a banner pasted into a fidl or a case SCXML must fail here, not
-# slip through because the gate only looked at C++.
-set(_roots src include dut examples tests)
+# slip through because the gate only looked at C++. unit_tests is scanned
+# alongside tests so a leak in a gtest TU cannot slip past either.
+set(_roots src include dut examples tests unit_tests)
 set(_hits "")
 
 foreach(root ${_roots})
@@ -49,8 +60,8 @@ endforeach()
 
 if(NOT _hits STREQUAL "")
     message(FATAL_ERROR
-        "NDA-hygiene: confidentiality banner(s) found — OEM-proprietary content "
-        "must not enter this public repo:\n${_hits}")
+        "NDA-hygiene: confidentiality banner(s) or OEM identifier(s) found — "
+        "OEM-proprietary content must not enter this public repo:\n${_hits}")
 endif()
 
-message(STATUS "NDA-hygiene: clean (no confidentiality banners in src/include/dut/examples/tests, incl. .fidl/.fdepl/.scxml).")
+message(STATUS "NDA-hygiene: clean (no confidentiality banners or OEM identifiers in src/include/dut/examples/tests/unit_tests, incl. .fidl/.fdepl/.scxml).")

@@ -3,7 +3,7 @@
 // stamps each emitted event with its 0-based position within the datagram
 // (`datagram_msg_index`) and the datagram's total message count
 // (`datagram_msg_count`), so a case can assert the DUT packed N messages into
-// one datagram (e.g. CAN-encapsulated SOME/IP batching, DS_CN_0011). The TCP
+// one datagram (e.g. CAN-encapsulated SOME/IP batching). The TCP
 // stream path (feed()) has no datagram boundary and must leave the count-0
 // sentinel rather than claim a spurious "sole message" (count 1).
 
