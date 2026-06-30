@@ -20,12 +20,15 @@
 // helpers) to avoid a cross-program link artifact for two callers.
 namespace tc8::net::rtnl {
 
-// Typed pointer to the payload that immediately follows a netlink message header
-// — the single home for the NLMSG_DATA offset, so no caller open-codes the glibc
-// macro whose C-style cast trips -Wold-style-cast under the harness's strict
-// first-party set. NLMSG_HDRLEN is the (aligned) header size NLMSG_DATA skips;
-// `nlh` must point at a buffer holding the header followed by the payload. The
-// const and mutable overloads preserve the caller's qualification.
+// Typed pointers to the payload that follows a netlink message header / rtattr.
+// These reimplement the glibc NLMSG_DATA / RTA_DATA accessors — the ones whose
+// expansion contains a C-style cast (`(void*)((char*)x + ...)`) that trips
+// -Wold-style-cast under the harness's strict first-party set — with
+// reinterpret_cast, so the cast lives here ONCE and no strict-gated caller open-
+// codes the macro. The boundary is "the glibc accessors that LEAK A CAST", not an
+// arbitrary subset: the pure-arithmetic length/alignment macros (NLMSG_HDRLEN /
+// NLMSG_LENGTH / NLMSG_ALIGN / RTA_LENGTH / RTA_ALIGN) carry no cast and are used
+// directly. const and mutable overloads preserve the caller's qualification.
 template <class T>
 inline const T *nlmsgData(const ::nlmsghdr *nlh) {
     return reinterpret_cast<const T *>(reinterpret_cast<const char *>(nlh) + NLMSG_HDRLEN);
@@ -34,14 +37,23 @@ template <class T>
 inline T *nlmsgData(::nlmsghdr *nlh) {
     return reinterpret_cast<T *>(reinterpret_cast<char *>(nlh) + NLMSG_HDRLEN);
 }
+template <class T>
+inline const T *rtaData(const ::rtattr *rta) {
+    return reinterpret_cast<const T *>(reinterpret_cast<const char *>(rta) + RTA_LENGTH(0));
+}
+template <class T>
+inline T *rtaData(::rtattr *rta) {
+    return reinterpret_cast<T *>(reinterpret_cast<char *>(rta) + RTA_LENGTH(0));
+}
 
 // Netlink message / attribute iteration, mirroring the glibc NLMSG_OK/NLMSG_NEXT
 // and RTA_OK/RTA_NEXT macros but with their int/unsigned conversions made
 // explicit, so a caller walking a dump under the strict first-party set
 // (-Wsign-conversion) does not inherit the macros' implicit narrowing. `*len` is
 // the remaining buffer length, decremented as each step advances past the
-// aligned message/attribute. Same single-source rationale as nlmsgData: the macro
-// conversions live here once, never open-coded at a call site.
+// aligned message/attribute. Same single-source rationale as nlmsgData/rtaData:
+// the bound-check int/unsigned conversions live here once rather than at each walk
+// site (the pure-arithmetic NLMSG_ALIGN/RTA_ALIGN inside carry no such hazard).
 inline bool nlmsgOk(const ::nlmsghdr *nh, int len) {
     return len >= static_cast<int>(sizeof(::nlmsghdr)) &&
            nh->nlmsg_len >= sizeof(::nlmsghdr) &&
@@ -75,7 +87,7 @@ inline ::rtattr *appendAttr(char *buf, std::size_t *off, std::uint16_t type, con
     rta->rta_type = type;
     rta->rta_len = static_cast<unsigned short>(RTA_LENGTH(plen));
     if (plen != 0) {
-        std::memcpy(RTA_DATA(rta), payload, plen);
+        std::memcpy(rtaData<char>(rta), payload, plen);
     }
     *off += RTA_ALIGN(rta->rta_len);
     return rta;

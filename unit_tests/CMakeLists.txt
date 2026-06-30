@@ -54,6 +54,11 @@ find_package(Threads REQUIRED)
 target_link_libraries(tc8_harness_testable PUBLIC tc8_wire tc8_someiptp Threads::Threads)
 tc8_enable_strict_warnings(tc8_harness_testable)
 
+# DELIBERATE: test TUs are NOT strict-gated. GoogleTest's own macros (EXPECT_*/
+# TEST) and headers expand C-style casts and sign conversions that -Wold-style-cast
+# / -Wsign-conversion / -Werror would flag in every test, drowning real signal.
+# The code UNDER test is strict-gated where it lives (tc8_harness_testable + the
+# engine/DUT libraries carry tc8_enable_strict_warnings); the tests exercise it.
 function(tc8_add_unit_test name)
     add_executable(${name} ${name}.cpp)
     target_link_libraries(${name} PRIVATE
@@ -68,17 +73,26 @@ function(tc8_add_unit_test name)
     add_test(NAME ${name} COMMAND ${name})
 endfunction()
 
-# Strict-set compile witness for the first-party netlink headers
-# (src/net/link_control.h + the src/net/rtnetlink.h SSOT). Their existing
-# consumers — the DUT PosixSocketBackend and the unit-test TUs — are built
-# WITHOUT tc8_enable_strict_warnings, so a glibc-macro old-style-cast leak (e.g.
-# NLMSG_DATA tripping -Wold-style-cast) would not surface in this tree until a
-# strict first-party consumer (an OEM conformance case) hit it. This OBJECT target
-# compiles those headers UNDER the strict gate so the contract is build-enforced
-# and cannot regress. Header-only path (inline setLinkState) — compile, no link.
+# Strict-set compile witness for src/net/link_control.h (the only net header with
+# no strict production consumer — rtnetlink.h is now strict-compiled via the
+# strict-gated tc8_posix_backend, but link_control.h is included only by unit-test
+# TUs, which are not strict-gated). Without this, a glibc-macro cast/conversion
+# leak into link_control.h would surface only when a strict first-party consumer
+# (an OEM conformance case) hit it. This OBJECT target compiles it UNDER the strict
+# gate so the contract is build-enforced and cannot regress. Compile, no link.
 add_library(net_headers_strict_guard OBJECT net_headers_strict_guard.cpp)
 target_include_directories(net_headers_strict_guard PRIVATE ${PROJECT_SOURCE_DIR}/src)
 tc8_enable_strict_warnings(net_headers_strict_guard)
+
+# Hermetic functional cover for the rtnetlink walk helpers (nlmsgOk/Next, rtaOk/
+# Next, nlmsgData/rtaData): a synthetic RTM_NEWNEIGH dump walked in memory, no
+# privilege. The privileged netns neighbor fixture self-skips without CAP_NET_ADMIN
+# and walks an empty lo table, so rtaOk/rtaNext/rtaData run nowhere else in the
+# hosted CI lane. Needs only the header (src on the include path) + GTest.
+add_executable(rtnetlink_walk_test rtnetlink_walk_test.cpp)
+target_include_directories(rtnetlink_walk_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_link_libraries(rtnetlink_walk_test PRIVATE GTest::gtest GTest::gtest_main)
+add_test(NAME rtnetlink_walk_test COMMAND rtnetlink_walk_test)
 
 tc8_add_unit_test(bpf_filter_test)
 # bpf_filter_test pcap_compiles every group filter to prove the VLAN-aware

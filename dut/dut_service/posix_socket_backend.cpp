@@ -287,7 +287,8 @@ bool PosixSocketBackend::flushDynamicArp(const std::string &ifname) {
                  rta = ::tc8::net::rtnl::rtaNext(rta, &rtlen)) {
                 if (rta->rta_type == NDA_DST && RTA_PAYLOAD(rta) == sizeof(std::uint32_t)) {
                     std::uint32_t dst_be = 0;
-                    std::memcpy(&dst_be, RTA_DATA(rta), sizeof(dst_be));
+                    std::memcpy(&dst_be, ::tc8::net::rtnl::rtaData<std::uint32_t>(rta),
+                                sizeof(dst_be));
                     targets.push_back(dst_be);
                 }
             }
