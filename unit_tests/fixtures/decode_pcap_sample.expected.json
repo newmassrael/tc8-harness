@@ -1,0 +1,53 @@
+{
+  "case_id": "GOLDEN",
+  "outcome": "pass",
+  "captured_at": "2020-01-01T00:00:00Z",
+  "tester_mac": "02:00:00:00:00:01",
+  "tester_ip": "192.168.0.10",
+  "dut_mac": "02:00:00:00:00:02",
+  "dut_ip": "192.168.0.1",
+  "packets": [
+    {"idx": 0, "ts_us": 0, "ts_delta_us": 0, "direction": "tester_to_dut", "src_mac": "02:00:00:00:00:01", "dst_mac": "ff:ff:ff:ff:ff:ff", "src_ip": null, "dst_ip": null, "protocol": "ARP", "summary": "Who has 192.168.0.1? Tell 192.168.0.10 (sender_mac=02:00:00:00:00:01)"},
+    {"idx": 1, "ts_us": 1000, "ts_delta_us": 1000, "direction": "dut_to_tester", "src_mac": "02:00:00:00:00:02", "dst_mac": "02:00:00:00:00:01", "src_ip": null, "dst_ip": null, "protocol": "ARP", "summary": "192.168.0.1 is at 02:00:00:00:00:02"},
+    {"idx": 2, "ts_us": 2000, "ts_delta_us": 1000, "direction": "tester_to_dut", "src_mac": "02:00:00:00:00:01", "dst_mac": "02:00:00:00:00:02", "src_ip": "192.168.0.10", "dst_ip": "192.168.0.1", "protocol": "ICMPv4", "summary": "Echo Request"},
+    {"idx": 3, "ts_us": 3000, "ts_delta_us": 1000, "direction": "dut_to_tester", "src_mac": "02:00:00:00:00:02", "dst_mac": "02:00:00:00:00:01", "src_ip": "192.168.0.1", "dst_ip": "192.168.0.10", "protocol": "ICMPv4", "summary": "Echo Reply"},
+    {"idx": 4, "ts_us": 4000, "ts_delta_us": 1000, "direction": "dut_to_tester", "src_mac": "02:00:00:00:00:02", "dst_mac": "ff:ff:ff:ff:ff:ff", "src_ip": "0.0.0.0", "dst_ip": "255.255.255.255", "protocol": "DHCPv4", "summary": "DHCPv4 Discover xid=0xdeadbeef chaddr=02:00:00:00:00:02"},
+    {"idx": 5, "ts_us": 5000, "ts_delta_us": 1000, "direction": "tester_to_dut", "src_mac": "02:00:00:00:00:01", "dst_mac": "02:00:00:00:00:02", "src_ip": "192.168.0.10", "dst_ip": "192.168.0.1", "protocol": "TCP", "summary": "50000 → 80 [SYN] seq=1000 ack=0 win=64240"},
+    {"idx": 6, "ts_us": 6000, "ts_delta_us": 1000, "direction": "tester_to_dut", "src_mac": "02:00:00:00:00:01", "dst_mac": "02:00:00:00:00:02", "src_ip": "192.168.0.10", "dst_ip": "192.168.0.1", "protocol": "TCP", "summary": "50000 → 80 [ACK|PSH] seq=1001 ack=5001 win=64240 len=4"},
+    {"idx": 7, "ts_us": 7000, "ts_delta_us": 1000, "direction": "tester_to_dut", "src_mac": "02:00:00:00:00:01", "dst_mac": "02:00:00:00:00:02", "src_ip": "192.168.0.10", "dst_ip": "192.168.0.1", "protocol": "SOME/IP", "summary": "Request svc=0x1234 mid=0x0001 client=0x0001 session=0x0001"},
+    {"idx": 8, "ts_us": 8000, "ts_delta_us": 1000, "direction": "dut_to_tester", "src_mac": "02:00:00:00:00:02", "dst_mac": "02:00:00:00:00:01", "src_ip": "192.168.0.1", "dst_ip": "192.168.0.10", "protocol": "SOME/IP", "summary": "Response svc=0x1234 mid=0x0001 client=0x0001 session=0x0001 E_OK"},
+    {"idx": 9, "ts_us": 9000, "ts_delta_us": 1000, "direction": "dut_to_tester", "src_mac": "02:00:00:00:00:02", "dst_mac": "02:00:00:00:00:01", "src_ip": "192.168.0.1", "dst_ip": "192.168.0.10", "protocol": "SOME/IP-SD", "summary": "SD OfferService svc=0x1234 inst=0x0001 ttl=3 | ipv4_endpoints=1"},
+    {"idx": 10, "ts_us": 10000, "ts_delta_us": 1000, "direction": "tester_to_dut", "src_mac": "02:00:00:00:00:01", "dst_mac": "02:00:00:00:00:02", "src_ip": "192.168.0.10", "dst_ip": "192.168.0.1", "protocol": "UT/UDP", "summary": "UT req GetReceivedUdp (id=7)"},
+    {"idx": 11, "ts_us": 11000, "ts_delta_us": 1000, "direction": "dut_to_tester", "src_mac": "02:00:00:00:00:02", "dst_mac": "02:00:00:00:00:01", "src_ip": "192.168.0.1", "dst_ip": "192.168.0.10", "protocol": "UT/UDP", "summary": "UT resp GetReceivedUdp ok received=1 src=192.168.0.99:12345 len=5"},
+    {"idx": 12, "ts_us": 12000, "ts_delta_us": 1000, "direction": "dut_to_tester", "src_mac": "02:00:00:00:00:02", "dst_mac": "02:00:00:00:00:01", "src_ip": null, "dst_ip": null, "protocol": "ETH 0x86dd", "summary": "54 B"}
+  ],
+  "captured_trace": {
+  "steps": [
+    {
+      "step": 0,
+      "event": "someip_observed",
+      "from_state": "await",
+      "to_state": "called",
+      "pcap_frame_idx": 7
+    },
+    {
+      "step": 1,
+      "event": "someip_observed",
+      "from_state": "called",
+      "to_state": "pass",
+      "pcap_frame_idx": 8
+    },
+    {
+      "step": 2,
+      "event": "deadline_exceeded",
+      "from_state": "pass",
+      "to_state": "pass",
+      "pcap_frame_idx": null,
+      "captured_delta": {
+        "note": "timer"
+      }
+    }
+  ],
+  "final_state": "pass"
+}
+}

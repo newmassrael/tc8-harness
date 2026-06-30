@@ -1,0 +1,29 @@
+{
+  "steps": [
+    {
+      "step": 0,
+      "event": "someip_observed",
+      "from_state": "await",
+      "to_state": "called",
+      "pcap_frame_idx": 7
+    },
+    {
+      "step": 1,
+      "event": "someip_observed",
+      "from_state": "called",
+      "to_state": "pass",
+      "pcap_frame_idx": 8
+    },
+    {
+      "step": 2,
+      "event": "deadline_exceeded",
+      "from_state": "pass",
+      "to_state": "pass",
+      "pcap_frame_idx": null,
+      "captured_delta": {
+        "note": "timer"
+      }
+    }
+  ],
+  "final_state": "pass"
+}

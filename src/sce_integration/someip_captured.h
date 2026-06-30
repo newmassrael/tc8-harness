@@ -149,6 +149,18 @@ inline constexpr std::uint8_t kTcp = 0x06;
 inline constexpr std::uint8_t kUdp = 0x11;
 }  // namespace sd_l4_proto
 
+// SD entry Type byte (TR_SOMEIP / PRS_SOMEIPSD §7.4). The single source for the
+// SD entry-type values: the recognizer predicates below, the SD-fill gate, and
+// the documentation-site summary (tc8-harness decode-pcap) all name these rather
+// than re-spell the raw bytes. TTL (not a distinct type) discriminates the
+// Stop* variants (Offer ttl==0 = StopOffer, Subscribe ttl==0 = StopSubscribe).
+namespace sd_entry_type {
+inline constexpr std::uint8_t kFindService = 0x00;
+inline constexpr std::uint8_t kOfferService = 0x01;
+inline constexpr std::uint8_t kSubscribeEventgroup = 0x06;
+inline constexpr std::uint8_t kSubscribeEventgroupAck = 0x07;
+}  // namespace sd_entry_type
+
 struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
                         CapturedL3Endpoints, CapturedL4Ports {
     std::uint16_t service_id = 0;
@@ -390,7 +402,7 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     // of truth for that predicate so the gate cannot drift across templates.
     bool is_offer_service_for(std::uint16_t want_service_id) const {
         return service_id == 0xFFFF && sd_entry_count >= 1 &&
-               sd_entries[0].type == 0x01 &&
+               sd_entries[0].type == sd_entry_type::kOfferService &&
                sd_entries[0].service_id == want_service_id;
     }
 
@@ -425,7 +437,7 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     // DUT FindService for `want_service_id` (first entry type 0x00).
     bool is_find_service_from_dut(std::uint16_t want_service_id) const {
         return service_id == 0xFFFF && sd_entry_count >= 1 &&
-               sd_entries[0].type == 0x00 &&
+               sd_entries[0].type == sd_entry_type::kFindService &&
                (want_service_id == 0xFFFF || sd_entries[0].service_id == want_service_id);
     }
 
@@ -434,7 +446,8 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     // is_stop_subscribe for that.
     bool is_subscribe_for(std::uint16_t want_service_id, std::uint16_t want_eventgroup_id) const {
         return service_id == 0xFFFF && sd_entry_count >= 1 &&
-               sd_entries[0].type == 0x06 && sd_entries[0].ttl > 0 &&
+               sd_entries[0].type == sd_entry_type::kSubscribeEventgroup &&
+               sd_entries[0].ttl > 0 &&
                sd_entries[0].service_id == want_service_id &&
                sd_entries[0].eventgroup_id == want_eventgroup_id;
     }
@@ -443,7 +456,8 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     // a SubscribeEventgroup entry (type 0x06) whose TTL is 0 (TR_SOMEIP §7.4.2).
     bool is_stop_subscribe(std::uint16_t want_service_id, std::uint16_t want_eventgroup_id) const {
         return service_id == 0xFFFF && sd_entry_count >= 1 &&
-               sd_entries[0].type == 0x06 && sd_entries[0].ttl == 0 &&
+               sd_entries[0].type == sd_entry_type::kSubscribeEventgroup &&
+               sd_entries[0].ttl == 0 &&
                sd_entries[0].service_id == want_service_id &&
                sd_entries[0].eventgroup_id == want_eventgroup_id;
     }
@@ -562,7 +576,7 @@ inline void fillSomeIpCapturedFromFrame(SomeIpCaptured &c, const SomeIpFrame &f)
         // frames leave the cache untouched, so SD_MESSAGE_09's Phase 3
         // Notification guard can compare against the value learned in
         // Phase 1 without an SCXML datamodel.
-        if (c.sd_entry_count > 0 && c.sd_entries[0].type == 0x01) {
+        if (c.sd_entry_count > 0 && c.sd_entries[0].type == sd_entry_type::kOfferService) {
             const auto &udp_endpoint = c.sd_first_option_with_l4(0x04, 0x11);
             if (udp_endpoint.port != 0) {
                 c.cached_offer_endpoint_udp_port = udp_endpoint.port;

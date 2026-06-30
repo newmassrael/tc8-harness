@@ -234,8 +234,9 @@ tc8_add_unit_test(udp_emit_test)
 tc8_add_unit_test(someip_tp_emit_test)
 tc8_add_unit_test(udp_captured_test)
 tc8_add_unit_test(someip_captured_test)
-# Pins the C++ side of the DHCPv4 BOOTP fixed-header SSOT (dhcpv4_wire.def,
-# TD-02); the Python mirror is pinned by tools/gen_dhcpv4_wire.py --check.
+# Pins the DHCPv4 BOOTP fixed-header SSOT (dhcpv4_wire.def, TD-02). The .def now
+# has a single C++ consumer — the documentation site no longer re-decodes the
+# wire (TD-05), so there is no Python mirror left to gate.
 tc8_add_unit_test(dhcpv4_wire_test)
 # SOME/IP dispatcher datagram grouping: synthetic UDP datagrams carrying N
 # concatenated SOME/IP messages drive deliver(), asserting each emitted event
@@ -360,4 +361,22 @@ if(TARGET tc8-dut)
     add_test(NAME ets_event_sink_boot
         COMMAND ${PROJECT_SOURCE_DIR}/scripts/ets-event-sink-boot-check.sh
                 $<TARGET_FILE:tc8-dut>)
+endif()
+
+# Golden-output gate for `tc8-harness decode-pcap`, the documentation-site pcap
+# exporter that replaced the deleted Python wire decoder (docs/tech-debt.md
+# TD-05). Replays a committed fixture pcap + transition trace through the real
+# binary and asserts the emitted PacketCapture JSON is byte-identical to the
+# committed expected file — the automated drift guard that took over from the
+# removed `.def` --check gates (a one-time equivalence proof is not a wired
+# gate). Regenerate via unit_tests/fixtures/gen_decode_pcap_fixture.py.
+if(TARGET tc8-harness)
+    add_test(NAME decode_pcap_golden
+        COMMAND ${CMAKE_COMMAND}
+            -DBIN=$<TARGET_FILE:tc8-harness>
+            -DPCAP=${PROJECT_SOURCE_DIR}/unit_tests/fixtures/decode_pcap_sample.pcap
+            -DTRACE=${PROJECT_SOURCE_DIR}/unit_tests/fixtures/decode_pcap_sample.trace.json
+            -DEXPECTED=${PROJECT_SOURCE_DIR}/unit_tests/fixtures/decode_pcap_sample.expected.json
+            -DOUT=${CMAKE_CURRENT_BINARY_DIR}/decode_pcap_golden.out.json
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/run_decode_pcap_golden.cmake)
 endif()

@@ -265,6 +265,7 @@ add_executable(tc8-harness
     src/dissect/packet_pipeline.cpp
     src/cli/signal_handler.cpp
     src/cli/capture_driver.cpp
+    src/cli/decode_pcap_command.cpp
     src/cli/expect_parser.cpp
     src/cli/live_command.cpp
     src/cli/replay_command.cpp

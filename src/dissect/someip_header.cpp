@@ -26,6 +26,16 @@ std::optional<ParseResult> parseSomeIpHeader(const std::uint8_t *data, std::size
     if (len < total) {
         return std::nullopt;
     }
+    // Protocol Version (header byte 12) is a wire invariant: PRS_SOMEIP_00052
+    // fixes it at 0x01. Requiring it here rejects a non-SOME/IP UDP payload
+    // whose bytes [4..7] happen to satisfy the length arithmetic above —
+    // without this gate, such a datagram (e.g. a longer Upper-Tester response
+    // or a data-port stimulus) would be mis-decoded as SOME/IP. The dispatcher
+    // feeds EVERY UDP payload through here regardless of port, so the version
+    // check is what keeps that port-agnostic feed honest.
+    if (data[12] != 0x01) {
+        return std::nullopt;
+    }
 
     ParseResult r{};
     r.header.service_id = getBe16(data + 0);

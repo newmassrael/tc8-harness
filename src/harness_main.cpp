@@ -5,6 +5,7 @@
 
 #include <CLI/CLI.hpp>
 
+#include "cli/decode_pcap_command.h"
 #include "cli/live_command.h"
 #include "cli/replay_command.h"
 #include "cli/test_command.h"
@@ -27,6 +28,7 @@ int main(int argc, char** argv) {
     tc8::cli::LiveCommand   live(app);
     tc8::cli::ReplayCommand replay(app);
     tc8::cli::TestCommand   test(app);
+    tc8::cli::DecodePcapCommand decode_pcap(app);
     tc8::cli::UtPingCommand ut_ping(app);
     tc8::cli::TestabilityProbeCommand testability_probe(app);
 
@@ -39,6 +41,7 @@ int main(int argc, char** argv) {
         if (live.parsed())    return live.run(bpf_override);
         if (replay.parsed())  return replay.run(bpf_override);
         if (test.parsed())    return test.run(bpf_override);
+        if (decode_pcap.parsed()) return decode_pcap.run();
         if (ut_ping.parsed()) return ut_ping.run();
         if (testability_probe.parsed()) return testability_probe.run();
     } catch (const std::exception& e) {
