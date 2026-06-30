@@ -6,8 +6,7 @@
 #include <utility>
 #include <vector>
 
-#include "ets_reply.h"        // EtsReply (shared reply shape SSOT)
-#include "someip/protocol.h"  // someip::MessageType / ReturnCode (sugar default)
+#include "ets_reply.h"  // EtsReply + plainResponse (shared reply SSOT)
 
 namespace tc8::dut {
 
@@ -58,17 +57,15 @@ public:
         std::function<EtsReply(const std::vector<std::uint8_t>&)> handler) = 0;
 
     // Convenience for the common case: reply with a plain Response (E_OK) whose
-    // payload is the handler's returned bytes. Forwards to onRequestEx with a
-    // default-typed EtsReply, so the two share the one reply path; reach for
+    // payload is the handler's returned bytes. Forwards to onRequestEx via the
+    // shared plainResponse adapter, so the two share the one reply path; reach for
     // onRequestEx directly when the reply must vary the message type or Return Code.
+    // Non-virtual on purpose (NVI sugar): a subclass overrides onRequestEx, never
+    // this — declaring onRequest in a subclass would hide this forwarder, so don't.
     void onRequest(
         std::uint16_t method_id,
         std::function<std::vector<std::uint8_t>(const std::vector<std::uint8_t>&)> handler) {
-        onRequestEx(method_id,
-                    [handler = std::move(handler)](const std::vector<std::uint8_t>& request) {
-                        return EtsReply{someip::MessageType::RESPONSE,
-                                        someip::ReturnCode::E_OK, handler(request)};
-                    });
+        onRequestEx(method_id, plainResponse(std::move(handler)));
     }
 };
 

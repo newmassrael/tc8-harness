@@ -31,6 +31,12 @@ public:
     // matters only for a future graceful shutdown; a callback already in flight on
     // a vsomeip thread at teardown is still a residual race that a full
     // application stop would have to close.
+    //
+    // No lock on registered_methods_ / offered_events_: they are written only by
+    // offerEvent / registerMethod during the extension's single-threaded onRegister
+    // setup and read only here at teardown; the vsomeip-thread handlers never touch
+    // them. Registration and teardown never overlap, so the registries are not
+    // shared across threads (same lock-free contract as VsomeipEtsControlChannel).
     ~VsomeipEtsEventSink() override {
         if (!app_) return;
         for (const auto m : registered_methods_) {
@@ -57,9 +63,7 @@ public:
 
     void onMethod(std::uint16_t method_id,
                   std::function<void(const std::vector<std::uint8_t>&)> handler) override {
-        registered_methods_.push_back(method_id);
-        app_->register_message_handler(
-            service_, instance_, method_id,
+        registerMethod(method_id,
             [handler = std::move(handler)](const std::shared_ptr<vsomeip::message>& msg) {
                 handler(messageBytes(msg));
             });
@@ -68,15 +72,13 @@ public:
     void onRequestEx(
         std::uint16_t method_id,
         std::function<EtsReply(const std::vector<std::uint8_t>&)> handler) override {
-        registered_methods_.push_back(method_id);
         // Capture a WEAK ref to the application (not a strong shared_ptr, and not
         // `this`): the handler is stored INSIDE the application's handler registry,
         // so a strong capture would form an application->handler->application cycle
         // that nothing breaks under std::_Exit. The runtime itself holds the app by
         // weak_ptr for the same reason; mirror it and lock() per call.
         std::weak_ptr<vsomeip::application> weak_app = app_;
-        app_->register_message_handler(
-            service_, instance_, method_id,
+        registerMethod(method_id,
             [weak_app, handler = std::move(handler)](
                 const std::shared_ptr<vsomeip::message>& msg) {
                 if (!msg) return;
@@ -87,6 +89,16 @@ public:
     }
 
 private:
+    // Register a raw vsomeip message handler for `method_id` on this sink's
+    // service/instance and remember it for unregister-on-destroy — the single
+    // registration + bookkeeping path shared by onMethod and onRequestEx.
+    void registerMethod(
+        std::uint16_t method_id,
+        std::function<void(const std::shared_ptr<vsomeip::message>&)> handler) {
+        registered_methods_.push_back(method_id);
+        app_->register_message_handler(service_, instance_, method_id, std::move(handler));
+    }
+
     std::shared_ptr<vsomeip::application> app_;
     vsomeip::service_t  service_;
     vsomeip::instance_t instance_;

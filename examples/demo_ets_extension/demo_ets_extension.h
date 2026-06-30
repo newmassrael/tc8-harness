@@ -21,7 +21,8 @@ namespace tc8::dut {
 // starter an OEM adapts to offer its OWN (NDA) surface on the shared vsomeip
 // application, selected at configure time via TC8_ETS_EXTENSION_SRC (see
 // demo_ets_extension.cpp). It exercises all three seams: the SERVER-role
-// IEtsEventSink (offerEvent + onMethod + the reply-capable onRequest/onRequestEx), the
+// IEtsEventSink (offerEvent + onMethod + the reply-capable onRequest + onRequestEx
+// input-validation), the
 // CLIENT-role IEtsClientControl (subscribe/stop, a subscription-status edge that
 // bounds the subscription lifetime by duration, plus an RPC call whose Response it
 // captures), and the inbound IEtsControlChannel (offers a control service so a
@@ -43,8 +44,7 @@ inline constexpr std::uint16_t kDemoTriggerMethod  = 0x07F0;
 // (kDemoSubscribeMethod), RPC-calls as a REQUEST (kDemoCallMethod), and RPC-calls
 // as a Fire & Forget / REQUEST_NO_RETURN (kDemoFireForgetMethod); plus the local
 // control methods that drive/read it back (kDemoReadbackMethod replies with the
-// last captured Response via onRequestEx, surfacing a non-E_OK target reply as an
-// Error message).
+// last captured Response payload via onRequest).
 inline constexpr std::uint16_t kDemoTargetService     = 0x7F02;
 inline constexpr std::uint16_t kDemoTargetInstance    = 0x0001;
 inline constexpr std::uint16_t kDemoTargetEventgroup  = 0x00F7;
@@ -55,6 +55,13 @@ inline constexpr std::uint16_t kDemoCallMethod        = 0x07F2;
 inline constexpr std::uint16_t kDemoReadbackMethod    = 0x07F3;
 inline constexpr std::uint16_t kDemoFireForgetMethod  = 0x07F5;
 inline constexpr std::uint8_t  kDemoTargetMajor       = 0x01;
+
+// INPUT-VALIDATION demo: a server method that inspects its OWN request and rejects
+// out-of-range input with an application Error — the motivating use of onRequestEx,
+// which a plain Response (E_OK only) cannot express. A first byte >= the limit is
+// "out of range". Synthetic ids/limit, no spec meaning.
+inline constexpr std::uint16_t kDemoValidatingMethod  = 0x07F7;
+inline constexpr std::uint8_t  kDemoValidatingLimit   = 0x80;
 
 // CLIENT-role DURATION demo: once the subscription is ESTABLISHED (the target
 // returns a SubscribeEventgroupAck), the demo holds it for this many DUT
@@ -73,9 +80,8 @@ inline constexpr std::uint16_t kDemoControlService         = 0x7F03;
 inline constexpr std::uint16_t kDemoControlInstance        = 0x0001;
 inline constexpr std::uint16_t kDemoControlSubscribeMethod = 0x07F4;
 // A reply-capable readback on the SAME control service, so a client-only DUT (no
-// offered server service) can still be asked for what it observed — exercises the
-// control channel's offerControlRequestEx, the reply complement of the F&F
-// offerControlSubscribeMethod above.
+// offered server service) can still be asked for what it observed — the reply
+// complement of the F&F offerControlSubscribeMethod above.
 inline constexpr std::uint16_t kDemoControlReadbackMethod  = 0x07F6;
 
 // A trivial pollable the demo adopts through IEtsIoHost to show the raw-receive
@@ -203,42 +209,39 @@ public:
                                                      kDemoTargetMethod, payload,
                                                      /*reliable=*/false, kDemoTargetMajor);
                       });
-        sink.onRequestEx(kDemoReadbackMethod,
-                         [last](const std::vector<std::uint8_t>&) {
-                             std::lock_guard<std::mutex> lock(last->mutex);
-                             // Reflect the captured Response: a successful target
-                             // reply (E_OK) becomes a Response carrying the payload;
-                             // a non-E_OK target reply becomes an Error message with
-                             // the same Return Code. Choosing the message type plus
-                             // Return Code is exactly what onRequestEx adds over the
-                             // Response-only onRequest.
-                             if (last->return_code == 0x00) {
-                                 return EtsReply{someip::MessageType::RESPONSE,
-                                                 someip::ReturnCode::E_OK, last->payload};
+        // READBACK: a plain Response carrying the last captured target Response
+        // payload — the common reply shape, via the onRequest convenience.
+        sink.onRequest(kDemoReadbackMethod,
+                       [last](const std::vector<std::uint8_t>&) {
+                           std::lock_guard<std::mutex> lock(last->mutex);
+                           return last->payload;
+                       });
+        // INPUT VALIDATION: inspect the request's OWN first byte and reject an
+        // out-of-range value with an application Error (message type ERROR, Return
+        // Code E_NOT_OK) — what onRequestEx adds over the Response-only onRequest. In
+        // range echoes the request back as a Response. This is the faithful shape of
+        // an OEM method that returns an application error for bad input.
+        sink.onRequestEx(kDemoValidatingMethod,
+                         [](const std::vector<std::uint8_t>& request) {
+                             if (request.empty() || request[0] >= kDemoValidatingLimit) {
+                                 return EtsReply{someip::MessageType::ERROR,
+                                                 someip::ReturnCode::E_NOT_OK, /*payload=*/{}};
                              }
-                             return EtsReply{someip::MessageType::ERROR,
-                                             static_cast<someip::ReturnCode>(last->return_code),
-                                             last->payload};
+                             return EtsReply{someip::MessageType::RESPONSE,
+                                             someip::ReturnCode::E_OK, request};
                          });
 
         // CLIENT-ONLY READBACK demo: the same observed-Response readback as the
         // server-sink one above, but offered on the control service via the
-        // reply-capable offerControlRequestEx — the path a client-only DUT (which
-        // offers no server service for onRequestEx) uses. It rides the control
-        // service already offered for the subscribe trigger (offer-once, second
-        // method), and a non-E_OK target reply becomes an Error message.
-        ctx.control.offerControlRequestEx(
+        // reply-capable offerControlRequest — the path a client-only DUT (which
+        // offers no server service for onRequest) uses. It rides the control service
+        // already offered for the subscribe trigger (offer-once, second method).
+        ctx.control.offerControlRequest(
             kDemoControlService, kDemoControlInstance, kDemoControlReadbackMethod,
             kDemoTargetMajor,
             [last](const std::vector<std::uint8_t>&) {
                 std::lock_guard<std::mutex> lock(last->mutex);
-                if (last->return_code == 0x00) {
-                    return EtsReply{someip::MessageType::RESPONSE,
-                                    someip::ReturnCode::E_OK, last->payload};
-                }
-                return EtsReply{someip::MessageType::ERROR,
-                                static_cast<someip::ReturnCode>(last->return_code),
-                                last->payload};
+                return last->payload;
             });
 
         // RAW-RECEIVE demo: adopt a pollable receiver the DUT main loop drains —

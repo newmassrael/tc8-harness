@@ -1,7 +1,6 @@
 #include "ets_control_channel.h"
 
 #include <map>
-#include <mutex>
 #include <utility>
 #include <vector>
 
@@ -35,9 +34,16 @@ public:
     // would close (same as VsomeipEtsEventSink). The offered major is replayed so
     // stop_offer_service matches the offer exactly (vsomeip emits the wire
     // StopOfferService SD entry only on an exact match).
+    //
+    // No lock: control_methods_ / offered_services_ are written only by
+    // offerControl* during the extension's single-threaded onRegister setup and read
+    // only here at teardown; the vsomeip-thread handlers never touch them (they
+    // capture only weak_app + the OEM handler). Registration and teardown never
+    // overlap, so the registries are not shared across threads — same lock-free
+    // contract as VsomeipEtsEventSink. Offer the surface during onRegister, not from
+    // a handler.
     ~VsomeipEtsControlChannel() override {
         if (!app_) return;
-        std::lock_guard<std::mutex> lock(mutex_);
         for (const auto& m : control_methods_) {
             app_->unregister_message_handler(m.service, m.instance, m.method);
         }
@@ -50,17 +56,7 @@ public:
         std::uint16_t service, std::uint16_t instance, std::uint16_t method,
         std::uint8_t major,
         std::function<void(const std::vector<std::uint8_t>&)> handler) override {
-        if (!app_) return;
-        std::lock_guard<std::mutex> lock(mutex_);
-        // offer_service once per (service, instance) — a second control method on
-        // the same control service reuses the offer. Remember the major so the dtor
-        // can stop_offer_service with the exact (major) it offered.
-        if (offered_services_.emplace(std::make_pair(service, instance), major).second) {
-            app_->offer_service(service, instance, major);
-        }
-        control_methods_.push_back({service, instance, method});
-        app_->register_message_handler(
-            service, instance, method,
+        offerAndRoute(service, instance, method, major,
             [handler = std::move(handler)](const std::shared_ptr<vsomeip::message>& msg) {
                 if (!msg) return;
                 handler(messageBytes(msg));  // fire-and-forget: no Response sent
@@ -71,20 +67,13 @@ public:
         std::uint16_t service, std::uint16_t instance, std::uint16_t method,
         std::uint8_t major,
         std::function<EtsReply(const std::vector<std::uint8_t>&)> handler) override {
-        if (!app_) return;
-        std::lock_guard<std::mutex> lock(mutex_);
-        if (offered_services_.emplace(std::make_pair(service, instance), major).second) {
-            app_->offer_service(service, instance, major);
-        }
-        control_methods_.push_back({service, instance, method});
         // Capture a WEAK ref to the application (not `this`, not a strong
         // shared_ptr): the handler lives in the application's handler registry, so a
         // strong capture would form an application->handler->application cycle that
         // nothing breaks under std::_Exit. Mirrors VsomeipEtsEventSink::onRequestEx;
         // the reply itself goes through the shared sendEtsReply SSOT.
         std::weak_ptr<vsomeip::application> weak_app = app_;
-        app_->register_message_handler(
-            service, instance, method,
+        offerAndRoute(service, instance, method, major,
             [weak_app, handler = std::move(handler)](
                 const std::shared_ptr<vsomeip::message>& msg) {
                 if (!msg) return;
@@ -95,6 +84,22 @@ public:
     }
 
 private:
+    // Offer the control service once per (service, instance) — a second control
+    // method on the same service reuses the offer — then register `mh` for `method`
+    // and remember both so the dtor can stop_offer_service with the exact major and
+    // unregister the handler. The single offer-once + bookkeeping path shared by the
+    // fire-and-forget and reply-capable control methods.
+    void offerAndRoute(std::uint16_t service, std::uint16_t instance, std::uint16_t method,
+                       std::uint8_t major,
+                       std::function<void(const std::shared_ptr<vsomeip::message>&)> mh) {
+        if (!app_) return;
+        if (offered_services_.emplace(std::make_pair(service, instance), major).second) {
+            app_->offer_service(service, instance, major);
+        }
+        control_methods_.push_back({service, instance, method});
+        app_->register_message_handler(service, instance, method, std::move(mh));
+    }
+
     struct ControlMethod {
         std::uint16_t service;
         std::uint16_t instance;
@@ -102,7 +107,6 @@ private:
     };
 
     std::shared_ptr<vsomeip::application> app_;
-    std::mutex mutex_;
     std::vector<ControlMethod> control_methods_;
     // (service, instance) -> offered major, so teardown replays the exact major.
     std::map<std::pair<std::uint16_t, std::uint16_t>, std::uint8_t> offered_services_;

@@ -13,6 +13,7 @@
 #include "tc8/captured_event.h"
 #include "tc8/pollable_service.h"
 
+#include "adopted_services.h"
 #include "captured_frame_observer.h"
 #include "captured_frame_timing.h"
 #include "captured_trace.h"
@@ -386,11 +387,8 @@ public:
 
         // Fan the frame out to any adopted frame-observing services AFTER dispatch,
         // so a reaction responder reacts on the post-dispatch ground truth and on
-        // this same single thread (no concurrency). Called per CapturedEvent
-        // sub-event; observers filter for what they care about.
-        for (ICapturedFrameObserver *obs : frame_observers_) {
-            obs->onCapturedFrame(ev);
-        }
+        // this same single thread (no concurrency).
+        adopted_.fanOutCapturedFrame(ev);
     }
 
     void tick() override {
@@ -502,32 +500,18 @@ public:
 
     // IBackgroundServiceOwner — take ownership of a case-armed pollable service.
     void adoptService(std::unique_ptr<::tc8::IPollableService> service) override {
-        if (service) {
-            services_.push_back(std::move(service));
-        }
+        adopted_.adopt(std::move(service));
     }
 
-    // IBackgroundServiceOwner — own a frame-observing service: record its observer
-    // role (a raw pointer that stays valid because `services_` owns the object for
-    // the whole run), then transfer ownership into `services_` so it is also polled
-    // and RAII-destroyed like any adopted service. static_cast (not dynamic_cast):
-    // the combined type statically IS-A ICapturedFrameObserver, so the cross-base
-    // adjustment is known at compile time and needs no RTTI.
+    // IBackgroundServiceOwner — own a frame-observing service so it is polled AND
+    // notified of every captured frame (see AdoptedServices::adoptObserving).
     void adoptObservingService(std::unique_ptr<IFrameObservingService> service) override {
-        if (service) {
-            frame_observers_.push_back(static_cast<ICapturedFrameObserver *>(service.get()));
-            services_.push_back(std::move(service));
-        }
+        adopted_.adoptObserving(std::move(service));
     }
 
     // ITestRunner — borrow the owned services for the CLI capture loop to poll.
     std::vector<::tc8::IPollableService *> pollableServices() override {
-        std::vector<::tc8::IPollableService *> out;
-        out.reserve(services_.size());
-        for (const auto &s : services_) {
-            out.push_back(s.get());
-        }
-        return out;
+        return adopted_.pollable();
     }
 
 private:
@@ -668,20 +652,14 @@ private:
     // always hardcode ``-1`` (synthetic / timer-driven). ``onCaptured``
     // only reads it; never resets it.
     int                                next_pcap_frame_idx_ = -1;
-    // Run-scoped pollable services (e.g. stimulus::ArpResponder) a case adopted
-    // via adoptService; borrowed by the CLI capture loop through pollableServices()
-    // and destroyed (RAII) here at TestRunner teardown, after the capture loop has
-    // returned. Declared last so it is destroyed first; the services are self-
-    // contained (they hold no reference to sm_/captured_), so teardown order is
+    // Run-scoped background services a case adopted (via adoptService /
+    // adoptObservingService): owns each pollable, RAII-destroyed here at TestRunner
+    // teardown after the capture loop has returned, and fans captured frames out to
+    // the observing subset. Declared last so it is destroyed first; the services are
+    // self-contained (they hold no reference to sm_/captured_), so teardown order is
     // not load-bearing — last-declared is a conservative default that closes a
     // service's fd before the rest of the runner.
-    std::vector<std::unique_ptr<::tc8::IPollableService>> services_;
-    // Non-owning observer view of the subset of `services_` adopted via
-    // adoptObservingService: each pointer aliases an object `services_` owns, so it
-    // stays valid for the run and needs no separate teardown. onCaptured fans every
-    // captured frame out to these AFTER dispatch. Declared after `services_` only
-    // for readability; it owns nothing.
-    std::vector<ICapturedFrameObserver *> frame_observers_;
+    AdoptedServices adopted_;
 };
 
 }  // namespace tc8::sce

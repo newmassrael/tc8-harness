@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
+#include <utility>
 #include <vector>
 
 #include "someip/protocol.h"  // someip::MessageType / ReturnCode
@@ -21,5 +23,18 @@ struct EtsReply {
     someip::ReturnCode  return_code  = someip::ReturnCode::E_OK;
     std::vector<std::uint8_t> payload;
 };
+
+// Adapt a bytes-returning request handler into an EtsReply-returning one whose
+// reply is a plain Response (E_OK) carrying those bytes — the common readback
+// shape. The single source of the "default reply" adapter shared by the
+// reply-capable seams' convenience overloads (IEtsEventSink::onRequest,
+// IEtsControlChannel::offerControlRequest), so the default reply is defined once.
+inline std::function<EtsReply(const std::vector<std::uint8_t>&)> plainResponse(
+    std::function<std::vector<std::uint8_t>(const std::vector<std::uint8_t>&)> handler) {
+    return [handler = std::move(handler)](const std::vector<std::uint8_t>& request) {
+        return EtsReply{someip::MessageType::RESPONSE, someip::ReturnCode::E_OK,
+                        handler(request)};
+    };
+}
 
 }  // namespace tc8::dut

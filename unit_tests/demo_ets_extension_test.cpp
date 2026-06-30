@@ -3,9 +3,9 @@
 // no vsomeip application, no running DUT. SCOPE (honest): this verifies the demo
 // extension drives the interfaces correctly — server: offers an event, registers
 // a trigger method, the trigger notifies; client: subscribes/stops on a method,
-// calls a remote method, captures the response, and replies to a readback via
-// onRequestEx (surfacing a non-E_OK target reply as an Error message). It does NOT
-// verify the production VsomeipEtsEventSink /
+// calls a remote method, captures the response, replies to a readback via onRequest,
+// and rejects out-of-range input with an application Error via onRequestEx. It does
+// NOT verify the production VsomeipEtsEventSink /
 // VsomeipEtsClientControl vsomeip mapping (request_service / subscribe /
 // create_request / create_response / register_message_handler); those adapters
 // are covered only by compilation (the tc8-dut build), the boot-check's
@@ -468,8 +468,8 @@ TEST(DemoEtsExtension, ResponseIsCapturedAndReadbackReplies) {
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 
-    // The demo registered a response handler for the target method and a
-    // reply-capable readback method (onRequestEx, so it can answer with an Error).
+    // The demo registered a response handler for the target method and a plain
+    // readback method (onRequest convenience) that returns the captured payload.
     EXPECT_EQ(client.response_method, tc8::dut::kDemoTargetMethod);
     ASSERT_TRUE(static_cast<bool>(client.response_handler));
     ASSERT_EQ(sink.request_handlers.count(tc8::dut::kDemoReadbackMethod), 1u);
@@ -482,7 +482,7 @@ TEST(DemoEtsExtension, ResponseIsCapturedAndReadbackReplies) {
         EXPECT_TRUE(reply.payload.empty());
     }
 
-    // A successful (E_OK) target Response: the readback replies a Response with it.
+    // A target Response: the readback replies a plain Response carrying it.
     const std::vector<std::uint8_t> response{0xAB, 0xCD};
     client.response_handler(0x00, response);
     {
@@ -491,16 +491,41 @@ TEST(DemoEtsExtension, ResponseIsCapturedAndReadbackReplies) {
         EXPECT_EQ(reply.return_code, tc8::someip::ReturnCode::E_OK);
         EXPECT_EQ(reply.payload, response);
     }
+}
 
-    // A non-E_OK target Response: the readback surfaces it as an Error message
-    // carrying the same Return Code — the path onRequestEx adds over onRequest.
-    client.response_handler(0x20, response);
+// The onRequestEx validating method inspects its OWN request: an out-of-range first
+// byte is rejected with an application Error (ERROR / E_NOT_OK), an in-range one
+// echoes back as a Response — the message-type + Return-Code choice onRequestEx adds
+// over the Response-only onRequest, in its faithful motivating shape.
+TEST(DemoEtsExtension, ValidatingMethodRejectsOutOfRangeInput) {
+    FakeEtsEventSink sink;
+    FakeEtsClientControl client;
+    FakeEtsControlChannel control;
+    FakeEtsIoHost io;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control, io};
+    tc8::dut::DemoEtsExtension ext;
+    ext.onRegister(ctx);
+
+    ASSERT_EQ(sink.request_handlers.count(tc8::dut::kDemoValidatingMethod), 1u);
+    auto& validate = sink.request_handlers[tc8::dut::kDemoValidatingMethod];
+
+    // In range (< kDemoValidatingLimit): a Response echoing the request.
     {
-        const auto reply = sink.request_handlers[tc8::dut::kDemoReadbackMethod]({});
-        EXPECT_EQ(reply.message_type, tc8::someip::MessageType::ERROR);
-        EXPECT_EQ(static_cast<std::uint8_t>(reply.return_code), 0x20);
-        EXPECT_EQ(reply.payload, response);
+        const std::vector<std::uint8_t> in{0x7F, 0x01};
+        const auto reply = validate(in);
+        EXPECT_EQ(reply.message_type, tc8::someip::MessageType::RESPONSE);
+        EXPECT_EQ(reply.return_code, tc8::someip::ReturnCode::E_OK);
+        EXPECT_EQ(reply.payload, in);
     }
+    // Out of range (>= kDemoValidatingLimit): an Error message, no payload.
+    {
+        const auto reply = validate({tc8::dut::kDemoValidatingLimit});
+        EXPECT_EQ(reply.message_type, tc8::someip::MessageType::ERROR);
+        EXPECT_EQ(reply.return_code, tc8::someip::ReturnCode::E_NOT_OK);
+        EXPECT_TRUE(reply.payload.empty());
+    }
+    // Empty request is rejected too (no first byte to validate).
+    EXPECT_EQ(validate({}).message_type, tc8::someip::MessageType::ERROR);
 }
 
 // The non-virtual onRequest convenience forwards to onRequestEx as a plain
@@ -519,7 +544,7 @@ TEST(EtsEventSinkOnRequest, SugarRepliesResponseEOk) {
     EXPECT_EQ(reply.payload, (std::vector<std::uint8_t>{0x02, 0x01}));
 }
 
-TEST(DemoEtsExtension, ControlReadbackRepliesAndReflectsError) {
+TEST(DemoEtsExtension, ControlReadbackRepliesPlainResponse) {
     FakeEtsEventSink sink;
     FakeEtsClientControl client;
     FakeEtsControlChannel control;
@@ -528,49 +553,57 @@ TEST(DemoEtsExtension, ControlReadbackRepliesAndReflectsError) {
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 
-    // The demo offers a reply-capable readback on the SAME control service as the
-    // F&F subscribe trigger (offer-once, distinct method) — the client-only path.
+    // The demo offers a readback on the SAME control service as the F&F subscribe
+    // trigger (offer-once, distinct method) — the client-only readback path.
     EXPECT_EQ(control.request_control_service, tc8::dut::kDemoControlService);
     EXPECT_EQ(control.request_control_service, control.control_service);
     ASSERT_EQ(control.control_request_handlers.count(tc8::dut::kDemoControlReadbackMethod), 1u);
     auto& readback = control.control_request_handlers[tc8::dut::kDemoControlReadbackMethod];
 
-    // E_OK target Response: the control readback replies a Response with it; a
-    // non-E_OK target Response becomes an Error message carrying that Return Code —
-    // offerControlRequestEx choosing message type + Return Code on the control seam.
+    // The control readback replies a plain Response carrying the captured payload.
     const std::vector<std::uint8_t> response{0xAB, 0xCD};
     client.response_handler(0x00, response);
-    {
-        const auto reply = readback({});
-        EXPECT_EQ(reply.message_type, tc8::someip::MessageType::RESPONSE);
-        EXPECT_EQ(reply.return_code, tc8::someip::ReturnCode::E_OK);
-        EXPECT_EQ(reply.payload, response);
-    }
-    client.response_handler(0x20, response);
-    {
-        const auto reply = readback({});
-        EXPECT_EQ(reply.message_type, tc8::someip::MessageType::ERROR);
-        EXPECT_EQ(static_cast<std::uint8_t>(reply.return_code), 0x20);
-        EXPECT_EQ(reply.payload, response);
-    }
+    const auto reply = readback({});
+    EXPECT_EQ(reply.message_type, tc8::someip::MessageType::RESPONSE);
+    EXPECT_EQ(reply.return_code, tc8::someip::ReturnCode::E_OK);
+    EXPECT_EQ(reply.payload, response);
 }
 
 // The non-virtual offerControlRequest convenience forwards to offerControlRequestEx
 // as a plain Response (E_OK) carrying the handler's bytes — the common readback
-// shape on the control channel, mirroring the event-sink onRequest sugar.
+// shape on the control channel, mirroring the event-sink onRequest sugar. Ids are
+// arbitrary (not the demo's) — they are throwaway forwarding args.
 TEST(EtsControlChannelOfferControlRequest, SugarRepliesResponseEOk) {
     FakeEtsControlChannel control;
-    control.offerControlRequest(0x7F03, 0x0001, 0x1234, 0x01,
+    control.offerControlRequest(0x1111, 0x2222, 0x3333, 0x01,
                                 [](const std::vector<std::uint8_t>& request) {
                                     return std::vector<std::uint8_t>(request.rbegin(),
                                                                      request.rend());
                                 });
-    ASSERT_EQ(control.control_request_handlers.count(0x1234), 1u);
+    ASSERT_EQ(control.control_request_handlers.count(0x3333), 1u);
 
-    const auto reply = control.control_request_handlers[0x1234]({0x01, 0x02});
+    const auto reply = control.control_request_handlers[0x3333]({0x01, 0x02});
     EXPECT_EQ(reply.message_type, tc8::someip::MessageType::RESPONSE);
     EXPECT_EQ(reply.return_code, tc8::someip::ReturnCode::E_OK);
     EXPECT_EQ(reply.payload, (std::vector<std::uint8_t>{0x02, 0x01}));
+}
+
+// offerControlRequestEx (the reply-capable virtual itself) can answer with an Error
+// message / non-E_OK Return Code — the control-channel counterpart of the sink's
+// onRequestEx. Drives the Fake's Ex override directly with an Error-returning handler.
+TEST(EtsControlChannelOfferControlRequest, ExCanReplyError) {
+    FakeEtsControlChannel control;
+    control.offerControlRequestEx(0x1111, 0x2222, 0x3333, 0x01,
+                                  [](const std::vector<std::uint8_t>&) {
+                                      return tc8::dut::EtsReply{
+                                          tc8::someip::MessageType::ERROR,
+                                          tc8::someip::ReturnCode::E_NOT_OK, {}};
+                                  });
+    ASSERT_EQ(control.control_request_handlers.count(0x3333), 1u);
+
+    const auto reply = control.control_request_handlers[0x3333]({});
+    EXPECT_EQ(reply.message_type, tc8::someip::MessageType::ERROR);
+    EXPECT_EQ(reply.return_code, tc8::someip::ReturnCode::E_NOT_OK);
 }
 
 // payloadBytes() — the extracted inbound-marshaling step from

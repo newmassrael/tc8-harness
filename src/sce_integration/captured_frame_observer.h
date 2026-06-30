@@ -13,8 +13,11 @@ namespace tc8::sce {
 // not block. One physical pcap frame can fan out into several CapturedEvent
 // sub-events (e.g. a TCP packet yields both an Ipv4Frame and a TcpFrame), so a
 // matched observer is called once per sub-event and must filter for what it cares
-// about. CapturedEvent is an sce-layer type, so this seam lives here rather than
-// in tc8-core's pollable_service.h.
+// about. This seam lives in the sce layer (not tc8-core's pollable_service.h)
+// because it depends on ::tc8::CapturedEvent, whose header pulls the seven
+// protocol_frames/* types; pollable_service.h is deliberately dependency-free
+// (zero includes), and folding this in would drag that decode surface into a
+// core header that today depends on nothing.
 //
 // Residual caveat: this makes the reply-OBSERVED reaction shapes event-driven, but
 // a no-reply / malformed-reply case that must outlast a DUT-internal timeout which
