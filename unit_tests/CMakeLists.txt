@@ -184,6 +184,9 @@ tc8_add_unit_test(udp_emit_test)
 tc8_add_unit_test(someip_tp_emit_test)
 tc8_add_unit_test(udp_captured_test)
 tc8_add_unit_test(someip_captured_test)
+# Pins the C++ side of the DHCPv4 BOOTP fixed-header SSOT (dhcpv4_wire.def,
+# TD-02); the Python mirror is pinned by tools/gen_dhcpv4_wire.py --check.
+tc8_add_unit_test(dhcpv4_wire_test)
 # SOME/IP dispatcher datagram grouping: synthetic UDP datagrams carrying N
 # concatenated SOME/IP messages drive deliver(), asserting each emitted event
 # is stamped with its 0-based index and the datagram's message count; the TCP

@@ -86,37 +86,51 @@ Drift is now structural, not a review burden:
 
 ---
 
-## TD-02 — Same C++/Python wire-decode mirror exists for the other TC8 protocols
+## TD-02 — DHCPv4 BOOTP wire decode duplicated across C++ pipeline and Python site
 
-**Status:** OPEN (accepted). **Logged:** 2026-06-29.
+**Status:** RESOLVED (2026-06-30). **Logged:** 2026-06-29 (originally as "the
+other TC8 protocols"; scope corrected 2026-06-30 — see "Premise correction").
 
-**What.** TD-01 resolved the duplication for SOME/IP-SD only. The identical
-cross-language pattern remains for every other protocol on the TC8 surface:
-the C++ harness hand-decodes each header in `src/sce_integration/*_captured.h`
-(`arp_captured.h`, `ipv4_captured.h`, `icmpv4_captured.h`, `udp_captured.h`,
-`tcp_captured.h`, `dhcpv4_captured.h`) and the site dissector
-`site/scripts/decode_pcap.py` hand-decodes the same headers in its parallel
-`_dissect_arp/_ipv4/_icmpv4/_udp/_tcp/_dhcpv4` functions. The offsets/widths are
-mirrored by hand, same as SD was.
+**What (the original debt).** After TD-01 closed SOME/IP-SD, the DHCPv4 BOOTP
+fixed header was still hand-decoded in two places that had to agree byte-for-byte:
+`src/dissect/packet_pipeline.cpp` (C++, authoritative — drives §4.7 verdicts) and
+`site/scripts/decode_pcap.py` (`_dissect_dhcpv4`, the documentation-site mirror).
+The offsets (op/htype/hlen/hops/xid/secs/flags, the four IPv4 addresses, chaddr,
+the magic cookie, the options start) were mirrored by hand, same shape as SD was.
 
-**Risk if left.** Same shape as TD-01, but lower probability: these are stable,
-long-standardised headers (RFC 791/793/768/826/792, RFC 2131) that rarely
-change, whereas SD carries the vendor-extensible bit-sliced fields that actually
-drifted. A miss is still a silent site-preview divergence, not a verdict error
-(the C++ stays authoritative).
+**Premise correction (2026-06-30).** The original entry claimed every non-SD TC8
+protocol carried this C++/Python decode mirror. Direct inspection disproved that:
+the C++ harness decodes ARP / IPv4 / ICMPv4 / UDP / TCP entirely through libtins
+accessors (`ip->ttl()`, `tcp->seq()`, `arp->opcode()`, … in
+`packet_pipeline.cpp`) — there are NO hand-coded byte offsets on the C++ side for
+those five, so there is nothing to single-source; only the Python site dissector
+hand-decodes them, and a `.def` with one consumer is not an SSOT. The lone
+genuine C++/Python offset mirror was DHCPv4, because libtins does not dissect
+BOOTP/DHCP. (The original entry also misnamed the C++ site as `*_captured.h`;
+those headers only copy already-parsed `*Frame` fields — the decode is in the
+dispatcher.) So TD-02 reduces to DHCPv4; the "other protocols" scope is WITHDRAWN
+as mis-scoped, not deferred — there is no duplication there to fix.
 
-**Textbook fix (deferred — incremental).** Extend the SD mechanism now proven in
-TD-01: one `*_wire.def` per protocol (or a shared `tc8_wire.def`), `#include`d by
-the C++ `*_captured.h` and consumed by `tools/gen_*_wire.py` to generate the
-`decode_pcap` dissector bodies, each behind a `--check` freshness + golden-vector
-gate. The SD `.def` + `tools/gen_someip_sd_wire.py` + the X-macro support header
-`someip_sd_wire.h` are the template.
+**Resolution.** The BOOTP fixed-header layout now lives once in
+`src/sce_integration/dhcpv4_wire.def` (X-macro form). Both languages derive from
+it: C++ (authoritative) `#include`s it via `src/sce_integration/dhcpv4_wire.h`
+(`decodeBootpFixedHeader` / `magicCookieValid`, called from
+`packet_pipeline.cpp`), and `tools/gen_dhcpv4_wire.py` generates the Python site
+mirror `site/scripts/dhcpv4_wire_generated.py` imported by `decode_pcap.py`. The
+shared big-endian read primitive was lifted out of the SD support header into
+`src/sce_integration/wire_read.h` (`::tc8::wire::readBe`) so both `.def` consumers
+use one reader. Drift is now structural, same as TD-01:
 
-**Why deferred.** Proportionality: SD was the one that bit, and it is now closed.
-The remaining headers are low-drift, so converting them is worthwhile for
-uniformity but not urgent. Doing them one protocol at a time keeps each change
-reviewable. Pick up arp/ipv4/udp/tcp/icmpv4/dhcpv4 in that rough order of how
-often each header's decode is touched.
+- A wrong offset/width is impossible to apply to only one language.
+- `python3 tools/gen_dhcpv4_wire.py --check` (CI `build-test`, alongside the
+  `gen_someip_sd_wire`/`gen_wire_manifest` gates) fails on a stale mirror and runs
+  a golden-vector self-test that catches a wrong number in the `.def` itself.
+- `unit_tests/dhcpv4_wire_test.cpp` pins the C++ side bit-for-bit.
+
+**Out of scope by design.** The post-cookie options TLV chain (code/length/value
+walk: option 53 Message Type, Pad, END) has no fixed offsets, so it is decoded by
+hand on each side and intentionally stays outside this offset SSOT; only the
+options START offset is shared (`kOptionsOff`).
 
 ## TD-03 — `--expect` key strings hand-duplicated across producers and the consumer
 

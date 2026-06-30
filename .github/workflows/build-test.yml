@@ -219,6 +219,16 @@ jobs:
         # offset/width in the .def. Pure-Python. See docs/tech-debt.md TD-01.
         run: python3 tools/gen_someip_sd_wire.py --check
 
+      - name: DHCPv4 BOOTP wire-decode SSOT gate
+        # The BOOTP fixed-header layout (op..chaddr offsets + magic cookie)
+        # lives once in src/sce_integration/dhcpv4_wire.def. The C++
+        # authoritative decoder (dhcpv4_wire.h, used by packet_pipeline.cpp)
+        # #includes it directly, and this tool generates the Python site mirror
+        # (site/scripts/dhcpv4_wire_generated.py). --check fails on a stale
+        # mirror AND runs a golden-vector self-test that catches a wrong
+        # offset/width in the .def. Pure-Python. See docs/tech-debt.md TD-02.
+        run: python3 tools/gen_dhcpv4_wire.py --check
+
       - name: timing_serial cadence-lane drift gate
         # Every sub-second cadence case (*_within_us predicate) must be classified
         # for the smoke serial lane (timing_serial:true in inventory_overrides, or

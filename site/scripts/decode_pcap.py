@@ -29,6 +29,10 @@ from pathlib import Path
 # This script runs with its own directory on sys.path[0], so the sibling
 # import resolves without path juggling. See docs/tech-debt.md TD-01.
 import someip_sd_wire_generated as sd_wire
+# DHCPv4 BOOTP fixed-header decode generated from the C++ authoritative
+# decoder's SSOT (src/sce_integration/dhcpv4_wire.def) by
+# tools/gen_dhcpv4_wire.py. See docs/tech-debt.md TD-02.
+import dhcpv4_wire_generated as dhcp_wire
 from typing import Optional
 
 
@@ -388,28 +392,22 @@ def _dissect_ut(payload: bytes, p: Packet, src_port: int, dst_port: int) -> None
 def _dissect_dhcpv4(payload: bytes, p: Packet, src_port: int, dst_port: int) -> None:
     """Parse BOOTP + DHCP option 53 (Message Type) from a UDP 67/68 payload."""
     p.protocol = "DHCPv4"
-    # BOOTP fixed part is 236 B + magic cookie (4 B) before options.
-    if len(payload) < 240:
+    # BOOTP fixed part is 236 B + magic cookie (4 B) before options. The
+    # fixed-header offsets (op..chaddr) and the magic-cookie / options offsets
+    # are owned by the dhcpv4_wire.def SSOT via dhcp_wire.* (TD-02); only the
+    # options TLV walk below — which has no fixed offsets — is hand-decoded.
+    if len(payload) < dhcp_wire.kOptionsOff:
         p.summary = f"DHCPv4 (truncated, {len(payload)} B)"
         return
-    op = payload[0]
-    htype = payload[1]
-    hlen = payload[2]
-    hops = payload[3]
-    xid = struct.unpack(">I", payload[4:8])[0]
-    secs = struct.unpack(">H", payload[8:10])[0]
-    bootp_flags = struct.unpack(">H", payload[10:12])[0]
-    ciaddr = _ip(payload[12:16])
-    yiaddr = _ip(payload[16:20])
-    siaddr = _ip(payload[20:24])
-    giaddr = _ip(payload[24:28])
-    chaddr = _mac(payload[28:34])
-    cookie = payload[236:240]
+    f = dhcp_wire.decode_bootp_fixed_header(payload)
+    op = f["op"]
+    xid = f["xid"]
+    chaddr = _mac(f["chaddr"][:6])
     msg_type = None
     end_option_seen = False
     options_seen: list[int] = []
-    if cookie == b"\x63\x82\x53\x63":
-        i = 240
+    if dhcp_wire.magic_cookie_valid(payload):
+        i = dhcp_wire.kOptionsOff
         while i < len(payload):
             opt = payload[i]
             if opt == 255:  # End
@@ -429,10 +427,10 @@ def _dissect_dhcpv4(payload: bytes, p: Packet, src_port: int, dst_port: int) -> 
     name = _DHCPV4_MSG_TYPES.get(msg_type) if msg_type is not None else None
     p.fields = {
         "src_port": src_port, "dst_port": dst_port,
-        "op": op, "htype": htype, "hlen": hlen, "hops": hops,
-        "xid": xid, "secs": secs, "bootp_flags": bootp_flags,
-        "ciaddr": ciaddr, "yiaddr": yiaddr, "siaddr": siaddr, "giaddr": giaddr,
-        "chaddr": chaddr,
+        "op": op, "htype": f["htype"], "hlen": f["hlen"], "hops": f["hops"],
+        "xid": xid, "secs": f["secs"], "bootp_flags": f["flags"],
+        "ciaddr": f["ciaddr"], "yiaddr": f["yiaddr"], "siaddr": f["siaddr"],
+        "giaddr": f["giaddr"], "chaddr": chaddr,
         "dhcp_msg_type": msg_type,
         # §4.7 DHCPv4 conformance reads these for the SCXML guards:
         #   * CONSTRUCTING_MESSAGES_01 — `ends_with_end_option()`

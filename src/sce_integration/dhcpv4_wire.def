@@ -1,0 +1,99 @@
+// Single source of truth (SSOT) for the DHCPv4 BOOTP fixed-header wire
+// layout (RFC 951 / RFC 2131 Section 2). X-macro form, consumed two ways so
+// the byte offsets are written exactly once:
+//
+//   * C++ (authoritative): #included by src/sce_integration/dhcpv4_wire.h,
+//     which #defines the TC8_DHCP_* macros so each row expands into a read
+//     against the shared ::tc8::wire::readBe primitive (or a memcpy/copy for
+//     address/byte fields). src/dissect/packet_pipeline.cpp calls the
+//     resulting decodeBootpFixedHeader(); it cannot drift from this file
+//     because it literally expands it.
+//   * Python (site mirror): parsed by tools/gen_dhcpv4_wire.py, which
+//     GENERATES site/scripts/dhcpv4_wire_generated.py. CI runs
+//     `python3 tools/gen_dhcpv4_wire.py --check` as a freshness gate so the
+//     committed mirror can never lag this file.
+//
+// See docs/tech-debt.md TD-02 for why this SSOT exists. Libtins decodes the
+// L2/L3/L4 envelope, but it does not dissect BOOTP/DHCP, so the BOOTP body
+// is the one TC8 header the C++ harness still hand-decodes — hence the only
+// remaining C++/Python offset mirror after TD-01 closed SOME/IP-SD.
+//
+// SCOPE: the FIXED BOOTP header only (op..chaddr) plus the magic-cookie and
+// options offsets as named constants. The post-cookie options TLV chain has
+// no fixed offsets (it is a code/length/value walk), so it is decoded by
+// hand on each side and stays outside this offset SSOT by design.
+//
+// Each value-bearing line MUST be a TC8_DHCP_* macro invocation so the C
+// preprocessor can expand or ignore it; all prose lives in // comments.
+//
+// Macro signatures:
+//   TC8_DHCP_FIELD(member, off, size)
+//       Big-endian unsigned scalar, `size` in 1..4 bytes, byte-aligned
+//       (DHCP has no sub-byte fields). `off` from the BOOTP body start.
+//   TC8_DHCP_ADDR(member, off)
+//       4-byte IPv4 address. C++ keeps it network byte order in a uint32
+//       (memcpy); the Python mirror renders dotted-decimal.
+//   TC8_DHCP_BYTES(member, off, len)
+//       Raw byte field. C++ copies `len` bytes into the std::array member;
+//       the Python mirror returns the raw bytes (the caller formats the
+//       Ethernet MAC view from chaddr's first 6 bytes).
+//   TC8_DHCP_CONST(name, value)
+//       Named constant available to both languages (magic-cookie offset and
+//       value, options start).
+//
+// Self-defaulting: a consumer #defines only the macros it wants; the rest
+// default to empty here and are #undef-ed at the bottom. (X-macro files
+// carry no include guard on purpose.)
+
+#ifndef TC8_DHCP_FIELD
+#define TC8_DHCP_FIELD(member, off, size)
+#define TC8_DHCP_DEFAULTED_FIELD
+#endif
+#ifndef TC8_DHCP_ADDR
+#define TC8_DHCP_ADDR(member, off)
+#define TC8_DHCP_DEFAULTED_ADDR
+#endif
+#ifndef TC8_DHCP_BYTES
+#define TC8_DHCP_BYTES(member, off, len)
+#define TC8_DHCP_DEFAULTED_BYTES
+#endif
+#ifndef TC8_DHCP_CONST
+#define TC8_DHCP_CONST(name, value)
+#define TC8_DHCP_DEFAULTED_CONST
+#endif
+
+// --- BOOTP fixed header (RFC 951 / RFC 2131 Section 2) -----------------------
+TC8_DHCP_FIELD(op,    0, 1)   // 1 = BOOTREQUEST, 2 = BOOTREPLY
+TC8_DHCP_FIELD(htype, 1, 1)   // 1 = Ethernet
+TC8_DHCP_FIELD(hlen,  2, 1)   // 6 for Ethernet
+TC8_DHCP_FIELD(hops,  3, 1)
+TC8_DHCP_FIELD(xid,   4, 4)
+TC8_DHCP_FIELD(secs,  8, 2)
+TC8_DHCP_FIELD(flags, 10, 2)  // bit 0 = BROADCAST, bits 1..15 reserved (MUST be 0)
+TC8_DHCP_ADDR(ciaddr, 12)
+TC8_DHCP_ADDR(yiaddr, 16)
+TC8_DHCP_ADDR(siaddr, 20)
+TC8_DHCP_ADDR(giaddr, 24)
+TC8_DHCP_BYTES(chaddr, 28, 16)
+
+// --- Magic cookie + options offset (RFC 1497 / RFC 2131 Section 3) -----------
+TC8_DHCP_CONST(kMagicCookieOff, 236)
+TC8_DHCP_CONST(kMagicCookie,    0x63825363)
+TC8_DHCP_CONST(kOptionsOff,     240)
+
+#ifdef TC8_DHCP_DEFAULTED_FIELD
+#undef TC8_DHCP_DEFAULTED_FIELD
+#undef TC8_DHCP_FIELD
+#endif
+#ifdef TC8_DHCP_DEFAULTED_ADDR
+#undef TC8_DHCP_DEFAULTED_ADDR
+#undef TC8_DHCP_ADDR
+#endif
+#ifdef TC8_DHCP_DEFAULTED_BYTES
+#undef TC8_DHCP_DEFAULTED_BYTES
+#undef TC8_DHCP_BYTES
+#endif
+#ifdef TC8_DHCP_DEFAULTED_CONST
+#undef TC8_DHCP_DEFAULTED_CONST
+#undef TC8_DHCP_CONST
+#endif

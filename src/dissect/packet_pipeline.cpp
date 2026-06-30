@@ -19,6 +19,8 @@
 #include "tc8/protocol_frames/tcp_frame.h"
 #include "tc8/protocol_frames/udp_frame.h"
 
+#include "sce_integration/dhcpv4_wire.h"
+
 namespace tc8::dissect {
 
 using namespace Tins;
@@ -293,7 +295,8 @@ void PacketPipeline::processFrame(const pcap_pkthdr &hdr, const std::uint8_t *by
             const bool dhcp_port =
                 (uf.src_port == 67 || uf.src_port == 68 ||
                  uf.dst_port == 67 || uf.dst_port == 68);
-            if (dhcp_port && body_data != nullptr && body_size >= 240U) {
+            if (dhcp_port && body_data != nullptr &&
+                body_size >= ::tc8::dhcpv4_wire::kOptionsOff) {
                 const std::uint8_t* bp = body_data;
                 ::tc8::Dhcpv4Frame df{};
                 df.eth_src = uf.eth_src;
@@ -305,27 +308,16 @@ void PacketPipeline::processFrame(const pcap_pkthdr &hdr, const std::uint8_t *by
                 df.vlan = uf.vlan;  // L2 tag inherited from the carrying frame
                 df.src_port = uf.src_port;
                 df.dst_port = uf.dst_port;
-                df.op    = bp[0];
-                df.htype = bp[1];
-                df.hlen  = bp[2];
-                df.hops  = bp[3];
-                df.xid   = (static_cast<std::uint32_t>(bp[4]) << 24) |
-                           (static_cast<std::uint32_t>(bp[5]) << 16) |
-                           (static_cast<std::uint32_t>(bp[6]) <<  8) |
-                            static_cast<std::uint32_t>(bp[7]);
-                df.secs  = static_cast<std::uint16_t>((bp[8] << 8) | bp[9]);
-                df.flags = static_cast<std::uint16_t>((bp[10] << 8) | bp[11]);
-                std::memcpy(&df.ciaddr, bp + 12, 4);
-                std::memcpy(&df.yiaddr, bp + 16, 4);
-                std::memcpy(&df.siaddr, bp + 20, 4);
-                std::memcpy(&df.giaddr, bp + 24, 4);
-                std::copy(bp + 28, bp + 28 + 16, df.chaddr.begin());
-                df.magic_cookie_valid =
-                    bp[236] == 0x63 && bp[237] == 0x82 &&
-                    bp[238] == 0x53 && bp[239] == 0x63;
-                if (df.magic_cookie_valid && body_size > 240U) {
-                    df.options_data = bp + 240;
-                    df.options_len  = static_cast<std::uint32_t>(body_size - 240);
+                // BOOTP fixed-header offsets (op..chaddr) + the magic cookie
+                // are owned by dhcpv4_wire.def (TD-02 SSOT); the options TLV
+                // walk below has no fixed offsets and stays hand-decoded.
+                ::tc8::dhcpv4_wire::decodeBootpFixedHeader(bp, df);
+                df.magic_cookie_valid = ::tc8::dhcpv4_wire::magicCookieValid(bp);
+                if (df.magic_cookie_valid &&
+                    body_size > ::tc8::dhcpv4_wire::kOptionsOff) {
+                    df.options_data = bp + ::tc8::dhcpv4_wire::kOptionsOff;
+                    df.options_len  = static_cast<std::uint32_t>(
+                        body_size - ::tc8::dhcpv4_wire::kOptionsOff);
                     // Walk the TLV chain to locate option 53 (Message
                     // Type) and detect the 0xFF END terminator. RFC 2132
                     // RFC 2132 §9.6 fixes len=1 for option 53. Pad option (0)
