@@ -81,9 +81,18 @@ public:
 
     // Send a SOME/IP Request from the DUT (client role) to `method` on the
     // tester's `service`/`instance`/`major`, with `payload`, over UDP
-    // (reliable=false) or TCP (reliable=true). request_service is implied. The
-    // Response/Error arrives asynchronously and is delivered to a handler
-    // registered with onResponse() for the same `service`/`instance`/`method`.
+    // (reliable=false) or TCP (reliable=true). request_service is implied.
+    //
+    // Timing-robust: if the service is not yet available (its SD OfferService has
+    // not arrived), the Request is HELD and sent automatically once the service
+    // becomes available, so a single callMethod() at trigger time reaches the wire
+    // regardless of where discovery stands — the caller sequences no warm-up and
+    // no separate priming step. This mirrors subscribeEventgroup, which vsomeip
+    // re-applies on availability; a one-shot send would otherwise be DROPPED (not
+    // queued) against a not-yet-discovered service. Held Requests are flushed in
+    // call order. The Response/Error arrives asynchronously and is delivered to a
+    // handler registered with onResponse() for the same
+    // `service`/`instance`/`method`.
     virtual void callMethod(std::uint16_t service, std::uint16_t instance,
                             std::uint16_t method,
                             const std::vector<std::uint8_t>& payload, bool reliable,

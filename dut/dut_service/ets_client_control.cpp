@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <cstdio>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <set>
@@ -48,6 +49,7 @@ public:
                                                          e.eventgroup, vsomeip::ANY_EVENT);
         }
         for (const auto& svc : requested_services_) {
+            app_->unregister_availability_handler(svc.first, svc.second);
             app_->release_service(svc.first, svc.second);
         }
     }
@@ -140,7 +142,20 @@ public:
         request->set_method(method);
         request->set_interface_version(major);
         request->set_payload(vsomeip::runtime::get()->create_payload(payload));
-        app_->send(request);
+        // vsomeip DROPS (does not queue) a send to a not-yet-available service, and
+        // request_service only STARTS the SD FindService — the OfferService is a
+        // round trip away. So send now only if the service is already available;
+        // otherwise hold the Request and let the availability handler (registered in
+        // requestServiceLocked) flush it on ON_AVAILABLE. The is_available() test and
+        // the park run under mutex_, and flushPending() takes the same mutex_, so an
+        // availability edge racing this call cannot strand the Request: the flush
+        // either runs before the park (is_available() then reads true here) or
+        // serialises after it (and drains what we parked).
+        if (app_->is_available(service, instance)) {
+            app_->send(request);
+        } else {
+            pending_[{service, instance}].push_back(std::move(request));
+        }
     }
 
     void onResponse(std::uint16_t service, std::uint16_t instance, std::uint16_t method,
@@ -183,12 +198,34 @@ private:
     };
 
     // request_service once per unique (service, instance); the matching
-    // release_service runs in the dtor. Caller holds mutex_.
+    // release_service runs in the dtor. Registers the availability handler that
+    // flushes callMethod()'s parked Requests BEFORE request_service, so the first
+    // OfferService cannot outrun it. The handler runs on a vsomeip routing thread
+    // and is unregistered in the dtor, so the captured `this` cannot dangle.
+    // Caller holds mutex_.
     void requestServiceLocked(std::uint16_t service, std::uint16_t instance,
                               std::uint8_t major) {
         if (requested_services_.insert({service, instance}).second) {
+            app_->register_availability_handler(
+                service, instance,
+                [this](vsomeip::service_t s, vsomeip::instance_t i, bool available) {
+                    if (available) flushPending(s, i);
+                });
             app_->request_service(service, instance, major, vsomeip::ANY_MINOR);
         }
+    }
+
+    // Send every Request callMethod() parked for (service, instance) now that the
+    // service is available, in call order, then drop the queue. Runs on a vsomeip
+    // routing thread; takes mutex_ to serialise with callMethod()'s park.
+    void flushPending(std::uint16_t service, std::uint16_t instance) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        const auto it = pending_.find({service, instance});
+        if (it == pending_.end()) return;
+        for (const auto& request : it->second) {
+            app_->send(request);
+        }
+        pending_.erase(it);
     }
 
     // unsubscribe (emits StopSubscribe) then release the events this subscription
@@ -206,6 +243,11 @@ private:
     std::vector<ResponseMethod> response_methods_;
     std::vector<StatusEventgroup> status_eventgroups_;
     std::set<std::pair<std::uint16_t, std::uint16_t>> requested_services_;
+    // Requests callMethod() received while the service was not yet available,
+    // keyed by (service, instance), flushed in call order on ON_AVAILABLE.
+    std::map<std::pair<std::uint16_t, std::uint16_t>,
+             std::vector<std::shared_ptr<vsomeip::message>>>
+        pending_;
 };
 
 // Null Object used when the vsomeip application cannot be found. Its no-ops keep
