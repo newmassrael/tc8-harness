@@ -174,6 +174,18 @@ function(tc8_lwip_app name)
         # "wire/...": the source root is the include root.
         "${CMAKE_CURRENT_SOURCE_DIR}/../../src"
     )
+    # DELIBERATE strict-gate exclusion (not an omission). The harness's
+    # tc8_enable_strict_warnings set (-Wold-style-cast / -Wconversion / -Werror,
+    # applied to EVERY first-party target in the main build) is NOT applied to
+    # these first-party lwIP adapters, because: (1) this is a SEPARATE CMake
+    # project (project(tc8-lwip-dut) above) that does not see that function; (2) the
+    # adapters interleave with lwIP's C API, whose headers (LWIP_INCLUDE_DIRS, on a
+    # normal -I path here, not -isystem) are full of C-style-cast macros that would
+    # drown -Wold-style-cast in third-party noise — the same blocker tc8-dut had,
+    # resolved there by an -isystem demotion. The shared protocol logic
+    # (ut_server.cpp, tc8::wire) IS strict-gated via the main build. Full coverage =
+    # demote LWIP_INCLUDE_DIRS to -isystem + port tc8_enable_strict_warnings into
+    # this project + fix the first-party cascade (a separate cross-build migration).
     target_compile_options(${name} PRIVATE
         ${_tc8_lwip_flags}
         $<$<COMPILE_LANGUAGE:C>:-Waggregate-return>
