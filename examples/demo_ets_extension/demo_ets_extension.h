@@ -35,18 +35,20 @@ inline constexpr std::uint16_t kDemoEventgroupB    = 0x00F5;
 inline constexpr std::uint16_t kDemoTriggerMethod  = 0x07F0;
 
 // CLIENT-role demo: a synthetic tester-offered service the demo DUT subscribes to
-// (kDemoSubscribeMethod) and RPC-calls (kDemoCallMethod), and the local control
-// methods that drive/read it back (kDemoReadbackMethod replies with the last
-// captured Response payload via the reply-capable onRequest).
-inline constexpr std::uint16_t kDemoTargetService    = 0x7F02;
-inline constexpr std::uint16_t kDemoTargetInstance   = 0x0001;
-inline constexpr std::uint16_t kDemoTargetEventgroup = 0x00F7;
-inline constexpr std::uint16_t kDemoTargetEvent      = 0x7F80;
-inline constexpr std::uint16_t kDemoTargetMethod     = 0x7F81;
-inline constexpr std::uint16_t kDemoSubscribeMethod  = 0x07F1;
-inline constexpr std::uint16_t kDemoCallMethod       = 0x07F2;
-inline constexpr std::uint16_t kDemoReadbackMethod   = 0x07F3;
-inline constexpr std::uint8_t  kDemoTargetMajor      = 0x01;
+// (kDemoSubscribeMethod), RPC-calls as a REQUEST (kDemoCallMethod), and RPC-calls
+// as a Fire & Forget / REQUEST_NO_RETURN (kDemoFireForgetMethod); plus the local
+// control methods that drive/read it back (kDemoReadbackMethod replies with the
+// last captured Response payload via the reply-capable onRequest).
+inline constexpr std::uint16_t kDemoTargetService     = 0x7F02;
+inline constexpr std::uint16_t kDemoTargetInstance    = 0x0001;
+inline constexpr std::uint16_t kDemoTargetEventgroup  = 0x00F7;
+inline constexpr std::uint16_t kDemoTargetEvent       = 0x7F80;
+inline constexpr std::uint16_t kDemoTargetMethod      = 0x7F81;
+inline constexpr std::uint16_t kDemoSubscribeMethod   = 0x07F1;
+inline constexpr std::uint16_t kDemoCallMethod        = 0x07F2;
+inline constexpr std::uint16_t kDemoReadbackMethod    = 0x07F3;
+inline constexpr std::uint16_t kDemoFireForgetMethod  = 0x07F5;
+inline constexpr std::uint8_t  kDemoTargetMajor       = 0x01;
 
 // CLIENT-role DURATION demo: once the subscription is ESTABLISHED (the target
 // returns a SubscribeEventgroupAck), the demo holds it for this many DUT
@@ -146,6 +148,15 @@ public:
                           client->callMethod(kDemoTargetService, kDemoTargetInstance,
                                              kDemoTargetMethod, payload,
                                              /*reliable=*/false, kDemoTargetMajor);
+                      });
+        // Fire & Forget variant: a REQUEST_NO_RETURN to the same target, for the
+        // client F&F shape — the tester asserts message_type 0x01 and expects no
+        // Response, so this is deliberately NOT paired with an onResponse.
+        sink.onMethod(kDemoFireForgetMethod,
+                      [client](const std::vector<std::uint8_t>& payload) {
+                          client->callMethodNoReturn(kDemoTargetService, kDemoTargetInstance,
+                                                     kDemoTargetMethod, payload,
+                                                     /*reliable=*/false, kDemoTargetMajor);
                       });
         sink.onRequest(kDemoReadbackMethod,
                        [last](const std::vector<std::uint8_t>&) {

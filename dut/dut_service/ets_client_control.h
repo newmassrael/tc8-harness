@@ -98,6 +98,17 @@ public:
                             const std::vector<std::uint8_t>& payload, bool reliable,
                             std::uint8_t major) = 0;
 
+    // Fire & Forget variant of callMethod: issues the Request as a REQUEST_NO_RETURN
+    // (message_type 0x01) instead of a REQUEST (0x00), so the tester sends no Response
+    // and the DUT registers no onResponse for it. Same arguments and the SAME
+    // timing-robust hold-until-available behavior as callMethod — the message type is
+    // fixed before the Request is held, so a queued F&F flushes with the right type.
+    // Use when the verdict asserts the client emitted a no-return Request.
+    virtual void callMethodNoReturn(std::uint16_t service, std::uint16_t instance,
+                                    std::uint16_t method,
+                                    const std::vector<std::uint8_t>& payload,
+                                    bool reliable, std::uint8_t major) = 0;
+
     // Register `handler` for Responses AND Errors to `method` on
     // `service`/`instance` — the reaction surface a client-role verdict observes
     // (return code + payload, "last received" semantics). The handler runs on a

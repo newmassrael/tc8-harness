@@ -122,6 +122,11 @@ public:
                     std::uint8_t major) override {
         calls.push_back({service, instance, method, payload, reliable, major});
     }
+    void callMethodNoReturn(std::uint16_t service, std::uint16_t instance,
+                            std::uint16_t method, const std::vector<std::uint8_t>& payload,
+                            bool reliable, std::uint8_t major) override {
+        no_return_calls.push_back({service, instance, method, payload, reliable, major});
+    }
     void onResponse(std::uint16_t service, std::uint16_t instance, std::uint16_t method,
                     std::function<void(std::uint8_t, const std::vector<std::uint8_t>&)>
                         handler) override {
@@ -143,6 +148,7 @@ public:
     std::vector<Subscribe> subscribes;
     std::vector<Stop> stops;
     std::vector<Call> calls;
+    std::vector<Call> no_return_calls;
     // The single onResponse registration the demo makes; a test fires it to
     // simulate the tester's Response arriving on a vsomeip thread.
     std::uint16_t response_service = 0;
@@ -380,6 +386,34 @@ TEST(DemoEtsExtension, CallMethodDrivesClientControl) {
 
     ASSERT_EQ(client.calls.size(), 1u);
     const auto& c = client.calls[0];
+    EXPECT_EQ(c.service, tc8::dut::kDemoTargetService);
+    EXPECT_EQ(c.instance, tc8::dut::kDemoTargetInstance);
+    EXPECT_EQ(c.method, tc8::dut::kDemoTargetMethod);
+    EXPECT_EQ(c.payload, request);
+    EXPECT_FALSE(c.reliable);
+    EXPECT_EQ(c.major, tc8::dut::kDemoTargetMajor);
+}
+
+TEST(DemoEtsExtension, FireForgetMethodDrivesClientControl) {
+    FakeEtsEventSink sink;
+    FakeEtsClientControl client;
+    FakeEtsControlChannel control;
+    FakeEtsIoHost io;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control, io};
+    tc8::dut::DemoEtsExtension ext;
+    ext.onRegister(ctx);
+
+    ASSERT_EQ(sink.handlers.count(tc8::dut::kDemoFireForgetMethod), 1u);
+    EXPECT_TRUE(client.no_return_calls.empty());
+
+    const std::vector<std::uint8_t> request{0x33, 0x44};
+    sink.handlers[tc8::dut::kDemoFireForgetMethod](request);
+
+    // The Fire & Forget trigger drives callMethodNoReturn — recorded on the F&F
+    // list, NOT the REQUEST list, so the two RPC kinds stay distinct.
+    ASSERT_EQ(client.no_return_calls.size(), 1u);
+    EXPECT_TRUE(client.calls.empty());
+    const auto& c = client.no_return_calls[0];
     EXPECT_EQ(c.service, tc8::dut::kDemoTargetService);
     EXPECT_EQ(c.instance, tc8::dut::kDemoTargetInstance);
     EXPECT_EQ(c.method, tc8::dut::kDemoTargetMethod);

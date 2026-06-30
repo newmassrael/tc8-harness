@@ -149,35 +149,15 @@ public:
     void callMethod(std::uint16_t service, std::uint16_t instance, std::uint16_t method,
                     const std::vector<std::uint8_t>& payload, bool reliable,
                     std::uint8_t major) override {
-        if (!app_) return;
-        std::lock_guard<std::mutex> lock(mutex_);
-        requestServiceLocked(service, instance, major);
-        auto request = vsomeip::runtime::get()->create_request(reliable);
-        request->set_service(service);
-        request->set_instance(instance);
-        request->set_method(method);
-        request->set_interface_version(major);
-        request->set_payload(vsomeip::runtime::get()->create_payload(payload));
-        // vsomeip DROPS (does not queue) a send to a not-yet-available service, and
-        // request_service only STARTS the SD FindService — the OfferService is a
-        // round trip away. pending_.submit() queries availability (the injected
-        // app_->is_available) and either sends inline or PARKS the Request for the
-        // availability handler (registered in requestServiceLocked) to flush on
-        // ON_AVAILABLE.
-        //
-        // DEADLOCK-SAFE because vsomeip dispatches availability handlers
-        // ASYNCHRONOUSLY (enqueued to its routing/dispatch thread, never invoked
-        // inline) — so flushPending() never re-enters mutex_ on the thread already
-        // holding it here; it just blocks until this call releases. NO STRAND:
-        // submit's availability query AND its park both run under mutex_ (held
-        // here), and flushPending() takes the same mutex_, so an availability edge
-        // racing this call either dispatches its flush before the submit (which then
-        // reads available and sends inline) or serialises after it (and drains what
-        // we parked). ★Held Requests flush in call order, but a LATER callMethod
-        // that finds the service available sends inline before a still-parked
-        // earlier one flushes — global FIFO across parked+immediate is NOT
-        // guaranteed (the documented use is one-shot-per-trigger, so this is benign).
-        pending_.submit(service, instance, std::move(request));
+        callMethodImpl(service, instance, method, payload, reliable, major,
+                       vsomeip::message_type_e::MT_REQUEST);
+    }
+
+    void callMethodNoReturn(std::uint16_t service, std::uint16_t instance,
+                            std::uint16_t method, const std::vector<std::uint8_t>& payload,
+                            bool reliable, std::uint8_t major) override {
+        callMethodImpl(service, instance, method, payload, reliable, major,
+                       vsomeip::message_type_e::MT_REQUEST_NO_RETURN);
     }
 
     void onResponse(std::uint16_t service, std::uint16_t instance, std::uint16_t method,
@@ -227,6 +207,48 @@ private:
         std::mutex m;
         bool alive = true;
     };
+
+    // Shared body for callMethod (MT_REQUEST) and callMethodNoReturn
+    // (MT_REQUEST_NO_RETURN): build the Request, FIX its message type, and submit it
+    // through the availability gate. The type is set before submit, so a Request
+    // parked for a not-yet-available service flushes later with the right type.
+    void callMethodImpl(std::uint16_t service, std::uint16_t instance, std::uint16_t method,
+                        const std::vector<std::uint8_t>& payload, bool reliable,
+                        std::uint8_t major, vsomeip::message_type_e message_type) {
+        if (!app_) return;
+        std::lock_guard<std::mutex> lock(mutex_);
+        requestServiceLocked(service, instance, major);
+        auto request = vsomeip::runtime::get()->create_request(reliable);
+        // create_request defaults to MT_REQUEST; set the type explicitly so F&F
+        // (MT_REQUEST_NO_RETURN) is a one-value difference and the REQUEST path stays
+        // byte-identical on the wire.
+        request->set_message_type(message_type);
+        request->set_service(service);
+        request->set_instance(instance);
+        request->set_method(method);
+        request->set_interface_version(major);
+        request->set_payload(vsomeip::runtime::get()->create_payload(payload));
+        // vsomeip DROPS (does not queue) a send to a not-yet-available service, and
+        // request_service only STARTS the SD FindService — the OfferService is a
+        // round trip away. pending_.submit() queries availability (the injected
+        // app_->is_available) and either sends inline or PARKS the Request for the
+        // availability handler (registered in requestServiceLocked) to flush on
+        // ON_AVAILABLE.
+        //
+        // DEADLOCK-SAFE because vsomeip dispatches availability handlers
+        // ASYNCHRONOUSLY (enqueued to its routing/dispatch thread, never invoked
+        // inline) — so flushPending() never re-enters mutex_ on the thread already
+        // holding it here; it just blocks until this call releases. NO STRAND:
+        // submit's availability query AND its park both run under mutex_ (held
+        // here), and flushPending() takes the same mutex_, so an availability edge
+        // racing this call either dispatches its flush before the submit (which then
+        // reads available and sends inline) or serialises after it (and drains what
+        // we parked). ★Held Requests flush in call order, but a LATER call that finds
+        // the service available sends inline before a still-parked earlier one
+        // flushes — global FIFO across parked+immediate is NOT guaranteed (the
+        // documented use is one-shot-per-trigger, so this is benign).
+        pending_.submit(service, instance, std::move(request));
+    }
 
     // request_service once per unique (service, instance); the matching
     // release_service runs in the dtor. Registers the availability handler that
@@ -306,6 +328,8 @@ public:
                               std::function<void(bool)>) override {}
     void callMethod(std::uint16_t, std::uint16_t, std::uint16_t,
                     const std::vector<std::uint8_t>&, bool, std::uint8_t) override {}
+    void callMethodNoReturn(std::uint16_t, std::uint16_t, std::uint16_t,
+                            const std::vector<std::uint8_t>&, bool, std::uint8_t) override {}
     void onResponse(std::uint16_t, std::uint16_t, std::uint16_t,
                     std::function<void(std::uint8_t,
                                        const std::vector<std::uint8_t>&)>) override {}
