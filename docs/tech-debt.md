@@ -111,15 +111,16 @@ deferred.
 
 This premise is narrower than an earlier draft of it, which over-corrected to
 "there are NO hand-coded byte offsets on the C++ side for those five." That is
-false: the CHECKSUM validators hand-code byte positions — `ipv4_captured.h`
-`header_checksum_valid()` reconstructs the 20-byte IPv4 header from parsed fields
-and 1's-complement-sums it, and `packet_pipeline.cpp` builds the TCP
-pseudo-header from IP bytes at offsets 12..19. The IPv4 header checksum is
-moreover independently implemented in `decode_pcap.py` (`ip_header_checksum_ok`)
-— a real second cross-language duplication. It is an ALGORITHM over RFC-frozen
-positions, not a field-layout table (the two sides even differ in approach:
-C++ reconstructs-from-fields, Python sums raw bytes), so it does not fold into
-the offset-`.def` mechanism; it is tracked separately as TD-04.
+false: the CHECKSUM validators still hand-code byte POSITIONS — `ipv4_captured.h`
+`header_checksum_valid()` reconstructs the 20-byte IPv4 header from parsed fields,
+and `packet_pipeline.cpp` extracts the TCP pseudo-header from IP bytes at offsets
+12..19 — though the RFC 1071 FOLD itself now routes through the `tc8::wire` SSOT
+(`inetChecksumValid`/`tcpChecksumValid`), not a hand-rolled sum. The IPv4 header
+checksum is moreover independently implemented in `decode_pcap.py`
+(`ip_header_checksum_ok`) — a real second cross-language duplication. It is an
+ALGORITHM over RFC-frozen positions, not a field-layout table (the two sides even
+differ in approach: C++ reconstructs-from-fields, Python sums raw bytes), so it
+does not fold into the offset-`.def` mechanism; it is tracked separately as TD-04.
 
 **Resolution.** The BOOTP fixed-header layout now lives once in
 `src/sce_integration/dhcpv4_wire.def` (X-macro form). Both languages derive from

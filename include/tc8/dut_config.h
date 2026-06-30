@@ -16,11 +16,17 @@
 //     kApplicationName)
 //
 // Divergence will silently break every case that depends on the DUT being
-// reachable under the advertised identity. These three artifacts are distinct
-// formats with no single generatable source, so they stay hand-authored — but the
-// drift is build-enforced: tools/check_dut_identity.py cross-checks all three and
-// the CI `DUT identity cross-check gate` fails on any mismatch (run it locally with
-// `python3 tools/check_dut_identity.py`).
+// reachable under the advertised identity. No single artifact is a SUPERSET to
+// generate the rest from (vsomeip.json alone carries the SD multicast; ets.fdepl
+// alone the method/event ids; this header alone the tester-side capture window),
+// and partial codegen of a commented header is a poor trade — so they stay
+// hand-authored and the drift is build-enforced instead:
+// tools/check_dut_identity.py cross-checks the PRIMARY identity here against all
+// four dut/dut_service/vsomeip*.json + dut/ets/ets.fdepl, AND the SECONDARY
+// identity (SERVICE-ID-1 instance 0x0002 / SERVICE-ID-2) in
+// src/sce_integration/someip_method_dest.h against the variant deployments. The CI
+// `DUT identity cross-check gate` and the CMake configure step both fail on any
+// mismatch (run it locally with `python3 tools/check_dut_identity.py`).
 
 namespace tc8::dut {
 

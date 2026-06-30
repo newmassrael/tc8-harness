@@ -18,6 +18,28 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # a hand-copied second list or a second option default that could drift.
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/tc8_strict_warnings.cmake)
 
+# DUT-identity cross-check at CONFIGURE time. The DUT service/instance/ports/IP/
+# SD-multicast/app-name are hand-encoded across dut_config.h, someip_method_dest.h,
+# four vsomeip*.json and two .fdepl; a drift silently breaks reachability for every
+# SOME/IP case (same "silent breakage" severity that makes the sce-codegen probe a
+# FATAL). The CI gate enforces it on push; this catches it locally before a build,
+# the FATAL counterpart of the wire-`.def` `--check` gates. Skipped (with a warning)
+# only when no python3 is on PATH, so a python-less configure is not blocked.
+find_program(TC8_PYTHON3 NAMES python3 python)
+if(TC8_PYTHON3)
+    execute_process(
+        COMMAND ${TC8_PYTHON3} ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_dut_identity.py
+        RESULT_VARIABLE _tc8_identity_rc
+        OUTPUT_VARIABLE _tc8_identity_out ERROR_VARIABLE _tc8_identity_out)
+    if(NOT _tc8_identity_rc EQUAL 0)
+        message(FATAL_ERROR
+            "TC8: DUT identity drift (tools/check_dut_identity.py):\n${_tc8_identity_out}")
+    endif()
+else()
+    message(WARNING
+        "TC8: python3 not found — skipping the DUT-identity cross-check (CI still gates it)")
+endif()
+
 # Sanitizer build variant. Enables ASan + UBSan on every target (not just
 # first-party) so memory / UB issues in the full dissect pipeline surface
 # at test time. Critical once §4 ARP/ICMP/IP/UDP/DHCP/TCP decoders land
