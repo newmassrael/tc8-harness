@@ -134,7 +134,7 @@ bool sendNeighborOp(unsigned ifindex, std::uint16_t nlmsg_type, std::uint16_t ex
     nlh->nlmsg_len = NLMSG_LENGTH(sizeof(::ndmsg));
     nlh->nlmsg_type = nlmsg_type;
     nlh->nlmsg_flags = static_cast<std::uint16_t>(NLM_F_REQUEST | NLM_F_ACK | extra_flags);
-    auto *nd = static_cast<::ndmsg *>(NLMSG_DATA(nlh));
+    auto *nd = ::tc8::net::rtnl::nlmsgData<::ndmsg>(nlh);
     nd->ndm_family = AF_INET;
     nd->ndm_ifindex = static_cast<int>(ifindex);
     nd->ndm_state = ndm_state;
@@ -274,7 +274,7 @@ bool PosixSocketBackend::flushDynamicArp(const std::string &ifname) {
             if (nh->nlmsg_type != RTM_NEWNEIGH) {
                 continue;
             }
-            const auto *nd = static_cast<const ::ndmsg *>(NLMSG_DATA(nh));
+            const auto *nd = ::tc8::net::rtnl::nlmsgData<::ndmsg>(nh);
             if (nd->ndm_ifindex != static_cast<int>(ifindex) ||
                 (nd->ndm_state & (NUD_PERMANENT | NUD_NOARP)) != 0) {
                 continue;  // other interface, or a static/no-ARP entry we must not flush
@@ -301,7 +301,7 @@ bool PosixSocketBackend::flushDynamicArp(const std::string &ifname) {
         nlh->nlmsg_len = NLMSG_LENGTH(sizeof(::ndmsg));
         nlh->nlmsg_type = RTM_DELNEIGH;
         nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
-        auto *nd = static_cast<::ndmsg *>(NLMSG_DATA(nlh));
+        auto *nd = ::tc8::net::rtnl::nlmsgData<::ndmsg>(nlh);
         nd->ndm_family = AF_INET;
         nd->ndm_ifindex = static_cast<int>(ifindex);
         std::size_t off = NLMSG_ALIGN(nlh->nlmsg_len);
@@ -315,7 +315,7 @@ bool PosixSocketBackend::flushDynamicArp(const std::string &ifname) {
         if (r >= static_cast<ssize_t>(NLMSG_LENGTH(sizeof(::nlmsgerr)))) {
             const auto *nh = reinterpret_cast<const ::nlmsghdr *>(buf);
             if (nh->nlmsg_type == NLMSG_ERROR) {
-                const auto *e = static_cast<const ::nlmsgerr *>(NLMSG_DATA(nh));
+                const auto *e = ::tc8::net::rtnl::nlmsgData<::nlmsgerr>(nh);
                 if (e->error != 0 && e->error != -ENOENT) {  // -ENOENT = already gone (benign)
                     ok = false;
                 }

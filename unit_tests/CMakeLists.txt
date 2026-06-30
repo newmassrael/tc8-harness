@@ -68,6 +68,18 @@ function(tc8_add_unit_test name)
     add_test(NAME ${name} COMMAND ${name})
 endfunction()
 
+# Strict-set compile witness for the first-party netlink headers
+# (src/net/link_control.h + the src/net/rtnetlink.h SSOT). Their existing
+# consumers — the DUT PosixSocketBackend and the unit-test TUs — are built
+# WITHOUT tc8_enable_strict_warnings, so a glibc-macro old-style-cast leak (e.g.
+# NLMSG_DATA tripping -Wold-style-cast) would not surface in this tree until a
+# strict first-party consumer (an OEM conformance case) hit it. This OBJECT target
+# compiles those headers UNDER the strict gate so the contract is build-enforced
+# and cannot regress. Header-only path (inline setLinkState) — compile, no link.
+add_library(net_headers_strict_guard OBJECT net_headers_strict_guard.cpp)
+target_include_directories(net_headers_strict_guard PRIVATE ${PROJECT_SOURCE_DIR}/src)
+tc8_enable_strict_warnings(net_headers_strict_guard)
+
 tc8_add_unit_test(bpf_filter_test)
 # bpf_filter_test pcap_compiles every group filter to prove the VLAN-aware
 # wrap is valid libpcap syntax, so it links libpcap.

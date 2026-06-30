@@ -8,8 +8,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Strict warnings applied to first-party targets (tc8-harness and the
 # `tc8_harness_testable` library used by unit tests). SCE-generated /
 # third-party headers live behind SYSTEM include paths where available,
-# so they do not contribute to this warning set. `-Werror` is not on by
-# default — flip via `-DTC8_WARNINGS_AS_ERRORS=ON` once the tree is clean.
+# so they do not contribute to this warning set. `-Werror` IS on by default
+# (TC8_WARNINGS_AS_ERRORS, below) now that the first-party tree is clean —
+# opt out with `-DTC8_WARNINGS_AS_ERRORS=OFF`.
 function(tc8_enable_strict_warnings target)
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         target_compile_options(${target} PRIVATE

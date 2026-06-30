@@ -20,6 +20,21 @@
 // helpers) to avoid a cross-program link artifact for two callers.
 namespace tc8::net::rtnl {
 
+// Typed pointer to the payload that immediately follows a netlink message header
+// — the single home for the NLMSG_DATA offset, so no caller open-codes the glibc
+// macro whose C-style cast trips -Wold-style-cast under the harness's strict
+// first-party set. NLMSG_HDRLEN is the (aligned) header size NLMSG_DATA skips;
+// `nlh` must point at a buffer holding the header followed by the payload. The
+// const and mutable overloads preserve the caller's qualification.
+template <class T>
+inline const T *nlmsgData(const ::nlmsghdr *nlh) {
+    return reinterpret_cast<const T *>(reinterpret_cast<const char *>(nlh) + NLMSG_HDRLEN);
+}
+template <class T>
+inline T *nlmsgData(::nlmsghdr *nlh) {
+    return reinterpret_cast<T *>(reinterpret_cast<char *>(nlh) + NLMSG_HDRLEN);
+}
+
 // Append a netlink rtattr (type + payload) at byte offset *off within `buf`,
 // advancing *off past the RTA-aligned attribute and returning the written
 // attribute so a caller building a nested container can fix up its rta_len after
@@ -57,7 +72,7 @@ inline bool sendRequestCheckAck(const void *msg, std::uint32_t len, bool enoent_
         if (r >= static_cast<ssize_t>(NLMSG_LENGTH(sizeof(::nlmsgerr)))) {
             const auto *rh = reinterpret_cast<const ::nlmsghdr *>(rbuf);
             if (rh->nlmsg_type == NLMSG_ERROR) {
-                const auto *e = static_cast<const ::nlmsgerr *>(NLMSG_DATA(rh));
+                const auto *e = nlmsgData<::nlmsgerr>(rh);
                 ok = e->error == 0 || (enoent_ok && e->error == -ENOENT);
             }
         }
