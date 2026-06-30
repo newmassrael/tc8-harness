@@ -20,6 +20,7 @@
 #include "tc8/protocol_frames/udp_frame.h"
 
 #include "sce_integration/dhcpv4_wire.h"
+#include "wire/ip_checksum.h"  // tc8::wire::tcpChecksum (RFC 793 pseudo-header SSOT)
 
 namespace tc8::dissect {
 
@@ -415,20 +416,15 @@ void PacketPipeline::processFrame(const pcap_pkthdr &hdr, const std::uint8_t *by
                 tf.payload_data = body.data();
                 tf.payload_len  = static_cast<std::uint32_t>(body.size());
             }
-            // RFC 793 §3.1 pseudo-header checksum validation. Reads
-            // bytes directly from the captured frame — Eth (14 B) +
-            // IPv4 (variable) + TCP region are contiguous, pcap on
-            // veth carries no FCS, and the IPv4 Total Length field
-            // bounds the TCP region so any L2 trailer padding stays
-            // out of the sum. §4.8.6.2 TCP_CHECKSUM_03 reads this
-            // through TcpCaptured to verify the DUT's sender-side
-            // checksum compute path. Sum is BE 16-bit halfwords per
-            // RFC 1071 — same shape the builder upholds in
-            // tcp_segment_builder.cpp::inetChecksum, so a valid
-            // segment built by either side collapses to 0xFFFF here.
-            // Hand-coded checksum logic (no wire .def); the IPv4 sibling is
-            // ipv4_captured.h::header_checksum_valid (which also has a Python
-            // twin in site/scripts/decode_pcap.py). See docs/tech-debt.md TD-04.
+            // RFC 793 §3.1 pseudo-header checksum, validated through the shared
+            // tc8::wire::tcpChecksum SSOT (the same RFC 1071 fold the segment
+            // builder uses). Reads bytes directly from the captured frame — Eth
+            // (14 B) + IPv4 (variable) + TCP region are contiguous, pcap on veth
+            // carries no FCS, and the IPv4 Total Length bounds the TCP region so any
+            // L2 trailer padding stays out of the sum. §4.8.6.2 TCP_CHECKSUM_03
+            // reads tf.checksum_valid to verify the DUT's sender-side checksum.
+            // Only the cross-language Python mirror (decode_pcap.py) stays a
+            // hand-copy. See docs/tech-debt.md TD-04.
             tf.checksum_valid = false;
             const std::uint16_t ip_total_len = ip->tot_len();
             const std::uint16_t ip_hdr_len   =
@@ -438,35 +434,18 @@ void PacketPipeline::processFrame(const pcap_pkthdr &hdr, const std::uint8_t *by
                 static_cast<std::size_t>(kEthHdrLen) + ip_total_len <= hdr.caplen) {
                 const std::uint16_t tcp_seg_len =
                     static_cast<std::uint16_t>(ip_total_len - ip_hdr_len);
-                const std::uint8_t *ip_hdr = bytes + kEthHdrLen;
+                const std::uint8_t *ip_hdr  = bytes + kEthHdrLen;
                 const std::uint8_t *tcp_seg = ip_hdr + ip_hdr_len;
-                std::uint32_t sum = 0;
-                // Pseudo-header: src_ip (4 B) + dst_ip (4 B) + zero +
-                // protocol + tcp_length. src/dst IP bytes live at IP
-                // header offsets 12..15 / 16..19 in wire order; reading
-                // from the byte buffer side-steps host-endian conversion
-                // entirely. tcp_length is summed as a single BE 16-bit
-                // halfword (high byte then low byte).
-                for (std::size_t k = 12; k < 20; k += 2) {
-                    sum += static_cast<std::uint32_t>(
-                        (static_cast<std::uint16_t>(ip_hdr[k]) << 8)
-                         | ip_hdr[k + 1]);
-                }
-                sum += static_cast<std::uint16_t>(0x0006U);  // proto = TCP
-                sum += static_cast<std::uint16_t>(tcp_seg_len);
-                std::size_t i = 0;
-                for (; i + 1 < tcp_seg_len; i += 2) {
-                    sum += static_cast<std::uint32_t>(
-                        (static_cast<std::uint16_t>(tcp_seg[i]) << 8)
-                         | tcp_seg[i + 1]);
-                }
-                if (i < tcp_seg_len) {
-                    sum += static_cast<std::uint32_t>(tcp_seg[i]) << 8;
-                }
-                while ((sum >> 16) != 0U) {
-                    sum = (sum & 0xFFFFU) + (sum >> 16);
-                }
-                tf.checksum_valid = (static_cast<std::uint16_t>(sum) == 0xFFFFU);
+                // src/dst IP bytes (NBO) live at IP header offsets 12..15 / 16..19;
+                // copy them into *_be values whose memory is NBO (the convention
+                // tcpChecksum reads). Summed over the segment WITH its checksum
+                // field in place, a valid checksum folds to ~0xFFFF == 0.
+                std::uint32_t src_be = 0;
+                std::uint32_t dst_be = 0;
+                std::memcpy(&src_be, ip_hdr + 12, 4);
+                std::memcpy(&dst_be, ip_hdr + 16, 4);
+                tf.checksum_valid =
+                    ::tc8::wire::tcpChecksum(src_be, dst_be, tcp_seg, tcp_seg_len) == 0U;
             }
             // Wall-clock arrival timestamp normalised at function
             // top from `hdr.ts`; same value mirrored into every

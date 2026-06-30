@@ -197,35 +197,38 @@ emission. That residual is covered by per-scenario test design plus the runtime
 
 ---
 
-## TD-04 — IPv4 / TCP checksum validation hand-coded in C++ and (IPv4) Python
+## TD-04 — IPv4 header checksum mirrored across the C++ harness and the Python site tooling
 
-**Status:** OPEN (accepted, low priority). **Logged:** 2026-06-30 (surfaced by
-the TD-02 premise audit).
+**Status:** OPEN (accepted, low priority) — NARROWED 2026-06-30: the C++ side is now
+single-sourced; only the cross-language Python mirror remains. **Logged:** 2026-06-30
+(surfaced by the TD-02 premise audit).
 
-**What.** Three sites hand-code byte-level checksum logic over RFC-frozen header
-positions, outside any wire `.def`:
+**What (now narrowed).** The RFC 1071 / RFC 793 checksum fold is a single C++ SSOT
+(`tc8::wire::inetChecksum` / `tcpChecksum`, `src/wire/ip_checksum.*`), shared by every
+builder AND — as of the narrowing — both verification sites:
 
-- `src/sce_integration/ipv4_captured.h` `header_checksum_valid()` reconstructs
-  the 20-byte IPv4 header from the parsed scalar fields and 1's-complement-sums
-  it (RFC 1071), to verify the IPv4 header-checksum case.
-- `src/dissect/packet_pipeline.cpp` builds the TCP pseudo-header from IP bytes at
-  offsets 12..19 to validate the TCP checksum.
-- `site/scripts/decode_pcap.py` independently sums the IPv4 header
-  (`ip_header_checksum_ok`) over the raw captured bytes.
+- `src/sce_integration/ipv4_captured.h` `header_checksum_valid()` reconstructs the
+  20-byte IPv4 header from the parsed scalar fields and calls
+  `tc8::wire::inetChecksum(...) == 0` (no longer a hand-rolled fold).
+- `src/dissect/packet_pipeline.cpp` calls `tc8::wire::tcpChecksum(...) == 0` over the
+  captured segment (no longer a hand-rolled pseudo-header fold).
 
-The IPv4 header checksum is thus a genuine C++/Python duplication (the TCP one
-has no Python twin).
+The ONLY remaining duplication is cross-language: `site/scripts/decode_pcap.py`
+(`ip_header_checksum_ok`) independently sums the IPv4 header in Python. A C++ SSOT
+cannot subsume a Python decoder, so this residual is irreducible by the wire-`.def`
+or shared-helper mechanisms — it is the genuine, accepted remainder of TD-04. (The
+TCP checksum has no Python twin and is now fully single-sourced in C++.)
 
 **Risk if left.** Near-zero drift: RFC 791/793/1071 are frozen and the check is a
 fixed algorithm, not a vendor-extensible layout. A divergence would only
 mis-report a checksum on the site preview; the C++ stays authoritative.
 
-**Why deferred — and why NOT an offset `.def`.** Unlike SD/DHCP, the two sides do
-not share an offset TABLE: the C++ reconstructs the header from already-parsed
-fields (it does not retain the raw header bytes) while Python sums the raw bytes;
-they share only the RFC 1071 algorithm. There is no field layout to
-single-source — collapsing them would mean sharing a standard checksum routine
-across two languages, which the wire-`.def` mechanism does not address. If ever
-unified, the textbook route is a shared checksum helper invoked from a
-raw-header-bytes snapshot on both sides, not a `*_wire.def`. Tracked as a
-low-drift item so the TD-02 premise stays truthful.
+**Why the residual stays — and why NOT an offset `.def`.** Within C++, the textbook
+route IS now taken: both verifiers fold through the one `tc8::wire` checksum SSOT, so
+the C++ algorithm is single-sourced (the narrowing). What cannot be collapsed is the
+C++↔Python split: unlike SD/DHCP the two sides share no offset TABLE — the C++ folds
+RFC 1071 over its reconstructed/captured bytes while Python sums the raw bytes in a
+separate interpreter — so they share only the standard algorithm, which a `*_wire.def`
+does not address and a C++ helper cannot cross into Python. Re-implementing RFC 1071
+in two languages is the irreducible floor; tracked as a low-drift item (RFC frozen,
+C++ authoritative) so the TD-02 premise stays truthful.

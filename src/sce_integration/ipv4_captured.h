@@ -7,6 +7,8 @@
 
 #include "tc8/protocol_frames/ipv4_frame.h"
 
+#include "wire/ip_checksum.h"  // tc8::wire::inetChecksum (RFC 1071 SSOT)
+
 #include "sce_integration/captured_frame_timing.h"
 #include "sce_integration/captured_trace.h"
 #include "test_config.h"
@@ -56,10 +58,10 @@ struct Ipv4Captured : CapturedFrameTiming {
     // captured_->` codegen rewrite covers the call — the ICMPv4_TYPE_08
     // precedent is `payload_equals` on `Icmpv4Captured`.
     //
-    // This RFC 1071 checksum is hand-coded (no wire .def); the IPv4 header
-    // sum is duplicated independently in site/scripts/decode_pcap.py
-    // (`ip_header_checksum_ok`), and the TCP sibling is
-    // src/dissect/packet_pipeline.cpp. See docs/tech-debt.md TD-04.
+    // The RFC 1071 fold routes through the tc8::wire SSOT shared with every
+    // builder; only the cross-language Python mirror in site/scripts/decode_pcap.py
+    // (`ip_header_checksum_ok`) stays a hand-copy, which no C++ SSOT can subsume.
+    // See docs/tech-debt.md TD-04.
     //
     // Limited to the IHL=5 (no-options) case: every DUT Echo Reply the
     // pilot observes has the kernel's default no-options header, so
@@ -95,15 +97,11 @@ struct Ipv4Captured : CapturedFrameTiming {
         hdr[18] = static_cast<std::uint8_t>((dst_addr >> 16) & 0xFFU);
         hdr[19] = static_cast<std::uint8_t>((dst_addr >> 24) & 0xFFU);
 
-        std::uint32_t sum = 0;
-        for (std::size_t i = 0; i < hdr.size(); i += 2) {
-            sum += (static_cast<std::uint32_t>(hdr[i]) << 8) |
-                    static_cast<std::uint32_t>(hdr[i + 1]);
-        }
-        while ((sum >> 16) != 0U) {
-            sum = (sum & 0xFFFFU) + (sum >> 16);
-        }
-        return (sum & 0xFFFFU) == 0xFFFFU;
+        // inetChecksum folds the same RFC 1071 sum the builders use
+        // (writeBe16(ip+10, inetChecksum(ip, 20))) and returns its complement;
+        // summed over the header WITH its checksum field in place, a correct field
+        // makes the fold 0xFFFF, so the complement is 0.
+        return ::tc8::wire::inetChecksum(hdr.data(), hdr.size()) == 0U;
     }
 
     // Inter-frame timing surface (`observed_ts_us` / `prev_observed_ts_us`
