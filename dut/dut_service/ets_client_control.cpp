@@ -33,18 +33,26 @@ public:
     // here (once per unique service ever requested), not per subscription, so a
     // callMethod and a subscribe to the same service do not release each other early.
     //
-    // ★LIFETIME PRECONDITION (currently satisfied only by std::_Exit): the DUT
-    // hard-exits via std::_Exit (dut_main.cpp), which SKIPS this dtor, so the
-    // shipped binary never runs it. This is NOT a no-dangle proof — it is what
-    // avoids the hazard. unregister_availability_handler stops FUTURE dispatch but
-    // does NOT drain a flushPending callback vsomeip has already enqueued on its
-    // routing thread; if that callback wakes after this object dies it touches a
-    // destroyed mutex_/pending_ (use-after-free). A future graceful shutdown MUST
-    // quiesce the vsomeip application (stop + join its dispatch) BEFORE destroying
-    // this control. mutex_ below only excludes an in-progress callback, not an
-    // enqueued-but-not-started one.
+    // Enqueued-callback safety: unregister_availability_handler (below) stops only
+    // FUTURE dispatch — it does NOT drain a flushPending callback vsomeip already
+    // enqueued on its routing thread, and mutex_ alone excludes only an in-progress
+    // callback, not an enqueued-but-not-started one. So BEFORE any teardown, trip
+    // the shared `live_` latch under its own lock: a not-yet-started availability
+    // callback then sees alive == false and returns without touching the destroyed
+    // mutex_/pending_, and one already past that check (holding live_->m) finishes
+    // before this barrier acquires live_->m. live_ outlives this control via the
+    // callback's strong copy, so the callback never dereferences a dead latch. This
+    // closes the use-after-free window the DUT otherwise only dodges by std::_Exit
+    // skipping the dtor (dut_main.cpp); a future graceful shutdown may still quiesce
+    // the application for a clean stop, but no longer must, to keep this dtor safe.
+    // Lock order is live_->m then mutex_ (the availability callback nests them that
+    // way); the barrier releases live_->m before taking mutex_, so no deadlock.
     ~VsomeipEtsClientControl() override {
         if (!app_) return;
+        {
+            std::lock_guard<std::mutex> latch(live_->m);
+            live_->alive = false;
+        }
         std::lock_guard<std::mutex> lock(mutex_);
         for (const auto& s : subscriptions_) {
             teardownLocked(s);
@@ -211,20 +219,36 @@ private:
         std::uint16_t eventgroup;
     };
 
+    // Liveness latch shared (by strong copy) with the async availability callbacks.
+    // Heap-allocated so it outlives this control while vsomeip still holds an
+    // enqueued callback's bound copy; the dtor trips `alive` under `m` as its
+    // teardown barrier (see the dtor + requestServiceLocked).
+    struct Liveness {
+        std::mutex m;
+        bool alive = true;
+    };
+
     // request_service once per unique (service, instance); the matching
     // release_service runs in the dtor. Registers the availability handler that
     // flushes callMethod()'s parked Requests BEFORE request_service, so the first
-    // OfferService cannot outrun it. The handler runs on a vsomeip routing thread
-    // and captures `this`; its lifetime safety rests on the _Exit precondition
-    // documented at the dtor (unregister alone does not drain an enqueued
-    // callback), NOT on unregister_availability_handler. Caller holds mutex_.
+    // OfferService cannot outrun it. The handler runs on a vsomeip routing thread;
+    // it captures `this` AND a strong copy of the `live_` latch, and touches this
+    // control's members only while holding live_->m with alive still true — so the
+    // dtor's barrier turns a post-teardown callback into a no-op instead of a
+    // use-after-free (see the dtor). The latch (not unregister_availability_handler,
+    // which stops only future dispatch) is what closes the enqueued-callback window.
+    // Caller holds mutex_.
     void requestServiceLocked(std::uint16_t service, std::uint16_t instance,
                               std::uint8_t major) {
         if (requested_services_.insert({service, instance}).second) {
             app_->register_availability_handler(
                 service, instance,
-                [this](vsomeip::service_t s, vsomeip::instance_t i, bool available) {
-                    if (available) flushPending(s, i);
+                [this, live = live_](vsomeip::service_t s, vsomeip::instance_t i,
+                                     bool available) {
+                    if (!available) return;
+                    std::lock_guard<std::mutex> latch(live->m);
+                    if (!live->alive) return;  // control torn down — skip the flush
+                    flushPending(s, i);
                 });
             app_->request_service(service, instance, major, vsomeip::ANY_MINOR);
         }
@@ -249,6 +273,10 @@ private:
 
     std::shared_ptr<vsomeip::application> app_;
     std::mutex mutex_;
+    // Tripped by the dtor (under its own lock) before teardown so an enqueued
+    // availability callback skips flushPending instead of touching destroyed
+    // members; shared by strong copy with that callback. See requestServiceLocked.
+    std::shared_ptr<Liveness> live_{std::make_shared<Liveness>()};
     std::vector<Subscription> subscriptions_;
     std::vector<ResponseMethod> response_methods_;
     std::vector<StatusEventgroup> status_eventgroups_;
