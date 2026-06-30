@@ -65,10 +65,9 @@ public:
             });
     }
 
-    void onRequest(
+    void onRequestEx(
         std::uint16_t method_id,
-        std::function<std::vector<std::uint8_t>(const std::vector<std::uint8_t>&)> handler)
-        override {
+        std::function<EtsReply(const std::vector<std::uint8_t>&)> handler) override {
         registered_methods_.push_back(method_id);
         // Capture a WEAK ref to the application (not a strong shared_ptr, and not
         // `this`): the handler is stored INSIDE the application's handler registry,
@@ -83,9 +82,20 @@ public:
                 if (!msg) return;
                 auto app = weak_app.lock();
                 if (!app) return;
-                auto out = handler(messageBytes(msg));
+                const EtsReply reply = handler(messageBytes(msg));
+                // create_response copies the request's Request ID + Interface /
+                // Protocol Version and defaults to RESPONSE / E_OK; override the
+                // message type and Return Code so the handler can answer with an
+                // Error message. The wire fields are raw bytes, so the typed enums
+                // map straight through a static_cast — including application Return
+                // Codes the named vsomeip enum does not list.
                 auto response = vsomeip::runtime::get()->create_response(msg);
-                response->set_payload(vsomeip::runtime::get()->create_payload(out));
+                response->set_message_type(static_cast<vsomeip::message_type_e>(
+                    static_cast<std::uint8_t>(reply.message_type)));
+                response->set_return_code(static_cast<vsomeip::return_code_e>(
+                    static_cast<std::uint8_t>(reply.return_code)));
+                response->set_payload(
+                    vsomeip::runtime::get()->create_payload(reply.payload));
                 app->send(response);
             });
     }
@@ -107,9 +117,9 @@ public:
     void notify(std::uint16_t, const std::vector<std::uint8_t>&) override {}
     void onMethod(std::uint16_t,
                   std::function<void(const std::vector<std::uint8_t>&)>) override {}
-    void onRequest(
+    void onRequestEx(
         std::uint16_t,
-        std::function<std::vector<std::uint8_t>(const std::vector<std::uint8_t>&)>) override {}
+        std::function<EtsReply(const std::vector<std::uint8_t>&)>) override {}
 };
 
 }  // namespace

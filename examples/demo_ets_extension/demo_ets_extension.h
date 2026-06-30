@@ -21,7 +21,7 @@ namespace tc8::dut {
 // starter an OEM adapts to offer its OWN (NDA) surface on the shared vsomeip
 // application, selected at configure time via TC8_ETS_EXTENSION_SRC (see
 // demo_ets_extension.cpp). It exercises all three seams: the SERVER-role
-// IEtsEventSink (offerEvent + onMethod + the reply-capable onRequest), the
+// IEtsEventSink (offerEvent + onMethod + the reply-capable onRequest/onRequestEx), the
 // CLIENT-role IEtsClientControl (subscribe/stop, a subscription-status edge that
 // bounds the subscription lifetime by duration, plus an RPC call whose Response it
 // captures), and the inbound IEtsControlChannel (offers a control service so a
@@ -43,7 +43,8 @@ inline constexpr std::uint16_t kDemoTriggerMethod  = 0x07F0;
 // (kDemoSubscribeMethod), RPC-calls as a REQUEST (kDemoCallMethod), and RPC-calls
 // as a Fire & Forget / REQUEST_NO_RETURN (kDemoFireForgetMethod); plus the local
 // control methods that drive/read it back (kDemoReadbackMethod replies with the
-// last captured Response payload via the reply-capable onRequest).
+// last captured Response via onRequestEx, surfacing a non-E_OK target reply as an
+// Error message).
 inline constexpr std::uint16_t kDemoTargetService     = 0x7F02;
 inline constexpr std::uint16_t kDemoTargetInstance    = 0x0001;
 inline constexpr std::uint16_t kDemoTargetEventgroup  = 0x00F7;
@@ -197,11 +198,23 @@ public:
                                                      kDemoTargetMethod, payload,
                                                      /*reliable=*/false, kDemoTargetMajor);
                       });
-        sink.onRequest(kDemoReadbackMethod,
-                       [last](const std::vector<std::uint8_t>&) {
-                           std::lock_guard<std::mutex> lock(last->mutex);
-                           return last->payload;
-                       });
+        sink.onRequestEx(kDemoReadbackMethod,
+                         [last](const std::vector<std::uint8_t>&) {
+                             std::lock_guard<std::mutex> lock(last->mutex);
+                             // Reflect the captured Response: a successful target
+                             // reply (E_OK) becomes a Response carrying the payload;
+                             // a non-E_OK target reply becomes an Error message with
+                             // the same Return Code. Choosing the message type plus
+                             // Return Code is exactly what onRequestEx adds over the
+                             // Response-only onRequest.
+                             if (last->return_code == 0x00) {
+                                 return EtsReply{someip::MessageType::RESPONSE,
+                                                 someip::ReturnCode::E_OK, last->payload};
+                             }
+                             return EtsReply{someip::MessageType::ERROR,
+                                             static_cast<someip::ReturnCode>(last->return_code),
+                                             last->payload};
+                         });
 
         // RAW-RECEIVE demo: adopt a pollable receiver the DUT main loop drains —
         // the 4th seam (IEtsIoHost), exercised here like sink/client/control. A real

@@ -3,8 +3,9 @@
 // no vsomeip application, no running DUT. SCOPE (honest): this verifies the demo
 // extension drives the interfaces correctly — server: offers an event, registers
 // a trigger method, the trigger notifies; client: subscribes/stops on a method,
-// calls a remote method, captures the response, and replies to a readback via the
-// reply-capable onRequest. It does NOT verify the production VsomeipEtsEventSink /
+// calls a remote method, captures the response, and replies to a readback via
+// onRequestEx (surfacing a non-E_OK target reply as an Error message). It does NOT
+// verify the production VsomeipEtsEventSink /
 // VsomeipEtsClientControl vsomeip mapping (request_service / subscribe /
 // create_request / create_response / register_message_handler); those adapters
 // are covered only by compilation (the tc8-dut build), the boot-check's
@@ -28,6 +29,7 @@
 #include "ets_extension.h"
 #include "ets_io_host.h"
 #include "ets_payload.h"  // payloadBytes (vsomeip-free SSOT, exercised below)
+#include "someip/protocol.h"  // someip::MessageType / ReturnCode (EtsReply fields)
 
 namespace {
 
@@ -55,9 +57,9 @@ public:
                   std::function<void(const std::vector<std::uint8_t>&)> handler) override {
         handlers[method_id] = std::move(handler);
     }
-    void onRequest(
+    void onRequestEx(
         std::uint16_t method_id,
-        std::function<std::vector<std::uint8_t>(const std::vector<std::uint8_t>&)> handler)
+        std::function<tc8::dut::EtsReply(const std::vector<std::uint8_t>&)> handler)
         override {
         request_handlers[method_id] = std::move(handler);
     }
@@ -65,8 +67,11 @@ public:
     std::vector<Offer> offers;
     std::vector<Notification> notifications;
     std::map<std::uint16_t, std::function<void(const std::vector<std::uint8_t>&)>> handlers;
+    // Stores the reply-capable handlers from BOTH onRequestEx and the non-virtual
+    // onRequest convenience (which forwards to onRequestEx), so a test can fire one
+    // and inspect the chosen message type / Return Code / payload.
     std::map<std::uint16_t,
-             std::function<std::vector<std::uint8_t>(const std::vector<std::uint8_t>&)>>
+             std::function<tc8::dut::EtsReply(const std::vector<std::uint8_t>&)>>
         request_handlers;
 };
 
@@ -446,18 +451,54 @@ TEST(DemoEtsExtension, ResponseIsCapturedAndReadbackReplies) {
     ext.onRegister(ctx);
 
     // The demo registered a response handler for the target method and a
-    // reply-capable readback method.
+    // reply-capable readback method (onRequestEx, so it can answer with an Error).
     EXPECT_EQ(client.response_method, tc8::dut::kDemoTargetMethod);
     ASSERT_TRUE(static_cast<bool>(client.response_handler));
     ASSERT_EQ(sink.request_handlers.count(tc8::dut::kDemoReadbackMethod), 1u);
 
-    // Before any response the readback replies empty.
-    EXPECT_TRUE(sink.request_handlers[tc8::dut::kDemoReadbackMethod]({}).empty());
+    // Before any response the readback replies an empty Response (E_OK).
+    {
+        const auto reply = sink.request_handlers[tc8::dut::kDemoReadbackMethod]({});
+        EXPECT_EQ(reply.message_type, tc8::someip::MessageType::RESPONSE);
+        EXPECT_EQ(reply.return_code, tc8::someip::ReturnCode::E_OK);
+        EXPECT_TRUE(reply.payload.empty());
+    }
 
-    // Simulate the tester's Response arriving; the readback then replies with it.
+    // A successful (E_OK) target Response: the readback replies a Response with it.
     const std::vector<std::uint8_t> response{0xAB, 0xCD};
     client.response_handler(0x00, response);
-    EXPECT_EQ(sink.request_handlers[tc8::dut::kDemoReadbackMethod]({}), response);
+    {
+        const auto reply = sink.request_handlers[tc8::dut::kDemoReadbackMethod]({});
+        EXPECT_EQ(reply.message_type, tc8::someip::MessageType::RESPONSE);
+        EXPECT_EQ(reply.return_code, tc8::someip::ReturnCode::E_OK);
+        EXPECT_EQ(reply.payload, response);
+    }
+
+    // A non-E_OK target Response: the readback surfaces it as an Error message
+    // carrying the same Return Code — the path onRequestEx adds over onRequest.
+    client.response_handler(0x20, response);
+    {
+        const auto reply = sink.request_handlers[tc8::dut::kDemoReadbackMethod]({});
+        EXPECT_EQ(reply.message_type, tc8::someip::MessageType::ERROR);
+        EXPECT_EQ(static_cast<std::uint8_t>(reply.return_code), 0x20);
+        EXPECT_EQ(reply.payload, response);
+    }
+}
+
+// The non-virtual onRequest convenience forwards to onRequestEx as a plain
+// Response (E_OK) carrying the handler's bytes — the common readback shape that
+// keeps the simple API for OEM methods that never reply with an Error.
+TEST(EtsEventSinkOnRequest, SugarRepliesResponseEOk) {
+    FakeEtsEventSink sink;
+    sink.onRequest(0x1234, [](const std::vector<std::uint8_t>& request) {
+        return std::vector<std::uint8_t>(request.rbegin(), request.rend());
+    });
+    ASSERT_EQ(sink.request_handlers.count(0x1234), 1u);
+
+    const auto reply = sink.request_handlers[0x1234]({0x01, 0x02});
+    EXPECT_EQ(reply.message_type, tc8::someip::MessageType::RESPONSE);
+    EXPECT_EQ(reply.return_code, tc8::someip::ReturnCode::E_OK);
+    EXPECT_EQ(reply.payload, (std::vector<std::uint8_t>{0x02, 0x01}));
 }
 
 // payloadBytes() — the extracted inbound-marshaling step from

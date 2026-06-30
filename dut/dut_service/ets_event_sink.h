@@ -3,9 +3,24 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <utility>
 #include <vector>
 
+#include "someip/protocol.h"  // someip::MessageType / ReturnCode (reply shape SSOT)
+
 namespace tc8::dut {
+
+// Reply an onRequestEx handler returns for a REQUEST it answers: the SOME/IP
+// message type and Return Code to send, plus the reply payload. It defaults to a
+// plain Response with E_OK, so the common readback sets only `payload` (and the
+// onRequest convenience below is exactly that default). Choosing ERROR with a
+// non-E_OK Return Code is what lets an OEM method reply with an application error
+// the public fidl cannot express (per PRS_SOMEIP_00757 an Error must not be E_OK).
+struct EtsReply {
+    someip::MessageType message_type = someip::MessageType::RESPONSE;
+    someip::ReturnCode  return_code  = someip::ReturnCode::E_OK;
+    std::vector<std::uint8_t> payload;
+};
 
 // Narrow registration facade over the DUT's SINGLE vsomeip application, handed to
 // an OEM IEtsExtension via onRegister/onTick (see ets_extension.h). It lets the
@@ -41,16 +56,31 @@ public:
     virtual void onMethod(std::uint16_t method_id,
                           std::function<void(const std::vector<std::uint8_t>&)> handler) = 0;
 
-    // Register a REQUEST/RESPONSE `handler` for `method_id`: the handler receives
-    // the request payload and RETURNS the response payload, which the DUT sends
-    // back as a SOME/IP Response (return code E_OK). This is the complement of
-    // onMethod (fire-and-forget) for OEM methods that must REPLY — e.g. a
-    // last-error / last-value readback that is not in the public fidl, so
-    // CommonAPI does not serve it. Same vsomeip-thread + unregister-on-destroy
-    // contract as onMethod.
-    virtual void onRequest(
+    // Register a reply-capable `handler` for `method_id`: it receives the request
+    // payload and RETURNS an EtsReply choosing the reply's message type, Return
+    // Code, and payload; the DUT echoes the request header (Request ID, Interface
+    // Version) onto it. This is the complement of onMethod (fire-and-forget) for
+    // OEM methods that must REPLY but are not in the public fidl, so CommonAPI does
+    // not serve them — including those that must answer with an Error message (a
+    // non-E_OK Return Code), which a plain Response cannot carry. Same
+    // vsomeip-thread + unregister-on-destroy contract as onMethod.
+    virtual void onRequestEx(
         std::uint16_t method_id,
-        std::function<std::vector<std::uint8_t>(const std::vector<std::uint8_t>&)> handler) = 0;
+        std::function<EtsReply(const std::vector<std::uint8_t>&)> handler) = 0;
+
+    // Convenience for the common case: reply with a plain Response (E_OK) whose
+    // payload is the handler's returned bytes. Forwards to onRequestEx with a
+    // default-typed EtsReply, so the two share the one reply path; reach for
+    // onRequestEx directly when the reply must vary the message type or Return Code.
+    void onRequest(
+        std::uint16_t method_id,
+        std::function<std::vector<std::uint8_t>(const std::vector<std::uint8_t>&)> handler) {
+        onRequestEx(method_id,
+                    [handler = std::move(handler)](const std::vector<std::uint8_t>& request) {
+                        return EtsReply{someip::MessageType::RESPONSE,
+                                        someip::ReturnCode::E_OK, handler(request)};
+                    });
+    }
 };
 
 // Build a vsomeip-backed IEtsEventSink over the CommonAPI ETS service's OWN
