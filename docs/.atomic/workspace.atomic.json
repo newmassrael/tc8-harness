@@ -5672,6 +5672,10 @@
         {
           "file": "dut/dut_service/ets2_impl.h",
           "kind": "implements"
+        },
+        {
+          "file": "dut/dut_service/server_role.cpp",
+          "kind": "implements"
         }
       ]
     },
@@ -6138,10 +6142,6 @@
       "intent": "TC8 §5.1.5.3 — SOME/IP-SD — Message. 17 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
-          "file": "dut/dut_service/dut_main.cpp",
-          "kind": "implements"
-        },
-        {
           "file": "dut/env/smoke-test.sh",
           "kind": "implements"
         },
@@ -6155,6 +6155,14 @@
         },
         {
           "file": "tests/_templates/someipsrv_sd_field_check.sce-template.xml",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/dut_service/server_role.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/dut_service/server_role.h",
           "kind": "implements"
         }
       ]
@@ -6758,10 +6766,6 @@
       "intent": "TC8 §5.1.5.7 — SOME/IP Server — RPC / ETS. 154 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
-          "file": "dut/dut_service/dut_main.cpp",
-          "kind": "implements"
-        },
-        {
           "file": "dut/dut_service/ets_impl.h",
           "kind": "implements"
         },
@@ -6787,6 +6791,14 @@
         },
         {
           "file": "tests/_templates/someipsrv_rpc_field_check.sce-template.xml",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/dut_service/server_role.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/dut_service/server_role.h",
           "kind": "implements"
         }
       ]
@@ -8287,6 +8299,10 @@
         },
         {
           "file": "src/stimulus/tcp_server.h",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/dut_service/server_role.cpp",
           "kind": "implements"
         }
       ]

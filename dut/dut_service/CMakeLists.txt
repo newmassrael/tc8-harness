@@ -101,6 +101,7 @@ add_executable(tc8-dut
     ets_impl.cpp
     linklocal_autoconf.cpp
     posix_ut_extensions.cpp
+    server_role.cpp
     ${TC8_ETS_FACTORY_SRC}
     ${TC8_ETS_EXTENSION_SRC}
 )
