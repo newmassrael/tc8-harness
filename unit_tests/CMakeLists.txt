@@ -94,6 +94,7 @@ target_include_directories(rtnetlink_walk_test PRIVATE ${PROJECT_SOURCE_DIR}/src
 target_link_libraries(rtnetlink_walk_test PRIVATE GTest::gtest GTest::gtest_main)
 add_test(NAME rtnetlink_walk_test COMMAND rtnetlink_walk_test)
 
+tc8_add_unit_test(captured_frame_observer_test)
 tc8_add_unit_test(bpf_filter_test)
 # bpf_filter_test pcap_compiles every group filter to prove the VLAN-aware
 # wrap is valid libpcap syntax, so it links libpcap.
