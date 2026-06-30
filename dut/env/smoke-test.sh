@@ -173,6 +173,11 @@ TC8_DUT_EXPECT=(
     --expect "minor_version=$TC8_WIRE_SD_MINOR_VERSION"
     --expect "eventgroup_id=$TC8_WIRE_SD_DEFAULT_EVENTGROUP"
     --expect "dut_iface_ip=$DUT_IP4"
+    # The tester's IPv4 for the someip group, mirroring the L2/L3 <proto>.tester_ip
+    # expects below (and the same TESTER_IP4 source). No in-tree case reads
+    # tester_ipv4 today; it lets a destination / Nack-target verdict compare a
+    # captured dst against the tester endpoint instead of the unset-0 default.
+    --expect "tester_ipv4=$TESTER_IP4"
     --expect "udp_port=${DUT_ID[udp_port]}"
     --expect "tcp_port=${DUT_ID[tcp_port]}"
     # §5.1.5.4 SD_BEHAVIOR_03/_04 verify the DUT answers FindService
