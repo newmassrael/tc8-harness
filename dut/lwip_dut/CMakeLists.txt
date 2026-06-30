@@ -22,6 +22,15 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# The first-party strict-warning set, shared verbatim with the main harness
+# build (cmake/tc8_strict_warnings.cmake is the single source of truth). This
+# is a separate CMake project, so it must include() the module itself and
+# declare its own TC8_WARNINGS_AS_ERRORS default — both matching the main build.
+include(${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/tc8_strict_warnings.cmake)
+option(TC8_WARNINGS_AS_ERRORS
+    "Promote compiler warnings to errors on first-party targets"
+    ON)
+
 if(NOT LWIP_DIR)
     set(LWIP_DIR "$ENV{LWIP_DIR}")
 endif()
@@ -39,10 +48,13 @@ include(${LWIP_CONTRIB_DIR}/ports/CMakeCommon.cmake)
 # must stay warnings.
 list(REMOVE_ITEM LWIP_COMPILER_FLAGS "-Werror")
 
-# This directory comes first so the fixture's lwipopts.h wins the
-# bare-name include for every lwIP translation unit.
-set(LWIP_INCLUDE_DIRS
-    "${CMAKE_CURRENT_SOURCE_DIR}"
+# The lwIP src + contrib header trees. Third-party and full of C-style-cast
+# macros, so the app targets add them with -isystem (see tc8_lwip_app) to keep
+# the first-party strict gate from firing on lwIP's own headers. lwIP's core /
+# contrib libraries are built by their own Filelists targets and add these
+# themselves; this list is for the app TUs that include lwIP directly (the
+# adapters and the lwIP C sources compiled into each binary).
+set(LWIP_SYSTEM_INCLUDE_DIRS
     "${LWIP_DIR}/src/include"
     "${LWIP_CONTRIB_DIR}/"
     "${LWIP_CONTRIB_DIR}/ports/unix/port/include"
@@ -51,6 +63,16 @@ set(LWIP_INCLUDE_DIRS
     # UTM core uses tc8_lwip_utm_hooks.h (tc8 AES-CMAC) and does not need it — the
     # path is harmless on the UTM core's include list and absent from the SDK export.
     "${LWIP_CONTRIB_DIR}/addons/tcp_isn"
+)
+# This fixture's own directory comes first so its lwipopts.h wins the bare-name
+# include for every lwIP translation unit. It is first-party (lwipopts.h + the
+# adapter headers), so it stays on a regular -I path where the strict gate can
+# see the adapter headers — only the lwIP trees above are demoted to system. The
+# full list (first-party + system) is what the alternate-core helper
+# (tc8_lwip_alt_core) feeds the lwIP libraries it builds.
+set(LWIP_INCLUDE_DIRS
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    ${LWIP_SYSTEM_INCLUDE_DIRS}
 )
 
 include(${LWIP_DIR}/src/Filelists.cmake)
@@ -161,11 +183,14 @@ function(tc8_lwip_app name)
         set(APP_LWIP_LIBS lwipcontribportunix lwipcore)
     endif()
     add_executable(${name} ${APP_SRCS} ${_tc8_lwip_common_srcs})
+    # First-party include roots, on a regular -I path so the strict gate (applied
+    # per-source after this function) sees the first-party headers. APP_LWIPOPTS_DIR
+    # (the UTM's utm/ dir, when given) is prepended so its lwipopts.h wins the
+    # bare-name include over the conformance base in CMAKE_CURRENT_SOURCE_DIR; -I
+    # paths are searched before the -isystem lwIP trees, so that ordering holds.
     target_include_directories(${name} PRIVATE
-        # Empty for the conformance config; the UTM's utm/ dir, prepended here,
-        # wins the bare "lwipopts.h" include over the conformance base below.
         ${APP_LWIPOPTS_DIR}
-        ${LWIP_INCLUDE_DIRS}
+        "${CMAKE_CURRENT_SOURCE_DIR}"
         # tc8/upper_tester_protocol.h + tc8/testability_protocol.h — single
         # source of truth for the UT + testability wire protocols, shared with
         # the harness and the Linux tc8-dut.
@@ -174,18 +199,13 @@ function(tc8_lwip_app name)
         # "wire/...": the source root is the include root.
         "${CMAKE_CURRENT_SOURCE_DIR}/../../src"
     )
-    # DELIBERATE strict-gate exclusion (not an omission). The harness's
-    # tc8_enable_strict_warnings set (-Wold-style-cast / -Wconversion / -Werror,
-    # applied to EVERY first-party target in the main build) is NOT applied to
-    # these first-party lwIP adapters, because: (1) this is a SEPARATE CMake
-    # project (project(tc8-lwip-dut) above) that does not see that function; (2) the
-    # adapters interleave with lwIP's C API, whose headers (LWIP_INCLUDE_DIRS, on a
-    # normal -I path here, not -isystem) are full of C-style-cast macros that would
-    # drown -Wold-style-cast in third-party noise — the same blocker tc8-dut had,
-    # resolved there by an -isystem demotion. The shared protocol logic
-    # (ut_server.cpp, tc8::wire) IS strict-gated via the main build. Full coverage =
-    # demote LWIP_INCLUDE_DIRS to -isystem + port tc8_enable_strict_warnings into
-    # this project + fix the first-party cascade (a separate cross-build migration).
+    # The third-party lwIP header trees, demoted to -isystem so their C-style-cast
+    # macros don't trip the first-party strict gate (-Wold-style-cast etc.). This
+    # demotion is what lets the adapters be strict-gated at all — the same idiom as
+    # the tc8-dut vsomeip / CommonAPI -isystem migration in the main build. lwIP's
+    # own core / contrib libraries are built by separate targets and are unaffected.
+    target_include_directories(${name} SYSTEM PRIVATE ${LWIP_SYSTEM_INCLUDE_DIRS})
+
     target_compile_options(${name} PRIVATE
         ${_tc8_lwip_flags}
         $<$<COMPILE_LANGUAGE:C>:-Waggregate-return>
@@ -194,6 +214,39 @@ function(tc8_lwip_app name)
     target_compile_definitions(${name} PRIVATE ${LWIP_DEFINITIONS})
     target_link_libraries(${name} ${LWIP_SANITIZER_LIBS} ${APP_LWIP_LIBS})
 endfunction()
+
+# The first-party strict-warning gate (TC8_STRICT_WARNING_FLAGS, the SSOT shared
+# with the main build). Applied PER-SOURCE, not target-wide: each lwIP app target
+# bundles lwIP's own C sources (default_netif.c, tcp_isn.c, md5.c) and the shared
+# cores (protocol_server / ut_server / tc8::wire / AUTOSAR engines) into the same
+# executable, and the gate must land only on the first-party C++ TUs this
+# sub-project owns — the ones the main build never compiles. The shared cores are
+# already strict-gated where they are authored (main build); lwIP's C sources stay
+# warnings-only (third-party). The -isystem demotion above is what keeps these
+# TUs' lwIP includes from drowning the gate in C-style-cast noise. The two
+# in-process tests are hand-rolled (no gtest), so — unlike the main build's gtest
+# TUs — they are gated too: this set is every first-party C++ TU built here.
+set(_tc8_lwip_strict_flags ${TC8_STRICT_WARNING_FLAGS})
+if(TC8_WARNINGS_AS_ERRORS)
+    list(APPEND _tc8_lwip_strict_flags -Werror)
+endif()
+# Absolute paths: tc8_lwip_tcp_isn.cpp is referenced absolutely by the targets,
+# so match that form for every entry to key the source property unambiguously.
+set(_tc8_lwip_strict_srcs
+    "${CMAKE_CURRENT_SOURCE_DIR}/lwip_socket_backend.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/lwip_stack_bringup.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/lwip_stack_probe.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/lwip_ut_extensions.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/lwip_egress_fault.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/lwip_ingress_fault.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tc8_lwip_dut.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/lwip_utm_main.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tc8_lwip_tcp_isn.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/lwip_reactor_test.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/lwip_arp_multicast_test.cpp"
+)
+set_source_files_properties(${_tc8_lwip_strict_srcs} PROPERTIES
+    COMPILE_OPTIONS "${_tc8_lwip_strict_flags}")
 
 # The conformance DUT fixture: stack + opcode Upper Tester + testability. The
 # Upper Tester runs on the platform-agnostic core (src/upper_tester/ut_server.cpp,

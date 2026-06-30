@@ -146,7 +146,7 @@ int LwipStackProbe::recvWithOriginalDstV4(int fd, void *buf, std::size_t len,
     msg.msg_control = cbuf;
     msg.msg_controllen = sizeof(cbuf);
 
-    const int n = lwip_recvmsg(fd, &msg, 0);
+    const ssize_t n = lwip_recvmsg(fd, &msg, 0);
     if (n < 0) {
         return -1;  // timeout (EWOULDBLOCK) / error — caller re-checks its stop flag
     }
@@ -161,7 +161,7 @@ int LwipStackProbe::recvWithOriginalDstV4(int fd, void *buf, std::size_t len,
             break;
         }
     }
-    return n;
+    return static_cast<int>(n);
 }
 
 }  // namespace tc8::lwip_dut

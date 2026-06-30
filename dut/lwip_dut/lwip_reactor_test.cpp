@@ -202,7 +202,7 @@ int main() {
     sendTo(ctl, kControlPort, msg.data(), msg.size());
 
     std::uint8_t rbuf[256];
-    const int rn = lwip_recvfrom(ctl, rbuf, sizeof(rbuf), 0, nullptr, nullptr);
+    const ssize_t rn = lwip_recvfrom(ctl, rbuf, sizeof(rbuf), 0, nullptr, nullptr);
     check(rn >= static_cast<int>(tp::kHeaderSize), "control primitive got a response (waker path)");
     if (rn >= static_cast<int>(tp::kHeaderSize)) {
         const auto resp = tp::parseHeader(rbuf, static_cast<std::size_t>(rn));

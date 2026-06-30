@@ -81,13 +81,13 @@ bool LwipSocketBackend::bindV4(int fd, std::uint32_t addr_be, std::uint16_t port
 int LwipSocketBackend::recvFromV4(int fd, void *buf, std::size_t len, Endpoint &src) {
     sockaddr_in sa{};
     socklen_t sl = sizeof(sa);
-    const int n =
+    const ssize_t n =
         lwip_recvfrom(fd, buf, len, MSG_TRUNC, reinterpret_cast<sockaddr *>(&sa), &sl);
     if (n >= 0) {
         src.addr_be = sa.sin_addr.s_addr;
         src.port = lwip_ntohs(sa.sin_port);
     }
-    return n;
+    return static_cast<int>(n);
 }
 
 int LwipSocketBackend::sendToV4(int fd, const void *buf, std::size_t len, const Endpoint &dst) {
@@ -95,7 +95,8 @@ int LwipSocketBackend::sendToV4(int fd, const void *buf, std::size_t len, const 
     d.sin_family = AF_INET;
     d.sin_addr.s_addr = dst.addr_be;
     d.sin_port = lwip_htons(dst.port);
-    return lwip_sendto(fd, buf, len, 0, reinterpret_cast<sockaddr *>(&d), sizeof(d));
+    return static_cast<int>(
+        lwip_sendto(fd, buf, len, 0, reinterpret_cast<sockaddr *>(&d), sizeof(d)));
 }
 
 #if LWIP_IGMP
@@ -219,11 +220,11 @@ bool LwipSocketBackend::setNeighborReachableMs(const std::string & /*ifname*/,
 }
 
 int LwipSocketBackend::recv(int fd, void *buf, std::size_t len) {
-    return lwip_recv(fd, buf, len, 0);
+    return static_cast<int>(lwip_recv(fd, buf, len, 0));
 }
 
 int LwipSocketBackend::send(int fd, const void *buf, std::size_t len) {
-    return lwip_send(fd, buf, len, 0);
+    return static_cast<int>(lwip_send(fd, buf, len, 0));
 }
 
 bool LwipSocketBackend::connectBoundedV4(int fd, const Endpoint &dst, int timeout_ms) {
