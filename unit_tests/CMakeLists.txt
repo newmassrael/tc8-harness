@@ -158,6 +158,17 @@ target_link_libraries(client_mode_wire_test PRIVATE
     GTest::gtest GTest::gtest_main Threads::Threads)
 add_test(NAME client_mode_wire_test COMMAND client_mode_wire_test)
 
+# Availability-gated Request buffer (dut/dut_service/pending_requests.h): the
+# timing-robust callMethod policy split out of VsomeipEtsClientControl so it is
+# testable without vsomeip. Drives submit/flush with a recording sender, pinning
+# send-when-available, park-when-not, in-order flush, drain, and key isolation.
+add_executable(pending_requests_test pending_requests_test.cpp)
+target_include_directories(pending_requests_test PRIVATE
+    ${PROJECT_SOURCE_DIR}/dut/dut_service)
+target_link_libraries(pending_requests_test PRIVATE
+    GTest::gtest GTest::gtest_main)
+add_test(NAME pending_requests_test COMMAND pending_requests_test)
+
 tc8_add_unit_test(expect_parser_test)
 tc8_add_unit_test(someip_sd_builder_test)
 # Tester server-role RPC reply builders (buildMethodResponse/buildMethodError):

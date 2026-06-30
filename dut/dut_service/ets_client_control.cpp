@@ -2,7 +2,6 @@
 
 #include <atomic>
 #include <cstdio>
-#include <map>
 #include <memory>
 #include <mutex>
 #include <set>
@@ -12,6 +11,7 @@
 #include <vsomeip/vsomeip.hpp>
 
 #include "ets_vsomeip_app.h"  // acquireCommonApiApplication, messageBytes (SSOT)
+#include "pending_requests.h"  // availability-gated Request buffer (testable policy)
 
 namespace tc8::dut {
 namespace {
@@ -145,17 +145,14 @@ public:
         // vsomeip DROPS (does not queue) a send to a not-yet-available service, and
         // request_service only STARTS the SD FindService — the OfferService is a
         // round trip away. So send now only if the service is already available;
-        // otherwise hold the Request and let the availability handler (registered in
-        // requestServiceLocked) flush it on ON_AVAILABLE. The is_available() test and
-        // the park run under mutex_, and flushPending() takes the same mutex_, so an
-        // availability edge racing this call cannot strand the Request: the flush
-        // either runs before the park (is_available() then reads true here) or
-        // serialises after it (and drains what we parked).
-        if (app_->is_available(service, instance)) {
-            app_->send(request);
-        } else {
-            pending_[{service, instance}].push_back(std::move(request));
-        }
+        // otherwise PendingRequests parks it for the availability handler
+        // (registered in requestServiceLocked) to flush on ON_AVAILABLE. The
+        // is_available() query and the submit run under mutex_, and flushPending()
+        // takes the same mutex_, so an availability edge racing this call cannot
+        // strand the Request: the flush either runs before the submit (is_available()
+        // then reads true here) or serialises after it (and drains what we parked).
+        pending_.submit(service, instance, app_->is_available(service, instance),
+                        std::move(request));
     }
 
     void onResponse(std::uint16_t service, std::uint16_t instance, std::uint16_t method,
@@ -215,17 +212,12 @@ private:
         }
     }
 
-    // Send every Request callMethod() parked for (service, instance) now that the
-    // service is available, in call order, then drop the queue. Runs on a vsomeip
-    // routing thread; takes mutex_ to serialise with callMethod()'s park.
+    // Flush callMethod()'s Requests parked for (service, instance) now that the
+    // service is available. Runs on a vsomeip routing thread; takes mutex_ to
+    // serialise with callMethod()'s submit (PendingRequests itself is lock-free).
     void flushPending(std::uint16_t service, std::uint16_t instance) {
         std::lock_guard<std::mutex> lock(mutex_);
-        const auto it = pending_.find({service, instance});
-        if (it == pending_.end()) return;
-        for (const auto& request : it->second) {
-            app_->send(request);
-        }
-        pending_.erase(it);
+        pending_.flush(service, instance);
     }
 
     // unsubscribe (emits StopSubscribe) then release the events this subscription
@@ -244,10 +236,10 @@ private:
     std::vector<StatusEventgroup> status_eventgroups_;
     std::set<std::pair<std::uint16_t, std::uint16_t>> requested_services_;
     // Requests callMethod() received while the service was not yet available,
-    // keyed by (service, instance), flushed in call order on ON_AVAILABLE.
-    std::map<std::pair<std::uint16_t, std::uint16_t>,
-             std::vector<std::shared_ptr<vsomeip::message>>>
-        pending_;
+    // flushed in submission order on ON_AVAILABLE. The sender runs under mutex_,
+    // exactly where the inline app_->send() used to.
+    PendingRequests<std::shared_ptr<vsomeip::message>> pending_{
+        [this](const std::shared_ptr<vsomeip::message>& request) { app_->send(request); }};
 };
 
 // Null Object used when the vsomeip application cannot be found. Its no-ops keep
