@@ -63,7 +63,7 @@ add_library(ets OBJECT
     ${GEN_SUBDIR}/EnhancedTestabilitySomeIPProxy.cpp
     ${GEN_SUBDIR}/EnhancedTestabilitySomeIPStubAdapter.cpp
 )
-target_include_directories(ets PUBLIC ${GEN_DIR})
+target_include_directories(ets SYSTEM PUBLIC ${GEN_DIR})
 target_link_libraries(ets PUBLIC CommonAPI CommonAPI-SomeIP vsomeip3)
 
 # §5.1.5 multi-service axis: SERVICE-ID-2 lives in ets2.fidl/.fdepl
@@ -113,7 +113,7 @@ add_library(ets2 OBJECT
     ${GEN_SUBDIR2}/EnhancedTestability2SomeIPProxy.cpp
     ${GEN_SUBDIR2}/EnhancedTestability2SomeIPStubAdapter.cpp
 )
-target_include_directories(ets2 PUBLIC ${GEN_DIR})
+target_include_directories(ets2 SYSTEM PUBLIC ${GEN_DIR})
 target_link_libraries(ets2 PUBLIC CommonAPI CommonAPI-SomeIP vsomeip3)
 
 # §5.1.6 SOMEIP_ETS_097 — ets3 is the tester-side target the DUT-as-client
@@ -163,5 +163,5 @@ add_library(ets3 OBJECT
     ${GEN_SUBDIR3}/ClientTargetSomeIPProxy.cpp
     ${GEN_SUBDIR3}/ClientTargetSomeIPStubAdapter.cpp
 )
-target_include_directories(ets3 PUBLIC ${GEN_DIR})
+target_include_directories(ets3 SYSTEM PUBLIC ${GEN_DIR})
 target_link_libraries(ets3 PUBLIC CommonAPI CommonAPI-SomeIP vsomeip3)

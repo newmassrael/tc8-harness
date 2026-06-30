@@ -122,13 +122,16 @@ target_include_directories(tc8-dut PRIVATE
     # out-of-dir OEM slot file needs this path on -I.
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
-# tc8-dut is excluded from the full strict-warning set (its vsomeip /
-# CommonAPI generated sources trip -Wall noise), but the firmware
-# fault-injection dispatch relies on switch-no-default exhaustiveness to
-# force every new Dhcpv4ClientFlavor / LinklocalAutoconfFlavor to declare
-# its per-builder disposition. Promote ONLY -Wswitch to an error so a
-# missing flavor branch fails the build (a silently-ignored flavor is a
-# Phase F coverage hole) without pulling in the broader -Wall cascade.
+# Firmware fault-injection coverage guarantee, kept UNCONDITIONAL (independent of
+# TC8_WARNINGS_AS_ERRORS): switch-no-default exhaustiveness forces every new
+# Dhcpv4ClientFlavor / LinklocalAutoconfFlavor to declare its per-builder
+# disposition, since a silently-ignored flavor is a Phase F coverage hole. This
+# must fail the build even in a warnings-only configuration.
 target_compile_options(tc8-dut PRIVATE -Werror=switch)
+# Full strict first-party set (flag-gated -Werror). vsomeip / CommonAPI / generated
+# CommonAPI sources are -isystem (demoted at find_package), so only the DUT's OWN
+# translation units are gated — no third-party -Wall noise. The DUT was formerly
+# excluded entirely; the -isystem demotion is what makes the gate possible here.
+tc8_enable_strict_warnings(tc8-dut)
 target_link_options(tc8-dut PRIVATE -Wl,--no-as-needed)
 target_link_libraries(tc8-dut PRIVATE ets ets2 ets3 tc8_testability_server tc8_upper_tester_server)

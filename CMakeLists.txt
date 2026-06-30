@@ -222,6 +222,20 @@ endif()
 find_package(vsomeip3 REQUIRED)
 find_package(CommonAPI REQUIRED)
 find_package(CommonAPI-SomeIP REQUIRED)
+
+# Demote vsomeip / CommonAPI third-party include dirs to SYSTEM (same idiom as the
+# SCE demotion above) so a first-party strict-warning gate on the DUT does not
+# fire against headers we do not own. The generated CommonAPI proxy/stub headers
+# (GEN_DIR) are marked SYSTEM on the ets/ets2/ets3 targets where they are added.
+foreach(_tp vsomeip3 CommonAPI CommonAPI-SomeIP)
+    if(TARGET ${_tp})
+        get_target_property(_tp_incs ${_tp} INTERFACE_INCLUDE_DIRECTORIES)
+        if(_tp_incs)
+            set_property(TARGET ${_tp} APPEND PROPERTY
+                INTERFACE_SYSTEM_INCLUDE_DIRECTORIES ${_tp_incs})
+        endif()
+    endif()
+endforeach()
 # The tester-side ArpResponder owns a std::thread worker; link Threads
 # explicitly rather than relying on a transitive vsomeip pull-in.
 find_package(Threads REQUIRED)

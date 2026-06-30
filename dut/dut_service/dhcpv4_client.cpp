@@ -482,11 +482,11 @@ void Dhcpv4Client::emitDhcpMessage(const DhcpEmitSpec& spec) {
     const bool include_opt50 = (requested_addr_be != 0U);
     const bool include_opt54 = (server_id_be != 0U);
     const std::size_t opts_len =
-        3 +
-        (include_opt50 ? 6 : 0) +
-        (include_opt54 ? 6 : 0) +
-        (2 + kParameterRequestList.size()) +
-        1;
+        3u +
+        (include_opt50 ? 6u : 0u) +
+        (include_opt54 ? 6u : 0u) +
+        (2u + kParameterRequestList.size()) +
+        1u;
     const std::size_t dhcp_body_len = kBootpFixedLen + opts_len;
     const std::size_t udp_len       = 8 + dhcp_body_len;
     const std::size_t ip4_len       = 20 + udp_len;
