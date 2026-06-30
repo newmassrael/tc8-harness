@@ -798,7 +798,10 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // ``.trace.json`` (or ``<pcap>.trace.json`` when there's no .pcap
     // suffix). Skipped silently when --pcap-dump wasn't requested — a
     // run without a retained pcap has no frame-idx correlation anchor,
-    // so the walker has no use for the trace.
+    // so the walker has no use for the trace. NOTE: this exports only the
+    // verdict-trace events; the site still re-decodes every frame in Python
+    // (decode_pcap.py). Making this the FULL per-packet export would let the
+    // site drop its decoder — see docs/tech-debt.md TD-05.
     if (!pcap_dump_path_.empty()) {
         std::string trace_path = pcap_dump_path_;
         const auto suffix_pos = trace_path.rfind(".pcap");

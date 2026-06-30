@@ -10,7 +10,10 @@ Run by CI after each test execution:
 
 Output format is documented in ``site/src/lib/types.ts`` (PacketCapture).
 A pure-Python pcap reader handles ARP / ICMPv4 / IPv4+UDP / IPv4+TCP — the
-TC8 protocol surface — without external dependencies. Other link-layer or
+TC8 protocol surface — without external dependencies. This is a SECOND wire
+decoder alongside the authoritative C++ one (src/dissect + *_captured.h); the
+duplication it creates is the root of TD-01/02/04 and is tracked, with the
+C++-single-exporter fix, as docs/tech-debt.md TD-05. Other link-layer or
 upper-layer protocols are reported as ``UNKNOWN`` with raw byte length so
 the timeline still surfaces them.
 """

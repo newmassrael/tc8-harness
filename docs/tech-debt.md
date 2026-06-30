@@ -231,5 +231,55 @@ C++↔Python split: unlike SD/DHCP the two sides share no offset TABLE — the C
 RFC 1071 over its reconstructed/captured bytes while Python sums the raw bytes in a
 separate interpreter — so they share only the standard algorithm, which a `*_wire.def`
 does not address and a C++ helper cannot cross into Python. Re-implementing RFC 1071
-in two languages is the irreducible floor; tracked as a low-drift item (RFC frozen,
-C++ authoritative) so the TD-02 premise stays truthful.
+in two languages is the floor — but ONLY because the site re-decodes the wire at
+all. Eliminating that (TD-05: make the C++ harness the single decoder/exporter so
+the site renders pre-decoded JSON) would close this residual entirely. Until then,
+tracked as a low-drift item (RFC frozen, C++ authoritative) so the TD-02 premise
+stays truthful.
+
+---
+
+## TD-05 — the documentation site re-decodes the wire in Python, duplicating the C++ decoder
+
+**Status:** OPEN (accepted, deferred — the ROOT of the TD-01/02/04 Python mirrors).
+**Logged:** 2026-07-01 (surfaced by "why is there Python at all?").
+
+**What.** The conformance harness is C++ and owns the authoritative wire decoder
+(`src/dissect/` + `src/sce_integration/*_captured.h`). The documentation site
+(`site/`, an Astro JS/TS static app at https://newmassrael.github.io/tc8-harness/)
+renders per-case pcaps, and its data-prep step `site/scripts/decode_pcap.py` is a
+SECOND, independent wire decoder in Python: it re-parses ARP / ICMPv4 / IPv4 / UDP /
+TCP header fields (and the SD / DHCPv4 layouts via the `.def`-generated mirrors) into
+the site's `PacketCapture` JSON (`site/src/lib/types.ts`). The same wire is decoded
+twice — once in C++ for the verdict, once in Python for the web view.
+
+This is the ROOT of the surviving Python mirrors tracked piecemeal as TD-01 (SD
+wire), TD-02 (DHCPv4 BOOTP) and TD-04 (IPv4/TCP checksum): each single-sourced the
+C++ side (or the `.def`), but a Python decode still exists BECAUSE the site
+re-decodes at all.
+
+**Why it exists.** A static documentation website is JS/TS, not C++; its pcap
+data-prep was written in Python (the natural choice for pcap parsing + JSON). The
+C++ harness already emits a per-event `<pcap>.trace.json` sidecar (`test_command.cpp`
+`dumpTraceJson`; `appendCapturedJson` per `*_captured.h`) that `decode_pcap.py` partly
+overlays — but the harness exports only the VERDICT-trace events, not the full
+per-packet `PacketCapture` list the site renders, so `decode_pcap.py` still decodes
+every frame itself.
+
+**Risk if left.** Low drift: the wire layouts are RFC/spec-frozen, the `.def` gates
+(`gen_*_wire.py --check`) + golden-vector self-tests keep the SD/DHCP mirrors honest,
+and the C++ stays authoritative for verdicts (the Python only affects the web
+preview). A divergence mis-renders a field on the site, never a verdict.
+
+**Textbook fix.** Make the C++ harness the SINGLE decoder/exporter: extend its JSON
+export to the full per-packet `PacketCapture` shape (it already has the decoder + the
+`appendCapturedJson` primitives), have the site consume that JSON, and DELETE
+`decode_pcap.py`'s wire decode + the `.def`→Python generators. That collapses
+TD-01/02/04 to nothing — one wire decoder, the site becomes pure presentation.
+
+**Why deferred.** Cross-cutting refactor: a new full-pcap JSON export mode in the
+harness CLI, a site rewire to consume it, and removal of the Python decode +
+generators + their CI gates. The current duplication is low-drift and gated, so the
+payoff is structural purity, not a live hazard — sequenced behind feature work.
+Tracked here so TD-04's "floor" framing stays honest: it is the floor only while the
+site re-decodes; this entry is how to stop it.
