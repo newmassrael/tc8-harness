@@ -17,11 +17,14 @@ class IEtsExtension;
 class EtsImpl;
 class Ets2Impl;
 
-// SOME/IP deployment identity for the ETS server role — the single source of
-// truth shared by ServerRole (which offers these services) and dut_main (whose
-// client-only message names the primary interface it deliberately does NOT
-// offer). These mirror the CommonAPI deployment (commonapi.ini + dut/ets/*.fdepl);
-// keep them in step with that config.
+// SOME/IP deployment identity for the ETS server role, shared by ServerRole
+// (which offers these services) and dut_main (whose client-only message names the
+// primary interface it deliberately does NOT offer). NOTE: these are a hand-kept
+// MIRROR of the authoritative deployment (commonapi.ini + dut/ets/*.fdepl), not a
+// source of truth — there is no automated cross-check yet, so keep them in step
+// with that config by hand. This is the same standing debt dut_config.h documents
+// for the numeric kServiceId/kInstanceId; a future codegen pass should subsume
+// both sides.
 namespace ets_deploy {
 inline constexpr const char* kDomain    = "local";
 inline constexpr const char* kInstance  = "ETS";
@@ -62,7 +65,9 @@ class ServerRole {
 public:
     // `runtime` is the process CommonAPI runtime. `extension` is queried once for
     // ets8001TriggerDriven() to pick the 0x8001 source kind (cyclic vs triggered);
-    // it is not retained.
+    // it is not retained. MAY NOT RETURN: a registration failure calls
+    // std::_Exit(1) (see the class note on the half-init routing-manager hazard),
+    // so `server.emplace(...)` at the call site can terminate the process.
     ServerRole(std::shared_ptr<CommonAPI::Runtime> runtime, const IEtsExtension& extension);
     ~ServerRole();
 

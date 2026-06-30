@@ -5,23 +5,24 @@
 #include <mutex>
 #include <vector>
 
-#include "ets_client_control.h"  // IEtsClientControl
-#include "ets_event_sink.h"      // IEtsEventSink
-#include "ets_extension.h"       // IEtsExtension
+#include "ets_client_control.h"   // IEtsClientControl
+#include "ets_control_channel.h"  // IEtsControlChannel
+#include "ets_event_sink.h"       // IEtsEventSink
+#include "ets_extension.h"        // IEtsExtension
 
 namespace tc8::dut {
 
 // Synthetic, NON-NDA demonstration of the IEtsExtension seam — a copy-paste
 // starter an OEM adapts to offer its OWN (NDA) surface on the shared vsomeip
 // application, selected at configure time via TC8_ETS_EXTENSION_SRC (see
-// demo_ets_extension.cpp). It exercises the SERVER-role IEtsEventSink (offerEvent
-// + onMethod + the reply-capable onRequest) AND the CLIENT-role
-// IEtsClientControl (receives a trigger on a self-offered control service so a
-// client-only DUT can be driven, subscribes for a duration-bounded lifetime
-// anchored to the SubscribeEventgroupAck, stops, plus an RPC call whose Response
-// it captures) — the client-role (CLT) topology shape: the tester drives a
-// method, the DUT subscribes (for a bounded lifetime) or calls back, and a
-// readback method replies with what it observed.
+// demo_ets_extension.cpp). It exercises all three seams: the SERVER-role
+// IEtsEventSink (offerEvent + onMethod + the reply-capable onRequest), the
+// CLIENT-role IEtsClientControl (subscribe/stop, a subscription-status edge that
+// bounds the subscription lifetime by duration, plus an RPC call whose Response it
+// captures), and the inbound IEtsControlChannel (offers a control service so a
+// client-only DUT can be driven) — the client-role (CLT) topology shape: the
+// tester drives a method, the DUT subscribes (for a bounded lifetime) or calls
+// back, and a readback method replies with what it observed.
 //
 // The IDs are deliberately synthetic — outside the public ETS event range
 // (0x80xx), its eventgroups (0x0002/0x0005/0x0007), and the trigger-method range
@@ -83,34 +84,31 @@ public:
                           sink.notify(kDemoEventId, payload);
                       });
 
-        // CLIENT demo: when the tester Requests kDemoSubscribeMethod, drive the
-        // DUT to subscribe (UDP) to the synthetic target eventgroup. Capture the
-        // client POINTER (the context's facade is owned by dut_main for the whole
-        // run) instead of `this`, so the vsomeip-thread handler holds no reference
+        // CLIENT demo: the DUT subscribes (UDP) to the synthetic target eventgroup
+        // when driven — by kDemoSubscribeMethod on the offered ETS service (server
+        // role) OR by the control trigger (client-only role). `driveSubscribe` is
+        // the SINGLE definition of that action so the two delivery paths cannot
+        // drift. It captures the client POINTER (owned by dut_main for the whole
+        // run) instead of `this`, so the vsomeip-thread handlers hold no reference
         // to this extension — the same lifetime discipline as `&sink`.
         IEtsClientControl* client = &ctx.client;
+        auto driveSubscribe = [client] {
+            client->subscribeEventgroup(kDemoTargetService, kDemoTargetInstance,
+                                        kDemoTargetEventgroup, {kDemoTargetEvent},
+                                        /*reliable=*/false, kDemoTargetMajor);
+        };
         sink.onMethod(kDemoSubscribeMethod,
-                      [client](const std::vector<std::uint8_t>&) {
-                          client->subscribeEventgroup(
-                              kDemoTargetService, kDemoTargetInstance,
-                              kDemoTargetEventgroup, {kDemoTargetEvent},
-                              /*reliable=*/false, kDemoTargetMajor);
-                      });
+                      [driveSubscribe](const std::vector<std::uint8_t>&) { driveSubscribe(); });
 
         // CLIENT-ONLY DELIVERY demo: in the client-role topology the DUT offers no
         // event surface, so the server-sink onMethod above never receives a
         // trigger. Offer a small CONTROL service (a distinct id, NOT the subscribe
-        // target) and receive the SAME subscribe trigger on it — the delivery path
-        // a client-only DUT is driven through. The handler captures the client
-        // pointer (owned by dut_main for the whole run), never `this`.
-        client->offerControlMethod(kDemoControlService, kDemoControlInstance,
-                                   kDemoControlSubscribeMethod, kDemoTargetMajor,
-                                   [client](const std::vector<std::uint8_t>&) {
-                                       client->subscribeEventgroup(
-                                           kDemoTargetService, kDemoTargetInstance,
-                                           kDemoTargetEventgroup, {kDemoTargetEvent},
-                                           /*reliable=*/false, kDemoTargetMajor);
-                                   });
+        // target) on the inbound control channel and drive the SAME subscribe on it
+        // — the delivery path a client-only DUT is driven through.
+        ctx.control.offerControlMethod(
+            kDemoControlService, kDemoControlInstance, kDemoControlSubscribeMethod,
+            kDemoTargetMajor,
+            [driveSubscribe](const std::vector<std::uint8_t>&) { driveSubscribe(); });
 
         // CLIENT DURATION demo: anchor a bounded subscription lifetime to the
         // instant the subscription is ESTABLISHED (the target's

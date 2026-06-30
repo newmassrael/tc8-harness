@@ -1,0 +1,65 @@
+#pragma once
+
+#include <cstdint>
+#include <functional>
+#include <memory>
+#include <vector>
+
+namespace tc8::dut {
+
+// INBOUND control-delivery seam over the DUT's SINGLE vsomeip application — the
+// third sibling of IEtsEventSink (server-role event surface) and
+// IEtsClientControl (client-role outbound subscribe/call). It exists for ONE
+// concern the other two cannot serve: letting a tester drive a CLIENT-only DUT.
+//
+// In the client-role (CLT) topology the DUT offers no event surface of its own,
+// so the server sink's onMethod never receives a Request — there is no offered
+// service for the tester's method to land on. This seam offers a SEPARATE control
+// service (a distinct id that is NOT a subscribe target) and routes a method on
+// it to a handler, giving the tester an inbound channel to drive the DUT's
+// client behaviour (e.g. "subscribe to eventgroup X for duration Y") without
+// re-offering the subscribe target.
+//
+// Segregated from IEtsClientControl ON PURPOSE: offer_service is a SERVER verb,
+// and a pure outbound-drive (subscribe/call) extension must not depend on
+// offer/stop_offer machinery it never uses. Kept vsomeip-free so an OEM TU (and
+// the hermetic test) includes only this header; the concrete seam wraps the real
+// vsomeip::application (ets_control_channel.cpp), obtained — like makeEtsEventSink
+// — by the CommonAPI connection id, so it shares the one routing client (no second
+// application). The public default extension never uses it.
+// See claudedocs/ets-dut-public-completion-and-oem-seam-design.md.
+class IEtsControlChannel {
+public:
+    virtual ~IEtsControlChannel() = default;
+
+    // Offer a CONTROL service the DUT receives a method Request on while in the
+    // CLIENT role, and route `method` to `handler`. `service` MUST differ from
+    // every eventgroup target the DUT subscribes to: a local offer of the target
+    // would make vsomeip satisfy the subscribe IN-PROCESS and emit no wire
+    // SubscribeEventgroup — the exact reason a client-only DUT does not offer the
+    // target. Fire-and-forget: the control method drives an action and sends no
+    // Response (the shape of the ETS client-control trigger methods). A
+    // reply-capable control method is intentionally NOT offered here — a readback
+    // is a SERVER-role reply and is served by IEtsEventSink::onRequest, so this
+    // seam stays purely inbound-trigger. offer_service runs once per
+    // `(service, instance)` even across several control methods; `method` must not
+    // alias a handler registered for the same `(service, instance)` on another
+    // seam (they share the one application's handler registry). The handler runs
+    // on a vsomeip thread (it must not block); the offer and handler are withdrawn
+    // when the channel is destroyed.
+    virtual void offerControlMethod(
+        std::uint16_t service, std::uint16_t instance, std::uint16_t method,
+        std::uint8_t major,
+        std::function<void(const std::vector<std::uint8_t>&)> handler) = 0;
+};
+
+// Build a vsomeip-backed IEtsControlChannel over the CommonAPI ETS service's OWN
+// vsomeip application (retrieved by CommonAPI::DEFAULT_CONNECTION_ID, exactly as
+// makeEtsEventSink / makeEtsClientControl do). Call only AFTER the application
+// exists (registerService or the client-only proxy created it). If the
+// application is not found, returns a no-op channel and logs to stderr; never
+// returns null, so callers pass `*channel` to the extension hook unconditionally.
+// This header stays vsomeip-free; the wrapping lives in ets_control_channel.cpp.
+std::unique_ptr<IEtsControlChannel> makeEtsControlChannel();
+
+}  // namespace tc8::dut

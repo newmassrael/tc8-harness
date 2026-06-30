@@ -62,40 +62,22 @@ public:
                                          std::uint16_t eventgroup) = 0;
 
     // Observe the status of the DUT's OWN subscription to `eventgroup` on
-    // `service`/`instance`: `handler` is invoked with `established == true` when
-    // the tester answers with a SubscribeEventgroupAck (the subscription took
-    // effect) and `established == false` on a Nack. A client-role extension uses
-    // the established edge to anchor a subscription-lifetime timer to the instant
-    // the subscription ACTUALLY took effect — not to DUT startup, which races the
-    // tester's OfferService and would misalign the lifetime window. Register this
-    // BEFORE subscribeEventgroup() so the Ack cannot arrive before the handler is
-    // in place. May fire once per event of the eventgroup as each event's status
-    // is reported (vsomeip tracks status per event); a consumer wanting a single
-    // edge debounces. The handler runs on a vsomeip thread (it must not block) and
-    // is unregistered when the control is destroyed, so a captured reference cannot
-    // dangle.
+    // `service`/`instance` as a SINGLE clean edge: `handler` is invoked with
+    // `established == true` once when the subscription takes effect (the tester's
+    // SubscribeEventgroupAck) and with `established == false` if it is later
+    // rejected/lost (a Nack). vsomeip reports status per event of the eventgroup;
+    // the seam collapses that to one edge — the consumer is told only on an actual
+    // transition, never repeatedly for the same state. A client-role extension
+    // uses the established edge to anchor a subscription-lifetime timer to the
+    // instant the subscription ACTUALLY took effect — not to DUT startup, which
+    // races the tester's OfferService and would misalign the lifetime window.
+    // Register this BEFORE subscribeEventgroup() so the Ack cannot arrive before
+    // the handler is in place. The handler runs on a vsomeip thread (it must not
+    // block) and is unregistered when the control is destroyed, so a captured
+    // reference cannot dangle.
     virtual void onSubscriptionStatus(
         std::uint16_t service, std::uint16_t instance, std::uint16_t eventgroup,
         std::function<void(bool established)> handler) = 0;
-
-    // Offer a CONTROL service the DUT receives a method Request on while in the
-    // CLIENT role, WITHOUT offering its subscribe target — so a tester can drive
-    // the DUT's client behaviour (e.g. "subscribe to eventgroup X for duration Y")
-    // even though a client-only DUT offers no event surface of its own (its sink
-    // onMethod never fires because the target service is un-offered). The seam
-    // offer_service's `service` (announced via an OfferService SD entry) and routes
-    // `method` to `handler`. `service` MUST differ from every eventgroup target the
-    // DUT subscribes to: a local offer of the target would make vsomeip satisfy the
-    // subscribe IN-PROCESS and emit no wire SubscribeEventgroup — the exact reason
-    // client-only does not offer the target. Fire-and-forget: the control method
-    // drives an action and sends no Response (the shape of the ETS client-control
-    // trigger methods). offer_service runs once per `service` even across several
-    // control methods. The handler runs on a vsomeip thread (it must not block);
-    // the offer and handler are withdrawn when the control is destroyed.
-    virtual void offerControlMethod(
-        std::uint16_t service, std::uint16_t instance, std::uint16_t method,
-        std::uint8_t major,
-        std::function<void(const std::vector<std::uint8_t>&)> handler) = 0;
 
     // Send a SOME/IP Request from the DUT (client role) to `method` on the
     // tester's `service`/`instance`/`major`, with `payload`, over UDP

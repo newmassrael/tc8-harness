@@ -1,6 +1,8 @@
 #include "ets_client_control.h"
 
+#include <atomic>
 #include <cstdio>
+#include <memory>
 #include <mutex>
 #include <set>
 #include <utility>
@@ -44,14 +46,6 @@ public:
         for (const auto& e : status_eventgroups_) {
             app_->unregister_subscription_status_handler(e.service, e.instance,
                                                          e.eventgroup, vsomeip::ANY_EVENT);
-        }
-        // Withdraw control-method handlers, then stop offering the control
-        // service(s) this control opened (the client-role receive surface).
-        for (const auto& m : control_methods_) {
-            app_->unregister_message_handler(m.service, m.instance, m.method);
-        }
-        for (const auto& s : offered_services_) {
-            app_->stop_offer_service(s.first, s.second);
         }
         for (const auto& svc : requested_services_) {
             app_->release_service(svc.first, svc.second);
@@ -111,38 +105,27 @@ public:
         if (!app_) return;
         std::lock_guard<std::mutex> lock(mutex_);
         status_eventgroups_.push_back({service, instance, eventgroup});
-        // ANY_EVENT: vsomeip tracks subscription status per event, but the
-        // eventgroup-level "established" edge is what a duration anchor needs, so
-        // catch any event's status (vsomeip's lookup falls back to ANY_EVENT).
+        // Debounce vsomeip's per-event status into ONE eventgroup-level edge: the
+        // shared `last` (-1 unknown / 0 not-established / 1 established) is swapped
+        // atomically, so the consumer is invoked only on a real transition and
+        // never repeatedly for the same state across the eventgroup's events.
+        // ANY_EVENT catches any event's status (vsomeip's lookup falls back to it).
+        auto last = std::make_shared<std::atomic<int>>(-1);
         app_->register_subscription_status_handler(
             service, instance, eventgroup, vsomeip::ANY_EVENT,
-            [handler = std::move(handler)](vsomeip::service_t, vsomeip::instance_t,
-                                           vsomeip::eventgroup_t, vsomeip::event_t,
-                                           std::uint16_t status) {
-                // status 0x00 == SubscribeEventgroupAck (established); a non-zero
-                // status is a Nack (not established).
-                handler(status == 0);
-            });
-    }
-
-    void offerControlMethod(
-        std::uint16_t service, std::uint16_t instance, std::uint16_t method,
-        std::uint8_t major,
-        std::function<void(const std::vector<std::uint8_t>&)> handler) override {
-        if (!app_) return;
-        std::lock_guard<std::mutex> lock(mutex_);
-        // offer_service once per (service, instance) — a second control method on
-        // the same control service reuses the offer.
-        if (offered_services_.insert({service, instance}).second) {
-            app_->offer_service(service, instance, major);
-        }
-        control_methods_.push_back({service, instance, method});
-        app_->register_message_handler(
-            service, instance, method,
-            [handler = std::move(handler)](const std::shared_ptr<vsomeip::message>& msg) {
-                if (!msg) return;
-                handler(messageBytes(msg));  // fire-and-forget: no Response sent
-            });
+            [handler = std::move(handler), last](vsomeip::service_t, vsomeip::instance_t,
+                                                 vsomeip::eventgroup_t, vsomeip::event_t,
+                                                 std::uint16_t status) {
+                // status 0x00 == SubscribeEventgroupAck (established); non-zero == Nack.
+                const int now = (status == 0) ? 1 : 0;
+                if (last->exchange(now) != now) {
+                    handler(now == 1);  // fire only on a real transition
+                }
+            },
+            // _is_selective = true: without it vsomeip's deliver_subscription_state
+            // gates the Nack branch on this flag and never reports a rejection, so
+            // the `established == false` edge would be dead.
+            /*_is_selective=*/true);
     }
 
     void callMethod(std::uint16_t service, std::uint16_t instance, std::uint16_t method,
@@ -198,11 +181,6 @@ private:
         std::uint16_t instance;
         std::uint16_t eventgroup;
     };
-    struct ControlMethod {
-        std::uint16_t service;
-        std::uint16_t instance;
-        std::uint16_t method;
-    };
 
     // request_service once per unique (service, instance); the matching
     // release_service runs in the dtor. Caller holds mutex_.
@@ -227,8 +205,6 @@ private:
     std::vector<Subscription> subscriptions_;
     std::vector<ResponseMethod> response_methods_;
     std::vector<StatusEventgroup> status_eventgroups_;
-    std::vector<ControlMethod> control_methods_;
-    std::set<std::pair<std::uint16_t, std::uint16_t>> offered_services_;
     std::set<std::pair<std::uint16_t, std::uint16_t>> requested_services_;
 };
 
@@ -244,8 +220,6 @@ public:
     void stopSubscribeEventgroup(std::uint16_t, std::uint16_t, std::uint16_t) override {}
     void onSubscriptionStatus(std::uint16_t, std::uint16_t, std::uint16_t,
                               std::function<void(bool)>) override {}
-    void offerControlMethod(std::uint16_t, std::uint16_t, std::uint16_t, std::uint8_t,
-                            std::function<void(const std::vector<std::uint8_t>&)>) override {}
     void callMethod(std::uint16_t, std::uint16_t, std::uint16_t,
                     const std::vector<std::uint8_t>&, bool, std::uint8_t) override {}
     void onResponse(std::uint16_t, std::uint16_t, std::uint16_t,

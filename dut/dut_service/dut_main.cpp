@@ -12,6 +12,7 @@
 #include "client_mode_proxy.h"
 #include "env_flag.h"
 #include "ets_client_control.h"
+#include "ets_control_channel.h"
 #include "ets_event_sink.h"
 #include "ets_extension.h"
 #include "ets_fault.h"
@@ -105,13 +106,20 @@ int main() {
     std::unique_ptr<tc8::dut::IEtsClientControl> ets_client =
         tc8::dut::makeEtsClientControl();
 
-    // The server sink + client control handed to every extension hook as one
-    // context (owned here for the whole run). Now that the service is offered (in
-    // server mode) and the application exists (both modes), let the OEM extension
-    // (O2) offer its NDA event surface and wire any client subscribe/calls. No-op
-    // for the public default extension (its ets8001TriggerDriven() already chose the
-    // 0x8001 source kind in the ServerRole constructor above).
-    tc8::dut::EtsExtensionContext ets_ctx{*ets_sink, *ets_client};
+    // OEM inbound control channel (O2, CLT topology): offers a control service the
+    // tester drives a client-only DUT through (no second app — same CommonAPI-owned
+    // application as the sink/client). Declared before the extension context so it
+    // outlives the EtsExtensionContext that hands it to every hook.
+    std::unique_ptr<tc8::dut::IEtsControlChannel> ets_control =
+        tc8::dut::makeEtsControlChannel();
+
+    // The server sink + client control + control channel handed to every extension
+    // hook as one context (owned here for the whole run). Now that the service is
+    // offered (in server mode) and the application exists (both modes), let the OEM
+    // extension (O2) offer its NDA event surface and wire any client subscribe/calls.
+    // No-op for the public default extension (its ets8001TriggerDriven() already
+    // chose the 0x8001 source kind in the ServerRole constructor above).
+    tc8::dut::EtsExtensionContext ets_ctx{*ets_sink, *ets_client, *ets_control};
     ets_extension->onRegister(ets_ctx);
 
     // TC8 §4.8.5 Upper Tester channel. UDP-bound listeners for

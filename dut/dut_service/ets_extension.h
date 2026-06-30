@@ -16,15 +16,23 @@ class IEtsEventSink;
 // never depends on the client surface.
 class IEtsClientControl;
 
-// The collaborators handed to every extension hook: the SERVER-role event sink
-// and the CLIENT-role control, both owned by dut_main for the whole run. Bundling
-// them gives every hook a uniform, complete context — no "param for the sink but
-// hand-once-and-store for the client" asymmetry — and lets a future seam join
-// here without changing any hook signature. Holds references (never null); the
-// struct definition only needs the forward declarations above.
+// The inbound control-delivery facade — offers a control service so a CLIENT-only
+// DUT can be driven by the tester. Defined in ets_control_channel.h;
+// forward-declared here. Segregated from IEtsClientControl (which is outbound
+// subscribe/call) so a pure-drive extension never depends on offer_service.
+class IEtsControlChannel;
+
+// The collaborators handed to every extension hook: the SERVER-role event sink,
+// the CLIENT-role outbound control, and the inbound control channel — all owned by
+// dut_main for the whole run. Bundling them gives every hook a uniform, complete
+// context — no "param for the sink but hand-once-and-store for the client"
+// asymmetry — and lets a future seam join here without changing any hook
+// signature. Holds references (never null); the struct definition only needs the
+// forward declarations above.
 struct EtsExtensionContext {
     IEtsEventSink& sink;
     IEtsClientControl& client;
+    IEtsControlChannel& control;
 };
 
 // Extend seam (O2 path) for events/methods the OEM owns but that are NOT in the

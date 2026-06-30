@@ -22,6 +22,7 @@
 
 #include "demo_ets_extension.h"
 #include "ets_client_control.h"
+#include "ets_control_channel.h"
 #include "ets_event_sink.h"
 #include "ets_extension.h"
 #include "ets_payload.h"  // payloadBytes (vsomeip-free SSOT, exercised below)
@@ -114,16 +115,6 @@ public:
         status_eventgroup = eventgroup;
         status_handler = std::move(handler);
     }
-    void offerControlMethod(
-        std::uint16_t service, std::uint16_t instance, std::uint16_t method,
-        std::uint8_t major,
-        std::function<void(const std::vector<std::uint8_t>&)> handler) override {
-        control_service = service;
-        control_instance = instance;
-        control_method = method;
-        control_major = major;
-        control_handler = std::move(handler);
-    }
     void callMethod(std::uint16_t service, std::uint16_t instance, std::uint16_t method,
                     const std::vector<std::uint8_t>& payload, bool reliable,
                     std::uint8_t major) override {
@@ -162,8 +153,23 @@ public:
     std::uint16_t status_instance = 0;
     std::uint16_t status_eventgroup = 0;
     std::function<void(bool)> status_handler;
-    // The single offerControlMethod registration the demo makes; a test fires it
-    // to simulate the tester's control Request arriving on a vsomeip thread.
+};
+
+// Records the IEtsControlChannel registration so a test can assert the inbound
+// control service the extension offered and fire the trigger it bound.
+class FakeEtsControlChannel : public tc8::dut::IEtsControlChannel {
+public:
+    void offerControlMethod(
+        std::uint16_t service, std::uint16_t instance, std::uint16_t method,
+        std::uint8_t major,
+        std::function<void(const std::vector<std::uint8_t>&)> handler) override {
+        control_service = service;
+        control_instance = instance;
+        control_method = method;
+        control_major = major;
+        control_handler = std::move(handler);
+    }
+
     std::uint16_t control_service = 0;
     std::uint16_t control_instance = 0;
     std::uint16_t control_method = 0;
@@ -176,7 +182,8 @@ public:
 TEST(DemoEtsExtension, OnRegisterOffersEventAndArmsTrigger) {
     FakeEtsEventSink sink;
     FakeEtsClientControl client;
-    tc8::dut::EtsExtensionContext ctx{sink, client};
+    FakeEtsControlChannel control;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 
@@ -195,7 +202,8 @@ TEST(DemoEtsExtension, OnRegisterOffersEventAndArmsTrigger) {
 TEST(DemoEtsExtension, TriggerMethodNotifiesEventWithRequestPayload) {
     FakeEtsEventSink sink;
     FakeEtsClientControl client;
-    tc8::dut::EtsExtensionContext ctx{sink, client};
+    FakeEtsControlChannel control;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 
@@ -214,7 +222,8 @@ TEST(DemoEtsExtension, OnTickEmitsNothing) {
     // cyclic). onStop's subscribe-stop is covered by OnStopStopsSubscription.
     FakeEtsEventSink sink;
     FakeEtsClientControl client;
-    tc8::dut::EtsExtensionContext ctx{sink, client};
+    FakeEtsControlChannel control;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
     sink.notifications.clear();
@@ -229,7 +238,8 @@ TEST(DemoEtsExtension, OnTickEmitsNothing) {
 TEST(DemoEtsExtension, SubscribeMethodDrivesClientControl) {
     FakeEtsEventSink sink;
     FakeEtsClientControl client;
-    tc8::dut::EtsExtensionContext ctx{sink, client};
+    FakeEtsControlChannel control;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 
@@ -252,7 +262,8 @@ TEST(DemoEtsExtension, SubscribeMethodDrivesClientControl) {
 TEST(DemoEtsExtension, OnStopStopsSubscription) {
     FakeEtsEventSink sink;
     FakeEtsClientControl client;
-    tc8::dut::EtsExtensionContext ctx{sink, client};
+    FakeEtsControlChannel control;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 
@@ -266,23 +277,25 @@ TEST(DemoEtsExtension, OnStopStopsSubscription) {
 TEST(DemoEtsExtension, ControlMethodDeliversSubscribeInClientOnly) {
     FakeEtsEventSink sink;
     FakeEtsClientControl client;
-    tc8::dut::EtsExtensionContext ctx{sink, client};
+    FakeEtsControlChannel control;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 
-    // The demo offers a CONTROL service + method that is distinct from the
-    // subscribe target (offering the target would self-route the subscribe).
-    EXPECT_EQ(client.control_service, tc8::dut::kDemoControlService);
-    EXPECT_EQ(client.control_instance, tc8::dut::kDemoControlInstance);
-    EXPECT_EQ(client.control_method, tc8::dut::kDemoControlSubscribeMethod);
-    EXPECT_EQ(client.control_major, tc8::dut::kDemoTargetMajor);
-    EXPECT_NE(client.control_service, tc8::dut::kDemoTargetService);
-    ASSERT_TRUE(static_cast<bool>(client.control_handler));
+    // The demo offers a CONTROL service + method (on the inbound control channel)
+    // that is distinct from the subscribe target (offering the target would
+    // self-route the subscribe).
+    EXPECT_EQ(control.control_service, tc8::dut::kDemoControlService);
+    EXPECT_EQ(control.control_instance, tc8::dut::kDemoControlInstance);
+    EXPECT_EQ(control.control_method, tc8::dut::kDemoControlSubscribeMethod);
+    EXPECT_EQ(control.control_major, tc8::dut::kDemoTargetMajor);
+    EXPECT_NE(control.control_service, tc8::dut::kDemoTargetService);
+    ASSERT_TRUE(static_cast<bool>(control.control_handler));
 
     // Firing the control method drives the subscribe — the delivery path a
     // client-only DUT uses when its server-sink onMethod never fires.
     EXPECT_TRUE(client.subscribes.empty());
-    client.control_handler({});
+    control.control_handler({});
     ASSERT_EQ(client.subscribes.size(), 1u);
     EXPECT_EQ(client.subscribes[0].service, tc8::dut::kDemoTargetService);
     EXPECT_EQ(client.subscribes[0].eventgroup, tc8::dut::kDemoTargetEventgroup);
@@ -291,7 +304,8 @@ TEST(DemoEtsExtension, ControlMethodDeliversSubscribeInClientOnly) {
 TEST(DemoEtsExtension, SubscriptionStatusBoundsLifetimeFromEstablishment) {
     FakeEtsEventSink sink;
     FakeEtsClientControl client;
-    tc8::dut::EtsExtensionContext ctx{sink, client};
+    FakeEtsControlChannel control;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 
@@ -332,7 +346,8 @@ TEST(DemoEtsExtension, SubscriptionStatusBoundsLifetimeFromEstablishment) {
 TEST(DemoEtsExtension, CallMethodDrivesClientControl) {
     FakeEtsEventSink sink;
     FakeEtsClientControl client;
-    tc8::dut::EtsExtensionContext ctx{sink, client};
+    FakeEtsControlChannel control;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 
@@ -355,7 +370,8 @@ TEST(DemoEtsExtension, CallMethodDrivesClientControl) {
 TEST(DemoEtsExtension, ResponseIsCapturedAndReadbackReplies) {
     FakeEtsEventSink sink;
     FakeEtsClientControl client;
-    tc8::dut::EtsExtensionContext ctx{sink, client};
+    FakeEtsControlChannel control;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 
