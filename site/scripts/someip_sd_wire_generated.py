@@ -9,7 +9,7 @@
 
 
 def _read(buf, off, size, shift, mask):
-    """Big-endian field read; twin of ::tc8::sd_wire::readBe (C++)."""
+    """Big-endian field read; twin of ::tc8::wire::readBe (C++)."""
     value = 0
     for i in range(size):
         value = (value << 8) | buf[off + i]

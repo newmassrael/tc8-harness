@@ -5,7 +5,7 @@
 //   * C++ (authoritative): #included directly by
 //     src/sce_integration/someip_captured.h, which #defines the relevant
 //     TC8_SD_* macros so each row expands into a field read against the
-//     shared ::tc8::sd_wire::readBe primitive. Zero parsing, cannot drift
+//     shared ::tc8::wire::readBe primitive. Zero parsing, cannot drift
 //     from this file because it literally expands it.
 //   * Python (site mirror): parsed by tools/gen_someip_sd_wire.py, which
 //     GENERATES site/scripts/someip_sd_wire_generated.py. CI runs
