@@ -793,15 +793,15 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     }
 
     // Evidence Export (Option 3) — emit the transition trace alongside the
-    // pcap so decode_pcap.py can merge it into the per-case JSON. The
-    // sidecar path is the pcap path with ``.pcap`` replaced by
-    // ``.trace.json`` (or ``<pcap>.trace.json`` when there's no .pcap
-    // suffix). Skipped silently when --pcap-dump wasn't requested — a
-    // run without a retained pcap has no frame-idx correlation anchor,
-    // so the walker has no use for the trace. NOTE: this exports only the
-    // verdict-trace events; the site still re-decodes every frame in Python
-    // (decode_pcap.py). Making this the FULL per-packet export would let the
-    // site drop its decoder — see docs/tech-debt.md TD-05.
+    // pcap so `tc8-harness decode-pcap` can merge it (verbatim, under
+    // ``captured_trace``) into the per-case JSON it produces for the site. The
+    // sidecar path is the pcap path with ``.pcap`` replaced by ``.trace.json``
+    // (or ``<pcap>.trace.json`` when there's no .pcap suffix). Skipped silently
+    // when --pcap-dump wasn't requested — a run without a retained pcap has no
+    // frame-idx correlation anchor, so the site walker has no use for the
+    // trace. This trace is the single source of truth for the site's timeline
+    // labels (generate_messages.py::_label_via_trace); the site does NOT
+    // re-decode the wire. See docs/tech-debt.md TD-05.
     if (!pcap_dump_path_.empty()) {
         std::string trace_path = pcap_dump_path_;
         const auto suffix_pos = trace_path.rfind(".pcap");

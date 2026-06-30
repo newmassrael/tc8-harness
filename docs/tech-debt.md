@@ -67,6 +67,13 @@ surfaced this debt), and the IPv4 option tail — is one row carrying its
   site mirror `site/scripts/someip_sd_wire_generated.py`, imported by
   `decode_pcap.py`.
 
+**Update (2026-07-01, TD-05).** The Python mirror is gone entirely. The site no
+longer re-decodes the wire (TD-05): `decode_pcap.py`, the generator, and the
+generated mirror were all deleted. `someip_sd_wire.def` remains the SSOT with a
+single consumer — the C++ decoder (`someip_captured.h`) `#include`s it directly — so
+there is no longer a cross-language pair to keep in step, and the `--check` freshness
+gate was retired with the generator.
+
 This also collapses the gratuitous field-name divergence: the Python mirror now
 emits the canonical C++ names (`index_first`, `num_opt1`, ...), so
 `generate_messages.py` no longer remaps entry names for the SCXML cond view.
@@ -143,6 +150,14 @@ walk: option 53 Message Type, Pad, END) has no fixed offsets, so it is decoded b
 hand on each side and intentionally stays outside this offset SSOT; only the
 options START offset is shared (`kOptionsOff`).
 
+**Update (2026-07-01, TD-05).** The Python mirror is gone entirely (same as TD-01):
+`decode_pcap.py`, `tools/gen_dhcpv4_wire.py`, and
+`site/scripts/dhcpv4_wire_generated.py` were deleted when the site stopped
+re-decoding the wire. `dhcpv4_wire.def` remains the SSOT with one consumer, the C++
+decoder (`dhcpv4_wire.h`, used by `packet_pipeline.cpp`); the freshness gate was
+retired with the generator. The hand-decoded options walk likewise now exists only
+in C++.
+
 ## TD-03 — `--expect` key strings hand-duplicated across producers and the consumer
 
 **Status:** RESOLVED (2026-06-30). **Logged:** 2026-06-30.
@@ -200,9 +215,19 @@ emission. That residual is covered by per-scenario test design plus the runtime
 
 ## TD-04 — IPv4 header checksum mirrored across the C++ harness and the Python site tooling
 
-**Status:** OPEN (accepted, low priority) — NARROWED 2026-06-30: the C++ side is now
-single-sourced; only the cross-language Python mirror remains. **Logged:** 2026-06-30
-(surfaced by the TD-02 premise audit).
+**Status:** RESOLVED (2026-07-01 by TD-05). NARROWED 2026-06-30 to a single
+cross-language Python mirror; that mirror was then eliminated when the site stopped
+re-decoding the wire (TD-05). **Logged:** 2026-06-30 (surfaced by the TD-02 premise
+audit).
+
+**Update (2026-07-01).** The "irreducible" residual — `decode_pcap.py`'s
+`ip_header_checksum_ok`, a Python re-implementation of the IPv4 header checksum — is
+gone. `decode_pcap.py` was deleted (TD-05); the C++ exporter that replaced it emits
+no per-frame `fields`, so the checksum is computed in exactly one place, the
+`tc8::wire` RFC 1071 SSOT (`inetChecksumValid` / `tcpChecksumValid`), consumed by the
+builders and the two verification sites. There is no second language re-summing the
+bytes. The "floor only while the site re-decodes" framing below was the escape path;
+TD-05 took it.
 
 **What (now narrowed).** The RFC 1071 / RFC 793 checksum fold is a single C++ SSOT
 (`tc8::wire::inetChecksum` / `tcpChecksum`, `src/wire/ip_checksum.*`), shared by every
@@ -241,7 +266,9 @@ stays truthful.
 
 ## TD-05 — the documentation site re-decodes the wire in Python, duplicating the C++ decoder
 
-**Status:** OPEN (accepted, deferred — the ROOT of the TD-01/02/04 Python mirrors).
+**Status:** RESOLVED (2026-07-01). The site no longer re-decodes the wire; it
+replays each saved pcap through the harness's own decoder. This collapsed the
+TD-01/02/04 Python mirrors (see the resolution + their update notes).
 **Logged:** 2026-07-01 (surfaced by "why is there Python at all?").
 
 **What.** The conformance harness is C++ and owns the authoritative wire decoder
@@ -271,15 +298,173 @@ every frame itself.
 and the C++ stays authoritative for verdicts (the Python only affects the web
 preview). A divergence mis-renders a field on the site, never a verdict.
 
-**Textbook fix.** Make the C++ harness the SINGLE decoder/exporter: extend its JSON
-export to the full per-packet `PacketCapture` shape (it already has the decoder + the
-`appendCapturedJson` primitives), have the site consume that JSON, and DELETE
-`decode_pcap.py`'s wire decode + the `.def`→Python generators. That collapses
-TD-01/02/04 to nothing — one wire decoder, the site becomes pure presentation.
+**Resolution.** The C++ harness is now the SINGLE decoder/exporter. A new offline
+CLI mode, `tc8-harness decode-pcap` (`src/cli/decode_pcap_command.cpp`), replays a
+saved pcap through the harness's own `dissect::PacketPipeline` — the authoritative
+wire decoder that drives verdicts — and emits the site's `PacketCapture` JSON
+(`site/src/lib/types.ts`): per-frame idx / timestamps / direction / endpoints /
+protocol / human summary. CI (`pcap-refresh.yml`) calls it where it previously ran
+`decode_pcap.py`. Consequences:
 
-**Why deferred.** Cross-cutting refactor: a new full-pcap JSON export mode in the
-harness CLI, a site rewire to consume it, and removal of the Python decode +
-generators + their CI gates. The current duplication is low-drift and gated, so the
-payoff is structural purity, not a live hazard — sequenced behind feature work.
-Tracked here so TD-04's "floor" framing stays honest: it is the floor only while the
-site re-decodes; this entry is how to stop it.
+- `site/scripts/decode_pcap.py` (the second wire decoder) is DELETED, and with it
+  the `.def`→Python generators (`tools/gen_someip_sd_wire.py`,
+  `tools/gen_dhcpv4_wire.py`, `tools/wire_gen_common.py`), the generated mirrors
+  (`site/scripts/*_wire_generated.py`), and their CI / pre-commit freshness gates.
+  The `someip_sd_wire.def` / `dhcpv4_wire.def` SSOTs remain — now with a single C++
+  consumer (`someip_captured.h` / `dhcpv4_wire.h` `#include` them), so there is no
+  cross-language mirror left to keep in step. **This is what collapses TD-01, TD-02,
+  and TD-04** (see their update notes).
+- The site's timeline labels were already rendered from the harness transition trace
+  (the `captured_trace` block, merged verbatim by the exporter), not from per-frame
+  field re-evaluation — so `decode-pcap` emits no `fields` dict, and
+  `generate_messages.py`'s dead dual-evidence cond-walker (its tokenizer / parser /
+  `_eval` / per-protocol helpers / `_packet_view`, ~2.8k lines) was retired, leaving
+  the trace-driven `_label_via_trace` path. The site is now pure presentation.
+
+**Equivalence + drift gate.** The exporter was proven output-equivalent to the
+retired `decode_pcap.py` on a synthetic capture spanning ARP / ICMPv4 / IPv4 / UDP /
+DHCPv4 / TCP / SOME/IP (UDP + TCP) / SOME/IP-SD / Upper-Tester / unknown-ethertype:
+identical idx / timestamps / direction / endpoints / protocol / summary and a
+byte-identical `captured_trace` merge. The cond-walker retirement was proven
+label-identical to the prior generator on a trace-backed case. That proof is now a
+standing gate, not a one-time check: the `decode_pcap_golden` ctest
+(`unit_tests/run_decode_pcap_golden.cmake`) replays a committed fixture pcap + trace
+(`unit_tests/fixtures/decode_pcap_sample.*`) through the real binary on every build
+and asserts the output is byte-identical to the committed expected JSON — the
+automated guard that replaced the deleted `.def` `--check` freshness gates.
+
+---
+
+## TD-06 — Upper-Tester response field decode is duplicated (decode-pcap vs udp_captured.h)
+
+**Status:** OPEN (accepted, low priority). **Logged:** 2026-07-01 (cold review of TD-05).
+
+**What.** The documentation-site exporter `src/cli/decode_pcap_command.cpp`
+(`utSummary`) hand-decodes the Upper-Tester response body — the response-bit split,
+status byte, and per-opcode trailers (e.g. `GetReceivedUdp` → received + src
+ip/port/len, `CreateUdpReceivePorts` → actual count) — at the same wire offsets that
+the authoritative verdict-path decoder `src/sce_integration/udp_captured.h`
+(`fillUdpCapturedFromFrame`) already extracts into `ut_received` / `ut_recv_*` /
+`ut_create_actual_count`. Two decoders for one wire format. Every other protocol the
+exporter summarises routes through the single authoritative decoder (SD via
+`fillSomeIpCapturedFromFrame`, the rest via the pipeline's `*Frame`); UT is the lone
+hand-rolled re-decode, because the pipeline emits no UT event and `udp_captured.h`
+covers only the subset of opcodes the verdict path needs.
+
+**Why it exists.** TD-05 reused the verdict decoder wherever it already produced the
+field; for UT, the exporter needs more opcodes (`QueryTcpInfo`, `QueryLLAddress`,
+`QueryDhcpLease`, …) than `udp_captured.h` decodes, so the quick path was to decode
+the whole UT response in the exporter rather than first factor a shared decoder.
+
+**Risk if left.** Low drift: the UT protocol is the harness's OWN wire format, frozen
+in `include/tc8/upper_tester_protocol.h` (which already owns the opcode/status value
+SSOT and the `readU16` reader). A divergence mis-renders a UT row on the site, never a
+verdict. The opcode/status NAMES and the response-bit/port constants are already
+single-sourced; only the per-opcode trailer field OFFSETS are mirrored.
+
+**Textbook fix.** Factor a shared `tc8::ut::decodeResponse(payload, len) -> struct`
+into `upper_tester_protocol.h` (covering all opcodes), and have BOTH
+`udp_captured.h` and the exporter consume it. The verdict struct keeps only the
+fields it asserts on; the shared decoder owns the offsets.
+
+**Why deferred.** The clean fix reaches into the verdict-path `udp_captured.h`, which
+is out of TD-05's scope (the site-decoder elimination). Tracked here so the UT offset
+mirror is not forgotten; the drift is low and the exporter output is gated
+(`decode_pcap_golden`).
+
+---
+
+## TD-07 — SOME/IP-SD message magic (service 0xFFFF / method 0x8100) has no named SSOT
+
+**Status:** OPEN (accepted, low priority). **Logged:** 2026-07-01 (cold review of TD-05).
+
+**What.** The SD-message identity — header `service_id == 0xFFFF` and
+`method_id == 0x8100` (PRS_SOMEIPSD) — is spelled as raw literals across the tree:
+`src/sce_integration/someip_captured.h` repeats `service_id == 0xFFFF` in several
+recognizers, the SD builder uses a function-local `kMethodIdSd = 0x8100`, the case
+bodies write `0x8100` inline, and TD-05's `decode_pcap_command.cpp::someipIsSd` adds
+one more spelling of the full predicate. There is no shared `kSdServiceId` /
+`kSdMethodId` constant and no shared `isSdMessage(frame)` recognizer.
+
+**Why it exists.** Pre-existing scatter; SD detection grew per-site. TD-05 routed the
+message-type / return-code parts of `someipIsSd` through the `someip::MessageType` /
+`ReturnCode` enums but left `0xFFFF` / `0x8100` raw, matching the surrounding
+convention rather than introducing a half-used constant.
+
+**Risk if left.** Low: the SD magic is RFC-frozen and a wrong literal would fail
+loudly in tests. The cost is readability + a missing single recognizer, not drift.
+
+**Textbook fix.** Promote `kSdServiceId = 0xFFFF` / `kSdMethodId = 0x8100` to
+`src/someip/protocol.h` (next to the message-type/return-code enums) and add a shared
+`isSdMessage()` helper, then repoint the captured recognizers, the dispatcher gate,
+the builder, and the exporter at it.
+
+**Why deferred.** A cross-cutting SSOT unification spanning the verdict path, the
+builder, and the cases — broader than TD-05's site-decoder scope. Logged so the
+scatter is visible.
+
+---
+
+## TD-08 — decode-pcap protocol-presentation tables live in the CLI translation unit
+
+**Status:** OPEN (accepted, low priority). **Logged:** 2026-07-01 (cold review of TD-05).
+
+**What.** The display-name tables (`someipMsgTypeName`, `someipReturnCodeName`,
+`sdEntryTypeName`, `icmpTypeName`, `dhcpMsgTypeName`, …) and the per-protocol summary
+builders live in the anonymous namespace of `src/cli/decode_pcap_command.cpp`. They
+are reusable protocol-presentation logic, but as command-local statics they cannot be
+unit-tested in isolation (only end-to-end via `decode_pcap_golden`) and a future
+`tc8-harness live` / `replay` text renderer could not reuse them without forking.
+
+**Why it exists.** TD-05 built the exporter as one self-contained command; the
+presentation helpers were written inline rather than extracted to a shared header.
+
+**Risk if left.** Low: no drift hazard (single consumer today). The cost is testability
++ a potential future fork if another renderer needs the same labels.
+
+**Textbook fix.** Move the name tables + summary builders to a `someip/`-adjacent
+presentation header next to the enums they name; leave `decode_pcap_command.cpp` as
+JSON assembly + endpoint autodetect + the offline drive loop, and add a direct unit
+test of the summary builders.
+
+**Why deferred.** A restructure with no behavior change; the command-local form is
+defensible while there is a single consumer. Logged for the day a second text renderer
+lands.
+
+---
+
+## TD-09 — decode-pcap has minor, accepted display divergences from the retired Python decoder
+
+**Status:** OPEN (accepted, low priority). **Logged:** 2026-07-01 (cold review of TD-05).
+
+**What.** Three small per-frame summary divergences from the deleted `decode_pcap.py`,
+all display-only (labels, never verdicts):
+
+- **SD entry/option counts cap at 8.** `sdSummary` iterates `sd_entry_count` /
+  `sd_option_count`, which `fillSomeIpCapturedFromFrame` caps at
+  `kMaxSdEntries`/`kMaxSdOptions` (= 8). An SD frame carrying >8 entries shows
+  `+N more` / `ipv4_endpoints=` undercounted relative to the true wire total (the
+  Python counted the real totals). TC8 SD frames carry 1–2 entries and the one
+  high-fan-out case is `trim_pcap.py`-trimmed, so this is rare.
+- **Sub-240-byte DHCP renders as plain UDP.** The pipeline only emits a `Dhcpv4Frame`
+  when the BOOTP body reaches the magic-cookie offset (240 B); a shorter datagram on
+  port 67/68 shows as `UDP src→dst, len=N` where the Python showed
+  `DHCPv4 (truncated, N B)`. Such a frame is malformed DHCP.
+- **Other-protocol IPv4 byte count.** For an IPv4 packet whose upper protocol is not
+  ICMP/UDP/TCP, the summary uses the IP header `total_length`; the Python used the
+  captured byte length. They differ only under L2 padding or snaplen truncation
+  (the C++ form is arguably the more correct one).
+
+**Why it exists.** The first two follow from reusing the pipeline's verdict-oriented
+decode (bounded SD arrays; DHCP gated at the cookie offset) rather than re-deriving a
+display-only decode; the third is a deliberate choice of the spec-meaningful length.
+
+**Risk if left.** Negligible: display-only, on rare/malformed frames, and the exporter
+output is gated (`decode_pcap_golden`).
+
+**Textbook fix.** For the SD cap, surface the pre-cap totals from
+`fillSomeIpCapturedFromFrame` (a verdict-struct change) or annotate the count as
+capture-capped; for sub-240 DHCP, recognise the 67/68 port pair in the exporter and
+label it truncated. **Why deferred:** each is a low-value behavior tweak (one needs a
+verdict-struct change for a doc summary), so they are batched here rather than chased
+piecemeal.

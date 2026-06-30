@@ -59,9 +59,11 @@ struct Ipv4Captured : CapturedFrameTiming {
     // precedent is `payload_equals` on `Icmpv4Captured`.
     //
     // The RFC 1071 fold routes through the tc8::wire SSOT shared with every
-    // builder; only the cross-language Python mirror in site/scripts/decode_pcap.py
-    // (`ip_header_checksum_ok`) stays a hand-copy, which no C++ SSOT can subsume.
-    // See docs/tech-debt.md TD-04.
+    // builder. This is now the only IPv4-checksum implementation in the tree:
+    // the documentation site formerly re-summed the header in Python
+    // (decode_pcap.py `ip_header_checksum_ok`), but it no longer re-decodes the
+    // wire — it renders the harness's own decode. See docs/tech-debt.md TD-04
+    // (resolved by TD-05).
     //
     // Limited to the IHL=5 (no-options) case: every DUT Echo Reply the
     // pilot observes has the kernel's default no-options header, so

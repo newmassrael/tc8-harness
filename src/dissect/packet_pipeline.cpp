@@ -423,8 +423,9 @@ void PacketPipeline::processFrame(const pcap_pkthdr &hdr, const std::uint8_t *by
             // carries no FCS, and the IPv4 Total Length bounds the TCP region so any
             // L2 trailer padding stays out of the sum. §4.8.6.2 TCP_CHECKSUM_03
             // reads tf.checksum_valid to verify the DUT's sender-side checksum.
-            // Only the cross-language Python mirror (decode_pcap.py) stays a
-            // hand-copy. See docs/tech-debt.md TD-04.
+            // This is the sole checksum implementation now that the site no
+            // longer re-decodes the wire in Python. See docs/tech-debt.md TD-04
+            // (resolved by TD-05).
             tf.checksum_valid = false;
             const std::uint16_t ip_total_len = ip->tot_len();
             const std::uint16_t ip_hdr_len   =
