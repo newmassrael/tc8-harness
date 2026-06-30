@@ -190,6 +190,9 @@ def _dissect_ipv4(payload: bytes, p: Packet) -> bytes | None:
     # with the on-wire header bytes. RFC 791 §3.1 16-bit one's complement
     # of all 16-bit words in the IP header (with the checksum field
     # itself zero-treated) MUST sum to 0xFFFF.
+    # Hand-mirrors the authoritative C++ src/sce_integration/ipv4_captured.h
+    # (header_checksum_valid); the RFC 1071 algorithm is shared but there is no
+    # offset .def to single-source (see docs/tech-debt.md TD-04 for why).
     s = 0
     for off in range(0, ihl, 2):
         s += struct.unpack(">H", payload[off:off+2])[0]

@@ -426,6 +426,9 @@ void PacketPipeline::processFrame(const pcap_pkthdr &hdr, const std::uint8_t *by
             // RFC 1071 — same shape the builder upholds in
             // tcp_segment_builder.cpp::inetChecksum, so a valid
             // segment built by either side collapses to 0xFFFF here.
+            // Hand-coded checksum logic (no wire .def); the IPv4 sibling is
+            // ipv4_captured.h::header_checksum_valid (which also has a Python
+            // twin in site/scripts/decode_pcap.py). See docs/tech-debt.md TD-04.
             tf.checksum_valid = false;
             const std::uint16_t ip_total_len = ip->tot_len();
             const std::uint16_t ip_hdr_len   =

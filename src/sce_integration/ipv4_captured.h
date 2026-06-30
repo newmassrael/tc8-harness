@@ -56,6 +56,11 @@ struct Ipv4Captured : CapturedFrameTiming {
     // captured_->` codegen rewrite covers the call — the ICMPv4_TYPE_08
     // precedent is `payload_equals` on `Icmpv4Captured`.
     //
+    // This RFC 1071 checksum is hand-coded (no wire .def); the IPv4 header
+    // sum is duplicated independently in site/scripts/decode_pcap.py
+    // (`ip_header_checksum_ok`), and the TCP sibling is
+    // src/dissect/packet_pipeline.cpp. See docs/tech-debt.md TD-04.
+    //
     // Limited to the IHL=5 (no-options) case: every DUT Echo Reply the
     // pilot observes has the kernel's default no-options header, so
     // options reconstruction would be dead weight here. IPv4_OPTIONS_*
