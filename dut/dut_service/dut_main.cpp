@@ -195,16 +195,18 @@ int main() {
     // duration-windowed hook); between ticks the loop drains any pollable receiver
     // the extension adopted, waking immediately on incoming data instead of sleeping
     // blind. With no adopted receiver, drainReady is a 200 ms sleep — so the onTick
-    // cadence is byte-identical to the prior sleep loop.
+    // cadence matches the prior sleep loop whenever onTick completes within the
+    // window (an onTick that overran 200 ms would tick back-to-back, exactly as it
+    // would have under the old loop's post-onTick sleep).
     auto next_tick = std::chrono::steady_clock::now();
     while (!g_stop.load()) {
-        if (std::chrono::steady_clock::now() >= next_tick) {
+        const auto now = std::chrono::steady_clock::now();
+        if (now >= next_tick) {
             ets_extension->onTick(ets_ctx);
             next_tick = std::chrono::steady_clock::now() + std::chrono::milliseconds(200);
         }
-        const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                   next_tick - std::chrono::steady_clock::now())
-                                   .count();
+        const auto remaining =
+            std::chrono::duration_cast<std::chrono::milliseconds>(next_tick - now).count();
         ets_io.drainReady(remaining > 0 ? static_cast<int>(remaining) : 0);
     }
 

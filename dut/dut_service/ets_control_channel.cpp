@@ -24,10 +24,16 @@ public:
 
     // Withdraw the control-method handlers, then stop offering the control
     // service(s) this channel opened. The DUT hard-exits via std::_Exit
-    // (dut_main.cpp), which skips this dtor — so today this matters only for a
-    // future graceful shutdown, mirroring VsomeipEtsEventSink/ClientControl. The
-    // offered major is replayed so stop_offer_service matches the offer exactly
-    // (vsomeip emits the wire StopOfferService SD entry only on an exact match).
+    // (dut_main.cpp), which skips this dtor — so this cleanup matters only for a
+    // future graceful shutdown. Unlike VsomeipEtsClientControl (whose availability
+    // handler captures `this` and so needs the dtor liveness latch), this channel's
+    // message handlers capture only the moved-in OEM handler (this-free), so an
+    // enqueued handler firing at teardown never touches this object's members — the
+    // dtor is member-safe without a latch; the only residual is an OEM handler that
+    // itself captured this channel outliving it, which a full application stop would
+    // close (same as VsomeipEtsEventSink). The offered major is replayed so
+    // stop_offer_service matches the offer exactly (vsomeip emits the wire
+    // StopOfferService SD entry only on an exact match).
     ~VsomeipEtsControlChannel() override {
         if (!app_) return;
         std::lock_guard<std::mutex> lock(mutex_);

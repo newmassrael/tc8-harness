@@ -5,10 +5,15 @@
 #include <mutex>
 #include <vector>
 
+#include <fcntl.h>
+#include <unistd.h>
+
 #include "ets_client_control.h"   // IEtsClientControl
 #include "ets_control_channel.h"  // IEtsControlChannel
 #include "ets_event_sink.h"       // IEtsEventSink
 #include "ets_extension.h"        // IEtsExtension
+#include "ets_io_host.h"          // IEtsIoHost
+#include "tc8/pollable_service.h" // tc8::IPollableService
 
 namespace tc8::dut {
 
@@ -66,6 +71,40 @@ inline constexpr int kDemoSubscriptionTicks = 3;
 inline constexpr std::uint16_t kDemoControlService         = 0x7F03;
 inline constexpr std::uint16_t kDemoControlInstance        = 0x0001;
 inline constexpr std::uint16_t kDemoControlSubscribeMethod = 0x07F4;
+
+// A trivial pollable the demo adopts through IEtsIoHost to show the raw-receive
+// seam: the DUT main loop folds its pollFd() into the loop's poll set and calls
+// onReadable() when ready. A real OEM adopts its OWN receiver here (e.g. a UDP
+// socket it binds and decodes); this demo owns a self-pipe so it needs no port or
+// network and stays hermetic. Nothing writes to it in-tree — it demonstrates the
+// adopt + drain plumbing, not a feature.
+class DemoLoopbackReceiver : public tc8::IPollableService {
+public:
+    DemoLoopbackReceiver() {
+        if (::pipe(fds_) == 0) {
+            ::fcntl(fds_[0], F_SETFL, ::fcntl(fds_[0], F_GETFL, 0) | O_NONBLOCK);
+        }
+    }
+    ~DemoLoopbackReceiver() override {
+        if (fds_[0] >= 0) {
+            ::close(fds_[0]);
+        }
+        if (fds_[1] >= 0) {
+            ::close(fds_[1]);
+        }
+    }
+    int pollFd() const override { return fds_[0]; }
+    void onReadable() override {
+        std::uint8_t buf[64];
+        while (::read(fds_[0], buf, sizeof(buf)) > 0) {
+            // Drain to would-block. The demo never writes, so this is a no-op; a
+            // real receiver would parse each datagram here.
+        }
+    }
+
+private:
+    int fds_[2] = {-1, -1};
+};
 
 // Header-only so the hermetic test can instantiate it directly (no link step)
 // and the OEM can subclass/adapt it inline.
@@ -163,6 +202,12 @@ public:
                            std::lock_guard<std::mutex> lock(last->mutex);
                            return last->payload;
                        });
+
+        // RAW-RECEIVE demo: adopt a pollable receiver the DUT main loop drains —
+        // the 4th seam (IEtsIoHost), exercised here like sink/client/control. A real
+        // OEM adopts its own socket-backed receiver; this demo's self-pipe one just
+        // shows the adopt wiring.
+        ctx.io.adoptPollable(std::make_unique<DemoLoopbackReceiver>());
     }
 
     // Count down the bounded subscription lifetime that the subscription-status

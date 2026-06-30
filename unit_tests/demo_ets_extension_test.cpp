@@ -185,9 +185,8 @@ public:
     std::function<void(const std::vector<std::uint8_t>&)> control_handler;
 };
 
-// Records the pollables an extension adopts. The demo adopts none, so this only
-// satisfies the context's io reference; `adopted` is here so a future demo that
-// adopts a receiver can be asserted on.
+// Records the pollables an extension adopts through the I/O seam so a test can
+// assert what it adopted (the demo adopts one — its DemoLoopbackReceiver).
 class FakeEtsIoHost : public tc8::dut::IEtsIoHost {
 public:
     void adoptPollable(std::unique_ptr<tc8::IPollableService> service) override {
@@ -420,6 +419,21 @@ TEST(DemoEtsExtension, FireForgetMethodDrivesClientControl) {
     EXPECT_EQ(c.payload, request);
     EXPECT_FALSE(c.reliable);
     EXPECT_EQ(c.major, tc8::dut::kDemoTargetMajor);
+}
+
+TEST(DemoEtsExtension, OnRegisterAdoptsAPollableReceiver) {
+    FakeEtsEventSink sink;
+    FakeEtsClientControl client;
+    FakeEtsControlChannel control;
+    FakeEtsIoHost io;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control, io};
+    tc8::dut::DemoEtsExtension ext;
+    ext.onRegister(ctx);
+
+    // The demo adopts exactly one raw-receive pollable through the I/O seam — the
+    // 4th seam, exercised in-tree like sink/client/control — with a valid fd.
+    ASSERT_EQ(io.adopted.size(), 1u);
+    EXPECT_GE(io.adopted[0]->pollFd(), 0);
 }
 
 TEST(DemoEtsExtension, ResponseIsCapturedAndReadbackReplies) {

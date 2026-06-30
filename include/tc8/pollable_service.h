@@ -38,9 +38,16 @@ public:
     // onReadable() can drain it without stalling the single capture thread.
     virtual int pollFd() const = 0;
 
-    // Called on the capture-loop thread to drain all ready input and act on it
-    // (e.g. answer every pending ARP Request). Must not block — it returns once
-    // the fd would block, so the single capture thread is never stalled.
+    // Called on the drain thread to consume all ready input and act on it (e.g.
+    // answer every pending ARP Request, recv every queued datagram). Must not block
+    // — it returns once the fd would block, so the single drain thread is never
+    // stalled. On a socket it MUST also consume any pending socket error (a recv
+    // that returns the error clears it): the DUT main loop poll()s for POLLIN and
+    // treats POLLERR as "drain it," so an onReadable that left a socket error
+    // unconsumed would make poll() wake on it every pass — a busy-spin. POLLHUP /
+    // POLLNVAL, which a recv cannot clear, the DUT loop drops the service instead
+    // (see PollableHost::drainReady); a peer-hangup is therefore not onReadable's
+    // problem.
     virtual void onReadable() = 0;
 };
 

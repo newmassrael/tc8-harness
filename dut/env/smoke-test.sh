@@ -173,10 +173,11 @@ TC8_DUT_EXPECT=(
     --expect "minor_version=$TC8_WIRE_SD_MINOR_VERSION"
     --expect "eventgroup_id=$TC8_WIRE_SD_DEFAULT_EVENTGROUP"
     --expect "dut_iface_ip=$DUT_IP4"
-    # The tester's IPv4 for the someip group, mirroring the L2/L3 <proto>.tester_ip
-    # expects below (and the same TESTER_IP4 source). No in-tree case reads
-    # tester_ipv4 today; it lets a destination / Nack-target verdict compare a
-    # captured dst against the tester endpoint instead of the unset-0 default.
+    # The tester's IPv4 for the someip group — a bare key like dut_iface_ip / udp_port
+    # above (the someip group uses unqualified keys; the L2/L3 groups use namespaced
+    # <proto>.tester_ip), fed from the same TESTER_IP4 source. No in-tree case reads
+    # tester_ipv4 today; it lets a destination / Nack-target verdict compare a captured
+    # dst against the tester endpoint instead of the unset-0 default.
     --expect "tester_ipv4=$TESTER_IP4"
     --expect "udp_port=${DUT_ID[udp_port]}"
     --expect "tcp_port=${DUT_ID[tcp_port]}"
