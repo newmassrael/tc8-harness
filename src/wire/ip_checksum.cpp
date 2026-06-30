@@ -81,4 +81,26 @@ std::uint16_t tcpChecksum(std::uint32_t       src_be,
     return static_cast<std::uint16_t>(~sum & 0xFFFFU);
 }
 
+bool inetChecksumValid(const std::uint8_t* data, std::size_t len) {
+    // Summed WITH the checksum field in place, a correct on-wire checksum makes
+    // the fold all-ones, so inetChecksum's complement is 0.
+    return inetChecksum(data, len) == 0U;
+}
+
+bool tcpChecksumValid(std::uint32_t src_be, std::uint32_t dst_be,
+                      const std::uint8_t* tcp, std::size_t tcp_len) {
+    return tcpChecksum(src_be, dst_be, tcp, tcp_len) == 0U;
+}
+
+bool udpChecksumValid(std::uint32_t src_be, std::uint32_t dst_be,
+                      const std::uint8_t* udp_zeroed, std::size_t udp_len,
+                      std::uint16_t on_wire_checksum) {
+    const std::uint16_t computed = udpChecksum(src_be, dst_be, udp_zeroed, udp_len);
+    if (computed == on_wire_checksum) return true;
+    // RFC 768 0x0000/0xFFFF sentinel equivalence: both fold to one's-complement
+    // zero, so accept either form.
+    return (computed == 0x0000U && on_wire_checksum == 0xFFFFU) ||
+           (computed == 0xFFFFU && on_wire_checksum == 0x0000U);
+}
+
 }  // namespace tc8::wire

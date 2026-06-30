@@ -176,16 +176,13 @@ struct UdpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
         for (std::size_t i = 0; i < payload_snapshot_len; ++i) {
             region[8 + i] = payload_snapshot[i];
         }
-        const std::uint16_t computed = ::tc8::wire::udpChecksum(
-            src_ip, dst_ip, region.data(), udp_len);
-        if (computed == checksum) return true;
-        // RFC 768 0x0000/0xFFFF sentinel equivalence: both fold to the
-        // same one's-complement zero, so accept either form.
-        if ((computed == 0x0000U && checksum == 0xFFFFU) ||
-            (computed == 0xFFFFU && checksum == 0x0000U)) {
-            return true;
-        }
-        return false;
+        // Verify through the tc8::wire SSOT's named UDP verification form: it
+        // recomputes over the zeroed-field region and compares to the captured
+        // on-wire checksum, accepting the RFC 768 0x0000/0xFFFF sentinel
+        // equivalence (UDP cannot use the == 0 form the IPv4/TCP verifiers do,
+        // because udpChecksum applies the 0x0000->0xFFFF rewrite).
+        return ::tc8::wire::udpChecksumValid(src_ip, dst_ip, region.data(), udp_len,
+                                             checksum);
     }
 };
 

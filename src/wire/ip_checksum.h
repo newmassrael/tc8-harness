@@ -48,6 +48,32 @@ std::uint16_t tcpChecksum(std::uint32_t       src_be,
                           const std::uint8_t* tcp,
                           std::size_t         tcp_len);
 
+// ---- Verification form (RFC 1071 §1) ----------------------------------------
+// The functions above COMPUTE a checksum to write (caller pre-zeros the field).
+// The two below VERIFY an on-wire checksum, so a captured frame is passed with
+// its checksum field IN PLACE — the opposite precondition. Naming the property
+// here keeps the "summed-with-field folds to all-ones, so the complement is 0"
+// derivation in one place instead of re-explained (or mis-applied) at each site.
+
+// Valid iff `data` (checksum field in place) folds to a zero one's-complement —
+// i.e. inetChecksum(data, len) == 0. For the IPv4 header and any non-pseudo body.
+bool inetChecksumValid(const std::uint8_t* data, std::size_t len);
+
+// Valid iff the TCP segment (`tcp`, checksum field in place) plus the RFC 793
+// pseudo-header folds to zero — i.e. tcpChecksum(...) == 0. No RFC 768 rewrite,
+// so the == 0 form is exact (unlike UDP below).
+bool tcpChecksumValid(std::uint32_t src_be, std::uint32_t dst_be,
+                      const std::uint8_t* tcp, std::size_t tcp_len);
+
+// UDP cannot use the == 0 form: udpChecksum applies RFC 768's 0x0000->0xFFFF
+// rewrite and returns the ON-WIRE value, not a complement. Pass `udp_zeroed`
+// (the 8-byte UDP header with the checksum field ZEROED, then the payload) plus
+// the captured `on_wire_checksum`; valid iff they match, accepting the
+// 0x0000/0xFFFF sentinel equivalence (both fold to one's-complement zero).
+bool udpChecksumValid(std::uint32_t src_be, std::uint32_t dst_be,
+                      const std::uint8_t* udp_zeroed, std::size_t udp_len,
+                      std::uint16_t on_wire_checksum);
+
 // Big-endian 16/32-bit writers — one-liners callers reach for when
 // laying out IPv4/UDP/BOOTP headers in a raw byte buffer. Inline so
 // the compiler can fold them at the call site.

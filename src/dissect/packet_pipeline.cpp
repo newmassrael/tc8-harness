@@ -20,7 +20,7 @@
 #include "tc8/protocol_frames/udp_frame.h"
 
 #include "sce_integration/dhcpv4_wire.h"
-#include "wire/ip_checksum.h"  // tc8::wire::tcpChecksum (RFC 793 pseudo-header SSOT)
+#include "wire/ip_checksum.h"  // tc8::wire::tcpChecksumValid (RFC 793 pseudo-header SSOT)
 
 namespace tc8::dissect {
 
@@ -417,7 +417,7 @@ void PacketPipeline::processFrame(const pcap_pkthdr &hdr, const std::uint8_t *by
                 tf.payload_len  = static_cast<std::uint32_t>(body.size());
             }
             // RFC 793 §3.1 pseudo-header checksum, validated through the shared
-            // tc8::wire::tcpChecksum SSOT (the same RFC 1071 fold the segment
+            // tc8::wire::tcpChecksumValid SSOT (the same RFC 1071 fold the segment
             // builder uses). Reads bytes directly from the captured frame — Eth
             // (14 B) + IPv4 (variable) + TCP region are contiguous, pcap on veth
             // carries no FCS, and the IPv4 Total Length bounds the TCP region so any
@@ -438,14 +438,14 @@ void PacketPipeline::processFrame(const pcap_pkthdr &hdr, const std::uint8_t *by
                 const std::uint8_t *tcp_seg = ip_hdr + ip_hdr_len;
                 // src/dst IP bytes (NBO) live at IP header offsets 12..15 / 16..19;
                 // copy them into *_be values whose memory is NBO (the convention
-                // tcpChecksum reads). Summed over the segment WITH its checksum
-                // field in place, a valid checksum folds to ~0xFFFF == 0.
+                // tcpChecksumValid reads). The segment carries its checksum field
+                // in place, exactly what the verification form expects.
                 std::uint32_t src_be = 0;
                 std::uint32_t dst_be = 0;
                 std::memcpy(&src_be, ip_hdr + 12, 4);
                 std::memcpy(&dst_be, ip_hdr + 16, 4);
                 tf.checksum_valid =
-                    ::tc8::wire::tcpChecksum(src_be, dst_be, tcp_seg, tcp_seg_len) == 0U;
+                    ::tc8::wire::tcpChecksumValid(src_be, dst_be, tcp_seg, tcp_seg_len);
             }
             // Wall-clock arrival timestamp normalised at function
             // top from `hdr.ts`; same value mirrored into every

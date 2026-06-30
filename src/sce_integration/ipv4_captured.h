@@ -97,11 +97,10 @@ struct Ipv4Captured : CapturedFrameTiming {
         hdr[18] = static_cast<std::uint8_t>((dst_addr >> 16) & 0xFFU);
         hdr[19] = static_cast<std::uint8_t>((dst_addr >> 24) & 0xFFU);
 
-        // inetChecksum folds the same RFC 1071 sum the builders use
-        // (writeBe16(ip+10, inetChecksum(ip, 20))) and returns its complement;
-        // summed over the header WITH its checksum field in place, a correct field
-        // makes the fold 0xFFFF, so the complement is 0.
-        return ::tc8::wire::inetChecksum(hdr.data(), hdr.size()) == 0U;
+        // Verify through the tc8::wire SSOT's named verification form (the
+        // builders compute the same RFC 1071 fold). The header carries its
+        // checksum field in place, exactly what inetChecksumValid expects.
+        return ::tc8::wire::inetChecksumValid(hdr.data(), hdr.size());
     }
 
     // Inter-frame timing surface (`observed_ts_us` / `prev_observed_ts_us`
