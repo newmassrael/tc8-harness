@@ -29,12 +29,20 @@ public:
 
     // Withdraw everything this control opened BEFORE it is destroyed, so a tester
     // offering the service after teardown does not keep a stale subscription or
-    // dangling handler alive on the shared application. The DUT currently
-    // hard-exits via std::_Exit (dut_main.cpp), which skips this dtor — so today
-    // this matters only for a future graceful shutdown, mirroring
-    // VsomeipEtsEventSink. release_service is balanced here (once per unique
-    // service ever requested), not per subscription, so a callMethod and a
-    // subscribe to the same service do not release each other early.
+    // dangling handler alive on the shared application. release_service is balanced
+    // here (once per unique service ever requested), not per subscription, so a
+    // callMethod and a subscribe to the same service do not release each other early.
+    //
+    // ★LIFETIME PRECONDITION (currently satisfied only by std::_Exit): the DUT
+    // hard-exits via std::_Exit (dut_main.cpp), which SKIPS this dtor, so the
+    // shipped binary never runs it. This is NOT a no-dangle proof — it is what
+    // avoids the hazard. unregister_availability_handler stops FUTURE dispatch but
+    // does NOT drain a flushPending callback vsomeip has already enqueued on its
+    // routing thread; if that callback wakes after this object dies it touches a
+    // destroyed mutex_/pending_ (use-after-free). A future graceful shutdown MUST
+    // quiesce the vsomeip application (stop + join its dispatch) BEFORE destroying
+    // this control. mutex_ below only excludes an in-progress callback, not an
+    // enqueued-but-not-started one.
     ~VsomeipEtsClientControl() override {
         if (!app_) return;
         std::lock_guard<std::mutex> lock(mutex_);
@@ -144,15 +152,24 @@ public:
         request->set_payload(vsomeip::runtime::get()->create_payload(payload));
         // vsomeip DROPS (does not queue) a send to a not-yet-available service, and
         // request_service only STARTS the SD FindService — the OfferService is a
-        // round trip away. So send now only if the service is already available;
-        // otherwise PendingRequests parks it for the availability handler
-        // (registered in requestServiceLocked) to flush on ON_AVAILABLE. The
-        // is_available() query and the submit run under mutex_, and flushPending()
-        // takes the same mutex_, so an availability edge racing this call cannot
-        // strand the Request: the flush either runs before the submit (is_available()
-        // then reads true here) or serialises after it (and drains what we parked).
-        pending_.submit(service, instance, app_->is_available(service, instance),
-                        std::move(request));
+        // round trip away. pending_.submit() queries availability (the injected
+        // app_->is_available) and either sends inline or PARKS the Request for the
+        // availability handler (registered in requestServiceLocked) to flush on
+        // ON_AVAILABLE.
+        //
+        // DEADLOCK-SAFE because vsomeip dispatches availability handlers
+        // ASYNCHRONOUSLY (enqueued to its routing/dispatch thread, never invoked
+        // inline) — so flushPending() never re-enters mutex_ on the thread already
+        // holding it here; it just blocks until this call releases. NO STRAND:
+        // submit's availability query AND its park both run under mutex_ (held
+        // here), and flushPending() takes the same mutex_, so an availability edge
+        // racing this call either dispatches its flush before the submit (which then
+        // reads available and sends inline) or serialises after it (and drains what
+        // we parked). ★Held Requests flush in call order, but a LATER callMethod
+        // that finds the service available sends inline before a still-parked
+        // earlier one flushes — global FIFO across parked+immediate is NOT
+        // guaranteed (the documented use is one-shot-per-trigger, so this is benign).
+        pending_.submit(service, instance, std::move(request));
     }
 
     void onResponse(std::uint16_t service, std::uint16_t instance, std::uint16_t method,
@@ -198,8 +215,9 @@ private:
     // release_service runs in the dtor. Registers the availability handler that
     // flushes callMethod()'s parked Requests BEFORE request_service, so the first
     // OfferService cannot outrun it. The handler runs on a vsomeip routing thread
-    // and is unregistered in the dtor, so the captured `this` cannot dangle.
-    // Caller holds mutex_.
+    // and captures `this`; its lifetime safety rests on the _Exit precondition
+    // documented at the dtor (unregister alone does not drain an enqueued
+    // callback), NOT on unregister_availability_handler. Caller holds mutex_.
     void requestServiceLocked(std::uint16_t service, std::uint16_t instance,
                               std::uint8_t major) {
         if (requested_services_.insert({service, instance}).second) {
@@ -217,7 +235,7 @@ private:
     // serialise with callMethod()'s submit (PendingRequests itself is lock-free).
     void flushPending(std::uint16_t service, std::uint16_t instance) {
         std::lock_guard<std::mutex> lock(mutex_);
-        pending_.flush(service, instance);
+        pending_.onAvailable(service, instance);
     }
 
     // unsubscribe (emits StopSubscribe) then release the events this subscription
@@ -236,9 +254,13 @@ private:
     std::vector<StatusEventgroup> status_eventgroups_;
     std::set<std::pair<std::uint16_t, std::uint16_t>> requested_services_;
     // Requests callMethod() received while the service was not yet available,
-    // flushed in submission order on ON_AVAILABLE. The sender runs under mutex_,
-    // exactly where the inline app_->send() used to.
+    // flushed in submission order on ON_AVAILABLE. The injected availability query
+    // and sender bind to the vsomeip application and run under mutex_, exactly where
+    // the inline app_->is_available() / app_->send() used to.
     PendingRequests<std::shared_ptr<vsomeip::message>> pending_{
+        [this](std::uint16_t service, std::uint16_t instance) {
+            return app_->is_available(service, instance);
+        },
         [this](const std::shared_ptr<vsomeip::message>& request) { app_->send(request); }};
 };
 
