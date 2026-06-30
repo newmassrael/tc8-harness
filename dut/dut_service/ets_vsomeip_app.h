@@ -8,6 +8,7 @@
 #include <vsomeip/vsomeip.hpp>
 
 #include "ets_payload.h"
+#include "ets_reply.h"  // EtsReply (shared reply shape SSOT)
 
 namespace tc8::dut {
 
@@ -43,6 +44,26 @@ inline std::shared_ptr<vsomeip::application> acquireCommonApiApplication(const c
 inline std::vector<std::uint8_t> messageBytes(const std::shared_ptr<vsomeip::message>& msg) {
     const auto pl = msg ? msg->get_payload() : nullptr;
     return payloadBytes(pl ? pl->get_data() : nullptr, pl ? pl->get_length() : 0);
+}
+
+// Send `reply` as the SOME/IP reply to `request` on `app` — the SINGLE reply-send
+// path shared by the reply-capable seams (IEtsEventSink::onRequestEx and
+// IEtsControlChannel::offerControlRequestEx). create_response copies the request's
+// Request ID + Interface / Protocol Version and defaults to RESPONSE / E_OK; the
+// message type and Return Code are then overridden so the handler can answer with
+// an Error message. Those wire fields are raw bytes, so the typed enums map
+// straight through a static_cast — including application Return Codes the named
+// vsomeip enum does not list.
+inline void sendEtsReply(vsomeip::application& app,
+                         const std::shared_ptr<vsomeip::message>& request,
+                         const EtsReply& reply) {
+    auto response = vsomeip::runtime::get()->create_response(request);
+    response->set_message_type(
+        static_cast<vsomeip::message_type_e>(static_cast<std::uint8_t>(reply.message_type)));
+    response->set_return_code(
+        static_cast<vsomeip::return_code_e>(static_cast<std::uint8_t>(reply.return_code)));
+    response->set_payload(vsomeip::runtime::get()->create_payload(reply.payload));
+    app.send(response);
 }
 
 }  // namespace tc8::dut

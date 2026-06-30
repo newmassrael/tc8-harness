@@ -27,11 +27,12 @@ public:
     // (dut_main.cpp), which skips this dtor — so this cleanup matters only for a
     // future graceful shutdown. Unlike VsomeipEtsClientControl (whose availability
     // handler captures `this` and so needs the dtor liveness latch), this channel's
-    // message handlers capture only the moved-in OEM handler (this-free), so an
-    // enqueued handler firing at teardown never touches this object's members — the
-    // dtor is member-safe without a latch; the only residual is an OEM handler that
-    // itself captured this channel outliving it, which a full application stop would
-    // close (same as VsomeipEtsEventSink). The offered major is replayed so
+    // message handlers capture only the moved-in OEM handler (fire-and-forget) or a
+    // weak_ptr to the application plus that handler (reply-capable) — both this-free,
+    // so an enqueued handler firing at teardown never touches this object's members;
+    // the dtor is member-safe without a latch. The only residual is an OEM handler
+    // that itself captured this channel outliving it, which a full application stop
+    // would close (same as VsomeipEtsEventSink). The offered major is replayed so
     // stop_offer_service matches the offer exactly (vsomeip emits the wire
     // StopOfferService SD entry only on an exact match).
     ~VsomeipEtsControlChannel() override {
@@ -66,6 +67,33 @@ public:
             });
     }
 
+    void offerControlRequestEx(
+        std::uint16_t service, std::uint16_t instance, std::uint16_t method,
+        std::uint8_t major,
+        std::function<EtsReply(const std::vector<std::uint8_t>&)> handler) override {
+        if (!app_) return;
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (offered_services_.emplace(std::make_pair(service, instance), major).second) {
+            app_->offer_service(service, instance, major);
+        }
+        control_methods_.push_back({service, instance, method});
+        // Capture a WEAK ref to the application (not `this`, not a strong
+        // shared_ptr): the handler lives in the application's handler registry, so a
+        // strong capture would form an application->handler->application cycle that
+        // nothing breaks under std::_Exit. Mirrors VsomeipEtsEventSink::onRequestEx;
+        // the reply itself goes through the shared sendEtsReply SSOT.
+        std::weak_ptr<vsomeip::application> weak_app = app_;
+        app_->register_message_handler(
+            service, instance, method,
+            [weak_app, handler = std::move(handler)](
+                const std::shared_ptr<vsomeip::message>& msg) {
+                if (!msg) return;
+                auto app = weak_app.lock();
+                if (!app) return;
+                sendEtsReply(*app, msg, handler(messageBytes(msg)));
+            });
+    }
+
 private:
     struct ControlMethod {
         std::uint16_t service;
@@ -88,6 +116,9 @@ class NullEtsControlChannel : public IEtsControlChannel {
 public:
     void offerControlMethod(std::uint16_t, std::uint16_t, std::uint16_t, std::uint8_t,
                             std::function<void(const std::vector<std::uint8_t>&)>) override {}
+    void offerControlRequestEx(
+        std::uint16_t, std::uint16_t, std::uint16_t, std::uint8_t,
+        std::function<EtsReply(const std::vector<std::uint8_t>&)>) override {}
 };
 
 }  // namespace

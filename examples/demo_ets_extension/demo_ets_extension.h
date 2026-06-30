@@ -72,6 +72,11 @@ inline constexpr int kDemoSubscriptionTicks = 3;
 inline constexpr std::uint16_t kDemoControlService         = 0x7F03;
 inline constexpr std::uint16_t kDemoControlInstance        = 0x0001;
 inline constexpr std::uint16_t kDemoControlSubscribeMethod = 0x07F4;
+// A reply-capable readback on the SAME control service, so a client-only DUT (no
+// offered server service) can still be asked for what it observed — exercises the
+// control channel's offerControlRequestEx, the reply complement of the F&F
+// offerControlSubscribeMethod above.
+inline constexpr std::uint16_t kDemoControlReadbackMethod  = 0x07F6;
 
 // A trivial pollable the demo adopts through IEtsIoHost to show the raw-receive
 // seam: the DUT main loop folds its pollFd() into the loop's poll set and calls
@@ -215,6 +220,26 @@ public:
                                              static_cast<someip::ReturnCode>(last->return_code),
                                              last->payload};
                          });
+
+        // CLIENT-ONLY READBACK demo: the same observed-Response readback as the
+        // server-sink one above, but offered on the control service via the
+        // reply-capable offerControlRequestEx — the path a client-only DUT (which
+        // offers no server service for onRequestEx) uses. It rides the control
+        // service already offered for the subscribe trigger (offer-once, second
+        // method), and a non-E_OK target reply becomes an Error message.
+        ctx.control.offerControlRequestEx(
+            kDemoControlService, kDemoControlInstance, kDemoControlReadbackMethod,
+            kDemoTargetMajor,
+            [last](const std::vector<std::uint8_t>&) {
+                std::lock_guard<std::mutex> lock(last->mutex);
+                if (last->return_code == 0x00) {
+                    return EtsReply{someip::MessageType::RESPONSE,
+                                    someip::ReturnCode::E_OK, last->payload};
+                }
+                return EtsReply{someip::MessageType::ERROR,
+                                static_cast<someip::ReturnCode>(last->return_code),
+                                last->payload};
+            });
 
         // RAW-RECEIVE demo: adopt a pollable receiver the DUT main loop drains —
         // the 4th seam (IEtsIoHost), exercised here like sink/client/control. A real

@@ -6,21 +6,10 @@
 #include <utility>
 #include <vector>
 
-#include "someip/protocol.h"  // someip::MessageType / ReturnCode (reply shape SSOT)
+#include "ets_reply.h"        // EtsReply (shared reply shape SSOT)
+#include "someip/protocol.h"  // someip::MessageType / ReturnCode (sugar default)
 
 namespace tc8::dut {
-
-// Reply an onRequestEx handler returns for a REQUEST it answers: the SOME/IP
-// message type and Return Code to send, plus the reply payload. It defaults to a
-// plain Response with E_OK, so the common readback sets only `payload` (and the
-// onRequest convenience below is exactly that default). Choosing ERROR with a
-// non-E_OK Return Code is what lets an OEM method reply with an application error
-// the public fidl cannot express (per PRS_SOMEIP_00757 an Error must not be E_OK).
-struct EtsReply {
-    someip::MessageType message_type = someip::MessageType::RESPONSE;
-    someip::ReturnCode  return_code  = someip::ReturnCode::E_OK;
-    std::vector<std::uint8_t> payload;
-};
 
 // Narrow registration facade over the DUT's SINGLE vsomeip application, handed to
 // an OEM IEtsExtension via onRegister/onTick (see ets_extension.h). It lets the

@@ -182,12 +182,30 @@ public:
         control_major = major;
         control_handler = std::move(handler);
     }
+    void offerControlRequestEx(
+        std::uint16_t service, std::uint16_t instance, std::uint16_t method,
+        std::uint8_t major,
+        std::function<tc8::dut::EtsReply(const std::vector<std::uint8_t>&)> handler)
+        override {
+        request_control_service = service;
+        request_control_instance = instance;
+        request_control_major = major;
+        // Stores the reply-capable handlers from BOTH offerControlRequestEx and the
+        // non-virtual offerControlRequest convenience (which forwards here).
+        control_request_handlers[method] = std::move(handler);
+    }
 
     std::uint16_t control_service = 0;
     std::uint16_t control_instance = 0;
     std::uint16_t control_method = 0;
     std::uint8_t control_major = 0;
     std::function<void(const std::vector<std::uint8_t>&)> control_handler;
+    std::uint16_t request_control_service = 0;
+    std::uint16_t request_control_instance = 0;
+    std::uint8_t request_control_major = 0;
+    std::map<std::uint16_t,
+             std::function<tc8::dut::EtsReply(const std::vector<std::uint8_t>&)>>
+        control_request_handlers;
 };
 
 // Records the pollables an extension adopts through the I/O seam so a test can
@@ -496,6 +514,60 @@ TEST(EtsEventSinkOnRequest, SugarRepliesResponseEOk) {
     ASSERT_EQ(sink.request_handlers.count(0x1234), 1u);
 
     const auto reply = sink.request_handlers[0x1234]({0x01, 0x02});
+    EXPECT_EQ(reply.message_type, tc8::someip::MessageType::RESPONSE);
+    EXPECT_EQ(reply.return_code, tc8::someip::ReturnCode::E_OK);
+    EXPECT_EQ(reply.payload, (std::vector<std::uint8_t>{0x02, 0x01}));
+}
+
+TEST(DemoEtsExtension, ControlReadbackRepliesAndReflectsError) {
+    FakeEtsEventSink sink;
+    FakeEtsClientControl client;
+    FakeEtsControlChannel control;
+    FakeEtsIoHost io;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control, io};
+    tc8::dut::DemoEtsExtension ext;
+    ext.onRegister(ctx);
+
+    // The demo offers a reply-capable readback on the SAME control service as the
+    // F&F subscribe trigger (offer-once, distinct method) — the client-only path.
+    EXPECT_EQ(control.request_control_service, tc8::dut::kDemoControlService);
+    EXPECT_EQ(control.request_control_service, control.control_service);
+    ASSERT_EQ(control.control_request_handlers.count(tc8::dut::kDemoControlReadbackMethod), 1u);
+    auto& readback = control.control_request_handlers[tc8::dut::kDemoControlReadbackMethod];
+
+    // E_OK target Response: the control readback replies a Response with it; a
+    // non-E_OK target Response becomes an Error message carrying that Return Code —
+    // offerControlRequestEx choosing message type + Return Code on the control seam.
+    const std::vector<std::uint8_t> response{0xAB, 0xCD};
+    client.response_handler(0x00, response);
+    {
+        const auto reply = readback({});
+        EXPECT_EQ(reply.message_type, tc8::someip::MessageType::RESPONSE);
+        EXPECT_EQ(reply.return_code, tc8::someip::ReturnCode::E_OK);
+        EXPECT_EQ(reply.payload, response);
+    }
+    client.response_handler(0x20, response);
+    {
+        const auto reply = readback({});
+        EXPECT_EQ(reply.message_type, tc8::someip::MessageType::ERROR);
+        EXPECT_EQ(static_cast<std::uint8_t>(reply.return_code), 0x20);
+        EXPECT_EQ(reply.payload, response);
+    }
+}
+
+// The non-virtual offerControlRequest convenience forwards to offerControlRequestEx
+// as a plain Response (E_OK) carrying the handler's bytes — the common readback
+// shape on the control channel, mirroring the event-sink onRequest sugar.
+TEST(EtsControlChannelOfferControlRequest, SugarRepliesResponseEOk) {
+    FakeEtsControlChannel control;
+    control.offerControlRequest(0x7F03, 0x0001, 0x1234, 0x01,
+                                [](const std::vector<std::uint8_t>& request) {
+                                    return std::vector<std::uint8_t>(request.rbegin(),
+                                                                     request.rend());
+                                });
+    ASSERT_EQ(control.control_request_handlers.count(0x1234), 1u);
+
+    const auto reply = control.control_request_handlers[0x1234]({0x01, 0x02});
     EXPECT_EQ(reply.message_type, tc8::someip::MessageType::RESPONSE);
     EXPECT_EQ(reply.return_code, tc8::someip::ReturnCode::E_OK);
     EXPECT_EQ(reply.payload, (std::vector<std::uint8_t>{0x02, 0x01}));

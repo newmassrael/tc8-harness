@@ -3,7 +3,11 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <utility>
 #include <vector>
+
+#include "ets_reply.h"        // EtsReply (shared reply shape SSOT)
+#include "someip/protocol.h"  // someip::MessageType / ReturnCode (convenience default)
 
 namespace tc8::dut {
 
@@ -38,19 +42,47 @@ public:
     // would make vsomeip satisfy the subscribe IN-PROCESS and emit no wire
     // SubscribeEventgroup — the exact reason a client-only DUT does not offer the
     // target. Fire-and-forget: the control method drives an action and sends no
-    // Response (the shape of the ETS client-control trigger methods). A
-    // reply-capable control method is intentionally NOT offered here — a readback
-    // is a SERVER-role reply and is served by IEtsEventSink::onRequest, so this
-    // seam stays purely inbound-trigger. offer_service runs once per
-    // `(service, instance)` even across several control methods; `method` must not
-    // alias a handler registered for the same `(service, instance)` on another
-    // seam (they share the one application's handler registry). The handler runs
-    // on a vsomeip thread (it must not block); the offer and handler are withdrawn
-    // when the channel is destroyed.
+    // Response (the shape of the ETS client-control trigger methods); use
+    // offerControlRequest / offerControlRequestEx below when the control method
+    // must REPLY. offer_service runs once per `(service, instance)` even across
+    // several control methods; `method` must not alias a handler registered for the
+    // same `(service, instance)` on another seam (they share the one application's
+    // handler registry). The handler runs on a vsomeip thread (it must not block);
+    // the offer and handler are withdrawn when the channel is destroyed.
     virtual void offerControlMethod(
         std::uint16_t service, std::uint16_t instance, std::uint16_t method,
         std::uint8_t major,
         std::function<void(const std::vector<std::uint8_t>&)> handler) = 0;
+
+    // Offer a REPLY-CAPABLE control method on the control service and route `method`
+    // to `handler`, which RETURNS an EtsReply choosing the reply's message type,
+    // Return Code, and payload; the DUT echoes the request header onto it and sends
+    // the reply. This is the reply complement of offerControlMethod for a
+    // CLIENT-only readback: such a DUT offers no server service, so the server
+    // sink's onRequestEx has nothing to land on, but this channel already owns the
+    // control service the readback can ride. Same offer-once-per-`(service,
+    // instance)`, vsomeip-thread (must not block), and withdraw-on-destroy contract.
+    virtual void offerControlRequestEx(
+        std::uint16_t service, std::uint16_t instance, std::uint16_t method,
+        std::uint8_t major,
+        std::function<EtsReply(const std::vector<std::uint8_t>&)> handler) = 0;
+
+    // Convenience for the common case: reply with a plain Response (E_OK) whose
+    // payload is the handler's returned bytes. Forwards to offerControlRequestEx
+    // with a default-typed EtsReply, so the two share the one reply path; reach for
+    // offerControlRequestEx directly when the reply must vary the message type or
+    // Return Code.
+    void offerControlRequest(
+        std::uint16_t service, std::uint16_t instance, std::uint16_t method,
+        std::uint8_t major,
+        std::function<std::vector<std::uint8_t>(const std::vector<std::uint8_t>&)> handler) {
+        offerControlRequestEx(
+            service, instance, method, major,
+            [handler = std::move(handler)](const std::vector<std::uint8_t>& request) {
+                return EtsReply{someip::MessageType::RESPONSE,
+                                someip::ReturnCode::E_OK, handler(request)};
+            });
+    }
 };
 
 // Build a vsomeip-backed IEtsControlChannel over the CommonAPI ETS service's OWN
