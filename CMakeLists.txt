@@ -9,17 +9,14 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # `tc8_harness_testable` library used by unit tests). SCE-generated /
 # third-party headers live behind SYSTEM include paths where available,
 # so they do not contribute to this warning set. `-Werror` IS on by default
-# (TC8_WARNINGS_AS_ERRORS, below) now that the first-party tree is clean —
-# opt out with `-DTC8_WARNINGS_AS_ERRORS=OFF`.
+# (TC8_WARNINGS_AS_ERRORS) now that the first-party tree is clean — opt out with
+# `-DTC8_WARNINGS_AS_ERRORS=OFF`.
 #
-# The flag set + the tc8_enable_strict_warnings() target helper live in a shared
-# module so the separate lwIP DUT sub-project (dut/lwip_dut) applies the exact
-# same flags without a hand-copied second list that could drift.
+# The flag set, the TC8_WARNINGS_AS_ERRORS option, and the
+# tc8_enable_strict_warnings() target helper all live in a shared module so the
+# separate lwIP DUT sub-project (dut/lwip_dut) applies the exact same gate without
+# a hand-copied second list or a second option default that could drift.
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/tc8_strict_warnings.cmake)
-
-option(TC8_WARNINGS_AS_ERRORS
-    "Promote compiler warnings to errors on first-party targets"
-    ON)
 
 # Sanitizer build variant. Enables ASan + UBSan on every target (not just
 # first-party) so memory / UB issues in the full dissect pipeline surface

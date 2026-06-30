@@ -22,14 +22,13 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# The first-party strict-warning set, shared verbatim with the main harness
-# build (cmake/tc8_strict_warnings.cmake is the single source of truth). This
-# is a separate CMake project, so it must include() the module itself and
-# declare its own TC8_WARNINGS_AS_ERRORS default — both matching the main build.
+# The first-party strict-warning set, shared verbatim with the main harness build
+# (cmake/tc8_strict_warnings.cmake is the single source of truth — the flag list,
+# the TC8_WARNINGS_AS_ERRORS option default, and the tc8_strict_source_options
+# helper). This is a separate CMake project, so it include()s the module itself;
+# the module's option() is idempotent here, so the default cannot drift from the
+# main build.
 include(${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/tc8_strict_warnings.cmake)
-option(TC8_WARNINGS_AS_ERRORS
-    "Promote compiler warnings to errors on first-party targets"
-    ON)
 
 if(NOT LWIP_DIR)
     set(LWIP_DIR "$ENV{LWIP_DIR}")
@@ -215,36 +214,29 @@ function(tc8_lwip_app name)
     target_link_libraries(${name} ${LWIP_SANITIZER_LIBS} ${APP_LWIP_LIBS})
 endfunction()
 
-# The first-party strict-warning gate (TC8_STRICT_WARNING_FLAGS, the SSOT shared
-# with the main build). Applied PER-SOURCE, not target-wide: each lwIP app target
-# bundles lwIP's own C sources (default_netif.c, tcp_isn.c, md5.c) and the shared
-# cores (protocol_server / ut_server / tc8::wire / AUTOSAR engines) into the same
-# executable, and the gate must land only on the first-party C++ TUs this
-# sub-project owns — the ones the main build never compiles. The shared cores are
-# already strict-gated where they are authored (main build); lwIP's C sources stay
-# warnings-only (third-party). The -isystem demotion above is what keeps these
-# TUs' lwIP includes from drowning the gate in C-style-cast noise. The two
-# in-process tests are hand-rolled (no gtest), so — unlike the main build's gtest
-# TUs — they are gated too: this set is every first-party C++ TU built here.
-set(_tc8_lwip_strict_flags ${TC8_STRICT_WARNING_FLAGS})
-if(TC8_WARNINGS_AS_ERRORS)
-    list(APPEND _tc8_lwip_strict_flags -Werror)
-endif()
-# Absolute paths: tc8_lwip_tcp_isn.cpp is referenced absolutely by the targets,
-# so match that form for every entry to key the source property unambiguously.
-set(_tc8_lwip_strict_srcs
-    "${CMAKE_CURRENT_SOURCE_DIR}/lwip_socket_backend.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/lwip_stack_bringup.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/lwip_stack_probe.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/lwip_ut_extensions.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/lwip_egress_fault.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/lwip_ingress_fault.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tc8_lwip_dut.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/lwip_utm_main.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tc8_lwip_tcp_isn.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/lwip_reactor_test.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/lwip_arp_multicast_test.cpp"
-)
+# The first-party strict-warning gate (the SSOT options from
+# tc8_strict_source_options — the flag set plus -Werror when TC8_WARNINGS_AS_ERRORS).
+# Applied PER-SOURCE, not target-wide: each lwIP app target bundles lwIP's own C
+# sources (default_netif.c, tcp_isn.c, md5.c) and the shared cores (protocol_server
+# / ut_server / tc8::wire / AUTOSAR engines) into the same executable, and the gate
+# must land only on the first-party C++ TUs this sub-project owns — the ones the
+# main build never compiles. The shared cores are already strict-gated where they
+# are authored (main build); lwIP's C sources stay warnings-only (third-party). The
+# -isystem demotion above keeps these TUs' lwIP includes from drowning the gate in
+# C-style-cast noise. The two in-process tests are hand-rolled (no gtest), so —
+# unlike the main build's gtest TUs — they are gated too.
+tc8_strict_source_options(_tc8_lwip_strict_flags)
+# GLOB every first-party C++ TU in this directory (the same CONFIGURE_DEPENDS idiom
+# the AUTOSAR-engine source set below uses) so a newly added adapter is gated
+# automatically, instead of silently escaping -Werror when a hand-typed list is
+# forgotten. Only first-party adapters/tests are dut/lwip_dut/*.cpp; the third-party
+# lwIP C sources are *.c under LWIP_DIR/LWIP_CONTRIB_DIR and the shared main-tree
+# cores are ../../src/*.cpp — neither matches this non-recursive glob.
+file(GLOB _tc8_lwip_strict_srcs CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
+# The per-source COMPILE_OPTIONS take effect because every target that compiles
+# these TUs (the tc8_lwip_app targets) is defined in THIS directory scope — source
+# file properties are directory-scoped (CMP0118). A gated TU moved into a target in
+# another directory would silently lose the gate, so keep these app targets here.
 set_source_files_properties(${_tc8_lwip_strict_srcs} PROPERTIES
     COMPILE_OPTIONS "${_tc8_lwip_strict_flags}")
 
