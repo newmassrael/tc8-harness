@@ -4,10 +4,10 @@
 #
 # Python mirror of the DHCPv4 BOOTP fixed-header decode. The C++
 # authoritative decoder (src/sce_integration/dhcpv4_wire.h) #includes
-# the same .def directly, so this file and the harness share one
-# layout. Imported by site/scripts/decode_pcap.py. The options TLV
-# chain has no fixed offsets and is walked by the caller, outside this
-# mirror. See docs/tech-debt.md TD-02.
+# the same .def directly, so this file and the harness share one layout.
+# Imported by site/scripts/decode_pcap.py. The options TLV chain has no
+# fixed offsets and is walked by the caller, outside this mirror.
+# See docs/tech-debt.md TD-02.
 
 
 def _read(buf, off, size):
@@ -20,7 +20,6 @@ def _read(buf, off, size):
 
 def _ipv4(buf, off):
     return ".".join(str(b) for b in buf[off:off + 4])
-
 
 kMagicCookieOff = 236
 kMagicCookie = 0x63825363

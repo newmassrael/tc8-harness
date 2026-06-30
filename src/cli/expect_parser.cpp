@@ -11,7 +11,6 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
-#include <utility>
 
 namespace tc8::cli {
 
@@ -128,7 +127,12 @@ constexpr std::size_t ekindStorage(EKind k) {
 }
 
 // Parse `v` per kind `K` and assign into `member` (its real type). The
-// static_asserts pin the .def `kind` to the member type at compile time.
+// static_asserts pin the kind's value CLASS to the member type at compile time
+// (IPV4→uint32, MAC→array<6>, numeric→unsigned of the matching width), so e.g.
+// a U16 row on a uint32 member fails to compile. The one distinction they do
+// NOT catch is U24 vs U32 (both target uint32, differing only in range): a
+// U24↔U32 mislabel compiles, and its range is instead enforced by parseNumeric
+// + ekindMax and pinned by expect_parser_test's RejectsOverflowTtl24Bit.
 template <EKind K, class M>
 bool applyField(std::string_view v, M &member) {
     if constexpr (K == EKind::IPV4) {
@@ -185,11 +189,30 @@ bool applyPayload(std::string_view val, ::tc8::SomeIpExpectations &e) {
     return true;
 }
 
-// One row of a group's key table: the key string and a type-safe setter.
+// One row of a group's key table: the key string and a type-safe setter bound
+// to the group's expectation type T. Each table is monomorphic in T (built
+// inside one overload), so the setter takes `T&` directly — no `void*`
+// erasure, hence no unchecked cast.
+template <class T>
 struct EKey {
     std::string_view name;
-    bool (*apply)(void *e, std::string_view v);
+    bool (*apply)(T &e, std::string_view v);
 };
+
+// Build one table row: a key string + a non-capturing setter that parses per
+// `kind` into `e.name` (its real type, so applyField's static_asserts pin
+// kind↔type). Written once; each overload maps its group's .def sub-macro to
+// it, so the row shape is not copy-pasted per group.
+#define TC8_EK_ROW(T, kind, name)                                         \
+    EKey<::tc8::T>{#name, [](::tc8::T &ctx, std::string_view v) {          \
+                       return applyField<EKind::kind>(v, ctx.name);       \
+                   }},
+// The payload key fills two members, so it routes to applyPayload(ctx) instead
+// of a single-member setter.
+#define TC8_EKP_ROW(T, name)                                              \
+    EKey<::tc8::T>{#name, [](::tc8::T &ctx, std::string_view v) {          \
+                       return applyPayload(v, ctx);                       \
+                   }},
 
 // Strip `prefix`, split `key=value`, look the key up in `table`, apply it.
 // Returns true only when the key is recognised AND its value parsed; a missing
@@ -197,7 +220,7 @@ struct EKey {
 // chains the protocol-scoped overloads and reports one error if all decline).
 template <class T>
 bool matchExpect(std::string_view token, std::string_view prefix, T &e,
-                 const EKey *table, std::size_t count) {
+                 const EKey<T> *table, std::size_t count) {
     if (token.substr(0, prefix.size()) != prefix) {
         return false;
     }
@@ -210,7 +233,7 @@ bool matchExpect(std::string_view token, std::string_view prefix, T &e,
     const std::string_view val = body.substr(eq + 1);
     for (std::size_t i = 0; i < count; ++i) {
         if (key == table[i].name) {
-            return table[i].apply(&e, val);
+            return table[i].apply(e, val);
         }
     }
     return false;
@@ -226,16 +249,9 @@ bool matchExpect(std::string_view token, std::string_view prefix, T &e,
 // Each overload builds its lookup table by expanding tc8_expect_keys.def with
 // its own group's sub-macro; every other group's rows default to empty.
 bool applyExpectToken(std::string_view token, ::tc8::SomeIpExpectations &e) {
-    static constexpr EKey kKeys[] = {
-#define TC8_EK_someip(kind, name)                                            \
-    EKey{#name, [](void *ep, std::string_view v) {                           \
-             return applyField<EKind::kind>(                                 \
-                 v, static_cast<::tc8::SomeIpExpectations *>(ep)->name);      \
-         }},
-#define TC8_EKP_someip(name)                                                 \
-    EKey{#name, [](void *ep, std::string_view v) {                           \
-             return applyPayload(v, *static_cast<::tc8::SomeIpExpectations *>(ep)); \
-         }},
+    static constexpr EKey<::tc8::SomeIpExpectations> kKeys[] = {
+#define TC8_EK_someip(kind, name) TC8_EK_ROW(SomeIpExpectations, kind, name)
+#define TC8_EKP_someip(name)      TC8_EKP_ROW(SomeIpExpectations, name)
 #include "cli/tc8_expect_keys.def"
 #undef TC8_EK_someip
 #undef TC8_EKP_someip
@@ -244,12 +260,8 @@ bool applyExpectToken(std::string_view token, ::tc8::SomeIpExpectations &e) {
 }
 
 bool applyExpectToken(std::string_view token, ::tc8::ArpExpectations &e) {
-    static constexpr EKey kKeys[] = {
-#define TC8_EK_arp(kind, name)                                               \
-    EKey{#name, [](void *ep, std::string_view v) {                           \
-             return applyField<EKind::kind>(                                 \
-                 v, static_cast<::tc8::ArpExpectations *>(ep)->name);         \
-         }},
+    static constexpr EKey<::tc8::ArpExpectations> kKeys[] = {
+#define TC8_EK_arp(kind, name) TC8_EK_ROW(ArpExpectations, kind, name)
 #include "cli/tc8_expect_keys.def"
 #undef TC8_EK_arp
     };
@@ -257,12 +269,8 @@ bool applyExpectToken(std::string_view token, ::tc8::ArpExpectations &e) {
 }
 
 bool applyExpectToken(std::string_view token, ::tc8::DutIdentity &e) {
-    static constexpr EKey kKeys[] = {
-#define TC8_EK_dut(kind, name)                                               \
-    EKey{#name, [](void *ep, std::string_view v) {                           \
-             return applyField<EKind::kind>(                                 \
-                 v, static_cast<::tc8::DutIdentity *>(ep)->name);            \
-         }},
+    static constexpr EKey<::tc8::DutIdentity> kKeys[] = {
+#define TC8_EK_dut(kind, name) TC8_EK_ROW(DutIdentity, kind, name)
 #include "cli/tc8_expect_keys.def"
 #undef TC8_EK_dut
     };
@@ -270,12 +278,8 @@ bool applyExpectToken(std::string_view token, ::tc8::DutIdentity &e) {
 }
 
 bool applyExpectToken(std::string_view token, ::tc8::ArpStimulusConfig &e) {
-    static constexpr EKey kKeys[] = {
-#define TC8_EK_arp_stimulus(kind, name)                                      \
-    EKey{#name, [](void *ep, std::string_view v) {                           \
-             return applyField<EKind::kind>(                                 \
-                 v, static_cast<::tc8::ArpStimulusConfig *>(ep)->name);       \
-         }},
+    static constexpr EKey<::tc8::ArpStimulusConfig> kKeys[] = {
+#define TC8_EK_arp_stimulus(kind, name) TC8_EK_ROW(ArpStimulusConfig, kind, name)
 #include "cli/tc8_expect_keys.def"
 #undef TC8_EK_arp_stimulus
     };
@@ -283,12 +287,8 @@ bool applyExpectToken(std::string_view token, ::tc8::ArpStimulusConfig &e) {
 }
 
 bool applyExpectToken(std::string_view token, ::tc8::Icmpv4Expectations &e) {
-    static constexpr EKey kKeys[] = {
-#define TC8_EK_icmpv4(kind, name)                                            \
-    EKey{#name, [](void *ep, std::string_view v) {                           \
-             return applyField<EKind::kind>(                                 \
-                 v, static_cast<::tc8::Icmpv4Expectations *>(ep)->name);      \
-         }},
+    static constexpr EKey<::tc8::Icmpv4Expectations> kKeys[] = {
+#define TC8_EK_icmpv4(kind, name) TC8_EK_ROW(Icmpv4Expectations, kind, name)
 #include "cli/tc8_expect_keys.def"
 #undef TC8_EK_icmpv4
     };
@@ -296,12 +296,8 @@ bool applyExpectToken(std::string_view token, ::tc8::Icmpv4Expectations &e) {
 }
 
 bool applyExpectToken(std::string_view token, ::tc8::Ipv4Expectations &e) {
-    static constexpr EKey kKeys[] = {
-#define TC8_EK_ipv4(kind, name)                                              \
-    EKey{#name, [](void *ep, std::string_view v) {                           \
-             return applyField<EKind::kind>(                                 \
-                 v, static_cast<::tc8::Ipv4Expectations *>(ep)->name);        \
-         }},
+    static constexpr EKey<::tc8::Ipv4Expectations> kKeys[] = {
+#define TC8_EK_ipv4(kind, name) TC8_EK_ROW(Ipv4Expectations, kind, name)
 #include "cli/tc8_expect_keys.def"
 #undef TC8_EK_ipv4
     };
@@ -309,16 +305,15 @@ bool applyExpectToken(std::string_view token, ::tc8::Ipv4Expectations &e) {
 }
 
 bool applyExpectToken(std::string_view token, ::tc8::Dhcpv4Expectations &e) {
-    static constexpr EKey kKeys[] = {
-#define TC8_EK_dhcpv4(kind, name)                                            \
-    EKey{#name, [](void *ep, std::string_view v) {                           \
-             return applyField<EKind::kind>(                                 \
-                 v, static_cast<::tc8::Dhcpv4Expectations *>(ep)->name);      \
-         }},
+    static constexpr EKey<::tc8::Dhcpv4Expectations> kKeys[] = {
+#define TC8_EK_dhcpv4(kind, name) TC8_EK_ROW(Dhcpv4Expectations, kind, name)
 #include "cli/tc8_expect_keys.def"
 #undef TC8_EK_dhcpv4
     };
     return matchExpect(token, ekPrefix_dhcpv4, e, kKeys, std::size(kKeys));
 }
+
+#undef TC8_EK_ROW
+#undef TC8_EKP_ROW
 
 }  // namespace tc8::cli

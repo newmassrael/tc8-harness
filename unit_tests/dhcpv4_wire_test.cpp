@@ -15,17 +15,23 @@ namespace {
 // generator's golden-vector self-test (tools/gen_dhcpv4_wire.py) together
 // catch a wrong number in the .def itself. See docs/tech-debt.md TD-02.
 
-// Build a DHCPDISCOVER-shaped BOOTP body: 240 B fixed part + magic cookie,
-// xid 0x12345678, BROADCAST flag, yiaddr 172.16.0.5, chaddr MAC aa..ff.
+// Build a DHCPDISCOVER-shaped BOOTP body: 240 B fixed part + magic cookie.
+// Every fixed field carries a DISTINCT nonzero value (matching the generator's
+// golden vector) so a wrong offset cannot alias another field's value or a zero
+// run and still pass.
 std::array<std::uint8_t, 240> makeBootp() {
     std::array<std::uint8_t, 240> b{};
     b[0] = 1;   // op = BOOTREQUEST
     b[1] = 1;   // htype = Ethernet
     b[2] = 6;   // hlen
-    b[3] = 0;   // hops
+    b[3] = 2;   // hops (distinct nonzero)
     b[4] = 0x12; b[5] = 0x34; b[6] = 0x56; b[7] = 0x78;  // xid
+    b[8] = 0x01; b[9] = 0x02;                            // secs (distinct nonzero)
     b[10] = 0x80; b[11] = 0x00;                          // flags = BROADCAST
-    b[16] = 172; b[17] = 16; b[18] = 0; b[19] = 5;       // yiaddr
+    b[12] = 10;  b[13] = 1;  b[14] = 2;  b[15] = 3;      // ciaddr 10.1.2.3
+    b[16] = 172; b[17] = 16; b[18] = 0;  b[19] = 5;      // yiaddr 172.16.0.5
+    b[20] = 192; b[21] = 168; b[22] = 7; b[23] = 9;      // siaddr 192.168.7.9
+    b[24] = 169; b[25] = 254; b[26] = 11; b[27] = 22;    // giaddr 169.254.11.22
     b[28] = 0xAA; b[29] = 0xBB; b[30] = 0xCC;
     b[31] = 0xDD; b[32] = 0xEE; b[33] = 0xFF;            // chaddr MAC
     b[236] = 0x63; b[237] = 0x82; b[238] = 0x53; b[239] = 0x63;  // cookie
@@ -40,15 +46,18 @@ TEST(Dhcpv4Wire, DecodesBootpFixedHeader) {
     EXPECT_EQ(df.op, 1u);
     EXPECT_EQ(df.htype, 1u);
     EXPECT_EQ(df.hlen, 6u);
-    EXPECT_EQ(df.hops, 0u);
+    EXPECT_EQ(df.hops, 2u);
     EXPECT_EQ(df.xid, 0x12345678u);
-    EXPECT_EQ(df.secs, 0u);
+    EXPECT_EQ(df.secs, 0x0102u);
     EXPECT_EQ(df.flags, 0x8000u);
-    EXPECT_EQ(df.ciaddr, 0u);
-    // Addresses stay network byte order: 172.16.0.5 -> bytes AC 10 00 05,
-    // which on a little-endian host reads back as 0x050010AC (same
-    // convention as ipv4_decode_test / parseIpv4Dotted).
-    EXPECT_EQ(df.yiaddr, 0x050010ACu);
+    // Addresses stay network byte order: e.g. 10.1.2.3 -> bytes 0A 01 02 03,
+    // which on a little-endian host reads back as 0x0302010A (same convention
+    // as ipv4_decode_test / parseIpv4Dotted). Each address distinct so a
+    // swapped offset is caught.
+    EXPECT_EQ(df.ciaddr, 0x0302010Au);  // 10.1.2.3
+    EXPECT_EQ(df.yiaddr, 0x050010ACu);  // 172.16.0.5
+    EXPECT_EQ(df.siaddr, 0x0907A8C0u);  // 192.168.7.9
+    EXPECT_EQ(df.giaddr, 0x160BFEA9u);  // 169.254.11.22
     // chaddr keeps all 16 BOOTP bytes; only the first hlen are the MAC.
     EXPECT_EQ(df.chaddr[0], 0xAAu);
     EXPECT_EQ(df.chaddr[5], 0xFFu);

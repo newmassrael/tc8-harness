@@ -3,12 +3,19 @@
 schema SSOT src/cli/tc8_expect_keys.def.
 
 The C++ consumer (src/cli/expect_parser.cpp) is GENERATED from that .def, so it
-accepts exactly the registry's key set and cannot drift or omit. The producers
-stay hand-written — they map keys to deployment values (vsomeip.json paths, bash
-vars), which is not the schema's concern — so this gate is their guard: a
-producer that emits a key absent from the registry would have that field
-silently dropped by the consumer to its zero sentinel, a false-pass risk. CI
-runs this as a freshness gate. See docs/tech-debt.md TD-03.
+structurally accepts exactly the registry's key set — it cannot drift from nor
+omit a key. The producers stay hand-written (they map keys to deployment
+values — vsomeip.json paths, bash vars — which is not the schema's concern), so
+this gate is their static guard: a producer that emits a key ABSENT from the
+registry would have that field silently dropped by the consumer to its zero
+sentinel, a false-pass. CI runs it as a freshness gate. See docs/tech-debt.md
+TD-03.
+
+Scope (honest): this is a STATIC key-literal scan. It catches a producer
+emitting an out-of-registry key; it does NOT catch a producer FORGETTING to
+emit a key a guard needs (that producer-side omission leaves the field at 0 and
+stays a per-scenario test-authoring concern). The actual emitted key SETS are
+additionally diffed at runtime by dut/env/parity-check.sh.
 
 Producers checked (key NAMES only; their values/parity are checked elsewhere by
 config_test.rs and parity-check.sh):
@@ -34,10 +41,18 @@ _GROUP_RE = re.compile(r"^TC8_EXPECT_GROUP\(\s*(\w+)\s*,\s*\"([^\"]*)\"\s*\)$")
 _KEY_RE = re.compile(r"^TC8_EXPECT_KEY\(\s*(\w+)\s*,\s*\w+\s*,\s*(\w+)\s*\)$")
 _PAYLOAD_RE = re.compile(r"^TC8_EXPECT_PAYLOAD\(\s*(\w+)\s*,\s*(\w+)\s*\)$")
 
-# Producer emit patterns.
-_RUST_RE = re.compile(r'ex\(&mut e,\s*"([a-z0-9_.]+)"')
+# Producer key-literal patterns. A producer key is always written as a string
+# LITERAL somewhere, even when its value is interpolated — so these capture the
+# producer's key SET regardless of the surrounding call shape. The Rust side
+# emits via both ex(&mut e, "k", v) and .push(format!("k={v}")); both forms are
+# matched. Runtime-flipped tokens (the --negative harness's `--expect "$tok"`)
+# reuse keys already present as literals, and the actual emitted sets are
+# additionally diffed at runtime by parity-check.sh, so this static scan is not
+# the only producer guard.
+_RUST_EX_RE = re.compile(r'ex\(&mut e,\s*"([a-z0-9_.]+)"')
+_RUST_FMT_RE = re.compile(r'push\(format!\("([a-z0-9_.]+)=')
 _BASH_RE = re.compile(r'--expect\s+"([a-z0-9_.]+)=')
-_PYID_RE = re.compile(r'"([a-z0-9_]+)":\s*_require\(')
+_PYID_RE = re.compile(r'"([a-z0-9_.]+)":\s*_require\(')
 
 
 def parse_registry() -> set[str]:
@@ -71,8 +86,11 @@ def parse_registry() -> set[str]:
     return flat
 
 
-def extract(path: Path, pattern: re.Pattern, label: str) -> set[str]:
-    found = set(pattern.findall(path.read_text(encoding="utf-8")))
+def extract(path: Path, patterns: list[re.Pattern], label: str) -> set[str]:
+    text = path.read_text(encoding="utf-8")
+    found: set[str] = set()
+    for pat in patterns:
+        found |= set(pat.findall(text))
     if not found:
         sys.exit(f"check_expect_keys: extracted 0 keys from {label} ({path.name}) "
                  f"— the emit pattern changed; fix this checker before trusting it")
@@ -82,9 +100,9 @@ def extract(path: Path, pattern: re.Pattern, label: str) -> set[str]:
 def main() -> int:
     registry = parse_registry()
     producers = {
-        "Rust (dispatch.rs)": extract(RUST, _RUST_RE, "Rust"),
-        "bash (smoke-test.sh)": extract(BASH, _BASH_RE, "bash"),
-        "Python (dut_identity.py)": extract(PYID, _PYID_RE, "Python"),
+        "Rust (dispatch.rs)": extract(RUST, [_RUST_EX_RE, _RUST_FMT_RE], "Rust"),
+        "bash (smoke-test.sh)": extract(BASH, [_BASH_RE], "bash"),
+        "Python (dut_identity.py)": extract(PYID, [_PYID_RE], "Python"),
     }
     rc = 0
     for label, keys in producers.items():

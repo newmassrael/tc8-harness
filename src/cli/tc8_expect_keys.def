@@ -9,10 +9,12 @@
 //     this file, so it cannot accept a key absent here nor silently omit one
 //     present here. (key == member name for every row; the setter dereferences
 //     the member by its real type, so a wrong `kind` is a compile error.)
-//   * Python (validation): parsed by tools/gen_expect_keys.py, which checks
-//     that every key the producers emit (tools/dut_identity.py, the Rust
-//     orchestrator, dut/env/smoke-test.sh) is present here. CI runs
-//     `python3 tools/gen_expect_keys.py --check` as the freshness gate.
+//   * Python (validation): parsed by tools/check_expect_keys.py, which
+//     validates that every key the producers emit (tools/dut_identity.py, the
+//     Rust orchestrator, dut/env/smoke-test.sh) is present here. CI runs
+//     `python3 tools/check_expect_keys.py` as the gate. (It validates, not
+//     generates — the producers map keys to deployment values, so only their
+//     key NAMES are checked against this schema.)
 //
 // See docs/tech-debt.md TD-03 for why this SSOT exists. The producers stay
 // hand-written (they map keys to deployment values, e.g. vsomeip.json paths,

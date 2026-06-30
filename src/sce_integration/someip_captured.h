@@ -612,7 +612,7 @@ inline std::uint8_t peekSdEntry0Type(const std::uint8_t *payload, std::size_t pa
 inline void decodeSdEntry(SdEntry &dst, const std::uint8_t *src) {
 #define TC8_SD_ENTRY_FIELD(group, member, off, size, shift, mask) \
     dst.member = static_cast<decltype(dst.member)>(              \
-        ::tc8::wire::readBe(src + (off), (size), (shift), (mask)));
+        (::tc8::wire::readBe(src + (off), (size)) >> (shift)) & (mask));
 #include "someip_sd_wire.def"
 #undef TC8_SD_ENTRY_FIELD
 }
@@ -631,7 +631,7 @@ inline void parseSdHeaderInto(SomeIpCaptured &c, const std::uint8_t *payload, st
     }
 #define TC8_SD_HEADER_FIELD(member, off, size, shift, mask) \
     c.member = static_cast<decltype(c.member)>(            \
-        ::tc8::wire::readBe(payload + (off), (size), (shift), (mask)));
+        (::tc8::wire::readBe(payload + (off), (size)) >> (shift)) & (mask));
 #include "someip_sd_wire.def"
 #undef TC8_SD_HEADER_FIELD
 
@@ -640,7 +640,7 @@ inline void parseSdHeaderInto(SomeIpCaptured &c, const std::uint8_t *payload, st
     }
 #define TC8_SD_ENTRIESLEN_FIELD(member, off, size, shift, mask) \
     c.member = static_cast<decltype(c.member)>(                \
-        ::tc8::wire::readBe(payload + (off), (size), (shift), (mask)));
+        (::tc8::wire::readBe(payload + (off), (size)) >> (shift)) & (mask));
 #include "someip_sd_wire.def"
 #undef TC8_SD_ENTRIESLEN_FIELD
 
@@ -772,7 +772,7 @@ inline void parseSdOptionsInto(SomeIpCaptured &c, const std::uint8_t *payload, s
             // stores `addr.s_addr` in NBO).
 #define TC8_SD_OPTION_FIELD(member, off, size, shift, mask) \
             dst.member = static_cast<decltype(dst.member)>( \
-                ::tc8::wire::readBe(o + (off), (size), (shift), (mask)));
+                (::tc8::wire::readBe(o + (off), (size)) >> (shift)) & (mask));
 #define TC8_SD_OPTION_ADDR(member, off) std::memcpy(&dst.member, o + (off), 4);
 #include "someip_sd_wire.def"
 #undef TC8_SD_OPTION_FIELD

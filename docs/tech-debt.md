@@ -99,17 +99,27 @@ The offsets (op/htype/hlen/hops/xid/secs/flags, the four IPv4 addresses, chaddr,
 the magic cookie, the options start) were mirrored by hand, same shape as SD was.
 
 **Premise correction (2026-06-30).** The original entry claimed every non-SD TC8
-protocol carried this C++/Python decode mirror. Direct inspection disproved that:
-the C++ harness decodes ARP / IPv4 / ICMPv4 / UDP / TCP entirely through libtins
-accessors (`ip->ttl()`, `tcp->seq()`, `arp->opcode()`, … in
-`packet_pipeline.cpp`) — there are NO hand-coded byte offsets on the C++ side for
-those five, so there is nothing to single-source; only the Python site dissector
-hand-decodes them, and a `.def` with one consumer is not an SSOT. The lone
-genuine C++/Python offset mirror was DHCPv4, because libtins does not dissect
-BOOTP/DHCP. (The original entry also misnamed the C++ site as `*_captured.h`;
-those headers only copy already-parsed `*Frame` fields — the decode is in the
-dispatcher.) So TD-02 reduces to DHCPv4; the "other protocols" scope is WITHDRAWN
-as mis-scoped, not deferred — there is no duplication there to fix.
+protocol carried this C++/Python decode mirror. Direct inspection narrowed it:
+the C++ harness decodes the FIELDS of ARP / IPv4 / ICMPv4 / UDP / TCP through
+libtins accessors (`ip->ttl()`, `tcp->seq()`, `arp->opcode()`, … in
+`packet_pipeline.cpp`), not a hand-coded offset table — and the Python site
+dissector hand-decodes the same fields, but as a single consumer a `.def` there
+would not be an SSOT. So for FIELD DECODE, DHCPv4 (BOOTP, which libtins does not
+dissect) is the lone genuine C++/Python offset mirror, and that part is fixed
+here. The "other protocols' field decode" scope is WITHDRAWN as mis-scoped, not
+deferred.
+
+This premise is narrower than an earlier draft of it, which over-corrected to
+"there are NO hand-coded byte offsets on the C++ side for those five." That is
+false: the CHECKSUM validators hand-code byte positions — `ipv4_captured.h`
+`header_checksum_valid()` reconstructs the 20-byte IPv4 header from parsed fields
+and 1's-complement-sums it, and `packet_pipeline.cpp` builds the TCP
+pseudo-header from IP bytes at offsets 12..19. The IPv4 header checksum is
+moreover independently implemented in `decode_pcap.py` (`ip_header_checksum_ok`)
+— a real second cross-language duplication. It is an ALGORITHM over RFC-frozen
+positions, not a field-layout table (the two sides even differ in approach:
+C++ reconstructs-from-fields, Python sums raw bytes), so it does not fold into
+the offset-`.def` mechanism; it is tracked separately as TD-04.
 
 **Resolution.** The BOOTP fixed-header layout now lives once in
 `src/sce_integration/dhcpv4_wire.def` (X-macro form). Both languages derive from
@@ -155,16 +165,20 @@ sentinel and the SCXML guard then compared against 0 (a false-pass, not a crash)
 the group's namespace prefix, and its value kind (U8/U16/U24/U32/IPV4/MAC/payload).
 The consumer is GENERATED from it — `expect_parser.cpp` expands the `.def` to build
 each group's lookup table — so it accepts exactly the registry's key set and can
-neither drift from nor omit a key (the property TD-01's wire decoder has). Two
-further guards make it textbook-safe:
+neither drift from nor omit a key (the property TD-01's wire decoder has). This
+closes the CONSUMER-side false-pass: the original risk was a consumer key rename/
+typo silently dropping a field, which is now impossible. Two further guards:
 
 - Type safety: every key's setter dereferences the target member by its real type
-  (key == member name), and `applyField<KIND>` `static_assert`s the kind against
-  the member type, so a row whose kind disagrees with the field is a compile error.
+  (key == member name), and `applyField<KIND>` `static_assert`s the kind's value
+  class (IPv4→uint32, MAC→array<6>, numeric→matching width) against the member, so
+  e.g. a U16 row on a uint32 member is a compile error. The one distinction it does
+  not catch is U24 vs U32 (both uint32, range-only); that range is enforced by the
+  parser and pinned by `RejectsOverflowTtl24Bit`.
 - Producer validation: `tools/check_expect_keys.py` (CI `build-test`, alongside the
-  wire/verdict `.def` gates) parses the registry and fails if any hand-written
-  producer (dispatch.rs / smoke-test.sh / dut_identity.py) emits a key absent from
-  it — i.e. a key the generated consumer would silently drop.
+  wire/verdict `.def` gates) statically scans the producers' key LITERALS and fails
+  if any (dispatch.rs / smoke-test.sh / dut_identity.py) emits a key absent from the
+  registry — i.e. a key the generated consumer would silently drop.
 
 The producers stay hand-written: they map keys to deployment VALUES (vsomeip.json
 paths, bash vars), which is producer-specific and not the schema's concern. The
@@ -172,3 +186,46 @@ correct SSOT boundary is therefore "registry is authoritative for accepted keys
 (consumer generated); producers validated against it", not full producer
 generation. `unit_tests/expect_parser_test.cpp` pins the per-kind parse/range
 behaviour across all seven groups.
+
+**Residual (honest scope).** This closes consumer-side omission, NOT producer-side:
+if a producer FORGETS to emit a key a guard needs, the field stays at its 0
+sentinel and the guard false-passes — the static producer scan checks
+producer ⊆ registry, not registry ⊆ producer, so it cannot see a missing
+emission. That residual is covered by per-scenario test design plus the runtime
+`dut/env/parity-check.sh` (which diffs the actual emitted key sets) and
+`config_test.rs`, not by this schema.
+
+---
+
+## TD-04 — IPv4 / TCP checksum validation hand-coded in C++ and (IPv4) Python
+
+**Status:** OPEN (accepted, low priority). **Logged:** 2026-06-30 (surfaced by
+the TD-02 premise audit).
+
+**What.** Three sites hand-code byte-level checksum logic over RFC-frozen header
+positions, outside any wire `.def`:
+
+- `src/sce_integration/ipv4_captured.h` `header_checksum_valid()` reconstructs
+  the 20-byte IPv4 header from the parsed scalar fields and 1's-complement-sums
+  it (RFC 1071), to verify the IPv4 header-checksum case.
+- `src/dissect/packet_pipeline.cpp` builds the TCP pseudo-header from IP bytes at
+  offsets 12..19 to validate the TCP checksum.
+- `site/scripts/decode_pcap.py` independently sums the IPv4 header
+  (`ip_header_checksum_ok`) over the raw captured bytes.
+
+The IPv4 header checksum is thus a genuine C++/Python duplication (the TCP one
+has no Python twin).
+
+**Risk if left.** Near-zero drift: RFC 791/793/1071 are frozen and the check is a
+fixed algorithm, not a vendor-extensible layout. A divergence would only
+mis-report a checksum on the site preview; the C++ stays authoritative.
+
+**Why deferred — and why NOT an offset `.def`.** Unlike SD/DHCP, the two sides do
+not share an offset TABLE: the C++ reconstructs the header from already-parsed
+fields (it does not retain the raw header bytes) while Python sums the raw bytes;
+they share only the RFC 1071 algorithm. There is no field layout to
+single-source — collapsing them would mean sharing a standard checksum routine
+across two languages, which the wire-`.def` mechanism does not address. If ever
+unified, the textbook route is a shared checksum helper invoked from a
+raw-header-bytes snapshot on both sides, not a `*_wire.def`. Tracked as a
+low-drift item so the TD-02 premise stays truthful.

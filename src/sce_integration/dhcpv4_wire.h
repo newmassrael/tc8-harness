@@ -29,7 +29,7 @@ namespace tc8::dhcpv4_wire {
 inline void decodeBootpFixedHeader(const std::uint8_t *bp, Dhcpv4Frame &df) {
 #define TC8_DHCP_FIELD(member, off, size)        \
     df.member = static_cast<decltype(df.member)>( \
-        ::tc8::wire::readBe(bp + (off), (size), 0, 0xFFFFFFFFu));
+        ::tc8::wire::readBe(bp + (off), (size)));
 #define TC8_DHCP_ADDR(member, off) std::memcpy(&df.member, bp + (off), 4);
 #define TC8_DHCP_BYTES(member, off, len) \
     std::copy(bp + (off), bp + (off) + (len), df.member.begin());
@@ -42,7 +42,7 @@ inline void decodeBootpFixedHeader(const std::uint8_t *bp, Dhcpv4Frame &df) {
 // True iff the 4 bytes at kMagicCookieOff equal the RFC 1497 / RFC 2131
 // magic cookie. Caller guarantees at least kOptionsOff bytes.
 inline bool magicCookieValid(const std::uint8_t *bp) {
-    return ::tc8::wire::readBe(bp + kMagicCookieOff, 4, 0, 0xFFFFFFFFu) == kMagicCookie;
+    return ::tc8::wire::readBe(bp + kMagicCookieOff, 4) == kMagicCookie;
 }
 
 }  // namespace tc8::dhcpv4_wire

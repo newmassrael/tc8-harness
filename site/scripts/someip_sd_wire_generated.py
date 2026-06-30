@@ -8,12 +8,12 @@
 # by site/scripts/decode_pcap.py. See docs/tech-debt.md TD-01.
 
 
-def _read(buf, off, size, shift, mask):
+def _read(buf, off, size):
     """Big-endian field read; twin of ::tc8::wire::readBe (C++)."""
     value = 0
     for i in range(size):
         value = (value << 8) | buf[off + i]
-    return (value >> shift) & mask
+    return value
 
 
 def _ipv4(buf, off):
@@ -27,14 +27,14 @@ SD_IPV4_OPTION_TYPES = (0x04, 0x14, 0x24)
 def decode_sd_header(buf):
     """SD header flags + 24-bit reserved (caller guarantees >= 4 bytes)."""
     return {
-        "sd_flags": _read(buf, 0, 1, 0, 0xff),
-        "sd_reserved": _read(buf, 1, 3, 0, 0xffffff),
+        "sd_flags": _read(buf, 0, 1),
+        "sd_reserved": _read(buf, 1, 3),
     }
 
 
 def decode_sd_entries_len(buf):
     """LengthOfEntriesArray (caller guarantees >= 8 bytes)."""
-    return _read(buf, 4, 4, 0, 0xffffffff)
+    return _read(buf, 4, 4)
 
 
 def decode_sd_entry(buf, off, e_type):
@@ -42,31 +42,31 @@ def decode_sd_entry(buf, off, e_type):
     matching e_type only (the C++ struct carries both tails, but a
     dict need only hold the meaningful one)."""
     e = {}
-    e["type"] = _read(buf, off, 1, 0, 0xff)
-    e["index_first"] = _read(buf, off + 1, 1, 0, 0xff)
-    e["index_second"] = _read(buf, off + 2, 1, 0, 0xff)
-    e["num_opt1"] = _read(buf, off + 3, 1, 4, 0x0f)
-    e["num_opt2"] = _read(buf, off + 3, 1, 0, 0x0f)
-    e["service_id"] = _read(buf, off + 4, 2, 0, 0xffff)
-    e["instance_id"] = _read(buf, off + 6, 2, 0, 0xffff)
-    e["major_version"] = _read(buf, off + 8, 1, 0, 0xff)
-    e["ttl"] = _read(buf, off + 9, 3, 0, 0xffffff)
+    e["type"] = _read(buf, off, 1)
+    e["index_first"] = _read(buf, off + 1, 1)
+    e["index_second"] = _read(buf, off + 2, 1)
+    e["num_opt1"] = (_read(buf, off + 3, 1) >> 4) & 0xf
+    e["num_opt2"] = _read(buf, off + 3, 1) & 0xf
+    e["service_id"] = _read(buf, off + 4, 2)
+    e["instance_id"] = _read(buf, off + 6, 2)
+    e["major_version"] = _read(buf, off + 8, 1)
+    e["ttl"] = _read(buf, off + 9, 3)
     group = SD_ENTRY_TAIL_GROUP.get(e_type)
     if group == "service":
-        e["minor_version"] = _read(buf, off + 12, 4, 0, 0xffffffff)
+        e["minor_version"] = _read(buf, off + 12, 4)
     elif group == "eventgroup":
-        e["entry_reserved"] = _read(buf, off + 12, 2, 4, 0xfff)
-        e["counter"] = _read(buf, off + 12, 2, 0, 0x0f)
-        e["eventgroup_id"] = _read(buf, off + 14, 2, 0, 0xffff)
+        e["entry_reserved"] = (_read(buf, off + 12, 2) >> 4) & 0xfff
+        e["counter"] = _read(buf, off + 12, 2) & 0xf
+        e["eventgroup_id"] = _read(buf, off + 14, 2)
     return e
 
 
 def decode_sd_option_ipv4(buf, off):
     """IPv4 endpoint/multicast/sd-endpoint option tail."""
     return {
-        "reserved1": _read(buf, off + 3, 1, 0, 0xff),
+        "reserved1": _read(buf, off + 3, 1),
         "ipv4": _ipv4(buf, off + 4),
-        "reserved2": _read(buf, off + 8, 1, 0, 0xff),
-        "l4_proto": _read(buf, off + 9, 1, 0, 0xff),
-        "port": _read(buf, off + 10, 2, 0, 0xffff),
+        "reserved2": _read(buf, off + 8, 1),
+        "l4_proto": _read(buf, off + 9, 1),
+        "port": _read(buf, off + 10, 2),
     }
