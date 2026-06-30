@@ -16,8 +16,11 @@
 //     kApplicationName)
 //
 // Divergence will silently break every case that depends on the DUT being
-// reachable under the advertised identity. There is no runtime cross-check
-// yet; keep these in sync by hand until a codegen pass subsumes both sides.
+// reachable under the advertised identity. These three artifacts are distinct
+// formats with no single generatable source, so they stay hand-authored — but the
+// drift is build-enforced: tools/check_dut_identity.py cross-checks all three and
+// the CI `DUT identity cross-check gate` fails on any mismatch (run it locally with
+// `python3 tools/check_dut_identity.py`).
 
 namespace tc8::dut {
 
