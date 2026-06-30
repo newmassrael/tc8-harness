@@ -82,6 +82,10 @@ tc8_enable_strict_warnings(tc8_upper_tester_server)
 # philosophy, no link-time weak-symbol tricks). An OEM points these at its own
 # translation units: TC8_ETS_FACTORY_SRC must define createEtsStub() (returning
 # its EtsImpl subclass); TC8_ETS_EXTENSION_SRC must define createEtsExtension().
+# Its two optional companions for an out-of-tree extension that needs more than a
+# lone source — TC8_ETS_EXTENSION_LIBS (extra link libraries) and
+# TC8_ETS_EXTENSION_INCLUDE_DIRS (extra include paths) — are applied to tc8-dut
+# below; both unset by default, leaving the public DUT byte-identical.
 # `if(NOT DEFINED)` guards a superproject's plain set() under CMP0126 OLD.
 if(NOT DEFINED TC8_ETS_FACTORY_SRC)
     set(TC8_ETS_FACTORY_SRC "${CMAKE_CURRENT_SOURCE_DIR}/ets_factory.cpp")
@@ -122,6 +126,14 @@ target_include_directories(tc8-dut PRIVATE
     # out-of-dir OEM slot file needs this path on -I.
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
+# OEM extension include-path companion of TC8_ETS_EXTENSION_SRC: lets the
+# extension TU reach a shared OEM header tree (e.g. conformance/) so the DUT and
+# tester can include ONE constants header instead of hand-mirroring it across the
+# cross-build boundary. Unset => no extra path => the public DUT include set is
+# byte-identical.
+if(TC8_ETS_EXTENSION_INCLUDE_DIRS)
+    target_include_directories(tc8-dut PRIVATE ${TC8_ETS_EXTENSION_INCLUDE_DIRS})
+endif()
 # Firmware fault-injection coverage guarantee, kept UNCONDITIONAL (independent of
 # TC8_WARNINGS_AS_ERRORS): switch-no-default exhaustiveness forces every new
 # Dhcpv4ClientFlavor / LinklocalAutoconfFlavor to declare its per-builder
@@ -135,3 +147,12 @@ target_compile_options(tc8-dut PRIVATE -Werror=switch)
 tc8_enable_strict_warnings(tc8-dut)
 target_link_options(tc8-dut PRIVATE -Wl,--no-as-needed)
 target_link_libraries(tc8-dut PRIVATE ets ets2 ets3 tc8_testability_server tc8_upper_tester_server)
+# OEM extension link companion of TC8_ETS_EXTENSION_SRC: lets the extension TU
+# declare its own link dependencies (e.g. tc8_e2e for an AUTOSAR E2E Profile 5/11
+# checker) without baking an extension-only library into the public DUT target.
+# Each entry is a normal CMake target / archive, so it contributes nothing unless
+# the extension references it. Unset => the link set is byte-identical to the
+# public DUT.
+if(TC8_ETS_EXTENSION_LIBS)
+    target_link_libraries(tc8-dut PRIVATE ${TC8_ETS_EXTENSION_LIBS})
+endif()
