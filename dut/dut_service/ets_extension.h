@@ -55,13 +55,17 @@ struct EtsExtensionContext {
 //
 // Only hooks with a real call site exist (no speculative methods): onRegister
 // (after the service is offered — offer events + register method/request handlers
-// + wire client subscribe/calls), onTick (each DUT main-loop pass — drive
-// cyclic/duration-windowed notifies), onStop (shutdown), ets8001TriggerDriven
-// (queried once before the 0x8001 source is registered).
+// + wire client subscribe/calls), onReactivate (after a warm suspendInterface
+// re-offer — re-apply any re-activation-relative behaviour, fired on the main-loop
+// thread like onRegister/onTick, never on the detached suspend thread), onTick
+// (each DUT main-loop pass — drive cyclic/duration-windowed notifies), onStop
+// (shutdown), ets8001TriggerDriven (queried once before the 0x8001 source is
+// registered).
 class IEtsExtension {
 public:
     virtual ~IEtsExtension() = default;
     virtual void onRegister(EtsExtensionContext& ctx) { (void)ctx; }
+    virtual void onReactivate(EtsExtensionContext& ctx) { (void)ctx; }
     virtual void onTick(EtsExtensionContext& ctx) { (void)ctx; }
     virtual void onStop(EtsExtensionContext& ctx) { (void)ctx; }
 

@@ -279,6 +279,25 @@ TEST(DemoEtsExtension, OnTickEmitsNothing) {
     EXPECT_FALSE(ext.ets8001TriggerDriven());
 }
 
+TEST(DemoEtsExtension, OnReactivateReEmitsDemoEvent) {
+    FakeEtsEventSink sink;
+    FakeEtsClientControl client;
+    FakeEtsControlChannel control;
+    FakeEtsIoHost io;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control, io};
+    tc8::dut::DemoEtsExtension ext;
+    ext.onRegister(ctx);
+    sink.notifications.clear();  // onRegister notifies nothing; clear to isolate the hook
+
+    // A warm suspendInterface re-offer re-applies extension-owned emission: the demo
+    // re-notifies its event exactly once (the shape an OEM uses to re-anchor after a
+    // warm re-activation), delivered on the DUT main thread by dut_main's loop.
+    ext.onReactivate(ctx);
+    ASSERT_EQ(sink.notifications.size(), 1u);
+    EXPECT_EQ(sink.notifications[0].event_id, tc8::dut::kDemoEventId);
+    EXPECT_TRUE(sink.notifications[0].payload.empty());
+}
+
 TEST(DemoEtsExtension, SubscribeMethodDrivesClientControl) {
     FakeEtsEventSink sink;
     FakeEtsClientControl client;

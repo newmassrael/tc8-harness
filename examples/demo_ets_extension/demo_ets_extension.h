@@ -251,6 +251,20 @@ public:
         ctx.io.adoptPollable(std::make_unique<DemoLoopbackReceiver>());
     }
 
+    // Re-apply extension-owned behaviour after a WARM suspendInterface re-offer:
+    // the ServerRole re-registers the ETS service on a detached thread, and dut_main
+    // calls this on the DUT MAIN thread — the same threading contract as
+    // onRegister/onTick, never the detached suspend thread (which would race onTick
+    // on this extension's own state). A real OEM re-anchors its re-activation-relative
+    // behaviour here (e.g. resets a boot-relative timer so an offset re-applies from
+    // the re-activation instant); the demo re-notifies its event so the re-activation
+    // is observable — the "re-emit extension-owned events after a warm suspend" shape.
+    // Runs on the main thread, so it touches the sink directly (no shared-state arming
+    // like the vsomeip-thread handlers above).
+    void onReactivate(EtsExtensionContext& ctx) override {
+        ctx.sink.notify(kDemoEventId, {});
+    }
+
     // Count down the bounded subscription lifetime that the subscription-status
     // handler armed at establishment, and stop the subscription when it expires —
     // the duration-bounded client-subscribe shape. Runs on the DUT main thread

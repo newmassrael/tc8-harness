@@ -1,5 +1,6 @@
 #include "server_role.h"
 
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
@@ -76,8 +77,9 @@ ServerRole::ServerRole(std::shared_ptr<CommonAPI::Runtime> runtime,
     // ttl > 0). The closure captures shared_ptr copies of the runtime and stub
     // (never the ServerRole `this`), so the detached thread keeps them alive.
     impl_->setSuspendCallback(
-        [runtime = runtime_, impl = impl_](uint32_t start_ms, uint32_t duration_ms) {
-            std::thread([runtime, impl, start_ms, duration_ms]() {
+        [runtime = runtime_, impl = impl_, resume_seq = resume_seq_](uint32_t start_ms,
+                                                                     uint32_t duration_ms) {
+            std::thread([runtime, impl, resume_seq, start_ms, duration_ms]() {
                 if (start_ms > 0) {
                     std::this_thread::sleep_for(std::chrono::milliseconds(start_ms));
                 }
@@ -88,6 +90,10 @@ ServerRole::ServerRole(std::shared_ptr<CommonAPI::Runtime> runtime,
                 if (!runtime->registerService(ets_deploy::kDomain, ets_deploy::kInstance, impl)) {
                     std::fprintf(stderr, "tc8-dut: suspendInterface re-register failed\n");
                 } else {
+                    // Publish the warm re-offer to dut_main's loop, which fires
+                    // onReactivate on the main-loop thread (see resumeCount()). Only on
+                    // success — a failed re-register is not a re-activation.
+                    resume_seq->fetch_add(1);
                     std::printf("tc8-dut: suspendInterface — service resumed\n");
                 }
             }).detach();

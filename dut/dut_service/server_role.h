@@ -1,5 +1,7 @@
 #pragma once
 
+#include <atomic>
+#include <cstdint>
 #include <memory>
 
 #include "ets_emission.h"
@@ -84,12 +86,27 @@ public:
     // the teardown order of the pre-extraction dut_main.
     void unregisterAll();
 
+    // Monotonic count of completed warm suspendInterface re-offers (each successful
+    // re-registerService in the detached suspend thread). dut_main polls this on its
+    // main loop and, on every increment, fires IEtsExtension::onReactivate on the
+    // main-loop thread — the same threading contract as onRegister/onTick, never the
+    // detached suspend thread (which would race onTick on the extension's own state).
+    // Reads only the counter, so no lock is needed.
+    uint32_t resumeCount() const { return resume_seq_->load(); }
+
 private:
     std::shared_ptr<CommonAPI::Runtime> runtime_;
     std::shared_ptr<EtsImpl>  impl_;      // primary registered stub
     std::shared_ptr<EtsImpl>  impl2_;     // optional second instance (TC8_DUT_INSTANCE_2)
     std::shared_ptr<Ets2Impl> impl_si2_;  // optional second service  (TC8_DUT_SERVICE_2)
     EmissionController emission_;
+    // Bumped by the detached suspend closure on each successful re-offer; read by
+    // dut_main's loop. Held via shared_ptr<atomic> so the closure captures a COPY
+    // (never `this`), keeping the detached thread safe regardless of ServerRole's
+    // lifetime — the same "capture shared_ptr copies, never the ServerRole this"
+    // invariant the suspend closure already upholds for runtime_/impl_.
+    std::shared_ptr<std::atomic<uint32_t>> resume_seq_ =
+        std::make_shared<std::atomic<uint32_t>>(0);
 };
 
 }  // namespace tc8::dut

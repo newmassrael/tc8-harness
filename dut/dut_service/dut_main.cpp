@@ -1,6 +1,7 @@
 #include <atomic>
 #include <chrono>
 #include <csignal>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
@@ -198,12 +199,27 @@ int main() {
     // cadence matches the prior sleep loop whenever onTick completes within the
     // window (an onTick that overran 200 ms would tick back-to-back, exactly as it
     // would have under the old loop's post-onTick sleep).
+    // Warm suspendInterface re-offers run on a detached thread inside the ServerRole
+    // (server_role.cpp), which bumps a resume counter on each successful re-register.
+    // Observe it here so onReactivate fires on THIS main-loop thread — the same
+    // threading contract as onRegister/onTick — never on the detached suspend thread
+    // (which would race onTick on the extension's own state). Client-only mode has no
+    // ServerRole and therefore no suspend/resume, so the counter never moves and
+    // onReactivate never fires.
+    uint32_t last_resume_seq = server ? server->resumeCount() : 0;
     auto next_tick = std::chrono::steady_clock::now();
     while (!g_stop.load()) {
         const auto now = std::chrono::steady_clock::now();
         if (now >= next_tick) {
             ets_extension->onTick(ets_ctx);
             next_tick = std::chrono::steady_clock::now() + std::chrono::milliseconds(200);
+        }
+        if (server) {
+            const uint32_t seq = server->resumeCount();
+            if (seq != last_resume_seq) {
+                last_resume_seq = seq;
+                ets_extension->onReactivate(ets_ctx);
+            }
         }
         const auto remaining =
             std::chrono::duration_cast<std::chrono::milliseconds>(next_tick - now).count();
