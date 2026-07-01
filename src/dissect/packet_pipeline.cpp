@@ -293,9 +293,7 @@ void PacketPipeline::processFrame(const pcap_pkthdr &hdr, const std::uint8_t *by
             // malformed packet never raises a Dhcpv4 event. RFC 2131
             // fixes the BOOTP fixed-body length at 240 B — anything
             // shorter cannot carry the magic cookie at offset 236.
-            const bool dhcp_port =
-                (uf.src_port == 67 || uf.src_port == 68 ||
-                 uf.dst_port == 67 || uf.dst_port == 68);
+            const bool dhcp_port = ::tc8::isDhcpPortPair(uf.src_port, uf.dst_port);
             if (dhcp_port && body_data != nullptr &&
                 body_size >= ::tc8::dhcpv4_wire::kOptionsOff) {
                 const std::uint8_t* bp = body_data;

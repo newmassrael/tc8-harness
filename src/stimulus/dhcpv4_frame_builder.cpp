@@ -1,5 +1,6 @@
 #include "stimulus/dhcpv4_frame_builder.h"
 
+#include "tc8/protocol_frames/dhcpv4_frame.h"  // ::tc8::kDhcpServerPort / kDhcpClientPort (SSOT)
 #include "wire/ip_checksum.h"
 
 #include <cstring>
@@ -9,8 +10,6 @@ namespace tc8::stimulus {
 namespace {
 
 constexpr std::uint16_t kEthTypeIp4   = 0x0800;
-constexpr std::uint16_t kUdpServerPort = 67;
-constexpr std::uint16_t kUdpClientPort = 68;
 constexpr std::size_t   kBootpFixedLen = 240;
 
 using ::tc8::wire::inetChecksum;
@@ -91,8 +90,8 @@ std::vector<std::uint8_t> buildDhcpv4Reply(const Dhcpv4ReplySpec& spec) {
 
     // UDP header.
     std::uint8_t* udp = ip + 20;
-    writeBe16(udp + 0, kUdpServerPort);
-    writeBe16(udp + 2, kUdpClientPort);
+    writeBe16(udp + 0, ::tc8::kDhcpServerPort);
+    writeBe16(udp + 2, ::tc8::kDhcpClientPort);
     writeBe16(udp + 4, static_cast<std::uint16_t>(udp_len));
     writeBe16(udp + 6, 0);
 

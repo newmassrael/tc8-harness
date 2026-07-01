@@ -9,6 +9,7 @@
 
 #include "sce_integration/dhcpv4_default_endpoints.h"
 #include "tc8/dut_config.h"
+#include "tc8/protocol_frames/dhcpv4_frame.h"  // ::tc8::kDhcpServerPort / kDhcpClientPort (SSOT)
 #include "tc8/upper_tester_protocol.h"
 
 namespace tc8::capture::bpf {
@@ -54,7 +55,8 @@ std::string tcp() {
 }
 
 std::string dhcpv4() {
-    return "udp and (port 67 or port 68)";
+    return "udp and (port " + std::to_string(::tc8::kDhcpServerPort) + " or port " +
+           std::to_string(::tc8::kDhcpClientPort) + ")";
 }
 
 std::string portRange(std::uint16_t lo, std::uint16_t hi) {
@@ -88,7 +90,8 @@ std::string arpAndDhcpv4() {
     // (UDP 30490) which adds spurious capture noise on netns shared with
     // the §5.1 service emulation. Pinning to ports 67/68 keeps the
     // BPF-level filter clean.
-    return "arp or (udp and (port 67 or port 68))";
+    return "arp or (udp and (port " + std::to_string(::tc8::kDhcpServerPort) + " or port " +
+           std::to_string(::tc8::kDhcpClientPort) + "))";
 }
 
 std::string udpAndDhcpv4() {
@@ -108,7 +111,8 @@ std::string udpAndDhcpv4() {
     char unused_ip[INET_ADDRSTRLEN] = {};
     const in_addr unused_addr{::tc8::sce::dhcpv4::kUnusedRoutedIpBe};
     ::inet_ntop(AF_INET, &unused_addr, unused_ip, sizeof(unused_ip));
-    return "udp and (port 67 or port 68 or port "
+    return "udp and (port " + std::to_string(::tc8::kDhcpServerPort) + " or port "
+           + std::to_string(::tc8::kDhcpClientPort) + " or port "
            + std::to_string(tc8::ut::kDataPort)
            + " or host " + unused_ip + ")";
 }

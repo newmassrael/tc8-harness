@@ -7,6 +7,19 @@
 
 namespace tc8 {
 
+// DHCP UDP envelope ports (RFC 2131): server 67, client 68. Single source for
+// the port-pair recognizer shared by the dissect pipeline's Dhcpv4Frame gate,
+// the documentation-site exporter, the DHCP frame builder, and the BPF filter
+// strings — so "which ports are DHCP" is spelled once. Top-level in tc8 (like
+// kDot1QTpid) to avoid an enclosing-namespace binding trap; callers qualify
+// ::tc8::kDhcpServerPort / ::tc8::isDhcpPortPair.
+inline constexpr std::uint16_t kDhcpServerPort = 67;
+inline constexpr std::uint16_t kDhcpClientPort = 68;
+inline constexpr bool isDhcpPortPair(std::uint16_t src_port, std::uint16_t dst_port) {
+    return src_port == kDhcpServerPort || dst_port == kDhcpServerPort ||
+           src_port == kDhcpClientPort || dst_port == kDhcpClientPort;
+}
+
 // RFC 2131 DHCPv4 BOOTP header plus Option 53 (DHCP Message Type)
 // pulled out for convenience — §4.7 test cases routinely switch on the
 // exchange phase (DISCOVER / OFFER / REQUEST / ACK / NAK / DECLINE /
