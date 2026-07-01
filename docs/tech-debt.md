@@ -585,3 +585,60 @@ concern and can stay with the JSON helpers.
 (included by ~10 `*_captured.h`), i.e. a third verdict-path touch in one session. Since the
 cores are already SSOT, this is polish with no correctness stake, best done as a focused,
 independently-verified change.
+
+---
+
+## TD-11 — the topology extra-expect channel has no automated cross-driver parity coverage
+
+**Status:** OPEN (accepted). **Logged:** 2026-07-01 (added with the extra_expect channel).
+
+**What.** The `--topology-conf` extra-expect channel — bash `TC8_TOPOLOGY_EXTRA_EXPECT`
+(`dut/env/smoke-test.sh`) and Rust `extra_expect` (`dut/env/orchestrator/src/site.rs`) — is
+folded into each driver's `--expect` surface, but no in-tree topology conf sets it, and
+`parity-check.yml` is `workflow_dispatch` (manual) running only the default confs. So the
+channel has zero automated cross-driver parity coverage: only per-side unit tests and a
+manual `--print-expect` diff exercise it.
+
+**Risk if left.** A site that uses the channel keeps two hand-mirrored confs (bash `.conf`
+array vs Rust `.toml` list) that can drift, or a fold-position change on one driver can
+diverge, with no gate catching it. `--print-expect` strips `--expect`, so a mis-authored
+token can pass the print dump yet be wrong at run time.
+
+**Textbook fix.** Commit an example conf pair declaring identical bare `extra_expect`
+tokens, add a `dut/env/orchestrator/parity-check.sh` scenario diffing both drivers'
+`--print-expect` for it, and — once the self-hosted runner NOPASSWD entry is provisioned —
+make `parity-check.yml` push-triggered so the channel is gated on every change.
+
+**Why deferred.** The channel's real values live in an external OEM `--topology-conf` (out
+of tree); an in-tree example plus a parity scenario is net-new test infrastructure, and the
+CI auto-trigger is blocked on runner provisioning. Registered so the coverage gap is a
+conscious, tracked deferral rather than an oversight.
+
+---
+
+## TD-12 — the base `--expect` identity surface is hand-mirrored across the bash and Rust drivers
+
+**Status:** OPEN (accepted). **Logged:** 2026-07-01 (surfaced by the tester_ipv4 drift).
+
+**What.** The ~30-key per-case `--expect` identity surface is emitted twice, by hand: bash
+`init_expectation_defaults`'s `TC8_DUT_EXPECT` (`dut/env/smoke-test.sh`) and Rust
+`expect_args` (`dut/env/orchestrator/src/dispatch.rs`). The two are kept in lockstep only by
+`parity-check.sh` plus the `dut_identity_py_matches_rust_parser` pin — both non-blocking in
+CI.
+
+**Risk if left.** Silent drift. This already happened: `tester_ipv4` was added to bash-only
+(commit 8408690c) and the orchestrator never mirrored it; the gap sat undetected until this
+session because the gate is manual. The per-key guard
+`expect_args_emits_tester_ipv4_mirroring_bash` is a symptom patch — the next bash-only key
+re-opens the same class.
+
+**Textbook fix.** Single-source the base surface so bash and Rust cannot diverge by
+construction: derive both drivers' emission from one artifact (e.g. generate the key/value
+list from `tc8_expect_keys.def` + `vsomeip.json`). This is the strangler's natural end
+state — after cutover only the Rust emitter remains, and it should read the surface, not
+hand-list it.
+
+**Why deferred.** It touches the entire parity surface (every identity key on both drivers),
+so it is a focused refactor of its own, not a rider on the extra_expect feature. Deferring
+keeps this session's change scoped; the debt records the root cause the extra_expect channel
+and the tester_ipv4 mirror both work around.
