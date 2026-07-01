@@ -73,6 +73,14 @@ pub struct Config {
     pub vsomeip_base: PathBuf,
     pub tester_ip4: String,
     pub dut_ip4: String,
+    /// Operator-supplied extra `--expect` tokens ("key=value", NO `--expect`
+    /// prefix) from a `--topology-conf` — DUT values vsomeip.json cannot supply
+    /// (timing / endpoint constants). Empty by default; folded into the `--expect`
+    /// surface AFTER the vsomeip-derived defaults so they extend or (last-wins)
+    /// shadow them, exactly as bash's `TC8_TOPOLOGY_EXTRA_EXPECT` appends to
+    /// `TC8_DUT_EXPECT`. Carried opaquely — the keys are validated against
+    /// tc8_expect_keys.def by the harness parser at consumption, not re-typed here.
+    pub extra_expect: Vec<String>,
     /// DUT SOME/IP identity derived from vsomeip.json.
     pub identity: DutIdentity,
     /// DUT SOME/IP-SD start-up timing derived from vsomeip.json.
@@ -192,6 +200,9 @@ impl Config {
             identity,
             sd_timing,
             backstop_sec: crate::wire::BACKSTOP_SEC,
+            // Populated by main() from the resolved --topology-conf, parallel to
+            // tester_ip4/dut_ip4 (site-derived run identity). Empty until then.
+            extra_expect: Vec::new(),
             root,
         })
     }

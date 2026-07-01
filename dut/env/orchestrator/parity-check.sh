@@ -151,6 +151,9 @@ compare_case() {
 # (no sudo) for every topology — the example fixture overlays now provision in
 # topology_provision_run (not at source-time), so sourcing them for --print-expect is
 # side-effect-free.
+#
+# NOTE: this runs only the default confs; the topology extra_expect channel has no
+# scenario here yet — see docs/tech-debt.md TD-11.
 identity_parity() {
     local cb=() co=()
     [[ -n "$BASH_CONF" ]] && cb=(--topology-conf "$BASH_CONF")

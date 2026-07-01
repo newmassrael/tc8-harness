@@ -168,6 +168,20 @@ struct SiteConf {
     /// probe / kill name). Absent = run on the defaults. Valid only under
     /// `--topology lwip-tap`.
     lwip: Option<LwipSpec>,
+
+    // --- common to every topology ---
+    /// Extra `--expect` tokens ("key=value", NO `--expect` prefix) this site
+    /// declares — DUT-specific values vsomeip.json cannot supply (timing / endpoint
+    /// constants). Topology-agnostic: accepted under EVERY topology and folded into
+    /// the common `--expect` surface, so — unlike the per-topology wire fields — it
+    /// is deliberately NOT in the foreign-field rejection list. Holds bare "key=value"
+    /// tokens (no `--expect` prefix), the same grammar as bash's TC8_TOPOLOGY_EXTRA_EXPECT.
+    /// Keys are validated at run-time consumption by the harness `--expect` parser
+    /// (tc8_expect_keys.def, the single key-schema SSOT) — NOT by this crate and NOT by
+    /// the CI key gate (which scans producer source, not operator confs); this boundary
+    /// carries them as opaque strings rather than re-typing the schema.
+    #[serde(default)]
+    extra_expect: Vec<String>,
 }
 
 /// Host-NIC wire identity common to the external and ssh-remote topologies. The
@@ -233,13 +247,26 @@ pub enum TopologyConf {
     },
 }
 
+/// The fully resolved site config: the typed per-topology [`TopologyConf`] plus the
+/// cross-cutting values every topology shares. `extra_expect` is topology-agnostic
+/// — any topology's conf may declare it and it feeds the COMMON `--expect` surface —
+/// so it lives here, NOT inside the per-topology `TopologyConf` variants (which
+/// carry only the fields their own topology consumes).
+#[derive(Debug)]
+pub struct ResolvedSite {
+    pub conf: TopologyConf,
+    /// Operator-supplied "key=value" `--expect` tokens; empty when none declared.
+    pub extra_expect: Vec<String>,
+}
+
 impl TopologyConf {
     /// Load + parse + env-expand + resolve a `--topology-conf` TOML for `topology`.
     /// `conf_path` is `None` when no `--topology-conf` was passed: single-pc and
     /// lwip-tap run zero-conf on their defaults, every other topology requires one
     /// (its iface / wire IPs / remote paths live there, and sudo strips the env).
-    /// `root` expands `${ROOT}`.
-    pub fn load(conf_path: Option<&Path>, topology: TopologyKind, root: &Path) -> Result<TopologyConf> {
+    /// `root` expands `${ROOT}`. Returns the typed conf plus the site's cross-cutting
+    /// `extra_expect` tokens (see [`ResolvedSite`]).
+    pub fn load(conf_path: Option<&Path>, topology: TopologyKind, root: &Path) -> Result<ResolvedSite> {
         let raw = match conf_path {
             Some(path) => {
                 let text = std::fs::read_to_string(path)
@@ -297,6 +324,7 @@ impl SiteConf {
             remote_wrap,
             fixture: _, // kind is a fixed selector literal, never ${}-bearing
             lwip,
+            extra_expect,
         } = self;
         let strings = [
             iface,
@@ -322,6 +350,12 @@ impl SiteConf {
                 *v = expand_env(v, root)?;
             }
         }
+        // Each extra --expect token may embed ${ROOT}/${VAR} (e.g. an endpoint value
+        // pinned to a deployment path or env-provided IP), expanded like every other
+        // string field so the same portability contract applies.
+        for v in extra_expect.iter_mut() {
+            *v = expand_env(v, root)?;
+        }
         Ok(())
     }
 
@@ -331,7 +365,7 @@ impl SiteConf {
     /// nothing downstream sees the raw form. Empty strings (e.g. a `${VAR}` that
     /// expanded to "") normalize to absent here, so the consumers no longer carry
     /// scattered `.filter(|s| !s.is_empty())` guards.
-    fn resolve(self, topology: TopologyKind) -> Result<TopologyConf> {
+    fn resolve(self, topology: TopologyKind) -> Result<ResolvedSite> {
         let SiteConf {
             iface,
             dut_ip,
@@ -348,6 +382,7 @@ impl SiteConf {
             remote_wrap,
             fixture,
             lwip,
+            extra_expect,
         } = self;
         let ne = |o: Option<String>| o.filter(|s| !s.is_empty());
         let iface = ne(iface);
@@ -363,19 +398,24 @@ impl SiteConf {
         let remote_capi_cfg = ne(remote_capi_cfg);
         let remote_wrap = ne(remote_wrap);
 
-        // Every topology-conf field, paired with whether it was set. Each arm below
-        // declares the fields it consumes; reject_unless_allowed bails on any set
+        // Every topology-SPECIFIC conf field, paired with whether it was set. Each arm
+        // below declares the fields it consumes; reject_unless_allowed bails on any set
         // field that arm does not consume — so a misplaced-but-known key (remote_*
         // under single-pc, require_ut under ssh-remote) fails LOUD rather than being
         // silently dropped, the field-level completion of the fixture/[lwip] guards.
-        // (fixture/lwip have their own dedicated guards with kind-specific messages.)
         //
-        // Hand-maintained membership list — it MUST name every topology-conf field.
-        // Narrow residue (no compile-time enforcement without a derive macro, which
-        // this macro-free crate deliberately avoids): a field consumed by one arm but
-        // FORGOTTEN here would not be rejected when set under a different topology.
-        // Adding a field to the struct without listing it here weakens, not breaks,
-        // foreign-field rejection — keep this array in sync with the struct fields.
+        // Deliberately EXCLUDED from this list (each handled outside the rejection):
+        // `fixture` and `lwip` have their own kind-specific guards above; `extra_expect`
+        // is topology-AGNOSTIC — accepted under every topology and carried through
+        // unchanged (see the ResolvedSite tail) — so listing it here would wrongly
+        // reject it as foreign under single-pc/lwip-tap. Do NOT add those three.
+        //
+        // Hand-maintained membership list — it MUST name every topology-SPECIFIC field
+        // (all struct fields EXCEPT the three above). No compile-time enforcement
+        // without a derive macro, which this macro-free crate deliberately avoids: a
+        // topology-specific field consumed by one arm but FORGOTTEN here would not be
+        // rejected when set under a different topology — keep it in sync with the
+        // struct's topology-specific fields.
         let all_fields: [(&str, bool); 13] = [
             ("iface", iface.is_some()),
             ("dut_ip", dut_ip.is_some()),
@@ -399,19 +439,22 @@ impl SiteConf {
             bail!("[lwip] config is only valid for --topology lwip-tap (got '{topology}')");
         }
 
-        match topology {
+        // extra_expect is topology-agnostic (folded into the common --expect surface
+        // by every topology), so it is NOT subject to the foreign-field rejection
+        // above and is carried through to the ResolvedSite unchanged.
+        let conf = match topology {
             TopologyKind::SinglePc => {
                 reject_fixture(&fixture, topology)?;
                 reject_unless_allowed(topology, &all_fields, &["tester_ip", "dut_ip"])?;
-                Ok(TopologyConf::SinglePc { tester_ip, dut_ip })
+                TopologyConf::SinglePc { tester_ip, dut_ip }
             }
             TopologyKind::LwipTap => {
                 reject_fixture(&fixture, topology)?;
                 reject_unless_allowed(topology, &all_fields, &["iface_secondary"])?;
-                Ok(TopologyConf::LwipTap {
+                TopologyConf::LwipTap {
                     lwip: lwip.unwrap_or_default(),
                     iface_secondary,
-                })
+                }
             }
             TopologyKind::External => {
                 reject_unless_allowed(
@@ -432,7 +475,7 @@ impl SiteConf {
                 }
                 bail_missing(topology, missing)?;
                 let fixture = check_fixture(fixture, topology)?;
-                Ok(TopologyConf::External(ExternalSite {
+                TopologyConf::External(ExternalSite {
                     wire: WireSite {
                         iface: iface.unwrap(),
                         dut_ip: dut_ip.unwrap(),
@@ -443,7 +486,7 @@ impl SiteConf {
                     },
                     preflight_src_ip,
                     require_ut,
-                }))
+                })
             }
             TopologyKind::SshRemote => {
                 reject_unless_allowed(
@@ -477,7 +520,7 @@ impl SiteConf {
                 }
                 bail_missing(topology, missing)?;
                 let fixture = check_fixture(fixture, topology)?;
-                Ok(TopologyConf::SshRemote(SshSite {
+                TopologyConf::SshRemote(SshSite {
                     wire: WireSite {
                         iface: iface.unwrap(),
                         dut_ip: dut_ip.unwrap(),
@@ -492,9 +535,10 @@ impl SiteConf {
                     remote_vsomeip_cfg: remote_vsomeip_cfg.unwrap(),
                     remote_capi_cfg: remote_capi_cfg.unwrap(),
                     remote_wrap,
-                }))
+                })
             }
-        }
+        };
+        Ok(ResolvedSite { conf, extra_expect })
     }
 }
 
@@ -624,7 +668,7 @@ mod tests {
 
     #[test]
     fn external_triple_present_resolves() {
-        match external_triple().resolve(TopologyKind::External).unwrap() {
+        match external_triple().resolve(TopologyKind::External).unwrap().conf {
             TopologyConf::External(e) => {
                 assert_eq!(e.wire.iface, "eth0");
                 assert_eq!(e.wire.dut_ip, "172.16.0.2");
@@ -651,15 +695,15 @@ mod tests {
             fixture: Some(FixtureSpec { kind: "netns-dut".into() }),
             ..external_triple()
         };
-        assert!(matches!(conf.resolve(TopologyKind::External), Ok(TopologyConf::External(_))));
+        assert!(matches!(conf.resolve(TopologyKind::External).unwrap().conf, TopologyConf::External(_)));
     }
 
     #[test]
     fn lwip_tap_is_zero_conf_and_lwip_section_is_scoped() {
         // The lwip-tap topology hardcodes its wire identity, so it needs no fields.
         assert!(matches!(
-            SiteConf::default().resolve(TopologyKind::LwipTap),
-            Ok(TopologyConf::LwipTap { .. })
+            SiteConf::default().resolve(TopologyKind::LwipTap).unwrap().conf,
+            TopologyConf::LwipTap { .. }
         ));
         let with_lwip = || SiteConf {
             lwip: Some(LwipSpec { kill_name: Some("tc8-lwip-utm".into()), ..LwipSpec::default() }),
@@ -688,7 +732,7 @@ mod tests {
             dut_ip: Some("10.0.0.2".into()),
             ..SiteConf::default()
         };
-        match conf.resolve(TopologyKind::SinglePc).unwrap() {
+        match conf.resolve(TopologyKind::SinglePc).unwrap().conf {
             TopologyConf::SinglePc { tester_ip, dut_ip } => {
                 assert_eq!(tester_ip.as_deref(), Some("10.0.0.1"));
                 assert_eq!(dut_ip.as_deref(), Some("10.0.0.2"));
@@ -769,7 +813,7 @@ mod tests {
         "#;
         let mut conf: SiteConf = toml::from_str(toml).unwrap();
         conf.expand_all(Path::new("/repo")).unwrap();
-        match conf.resolve(TopologyKind::LwipTap).unwrap() {
+        match conf.resolve(TopologyKind::LwipTap).unwrap().conf {
             TopologyConf::LwipTap { lwip: lw, iface_secondary } => {
                 assert_eq!(lw.app.unwrap(), "/repo/build-lwip-dut/tc8-lwip-utm");
                 assert_eq!(lw.ready_probe.unwrap(), "testability");
@@ -815,7 +859,7 @@ mod tests {
         "#;
         let mut conf: SiteConf = toml::from_str(toml).unwrap();
         conf.expand_all(Path::new("/repo")).unwrap();
-        match conf.resolve(TopologyKind::SshRemote).unwrap() {
+        match conf.resolve(TopologyKind::SshRemote).unwrap().conf {
             TopologyConf::SshRemote(s) => {
                 assert_eq!(s.ssh_target, "root@172.16.0.2");
                 assert_eq!(s.ssh_opts.as_deref(), Some("-p 2222"));
@@ -833,5 +877,43 @@ mod tests {
             typo_field = "oops"
         "#;
         assert!(toml::from_str::<SiteConf>(toml).is_err());
+    }
+
+    #[test]
+    fn extra_expect_is_carried_and_topology_agnostic() {
+        // extra_expect survives resolution under any topology (parallel to bash's
+        // TC8_TOPOLOGY_EXTRA_EXPECT, which any --topology-conf may set). Values are
+        // opaque here — the harness --expect parser validates the keys downstream.
+        let spc = SiteConf {
+            extra_expect: vec!["can_start_offset_ms=1000".into(), "tester_udp_port=51712".into()],
+            tester_ip: Some("10.0.0.1".into()),
+            ..SiteConf::default()
+        };
+        let r = spc.resolve(TopologyKind::SinglePc).unwrap();
+        assert!(matches!(r.conf, TopologyConf::SinglePc { .. }));
+        assert_eq!(r.extra_expect, vec!["can_start_offset_ms=1000", "tester_udp_port=51712"]);
+        // ...and under a wire-fixed topology too (lwip-tap): it is NOT a foreign
+        // field there, unlike a wire IP (see lwip_tap_rejects_a_wire_ip).
+        let r2 = SiteConf {
+            extra_expect: vec!["sd_request_response_delay_ms=50".into()],
+            ..SiteConf::default()
+        }
+        .resolve(TopologyKind::LwipTap)
+        .unwrap();
+        assert_eq!(r2.extra_expect, vec!["sd_request_response_delay_ms=50"]);
+    }
+
+    #[test]
+    fn extra_expect_tokens_are_env_expanded() {
+        // A token may embed ${VAR}; it is expanded like every other string field.
+        let toml = r#"
+            extra_expect = ["tester_ipv4=${TC8_SITE_EXTRA_IP}", "can_start_offset_ms=1000"]
+        "#;
+        std::env::set_var("TC8_SITE_EXTRA_IP", "172.16.9.9");
+        let mut conf: SiteConf = toml::from_str(toml).unwrap();
+        conf.expand_all(Path::new("/repo")).unwrap();
+        let r = conf.resolve(TopologyKind::SinglePc).unwrap();
+        assert_eq!(r.extra_expect, vec!["tester_ipv4=172.16.9.9", "can_start_offset_ms=1000"]);
+        std::env::remove_var("TC8_SITE_EXTRA_IP");
     }
 }

@@ -165,6 +165,8 @@ for _need in service_id instance_id udp_port tcp_port sd_multicast_ip ttl \
     }
 done
 
+# Hand-mirrored with the orchestrator's expect_args — the two emitters can drift
+# (see docs/tech-debt.md TD-12); parity-check.sh + the identity pin gate it.
 TC8_DUT_EXPECT=(
     --expect "service_id=${DUT_ID[service_id]}"
     --expect "instance_id=${DUT_ID[instance_id]}"
@@ -200,6 +202,23 @@ TC8_DUT_EXPECT=(
     --expect "sd_repetitions_max=${DUT_ID[sd_repetitions_max]}"
     --expect "sd_cyclic_offer_delay_ms=${DUT_ID[sd_cyclic_offer_delay_ms]}"
 )
+
+# A topology overlay (--topology-conf) may declare additional expect tokens its DUT
+# needs that vsomeip.json cannot supply (e.g. timing / endpoint constants). Each entry
+# is a bare `key=value` (same grammar as the orchestrator's TOML `extra_expect`),
+# folded with an inserted `--expect` so TC8_DUT_EXPECT stays a well-formed alternating
+# --expect/key=value argv. Placed AFTER the fixed vsomeip-derived defaults, so a token
+# shadows a repeated key from THAT block (last-wins); the ARP/ICMPv4/IPv4 static groups
+# appended later still win over a colliding token. Empty by default → no-op → byte-
+# identical to the public surface. At run time the harness --expect parser validates
+# every token against tc8_expect_keys.def and aborts (return 2) on an unknown key, so a
+# typo fails loud at consumption (the CI key gate scans producer source, not confs).
+if (( ${#TC8_TOPOLOGY_EXTRA_EXPECT[@]} )); then
+    local _tok
+    for _tok in "${TC8_TOPOLOGY_EXTRA_EXPECT[@]}"; do
+        TC8_DUT_EXPECT+=( --expect "$_tok" )
+    done
+fi
 
 # ARP §4.2 cases compare captured Sender Hardware Address (ARP_13),
 # Sender Protocol Address (ARP_14), and Target Protocol Address (ARP_15)
@@ -304,6 +323,16 @@ DUT_CONTROL=""
 TOPOLOGY=${TC8_TOPOLOGY:-single-pc}
 TOPOLOGY_CONF=""
 PRINT_EXPECT=0
+# A --topology-conf overlay may append DUT-specific expect tokens here that are not
+# derivable from vsomeip.json (timing / endpoint constants). Each entry is a bare
+# `key=value` (NO `--expect` prefix), matching the orchestrator's TOML `extra_expect`
+# so the two drivers' confs share one grammar; init_expectation_defaults folds each
+# into TC8_DUT_EXPECT with an inserted `--expect`. Declared empty so an overlay that
+# never sets it is byte-identical to the public surface. The accepted keys are single-
+# sourced in src/cli/tc8_expect_keys.def and validated by the harness --expect parser
+# at run-time consumption — a value channel, not a new key surface. Mirrored by the
+# orchestrator's `extra_expect` field so both --print-expect surfaces stay in parity.
+TC8_TOPOLOGY_EXTRA_EXPECT=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --topology)  TOPOLOGY="$2"; shift 2 ;;

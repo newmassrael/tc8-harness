@@ -303,6 +303,9 @@ fn ex(e: &mut Vec<String>, key: &str, value: &str) {
 /// gives every case the full set. Mirroring bash's flat array removes the whole
 /// cross-category-read hazard. The per-case / negative-row OVERRIDE layers (the
 /// last-wins precedence merge) land in a later stage; this is its `base` input.
+///
+/// This base surface is hand-mirrored with bash's TC8_DUT_EXPECT — the two emitters
+/// can drift (see docs/tech-debt.md TD-12); parity-check.sh + the identity pin gate it.
 fn expect_args(cfg: &Config, dut_mac: &str) -> Vec<String> {
     let id = &cfg.identity;
     let mut e = Vec::new();
@@ -314,6 +317,12 @@ fn expect_args(cfg: &Config, dut_mac: &str) -> Vec<String> {
     ex(&mut e, "minor_version", wire::SD_MINOR_VERSION);
     ex(&mut e, "eventgroup_id", wire::SD_DEFAULT_EVENTGROUP);
     ex(&mut e, "dut_iface_ip", &cfg.dut_ip4);
+    // The tester's IPv4 for the someip group (bare key, like dut_iface_ip / udp_port).
+    // Mirrors bash's TC8_DUT_EXPECT (smoke-test.sh) so both drivers' --print-expect
+    // surfaces agree — bash always emits it, so the orchestrator must too. Lets a
+    // destination / Nack-target verdict compare a captured dst against the tester
+    // endpoint instead of the unset-0 default; no in-tree case reads it yet.
+    ex(&mut e, "tester_ipv4", &cfg.tester_ip4);
     ex(&mut e, "udp_port", &id.udp_port);
     ex(&mut e, "tcp_port", &id.tcp_port);
     ex(&mut e, "sd_multicast_ip", &id.sd_multicast_ip);
@@ -331,6 +340,19 @@ fn expect_args(cfg: &Config, dut_mac: &str) -> Vec<String> {
     ex(&mut e, "sd_repetition_base_delay_ms", &t.sd_repetition_base_delay_ms);
     ex(&mut e, "sd_repetitions_max", &t.sd_repetitions_max);
     ex(&mut e, "sd_cyclic_offer_delay_ms", &t.sd_cyclic_offer_delay_ms);
+
+    // Operator-supplied extra --expect tokens from the --topology-conf (bash's
+    // TC8_TOPOLOGY_EXTRA_EXPECT holds the SAME bare key=value grammar). Folded at the
+    // end of the vsomeip-derived block — the same position bash appends them — so a
+    // token shadows a repeated key from THAT block (last-wins); the ARP/ICMPv4/IPv4
+    // static keys emitted below still win over a colliding token. The keys are
+    // validated by the harness --expect parser (tc8_expect_keys.def) at run-time
+    // consumption; this carries them opaquely. Empty for every in-tree topology, so
+    // the parity dump is byte-unchanged unless a conf declares extra_expect.
+    for tok in &cfg.extra_expect {
+        e.push("--expect".to_string());
+        e.push(tok.clone());
+    }
 
     // ARP static group (ARP_DUT_EXPECT_STATIC)
     ex(&mut e, "arp.tester_ip", &cfg.tester_ip4);
@@ -363,6 +385,11 @@ fn expect_args(cfg: &Config, dut_mac: &str) -> Vec<String> {
 /// captured at netns bring-up, so they differ per run and per driver and are NOT
 /// part of the static identity the parity dump diffs (the per-case disposition
 /// phase exercises MAC behaviour instead).
+///
+/// Caveat for `extra_expect`: an operator token reusing one of these keys is filtered
+/// out of this dump but folded verbatim into bash's, so the parity diff would flag it.
+/// That is the correct outcome — these are per-worker runtime values, never statically
+/// expectable, so declaring one in a topology conf is a config error worth surfacing.
 const RUNTIME_MAC_KEYS: [&str; 3] = ["arp.dut_iface_mac", "dut.mac", "dhcpv4.dut_iface_mac"];
 
 /// Print the resolved per-case-invariant `--expect` surface — the deterministic
@@ -446,6 +473,7 @@ mod tests {
                 sd_cyclic_offer_delay_ms: "2000".into(),
             },
             backstop_sec: 240,
+            extra_expect: Vec::new(),
         }
     }
 
@@ -462,5 +490,44 @@ mod tests {
         ] {
             assert!(args.iter().any(|a| a == key), "missing --expect {key}");
         }
+    }
+
+    #[test]
+    fn expect_args_emits_tester_ipv4_mirroring_bash() {
+        // bash's TC8_DUT_EXPECT always emits tester_ipv4; the orchestrator must mirror
+        // it or the --print-expect surface diverges (it silently did before this line
+        // existed). Presence guard on that exact gap; the expected value is derived
+        // from the fixture, not hardcoded, so a fixture IP change cannot desync it.
+        let cfg = fake_cfg();
+        let want = format!("tester_ipv4={}", cfg.tester_ip4);
+        let args = expect_args(&cfg, "02:00:00:00:00:DD");
+        assert!(
+            args.iter().any(|a| *a == want),
+            "expect_args missing {want} (bash emits it): {args:?}"
+        );
+    }
+
+    #[test]
+    fn expect_args_folds_in_topology_extra_expect() {
+        // A --topology-conf's extra_expect tokens appear as --expect pairs in the
+        // per-case surface (the typed mirror of bash's TC8_TOPOLOGY_EXTRA_EXPECT), so
+        // both drivers' --print-expect dumps stay in parity.
+        let mut cfg = fake_cfg();
+        cfg.extra_expect = vec![
+            "can_start_offset_ms=1000".into(),
+            "tester_udp_port=51712".into(),
+        ];
+        let args = expect_args(&cfg, "02:00:00:00:00:DD");
+        for tok in ["can_start_offset_ms=1000", "tester_udp_port=51712"] {
+            let idx = args
+                .iter()
+                .position(|a| a == tok)
+                .unwrap_or_else(|| panic!("missing extra token {tok} in {args:?}"));
+            assert_eq!(args[idx - 1], "--expect", "token {tok} not preceded by --expect");
+        }
+        // Empty extra_expect adds nothing — the default surface is byte-unchanged.
+        assert!(!expect_args(&fake_cfg(), "02:00:00:00:00:DD")
+            .iter()
+            .any(|a| a.starts_with("can_") || a.starts_with("tester_udp_port=")));
     }
 }
