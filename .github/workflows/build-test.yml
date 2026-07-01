@@ -71,19 +71,28 @@ jobs:
           sudo ln -sf /usr/bin/clang-format-15 /usr/bin/clang-format
           clang-format --version
 
+      # Resolve the PINNED vsomeip commit (the submodule gitlink SHA in the
+      # checked-out tree) so the cache key below can fold it in. .gitmodules
+      # carries only the submodule URL/path, NOT the pin — so a pin bump alone
+      # would not change a .gitmodules-hashed key, silently reusing a stale
+      # build. Reading the gitlink is what makes a bump invalidate the cache.
+      - name: Resolve pinned vsomeip commit
+        id: vsomeip-pin
+        run: echo "sha=$(git rev-parse HEAD:third_party/vsomeip)" >> "$GITHUB_OUTPUT"
+
       - name: Cache vsomeip (patched) + CommonAPI builds
         id: cache-someip-deps
         uses: actions/cache@v5
         with:
           path: |
             /opt/someip-stack
-          # Cache key folds in (a) the pinned vsomeip submodule SHA via
-          # .gitmodules, (b) the quilt patch series + every patch body,
-          # and (c) the CommonAPI tag pair. Any of those changing
-          # invalidates the cache and forces a rebuild — that's what
-          # keeps RPC_07/_08 (which depend on patches/vsomeip/0001-*)
-          # honest across PRs.
-          key: someip-stack-v2-${{ runner.os }}-${{ hashFiles('.gitmodules', 'patches/vsomeip/series', 'patches/vsomeip/*.patch') }}-capi3.2.0
+          # Cache key folds in (a) the pinned vsomeip submodule commit (its
+          # gitlink SHA, resolved in the step above), (b) the quilt patch
+          # series + every patch body, and (c) the CommonAPI tag pair. Any of
+          # those changing invalidates the cache and forces a rebuild — that's
+          # what keeps RPC_07/_08 (which depend on patches/vsomeip/0001-*)
+          # honest across PRs, and what makes a submodule pin bump take effect.
+          key: someip-stack-v2-${{ runner.os }}-${{ steps.vsomeip-pin.outputs.sha }}-${{ hashFiles('patches/vsomeip/series', 'patches/vsomeip/*.patch') }}-capi3.2.0
 
       - name: Build & install patched vsomeip + CommonAPI from source
         if: steps.cache-someip-deps.outputs.cache-hit != 'true'

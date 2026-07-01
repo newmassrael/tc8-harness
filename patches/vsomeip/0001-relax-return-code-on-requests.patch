@@ -22,7 +22,7 @@ Index: vsomeip/implementation/endpoints/src/tcp_server_endpoint_impl.cpp
 ===================================================================
 --- vsomeip.orig/implementation/endpoints/src/tcp_server_endpoint_impl.cpp
 +++ vsomeip/implementation/endpoints/src/tcp_server_endpoint_impl.cpp
-@@ -752,8 +752,9 @@ void tcp_server_endpoint_impl::connectio
+@@ -750,8 +750,9 @@ void tcp_server_endpoint_impl::connectio
                          && (recv_buffer_[its_iteration_gap + VSOMEIP_PROTOCOL_VERSION_POS] != VSOMEIP_PROTOCOL_VERSION
                              || !utility::is_valid_message_type(
                                      static_cast<message_type_e>(recv_buffer_[its_iteration_gap + VSOMEIP_MESSAGE_TYPE_POS]))
@@ -34,7 +34,7 @@ Index: vsomeip/implementation/endpoints/src/tcp_server_endpoint_impl.cpp
                          if (recv_buffer_[its_iteration_gap + VSOMEIP_PROTOCOL_VERSION_POS] != VSOMEIP_PROTOCOL_VERSION) {
                              VSOMEIP_ERROR_P << instance_name_ << "Wrong protocol version: 0x"
                                              << hex2(recv_buffer_[its_iteration_gap + VSOMEIP_PROTOCOL_VERSION_POS])
-@@ -771,7 +772,8 @@ void tcp_server_endpoint_impl::connectio
+@@ -769,7 +770,8 @@ void tcp_server_endpoint_impl::connectio
                                              << hex2(recv_buffer_[its_iteration_gap + VSOMEIP_MESSAGE_TYPE_POS])
                                              << " local: " << get_address_port_local() << " remote: " << get_address_port_remote()
                                              << ". Closing connection due to missing/broken data TCP stream.";

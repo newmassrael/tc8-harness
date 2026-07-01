@@ -125,7 +125,7 @@ sudo ./scripts/setup-vsomeip.sh
 
 ### vsomeip 패치 추가
 
-하네스는 `third_party/vsomeip/`로 vsomeip를 vendoring하고 (서브모듈 3.7.1
+하네스는 `third_party/vsomeip/`로 vsomeip를 vendoring하고 (서브모듈 3.7.3
 고정), `patches/vsomeip/series`에 quilt 시리즈를 오버레이합니다. 패치
 추가 방법:
 

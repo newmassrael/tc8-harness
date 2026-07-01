@@ -127,7 +127,7 @@ so CI can co-locate vsomeip with CommonAPI under `/opt/someip-stack`.
 ### Adding a vsomeip patch
 
 The harness vendors vsomeip via `third_party/vsomeip/` (submodule pinned to
-3.7.1) and overlays a quilt series at `patches/vsomeip/series`. To add a
+3.7.3) and overlays a quilt series at `patches/vsomeip/series`. To add a
 patch:
 
 ```sh
