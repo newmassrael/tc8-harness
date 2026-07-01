@@ -642,3 +642,56 @@ hand-list it.
 so it is a focused refactor of its own, not a rider on the extra_expect feature. Deferring
 keeps this session's change scoped; the debt records the root cause the extra_expect channel
 and the tester_ipv4 mirror both work around.
+
+---
+
+## TD-13 — the warm-re-offer signal polls a counter instead of the in-tree Waker primitive
+
+**Status:** OPEN (accepted). **Logged:** 2026-07-01 (3-cold-reviewer review of the
+`IEtsExtension::onReactivate` hook).
+
+**What.** The warm `suspendInterface` re-offer signal is delivered by the detached suspend
+thread bumping a monotonic `std::atomic<uint32_t>` counter (`ServerRole::resumeCount()`),
+which the DUT main loop (`dut/dut_service/dut_main.cpp`) polls once per pass through a
+`ResumeEdge` edge-detector (`dut/dut_service/resume_edge.h`) to fire `onReactivate` on the
+main thread. The repo already ships a purpose-built cross-thread wake primitive for exactly
+"a detached thread must signal a poll() loop" — `tc8::testability::Waker`
+(`src/testability/io_multiplexer.h`; POSIX eventfd + lwIP loopback-UDP backends,
+`EventfdWaker` in `dut/dut_service/posix_socket_backend.cpp`) — used by the testability
+`Reactor`, and the DUT main loop already folds `IPollableService::pollFd()` into its `poll()`
+set via `PollableHost::drainReady`. The event-driven delivery is thus buildable from parts
+already in tree; the hook instead adds a second, polled idiom for the same problem.
+
+**Why it exists.** The DUT main loop is a TICK-CADENCE loop by identity: `onTick` fires on a
+~200 ms cadence and the loop already polls `g_stop` and a `next_tick` cursor each pass. A
+polled resume counter is consistent with THAT loop's idiom, costs one atomic load per
+existing pass (no extra syscall — `drainReady`'s timeout is already bounded by `next_tick`),
+and delivers `onReactivate` within the same cadence it already delivers `onTick`. The `Waker`
+is the idiom of the DIFFERENT, event-driven `Reactor` loop.
+
+**Risk if left.** Low and bounded. Delivery latency is <= one tick window (~200 ms), itself
+dominated by the irreducible vsomeip async offer skew (`registerService()` returning true does
+not mean the wire OfferService is out yet), so an event-driven wake would not make the signal
+wire-tight anyway. The counter also does NOT GENERALIZE: an `onSuspend` (fire on the stop half)
+would add a parallel counter + shadow + poll triple, and a client-only re-activation signal has
+no `ServerRole` to source from — each new lifecycle transition duplicates the pattern, where a
+single Waker + a small lifecycle-event channel would be additive. No correctness hazard today
+(SSOT-clean, race-free, wrap-safe, unit-tested by `resume_edge_test`).
+
+**Textbook fix.** Give `ServerRole` a `Waker` (captured by shared_ptr copy, the same lifetime
+discipline as `resume_seq_`), `signal()` it from the detached suspend thread on a successful
+re-register, fold its `pollFd()` into `dut_main`'s `drainReady` poll set through a small
+`IPollableService` adapter (the interfaces differ: `Waker` is `pollFd/signal/drain`,
+`IPollableService` is `pollFd/onReadable`), and dispatch `onReactivate` when it drains — plus a
+lifecycle-event enum so `onSuspend` / future transitions ride one channel. This makes
+`onReactivate` as prompt as an adopted receiver and single-sources the "signal a poll loop"
+mechanism on the repo's canonical primitive.
+
+**Why deferred.** Genuinely debatable, not a clear defect: the polled counter is SSOT-clean,
+race-free, unit-tested, and consistent with the cadence loop's own identity, and the latency it
+accepts is dominated by vsomeip async skew. The Waker rework adds cross-cutting wiring (a socket
+backend into `ServerRole`, a `Waker` <-> `IPollableService` adapter) for a promptness gain the
+motivating CAN start-offset case does not clearly need. Registered so the second-idiom /
+non-generalizing shape is a conscious, tracked choice; revisit when a second lifecycle
+transition (`onSuspend`) or a client-only re-activation case lands — that is when the Waker's
+generality pays for itself.

@@ -20,6 +20,9 @@ namespace tc8::dut {
 // Extracted from dut_main's loop so this fallible marshalling step (seed / no-fire-
 // when-equal / fire-once-on-advance / coalesce-a-burst / wrap-safe) is unit-testable
 // without a running DUT — see unit_tests/resume_edge_test.cpp.
+//
+// This polled-counter delivery (vs the in-tree Waker wake primitive) is an accepted,
+// tracked compromise — see docs/tech-debt.md TD-13.
 class ResumeEdge {
 public:
     explicit ResumeEdge(std::uint32_t seed) : last_(seed) {}
