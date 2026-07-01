@@ -64,11 +64,13 @@ inline constexpr std::uint16_t kDemoValidatingMethod  = 0x07F7;
 inline constexpr std::uint8_t  kDemoValidatingLimit   = 0x80;
 
 // RE-ACTIVATION demo: an offset counted in DUT main-loop ticks from the last
-// (re-)activation. onTick advances it; onReactivate re-anchors it to zero on a warm
-// suspendInterface re-offer, so a boot/re-activation-relative behaviour (e.g. an
-// OEM start offset) re-applies from the re-activation instant. Read back through this
-// method so the re-anchor is observable — the FAITHFUL shape of the motivating use
-// (re-apply re-activation-relative state), not a stateless event re-emit. Synthetic id.
+// (re-)activation. onTick advances it; onSuspend FREEZES it across the warm
+// suspendInterface de-offer window (the emission goes quiet on StopOffer); onReactivate
+// re-anchors it to zero on the paired re-offer, so a boot/re-activation-relative
+// behaviour (e.g. an OEM start offset) goes silent while de-offered and re-applies from
+// the re-activation instant. Read back through this method so both the freeze and the
+// re-anchor are observable — the FAITHFUL shape of the motivating use (quiet-then-re-apply
+// re-activation-relative state), not a stateless event re-emit. Synthetic id.
 inline constexpr std::uint16_t kDemoActivationReadbackMethod = 0x07F8;
 
 // CLIENT-role DURATION demo: once the subscription is ESTABLISHED (the target
@@ -273,15 +275,27 @@ public:
         ctx.io.adoptPollable(std::make_unique<DemoLoopbackReceiver>());
     }
 
-    // Re-anchor the re-activation-relative offset to the re-activation instant so it
-    // re-applies from zero — the FAITHFUL shape of an OEM re-applying a boot/re-
-    // activation-relative offset after a warm suspendInterface re-offer (a deferred
-    // state mutation the periodic hook reads back), NOT a stateless event re-emit.
-    // dut_main dispatches this on the DUT main thread, never the detached suspend
-    // thread; the readback (vsomeip thread) shares epoch_ under its mutex.
+    // Mark the activation-relative offset SUSPENDED so onTick stops advancing it while the
+    // service is de-offered — the FAITHFUL shape of an OEM emission that must go quiet on a
+    // warm suspendInterface StopOffer (paired with the onReactivate restart below), not a
+    // value that keeps counting through the down-period. dut_main dispatches this on the DUT
+    // main thread, before onReactivate, never the detached suspend thread; the readback
+    // (vsomeip thread) shares epoch_ under its mutex.
+    void onSuspend(EtsExtensionContext& /*ctx*/) override {
+        std::lock_guard<std::mutex> lock(epoch_->mutex);
+        epoch_->suspended = true;
+    }
+
+    // Clear the suspend freeze and re-anchor the re-activation-relative offset to the
+    // re-activation instant so it re-applies from zero — the FAITHFUL shape of an OEM
+    // re-applying a boot/re-activation-relative offset after a warm suspendInterface re-offer
+    // (a deferred state mutation the periodic hook reads back), NOT a stateless event re-emit.
+    // dut_main dispatches this on the DUT main thread, never the detached suspend thread; the
+    // readback (vsomeip thread) shares epoch_ under its mutex.
     void onReactivate(EtsExtensionContext& /*ctx*/) override {
         std::lock_guard<std::mutex> lock(epoch_->mutex);
         epoch_->ticks_since_activation = 0;
+        epoch_->suspended = false;
     }
 
     // Advance the re-activation-relative offset (read back via
@@ -294,7 +308,11 @@ public:
     void onTick(EtsExtensionContext& ctx) override {
         {
             std::lock_guard<std::mutex> lock(epoch_->mutex);
-            ++epoch_->ticks_since_activation;
+            // Frozen while suspended (onSuspend..onReactivate) — the emission is quiet
+            // across the de-offer window, restarting from zero on re-activation.
+            if (!epoch_->suspended) {
+                ++epoch_->ticks_since_activation;
+            }
         }
         bool expired = false;
         {
@@ -351,6 +369,11 @@ private:
     struct ActivationEpoch {
         std::mutex mutex;
         int ticks_since_activation = 0;
+        // True between a warm suspendInterface StopOffer (onSuspend) and its re-offer
+        // (onReactivate): the offset FREEZES, the faithful shape of an activation-relative
+        // emission that must go quiet while the service is de-offered and restart from the
+        // re-activation instant — not a value that keeps advancing through the down-period.
+        bool suspended = false;
     };
 
     std::shared_ptr<ActivationEpoch> epoch_ = std::make_shared<ActivationEpoch>();

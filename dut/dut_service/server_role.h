@@ -1,7 +1,5 @@
 #pragma once
 
-#include <atomic>
-#include <cstdint>
 #include <memory>
 
 #include "ets_emission.h"
@@ -18,6 +16,7 @@ namespace tc8::dut {
 class IEtsExtension;
 class EtsImpl;
 class Ets2Impl;
+class LifecycleSignal;
 
 // SOME/IP deployment identity for the ETS server role, shared by ServerRole
 // (which offers these services) and dut_main (whose client-only message names the
@@ -67,10 +66,16 @@ class ServerRole {
 public:
     // `runtime` is the process CommonAPI runtime. `extension` is queried once for
     // ets8001TriggerDriven() to pick the 0x8001 source kind (cyclic vs triggered);
-    // it is not retained. MAY NOT RETURN: a registration failure calls
-    // std::_Exit(1) (see the class note on the half-init routing-manager hazard),
-    // so `server.emplace(...)` at the call site can terminate the process.
-    ServerRole(std::shared_ptr<CommonAPI::Runtime> runtime, const IEtsExtension& extension);
+    // it is not retained. `lifecycle` is the cross-thread channel the detached suspend
+    // closure post()s Suspend (on the StopOffer) and Reactivate (on the paired re-offer)
+    // to; dut_main drains it and dispatches onSuspend/onReactivate on the main-loop thread.
+    // The closure captures a shared_ptr COPY, so it may be null (dut_main passes null only
+    // if the eventfd could not be created) — post is then skipped. MAY NOT RETURN: a
+    // registration failure calls std::_Exit(1) (see the class note on the half-init
+    // routing-manager hazard), so `server.emplace(...)` at the call site can terminate the
+    // process.
+    ServerRole(std::shared_ptr<CommonAPI::Runtime> runtime, const IEtsExtension& extension,
+               std::shared_ptr<LifecycleSignal> lifecycle);
     ~ServerRole();
 
     ServerRole(const ServerRole&)            = delete;
@@ -86,28 +91,12 @@ public:
     // the teardown order of the pre-extraction dut_main.
     void unregisterAll();
 
-    // Monotonic count of completed warm suspendInterface re-offers (each successful
-    // re-registerService in the detached suspend thread). dut_main tracks it with a
-    // ResumeEdge and fires IEtsExtension::onReactivate on the main-loop thread when it
-    // advances — the same threading contract as onRegister/onTick, never the detached
-    // suspend thread (which would race onTick on the extension's own state). Level-
-    // triggered: re-offers seen in one loop pass coalesce into one fire. Reads only the
-    // counter, so no lock is needed.
-    uint32_t resumeCount() const { return resume_seq_->load(); }
-
 private:
     std::shared_ptr<CommonAPI::Runtime> runtime_;
     std::shared_ptr<EtsImpl>  impl_;      // primary registered stub
     std::shared_ptr<EtsImpl>  impl2_;     // optional second instance (TC8_DUT_INSTANCE_2)
     std::shared_ptr<Ets2Impl> impl_si2_;  // optional second service  (TC8_DUT_SERVICE_2)
     EmissionController emission_;
-    // Bumped by the detached suspend closure on each successful re-offer; read by
-    // dut_main's loop. Held via shared_ptr<atomic> so the closure captures a COPY
-    // (never `this`), keeping the detached thread safe regardless of ServerRole's
-    // lifetime — the same "capture shared_ptr copies, never the ServerRole this"
-    // invariant the suspend closure already upholds for runtime_/impl_.
-    std::shared_ptr<std::atomic<uint32_t>> resume_seq_ =
-        std::make_shared<std::atomic<uint32_t>>(0);
 };
 
 }  // namespace tc8::dut

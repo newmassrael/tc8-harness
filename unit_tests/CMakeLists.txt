@@ -197,16 +197,18 @@ target_link_libraries(pollable_host_test PRIVATE
     GTest::gtest GTest::gtest_main)
 add_test(NAME pollable_host_test COMMAND pollable_host_test)
 
-# Warm-re-offer resume edge detector (dut/dut_service/resume_edge.h): the level-
-# triggered cursor dut_main polls to fire onReactivate once per observed advance of
-# ServerRole's monotonic resume counter (seed / no-fire / fire-once / coalesce /
-# wrap). Header-only, so it needs only dut/dut_service on the include path + GTest.
-add_executable(resume_edge_test resume_edge_test.cpp)
-target_include_directories(resume_edge_test PRIVATE
-    ${PROJECT_SOURCE_DIR}/dut/dut_service)
-target_link_libraries(resume_edge_test PRIVATE
+# Warm-suspendInterface lifecycle channel (dut/dut_service/lifecycle_signal.h): the
+# Waker-backed queue the detached suspend thread posts Suspend/Reactivate to and the DUT
+# main loop drains to dispatch onSuspend/onReactivate (FIFO, lossless, prompt — resolved
+# TD-13). Header-only; needs dut/dut_service (the header) + src (testability/io_multiplexer.h
+# for Waker) on the include path + GTest.
+add_executable(lifecycle_signal_test lifecycle_signal_test.cpp)
+target_include_directories(lifecycle_signal_test PRIVATE
+    ${PROJECT_SOURCE_DIR}/dut/dut_service
+    ${PROJECT_SOURCE_DIR}/src)
+target_link_libraries(lifecycle_signal_test PRIVATE
     GTest::gtest GTest::gtest_main)
-add_test(NAME resume_edge_test COMMAND resume_edge_test)
+add_test(NAME lifecycle_signal_test COMMAND lifecycle_signal_test)
 
 tc8_add_unit_test(expect_parser_test)
 tc8_add_unit_test(someip_sd_builder_test)

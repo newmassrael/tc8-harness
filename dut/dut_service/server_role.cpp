@@ -1,12 +1,12 @@
 #include "server_role.h"
 
-#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <string>
 #include <thread>
+#include <utility>
 
 #include <CommonAPI/CommonAPI.hpp>
 
@@ -15,11 +15,13 @@
 #include "ets_extension.h"
 #include "ets_factory.h"
 #include "ets_impl.h"
+#include "lifecycle_signal.h"
 
 namespace tc8::dut {
 
 ServerRole::ServerRole(std::shared_ptr<CommonAPI::Runtime> runtime,
-                       const IEtsExtension& extension)
+                       const IEtsExtension& extension,
+                       std::shared_ptr<LifecycleSignal> lifecycle)
     : runtime_(std::move(runtime)) {
     namespace ed = ets_deploy;
 
@@ -77,23 +79,30 @@ ServerRole::ServerRole(std::shared_ptr<CommonAPI::Runtime> runtime,
     // ttl > 0). The closure captures shared_ptr copies of the runtime and stub
     // (never the ServerRole `this`), so the detached thread keeps them alive.
     impl_->setSuspendCallback(
-        [runtime = runtime_, impl = impl_, resume_seq = resume_seq_](uint32_t start_ms,
-                                                                     uint32_t duration_ms) {
-            std::thread([runtime, impl, resume_seq, start_ms, duration_ms]() {
+        [runtime = runtime_, impl = impl_, lifecycle = std::move(lifecycle)](
+            uint32_t start_ms, uint32_t duration_ms) {
+            std::thread([runtime, impl, lifecycle, start_ms, duration_ms]() {
                 if (start_ms > 0) {
                     std::this_thread::sleep_for(std::chrono::milliseconds(start_ms));
                 }
                 runtime->unregisterService(ets_deploy::kDomain, ets_deploy::kInterface,
                                            ets_deploy::kInstance);
+                // Post the StopOffer to dut_main's loop, which fires onSuspend on the
+                // main-loop thread — before the down-period, so an activation-relative
+                // emission can go quiet across the whole suspend window.
+                if (lifecycle) {
+                    lifecycle->post(LifecycleEvent::Suspend);
+                }
                 std::printf("tc8-dut: suspendInterface — service stopped for %u ms\n", duration_ms);
                 std::this_thread::sleep_for(std::chrono::milliseconds(duration_ms));
                 if (!runtime->registerService(ets_deploy::kDomain, ets_deploy::kInstance, impl)) {
                     std::fprintf(stderr, "tc8-dut: suspendInterface re-register failed\n");
                 } else {
-                    // Publish the warm re-offer to dut_main's loop, which fires
-                    // onReactivate on the main-loop thread (see resumeCount()). Only on
-                    // success — a failed re-register is not a re-activation.
-                    resume_seq->fetch_add(1);
+                    // Post the warm re-offer, which fires onReactivate on the main-loop
+                    // thread. Only on success — a failed re-register is not a re-activation.
+                    if (lifecycle) {
+                        lifecycle->post(LifecycleEvent::Reactivate);
+                    }
                     std::printf("tc8-dut: suspendInterface — service resumed\n");
                 }
             }).detach();

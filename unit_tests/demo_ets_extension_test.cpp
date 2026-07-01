@@ -309,6 +309,39 @@ TEST(DemoEtsExtension, OnReactivateReAnchorsActivationRelativeOffset) {
     EXPECT_EQ(offset({}).payload, (std::vector<std::uint8_t>{2}));
 }
 
+TEST(DemoEtsExtension, OnSuspendFreezesActivationOffsetUntilReactivate) {
+    FakeEtsEventSink sink;
+    FakeEtsClientControl client;
+    FakeEtsControlChannel control;
+    FakeEtsIoHost io;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control, io};
+    tc8::dut::DemoEtsExtension ext;
+    ext.onRegister(ctx);
+
+    auto& offset = sink.request_handlers[tc8::dut::kDemoActivationReadbackMethod];
+
+    // Advance the offset, then suspend (a warm suspendInterface StopOffer): the offset
+    // FREEZES across the de-offer window — onTick no longer advances it, the faithful
+    // "activation-relative emission goes quiet on StopOffer" shape the symmetric onSuspend
+    // hook enables (the cyclic stream stops on de-activation).
+    ext.onTick(ctx);
+    ext.onTick(ctx);
+    EXPECT_EQ(offset({}).payload, (std::vector<std::uint8_t>{2}));
+    ext.onSuspend(ctx);
+    ext.onTick(ctx);
+    ext.onTick(ctx);
+    ext.onTick(ctx);
+    EXPECT_EQ(offset({}).payload, (std::vector<std::uint8_t>{2}));  // frozen while suspended
+
+    // The paired re-offer clears the freeze AND re-anchors to zero, so the offset restarts
+    // from the re-activation instant (the first post-re-offer step is measured from the
+    // start offset again). onSuspend fires before onReactivate in dut_main's loop.
+    ext.onReactivate(ctx);
+    EXPECT_EQ(offset({}).payload, (std::vector<std::uint8_t>{0}));
+    ext.onTick(ctx);
+    EXPECT_EQ(offset({}).payload, (std::vector<std::uint8_t>{1}));
+}
+
 TEST(DemoEtsExtension, SubscribeMethodDrivesClientControl) {
     FakeEtsEventSink sink;
     FakeEtsClientControl client;

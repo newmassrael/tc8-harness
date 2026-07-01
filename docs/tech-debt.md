@@ -647,8 +647,19 @@ and the tester_ipv4 mirror both work around.
 
 ## TD-13 — the warm-re-offer signal polls a counter instead of the in-tree Waker primitive
 
-**Status:** OPEN (accepted). **Logged:** 2026-07-01 (3-cold-reviewer review of the
+**Status:** RESOLVED (2026-07-02). **Logged:** 2026-07-01 (3-cold-reviewer review of the
 `IEtsExtension::onReactivate` hook).
+
+**Resolution (2026-07-02).** Done as the "textbook fix" below when the pre-registered
+trigger fired: adding `IEtsExtension::onSuspend` (the second lifecycle transition) replaced
+the polled counter + `ResumeEdge` with a single Waker-backed `LifecycleSignal`
+(`dut/dut_service/lifecycle_signal.h`). The detached suspend thread post()s Suspend (on the
+StopOffer) / Reactivate (on the paired re-offer); the DUT main loop folds the Waker's fd into
+`PollableHost::drainReady` via a small `IPollableService` adapter (`LifecycleDispatcher` in
+`dut_main.cpp`) and dispatches both hooks on the main thread — FIFO-ordered, lossless, and
+prompt (woken on the eventfd, not noticed on the next tick poll). `ResumeEdge` and its test
+are retired; `lifecycle_signal_test` covers the channel. The prose below is kept for the
+rationale that led here.
 
 **What.** The warm `suspendInterface` re-offer signal is delivered by the detached suspend
 thread bumping a monotonic `std::atomic<uint32_t>` counter (`ServerRole::resumeCount()`),
