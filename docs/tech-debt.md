@@ -52,7 +52,7 @@ together — this debt entry records the structural coupling that made the miss
 possible.
 
 **Resolution.** The SD wire layout is now written exactly once, in
-`src/sce_integration/someip_sd_wire.def` (X-macro form). Every fixed-offset SD
+`src/someip/someip_sd_wire.def` (X-macro form). Every fixed-offset SD
 field — header, entry common fields, both entry-type tails (including the
 bit-sliced `num_opt1/2` nibbles and the `Reserved(12b)|Counter(4b)` split that
 surfaced this debt), and the IPv4 option tail — is one row carrying its
@@ -136,7 +136,7 @@ it: C++ (authoritative) `#include`s it via `src/sce_integration/dhcpv4_wire.h`
 `packet_pipeline.cpp`), and `tools/gen_dhcpv4_wire.py` generates the Python site
 mirror `site/scripts/dhcpv4_wire_generated.py` imported by `decode_pcap.py`. The
 shared big-endian read primitive was lifted out of the SD support header into
-`src/sce_integration/wire_read.h` (`::tc8::wire::readBe`) so both `.def` consumers
+`src/wire/wire_read.h` (`::tc8::wire::readBe`) so both `.def` consumers
 use one reader. Drift is now structural, same as TD-01:
 
 - A wrong offset/width is impossible to apply to only one language.
@@ -337,7 +337,7 @@ automated guard that replaced the deleted `.def` `--check` freshness gates.
 
 ## TD-06 — Upper-Tester response field decode is duplicated (decode-pcap vs udp_captured.h)
 
-**Status:** OPEN (accepted, low priority). **Logged:** 2026-07-01 (cold review of TD-05).
+**Status:** RESOLVED (2026-07-01). **Logged:** 2026-07-01 (cold review of TD-05).
 
 **What.** The documentation-site exporter `src/cli/decode_pcap_command.cpp`
 (`utSummary`) hand-decodes the Upper-Tester response body — the response-bit split,
@@ -367,16 +367,29 @@ into `upper_tester_protocol.h` (covering all opcodes), and have BOTH
 `udp_captured.h` and the exporter consume it. The verdict struct keeps only the
 fields it asserts on; the shared decoder owns the offsets.
 
-**Why deferred.** The clean fix reaches into the verdict-path `udp_captured.h`, which
-is out of TD-05's scope (the site-decoder elimination). Tracked here so the UT offset
+**Why deferred (was).** The clean fix reaches into the verdict-path `udp_captured.h`, which
+was out of TD-05's scope (the site-decoder elimination). Tracked here so the UT offset
 mirror is not forgotten; the drift is low and the exporter output is gated
 (`decode_pcap_golden`).
+
+**Resolution (2026-07-01).** The textbook fix was taken: `tc8::ut::decodeResponse(payload,
+len) -> UtResponse` in `include/tc8/upper_tester_protocol.h` is now the single owner of
+the response wire offsets, covering every opcode the exporter renders. Both consumers
+derive from it — the verdict path (`udp_captured.h` `fillUdpCapturedFromFrame`) copies the
+subset it asserts on (`ut_received` / `ut_recv_*` / `ut_create_actual_count`) and keeps its
+`src_port == kPort` gate on top; the exporter (`packet_summary.cpp` `utSummary`) reads the
+full set. There is no second decoder for the UT wire format. IP fields come back in network
+byte order (matching `UdpCaptured::ut_recv_src_ip`), so the exporter formats them through the
+`tc8::sce::ipv4ToDotted` SSOT core and the near-duplicate `ipv4FromBe` formatter was deleted.
+`udp_captured_test` pins the verdict subset; `packet_summary_test` pins the exporter output
+(including `QueryTcpInfo`, an opcode the golden fixture does not carry); `decode_pcap_golden`
+gates the rest end-to-end. All output is byte-identical to before the refactor.
 
 ---
 
 ## TD-07 — SOME/IP-SD message magic (service 0xFFFF / method 0x8100) has no named SSOT
 
-**Status:** OPEN (accepted, low priority). **Logged:** 2026-07-01 (cold review of TD-05).
+**Status:** RESOLVED (2026-07-01). **Logged:** 2026-07-01 (cold review of TD-05).
 
 **What.** The SD-message identity — header `service_id == 0xFFFF` and
 `method_id == 0x8100` (PRS_SOMEIPSD) — is spelled as raw literals across the tree:
@@ -399,15 +412,29 @@ loudly in tests. The cost is readability + a missing single recognizer, not drif
 `isSdMessage()` helper, then repoint the captured recognizers, the dispatcher gate,
 the builder, and the exporter at it.
 
-**Why deferred.** A cross-cutting SSOT unification spanning the verdict path, the
+**Why deferred (was).** A cross-cutting SSOT unification spanning the verdict path, the
 builder, and the cases — broader than TD-05's site-decoder scope. Logged so the
 scatter is visible.
+
+**Resolution (2026-07-01).** `src/someip/protocol.h` (the neutral SOME/IP constant leaf,
+next to the message-type/return-code enums) now owns `kSdServiceId = 0xFFFF`,
+`kSdMethodId = 0x8100`, and the `isSdMessageId(service_id, method_id)` recognizer. The raw
+literals were repointed at it: the captured recognizers + SD parse gate
+(`someip_captured.h`, which gate on the Service ID alone), the SD builder
+(`someip_sd_builder.cpp` `appendSdHeader` default + the retired function-local `kMethodIdSd`),
+the ETS_137 hand-built SD frame (`putBe16(kSdServiceId)`/`putBe16(kSdMethodId)`), and the
+exporter (`packet_summary.cpp` `someipIsSd`, which uses the full pair via `isSdMessageId`).
+The FindService "any service" wildcard (`want_service_id == 0xFFFF`) is a distinct concept
+and was intentionally left as-is. There is no runtime dispatcher gate on the SD Method ID in
+first-party code (the ETS_178 comment refers to the vendored vsomeip dispatcher). Values are
+unchanged, so behaviour is byte-identical (`someip_captured_test` / `someip_sd_builder_test` /
+`ets_emission_test` / `decode_pcap_golden` all pass unchanged).
 
 ---
 
 ## TD-08 — decode-pcap protocol-presentation tables live in the CLI translation unit
 
-**Status:** OPEN (accepted, low priority). **Logged:** 2026-07-01 (cold review of TD-05).
+**Status:** RESOLVED (2026-07-01). **Logged:** 2026-07-01 (cold review of TD-05).
 
 **What.** The display-name tables (`someipMsgTypeName`, `someipReturnCodeName`,
 `sdEntryTypeName`, `icmpTypeName`, `dhcpMsgTypeName`, …) and the per-protocol summary
@@ -427,15 +454,25 @@ presentation header next to the enums they name; leave `decode_pcap_command.cpp`
 JSON assembly + endpoint autodetect + the offline drive loop, and add a direct unit
 test of the summary builders.
 
-**Why deferred.** A restructure with no behavior change; the command-local form is
+**Why deferred (was).** A restructure with no behavior change; the command-local form is
 defensible while there is a single consumer. Logged for the day a second text renderer
 lands.
+
+**Resolution (2026-07-01).** The presentation layer was extracted to
+`src/cli/packet_summary.{h,cpp}`: the display-name tables + formatting helpers (now in the
+`.cpp` anonymous namespace), the per-protocol summary builders, `someipIsSd`, the `Candidate`
+struct, and `makeCandidate`. `decode_pcap_command.cpp` keeps only JSON assembly, endpoint
+auto-detection, and the offline drive loop. The builders are now unit-testable in isolation —
+`unit_tests/packet_summary_test.cpp` asserts them directly (and any future `live`/`replay`
+text renderer can reuse the header). `packet_summary.cpp` is strict-gated (it joins the
+`tc8_harness_testable` library and the main binary). No behaviour change: `decode_pcap_golden`
+is byte-identical.
 
 ---
 
 ## TD-09 — decode-pcap has minor, accepted display divergences from the retired Python decoder
 
-**Status:** OPEN (accepted, low priority). **Logged:** 2026-07-01 (cold review of TD-05).
+**Status:** RESOLVED (2026-07-01). **Logged:** 2026-07-01 (cold review of TD-05).
 
 **What.** Three small per-frame summary divergences from the deleted `decode_pcap.py`,
 all display-only (labels, never verdicts):
@@ -465,6 +502,86 @@ output is gated (`decode_pcap_golden`).
 **Textbook fix.** For the SD cap, surface the pre-cap totals from
 `fillSomeIpCapturedFromFrame` (a verdict-struct change) or annotate the count as
 capture-capped; for sub-240 DHCP, recognise the 67/68 port pair in the exporter and
-label it truncated. **Why deferred:** each is a low-value behavior tweak (one needs a
-verdict-struct change for a doc summary), so they are batched here rather than chased
-piecemeal.
+label it truncated.
+
+**Resolution (2026-07-01).**
+
+- **SD count cap.** `SomeIpCaptured` gained two DISPLAY-ONLY uncapped on-wire totals —
+  `sd_entry_count_wire` and `sd_ipv4_endpoint_count_wire` — populated by `parseSdHeaderInto`
+  (entries = declared entries-array length / 16) and `parseSdOptionsInto` (which now keeps
+  walking past the parse cap purely to tally the endpoints, storing only up to
+  `kMaxSdEntries`/`kMaxSdOptions`). Every verdict-facing count is byte-identical;
+  the new fields are documented as display-only and MUST NOT be used by guards. `sdSummary`
+  now derives "+N more" and `ipv4_endpoints=` from the wire totals, so a frame exceeding the
+  cap is no longer undercounted. `packet_summary_test` pins this with a 10-entry frame
+  (parse cap 8 → "+7 more").
+- **Sub-240 DHCP.** `makeCandidate` labels a datagram on the 67/68 port pair that the
+  pipeline did not raise as a `Dhcpv4Frame` as `DHCPv4 (truncated, N B)` instead of plain
+  UDP. Covered end-to-end by a new sub-240 fixture frame in `decode_pcap_golden` and
+  directly by `packet_summary_test`.
+- **Other-protocol IPv4 byte count.** Kept as-is: the exporter's use of the IP header
+  `total_length` is the spec-meaningful length and is arguably more correct than the retired
+  Python's captured-byte count (they differ only under L2 padding / snaplen truncation). This
+  is now a deliberate, documented choice rather than an unexamined divergence.
+
+---
+
+## Cold-review remediation of TD-06..TD-09 (2026-07-01)
+
+A three-reviewer cold audit of the TD-06..TD-09 work found real compromises; all
+were remediated (build 0-warn, ctest green). Recorded here so the register stays
+honest about what the first pass got wrong.
+
+- **DHCP ports 67/68 had no SSOT** (the TD-09 site-decoder re-spelled the pipeline's
+  port-pair predicate as raw literals). Promoted `kDhcpServerPort` / `kDhcpClientPort`
+  and a shared `isDhcpPortPair` recognizer to `include/tc8/protocol_frames/dhcpv4_frame.h`;
+  the dissect pipeline gate, the exporter, the DHCP frame builder, and the BPF filter
+  strings all route through it.
+- **`decodeResponse` "single owner" was overstated** — the active-control path
+  (`dut_control.h`) hand-decoded the same UT response offsets. Factored
+  `tc8::ut::decodeResponseBody` as the offset owner; `dut_control.h` (QueryTcpInfo,
+  QueryTcpEstablished, ReceiveTcpData/Oob) now derives from it. Also renamed the
+  transport-result struct to `tc8::stimulus::UtReply` to end the same-name clash with
+  `tc8::ut::UtResponse`, and `decodeResponse` no longer applies response offsets to a
+  request payload.
+- **SD-magic predicate half-done** — added `SomeIpCaptured::headerIsSd()` and routed the
+  verdict recognizers + SD-fill gate through it; added `kSdEntrySizeBytes` for the SD entry
+  stride.
+- **`sd_entry_count_wire` was a blind `declared/16`** (over-reported truncated frames, could
+  overflow u16). Now counts entries actually present, bounded like the options walk. Covered
+  by new `packet_summary_test` cases (truncated entries; >8 endpoint options).
+- **ARCH: the authoritative SD decoder lived in the verdict layer** (presentation reached up
+  into `sce_integration`). Extracted the SD structs / value namespaces / `parseSdInto` into
+  the neutral leaf `src/someip/sd_decode.h`; `SomeIpCaptured` mixes in `SdDecoded` as its
+  "SD aspect" (source-transparent to cond/case code), and the documentation-site exporter
+  decodes a standalone `SdDecoded` — so presentation depends DOWN, the wire is decoded once,
+  and the display-only wire totals live on the decode result, not the verdict DTO. Moved the
+  supporting `someip_sd_wire.def` and `wire_read.h` to neutral homes (`src/someip/`,
+  `src/wire/`). Per-frame candidate selection moved to `packet_summary.cpp::chooseFrameView`,
+  so the decode-pcap command TU keeps only I/O + JSON assembly.
+
+---
+
+## TD-10 — decode-pcap format cores still live in the verdict-path Evidence-Export header
+
+**Status:** OPEN (accepted, low priority). **Logged:** 2026-07-01 (cold-review residual).
+
+**What.** The generic wire-formatting cores `ipv4ToDotted` / `macToHex` (and the JSON
+`appendJsonEscaped`) live in `src/sce_integration/captured_trace.h` (the Evidence-Export
+layer) in namespace `tc8::sce`, yet the documentation-site presentation
+(`cli/packet_summary.cpp`) and the decode-pcap command consume them — so presentation still
+`#include`s up into `sce_integration` for formatting, the one remaining thread of the ARCH-A
+layering critique (the SD *decoder* was relocated; these *formatters* were not).
+
+**Risk if left.** None functional: they are already a single definition (SSOT), so there is
+no drift — this is purely a file-home / layering nit. Presentation output is unchanged.
+
+**Textbook fix.** Move `ipv4ToDotted` / `macToHex` to a neutral leaf (e.g. `src/wire/`),
+have `captured_trace.h` delegate its `appendMacJson`/`appendIpv4Json` to them, and repoint
+the ~3 direct consumers (exporter, command, `test_runner.h`). `appendJsonEscaped` is a JSON
+concern and can stay with the JSON helpers.
+
+**Why deferred.** The move crosses `test_runner.h` (verdict path) and `captured_trace.h`
+(included by ~10 `*_captured.h`), i.e. a third verdict-path touch in one session. Since the
+cores are already SSOT, this is polish with no correctness stake, best done as a focused,
+independently-verified change.
