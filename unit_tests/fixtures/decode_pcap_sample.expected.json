@@ -19,7 +19,8 @@
     {"idx": 9, "ts_us": 9000, "ts_delta_us": 1000, "direction": "dut_to_tester", "src_mac": "02:00:00:00:00:02", "dst_mac": "02:00:00:00:00:01", "src_ip": "192.168.0.1", "dst_ip": "192.168.0.10", "protocol": "SOME/IP-SD", "summary": "SD OfferService svc=0x1234 inst=0x0001 ttl=3 | ipv4_endpoints=1"},
     {"idx": 10, "ts_us": 10000, "ts_delta_us": 1000, "direction": "tester_to_dut", "src_mac": "02:00:00:00:00:01", "dst_mac": "02:00:00:00:00:02", "src_ip": "192.168.0.10", "dst_ip": "192.168.0.1", "protocol": "UT/UDP", "summary": "UT req GetReceivedUdp (id=7)"},
     {"idx": 11, "ts_us": 11000, "ts_delta_us": 1000, "direction": "dut_to_tester", "src_mac": "02:00:00:00:00:02", "dst_mac": "02:00:00:00:00:01", "src_ip": "192.168.0.1", "dst_ip": "192.168.0.10", "protocol": "UT/UDP", "summary": "UT resp GetReceivedUdp ok received=1 src=192.168.0.99:12345 len=5"},
-    {"idx": 12, "ts_us": 12000, "ts_delta_us": 1000, "direction": "dut_to_tester", "src_mac": "02:00:00:00:00:02", "dst_mac": "02:00:00:00:00:01", "src_ip": null, "dst_ip": null, "protocol": "ETH 0x86dd", "summary": "54 B"}
+    {"idx": 12, "ts_us": 12000, "ts_delta_us": 1000, "direction": "dut_to_tester", "src_mac": "02:00:00:00:00:02", "dst_mac": "02:00:00:00:00:01", "src_ip": null, "dst_ip": null, "protocol": "ETH 0x86dd", "summary": "54 B"},
+    {"idx": 13, "ts_us": 13000, "ts_delta_us": 1000, "direction": "dut_to_tester", "src_mac": "02:00:00:00:00:02", "dst_mac": "ff:ff:ff:ff:ff:ff", "src_ip": "0.0.0.0", "dst_ip": "255.255.255.255", "protocol": "DHCPv4", "summary": "DHCPv4 (truncated, 100 B)"}
   ],
   "captured_trace": {
   "steps": [

@@ -25,6 +25,23 @@ enum class MessageType : std::uint8_t {
     TP_ERROR = 0xA1,
 };
 
+// Service Discovery message magic. Every SD message carries a fixed Message ID
+// (header Service ID + Method ID) per PRS_SOMEIPSD_00248 / PRS_SOMEIPSD_00249:
+// Service ID 0xFFFF, Method ID 0x8100. Single source of truth for the two
+// literals that were previously hand-spelled across the captured recognizers
+// (someip_captured.h), the SD builder (someip_sd_builder.cpp), and the
+// documentation-site exporter (decode_pcap_command.cpp).
+inline constexpr std::uint16_t kSdServiceId = 0xFFFF;
+inline constexpr std::uint16_t kSdMethodId  = 0x8100;
+
+// True when a SOME/IP header's Message ID is the Service Discovery magic. The
+// captured recognizers gate SD payload parsing on the Service ID alone (the
+// Method ID is implied once the frame is on the SD channel); consumers that see
+// the whole header — the exporter's row classifier — check the full pair here.
+inline constexpr bool isSdMessageId(std::uint16_t service_id, std::uint16_t method_id) {
+    return service_id == kSdServiceId && method_id == kSdMethodId;
+}
+
 // Return Code field (SOME/IP header byte 15) per PRS_SOMEIP_00058. The set of
 // codes is PRS_SOMEIP_00191; the values allowed for a given message type are
 // governed by PRS_SOMEIP_00757 (Response: any; Error: shall not be E_OK).

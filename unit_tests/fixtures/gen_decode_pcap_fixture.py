@@ -116,6 +116,10 @@ add(eth(DUT_MAC, TESTER_MAC, 0x0800, ipv4(TESTER_IP, DUT_IP, 17, udp(45000, 3060
 add(eth(TESTER_MAC, DUT_MAC, 0x0800, ipv4(DUT_IP, TESTER_IP, 17, udp(30600, 45000, bytes([0x81, 0x07, 0x00, 0x01]) + bytes([192, 168, 0, 99]) + struct.pack(">HH", 12345, 5)))))
 # idx 12 IPv6 (unknown ethertype)
 add(eth(TESTER_MAC, DUT_MAC, 0x86DD, b"\x60" + b"\x00" * 39))
+# idx 13 sub-240 DHCP: BOOTP body too short for the magic cookie (offset 236),
+# so the pipeline raises no Dhcpv4Frame and the exporter labels the UDP datagram
+# on the 67/68 port pair "DHCPv4 (truncated, N B)" (docs/tech-debt.md TD-09).
+add(eth(BCAST, DUT_MAC, 0x0800, ipv4(bytes([0, 0, 0, 0]), bytes([255, 255, 255, 255]), 17, udp(68, 67, b"\x01\x01\x06\x00" + b"\x00" * 96))))
 
 with (HERE / "decode_pcap_sample.pcap").open("wb") as fh:
     fh.write(struct.pack("<IHHiIII", 0xA1B2C3D4, 2, 4, 0, 0, 65535, 1))

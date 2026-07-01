@@ -20,6 +20,7 @@ FetchContent_MakeAvailable(googletest)
 add_library(tc8_harness_testable STATIC
     ${PROJECT_SOURCE_DIR}/src/capture/bpf_filter.cpp
     ${PROJECT_SOURCE_DIR}/src/cli/expect_parser.cpp
+    ${PROJECT_SOURCE_DIR}/src/cli/packet_summary.cpp
     ${PROJECT_SOURCE_DIR}/src/sce_integration/case_registry.cpp
     ${PROJECT_SOURCE_DIR}/src/sce_integration/spec_inventory.cpp
     ${PROJECT_SOURCE_DIR}/src/dissect/someip_header.cpp
@@ -234,6 +235,10 @@ tc8_add_unit_test(udp_emit_test)
 tc8_add_unit_test(someip_tp_emit_test)
 tc8_add_unit_test(udp_captured_test)
 tc8_add_unit_test(someip_captured_test)
+# decode-pcap presentation layer (cli/packet_summary.*, TD-08): per-protocol
+# summary builders + makeCandidate in isolation. Covers the shared UT decoder
+# (TD-06 utSummary) and the SD wire-total / sub-240-DHCP display fixes (TD-09).
+tc8_add_unit_test(packet_summary_test)
 # Pins the DHCPv4 BOOTP fixed-header SSOT (dhcpv4_wire.def, TD-02). The .def now
 # has a single C++ consumer — the documentation site no longer re-decodes the
 # wire (TD-05), so there is no Python mirror left to gate.

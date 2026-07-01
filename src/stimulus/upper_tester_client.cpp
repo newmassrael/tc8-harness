@@ -539,17 +539,17 @@ std::optional<UtCapabilities> queryUpperTesterCapabilities(
     return caps;
 }
 
-std::optional<UtResponse> upperTesterRoundTrip(std::uint32_t dut_ip_be,
-                                               const std::vector<std::uint8_t> &request,
-                                               std::uint16_t dut_port, int timeout_ms,
-                                               std::uint32_t src_ip_be) {
+std::optional<UtReply> upperTesterRoundTrip(std::uint32_t dut_ip_be,
+                                            const std::vector<std::uint8_t> &request,
+                                            std::uint16_t dut_port, int timeout_ms,
+                                            std::uint32_t src_ip_be) {
     std::uint8_t buf[2048];
     const ssize_t n =
         dgramUtRoundTrip(dut_ip_be, dut_port, timeout_ms, src_ip_be, request, buf, sizeof(buf));
     if (n < 3) {
         return std::nullopt;  // transport failure / uncorrelated reply
     }
-    UtResponse r;
+    UtReply r;
     r.status = buf[2];
     r.data.assign(buf + 3, buf + n);  // bytes after <opcode|0x80> <req_id> <status>
     return r;

@@ -123,8 +123,7 @@ std::vector<std::uint8_t> buildConfigOptionRaw(const std::vector<std::uint8_t> &
 TEST(SomeIpCapturedSdOptions, EmptyOptionsArrayKeepsCountsZero) {
     const auto payload = buildSdPayload(findServiceEntry(), {});
     tc8::SomeIpCaptured c;
-    tc8::parseSdHeaderInto(c, payload.data(), payload.size());
-    tc8::parseSdOptionsInto(c, payload.data(), payload.size());
+    tc8::parseSdInto(c, payload.data(), payload.size());
 
     EXPECT_EQ(c.sd_options_len, 0u);
     EXPECT_EQ(c.sd_option_count, 0u);
@@ -139,8 +138,7 @@ TEST(SomeIpCapturedSdOptions, SingleIpv4EndpointOptionDecodesAllFields) {
     const auto payload = buildSdPayload(findServiceEntry(), options);
 
     tc8::SomeIpCaptured c;
-    tc8::parseSdHeaderInto(c, payload.data(), payload.size());
-    tc8::parseSdOptionsInto(c, payload.data(), payload.size());
+    tc8::parseSdInto(c, payload.data(), payload.size());
 
     ASSERT_EQ(c.sd_option_count, 1u);
     EXPECT_EQ(c.sd_ipv4_endpoint_count, 1u);
@@ -167,8 +165,7 @@ TEST(SomeIpCapturedSdOptions, TwoIpv4EndpointOptionsBothDecoded) {
     const auto payload = buildSdPayload(findServiceEntry(), options);
 
     tc8::SomeIpCaptured c;
-    tc8::parseSdHeaderInto(c, payload.data(), payload.size());
-    tc8::parseSdOptionsInto(c, payload.data(), payload.size());
+    tc8::parseSdInto(c, payload.data(), payload.size());
 
     ASSERT_EQ(c.sd_option_count, 2u);
     EXPECT_EQ(c.sd_ipv4_endpoint_count, 2u);
@@ -189,8 +186,7 @@ TEST(SomeIpCapturedSdOptions, FirstOptionByL4ReturnsMatchingFields) {
     const auto payload = buildSdPayload(findServiceEntry(), options);
 
     tc8::SomeIpCaptured c;
-    tc8::parseSdHeaderInto(c, payload.data(), payload.size());
-    tc8::parseSdOptionsInto(c, payload.data(), payload.size());
+    tc8::parseSdInto(c, payload.data(), payload.size());
 
     const auto &udp = c.sd_first_option_with_l4(0x04, 0x11);
     EXPECT_EQ(udp.port, 30502u);
@@ -211,8 +207,7 @@ TEST(SomeIpCapturedSdOptions, Ipv4MulticastOptionDecodesIntoMulticastCount) {
     const auto payload = buildSdPayload(findServiceEntry(), options);
 
     tc8::SomeIpCaptured c;
-    tc8::parseSdHeaderInto(c, payload.data(), payload.size());
-    tc8::parseSdOptionsInto(c, payload.data(), payload.size());
+    tc8::parseSdInto(c, payload.data(), payload.size());
 
     ASSERT_EQ(c.sd_option_count, 1u);
     EXPECT_EQ(c.sd_ipv4_endpoint_count, 0u);
@@ -246,8 +241,7 @@ TEST(SomeIpCapturedSdOptions, TruncatedOptionTailStopsParseEarly) {
     payload[opts_len_offset + 3] = 0x0C;  // 12
 
     tc8::SomeIpCaptured c;
-    tc8::parseSdHeaderInto(c, payload.data(), payload.size());
-    tc8::parseSdOptionsInto(c, payload.data(), payload.size());
+    tc8::parseSdInto(c, payload.data(), payload.size());
 
     EXPECT_EQ(c.sd_options_len, 12u);
     EXPECT_EQ(c.sd_option_count, 0u);
@@ -301,8 +295,7 @@ TEST(SomeIpCapturedConfigOption, ParsesItemsAndKeyValues) {
     const auto payload = buildSdPayload(findServiceEntry(), opt);
 
     tc8::SomeIpCaptured c;
-    tc8::parseSdHeaderInto(c, payload.data(), payload.size());
-    tc8::parseSdOptionsInto(c, payload.data(), payload.size());
+    tc8::parseSdInto(c, payload.data(), payload.size());
 
     ASSERT_EQ(c.sd_option_count, 1u);
     EXPECT_EQ(c.sd_options[0].type, tc8::sd_option_type::kConfiguration);
@@ -321,8 +314,7 @@ TEST(SomeIpCapturedConfigOption, EmptyValueAndKeyOnly) {
     const auto payload = buildSdPayload(findServiceEntry(), opt);
 
     tc8::SomeIpCaptured c;
-    tc8::parseSdHeaderInto(c, payload.data(), payload.size());
-    tc8::parseSdOptionsInto(c, payload.data(), payload.size());
+    tc8::parseSdInto(c, payload.data(), payload.size());
 
     ASSERT_EQ(c.sd_config_item_count, 2u);
     EXPECT_TRUE(c.sd_config_has_key("key"));
@@ -338,8 +330,7 @@ TEST(SomeIpCapturedConfigOption, ItemLongerThanCapTruncatesContent) {
     const auto payload = buildSdPayload(findServiceEntry(), buildConfigOption({big}));
 
     tc8::SomeIpCaptured c;
-    tc8::parseSdHeaderInto(c, payload.data(), payload.size());
-    tc8::parseSdOptionsInto(c, payload.data(), payload.size());
+    tc8::parseSdInto(c, payload.data(), payload.size());
 
     ASSERT_EQ(c.sd_config_item_count, 1u);
     EXPECT_EQ(c.sd_config_items[0].len, 100u);                          // true on-wire length
@@ -355,8 +346,7 @@ TEST(SomeIpCapturedConfigOption, CapsAtMaxItems) {
     const auto payload = buildSdPayload(findServiceEntry(), buildConfigOption(items));
 
     tc8::SomeIpCaptured c;
-    tc8::parseSdHeaderInto(c, payload.data(), payload.size());
-    tc8::parseSdOptionsInto(c, payload.data(), payload.size());
+    tc8::parseSdInto(c, payload.data(), payload.size());
 
     EXPECT_EQ(c.sd_config_item_count, tc8::SomeIpCaptured::kMaxSdConfigItems);
 }
@@ -369,8 +359,7 @@ TEST(SomeIpCapturedConfigOption, OnlyFirstConfigOptionParsed) {
     const auto payload = buildSdPayload(findServiceEntry(), options);
 
     tc8::SomeIpCaptured c;
-    tc8::parseSdHeaderInto(c, payload.data(), payload.size());
-    tc8::parseSdOptionsInto(c, payload.data(), payload.size());
+    tc8::parseSdInto(c, payload.data(), payload.size());
 
     EXPECT_EQ(c.sd_option_count, 2u);          // both options seen
     ASSERT_EQ(c.sd_config_item_count, 1u);     // only the first parsed into items
@@ -386,8 +375,7 @@ TEST(SomeIpCapturedConfigOption, TruncatedItemDropped) {
         buildSdPayload(findServiceEntry(), buildConfigOptionRaw({0x09, 'a', 'b', 'c'}));
 
     tc8::SomeIpCaptured c;
-    tc8::parseSdHeaderInto(c, payload.data(), payload.size());
-    tc8::parseSdOptionsInto(c, payload.data(), payload.size());
+    tc8::parseSdInto(c, payload.data(), payload.size());
 
     EXPECT_EQ(c.sd_config_item_count, 0u);
 }

@@ -9,6 +9,7 @@
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_someipsrv_traits_base.h"
 #include "sce_integration/test_runner.h"
+#include "someip/protocol.h"  // tc8::someip::kSdServiceId / kSdMethodId (SD Message ID SSOT)
 #include "stimulus/someip_sd_builder.h"
 
 #include "someip_ets_137_sm.h"
@@ -78,8 +79,8 @@ struct TestCaseTraits<cases::SomeipEts137SM> : SomeIpAnyBase<cases::SomeipEts137
         };
 
         // SOME/IP header.
-        putBe16(0xFFFF);    // service_id (SD)
-        putBe16(0x8100);    // method_id (SD)
+        putBe16(::tc8::someip::kSdServiceId);    // service_id (SD)
+        putBe16(::tc8::someip::kSdMethodId);     // method_id (SD)
         putBe32(60U);       // Length field = 60 (8 RID-tail + 52 payload)
         putBe16(0x0000);    // client_id
         putBe16(0x0001);    // session_id

@@ -48,6 +48,24 @@ inline std::uint16_t readU16(const std::uint8_t *p) {
     return static_cast<std::uint16_t>((p[0] << 8) | p[1]);
 }
 
+// Big-endian u32 reader — the numeric value of a big-endian wire field (octet 0
+// is the most significant byte). Use for scalar counters (rto, unacked, ...).
+inline std::uint32_t readU32(const std::uint8_t *p) {
+    return (static_cast<std::uint32_t>(p[0]) << 24) |
+           (static_cast<std::uint32_t>(p[1]) << 16) |
+           (static_cast<std::uint32_t>(p[2]) << 8) | static_cast<std::uint32_t>(p[3]);
+}
+
+// IPv4 address as it sits on the wire (big-endian), returned in network byte
+// order in memory (octet 0 in the low byte). This matches the harness captured
+// convention (UdpCaptured::ut_recv_src_ip) and the tc8::sce::ipv4ToDotted
+// formatter — it is deliberately NOT readU32's numeric value; address fields
+// stay in NBO, scalar counters decode via readU32.
+inline std::uint32_t readIpv4Nbo(const std::uint8_t *p) {
+    return static_cast<std::uint32_t>(p[0]) | (static_cast<std::uint32_t>(p[1]) << 8) |
+           (static_cast<std::uint32_t>(p[2]) << 16) | (static_cast<std::uint32_t>(p[3]) << 24);
+}
+
 // tc8-dut UT server port. The spec only mandates a "separate UDP
 // port" — the concrete value is a harness convention. Chosen outside
 // the SOME/IP unicast range (30490..30510, see tc8::dut::kCapturePortHigh)
@@ -92,6 +110,10 @@ inline constexpr std::uint16_t kMaxPayload = 256;
 // response opcode. A receiver distinguishes "request for me" from
 // "my own response" by testing bit 7.
 inline constexpr std::uint8_t kResponseBit = 0x80;
+
+// Mask that recovers the request opcode from a response opcode (clears the
+// response bit). Named so the split is not a bare 0x7F literal at call sites.
+inline constexpr std::uint8_t kRequestOpcodeMask = static_cast<std::uint8_t>(~kResponseBit);
 
 enum Opcode : std::uint8_t {
     // Request / Response: "Did the DUT application layer receive a
@@ -1144,6 +1166,148 @@ inline constexpr bool capabilityBitSet(const std::uint8_t *bitmap,
     const std::size_t byte = opcode / 8u;
     return byte < len &&
            (bitmap[byte] & (1u << (opcode % 8u))) != 0u;
+}
+
+// Decoded Upper-Tester request/response — the single owner of the response
+// wire OFFSETS (see docs/tech-debt.md TD-06). Both the verdict-path decoder
+// (sce_integration/udp_captured.h fillUdpCapturedFromFrame) and the
+// documentation-site exporter (cli/packet_summary.cpp utSummary) consume this;
+// the verdict struct keeps only the subset of fields it asserts on. IP-address
+// fields are stored in network byte order (octet 0 in the low byte — the
+// harness captured convention, matching UdpCaptured::ut_recv_src_ip and
+// formatted by tc8::sce::ipv4ToDotted); scalar fields hold the decoded host
+// integer of the big-endian wire field. Each `*_valid` flag mirrors the
+// consumer's body-length guard; only the field(s) matching `request_opcode`
+// are meaningful.
+struct UtResponse {
+    bool present = false;             // len >= 2 (opcode + req_id present)
+    std::uint8_t opcode = 0;         // full opcode byte (response bit set on a response)
+    std::uint8_t request_opcode = 0;  // opcode & 0x7F (the request family)
+    std::uint8_t req_id = 0;
+    bool is_response = false;         // kResponseBit set on opcode
+    bool has_status = false;          // len >= 3
+    std::uint8_t status = 0;
+
+    bool received_valid = false;                 // GetReceivedUdp: body >= 1
+    std::uint8_t received = 0;
+    bool recv_trailer_valid = false;             // GetReceivedUdp received==1 && body >= 9
+    std::uint32_t recv_src_ip = 0;               // NBO (octet 0 low)
+    std::uint16_t recv_src_port = 0;
+    std::uint16_t recv_payload_len = 0;          // trailer-declared payload length
+    const std::uint8_t *recv_payload = nullptr;  // -> trailer payload bytes
+    std::uint32_t recv_payload_avail = 0;        // trailer payload bytes actually present
+
+    bool established_valid = false;              // QueryTcpEstablished: body >= 1
+    std::uint8_t established = 0;
+
+    bool recv_len_valid = false;                 // Receive(Tcp|Oob): body >= 2
+    std::uint16_t recv_len = 0;
+
+    bool ll_address_valid = false;              // QueryLLAddress: body >= 4
+    std::uint32_t ll_address = 0;                // NBO (octet 0 low)
+
+    bool dhcp_lease_valid = false;              // QueryDhcpLease: body >= 4
+    std::uint32_t dhcp_lease = 0;                // NBO (octet 0 low)
+
+    bool tcp_info_valid = false;                // QueryTcpInfo: body >= 10
+    std::uint8_t tcp_state = 0;
+    std::uint32_t tcp_rto_us = 0;
+    std::uint8_t tcp_retransmits = 0;
+    std::uint32_t tcp_unacked = 0;
+
+    bool create_count_valid = false;            // CreateUdpReceivePorts: body >= 1
+    std::uint8_t create_actual_count = 0;
+};
+
+// Decode the per-opcode RESPONSE BODY (the bytes after <opcode|0x80> <req_id>
+// <status>) into `r`, keyed on `r.request_opcode`. This is the single owner of
+// the per-opcode trailer OFFSETS — every consumer routes here, whether it starts
+// from a full observed datagram (decodeResponse, below) or already holds the
+// correlated body (the active-control round trip in dut_control.h). Only the
+// field(s) matching `request_opcode` are populated.
+inline void decodeResponseBody(UtResponse &r, const std::uint8_t *body, std::uint32_t blen) {
+    switch (r.request_opcode) {
+        case OpGetReceivedUdp:
+            if (blen >= 1) {
+                r.received_valid = true;
+                r.received = body[0];
+                if (r.received == 1 && blen >= 9) {
+                    r.recv_trailer_valid = true;
+                    r.recv_src_ip = readIpv4Nbo(body + 1);
+                    r.recv_src_port = readU16(body + 5);
+                    r.recv_payload_len = readU16(body + 7);
+                    r.recv_payload = body + 9;
+                    r.recv_payload_avail = blen - 9;
+                }
+            }
+            break;
+        case OpQueryTcpEstablished:
+            if (blen >= 1) {
+                r.established_valid = true;
+                r.established = body[0];
+            }
+            break;
+        case OpReceiveTcpData:
+        case OpReceiveTcpDataOob:
+            if (blen >= 2) {
+                r.recv_len_valid = true;
+                r.recv_len = readU16(body);
+            }
+            break;
+        case OpQueryLLAddress:
+            if (blen >= 4) {
+                r.ll_address_valid = true;
+                r.ll_address = readIpv4Nbo(body);
+            }
+            break;
+        case OpQueryDhcpLease:
+            if (blen >= 4) {
+                r.dhcp_lease_valid = true;
+                r.dhcp_lease = readIpv4Nbo(body);
+            }
+            break;
+        case OpQueryTcpInfo:
+            if (blen >= 10) {
+                r.tcp_info_valid = true;
+                r.tcp_state = body[0];
+                r.tcp_rto_us = readU32(body + 1);
+                r.tcp_retransmits = body[5];
+                r.tcp_unacked = readU32(body + 6);
+            }
+            break;
+        case OpCreateUdpReceivePorts:
+            if (blen >= 1) {
+                r.create_count_valid = true;
+                r.create_actual_count = body[0];
+            }
+            break;
+        default:
+            break;
+    }
+}
+
+// Decode a full observed UT datagram (request or response) into UtResponse.
+// Splits the header (opcode|req_id|status) and delegates the per-opcode body to
+// decodeResponseBody (the offset SSOT). The caller layers its own gating on top
+// (e.g. the verdict path also requires src_port == kPort before treating a
+// decoded response as ours).
+inline UtResponse decodeResponse(const std::uint8_t *payload, std::uint32_t len) {
+    UtResponse r;
+    if (payload == nullptr || len < 2) return r;
+    r.present = true;
+    r.opcode = payload[0];
+    r.req_id = payload[1];
+    r.is_response = (r.opcode & kResponseBit) != 0;
+    r.request_opcode = static_cast<std::uint8_t>(r.opcode & kRequestOpcodeMask);
+    // Only a RESPONSE carries a status byte + per-opcode body at these offsets;
+    // a request's payload[2..] are parameters, so decode the response shape only
+    // for responses. Callers that summarise requests use opcode/req_id above.
+    if (!r.is_response) return r;
+    if (len < 3) return r;
+    r.has_status = true;
+    r.status = payload[2];
+    decodeResponseBody(r, payload + 3, len - 3);
+    return r;
 }
 
 }  // namespace tc8::ut

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -11,12 +12,12 @@
 
 #include "autosar/someiptp.h"
 #include "someip/protocol.h"
+#include "someip/sd_decode.h"  // SdDecoded mixin + SD structs/namespaces + parseSdInto (neutral SD decode leaf)
 #include "sce_integration/captured_frame_timing.h"
 #include "sce_integration/captured_l3_endpoints.h"
 #include "sce_integration/captured_l4_ports.h"
 #include "sce_integration/captured_payload_snapshot.h"
 #include "sce_integration/captured_trace.h"
-#include "sce_integration/wire_read.h"
 #include "test_config.h"
 
 namespace tc8 {
@@ -42,127 +43,15 @@ namespace tc8 {
 // is shorter than the required boundary; guards that inspect them must
 // confirm `service_id == 0xFFFF` and the relevant length invariant.
 
-// Single SOME/IP-SD entry (16 bytes on the wire, TR_SOMEIP §7.1). Layout of the
-// trailing 4 bytes depends on entry type family:
-//   Type 1 (FindService 0x00, OfferService / StopOffer 0x01):
-//     bytes 12..15 = Minor Version (32-bit BE).
-//   Type 2 (SubscribeEventgroup / StopSubscribe 0x06,
-//           SubscribeEventgroupAck / Nack 0x07):
-//     bytes 12..13 = Reserved(12b) | Counter(4b),
-//     bytes 14..15 = Eventgroup ID.
-// Both interpretations are populated on every entry so guards pick the
-// one matching the entry's type without re-decoding raw bytes. Unused
-// fields stay at 0 for the non-matching family.
-struct SdEntry {
-    std::uint8_t type = 0;
-    std::uint8_t index_first = 0;
-    std::uint8_t index_second = 0;
-    std::uint8_t num_opt1 = 0;  // High nibble of byte 3.
-    std::uint8_t num_opt2 = 0;  // Low nibble of byte 3.
-    std::uint16_t service_id = 0;
-    std::uint16_t instance_id = 0;
-    std::uint8_t major_version = 0;
-    std::uint32_t ttl = 0;  // 24-bit big-endian, right-aligned.
-
-    // Type 1 interpretation of bytes 12..15.
-    std::uint32_t minor_version = 0;
-
-    // Type 2 interpretation of bytes 12..13 (Reserved:12 | Counter:4), decoded
-    // into the SAME named fields the stimulus side sets on
-    // SubscribeEventgroupTarget, so a verdict reads back exactly what a case
-    // wrote (one data model on both sides). Both are public SOME/IP-SD fields.
-    // `counter` (4-bit, TR_SOMEIP §7.1.3) distinguishes parallel subscriptions
-    // of the same eventgroup.
-    // `entry_reserved` (12-bit) is decoded RAW on purpose: any entry flag a
-    // vendor encodes there — e.g. an Initial-Data-Requested bit — is
-    // implementation-defined, so the OEM masks `entry_reserved` itself rather
-    // than the public core naming a specific bit (symmetric with
-    // someip_sd_builder.h SubscribeEventgroupTarget::entry_reserved).
-    std::uint16_t entry_reserved = 0;  // bytes 12..13, high 12 bits.
-    std::uint8_t counter = 0;          // bytes 12..13, low 4 bits.
-    std::uint16_t eventgroup_id = 0;   // bytes 14..15.
-};
-
-// Single SOME/IP-SD option (TR_SOMEIP §7.3 Options Array). Wire layout for IPv4
-// Endpoint (Type=0x04) and IPv4 Multicast (Type=0x14) options
-// (PRS_SOMEIPSD §4.2.2 / SWS_SD_00209..00215, 00390..00396):
-//
-//   bytes  0..1  Length (16 bit, BE) — number of bytes after Type
-//   byte   2     Type
-//   byte   3     Reserved (first reserved field)
-//   bytes  4..7  IPv4-Address (32 bit, BE on the wire; stored here in
-//                network byte order to align with `parseIpv4Dotted`-
-//                produced expected.* fields which use `addr.s_addr` from
-//                inet_pton — every other Captured surface in this
-//                codebase follows the same NBO convention)
-//   byte   8     Reserved (second reserved field, after address)
-//   byte   9     Layer-4 Protocol (0x06 TCP / 0x11 UDP)
-//   bytes 10..11 Port Number (16 bit, BE; stored here host-order so SCXML
-//                cond expressions can compare against decimal literals)
-//
-// Length is 0x0009 for both endpoint shapes (covers Reserved + Address +
-// Reserved + L4-Proto + Port = 9 bytes). Configuration / Load Balancing
-// options also live in the array; their type-specific tail is left at
-// default 0 — guards that care about those types must check `type` first.
-struct SdOption {
-    std::uint16_t length = 0;
-    std::uint8_t type = 0;
-    std::uint8_t reserved1 = 0;
-    std::uint32_t ipv4 = 0;
-    std::uint8_t reserved2 = 0;
-    std::uint8_t l4_proto = 0;
-    std::uint16_t port = 0;
-};
-
-// Cap on a captured Configuration Option item's content bytes — config strings
-// ("key=value") are short, so a longer item is truncated to this for assertion.
-inline constexpr std::size_t kMaxSdConfigItemLen = 64;
-
-// One length-prefixed item of a Configuration Option (type 0x01) body — the DNS
-// TXT-like "key[=value]" encoding (PRS_SOMEIPSD / SWS_SD §7.3). `len` is the on-wire
-// length byte; `bytes`/`captured` hold the item's content (truncated to the cap).
-struct SdConfigItem {
-    std::uint8_t len = 0;                          // on-wire length byte
-    std::uint8_t captured = 0;                     // bytes stored (min(len, cap))
-    std::uint8_t bytes[kMaxSdConfigItemLen] = {};  // item content (key / key=value)
-};
-
-// Type values defined by SOMEIPSD §4.2.2 / SWS_SD §7.3 Table 11.
-// Declared before SomeIpCaptured so its inline helpers (e.g.
-// sd_distinct_endpoint_ports_for_l4) can name the constants — inline
-// member function bodies look up qualified names at class-completion
-// scope, which excludes anything declared later in the same file.
-namespace sd_option_type {
-inline constexpr std::uint8_t kConfiguration = 0x01;
-inline constexpr std::uint8_t kLoadBalancing = 0x02;
-inline constexpr std::uint8_t kIpv4Endpoint = 0x04;
-inline constexpr std::uint8_t kIpv6Endpoint = 0x06;
-inline constexpr std::uint8_t kIpv4Multicast = 0x14;
-inline constexpr std::uint8_t kIpv6Multicast = 0x16;
-inline constexpr std::uint8_t kIpv4SdEndpoint = 0x24;
-inline constexpr std::uint8_t kIpv6SdEndpoint = 0x26;
-}  // namespace sd_option_type
-
-// Layer-4 Protocol values per IANA / SOMEIPSD endpoint options.
-namespace sd_l4_proto {
-inline constexpr std::uint8_t kTcp = 0x06;
-inline constexpr std::uint8_t kUdp = 0x11;
-}  // namespace sd_l4_proto
-
-// SD entry Type byte (TR_SOMEIP / PRS_SOMEIPSD §7.4). The single source for the
-// SD entry-type values: the recognizer predicates below, the SD-fill gate, and
-// the documentation-site summary (tc8-harness decode-pcap) all name these rather
-// than re-spell the raw bytes. TTL (not a distinct type) discriminates the
-// Stop* variants (Offer ttl==0 = StopOffer, Subscribe ttl==0 = StopSubscribe).
-namespace sd_entry_type {
-inline constexpr std::uint8_t kFindService = 0x00;
-inline constexpr std::uint8_t kOfferService = 0x01;
-inline constexpr std::uint8_t kSubscribeEventgroup = 0x06;
-inline constexpr std::uint8_t kSubscribeEventgroupAck = 0x07;
-}  // namespace sd_entry_type
+// The SD wire structs (SdEntry / SdOption / SdConfigItem), the value namespaces
+// (sd_option_type / sd_l4_proto / sd_entry_type), the SdDecoded "SD aspect"
+// mixin (carrying every sd_* field + the SD-only helper methods), and the parse
+// (decodeSdEntry / parseSdInto / peekSdEntry0Type) all live in the neutral leaf
+// someip/sd_decode.h. SomeIpCaptured mixes SdDecoded in below, so cond/case
+// recognizer code keeps reading `captured.sd_*` unchanged.
 
 struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
-                        CapturedL3Endpoints, CapturedL4Ports {
+                        CapturedL3Endpoints, CapturedL4Ports, SdDecoded {
     std::uint16_t service_id = 0;
     std::uint16_t method_id = 0;
     std::uint32_t length = 0;
@@ -290,73 +179,10 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     // verdict semantics stay untouched.
     std::uint8_t tcp_handshake_count = 0;
 
-    std::uint8_t sd_flags = 0;      // Byte 0 of SD payload: Reboot|Unicast|Reserved bits.
-    std::uint32_t sd_reserved = 0;  // Bytes 1..3 of SD payload (24 bits, right-aligned).
-
-    // Length of the entries array in bytes. Per SD TR_SOMEIP §7.3 each entry is 16
-    // bytes, so valid values are multiples of 16. Stays 0 when the payload
-    // is too short to reach the entries-length field.
-    std::uint32_t sd_entries_len = 0;
-
-    // Length of the options array in bytes. Per SD TR_SOMEIP §7.3 the options-length
-    // field follows the entries array. Stays 0 when the payload is too
-    // short to reach it.
-    std::uint32_t sd_options_len = 0;
-
-    // Parsed entries array. Population is capped at `kMaxSdEntries`; real
-    // §5.1 traffic rarely exceeds 2-3 entries per SD message. Entries
-    // beyond index `sd_entry_count - 1` stay default-constructed.
-    static constexpr std::size_t kMaxSdEntries = 8;
-    std::uint8_t sd_entry_count = 0;
-    SdEntry sd_entries[kMaxSdEntries]{};
-
-    // Parsed options array. vsomeip OfferService for service 0xF4E7 emits
-    // two options (UDP + TCP IPv4 Endpoint); SubscribeAck for a multicast
-    // eventgroup adds a third (IPv4 Multicast). Cap matches kMaxSdEntries
-    // for symmetry — real §5.1 traffic stays below 4 options per SD frame.
-    static constexpr std::size_t kMaxSdOptions = 8;
-    std::uint8_t sd_option_count = 0;
-    SdOption sd_options[kMaxSdOptions]{};
-
-    // SOME/IP-SD Configuration Option (type 0x01) body — the DNS TXT-like sequence of
-    // length-prefixed "key[=value]" items, zero-length-terminated (PRS_SOMEIPSD /
-    // SWS_SD §7.3). Populated by parseSdOptionsInto from the first type-0x01 option.
-    static constexpr std::size_t kMaxSdConfigItems = 8;
-    std::uint8_t sd_config_item_count = 0;
-    SdConfigItem sd_config_items[kMaxSdConfigItems]{};
-
-    // The first parsed config item matching `key` ("key" exactly, or "key=..."), or
-    // nullptr if absent. The single match site the has-key / value-of helpers share.
-    const SdConfigItem *sd_config_item_for(std::string_view key) const {
-        for (std::uint8_t i = 0; i < sd_config_item_count; ++i) {
-            const std::string_view item(reinterpret_cast<const char *>(sd_config_items[i].bytes),
-                                        sd_config_items[i].captured);
-            if (item == key || (item.size() > key.size() && item.compare(0, key.size(), key) == 0 &&
-                                 item[key.size()] == '=')) {
-                return &sd_config_items[i];
-            }
-        }
-        return nullptr;
-    }
-
-    // True if any parsed config item is `key` (no value) or `key=...`.
-    bool sd_config_has_key(std::string_view key) const { return sd_config_item_for(key) != nullptr; }
-
-    // The value after `key=` for the first matching item; empty if the key is absent or
-    // present without a value (`key` or `key=`). Reliable only when the matched item was
-    // not truncated (its `captured == len`); a value longer than the capture cap is
-    // silently clipped, which a caller needing exactness detects via that field pair.
-    std::string sd_config_value_of(std::string_view key) const {
-        const SdConfigItem *it = sd_config_item_for(key);
-        if (it == nullptr) {
-            return std::string();
-        }
-        const std::string_view item(reinterpret_cast<const char *>(it->bytes), it->captured);
-        if (item.size() <= key.size()) {
-            return std::string();  // "key" with no value
-        }
-        return std::string(item.substr(key.size() + 1));  // after "key="
-    }
+    // SD payload fields (sd_flags / sd_reserved / sd_entries_len / sd_options_len,
+    // the parsed sd_entries[] / sd_options[] / sd_config_items[] arrays and their
+    // counts, cached_offer_endpoint_udp_port, and the SD-only helper methods) are
+    // inherited from the SdDecoded mixin (someip/sd_decode.h).
 
     // §5.1.5.3.2 SOMEIPSRV_SD_MESSAGE_02 dynamic instance extraction.
     // The spec body (steps 6-7) extracts instance IDs from a 2-entry
@@ -372,25 +198,15 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     std::uint16_t extracted_instance_id_1 = 0;
     std::uint16_t extracted_instance_id_2 = 0;
 
-    // §5.1.5.3.9 SOMEIPSRV_SD_MESSAGE_09 cross-phase cache — UDP port
-    // pulled from the most recent OfferService's IPv4 Endpoint Option
-    // (option type 0x04, l4_proto 0x11). Updated by
-    // `fillSomeIpCapturedFromFrame` on every OfferService observation,
-    // preserved across non-OfferService frames so the case's Phase 3
-    // Notification guard can compare `captured.src_port ==
-    // captured.cached_offer_endpoint_udp_port` without an SCXML
-    // datamodel. Stays 0 until an OfferService is observed; matches
-    // (or differs from) the wire-source for that single observation
-    // window.
-    std::uint16_t cached_offer_endpoint_udp_port = 0;
+    // (cached_offer_endpoint_udp_port, sd_ipv4_endpoint_count / _multicast_count,
+    // and the display-only wire totals sd_entry_count_wire /
+    // sd_ipv4_endpoint_count_wire are inherited from the SdDecoded mixin.)
 
-    // Per-type counts for the two endpoint-bearing option types. Computed
-    // alongside sd_option_count so SCXML guards can assert presence
-    // ("DUT emitted >= 1 IPv4 Endpoint Option") without re-walking the
-    // array. Cases that need a specific endpoint protocol (UDP vs TCP)
-    // index into `sd_options[]` and inspect `l4_proto`.
-    std::uint8_t sd_ipv4_endpoint_count = 0;
-    std::uint8_t sd_ipv4_multicast_count = 0;
+    // True when the SOME/IP header is on the Service Discovery channel (Service
+    // ID == someip::kSdServiceId). The verdict-path recognizers gate on the
+    // Service ID alone — the SD payload has already been parsed under the same
+    // gate — so this is the single predicate they share (docs/tech-debt.md TD-07).
+    bool headerIsSd() const { return service_id == someip::kSdServiceId; }
 
     // Returns true when this frame is the DUT's OfferService for
     // `want_service_id`: an SD message (header service_id == 0xFFFF) whose
@@ -401,7 +217,7 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     // and SOMEIP_ETS_152 use it as the Phase 1 liveness gate. Single source
     // of truth for that predicate so the gate cannot drift across templates.
     bool is_offer_service_for(std::uint16_t want_service_id) const {
-        return service_id == 0xFFFF && sd_entry_count >= 1 &&
+        return headerIsSd() && sd_entry_count >= 1 &&
                sd_entries[0].type == sd_entry_type::kOfferService &&
                sd_entries[0].service_id == want_service_id;
     }
@@ -436,7 +252,7 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
 
     // DUT FindService for `want_service_id` (first entry type 0x00).
     bool is_find_service_from_dut(std::uint16_t want_service_id) const {
-        return service_id == 0xFFFF && sd_entry_count >= 1 &&
+        return headerIsSd() && sd_entry_count >= 1 &&
                sd_entries[0].type == sd_entry_type::kFindService &&
                (want_service_id == 0xFFFF || sd_entries[0].service_id == want_service_id);
     }
@@ -445,7 +261,7 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     // live TTL (> 0). A StopSubscribe (TTL 0) returns false here — use
     // is_stop_subscribe for that.
     bool is_subscribe_for(std::uint16_t want_service_id, std::uint16_t want_eventgroup_id) const {
-        return service_id == 0xFFFF && sd_entry_count >= 1 &&
+        return headerIsSd() && sd_entry_count >= 1 &&
                sd_entries[0].type == sd_entry_type::kSubscribeEventgroup &&
                sd_entries[0].ttl > 0 &&
                sd_entries[0].service_id == want_service_id &&
@@ -455,67 +271,16 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     // DUT StopSubscribeEventgroup for `(want_service_id, want_eventgroup_id)` —
     // a SubscribeEventgroup entry (type 0x06) whose TTL is 0 (TR_SOMEIP §7.4.2).
     bool is_stop_subscribe(std::uint16_t want_service_id, std::uint16_t want_eventgroup_id) const {
-        return service_id == 0xFFFF && sd_entry_count >= 1 &&
+        return headerIsSd() && sd_entry_count >= 1 &&
                sd_entries[0].type == sd_entry_type::kSubscribeEventgroup &&
                sd_entries[0].ttl == 0 &&
                sd_entries[0].service_id == want_service_id &&
                sd_entries[0].eventgroup_id == want_eventgroup_id;
     }
 
-    // Returns true when at least one parsed option matches `(type, l4)`.
-    // Used by OPTIONS_06/13/15 guards that assert "an IPv4 Endpoint
-    // Option with L4-Proto = X is present" without committing to a fixed
-    // array index (vsomeip orders the UDP/TCP options unpredictably).
-    bool sd_has_option_with_l4(std::uint8_t want_type, std::uint8_t want_l4) const {
-        for (std::uint8_t i = 0; i < sd_option_count; ++i) {
-            if (sd_options[i].type == want_type && sd_options[i].l4_proto == want_l4) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    // Returns the first option matching `(type, l4)` as a const reference,
-    // or a static empty option when none is present. Lets SCXML guards
-    // chain field lookups (port, ipv4) on a logically-named protocol axis.
-    const SdOption &sd_first_option_with_l4(std::uint8_t want_type, std::uint8_t want_l4) const {
-        static constexpr SdOption kEmpty{};
-        for (std::uint8_t i = 0; i < sd_option_count; ++i) {
-            if (sd_options[i].type == want_type && sd_options[i].l4_proto == want_l4) {
-                return sd_options[i];
-            }
-        }
-        return kEmpty;
-    }
-
-    // Counts distinct port values across IPv4 Endpoint Options whose L4
-    // matches `want_l4`. §5.1.5.7 RPC_14/_17 use this to assert that
-    // two service-instances of the same service expose different UDP
-    // (RPC_14) or TCP (RPC_17) ports — a 2-instance OfferService should
-    // produce two distinct ports per L4 axis. Walks at most kMaxSdOptions
-    // ports; collisions on the small fixed buffer are impossible because
-    // the cap is the array size.
-    std::uint8_t sd_distinct_endpoint_ports_for_l4(std::uint8_t want_l4) const {
-        std::uint16_t seen[kMaxSdOptions]{};
-        std::uint8_t seen_count = 0;
-        for (std::uint8_t i = 0; i < sd_option_count; ++i) {
-            const SdOption &o = sd_options[i];
-            if (o.type != sd_option_type::kIpv4Endpoint || o.l4_proto != want_l4) {
-                continue;
-            }
-            bool already = false;
-            for (std::uint8_t j = 0; j < seen_count; ++j) {
-                if (seen[j] == o.port) {
-                    already = true;
-                    break;
-                }
-            }
-            if (!already) {
-                seen[seen_count++] = o.port;
-            }
-        }
-        return seen_count;
-    }
+    // (The SD-only option helpers — sd_has_option_with_l4,
+    // sd_first_option_with_l4, sd_distinct_endpoint_ports_for_l4 — are inherited
+    // from the SdDecoded mixin.)
 };
 
 // ADL hook called by `TestRunner<SM>` at construction. No-op for captured
@@ -528,24 +293,12 @@ inline void applyTestConfig(SomeIpCaptured & /*c*/, const TestConfig & /*cfg*/) 
     // captured-from-wire fields have no CLI-driven initial values.
 }
 
-// Forward declaration — `fillSomeIpCapturedFromFrame` calls
-// `parseSdHeaderInto`, and the latter is defined below to keep the SD
-// wire-format documentation grouped in one place.
-inline void parseSdHeaderInto(SomeIpCaptured &c, const std::uint8_t *payload, std::size_t payload_len);
-
-// Decode the Options Array (TR_SOMEIP §7.3, after the Entries Array). Caller passes
-// the full SD payload; this routine seeks to the options block using the
-// already-populated `sd_entries_len` and `sd_options_len` fields. Walks
-// each option's [Length(2B BE), Type(1B), per-type tail] tuple, populates
-// `sd_options[]` up to `kMaxSdOptions`, and updates per-type counts.
-inline void parseSdOptionsInto(SomeIpCaptured &c, const std::uint8_t *payload, std::size_t payload_len);
-
 // Shared fill logic for §5.1 cases whose dispatch() copies a SOME/IP
 // frame into the captured context. Every SOMEIPSRV case used to carry
-// a ~15-line copy block plus a guarded parseSdHeaderInto; centralizing
-// here collapses dispatch() bodies to ~5 lines and keeps SD payload
-// parsing gated on `service_id == 0xFFFF` so non-SD frames never push
-// misaligned bytes through parseSdHeaderInto.
+// a ~15-line copy block plus a guarded SD parse; centralizing here
+// collapses dispatch() bodies to ~5 lines and keeps SD payload parsing
+// gated on the SD Service ID (headerIsSd) so non-SD frames never push
+// misaligned bytes through parseSdInto.
 inline void fillSomeIpCapturedFromFrame(SomeIpCaptured &c, const SomeIpFrame &f) {
     c.service_id = f.service_id;
     c.method_id = f.method_id;
@@ -567,21 +320,12 @@ inline void fillSomeIpCapturedFromFrame(SomeIpCaptured &c, const SomeIpFrame &f)
     c.src_port = f.src_port;
     c.dst_port = f.dst_port;
     c.observed_ts_us = f.observed_ts_us;
-    if (f.service_id == 0xFFFF) {
-        parseSdHeaderInto(c, f.payload_data, f.payload_len);
-        parseSdOptionsInto(c, f.payload_data, f.payload_len);
-        // §5.1.5.3.9 cross-phase cache: OfferService (entry type 0x01)
-        // with a UDP IPv4 Endpoint Option (type 0x04, l4_proto 0x11)
-        // populates `cached_offer_endpoint_udp_port`. Non-OfferService
-        // frames leave the cache untouched, so SD_MESSAGE_09's Phase 3
-        // Notification guard can compare against the value learned in
-        // Phase 1 without an SCXML datamodel.
-        if (c.sd_entry_count > 0 && c.sd_entries[0].type == sd_entry_type::kOfferService) {
-            const auto &udp_endpoint = c.sd_first_option_with_l4(0x04, 0x11);
-            if (udp_endpoint.port != 0) {
-                c.cached_offer_endpoint_udp_port = udp_endpoint.port;
-            }
-        }
+    if (c.headerIsSd()) {
+        // Decode the SD payload into the inherited SdDecoded aspect through the
+        // neutral leaf (someip/sd_decode.h). The §5.1.5.3.9 cross-phase
+        // OfferService endpoint cache (cached_offer_endpoint_udp_port) and the
+        // display wire totals are populated inside parseSdInto.
+        parseSdInto(c, f.payload_data, f.payload_len);
     }
     // SOME/IP-TP: the capture context is reused across frames, so reset per frame, then
     // populate from the TP header only when the TP-Flag is set AND the header parses, so
@@ -599,93 +343,6 @@ inline void fillSomeIpCapturedFromFrame(SomeIpCaptured &c, const SomeIpFrame &f)
             c.tp_more_segments = tph.more_segments;
             c.tp_segment_len = static_cast<std::uint32_t>(f.payload_len - someiptp::kTpHeaderLen);
         }
-    }
-}
-
-// Peeks the first SD entry's Type byte without mutating a context — used
-// by dispatch() filters that want to reject e.g. FindService echoes
-// (type 0x00) before committing the frame's fields to ctx. The Type
-// byte lives at offset 8 of the SD payload (after the 4-byte flags/
-// reserved header and 4-byte entries-array length). Returns a sentinel
-// 0xFF when the payload is too short to cover byte 8.
-inline std::uint8_t peekSdEntry0Type(const std::uint8_t *payload, std::size_t payload_len) {
-    constexpr std::uint8_t kSentinel = 0xFF;
-    if (payload == nullptr || payload_len < 9) {
-        return kSentinel;
-    }
-    return payload[8];
-}
-
-// Decode one 16-byte SD entry at `src` into `dst`. Both Type 1 and Type 2
-// tail interpretations are filled so guards can pick the matching view
-// without re-decoding the raw bytes; the entry field layout (offsets, widths,
-// and the bit slices) is owned by someip_sd_wire.def and expanded here, so
-// the C++ decoder is a direct consumer of the SSOT, not a hand-mirror of it.
-// The Python site mirror derives from the same .def — see docs/tech-debt.md
-// TD-01.
-inline void decodeSdEntry(SdEntry &dst, const std::uint8_t *src) {
-#define TC8_SD_ENTRY_FIELD(group, member, off, size, shift, mask) \
-    dst.member = static_cast<decltype(dst.member)>(              \
-        (::tc8::wire::readBe(src + (off), (size)) >> (shift)) & (mask));
-#include "someip_sd_wire.def"
-#undef TC8_SD_ENTRY_FIELD
-}
-
-// Parse the SD payload layout (TR_SOMEIP §7.3): 4-byte header (Flags + Reserved),
-// 4-byte LengthOfEntriesArray, Entries array (N * 16 bytes), 4-byte
-// LengthOfOptionsArray. Fills sd_flags/sd_reserved when >= 4 bytes are
-// available, sd_entries_len when >= 8 bytes are available, entries up to
-// `kMaxSdEntries` when the payload covers them, and sd_options_len when
-// the entries array is fully present. Fields the parser can't reach keep
-// their default 0 — callers that care must gate on `service_id ==
-// 0xFFFF` and on the relevant length invariant.
-inline void parseSdHeaderInto(SomeIpCaptured &c, const std::uint8_t *payload, std::size_t payload_len) {
-    if (payload == nullptr || payload_len < 4) {
-        return;
-    }
-#define TC8_SD_HEADER_FIELD(member, off, size, shift, mask) \
-    c.member = static_cast<decltype(c.member)>(            \
-        (::tc8::wire::readBe(payload + (off), (size)) >> (shift)) & (mask));
-#include "someip_sd_wire.def"
-#undef TC8_SD_HEADER_FIELD
-
-    if (payload_len < 8) {
-        return;
-    }
-#define TC8_SD_ENTRIESLEN_FIELD(member, off, size, shift, mask) \
-    c.member = static_cast<decltype(c.member)>(                \
-        (::tc8::wire::readBe(payload + (off), (size)) >> (shift)) & (mask));
-#include "someip_sd_wire.def"
-#undef TC8_SD_ENTRIESLEN_FIELD
-
-    // Parse entries. Each entry is 16 bytes and lives at payload offset
-    // 8 + i*16. Stop early if the payload is truncated mid-entry, the
-    // declared entries length is inconsistent (not a multiple of 16), or
-    // we reach `kMaxSdEntries`.
-    const std::uint32_t declared_entries_bytes = c.sd_entries_len;
-    const std::size_t kEntriesStart = 8;
-    std::uint8_t parsed = 0;
-    for (std::size_t i = 0; i < SomeIpCaptured::kMaxSdEntries; ++i) {
-        const std::size_t offset = kEntriesStart + i * 16;
-        if (offset + 16 > payload_len) {
-            break;
-        }
-        if (declared_entries_bytes < (i + 1) * 16) {
-            break;
-        }
-        decodeSdEntry(c.sd_entries[i], payload + offset);
-        parsed = static_cast<std::uint8_t>(i + 1);
-    }
-    c.sd_entry_count = parsed;
-
-    // OptionsLen follows the entries array on the wire — read it even if
-    // we stopped short of `kMaxSdEntries` (the declared entries length
-    // tells us the full entries-array footprint regardless of parse cap).
-    const std::size_t options_len_offset = kEntriesStart + declared_entries_bytes;
-    if (options_len_offset + 4 <= payload_len) {
-        const std::uint8_t *o = payload + options_len_offset;
-        c.sd_options_len = (static_cast<std::uint32_t>(o[0]) << 24) | (static_cast<std::uint32_t>(o[1]) << 16) |
-                           (static_cast<std::uint32_t>(o[2]) << 8) | static_cast<std::uint32_t>(o[3]);
     }
 }
 
@@ -725,117 +382,6 @@ inline constexpr std::uint16_t kEventGroupId = 0xFFFE;
 // "wildcard"; does not collide with any tc8-dut method (0x01..0x41).
 inline constexpr std::uint16_t kMethodId     = 0xFFFE;
 }  // namespace sd_test_unknown
-
-inline void parseSdOptionsInto(SomeIpCaptured &c, const std::uint8_t *payload, std::size_t payload_len) {
-    if (payload == nullptr) {
-        return;
-    }
-    // Options array starts immediately after the 4-byte options-length
-    // field, which itself follows the entries array. parseSdHeaderInto
-    // populates sd_entries_len and sd_options_len; this routine is a no-op
-    // when those length invariants haven't been reached.
-    const std::size_t kEntriesStart = 8;
-    const std::size_t options_len_offset = kEntriesStart + c.sd_entries_len;
-    const std::size_t options_start = options_len_offset + 4;
-    if (options_start > payload_len) {
-        return;
-    }
-    const std::uint32_t declared_options_bytes = c.sd_options_len;
-    if (declared_options_bytes == 0) {
-        return;
-    }
-
-    std::size_t cursor = 0;
-    std::uint8_t parsed = 0;
-    std::uint8_t endpoint_count = 0;
-    std::uint8_t multicast_count = 0;
-    bool config_seen = false;
-    while (parsed < SomeIpCaptured::kMaxSdOptions && cursor + 3 <= declared_options_bytes &&
-           options_start + cursor + 3 <= payload_len) {
-        const std::uint8_t *o = payload + options_start + cursor;
-        const std::uint16_t opt_len =
-            static_cast<std::uint16_t>((static_cast<std::uint16_t>(o[0]) << 8) | o[1]);
-        const std::uint8_t opt_type = o[2];
-        // Total bytes this option occupies on the wire = 2 (Length) +
-        // 1 (Type) + opt_len. Stop early on a truncated tail or an
-        // inconsistent declared options-array length.
-        const std::size_t opt_total = static_cast<std::size_t>(3) + opt_len;
-        if (cursor + opt_total > declared_options_bytes) {
-            break;
-        }
-        if (options_start + cursor + opt_total > payload_len) {
-            break;
-        }
-
-        SdOption &dst = c.sd_options[parsed];
-        dst.length = opt_len;
-        dst.type = opt_type;
-
-        // IPv4 Endpoint and IPv4 Multicast share the same 12-byte layout
-        // (Length=0x0009). Other types' tails stay at default 0 — guards
-        // for those would inspect Length/Type only.
-        const bool decode_endpoint = (opt_type == sd_option_type::kIpv4Endpoint ||
-                                      opt_type == sd_option_type::kIpv4Multicast ||
-                                      opt_type == sd_option_type::kIpv4SdEndpoint) &&
-                                     opt_total >= 12;
-        if (decode_endpoint) {
-            // Field layout owned by someip_sd_wire.def (TD-01 SSOT). The
-            // TC8_SD_OPTION_ADDR row memcpy's the 4 wire bytes, preserving
-            // network byte order — the resulting `ipv4` uint32 compares
-            // equal to expected.* values produced by inet_pton (which
-            // stores `addr.s_addr` in NBO).
-#define TC8_SD_OPTION_FIELD(member, off, size, shift, mask) \
-            dst.member = static_cast<decltype(dst.member)>( \
-                (::tc8::wire::readBe(o + (off), (size)) >> (shift)) & (mask));
-#define TC8_SD_OPTION_ADDR(member, off) std::memcpy(&dst.member, o + (off), 4);
-#include "someip_sd_wire.def"
-#undef TC8_SD_OPTION_FIELD
-#undef TC8_SD_OPTION_ADDR
-        }
-
-        // Configuration Option (type 0x01): a Reserved byte then the DNS TXT-like
-        // config string — length-prefixed "key[=value]" items, zero-length-terminated
-        // (PRS_SOMEIPSD / SWS_SD §7.3). Parse the first such option's items.
-        if (opt_type == sd_option_type::kConfiguration && !config_seen && opt_len >= 1) {
-            config_seen = true;
-            dst.reserved1 = o[3];
-            const std::uint8_t *cs = o + 4;           // after Length(2) + Type(1) + Reserved(1)
-            const std::size_t cs_len = opt_len - 1u;  // option body minus the Reserved byte
-            std::size_t p = 0;
-            std::uint8_t items = 0;
-            while (p < cs_len && items < SomeIpCaptured::kMaxSdConfigItems) {
-                const std::uint8_t item_len = cs[p];
-                if (item_len == 0) {
-                    break;  // zero-length byte terminates the sequence
-                }
-                ++p;
-                if (p + item_len > cs_len) {
-                    break;  // item runs past the option body — truncated
-                }
-                SdConfigItem &item = c.sd_config_items[items];
-                item.len = item_len;
-                item.captured = static_cast<std::uint8_t>(
-                    item_len < kMaxSdConfigItemLen ? item_len : kMaxSdConfigItemLen);
-                std::memcpy(item.bytes, cs + p, item.captured);
-                p += item_len;
-                ++items;
-            }
-            c.sd_config_item_count = items;
-        }
-
-        if (opt_type == sd_option_type::kIpv4Endpoint) {
-            ++endpoint_count;
-        } else if (opt_type == sd_option_type::kIpv4Multicast) {
-            ++multicast_count;
-        }
-
-        cursor += opt_total;
-        ++parsed;
-    }
-    c.sd_option_count = parsed;
-    c.sd_ipv4_endpoint_count = endpoint_count;
-    c.sd_ipv4_multicast_count = multicast_count;
-}
 
 // Trace-recording hook (Evidence Export). See arp_captured.h for the
 // design overview; this overload exposes the SOME/IP cond-gating subset

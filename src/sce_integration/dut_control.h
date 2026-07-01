@@ -221,16 +221,20 @@ public:
             stimulus::buildReceiveTcpDataRequest(nextReqId(), static_cast<std::uint8_t>(sock.id),
                                                  max_len, kRecvTimeoutMs),
             port_, timeout_ms_ + kRecvTimeoutMs, src_ip_be_);
-        if (!r || r->status != ut::kStatusOk || r->data.size() < 2) {
+        if (!r || r->status != ut::kStatusOk) {
             return std::nullopt;
         }
-        // OpReceiveTcpData response data: receivedLen(u16 BE) + payload. Clamp the
-        // length to the bytes actually present — a DUT that reports more than it
-        // sent is tolerated by truncating rather than over-reading.
-        const std::uint16_t received_len =
-            static_cast<std::uint16_t>((r->data[0] << 8) | r->data[1]);
+        // recv_len(u16 BE) offset owned by ut::decodeResponseBody (TD-06); the
+        // payload follows the 2-byte length. Clamp to bytes actually present — a
+        // DUT that reports more than it sent is truncated rather than over-read.
+        ut::UtResponse resp;
+        resp.request_opcode = ut::OpReceiveTcpData;
+        ut::decodeResponseBody(resp, r->data.data(), static_cast<std::uint32_t>(r->data.size()));
+        if (!resp.recv_len_valid) {
+            return std::nullopt;
+        }
         const std::size_t avail = r->data.size() - 2;
-        const std::size_t take = received_len < avail ? received_len : avail;
+        const std::size_t take = resp.recv_len < avail ? resp.recv_len : avail;
         return std::vector<std::uint8_t>(
             r->data.begin() + 2, r->data.begin() + 2 + static_cast<std::ptrdiff_t>(take));
     }
@@ -306,10 +310,16 @@ public:
             stimulus::buildQueryTcpEstablishedRequest(nextReqId(),
                                                       static_cast<std::uint8_t>(sock.id)),
             port_, timeout_ms_, src_ip_be_);
-        if (!r || r->status != ut::kStatusOk || r->data.empty()) {
+        if (!r || r->status != ut::kStatusOk) {
             return std::nullopt;
         }
-        return r->data[0] != 0;
+        ut::UtResponse resp;
+        resp.request_opcode = ut::OpQueryTcpEstablished;
+        ut::decodeResponseBody(resp, r->data.data(), static_cast<std::uint32_t>(r->data.size()));
+        if (!resp.established_valid) {
+            return std::nullopt;
+        }
+        return resp.established != 0;
     }
 
     std::optional<DutTcpInfo> queryInfo(DutSocket sock) override {
@@ -317,22 +327,23 @@ public:
             dut_ip_be_,
             stimulus::buildQueryTcpInfoRequest(nextReqId(), static_cast<std::uint8_t>(sock.id)),
             port_, timeout_ms_, src_ip_be_);
-        // Body: <state:u8> <rto_us:u32 BE> <retransmits:u8> <unacked:u32 BE> = 10 B.
-        if (!r || r->status != ut::kStatusOk || r->data.size() < 10) {
+        if (!r || r->status != ut::kStatusOk) {
             return std::nullopt;
         }
-        const auto &d = r->data;
+        // The QueryTcpInfo body offsets are owned by ut::decodeResponseBody
+        // (docs/tech-debt.md TD-06) — the same decoder the passive-capture /
+        // exporter paths use — so this active-control path cannot drift from it.
+        ut::UtResponse resp;
+        resp.request_opcode = ut::OpQueryTcpInfo;
+        ut::decodeResponseBody(resp, r->data.data(), static_cast<std::uint32_t>(r->data.size()));
+        if (!resp.tcp_info_valid) {
+            return std::nullopt;
+        }
         DutTcpInfo info{};
-        info.state       = d[0];
-        info.rto_us      = (static_cast<std::uint32_t>(d[1]) << 24) |
-                           (static_cast<std::uint32_t>(d[2]) << 16) |
-                           (static_cast<std::uint32_t>(d[3]) << 8) |
-                           static_cast<std::uint32_t>(d[4]);
-        info.retransmits = d[5];
-        info.unacked     = (static_cast<std::uint32_t>(d[6]) << 24) |
-                           (static_cast<std::uint32_t>(d[7]) << 16) |
-                           (static_cast<std::uint32_t>(d[8]) << 8) |
-                           static_cast<std::uint32_t>(d[9]);
+        info.state       = resp.tcp_state;
+        info.rto_us      = resp.tcp_rto_us;
+        info.retransmits = resp.tcp_retransmits;
+        info.unacked     = resp.tcp_unacked;
         return info;
     }
 
@@ -368,13 +379,17 @@ public:
             stimulus::buildReceiveTcpDataOobRequest(nextReqId(), static_cast<std::uint8_t>(sock.id),
                                                     max_len, kRecvTimeoutMs),
             port_, timeout_ms_ + kRecvTimeoutMs, src_ip_be_);
-        if (!r || r->status != ut::kStatusOk || r->data.size() < 2) {
+        if (!r || r->status != ut::kStatusOk) {
             return std::nullopt;
         }
-        const std::uint16_t received_len =
-            static_cast<std::uint16_t>((r->data[0] << 8) | r->data[1]);
+        ut::UtResponse resp;
+        resp.request_opcode = ut::OpReceiveTcpDataOob;
+        ut::decodeResponseBody(resp, r->data.data(), static_cast<std::uint32_t>(r->data.size()));
+        if (!resp.recv_len_valid) {
+            return std::nullopt;
+        }
         const std::size_t avail = r->data.size() - 2;
-        const std::size_t take = received_len < avail ? received_len : avail;
+        const std::size_t take = resp.recv_len < avail ? resp.recv_len : avail;
         return std::vector<std::uint8_t>(
             r->data.begin() + 2, r->data.begin() + 2 + static_cast<std::ptrdiff_t>(take));
     }

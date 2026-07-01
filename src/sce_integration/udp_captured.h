@@ -223,49 +223,36 @@ inline void fillUdpCapturedFromFrame(UdpCaptured &c, const UdpFrame &f) {
     // wire `length` field.
     c.fillPayloadSnapshot(f.payload_data, f.payload_len);
 
-    if (f.src_port == ut::kPort &&
-        f.payload_data != nullptr && f.payload_len >= 3U &&
-        (f.payload_data[0] & ut::kResponseBit) != 0U) {
+    // UT response fields are decoded through the shared tc8::ut::decodeResponse
+    // (upper_tester_protocol.h), the single owner of the response wire offsets
+    // (docs/tech-debt.md TD-06). The verdict path layers the src_port == kPort
+    // gate on top: `has_ut_response` means "a UT response from OUR UT server"
+    // (see the src_port note above), so only a kPort-sourced response populates
+    // these fields. This struct keeps just the subset the §4.6 guards assert on.
+    const ut::UtResponse r = ut::decodeResponse(f.payload_data, f.payload_len);
+    if (f.src_port == ut::kPort && r.is_response && r.has_status) {
         c.has_ut_response = true;
-        c.ut_opcode       = f.payload_data[0];
-        c.ut_req_id       = f.payload_data[1];
-        c.ut_status       = f.payload_data[2];
-        // GetReceivedUdp response body first byte is `received`; other
-        // opcodes don't populate this field but leaving it zero is
-        // safe — consumers gate on `ut_opcode == 0x81` before reading.
-        if (c.ut_opcode == static_cast<std::uint8_t>(ut::OpCreateUdpReceivePorts |
-                                                      ut::kResponseBit) &&
-            f.payload_len >= 4U) {
-            c.ut_create_actual_count = f.payload_data[3];
+        c.ut_opcode       = r.opcode;
+        c.ut_req_id       = r.req_id;
+        c.ut_status       = r.status;
+        if (r.request_opcode == ut::OpCreateUdpReceivePorts && r.create_count_valid) {
+            c.ut_create_actual_count = r.create_actual_count;
         }
-        if (c.ut_opcode == static_cast<std::uint8_t>(ut::OpGetReceivedUdp |
-                                                      ut::kResponseBit) &&
-            f.payload_len >= 4U) {
-            c.ut_received = f.payload_data[3];
-
-            // Optional trailer (populated when ut_received == 1 and the
-            // body carries at least 4 + 2 + 2 = 8 trailer bytes after
-            // payload[3]). tc8-dut serialises:
-            //   <src_ip:u32 BE> <src_port:u16 BE>
-            //   <payload_len:u16 BE> <payload[]>
-            // starting at f.payload_data[4].
-            if (c.ut_received == 1U && f.payload_len >= 12U) {
-                const std::uint8_t *t = f.payload_data + 4;
-                c.ut_recv_src_ip =
-                      (static_cast<std::uint32_t>(t[0]))
-                    | (static_cast<std::uint32_t>(t[1]) << 8)
-                    | (static_cast<std::uint32_t>(t[2]) << 16)
-                    | (static_cast<std::uint32_t>(t[3]) << 24);
-                c.ut_recv_src_port = static_cast<std::uint16_t>(
-                    (static_cast<std::uint16_t>(t[4]) << 8) | t[5]);
-                c.ut_recv_payload_len = static_cast<std::uint16_t>(
-                    (static_cast<std::uint16_t>(t[6]) << 8) | t[7]);
+        if (r.request_opcode == ut::OpGetReceivedUdp && r.received_valid) {
+            c.ut_received = r.received;
+            // Optional trailer (src_ip / src_port / payload_len / payload),
+            // present only for a populated receipt (received == 1) that carried
+            // the full trailer. Offsets owned by decodeResponse.
+            if (r.recv_trailer_valid) {
+                c.ut_recv_src_ip      = r.recv_src_ip;
+                c.ut_recv_src_port    = r.recv_src_port;
+                c.ut_recv_payload_len = r.recv_payload_len;
                 const std::size_t copy_len = std::min<std::size_t>(
                     {static_cast<std::size_t>(c.ut_recv_payload_len),
                      c.ut_recv_payload_first16.size(),
-                     static_cast<std::size_t>(f.payload_len) - 12U});
+                     static_cast<std::size_t>(r.recv_payload_avail)});
                 for (std::size_t i = 0; i < copy_len; ++i) {
-                    c.ut_recv_payload_first16[i] = t[8 + i];
+                    c.ut_recv_payload_first16[i] = r.recv_payload[i];
                 }
             }
         }

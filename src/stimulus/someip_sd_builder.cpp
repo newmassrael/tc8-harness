@@ -7,6 +7,7 @@
 #include <string>
 #include <thread>
 
+#include "someip/protocol.h"  // tc8::someip::kSdServiceId / kSdMethodId (SD Message ID SSOT)
 #include "someip/wire.h"
 #include "stimulus/iface_addr.h"
 #include "stimulus/udp_emit.h"
@@ -36,9 +37,9 @@ namespace {
 // hand-rolled copies are gone, so a header-field change lands in one place.
 void appendSdHeader(std::vector<std::uint8_t> &b, std::uint16_t session_id,
                     std::uint32_t length, std::uint8_t flags, std::uint32_t entries_len,
-                    std::uint32_t reserved = 0, std::uint16_t method_id = 0x8100) {
+                    std::uint32_t reserved = 0, std::uint16_t method_id = someip::kSdMethodId) {
     someip::Header h;
-    h.service_id = 0xFFFF;
+    h.service_id = someip::kSdServiceId;
     h.method_id = method_id;
     h.length = length;
     h.client_id = 0x0000;
@@ -325,9 +326,8 @@ std::vector<std::uint8_t> buildSubscribeEventgroup(const SubscribeEventgroupPara
     // Payload = 4 + 4 + 16 + 4 + 12 = 40 bytes.
     // SOME/IP length field counts bytes from Request ID onwards:
     //   8 (request_id + proto/iface/msgtype/retcode) + 40 (payload) = 48.
-    // Only the SD Method ID default survives as a constant — the rest of the
+    // The SD Method ID comes from the someip::kSdMethodId SSOT; the rest of the
     // header is emitted by appendSdHeader. ETS_178 overrides it via method_id_override.
-    constexpr std::uint16_t kMethodIdSd = 0x8100;
     constexpr std::uint32_t kLengthFieldCanonical = 48;
     constexpr std::uint32_t kEntriesLenCanonical = 16;
     constexpr std::uint32_t kOptionsLenCanonical = 12;
@@ -351,7 +351,7 @@ std::vector<std::uint8_t> buildSubscribeEventgroup(const SubscribeEventgroupPara
     const std::uint8_t option_reserved0 = p.option_reserved0_override.value_or(0);
     const std::uint8_t option_reserved1 = p.option_reserved1_override.value_or(0);
     const std::uint8_t option_type_field = p.option_type_override.value_or(kOptionTypeIpv4);
-    const std::uint16_t method_id_field = p.method_id_override.value_or(kMethodIdSd);
+    const std::uint16_t method_id_field = p.method_id_override.value_or(someip::kSdMethodId);
     // Canonical #Opt1 nibble is 1 ("one option in run 1"); ETS_115 overrides
     // to a value >1 to assert "more option references than exist".
     constexpr std::uint8_t kNumOptionsFirstCanonical = 1;

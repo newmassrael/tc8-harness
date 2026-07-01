@@ -6,7 +6,7 @@
 
 #include "tc8/protocol_frames/dhcpv4_frame.h"
 
-#include "sce_integration/wire_read.h"
+#include "wire/wire_read.h"
 
 // Authoritative C++ consumer of the DHCPv4 BOOTP fixed-header wire-layout
 // SSOT in dhcpv4_wire.def. The byte offsets are owned by the .def and
