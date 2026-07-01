@@ -529,12 +529,16 @@ private:
 };
 }  // namespace
 
-std::unique_ptr<tc8::testability::Waker> PosixSocketBackend::createWaker() {
+std::unique_ptr<tc8::testability::Waker> makeEventfdWaker() {
     const int fd = ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
     if (fd < 0) {
         return nullptr;
     }
     return std::make_unique<EventfdWaker>(fd);
+}
+
+std::unique_ptr<tc8::testability::Waker> PosixSocketBackend::createWaker() {
+    return makeEventfdWaker();
 }
 
 void PosixSocketBackend::closeFd(int fd) {

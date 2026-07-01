@@ -201,14 +201,26 @@ add_test(NAME pollable_host_test COMMAND pollable_host_test)
 # Waker-backed queue the detached suspend thread posts Suspend/Reactivate to and the DUT
 # main loop drains to dispatch onSuspend/onReactivate (FIFO, lossless, prompt — resolved
 # TD-13). Header-only; needs dut/dut_service (the header) + src (testability/io_multiplexer.h
-# for Waker) on the include path + GTest.
+# for Waker) + this dir (fake_waker.h) + GTest + Threads (the concurrent-losslessness test).
+find_package(Threads REQUIRED)
 add_executable(lifecycle_signal_test lifecycle_signal_test.cpp)
 target_include_directories(lifecycle_signal_test PRIVATE
     ${PROJECT_SOURCE_DIR}/dut/dut_service
-    ${PROJECT_SOURCE_DIR}/src)
+    ${PROJECT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(lifecycle_signal_test PRIVATE
-    GTest::gtest GTest::gtest_main)
+    GTest::gtest GTest::gtest_main Threads::Threads)
 add_test(NAME lifecycle_signal_test COMMAND lifecycle_signal_test)
+
+# Warm-suspendInterface dispatcher (dut/dut_service/lifecycle_dispatcher.h): the
+# drain->switch->hook marshalling extracted from dut_main so the enum->hook wiring is
+# unit-tested (a transposed switch arm is caught behaviorally) — the extract-and-test parity
+# the retired ResumeEdge had. Uses the vsomeip-free ETS facade interfaces (header-only) as
+# no-op stubs; needs dut/dut_service + this dir (fake_waker.h) on top of the macro's src/include.
+tc8_add_unit_test(lifecycle_dispatcher_test)
+target_include_directories(lifecycle_dispatcher_test PRIVATE
+    ${PROJECT_SOURCE_DIR}/dut/dut_service
+    ${CMAKE_CURRENT_SOURCE_DIR})
 
 tc8_add_unit_test(expect_parser_test)
 tc8_add_unit_test(someip_sd_builder_test)

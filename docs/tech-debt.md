@@ -661,11 +661,12 @@ prompt (woken on the eventfd, not noticed on the next tick poll). `ResumeEdge` a
 are retired; `lifecycle_signal_test` covers the channel. The prose below is kept for the
 rationale that led here.
 
-**What.** The warm `suspendInterface` re-offer signal is delivered by the detached suspend
-thread bumping a monotonic `std::atomic<uint32_t>` counter (`ServerRole::resumeCount()`),
-which the DUT main loop (`dut/dut_service/dut_main.cpp`) polls once per pass through a
-`ResumeEdge` edge-detector (`dut/dut_service/resume_edge.h`) to fire `onReactivate` on the
-main thread. The repo already ships a purpose-built cross-thread wake primitive for exactly
+**What it was** (all symbols named below were removed by the resolution above — kept in past
+tense for the rationale record). The warm `suspendInterface` re-offer signal was delivered by
+the detached suspend thread bumping a monotonic `std::atomic<uint32_t>` counter
+(`ServerRole::resumeCount()`), which the DUT main loop (`dut/dut_service/dut_main.cpp`) polled
+once per pass through a `ResumeEdge` edge-detector (`dut/dut_service/resume_edge.h`) to fire
+`onReactivate` on the main thread. The repo already ships a purpose-built cross-thread wake primitive for exactly
 "a detached thread must signal a poll() loop" — `tc8::testability::Waker`
 (`src/testability/io_multiplexer.h`; POSIX eventfd + lwIP loopback-UDP backends,
 `EventfdWaker` in `dut/dut_service/posix_socket_backend.cpp`) — used by the testability
@@ -686,8 +687,8 @@ not mean the wire OfferService is out yet), so an event-driven wake would not ma
 wire-tight anyway. The counter also does NOT GENERALIZE: an `onSuspend` (fire on the stop half)
 would add a parallel counter + shadow + poll triple, and a client-only re-activation signal has
 no `ServerRole` to source from — each new lifecycle transition duplicates the pattern, where a
-single Waker + a small lifecycle-event channel would be additive. No correctness hazard today
-(SSOT-clean, race-free, wrap-safe, unit-tested by `resume_edge_test`).
+single Waker + a small lifecycle-event channel would be additive. There was no correctness
+hazard (SSOT-clean, race-free, wrap-safe, was unit-tested by the former `resume_edge_test`).
 
 **Textbook fix.** Give `ServerRole` a `Waker` (captured by shared_ptr copy, the same lifetime
 discipline as `resume_seq_`), `signal()` it from the detached suspend thread on a successful

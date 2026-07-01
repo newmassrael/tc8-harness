@@ -78,4 +78,11 @@ private:
     std::map<int, TcpConnTuple> tuples_;  // fd -> connected 4-tuple (active opens)
 };
 
+// Standalone eventfd Waker factory (the single source of the eventfd-creation code —
+// PosixSocketBackend::createWaker() delegates here). A caller that needs ONLY a
+// cross-thread wake (e.g. the DUT lifecycle channel) mints one without constructing a
+// whole socket backend just to reach a stateless factory. Returns nullptr iff eventfd()
+// fails (fd exhaustion); the caller degrades gracefully.
+std::unique_ptr<tc8::testability::Waker> makeEventfdWaker();
+
 }  // namespace tc8::dut

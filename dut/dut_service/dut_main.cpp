@@ -21,6 +21,7 @@
 #include "posix_socket_backend.h"
 #include "posix_stack_probe.h"
 #include "posix_ut_extensions.h"
+#include "lifecycle_dispatcher.h"
 #include "lifecycle_signal.h"
 #include "server_role.h"
 #include "tc8/dut_config.h"
@@ -50,37 +51,6 @@ std::unique_ptr<tc8::dut::ClientModeProxyRunner> bringUpClientOnlyApplication() 
     }
     return app;
 }
-
-// Adapter that folds the ServerRole lifecycle channel's Waker fd into dut_main's
-// drainReady poll set (TD-13's "small IPollableService adapter"): on wake it drains the
-// posted Suspend/Reactivate events and dispatches the extension's onSuspend / onReactivate
-// on THIS main-loop thread, in FIFO order. Holds a shared_ptr to the signal (the detached
-// suspend thread posts to the same object) and borrows the extension + context, which
-// dut_main owns for the whole loop — onReadable only runs inside the loop (drainReady),
-// never during teardown, so the borrowed references cannot be used after they die.
-class LifecycleDispatcher final : public tc8::IPollableService {
-public:
-    LifecycleDispatcher(std::shared_ptr<tc8::dut::LifecycleSignal> signal,
-                        tc8::dut::IEtsExtension& extension,
-                        tc8::dut::EtsExtensionContext& ctx)
-        : signal_(std::move(signal)), extension_(extension), ctx_(ctx) {}
-
-    int pollFd() const override { return signal_->pollFd(); }
-
-    void onReadable() override {
-        for (const auto ev : signal_->drain()) {
-            switch (ev) {
-                case tc8::dut::LifecycleEvent::Suspend:    extension_.onSuspend(ctx_); break;
-                case tc8::dut::LifecycleEvent::Reactivate: extension_.onReactivate(ctx_); break;
-            }
-        }
-    }
-
-private:
-    std::shared_ptr<tc8::dut::LifecycleSignal> signal_;
-    tc8::dut::IEtsExtension& extension_;
-    tc8::dut::EtsExtensionContext& ctx_;
-};
 
 }  // namespace
 
@@ -125,8 +95,7 @@ int main() {
         std::printf("tc8-dut: client-only mode — %s NOT offered; app created via proxy\n",
                     tc8::dut::ets_deploy::kInterface);
     } else {
-        tc8::dut::PosixSocketBackend waker_backend;
-        if (auto waker = waker_backend.createWaker()) {
+        if (auto waker = tc8::dut::makeEventfdWaker()) {
             lifecycle = std::make_shared<tc8::dut::LifecycleSignal>(std::move(waker));
         } else {
             std::fprintf(stderr, "tc8-dut: lifecycle waker unavailable — "
@@ -182,8 +151,8 @@ int main() {
     // onRegister (the extension has wired its handlers first); server mode only — lifecycle
     // is null in client-only mode.
     if (lifecycle) {
-        ets_io.adoptPollable(
-            std::make_unique<LifecycleDispatcher>(lifecycle, *ets_extension, ets_ctx));
+        ets_io.adoptPollable(std::make_unique<tc8::dut::LifecycleDispatcher>(
+            lifecycle, *ets_extension, ets_ctx));
     }
 
     // TC8 §4.8.5 Upper Tester channel. UDP-bound listeners for
@@ -252,14 +221,10 @@ int main() {
     // cadence matches the prior sleep loop whenever onTick completes within the
     // window (an onTick that overran 200 ms would tick back-to-back, exactly as it
     // would have under the old loop's post-onTick sleep).
-    // Warm suspendInterface cycles run on a detached thread inside the ServerRole
-    // (server_role.cpp): after the StopOffer it posts LifecycleEvent::Suspend, and after the
-    // successful re-register LifecycleEvent::Reactivate, to the shared LifecycleSignal —
-    // waking THIS loop through the Waker fd the LifecycleDispatcher folded into drainReady's
-    // poll set (adopted above). onSuspend / onReactivate are dispatched there, on THIS
-    // main-loop thread (the same threading contract as onRegister/onTick), FIFO-ordered and
-    // lossless — never on the detached suspend thread. Client-only mode adopts no dispatcher,
-    // so neither hook fires.
+    // The LifecycleDispatcher adopted above drains the warm-suspendInterface channel and
+    // fires onSuspend/onReactivate from inside drainReady, on this thread (contract in
+    // lifecycle_dispatcher.h / lifecycle_signal.h). The loop itself only ticks and drains;
+    // client-only mode adopted no dispatcher, so neither hook fires there.
     auto next_tick = std::chrono::steady_clock::now();
     while (!g_stop.load()) {
         const auto now = std::chrono::steady_clock::now();

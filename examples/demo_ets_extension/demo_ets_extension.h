@@ -278,9 +278,12 @@ public:
     // Mark the activation-relative offset SUSPENDED so onTick stops advancing it while the
     // service is de-offered — the FAITHFUL shape of an OEM emission that must go quiet on a
     // warm suspendInterface StopOffer (paired with the onReactivate restart below), not a
-    // value that keeps counting through the down-period. dut_main dispatches this on the DUT
-    // main thread, before onReactivate, never the detached suspend thread; the readback
-    // (vsomeip thread) shares epoch_ under its mutex.
+    // value that keeps counting through the down-period. The freeze takes effect when this
+    // fires on the main thread (one marshalling hop after the wire StopOffer); if the re-offer
+    // then fails, no Reactivate is posted and the freeze stays latched — correct, since the
+    // service never came back. dut_main dispatches this on the DUT main thread, before
+    // onReactivate, never the detached suspend thread; the readback (vsomeip thread) shares
+    // epoch_ under its mutex.
     void onSuspend(EtsExtensionContext& /*ctx*/) override {
         std::lock_guard<std::mutex> lock(epoch_->mutex);
         epoch_->suspended = true;

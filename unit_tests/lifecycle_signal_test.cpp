@@ -1,35 +1,28 @@
 // Unit test of the warm-suspendInterface lifecycle channel
-// (dut/dut_service/lifecycle_signal.h) against a FAKE Waker — no eventfd, no running DUT.
-// Covers the cross-thread contract the DUT relies on: post() enqueues and wakes; drain()
-// returns the queued events in FIFO order and clears them; a suspend/re-offer burst is
-// delivered losslessly (not coalesced); and pollFd() forwards the Waker's fd. This is the
-// replacement for resume_edge_test — the polled counter + edge-detector it exercised is
-// gone (resolved TD-13).
+// (dut/dut_service/lifecycle_signal.h). SCOPE (honest): the single-threaded cases below
+// verify the QUEUE contract — post enqueues + wakes, drain returns events in FIFO order and
+// clears them, a burst is not coalesced, pollFd forwards the Waker's fd — against a FakeWaker
+// (the eventfd side-channel is substituted; its wake/level-triggered readiness is covered by
+// the testability Reactor's use of the same primitive). The final case adds a CONCURRENT
+// producer/consumer stress that pins the losslessness the mutex+queue provides under real
+// thread contention. This replaces resume_edge_test (the polled counter it exercised is gone
+// — resolved TD-13).
 
-#include <memory>
+#include <atomic>
+#include <cstddef>
+#include <thread>
+#include <vector>
 
 #include <gtest/gtest.h>
 
+#include "fake_waker.h"
 #include "lifecycle_signal.h"
-#include "testability/io_multiplexer.h"
 
 namespace {
 
-// A Waker that records signal()/drain() calls instead of touching an fd, so the channel's
-// wake/drain contract is testable without a real eventfd.
-class FakeWaker final : public tc8::testability::Waker {
-public:
-    int pollFd() const override { return kFd; }
-    void signal() override { ++signals; }
-    void drain() override { ++drains; }
-
-    static constexpr int kFd = 4242;
-    int signals = 0;
-    int drains = 0;
-};
-
 using tc8::dut::LifecycleEvent;
 using tc8::dut::LifecycleSignal;
+using tc8::dut::test::FakeWaker;
 
 }  // namespace
 
@@ -44,8 +37,8 @@ TEST(LifecycleSignal, DrainWithNothingQueuedIsEmptyButStillDrainsTheWaker) {
     LifecycleSignal sig(std::move(waker));
 
     EXPECT_TRUE(sig.drain().empty());
-    EXPECT_EQ(w->drains, 1);   // the fd is drained even when the queue is empty
-    EXPECT_EQ(w->signals, 0);  // nothing posted
+    EXPECT_EQ(w->drains.load(), 1);   // the fd is drained even when the queue is empty
+    EXPECT_EQ(w->signals.load(), 0);  // nothing posted
 }
 
 TEST(LifecycleSignal, PostEnqueuesAndWakes) {
@@ -54,7 +47,7 @@ TEST(LifecycleSignal, PostEnqueuesAndWakes) {
     LifecycleSignal sig(std::move(waker));
 
     sig.post(LifecycleEvent::Suspend);
-    EXPECT_EQ(w->signals, 1);  // each post wakes the loop
+    EXPECT_EQ(w->signals.load(), 1);  // each post wakes the loop
 
     const auto events = sig.drain();
     ASSERT_EQ(events.size(), 1u);
@@ -70,7 +63,7 @@ TEST(LifecycleSignal, BurstIsDeliveredInFifoOrderAndLosslessly) {
     // coalescing) and arrive in post order — Suspend before its paired Reactivate.
     sig.post(LifecycleEvent::Suspend);
     sig.post(LifecycleEvent::Reactivate);
-    EXPECT_EQ(w->signals, 2);
+    EXPECT_EQ(w->signals.load(), 2);
 
     const auto events = sig.drain();
     ASSERT_EQ(events.size(), 2u);
@@ -84,4 +77,39 @@ TEST(LifecycleSignal, DrainClearsSoEventsAreNotRedelivered) {
     sig.post(LifecycleEvent::Reactivate);
     EXPECT_EQ(sig.drain().size(), 1u);
     EXPECT_TRUE(sig.drain().empty());  // consumed once, not again
+}
+
+// Concurrency contract: many producer threads post() while a consumer drain()s in parallel;
+// every posted event must be delivered exactly once (none lost to a post/drain race, none
+// duplicated). This exercises the mutex+queue under real contention — the losslessness the
+// design promises and the single-threaded cases above cannot show.
+TEST(LifecycleSignal, LosslessUnderConcurrentPostAndDrain) {
+    constexpr int kProducers = 8;
+    constexpr int kPerProducer = 5000;
+    constexpr std::size_t kTotal = static_cast<std::size_t>(kProducers) * kPerProducer;
+
+    LifecycleSignal sig(std::make_unique<FakeWaker>());
+    std::atomic<bool> producers_done{false};
+    std::vector<LifecycleEvent> collected;  // touched only by the consumer thread
+    collected.reserve(kTotal);
+
+    std::thread consumer([&] {
+        while (!producers_done.load(std::memory_order_acquire)) {
+            for (const auto ev : sig.drain()) collected.push_back(ev);
+        }
+        for (const auto ev : sig.drain()) collected.push_back(ev);  // final sweep after join
+    });
+
+    std::vector<std::thread> producers;
+    producers.reserve(kProducers);
+    for (int p = 0; p < kProducers; ++p) {
+        producers.emplace_back([&] {
+            for (int i = 0; i < kPerProducer; ++i) sig.post(LifecycleEvent::Suspend);
+        });
+    }
+    for (auto& t : producers) t.join();
+    producers_done.store(true, std::memory_order_release);
+    consumer.join();
+
+    EXPECT_EQ(collected.size(), kTotal);  // nothing lost, nothing duplicated
 }
