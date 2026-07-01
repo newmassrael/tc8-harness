@@ -132,52 +132,58 @@ std::string resolveCaptureFilter(const std::optional<std::string> &cli_override,
     if (!per_case_expression.empty()) {
         return std::string(per_case_expression);
     }
-    const std::string base = expressionFor(group);
     const std::string extra = udpPorts(extra_udp_ports, extra_udp_port_count);
     if (extra.empty()) {
-        return base;
+        return expressionFor(group);
     }
-    // OR the case's extra UDP ports (made VLAN-aware too) into the group
-    // filter so verdict traffic on ports outside the group's default range
-    // is captured. `base` is already VLAN-aware (expressionFor wraps it).
-    return "(" + base + ") or (" + vlanAware(extra) + ")";
+    // Union the case's extra UDP ports with the group's BARE expression, then
+    // wrap the whole union in vlanAware() ONCE. Wrapping each half separately
+    // and OR-ing the two independently VLAN-aware halves (the previous shape)
+    // put two `vlan` keywords in the filter; libpcap's first `vlan` shifts the
+    // decode offset for the REMAINDER of the expression (libpcap-filter(7)), so
+    // the trailing half's untagged arm was compiled at the VLAN offset and
+    // silently matched only tagged frames. One trailing `vlan` over the full
+    // union keeps every untagged port term at offset 0 while still matching a
+    // single 802.1Q tag.
+    return vlanAware("(" + bareExpressionFor(group) + ") or (" + extra + ")");
 }
 
-std::string expressionFor(::tc8::BpfGroup group) {
+std::string bareExpressionFor(::tc8::BpfGroup group) {
     // Exhaustive switch. A new BpfGroup alternative must add a case
     // here; -Wswitch flags the omission, and __builtin_unreachable()
     // on the fall-through path keeps us from silently defaulting to
     // someip() (a prior bug before this was locked down).
-    //
-    // Every arm is wrapped in vlanAware() at the single return below so
-    // a tagged frame is never silently dropped, and a future BpfGroup
-    // cannot forget to opt in.
-    const auto bare = [group]() -> std::string {
-        switch (group) {
-        case ::tc8::BpfGroup::Arp:
-            return arp();
-        case ::tc8::BpfGroup::Icmpv4:
-            return icmpv4();
-        case ::tc8::BpfGroup::Ipv4:
-            return ipv4();
-        case ::tc8::BpfGroup::Udp:
-            return udp();
-        case ::tc8::BpfGroup::Dhcpv4:
-            return dhcpv4();
-        case ::tc8::BpfGroup::Tcp:
-            return tcp();
-        case ::tc8::BpfGroup::SomeIp:
-            return someip();
-        case ::tc8::BpfGroup::ArpAndUdp:
-            return arpAndUdp();
-        case ::tc8::BpfGroup::ArpAndDhcpv4:
-            return arpAndDhcpv4();
-        case ::tc8::BpfGroup::UdpAndDhcpv4:
-            return udpAndDhcpv4();
-        }
-        __builtin_unreachable();
-    };
-    return vlanAware(bare());
+    switch (group) {
+    case ::tc8::BpfGroup::Arp:
+        return arp();
+    case ::tc8::BpfGroup::Icmpv4:
+        return icmpv4();
+    case ::tc8::BpfGroup::Ipv4:
+        return ipv4();
+    case ::tc8::BpfGroup::Udp:
+        return udp();
+    case ::tc8::BpfGroup::Dhcpv4:
+        return dhcpv4();
+    case ::tc8::BpfGroup::Tcp:
+        return tcp();
+    case ::tc8::BpfGroup::SomeIp:
+        return someip();
+    case ::tc8::BpfGroup::ArpAndUdp:
+        return arpAndUdp();
+    case ::tc8::BpfGroup::ArpAndDhcpv4:
+        return arpAndDhcpv4();
+    case ::tc8::BpfGroup::UdpAndDhcpv4:
+        return udpAndDhcpv4();
+    }
+    __builtin_unreachable();
+}
+
+std::string expressionFor(::tc8::BpfGroup group) {
+    // Wrap the group's bare expression in vlanAware() exactly once here so a
+    // tagged frame is never silently dropped, and a future BpfGroup cannot
+    // forget to opt in. resolveCaptureFilter() reuses bareExpressionFor()
+    // directly when it needs to union extra ports before the single wrap.
+    return vlanAware(bareExpressionFor(group));
 }
 
 }  // namespace tc8::capture::bpf

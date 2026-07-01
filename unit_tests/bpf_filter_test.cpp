@@ -95,6 +95,18 @@ TEST(BpfFilter, ExpressionForIsVlanAwareWrapOfPerGroupFunction) {
     EXPECT_EQ(expressionFor(BpfGroup::UdpAndDhcpv4), vlanAware(udpAndDhcpv4()));
 }
 
+TEST(BpfFilter, BareExpressionForIsThePerGroupFunctionUnwrapped) {
+    using ::tc8::BpfGroup;
+    // bareExpressionFor is the un-wrapped building block; expressionFor is its
+    // single vlanAware() wrap. Pin the identity so resolveCaptureFilter's union
+    // (which reuses bareExpressionFor before its single wrap) and expressionFor
+    // cannot drift apart.
+    EXPECT_EQ(bareExpressionFor(BpfGroup::SomeIp), someip());
+    EXPECT_EQ(bareExpressionFor(BpfGroup::Arp), arp());
+    EXPECT_EQ(expressionFor(BpfGroup::SomeIp),
+              vlanAware(bareExpressionFor(BpfGroup::SomeIp)));
+}
+
 TEST(BpfFilter, ResolveCaptureFilterPrecedence) {
     using ::tc8::BpfGroup;
     // 1. CLI -f override wins and is passed verbatim (even over a
@@ -115,11 +127,27 @@ TEST(BpfFilter, ResolveCaptureFilterPrecedence) {
 TEST(BpfFilter, ResolveCaptureFilterUnionsExtraUdpPorts) {
     using ::tc8::BpfGroup;
     const std::uint16_t can_ports[] = {0xCA00, 0xCACC, 0xCACD};
-    // No override + extra ports → group filter OR (VLAN-aware extra ports), so
-    // a case whose verdict traffic leaves the group's default range is captured.
+    // No override + extra ports → ONE vlanAware() wrap over the union of the
+    // group's bare expression and the extra ports, so the untagged arm of every
+    // term stays at Ethernet offset 0. (Previously each half was wrapped
+    // separately and OR'd, injecting two `vlan` keywords — libpcap then compiled
+    // the trailing half at the VLAN offset, dropping untagged frames on it.)
     EXPECT_EQ(resolveCaptureFilter(std::nullopt, "", BpfGroup::SomeIp, can_ports, 3),
-              "(" + expressionFor(BpfGroup::SomeIp) + ") or (" +
-                  vlanAware(udpPorts(can_ports, 3)) + ")");
+              vlanAware("(" + bareExpressionFor(BpfGroup::SomeIp) + ") or (" +
+                        udpPorts(can_ports, 3) + ")"));
+    // Regression guard for the VLAN offset-leak: the assembled union must carry
+    // exactly ONE `vlan` keyword. A string-compare alone would not flag a
+    // re-introduced second `vlan` if the expected literal were updated in step.
+    {
+        const std::string u =
+            resolveCaptureFilter(std::nullopt, "", BpfGroup::SomeIp, can_ports, 3);
+        std::size_t vlan_count = 0;
+        for (std::size_t p = u.find("vlan"); p != std::string::npos;
+             p = u.find("vlan", p + 4)) {
+            ++vlan_count;
+        }
+        EXPECT_EQ(vlan_count, 1u) << u;
+    }
     // Extra ports apply ONLY to the group-derived path: a verbatim `-f`
     // override owns the whole filter, so they are NOT appended.
     EXPECT_EQ(resolveCaptureFilter(std::optional<std::string>("ether host 1:2:3:4:5:6"),

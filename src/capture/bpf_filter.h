@@ -80,8 +80,16 @@ std::string udpPorts(const std::uint16_t *ports, std::size_t count);
 // already-VLAN-aware override would double the `vlan` keyword.
 std::string vlanAware(const std::string &expr);
 
+// Dispatch: BpfGroup enum → per-group BARE expression above (NOT VLAN-wrapped).
+// The shared building block: expressionFor() wraps it once via vlanAware(), and
+// resolveCaptureFilter() unions it with a case's extra ports BEFORE that single
+// wrap — so the assembled filter carries exactly one `vlan` keyword. Two `vlan`
+// keywords would make libpcap compile everything after the first at the VLAN
+// offset (libpcap-filter(7)), dropping untagged frames on the trailing term.
+std::string bareExpressionFor(::tc8::BpfGroup group);
+
 // Dispatch: BpfGroup enum → per-group expression above, made
-// VLAN-transparent via vlanAware().
+// VLAN-transparent via vlanAware() (i.e. vlanAware(bareExpressionFor(group))).
 std::string expressionFor(::tc8::BpfGroup group);
 
 // Resolve the capture filter for one case by precedence:
