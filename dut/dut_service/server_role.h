@@ -87,11 +87,12 @@ public:
     void unregisterAll();
 
     // Monotonic count of completed warm suspendInterface re-offers (each successful
-    // re-registerService in the detached suspend thread). dut_main polls this on its
-    // main loop and, on every increment, fires IEtsExtension::onReactivate on the
-    // main-loop thread — the same threading contract as onRegister/onTick, never the
-    // detached suspend thread (which would race onTick on the extension's own state).
-    // Reads only the counter, so no lock is needed.
+    // re-registerService in the detached suspend thread). dut_main tracks it with a
+    // ResumeEdge and fires IEtsExtension::onReactivate on the main-loop thread when it
+    // advances — the same threading contract as onRegister/onTick, never the detached
+    // suspend thread (which would race onTick on the extension's own state). Level-
+    // triggered: re-offers seen in one loop pass coalesce into one fire. Reads only the
+    // counter, so no lock is needed.
     uint32_t resumeCount() const { return resume_seq_->load(); }
 
 private:

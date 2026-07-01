@@ -63,6 +63,14 @@ inline constexpr std::uint8_t  kDemoTargetMajor       = 0x01;
 inline constexpr std::uint16_t kDemoValidatingMethod  = 0x07F7;
 inline constexpr std::uint8_t  kDemoValidatingLimit   = 0x80;
 
+// RE-ACTIVATION demo: an offset counted in DUT main-loop ticks from the last
+// (re-)activation. onTick advances it; onReactivate re-anchors it to zero on a warm
+// suspendInterface re-offer, so a boot/re-activation-relative behaviour (e.g. an
+// OEM start offset) re-applies from the re-activation instant. Read back through this
+// method so the re-anchor is observable — the FAITHFUL shape of the motivating use
+// (re-apply re-activation-relative state), not a stateless event re-emit. Synthetic id.
+inline constexpr std::uint16_t kDemoActivationReadbackMethod = 0x07F8;
+
 // CLIENT-role DURATION demo: once the subscription is ESTABLISHED (the target
 // returns a SubscribeEventgroupAck), the demo holds it for this many DUT
 // main-loop ticks, then stops it — the "subscribe for a bounded lifetime" shape
@@ -244,6 +252,20 @@ public:
                 return last->payload;
             });
 
+        // RE-ACTIVATION-RELATIVE readback: report the offset (in main-loop ticks)
+        // since the last (re-)activation, so the onReactivate re-anchor below is
+        // observable. onTick advances the offset; onReactivate zeroes it. Guarded
+        // because this handler runs on a vsomeip thread while onTick / onReactivate
+        // mutate it on the main thread — the same shared_ptr + mutex discipline as
+        // last_response_ / lifetime_.
+        auto epoch = epoch_;
+        sink.onRequest(kDemoActivationReadbackMethod,
+                       [epoch](const std::vector<std::uint8_t>&) {
+                           std::lock_guard<std::mutex> lock(epoch->mutex);
+                           return std::vector<std::uint8_t>{
+                               static_cast<std::uint8_t>(epoch->ticks_since_activation)};
+                       });
+
         // RAW-RECEIVE demo: adopt a pollable receiver the DUT main loop drains —
         // the 4th seam (IEtsIoHost), exercised here like sink/client/control. A real
         // OEM adopts its own socket-backed receiver; this demo's self-pipe one just
@@ -251,27 +273,29 @@ public:
         ctx.io.adoptPollable(std::make_unique<DemoLoopbackReceiver>());
     }
 
-    // Re-apply extension-owned behaviour after a WARM suspendInterface re-offer:
-    // the ServerRole re-registers the ETS service on a detached thread, and dut_main
-    // calls this on the DUT MAIN thread — the same threading contract as
-    // onRegister/onTick, never the detached suspend thread (which would race onTick
-    // on this extension's own state). A real OEM re-anchors its re-activation-relative
-    // behaviour here (e.g. resets a boot-relative timer so an offset re-applies from
-    // the re-activation instant); the demo re-notifies its event so the re-activation
-    // is observable — the "re-emit extension-owned events after a warm suspend" shape.
-    // Runs on the main thread, so it touches the sink directly (no shared-state arming
-    // like the vsomeip-thread handlers above).
-    void onReactivate(EtsExtensionContext& ctx) override {
-        ctx.sink.notify(kDemoEventId, {});
+    // Re-anchor the re-activation-relative offset to the re-activation instant so it
+    // re-applies from zero — the FAITHFUL shape of an OEM re-applying a boot/re-
+    // activation-relative offset after a warm suspendInterface re-offer (a deferred
+    // state mutation the periodic hook reads back), NOT a stateless event re-emit.
+    // dut_main dispatches this on the DUT main thread, never the detached suspend
+    // thread; the readback (vsomeip thread) shares epoch_ under its mutex.
+    void onReactivate(EtsExtensionContext& /*ctx*/) override {
+        std::lock_guard<std::mutex> lock(epoch_->mutex);
+        epoch_->ticks_since_activation = 0;
     }
 
-    // Count down the bounded subscription lifetime that the subscription-status
-    // handler armed at establishment, and stop the subscription when it expires —
-    // the duration-bounded client-subscribe shape. Runs on the DUT main thread
-    // (it has ctx for the seam call); the vsomeip-thread status handler only armed
-    // the shared counter. The seam call is made OUTSIDE the lock so a re-entrant
-    // handler cannot deadlock.
+    // Advance the re-activation-relative offset (read back via
+    // kDemoActivationReadbackMethod, re-anchored by onReactivate), then count down the
+    // bounded subscription lifetime that the subscription-status handler armed at
+    // establishment, stopping the subscription when it expires — the duration-bounded
+    // client-subscribe shape. Runs on the DUT main thread (it has ctx for the seam
+    // call); the vsomeip-thread status handler only armed the shared counter. The seam
+    // call is made OUTSIDE the lock so a re-entrant handler cannot deadlock.
     void onTick(EtsExtensionContext& ctx) override {
+        {
+            std::lock_guard<std::mutex> lock(epoch_->mutex);
+            ++epoch_->ticks_since_activation;
+        }
         bool expired = false;
         {
             std::lock_guard<std::mutex> lock(lifetime_->mutex);
@@ -319,6 +343,17 @@ private:
 
     std::shared_ptr<SubscriptionLifetime> lifetime_ =
         std::make_shared<SubscriptionLifetime>();
+
+    // Re-activation-relative offset (main-loop ticks since the last (re-)activation),
+    // shared between the vsomeip-thread readback handler (which reads it) and the
+    // main-thread onTick / onReactivate (which advance and re-anchor it). shared_ptr +
+    // mutex so the handler neither dangles nor races, mirroring the two above.
+    struct ActivationEpoch {
+        std::mutex mutex;
+        int ticks_since_activation = 0;
+    };
+
+    std::shared_ptr<ActivationEpoch> epoch_ = std::make_shared<ActivationEpoch>();
 };
 
 }  // namespace tc8::dut

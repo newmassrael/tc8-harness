@@ -279,7 +279,7 @@ TEST(DemoEtsExtension, OnTickEmitsNothing) {
     EXPECT_FALSE(ext.ets8001TriggerDriven());
 }
 
-TEST(DemoEtsExtension, OnReactivateReEmitsDemoEvent) {
+TEST(DemoEtsExtension, OnReactivateReAnchorsActivationRelativeOffset) {
     FakeEtsEventSink sink;
     FakeEtsClientControl client;
     FakeEtsControlChannel control;
@@ -287,15 +287,26 @@ TEST(DemoEtsExtension, OnReactivateReEmitsDemoEvent) {
     tc8::dut::EtsExtensionContext ctx{sink, client, control, io};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
-    sink.notifications.clear();  // onRegister notifies nothing; clear to isolate the hook
 
-    // A warm suspendInterface re-offer re-applies extension-owned emission: the demo
-    // re-notifies its event exactly once (the shape an OEM uses to re-anchor after a
-    // warm re-activation), delivered on the DUT main thread by dut_main's loop.
+    ASSERT_EQ(sink.request_handlers.count(tc8::dut::kDemoActivationReadbackMethod), 1u);
+    auto& offset = sink.request_handlers[tc8::dut::kDemoActivationReadbackMethod];
+
+    // The periodic hook advances the re-activation-relative offset from zero.
+    EXPECT_EQ(offset({}).payload, (std::vector<std::uint8_t>{0}));
+    ext.onTick(ctx);
+    ext.onTick(ctx);
+    ext.onTick(ctx);
+    EXPECT_EQ(offset({}).payload, (std::vector<std::uint8_t>{3}));
+
+    // A warm suspendInterface re-offer re-anchors the offset to the re-activation
+    // instant, so it re-applies from zero — the faithful shape an OEM uses to re-apply
+    // a boot/re-activation-relative start offset after a warm re-offer (a deferred
+    // state mutation the periodic hook reads, not a stateless event re-emit).
     ext.onReactivate(ctx);
-    ASSERT_EQ(sink.notifications.size(), 1u);
-    EXPECT_EQ(sink.notifications[0].event_id, tc8::dut::kDemoEventId);
-    EXPECT_TRUE(sink.notifications[0].payload.empty());
+    EXPECT_EQ(offset({}).payload, (std::vector<std::uint8_t>{0}));
+    ext.onTick(ctx);
+    ext.onTick(ctx);
+    EXPECT_EQ(offset({}).payload, (std::vector<std::uint8_t>{2}));
 }
 
 TEST(DemoEtsExtension, SubscribeMethodDrivesClientControl) {

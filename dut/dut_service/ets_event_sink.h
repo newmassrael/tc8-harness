@@ -11,7 +11,7 @@
 namespace tc8::dut {
 
 // Narrow registration facade over the DUT's SINGLE vsomeip application, handed to
-// an OEM IEtsExtension via onRegister/onTick (see ets_extension.h). It lets the
+// an OEM IEtsExtension via its lifecycle hooks (see ets_extension.h). It lets the
 // extension add an NDA event surface — offer additional events, notify
 // subscribers, handle trigger methods — on the SAME application the CommonAPI ETS
 // service already uses, so there is NO second vsomeip application (no coexisting

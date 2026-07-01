@@ -28,8 +28,8 @@ public:
     // blocking — it runs on the DUT main-loop thread (see tc8::IPollableService). A
     // service whose pollFd() is -1 is owned but never polled.
     //
-    // Must be called on the DUT main-loop thread (onRegister / onTick), the same
-    // thread that drains it — the host serializes nothing, so adopting from a
+    // Must be called on the DUT main-loop thread (onRegister / onReactivate / onTick),
+    // the same thread that drains it — the host serializes nothing, so adopting from a
     // vsomeip handler thread concurrently with a drain would race the owned set.
     virtual void adoptPollable(std::unique_ptr<tc8::IPollableService> service) = 0;
 };

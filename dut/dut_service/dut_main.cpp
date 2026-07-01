@@ -1,7 +1,6 @@
 #include <atomic>
 #include <chrono>
 #include <csignal>
-#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
@@ -22,6 +21,7 @@
 #include "posix_socket_backend.h"
 #include "posix_stack_probe.h"
 #include "posix_ut_extensions.h"
+#include "resume_edge.h"
 #include "server_role.h"
 #include "tc8/dut_config.h"
 #include "testability/protocol_server.h"
@@ -200,13 +200,15 @@ int main() {
     // window (an onTick that overran 200 ms would tick back-to-back, exactly as it
     // would have under the old loop's post-onTick sleep).
     // Warm suspendInterface re-offers run on a detached thread inside the ServerRole
-    // (server_role.cpp), which bumps a resume counter on each successful re-register.
-    // Observe it here so onReactivate fires on THIS main-loop thread — the same
-    // threading contract as onRegister/onTick — never on the detached suspend thread
-    // (which would race onTick on the extension's own state). Client-only mode has no
-    // ServerRole and therefore no suspend/resume, so the counter never moves and
-    // onReactivate never fires.
-    uint32_t last_resume_seq = server ? server->resumeCount() : 0;
+    // (server_role.cpp), which bumps a monotonic resume counter on each successful
+    // re-register. ResumeEdge tracks it so onReactivate fires on THIS main-loop thread
+    // — the same threading contract as onRegister/onTick — never on the detached
+    // suspend thread (which would race onTick on the extension's own state). It is
+    // level-triggered: re-offers seen in one loop pass coalesce into one fire (fine for
+    // the idempotent re-anchor hook — see resume_edge.h). Seeded with the counter's
+    // value now so the initial activation is not treated as a re-activation. Client-only
+    // mode has no ServerRole, so the counter never moves and onReactivate never fires.
+    tc8::dut::ResumeEdge resume_edge{server ? server->resumeCount() : 0};
     auto next_tick = std::chrono::steady_clock::now();
     while (!g_stop.load()) {
         const auto now = std::chrono::steady_clock::now();
@@ -214,12 +216,8 @@ int main() {
             ets_extension->onTick(ets_ctx);
             next_tick = std::chrono::steady_clock::now() + std::chrono::milliseconds(200);
         }
-        if (server) {
-            const uint32_t seq = server->resumeCount();
-            if (seq != last_resume_seq) {
-                last_resume_seq = seq;
-                ets_extension->onReactivate(ets_ctx);
-            }
+        if (server && resume_edge.advanced(server->resumeCount())) {
+            ets_extension->onReactivate(ets_ctx);
         }
         const auto remaining =
             std::chrono::duration_cast<std::chrono::milliseconds>(next_tick - now).count();
