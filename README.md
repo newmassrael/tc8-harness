@@ -100,7 +100,8 @@ no script-engine clock dependency.
 - cmake 3.16+
 - libpcap-dev, libtins-dev
 - quilt (`sudo apt install quilt`) — drives the vsomeip patch series
-- Boost (system / thread / filesystem / log) — vsomeip dependency
+- Boost >= 1.75 (filesystem) — vsomeip 3.7.3 dependency; ubuntu-22.04's apt
+  tops out at 1.74, so build from source there (the hosted CI does the same)
 - python3 (spec inventory tooling)
 
 ### Bootstrap (fresh clone)
@@ -121,8 +122,41 @@ git submodule update --init --recursive
 sudo ./scripts/setup-vsomeip.sh
 ```
 
-`setup-vsomeip.sh` honours `VSOMEIP_INSTALL_PREFIX` (default `/usr/local`)
-so CI can co-locate vsomeip with CommonAPI under `/opt/someip-stack`.
+`setup-vsomeip.sh` takes the install prefix as `argv[1]` (or
+`VSOMEIP_INSTALL_PREFIX`; default `/usr/local`) so CI can install to a
+job-scoped `/opt/someip-stack` without touching a host-managed
+`/usr/local` stack. It always resets the submodule's tracked files to the
+pinned sources before re-applying the patch stack, so re-runs are
+idempotent from any prior state, and it configures the build with
+`-DCMAKE_INSTALL_RPATH='$ORIGIN'` so the installed libvsomeip3 resolves
+its dlopen'ed plugins (cfg/sd/e2e) and co-installed deps from its own
+directory — a prefix outside the ld.so search path needs no ldconfig or
+`LD_LIBRARY_PATH`.
+
+### OEM extension layers (patches + configure flags)
+
+An OEM consuming this harness stacks private vsomeip changes WITHOUT
+editing the base series, through two environment seams:
+
+- `TC8_EXTRA_VSOMEIP_PATCHES` — `:`-separated list of quilt patch dirs
+  (each with its own `series`), applied on top of `patches/vsomeip/` as
+  one merged stack. Generate OEM patches against the base-patched tree
+  (apply the base series first, then `quilt new/add/refresh`), and
+  refresh them whenever the submodule pin moves.
+- `TC8_EXTRA_VSOMEIP_CMAKE_ARGS` — whitespace-separated extra configure
+  args (e.g. the feature toggle an OEM patch layer introduces). Appended
+  after the defaults, so a duplicated `-D` overrides them.
+
+```sh
+TC8_EXTRA_VSOMEIP_PATCHES=/path/to/oem/patches \
+TC8_EXTRA_VSOMEIP_CMAKE_ARGS="-DENABLE_MY_FEATURE=ON" \
+sudo -E ./scripts/setup-vsomeip.sh /opt/oem-someip
+```
+
+Both unset => the public build, byte-identical. If the OEM caches the
+install, the cache key must hash the OEM patch dir + flags too — a key
+covering only `patches/vsomeip/` reuses stale builds when the OEM layer
+changes.
 
 ### Adding a vsomeip patch
 
@@ -139,7 +173,7 @@ quilt add <files-to-edit>
 quilt refresh
 quilt header -e 0002-<short-name>.patch    # add Subject + body explaining why
 cd ../..
-sudo ./scripts/setup-vsomeip.sh             # re-pop, re-push, rebuild, reinstall
+sudo ./scripts/setup-vsomeip.sh             # reset, re-push, rebuild, reinstall
 ```
 
 `patches/vsomeip/0001-relax-return-code-on-requests.patch` is the
@@ -432,7 +466,7 @@ worker N does not prevent worker M's records from landing in the XML.
 | First case after a fresh netns hangs ~5 s                                 | Linux STALE→DELAY→PROBE on the DUT neigh entry                                                           | `setup-netns.sh` already widens `delay_first_probe_time=30`; no action needed                            |
 | `--workers 4` smoke flakes on TCP retransmit timing cases                  | pcap-delivery jitter under load                                                                          | Those cases (RETRANSMISSION_TO_03..06) migrated to kernel-side `OpQueryTcpInfo` — not jitter-sensitive   |
 | vsomeip clients can't find each other after a kernel update               | UDS / shm leftover in `/tmp/tc8-vsomeip.$$`                                                              | The scratch is PID-scoped; rerun smoke-test.sh, the next invocation gets a fresh PID dir                 |
-| `quilt push -a` returns 2                                                  | `.pc/` left over from prior submodule sync                                                               | `setup-vsomeip.sh` nukes `.pc/` first; if you ran quilt by hand, `rm -rf third_party/vsomeip/.pc` and retry |
+| `quilt push -a` returns 2 or hits reversed-patch errors                    | Patched sources / stale `.pc/` from a prior run                                                          | `setup-vsomeip.sh` resets tracked files + nukes `.pc/` first; by hand: `git -C third_party/vsomeip checkout -- . && rm -rf third_party/vsomeip/.pc` |
 | `--negative` row passes (i.e. doesn't fail) when expected to fail         | `expected.*` cond became trivially-true                                                                  | This is exactly the regression class `--negative` exists to catch — fix the SCXML cond                   |
 
 ## Testing against a real target ECU
@@ -833,13 +867,21 @@ matrix:
 
 | workflow                 | runner                  | scope                                                                                                  |
 | ------------------------ | ----------------------- | ------------------------------------------------------------------------------------------------------ |
-| `build-test.yml`         | `ubuntu-22.04` (hosted) | submodule init → `setup-vsomeip.sh` (patched) + CommonAPI → `cmake build` → `ctest` → `--list-cases --vs-spec` drift gate |
-| `smoke-test.yml`         | self-hosted `[netns]`   | `setup-vsomeip.sh` (idempotent re-pop/push) → harness build → `dut/env/smoke-test.sh --workers 4` (positive + `--negative`) |
+| `build-test.yml`         | `ubuntu-22.04` (hosted) | submodule init → Boost 1.75 + `setup-vsomeip.sh` (patched) + CommonAPI into `/opt/someip-stack` → `cmake build` → `ctest` → `--list-cases --vs-spec` drift gate |
+| `smoke-test.yml`         | self-hosted `[netns]`   | `setup-vsomeip.sh /opt/someip-stack` (idempotent reset/push) → harness build → `dut/env/smoke-test.sh --workers 4` (positive + `--negative`) |
 
 Both workflows pass `submodules: recursive` to `actions/checkout@v4` so
 `third_party/vsomeip` is populated before any build step. The hosted
 build caches `/opt/someip-stack` keyed by the patch series + submodule
-SHA — changing `patches/vsomeip/*` invalidates the cache.
+SHA + dependency pins — changing `patches/vsomeip/*` invalidates the
+cache. Every CI job (hosted and self-hosted) installs and consumes
+vsomeip under the job-scoped `/opt/someip-stack`, never `/usr/local`:
+the self-hosted runner's `/usr/local` may carry an operator-managed
+SOME/IP stack, and a CI reinstall there would overwrite it (and a
+mid-suite restore of it would swap the runtime under the DUT — both
+observed as mass no-verdict smoke failures). `smoke-test.sh`'s
+runtime-binding preflight fails fast if the DUT would bind a
+libvsomeip3 outside the directory it was built against.
 
 ### Self-hosted runner (`[netns]` label)
 
@@ -851,11 +893,14 @@ provide that. Provision a self-hosted runner once per host:
 # 1. install the actions runner under /opt/actions-runner (per-GitHub docs)
 # 2. apply the [self-hosted, netns] labels at registration time
 # 3. install build deps (cmake, build-essential, quilt, libpcap-dev,
-#    libtins-dev, libboost-{system,thread,filesystem,log}-dev)
+#    libtins-dev) plus Boost >= 1.75 from source (vsomeip 3.7.3 floor;
+#    22.04's apt boost is 1.74)
 # 4. add a sudoers fragment so the runner can run smoke-test.sh,
 #    setup-vsomeip.sh and the testability-*-sp-check.sh observable checks
 #    non-interactively (setup-vsomeip's `sudo cmake --install` runs as
-#    root-from-root, no extra entry needed):
+#    root-from-root, no extra entry needed; the rules name the command
+#    WITHOUT an argument list, so they match the job-prefix argv
+#    `setup-vsomeip.sh /opt/someip-stack` as-is):
 sudo tee /etc/sudoers.d/tc8-runner <<'EOF'
 %docker ALL=(root) NOPASSWD: /opt/actions-runner/_work/tc8-harness/tc8-harness/dut/env/smoke-test.sh
 %docker ALL=(root) NOPASSWD: /opt/actions-runner/_work/tc8-harness/tc8-harness/dut/env/testability-eth-sp-check.sh
