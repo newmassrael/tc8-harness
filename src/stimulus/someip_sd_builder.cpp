@@ -703,7 +703,8 @@ std::vector<std::uint8_t> buildSubscribeEventgroupNack(SubscribeEventgroupAckPar
 
 int emitSubscribeEventgroupRaw(std::string_view iface,
                                SubscribeEventgroupParams params,
-                               const SubscribeDestination &dest) {
+                               const SubscribeDestination &dest,
+                               std::uint32_t source_ip_be) {
     const std::uint32_t if_addr = ipv4OfInterface(iface);
     if (if_addr == 0) {
         std::fprintf(stderr,
@@ -722,7 +723,7 @@ int emitSubscribeEventgroupRaw(std::string_view iface,
         }
     }
     return sendUdpUnicast(buildSubscribeEventgroup(params), iface, /*src_port=*/kSdPort, dest.ipv4_be,
-                          dest.port);
+                          dest.port, source_ip_be);
 }
 
 }  // namespace tc8::stimulus

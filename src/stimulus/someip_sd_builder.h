@@ -314,9 +314,15 @@ int emitSubscribeEventgroupOnce(std::string_view iface,
 // SO_REUSEADDR); tester endpoint advertised in the option auto-derives
 // from the iface IPv4 + SD port unless caller pre-fills `tester_endpoint`.
 // Returns 0 on success or a negative errno-derived sentinel on failure.
+// `source_ip_be` (network byte order; 0 = the iface primary) sets the SOURCE IP of
+// the Subscribe datagram — not just the option's advertised endpoint — so a second
+// client on a configured alias IP is a DISTINCT SD sender the DUT tracks as its own
+// subscription (vsomeip keys a remote subscription by the SD sender; two Subscribes
+// from one source IP collapse to one). Used to originate a second reliable client.
 int emitSubscribeEventgroupRaw(std::string_view iface,
                                SubscribeEventgroupParams params,
-                               const SubscribeDestination &dest = {});
+                               const SubscribeDestination &dest = {},
+                               std::uint32_t source_ip_be = 0);
 
 // §5.1.6 SOMEIP_ETS_098/_101 helper: tester-side OfferService /
 // StopOfferService for SERVICE-ID-2 (the DUT's Client-Mode target). The

@@ -30,7 +30,11 @@ struct BoundSocket {
 // The shared prologue of every UDP emit: open a datagram socket, resolve the
 // interface IPv4, and bind the source port to it. SO_REUSEADDR lets successive
 // one-shot emits reuse the same source port without TIME_WAIT recycling.
-BoundSocket openBoundUdpSocket(std::string_view iface_name, std::uint16_t src_port) {
+// `source_ip_be` (0 = the interface primary) overrides the bound source IPv4 so a
+// caller can originate from a configured secondary/alias address on the same iface
+// — e.g. a second SOME/IP client the DUT must discriminate by Sender IP.
+BoundSocket openBoundUdpSocket(std::string_view iface_name, std::uint16_t src_port,
+                               std::uint32_t source_ip_be = 0) {
     const int sock = ::socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0) {
         std::fprintf(stderr, "stimulus: socket() failed: %s\n", std::strerror(errno));
@@ -55,7 +59,7 @@ BoundSocket openBoundUdpSocket(std::string_view iface_name, std::uint16_t src_po
     sockaddr_in bind_addr{};
     bind_addr.sin_family = AF_INET;
     bind_addr.sin_port = htons(src_port);
-    bind_addr.sin_addr.s_addr = if_addr;
+    bind_addr.sin_addr.s_addr = source_ip_be != 0 ? source_ip_be : if_addr;
     if (::bind(sock, reinterpret_cast<sockaddr *>(&bind_addr), sizeof(bind_addr)) < 0) {
         std::fprintf(stderr, "stimulus: bind(source port %u) failed: %s\n", src_port, std::strerror(errno));
         ::close(sock);
@@ -68,8 +72,9 @@ BoundSocket openBoundUdpSocket(std::string_view iface_name, std::uint16_t src_po
 }  // namespace
 
 int sendUdpUnicast(const std::vector<std::uint8_t> &datagram, std::string_view iface_name,
-                   std::uint16_t src_port, std::uint32_t dst_ip_be, std::uint16_t dst_port) {
-    const BoundSocket bs = openBoundUdpSocket(iface_name, src_port);
+                   std::uint16_t src_port, std::uint32_t dst_ip_be, std::uint16_t dst_port,
+                   std::uint32_t source_ip_be) {
+    const BoundSocket bs = openBoundUdpSocket(iface_name, src_port, source_ip_be);
     if (bs.fd < 0) {
         return bs.fd;
     }

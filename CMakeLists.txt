@@ -287,6 +287,7 @@ add_executable(tc8-harness
     src/stimulus/icmpv4_builder.cpp
     src/stimulus/someip_rpc_builder.cpp
     src/stimulus/someip_sd_builder.cpp
+    src/stimulus/subscribe_tcp_session.cpp
     src/stimulus/udp_emit.cpp
     src/stimulus/someip_tp_emit.cpp
     src/stimulus/tcp_segment_builder.cpp

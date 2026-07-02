@@ -43,8 +43,14 @@ inline std::array<std::uint8_t, 6> ipv4MulticastMac(std::uint32_t group_be) {
 // on success, or a negative errno-derived sentinel on failure (logged to
 // stderr): -1 socket, -2 interface has no IPv4 address, -6 sendto, -7 bind /
 // SO_REUSEADDR.
+// `source_ip_be` (network byte order; 0 = the interface primary IPv4) overrides the
+// bound source address, so a caller can originate from a configured secondary/alias
+// address on `iface_name` (a second client the DUT discriminates by Sender IP)
+// without the raw-injection path — the alias is a real local IP, so a normal socket
+// binds it.
 int sendUdpUnicast(const std::vector<std::uint8_t> &datagram, std::string_view iface_name,
-                   std::uint16_t src_port, std::uint32_t dst_ip_be, std::uint16_t dst_port);
+                   std::uint16_t src_port, std::uint32_t dst_ip_be, std::uint16_t dst_port,
+                   std::uint32_t source_ip_be = 0);
 
 // Multicast sibling of sendUdpUnicast: transmit from `src_port` to
 // `mcast_group`:`mcast_port`, pinning egress to `iface_name` via IP_MULTICAST_IF.
