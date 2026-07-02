@@ -87,25 +87,28 @@ class SubscribeEventgroupTcpSession : public ::tc8::IPollableService {
     // negative errno-derived sentinel (-1 if the session is invalid).
     int subscribe(const SubscribeEventgroupTarget &target, const SubscribeDestination &sd_dest = {});
 
-    // --- Teardown controls ---
+    // --- Teardown controls (OEM-enabling seam) ---
     //
-    // Tear the connection down so the DUT deletes the reliable subscription and
-    // stops delivering the event. A case observes the reliable event live, then
-    // calls one of these, then verifies "no further event after the teardown".
+    // Tear the connection down so the DUT is expected to delete the reliable
+    // subscription and stop delivering the event: a consuming case observes the
+    // reliable event live, calls one of these, then verifies no further event.
+    // NOTE: no in-tree case exercises these yet — the reliable-teardown cases are
+    // out-of-tree (OEM) — so the DUT-side deletion below is the INTENDED mechanism,
+    // not one an in-tree test asserts.
 
-    // 38 (connection lost): install a kernel packet-filter rule that DROPs the
-    // DUT's inbound segments on THIS connection, so the tester stops ACKing and
-    // the DUT's send stalls into half-open detection. No FIN/RST is emitted.
-    // Idempotent; removed by resumeIncoming() or at destruction. Needs the
+    // Connection-lost shape: install a kernel packet-filter rule that DROPs the
+    // DUT's inbound segments on THIS connection, so the tester stops ACKing and the
+    // DUT's send is intended to stall into half-open detection. No FIN/RST is
+    // emitted. Idempotent; removed by resumeIncoming() or at destruction. Needs the
     // netns-root context the smoke test runs in; a failed install is logged and
     // left non-fatal (the case then observes a timeout rather than silence).
     void dropIncoming();
     // Remove the dropIncoming() filter so the tester resumes ACKing.
     void resumeIncoming();
 
-    // 39 (connection refused): force a RST (SO_LINGER 0 + close) so the DUT sees
-    // the connection reset. The socket is gone afterwards — pollFd() returns -1
-    // and the session cannot subscribe or receive again.
+    // Connection-refused shape: force a RST (SO_LINGER 0 + close) so the DUT sees
+    // the connection reset. The socket is gone afterwards — pollFd() returns -1 and
+    // the session cannot subscribe or receive again.
     void refuseWithRst();
 
     // Dispatch to the mode's control (kDropIncoming -> dropIncoming, kRefuseWithRst

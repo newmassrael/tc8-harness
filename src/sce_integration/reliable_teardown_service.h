@@ -14,8 +14,12 @@ namespace tc8::sce {
 // Drives the teardown of a reliable-subscribe session from the wire, for a
 // reliable-event teardown silence shape: observe the reliable event delivered live
 // over TCP, and once it is flowing (after `trigger_after` notifications) tear the
-// connection down so the DUT deletes the subscription. The case then verifies "no
-// further event after the teardown".
+// connection down so the DUT is expected to delete the subscription. A consuming
+// case then verifies "no further event after the teardown".
+//
+// OEM-enabling seam: no in-tree case wires this driver yet (the reliable-teardown
+// cases are out-of-tree). In-tree coverage (reliable_teardown_service_test) is the
+// observe-count-and-fire logic ONLY; the DUT-side deletion is unexercised here.
 //
 // This lives in the sce layer (not on the stimulus-layer session) because gating
 // on an OBSERVED frame needs ::tc8::CapturedEvent, which the pollable/stimulus

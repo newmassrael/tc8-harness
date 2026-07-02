@@ -23,9 +23,10 @@ namespace tc8::sce {
 
 // TC8 v3.0 §5.1.6 SOMEIP_ETS_151 — SD_Send_triggerEventUINT8Reliable_Eventgroup_2.
 //
-// FAITHFUL reliable-event case. Unlike the UDP siblings (147/148/149), the event
-// here — TestEventUINT8Reliable (0x8003) — is delivered over TCP, so the tester
-// must hold a live reliable connection for it to be observable. The stimulus:
+// Faithful reliable-EVENT observation (with an eventgroup deviation, below).
+// Unlike the UDP siblings (147/148/149), the event here — TestEventUINT8Reliable
+// (0x8003) — is delivered over TCP, so the tester must hold a live reliable
+// connection for it to be observable. The stimulus:
 //   1. FindService boot (DUT offers SERVICE-ID-1 with its reliable endpoint);
 //   2. open a `SubscribeEventgroupTcpSession` — a client-initiated TCP connection
 //      to the DUT reliable endpoint that it HOLDS open (adopted by the runner as
@@ -39,10 +40,13 @@ namespace tc8::sce {
 // tightening the faithful UDP siblings (148/149/150) make over their events.
 //
 // EVENTGROUP DEVIATION (residual debt): the spec places 0x8003 on eg 0x02 mixed
-// with the unreliable events; the harness isolates it in reliable-only eg 0x0007
-// (see ets.fdepl) so a Subscribe stays Ack-able without the dual UDP+TCP endpoint
-// option the SD builder does not yet emit. The reliable event is now OBSERVED
-// (0x8003 over TCP); the residual gap is only the eg-0x02 form of the Subscribe.
+// with the unreliable events, which vsomeip NACKs for a UDP-only Subscribe; the
+// harness isolates it in reliable-only eg 0x0007 (see ets.fdepl) so this Subscribe
+// stays Ack-able. The SD builder CAN already emit a multi-option (UDP+TCP) Subscribe
+// (someip_ets_173 references two endpoint options via extra_options), so the gap is
+// NOT a missing builder capability — it is moving 0x8003 back onto eg 0x02 in
+// ets.fdepl, which would force the eg-0x02 UDP-only subscribers (147-150/121) onto
+// the dual-endpoint form too. The reliable event itself is faithfully observed.
 template <>
 struct TestCaseTraits<cases::SomeipEts151SM> : SomeIpAnyBase<cases::SomeipEts151SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_151";

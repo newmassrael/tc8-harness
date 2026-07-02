@@ -157,8 +157,8 @@ SubscribeEventgroupTcpSession::~SubscribeEventgroupTcpSession() {
         resumeIncoming();  // never leak a kernel DROP rule past the session's life.
     }
     if (fd_ >= 0) {
-        // close() sends FIN (or RST if unread bytes remain); the DUT tears the
-        // reliable subscription down on connection loss.
+        // close() sends FIN (or RST if unread bytes remain); on connection loss the
+        // DUT is expected to tear the reliable subscription down.
         ::close(fd_);
         fd_ = -1;
     }

@@ -3,8 +3,9 @@
 // down" logic. It uses an INERT session (constructed on a
 // non-existent interface, so it never acquires an fd), which makes applyTeardown() a
 // no-op — the test exercises only the observe-count-and-fire logic, no DUT, no
-// network. The wire behaviour of the teardown itself (DUT deletes the subscription)
-// is covered by the live reliable-subscribe path, not here.
+// network. The wire behaviour of the teardown itself (the DUT deleting the
+// subscription, and the iptables/RST mechanics) is NOT covered anywhere in-tree: it
+// needs a live DUT + netns-root and is exercised only by the out-of-tree OEM cases.
 
 #include <cstdint>
 #include <memory>
