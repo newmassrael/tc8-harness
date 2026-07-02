@@ -753,7 +753,34 @@ case files, so deferred out of the one-line manifest change rather than bundled 
 
 ## TD-15 — the raw client onResponse correlates by session but not by interface version
 
-**Status:** OPEN. **Logged:** 2026-07-02 (session-correlation seam for the client reaction path).
+**Status:** RESOLVED (2026-07-03 — verdict: NO, real middleware does not reject on major
+mismatch). **Logged:** 2026-07-02 (session-correlation seam for the client reaction path).
+
+**Resolution (2026-07-03).** The textbook fix's first step — "confirm against a real
+CommonAPI-SomeIP proxy whether a correctly-correlated Response is rejected on major-version
+mismatch" — was carried out against the actual stack the DUT is modelled on, and the answer
+is NO. Two authoritative layers both ignore an incoming Response's Interface Version:
+  - **CommonAPI-SomeIP 3.2.4** (`capicxx-someip-runtime` @ `86dfd698`,
+    `src/CommonAPI/SomeIP/Connection.cpp::handleProxyReceive`) correlates a Response purely by
+    `get_session()` into `asyncAnswers_` / `sendAndBlockAnswers_`, derives `CallStatus` from
+    `get_return_code()` alone, and never reads `get_interface_version()`. An exhaustive sweep of
+    the runtime puts every `major`/interface-version touch on the SEND / subscribe / build side
+    (plus the queryable `InterfaceVersionAttribute`) — none on the Response-receive path.
+  - **vsomeip** (`application_impl::on_message`) dispatches a Response to handlers via
+    `find_handlers(service, instance, method)` — keyed on (service, instance, method) with no
+    version dimension; the only version-adjacent gate is the `MT_NOTIFICATION` subscription-active
+    check. CommonAPI registers its handler as `register_message_handler(service, instance,
+    ANY_METHOD, ...)`, so nothing upstream filters the Response by version either.
+Therefore the raw client's current behaviour — deliver a correctly session-correlated Response
+regardless of its major byte — is FAITHFUL to the real proxy, and folding a version drop into
+`ResponseCorrelation` would have fitted the harness to a property real middleware does not have
+(the make-it-pass hazard this debt was logged to prevent). **No client change is made.** Per the
+"if no" branch: a case that asserts a DUT *client* ignores a wrong-interface-version *Response*
+is asserting a non-existent middleware property — the SOME/IP `E_WRONG_INTERFACE_VERSION` (0x08)
+check is performed by the receiver of a *Request* (a server/DUT-as-server), not by a client
+validating a Response — so it belongs in case authoring / spec reading, not this seam. The
+`response_correlation.h` header comment is updated from "unconfirmed" to this confirmed finding.
+The prose below is the original finding.
 
 **What it is.** `ResponseCorrelation` (`dut/dut_service/response_correlation.h`) makes the raw
 vsomeip client (`VsomeipEtsClientControl`) drop a Response whose SOME/IP Session ID matches no

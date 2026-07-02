@@ -36,12 +36,15 @@ namespace tc8::dut {
 // send does), never block on the dispatch thread, or holding the lock across it
 // would deadlock.
 //
-// Interface-version correlation is deliberately NOT done here. vsomeip does not
-// version-check incoming Responses, and whether a proxy rejects a correctly
-// session-correlated Response on major-version mismatch is unconfirmed; folding a
-// version drop in here would risk fitting a property real middleware may not have
-// (see docs/tech-debt.md TD-15). Session correlation alone is well-founded — the
-// request-id is the canonical Response-to-Request key.
+// Interface-version correlation is deliberately NOT done here, and this is now
+// confirmed faithful (docs/tech-debt.md TD-15, RESOLVED): a real CommonAPI-SomeIP
+// proxy (3.2.4 Connection::handleProxyReceive) correlates a Response by session
+// alone and never reads its Interface Version, and vsomeip's on_message dispatches
+// a Response by (service, instance, method) with no version gate — so nothing in
+// the real DUT-as-client stack drops a correctly session-correlated Response on a
+// major mismatch. Folding a version drop in here would fit the harness to a
+// property real middleware does not have. Session correlation alone is well-founded
+// — the request-id is the canonical Response-to-Request key.
 class ResponseCorrelation {
 public:
     // (service, instance, method) — the key a Response is matched under, the same
