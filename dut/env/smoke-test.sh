@@ -1512,10 +1512,12 @@ run_case() {
         [SOMEIP_ETS_152]="eventgroup_id=0x0002"
         # §5.1.6 SOMEIP_ETS_147 subscribes to eg 0x02 (mirror of _086).
         [SOMEIP_ETS_147]="eventgroup_id=0x0002"
-        # §5.1.6 SOMEIP_ETS_148/_149/_151 also subscribe to eg 0x02.
+        # §5.1.6 SOMEIP_ETS_148/_149 also subscribe to eg 0x02.
         [SOMEIP_ETS_148]="eventgroup_id=0x0002"
         [SOMEIP_ETS_149]="eventgroup_id=0x0002"
-        [SOMEIP_ETS_151]="eventgroup_id=0x0002"
+        # §5.1.6 SOMEIP_ETS_151 subscribes to the reliable-only eg 0x0007
+        # (0x8003 is isolated there per ets.fdepl) over a live TCP session.
+        [SOMEIP_ETS_151]="eventgroup_id=0x0007"
         # §5.1.6 SOMEIP_ETS_150 subscribes to eg 0x06 (Multicast variant).
         [SOMEIP_ETS_150]="eventgroup_id=0x0006"
     )
@@ -2084,7 +2086,7 @@ run_negative_case() {
         [SOMEIP_ETS_148]="eventgroup_id=0x0002"
         [SOMEIP_ETS_149]="eventgroup_id=0x0002"
         [SOMEIP_ETS_150]="eventgroup_id=0x0006"
-        [SOMEIP_ETS_151]="eventgroup_id=0x0002"
+        [SOMEIP_ETS_151]="eventgroup_id=0x0007"
         [SOMEIP_ETS_152]="eventgroup_id=0x0002"
     )
     local neg_case_overrides="${NEG_CASE_EXPECT_OVERRIDES[$case_id_canon]:-}"
