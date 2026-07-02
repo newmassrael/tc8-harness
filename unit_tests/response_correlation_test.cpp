@@ -57,5 +57,20 @@ TEST(ResponseCorrelation, SessionIsIsolatedByKey) {
     EXPECT_TRUE(c.acceptResponse(kA, 7));
 }
 
+// recordSent() runs the send callable and records the session it returns, under
+// the same lock acceptResponse() takes. Here the callable stands in for the
+// vsomeip send that stamps and returns the session.
+TEST(ResponseCorrelation, RecordSentRunsSendAndRecordsReturnedSession) {
+    ResponseCorrelation c;
+    bool sent = false;
+    c.recordSent(kA, [&] {
+        sent = true;
+        return std::uint16_t{7};
+    });
+    EXPECT_TRUE(sent);
+    EXPECT_TRUE(c.acceptResponse(kA, 7));
+    EXPECT_FALSE(c.acceptResponse(kA, 7));
+}
+
 }  // namespace
 }  // namespace tc8::dut

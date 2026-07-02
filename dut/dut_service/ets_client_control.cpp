@@ -335,14 +335,21 @@ private:
             return app_->is_available(service, instance);
         },
         [this](const std::shared_ptr<vsomeip::message>& request) {
-            app_->send(request);
-            // send() stamps the Session ID on the message; record it (MT_REQUEST
-            // only — MT_REQUEST_NO_RETURN elicits no Response to correlate).
             if (request->get_message_type() == vsomeip::message_type_e::MT_REQUEST) {
-                correlation_->recordRequest(
+                // Send and record the vsomeip-assigned Session ID atomically, so a
+                // Response cannot be accepted before its session is recorded (the
+                // send only enqueues, so holding the correlation lock across it is
+                // deadlock-free). send() stamps the session before it returns.
+                correlation_->recordSent(
                     {request->get_service(), request->get_instance(),
                      request->get_method()},
-                    request->get_session());
+                    [&] {
+                        app_->send(request);
+                        return request->get_session();
+                    });
+            } else {
+                // Fire & Forget (MT_REQUEST_NO_RETURN): no Response to correlate.
+                app_->send(request);
             }
         }};
 };
