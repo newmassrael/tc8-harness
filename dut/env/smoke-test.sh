@@ -102,6 +102,18 @@ STDOUT_LOCK=$WORK_ROOT/stdout.lock
 # out across runs.
 VSOMEIP_BASE=/tmp/tc8-vsomeip.$$
 
+# The per-run /tmp scratch above is PID-scoped, but the per-worker netns/veth
+# names are NOT: tc8-{tester,dut}-$W and veth-*-$W are host-global and fixed (a
+# veth name cannot carry a per-run token — IFNAMSIZ caps it at 15 chars). So two
+# smoke-test.sh runs on one host (a tc8-harness CI push and an OEM downstream that
+# vendors this script) would create/tear down the SAME worker namespaces and
+# corrupt each other mid-run. A host-global advisory lock serialises them (see the
+# acquisition before bring-up). Host-wide path, so both runs resolve one lock.
+NETNS_LOCK_FILE=/var/lock/tc8-smoke-netns.lock
+# Bound the wait so a stuck/leaked holder fails loud rather than hanging past the
+# CI job timeout; a normal concurrent run releases on exit well within this.
+NETNS_LOCK_WAIT_S=3600
+
 # DUT-specific expected values for SOMEIPSRV_FORMAT_14..18,
 # FORMAT_19..28, and OPTIONS_04/07/15. Passed to the harness via
 # `--expect` so the SCXML guards compare captured fields against
@@ -929,6 +941,27 @@ unset stale owner
 # Legacy non-PID-scoped paths from pre-migration smoke-test.sh runs.
 pkill -KILL -f '/tmp/tc8-vsomeip-[0-9][0-9]*/tc8-' 2>/dev/null || true
 rm -rf /tmp/tc8-workers /tmp/vsomeip-* /tmp/vsomeip.lck /tmp/tc8-vsomeip-[0-9]*
+
+# Serialise this run's use of the host-global worker namespaces against any other
+# smoke-test.sh on the host. Acquired HERE — after the PID-guarded stale GC, before
+# any netns is created — and held in the MAIN shell for the whole run: the worker
+# subshells inherit the fd, and it releases only when this shell exits (the cleanup
+# trap's netns teardown thus also runs under the lock). Try non-blocking first so a
+# clear reason is logged when we wait; then block up to NETNS_LOCK_WAIT_S. flock
+# releases on holder death, so a crashed run cannot deadlock this one.
+exec {NETNS_LOCK_FD}>"$NETNS_LOCK_FILE"
+if ! flock -n "$NETNS_LOCK_FD"; then
+    _lock_holder=""
+    if command -v fuser >/dev/null; then
+        _lock_holder=$(fuser "$NETNS_LOCK_FILE" 2>/dev/null | tr -c '0-9' ' ' | tr -s ' ')
+    fi
+    echo "smoke-test: host netns lock $NETNS_LOCK_FILE held by another smoke run (${_lock_holder:-holder unknown}) — waiting up to ${NETNS_LOCK_WAIT_S}s to serialise" >&2
+    if ! flock -w "$NETNS_LOCK_WAIT_S" "$NETNS_LOCK_FD"; then
+        echo "smoke-test: timed out after ${NETNS_LOCK_WAIT_S}s waiting for $NETNS_LOCK_FILE — another smoke run is stuck holding it" >&2
+        exit 1
+    fi
+    unset _lock_holder
+fi
 
 mkdir -p "$WORK_ROOT" "$VSOMEIP_BASE"
 : >"$STDOUT_LOCK"
