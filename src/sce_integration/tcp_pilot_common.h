@@ -24,6 +24,8 @@
 #include "tc8/upper_tester_protocol.h"
 #include "sce_integration/tcp_captured.h"
 #include "sce_integration/test_config.h"
+#include "sce_integration/tester_stimulus_chain.h"  // kTesterStimulusChain / ensureTesterStimulusChain (SSOT).
+#include "stimulus/endpoint.h"                       // Endpoint — per-connection 4-tuple.
 #include "stimulus/ipv4_frame_builder.h"
 #include "stimulus/tcp_segment_builder.h"
 #include "stimulus/upper_tester_client.h"
@@ -740,30 +742,70 @@ inline int connectToDutTcp(const ::tc8::TestConfig &cfg,
     return 0;
 }
 
-// Dedicated iptables chain housing every tester-side suppression rule
-// the stimulus RAIIs below install. Rules NEVER go directly into
-// OUTPUT: a SIGKILLed harness skips the RAII destructors, and a rule
-// leaked into OUTPUT silently poisons every later TCP exchange against
-// the DUT on topologies whose tester kernel persists across runs
-// (external / ssh-remote; single-pc discards the per-case netns). With
-// one well-known chain, smoke-test.sh flushes the leaks at bring-up
-// without knowing any rule shape. The OUTPUT->chain jump itself is
-// idempotent permanent residue, inert while the chain is empty.
-inline constexpr const char *kTesterStimulusChain = "tc8-stimulus";
+// The tester suppression chain (kTesterStimulusChain) and its create-and-jump
+// helper (ensureTesterStimulusChain) are the SSOT in sce_integration/
+// tester_stimulus_chain.h, shared by the OUTBOUND scopes below and the INBOUND
+// TesterInboundDropScope, so the chain name has one home.
 
-inline bool ensureTesterStimulusChain() {
-    char cmd[160];
-    std::snprintf(cmd, sizeof(cmd),
-                  "iptables -w 5 -nL %s >/dev/null 2>&1 || "
-                  "iptables -w 5 -N %s 2>/dev/null",
-                  kTesterStimulusChain, kTesterStimulusChain);
-    if (std::system(cmd) != 0) return false;
-    std::snprintf(cmd, sizeof(cmd),
-                  "iptables -w 5 -C OUTPUT -j %s 2>/dev/null || "
-                  "iptables -w 5 -A OUTPUT -j %s 2>/dev/null",
-                  kTesterStimulusChain, kTesterStimulusChain);
-    return std::system(cmd) == 0;
-}
+// RAII: DROP the DUT's inbound TCP segments on ONE connection (dut -> tester) for
+// the scope's lifetime, so the tester kernel stops ACKing and the DUT's reliable
+// send is intended to stall into half-open detection (the connection-lost teardown
+// for a held reliable-subscribe connection). Installs into kTesterStimulusChain via
+// the INPUT hook. Same non-fatal / RAII / `-w 5` discipline as TesterAutoRstDrop;
+// the per-connection 4-tuple match keeps its rule from matching the outbound-RST
+// rules that share the chain (those key on `-d DUT`, this on `-s DUT`).
+class TesterInboundDropScope {
+public:
+    TesterInboundDropScope(const ::tc8::stimulus::Endpoint &dut,
+                           const ::tc8::stimulus::Endpoint &tester) {
+        char dut_ip[INET_ADDRSTRLEN] = {};
+        char tester_ip[INET_ADDRSTRLEN] = {};
+        if (::inet_ntop(AF_INET, &dut.ipv4_be, dut_ip, sizeof(dut_ip)) == nullptr ||
+            ::inet_ntop(AF_INET, &tester.ipv4_be, tester_ip, sizeof(tester_ip)) == nullptr) {
+            return;
+        }
+        if (!ensureTesterStimulusChain("INPUT")) {
+            std::fprintf(stderr,
+                         "tcp-pilot: TesterInboundDropScope chain setup failed "
+                         "(continuing without the drop filter)\n");
+            return;
+        }
+        const int rc = std::snprintf(match_, sizeof(match_),
+                      "-p tcp -s %s --sport %u -d %s --dport %u -j DROP",
+                      dut_ip, dut.port, tester_ip, tester.port);
+        if (rc < 0 || rc >= static_cast<int>(sizeof(match_))) {
+            return;
+        }
+        char cmd[320];
+        std::snprintf(cmd, sizeof(cmd), "iptables -w 5 -A %s %s 2>/dev/null",
+                      kTesterStimulusChain, match_);
+        if (std::system(cmd) == 0) {
+            installed_ = true;
+        } else {
+            std::fprintf(stderr,
+                         "tcp-pilot: TesterInboundDropScope install failed "
+                         "(continuing without the drop filter)\n");
+        }
+    }
+
+    ~TesterInboundDropScope() {
+        if (!installed_) return;
+        char cmd[320];
+        std::snprintf(cmd, sizeof(cmd), "iptables -w 5 -D %s %s 2>/dev/null",
+                      kTesterStimulusChain, match_);
+        const int rc = std::system(cmd);
+        (void)rc;
+    }
+
+    TesterInboundDropScope(const TesterInboundDropScope &)            = delete;
+    TesterInboundDropScope &operator=(const TesterInboundDropScope &) = delete;
+
+    bool installed() const { return installed_; }
+
+private:
+    bool installed_ = false;
+    char match_[256] = {};
+};
 
 // Suppress tester-kernel auto-RST against the DUT for the lifetime
 // of the scope. The Linux tester kernel responds with RST to any

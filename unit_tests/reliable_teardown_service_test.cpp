@@ -20,9 +20,9 @@
 namespace {
 
 using tc8::sce::SubscribeTcpTeardownService;
+using tc8::sce::TcpTeardownMode;
 using tc8::stimulus::Endpoint;
 using tc8::stimulus::SubscribeEventgroupTcpSession;
-using tc8::stimulus::TcpTeardownMode;
 
 constexpr std::uint16_t kService = 0xF4E7;
 constexpr std::uint16_t kEvent = 0x8003;

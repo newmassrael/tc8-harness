@@ -10,21 +10,6 @@
 
 namespace tc8::stimulus {
 
-// How a reliable-subscribe session tears its connection down so the DUT deletes
-// the subscription: the DUT stops delivering the reliable event once it detects
-// the connection is gone.
-enum class TcpTeardownMode {
-    // Half-open: silently DROP the DUT's inbound segments so the tester kernel
-    // stops ACKing; the DUT's send stalls and its half-open detection deletes the
-    // subscription. No FIN/RST leaves the tester — the "connection lost" shape.
-    // Reversible via resumeIncoming().
-    kDropIncoming,
-    // Refuse: force a RST so the DUT sees the connection reset and deletes the
-    // subscription — the "connection refused" shape. Not reversible on the same
-    // connection (the socket is gone after the RST).
-    kRefuseWithRst,
-};
-
 // A tester-owned RELIABLE (TCP) eventgroup subscription session — the live-TCP
 // counterpart of the UDP `emitSubscribeEventgroupBoot` family. It is what lets a
 // case observe (and later assert the absence of) a reliable event such as
@@ -87,37 +72,22 @@ class SubscribeEventgroupTcpSession : public ::tc8::IPollableService {
     // negative errno-derived sentinel (-1 if the session is invalid).
     int subscribe(const SubscribeEventgroupTarget &target, const SubscribeDestination &sd_dest = {});
 
-    // --- Teardown controls (OEM-enabling seam) ---
-    //
-    // Tear the connection down so the DUT is expected to delete the reliable
-    // subscription and stop delivering the event: a consuming case observes the
-    // reliable event live, calls one of these, then verifies no further event.
-    // NOTE: no in-tree case exercises these yet — the reliable-teardown cases are
-    // out-of-tree (OEM) — so the DUT-side deletion below is the INTENDED mechanism,
-    // not one an in-tree test asserts.
-
-    // Connection-lost shape: install a kernel packet-filter rule that DROPs the
-    // DUT's inbound segments on THIS connection, so the tester stops ACKing and the
-    // DUT's send is intended to stall into half-open detection. No FIN/RST is
-    // emitted. Idempotent; removed by resumeIncoming() or at destruction. Needs the
-    // netns-root context the smoke test runs in; a failed install is logged and
-    // left non-fatal (the case then observes a timeout rather than silence).
-    void dropIncoming();
-    // Remove the dropIncoming() filter so the tester resumes ACKing.
-    void resumeIncoming();
-
-    // Connection-refused shape: force a RST (SO_LINGER 0 + close) so the DUT sees
-    // the connection reset. The socket is gone afterwards — pollFd() returns -1 and
-    // the session cannot subscribe or receive again.
+    // Abortive close (transport-level teardown): force a RST (SO_LINGER 0 + close)
+    // so the DUT sees the connection reset and is expected to delete the reliable
+    // subscription — the "connection refused" teardown shape. The socket is gone
+    // afterwards: pollFd() returns -1 and the session cannot subscribe or receive
+    // again. This operates only on the session's OWN socket (no packet filter); the
+    // silent "connection lost" (half-open) teardown is a NETWORK-policy concern that
+    // lives in the sce layer (tcp_pilot_common.h TesterInboundDropScope), keyed on
+    // the 4-tuple below — not on this transport object. No in-tree case exercises
+    // either teardown yet; the DUT-side deletion is the intended mechanism.
     void refuseWithRst();
 
-    // Dispatch to the mode's control (kDropIncoming -> dropIncoming, kRefuseWithRst
-    // -> refuseWithRst) — the seam a teardown driver uses without branching.
-    void applyTeardown(TcpTeardownMode mode);
-
-    // The DUT reliable endpoint this session connected to (for a reconnect
-    // observer or a second session), and the tester's advertised endpoint.
+    // The connection's endpoints — the DUT reliable endpoint this session connected
+    // to (for a reconnect or a second session) and the tester's own endpoint (the
+    // 4-tuple an sce-layer drop filter targets to tear this connection down).
     const Endpoint &dutReliable() const { return dut_reliable_; }
+    Endpoint testerEndpoint() const { return Endpoint{src_ip_be_, local_port_}; }
 
     // IPollableService.
     int pollFd() const override { return fd_; }
@@ -129,7 +99,6 @@ class SubscribeEventgroupTcpSession : public ::tc8::IPollableService {
     std::string iface_;
     std::uint16_t local_port_ = 0;  // host order.
     Endpoint dut_reliable_{};        // DUT reliable endpoint (for teardown filter + reconnect).
-    bool drop_installed_ = false;    // a dropIncoming() filter is currently installed.
 };
 
 }  // namespace tc8::stimulus

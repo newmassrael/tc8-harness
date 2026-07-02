@@ -5,11 +5,20 @@
 #include <utility>
 
 #include "sce_integration/captured_frame_observer.h"
-#include "someip/protocol.h"  // MessageType::NOTIFICATION.
+#include "sce_integration/tcp_pilot_common.h"  // tcp::TesterInboundDropScope (INPUT DROP RAII).
+#include "someip/protocol.h"                    // MessageType::NOTIFICATION.
 #include "stimulus/subscribe_tcp_session.h"
 #include "tc8/captured_event.h"
 
 namespace tc8::sce {
+
+// How a reliable-subscribe connection is torn down so the DUT deletes the
+// subscription. kDropIncoming is the silent "connection lost" (half-open) shape via
+// an sce-layer INPUT DROP on the connection's 4-tuple (tcp::TesterInboundDropScope);
+// kRefuseWithRst is the "connection refused" shape via the session's own abortive
+// close (RST). The mechanisms live in their correct layers — packet filter in sce,
+// socket close in the transport session — and this driver dispatches between them.
+enum class TcpTeardownMode { kDropIncoming, kRefuseWithRst };
 
 // Drives the teardown of a reliable-subscribe session from the wire, for a
 // reliable-event teardown silence shape: observe the reliable event delivered live
@@ -35,7 +44,7 @@ class SubscribeTcpTeardownService : public IFrameObservingService {
     // exactly once.
     SubscribeTcpTeardownService(std::unique_ptr<::tc8::stimulus::SubscribeEventgroupTcpSession> session,
                                 std::uint16_t service_id, std::uint16_t event_id,
-                                int trigger_after, ::tc8::stimulus::TcpTeardownMode mode)
+                                int trigger_after, TcpTeardownMode mode)
         : session_(std::move(session)),
           service_id_(service_id),
           event_id_(event_id),
@@ -66,7 +75,16 @@ class SubscribeTcpTeardownService : public IFrameObservingService {
         }
         if (++observed_ >= trigger_after_) {
             torn_down_ = true;
-            session_->applyTeardown(mode_);
+            // An invalid (fd-less) session is inert — the counter still fires so the
+            // logic is unit-testable, but no packet-filter/socket op runs.
+            if (session_->valid()) {
+                if (mode_ == TcpTeardownMode::kRefuseWithRst) {
+                    session_->refuseWithRst();
+                } else {
+                    drop_scope_ = std::make_unique<tcp::TesterInboundDropScope>(
+                        session_->dutReliable(), session_->testerEndpoint());
+                }
+            }
         }
     }
 
@@ -78,7 +96,10 @@ class SubscribeTcpTeardownService : public IFrameObservingService {
     std::uint16_t service_id_;
     std::uint16_t event_id_;
     int trigger_after_;
-    ::tc8::stimulus::TcpTeardownMode mode_;
+    TcpTeardownMode mode_;
+    // The DROP filter for kDropIncoming — held so it stays installed across the
+    // observation window and is removed (RAII) when this driver is torn down.
+    std::unique_ptr<tcp::TesterInboundDropScope> drop_scope_;
     int observed_ = 0;
     bool torn_down_ = false;
 };
