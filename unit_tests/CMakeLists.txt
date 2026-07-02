@@ -240,6 +240,7 @@ target_include_directories(lifecycle_dispatcher_test PRIVATE
 tc8_add_unit_test(expect_parser_test)
 tc8_add_unit_test(someip_sd_builder_test)
 tc8_add_unit_test(reliable_teardown_service_test)
+tc8_add_unit_test(tcp_client_test)
 # Tester server-role RPC reply builders (buildMethodResponse/buildMethodError):
 # byte-level assertions pin the SOME/IP header per PRS_SOMEIP_00701/00757 and
 # the Request-ID echo the DUT client correlates on.
