@@ -185,6 +185,18 @@ target_link_libraries(pending_requests_test PRIVATE
     GTest::gtest GTest::gtest_main)
 add_test(NAME pending_requests_test COMMAND pending_requests_test)
 
+# Response<->Request session correlation (dut/dut_service/response_correlation.h):
+# the policy split out of VsomeipEtsClientControl that drops a Response whose
+# Session ID matches no Request the DUT sent, so a raw vsomeip client ignores an
+# uncorrelated Response like a CommonAPI proxy would. Pins record/accept-once,
+# unrecorded + wrong-session rejection, and per-(service,instance,method) isolation.
+add_executable(response_correlation_test response_correlation_test.cpp)
+target_include_directories(response_correlation_test PRIVATE
+    ${PROJECT_SOURCE_DIR}/dut/dut_service)
+target_link_libraries(response_correlation_test PRIVATE
+    GTest::gtest GTest::gtest_main)
+add_test(NAME response_correlation_test COMMAND response_correlation_test)
+
 # DUT-side pollable drain owner (dut/dut_service/pollable_host.h): the receiver an
 # extension adopts via IEtsIoHost, drained on the DUT main loop. Backs a fake
 # pollable with a non-blocking socketpair so the poll()/onReadable() drain path is

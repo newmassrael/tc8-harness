@@ -12,6 +12,7 @@
 
 #include "ets_vsomeip_app.h"  // acquireCommonApiApplication, messageBytes (SSOT)
 #include "pending_requests.h"  // availability-gated Request buffer (testable policy)
+#include "response_correlation.h"  // Response<->Request session correlation policy
 
 namespace tc8::dut {
 namespace {
@@ -166,14 +167,28 @@ public:
         if (!app_) return;
         std::lock_guard<std::mutex> lock(mutex_);
         response_methods_.push_back({service, instance, method});
+        // Capture the correlation policy by strong copy (not `this`): the handler
+        // may fire on a vsomeip dispatch thread after this control is destroyed, and
+        // the shared_ptr keeps the policy alive for that enqueued callback — the same
+        // this-free discipline the availability path gets from the live_ latch.
         app_->register_message_handler(
             service, instance, method,
-            [handler = std::move(handler)](const std::shared_ptr<vsomeip::message>& msg) {
+            [service, instance, method, correlation = correlation_,
+             handler = std::move(handler)](const std::shared_ptr<vsomeip::message>& msg) {
                 if (!msg) return;
                 const auto type = msg->get_message_type();
                 if (type != vsomeip::message_type_e::MT_RESPONSE &&
                     type != vsomeip::message_type_e::MT_ERROR) {
                     return;  // only client-side responses/errors are the reaction
+                }
+                // Drop a Response/Error whose Session ID does not correlate to a
+                // Request the DUT actually sent: vsomeip delivers it here purely on
+                // the (service, instance, method) match, but a CommonAPI proxy has no
+                // pending call for an unknown session and ignores it, so the pending
+                // call times out. Restores that proxy behaviour on the raw client.
+                if (!correlation->acceptResponse({service, instance, method},
+                                                 msg->get_session())) {
+                    return;
                 }
                 handler(static_cast<std::uint8_t>(msg->get_return_code()),
                         messageBytes(msg));
@@ -303,15 +318,33 @@ private:
     std::vector<ResponseMethod> response_methods_;
     std::vector<StatusEventgroup> status_eventgroups_;
     std::set<std::pair<std::uint16_t, std::uint16_t>> requested_services_;
+    // Response<->Request session correlation, shared by strong copy with each
+    // onResponse handler (which may outlive this control). recordRequest() runs
+    // here on the send path; acceptResponse() runs on a vsomeip dispatch thread.
+    std::shared_ptr<ResponseCorrelation> correlation_{
+        std::make_shared<ResponseCorrelation>()};
     // Requests callMethod() received while the service was not yet available,
     // flushed in submission order on ON_AVAILABLE. The injected availability query
     // and sender bind to the vsomeip application and run under mutex_, exactly where
-    // the inline app_->is_available() / app_->send() used to.
+    // the inline app_->is_available() / app_->send() used to. The sender records
+    // each sent MT_REQUEST's vsomeip-assigned Session ID so a later Response is
+    // matched to it — this is the one send choke point both the inline and the
+    // parked-then-flushed paths pass through, so the session is captured once.
     PendingRequests<std::shared_ptr<vsomeip::message>> pending_{
         [this](std::uint16_t service, std::uint16_t instance) {
             return app_->is_available(service, instance);
         },
-        [this](const std::shared_ptr<vsomeip::message>& request) { app_->send(request); }};
+        [this](const std::shared_ptr<vsomeip::message>& request) {
+            app_->send(request);
+            // send() stamps the Session ID on the message; record it (MT_REQUEST
+            // only — MT_REQUEST_NO_RETURN elicits no Response to correlate).
+            if (request->get_message_type() == vsomeip::message_type_e::MT_REQUEST) {
+                correlation_->recordRequest(
+                    {request->get_service(), request->get_instance(),
+                     request->get_method()},
+                    request->get_session());
+            }
+        }};
 };
 
 // Null Object used when the vsomeip application cannot be found. Its no-ops keep
