@@ -74,6 +74,12 @@ jobs:
     timeout-minutes: 120
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: '4'
+      # Steer every cmake configure in this job (build-harness sets its own,
+      # but check-suite-producer.sh configures fresh trees) to the job-scoped
+      # vsomeip install — the runner host's /usr/local may carry an
+      # operator-managed SOME/IP stack that CI must neither overwrite nor
+      # silently load (see build-harness).
+      CMAKE_PREFIX_PATH: /opt/someip-stack
     steps:
       - uses: actions/checkout@v5
         with:

@@ -14,16 +14,30 @@ runs:
       # would silently regress whenever the submodule SHA or patch
       # series changes between PRs.
       #
+      # Installs to the job-scoped /opt/someip-stack (the build-test.yml
+      # convention), NEVER to /usr/local: the runner host's /usr/local may
+      # carry an operator-managed SOME/IP stack, and overwriting it (or the
+      # DUT silently loading it mid-suite) corrupts both sides. The prefix
+      # rides argv, not VSOMEIP_INSTALL_PREFIX, because the sudoers command
+      # rule matches any argv while env assignment would need SETENV.
+      # Runtime resolution needs no ldconfig/LD_LIBRARY_PATH: the harness
+      # binaries carry a build RPATH to the prefix and libvsomeip3 carries
+      # $ORIGIN for its dlopen'ed plugins (see setup-vsomeip.sh).
+      #
       # NOPASSWD requirement: extend /etc/sudoers.d/tc8-runner so the
       # runner can invoke the checked-out setup-vsomeip.sh (and the
       # inner `sudo cmake --install`) without interactive auth. See
       # README §CI for the full sudoers fragment.
       shell: bash
-      run: sudo -n ./scripts/setup-vsomeip.sh
+      run: sudo -n ./scripts/setup-vsomeip.sh /opt/someip-stack
 
     - name: Configure
+      # CMAKE_PREFIX_PATH steers find_package(vsomeip3) to the job-scoped
+      # install above — deterministic even when /usr/local holds a foreign
+      # vsomeip. CommonAPI still resolves from the host (/usr/local).
       shell: bash
       run: |
+        export CMAKE_PREFIX_PATH=/opt/someip-stack${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}
         cmake -S . -B build \
           -DCMAKE_BUILD_TYPE=Release \
           -DTC8_SCE_FIND_PACKAGE=OFF

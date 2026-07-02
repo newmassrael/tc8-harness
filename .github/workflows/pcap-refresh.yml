@@ -33,13 +33,17 @@ jobs:
     timeout-minutes: 120
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: '4'
+      # Steer find_package(vsomeip3) to the job-scoped install — the runner
+      # host's /usr/local may carry an operator-managed SOME/IP stack that
+      # CI must neither overwrite nor silently load (see build-harness).
+      CMAKE_PREFIX_PATH: /opt/someip-stack
     steps:
       - uses: actions/checkout@v5
         with:
           submodules: recursive
 
       - name: Apply vsomeip patch series + reinstall (idempotent)
-        run: sudo -n ./scripts/setup-vsomeip.sh
+        run: sudo -n ./scripts/setup-vsomeip.sh /opt/someip-stack
 
       - name: Configure
         run: |

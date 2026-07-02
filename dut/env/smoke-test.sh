@@ -556,6 +556,36 @@ fi
 topology_preflight \
     || { echo "smoke-test: topology '$TOPOLOGY' preflight failed — aborting before any case runs" >&2; exit 1; }
 
+# vsomeip runtime-binding preflight: the DUT must load libvsomeip3 from the
+# directory recorded in its own RUNPATH — i.e. the install it was BUILT
+# against. If the dynamic linker binds elsewhere (a foreign stack in
+# /usr/local swapped underneath the build, an LD_LIBRARY_PATH leak), every
+# SOME/IP case degrades into mass no-verdict failures that read like case
+# regressions; fail fast and name the mismatch instead. Skipped when the DUT
+# binary is absent (remote topologies) or vsomeip-free (lwIP DUT).
+if [[ -x "$TC8_DUT_BIN" ]]; then
+    dut_vsomeip_resolved=$(ldd "$TC8_DUT_BIN" 2>/dev/null \
+        | awk '/libvsomeip3\.so\.3/{print $3; exit}')
+    if [[ -n "$dut_vsomeip_resolved" ]]; then
+        [[ "$dut_vsomeip_resolved" == /* ]] \
+            || { echo "smoke-test: tc8-dut cannot resolve libvsomeip3.so.3 — rebuild or rerun scripts/setup-vsomeip.sh" >&2; exit 1; }
+        dut_vsomeip_want=""
+        while IFS= read -r rp_dir; do
+            if [[ -e "$rp_dir/libvsomeip3.so.3" ]]; then
+                dut_vsomeip_want="$rp_dir"
+                break
+            fi
+        done < <(readelf -d "$TC8_DUT_BIN" 2>/dev/null \
+                    | awk -F'[][]' '/RUNPATH|RPATH/{print $2; exit}' | tr ':' '\n')
+        if [[ -n "$dut_vsomeip_want" ]] \
+            && [[ "$(readlink -f "$(dirname "$dut_vsomeip_resolved")")" != "$(readlink -f "$dut_vsomeip_want")" ]]; then
+            echo "smoke-test: tc8-dut binds libvsomeip3 from $(dirname "$dut_vsomeip_resolved") but was built against $dut_vsomeip_want" >&2
+            echo "            (foreign vsomeip in the search path — rebuild, or rerun scripts/setup-vsomeip.sh for the built prefix)" >&2
+            exit 1
+        fi
+    fi
+fi
+
 if [[ -n "$LOG_DIR" ]]; then
     mkdir -p "$LOG_DIR"
 fi
