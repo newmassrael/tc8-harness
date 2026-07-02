@@ -707,3 +707,35 @@ motivating CAN start-offset case does not clearly need. Registered so the second
 non-generalizing shape is a conscious, tracked choice; revisit when a second lifecycle
 transition (`onSuspend`) or a client-only re-activation case lands — that is when the Waker's
 generality pays for itself.
+
+## TD-14 — the SD port (30490) is still hand-copied across C++ despite the wire SSOT
+
+**Status:** OPEN. **Logged:** 2026-07-02 (review of the utm_test `TC8_WIRE_SD_PORT` request).
+
+**What it is.** `feat(wire)` (`3802a61e`) added `TC8_WIRE_SD_PORT` to the cross-language wire
+manifest with a `cpp=include/tc8/dut_config.h:kSdPort` annotation, so the bash/Rust side is now
+drift-gated against the canonical `tc8::dut::kSdPort`. That closes the shell overlay's hand-copy
+but NOT the C++ side: the value 30490 is still spelled directly in several first-party TUs that
+do not route through `tc8::dut::kSdPort`, so the wire gate cannot see them —
+  - two LOCAL redefinitions shadowing the canonical symbol: `constexpr std::uint16_t kSdPort =
+    30490;` in `src/sce_integration/cases/someip_ets_152.h` and `dut/dut_service/client_mode.cpp`;
+  - ~8 bare `params.tester_endpoint.port = 30490U;`-style literals in ETS case headers
+    (someip_ets_110/118/119/137/152/154/162/163.h) plus the big-endian byte form `0x77, 0x1A`
+    in someip_ets_117.h.
+(`dut_config.h`'s `kCapturePortLow = 30490` is a DELIBERATE relationship — the capture range
+begins at the SD port — not a blind copy, and is out of scope here.)
+
+**Why it exists.** The wire-manifest request was scoped to the topology overlay's shell hand-copy;
+fixing that is one line. The C++-side literals predate the manifest and span case files owned by
+the coverage work. `stimulus::someip_sd_builder` already routes through `tc8::dut::kSdPort`
+correctly — the debt is confined to case-local endpoint fills and the two shadows.
+
+**Risk if left.** Low, drift-safe in practice — 30490 is the registered SD port and every site
+agrees today. But the two shadow `kSdPort` consts are genuine SSOT violations (a retune of
+`tc8::dut::kSdPort` would silently diverge from them), and the literals are the exact hand-copy
+class the wire manifest exists to kill.
+
+**Textbook fix.** Replace the two local `kSdPort` shadows and the ~8 case-header literals with
+`tc8::dut::kSdPort` (already the single home, `#include "tc8/dut_config.h"`), leaving one C++
+SSOT that the wire manifest's `cpp=` annotation gates. Mechanical, but touches coverage-owned
+case files, so deferred out of the one-line manifest change rather than bundled with it.
