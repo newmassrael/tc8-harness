@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# Idempotent vsomeip setup: apply the tc8-harness patch series (plus any OEM
-# extension layers via TC8_EXTRA_VSOMEIP_PATCHES), build, install.
+# Idempotent vsomeip setup: reset the vendored submodule to its pinned
+# sources, apply the tc8-harness patch series (plus any OEM extension layers
+# via TC8_EXTRA_VSOMEIP_PATCHES), configure (plus any OEM flags via
+# TC8_EXTRA_VSOMEIP_CMAKE_ARGS), build, install.
+# Usage: setup-vsomeip.sh [install-prefix]
 # Run after `git submodule update --init --recursive` on a fresh clone, and
 # whenever patches/vsomeip/series (or an extra layer) changes. Requires quilt
 # (apt install quilt).
@@ -11,10 +14,13 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 VSOMEIP_DIR="$REPO_ROOT/third_party/vsomeip"
 PATCHES_DIR="$REPO_ROOT/patches/vsomeip"
 
-# Install prefix is overridable so CI can co-locate vsomeip with
-# CommonAPI under /opt/someip-stack (build-test.yml convention) while
-# local dev defaults to /usr/local.
-INSTALL_PREFIX="${VSOMEIP_INSTALL_PREFIX:-/usr/local}"
+# Install prefix: argv[1] > VSOMEIP_INSTALL_PREFIX > /usr/local. CI passes a
+# job-scoped prefix (/opt/someip-stack, the build-test.yml convention) so the
+# runner never overwrites a host-managed /usr/local SOME/IP stack; local dev
+# keeps /usr/local. The argv form exists for sudo-restricted callers: a
+# sudoers command rule without an argument list matches any argv, while
+# passing VAR=val through sudo additionally requires the SETENV tag.
+INSTALL_PREFIX="${1:-${VSOMEIP_INSTALL_PREFIX:-/usr/local}}"
 
 if [[ ! -e "$VSOMEIP_DIR/.git" ]]; then
     echo "error: $VSOMEIP_DIR submodule not initialised" >&2
@@ -28,12 +34,18 @@ fi
 
 cd "$VSOMEIP_DIR"
 
-# `actions/checkout` 's submodule update reverts tracked files to the
-# pinned commit but leaves untracked `.pc/` (quilt's bookkeeping)
-# behind across CI runs. That desyncs quilt's "what's applied" view
-# from the actual file contents, so a subsequent `quilt push -a`
-# reports "File series fully applied" and exits 2 (which then trips
-# `set -e`). Nuking `.pc/` forces a clean reapply every time.
+# Restore pristine pinned sources before re-applying the stack, then drop
+# quilt's bookkeeping so the merged series always applies from scratch. Two
+# desync shapes make anything less than a full reset unreliable:
+#   - CI: `actions/checkout`'s submodule sync reverts tracked files but
+#     leaves the untracked `.pc/` behind, so quilt believes the series is
+#     applied while the sources are pristine (`quilt push -a` exits 2).
+#   - local: a prior run leaves patched sources whose staged merged series
+#     (a mktemp dir) is gone, so quilt cannot pop and a bare re-push hits
+#     reversed-patch failures.
+# `git checkout -- .` touches tracked files only, so build/ survives for an
+# incremental rebuild.
+git checkout -- .
 rm -rf .pc
 
 # Apply the tc8-harness base patch series, then any OEM extension layers stacked
@@ -89,7 +101,30 @@ if [[ -s "$STAGE/series" ]]; then
 fi
 
 # Build + install. Cap parallelism per repo policy.
-cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX"
+#
+# - CMAKE_INSTALL_RPATH='$ORIGIN': libvsomeip3 dlopens its plugin modules
+#   (libvsomeip3-cfg/-sd/-e2e) by bare soname from INSIDE the library, and
+#   the dynamic linker does not consult the executable's DT_RUNPATH for such
+#   a call — an install outside the ld.so search path (CI's job prefix)
+#   would abort every app at init ("Configuration module could not be
+#   loaded"). $ORIGIN makes the install self-contained: plugins and
+#   co-installed deps resolve from the library's own directory.
+# - CMAKE_PREFIX_PATH="$INSTALL_PREFIX": dependencies co-installed into the
+#   same prefix win over system copies (CI builds Boost >= 1.75 there;
+#   vsomeip 3.7.3 raised the floor past ubuntu-22.04's apt 1.74).
+# - TC8_EXTRA_VSOMEIP_CMAKE_ARGS: whitespace-separated extra configure args —
+#   the OEM seam mirroring TC8_EXTRA_VSOMEIP_PATCHES, e.g. the feature
+#   toggle an OEM patch layer introduces. Appended last so a duplicated -D
+#   overrides the defaults above. Unset => public behaviour unchanged.
+extra_cmake_args=()
+if [[ -n "${TC8_EXTRA_VSOMEIP_CMAKE_ARGS:-}" ]]; then
+    read -r -a extra_cmake_args <<< "$TC8_EXTRA_VSOMEIP_CMAKE_ARGS"
+fi
+cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+      -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+      -DCMAKE_INSTALL_RPATH='$ORIGIN' \
+      -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
+      "${extra_cmake_args[@]}"
 cmake --build build -j4
 sudo cmake --install build
 
