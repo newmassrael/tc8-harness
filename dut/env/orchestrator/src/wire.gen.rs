@@ -51,6 +51,12 @@ pub const SD_MINOR_VERSION: &str = "0";
 /// that breaks the Nack-echo baseline.
 pub const SD_DEFAULT_EVENTGROUP: &str = "0x0001";
 
+/// SOME/IP-SD port — SSOT `tc8::dut::kSdPort` (include/tc8/dut_config.h). The
+/// registered SD port both the DUT and the tester stimulus bind to. Topology
+/// overlays read $TC8_WIRE_SD_PORT for the SD destination port instead of
+/// re-hardcoding 30490. Emitted decimal so bash/profiles use it as a port.
+pub const SD_PORT: &str = "30490";
+
 /// Tester-side primary IP (single-pc tester veth + lwIP tap host side).
 pub const TESTER_IP: &str = "172.16.0.1";
 

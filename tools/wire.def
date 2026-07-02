@@ -73,6 +73,11 @@ TC8_WIRE_STR(SD_MINOR_VERSION, "0")
 /// SOMEIPSRV/ETS cases Nack-echo. Do NOT "correct" to a deployed eventgroup —
 /// that breaks the Nack-echo baseline.
 TC8_WIRE_STR(SD_DEFAULT_EVENTGROUP, "0x0001")
+/// SOME/IP-SD port — SSOT `tc8::dut::kSdPort` (include/tc8/dut_config.h). The
+/// registered SD port both the DUT and the tester stimulus bind to. Topology
+/// overlays read $TC8_WIRE_SD_PORT for the SD destination port instead of
+/// re-hardcoding 30490. Emitted decimal so bash/profiles use it as a port.
+TC8_WIRE_U16(SD_PORT, "30490", cpp=include/tc8/dut_config.h:kSdPort)
 
 # --- Primary netns / tap wire identity (bash + Rust; no C++ stimulus peer) --
 /// Tester-side primary IP (single-pc tester veth + lwIP tap host side).
