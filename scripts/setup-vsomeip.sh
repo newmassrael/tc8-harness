@@ -43,9 +43,13 @@ cd "$VSOMEIP_DIR"
 #   - local: a prior run leaves patched sources whose staged merged series
 #     (a mktemp dir) is gone, so quilt cannot pop and a bare re-push hits
 #     reversed-patch failures.
-# `git checkout -- .` touches tracked files only, so build/ survives for an
-# incremental rebuild.
+# `git checkout -- .` restores modified tracked files; `git clean` drops
+# files a previous apply CREATED (untracked — an extra-layer patch that adds
+# files would otherwise hit "already exists / Hunk FAILED" on re-run; the
+# base series never creates files, so only the OEM seam trips it). `-e
+# build` keeps the build tree for an incremental rebuild.
 git checkout -- .
+git clean -fdxq -e build
 rm -rf .pc
 
 # Apply the tc8-harness base patch series, then any OEM extension layers stacked

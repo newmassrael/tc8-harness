@@ -125,9 +125,11 @@ sudo ./scripts/setup-vsomeip.sh
 `setup-vsomeip.sh` takes the install prefix as `argv[1]` (or
 `VSOMEIP_INSTALL_PREFIX`; default `/usr/local`) so CI can install to a
 job-scoped `/opt/someip-stack` without touching a host-managed
-`/usr/local` stack. It always resets the submodule's tracked files to the
-pinned sources before re-applying the patch stack, so re-runs are
-idempotent from any prior state, and it configures the build with
+`/usr/local` stack. It always resets the submodule to the pinned sources
+before re-applying the patch stack — restoring modified tracked files AND
+dropping files a previous apply created (keeping `build/` for incremental
+rebuilds) — so re-runs are idempotent from any prior state, including
+extra layers whose patches create files. It configures the build with
 `-DCMAKE_INSTALL_RPATH='$ORIGIN'` so the installed libvsomeip3 resolves
 its dlopen'ed plugins (cfg/sd/e2e) and co-installed deps from its own
 directory — a prefix outside the ld.so search path needs no ldconfig or
@@ -466,7 +468,7 @@ worker N does not prevent worker M's records from landing in the XML.
 | First case after a fresh netns hangs ~5 s                                 | Linux STALE→DELAY→PROBE on the DUT neigh entry                                                           | `setup-netns.sh` already widens `delay_first_probe_time=30`; no action needed                            |
 | `--workers 4` smoke flakes on TCP retransmit timing cases                  | pcap-delivery jitter under load                                                                          | Those cases (RETRANSMISSION_TO_03..06) migrated to kernel-side `OpQueryTcpInfo` — not jitter-sensitive   |
 | vsomeip clients can't find each other after a kernel update               | UDS / shm leftover in `/tmp/tc8-vsomeip.$$`                                                              | The scratch is PID-scoped; rerun smoke-test.sh, the next invocation gets a fresh PID dir                 |
-| `quilt push -a` returns 2 or hits reversed-patch errors                    | Patched sources / stale `.pc/` from a prior run                                                          | `setup-vsomeip.sh` resets tracked files + nukes `.pc/` first; by hand: `git -C third_party/vsomeip checkout -- . && rm -rf third_party/vsomeip/.pc` |
+| `quilt push -a` returns 2, reversed-patch or "already exists" errors       | Patched / patch-created sources or stale `.pc/` from a prior run                                         | `setup-vsomeip.sh` resets tracked files + cleans untracked (except `build/`) first; by hand: `git -C third_party/vsomeip checkout -- . && git -C third_party/vsomeip clean -fdx -e build` |
 | `--negative` row passes (i.e. doesn't fail) when expected to fail         | `expected.*` cond became trivially-true                                                                  | This is exactly the regression class `--negative` exists to catch — fix the SCXML cond                   |
 
 ## Testing against a real target ECU
