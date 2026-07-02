@@ -710,7 +710,18 @@ generality pays for itself.
 
 ## TD-14 — the SD port (30490) is still hand-copied across C++ despite the wire SSOT
 
-**Status:** OPEN. **Logged:** 2026-07-02 (review of the utm_test `TC8_WIRE_SD_PORT` request).
+**Status:** RESOLVED (2026-07-02). **Logged:** 2026-07-02 (review of the utm_test
+`TC8_WIRE_SD_PORT` request); resolved same day in a session-review audit that found the
+"touches coverage-owned case files" deferral rationale was false for `client_mode.cpp`
+(DUT firmware in `namespace tc8::dut`, not a case file — a same-namespace shadow of the
+SSOT symbol). All sites already reached `dut_config.h`, so the fix was zero-cost: the two
+`kSdPort` shadows (`client_mode.cpp` — which also shadowed `kSdMcastGroup`, fixed too — and
+`someip_ets_152.h`) were deleted and the ~8 case-header `30490` literals routed through
+`tc8::dut::kSdPort`. The one wire-byte fixture (`someip_ets_117.h` `0x77,0x1A`) keeps its
+literal bytes (that IS the asserted wire image) but is now `static_assert`-tied to
+`tc8::dut::kSdPort` so a retune cannot silently diverge. `kCapturePortLow` was left
+independent: a BPF window bound is a distinct fact from the SD port, so coupling them would
+be over-fitting, not SSOT. The prose below is the original finding.
 
 **What it is.** `feat(wire)` (`3802a61e`) added `TC8_WIRE_SD_PORT` to the cross-language wire
 manifest with a `cpp=include/tc8/dut_config.h:kSdPort` annotation, so the bash/Rust side is now

@@ -43,7 +43,7 @@ struct TestCaseTraits<cases::SomeipEts119SM> : SomeIpAnyBase<cases::SomeipEts119
         // Tester IP unchanged from canonical (172.16.0.3 tester veth);
         // only l4proto flipped to 0x42 (arbitrary non-UDP non-TCP value).
         params.tester_endpoint.ipv4_be = 0x030010ACU;  // 172.16.0.3
-        params.tester_endpoint.port = 30490U;
+        params.tester_endpoint.port = tc8::dut::kSdPort;
         params.tester_endpoint.l4proto = 0x42;  // neither 0x11 (UDP) nor 0x06 (TCP)
         ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, params);
     }

@@ -57,7 +57,7 @@ struct TestCaseTraits<cases::SomeipEts137SM> : SomeIpAnyBase<cases::SomeipEts137
         //   17 B option 1: length=14, IPv4 Endpoint TCP body (9 B) + 5 dummy
         //    7 B option 2: length=4, truncated body (4 B)
         const std::uint32_t tester_ip_be = cfg.ipv4.tester_ip;  // host's veth-tester IPv4 in NBO.
-        const std::uint16_t tester_port  = 30490;               // SD port (matches Subscribe response routing).
+        const std::uint16_t tester_port  = tc8::dut::kSdPort;   // SD port (matches Subscribe response routing).
 
         std::vector<std::uint8_t> d;
         d.reserve(68);

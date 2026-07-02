@@ -44,7 +44,7 @@ struct TestCaseTraits<cases::SomeipEts110SM> : SomeIpAnyBase<cases::SomeipEts110
         // 32.0.0.0 = 0x20 0x00 0x00 0x00 wire bytes; ipv4_be on LE is
         // 0x00000020. Spec quote: "the transmitted IP is 32.0.0.0".
         params.tester_endpoint.ipv4_be = 0x00000020U;
-        params.tester_endpoint.port = 30490U;
+        params.tester_endpoint.port = tc8::dut::kSdPort;
         params.tester_endpoint.l4proto = 0x11;  // UDP
         ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, params);
     }

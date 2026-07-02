@@ -64,7 +64,7 @@ struct TestCaseTraits<cases::SomeipEts152SM> : SomeIpAnyBase<cases::SomeipEts152
         params.session_id             = 0x0001;
         params.sd_flags               = 0x40;
         params.tester_endpoint.ipv4_be = cfg.ipv4.tester_ip;
-        params.tester_endpoint.port    = 30490;
+        params.tester_endpoint.port    = tc8::dut::kSdPort;
         params.tester_endpoint.l4proto = 0x11;  // UDP
         const auto datagram = ::tc8::stimulus::buildSubscribeEventgroup(params);
 
@@ -77,7 +77,6 @@ struct TestCaseTraits<cases::SomeipEts152SM> : SomeIpAnyBase<cases::SomeipEts152
         const std::uint32_t dut_ip   = cfg.ipv4.dut_iface_ip;
         const std::uint32_t tester_ip = cfg.ipv4.tester_ip;
         std::thread([datagram, dut_ip, tester_ip]() {
-            constexpr std::uint16_t kSdPort = 30490;
             const int sock = ::socket(AF_INET, SOCK_DGRAM, 0);
             if (sock < 0) return;
             const int reuse = 1;
@@ -85,7 +84,7 @@ struct TestCaseTraits<cases::SomeipEts152SM> : SomeIpAnyBase<cases::SomeipEts152
 
             sockaddr_in bind_addr{};
             bind_addr.sin_family = AF_INET;
-            bind_addr.sin_port   = htons(kSdPort);
+            bind_addr.sin_port   = htons(tc8::dut::kSdPort);
             bind_addr.sin_addr.s_addr = tester_ip;
             if (::bind(sock, reinterpret_cast<const sockaddr*>(&bind_addr),
                        sizeof(bind_addr)) < 0) {
@@ -95,7 +94,7 @@ struct TestCaseTraits<cases::SomeipEts152SM> : SomeIpAnyBase<cases::SomeipEts152
 
             sockaddr_in dst{};
             dst.sin_family = AF_INET;
-            dst.sin_port   = htons(kSdPort);
+            dst.sin_port   = htons(tc8::dut::kSdPort);
             dst.sin_addr.s_addr = dut_ip;
 
             constexpr int kBurst = 100000;

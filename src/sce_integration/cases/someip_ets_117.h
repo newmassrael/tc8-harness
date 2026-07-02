@@ -52,11 +52,16 @@ struct TestCaseTraits<cases::SomeipEts117SM> : SomeIpAnyBase<cases::SomeipEts117
         // Append a second IPv4 Endpoint option (Type 0x04). Body mirrors
         // the canonical first endpoint structure: IP (4 B) + reserved +
         // l4proto + port = 9 B.
+        // Raw wire image: the exact option bytes on the link. The port bytes are
+        // kept literal (this IS the wire being asserted) but static_assert-tied to
+        // the SD-port SSOT so a kSdPort retune cannot silently diverge from them.
+        static_assert((0x77u << 8 | 0x1Au) == tc8::dut::kSdPort,
+                      "ets_117 SD port BE bytes (0x77,0x1A) must equal tc8::dut::kSdPort");
         std::vector<std::uint8_t> ipv4_body{
             0xAC, 0x10, 0x00, 0x03,  // 172.16.0.3 (tester)
             0x00,                     // reserved
             0x11,                     // l4proto = UDP
-            0x77, 0x1A,               // port = 30490 (BE)
+            0x77, 0x1A,               // port = 30490 (BE) — see static_assert above
             0x00                      // reserved tail (option body padding to 9 B)
         };
         params.extra_options.push_back({/*type=*/0x04, /*body=*/std::move(ipv4_body), /*reserved=*/0});

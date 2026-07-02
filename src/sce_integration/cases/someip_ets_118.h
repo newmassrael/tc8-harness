@@ -38,7 +38,7 @@ struct TestCaseTraits<cases::SomeipEts118SM> : SomeIpAnyBase<cases::SomeipEts118
 
         ::tc8::stimulus::Ipv4Endpoint endpoint{};
         endpoint.ipv4_be = 0x030010ACU;  // 172.16.0.3 (tester veth)
-        endpoint.port = 30490U;
+        endpoint.port = tc8::dut::kSdPort;
         endpoint.l4proto = 0x11;  // UDP
 
         for (std::uint16_t sid = 0x0001; sid <= 0x000A; ++sid) {

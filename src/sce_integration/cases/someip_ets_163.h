@@ -46,7 +46,7 @@ struct TestCaseTraits<cases::SomeipEts163SM> : SomeIpAnyBase<cases::SomeipEts163
         // LE Linux is 0x6F6F6F6F. Caller-set ipv4_be != 0 bypasses
         // emitter's auto-fill so port + l4proto must be set explicitly.
         params.tester_endpoint.ipv4_be = 0x6F6F6F6FU;
-        params.tester_endpoint.port = 30490U;
+        params.tester_endpoint.port = tc8::dut::kSdPort;
         params.tester_endpoint.l4proto = 0x11;  // UDP
         ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, params);
     }

@@ -2,6 +2,7 @@
 
 #include "client_mode_wire.h"
 #include "someip/wire.h"
+#include "tc8/dut_config.h"  // kSdPort / kSdMcastGroup — SD port/group SSOT
 
 #include <arpa/inet.h>
 #include <cerrno>
@@ -35,9 +36,6 @@ constexpr std::uint16_t kClientTargetInstanceId = 0xFFFF;
 constexpr std::uint8_t  kClientTargetMajor      = 0xFF;
 constexpr std::uint32_t kClientTargetTtl        = 3;
 constexpr std::uint32_t kClientTargetMinor      = 0xFFFFFFFFu;
-
-constexpr std::uint16_t kSdPort       = 30490;
-constexpr const char *  kSdMcastGroup = "224.244.224.245";
 
 // SD §4.2.1 cadence — base delay 200 ms with exponential doubling, capped
 // at three repetitions (matches vsomeip default `repetitions_max = 3`).

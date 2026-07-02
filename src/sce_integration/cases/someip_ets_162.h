@@ -54,7 +54,7 @@ struct TestCaseTraits<cases::SomeipEts162SM> : SomeIpAnyBase<cases::SomeipEts162
         // Caller-set ipv4_be != 0 bypasses emitter's auto-fill so port +
         // l4proto must be set explicitly.
         params.tester_endpoint.ipv4_be = 0x020010ACU;
-        params.tester_endpoint.port = 30490U;
+        params.tester_endpoint.port = tc8::dut::kSdPort;
         params.tester_endpoint.l4proto = 0x11;  // UDP
         ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, params);
     }

@@ -51,7 +51,7 @@ struct TestCaseTraits<cases::SomeipEts154SM> : SomeIpAnyBase<cases::SomeipEts154
         // emitter's auto-fill so port + l4proto must be set explicitly
         // to canonical SD UDP values; the only invalid bit is the IP.
         params.tester_endpoint.ipv4_be = 0xFFFFFFFFU;
-        params.tester_endpoint.port = 30490U;
+        params.tester_endpoint.port = tc8::dut::kSdPort;
         params.tester_endpoint.l4proto = 0x11;  // UDP
         ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, params);
     }
