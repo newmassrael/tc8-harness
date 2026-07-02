@@ -43,14 +43,13 @@ cd "$VSOMEIP_DIR"
 #   - local: a prior run leaves patched sources whose staged merged series
 #     (a mktemp dir) is gone, so quilt cannot pop and a bare re-push hits
 #     reversed-patch failures.
-# `git checkout -- .` restores modified tracked files; `git clean` drops
-# files a previous apply CREATED (untracked — an extra-layer patch that adds
-# files would otherwise hit "already exists / Hunk FAILED" on re-run; the
-# base series never creates files, so only the OEM seam trips it). `-e
-# build` keeps the build tree for an incremental rebuild.
+# `git checkout -- .` restores modified tracked files; `git clean -fdx` drops
+# ALL untracked — including quilt's `.pc/` bookkeeping AND files a previous apply
+# CREATED (an extra-layer patch that adds files would otherwise hit "already
+# exists / Hunk FAILED" on re-run; the base series creates none, so only the OEM
+# seam trips it). `-e build` keeps the build tree for an incremental rebuild.
 git checkout -- .
 git clean -fdxq -e build
-rm -rf .pc
 
 # Apply the tc8-harness base patch series, then any OEM extension layers stacked
 # on top, as ONE quilt stack. TC8_EXTRA_VSOMEIP_PATCHES is a ':'-separated list
@@ -106,13 +105,16 @@ fi
 
 # Build + install. Cap parallelism per repo policy.
 #
-# - CMAKE_INSTALL_RPATH='$ORIGIN': libvsomeip3 dlopens its plugin modules
-#   (libvsomeip3-cfg/-sd/-e2e) by bare soname from INSIDE the library, and
-#   the dynamic linker does not consult the executable's DT_RUNPATH for such
-#   a call — an install outside the ld.so search path (CI's job prefix)
-#   would abort every app at init ("Configuration module could not be
-#   loaded"). $ORIGIN makes the install self-contained: plugins and
-#   co-installed deps resolve from the library's own directory.
+# - CMAKE_INSTALL_RPATH='$ORIGIN:$ORIGIN/../lib': libvsomeip3 dlopens its
+#   plugin modules (libvsomeip3-cfg/-sd/-e2e) by bare soname from INSIDE the
+#   library, and the dynamic linker does not consult the executable's
+#   DT_RUNPATH for such a call — an install outside the ld.so search path
+#   (CI's job prefix) would abort every app at init ("Configuration module
+#   could not be loaded"). $ORIGIN resolves the plugins + co-installed deps
+#   from a library's own dir (lib/); $ORIGIN/../lib additionally lets vsomeip's
+#   own installed executables in bin/ (routingmanagerd et al.) find lib/, so
+#   the whole install is self-contained regardless of which dir a binary sits
+#   in. One value covers both target kinds.
 # - CMAKE_PREFIX_PATH="$INSTALL_PREFIX": dependencies co-installed into the
 #   same prefix win over system copies (CI builds Boost >= 1.75 there;
 #   vsomeip 3.7.3 raised the floor past ubuntu-22.04's apt 1.74).
@@ -126,7 +128,7 @@ if [[ -n "${TC8_EXTRA_VSOMEIP_CMAKE_ARGS:-}" ]]; then
 fi
 cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo \
       -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
-      -DCMAKE_INSTALL_RPATH='$ORIGIN' \
+      -DCMAKE_INSTALL_RPATH='$ORIGIN:$ORIGIN/../lib' \
       -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
       "${extra_cmake_args[@]}"
 cmake --build build -j4
