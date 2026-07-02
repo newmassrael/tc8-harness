@@ -739,3 +739,35 @@ class the wire manifest exists to kill.
 `tc8::dut::kSdPort` (already the single home, `#include "tc8/dut_config.h"`), leaving one C++
 SSOT that the wire manifest's `cpp=` annotation gates. Mechanical, but touches coverage-owned
 case files, so deferred out of the one-line manifest change rather than bundled with it.
+
+## TD-15 — the raw client onResponse correlates by session but not by interface version
+
+**Status:** OPEN. **Logged:** 2026-07-02 (session-correlation seam for the client reaction path).
+
+**What it is.** `ResponseCorrelation` (`dut/dut_service/response_correlation.h`) makes the raw
+vsomeip client (`VsomeipEtsClientControl`) drop a Response whose SOME/IP Session ID matches no
+Request the DUT sent — restoring the request-id correlation a CommonAPI-SomeIP proxy does, so the
+client ignores an uncorrelated Response and the pending call times out. It deliberately does NOT
+also drop a Response whose Interface Version (major) differs from the Request's, though vsomeip
+delivers such a Response to the bare (service, instance, method) handler just the same (vsomeip
+version-checks only OUTGOING requests against service availability — `routing_manager_client::send`
+— never an incoming Response).
+
+**Why it exists.** Session correlation is well-founded: the request-id (client + session) is the
+canonical Response-to-Request key, and a wrong-session Response genuinely finds no pending call on
+a real proxy. Interface-version rejection is a SEPARATE, unconfirmed property: it is not clear that
+a real CommonAPI-SomeIP proxy rejects a CORRECTLY session-correlated Response on major mismatch (it
+correlates by request-id, not by re-checking the response major). Folding a version drop into the
+raw client would risk fitting the harness to a property real middleware may not have — a make-it-
+pass rather than a faithful model. Scoped out until that proxy behaviour is confirmed.
+
+**Risk if left.** A client reaction case that asserts the DUT ignores a wrong-interface-version
+Response (session otherwise correct) is not enforceable through this seam yet — the raw client
+delivers it, the DUT records success, the case cannot pass. Confined to that malformation; the
+session-ignore property (the more fundamental one) is covered.
+
+**Textbook fix.** Confirm against a real CommonAPI-SomeIP proxy whether a correctly-correlated
+Response is rejected on major-version mismatch. If yes, extend `ResponseCorrelation` to store each
+Request's major alongside its session and reject a Response whose `get_interface_version()` differs
+— the record/accept API already carries the key, so this is additive. If no, the property belongs
+in the case authoring / spec reading, not the harness client.
