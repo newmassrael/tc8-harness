@@ -40,6 +40,11 @@ jobs:
       # stock Ubuntu runner.
       CMAKE_GENERATOR: Unix Makefiles
       CMAKE_BUILD_PARALLEL_LEVEL: '4'
+      # Single source for the Boost pin: the source-build step, the cache key,
+      # and the sha256 verification all derive from these two. vsomeip 3.7.3
+      # needs Boost >= 1.75; ubuntu-22.04 apt tops out at 1.74.
+      BOOST_VERSION: '1.75.0'
+      BOOST_SHA256: aeb26f80e80945e82ee93e5939baebdca47b9dee80a07d3144be1e1a6a66dd6a
     steps:
       - uses: actions/checkout@v5
         with:
@@ -89,7 +94,7 @@ jobs:
           # a rebuild — that's what keeps RPC_07/_08 (which depend on
           # patches/vsomeip/0001-*) honest across PRs, and what makes a
           # submodule pin bump take effect.
-          key: someip-stack-v3-${{ runner.os }}-${{ steps.vsomeip-pin.outputs.sha }}-${{ hashFiles('patches/vsomeip/series', 'patches/vsomeip/*.patch') }}-capi3.2.0-boost1.75.0
+          key: someip-stack-v3-${{ runner.os }}-${{ steps.vsomeip-pin.outputs.sha }}-${{ hashFiles('patches/vsomeip/series', 'patches/vsomeip/*.patch') }}-capi3.2.0-boost${{ env.BOOST_VERSION }}
 
       - name: Build & install patched vsomeip + CommonAPI from source
         if: steps.cache-someip-deps.outputs.cache-hit != 'true'
@@ -102,17 +107,19 @@ jobs:
           sudo mkdir -p /opt/someip-stack
           sudo chown "$USER" /opt/someip-stack
 
-          # Boost 1.75.0 (filesystem) from source into the same prefix:
-          # vsomeip 3.7.3 raised its Boost floor to 1.75 while ubuntu-22.04's
-          # apt tops out at 1.74. setup-vsomeip.sh points CMAKE_PREFIX_PATH
-          # at the install prefix, so this copy wins over the apt headers,
-          # and its lib lands next to libvsomeip3 where the $ORIGIN rpath
-          # resolves it at runtime. Mirrors the self-hosted runner, which
-          # provides a source-built Boost 1.75 outside apt as well.
-          curl -fsSL -o "$HOME/boost_1_75_0.tar.gz" \
-            https://archives.boost.io/release/1.75.0/source/boost_1_75_0.tar.gz
-          tar -xzf "$HOME/boost_1_75_0.tar.gz" -C "$HOME"
-          (cd "$HOME/boost_1_75_0" \
+          # Boost (filesystem) from source into the same prefix: setup-vsomeip.sh
+          # points CMAKE_PREFIX_PATH at the install prefix, so this copy wins over
+          # the apt headers, and its lib lands next to libvsomeip3 where the
+          # $ORIGIN rpath resolves it at runtime. Mirrors the self-hosted runner,
+          # which provides a source-built Boost outside apt as well. The tarball is
+          # sha256-verified before use — it is compiled and sudo-installed into the
+          # runtime stack, so an unverified download would be a supply-chain hole.
+          boost_uscore="${BOOST_VERSION//./_}"
+          curl -fsSL -o "$HOME/boost.tar.gz" \
+            "https://archives.boost.io/release/${BOOST_VERSION}/source/boost_${boost_uscore}.tar.gz"
+          echo "${BOOST_SHA256}  $HOME/boost.tar.gz" | sha256sum -c -
+          tar -xzf "$HOME/boost.tar.gz" -C "$HOME"
+          (cd "$HOME/boost_${boost_uscore}" \
             && ./bootstrap.sh --prefix=/opt/someip-stack --with-libraries=filesystem \
             && ./b2 -j4 variant=release link=shared threading=multi install)
 
