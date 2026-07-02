@@ -1,40 +1,25 @@
 #include "stimulus/subscribe_tcp_session.h"
 
-#include <arpa/inet.h>
-#include <fcntl.h>
-#include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
-#include <string>
 
 #include "stimulus/iface_addr.h"  // ipv4OfInterface — tester IPv4 (NBO) SSOT.
+#include "stimulus/tcp_client.h"  // connectTcpFromIface — shared TCP bind+connect.
 
 namespace tc8::stimulus {
-
-namespace {
-
-// Set O_NONBLOCK so the capture loop's onReadable() drain never stalls the
-// single-thread model (the IPollableService contract).
-bool setNonBlocking(int fd) {
-    const int flags = ::fcntl(fd, F_GETFL, 0);
-    if (flags < 0) {
-        return false;
-    }
-    return ::fcntl(fd, F_SETFL, flags | O_NONBLOCK) == 0;
-}
-
-}  // namespace
 
 SubscribeEventgroupTcpSession::SubscribeEventgroupTcpSession(std::string_view iface,
                                                              const Endpoint &dut_reliable,
                                                              std::uint32_t source_ip_be)
     : iface_(iface), dut_reliable_(dut_reliable) {
     // A distinct source IP (a configured tester alias) originates a second client;
-    // otherwise use the interface's primary IPv4.
+    // otherwise use the interface's primary IPv4. Resolved here (not left to the
+    // connect primitive) because it is also the source IP advertised in the
+    // Subscribe option — testerEndpoint().
     src_ip_be_ = source_ip_be != 0 ? source_ip_be : ipv4OfInterface(iface);
     if (src_ip_be_ == 0) {
         std::fprintf(stderr,
@@ -52,58 +37,13 @@ SubscribeEventgroupTcpSession::SubscribeEventgroupTcpSession(std::string_view if
         return;
     }
 
-    const int sock = ::socket(AF_INET, SOCK_STREAM, 0);
+    // Non-blocking so onReadable() drains without stalling the single capture thread;
+    // local_port_ is the connection identity advertised in the Subscribe option.
+    const int sock = connectTcpFromIface(iface, dut_reliable, src_ip_be_, &local_port_,
+                                         /*nonblocking=*/true);
     if (sock < 0) {
-        std::fprintf(stderr, "stimulus: reliable subscribe socket() failed: %s\n",
-                     std::strerror(errno));
-        return;
+        return;  // connectTcpFromIface logged the failure.
     }
-
-    // Bind the tester source to this session's IPv4 (the iface primary, or a
-    // configured alias for a second client) on an ephemeral port, so the connection
-    // originates on the tester leg and its source IP is the one advertised in the
-    // Subscribe option — mirrors the RPC TCP builders' bind-then-connect idiom.
-    sockaddr_in bind_addr{};
-    bind_addr.sin_family = AF_INET;
-    bind_addr.sin_port = 0;
-    bind_addr.sin_addr.s_addr = src_ip_be_;
-    if (::bind(sock, reinterpret_cast<sockaddr *>(&bind_addr), sizeof(bind_addr)) < 0) {
-        std::fprintf(stderr, "stimulus: reliable subscribe bind(ephemeral) failed: %s\n",
-                     std::strerror(errno));
-        ::close(sock);
-        return;
-    }
-
-    sockaddr_in dst{};
-    dst.sin_family = AF_INET;
-    dst.sin_port = htons(dut_reliable.port);
-    dst.sin_addr.s_addr = dut_reliable.ipv4_be;
-    if (::connect(sock, reinterpret_cast<sockaddr *>(&dst), sizeof(dst)) < 0) {
-        std::fprintf(stderr, "stimulus: reliable subscribe connect(dut:%u) failed: %s\n",
-                     dut_reliable.port, std::strerror(errno));
-        ::close(sock);
-        return;
-    }
-
-    // Read back the kernel-assigned source port — the connection identity the DUT
-    // keys reliable delivery on, advertised in the Subscribe option below.
-    sockaddr_in local{};
-    socklen_t local_len = sizeof(local);
-    if (::getsockname(sock, reinterpret_cast<sockaddr *>(&local), &local_len) < 0) {
-        std::fprintf(stderr, "stimulus: reliable subscribe getsockname failed: %s\n",
-                     std::strerror(errno));
-        ::close(sock);
-        return;
-    }
-    local_port_ = ntohs(local.sin_port);
-
-    if (!setNonBlocking(sock)) {
-        std::fprintf(stderr, "stimulus: reliable subscribe O_NONBLOCK failed: %s\n",
-                     std::strerror(errno));
-        ::close(sock);
-        return;
-    }
-
     fd_ = sock;
 }
 

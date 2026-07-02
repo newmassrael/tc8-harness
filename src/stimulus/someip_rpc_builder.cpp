@@ -12,6 +12,7 @@
 
 #include "someip/wire.h"
 #include "stimulus/iface_addr.h"
+#include "stimulus/tcp_client.h"
 #include "stimulus/udp_emit.h"
 
 namespace tc8::stimulus {
@@ -172,41 +173,9 @@ namespace {
 
 int requestOnceTcp(const SomeIpRpcMessage &target, std::uint16_t session_id, std::string_view iface,
                    const MethodEndpoint &dest, std::chrono::milliseconds linger) {
-    const int sock = ::socket(AF_INET, SOCK_STREAM, 0);
+    const int sock = connectTcpFromIface(iface, dest);
     if (sock < 0) {
-        std::fprintf(stderr, "stimulus: tcp socket() failed: %s\n", std::strerror(errno));
-        return -1;
-    }
-
-    const std::uint32_t if_addr = ipv4OfInterface(iface);
-    if (if_addr == 0) {
-        std::fprintf(stderr, "stimulus: interface '%.*s' has no IPv4 address — "
-                             "cannot bind tester source for tcp method request\n",
-                     static_cast<int>(iface.size()), iface.data());
-        ::close(sock);
-        return -2;
-    }
-
-    sockaddr_in bind_addr{};
-    bind_addr.sin_family = AF_INET;
-    bind_addr.sin_port = 0;
-    bind_addr.sin_addr.s_addr = if_addr;
-    if (::bind(sock, reinterpret_cast<sockaddr *>(&bind_addr), sizeof(bind_addr)) < 0) {
-        std::fprintf(stderr, "stimulus: tcp bind(ephemeral) failed: %s\n", std::strerror(errno));
-        ::close(sock);
-        return -3;
-    }
-
-    sockaddr_in dst{};
-    dst.sin_family = AF_INET;
-    dst.sin_port = htons(dest.port);
-    dst.sin_addr.s_addr = dest.ipv4_be;
-
-    if (::connect(sock, reinterpret_cast<sockaddr *>(&dst), sizeof(dst)) < 0) {
-        std::fprintf(stderr, "stimulus: tcp connect(dut:%u) failed: %s\n",
-                     dest.port, std::strerror(errno));
-        ::close(sock);
-        return -4;
+        return sock;  // connectTcpFromIface logged the failure (-1..-4).
     }
 
     SomeIpRpcMessage t = target;
@@ -258,41 +227,9 @@ int emitMethodRequestTcpAndHold(std::string_view iface, const SomeIpRpcMessage &
                                 std::chrono::milliseconds dwell_after_send) {
     std::this_thread::sleep_for(pre_emit_wait);
 
-    const int sock = ::socket(AF_INET, SOCK_STREAM, 0);
+    const int sock = connectTcpFromIface(iface, dest);
     if (sock < 0) {
-        std::fprintf(stderr, "stimulus: tcp hold socket() failed: %s\n", std::strerror(errno));
-        return -1;
-    }
-
-    const std::uint32_t if_addr = ipv4OfInterface(iface);
-    if (if_addr == 0) {
-        std::fprintf(stderr, "stimulus: interface '%.*s' has no IPv4 address — "
-                             "cannot bind tester source for tcp hold\n",
-                     static_cast<int>(iface.size()), iface.data());
-        ::close(sock);
-        return -2;
-    }
-
-    sockaddr_in bind_addr{};
-    bind_addr.sin_family = AF_INET;
-    bind_addr.sin_port = 0;
-    bind_addr.sin_addr.s_addr = if_addr;
-    if (::bind(sock, reinterpret_cast<sockaddr *>(&bind_addr), sizeof(bind_addr)) < 0) {
-        std::fprintf(stderr, "stimulus: tcp hold bind(ephemeral) failed: %s\n", std::strerror(errno));
-        ::close(sock);
-        return -3;
-    }
-
-    sockaddr_in dst{};
-    dst.sin_family = AF_INET;
-    dst.sin_port = htons(dest.port);
-    dst.sin_addr.s_addr = dest.ipv4_be;
-
-    if (::connect(sock, reinterpret_cast<sockaddr *>(&dst), sizeof(dst)) < 0) {
-        std::fprintf(stderr, "stimulus: tcp hold connect(dut:%u) failed: %s\n",
-                     dest.port, std::strerror(errno));
-        ::close(sock);
-        return -4;
+        return sock;  // connectTcpFromIface logged the failure (-1..-4).
     }
 
     const auto datagram = buildMethodRequest(target);
@@ -398,42 +335,9 @@ int emitBundledMethodRequestsTcp(std::string_view iface,
         return 0;
     }
 
-    const int sock = ::socket(AF_INET, SOCK_STREAM, 0);
+    const int sock = connectTcpFromIface(iface, dest);
     if (sock < 0) {
-        std::fprintf(stderr, "stimulus: bundled tcp socket() failed: %s\n", std::strerror(errno));
-        return -1;
-    }
-
-    const std::uint32_t if_addr = ipv4OfInterface(iface);
-    if (if_addr == 0) {
-        std::fprintf(stderr, "stimulus: interface '%.*s' has no IPv4 address — "
-                             "cannot bind tester source for bundled tcp\n",
-                     static_cast<int>(iface.size()), iface.data());
-        ::close(sock);
-        return -2;
-    }
-
-    sockaddr_in bind_addr{};
-    bind_addr.sin_family = AF_INET;
-    bind_addr.sin_port = 0;
-    bind_addr.sin_addr.s_addr = if_addr;
-    if (::bind(sock, reinterpret_cast<sockaddr *>(&bind_addr), sizeof(bind_addr)) < 0) {
-        std::fprintf(stderr, "stimulus: bundled tcp bind(ephemeral) failed: %s\n",
-                     std::strerror(errno));
-        ::close(sock);
-        return -3;
-    }
-
-    sockaddr_in dst{};
-    dst.sin_family = AF_INET;
-    dst.sin_port = htons(dest.port);
-    dst.sin_addr.s_addr = dest.ipv4_be;
-
-    if (::connect(sock, reinterpret_cast<sockaddr *>(&dst), sizeof(dst)) < 0) {
-        std::fprintf(stderr, "stimulus: bundled tcp connect(dut:%u) failed: %s\n",
-                     dest.port, std::strerror(errno));
-        ::close(sock);
-        return -4;
+        return sock;  // connectTcpFromIface logged the failure (-1..-4).
     }
 
     const auto bundle = buildBundledMethodRequests(targets);

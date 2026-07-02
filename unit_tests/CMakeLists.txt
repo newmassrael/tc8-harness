@@ -36,6 +36,7 @@ add_library(tc8_harness_testable STATIC
     ${PROJECT_SOURCE_DIR}/src/stimulus/someip_sd_builder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/someip_rpc_builder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/subscribe_tcp_session.cpp
+    ${PROJECT_SOURCE_DIR}/src/stimulus/tcp_client.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/udp_emit.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/someip_tp_emit.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/tcp_segment_builder.cpp
