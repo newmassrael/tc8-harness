@@ -564,7 +564,20 @@ honest about what the first pass got wrong.
 
 ## TD-10 — decode-pcap format cores still live in the verdict-path Evidence-Export header
 
-**Status:** OPEN (accepted, low priority). **Logged:** 2026-07-01 (cold-review residual).
+**Status:** RESOLVED (2026-07-03 — cores moved to the neutral wire leaf). **Logged:**
+2026-07-01 (cold-review residual).
+
+**Resolution (2026-07-03).** Done as the "textbook fix" below. `macToHex` / `ipv4ToDotted` moved
+from `src/sce_integration/captured_trace.h` (the Evidence-Export / verdict layer, `tc8::sce`) to
+the existing neutral leaf `src/wire/wire_format.h` (`tc8::wire`, beside `readBe` / the ip-checksum
+cores). `captured_trace.h`'s `appendMacJson` / `appendIpv4Json` now delegate to `tc8::wire::`, and
+the two direct consumers are repointed: the decode-pcap exporter (`decode_pcap_command.cpp`) and
+`packet_summary.cpp` — the latter now drops `#include "sce_integration/captured_trace.h"` entirely,
+so presentation (cli/) no longer reaches UP into `sce_integration` purely for formatting (the last
+ARCH-A layering thread this debt tracked). `appendJsonEscaped` stayed in `captured_trace.h` (a JSON
+concern the exporter still uses). Behavior-preserving: 0-warning build + ctest 66/66, including the
+`decode_pcap_golden` gate that byte-diffs the exporter's JSON output. The prose below is the
+original finding.
 
 **What.** The generic wire-formatting cores `ipv4ToDotted` / `macToHex` (and the JSON
 `appendJsonEscaped`) live in `src/sce_integration/captured_trace.h` (the Evidence-Export

@@ -8,20 +8,20 @@
 #include <variant>
 #include <vector>
 
-#include "sce_integration/captured_trace.h"   // tc8::sce::ipv4ToDotted / macToHex
 #include "someip/protocol.h"                  // tc8::someip::MessageType / ReturnCode / isSdMessageId
 #include "someip/sd_decode.h"                 // SdDecoded + parseSdInto + sd_entry_type/sd_option_type (neutral SD decode)
 #include "tc8/upper_tester_protocol.h"        // tc8::ut::Opcode / decodeResponse / kPort / kStatus*
+#include "wire/wire_format.h"                 // tc8::wire::ipv4ToDotted / macToHex (neutral leaf, TD-10)
 
 namespace tc8::cli {
 
 namespace {
 
 // MAC and captured-uint32 (octet 0 in the low byte) dotted-quad formatting
-// reuse the harness SSOT cores tc8::sce::macToHex / tc8::sce::ipv4ToDotted, so
+// reuse the harness SSOT cores tc8::wire::macToHex / tc8::wire::ipv4ToDotted, so
 // this layer holds no second copy of that byte ordering.
-using ::tc8::sce::ipv4ToDotted;
-using ::tc8::sce::macToHex;
+using ::tc8::wire::ipv4ToDotted;
+using ::tc8::wire::macToHex;
 
 std::string hex4(std::uint16_t v) {
     char buf[8];

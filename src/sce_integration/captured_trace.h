@@ -8,6 +8,7 @@
 #include "sce_integration/captured_frame_timing.h"
 #include "sce_integration/captured_l3_endpoints.h"
 #include "sce_integration/captured_l4_ports.h"
+#include "wire/wire_format.h"  // tc8::wire::macToHex / ipv4ToDotted (neutral leaf, TD-10)
 
 // Transition trace recording infrastructure (Evidence Export — Option 3).
 //
@@ -82,51 +83,26 @@ inline void appendJsonEscaped(std::string &out, std::string_view s) {
     }
 }
 
-// Append a 6-byte MAC array as a colon-separated lowercase hex string
-// (e.g. "86:e1:db:ae:77:f3"). Used by every Captured family's
-// appendCapturedJson when emitting sender_hw / eth_src style fields.
-// Bare colon-separated lowercase-hex MAC string (no quotes). The single MAC
-// formatter — appendMacJson wraps it for JSON, and the documentation-site
-// exporter (tc8-harness decode-pcap) reuses it for its plain-string fields, so
-// the byte layout lives in one place.
-template <typename ByteArray>
-inline std::string macToHex(const ByteArray &mac) {
-    char buf[18];
-    std::snprintf(buf, sizeof(buf), "%02x:%02x:%02x:%02x:%02x:%02x",
-                  static_cast<unsigned>(mac[0]), static_cast<unsigned>(mac[1]),
-                  static_cast<unsigned>(mac[2]), static_cast<unsigned>(mac[3]),
-                  static_cast<unsigned>(mac[4]), static_cast<unsigned>(mac[5]));
-    return std::string(buf);
-}
-
+// Append a 6-byte MAC array as a JSON string (quoted colon-separated lowercase
+// hex, e.g. "86:e1:db:ae:77:f3"). Used by every Captured family's
+// appendCapturedJson when emitting sender_hw / eth_src style fields. The bare
+// (unquoted) formatter is tc8::wire::macToHex (src/wire/wire_format.h) — a neutral
+// leaf the decode-pcap exporter also shares (TD-10); this wraps it for JSON.
 template <typename ByteArray>
 inline void appendMacJson(std::string &out, const ByteArray &mac) {
     out.push_back('"');
-    out.append(macToHex(mac));
+    out.append(tc8::wire::macToHex(mac));
     out.push_back('"');
 }
 
-// Append an NBO-stored IPv4 address as a dotted-quad string. Mirrors
-// the wire-side semantics: ``ip`` is the uint32 with the wire's first
-// octet in the low byte (LE host assumption — same as the rest of the
-// harness).
-// Bare dotted-quad string (no quotes). `ip` is the uint32 with the wire's first
-// octet in the low byte (LE host / NBO convention shared by the whole harness).
-// The single IPv4 formatter — appendIpv4Json wraps it for JSON and the exporter
-// reuses it for its plain-string fields.
-inline std::string ipv4ToDotted(std::uint32_t ip) {
-    char buf[16];
-    std::snprintf(buf, sizeof(buf), "%u.%u.%u.%u",
-                  static_cast<unsigned>(ip & 0xFFu),
-                  static_cast<unsigned>((ip >> 8) & 0xFFu),
-                  static_cast<unsigned>((ip >> 16) & 0xFFu),
-                  static_cast<unsigned>((ip >> 24) & 0xFFu));
-    return std::string(buf);
-}
-
+// Append an NBO-stored IPv4 address as a JSON string (quoted dotted-quad). `ip` is
+// the uint32 with the wire's first octet in the low byte (LE host / NBO convention
+// shared by the whole harness). The bare (unquoted) formatter is
+// tc8::wire::ipv4ToDotted (src/wire/wire_format.h) — a neutral leaf the decode-pcap
+// exporter also shares (TD-10); this wraps it for JSON.
 inline void appendIpv4Json(std::string &out, std::uint32_t ip) {
     out.push_back('"');
-    out.append(ipv4ToDotted(ip));
+    out.append(tc8::wire::ipv4ToDotted(ip));
     out.push_back('"');
 }
 

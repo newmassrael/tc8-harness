@@ -58,7 +58,7 @@ inline std::uint32_t readU32(const std::uint8_t *p) {
 
 // IPv4 address as it sits on the wire (big-endian), returned in network byte
 // order in memory (octet 0 in the low byte). This matches the harness captured
-// convention (UdpCaptured::ut_recv_src_ip) and the tc8::sce::ipv4ToDotted
+// convention (UdpCaptured::ut_recv_src_ip) and the tc8::wire::ipv4ToDotted
 // formatter — it is deliberately NOT readU32's numeric value; address fields
 // stay in NBO, scalar counters decode via readU32.
 inline std::uint32_t readIpv4Nbo(const std::uint8_t *p) {
@@ -1175,7 +1175,7 @@ inline constexpr bool capabilityBitSet(const std::uint8_t *bitmap,
 // the verdict struct keeps only the subset of fields it asserts on. IP-address
 // fields are stored in network byte order (octet 0 in the low byte — the
 // harness captured convention, matching UdpCaptured::ut_recv_src_ip and
-// formatted by tc8::sce::ipv4ToDotted); scalar fields hold the decoded host
+// formatted by tc8::wire::ipv4ToDotted); scalar fields hold the decoded host
 // integer of the big-endian wire field. Each `*_valid` flag mirrors the
 // consumer's body-length guard; only the field(s) matching `request_opcode`
 // are meaningful.

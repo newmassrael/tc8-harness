@@ -18,19 +18,20 @@
 #include "capture/pcap_source.h"
 #include "cli/packet_summary.h"                // Candidate + makeCandidate (presentation layer, TD-08)
 #include "dissect/packet_pipeline.h"
-#include "sce_integration/captured_trace.h"    // tc8::sce::ipv4ToDotted / macToHex / appendJsonEscaped
+#include "sce_integration/captured_trace.h"    // tc8::sce::appendJsonEscaped (JSON escaping)
+#include "wire/wire_format.h"                   // tc8::wire::ipv4ToDotted / macToHex (neutral leaf, TD-10)
 
 namespace tc8::cli {
 
 namespace {
 
 // MAC and captured-uint32 (octet 0 in the low byte) dotted-quad formatting
-// reuse the harness SSOT cores tc8::sce::macToHex / tc8::sce::ipv4ToDotted, so
+// reuse the harness SSOT cores tc8::wire::macToHex / tc8::wire::ipv4ToDotted, so
 // this command holds no second copy of that byte ordering. The per-protocol
 // summary builders and candidate selection live in cli/packet_summary.* (TD-08);
 // this TU keeps only JSON assembly, endpoint auto-detection, and the drive loop.
-using ::tc8::sce::ipv4ToDotted;
-using ::tc8::sce::macToHex;
+using ::tc8::wire::ipv4ToDotted;
+using ::tc8::wire::macToHex;
 
 void appendJsonString(std::string &out, std::string_view s) {
     out.push_back('"');
