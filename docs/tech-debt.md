@@ -590,7 +590,21 @@ independently-verified change.
 
 ## TD-11 — the topology extra-expect channel has no automated cross-driver parity coverage
 
-**Status:** OPEN (accepted). **Logged:** 2026-07-01 (added with the extra_expect channel).
+**Status:** RESOLVED (2026-07-03 — hosted `--print-expect` parity gate). **Logged:** 2026-07-01
+(added with the extra_expect channel).
+
+**Resolution (2026-07-03).** The "blocked on the self-hosted runner" premise was too pessimistic:
+the extra_expect PARITY is observable in the UNPRIVILEGED `--print-expect` dump — both drivers fold
+the tokens into it and exit before any netns / provisioning — so it does not need the sudo
+case-disposition path that gates `parity-check.yml`. Closed on the HOSTED leg: an example conf pair
+(`dut/env/topology.d/examples/extra-expect-parity.conf` + `dut/env/orchestrator/examples/extra-expect-parity.toml`)
+declares identical bare extra_expect tokens; `parity-check.sh --identity-only` (new flag) runs just
+the `--print-expect` diff; and a new `orchestrator` job in `build-test.yml` runs it on every push —
+also building and `cargo test`-ing the orchestrator, which previously had NO auto-triggered CI
+(parity-check.yml is manual + self-hosted). Proven to fire: matched confs PASS, a drifted `.toml`
+token value FAILs the gate. The broader full case-disposition parity (`parity-check.yml`) still
+awaits the runner NOPASSWD provisioning, but that is a separate strangler concern, not the
+extra_expect-channel coverage gap this debt named. The prose below is the original finding.
 
 **What.** The `--topology-conf` extra-expect channel — bash `TC8_TOPOLOGY_EXTRA_EXPECT`
 (`dut/env/smoke-test.sh`) and Rust `extra_expect` (`dut/env/orchestrator/src/site.rs`) — is

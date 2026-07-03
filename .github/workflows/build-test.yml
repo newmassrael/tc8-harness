@@ -31,6 +31,32 @@ permissions:
   contents: read
 
 jobs:
+  orchestrator:
+    name: orchestrator build + test + extra_expect parity
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build orchestrator + run unit tests
+        # The Rust tc8-orchestrator has no other auto-triggered CI (parity-check.yml
+        # is manual + self-hosted), so its cargo test runs here on the hosted leg.
+        working-directory: dut/env/orchestrator
+        run: |
+          cargo build
+          cargo test
+
+      - name: Topology extra_expect cross-driver parity gate
+        # The --topology-conf extra_expect channel is emitted by both drivers from
+        # hand-mirrored confs (bash .conf array vs Rust .toml list); this diffs their
+        # --print-expect over the example conf pair so the two cannot silently drift
+        # (docs/tech-debt.md TD-11). Unprivileged — --print-expect resolves config and
+        # exits before any netns / provisioning — so it runs on the hosted leg, with
+        # no self-hosted runner needed.
+        run: |
+          dut/env/orchestrator/parity-check.sh --topology lwip-tap --identity-only \
+            --bash-conf dut/env/topology.d/examples/extra-expect-parity.conf \
+            --orch-conf dut/env/orchestrator/examples/extra-expect-parity.toml
+
   build:
     name: build + ctest + spec-coverage gate
     runs-on: ubuntu-22.04

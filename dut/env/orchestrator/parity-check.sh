@@ -13,6 +13,8 @@
 #   dut/env/orchestrator/parity-check.sh --topology lwip-tap   [CASE ...]
 #   dut/env/orchestrator/parity-check.sh --topology external \
 #        --bash-conf FILE --orch-conf FILE [CASE ...]
+#   dut/env/orchestrator/parity-check.sh --topology lwip-tap --identity-only \
+#        --bash-conf FILE --orch-conf FILE   # unprivileged --print-expect diff only
 #
 # Both drivers need root (netns); each is invoked via `sudo -n` on its NOPASSWD
 # path (smoke-test.sh + tc8-orchestrator), so the script itself runs unprivileged.
@@ -37,12 +39,18 @@ ORCH="$HERE/target/debug/tc8-orchestrator"
 TOPOLOGY=single-pc
 BASH_CONF=""
 ORCH_CONF=""
+IDENTITY_ONLY=0
 CASES=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --topology)  TOPOLOGY=$2; shift 2 ;;
-        --bash-conf) BASH_CONF=$2; shift 2 ;;
-        --orch-conf) ORCH_CONF=$2; shift 2 ;;
+        --topology)      TOPOLOGY=$2; shift 2 ;;
+        --bash-conf)     BASH_CONF=$2; shift 2 ;;
+        --orch-conf)     ORCH_CONF=$2; shift 2 ;;
+        # Run only the unprivileged --print-expect identity diff (incl any
+        # --bash-conf/--orch-conf extra_expect) and exit; skip the sudo case runs. Lets
+        # the extra_expect channel parity gate on the hosted CI leg (docs/tech-debt.md
+        # TD-11) — no netns, no self-hosted runner.
+        --identity-only) IDENTITY_ONLY=1; shift ;;
         --) shift; CASES+=("$@"); break ;;
         *)  CASES+=("$1"); shift ;;
     esac
@@ -176,6 +184,16 @@ mismatches=0
 printf '%-28s %-10s %-10s %s\n' CASE BASH ORCH RESULT
 printf '%-28s %-10s %-10s %s\n' ---- ---- ---- ------
 identity_parity
+
+if (( IDENTITY_ONLY )); then
+    echo
+    if (( mismatches > 0 )); then
+        echo "parity-check: FAIL — identity surface diverged (--identity-only)" >&2
+        exit 1
+    fi
+    echo "parity-check: PASS — identity surface agrees (--identity-only)"
+    exit 0
+fi
 
 if [[ "$TOPOLOGY" == single-pc ]]; then
     # One invocation per case: each brings up its own fresh netns (clean attribution).
