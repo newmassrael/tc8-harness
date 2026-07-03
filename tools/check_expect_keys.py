@@ -18,10 +18,14 @@ stays a per-scenario test-authoring concern). The actual emitted key SETS are
 additionally diffed at runtime by dut/env/parity-check.sh.
 
 Producers checked (key NAMES only; their values/parity are checked elsewhere by
-config_test.rs and parity-check.sh):
-  * Rust orchestrator  dut/env/orchestrator/src/dispatch.rs   (ex(&mut e, "k", v))
-  * bash smoke driver  dut/env/smoke-test.sh                  (--expect "k=...")
-  * Python identity    tools/dut_identity.py                  ("k": _require(...))
+config_test.rs and parity-check.sh). The base identity surface is generated from
+tools/expect_surface.def into the two .gen files (TD-12), so those are scanned
+alongside the drivers that still hand-emit the conditional glue keys:
+  * Rust orchestrator  dut/env/orchestrator/src/dispatch.rs             (ex(e, "k", v))
+  *                    dut/env/orchestrator/src/expect_surface.gen.rs   (generated)
+  * bash smoke driver  dut/env/smoke-test.sh                            (--expect "k=...")
+  *                    dut/env/expect_surface.gen.sh                    (generated)
+  * Python identity    tools/dut_identity.py                            ("k": _require(...))
 
 Exits non-zero listing any producer key not in the registry.
 """
@@ -34,7 +38,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 DEF = ROOT / "src/cli/tc8_expect_keys.def"
 RUST = ROOT / "dut/env/orchestrator/src/dispatch.rs"
+RUST_GEN = ROOT / "dut/env/orchestrator/src/expect_surface.gen.rs"
 BASH = ROOT / "dut/env/smoke-test.sh"
+BASH_GEN = ROOT / "dut/env/expect_surface.gen.sh"
 PYID = ROOT / "tools/dut_identity.py"
 
 _GROUP_RE = re.compile(r"^TC8_EXPECT_GROUP\(\s*(\w+)\s*,\s*\"([^\"]*)\"\s*\)$")
@@ -49,7 +55,7 @@ _PAYLOAD_RE = re.compile(r"^TC8_EXPECT_PAYLOAD\(\s*(\w+)\s*,\s*(\w+)\s*\)$")
 # reuse keys already present as literals, and the actual emitted sets are
 # additionally diffed at runtime by parity-check.sh, so this static scan is not
 # the only producer guard.
-_RUST_EX_RE = re.compile(r'ex\(&mut e,\s*"([a-z0-9_.]+)"')
+_RUST_EX_RE = re.compile(r'ex\((?:&mut )?e,\s*"([a-z0-9_.]+)"')
 _RUST_FMT_RE = re.compile(r'push\(format!\("([a-z0-9_.]+)=')
 _BASH_RE = re.compile(r'--expect\s+"([a-z0-9_.]+)=')
 _PYID_RE = re.compile(r'"([a-z0-9_.]+)":\s*_require\(')
@@ -101,7 +107,9 @@ def main() -> int:
     registry = parse_registry()
     producers = {
         "Rust (dispatch.rs)": extract(RUST, [_RUST_EX_RE, _RUST_FMT_RE], "Rust"),
+        "Rust (expect_surface.gen.rs)": extract(RUST_GEN, [_RUST_EX_RE], "Rust gen"),
         "bash (smoke-test.sh)": extract(BASH, [_BASH_RE], "bash"),
+        "bash (expect_surface.gen.sh)": extract(BASH_GEN, [_BASH_RE], "bash gen"),
         "Python (dut_identity.py)": extract(PYID, [_PYID_RE], "Python"),
     }
     rc = 0

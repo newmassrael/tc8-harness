@@ -60,6 +60,9 @@ source "$HERE/verdict_taxonomy.gen.sh"
 # consistent via `tools/gen_wire_manifest.py --check`. Sourced here (before the
 # globals + the topology profile) so $TC8_WIRE_* is in scope for both.
 source "$HERE/wire.gen.sh"
+# Generated base --expect identity surface functions (tc8_expect_<bucket>),
+# single-sourced with the orchestrator from tools/expect_surface.def (TD-12).
+source "$HERE/expect_surface.gen.sh"
 ROOT="$(cd "$HERE/../.." && pwd)"
 HARNESS=${HARNESS:-$ROOT/build/tc8-harness}
 TC8_DUT_BIN=${TC8_DUT_BIN:-$ROOT/build/dut/dut_service/tc8-dut}
@@ -177,43 +180,14 @@ for _need in service_id instance_id udp_port tcp_port sd_multicast_ip ttl \
     }
 done
 
-# Hand-mirrored with the orchestrator's expect_args — the two emitters can drift
-# (see docs/tech-debt.md TD-12); parity-check.sh + the identity pin gate it.
-TC8_DUT_EXPECT=(
-    --expect "service_id=${DUT_ID[service_id]}"
-    --expect "instance_id=${DUT_ID[instance_id]}"
-    --expect "major_version=$TC8_WIRE_SD_MAJOR_VERSION"
-    --expect "ttl=${DUT_ID[ttl]}"
-    --expect "minor_version=$TC8_WIRE_SD_MINOR_VERSION"
-    --expect "eventgroup_id=$TC8_WIRE_SD_DEFAULT_EVENTGROUP"
-    --expect "dut_iface_ip=$DUT_IP4"
-    # The tester's IPv4 for the someip group — a bare key like dut_iface_ip / udp_port
-    # above (the someip group uses unqualified keys; the L2/L3 groups use namespaced
-    # <proto>.tester_ip), fed from the same TESTER_IP4 source. No in-tree case reads
-    # tester_ipv4 today; it lets a destination / Nack-target verdict compare a captured
-    # dst against the tester endpoint instead of the unset-0 default.
-    --expect "tester_ipv4=$TESTER_IP4"
-    --expect "udp_port=${DUT_ID[udp_port]}"
-    --expect "tcp_port=${DUT_ID[tcp_port]}"
-    # §5.1.5.4 SD_BEHAVIOR_03/_04 verify the DUT answers FindService
-    # with a multicast OfferService addressed to the SD multicast group
-    # (vsomeip.json `service-discovery.multicast` for tc8-dut).
-    --expect "sd_multicast_ip=${DUT_ID[sd_multicast_ip]}"
-    # §5.1.5.5 OPTIONS_11/_14 verify the IPv4 Multicast Option fields
-    # emitted in SubscribeEventgroupAck for the multicast-configured
-    # eventgroup 0x0008 (vsomeip.json eventgroup multicast block).
-    --expect "mcast_ipv4=${DUT_ID[mcast_ipv4]}"
-    --expect "mcast_port=${DUT_ID[mcast_port]}"
-    # SD start-up timing (vsomeip.json service-discovery) — the SD start-up delay
-    # checks (AUTOSAR SD Initial-Wait / Repetition / cyclic-Offer phases) compare
-    # their captured windows against these. Must stay in lockstep with the
-    # orchestrator's dispatch::expect_args (parity-check diffs the two surfaces).
-    --expect "sd_initial_delay_min_ms=${DUT_ID[sd_initial_delay_min_ms]}"
-    --expect "sd_initial_delay_max_ms=${DUT_ID[sd_initial_delay_max_ms]}"
-    --expect "sd_repetition_base_delay_ms=${DUT_ID[sd_repetition_base_delay_ms]}"
-    --expect "sd_repetitions_max=${DUT_ID[sd_repetitions_max]}"
-    --expect "sd_cyclic_offer_delay_ms=${DUT_ID[sd_cyclic_offer_delay_ms]}"
-)
+# The base SOME/IP identity + SD timing surface. SINGLE-SOURCED with the
+# orchestrator's expect_args from tools/expect_surface.def (docs/tech-debt.md
+# TD-12): tc8_expect_someip (expect_surface.gen.sh) assigns TC8_DUT_EXPECT from
+# the same manifest the orchestrator generates from, so the two drivers cannot
+# drift. Reads DUT_ID / TESTER_IP4 / DUT_IP4 / TC8_WIRE_* resolved above.
+# Its sd_multicast_ip is the group TC8 §5.1.5.4 SD_BEHAVIOR_03/_04 compare the
+# DUT's multicast OfferService against (spec-section home for that surface).
+tc8_expect_someip
 
 # A topology overlay (--topology-conf) may declare additional expect tokens its DUT
 # needs that vsomeip.json cannot supply (e.g. timing / endpoint constants). Each entry
@@ -244,13 +218,10 @@ fi
 # sender_hw (ARP_03/05) against the MAC the harness injects as the
 # gratuitous/request sender. Single-homed in wire.def `ARP_TESTER_MAC`, which
 # the generator cross-checks against `kTesterInjectedMac` in arp_builder.h.
+# Injected tester sender MAC — feeds the stimulus lladdr below (the arp.tester_mac*
+# --expect keys are single-sourced via tc8_expect_arp; MAC2/MAC3 have no non-expect
+# consumer, so only this one survives as a stimulus var).
 ARP_TESTER_INJECTED_MAC="$TC8_WIRE_ARP_TESTER_MAC"
-# Second tester MAC for §4.2.4.2 Phase 3b Group C cache-merge cases
-# (ARP_32/33/34/35) — wire.def `ARP_TESTER_MAC2` (cf. kTesterInjectedMac2).
-ARP_TESTER_INJECTED_MAC2="$TC8_WIRE_ARP_TESTER_MAC2"
-# Third tester MAC for §4.2.4.2 Phase 3c Group D case ARP_40 (Response-
-# learning) — wire.def `ARP_TESTER_MAC3` (cf. kTesterInjectedMac3).
-ARP_TESTER_INJECTED_MAC3="$TC8_WIRE_ARP_TESTER_MAC3"
 # (TESTER_IP4 / DUT_IP4 are defined above TC8_DUT_EXPECT — the SD
 # endpoint expectation reuses $DUT_IP4.)
 # §4.7 DHCPv4 server emul identity — wire.def `DHCPV4_SERVER1_IP4`, cross-checked
@@ -263,14 +234,7 @@ DHCPV4_SERVER1_IP4="$TC8_WIRE_DHCPV4_SERVER1_IP4"
 # DUT Reply's sender_proto_ip is compared against. In positive rows both
 # carry the real DUT IP; `--negative` overrides only `arp.dut_iface_ip`
 # (ARP_44) to prove the SCXML mismatch path without silencing the DUT.
-ARP_DUT_EXPECT_STATIC=(
-    --expect "arp.tester_ip=$TESTER_IP4"
-    --expect "arp.dut_iface_ip=$DUT_IP4"
-    --expect "dut.ip=$DUT_IP4"
-    --expect "arp.tester_mac=$ARP_TESTER_INJECTED_MAC"
-    --expect "arp.tester_mac2=$ARP_TESTER_INJECTED_MAC2"
-    --expect "arp.tester_mac3=$ARP_TESTER_INJECTED_MAC3"
-)
+tc8_expect_arp   # assigns ARP_DUT_EXPECT_STATIC (single-sourced, TD-12)
 # §4.2.4.2 ARP_48/49 UT-channel cache conditioning: a topology whose
 # DUT advertises UT 0x17 OpConditionArpCache declares its
 # <DYNAMIC-ARP-CACHE-TIMEOUT> via TOPOLOGY_UT_ARP_CACHE_TIMEOUT_S (see
@@ -291,14 +255,7 @@ fi
 # (`icmpv4_builder.h::kIcmpEchoId` / `kIcmpEchoSeq`) are single-homed in
 # wire.def, which the generator cross-checks against the header. `--negative`
 # rows flip one expectation alone to prove the fail path.
-ICMPV4_TESTER_ECHO_ID="$TC8_WIRE_ICMP_ECHO_ID"
-ICMPV4_TESTER_ECHO_SEQ="$TC8_WIRE_ICMP_ECHO_SEQ"
-ICMPV4_DUT_EXPECT_STATIC=(
-    --expect "icmpv4.tester_ip=$TESTER_IP4"
-    --expect "icmpv4.dut_iface_ip=$DUT_IP4"
-    --expect "icmpv4.echo_id=$ICMPV4_TESTER_ECHO_ID"
-    --expect "icmpv4.echo_seq=$ICMPV4_TESTER_ECHO_SEQ"
-)
+tc8_expect_icmpv4   # assigns ICMPV4_DUT_EXPECT_STATIC (single-sourced, TD-12)
 
 # §4.4 IPv4 pilot cases (HEADER_01, HEADER_03, VERSION_03) compare the
 # captured DUT-emitted IPv4 frame against the topology-pinned identity.
@@ -307,23 +264,7 @@ ICMPV4_DUT_EXPECT_STATIC=(
 # no CLI knob to drift. The --negative row flips `ipv4.dut_iface_ip` to
 # prove HEADER_03's pass guard depends on the expectation reaching the
 # SCXML unchanged.
-IPV4_DUT_EXPECT_STATIC=(
-    --expect "ipv4.tester_ip=$TESTER_IP4"
-    --expect "ipv4.dut_iface_ip=$DUT_IP4"
-    # §4.6.5.5 UDP_USER_INTERFACE_07/_08 caller-specified IP axis. The
-    # netns aliases (DUT 172.16.0.5 / TESTER 172.16.0.4) configured by
-    # `setup-netns.sh` make the spec axis observable; SCXML reads
-    # `expected.dut_alias_ip` / `expected.tester_alias_ip` while the
-    # stimulus pins the same literals via constants in
-    # `udp_pilot_common.h`. Pinning here lets `--negative
-    # ipv4.dut_alias_ip=10.99.99.99` flip only the SCXML expectation,
-    # exposing the strict-axis NEG row.
-    # Alias IPs are netns defaults (setup-netns.sh configures them);
-    # external topologies whose DUT carries different aliases override
-    # via env.
-    --expect "ipv4.dut_alias_ip=${TC8_TOPOLOGY_DUT_ALIAS_IP:-$TC8_WIRE_DUT_ALIAS_IP}"
-    --expect "ipv4.tester_alias_ip=${TC8_TOPOLOGY_TESTER_ALIAS_IP:-$TC8_WIRE_TESTER_ALIAS_IP}"
-)
+tc8_expect_ipv4   # assigns IPV4_DUT_EXPECT_STATIC (single-sourced, TD-12)
 }
 
 DUT_FIRST=0
@@ -1407,12 +1348,14 @@ run_case() {
     # the SCXML final state, so this only catches a hang.
     local case_timeout=$HARNESS_BACKSTOP_SEC
 
+    # Per-worker DUT-MAC block: readarray from tc8_expect_mac (single-sourced with
+    # the orchestrator, TD-12) into a local so parallel workers cannot race a global.
+    local -a _mac_expect
+    readarray -t _mac_expect < <(tc8_expect_mac "$dut_mac")
     local -a expect_args=(
         "${TC8_DUT_EXPECT[@]}"
         "${ARP_DUT_EXPECT_STATIC[@]}"
-        --expect "arp.dut_iface_mac=$dut_mac"
-        --expect "dut.mac=$dut_mac"
-        --expect "dhcpv4.dut_iface_mac=$dut_mac"
+        "${_mac_expect[@]}"
         "${ICMPV4_DUT_EXPECT_STATIC[@]}"
         "${IPV4_DUT_EXPECT_STATIC[@]}"
     )
@@ -1959,12 +1902,12 @@ run_negative_case() {
     # not match the wrong token's key, then append the wrong value. The
     # baseline combines SOME/IP and ARP tokens so this loop handles
     # negatives for either protocol without per-protocol branching.
+    local -a _mac_expect
+    readarray -t _mac_expect < <(tc8_expect_mac "$dut_mac")
     local -a baseline=(
         "${TC8_DUT_EXPECT[@]}"
         "${ARP_DUT_EXPECT_STATIC[@]}"
-        --expect "arp.dut_iface_mac=$dut_mac"
-        --expect "dut.mac=$dut_mac"
-        --expect "dhcpv4.dut_iface_mac=$dut_mac"
+        "${_mac_expect[@]}"
         "${ICMPV4_DUT_EXPECT_STATIC[@]}"
         "${IPV4_DUT_EXPECT_STATIC[@]}"
     )

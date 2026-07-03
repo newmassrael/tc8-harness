@@ -618,7 +618,30 @@ conscious, tracked deferral rather than an oversight.
 
 ## TD-12 — the base `--expect` identity surface is hand-mirrored across the bash and Rust drivers
 
-**Status:** OPEN (accepted). **Logged:** 2026-07-01 (surfaced by the tester_ipv4 drift).
+**Status:** RESOLVED (2026-07-03 — single-sourced via codegen). **Logged:** 2026-07-01
+(surfaced by the tester_ipv4 drift).
+
+**Resolution (2026-07-03).** Done as the "textbook fix" below. The key->source list is now
+single-sourced in `tools/expect_surface.def` and GENERATED into both drivers by
+`tools/gen_expect_surface.py` (mirroring `gen_wire_manifest.py`): `dut/env/expect_surface.gen.sh`
+(bash `tc8_expect_<bucket>` functions that assign the `TC8_*_EXPECT` arrays / print the runtime
+DUT-MAC block) and `dut/env/orchestrator/src/expect_surface.gen.rs` (`append_someip_identity` /
+`append_l2l3_identity` + `RUNTIME_MAC_KEYS`, include!-d into dispatch.rs). Both drivers consume the
+generated surface instead of hand-listing it, so adding a key is a one-line manifest edit that
+reaches BOTH drivers — they cannot diverge by construction. Manifest source kinds (`vs_id` /
+`vs_sd` / `wire` / `wire_alias` / `dut_ip` / `tester_ip` / `dut_mac`) map each key to its per-
+language value expression; only the `--topology-conf` extra_expect fold and the conditional
+`arp_stimulus.ut_cache_conditioning_s` stay as small hand-written glue (control flow, not a static
+key->source list). A `gen_expect_surface.py --check` freshness gate is wired into the build-test CI
+leg beside the wire-manifest gate — it runs on the hosted leg, so unlike TD-11's parity CI it is
+NOT blocked on the self-hosted runner provisioning; `check_expect_keys.py` now scans the generated
+files so the key-schema gate keeps its coverage. Byte-exact parity was proven: both drivers'
+`--print-expect` dumps are identical to the pre-refactor golden (single-pc + lwip-tap) and to each
+other, at 0 warnings and 46/46 orchestrator unit tests. The per-key
+`expect_args_emits_tester_ipv4_mirroring_bash` guard is kept as a regression test (its motivating
+gap is now impossible by construction). Spec-section (§) citations stay in the hand-edited drivers,
+not the generated files, to keep the mnemosyne section bindings stable. The prose below is the
+original finding.
 
 **What.** The ~30-key per-case `--expect` identity surface is emitted twice, by hand: bash
 `init_expectation_defaults`'s `TC8_DUT_EXPECT` (`dut/env/smoke-test.sh`) and Rust

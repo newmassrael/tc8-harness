@@ -1,0 +1,118 @@
+// Single source of truth (SSOT) for the base `--expect key=value` IDENTITY
+// SURFACE both test drivers emit for every case — the per-case-invariant wire /
+// SOME/IP identity (IPs, MACs, service identity, SD timing) that the bash
+// smoke-test.sh driver and the Rust tc8-orchestrator MUST agree on. Before this
+// file the two drivers HAND-MIRRORED the same key->source list, and they drifted
+// (tester_ipv4 was added bash-only and the orchestrator never mirrored it). This
+// manifest ends that: the list is written once here and GENERATED into both
+// drivers, so they cannot diverge by construction (docs/tech-debt.md TD-12).
+//
+// Consumed one way — by tools/gen_expect_surface.py, which renders:
+//   dut/env/expect_surface.gen.sh                    sourced by smoke-test.sh;
+//                                                    assigns the TC8_*_EXPECT arrays
+//   dut/env/orchestrator/src/expect_surface.gen.rs   include!-d into dispatch.rs;
+//                                                    appends to expect_args' Vec
+// Run `python3 tools/gen_expect_surface.py` to regenerate; `--check` is the CI /
+// pre-commit freshness gate (mirrors gen_wire_manifest.py).
+//
+// This is the PRODUCER value-mapping (key -> deployment source); the accepted key
+// NAMES are separately owned by src/cli/tc8_expect_keys.def (the C++ --expect
+// parser's schema) and validated by tools/check_expect_keys.py, which scans the
+// generated files. A key here that is absent there fails that gate.
+//
+// What is NOT here (deliberately — control flow, not a static key->source list):
+//   * the --topology-conf extra_expect fold (a runtime loop; both drivers fold it
+//     into the someip bucket AFTER these rows — see TD-11)
+//   * arp_stimulus.ut_cache_conditioning_s (conditional on a topology knob)
+// Both stay small hand-written glue in each driver.
+//
+// Line grammar (regex-parsed, `//` prose ignored):
+//   TC8_EXPECT_BUCKET(id, BASH_ARRAY, rust_fn, kind)
+//       Declares an emission bucket. `id` groups its rows; `BASH_ARRAY` is the
+//       global array the bash function assigns; `rust_fn` is someip | l2l3 (which
+//       generated Rust appender the bucket's rows land in, in file order); `kind`
+//       is static | runtime (runtime rows are per-worker values EXCLUDED from the
+//       --print-expect parity dump — the generated RUNTIME_MAC_KEYS list).
+//   TC8_EXPECT_ROW(bucket, key, source, ref)
+//       One `--expect key=value` row. `key` is the literal --expect key (with its
+//       group prefix). `source` selects the per-language value expression:
+//         vs_id      vsomeip.json identity  bash ${DUT_ID[ref]}  rust &id.ref
+//         vs_sd      vsomeip.json SD timing bash ${DUT_ID[ref]}  rust &t.ref
+//         wire       wire.def constant      bash $TC8_WIRE_ref    rust wire::ref
+//         wire_alias wire.def + bash override (${TC8_TOPOLOGY_ref:-$TC8_WIRE_ref});
+//                    rust uses wire::ref (the orchestrator has no alias override)
+//         dut_ip     topology DUT IPv4      bash $DUT_IP4         rust &cfg.dut_ip4
+//         tester_ip  topology tester IPv4   bash $TESTER_IP4      rust &cfg.tester_ip4
+//         dut_mac    per-worker veth MAC    bash $1 (fn arg)      rust dut_mac
+//       `ref` names the vsomeip field / wire constant; it is `-` for the
+//       source kinds that carry no name (dut_ip / tester_ip / dut_mac).
+
+// --- Buckets (emission order defines the Rust l2l3 append order) -------------
+TC8_EXPECT_BUCKET(someip, TC8_DUT_EXPECT,           someip, static)
+TC8_EXPECT_BUCKET(arp,    ARP_DUT_EXPECT_STATIC,    l2l3,   static)
+TC8_EXPECT_BUCKET(mac,    TC8_DUT_MAC_EXPECT,       l2l3,   runtime)
+TC8_EXPECT_BUCKET(icmpv4, ICMPV4_DUT_EXPECT_STATIC, l2l3,   static)
+TC8_EXPECT_BUCKET(ipv4,   IPV4_DUT_EXPECT_STATIC,   l2l3,   static)
+
+// --- SOME/IP identity + SD start-up timing (TC8_DUT_EXPECT, no key prefix) ---
+TC8_EXPECT_ROW(someip, service_id,                  vs_id,     service_id)
+TC8_EXPECT_ROW(someip, instance_id,                 vs_id,     instance_id)
+TC8_EXPECT_ROW(someip, major_version,               wire,      SD_MAJOR_VERSION)
+TC8_EXPECT_ROW(someip, ttl,                         vs_id,     ttl)
+TC8_EXPECT_ROW(someip, minor_version,               wire,      SD_MINOR_VERSION)
+TC8_EXPECT_ROW(someip, eventgroup_id,               wire,      SD_DEFAULT_EVENTGROUP)
+TC8_EXPECT_ROW(someip, dut_iface_ip,                dut_ip,    -)
+/// Tester's own IPv4 for the someip group (bare key, like dut_iface_ip). Lets a
+/// destination / Nack-target verdict compare a captured dst against the tester
+/// endpoint instead of the unset-0 default; no in-tree case reads it yet.
+TC8_EXPECT_ROW(someip, tester_ipv4,                 tester_ip, -)
+TC8_EXPECT_ROW(someip, udp_port,                    vs_id,     udp_port)
+TC8_EXPECT_ROW(someip, tcp_port,                    vs_id,     tcp_port)
+/// SD_BEHAVIOR cases compare the DUT's multicast OfferService against the SD
+/// multicast group (vsomeip service-discovery.multicast). Spec-section citations
+/// live in the hand-edited drivers, not this generated surface (mnemosyne bindings).
+TC8_EXPECT_ROW(someip, sd_multicast_ip,             vs_id,     sd_multicast_ip)
+/// OPTIONS cases verify the IPv4 Multicast Option fields in the
+/// SubscribeEventgroupAck for the multicast eventgroup (vsomeip eventgroup block).
+TC8_EXPECT_ROW(someip, mcast_ipv4,                  vs_id,     mcast_ipv4)
+TC8_EXPECT_ROW(someip, mcast_port,                  vs_id,     mcast_port)
+/// SD start-up timing (vsomeip service-discovery): the AUTOSAR SD Initial-Wait /
+/// Repetition / cyclic-Offer phase checks compare their captured windows against
+/// these; inert for every other case (the harness reads only what it references).
+TC8_EXPECT_ROW(someip, sd_initial_delay_min_ms,     vs_sd,     sd_initial_delay_min_ms)
+TC8_EXPECT_ROW(someip, sd_initial_delay_max_ms,     vs_sd,     sd_initial_delay_max_ms)
+TC8_EXPECT_ROW(someip, sd_repetition_base_delay_ms, vs_sd,     sd_repetition_base_delay_ms)
+TC8_EXPECT_ROW(someip, sd_repetitions_max,          vs_sd,     sd_repetitions_max)
+TC8_EXPECT_ROW(someip, sd_cyclic_offer_delay_ms,    vs_sd,     sd_cyclic_offer_delay_ms)
+
+// --- ARP static (ARP_DUT_EXPECT_STATIC) -------------------------------------
+TC8_EXPECT_ROW(arp, arp.tester_ip,     tester_ip, -)
+TC8_EXPECT_ROW(arp, arp.dut_iface_ip,  dut_ip,    -)
+TC8_EXPECT_ROW(arp, dut.ip,            dut_ip,    -)
+/// Injected tester sender MAC — ARP_03/05 filter DUT-originated ARP Requests by
+/// this sender_hw. wire.def ARP_TESTER_MAC == arp_builder.h kTesterInjectedMac.
+TC8_EXPECT_ROW(arp, arp.tester_mac,    wire,      ARP_TESTER_MAC)
+/// Second tester MAC — Phase 3b Group C cache-merge cases (ARP_32..35).
+TC8_EXPECT_ROW(arp, arp.tester_mac2,   wire,      ARP_TESTER_MAC2)
+/// Third tester MAC — Phase 3c Group D Response-learning case (ARP_40).
+TC8_EXPECT_ROW(arp, arp.tester_mac3,   wire,      ARP_TESTER_MAC3)
+
+// --- Per-worker DUT MAC block (runtime; excluded from --print-expect) --------
+TC8_EXPECT_ROW(mac, arp.dut_iface_mac,   dut_mac, -)
+TC8_EXPECT_ROW(mac, dut.mac,             dut_mac, -)
+TC8_EXPECT_ROW(mac, dhcpv4.dut_iface_mac, dut_mac, -)
+
+// --- ICMPv4 static (ICMPV4_DUT_EXPECT_STATIC) -------------------------------
+TC8_EXPECT_ROW(icmpv4, icmpv4.tester_ip,    tester_ip, -)
+TC8_EXPECT_ROW(icmpv4, icmpv4.dut_iface_ip, dut_ip,    -)
+TC8_EXPECT_ROW(icmpv4, icmpv4.echo_id,      wire,      ICMP_ECHO_ID)
+TC8_EXPECT_ROW(icmpv4, icmpv4.echo_seq,     wire,      ICMP_ECHO_SEQ)
+
+// --- IPv4 static (IPV4_DUT_EXPECT_STATIC) -----------------------------------
+TC8_EXPECT_ROW(ipv4, ipv4.tester_ip,      tester_ip,  -)
+TC8_EXPECT_ROW(ipv4, ipv4.dut_iface_ip,   dut_ip,     -)
+/// Netns alias IPs (setup-netns.sh) for the UDP_USER_INTERFACE caller-specified
+/// IP axis. External topologies whose DUT carries different aliases override via
+/// TC8_TOPOLOGY_{DUT,TESTER}_ALIAS_IP (bash side only).
+TC8_EXPECT_ROW(ipv4, ipv4.dut_alias_ip,   wire_alias, DUT_ALIAS_IP)
+TC8_EXPECT_ROW(ipv4, ipv4.tester_alias_ip, wire_alias, TESTER_ALIAS_IP)

@@ -304,93 +304,37 @@ fn ex(e: &mut Vec<String>, key: &str, value: &str) {
 /// cross-category-read hazard. The per-case / negative-row OVERRIDE layers (the
 /// last-wins precedence merge) land in a later stage; this is its `base` input.
 ///
-/// This base surface is hand-mirrored with bash's TC8_DUT_EXPECT — the two emitters
-/// can drift (see docs/tech-debt.md TD-12); parity-check.sh + the identity pin gate it.
+/// The key->source list is SINGLE-SOURCED with bash's tc8_expect_<bucket> functions
+/// from tools/expect_surface.def (docs/tech-debt.md TD-12) via the generated
+/// `append_someip_identity` / `append_l2l3_identity` below, so the two drivers cannot
+/// drift; parity-check.sh still diffs the resolved values as defence in depth.
 fn expect_args(cfg: &Config, dut_mac: &str) -> Vec<String> {
-    let id = &cfg.identity;
     let mut e = Vec::new();
-    // base — SOME/IP identity (vsomeip.json) + SD deployment defaults (wire)
-    ex(&mut e, "service_id", &id.service_id);
-    ex(&mut e, "instance_id", &id.instance_id);
-    ex(&mut e, "major_version", wire::SD_MAJOR_VERSION);
-    ex(&mut e, "ttl", &id.ttl);
-    ex(&mut e, "minor_version", wire::SD_MINOR_VERSION);
-    ex(&mut e, "eventgroup_id", wire::SD_DEFAULT_EVENTGROUP);
-    ex(&mut e, "dut_iface_ip", &cfg.dut_ip4);
-    // The tester's IPv4 for the someip group (bare key, like dut_iface_ip / udp_port).
-    // Mirrors bash's TC8_DUT_EXPECT (smoke-test.sh) so both drivers' --print-expect
-    // surfaces agree — bash always emits it, so the orchestrator must too. Lets a
-    // destination / Nack-target verdict compare a captured dst against the tester
-    // endpoint instead of the unset-0 default; no in-tree case reads it yet.
-    ex(&mut e, "tester_ipv4", &cfg.tester_ip4);
-    ex(&mut e, "udp_port", &id.udp_port);
-    ex(&mut e, "tcp_port", &id.tcp_port);
-    ex(&mut e, "sd_multicast_ip", &id.sd_multicast_ip);
-    ex(&mut e, "mcast_ipv4", &id.mcast_ipv4);
-    ex(&mut e, "mcast_port", &id.mcast_port);
-
-    // SD start-up timing (vsomeip.json service-discovery) — the SD start-up delay
-    // checks compare their captured Initial-Wait / Repetition / cyclic-Offer
-    // windows against these; inert for every other case (the harness reads only
-    // what its case references). Must stay in lockstep with smoke-test.sh's
-    // TC8_DUT_EXPECT.
-    let t = &cfg.sd_timing;
-    ex(&mut e, "sd_initial_delay_min_ms", &t.sd_initial_delay_min_ms);
-    ex(&mut e, "sd_initial_delay_max_ms", &t.sd_initial_delay_max_ms);
-    ex(&mut e, "sd_repetition_base_delay_ms", &t.sd_repetition_base_delay_ms);
-    ex(&mut e, "sd_repetitions_max", &t.sd_repetitions_max);
-    ex(&mut e, "sd_cyclic_offer_delay_ms", &t.sd_cyclic_offer_delay_ms);
+    append_someip_identity(&mut e, cfg);
 
     // Operator-supplied extra --expect tokens from the --topology-conf (bash's
-    // TC8_TOPOLOGY_EXTRA_EXPECT holds the SAME bare key=value grammar). Folded at the
-    // end of the vsomeip-derived block — the same position bash appends them — so a
-    // token shadows a repeated key from THAT block (last-wins); the ARP/ICMPv4/IPv4
-    // static keys emitted below still win over a colliding token. The keys are
-    // validated by the harness --expect parser (tc8_expect_keys.def) at run-time
-    // consumption; this carries them opaquely. Empty for every in-tree topology, so
-    // the parity dump is byte-unchanged unless a conf declares extra_expect.
+    // TC8_TOPOLOGY_EXTRA_EXPECT holds the SAME bare key=value grammar). Folded
+    // BETWEEN the someip identity and the L2/L3 statics — the same position bash
+    // folds it into TC8_DUT_EXPECT — so a token shadows a repeated someip key
+    // (last-wins) while the ARP/ICMPv4/IPv4 statics appended below still win over a
+    // colliding token. The keys are validated by the harness --expect parser
+    // (tc8_expect_keys.def) at run-time consumption; this carries them opaquely.
+    // Empty for every in-tree topology, so the parity dump is byte-unchanged unless
+    // a conf declares extra_expect.
     for tok in &cfg.extra_expect {
         e.push("--expect".to_string());
         e.push(tok.clone());
     }
 
-    // ARP static group (ARP_DUT_EXPECT_STATIC)
-    ex(&mut e, "arp.tester_ip", &cfg.tester_ip4);
-    ex(&mut e, "arp.dut_iface_ip", &cfg.dut_ip4);
-    ex(&mut e, "dut.ip", &cfg.dut_ip4);
-    ex(&mut e, "arp.tester_mac", wire::ARP_TESTER_MAC);
-    ex(&mut e, "arp.tester_mac2", wire::ARP_TESTER_MAC2);
-    ex(&mut e, "arp.tester_mac3", wire::ARP_TESTER_MAC3);
-
-    // DUT-MAC block — base, every case (smoke-test.sh)
-    ex(&mut e, "arp.dut_iface_mac", dut_mac);
-    ex(&mut e, "dut.mac", dut_mac);
-    ex(&mut e, "dhcpv4.dut_iface_mac", dut_mac);
-
-    // ICMPv4 static group (ICMPV4_DUT_EXPECT_STATIC)
-    ex(&mut e, "icmpv4.tester_ip", &cfg.tester_ip4);
-    ex(&mut e, "icmpv4.dut_iface_ip", &cfg.dut_ip4);
-    ex(&mut e, "icmpv4.echo_id", wire::ICMP_ECHO_ID);
-    ex(&mut e, "icmpv4.echo_seq", wire::ICMP_ECHO_SEQ);
-
-    // IPv4 static group (IPV4_DUT_EXPECT_STATIC)
-    ex(&mut e, "ipv4.tester_ip", &cfg.tester_ip4);
-    ex(&mut e, "ipv4.dut_iface_ip", &cfg.dut_ip4);
-    ex(&mut e, "ipv4.dut_alias_ip", wire::DUT_ALIAS_IP);
-    ex(&mut e, "ipv4.tester_alias_ip", wire::TESTER_ALIAS_IP);
+    append_l2l3_identity(&mut e, cfg, dut_mac);
     e
 }
 
-/// The three runtime DUT-MAC `--expect` keys: the kernel-assigned veth MAC
-/// captured at netns bring-up, so they differ per run and per driver and are NOT
-/// part of the static identity the parity dump diffs (the per-case disposition
-/// phase exercises MAC behaviour instead).
-///
-/// Caveat for `extra_expect`: an operator token reusing one of these keys is filtered
-/// out of this dump but folded verbatim into bash's, so the parity diff would flag it.
-/// That is the correct outcome — these are per-worker runtime values, never statically
-/// expectable, so declaring one in a topology conf is a config error worth surfacing.
-const RUNTIME_MAC_KEYS: [&str; 3] = ["arp.dut_iface_mac", "dut.mac", "dhcpv4.dut_iface_mac"];
+// The base identity surface — the key->source list generated from
+// tools/expect_surface.def, single-sourced with bash's tc8_expect_<bucket>
+// (see the expect_args doc / docs/tech-debt.md TD-12). Defines
+// append_someip_identity, append_l2l3_identity, and RUNTIME_MAC_KEYS.
+include!("expect_surface.gen.rs");
 
 /// Print the resolved per-case-invariant `--expect` surface — the deterministic
 /// wire identity the bash and Rust drivers must agree on — as sorted `key=value`
@@ -494,10 +438,12 @@ mod tests {
 
     #[test]
     fn expect_args_emits_tester_ipv4_mirroring_bash() {
-        // bash's TC8_DUT_EXPECT always emits tester_ipv4; the orchestrator must mirror
-        // it or the --print-expect surface diverges (it silently did before this line
-        // existed). Presence guard on that exact gap; the expected value is derived
-        // from the fixture, not hardcoded, so a fixture IP change cannot desync it.
+        // tester_ipv4 is now single-sourced with bash via tools/expect_surface.def
+        // (TD-12), so the two drivers cannot drift on it by construction; this stays
+        // as a regression guard that the generated someip surface still carries the
+        // row (its historical bash-only omission is what motivated the manifest). The
+        // expected value is derived from the fixture, not hardcoded, so a fixture IP
+        // change cannot desync it.
         let cfg = fake_cfg();
         let want = format!("tester_ipv4={}", cfg.tester_ip4);
         let args = expect_args(&cfg, "02:00:00:00:00:DD");

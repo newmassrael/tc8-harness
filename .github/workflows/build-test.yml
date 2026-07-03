@@ -236,6 +236,14 @@ jobs:
         # it. --check fails on a stale mirror OR a C++ value drift. Pure-Python.
         run: python3 tools/gen_wire_manifest.py --check
 
+      - name: Expect-surface manifest SSOT gate
+        # The base --expect identity surface both drivers emit for every case is
+        # generated from tools/expect_surface.def into expect_surface.gen.{sh,rs}
+        # (bash tc8_expect_<bucket> + Rust append_someip_identity/append_l2l3_identity),
+        # so smoke-test.sh and the orchestrator cannot drift on the key->source list.
+        # --check fails on a stale mirror. Pure-Python. See docs/tech-debt.md TD-12.
+        run: python3 tools/gen_expect_surface.py --check
+
       # The SOME/IP-SD and DHCPv4 BOOTP wire layouts live once in
       # src/sce_integration/{someip_sd_wire,dhcpv4_wire}.def, #included directly
       # by the C++ authoritative decoder (someip_captured.h / dhcpv4_wire.h).
@@ -259,10 +267,10 @@ jobs:
       - name: --expect key schema SSOT gate
         # Every accepted --expect key + its kind + its group prefix lives once in
         # src/cli/tc8_expect_keys.def; expect_parser.cpp is GENERATED from it
-        # (cannot drift/omit). This checks the hand-written producers
-        # (orchestrator dispatch.rs, smoke-test.sh, dut_identity.py) emit only
-        # keys present in that registry, so none is silently dropped by the
-        # consumer to a zero sentinel. Pure-Python. See docs/tech-debt.md TD-03.
+        # (cannot drift/omit). This checks the producers (orchestrator dispatch.rs
+        # + the generated expect_surface.gen.{rs,sh}, smoke-test.sh, dut_identity.py)
+        # emit only keys present in that registry, so none is silently dropped by the
+        # consumer to a zero sentinel. Pure-Python. See docs/tech-debt.md TD-03/TD-12.
         run: python3 tools/check_expect_keys.py
 
       - name: timing_serial cadence-lane drift gate
