@@ -332,8 +332,16 @@ fi
 # NOT a hardcoded case-ID list, so a new Topology-2 case is picked up with no
 # smoke-test edit. Computed once here (before the worker fan-out) so every
 # worker `&` subshell inherits it; space-padded for whole-token membership.
-SECONDARY_IFACE_CASES=" $("$HARNESS" test --list-cases --only-secondary-iface 2>/dev/null \
-    | awk '/^  [A-Z]/{print $1}' | tr '\n' ' ')"
+# --print-expect exits before any worker bring-up, so it never needs the
+# secondary-iface case set — and must NOT invoke the built harness: the identity
+# dump is meant to be self-contained (parity-check.sh --identity-only runs it on the
+# hosted CI leg where build/tc8-harness is not compiled). Skip the probe there.
+if (( PRINT_EXPECT )); then
+    SECONDARY_IFACE_CASES=" "
+else
+    SECONDARY_IFACE_CASES=" $("$HARNESS" test --list-cases --only-secondary-iface 2>/dev/null \
+        | awk '/^  [A-Z]/{print $1}' | tr '\n' ' ')"
+fi
 case_needs_secondary_iface() { [[ "$SECONDARY_IFACE_CASES" == *" $1 "* ]]; }
 
 # Workers bring the pair up only when the caller's case list includes a

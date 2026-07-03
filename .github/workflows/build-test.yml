@@ -53,7 +53,7 @@ jobs:
         # exits before any netns / provisioning — so it runs on the hosted leg, with
         # no self-hosted runner needed.
         run: |
-          dut/env/orchestrator/parity-check.sh --topology lwip-tap --identity-only \
+          dut/env/orchestrator/parity-check.sh --topology single-pc --identity-only \
             --bash-conf dut/env/topology.d/examples/extra-expect-parity.conf \
             --orch-conf dut/env/orchestrator/examples/extra-expect-parity.toml
 
