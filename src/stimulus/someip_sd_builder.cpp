@@ -110,6 +110,45 @@ void appendSdType1Entry(std::vector<std::uint8_t> &b, std::uint8_t entry_type,
     putBe32(b, minor_version);
 }
 
+// Wire fields of a SOME/IP-SD Type-2 entry (SubscribeEventgroup /
+// SubscribeEventgroupAck-Nack, TR_SOMEIP §7.4 Type 2). This is the WIRE model —
+// deliberately distinct from the test-intent SubscribeEventgroup*Target structs:
+// it carries the on-wire option-run descriptor (index/#Opt bytes) the targets do
+// not, and flattens their optional Reserved field. Populated by name at each call
+// site (C++17 has no designated-init) so no positional argument can transpose.
+struct SdType2EntryFields {
+    std::uint8_t  entry_type;        // kSubscribeEventgroup / kSubscribeEventgroupAck
+    std::uint8_t  index_first_run;   // IndexFirstOptionRun (canonical 0)
+    std::uint8_t  index_second_run;  // IndexSecondOptionRun (canonical 0)
+    std::uint8_t  option_run;        // byte 3: #Opt1(4b) | #Opt2(4b)
+    std::uint16_t service_id;
+    std::uint16_t instance_id;
+    std::uint8_t  major_version;
+    std::uint32_t ttl;               // 24-bit; 0 = StopSubscribe / Nack (SD §4.2)
+    std::uint16_t entry_reserved;    // 12-bit Reserved (masked here); shares byte 12-13 word
+    std::uint8_t  counter;           // 4-bit Counter (masked here)
+    std::uint16_t eventgroup_id;
+};
+
+// Append one SOME/IP-SD Type-2 entry — the entry-level SSOT parallel to
+// appendSdType1Entry, shared by the Subscribe / MultiSubscribe / Ack builders.
+// Bytes 0-11 match a Type-1 entry; bytes 12-15 carry Reserved(12b)|Counter(4b)
+// then EventgroupID instead of MinorVersion. The Reserved/Counter bit-packing —
+// the one subtle, drift-prone step — lives ONLY here.
+void appendSdType2Entry(std::vector<std::uint8_t> &b, const SdType2EntryFields &e) {
+    b.push_back(e.entry_type);
+    b.push_back(e.index_first_run);
+    b.push_back(e.index_second_run);
+    b.push_back(e.option_run);
+    putBe16(b, e.service_id);
+    putBe16(b, e.instance_id);
+    b.push_back(e.major_version);
+    putBe24(b, e.ttl);
+    const std::uint16_t reserved = e.entry_reserved & 0x0FFF;
+    putBe16(b, static_cast<std::uint16_t>((reserved << 4) | (e.counter & 0x0F)));
+    putBe16(b, e.eventgroup_id);
+}
+
 // Shared body for the two public FindService-with-one-option builders. Kept
 // file-local (not a public overload) so the public API exposes two clearly named
 // functions instead of a `(option_type, bool referenced)` footgun; the two
@@ -429,22 +468,22 @@ std::vector<std::uint8_t> buildSubscribeEventgroup(const SubscribeEventgroupPara
     appendSdHeader(b, p.session_id, length_with_trailing, p.sd_flags, entries_len_field,
                    /*reserved=*/0, method_id_field);
 
-    // SubscribeEventgroup entry (16B, Type 2).
-    b.push_back(sd_entry_type::kSubscribeEventgroup);
-    b.push_back(index_first);   // IndexFirstOptionRun (canonical 0)
-    b.push_back(index_second);  // IndexSecondOptionRun (canonical 0)
-    b.push_back(entry_byte3);   // #Opt1 (canonical 1) | #Opt2 (canonical 0)
-    putBe16(b, p.target.service_id);
-    putBe16(b, p.target.instance_id);
-    b.push_back(p.target.major_version);
-    putBe24(b, p.target.ttl);
-    // Reserved (12b) | Counter (4b) — counter is the low nibble of byte 13; the
-    // 12 reserved bits (byte 12 + high nibble of byte 13) stay zero unless a case
-    // overrides them to set an implementation-defined entry flag.
-    const std::uint16_t entry_reserved = p.target.entry_reserved.value_or(0) & 0x0FFF;
-    putBe16(b, static_cast<std::uint16_t>((entry_reserved << 4) |
-                                          (p.target.counter & 0x0F)));
-    putBe16(b, p.target.eventgroup_id);
+    // SubscribeEventgroup entry (16B, Type 2) via the entry SSOT. The option-run
+    // bytes are override-driven (ETS_115/_117/_173); a case may set Reserved bits
+    // (byte 12 + high nibble of 13) for an implementation-defined entry flag.
+    SdType2EntryFields entry;
+    entry.entry_type = sd_entry_type::kSubscribeEventgroup;
+    entry.index_first_run = index_first;
+    entry.index_second_run = index_second;
+    entry.option_run = entry_byte3;
+    entry.service_id = p.target.service_id;
+    entry.instance_id = p.target.instance_id;
+    entry.major_version = p.target.major_version;
+    entry.ttl = p.target.ttl;
+    entry.entry_reserved = p.target.entry_reserved.value_or(0);
+    entry.counter = p.target.counter;
+    entry.eventgroup_id = p.target.eventgroup_id;
+    appendSdType2Entry(b, entry);
 
     // Length of Options Array. Canonical 12 (one IPv4 Endpoint option);
     // ETS_134/_135/_138/_139 override via options_len_override.
@@ -550,18 +589,20 @@ buildMultiSubscribeEventgroup(const MultiSubscribeEventgroupParams &p) {
     appendSdHeader(b, p.session_id, length_field, p.sd_flags, entries_len);
 
     for (const auto &t : p.entries) {
-        b.push_back(sd_entry_type::kSubscribeEventgroup);
-        b.push_back(0);     // IndexFirstOptionRun
-        b.push_back(0);     // IndexSecondOptionRun
-        b.push_back(kEntryOptionRun1);  // #Opt1=1 | #Opt2=0
-        putBe16(b, t.service_id);
-        putBe16(b, t.instance_id);
-        b.push_back(t.major_version);
-        putBe24(b, t.ttl);
-        // Reserved (12b) | Counter (4b), same layout as the single builder.
-        const std::uint16_t entry_reserved = t.entry_reserved.value_or(0) & 0x0FFF;
-        putBe16(b, static_cast<std::uint16_t>((entry_reserved << 4) | (t.counter & 0x0F)));
-        putBe16(b, t.eventgroup_id);
+        // All entries reference the shared option run 1 (canonical index 0).
+        SdType2EntryFields entry;
+        entry.entry_type = sd_entry_type::kSubscribeEventgroup;
+        entry.index_first_run = 0;
+        entry.index_second_run = 0;
+        entry.option_run = kEntryOptionRun1;
+        entry.service_id = t.service_id;
+        entry.instance_id = t.instance_id;
+        entry.major_version = t.major_version;
+        entry.ttl = t.ttl;
+        entry.entry_reserved = t.entry_reserved.value_or(0);
+        entry.counter = t.counter;
+        entry.eventgroup_id = t.eventgroup_id;
+        appendSdType2Entry(b, entry);
     }
 
     putBe32(b, kOptionsLen);
@@ -683,19 +724,21 @@ std::vector<std::uint8_t> buildSubscribeEventgroupAck(const SubscribeEventgroupA
 
     appendSdHeader(b, p.session_id, length_field, p.sd_flags, kEntriesLen);
 
-    // SubscribeEventgroupAck entry (16B, Type 0x07).
-    b.push_back(sd_entry_type::kSubscribeEventgroupAck);
-    b.push_back(0);  // IndexFirstOptionRun
-    b.push_back(0);  // IndexSecondOptionRun
-    b.push_back(has_option ? kEntryOptionRun1 : static_cast<std::uint8_t>(0));
-    putBe16(b, p.target.service_id);
-    putBe16(b, p.target.instance_id);
-    b.push_back(p.target.major_version);
-    putBe24(b, p.target.ttl);  // ttl == 0 -> Nack per SD entry type 0x07.
-    // Reserved (12b) | Counter (4b), same layout as the SubscribeEventgroup entry.
-    const std::uint16_t entry_reserved = p.target.entry_reserved.value_or(0) & 0x0FFF;
-    putBe16(b, static_cast<std::uint16_t>((entry_reserved << 4) | (p.target.counter & 0x0F)));
-    putBe16(b, p.target.eventgroup_id);
+    // SubscribeEventgroupAck entry (16B, Type 0x07) via the entry SSOT. TTL == 0
+    // makes it a Nack; one option referenced only when a multicast endpoint is set.
+    SdType2EntryFields entry;
+    entry.entry_type = sd_entry_type::kSubscribeEventgroupAck;
+    entry.index_first_run = 0;
+    entry.index_second_run = 0;
+    entry.option_run = has_option ? kEntryOptionRun1 : static_cast<std::uint8_t>(0);
+    entry.service_id = p.target.service_id;
+    entry.instance_id = p.target.instance_id;
+    entry.major_version = p.target.major_version;
+    entry.ttl = p.target.ttl;
+    entry.entry_reserved = p.target.entry_reserved.value_or(0);
+    entry.counter = p.target.counter;
+    entry.eventgroup_id = p.target.eventgroup_id;
+    appendSdType2Entry(b, entry);
 
     putBe32(b, options_len);
 
