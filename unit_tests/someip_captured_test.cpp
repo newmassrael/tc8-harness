@@ -89,6 +89,25 @@ std::vector<std::uint8_t> findServiceEntry() {
     return std::vector<std::uint8_t>(16, 0x00);
 }
 
+// 16-byte OfferService entry (Type=0x01) for `service_id` with TTL>0, so
+// parseSdInto decodes sd_entries[0] as a live Offer for that service — the wire
+// shape of the DUT's SD start() marker (an Offer for kSdStartMarkerServiceId).
+std::vector<std::uint8_t> offerServiceEntry(std::uint16_t service_id) {
+    std::vector<std::uint8_t> e;
+    e.push_back(0x01);          // Type = OfferService
+    e.push_back(0x00);          // IndexFirstOptionRun
+    e.push_back(0x00);          // IndexSecondOptionRun
+    e.push_back(0x00);          // #Opt1 | #Opt2
+    appendBe16(e, service_id);
+    appendBe16(e, 0x0001);      // instance id
+    e.push_back(0x01);          // major version
+    e.push_back(0x00);          // TTL (24-bit BE) = 16 → live Offer, not StopOffer
+    e.push_back(0x00);
+    e.push_back(0x10);
+    appendBe32(e, 0x00000000);  // minor version
+    return e;                   // 16 bytes
+}
+
 // Build a Configuration Option (type 0x01) wire block: Length(2B) + Type(0x01) +
 // Reserved(1B) + the DNS TXT-like config string ([len][item bytes]... terminated by a
 // zero-length byte). `items` are the "key=value" / "key=" / "key" strings, in order.
@@ -245,6 +264,77 @@ TEST(SomeIpCapturedSdOptions, TruncatedOptionTailStopsParseEarly) {
 
     EXPECT_EQ(c.sd_options_len, 12u);
     EXPECT_EQ(c.sd_option_count, 0u);
+}
+
+// SD start() marker anchor: an OfferService for the reserved marker service id
+// (self-identifying) stamps sd_start_ts_us; a later real OfferService reads its
+// Initial-Wait delay via delta_from_sd_start_us(). Recognition is by PRESENCE of
+// the reserved id, so no other SD frame can re-anchor the measurement.
+TEST(SomeIpCapturedSdStartMarker, MarkerOfferStampsAnchor) {
+    const auto payload = buildSdPayload(offerServiceEntry(tc8::someip::kSdStartMarkerServiceId), {});
+    tc8::SomeIpFrame f{};
+    f.service_id = 0xFFFF;  // SD channel → headerIsSd()
+    f.payload_data = payload.data();
+    f.payload_len = static_cast<std::uint32_t>(payload.size());
+    f.observed_ts_us = 1000000;
+    tc8::SomeIpCaptured c;
+    tc8::fillSomeIpCapturedFromFrame(c, f);
+
+    EXPECT_TRUE(c.is_sd_start_marker());
+    EXPECT_EQ(c.sd_start_ts_us, 1000000);
+    EXPECT_EQ(c.delta_from_sd_start_us(), 0);  // observed == start on the marker itself
+}
+
+TEST(SomeIpCapturedSdStartMarker, RealOfferMeasuresDeltaAndAnchorIsPreserved) {
+    // 1) marker Offer at t0.
+    const auto marker = buildSdPayload(offerServiceEntry(tc8::someip::kSdStartMarkerServiceId), {});
+    tc8::SomeIpFrame mf{};
+    mf.service_id = 0xFFFF;
+    mf.payload_data = marker.data();
+    mf.payload_len = static_cast<std::uint32_t>(marker.size());
+    mf.observed_ts_us = 5000000;
+    tc8::SomeIpCaptured c;
+    tc8::fillSomeIpCapturedFromFrame(c, mf);
+    ASSERT_EQ(c.sd_start_ts_us, 5000000);
+
+    // 2) a real OfferService for a NORMAL service 42 ms later — not the marker.
+    const auto offer = buildSdPayload(offerServiceEntry(0xF4E7), {});
+    tc8::SomeIpFrame of{};
+    of.service_id = 0xFFFF;
+    of.payload_data = offer.data();
+    of.payload_len = static_cast<std::uint32_t>(offer.size());
+    of.observed_ts_us = 5042000;  // 42 ms later
+    tc8::fillSomeIpCapturedFromFrame(c, of);
+
+    EXPECT_FALSE(c.is_sd_start_marker());   // a real-service Offer is not the marker
+    EXPECT_EQ(c.sd_start_ts_us, 5000000);   // anchor preserved, not re-stamped
+    EXPECT_EQ(c.delta_from_sd_start_us(), 42000);
+}
+
+// The soundness property of recognition-by-presence: a non-marker frame (a real
+// Offer, or a non-SD frame) must NOT stamp the anchor, so it cannot pull a
+// too-slow Offer into range. This is the vector recognition-by-absence left open.
+TEST(SomeIpCapturedSdStartMarker, NonMarkerFrameDoesNotStampAnchor) {
+    tc8::SomeIpCaptured c;
+
+    // A real OfferService for a normal service must not anchor.
+    const auto offer = buildSdPayload(offerServiceEntry(0xF4E7), {});
+    tc8::SomeIpFrame of{};
+    of.service_id = 0xFFFF;
+    of.payload_data = offer.data();
+    of.payload_len = static_cast<std::uint32_t>(offer.size());
+    of.observed_ts_us = 7000000;
+    tc8::fillSomeIpCapturedFromFrame(c, of);
+    EXPECT_FALSE(c.is_sd_start_marker());
+    EXPECT_EQ(c.sd_start_ts_us, 0);            // never stamped
+    EXPECT_EQ(c.delta_from_sd_start_us(), 0);  // fail-closed with no anchor
+
+    // A non-SD frame (not the SD channel) likewise leaves the anchor unset.
+    tc8::SomeIpFrame nonsd{};
+    nonsd.service_id = 0xF4E7;
+    nonsd.observed_ts_us = 7001000;
+    tc8::fillSomeIpCapturedFromFrame(c, nonsd);
+    EXPECT_EQ(c.sd_start_ts_us, 0);
 }
 
 // SOME/IP-TP capture: with the TP-Flag set, fillSomeIpCapturedFromFrame surfaces the

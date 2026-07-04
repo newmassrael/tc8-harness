@@ -34,6 +34,19 @@ enum class MessageType : std::uint8_t {
 inline constexpr std::uint16_t kSdServiceId = 0xFFFF;
 inline constexpr std::uint16_t kSdMethodId  = 0x8100;
 
+// Reserved Service ID for the DUT-side SD start() testability marker: a default-
+// off DUT emits an OfferService entry for THIS service the instant it arms its
+// Initial-Wait timer, so the tester has a self-identifying wire anchor for the
+// internal start() reference (see SomeIpCaptured::is_sd_start_marker). It is a
+// dedicated reserved id — no real service uses it — so the marker cannot be
+// confused with a genuine Offer, and only a frame carrying it re-anchors the
+// measurement (recognition by PRESENCE of this id, never by absence of entries).
+// Distinct from the 0xFFFE unknown-service sentinel (sd_test_unknown::kServiceId)
+// so the marker and the negative-axis "unknown service" cases never collide; a
+// DUT vendor implementing the timing testability profile offers this id as its
+// start signal.
+inline constexpr std::uint16_t kSdStartMarkerServiceId = 0xFFFD;
+
 // True when a SOME/IP header's Message ID is the Service Discovery magic. The
 // captured recognizers gate SD payload parsing on the Service ID alone (the
 // Method ID is implied once the frame is on the SD channel); consumers that see

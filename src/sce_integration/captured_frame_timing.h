@@ -92,10 +92,21 @@ struct CapturedFrameTiming {
     // DHCPv4 REACQUISITION, and the SD_BEHAVIOR offer-to-offer guards — is
     // deliberately left unchanged.
     std::int64_t delta_from_listen_window_us() const noexcept {
-        if (listen_window_open_ts_us == 0 || observed_ts_us == 0) {
+        return positiveGapFrom(listen_window_open_ts_us);
+    }
+
+    // Microsecond gap from an arbitrary anchor timestamp to this frame's observed
+    // instant, with the shared fail-closed semantics: returns 0 when either stamp
+    // is unset (0), and clamps a negative raw difference (anchor after the frame)
+    // to 0 so a `>= MIN` guard fails closed. Defined ONCE so every anchored-delta
+    // accessor — `delta_from_listen_window_us` here and the SOME/IP-SD
+    // `delta_from_sd_start_us` on the derived context — shares the identical
+    // guard+clamp and the semantics cannot drift across them.
+    std::int64_t positiveGapFrom(std::int64_t anchor_ts_us) const noexcept {
+        if (anchor_ts_us == 0 || observed_ts_us == 0) {
             return 0;
         }
-        const std::int64_t d = observed_ts_us - listen_window_open_ts_us;
+        const std::int64_t d = observed_ts_us - anchor_ts_us;
         return d > 0 ? d : 0;
     }
 };

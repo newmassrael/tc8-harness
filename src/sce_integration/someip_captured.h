@@ -105,6 +105,16 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     // initial value, phase 2 onward asserts strict increase.
     std::uint16_t prev_sd_session_id = 0;
 
+    // Pcap arrival instant (microseconds, same CLOCK_REALTIME domain as
+    // observed_ts_us) of the DUT's SD start() marker — the self-identifying
+    // OfferService the reference DUT emits for the reserved
+    // someip::kSdStartMarkerServiceId when it arms the Initial-Wait timer,
+    // recognised by is_sd_start_marker(). Stamped in fillSomeIpCapturedFromFrame
+    // and preserved across later frames (like tcp_peer_state), so the first
+    // post-start Offer reads delta_from_sd_start_us() against it. 0 = the marker
+    // was never observed (testability marker off, or a non-SD-start run).
+    std::int64_t sd_start_ts_us = 0;
+
     // SOME/IP-TP segment header (PRS_SOMEIP §4.2.1.4), parsed when the message_type
     // carries the TP-Flag (someiptp::kMessageTypeTpFlag = 0x20). `is_tp` is false for a
     // non-segmented message and the rest stay default. The header bit layout is decoded
@@ -207,6 +217,34 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     // Service ID alone — the SD payload has already been parsed under the same
     // gate — so this is the single predicate they share (docs/tech-debt.md TD-07).
     bool headerIsSd() const { return service_id == someip::kSdServiceId; }
+
+    // True when this frame is the DUT's SD start()-of-Initial-Wait marker: an
+    // OfferService for the reserved someip::kSdStartMarkerServiceId. The reference
+    // DUT emits exactly one such Offer from service_discovery_impl::start(), as the
+    // Initial-Wait timer is armed, ONLY when the testability marker is enabled
+    // (default off; a timing case turns it on). Recognition is by PRESENCE of the
+    // reserved marker service id (a positive, self-identifying signature), NOT by
+    // absence of entries — so a stray or other-stack SD frame can never be mistaken
+    // for the anchor and pull a too-slow Offer into range. No real service uses the
+    // reserved id, so it never collides with a genuine Offer/Find/Subscribe;
+    // fillSomeIpCapturedFromFrame stamps sd_start_ts_us from its arrival time.
+    bool is_sd_start_marker() const {
+        return is_offer_service_for(someip::kSdStartMarkerServiceId);
+    }
+
+    // Microsecond gap from the SD start() marker (is_sd_start_marker) to this
+    // frame — the SOUND Initial-Wait first-Offer measurement reference. Unlike
+    // delta_from_listen_window_us (anchored at external re-activation, which the
+    // ~hundreds-of-ms warm-restart re-registration confounds), both stamps are
+    // pcap arrival times bracketing only the internal start()->Offer gap, so the
+    // subtraction isolates the configured [sd_initial_delay_min_ms,
+    // sd_initial_delay_max_ms] window and stays valid across DUT/tester hosts (same
+    // pcap clock). Shares the base's fail-closed guard+clamp (positiveGapFrom):
+    // returns 0 when no marker was seen or before any frame, and clamps a negative
+    // raw diff to 0 so a `>= MIN` guard fails closed.
+    std::int64_t delta_from_sd_start_us() const noexcept {
+        return positiveGapFrom(sd_start_ts_us);
+    }
 
     // Returns true when this frame is the DUT's OfferService for
     // `want_service_id`: an SD message (header service_id == 0xFFFF) whose
@@ -327,6 +365,16 @@ inline void fillSomeIpCapturedFromFrame(SomeIpCaptured &c, const SomeIpFrame &f)
         // display wire totals are populated inside parseSdInto.
         parseSdInto(c, f.payload_data, f.payload_len);
     }
+    // Stamp the SD start() anchor from the marker Offer (is_sd_start_marker: an
+    // OfferService for the reserved marker service id). Only set — never cleared —
+    // so it persists to the first post-start real Offer that reads
+    // delta_from_sd_start_us(). For an N-iteration case each restart emits its own
+    // marker, overwriting the previous, so every measured Offer anchors on its own
+    // start(); because ONLY the reserved-id marker matches, no other frame between
+    // a marker and the measured Offer can move the anchor.
+    if (c.is_sd_start_marker()) {
+        c.sd_start_ts_us = f.observed_ts_us;
+    }
     // SOME/IP-TP: the capture context is reused across frames, so reset per frame, then
     // populate from the TP header only when the TP-Flag is set AND the header parses, so
     // is_tp never reports true on a stale prior frame or a frame too short to carry one.
@@ -405,6 +453,9 @@ inline void appendCapturedJson(std::string &out, const SomeIpCaptured &c) {
         ::tc8::sce::appendUintJson(out, ",\"sd_option_count\":", c.sd_option_count);
     }
     ::tc8::sce::appendTimingJson(out, c);
+    if (c.sd_start_ts_us != 0) {
+        ::tc8::sce::appendI64Json(out, ",\"delta_from_sd_start_us\":", c.delta_from_sd_start_us());
+    }
     out.append("}");
 }
 
