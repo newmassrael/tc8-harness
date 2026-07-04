@@ -222,9 +222,6 @@ buildOfferServiceWithEndpoint(const OfferServiceWithEndpointTarget &t) {
     constexpr std::uint32_t kEntriesLen      = 16;
     constexpr std::uint32_t kOptionsLen      = 12;
     constexpr std::uint8_t  kEntryTypeOffer  = 0x01;
-    constexpr std::uint16_t kOptionBodyLen   = 9;       // IPv4 Endpoint body size.
-    constexpr std::uint8_t  kOptionTypeIpv4  = 0x04;    // IPv4 Endpoint.
-    constexpr std::uint8_t  kEntryOptionRef  = 0x10;    // #Opt1=1 | #Opt2=0.
 
     std::vector<std::uint8_t> b;
     b.reserve(56);
@@ -236,7 +233,7 @@ buildOfferServiceWithEndpoint(const OfferServiceWithEndpointTarget &t) {
     b.push_back(kEntryTypeOffer);
     b.push_back(0);                 // IndexFirstOptionRun
     b.push_back(0);                 // IndexSecondOptionRun
-    b.push_back(kEntryOptionRef);
+    b.push_back(kEntryOptionRun1);
     putBe16(b, t.service.service_id);
     putBe16(b, t.service.instance_id);
     b.push_back(t.service.major_version);
@@ -245,18 +242,8 @@ buildOfferServiceWithEndpoint(const OfferServiceWithEndpointTarget &t) {
 
     putBe32(b, kOptionsLen);
 
-    // IPv4 Endpoint option (12 B). Address bytes are streamed MSB-first
-    // from `ipv4_be` which is already in network byte order.
-    putBe16(b, kOptionBodyLen);
-    b.push_back(kOptionTypeIpv4);
-    b.push_back(0);  // Reserved
-    b.push_back(static_cast<std::uint8_t>((t.endpoint.ipv4_be >> 0) & 0xFF));
-    b.push_back(static_cast<std::uint8_t>((t.endpoint.ipv4_be >> 8) & 0xFF));
-    b.push_back(static_cast<std::uint8_t>((t.endpoint.ipv4_be >> 16) & 0xFF));
-    b.push_back(static_cast<std::uint8_t>((t.endpoint.ipv4_be >> 24) & 0xFF));
-    b.push_back(0);  // Reserved
-    b.push_back(t.endpoint.l4proto);
-    putBe16(b, t.endpoint.port);
+    // IPv4 Endpoint option (12 B) via the shared endpoint-option encoder.
+    appendIpv4EndpointOption(b, sd_option_type::kIpv4Endpoint, t.endpoint);
 
     return b;
 }
@@ -519,8 +506,6 @@ buildMultiSubscribeEventgroup(const MultiSubscribeEventgroupParams &p) {
     // array carries N Type 2 entries instead of 1. All entries share
     // one option run (run 0 → single IPv4 Endpoint option in run 1).
     constexpr std::uint8_t kEntryTypeSubscribe = 0x06;
-    constexpr std::uint16_t kOptionBodyLen = 9;
-    constexpr std::uint8_t kOptionTypeIpv4 = 0x04;
 
     const std::uint32_t entries_len_actual =
         static_cast<std::uint32_t>(16 * p.entries.size());
@@ -547,7 +532,7 @@ buildMultiSubscribeEventgroup(const MultiSubscribeEventgroupParams &p) {
         b.push_back(kEntryTypeSubscribe);
         b.push_back(0);     // IndexFirstOptionRun
         b.push_back(0);     // IndexSecondOptionRun
-        b.push_back(0x10);  // #Opt1=1 | #Opt2=0
+        b.push_back(kEntryOptionRun1);  // #Opt1=1 | #Opt2=0
         putBe16(b, t.service_id);
         putBe16(b, t.instance_id);
         b.push_back(t.major_version);
@@ -560,16 +545,8 @@ buildMultiSubscribeEventgroup(const MultiSubscribeEventgroupParams &p) {
 
     putBe32(b, kOptionsLen);
 
-    putBe16(b, kOptionBodyLen);
-    b.push_back(kOptionTypeIpv4);
-    b.push_back(0);
-    b.push_back(static_cast<std::uint8_t>((p.tester_endpoint.ipv4_be >> 0) & 0xFF));
-    b.push_back(static_cast<std::uint8_t>((p.tester_endpoint.ipv4_be >> 8) & 0xFF));
-    b.push_back(static_cast<std::uint8_t>((p.tester_endpoint.ipv4_be >> 16) & 0xFF));
-    b.push_back(static_cast<std::uint8_t>((p.tester_endpoint.ipv4_be >> 24) & 0xFF));
-    b.push_back(0);
-    b.push_back(p.tester_endpoint.l4proto);
-    putBe16(b, p.tester_endpoint.port);
+    // IPv4 Endpoint option (12 B) via the shared endpoint-option encoder.
+    appendIpv4EndpointOption(b, sd_option_type::kIpv4Endpoint, p.tester_endpoint);
 
     return b;
 }
@@ -674,7 +651,6 @@ std::vector<std::uint8_t> buildSubscribeEventgroupAck(const SubscribeEventgroupA
     constexpr std::uint32_t kEntriesLen = 16;
     constexpr std::uint8_t kEntryTypeSubscribeAck = 0x07;
     constexpr std::uint16_t kOptionBodyLen = 9;  // IPv4 Multicast option body size.
-    constexpr std::uint8_t kEntryOptionRef = 0x10;  // #Opt1=1 | #Opt2=0 (one option, run 1).
 
     const bool has_option = p.target.multicast_endpoint.has_value();
     const std::uint32_t options_len = has_option ? 12u : 0u;
@@ -691,7 +667,7 @@ std::vector<std::uint8_t> buildSubscribeEventgroupAck(const SubscribeEventgroupA
     b.push_back(kEntryTypeSubscribeAck);
     b.push_back(0);  // IndexFirstOptionRun
     b.push_back(0);  // IndexSecondOptionRun
-    b.push_back(has_option ? kEntryOptionRef : static_cast<std::uint8_t>(0));
+    b.push_back(has_option ? kEntryOptionRun1 : static_cast<std::uint8_t>(0));
     putBe16(b, p.target.service_id);
     putBe16(b, p.target.instance_id);
     b.push_back(p.target.major_version);
