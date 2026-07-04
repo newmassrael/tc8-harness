@@ -8,6 +8,7 @@
 #include <thread>
 
 #include "someip/protocol.h"  // tc8::someip::kSdServiceId / kSdMethodId (SD Message ID SSOT)
+#include "someip/sd_wire_constants.h"  // sd_option_type / sd_l4_proto / sd_entry_type (wire values SSOT)
 #include "someip/wire.h"
 #include "stimulus/iface_addr.h"
 #include "stimulus/udp_emit.h"
@@ -56,6 +57,68 @@ void appendSdHeader(std::vector<std::uint8_t> &b, std::uint16_t session_id,
     putBe32(b, entries_len);
 }
 
+// SD entry option-count byte selecting exactly one option in the first run
+// (#Opt1=1 | #Opt2=0), i.e. the entry references the option at options index 0.
+// The single source for that nibble across the referenced Find / Offer /
+// Subscribe builders.
+inline constexpr std::uint8_t kEntryOptionRun1 = 0x10;
+
+// Append one IPv4 (SD) Endpoint option to an SD Options Array: the fixed 12-byte
+// wire shape Length(9) | Type | Reserved(Discardable=0) | IPv4 address (streamed
+// MSB-first from the network-order uint32) | Reserved | L4-Proto | Port. Single
+// encoder for the endpoint-option shape the Find / Offer / Subscribe builders
+// emit; `option_type` is sd_option_type::kIpv4Endpoint (0x04) or kIpv4SdEndpoint
+// (0x24), whose bodies are byte-identical apart from the type byte.
+void appendIpv4EndpointOption(std::vector<std::uint8_t> &b, std::uint8_t option_type,
+                             const Ipv4Endpoint &ep) {
+    constexpr std::uint16_t kOptionBodyLen = 9;
+    putBe16(b, kOptionBodyLen);
+    b.push_back(option_type);
+    b.push_back(0);  // Reserved (Discardable flag = 0)
+    b.push_back(static_cast<std::uint8_t>((ep.ipv4_be >> 0) & 0xFF));
+    b.push_back(static_cast<std::uint8_t>((ep.ipv4_be >> 8) & 0xFF));
+    b.push_back(static_cast<std::uint8_t>((ep.ipv4_be >> 16) & 0xFF));
+    b.push_back(static_cast<std::uint8_t>((ep.ipv4_be >> 24) & 0xFF));
+    b.push_back(0);  // Reserved
+    b.push_back(ep.l4proto);
+    putBe16(b, ep.port);
+}
+
+// Shared body for the two public FindService-with-one-option builders. Kept
+// file-local (not a public overload) so the public API exposes two clearly named
+// functions instead of a `(option_type, bool referenced)` footgun; the two
+// controlled call sites below pass the type + reference explicitly.
+std::vector<std::uint8_t> buildFindServiceWithOneOption(const FindServiceParams &p,
+                                                        const Ipv4Endpoint &endpoint,
+                                                        std::uint8_t option_type, bool referenced) {
+    // 56 B = 16 (SOME/IP header) + 4 (flags+reserved) + 4 (entries_len)
+    //      + 16 (entry) + 4 (options_len) + 12 (one IPv4 Endpoint option).
+    // Length field = 56 - 8 (header bytes before request_id) = 48.
+    constexpr std::uint32_t kLengthField = 48;
+    constexpr std::uint32_t kEntriesLen = 16;
+    constexpr std::uint32_t kOptionsLen = 12;
+
+    std::vector<std::uint8_t> b;
+    b.reserve(56);
+
+    appendSdHeader(b, p.session_id, kLengthField, p.sd_flags, kEntriesLen, p.sd_reserved);
+
+    // FindService entry — one option, referenced only when requested.
+    b.push_back(sd_entry_type::kFindService);
+    b.push_back(0);  // IndexFirstOptionRun (the option is at options index 0)
+    b.push_back(0);  // IndexSecondOptionRun
+    b.push_back(referenced ? kEntryOptionRun1 : std::uint8_t{0x00});
+    putBe16(b, p.target.service_id);
+    putBe16(b, p.target.instance_id);
+    b.push_back(p.target.major_version);
+    putBe24(b, p.target.ttl);
+    putBe32(b, p.target.minor_version);
+
+    putBe32(b, kOptionsLen);
+    appendIpv4EndpointOption(b, option_type, endpoint);
+    return b;
+}
+
 }  // namespace
 
 std::vector<std::uint8_t> buildFindService(const FindServiceParams &p) {
@@ -96,47 +159,20 @@ std::vector<std::uint8_t> buildFindService(const FindServiceParams &p) {
 
 std::vector<std::uint8_t> buildFindServiceWithOption(const FindServiceParams &p,
                                                      const Ipv4Endpoint &endpoint) {
-    // 56 B = 16 (SOME/IP header) + 4 (flags+reserved) + 4 (entries_len)
-    //      + 16 (entry) + 4 (options_len) + 12 (one IPv4 Endpoint option).
-    // Length field = 56 - 8 (header bytes before request_id) = 48.
-    constexpr std::uint32_t kLengthField = 48;
-    constexpr std::uint32_t kEntriesLen = 16;
-    constexpr std::uint32_t kOptionsLen = 12;
-    constexpr std::uint8_t kEntryTypeFind = 0x00;
-    constexpr std::uint16_t kOptionBodyLen = 9;
-    constexpr std::uint8_t kOptionTypeIpv4 = 0x04;
+    // Unreferenced (#Opt1=0) IPv4 Endpoint option — the ETS_118-style "ignore the
+    // not-required option" cases: the option is physically present but the DUT
+    // must ignore it and still answer with at least one OfferService.
+    return buildFindServiceWithOneOption(p, endpoint, sd_option_type::kIpv4Endpoint,
+                                         /*referenced=*/false);
+}
 
-    std::vector<std::uint8_t> b;
-    b.reserve(56);
-
-    appendSdHeader(b, p.session_id, kLengthField, p.sd_flags, kEntriesLen, p.sd_reserved);
-
-    // FindService entry — option present but UNREFERENCED (#Opt1=0).
-    b.push_back(kEntryTypeFind);
-    b.push_back(0);  // IndexFirstOptionRun
-    b.push_back(0);  // IndexSecondOptionRun
-    b.push_back(0);  // #Opt1=0 | #Opt2=0 — DUT must ignore the option.
-    putBe16(b, p.target.service_id);
-    putBe16(b, p.target.instance_id);
-    b.push_back(p.target.major_version);
-    putBe24(b, p.target.ttl);
-    putBe32(b, p.target.minor_version);
-
-    putBe32(b, kOptionsLen);
-
-    // IPv4 Endpoint option (12 B).
-    putBe16(b, kOptionBodyLen);
-    b.push_back(kOptionTypeIpv4);
-    b.push_back(0);  // Reserved
-    b.push_back(static_cast<std::uint8_t>((endpoint.ipv4_be >> 0) & 0xFF));
-    b.push_back(static_cast<std::uint8_t>((endpoint.ipv4_be >> 8) & 0xFF));
-    b.push_back(static_cast<std::uint8_t>((endpoint.ipv4_be >> 16) & 0xFF));
-    b.push_back(static_cast<std::uint8_t>((endpoint.ipv4_be >> 24) & 0xFF));
-    b.push_back(0);  // Reserved
-    b.push_back(endpoint.l4proto);
-    putBe16(b, endpoint.port);
-
-    return b;
+std::vector<std::uint8_t> buildFindServiceWithReferencedSdEndpointOption(const FindServiceParams &p,
+                                                                         const Ipv4Endpoint &endpoint) {
+    // Referenced (#Opt1=1) Type-0x24 IPv4 SD Endpoint option: a DUT that honours
+    // the referenced endpoint option answers the Find to `endpoint` (address /
+    // L4-proto / port) rather than to the SD sender.
+    return buildFindServiceWithOneOption(p, endpoint, sd_option_type::kIpv4SdEndpoint,
+                                         /*referenced=*/true);
 }
 
 std::vector<std::uint8_t> buildOfferService(const OfferServiceTarget &t) {

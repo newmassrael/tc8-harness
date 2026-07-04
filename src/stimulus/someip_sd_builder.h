@@ -135,13 +135,20 @@ struct Ipv4Endpoint {
     std::uint8_t l4proto = 0x11;  // 0x11 UDP, 0x06 TCP — subscribe uses UDP.
 };
 
-// §5.1.6 SOMEIP_ETS_118 helper: 56-byte FindService variant carrying one
-// IPv4 Endpoint option in its Options Array. The entry's #Opt1/#Opt2 stay
-// 0 — the option is physically present but UNREFERENCED — so the DUT must
-// ignore it per PRS_SOMEIPSD_00268 / SIP_SD_877 / SIP_SD_878 and still
-// respond with at least one OfferService.
+// §5.1.6 SOMEIP_ETS_118 helper: 56-byte FindService carrying one UNREFERENCED
+// IPv4 Endpoint option (#Opt1=0) in its Options Array — the option is physically
+// present but the DUT must ignore it per PRS_SOMEIPSD_00268 / SIP_SD_877 /
+// SIP_SD_878 and still respond with at least one OfferService.
 std::vector<std::uint8_t> buildFindServiceWithOption(const FindServiceParams &p,
                                                      const Ipv4Endpoint &endpoint);
+
+// 56-byte FindService carrying one REFERENCED (#Opt1=1) Type-0x24 IPv4 SD
+// Endpoint option: a DUT that honours the referenced endpoint option answers the
+// Find to `endpoint` (address / L4-proto / port) rather than to the SD sender.
+// Same wire shape as buildFindServiceWithOption apart from the option type byte
+// and the referenced option-run nibble.
+std::vector<std::uint8_t> buildFindServiceWithReferencedSdEndpointOption(const FindServiceParams &p,
+                                                                         const Ipv4Endpoint &endpoint);
 
 // Target identity of a SubscribeEventgroup — the eventgroup we're asking
 // the DUT to publish to us. Session ID / SD flags / tester endpoint are
