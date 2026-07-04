@@ -89,19 +89,21 @@ void appendIpv4EndpointOption(std::vector<std::uint8_t> &b, std::uint8_t option_
 // #Opt1|#Opt2 | ServiceID | InstanceID | MajorVersion | TTL(24b) | MinorVersion.
 // The single source of the Type-1 entry wire shape — the entry-level parallel of
 // appendSdHeader (preamble SSOT) and appendIpv4EndpointOption (option SSOT), shared
-// by all four Find/Offer builders. Both index bytes are 0: every Type-1 entry the
-// harness emits starts its option run at options index 0 (no case needs a non-zero
-// index — add a param the day one does, rather than carry a dead one now).
+// by every Find/Offer builder. IndexFirstOptionRun is a parameter — a case may start
+// the entry's option run at a non-zero options index (e.g. an Offer whose data
+// endpoint follows an SD Endpoint option at index 0). IndexSecondOptionRun stays 0:
+// no Type-1 case needs a second option run yet (add a param the day one does).
 // `option_run` is 0 (no option referenced) or kEntryOptionRun1 (#Opt1=1); a 0 TTL
 // makes an Offer a StopOffer (SD §4.2). Type-2 entries (Subscribe/Ack) carry a
 // Counter/EventgroupID tail instead of MinorVersion, so they keep their own layout.
 void appendSdType1Entry(std::vector<std::uint8_t> &b, std::uint8_t entry_type,
-                        std::uint8_t option_run, std::uint16_t service_id,
-                        std::uint16_t instance_id, std::uint8_t major_version,
-                        std::uint32_t ttl, std::uint32_t minor_version) {
+                        std::uint8_t index_first_run, std::uint8_t option_run,
+                        std::uint16_t service_id, std::uint16_t instance_id,
+                        std::uint8_t major_version, std::uint32_t ttl,
+                        std::uint32_t minor_version) {
     b.push_back(entry_type);
-    b.push_back(0);  // IndexFirstOptionRun (option run starts at options index 0)
-    b.push_back(0);  // IndexSecondOptionRun
+    b.push_back(index_first_run);  // IndexFirstOptionRun (option-run start index)
+    b.push_back(0);                // IndexSecondOptionRun (no 2nd run yet)
     b.push_back(option_run);
     putBe16(b, service_id);
     putBe16(b, instance_id);
@@ -169,49 +171,13 @@ std::vector<std::uint8_t> buildFindServiceWithOneOption(const FindServiceParams 
     appendSdHeader(b, p.session_id, kLengthField, p.sd_flags, kEntriesLen, p.sd_reserved);
 
     // FindService entry — one option, referenced only when requested.
-    appendSdType1Entry(b, sd_entry_type::kFindService,
+    appendSdType1Entry(b, sd_entry_type::kFindService, /*index_first_run=*/0,
                        referenced ? kEntryOptionRun1 : std::uint8_t{0x00},
                        p.target.service_id, p.target.instance_id,
                        p.target.major_version, p.target.ttl, p.target.minor_version);
 
     putBe32(b, kOptionsLen);
     appendIpv4EndpointOption(b, option_type, endpoint);
-    return b;
-}
-
-// Shared body for the two OfferService-with-one-endpoint-option builders — the
-// 56-byte Offer whose entry references (#Opt1=1) exactly one IPv4 (SD) Endpoint
-// option in run 1. The option is ALWAYS referenced here: an Offer that advertises
-// an endpoint always points its entry at it (there is no unreferenced-Offer case,
-// unlike Find's "present but ignored" option). The two public builders differ only
-// in `option_type` — sd_option_type::kIpv4Endpoint (0x04) or kIpv4SdEndpoint
-// (0x24), whose option bodies are byte-identical apart from the type byte — so this
-// is the single source of the referenced-Offer wire shape.
-std::vector<std::uint8_t> buildOfferServiceWithOneReferencedOption(
-    const OfferServiceWithEndpointTarget &t, std::uint8_t option_type) {
-    // Wire layout: 16 B SOME/IP + 4 B SD flags + 4 B EntriesLen + 16 B
-    // Type 0x01 entry + 4 B OptionsLen + 12 B IPv4 Endpoint option = 56 B.
-    // Length field = 8 + 4 + 4 + 16 + 4 + 12 = 48.
-    constexpr std::uint32_t kLengthField = 48;
-    constexpr std::uint32_t kEntriesLen  = 16;
-    constexpr std::uint32_t kOptionsLen  = 12;
-
-    std::vector<std::uint8_t> b;
-    b.reserve(56);
-
-    // Reboot|Unicast flags; OEM overrides the Reboot bit.
-    appendSdHeader(b, t.service.session_id, kLengthField, t.service.sd_flags, kEntriesLen);
-
-    // OfferService entry referencing 1 option in run 1.
-    appendSdType1Entry(b, sd_entry_type::kOfferService, kEntryOptionRun1,
-                       t.service.service_id, t.service.instance_id,
-                       t.service.major_version, t.service.ttl, t.service.minor_version);
-
-    putBe32(b, kOptionsLen);
-
-    // IPv4 (SD) Endpoint option (12 B) via the shared endpoint-option encoder.
-    appendIpv4EndpointOption(b, option_type, t.endpoint);
-
     return b;
 }
 
@@ -236,8 +202,8 @@ std::vector<std::uint8_t> buildFindService(const FindServiceParams &p) {
     appendSdHeader(b, p.session_id, kLengthField, p.sd_flags, kEntriesLen, p.sd_reserved);
 
     // FindService entry (16B) — no option referenced (option_run = 0).
-    appendSdType1Entry(b, sd_entry_type::kFindService, /*option_run=*/0,
-                       p.target.service_id, p.target.instance_id,
+    appendSdType1Entry(b, sd_entry_type::kFindService, /*index_first_run=*/0,
+                       /*option_run=*/0, p.target.service_id, p.target.instance_id,
                        p.target.major_version, p.target.ttl, p.target.minor_version);
 
     // Length of Options Array = 0 (no options).
@@ -279,8 +245,9 @@ std::vector<std::uint8_t> buildOfferService(const OfferServiceTarget &t) {
     appendSdHeader(b, t.session_id, kLengthField, t.sd_flags, kEntriesLen);
 
     // OfferService entry (16B) — no option referenced; ttl == 0 -> StopOfferService.
-    appendSdType1Entry(b, sd_entry_type::kOfferService, /*option_run=*/0,
-                       t.service_id, t.instance_id, t.major_version, t.ttl, t.minor_version);
+    appendSdType1Entry(b, sd_entry_type::kOfferService, /*index_first_run=*/0,
+                       /*option_run=*/0, t.service_id, t.instance_id, t.major_version,
+                       t.ttl, t.minor_version);
 
     putBe32(b, kOptionsLen);
 
@@ -297,18 +264,57 @@ int emitOfferServiceMulticast(std::string_view iface, const OfferServiceTarget &
 
 std::vector<std::uint8_t>
 buildOfferServiceWithEndpoint(const OfferServiceWithEndpointTarget &t) {
-    // Referenced Type-0x04 IPv4 Endpoint option — the tester advertises its own L4
-    // endpoint inside the Offer entry it points at.
-    return buildOfferServiceWithOneReferencedOption(t, sd_option_type::kIpv4Endpoint);
+    // 56 B Offer: the entry references (#Opt1=1) one Type-0x04 IPv4 Endpoint option at
+    // options index 0 — the tester advertises its own L4 data endpoint.
+    // Length = 8 + 4 (flags) + 4 (EntriesLen) + 16 (entry) + 4 (OptionsLen) + 12 = 48.
+    constexpr std::uint32_t kLengthField = 48;
+    constexpr std::uint32_t kEntriesLen  = 16;
+    constexpr std::uint32_t kOptionsLen  = 12;
+
+    std::vector<std::uint8_t> b;
+    b.reserve(56);
+
+    // Reboot|Unicast flags; OEM override sets the Reboot bit.
+    appendSdHeader(b, t.service.session_id, kLengthField, t.service.sd_flags, kEntriesLen);
+    appendSdType1Entry(b, sd_entry_type::kOfferService, /*index_first_run=*/0,
+                       kEntryOptionRun1, t.service.service_id, t.service.instance_id,
+                       t.service.major_version, t.service.ttl, t.service.minor_version);
+    putBe32(b, kOptionsLen);
+    appendIpv4EndpointOption(b, sd_option_type::kIpv4Endpoint, t.endpoint);
+    return b;
 }
 
 std::vector<std::uint8_t>
-buildOfferServiceWithReferencedSdEndpointOption(const OfferServiceWithEndpointTarget &t) {
-    // Referenced (#Opt1=1) Type-0x24 IPv4 SD Endpoint option — the Offer sibling of
-    // buildFindServiceWithReferencedSdEndpointOption. A DUT client that honours the
-    // referenced SD Endpoint option directs its SubscribeEventgroup to `t.endpoint`
-    // rather than to the Offer's transport source.
-    return buildOfferServiceWithOneReferencedOption(t, sd_option_type::kIpv4SdEndpoint);
+buildOfferServiceWithEndpointAndSdEndpointOption(const OfferServiceWithEndpointTarget &data_ep,
+                                                 const Ipv4Endpoint &sd_ep) {
+    // 68 B Offer carrying TWO options: a Type-0x24 IPv4 SD Endpoint option at
+    // options[0] (the redirect target `sd_ep`, read by a DUT client at message level)
+    // and a Type-0x04 IPv4 Endpoint option at options[1] (the service data endpoint
+    // `data_ep.endpoint`, which the ENTRY references at IndexFirstOptionRun = 1).
+    // Unlike a FindService (a query, no endpoint), an OfferService without a data
+    // endpoint is dropped as an unknown offer — so the redirect Offer carries both.
+    // Length = 8 + 4 (flags) + 4 (EntriesLen) + 16 (entry) + 4 (OptionsLen) + 24 = 60.
+    constexpr std::uint32_t kLengthField     = 60;
+    constexpr std::uint32_t kEntriesLen      = 16;
+    constexpr std::uint32_t kOptionsLen      = 24;  // two 12-byte options
+    constexpr std::uint8_t  kDataEndpointIdx = 1;   // entry references options[1]
+
+    std::vector<std::uint8_t> b;
+    b.reserve(68);
+
+    // Reboot|Unicast flags; OEM override sets the Reboot bit.
+    appendSdHeader(b, data_ep.service.session_id, kLengthField, data_ep.service.sd_flags,
+                   kEntriesLen);
+    // Entry references one option (the 0x04 data endpoint) starting at options[1]; the
+    // 0x24 at options[0] is not entry-referenced (a DUT client reads it at message level).
+    appendSdType1Entry(b, sd_entry_type::kOfferService, kDataEndpointIdx, kEntryOptionRun1,
+                       data_ep.service.service_id, data_ep.service.instance_id,
+                       data_ep.service.major_version, data_ep.service.ttl,
+                       data_ep.service.minor_version);
+    putBe32(b, kOptionsLen);
+    appendIpv4EndpointOption(b, sd_option_type::kIpv4SdEndpoint, sd_ep);           // options[0]
+    appendIpv4EndpointOption(b, sd_option_type::kIpv4Endpoint, data_ep.endpoint);  // options[1]
+    return b;
 }
 
 int emitOfferServiceMulticastWithEndpoint(std::string_view iface,

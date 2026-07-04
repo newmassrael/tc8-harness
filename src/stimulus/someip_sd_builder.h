@@ -383,17 +383,17 @@ struct OfferServiceWithEndpointTarget {
 std::vector<std::uint8_t>
 buildOfferServiceWithEndpoint(const OfferServiceWithEndpointTarget &t);
 
-// Offer sibling of `buildFindServiceWithReferencedSdEndpointOption`: a 56-byte
-// OfferService (entry type 0x01) that REFERENCES (#Opt1=1) one Type-0x24 IPv4 SD
-// Endpoint option (address / L4-proto / port) as option[0]. Same wire shape as
-// `buildOfferServiceWithEndpoint` apart from the option Type byte (0x24 vs 0x04) —
-// both route through the shared Offer-with-one-option body. A DUT client that
-// honours a referenced SD Endpoint option directs its SubscribeEventgroup to
-// `t.endpoint` rather than to the Offer's transport source. Like the Find sibling
-// it is a pure builder with no dedicated emit companion: emit the bytes via
-// `sendSdUnicast` or `sendSdMulticastFromSourceIp`.
+// 68-byte OfferService that redirects a DUT client's SubscribeEventgroup to a
+// separate SD endpoint: options[0] is a Type-0x24 IPv4 SD Endpoint option (the
+// redirect target `sd_ep`, which a DUT client reads at message level) and options[1]
+// is a Type-0x04 IPv4 Endpoint option (the service data endpoint `data_ep.endpoint`,
+// which the entry references). Unlike a FindService (a query with no endpoint), an
+// OfferService WITHOUT a data endpoint is dropped as an unknown offer — so the
+// redirect Offer must carry BOTH options. A pure builder with no emit companion:
+// emit via `sendSdUnicast` or `sendSdMulticastFromSourceIp`.
 std::vector<std::uint8_t>
-buildOfferServiceWithReferencedSdEndpointOption(const OfferServiceWithEndpointTarget &t);
+buildOfferServiceWithEndpointAndSdEndpointOption(const OfferServiceWithEndpointTarget &data_ep,
+                                                 const Ipv4Endpoint &sd_ep);
 
 int emitOfferServiceMulticastWithEndpoint(std::string_view iface,
                                           const OfferServiceWithEndpointTarget &t,

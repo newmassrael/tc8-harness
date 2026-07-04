@@ -396,31 +396,36 @@ TEST(BuildOfferServiceWithEndpoint, HeaderEntryAndOption) {
     EXPECT_EQ(b[46], 0x04u);  // IPv4 Endpoint option type
 }
 
-// Offer sibling of BuildFindServiceWithReferencedSdEndpointOption: identical wire
-// shape to buildOfferServiceWithEndpoint apart from the Type-0x24 option byte, and
-// the referenced #Opt1=1 nibble is preserved.
-TEST(BuildOfferServiceWithReferencedSdEndpointOption, SetsOptRunAndType) {
-    OfferServiceWithEndpointTarget t{};
-    t.service.service_id = 0xF4E8;
-    t.service.session_id = 0x0001;
-    t.endpoint.ipv4_be = 0x030010AC;  // 172.16.0.3
-    t.endpoint.port = 0x8765;
-    t.endpoint.l4proto = 0x11;
-    const auto b = buildOfferServiceWithReferencedSdEndpointOption(t);
-    ASSERT_EQ(b.size(), 56u);   // size invariant to option type
+// A redirect Offer carries BOTH a Type-0x24 SD Endpoint option at options[0] (the
+// redirect target) and a Type-0x04 IPv4 Endpoint option at options[1] (the service
+// data endpoint), with the entry referencing the 0x04 at IndexFirstOptionRun = 1.
+TEST(BuildOfferServiceWithEndpointAndSdEndpointOption, TwoOptionsRedirect) {
+    OfferServiceWithEndpointTarget data{};
+    data.service.service_id = 0xF4E7;
+    data.service.instance_id = 0x0001;
+    data.service.session_id = 0x0001;
+    data.endpoint.ipv4_be = 0x020010AC;  // 172.16.0.2 (service data endpoint)
+    data.endpoint.port = 0x7777;
+    data.endpoint.l4proto = 0x11;
+    const Ipv4Endpoint sd_ep{0x030010AC, 0x8765, 0x11};  // 172.16.0.3 (SD redirect)
+    const auto b = buildOfferServiceWithEndpointAndSdEndpointOption(data, sd_ep);
+    ASSERT_EQ(b.size(), 68u);
+    EXPECT_EQ(b[7], 60u);       // SOME/IP Length = 60
     EXPECT_EQ(b[24], 0x01u);    // entry type = OfferService
-    EXPECT_EQ(b[25], 0x00u);    // IndexFirstOptionRun = 0 (option at index 0)
-    EXPECT_EQ(b[27], 0x10u);    // #Opt1=1 | #Opt2=0 — option referenced
-    EXPECT_EQ(b[46], 0x24u);    // option type = IPv4 SD Endpoint (vs 0x04 sibling)
-    EXPECT_EQ(b[47], 0x00u);    // Discardable flag = 0
-    // Endpoint carried verbatim: NBO address, L4-proto, BE port.
-    EXPECT_EQ(b[48], 0xACu);
-    EXPECT_EQ(b[49], 0x10u);
-    EXPECT_EQ(b[50], 0x00u);
-    EXPECT_EQ(b[51], 0x03u);
-    EXPECT_EQ(b[53], 0x11u);    // L4-proto = UDP
-    EXPECT_EQ(b[54], 0x87u);    // port BE hi
-    EXPECT_EQ(b[55], 0x65u);    // port BE lo
+    EXPECT_EQ(b[25], 0x01u);    // IndexFirstOptionRun = 1 (entry references options[1])
+    EXPECT_EQ(b[26], 0x00u);    // IndexSecondOptionRun = 0
+    EXPECT_EQ(b[27], 0x10u);    // #Opt1=1 | #Opt2=0
+    EXPECT_EQ(b[43], 0x18u);    // OptionsLen = 24 (two 12-byte options)
+    // options[0] = Type-0x24 SD Endpoint (redirect target 172.16.0.3 : 0x8765).
+    EXPECT_EQ(b[46], 0x24u);
+    EXPECT_EQ(b[48], 0xACu); EXPECT_EQ(b[49], 0x10u);
+    EXPECT_EQ(b[50], 0x00u); EXPECT_EQ(b[51], 0x03u);
+    EXPECT_EQ(b[54], 0x87u); EXPECT_EQ(b[55], 0x65u);  // sd_ep port BE
+    // options[1] = Type-0x04 IPv4 Endpoint (data endpoint 172.16.0.2 : 0x7777).
+    EXPECT_EQ(b[58], 0x04u);
+    EXPECT_EQ(b[60], 0xACu); EXPECT_EQ(b[61], 0x10u);
+    EXPECT_EQ(b[62], 0x00u); EXPECT_EQ(b[63], 0x02u);
+    EXPECT_EQ(b[66], 0x77u); EXPECT_EQ(b[67], 0x77u);  // data_ep port BE
 }
 
 TEST(BuildMultiSubscribeEventgroup, HeaderAndTwoEntries) {
