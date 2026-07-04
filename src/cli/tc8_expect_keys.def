@@ -97,6 +97,7 @@ TC8_EXPECT_GROUP(dhcpv4,       "dhcpv4.")
 TC8_EXPECT_KEY(someip, U16, service_id)
 TC8_EXPECT_KEY(someip, U16, instance_id)
 TC8_EXPECT_KEY(someip, U8,  major_version)
+TC8_EXPECT_KEY(someip, U8,  major_version_alt)  // alternate Major of a concurrent two-Major DUT
 TC8_EXPECT_KEY(someip, U24, ttl)             // SD TTL is 24-bit
 TC8_EXPECT_KEY(someip, U32, minor_version)
 TC8_EXPECT_KEY(someip, U16, eventgroup_id)

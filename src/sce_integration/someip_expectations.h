@@ -30,6 +30,13 @@ struct SomeIpExpectations {
     std::uint16_t service_id = 0;
     std::uint16_t instance_id = 0;
     std::uint8_t major_version = 0;
+    // Second (alternate) Major Version, for a DUT that concurrently offers two
+    // Major Versions of the same (service, instance). A multi-Major offer/find
+    // case addresses or verifies the alternate instance by this value; 0 = unset
+    // (a single-Major DUT). A distinct field rather than a `major_version + 1`
+    // derivation, so the two Majors are configured independently (SSOT) instead
+    // of coupled by an assumed numbering convention.
+    std::uint8_t major_version_alt = 0;
     std::uint32_t ttl = 0;
     std::uint32_t minor_version = 0;
     // Type 2 entry field — SubscribeEventgroup / Ack entries carry this
