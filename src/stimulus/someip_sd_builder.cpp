@@ -84,6 +84,32 @@ void appendIpv4EndpointOption(std::vector<std::uint8_t> &b, std::uint8_t option_
     putBe16(b, ep.port);
 }
 
+// Append one SOME/IP-SD Type-1 entry (FindService / OfferService, TR_SOMEIP §7.4
+// Type 1 format): EntryType | IndexFirstOptionRun | IndexSecondOptionRun |
+// #Opt1|#Opt2 | ServiceID | InstanceID | MajorVersion | TTL(24b) | MinorVersion.
+// The single source of the Type-1 entry wire shape — the entry-level parallel of
+// appendSdHeader (preamble SSOT) and appendIpv4EndpointOption (option SSOT), shared
+// by all four Find/Offer builders. Both index bytes are 0: every Type-1 entry the
+// harness emits starts its option run at options index 0 (no case needs a non-zero
+// index — add a param the day one does, rather than carry a dead one now).
+// `option_run` is 0 (no option referenced) or kEntryOptionRun1 (#Opt1=1); a 0 TTL
+// makes an Offer a StopOffer (SD §4.2). Type-2 entries (Subscribe/Ack) carry a
+// Counter/EventgroupID tail instead of MinorVersion, so they keep their own layout.
+void appendSdType1Entry(std::vector<std::uint8_t> &b, std::uint8_t entry_type,
+                        std::uint8_t option_run, std::uint16_t service_id,
+                        std::uint16_t instance_id, std::uint8_t major_version,
+                        std::uint32_t ttl, std::uint32_t minor_version) {
+    b.push_back(entry_type);
+    b.push_back(0);  // IndexFirstOptionRun (option run starts at options index 0)
+    b.push_back(0);  // IndexSecondOptionRun
+    b.push_back(option_run);
+    putBe16(b, service_id);
+    putBe16(b, instance_id);
+    b.push_back(major_version);
+    putBe24(b, ttl);
+    putBe32(b, minor_version);
+}
+
 // Shared body for the two public FindService-with-one-option builders. Kept
 // file-local (not a public overload) so the public API exposes two clearly named
 // functions instead of a `(option_type, bool referenced)` footgun; the two
@@ -104,15 +130,10 @@ std::vector<std::uint8_t> buildFindServiceWithOneOption(const FindServiceParams 
     appendSdHeader(b, p.session_id, kLengthField, p.sd_flags, kEntriesLen, p.sd_reserved);
 
     // FindService entry — one option, referenced only when requested.
-    b.push_back(sd_entry_type::kFindService);
-    b.push_back(0);  // IndexFirstOptionRun (the option is at options index 0)
-    b.push_back(0);  // IndexSecondOptionRun
-    b.push_back(referenced ? kEntryOptionRun1 : std::uint8_t{0x00});
-    putBe16(b, p.target.service_id);
-    putBe16(b, p.target.instance_id);
-    b.push_back(p.target.major_version);
-    putBe24(b, p.target.ttl);
-    putBe32(b, p.target.minor_version);
+    appendSdType1Entry(b, sd_entry_type::kFindService,
+                       referenced ? kEntryOptionRun1 : std::uint8_t{0x00},
+                       p.target.service_id, p.target.instance_id,
+                       p.target.major_version, p.target.ttl, p.target.minor_version);
 
     putBe32(b, kOptionsLen);
     appendIpv4EndpointOption(b, option_type, endpoint);
@@ -143,15 +164,9 @@ std::vector<std::uint8_t> buildOfferServiceWithOneReferencedOption(
     appendSdHeader(b, t.service.session_id, kLengthField, t.service.sd_flags, kEntriesLen);
 
     // OfferService entry referencing 1 option in run 1.
-    b.push_back(sd_entry_type::kOfferService);
-    b.push_back(0);                 // IndexFirstOptionRun (the option is at options index 0)
-    b.push_back(0);                 // IndexSecondOptionRun
-    b.push_back(kEntryOptionRun1);
-    putBe16(b, t.service.service_id);
-    putBe16(b, t.service.instance_id);
-    b.push_back(t.service.major_version);
-    putBe24(b, t.service.ttl);
-    putBe32(b, t.service.minor_version);
+    appendSdType1Entry(b, sd_entry_type::kOfferService, kEntryOptionRun1,
+                       t.service.service_id, t.service.instance_id,
+                       t.service.major_version, t.service.ttl, t.service.minor_version);
 
     putBe32(b, kOptionsLen);
 
@@ -175,23 +190,16 @@ std::vector<std::uint8_t> buildFindService(const FindServiceParams &p) {
     constexpr std::uint32_t kLengthField = 36;
     constexpr std::uint32_t kEntriesLen = 16;
     constexpr std::uint32_t kOptionsLen = 0;
-    constexpr std::uint8_t kEntryTypeFind = 0x00;
 
     std::vector<std::uint8_t> b;
     b.reserve(44);
 
     appendSdHeader(b, p.session_id, kLengthField, p.sd_flags, kEntriesLen, p.sd_reserved);
 
-    // FindService entry (16B).
-    b.push_back(kEntryTypeFind);
-    b.push_back(0);  // IndexFirstOptionRun
-    b.push_back(0);  // IndexSecondOptionRun
-    b.push_back(0);  // #Opt1 (4b) | #Opt2 (4b)
-    putBe16(b, p.target.service_id);
-    putBe16(b, p.target.instance_id);
-    b.push_back(p.target.major_version);
-    putBe24(b, p.target.ttl);
-    putBe32(b, p.target.minor_version);
+    // FindService entry (16B) — no option referenced (option_run = 0).
+    appendSdType1Entry(b, sd_entry_type::kFindService, /*option_run=*/0,
+                       p.target.service_id, p.target.instance_id,
+                       p.target.major_version, p.target.ttl, p.target.minor_version);
 
     // Length of Options Array = 0 (no options).
     putBe32(b, kOptionsLen);
@@ -224,23 +232,16 @@ std::vector<std::uint8_t> buildOfferService(const OfferServiceTarget &t) {
     constexpr std::uint32_t kLengthField  = 36;
     constexpr std::uint32_t kEntriesLen   = 16;
     constexpr std::uint32_t kOptionsLen   = 0;
-    constexpr std::uint8_t  kEntryTypeOffer = 0x01;
 
     std::vector<std::uint8_t> b;
     b.reserve(44);
 
-    // Reboot|Unicast flags; OEM SUBSCRIBE/SD_BEHAVIOR override the Reboot bit.
+    // Reboot|Unicast flags; OEM override sets the Reboot bit.
     appendSdHeader(b, t.session_id, kLengthField, t.sd_flags, kEntriesLen);
 
-    b.push_back(kEntryTypeOffer);
-    b.push_back(0);                 // IndexFirstOptionRun
-    b.push_back(0);                 // IndexSecondOptionRun
-    b.push_back(0);                 // #Opt1 (4b) | #Opt2 (4b)
-    putBe16(b, t.service_id);
-    putBe16(b, t.instance_id);
-    b.push_back(t.major_version);
-    putBe24(b, t.ttl);              // ttl == 0 -> StopOfferService per SD §4.2
-    putBe32(b, t.minor_version);
+    // OfferService entry (16B) — no option referenced; ttl == 0 -> StopOfferService.
+    appendSdType1Entry(b, sd_entry_type::kOfferService, /*option_run=*/0,
+                       t.service_id, t.instance_id, t.major_version, t.ttl, t.minor_version);
 
     putBe32(b, kOptionsLen);
 
@@ -389,7 +390,6 @@ std::vector<std::uint8_t> buildSubscribeEventgroup(const SubscribeEventgroupPara
         p.entries_len_override == 0 ? kEntriesLenCanonical : p.entries_len_override;
     const std::uint32_t options_len_field = p.options_len_override.value_or(
         kOptionsLenCanonical + extra_options_total_bytes);
-    constexpr std::uint8_t kEntryTypeSubscribe = 0x06;
     constexpr std::uint16_t kOptionBodyLenCanonical = 9;  // Length field value for IPv4 Endpoint.
     const std::uint16_t option_body_len_field =
         p.option_body_len_override.value_or(kOptionBodyLenCanonical);
@@ -430,7 +430,7 @@ std::vector<std::uint8_t> buildSubscribeEventgroup(const SubscribeEventgroupPara
                    /*reserved=*/0, method_id_field);
 
     // SubscribeEventgroup entry (16B, Type 2).
-    b.push_back(kEntryTypeSubscribe);
+    b.push_back(sd_entry_type::kSubscribeEventgroup);
     b.push_back(index_first);   // IndexFirstOptionRun (canonical 0)
     b.push_back(index_second);  // IndexSecondOptionRun (canonical 0)
     b.push_back(entry_byte3);   // #Opt1 (canonical 1) | #Opt2 (canonical 0)
@@ -528,8 +528,6 @@ buildMultiSubscribeEventgroup(const MultiSubscribeEventgroupParams &p) {
     // Same wire layout as buildSubscribeEventgroup but the entries
     // array carries N Type 2 entries instead of 1. All entries share
     // one option run (run 0 → single IPv4 Endpoint option in run 1).
-    constexpr std::uint8_t kEntryTypeSubscribe = 0x06;
-
     const std::uint32_t entries_len_actual =
         static_cast<std::uint32_t>(16 * p.entries.size());
     // §5.1.6 SOMEIP_ETS_114: caller-supplied entries_len_override (non-zero)
@@ -552,7 +550,7 @@ buildMultiSubscribeEventgroup(const MultiSubscribeEventgroupParams &p) {
     appendSdHeader(b, p.session_id, length_field, p.sd_flags, entries_len);
 
     for (const auto &t : p.entries) {
-        b.push_back(kEntryTypeSubscribe);
+        b.push_back(sd_entry_type::kSubscribeEventgroup);
         b.push_back(0);     // IndexFirstOptionRun
         b.push_back(0);     // IndexSecondOptionRun
         b.push_back(kEntryOptionRun1);  // #Opt1=1 | #Opt2=0
@@ -672,7 +670,6 @@ std::vector<std::uint8_t> buildSubscribeEventgroupAck(const SubscribeEventgroupA
     // (40-byte payload, Length 48) — the Ack analogue of buildOfferService vs
     // buildOfferServiceWithEndpoint.
     constexpr std::uint32_t kEntriesLen = 16;
-    constexpr std::uint8_t kEntryTypeSubscribeAck = 0x07;
     constexpr std::uint16_t kOptionBodyLen = 9;  // IPv4 Multicast option body size.
 
     const bool has_option = p.target.multicast_endpoint.has_value();
@@ -687,7 +684,7 @@ std::vector<std::uint8_t> buildSubscribeEventgroupAck(const SubscribeEventgroupA
     appendSdHeader(b, p.session_id, length_field, p.sd_flags, kEntriesLen);
 
     // SubscribeEventgroupAck entry (16B, Type 0x07).
-    b.push_back(kEntryTypeSubscribeAck);
+    b.push_back(sd_entry_type::kSubscribeEventgroupAck);
     b.push_back(0);  // IndexFirstOptionRun
     b.push_back(0);  // IndexSecondOptionRun
     b.push_back(has_option ? kEntryOptionRun1 : static_cast<std::uint8_t>(0));
