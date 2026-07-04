@@ -7,6 +7,7 @@
 #include <string>
 #include <string_view>
 
+#include "someip/sd_wire_constants.h"  // sd_option_type / sd_l4_proto / sd_entry_type (neutral wire values)
 #include "wire/wire_read.h"
 
 // Neutral SOME/IP-SD payload decoder (docs/tech-debt.md TD-06/TD-05 north star:
@@ -105,35 +106,9 @@ struct SdConfigItem {
     std::uint8_t bytes[kMaxSdConfigItemLen] = {};  // item content (key / key=value)
 };
 
-// Type values defined by SOMEIPSD §4.2.2 / SWS_SD §7.3 Table 11.
-namespace sd_option_type {
-inline constexpr std::uint8_t kConfiguration = 0x01;
-inline constexpr std::uint8_t kLoadBalancing = 0x02;
-inline constexpr std::uint8_t kIpv4Endpoint = 0x04;
-inline constexpr std::uint8_t kIpv6Endpoint = 0x06;
-inline constexpr std::uint8_t kIpv4Multicast = 0x14;
-inline constexpr std::uint8_t kIpv6Multicast = 0x16;
-inline constexpr std::uint8_t kIpv4SdEndpoint = 0x24;
-inline constexpr std::uint8_t kIpv6SdEndpoint = 0x26;
-}  // namespace sd_option_type
-
-// Layer-4 Protocol values per IANA / SOMEIPSD endpoint options.
-namespace sd_l4_proto {
-inline constexpr std::uint8_t kTcp = 0x06;
-inline constexpr std::uint8_t kUdp = 0x11;
-}  // namespace sd_l4_proto
-
-// SD entry Type byte (TR_SOMEIP / PRS_SOMEIPSD §7.4). The single source for the
-// SD entry-type values: the recognizer predicates, the SD-fill gate, and the
-// documentation-site summary (tc8-harness decode-pcap) all name these rather
-// than re-spell the raw bytes. TTL (not a distinct type) discriminates the
-// Stop* variants (Offer ttl==0 = StopOffer, Subscribe ttl==0 = StopSubscribe).
-namespace sd_entry_type {
-inline constexpr std::uint8_t kFindService = 0x00;
-inline constexpr std::uint8_t kOfferService = 0x01;
-inline constexpr std::uint8_t kSubscribeEventgroup = 0x06;
-inline constexpr std::uint8_t kSubscribeEventgroupAck = 0x07;
-}  // namespace sd_entry_type
+// sd_option_type / sd_l4_proto / sd_entry_type wire values now live in the
+// neutral leaf someip/sd_wire_constants.h (included above), so the wire builder
+// shares the exact same constants without pulling in this decode logic.
 
 // Decode one 16-byte SD entry at `src` into `dst`. Both Type 1 and Type 2 tail
 // interpretations are filled so guards can pick the matching view without
