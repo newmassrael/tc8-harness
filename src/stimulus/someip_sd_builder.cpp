@@ -119,6 +119,48 @@ std::vector<std::uint8_t> buildFindServiceWithOneOption(const FindServiceParams 
     return b;
 }
 
+// Shared body for the two OfferService-with-one-endpoint-option builders — the
+// 56-byte Offer whose entry references (#Opt1=1) exactly one IPv4 (SD) Endpoint
+// option in run 1. The option is ALWAYS referenced here: an Offer that advertises
+// an endpoint always points its entry at it (there is no unreferenced-Offer case,
+// unlike Find's "present but ignored" option). The two public builders differ only
+// in `option_type` — sd_option_type::kIpv4Endpoint (0x04) or kIpv4SdEndpoint
+// (0x24), whose option bodies are byte-identical apart from the type byte — so this
+// is the single source of the referenced-Offer wire shape.
+std::vector<std::uint8_t> buildOfferServiceWithOneReferencedOption(
+    const OfferServiceWithEndpointTarget &t, std::uint8_t option_type) {
+    // Wire layout: 16 B SOME/IP + 4 B SD flags + 4 B EntriesLen + 16 B
+    // Type 0x01 entry + 4 B OptionsLen + 12 B IPv4 Endpoint option = 56 B.
+    // Length field = 8 + 4 + 4 + 16 + 4 + 12 = 48.
+    constexpr std::uint32_t kLengthField = 48;
+    constexpr std::uint32_t kEntriesLen  = 16;
+    constexpr std::uint32_t kOptionsLen  = 12;
+
+    std::vector<std::uint8_t> b;
+    b.reserve(56);
+
+    // Reboot|Unicast flags; OEM overrides the Reboot bit.
+    appendSdHeader(b, t.service.session_id, kLengthField, t.service.sd_flags, kEntriesLen);
+
+    // OfferService entry referencing 1 option in run 1.
+    b.push_back(sd_entry_type::kOfferService);
+    b.push_back(0);                 // IndexFirstOptionRun (the option is at options index 0)
+    b.push_back(0);                 // IndexSecondOptionRun
+    b.push_back(kEntryOptionRun1);
+    putBe16(b, t.service.service_id);
+    putBe16(b, t.service.instance_id);
+    b.push_back(t.service.major_version);
+    putBe24(b, t.service.ttl);
+    putBe32(b, t.service.minor_version);
+
+    putBe32(b, kOptionsLen);
+
+    // IPv4 (SD) Endpoint option (12 B) via the shared endpoint-option encoder.
+    appendIpv4EndpointOption(b, option_type, t.endpoint);
+
+    return b;
+}
+
 }  // namespace
 
 std::vector<std::uint8_t> buildFindService(const FindServiceParams &p) {
@@ -215,37 +257,18 @@ int emitOfferServiceMulticast(std::string_view iface, const OfferServiceTarget &
 
 std::vector<std::uint8_t>
 buildOfferServiceWithEndpoint(const OfferServiceWithEndpointTarget &t) {
-    // Wire layout: 16 B SOME/IP + 4 B SD flags + 4 B EntriesLen + 16 B
-    // Type 0x01 entry + 4 B OptionsLen + 12 B IPv4 Endpoint option = 56 B.
-    // Length field = 8 + 4 + 4 + 16 + 4 + 12 = 48.
-    constexpr std::uint32_t kLengthField     = 48;
-    constexpr std::uint32_t kEntriesLen      = 16;
-    constexpr std::uint32_t kOptionsLen      = 12;
-    constexpr std::uint8_t  kEntryTypeOffer  = 0x01;
+    // Referenced Type-0x04 IPv4 Endpoint option — the tester advertises its own L4
+    // endpoint inside the Offer entry it points at.
+    return buildOfferServiceWithOneReferencedOption(t, sd_option_type::kIpv4Endpoint);
+}
 
-    std::vector<std::uint8_t> b;
-    b.reserve(56);
-
-    // Reboot|Unicast flags; OEM overrides the Reboot bit.
-    appendSdHeader(b, t.service.session_id, kLengthField, t.service.sd_flags, kEntriesLen);
-
-    // OfferService entry referencing 1 option in run 1.
-    b.push_back(kEntryTypeOffer);
-    b.push_back(0);                 // IndexFirstOptionRun
-    b.push_back(0);                 // IndexSecondOptionRun
-    b.push_back(kEntryOptionRun1);
-    putBe16(b, t.service.service_id);
-    putBe16(b, t.service.instance_id);
-    b.push_back(t.service.major_version);
-    putBe24(b, t.service.ttl);
-    putBe32(b, t.service.minor_version);
-
-    putBe32(b, kOptionsLen);
-
-    // IPv4 Endpoint option (12 B) via the shared endpoint-option encoder.
-    appendIpv4EndpointOption(b, sd_option_type::kIpv4Endpoint, t.endpoint);
-
-    return b;
+std::vector<std::uint8_t>
+buildOfferServiceWithReferencedSdEndpointOption(const OfferServiceWithEndpointTarget &t) {
+    // Referenced (#Opt1=1) Type-0x24 IPv4 SD Endpoint option — the Offer sibling of
+    // buildFindServiceWithReferencedSdEndpointOption. A DUT client that honours the
+    // referenced SD Endpoint option directs its SubscribeEventgroup to `t.endpoint`
+    // rather than to the Offer's transport source.
+    return buildOfferServiceWithOneReferencedOption(t, sd_option_type::kIpv4SdEndpoint);
 }
 
 int emitOfferServiceMulticastWithEndpoint(std::string_view iface,

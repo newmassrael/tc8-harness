@@ -383,6 +383,18 @@ struct OfferServiceWithEndpointTarget {
 std::vector<std::uint8_t>
 buildOfferServiceWithEndpoint(const OfferServiceWithEndpointTarget &t);
 
+// Offer sibling of `buildFindServiceWithReferencedSdEndpointOption`: a 56-byte
+// OfferService (entry type 0x01) that REFERENCES (#Opt1=1) one Type-0x24 IPv4 SD
+// Endpoint option (address / L4-proto / port) as option[0]. Same wire shape as
+// `buildOfferServiceWithEndpoint` apart from the option Type byte (0x24 vs 0x04) —
+// both route through the shared Offer-with-one-option body. A DUT client that
+// honours a referenced SD Endpoint option directs its SubscribeEventgroup to
+// `t.endpoint` rather than to the Offer's transport source. Like the Find sibling
+// it is a pure builder with no dedicated emit companion: emit the bytes via
+// `sendSdUnicast` or `sendSdMulticastFromSourceIp`.
+std::vector<std::uint8_t>
+buildOfferServiceWithReferencedSdEndpointOption(const OfferServiceWithEndpointTarget &t);
+
 int emitOfferServiceMulticastWithEndpoint(std::string_view iface,
                                           const OfferServiceWithEndpointTarget &t,
                                           std::chrono::milliseconds pre_emit_wait =

@@ -396,6 +396,33 @@ TEST(BuildOfferServiceWithEndpoint, HeaderEntryAndOption) {
     EXPECT_EQ(b[46], 0x04u);  // IPv4 Endpoint option type
 }
 
+// Offer sibling of BuildFindServiceWithReferencedSdEndpointOption: identical wire
+// shape to buildOfferServiceWithEndpoint apart from the Type-0x24 option byte, and
+// the referenced #Opt1=1 nibble is preserved.
+TEST(BuildOfferServiceWithReferencedSdEndpointOption, SetsOptRunAndType) {
+    OfferServiceWithEndpointTarget t{};
+    t.service.service_id = 0xF4E8;
+    t.service.session_id = 0x0001;
+    t.endpoint.ipv4_be = 0x030010AC;  // 172.16.0.3
+    t.endpoint.port = 0x8765;
+    t.endpoint.l4proto = 0x11;
+    const auto b = buildOfferServiceWithReferencedSdEndpointOption(t);
+    ASSERT_EQ(b.size(), 56u);   // size invariant to option type
+    EXPECT_EQ(b[24], 0x01u);    // entry type = OfferService
+    EXPECT_EQ(b[25], 0x00u);    // IndexFirstOptionRun = 0 (option at index 0)
+    EXPECT_EQ(b[27], 0x10u);    // #Opt1=1 | #Opt2=0 — option referenced
+    EXPECT_EQ(b[46], 0x24u);    // option type = IPv4 SD Endpoint (vs 0x04 sibling)
+    EXPECT_EQ(b[47], 0x00u);    // Discardable flag = 0
+    // Endpoint carried verbatim: NBO address, L4-proto, BE port.
+    EXPECT_EQ(b[48], 0xACu);
+    EXPECT_EQ(b[49], 0x10u);
+    EXPECT_EQ(b[50], 0x00u);
+    EXPECT_EQ(b[51], 0x03u);
+    EXPECT_EQ(b[53], 0x11u);    // L4-proto = UDP
+    EXPECT_EQ(b[54], 0x87u);    // port BE hi
+    EXPECT_EQ(b[55], 0x65u);    // port BE lo
+}
+
 TEST(BuildMultiSubscribeEventgroup, HeaderAndTwoEntries) {
     MultiSubscribeEventgroupParams p{};
     p.entries = {SubscribeEventgroupTarget{}, SubscribeEventgroupTarget{}};
