@@ -120,6 +120,17 @@ add(eth(TESTER_MAC, DUT_MAC, 0x86DD, b"\x60" + b"\x00" * 39))
 # so the pipeline raises no Dhcpv4Frame and the exporter labels the UDP datagram
 # on the 67/68 port pair "DHCPv4 (truncated, N B)" (docs/tech-debt.md TD-09).
 add(eth(BCAST, DUT_MAC, 0x0800, ipv4(bytes([0, 0, 0, 0]), bytes([255, 255, 255, 255]), 17, udp(68, 67, b"\x01\x01\x06\x00" + b"\x00" * 96))))
+# idx 14..17 SOME/IP magic cookie over a reliable (TCP) stream: handshake then a
+# cookie in each direction. This exercises the stream-follower onClientData /
+# onServerData path, whose reassembled SOME/IP frames must carry the packet's
+# arrival timestamp (observed_ts_us != 0) — the reliable-transport twin of the
+# UDP frame timing. SERVICE_COOKIE header: service 0xFFFF method 0x8000
+# client 0xDEAD session 0xBEEF.
+_cookie = someip(0xFFFF, 0x8000, 0xDEAD, 0xBEEF, 0x01, 0x00, b"")
+add(eth(DUT_MAC, TESTER_MAC, 0x0800, ipv4(TESTER_IP, DUT_IP, 6, tcp(50001, 30501, 2000, 0, 0x02))))
+add(eth(TESTER_MAC, DUT_MAC, 0x0800, ipv4(DUT_IP, TESTER_IP, 6, tcp(30501, 50001, 6000, 2001, 0x12))))
+add(eth(DUT_MAC, TESTER_MAC, 0x0800, ipv4(TESTER_IP, DUT_IP, 6, tcp(50001, 30501, 2001, 6001, 0x18, payload=_cookie))))
+add(eth(TESTER_MAC, DUT_MAC, 0x0800, ipv4(DUT_IP, TESTER_IP, 6, tcp(30501, 50001, 6001, 2001 + len(_cookie), 0x18, payload=_cookie))))
 
 with (HERE / "decode_pcap_sample.pcap").open("wb") as fh:
     fh.write(struct.pack("<IHHiIII", 0xA1B2C3D4, 2, 4, 0, 0, 65535, 1))

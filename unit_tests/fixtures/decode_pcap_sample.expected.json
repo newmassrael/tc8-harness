@@ -20,7 +20,11 @@
     {"idx": 10, "ts_us": 10000, "ts_delta_us": 1000, "direction": "tester_to_dut", "src_mac": "02:00:00:00:00:01", "dst_mac": "02:00:00:00:00:02", "src_ip": "192.168.0.10", "dst_ip": "192.168.0.1", "protocol": "UT/UDP", "summary": "UT req GetReceivedUdp (id=7)"},
     {"idx": 11, "ts_us": 11000, "ts_delta_us": 1000, "direction": "dut_to_tester", "src_mac": "02:00:00:00:00:02", "dst_mac": "02:00:00:00:00:01", "src_ip": "192.168.0.1", "dst_ip": "192.168.0.10", "protocol": "UT/UDP", "summary": "UT resp GetReceivedUdp ok received=1 src=192.168.0.99:12345 len=5"},
     {"idx": 12, "ts_us": 12000, "ts_delta_us": 1000, "direction": "dut_to_tester", "src_mac": "02:00:00:00:00:02", "dst_mac": "02:00:00:00:00:01", "src_ip": null, "dst_ip": null, "protocol": "ETH 0x86dd", "summary": "54 B"},
-    {"idx": 13, "ts_us": 13000, "ts_delta_us": 1000, "direction": "dut_to_tester", "src_mac": "02:00:00:00:00:02", "dst_mac": "ff:ff:ff:ff:ff:ff", "src_ip": "0.0.0.0", "dst_ip": "255.255.255.255", "protocol": "DHCPv4", "summary": "DHCPv4 (truncated, 100 B)"}
+    {"idx": 13, "ts_us": 13000, "ts_delta_us": 1000, "direction": "dut_to_tester", "src_mac": "02:00:00:00:00:02", "dst_mac": "ff:ff:ff:ff:ff:ff", "src_ip": "0.0.0.0", "dst_ip": "255.255.255.255", "protocol": "DHCPv4", "summary": "DHCPv4 (truncated, 100 B)"},
+    {"idx": 14, "ts_us": 14000, "ts_delta_us": 1000, "direction": "tester_to_dut", "src_mac": "02:00:00:00:00:01", "dst_mac": "02:00:00:00:00:02", "src_ip": "192.168.0.10", "dst_ip": "192.168.0.1", "protocol": "TCP", "summary": "50001 → 30501 [SYN] seq=2000 ack=0 win=64240"},
+    {"idx": 15, "ts_us": 15000, "ts_delta_us": 1000, "direction": "dut_to_tester", "src_mac": "02:00:00:00:00:02", "dst_mac": "02:00:00:00:00:01", "src_ip": "192.168.0.1", "dst_ip": "192.168.0.10", "protocol": "TCP", "summary": "30501 → 50001 [SYN|ACK] seq=6000 ack=2001 win=64240"},
+    {"idx": 16, "ts_us": 16000, "ts_delta_us": 1000, "direction": "tester_to_dut", "src_mac": "02:00:00:00:00:01", "dst_mac": "02:00:00:00:00:02", "src_ip": "192.168.0.10", "dst_ip": "192.168.0.1", "protocol": "SOME/IP/TCP", "summary": "RequestNoReturn svc=0xffff mid=0x8000 client=0xdead session=0xbeef"},
+    {"idx": 17, "ts_us": 17000, "ts_delta_us": 1000, "direction": "dut_to_tester", "src_mac": "02:00:00:00:00:02", "dst_mac": "02:00:00:00:00:01", "src_ip": "192.168.0.1", "dst_ip": "192.168.0.10", "protocol": "SOME/IP/TCP", "summary": "RequestNoReturn svc=0xffff mid=0x8000 client=0xdead session=0xbeef"}
   ],
   "captured_trace": {
   "steps": [

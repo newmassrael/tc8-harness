@@ -55,6 +55,11 @@ private:
     SomeIpDispatcher dispatcher_;
     Tins::TCPIP::StreamFollower follower_;
     int tstamp_precision_ = PCAP_TSTAMP_PRECISION_MICRO;
+    // Arrival timestamp (us, epoch) of the packet currently being processed,
+    // stashed so the TCP stream-follower callbacks (which fire synchronously
+    // inside follower_.process_packet) can stamp the reassembled Transport —
+    // the reliable-transport twin of the UDP path's inline t.observed_ts_us.
+    std::int64_t last_packet_ts_us_ = 0;
 };
 
 }  // namespace tc8::dissect

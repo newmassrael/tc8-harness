@@ -385,6 +385,14 @@ tc8_add_unit_test(dot1q_test)
 target_include_directories(dot1q_test PRIVATE ${LIBTINS_INCLUDE_DIR})
 target_link_libraries(dot1q_test PRIVATE ${LIBTINS_LIBRARY})
 
+# packet_pipeline_test drives the real dissect pipeline (packet_pipeline.cpp is
+# not in tc8_harness_testable) with libtins-built TCP frames to pin the
+# reliable-transport SOME/IP frame timestamp (observed_ts_us) fix.
+tc8_add_unit_test(packet_pipeline_test)
+target_sources(packet_pipeline_test PRIVATE ${PROJECT_SOURCE_DIR}/src/dissect/packet_pipeline.cpp)
+target_include_directories(packet_pipeline_test PRIVATE ${LIBTINS_INCLUDE_DIR})
+target_link_libraries(packet_pipeline_test PRIVATE ${LIBTINS_LIBRARY})
+
 # IEtsExtension / IEtsEventSink seam: a fake sink drives the in-tree demo
 # extension hermetically (no vsomeip, no DUT), proving the offer/notify/onMethod
 # contract. Compiles the demo's TC8_ETS_EXTENSION_SRC slot file too, so the OEM

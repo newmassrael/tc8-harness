@@ -70,6 +70,7 @@ void PacketPipeline::onClientData(TCPIP::Stream &s) {
     t.dst_ip = static_cast<std::uint32_t>(s.server_addr_v4());
     t.src_port = s.client_port();
     t.dst_port = s.server_port();
+    t.observed_ts_us = last_packet_ts_us_;  // arrival stamp of the completing segment.
     dispatcher_.feed(t, payload.data(), payload.size(), listener_);
     payload.clear();
 }
@@ -85,6 +86,7 @@ void PacketPipeline::onServerData(TCPIP::Stream &s) {
     t.dst_ip = static_cast<std::uint32_t>(s.client_addr_v4());
     t.src_port = s.server_port();
     t.dst_port = s.client_port();
+    t.observed_ts_us = last_packet_ts_us_;  // arrival stamp of the completing segment.
     dispatcher_.feed(t, payload.data(), payload.size(), listener_);
     payload.clear();
 }
@@ -106,6 +108,11 @@ void PacketPipeline::processFrame(const pcap_pkthdr &hdr, const std::uint8_t *by
     const std::int64_t observed_ts_us =
         static_cast<std::int64_t>(hdr.ts.tv_sec) * 1'000'000LL +
         ts_subsec_us;
+    // Make the arrival stamp reachable from the TCP follower callbacks:
+    // onClientData / onServerData fire synchronously inside the
+    // follower_.process_packet(eth) call below and read this member to stamp the
+    // reassembled Transport (the UDP path sets t.observed_ts_us inline instead).
+    last_packet_ts_us_ = observed_ts_us;
     try {
         EthernetII eth(bytes, hdr.caplen);
 
