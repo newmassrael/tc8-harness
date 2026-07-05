@@ -44,6 +44,21 @@ std::optional<MethodRequestObservation>
 parseMethodRequest(const std::uint8_t *frame, std::size_t len, std::uint16_t service_id,
                    std::uint16_t method_id, std::uint16_t service_port);
 
+// The TP twin of parseMethodRequest: parse a raw captured L2 frame as the FIRST
+// SOME/IP-TP segment (Offset 0) of a Method Request for the tester's offered
+// service. Returns the observation iff the frame is a well-formed first TP_REQUEST
+// segment (message type REQUEST | someiptp::kMessageTypeTpFlag, TP Offset 0) for
+// `service_id`/`method_id` on `service_port`; std::nullopt otherwise (a plain
+// Request, a later segment, a non-TP frame, truncated, or a wrong id/port). The
+// observation's `payload` is THIS first segment's args chunk only, NOT the
+// reassembled request — a tester reacting before the request is fully sent needs
+// the (client, session) correlation fields, so it can answer with a
+// correctly-correlating reply while the DUT's own request is still incomplete.
+// Pure (no I/O), unit-testable, same as parseMethodRequest.
+std::optional<MethodRequestObservation>
+parseFirstTpRequestSegment(const std::uint8_t *frame, std::size_t len, std::uint16_t service_id,
+                           std::uint16_t method_id, std::uint16_t service_port);
+
 // Builds the reply bytes for an observed Request — typically
 // `buildMethodResponse`/`buildMethodError` of a `SomeIpRpcMessage` whose Message
 // ID and Request ID echo the observation. Returns std::nullopt to DECLINE (send

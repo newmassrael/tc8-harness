@@ -7,6 +7,7 @@
 
 #include <gtest/gtest.h>
 
+#include "autosar/someiptp.h"
 #include "someip/protocol.h"
 #include "stimulus/method_responder.h"
 #include "stimulus/someip_rpc_builder.h"
@@ -38,6 +39,27 @@ std::vector<std::uint8_t> makeRequestFrame(someip::MessageType message_type,
     const std::array<std::uint8_t, 6> dut_mac = {0x02, 0x00, 0x00, 0x00, 0x00, 0x09};
     const std::array<std::uint8_t, 6> tester_mac = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
     return buildUdpFromSourceIpFrame(buildMethodRequest(t), ::inet_addr("172.16.0.9"), 51000,
+                                     ::inet_addr("172.16.0.1"), kServicePort, dut_mac, tester_mac);
+}
+
+// Build the on-wire frame for SOME/IP-TP segment `seg` of a DUT-client Request for
+// (kServiceId, kMethodId), Request ID 0x1234/0x0005, carrying `payload` split at
+// 16-byte segments (so seg 0 is Offset 0, seg 1 is Offset 16, ...). The Segmenter
+// (the TP wire-format SSOT) sets the TP flag on each segment's message type.
+std::vector<std::uint8_t> makeTpSegmentFrame(std::size_t seg,
+                                             const std::vector<std::uint8_t> &payload) {
+    someiptp::MessageHeader hdr{};
+    hdr.message_id = (static_cast<std::uint32_t>(kServiceId) << 16) | kMethodId;
+    hdr.request_id = (static_cast<std::uint32_t>(0x1234) << 16) | 0x0005;
+    hdr.protocol_version = 1;
+    hdr.interface_version = 1;
+    hdr.message_type = static_cast<std::uint8_t>(someip::MessageType::REQUEST);  // engine ORs the TP flag
+    hdr.return_code = 0;
+    const auto segments =
+        someiptp::Segmenter(/*max_segment_payload=*/16).segment(hdr, payload.data(), payload.size());
+    const std::array<std::uint8_t, 6> dut_mac = {0x02, 0x00, 0x00, 0x00, 0x00, 0x09};
+    const std::array<std::uint8_t, 6> tester_mac = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
+    return buildUdpFromSourceIpFrame(segments.at(seg), ::inet_addr("172.16.0.9"), 51000,
                                      ::inet_addr("172.16.0.1"), kServicePort, dut_mac, tester_mac);
 }
 
@@ -121,6 +143,77 @@ TEST(MethodResponder, ExcludesEthernetPaddingFromPayload) {
     const auto obs = parseMethodRequest(frame.data(), frame.size(), kServiceId, kMethodId, kServicePort);
     ASSERT_TRUE(obs.has_value());
     EXPECT_EQ(obs->payload, payload);  // padding excluded, not appended
+}
+
+// The first TP segment (Offset 0) of a segmented Request yields the reply target
+// and the SAME (client, session) correlation the DUT put on the wire — so the
+// tester can answer while the request is still incomplete. `payload` is this first
+// segment's chunk only (the first 16 bytes), not the reassembled 48.
+TEST(MethodResponder, ParsesFirstTpRequestSegment) {
+    std::vector<std::uint8_t> full(48);
+    for (std::size_t i = 0; i < full.size(); ++i) full[i] = static_cast<std::uint8_t>(i);
+    const auto frame = makeTpSegmentFrame(0, full);
+
+    const auto obs =
+        parseFirstTpRequestSegment(frame.data(), frame.size(), kServiceId, kMethodId, kServicePort);
+    ASSERT_TRUE(obs.has_value());
+    EXPECT_EQ(obs->src_ip_be, ::inet_addr("172.16.0.9"));
+    EXPECT_EQ(obs->src_port, 51000u);
+    EXPECT_EQ(obs->service_id, kServiceId);
+    EXPECT_EQ(obs->method_id, kMethodId);
+    EXPECT_EQ(obs->client_id, 0x1234u);
+    EXPECT_EQ(obs->session_id, 0x0005u);
+    EXPECT_EQ(obs->payload, std::vector<std::uint8_t>(full.begin(), full.begin() + 16));
+}
+
+// A LATER segment (Offset != 0) must NOT re-fire the responder — only the first.
+TEST(MethodResponder, RejectsLaterTpSegment) {
+    std::vector<std::uint8_t> full(48, 0xAB);
+    const auto frame = makeTpSegmentFrame(1, full);  // Offset 16
+    EXPECT_FALSE(
+        parseFirstTpRequestSegment(frame.data(), frame.size(), kServiceId, kMethodId, kServicePort)
+            .has_value());
+}
+
+// The two parsers are mutually exclusive: a plain Request is not a TP segment, and
+// a TP segment is not a plain Request — neither can be mistaken for the other.
+TEST(MethodResponder, TpAndNonTpParsersAreMutuallyExclusive) {
+    const auto plain = makeRequestFrame(someip::MessageType::REQUEST, {0xAA, 0xBB, 0xCC});
+    EXPECT_FALSE(
+        parseFirstTpRequestSegment(plain.data(), plain.size(), kServiceId, kMethodId, kServicePort)
+            .has_value());
+
+    std::vector<std::uint8_t> full(48, 0x11);
+    const auto tp = makeTpSegmentFrame(0, full);
+    EXPECT_FALSE(parseMethodRequest(tp.data(), tp.size(), kServiceId, kMethodId, kServicePort).has_value());
+}
+
+// A first TP segment for a different method/service/port is not ours.
+TEST(MethodResponder, RejectsWrongMethodServicePortTp) {
+    std::vector<std::uint8_t> full(48, 0x22);
+    const auto frame = makeTpSegmentFrame(0, full);
+    EXPECT_FALSE(
+        parseFirstTpRequestSegment(frame.data(), frame.size(), kServiceId, 0x000A, kServicePort)
+            .has_value());  // wrong method
+    EXPECT_FALSE(
+        parseFirstTpRequestSegment(frame.data(), frame.size(), 0xFFFE, kMethodId, kServicePort)
+            .has_value());  // wrong service
+    EXPECT_FALSE(
+        parseFirstTpRequestSegment(frame.data(), frame.size(), kServiceId, kMethodId, 30490)
+            .has_value());  // wrong destination port
+}
+
+// A frame carrying the SOME/IP header but truncated before/within the 4-byte TP
+// header is rejected, never over-read.
+TEST(MethodResponder, RejectsTruncatedTpHeader) {
+    std::vector<std::uint8_t> full(48, 0x33);
+    auto frame = makeTpSegmentFrame(0, full);
+    // Cut two bytes off the end of the 4-byte TP header (leaving the 16-byte SOME/IP
+    // header intact) so the TP-header parse has too few bytes.
+    frame.resize(14 + 20 + 8 + 16 + 2);
+    EXPECT_FALSE(
+        parseFirstTpRequestSegment(frame.data(), frame.size(), kServiceId, kMethodId, kServicePort)
+            .has_value());
 }
 
 }  // namespace

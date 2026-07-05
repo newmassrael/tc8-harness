@@ -14,6 +14,7 @@
 #include <utility>
 #include <vector>
 
+#include "autosar/someiptp.h"             // kMessageTypeTpFlag / kSegmentHeaderLen / parseTpHeader (TP SSOT).
 #include "someip/wire.h"                  // getBe16 / parseHeader / Header / MessageType.
 #include "stimulus/iface_addr.h"          // ipv4FromWire.
 #include "stimulus/someip_rpc_builder.h"  // emitMethodReply / MethodEndpoint.
@@ -42,72 +43,141 @@ constexpr std::size_t kUdpHdrLen = 8;
 // mis-parsed.
 constexpr std::size_t kRxBufLen = 2048;
 
-}  // namespace
+// Eth+IPv4+UDP+SOME/IP-header parse shared by parseMethodRequest and
+// parseFirstTpRequestSegment: validate the lower layers, match the UDP
+// destination port + (service, method), and surface the SOME/IP header (raw
+// message_type), the reply target, the SOME/IP header's frame offset, and the UDP
+// Length field. Each caller applies its OWN message-type check + payload
+// extraction, so the L2/L3/L4 walk lives in exactly one place. Returns false on
+// any structural mismatch (leaving `out` unspecified).
+struct UdpSomeIp {
+    someip::Header h;
+    std::uint32_t src_ip_be = 0;
+    std::uint16_t src_port = 0;
+    std::size_t someip_off = 0;   // frame offset of the SOME/IP header
+    std::uint16_t udp_total = 0;  // UDP Length field (header + payload)
+};
 
-std::optional<MethodRequestObservation>
-parseMethodRequest(const std::uint8_t *frame, std::size_t len, std::uint16_t service_id,
-                   std::uint16_t method_id, std::uint16_t service_port) {
+bool parseUdpSomeIp(const std::uint8_t *frame, std::size_t len, std::uint16_t service_id,
+                    std::uint16_t method_id, std::uint16_t service_port, UdpSomeIp &out) {
     if (frame == nullptr || len < kEthHdrLen + kIpv4MinHdrLen + kUdpHdrLen + someip::kHeaderSize) {
-        return std::nullopt;
+        return false;
     }
     if (someip::getBe16(frame + 12) != kEtherTypeIpv4) {
-        return std::nullopt;
+        return false;
     }
     const std::uint8_t *ip = frame + kEthHdrLen;
     if ((ip[0] >> 4) != 4) {  // IPv4 version nibble
-        return std::nullopt;
+        return false;
     }
     // IHL (low nibble of byte 0) gives the IPv4 header length in 32-bit words;
     // IPv4 options push UDP further out, so the extent must be re-checked.
     const std::size_t ihl = static_cast<std::size_t>(ip[0] & 0x0F) * 4;
     if (ihl < kIpv4MinHdrLen || ip[9] != kIpProtoUdp) {
-        return std::nullopt;
+        return false;
     }
     if (len < kEthHdrLen + ihl + kUdpHdrLen + someip::kHeaderSize) {
-        return std::nullopt;
+        return false;
     }
     const std::uint8_t *udp = ip + ihl;
     if (someip::getBe16(udp + 2) != service_port) {  // UDP destination port
-        return std::nullopt;
+        return false;
     }
-
-    // SOME/IP header via the wire SSOT (the inverse of appendHeader), so the
-    // field offsets are not re-spelled here. The extent above guarantees
-    // someip::kHeaderSize bytes are present.
+    // SOME/IP header via the wire SSOT (the inverse of appendHeader), so the field
+    // offsets are not re-spelled here. The extent above guarantees kHeaderSize.
     const std::uint8_t *sip = udp + kUdpHdrLen;
-    someip::Header h{};
-    if (!someip::parseHeader(sip, len - static_cast<std::size_t>(sip - frame), h)) {
-        return std::nullopt;
+    if (!someip::parseHeader(sip, len - static_cast<std::size_t>(sip - frame), out.h)) {
+        return false;
     }
-    if (h.service_id != service_id || h.method_id != method_id) {
+    if (out.h.service_id != service_id || out.h.method_id != method_id) {
+        return false;
+    }
+    out.src_ip_be = ipv4FromWire(ip + 12);  // IPv4 source address @ +12
+    out.src_port = someip::getBe16(udp + 0);
+    out.someip_off = static_cast<std::size_t>(sip - frame);
+    out.udp_total = someip::getBe16(udp + 4);
+    return true;
+}
+
+// Args after `header_bytes` of on-wire header (16 for a plain message, 20 for a TP
+// segment), bounded by the UDP Length field (so Ethernet padding on a sub-60-byte
+// frame is excluded) and clamped to what is physically present (so a malformed
+// over-long length cannot over-read). The SOME/IP Length field is NOT trusted.
+std::vector<std::uint8_t> extractArgs(const std::uint8_t *frame, std::size_t len,
+                                      std::size_t args_off, std::uint16_t udp_total,
+                                      std::size_t header_bytes) {
+    const std::size_t by_udp = (udp_total >= kUdpHdrLen + header_bytes)
+                                   ? (udp_total - kUdpHdrLen - header_bytes)
+                                   : 0;
+    const std::size_t avail = (len > args_off) ? (len - args_off) : 0;
+    const std::size_t args_len = std::min(avail, by_udp);
+    return std::vector<std::uint8_t>(frame + args_off, frame + args_off + args_len);
+}
+
+}  // namespace
+
+std::optional<MethodRequestObservation>
+parseMethodRequest(const std::uint8_t *frame, std::size_t len, std::uint16_t service_id,
+                   std::uint16_t method_id, std::uint16_t service_port) {
+    UdpSomeIp p;
+    if (!parseUdpSomeIp(frame, len, service_id, method_id, service_port, p)) {
         return std::nullopt;
     }
     // Only a Request (0x00) is answered; a RequestNoReturn (0x01) gets NO reply
-    // per PRS_SOMEIP_00701, and Response/Error/Notification are not ours.
-    if (h.message_type != static_cast<std::uint8_t>(someip::MessageType::REQUEST)) {
+    // per PRS_SOMEIP_00701, and Response/Error/Notification/TP are not ours.
+    if (p.h.message_type != static_cast<std::uint8_t>(someip::MessageType::REQUEST)) {
         return std::nullopt;
     }
-
     MethodRequestObservation obs;
-    obs.src_ip_be = ipv4FromWire(ip + 12);  // IPv4 source address @ +12
-    obs.src_port = someip::getBe16(udp + 0);
-    obs.service_id = h.service_id;   // read from the frame, not echoed from the args
-    obs.method_id = h.method_id;
-    obs.client_id = h.client_id;
-    obs.session_id = h.session_id;
+    obs.src_ip_be = p.src_ip_be;
+    obs.src_port = p.src_port;
+    obs.service_id = p.h.service_id;  // read from the frame, not echoed from the args
+    obs.method_id = p.h.method_id;
+    obs.client_id = p.h.client_id;
+    obs.session_id = p.h.session_id;
+    obs.payload = extractArgs(frame, len, p.someip_off + someip::kHeaderSize, p.udp_total,
+                              someip::kHeaderSize);
+    return obs;
+}
 
-    // Payload = bytes after the 16-byte SOME/IP header, bounded by the UDP Length
-    // field (so Ethernet padding on a sub-60-byte frame is excluded) and clamped
-    // to what is physically present (so a malformed over-long length cannot
-    // over-read). The SOME/IP Length field is deliberately NOT trusted here.
-    const std::size_t payload_off = kEthHdrLen + ihl + kUdpHdrLen + someip::kHeaderSize;
-    const std::uint16_t udp_total = someip::getBe16(udp + 4);
-    const std::size_t by_udp = (udp_total >= kUdpHdrLen + someip::kHeaderSize)
-                                   ? (udp_total - kUdpHdrLen - someip::kHeaderSize)
-                                   : 0;
-    const std::size_t avail = (len > payload_off) ? (len - payload_off) : 0;
-    const std::size_t payload_len = std::min(avail, by_udp);
-    obs.payload.assign(frame + payload_off, frame + payload_off + payload_len);
+std::optional<MethodRequestObservation>
+parseFirstTpRequestSegment(const std::uint8_t *frame, std::size_t len, std::uint16_t service_id,
+                           std::uint16_t method_id, std::uint16_t service_port) {
+    UdpSomeIp p;
+    if (!parseUdpSomeIp(frame, len, service_id, method_id, service_port, p)) {
+        return std::nullopt;
+    }
+    // A TP Request segment carries the base REQUEST type with the TP flag set;
+    // a plain Request (no flag), a later message type, or a non-TP frame is not a
+    // first-segment trigger.
+    constexpr std::uint8_t kTpRequest =
+        static_cast<std::uint8_t>(someip::MessageType::REQUEST) | someiptp::kMessageTypeTpFlag;
+    if (p.h.message_type != kTpRequest) {
+        return std::nullopt;
+    }
+    // The 4-byte TP header follows the 16-byte SOME/IP header; require it present
+    // and parse it via the TP wire SSOT. Only the FIRST segment (Offset 0) triggers
+    // (later segments carry the same session but must not re-fire the responder).
+    const std::size_t tp_off = p.someip_off + someip::kHeaderSize;
+    if (len < tp_off + someiptp::kTpHeaderLen) {
+        return std::nullopt;
+    }
+    someiptp::TpSegmentHeader tp;
+    if (!someiptp::parseTpHeader(frame + tp_off, len - tp_off, tp) || tp.offset != 0) {
+        return std::nullopt;
+    }
+    MethodRequestObservation obs;
+    obs.src_ip_be = p.src_ip_be;
+    obs.src_port = p.src_port;
+    obs.service_id = p.h.service_id;
+    obs.method_id = p.h.method_id;
+    obs.client_id = p.h.client_id;
+    obs.session_id = p.h.session_id;
+    // This FIRST segment's args chunk only (bytes after the 20-byte segment header);
+    // a caller reacting before reassembly needs the correlation fields, and the
+    // partial chunk is surfaced for symmetry with parseMethodRequest.
+    obs.payload = extractArgs(frame, len, p.someip_off + someiptp::kSegmentHeaderLen, p.udp_total,
+                              someiptp::kSegmentHeaderLen);
     return obs;
 }
 
