@@ -803,8 +803,27 @@ case files, so deferred out of the one-line manifest change rather than bundled 
 
 ## TD-15 — the raw client onResponse correlates by session but not by interface version
 
-**Status:** RESOLVED (2026-07-03 — verdict: NO, real middleware does not reject on major
-mismatch). **Logged:** 2026-07-02 (session-correlation seam for the client reaction path).
+**Status:** RESOLVED (2026-07-03 — stock default: NO major check) + OPT-IN STRICT MODE added
+(2026-07-05) for conformance profiles that require it. The default behaviour is UNCHANGED — the
+strict mode is off unless explicitly gated on. **Logged:** 2026-07-02 (session-correlation seam
+for the client reaction path).
+
+**Addendum (2026-07-05) — opt-in strict interface-version correlation.** The 2026-07-03 finding
+below STANDS AS THE DEFAULT: a stock CommonAPI-SomeIP proxy and stock vsomeip both ignore a
+session-correlated Response's major, so the raw client's default is session-only, unchanged.
+Separately, some conformance profiles require a DUT-as-client to ignore a Response whose
+Interface Version is wrong and let the call abort by timeout. That requirement and its
+provenance belong WITH THOSE PROFILES, not restated in this public core. To satisfy it without
+touching the stock default, `ResponseCorrelation` gained an OPT-IN flag
+(`strict_interface_version`, constructor-injected): OFF (default) = the 2026-07-03 behaviour;
+ON = a session-correlated Response whose major does not match its Request's is also dropped
+(the correlation consumed), so the call aborts by timeout. `VsomeipEtsClientControl` reads the
+flag from a neutral env gate (`TC8_DUT_STRICT_RESPONSE_INTERFACE_VERSION`, default off, set by
+the profile's own run) so the pure policy stays env-free. `acceptResponse` gained a
+`response_major` argument; a correctly-majored reply is delivered untouched (raw Return-Code
+model preserved). `unit_tests/response_correlation_test.cpp` covers both modes. This is NOT the
+make-it-pass hazard this debt guarded against: the default is stock-faithful and unchanged, and
+the strict behaviour is active only where a profile explicitly gates it on.
 
 **Resolution (2026-07-03).** The textbook fix's first step — "confirm against a real
 CommonAPI-SomeIP proxy whether a correctly-correlated Response is rejected on major-version

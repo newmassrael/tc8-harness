@@ -10,6 +10,7 @@
 
 #include <vsomeip/vsomeip.hpp>
 
+#include "env_flag.h"  // envFlagOn — SSOT for the DUT's boolean env gates
 #include "ets_vsomeip_app.h"  // acquireCommonApiApplication, messageBytes (SSOT)
 #include "pending_requests.h"  // availability-gated Request buffer (testable policy)
 #include "response_correlation.h"  // Response<->Request session correlation policy
@@ -181,13 +182,15 @@ public:
                     type != vsomeip::message_type_e::MT_ERROR) {
                     return;  // only client-side responses/errors are the reaction
                 }
-                // Drop a Response/Error whose Session ID does not correlate to a
-                // Request the DUT actually sent: vsomeip delivers it here purely on
-                // the (service, instance, method) match, but a CommonAPI proxy has no
-                // pending call for an unknown session and ignores it, so the pending
-                // call times out. Restores that proxy behaviour on the raw client.
+                // Drop a Response/Error that does not correlate to a Request the DUT
+                // actually sent: vsomeip delivers it here purely on the (service,
+                // instance, method) match, but the proxy behaviour we model drops a
+                // reply with an unknown Session ID (no pending call) OR a wrong
+                // Interface Version (major mismatch), so the pending call times out.
+                // Restores that on the raw client (see response_correlation.h / TD-15).
                 if (!correlation->acceptResponse({service, instance, method},
-                                                 msg->get_session())) {
+                                                 msg->get_session(),
+                                                 msg->get_interface_version())) {
                     return;
                 }
                 handler(static_cast<std::uint8_t>(msg->get_return_code()),
@@ -321,8 +324,13 @@ private:
     // Response<->Request session correlation, shared by strong copy with each
     // onResponse handler (which may outlive this control). recordRequest() runs
     // here on the send path; acceptResponse() runs on a vsomeip dispatch thread.
-    std::shared_ptr<ResponseCorrelation> correlation_{
-        std::make_shared<ResponseCorrelation>()};
+    // Strict interface-version correlation is an opt-in gate, read from the env
+    // once at construction: OFF by default (stock proxy behaviour), ON for the
+    // conformance profile that requires ignoring a wrong-Interface-Version
+    // Response. The env read lives here (not in the pure policy) so the class stays
+    // vsomeip- and environment-free.
+    std::shared_ptr<ResponseCorrelation> correlation_{std::make_shared<ResponseCorrelation>(
+        envFlagOn("TC8_DUT_STRICT_RESPONSE_INTERFACE_VERSION"))};
     // Requests callMethod() received while the service was not yet available,
     // flushed in submission order on ON_AVAILABLE. The injected availability query
     // and sender bind to the vsomeip application and run under mutex_, exactly where
@@ -343,6 +351,7 @@ private:
                 correlation_->recordSent(
                     {request->get_service(), request->get_instance(),
                      request->get_method()},
+                    request->get_interface_version(),  // the Request's Major
                     [&] {
                         app_->send(request);
                         return request->get_session();
