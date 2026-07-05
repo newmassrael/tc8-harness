@@ -31,7 +31,7 @@ namespace tc8::sce {
 //   2. open a `SubscribeEventgroupTcpSession` — a client-initiated TCP connection
 //      to the DUT reliable endpoint that it HOLDS open (adopted by the runner as
 //      an IPollableService for the capture window) — and Subscribe eventgroup
-//      0x0007 advertising that TCP endpoint (l4proto 0x06);
+//      0x0002 (mixed, carries reliable 0x8003) as a dual UDP+TCP option form;
 //   3. call triggerEventUINT8Reliable (Method 0x05, Fire&Forget).
 // vsomeip pushes the reliable event back over the tcp_server_endpoint connection
 // the subscriber opened. The SD machinery (OfferService -> SubscribeEventgroupAck
@@ -57,9 +57,9 @@ struct TestCaseTraits<cases::SomeipEts151SM> : SomeIpAnyBase<cases::SomeipEts151
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         // Client-initiated reliable session: connect + hold the TCP connection to
-        // the DUT reliable endpoint, Subscribe eg 0x0007 advertising it, then hand
-        // ownership to the runner so the connection stays open across the capture
-        // window (the DUT keeps delivering 0x8003 over it).
+        // the DUT reliable endpoint, Subscribe eg 0x0002 (dual UDP+TCP) advertising
+        // it, then hand ownership to the runner so the connection stays open across
+        // the capture window (the DUT keeps delivering 0x8003 over it).
         auto session = std::make_unique<::tc8::stimulus::SubscribeEventgroupTcpSession>(
             iface, ::tc8::sce::someipTcpMethodDest(cfg));
         ::tc8::stimulus::SubscribeEventgroupTarget subscribe{};
