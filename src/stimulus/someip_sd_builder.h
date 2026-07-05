@@ -150,6 +150,12 @@ std::vector<std::uint8_t> buildFindServiceWithOption(const FindServiceParams &p,
 std::vector<std::uint8_t> buildFindServiceWithReferencedSdEndpointOption(const FindServiceParams &p,
                                                                          const Ipv4Endpoint &endpoint);
 
+// TTL (seconds) an observe-and-verify Subscribe uses to OUTLAST the capture
+// window, so the subscription stays active while the case observes the DUT's
+// Ack and events. Cases asserting subscription EXPIRY set a short `target.ttl`
+// instead. Single source for the "outlast" value across the eg-subscribe cases.
+inline constexpr std::uint32_t kSubscribeOutlastTtl = 16;
+
 // Target identity of a SubscribeEventgroup — the eventgroup we're asking
 // the DUT to publish to us. Session ID / SD flags / tester endpoint are
 // set by `emitSubscribeEventgroupBoot`; this struct is the "what to

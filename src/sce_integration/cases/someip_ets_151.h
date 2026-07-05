@@ -64,7 +64,7 @@ struct TestCaseTraits<cases::SomeipEts151SM> : SomeIpAnyBase<cases::SomeipEts151
             iface, ::tc8::sce::someipTcpMethodDest(cfg));
         ::tc8::stimulus::SubscribeEventgroupTarget subscribe{};
         subscribe.eventgroup_id = 0x0002;  // mixed eg carrying reliable 0x8003 (ets.fdepl).
-        subscribe.ttl = 16;                // outlast the emission window below.
+        subscribe.ttl = ::tc8::stimulus::kSubscribeOutlastTtl;  // outlast emission window
         ::tc8::stimulus::SubscribeDestination sd_dest{};
         sd_dest.ipv4_be = cfg.someip.dut_iface_ip;  // DUT SD endpoint (:30490).
         session->subscribeDual(subscribe, sd_dest);

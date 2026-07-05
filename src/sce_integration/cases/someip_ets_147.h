@@ -48,7 +48,7 @@ struct TestCaseTraits<cases::SomeipEts147SM> : SomeIpAnyBase<cases::SomeipEts147
             iface, ::tc8::sce::someipTcpMethodDest(cfg));
         ::tc8::stimulus::SubscribeEventgroupTarget subscribe{};
         subscribe.eventgroup_id = 0x0002;
-        subscribe.ttl = 16;  // outlast the capture window.
+        subscribe.ttl = ::tc8::stimulus::kSubscribeOutlastTtl;  // outlast capture window
         ::tc8::stimulus::SubscribeDestination sd_dest{};
         sd_dest.ipv4_be = cfg.someip.dut_iface_ip;  // DUT SD endpoint (:30490).
         session->subscribeDual(subscribe, sd_dest);

@@ -60,7 +60,7 @@ struct TestCaseTraits<cases::Basic03SM> : SomeIpAnyBase<cases::Basic03SM> {
         // over UDP. The TCP connection is held solely for the Ack.
         auto session = std::make_unique<::tc8::stimulus::SubscribeEventgroupTcpSession>(
             iface, ::tc8::sce::someipTcpMethodDest(cfg));
-        subscribe.ttl = 16;
+        subscribe.ttl = ::tc8::stimulus::kSubscribeOutlastTtl;
         ::tc8::stimulus::SubscribeDestination sd_dest{};
         sd_dest.ipv4_be = cfg.someip.dut_iface_ip;
         session->subscribeDual(subscribe, sd_dest);
