@@ -4,8 +4,11 @@
 #include <unistd.h>
 
 #include <cerrno>
+#include <chrono>
 #include <cstdio>
 #include <cstring>
+#include <utility>
+#include <vector>
 
 #include "stimulus/iface_addr.h"  // ipv4OfInterface — tester IPv4 (NBO) SSOT.
 #include "stimulus/tcp_client.h"  // connectTcpFromIface — shared TCP bind+connect.
@@ -91,6 +94,50 @@ int SubscribeEventgroupTcpSession::subscribe(const SubscribeEventgroupTarget &ta
     // Originate the Subscribe datagram from THIS session's source IP so a second
     // client (alias source IP) is a distinct SD sender the DUT tracks separately.
     return emitSubscribeEventgroupRaw(iface_, std::move(params), sd_dest, src_ip_be_);
+}
+
+int SubscribeEventgroupTcpSession::subscribeDualParams(SubscribeEventgroupParams params,
+                                                       const SubscribeDestination &sd_dest) {
+    if (fd_ < 0) {
+        return -1;
+    }
+    // Option 0 — UDP endpoint: default to this session's source SD endpoint
+    // (the tester SD port receives the Ack and any unreliable notifications on
+    // the mixed eventgroup); a case advertising a distinct endpoint pre-fills it.
+    if (params.tester_endpoint.ipv4_be == 0) {
+        params.tester_endpoint.ipv4_be = src_ip_be_;
+        params.tester_endpoint.port = tc8::dut::kSdPort;
+        params.tester_endpoint.l4proto = 0x11;
+    }
+    // Option 1 — this session's held TCP endpoint: the mixed-eventgroup Ack
+    // check matches it against the established connection.
+    setDualEndpointSubscribe(params, Ipv4Endpoint{src_ip_be_, local_port_, 0x06});
+    return emitSubscribeEventgroupRaw(iface_, std::move(params), sd_dest, src_ip_be_);
+}
+
+int SubscribeEventgroupTcpSession::subscribeDual(const SubscribeEventgroupTarget &target,
+                                                 const SubscribeDestination &sd_dest) {
+    SubscribeEventgroupParams params{};
+    params.target = target;
+    return subscribeDualParams(std::move(params), sd_dest);
+}
+
+int SubscribeEventgroupTcpSession::subscribeMultiDual(
+    const std::vector<SubscribeEventgroupTarget> &entries, const SubscribeDestination &sd_dest) {
+    if (fd_ < 0) {
+        return -1;
+    }
+    MultiSubscribeEventgroupParams params{};
+    params.entries = entries;
+    // Option 0 — UDP endpoint (this session's source SD endpoint); option 1 —
+    // this session's held TCP endpoint, so the mixed-reliability entry (eg
+    // 0x0002) is matched against the established connection.
+    params.tester_endpoint.ipv4_be = src_ip_be_;
+    params.tester_endpoint.port = tc8::dut::kSdPort;
+    params.tester_endpoint.l4proto = 0x11;
+    params.second_endpoint = Ipv4Endpoint{src_ip_be_, local_port_, 0x06};
+    return emitMultiSubscribeEventgroupRaw(iface_, std::move(params),
+                                           std::chrono::milliseconds(500), sd_dest);
 }
 
 void SubscribeEventgroupTcpSession::onReadable() {

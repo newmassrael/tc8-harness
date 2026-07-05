@@ -430,6 +430,14 @@ int emitOfferServiceMulticastWithEndpoint(std::string_view iface,
 struct MultiSubscribeEventgroupParams {
     std::vector<SubscribeEventgroupTarget> entries;
     Ipv4Endpoint tester_endpoint{};
+    // Optional second IPv4 Endpoint option (TCP) for a bundle that includes a
+    // mixed-reliability eventgroup (e.g. eg 0x0002 carrying reliable 0x8003):
+    // when set it is emitted as option 1 (canonical 12B) and every entry
+    // references BOTH options (#Opt1=2). The subscriber must hold an established
+    // connection to the advertised TCP endpoint (SubscribeEventgroupTcpSession)
+    // or vsomeip NACKs the mixed entry. Unset (default) keeps the single-option
+    // bundle byte-identical to before.
+    std::optional<Ipv4Endpoint> second_endpoint;
     std::uint16_t session_id = 0x0001;
     std::uint8_t sd_flags = 0xC0;
     // §5.1.6 SOMEIP_ETS_114 helper: override the EntriesLen field. Default

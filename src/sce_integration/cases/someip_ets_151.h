@@ -39,19 +39,15 @@ namespace tc8::sce {
 // the specific Event 0x8003 over TCP, not the always-on cyclic 0x8001 — the same
 // tightening the faithful UDP siblings (148/149/150) make over their events.
 //
-// EVENTGROUP DEVIATION (residual debt): the spec places 0x8003 on eg 0x02 mixed
-// with the unreliable events, which vsomeip NACKs for a UDP-only Subscribe; the
-// harness isolates it in reliable-only eg 0x0007 (see ets.fdepl) so this Subscribe
-// stays Ack-able. The SD builder CAN already emit a multi-option (UDP+TCP) Subscribe
-// (someip_ets_173 references two endpoint options via extra_options), so the gap is
-// NOT a missing builder capability — it is moving 0x8003 back onto eg 0x02 in
-// ets.fdepl, which would force the eg-0x02 UDP-only subscribers (147-150/121) onto
-// the dual-endpoint form too. The reliable event itself is faithfully observed.
+// 0x8003 is on eg 0x0002 (mixed with the unreliable events) per the reference,
+// so the Subscribe is a dual UDP+TCP endpoint form over the held connection
+// (subscribeDual): vsomeip NACKs a single-option Subscribe to a mixed eventgroup
+// and requires the advertised TCP endpoint to have an established connection.
 template <>
 struct TestCaseTraits<cases::SomeipEts151SM> : SomeIpAnyBase<cases::SomeipEts151SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_151";
     static constexpr std::string_view kDescription =
-        "Subscribe eg 0x07 over live TCP + triggerEventUINT8Reliable — DUT Ack + "
+        "Subscribe eg 0x02 over live TCP + triggerEventUINT8Reliable — DUT Ack + "
         "Event 0x8003 over TCP";
 
     static void stimulus(Captured& /*c*/,
@@ -67,11 +63,11 @@ struct TestCaseTraits<cases::SomeipEts151SM> : SomeIpAnyBase<cases::SomeipEts151
         auto session = std::make_unique<::tc8::stimulus::SubscribeEventgroupTcpSession>(
             iface, ::tc8::sce::someipTcpMethodDest(cfg));
         ::tc8::stimulus::SubscribeEventgroupTarget subscribe{};
-        subscribe.eventgroup_id = 0x0007;  // reliable-only eg carrying 0x8003 (ets.fdepl).
+        subscribe.eventgroup_id = 0x0002;  // mixed eg carrying reliable 0x8003 (ets.fdepl).
         subscribe.ttl = 16;                // outlast the emission window below.
         ::tc8::stimulus::SubscribeDestination sd_dest{};
         sd_dest.ipv4_be = cfg.someip.dut_iface_ip;  // DUT SD endpoint (:30490).
-        session->subscribe(subscribe, sd_dest);
+        session->subscribeDual(subscribe, sd_dest);
         owner.adoptService(std::move(session));
         // triggerEventUINT8Reliable (Method 0x05, Fire&Forget): start=0 s,
         // duration=5 s, debounceTime=200 ms → DUT fires 0x8003 over the held TCP.

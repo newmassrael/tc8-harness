@@ -1,11 +1,14 @@
 #pragma once
 
+#include <memory>
 #include <string_view>
 
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_someipsrv_traits_base.h"
+#include "sce_integration/someip_method_dest.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/someip_sd_builder.h"
+#include "stimulus/subscribe_tcp_session.h"
 
 #include "someip_ets_086_sm.h"
 
@@ -37,12 +40,24 @@ struct TestCaseTraits<cases::SomeipEts086SM> : SomeIpAnyBase<cases::SomeipEts086
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IBackgroundServiceOwner& owner) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
+        // eg 0x0002 is mixed-reliability (carries reliable 0x8003) per the
+        // reference: vsomeip Acks the Subscribe only if it advertises a UDP +
+        // TCP endpoint pair AND holds an established TCP connection. The events
+        // observed here are UNRELIABLE (over UDP); the TCP connection is held
+        // solely to satisfy the mixed-eventgroup Ack.
+        auto session = std::make_unique<::tc8::stimulus::SubscribeEventgroupTcpSession>(
+            iface, ::tc8::sce::someipTcpMethodDest(cfg));
         ::tc8::stimulus::SubscribeEventgroupTarget subscribe{};
         subscribe.eventgroup_id = 0x0002;
-        ::tc8::stimulus::emitSubscribeEventgroupBoot(iface, subscribe, cfg.stimulus_timing);
+        subscribe.ttl = 16;
+        ::tc8::stimulus::SubscribeDestination sd_dest{};
+        sd_dest.ipv4_be = cfg.someip.dut_iface_ip;
+        session->subscribeDual(subscribe, sd_dest);
+        owner.adoptService(std::move(session));
     }
 };
 

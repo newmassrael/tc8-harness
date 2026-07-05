@@ -274,6 +274,34 @@ template <typename Traits>
 inline constexpr bool has_dut_scheduled_stimulus_v =
     has_dut_scheduled_stimulus<Traits>::value;
 
+// Detects the 5-arg scheduler + service-owning overload `static void
+// stimulus(Captured&, const TestConfig&, string_view, IStimulusScheduler&,
+// IBackgroundServiceOwner&)`. A case needs this when it BOTH holds a run-scoped
+// tc8::IPollableService across the capture window (e.g. a reliable
+// SubscribeEventgroupTcpSession for a mixed-eventgroup Subscribe) AND enqueues a
+// deferred scheduler action (e.g. a post-subscribe reboot FindService that
+// makes the DUT expire the subscription). The union of has_scheduled_stimulus and
+// has_service_owning_stimulus, not a third axis; the 5-arg arity matches neither
+// 4-arg concept, so kickStimulus checks it early. A case declares exactly one
+// stimulus signature.
+template <typename Traits, typename = void>
+struct has_scheduled_service_owning_stimulus : std::false_type {};
+
+template <typename Traits>
+struct has_scheduled_service_owning_stimulus<
+    Traits,
+    std::void_t<decltype(Traits::stimulus(
+        std::declval<typename Traits::Captured &>(),
+        std::declval<const ::tc8::TestConfig &>(),
+        std::declval<std::string_view>(),
+        std::declval<IStimulusScheduler &>(),
+        std::declval<IBackgroundServiceOwner &>()))>>
+    : std::true_type {};
+
+template <typename Traits>
+inline constexpr bool has_scheduled_service_owning_stimulus_v =
+    has_scheduled_service_owning_stimulus<Traits>::value;
+
 // Detects whether TestCaseTraits<SM> specializes the 4-arg
 // `static void dispatch(Captured&, StateMachine&, const CapturedEvent&,
 // std::string_view iface)` overload. Cases whose dispatch helper needs

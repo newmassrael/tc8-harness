@@ -2,13 +2,16 @@
 
 #include <chrono>
 #include <cstdint>
+#include <memory>
 #include <string_view>
 #include <thread>
 
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_someipsrv_traits_base.h"
+#include "sce_integration/someip_method_dest.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/someip_sd_builder.h"
+#include "stimulus/subscribe_tcp_session.h"
 
 #include "someip_ets_120_sm.h"
 
@@ -43,22 +46,31 @@ struct TestCaseTraits<cases::SomeipEts120SM> : SomeIpAnyBase<cases::SomeipEts120
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IBackgroundServiceOwner& owner) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 
+        // eg 0x0002 is mixed-reliability: hold a TCP connection so vsomeip Acks
+        // the dual-option Subscribe. Option 0 (UDP) advertises a DISTINCT
+        // endpoint (172.16.0.4:12345, not the SD source) — the point of the case
+        // — while option 1 is this session's held TCP endpoint.
+        auto session = std::make_unique<::tc8::stimulus::SubscribeEventgroupTcpSession>(
+            iface, ::tc8::sce::someipTcpMethodDest(cfg));
         ::tc8::stimulus::SubscribeEventgroupParams params{};
         params.target.eventgroup_id = 0x0002;
         params.session_id = 0x0001;
-        // Endpoint Option advertises 172.16.0.4 (tester's subnet but
-        // un-bound IP) on port 12345. Caller-set ipv4_be != 0 keeps
-        // emitter from auto-filling, so port + l4proto must be set
-        // explicitly.
+        // Endpoint Option advertises 172.16.0.4 (tester's subnet but un-bound
+        // IP) on port 12345. Caller-set ipv4_be != 0 keeps subscribeDualParams
+        // from auto-filling the UDP option, so port + l4proto are set explicitly.
         params.tester_endpoint.ipv4_be = 0x040010ACU;  // 172.16.0.4
         params.tester_endpoint.port = 12345U;
         params.tester_endpoint.l4proto = 0x11;  // UDP
-        ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, params);
+        ::tc8::stimulus::SubscribeDestination sd_dest{};
+        sd_dest.ipv4_be = cfg.someip.dut_iface_ip;
+        session->subscribeDualParams(params, sd_dest);
+        owner.adoptService(std::move(session));
     }
 };
 

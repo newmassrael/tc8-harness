@@ -1,13 +1,16 @@
 #pragma once
 
 #include <chrono>
+#include <memory>
 #include <string_view>
 #include <thread>
 
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_someipsrv_traits_base.h"
+#include "sce_integration/someip_method_dest.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/someip_sd_builder.h"
+#include "stimulus/subscribe_tcp_session.h"
 
 #include "someip_ets_155_sm.h"
 
@@ -32,17 +35,26 @@ struct TestCaseTraits<cases::SomeipEts155SM> : SomeIpAnyBase<cases::SomeipEts155
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IBackgroundServiceOwner& owner) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
+
+        // eg 0x0002 is mixed-reliability: hold one TCP connection so vsomeip
+        // Acks the dual-option Subscribes; the Sub_1 -> StopSubscribe -> Sub_2
+        // sequence is exercised over that held connection.
+        auto session = std::make_unique<::tc8::stimulus::SubscribeEventgroupTcpSession>(
+            iface, ::tc8::sce::someipTcpMethodDest(cfg));
+        ::tc8::stimulus::SubscribeDestination sd_dest{};
+        sd_dest.ipv4_be = cfg.someip.dut_iface_ip;
 
         // First Subscribe (Sub_1).
         ::tc8::stimulus::SubscribeEventgroupParams sub1{};
         sub1.target.eventgroup_id = 0x0002;
         sub1.target.ttl = 3;
         sub1.session_id = 0x0001;
-        ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, sub1);
+        session->subscribeDualParams(sub1, sd_dest);
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
         // StopSubscribe (ttl == 0 per SD §4.2).
@@ -50,7 +62,7 @@ struct TestCaseTraits<cases::SomeipEts155SM> : SomeIpAnyBase<cases::SomeipEts155
         stop.target.eventgroup_id = 0x0002;
         stop.target.ttl = 0;
         stop.session_id = 0x0002;
-        ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, stop);
+        session->subscribeDualParams(stop, sd_dest);
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
         // Second Subscribe (Sub_2).
@@ -58,7 +70,9 @@ struct TestCaseTraits<cases::SomeipEts155SM> : SomeIpAnyBase<cases::SomeipEts155
         sub2.target.eventgroup_id = 0x0002;
         sub2.target.ttl = 3;
         sub2.session_id = 0x0003;
-        ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, sub2);
+        session->subscribeDualParams(sub2, sd_dest);
+
+        owner.adoptService(std::move(session));
     }
 };
 

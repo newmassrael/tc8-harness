@@ -303,6 +303,14 @@ public:
             // neither 4-arg concept below.
             Traits::stimulus(captured_, cfg_, iface, dut_control,
                              static_cast<IStimulusScheduler &>(*this));
+        } else if constexpr (has_scheduled_service_owning_stimulus_v<Traits>) {
+            // Scheduler + service-owner: the case holds a run-scoped service
+            // (e.g. a reliable SubscribeEventgroupTcpSession for a mixed
+            // eventgroup) AND enqueues a deferred scheduler action (e.g. a
+            // reboot FindService). The runner is both roles; forward both.
+            Traits::stimulus(captured_, cfg_, iface,
+                             static_cast<IStimulusScheduler &>(*this),
+                             static_cast<IBackgroundServiceOwner &>(*this));
         } else if constexpr (has_dut_stimulus_v<Traits>) {
             // Tier-2 seam: drive the DUT through the backend selected by
             // `--dut-control` (opcode UT or AUTOSAR testability).

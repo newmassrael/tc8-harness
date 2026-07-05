@@ -601,7 +601,13 @@ buildMultiSubscribeEventgroup(const MultiSubscribeEventgroupParams &p) {
     // (0) means "use the actual computed value".
     const std::uint32_t entries_len =
         p.entries_len_override == 0 ? entries_len_actual : p.entries_len_override;
-    constexpr std::uint32_t kOptionsLen = 12;
+    // A mixed-reliability bundle (e.g. one containing eg 0x0002) carries a
+    // second (TCP) endpoint option, so the Options Array is 24 B and every entry
+    // references BOTH options (#Opt1=2); otherwise it is one 12 B option (#Opt1=1).
+    const bool dual_option = p.second_endpoint.has_value();
+    const std::uint32_t kOptionsLen = dual_option ? 24u : 12u;
+    const std::uint8_t entry_option_run =
+        dual_option ? std::uint8_t{0x20} : kEntryOptionRun1;
     // SOME/IP Length field still counts the ACTUAL entries bytes (so the
     // wire layout is internally consistent: header reads X entries-bytes
     // even when EntriesLen field lies). The mismatch is the spec hook.
@@ -616,12 +622,13 @@ buildMultiSubscribeEventgroup(const MultiSubscribeEventgroupParams &p) {
     appendSdHeader(b, p.session_id, length_field, p.sd_flags, entries_len);
 
     for (const auto &t : p.entries) {
-        // All entries reference the shared option run 1 (canonical index 0).
+        // All entries reference the shared option run(s) at index 0 — one UDP
+        // option (#Opt1=1) or, for a mixed-reliability bundle, UDP + TCP (#Opt1=2).
         SdType2EntryFields entry;
         entry.entry_type = sd_entry_type::kSubscribeEventgroup;
         entry.index_first_run = 0;
         entry.index_second_run = 0;
-        entry.option_run = kEntryOptionRun1;
+        entry.option_run = entry_option_run;
         entry.service_id = t.service_id;
         entry.instance_id = t.instance_id;
         entry.major_version = t.major_version;
@@ -634,8 +641,12 @@ buildMultiSubscribeEventgroup(const MultiSubscribeEventgroupParams &p) {
 
     putBe32(b, kOptionsLen);
 
-    // IPv4 Endpoint option (12 B) via the shared endpoint-option encoder.
+    // IPv4 Endpoint option(s) via the shared endpoint-option encoder: option 0
+    // is the UDP endpoint; a mixed-reliability bundle appends option 1 (TCP).
     appendIpv4EndpointOption(b, sd_option_type::kIpv4Endpoint, p.tester_endpoint);
+    if (dual_option) {
+        appendIpv4EndpointOption(b, sd_option_type::kIpv4Endpoint, *p.second_endpoint);
+    }
 
     return b;
 }

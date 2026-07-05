@@ -1,11 +1,14 @@
 #pragma once
 
+#include <memory>
 #include <string_view>
 
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_someipsrv_traits_base.h"
+#include "sce_integration/someip_method_dest.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/someip_sd_builder.h"
+#include "stimulus/subscribe_tcp_session.h"
 
 #include "someipsrv_sd_message_09_sm.h"
 
@@ -52,7 +55,8 @@ struct TestCaseTraits<cases::SdMessage09SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IBackgroundServiceOwner& owner) {
         // Phase 1: drive OfferService via FindService boot.
         ::tc8::stimulus::emitFindServiceBoot(
             iface, ::tc8::stimulus::FindServiceTarget{},
@@ -63,10 +67,19 @@ struct TestCaseTraits<cases::SdMessage09SM>
         // fireTestEventUINT8Event call (dut_main 250 ms cadence) then
         // delivers Notifications from the configured UDP server endpoint
         // (vsomeip.json `unreliable: 30502`).
+        // eg 0x0002 is mixed-reliability: hold a TCP connection so vsomeip Acks
+        // the dual-endpoint Subscribe; the UNRELIABLE 0x8001 Notification still
+        // arrives over UDP from the DUT's UDP server endpoint (30502), so the
+        // src_port assertion is unaffected.
+        auto session = std::make_unique<::tc8::stimulus::SubscribeEventgroupTcpSession>(
+            iface, ::tc8::sce::someipTcpMethodDest(cfg));
         ::tc8::stimulus::SubscribeEventgroupTarget subscribe{};
         subscribe.eventgroup_id = 0x0002;
-        ::tc8::stimulus::emitSubscribeEventgroupBoot(
-            iface, subscribe, cfg.stimulus_timing);
+        subscribe.ttl = 16;
+        ::tc8::stimulus::SubscribeDestination sd_dest{};
+        sd_dest.ipv4_be = cfg.someip.dut_iface_ip;
+        session->subscribeDual(subscribe, sd_dest);
+        owner.adoptService(std::move(session));
     }
 };
 

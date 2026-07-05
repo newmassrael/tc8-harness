@@ -1,13 +1,16 @@
 #pragma once
 
 #include <chrono>
+#include <memory>
 #include <string_view>
 #include <vector>
 
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_someipsrv_traits_base.h"
+#include "sce_integration/someip_method_dest.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/someip_sd_builder.h"
+#include "stimulus/subscribe_tcp_session.h"
 
 #include "someip_ets_088_sm.h"
 
@@ -35,7 +38,8 @@ struct TestCaseTraits<cases::SomeipEts088SM> : SomeIpAnyBase<cases::SomeipEts088
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IBackgroundServiceOwner& owner) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         std::vector<::tc8::stimulus::SubscribeEventgroupTarget> entries;
@@ -53,8 +57,15 @@ struct TestCaseTraits<cases::SomeipEts088SM> : SomeIpAnyBase<cases::SomeipEts088
         e3.eventgroup_id = 0x0006;
         entries.push_back(e3);
 
-        ::tc8::stimulus::emitMultiSubscribeEventgroup(iface, entries,
-                                                     std::chrono::milliseconds(500));
+        // eg 0x0002 in the bundle is mixed-reliability: hold a TCP connection so
+        // vsomeip Acks that entry. The bundle advertises a UDP + TCP option pair
+        // and every entry references both.
+        auto session = std::make_unique<::tc8::stimulus::SubscribeEventgroupTcpSession>(
+            iface, ::tc8::sce::someipTcpMethodDest(cfg));
+        ::tc8::stimulus::SubscribeDestination sd_dest{};
+        sd_dest.ipv4_be = cfg.someip.dut_iface_ip;
+        session->subscribeMultiDual(entries, sd_dest);
+        owner.adoptService(std::move(session));
     }
 };
 

@@ -505,6 +505,32 @@ TEST(BuildMultiSubscribeEventgroup, HeaderAndTwoEntries) {
     EXPECT_EQ(b[23], 0x20u);  // EntriesLen = 32 (two entries)
     EXPECT_EQ(b[24], 0x06u);  // first entry type Subscribe
     EXPECT_EQ(b[40], 0x06u);  // second entry type Subscribe (16B later)
+    EXPECT_EQ(b[27], 0x10u);  // single-option bundle: entry 0 #Opt1=1
+}
+
+// A mixed-reliability bundle (second_endpoint set) appends a second (TCP)
+// option and makes EVERY entry reference both (#Opt1=2). Guards the ETS_088
+// dual-transport multi-Subscribe wire shape.
+TEST(BuildMultiSubscribeEventgroup, SecondEndpointMakesEveryEntryReferenceBoth) {
+    MultiSubscribeEventgroupParams p{};
+    p.entries = {SubscribeEventgroupTarget{}, SubscribeEventgroupTarget{}};
+    p.entries[1].eventgroup_id = 0x0005;
+    p.tester_endpoint.ipv4_be = 0x030010AC;
+    p.tester_endpoint.port = 0x8765;
+    p.tester_endpoint.l4proto = 0x11;
+    p.second_endpoint = Ipv4Endpoint{0x030010AC, 0x9A1B, 0x06};  // TCP option 1
+    p.session_id = 0x0001;
+    const auto b = buildMultiSubscribeEventgroup(p);
+    // 16 header + 4 SD + 4 EntriesLen + 32 (two entries) + 4 OptionsLen + 24 (two options).
+    ASSERT_EQ(b.size(), 84u);
+    EXPECT_EQ(b[23], 0x20u);  // EntriesLen = 32 (two entries)
+    EXPECT_EQ(b[27], 0x20u);  // entry 0 #Opt1=2 | #Opt2=0
+    EXPECT_EQ(b[43], 0x20u);  // entry 1 #Opt1=2 (16B later)
+    EXPECT_EQ(b[59], 0x18u);  // OptionsLen = 24
+    EXPECT_EQ(b[61], 0x09u);  // option 0 Length
+    EXPECT_EQ(b[69], 0x11u);  // option 0 l4proto UDP
+    EXPECT_EQ(b[73], 0x09u);  // option 1 Length
+    EXPECT_EQ(b[81], 0x06u);  // option 1 l4proto TCP
 }
 
 TEST(BuildSubscribeEventgroupNack, ForcesTtlZeroIgnoringTargetTtl) {

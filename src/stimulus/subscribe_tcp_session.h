@@ -72,6 +72,35 @@ class SubscribeEventgroupTcpSession : public ::tc8::IPollableService {
     // negative errno-derived sentinel (-1 if the session is invalid).
     int subscribe(const SubscribeEventgroupTarget &target, const SubscribeDestination &sd_dest = {});
 
+    // Dual-transport variant of subscribe(): advertise BOTH a UDP endpoint
+    // (the tester's SD port — where unreliable notifications and the Ack are
+    // delivered) AND this session's held TCP endpoint (option 1, l4proto 0x06).
+    // A mixed-reliability (RT_BOTH) eventgroup NACKs a single-option Subscribe
+    // and, in vsomeip 3.7.x, further requires the advertised TCP endpoint to
+    // have an ESTABLISHED connection — which this session holds — before it
+    // Acks. Use this for a Subscribe to eg 0x0002 (which carries reliable
+    // 0x8003 mixed with the unreliable events); use subscribe() only for a
+    // reliable-only eventgroup where a single TCP option suffices.
+    int subscribeDual(const SubscribeEventgroupTarget &target, const SubscribeDestination &sd_dest = {});
+
+    // Flexible dual-transport Subscribe: take a caller-built `params` (custom
+    // session_id / ttl / sd_flags / a distinct advertised UDP endpoint) and
+    // inject THIS session's held TCP endpoint as option 1 before emitting. The
+    // UDP option (option 0) defaults to this session's source SD endpoint when
+    // `params.tester_endpoint.ipv4_be` is zero; a case advertising a distinct
+    // endpoint pre-fills it. subscribeDual() is the Target-only convenience
+    // wrapper over this. Used by the multi-Subscribe / distinct-endpoint cases.
+    int subscribeDualParams(SubscribeEventgroupParams params, const SubscribeDestination &sd_dest = {});
+
+    // Dual-transport MULTI-entry Subscribe: emit one SD message bundling
+    // `entries` (each a distinct eventgroup) advertising a UDP option + THIS
+    // session's held TCP endpoint (option 1); every entry references both. A
+    // bundle that includes a mixed-reliability eventgroup (eg 0x0002) needs the
+    // held connection for vsomeip to Ack that entry. Used by the multi-entry
+    // mixed-eventgroup Subscribe case.
+    int subscribeMultiDual(const std::vector<SubscribeEventgroupTarget> &entries,
+                           const SubscribeDestination &sd_dest = {});
+
     // Abortive close (transport-level teardown): force a RST (SO_LINGER 0 + close)
     // so the DUT sees the connection reset and is expected to delete the reliable
     // subscription — the "connection refused" teardown shape. The socket is gone

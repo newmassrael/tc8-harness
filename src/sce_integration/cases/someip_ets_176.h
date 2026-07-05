@@ -2,14 +2,17 @@
 
 #include <chrono>
 #include <cstdint>
+#include <memory>
 #include <string_view>
 #include <thread>
 #include <vector>
 
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_someipsrv_traits_base.h"
+#include "sce_integration/someip_method_dest.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/someip_sd_builder.h"
+#include "stimulus/subscribe_tcp_session.h"
 
 #include "someip_ets_176_sm.h"
 
@@ -36,10 +39,19 @@ struct TestCaseTraits<cases::SomeipEts176SM> : SomeIpAnyBase<cases::SomeipEts176
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IBackgroundServiceOwner& owner) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
+
+        // eg 0x0002 is mixed-reliability: hold one TCP connection so vsomeip
+        // Acks the dual-endpoint Subscribes (ignoring the trailing payload per
+        // the case intent) rather than NACKing for a missing reliable endpoint.
+        auto session = std::make_unique<::tc8::stimulus::SubscribeEventgroupTcpSession>(
+            iface, ::tc8::sce::someipTcpMethodDest(cfg));
+        ::tc8::stimulus::SubscribeDestination sd_dest{};
+        sd_dest.ipv4_be = cfg.someip.dut_iface_ip;
 
         // Phase 1: trailing 5 bytes COUNTED by SOME/IP Length.
         ::tc8::stimulus::SubscribeEventgroupParams sub1{};
@@ -47,7 +59,7 @@ struct TestCaseTraits<cases::SomeipEts176SM> : SomeIpAnyBase<cases::SomeipEts176
         sub1.session_id = 0x0001;
         sub1.extra_trailing_payload = std::vector<std::uint8_t>{0x30, 0x30, 0x3A, 0x30, 0x31};
         sub1.extra_trailing_in_length = true;
-        ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, sub1);
+        session->subscribeDualParams(sub1, sd_dest);
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
         // Phase 2: trailing 5 bytes NOT counted by SOME/IP Length.
@@ -56,7 +68,9 @@ struct TestCaseTraits<cases::SomeipEts176SM> : SomeIpAnyBase<cases::SomeipEts176
         sub2.session_id = 0x0002;
         sub2.extra_trailing_payload = std::vector<std::uint8_t>{0x30, 0x30, 0x3A, 0x30, 0x31};
         sub2.extra_trailing_in_length = false;
-        ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, sub2);
+        session->subscribeDualParams(sub2, sd_dest);
+
+        owner.adoptService(std::move(session));
     }
 };
 

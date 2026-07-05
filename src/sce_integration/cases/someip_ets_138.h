@@ -1,13 +1,16 @@
 #pragma once
 
 #include <chrono>
+#include <memory>
 #include <string_view>
 #include <thread>
 
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_someipsrv_traits_base.h"
+#include "sce_integration/someip_method_dest.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/someip_sd_builder.h"
+#include "stimulus/subscribe_tcp_session.h"
 
 #include "someip_ets_138_sm.h"
 
@@ -32,7 +35,8 @@ struct TestCaseTraits<cases::SomeipEts138SM> : SomeIpAnyBase<cases::SomeipEts138
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IBackgroundServiceOwner& owner) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
@@ -48,7 +52,15 @@ struct TestCaseTraits<cases::SomeipEts138SM> : SomeIpAnyBase<cases::SomeipEts138
         // actual trailing bytes so the parser can't walk past the message
         // boundary. PRS_SOMEIPSD_00390 says Ack-or-ignore.
         params.options_len_override = 40U;
-        ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, params);
+        // eg 0x0002 is mixed-reliability: hold a TCP connection + dual endpoint
+        // so vsomeip reaches this case's option check and Acks, rather than
+        // NACKing for a missing reliable endpoint.
+        auto session = std::make_unique<::tc8::stimulus::SubscribeEventgroupTcpSession>(
+            iface, ::tc8::sce::someipTcpMethodDest(cfg));
+        ::tc8::stimulus::SubscribeDestination sd_dest{};
+        sd_dest.ipv4_be = cfg.someip.dut_iface_ip;
+        session->subscribeDualParams(params, sd_dest);
+        owner.adoptService(std::move(session));
     }
 };
 
