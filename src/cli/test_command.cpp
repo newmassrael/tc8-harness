@@ -13,6 +13,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include <poll.h>
+
 #include <pcap/pcap.h>
 
 #include "tc8/captured_event.h"
@@ -639,6 +641,46 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // runner owns the objects for the run.
     const std::vector<::tc8::IPollableService *> services = runner->pollableServices();
 
+    // Idle-wait fd set: when a dispatch pass finds no frames the loop blocks in
+    // poll() on the capture fd(s) plus every background service's fd (see
+    // IPollableService::pollFd) instead of an unconditional sleep. A frame
+    // arriving mid-wait wakes poll() at once, so an observed DUT frame is
+    // dispatched within ~1 ms rather than after a fixed idle quantum — while the
+    // 20 ms poll timeout keeps tick()'s deadline cadence exactly as before on a
+    // genuinely idle wire. Built once: the source and service fds are fixed for
+    // the run. A negative fd (offline handle, or a service that failed to acquire
+    // one) is omitted; an empty set degrades to the original fixed sleep.
+    std::vector<pollfd> idle_pfds;
+    {
+        auto add_pollfd = [&idle_pfds](int fd) {
+            if (fd >= 0) {
+                pollfd pfd{};
+                pfd.fd = fd;
+                pfd.events = POLLIN;
+                idle_pfds.push_back(pfd);
+            }
+        };
+        add_pollfd(src->selectableFd());
+        if (src2) {
+            add_pollfd(src2->selectableFd());
+        }
+        for (::tc8::IPollableService *svc : services) {
+            add_pollfd(svc->pollFd());
+        }
+    }
+
+    // Wait up to 20 ms for any capture/service fd to become readable, returning
+    // the instant one does. poll() waking on POLLIN, an error, or EINTR alike
+    // just re-runs the loop (which re-dispatches and re-ticks), so the return
+    // value needs no inspection. An empty fd set degrades to the original sleep.
+    const auto idle_wait = [&idle_pfds]() {
+        if (idle_pfds.empty()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            return;
+        }
+        poll(idle_pfds.data(), static_cast<nfds_t>(idle_pfds.size()), 20);
+    };
+
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(timeout_s_);
 
     // Evidence Export (Option 3) — every frame appended to the saved pcap
@@ -705,12 +747,14 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
         }
         runner->tick();
         // Non-blocking pcap_dispatch (set in PcapSource::openLive) returns
-        // immediately when no frames match — without this sleep we would
-        // burn one CPU core spinning at ~10^7 ticks/sec. 20 ms cadence keeps
-        // the SCXML scheduler responsive (deadline timers in seconds resolve
-        // with 1% jitter at worst) without measurable CPU cost.
+        // immediately when no frames match — without a wait here we would burn
+        // one CPU core spinning at ~10^7 ticks/sec. idle_wait() blocks up to
+        // 20 ms on the capture/service fds, so the tick cadence (deadline timers
+        // in seconds resolve with 1% jitter at worst) and idle-CPU cost are
+        // unchanged from the prior fixed sleep, but a frame arriving mid-wait
+        // wakes the loop immediately instead of after the full quantum.
         if (n == 0 && n2 == 0) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            idle_wait();
         }
     }
 
@@ -754,7 +798,7 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
                 break;
             }
             if (dn == 0 && dn2 == 0) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(20));
+                idle_wait();
             }
         }
     }

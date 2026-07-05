@@ -22,6 +22,18 @@ std::unique_ptr<PcapSource> PcapSource::openLive(std::string_view iface, int sna
     pcap_set_snaplen(h, snaplen);
     pcap_set_promisc(h, 1);
     pcap_set_timeout(h, read_timeout_ms);
+    // Deliver each matching frame to userspace the moment the kernel sees it,
+    // instead of holding it up to the read timeout (on Linux TPACKET the
+    // timeout is the block-retire interval — frames can sit in the ring up to
+    // read_timeout_ms before the selectable fd signals). Immediate mode makes
+    // pcap_get_selectable_fd() become readable per-packet, which is what lets
+    // the capture loop's poll() react to an observed DUT frame within ~1 ms
+    // rather than one read-timeout quantum — required for reaction responders
+    // whose deadline is tighter than the timeout (e.g. delay-after-cyclic).
+    // Must be set before pcap_activate(). The 16 MB ring below still absorbs
+    // stimulus bursts; immediate mode only changes when frames are surfaced,
+    // not whether they are buffered.
+    pcap_set_immediate_mode(h, 1);
     pcap_set_buffer_size(h, 16 * 1024 * 1024);
     if (pcap_activate(h) < 0) {
         const std::string msg = "pcap_activate failed: " + std::string(pcap_geterr(h));

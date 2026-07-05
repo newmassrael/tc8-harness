@@ -33,6 +33,15 @@ public:
         return pcap_datalink(handle_);
     }
 
+    // A file descriptor the caller can poll()/select() for readability so the
+    // capture loop can sleep on frame arrival instead of a fixed idle interval.
+    // Returns the libpcap selectable fd for a live handle opened with immediate
+    // mode (readable per-packet), or -1 when the platform/handle cannot supply
+    // one (e.g. offline replay) — callers must fall back to a timed wait then.
+    int selectableFd() const {
+        return pcap_get_selectable_fd(handle_);
+    }
+
     bool isOffline() const {
         return offline_;
     }
