@@ -165,6 +165,65 @@ TEST(BuildSubscribeEventgroup, SessionIdIsBigEndian) {
     EXPECT_EQ(b[11], 0x34u);
 }
 
+// Default (second_endpoint unset) is byte-identical to the pre-existing
+// single-option Subscribe: 56 bytes, OptionsLen 12, #Opt1=1. Guards the
+// dual-endpoint addition against regressing every single-option subscriber.
+TEST(BuildSubscribeEventgroup, NoSecondEndpointStaysSingleOption) {
+    const auto b = buildSubscribeEventgroup(makeRef());
+    EXPECT_EQ(b.size(), 56u);
+    EXPECT_EQ(b[43], 0x0Cu);  // OptionsLen = 12
+    EXPECT_EQ(b[27], 0x10u);  // #Opt1=1 | #Opt2=0
+}
+
+// A second (TCP) IPv4 Endpoint option is appended canonically (12B via the
+// appendIpv4EndpointOption SSOT) right after the UDP option, and the entry's
+// first option run references both (#Opt1=2). This is the dual-transport
+// Subscribe a mixed-reliability (RT_BOTH) eventgroup requires.
+TEST(BuildSubscribeEventgroup, SecondEndpointAppendsCanonicalTcpOption) {
+    SubscribeEventgroupParams p = makeRef();
+    p.second_endpoint = Ipv4Endpoint{0x030010AC, 0x9A1B, 0x06};  // 172.16.0.3 : 0x9A1B, TCP
+    p.num_options_first_override = std::uint8_t{2};
+    const auto b = buildSubscribeEventgroup(p);
+
+    // Payload grows by one 12-byte option: 56 + 12 = 68.
+    ASSERT_EQ(b.size(), 68u);
+    EXPECT_EQ(b[7], 0x3Cu);   // SOME/IP Length = 48 + 12 = 60
+    EXPECT_EQ(b[27], 0x20u);  // #Opt1=2 | #Opt2=0
+    EXPECT_EQ(b[43], 0x18u);  // OptionsLen = 24
+    EXPECT_EQ(b[53], 0x11u);  // option 0 still UDP
+    // Option 1 (TCP) canonical at 56..67.
+    EXPECT_EQ(b[56], 0x00u);  // Length hi
+    EXPECT_EQ(b[57], 0x09u);  // Length = 9
+    EXPECT_EQ(b[58], 0x04u);  // Type = IPv4 Endpoint
+    EXPECT_EQ(b[59], 0x00u);  // Reserved
+    EXPECT_EQ(b[60], 0xACu);  // 172.16.0.3
+    EXPECT_EQ(b[61], 0x10u);
+    EXPECT_EQ(b[62], 0x00u);
+    EXPECT_EQ(b[63], 0x03u);
+    EXPECT_EQ(b[64], 0x00u);  // Reserved
+    EXPECT_EQ(b[65], 0x06u);  // L4 = TCP
+    EXPECT_EQ(b[66], 0x9Au);  // Port hi
+    EXPECT_EQ(b[67], 0x1Bu);  // Port lo
+}
+
+// The typed helper forces l4proto to TCP on option 1 (even if the caller passes
+// a UDP-default endpoint) and sets #Opt1=2, so a case wires the dual-transport
+// Subscribe without hand-encoding option bytes or the option-run nibble.
+TEST(SetDualEndpointSubscribe, ForcesTcpAndTwoOptionRun) {
+    SubscribeEventgroupParams p = makeRef();
+    setDualEndpointSubscribe(p, Ipv4Endpoint{0x040010AC, 0x9A1B, 0x11});  // pass UDP default
+    ASSERT_TRUE(p.second_endpoint.has_value());
+    EXPECT_EQ(p.second_endpoint->l4proto, 0x06u);      // forced to TCP
+    EXPECT_EQ(p.second_endpoint->ipv4_be, 0x040010ACu);
+    EXPECT_EQ(p.second_endpoint->port, 0x9A1Bu);
+    ASSERT_TRUE(p.num_options_first_override.has_value());
+    EXPECT_EQ(*p.num_options_first_override, 2u);
+
+    const auto b = buildSubscribeEventgroup(p);
+    ASSERT_EQ(b.size(), 68u);
+    EXPECT_EQ(b[65], 0x06u);  // wire carries TCP on option 1
+}
+
 // The SD header sits right after the 16-byte SOME/IP header, so the Flags
 // byte is at offset 16 and the 24-bit Reserved field at offsets 17..19.
 TEST(BuildFindService, ReservedDefaultsToZero) {

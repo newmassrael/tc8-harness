@@ -194,6 +194,16 @@ struct SubscribeEventgroupTarget {
 struct SubscribeEventgroupParams {
     SubscribeEventgroupTarget target{};
     Ipv4Endpoint tester_endpoint{};
+    // Optional SECOND IPv4 Endpoint option (canonical 12-byte shape, emitted
+    // via the appendIpv4EndpointOption SSOT right after `tester_endpoint` and
+    // before any raw `extra_options`). Default unset → single-option Subscribe,
+    // byte-identical to before. Set it — together with
+    // `num_options_first_override = 2` so the Type-2 entry's first option run
+    // references BOTH options — for the dual-transport (UDP + TCP) Subscribe the
+    // reference emits to a mixed-reliability (RT_BOTH) eventgroup: vsomeip NACKs
+    // a single-option Subscribe to such an eventgroup, requiring one UDP and one
+    // TCP endpoint option. `setDualEndpointSubscribe` wires both in one call.
+    std::optional<Ipv4Endpoint> second_endpoint;
     std::uint16_t session_id = 0x0001;
     std::uint8_t sd_flags = 0xC0;  // Reboot=1 Unicast=1 (same cadence as FindService)
     std::uint32_t entries_len_override = 0;  // 0 → canonical 16; non-zero overrides EntriesLen.
@@ -258,6 +268,17 @@ struct SubscribeEventgroupParams {
 // exactly one option — the tester's UDP endpoint where the DUT Ack/Nack
 // is to be sent. Caller is responsible for UDP/IP/Ethernet encapsulation.
 std::vector<std::uint8_t> buildSubscribeEventgroup(const SubscribeEventgroupParams &p);
+
+// Configure `p` for a dual-transport (UDP + TCP) SubscribeEventgroup: set the
+// second IPv4 Endpoint option to `tcp_endpoint` (l4proto forced to TCP 0x06) and
+// point the Type-2 entry's first option run at BOTH options (#Opt1 = 2). Option 0
+// stays `p.tester_endpoint` (the UDP endpoint; leave its ipv4_be zero so
+// emitSubscribeEventgroupRaw fills it from the iface). This is the reference's
+// Subscribe shape for a mixed-reliability (RT_BOTH) eventgroup, which vsomeip
+// NACKs unless the Subscribe carries one UDP and one TCP endpoint option. Both
+// options are emitted through the appendIpv4EndpointOption SSOT, so cases no
+// longer hand-encode the second option's bytes.
+void setDualEndpointSubscribe(SubscribeEventgroupParams &p, const Ipv4Endpoint &tcp_endpoint);
 
 // Destination of a SubscribeEventgroup datagram — the DUT's SD unicast
 // endpoint (SD §4.2: Subscribe is sent unicast to the server's SD

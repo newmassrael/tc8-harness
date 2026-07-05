@@ -429,12 +429,14 @@ std::vector<std::uint8_t> buildSubscribeEventgroup(const SubscribeEventgroupPara
     for (const auto& eo : p.extra_options) {
         extra_options_total_bytes += static_cast<std::uint32_t>(4 + eo.body.size());
     }
+    // Optional second IPv4 Endpoint option is a fixed canonical 12 bytes.
+    const std::uint32_t second_endpoint_bytes = p.second_endpoint.has_value() ? 12u : 0u;
     const std::uint32_t length_field = p.length_override.value_or(
-        kLengthFieldCanonical + extra_options_total_bytes);
+        kLengthFieldCanonical + second_endpoint_bytes + extra_options_total_bytes);
     const std::uint32_t entries_len_field =
         p.entries_len_override == 0 ? kEntriesLenCanonical : p.entries_len_override;
     const std::uint32_t options_len_field = p.options_len_override.value_or(
-        kOptionsLenCanonical + extra_options_total_bytes);
+        kOptionsLenCanonical + second_endpoint_bytes + extra_options_total_bytes);
     constexpr std::uint16_t kOptionBodyLenCanonical = 9;  // Length field value for IPv4 Endpoint.
     const std::uint16_t option_body_len_field =
         p.option_body_len_override.value_or(kOptionBodyLenCanonical);
@@ -466,7 +468,7 @@ std::vector<std::uint8_t> buildSubscribeEventgroup(const SubscribeEventgroupPara
             : length_field;
 
     std::vector<std::uint8_t> b;
-    b.reserve(56 + p.extra_trailing_payload.size());
+    b.reserve(56 + second_endpoint_bytes + p.extra_trailing_payload.size());
 
     // Header preamble via the SD SSOT. ETS_178 drives method_id_field;
     // ETS_123/_124/_125 inject a malformed entries_len_field; the Reserved
@@ -510,6 +512,15 @@ std::vector<std::uint8_t> buildSubscribeEventgroup(const SubscribeEventgroupPara
     b.push_back(p.tester_endpoint.l4proto);
     putBe16(b, p.tester_endpoint.port);
 
+    // Optional second IPv4 Endpoint option (canonical 12B via the SSOT
+    // encoder) — the dual-transport SubscribeEventgroup a mixed-reliability
+    // (RT_BOTH) eventgroup requires. Emitted before any raw `extra_options` so
+    // options [UDP, TCP] are contiguous from index 0 and the entry's first
+    // option run (#Opt1=2) references both.
+    if (p.second_endpoint.has_value()) {
+        appendIpv4EndpointOption(b, sd_option_type::kIpv4Endpoint, *p.second_endpoint);
+    }
+
     // §5.1.6 SOMEIP_ETS_117 / _175 extra options appended after the
     // canonical IPv4 Endpoint option. Wire layout: Length 2B BE +
     // Type 1B + Reserved 1B + body bytes.
@@ -529,6 +540,16 @@ std::vector<std::uint8_t> buildSubscribeEventgroup(const SubscribeEventgroupPara
     }
 
     return b;
+}
+
+void setDualEndpointSubscribe(SubscribeEventgroupParams &p, const Ipv4Endpoint &tcp_endpoint) {
+    Ipv4Endpoint tcp = tcp_endpoint;
+    tcp.l4proto = 0x06;  // TCP — option 1 of the UDP+TCP dual-transport Subscribe.
+    p.second_endpoint = tcp;
+    // Entry's first option run references BOTH options (options[0]=UDP,
+    // options[1]=TCP): vsomeip's mixed-eventgroup check requires both ports set
+    // with distinct reliability.
+    p.num_options_first_override = std::uint8_t{2};
 }
 
 namespace {
