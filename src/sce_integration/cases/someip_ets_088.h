@@ -57,14 +57,19 @@ struct TestCaseTraits<cases::SomeipEts088SM> : SomeIpAnyBase<cases::SomeipEts088
         e3.eventgroup_id = 0x0006;
         entries.push_back(e3);
 
-        // eg 0x0002 in the bundle is mixed-reliability: hold a TCP connection so
-        // vsomeip Acks that entry. The bundle advertises a UDP + TCP option pair
-        // and every entry references both.
+        // eg 0x0002 is mixed-reliability: hold a TCP connection so vsomeip Acks
+        // that entry. The bundle advertises a UDP + TCP option pair; the mixed
+        // entry (0x0002) references BOTH (#Opt1=2) while the unreliable entries
+        // (0x0005 / 0x0006) reference the UDP option ONLY (#Opt1=1) — the
+        // reference bundle shape, so the unreliable subscriptions stay UDP-bound.
         auto session = std::make_unique<::tc8::stimulus::SubscribeEventgroupTcpSession>(
             iface, ::tc8::sce::someipTcpMethodDest(cfg));
         ::tc8::stimulus::SubscribeDestination sd_dest{};
         sd_dest.ipv4_be = cfg.someip.dut_iface_ip;
-        session->subscribeMultiDual(entries, sd_dest);
+        ::tc8::stimulus::MultiSubscribeEventgroupParams params{};
+        params.entries = entries;
+        params.per_entry_num_options_first = {2, 1, 1};  // 0x02 dual; 0x05/0x06 UDP-only
+        session->subscribeMultiParams(std::move(params), sd_dest);
         owner.adoptService(std::move(session));
     }
 };

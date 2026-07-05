@@ -533,6 +533,25 @@ TEST(BuildMultiSubscribeEventgroup, SecondEndpointMakesEveryEntryReferenceBoth) 
     EXPECT_EQ(b[81], 0x06u);  // option 1 l4proto TCP
 }
 
+// per_entry_num_options_first lets a mixed entry reference both options (#Opt1=2)
+// while an unreliable entry references the UDP option only (#Opt1=1) — the
+// reference bundle shape (ETS_088), so unreliable eventgroups stay UDP-bound.
+TEST(BuildMultiSubscribeEventgroup, PerEntryNumOptionsFirstMixesReferences) {
+    MultiSubscribeEventgroupParams p{};
+    p.entries = {SubscribeEventgroupTarget{}, SubscribeEventgroupTarget{}};
+    p.entries[1].eventgroup_id = 0x0005;
+    p.tester_endpoint.ipv4_be = 0x030010AC;
+    p.tester_endpoint.port = 0x8765;
+    p.tester_endpoint.l4proto = 0x11;
+    p.second_endpoint = Ipv4Endpoint{0x030010AC, 0x9A1B, 0x06};
+    p.per_entry_num_options_first = {2, 1};  // entry 0 dual, entry 1 UDP-only
+    p.session_id = 0x0001;
+    const auto b = buildMultiSubscribeEventgroup(p);
+    ASSERT_EQ(b.size(), 84u);  // both options still present (24 B array)
+    EXPECT_EQ(b[27], 0x20u);   // entry 0 #Opt1=2 (UDP + TCP)
+    EXPECT_EQ(b[43], 0x10u);   // entry 1 #Opt1=1 (UDP only)
+}
+
 TEST(BuildSubscribeEventgroupNack, ForcesTtlZeroIgnoringTargetTtl) {
     // The named Nack wrapper overwrites target.ttl to 0 (Nack) while echoing
     // every other field, regardless of the ttl the caller left set.

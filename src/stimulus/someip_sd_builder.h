@@ -438,6 +438,14 @@ struct MultiSubscribeEventgroupParams {
     // or vsomeip NACKs the mixed entry. Unset (default) keeps the single-option
     // bundle byte-identical to before.
     std::optional<Ipv4Endpoint> second_endpoint;
+    // Per-entry #Opt1 (option references in the entry's first run). When set,
+    // entry i references `per_entry_num_options_first[i]` options from index 0
+    // (1 = the UDP option only, for an unreliable eventgroup; 2 = UDP + TCP, for
+    // a mixed one). Empty (default) → every entry references both when
+    // second_endpoint is set, else the single UDP option. Lets a bundle mix a
+    // mixed-reliability eventgroup (dual) with unreliable ones (UDP-only), as the
+    // reference does, instead of binding the unreliable entries reliably too.
+    std::vector<std::uint8_t> per_entry_num_options_first;
     std::uint16_t session_id = 0x0001;
     std::uint8_t sd_flags = 0xC0;
     // §5.1.6 SOMEIP_ETS_114 helper: override the EntriesLen field. Default

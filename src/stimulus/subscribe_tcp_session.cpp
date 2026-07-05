@@ -96,8 +96,8 @@ int SubscribeEventgroupTcpSession::subscribe(const SubscribeEventgroupTarget &ta
     return emitSubscribeEventgroupRaw(iface_, std::move(params), sd_dest, src_ip_be_);
 }
 
-int SubscribeEventgroupTcpSession::subscribeDualParams(SubscribeEventgroupParams params,
-                                                       const SubscribeDestination &sd_dest) {
+int SubscribeEventgroupTcpSession::subscribeParams(SubscribeEventgroupParams params,
+                                                   const SubscribeDestination &sd_dest) {
     if (fd_ < 0) {
         return -1;
     }
@@ -109,10 +109,20 @@ int SubscribeEventgroupTcpSession::subscribeDualParams(SubscribeEventgroupParams
         params.tester_endpoint.port = tc8::dut::kSdPort;
         params.tester_endpoint.l4proto = 0x11;
     }
-    // Option 1 — this session's held TCP endpoint: the mixed-eventgroup Ack
-    // check matches it against the established connection.
-    setDualEndpointSubscribe(params, Ipv4Endpoint{src_ip_be_, local_port_, 0x06});
+    // Originate the Subscribe from THIS session's source IP so vsomeip binds it
+    // to the held connection (a second alias-IP client is then tracked apart).
     return emitSubscribeEventgroupRaw(iface_, std::move(params), sd_dest, src_ip_be_);
+}
+
+int SubscribeEventgroupTcpSession::subscribeDualParams(SubscribeEventgroupParams params,
+                                                       const SubscribeDestination &sd_dest) {
+    // Common dual-transport shape: option 1 is this session's held TCP endpoint
+    // and the entry references BOTH options from its first run (#Opt1=2). A case
+    // needing a bespoke option-run config (e.g. the two-run ETS_173 phases) sets
+    // params.second_endpoint = reliableEndpointOption() itself and calls
+    // subscribeParams so it keeps its own index/count overrides.
+    setDualEndpointSubscribe(params, reliableEndpointOption());
+    return subscribeParams(std::move(params), sd_dest);
 }
 
 int SubscribeEventgroupTcpSession::subscribeDual(const SubscribeEventgroupTarget &target,
@@ -122,22 +132,30 @@ int SubscribeEventgroupTcpSession::subscribeDual(const SubscribeEventgroupTarget
     return subscribeDualParams(std::move(params), sd_dest);
 }
 
-int SubscribeEventgroupTcpSession::subscribeMultiDual(
-    const std::vector<SubscribeEventgroupTarget> &entries, const SubscribeDestination &sd_dest) {
+int SubscribeEventgroupTcpSession::subscribeMultiParams(MultiSubscribeEventgroupParams params,
+                                                        const SubscribeDestination &sd_dest) {
     if (fd_ < 0) {
         return -1;
     }
-    MultiSubscribeEventgroupParams params{};
-    params.entries = entries;
-    // Option 0 — UDP endpoint (this session's source SD endpoint); option 1 —
-    // this session's held TCP endpoint, so the mixed-reliability entry (eg
-    // 0x0002) is matched against the established connection.
-    params.tester_endpoint.ipv4_be = src_ip_be_;
-    params.tester_endpoint.port = tc8::dut::kSdPort;
-    params.tester_endpoint.l4proto = 0x11;
-    params.second_endpoint = Ipv4Endpoint{src_ip_be_, local_port_, 0x06};
+    // Option 0 — UDP endpoint (default to this session's source SD endpoint);
+    // option 1 — this session's held TCP endpoint, so a mixed-reliability entry
+    // is matched against the established connection. The caller controls which
+    // entries reference the TCP option via per_entry_num_options_first.
+    if (params.tester_endpoint.ipv4_be == 0) {
+        params.tester_endpoint.ipv4_be = src_ip_be_;
+        params.tester_endpoint.port = tc8::dut::kSdPort;
+        params.tester_endpoint.l4proto = 0x11;
+    }
+    params.second_endpoint = reliableEndpointOption();
     return emitMultiSubscribeEventgroupRaw(iface_, std::move(params),
                                            std::chrono::milliseconds(500), sd_dest);
+}
+
+int SubscribeEventgroupTcpSession::subscribeMultiDual(
+    const std::vector<SubscribeEventgroupTarget> &entries, const SubscribeDestination &sd_dest) {
+    MultiSubscribeEventgroupParams params{};
+    params.entries = entries;
+    return subscribeMultiParams(std::move(params), sd_dest);
 }
 
 void SubscribeEventgroupTcpSession::onReadable() {

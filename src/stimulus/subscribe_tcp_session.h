@@ -92,6 +92,21 @@ class SubscribeEventgroupTcpSession : public ::tc8::IPollableService {
     // wrapper over this. Used by the multi-Subscribe / distinct-endpoint cases.
     int subscribeDualParams(SubscribeEventgroupParams params, const SubscribeDestination &sd_dest = {});
 
+    // Emit a caller-built Subscribe from THIS session's source IP (so vsomeip
+    // binds it to the held connection), filling option 0 with the session's UDP
+    // SD endpoint only when the caller left it unset. Unlike subscribeDualParams
+    // it does NOT touch the entry's option-run config — a case with a bespoke
+    // dual layout (e.g. ETS_173's two option runs) sets `second_endpoint =
+    // reliableEndpointOption()` plus its own index/count and calls this.
+    int subscribeParams(SubscribeEventgroupParams params, const SubscribeDestination &sd_dest = {});
+
+    // The IPv4 Endpoint option (l4proto TCP) for this session's held reliable
+    // connection — the option a bespoke dual Subscribe puts in
+    // `params.second_endpoint`. valid() must be true.
+    Ipv4Endpoint reliableEndpointOption() const {
+        return Ipv4Endpoint{src_ip_be_, local_port_, 0x06};
+    }
+
     // Dual-transport MULTI-entry Subscribe: emit one SD message bundling
     // `entries` (each a distinct eventgroup) advertising a UDP option + THIS
     // session's held TCP endpoint (option 1); every entry references both. A
@@ -100,6 +115,15 @@ class SubscribeEventgroupTcpSession : public ::tc8::IPollableService {
     // mixed-eventgroup Subscribe case.
     int subscribeMultiDual(const std::vector<SubscribeEventgroupTarget> &entries,
                            const SubscribeDestination &sd_dest = {});
+
+    // Flexible multi-entry dual Subscribe: emit a caller-built bundle from THIS
+    // session's source IP, injecting the held TCP endpoint as option 1. The
+    // caller sets per_entry_num_options_first so a mixed-reliability entry
+    // references UDP + TCP (#Opt1=2) while unreliable entries reference UDP only
+    // (#Opt1=1) — the reference bundle shape. subscribeMultiDual is the wrapper
+    // that references both options for every entry.
+    int subscribeMultiParams(MultiSubscribeEventgroupParams params,
+                             const SubscribeDestination &sd_dest = {});
 
     // Abortive close (transport-level teardown): force a RST (SO_LINGER 0 + close)
     // so the DUT sees the connection reset and is expected to delete the reliable

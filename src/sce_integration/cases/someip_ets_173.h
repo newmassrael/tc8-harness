@@ -2,14 +2,16 @@
 
 #include <chrono>
 #include <cstdint>
+#include <memory>
 #include <string_view>
 #include <thread>
-#include <vector>
 
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_someipsrv_traits_base.h"
+#include "sce_integration/someip_method_dest.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/someip_sd_builder.h"
+#include "stimulus/subscribe_tcp_session.h"
 
 #include "someip_ets_173_sm.h"
 
@@ -38,48 +40,50 @@ struct TestCaseTraits<cases::SomeipEts173SM> : SomeIpAnyBase<cases::SomeipEts173
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IBackgroundServiceOwner& owner) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 
-        // Two distinct-kind IPv4 Endpoint options (UDP + TCP) so the
-        // walker treats them as canonical SOME/IP-SD multi-transport
-        // Subscribe rather than rejecting "Multiple IPv4 endpoint options
-        // of same kind" (vsomeip's `sdi::process_eventgroupentry` rejects
-        // duplicate-kind references). Canonical first option (built by
-        // emitSubscribeEventgroupRaw) is UDP; appended extra option is
-        // TCP (l4proto=0x06) on the tester's reliable port (30501).
-        const std::vector<std::uint8_t> tcp_body{
-            0xAC, 0x10, 0x00, 0x03,  // 172.16.0.3 (tester)
-            0x00,                     // reserved
-            0x06,                     // l4proto = TCP
-            0x77, 0x25,               // port = 30501 (BE)
-            0x00                      // reserved tail (option body padding to 9 B)
-        };
+        // eg 0x0002 is mixed-reliability, so a Subscribe needs one UDP and one
+        // TCP endpoint option AND a held connection to the TCP endpoint. Hold the
+        // session; the two options are the tester UDP endpoint (option 0, filled
+        // by subscribeParams) and this session's held TCP endpoint (option 1,
+        // canonical via reliableEndpointOption). The two phases reference those
+        // two options through DIFFERENT index/count configurations — the DUT must
+        // Ack both regardless of how the entry partitions the option references.
+        auto session = std::make_unique<::tc8::stimulus::SubscribeEventgroupTcpSession>(
+            iface, ::tc8::sce::someipTcpMethodDest(cfg));
+        const ::tc8::stimulus::Ipv4Endpoint tcp_option = session->reliableEndpointOption();
+        ::tc8::stimulus::SubscribeDestination sd_dest{};
+        sd_dest.ipv4_be = cfg.someip.dut_iface_ip;
 
-        // Phase 1: index1=0, index2=1, #Opt1=1, #Opt2=1.
+        // Phase 1: index1=0, index2=1, #Opt1=1, #Opt2=1 — opt0 (UDP) via run 1,
+        // opt1 (TCP) via run 2.
         ::tc8::stimulus::SubscribeEventgroupParams sub1{};
         sub1.target.eventgroup_id = 0x0002;
         sub1.session_id = 0x0001;
+        sub1.second_endpoint = tcp_option;
         sub1.index_first_options_override = std::uint8_t{0};
         sub1.index_second_options_override = std::uint8_t{1};
         sub1.num_options_first_override = std::uint8_t{1};
         sub1.num_options_second_override = std::uint8_t{1};
-        sub1.extra_options.push_back({/*type=*/0x04, /*body=*/tcp_body, /*reserved=*/0});
-        ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, sub1);
+        session->subscribeParams(sub1, sd_dest);
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
-        // Phase 2: index1=0, index2=0, #Opt1=2, #Opt2=0.
+        // Phase 2: index1=0, index2=0, #Opt1=2, #Opt2=0 — both options via run 1.
         ::tc8::stimulus::SubscribeEventgroupParams sub2{};
         sub2.target.eventgroup_id = 0x0002;
         sub2.session_id = 0x0002;
+        sub2.second_endpoint = tcp_option;
         sub2.index_first_options_override = std::uint8_t{0};
         sub2.index_second_options_override = std::uint8_t{0};
         sub2.num_options_first_override = std::uint8_t{2};
         sub2.num_options_second_override = std::uint8_t{0};
-        sub2.extra_options.push_back({/*type=*/0x04, /*body=*/tcp_body, /*reserved=*/0});
-        ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, sub2);
+        session->subscribeParams(sub2, sd_dest);
+
+        owner.adoptService(std::move(session));
     }
 };
 

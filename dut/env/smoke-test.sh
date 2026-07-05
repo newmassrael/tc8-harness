@@ -1446,7 +1446,7 @@ run_case() {
         [SOMEIP_ETS_177]="eventgroup_id=0x0002"
         # §5.1.6 SOMEIP_ETS_117/_173/_175 also subscribe on configured
         # eg 0x02 so verdicts assert against the same eventgroup_id.
-        [SOMEIP_ETS_117]="eventgroup_id=0x0002"
+        [SOMEIP_ETS_117]="eventgroup_id=0x0005"
         [SOMEIP_ETS_173]="eventgroup_id=0x0002"
         [SOMEIP_ETS_175]="eventgroup_id=0x0002"
         # §5.1.6 SOMEIP_ETS_107/_108 subscribe on configured eg 0x05.
@@ -2026,7 +2026,7 @@ run_negative_case() {
         [SOMEIP_ETS_178]="eventgroup_id=0x0002"
         [SOMEIP_ETS_176]="eventgroup_id=0x0002"
         [SOMEIP_ETS_177]="eventgroup_id=0x0002"
-        [SOMEIP_ETS_117]="eventgroup_id=0x0002"
+        [SOMEIP_ETS_117]="eventgroup_id=0x0005"
         [SOMEIP_ETS_173]="eventgroup_id=0x0002"
         [SOMEIP_ETS_175]="eventgroup_id=0x0002"
         [SOMEIP_ETS_107]="eventgroup_id=0x0005"

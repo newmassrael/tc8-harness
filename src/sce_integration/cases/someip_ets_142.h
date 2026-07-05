@@ -1,13 +1,16 @@
 #pragma once
 
 #include <chrono>
+#include <memory>
 #include <string_view>
 #include <thread>
 
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_someipsrv_traits_base.h"
+#include "sce_integration/someip_method_dest.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/someip_sd_builder.h"
+#include "stimulus/subscribe_tcp_session.h"
 
 #include "someip_ets_142_sm.h"
 
@@ -31,7 +34,8 @@ struct TestCaseTraits<cases::SomeipEts142SM> : SomeIpAnyBase<cases::SomeipEts142
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IBackgroundServiceOwner& owner) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
@@ -40,7 +44,16 @@ struct TestCaseTraits<cases::SomeipEts142SM> : SomeIpAnyBase<cases::SomeipEts142
         params.target.eventgroup_id = 0x0002;
         params.target.major_version = 0x09;
         params.session_id = 0x0001;
-        ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, params);
+        // eg 0x0002 is mixed-reliability: hold a TCP connection + dual endpoint
+        // so the Subscribe passes the reliability check and the DUT reaches the
+        // Major-Version check — where the non-existing 0x09 triggers the Nack for
+        // its OWN reason, not a missing reliable endpoint.
+        auto session = std::make_unique<::tc8::stimulus::SubscribeEventgroupTcpSession>(
+            iface, ::tc8::sce::someipTcpMethodDest(cfg));
+        ::tc8::stimulus::SubscribeDestination sd_dest{};
+        sd_dest.ipv4_be = cfg.someip.dut_iface_ip;
+        session->subscribeDualParams(params, sd_dest);
+        owner.adoptService(std::move(session));
     }
 };
 

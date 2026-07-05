@@ -34,9 +34,16 @@ struct TestCaseTraits<cases::SomeipEts096SM> : SomeIpAnyBase<cases::SomeipEts096
                          std::string_view iface) {
         ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
-        ::tc8::stimulus::SubscribeEventgroupTarget subscribe{};
-        subscribe.eventgroup_id = 0x0002;
-        ::tc8::stimulus::emitSubscribeEventgroupBootTcpOption(iface, subscribe, cfg.stimulus_timing);
+        // eg 0x0002 is mixed-reliability. Advertise a VALID UDP + TCP option pair
+        // but do NOT open the TCP connection: the reliability check passes, so the
+        // DUT reaches the connection check and Nacks for the MISSING TCP connection
+        // — the case's intent — rather than an option-set mismatch. (No held
+        // SubscribeEventgroupTcpSession: the absent connection is the point.)
+        ::tc8::stimulus::SubscribeEventgroupParams params{};
+        params.target.eventgroup_id = 0x0002;
+        ::tc8::stimulus::setDualEndpointSubscribe(
+            params, ::tc8::stimulus::Ipv4Endpoint{cfg.ipv4.tester_ip, 30501, 0x06});
+        ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, params);
     }
 };
 

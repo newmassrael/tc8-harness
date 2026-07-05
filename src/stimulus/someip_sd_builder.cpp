@@ -601,13 +601,14 @@ buildMultiSubscribeEventgroup(const MultiSubscribeEventgroupParams &p) {
     // (0) means "use the actual computed value".
     const std::uint32_t entries_len =
         p.entries_len_override == 0 ? entries_len_actual : p.entries_len_override;
-    // A mixed-reliability bundle (e.g. one containing eg 0x0002) carries a
-    // second (TCP) endpoint option, so the Options Array is 24 B and every entry
-    // references BOTH options (#Opt1=2); otherwise it is one 12 B option (#Opt1=1).
+    // A mixed-reliability bundle (e.g. one containing eg 0x0002) carries a second
+    // (TCP) endpoint option, so the Options Array is 24 B. Each entry references
+    // either just the UDP option (#Opt1=1, an unreliable eventgroup) or both
+    // UDP + TCP (#Opt1=2, a mixed one) — per `per_entry_num_options_first`, or the
+    // dual/single default when that is empty.
     const bool dual_option = p.second_endpoint.has_value();
     const std::uint32_t kOptionsLen = dual_option ? 24u : 12u;
-    const std::uint8_t entry_option_run =
-        dual_option ? std::uint8_t{0x20} : kEntryOptionRun1;
+    const std::uint8_t default_num_opt1 = dual_option ? std::uint8_t{2} : std::uint8_t{1};
     // SOME/IP Length field still counts the ACTUAL entries bytes (so the
     // wire layout is internally consistent: header reads X entries-bytes
     // even when EntriesLen field lies). The mismatch is the spec hook.
@@ -621,14 +622,19 @@ buildMultiSubscribeEventgroup(const MultiSubscribeEventgroupParams &p) {
     // above still counts the ACTUAL entry bytes (the internal-consistency hook).
     appendSdHeader(b, p.session_id, length_field, p.sd_flags, entries_len);
 
-    for (const auto &t : p.entries) {
-        // All entries reference the shared option run(s) at index 0 — one UDP
-        // option (#Opt1=1) or, for a mixed-reliability bundle, UDP + TCP (#Opt1=2).
+    for (std::size_t i = 0; i < p.entries.size(); ++i) {
+        const auto &t = p.entries[i];
+        // Each entry references its option run(s) from index 0: #Opt1 options in
+        // run 1 (per-entry override or the dual/single default).
+        const std::uint8_t num_opt1 =
+            i < p.per_entry_num_options_first.size()
+                ? static_cast<std::uint8_t>(p.per_entry_num_options_first[i] & 0x0F)
+                : default_num_opt1;
         SdType2EntryFields entry;
         entry.entry_type = sd_entry_type::kSubscribeEventgroup;
         entry.index_first_run = 0;
         entry.index_second_run = 0;
-        entry.option_run = entry_option_run;
+        entry.option_run = static_cast<std::uint8_t>(num_opt1 << 4);  // #Opt1 | #Opt2=0
         entry.service_id = t.service_id;
         entry.instance_id = t.instance_id;
         entry.major_version = t.major_version;

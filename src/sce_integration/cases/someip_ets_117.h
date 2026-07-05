@@ -4,7 +4,6 @@
 #include <cstdint>
 #include <string_view>
 #include <thread>
-#include <vector>
 
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_someipsrv_traits_base.h"
@@ -46,25 +45,18 @@ struct TestCaseTraits<cases::SomeipEts117SM> : SomeIpAnyBase<cases::SomeipEts117
                                              cfg.stimulus_timing);
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 
+        // Two IPv4 Endpoint options of the SAME kind (both UDP), both canonical
+        // (appendIpv4EndpointOption via tester_endpoint + second_endpoint — no
+        // hand-encoded option bytes). Target the UNRELIABLE eg 0x0005 so the sole
+        // malformation the DUT evaluates is the duplicate-kind option references
+        // (vsomeip's process_eventgroupentry rejects them); on the mixed eg 0x0002
+        // the reliability check would preempt this. #Opt1=2 references both.
         ::tc8::stimulus::SubscribeEventgroupParams params{};
-        params.target.eventgroup_id = 0x0002;
+        params.target.eventgroup_id = 0x0005;
         params.session_id = 0x0001;
-        // Append a second IPv4 Endpoint option (Type 0x04). Body mirrors
-        // the canonical first endpoint structure: IP (4 B) + reserved +
-        // l4proto + port = 9 B.
-        // Raw wire image: the exact option bytes on the link. The port bytes are
-        // kept literal (this IS the wire being asserted) but static_assert-tied to
-        // the SD-port SSOT so a kSdPort retune cannot silently diverge from them.
-        static_assert((0x77u << 8 | 0x1Au) == tc8::dut::kSdPort,
-                      "ets_117 SD port BE bytes (0x77,0x1A) must equal tc8::dut::kSdPort");
-        std::vector<std::uint8_t> ipv4_body{
-            0xAC, 0x10, 0x00, 0x03,  // 172.16.0.3 (tester)
-            0x00,                     // reserved
-            0x11,                     // l4proto = UDP
-            0x77, 0x1A,               // port = 30490 (BE) — see static_assert above
-            0x00                      // reserved tail (option body padding to 9 B)
-        };
-        params.extra_options.push_back({/*type=*/0x04, /*body=*/std::move(ipv4_body), /*reserved=*/0});
+        params.second_endpoint =
+            ::tc8::stimulus::Ipv4Endpoint{cfg.ipv4.tester_ip, tc8::dut::kSdPort, 0x11};
+        params.num_options_first_override = std::uint8_t{2};
         ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, params);
     }
 };
