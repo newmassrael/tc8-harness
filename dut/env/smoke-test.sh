@@ -1050,30 +1050,19 @@ run_case() {
     : >"$hlog"
     : >"$dlog"
 
-    # Per-case flush of DUT neighbor cache. setup-netns.sh flushes once
-    # at netns creation, but every run that provokes a unicast egress
-    # (every case using emit*Boot stimulus) leaves <tester_ip, tester_mac>
-    # learned in DUT's table for the kernel's reachable_time window.
-    # Without this per-case flush, the second-and-later ARP_07..15 case
-    # would hit cache and never emit an ARP Request, failing on timeout.
+    # DUT neigh cache: setup-netns.sh flushes it at bring-up, and the per-case netns
+    # rebuild at run_case top re-runs that on single-pc, so the fresh cache is cold
+    # each case — no per-case flush needed here. On topologies WITHOUT a rebuild
+    # (TOPOLOGY_DUT_CONDITIONING=0, a persistent/remote DUT) the cache can stay warm
+    # across cases; ARP_07..15 need a cold DUT cache to emit an ARP Request, so record
+    # the skip for those families (logging every case would be noise).
     #
-    # Tester side is intentionally NOT flushed: Phase 2 entry-learning
-    # cases (ARP_03..06) rely on the DUT's cache holding the tester's
-    # *injected* MAC (kTesterInjectedMac) that our raw-ARP stimulus puts
-    # there. If the tester's cache were flushed, any tester-kernel
-    # egress toward the DUT (e.g. the ICMP port-unreachable reply to
-    # the UT-triggered datagram landing on an unbound port) would
-    # trigger tester-kernel ARP resolution via a normal ARP Request
-    # (sender_hw = kernel MAC, not injected MAC). DUT learns kernel MAC
-    # and overwrites the injected entry per RFC 826 §2.3, and
-    # ARP_04/06's UDP-egress eth_dst check fails. The NUD_PROBE flakiness
-    # on the tester side is addressed via `ucast_solicit=0` in
-    # setup-netns.sh instead (keeps cache intact, just disables re-probing).
-    if [[ "$TOPOLOGY_DUT_CONDITIONING" == "1" ]]; then
-        ip -n "$dut_ns" neigh flush dev "$veth_d"
-    else
-        # Only cache-sensitive families care about the missing flush;
-        # logging it for every case would be noise without information.
+    # The tester cache is intentionally left populated on all topologies: Phase 2
+    # entry-learning cases (ARP_03..06) rely on the DUT holding the tester's *injected*
+    # MAC (kTesterInjectedMac); a tester-kernel ARP would overwrite it per RFC 826
+    # §2.3 and fail ARP_04/06's eth_dst check. ucast_solicit=0 in setup-netns.sh
+    # suppresses the NUD_PROBE that would otherwise trigger it.
+    if [[ "$TOPOLOGY_DUT_CONDITIONING" != "1" ]]; then
         case "$case_id" in
             ARP_*|IPv4_AUTOCONF_*)
                 log_conditioning_skip "$W" "$case_id" \
@@ -1090,18 +1079,12 @@ run_case() {
     # explicitly bypasses the target_ip check for unicast Replies and
     # creates a neigh entry from the injected frame — the opposite of
     # what this case tests. Temporarily disable `arp_accept` for the
-    # duration of ARP_38 only; restore after the harness has its verdict.
-    #
-    # Abnormal-termination safety (Ctrl-C mid-case): the top-level
-    # `trap cleanup EXIT` → `tear_down_worker` → `cleanup.sh` destroys
-    # the netns on any shell exit, and sysctls live inside the netns, so
-    # a leaked `arp_accept=0` vanishes with the netns regardless of
-    # whether the in-function restore below fires. No per-function trap
-    # needed.
-    local toggle_arp_accept=0
+    # duration of ARP_38 only. No restore needed: the per-case netns rebuild at
+    # run_case top resets arp_accept to setup-netns.sh's baseline (1) for the next
+    # case, and an abnormal exit (Ctrl-C) destroys the netns via the top-level
+    # `trap cleanup EXIT` -> `tear_down_worker` -> `cleanup.sh`.
     if [[ "$case_id" == "ARP_38" ]]; then
         if [[ "$TOPOLOGY_DUT_CONDITIONING" == "1" ]]; then
-            toggle_arp_accept=1
             ip netns exec "$dut_ns" sysctl -qw "net.ipv4.conf.$veth_d.arp_accept=0" >/dev/null
             ip netns exec "$dut_ns" sysctl -qw "net.ipv4.conf.all.arp_accept=0"     >/dev/null
         else
@@ -1158,11 +1141,9 @@ run_case() {
     # likewise gate on `is_arp_announce()` (sender_ip == target_ip
     # ∈ 169.254/16) which already rejects the kernel's tester-resolve
     # ARP — pin is uniformly applied for consistency, not strict need.
-    local toggle_dut_tester_neigh_pin=0
     case "$case_id" in
         IPv4_AUTOCONF_ADDRESS_SELECTION_*|IPv4_AUTOCONF_CONFLICT_*|IPv4_AUTOCONF_ANNOUNCING_*|IPv4_AUTOCONF_LINKLOCAL_PACKETS_*|IPv4_AUTOCONF_NETWORK_PARTITIONS_*)
             if [[ "$TOPOLOGY_DUT_CONDITIONING" == "1" ]]; then
-                toggle_dut_tester_neigh_pin=1
                 local tester_mac_pin
                 tester_mac_pin=$(cat "$WORK_ROOT/$W/tester_mac")
                 ip -n "$dut_ns" neigh replace "$TESTER_IP4" \
@@ -1209,10 +1190,8 @@ run_case() {
     #   * `gc_stale_time` — STALE state dwell before GC-removal (default
     #     60 s) — incidental backstop, the PROBE path is the primary
     #     ARP-request trigger.
-    local toggle_neigh_gc=0
     if [[ ( "$case_id" == "ARP_48" || "$case_id" == "ARP_49" ) \
           && "$TOPOLOGY_DUT_CONDITIONING" == "1" ]]; then
-        toggle_neigh_gc=1
         # base_reachable_time_ms = 500 puts the kernel's randomised
         # REACHABLE expiry in [250, 749] ms — always before the first
         # UT 0x02 request reaches the DUT (~1.75 s after harness
@@ -1276,15 +1255,12 @@ run_case() {
     # lifetime — well past phase 2's arrival — so the matched retry
     # completes reassembly cleanly.
     #
-    # Netns destroy via the top-level trap is the safety net on
-    # abnormal termination (sysctls live inside the netns); the
-    # in-function restore below keeps the worker's state clean between
-    # cases.
-    local toggle_ipfrag_time=0
+    # No restore needed: the per-case netns rebuild at run_case top resets
+    # ipfrag_time to its baseline for the next case (the top-level trap's netns
+    # destroy is the abnormal-termination safety net).
     case "$case_id" in
         ICMPv4_TYPE_04)
             if [[ "$TOPOLOGY_DUT_CONDITIONING" == "1" ]]; then
-                toggle_ipfrag_time=1
                 ip netns exec "$dut_ns" sysctl -qw "net.ipv4.ipfrag_time=3" >/dev/null
             else
                 log_conditioning_skip "$W" "$case_id" \
@@ -1312,7 +1288,6 @@ run_case() {
         # seconds.
         IPv4_REASSEMBLY_10|IPv4_REASSEMBLY_11|IPv4_REASSEMBLY_12)
             if [[ "$TOPOLOGY_DUT_CONDITIONING" == "1" ]]; then
-                toggle_ipfrag_time=1
                 ip netns exec "$dut_ns" sysctl -qw "net.ipv4.ipfrag_time=2" >/dev/null
             else
                 log_conditioning_skip "$W" "$case_id" \
@@ -1333,13 +1308,11 @@ run_case() {
     # `tcp_syn_linear_timeouts` to 0 in the dut_ns so doubling
     # kicks in from retransmit 1 — producing the 1 s / 2 s / 4 s
     # inter-frame sequence the SCXML guards expect. Sysctl scope
-    # is per-netns; restoring on case exit keeps cross-case state
-    # clean.
-    local toggle_syn_linear_timeouts=0
+    # is per-netns; the per-case netns rebuild resets it for the
+    # next case (no restore needed).
     case "$case_id" in
         TCP_RETRANSMISSION_TO_05)
             if [[ "$TOPOLOGY_DUT_CONDITIONING" == "1" ]]; then
-                toggle_syn_linear_timeouts=1
                 ip netns exec "$dut_ns" sysctl -qw "net.ipv4.tcp_syn_linear_timeouts=0" >/dev/null
             else
                 log_conditioning_skip "$W" "$case_id" \
@@ -1360,12 +1333,11 @@ run_case() {
     # the dut_ns so `tcp_retransmit_timer` follows the canonical
     # out_reset_timer path: state == TCP_ESTABLISHED && retransmits >
     # 0 ⇒ icsk_rto <<= 1 on every fire, yielding 200 / 400 / 800 ms
-    # inter-frame deltas. Restored on case exit.
-    local toggle_data_rto_recovery=0
+    # inter-frame deltas. The per-case netns rebuild resets both for
+    # the next case (no restore needed).
     case "$case_id" in
         TCP_RETRANSMISSION_TO_04|TCP_RETRANSMISSION_TO_03)
             if [[ "$TOPOLOGY_DUT_CONDITIONING" == "1" ]]; then
-                toggle_data_rto_recovery=1
                 ip netns exec "$dut_ns" sysctl -qw "net.ipv4.tcp_early_retrans=0" >/dev/null
                 ip netns exec "$dut_ns" sysctl -qw "net.ipv4.tcp_recovery=0" >/dev/null
             else
@@ -1674,73 +1646,18 @@ run_case() {
     kill_worker_procs "$harness_link"
     topology_stop_dut "$W"
 
-    # Restore arp_accept to the Phase 2 default. Idempotent — the toggle
-    # above only flipped it for ARP_38, but re-setting to 1 is harmless
-    # for other cases and guards against leaks across cases on the same
-    # worker (setup-netns.sh sets 1 at worker bring-up; the per-case
-    # toggle scope here stays symmetric).
-    if [[ $toggle_arp_accept -eq 1 ]]; then
-        ip netns exec "$dut_ns" sysctl -qw "net.ipv4.conf.$veth_d.arp_accept=1" >/dev/null
-        ip netns exec "$dut_ns" sysctl -qw "net.ipv4.conf.all.arp_accept=1"     >/dev/null
-    fi
-
-    # Restore arp_ignore to the default (0 = reply to all). Symmetric to
-    # the ARP_39/40 toggle above — tester-side, so it applies on every
-    # topology; on single-pc the netns destroy is the additional safety
-    # net.
+    # Restore arp_ignore to the default (0 = reply to all). This is the ONE
+    # per-case restore the netns rebuild at run_case top does NOT subsume: it is
+    # TESTER-side, and on topologies without a single-pc netns pair
+    # (external / ssh-remote, where TOPOLOGY_DUT_CONDITIONING=0 so the rebuild is
+    # skipped) the tester host persists across cases, so a leaked arp_ignore=8
+    # would suppress the tester's ARP replies for the next case. The DUT-side
+    # sysctl/neigh restores that used to sit here (arp_accept, neigh GC,
+    # ipfrag_time, tcp_syn_linear_timeouts, RACK/TLP, the tester-neigh pin) were
+    # all TOPOLOGY_DUT_CONDITIONING-gated (single-pc only), so the per-case netns
+    # rebuild now resets them from the SSOT baseline and they were retired.
     if [[ $toggle_arp_ignore -eq 1 ]]; then
         topology_exec_tester "$W" sysctl -qw "net.ipv4.conf.$tester_iface.arp_ignore=0" >/dev/null
-    fi
-
-    # Drop the §4.5 NUD_PERMANENT pin on <tester_ip>. `ip neigh
-    # flush` (run at the next case's start, line ~366) skips
-    # PERMANENT entries by default, so a leak here would survive
-    # into a follow-up ARP_07..15 case on the same worker — those
-    # cases require the DUT kernel to ARP-resolve tester from a
-    # cold cache, which the leaked pin would suppress.
-    if [[ $toggle_dut_tester_neigh_pin -eq 1 ]]; then
-        ip -n "$dut_ns" neigh del "$TESTER_IP4" dev "$veth_d" 2>/dev/null || true
-    fi
-
-    # Restore neigh GC sysctls to the kernel defaults. If another ARP
-    # case runs on the same worker after ARP_48/49, a leaked low
-    # `base_reachable_time_ms` would starve the cache and turn
-    # ARP_03..06's positive paths into false UDP-eth_dst failures.
-    # trap cleanup EXIT is the backstop on abnormal termination (netns
-    # destroy wipes sysctls), but in-function restore keeps the
-    # worker's state clean between cases.
-    if [[ $toggle_neigh_gc -eq 1 ]]; then
-        ip netns exec "$dut_ns" sysctl -qw "net.ipv4.neigh.$veth_d.base_reachable_time_ms=30000" >/dev/null
-        # Restore to setup-netns.sh's Phase-2 value (30), NOT the kernel
-        # default (5) — ARP_03/05 rely on the 30 s dwell to keep
-        # NUD_PROBE out of their 3 s absence window.
-        ip netns exec "$dut_ns" sysctl -qw "net.ipv4.neigh.$veth_d.delay_first_probe_time=30"    >/dev/null
-        ip netns exec "$dut_ns" sysctl -qw "net.ipv4.neigh.$veth_d.gc_stale_time=60"              >/dev/null
-    fi
-
-    # Restore ipfrag_time to the kernel default (30 s). Leaking 3 s to
-    # a subsequent case is harmless today (no other fragment-heavy
-    # case on the same worker), but the in-function restore keeps
-    # worker state symmetric with the arp/neigh toggles above.
-    if [[ $toggle_ipfrag_time -eq 1 ]]; then
-        ip netns exec "$dut_ns" sysctl -qw "net.ipv4.ipfrag_time=30" >/dev/null
-    fi
-
-    # Restore tcp_syn_linear_timeouts to the kernel default 4 after
-    # TCP_RETRANSMISSION_TO_05. Cross-case leak is harmless today (no
-    # sibling case depends on the linear-timeouts default), but
-    # symmetric restoration keeps worker state predictable.
-    if [[ $toggle_syn_linear_timeouts -eq 1 ]]; then
-        ip netns exec "$dut_ns" sysctl -qw "net.ipv4.tcp_syn_linear_timeouts=4" >/dev/null
-    fi
-
-    # Restore RACK / TLP defaults after TCP_RETRANSMISSION_TO_04.
-    # Cross-case leak is harmless today (no sibling case depends on
-    # those defaults), but symmetric restoration keeps worker state
-    # predictable.
-    if [[ $toggle_data_rto_recovery -eq 1 ]]; then
-        ip netns exec "$dut_ns" sysctl -qw "net.ipv4.tcp_early_retrans=3" >/dev/null
-        ip netns exec "$dut_ns" sysctl -qw "net.ipv4.tcp_recovery=1" >/dev/null
     fi
 
     # Conformance verdict classes that are NOT a DUT violation (ISO/IEC 9646 /
@@ -1848,7 +1765,8 @@ run_negative_case() {
     : >"$hlog"
     : >"$dlog"
 
-    ip -n "$dut_ns" neigh flush dev "$veth_d"
+    # DUT neigh cache is flushed by the per-case netns rebuild's bring-up (see
+    # run_case) — no separate per-case flush needed here.
 
     # Mirror run_case's per-case arp_accept toggle for ARP_38. No negative
     # row targets ARP_38 today (the pass-path fail-guard uses
@@ -1856,9 +1774,7 @@ run_negative_case() {
     # CLI split before it could be meaningfully overridden), but keeping
     # this symmetric with run_case prevents a silent misbehaviour the
     # day that row is added.
-    local toggle_arp_accept=0
     if [[ "$case_id" == "ARP_38" ]]; then
-        toggle_arp_accept=1
         ip netns exec "$dut_ns" sysctl -qw "net.ipv4.conf.$veth_d.arp_accept=0" >/dev/null
         ip netns exec "$dut_ns" sysctl -qw "net.ipv4.conf.all.arp_accept=0"     >/dev/null
     fi
@@ -1873,14 +1789,11 @@ run_negative_case() {
     # already lands on fail_timeout on Linux); the toggle is gated on
     # case-id so its absence in NEG_ROWS leaves the run_negative_case
     # branch a no-op for that id.
-    local toggle_ipfrag_time=0
     case "$case_id" in
         ICMPv4_TYPE_04)
-            toggle_ipfrag_time=1
             ip netns exec "$dut_ns" sysctl -qw "net.ipv4.ipfrag_time=3" >/dev/null
             ;;
         IPv4_REASSEMBLY_10|IPv4_REASSEMBLY_11|IPv4_REASSEMBLY_12)
-            toggle_ipfrag_time=1
             ip netns exec "$dut_ns" sysctl -qw "net.ipv4.ipfrag_time=2" >/dev/null
             ;;
     esac
@@ -1894,17 +1807,13 @@ run_negative_case() {
     # cross-case sysctl state predictable and avoids a future
     # silent-asymmetry surprise if a negative variant ever exercises
     # the retx path.
-    local toggle_syn_linear_timeouts=0
     case "$case_id" in
         TCP_RETRANSMISSION_TO_05)
-            toggle_syn_linear_timeouts=1
             ip netns exec "$dut_ns" sysctl -qw "net.ipv4.tcp_syn_linear_timeouts=0" >/dev/null
             ;;
     esac
-    local toggle_data_rto_recovery=0
     case "$case_id" in
         TCP_RETRANSMISSION_TO_04|TCP_RETRANSMISSION_TO_03)
-            toggle_data_rto_recovery=1
             ip netns exec "$dut_ns" sysctl -qw "net.ipv4.tcp_early_retrans=0" >/dev/null
             ip netns exec "$dut_ns" sysctl -qw "net.ipv4.tcp_recovery=0" >/dev/null
             ;;
@@ -1931,9 +1840,7 @@ run_negative_case() {
     # (UDP1 emits with cached MAC1 whether REACHABLE or DELAY) so
     # the verdict is correct without the toggle. Same forward-defense
     # rationale as the ARP_38 / ARP_39/40 mirrors above.
-    local toggle_neigh_gc=0
     if [[ "$case_id" == "ARP_48" || "$case_id" == "ARP_49" ]]; then
-        toggle_neigh_gc=1
         ip netns exec "$dut_ns" sysctl -qw "net.ipv4.neigh.$veth_d.base_reachable_time_ms=500" >/dev/null
         ip netns exec "$dut_ns" sysctl -qw "net.ipv4.neigh.$veth_d.delay_first_probe_time=1"   >/dev/null
         ip netns exec "$dut_ns" sysctl -qw "net.ipv4.neigh.$veth_d.gc_stale_time=1"             >/dev/null
@@ -2113,44 +2020,12 @@ run_negative_case() {
     kill_worker_procs "$harness_link"
     kill_worker_procs "$mock_dut_link"
 
-    if [[ $toggle_arp_accept -eq 1 ]]; then
-        ip netns exec "$dut_ns" sysctl -qw "net.ipv4.conf.$veth_d.arp_accept=1" >/dev/null
-        ip netns exec "$dut_ns" sysctl -qw "net.ipv4.conf.all.arp_accept=1"     >/dev/null
-    fi
-
-    # Mirror run_case's restoration of ipfrag_time. Symmetric with
-    # the install block above.
-    if [[ $toggle_ipfrag_time -eq 1 ]]; then
-        ip netns exec "$dut_ns" sysctl -qw "net.ipv4.ipfrag_time=30" >/dev/null
-    fi
-
-    # Mirror run_case's restoration of RETRANSMISSION_TO sysctl
-    # toggles. Symmetric with the run_case restore block; see the
-    # toggle install above for the no-op rationale on the negative
-    # path.
-    if [[ $toggle_syn_linear_timeouts -eq 1 ]]; then
-        ip netns exec "$dut_ns" sysctl -qw "net.ipv4.tcp_syn_linear_timeouts=4" >/dev/null
-    fi
-    if [[ $toggle_data_rto_recovery -eq 1 ]]; then
-        ip netns exec "$dut_ns" sysctl -qw "net.ipv4.tcp_early_retrans=3" >/dev/null
-        ip netns exec "$dut_ns" sysctl -qw "net.ipv4.tcp_recovery=1" >/dev/null
-    fi
-
-    # Mirror run_case's restoration of arp_ignore (ARP_39/40).
-    # Symmetric with the install block above.
+    # DUT-side per-case sysctl/neigh restores were retired here (as in run_case):
+    # the netns rebuild at run_negative_case top resets them from setup-netns.sh's
+    # baseline. Only the TESTER-side arp_ignore restore remains — the rebuild does
+    # not reach the tester config on topologies without a single-pc netns pair.
     if [[ $toggle_arp_ignore -eq 1 ]]; then
         ip netns exec "$tester_ns" sysctl -qw "net.ipv4.conf.$veth_t.arp_ignore=0" >/dev/null
-    fi
-
-    # Mirror run_case's restoration of neigh GC sysctls (ARP_48/49).
-    # delay_first_probe_time restored to setup-netns.sh's Phase-2 value
-    # (30), NOT the kernel default (5) — keeps cross-case state symmetric
-    # with run_case (Phase 2 ARP_03/05 absence-window protection relies
-    # on the 30 s dwell).
-    if [[ $toggle_neigh_gc -eq 1 ]]; then
-        ip netns exec "$dut_ns" sysctl -qw "net.ipv4.neigh.$veth_d.base_reachable_time_ms=30000" >/dev/null
-        ip netns exec "$dut_ns" sysctl -qw "net.ipv4.neigh.$veth_d.delay_first_probe_time=30"    >/dev/null
-        ip netns exec "$dut_ns" sysctl -qw "net.ipv4.neigh.$veth_d.gc_stale_time=60"              >/dev/null
     fi
 
     # A negative case proves the guard DETECTS injected non-conformance by
