@@ -158,9 +158,8 @@ TEST(Reactor, CallerDrivenPumpServicesTimersAndWatchesWithNoOwnedThread) {
     be.sendToV4(tx, payload, sizeof(payload), loopback(kPort));
 
     // Pump from this task until both are serviced or a wall-clock deadline — bound
-    // by time, not iteration count, because a sub-millisecond timer makes runOnce()
-    // return at once (the poll timeout floors to 0), so a fixed iteration cap could
-    // elapse before real time reaches the timer's due point.
+    // by time, not iteration count, so a loaded host cannot false-fail (the repo's
+    // waitUntil convention); the reactor waits ~1 ms per poll for the 1 ms timer.
     const auto deadline = std::chrono::steady_clock::now() + ms{2000};
     while (std::chrono::steady_clock::now() < deadline && (fired == 0 || got == 0)) {
         r.runOnce(/*max_wait_ms=*/5);

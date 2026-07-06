@@ -308,9 +308,15 @@ public:
         }
         int timeout_ms = max_wait_ms;
         if (earliest) {
-            const auto d =
-                std::chrono::duration_cast<std::chrono::milliseconds>(*earliest - now).count();
-            const int until = (d < 0) ? 0 : static_cast<int>(d);
+            // Round the wait UP to the next whole millisecond (poll's resolution):
+            // a sub-ms remainder must still wait, never truncate to 0, which would
+            // spin the loop until the timer comes due. A fire up to ~1 ms late is
+            // preferred to that busy-wait and is immaterial at the ms-scale periods
+            // used here. earliest is strictly in the future (due timers fire above),
+            // so ceil is >= 1; the negative guard is only defensive.
+            const auto rem =
+                std::chrono::ceil<std::chrono::milliseconds>(*earliest - now).count();
+            const int until = (rem < 0) ? 0 : static_cast<int>(rem);
             if (until < timeout_ms) {
                 timeout_ms = until;
             }
