@@ -72,6 +72,18 @@ public:
         }
     }
 
+    void findService(std::uint16_t service, std::uint16_t instance,
+                     std::uint8_t major) override {
+        if (!app_) return;
+        std::lock_guard<std::mutex> lock(mutex_);
+        // request_service is the minimal trigger for a FindService: with no event or
+        // method registered vsomeip's SD client still Finds the not-yet-available
+        // service, carrying `major` (0xFF == ANY_MAJOR == wildcard) into the entry.
+        // Reuses the same dedup + availability-handler + dtor-release path as
+        // subscribe/callMethod so the discovery lifecycle stays uniform.
+        requestServiceLocked(service, instance, major);
+    }
+
     void subscribeEventgroup(std::uint16_t service, std::uint16_t instance,
                              std::uint16_t eventgroup,
                              const std::vector<std::uint16_t>& events, bool reliable,
@@ -369,6 +381,7 @@ private:
 // from makeEtsClientControl explains.
 class NullEtsClientControl : public IEtsClientControl {
 public:
+    void findService(std::uint16_t, std::uint16_t, std::uint8_t) override {}
     void subscribeEventgroup(std::uint16_t, std::uint16_t, std::uint16_t,
                              const std::vector<std::uint16_t>&, bool,
                              std::uint8_t) override {}

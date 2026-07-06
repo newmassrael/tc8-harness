@@ -35,6 +35,24 @@ class IEtsClientControl {
 public:
     virtual ~IEtsClientControl() = default;
 
+    // Trigger the DUT (client role) to DISCOVER `service`/`instance` at interface
+    // `major` by request_service()ing it: vsomeip's SD client then emits a
+    // FindService SD entry carrying `major` through the Initial-Wait and Repetition
+    // phases (a not-yet-available remote service is exactly what makes vsomeip Find —
+    // see requestServiceLocked, "request_service only STARTS the SD FindService").
+    // This is the pure-discovery sibling of subscribeEventgroup/callMethod (which
+    // request_service internally) — no eventgroup, no method, just the Find — for a
+    // verdict that observes the emitted FindService's Major. Pass major == 0xFF
+    // (vsomeip::ANY_MAJOR) to Find with no version preference (the wildcard Find), or
+    // a specific value to Find that Major. The requested minor is ANY_MINOR (a
+    // SOME/IP-SD Find carries no specific minor). Idempotent per (service, instance):
+    // vsomeip request_service dedups, so the Major is fixed at the first findService
+    // for a pair; the dtor's release_service balances it once. Using this instead of
+    // the CommonAPI ClientTarget proxy is what keeps the wire to a SINGLE Find at the
+    // chosen Major (the proxy would emit its own fixed-Major Find in parallel).
+    virtual void findService(std::uint16_t service, std::uint16_t instance,
+                             std::uint8_t major) = 0;
+
     // Subscribe the DUT (client role) to `eventgroup` on the tester's
     // `service`/`instance`/`major`. vsomeip requires each event of the eventgroup
     // to be registered before subscribe (else event type/reliability are unknown

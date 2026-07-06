@@ -92,6 +92,16 @@ public:
         std::uint16_t instance;
         std::uint16_t eventgroup;
     };
+    struct Find {
+        std::uint16_t service;
+        std::uint16_t instance;
+        std::uint8_t major;
+    };
+
+    void findService(std::uint16_t service, std::uint16_t instance,
+                     std::uint8_t major) override {
+        finds.push_back({service, instance, major});
+    }
 
     // noinline so GCC analyses this with the generic `const vector&` (unknown
     // size) instead of constant-propagating the size-1 events list inlined from
@@ -150,6 +160,7 @@ public:
         std::uint8_t major;
     };
 
+    std::vector<Find> finds;
     std::vector<Subscribe> subscribes;
     std::vector<Stop> stops;
     std::vector<Call> calls;
