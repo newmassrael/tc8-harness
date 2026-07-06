@@ -6,7 +6,6 @@
 #include <map>
 #include <memory>
 #include <optional>
-#include <string>
 #include <vector>
 
 #include "testability/middleware.h"

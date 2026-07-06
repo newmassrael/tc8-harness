@@ -79,9 +79,7 @@ public:
             if (final_task) {
                 final_task();
             }
-            timers_.clear();   // nothing fires after the final task (loop-thread state)
-            watches_.clear();
-            running_ = false;  // exit the loop after this task
+            resetLoopState();  // nothing fires after the final task; exit the loop
         });
         thread_.join();
         waker_.reset();
@@ -114,10 +112,23 @@ public:
         if (final_task) {
             final_task();
         }
-        timers_.clear();
-        watches_.clear();
-        running_ = false;
+        resetLoopState();
         waker_.reset();
+    }
+
+    // Mode-agnostic teardown for a holder that may have used either entry (start()
+    // or open()): dispatch to the owned-thread join or the caller-driven close() as
+    // this reactor was actually started. Lets that holder's own stop() stay simple.
+    void shutdown(const std::function<void()> &final_task = {}) {
+#ifdef TC8_REACTOR_SINGLE_THREAD
+        close(final_task);
+#else
+        if (thread_.joinable()) {
+            stop(final_task);
+        } else {
+            close(final_task);
+        }
+#endif
     }
 
     // Enqueue `fn` and block until the loop runs it. Inline when already on the loop
@@ -201,6 +212,15 @@ private:
 #ifndef TC8_REACTOR_SINGLE_THREAD
         assert(std::this_thread::get_id() == thread_id_);
 #endif
+    }
+
+    // Drop all timers and watches and mark the loop stopped — the single teardown
+    // step shared by stop() (on the loop thread, before the join) and close() (on
+    // the calling task). The waker is freed by each caller afterwards.
+    void resetLoopState() {
+        timers_.clear();
+        watches_.clear();
+        running_ = false;
     }
 
     TimerId arm(std::chrono::milliseconds period, std::function<void()> fn, bool periodic) {

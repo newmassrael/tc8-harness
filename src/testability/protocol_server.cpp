@@ -2,6 +2,7 @@
 
 #include <cstring>
 #include <stdexcept>
+#include <string>
 #include <utility>
 
 #include "wire/icmp_echo.h"
@@ -160,14 +161,10 @@ void ProtocolServer::run() {
 }
 
 void ProtocolServer::stop() {
-    // teardownOnLoop must run on the loop: under start() the reactor marshals it to
-    // its thread then joins (close() is then a no-op); under startInline() the
-    // reactor has no thread so it runs on this task via close(). Each path runs the
-    // teardown exactly once. (The single-task build has no reactor_.stop().)
-#ifndef TC8_REACTOR_SINGLE_THREAD
-    reactor_.stop([this] { teardownOnLoop(); });
-#endif
-    reactor_.close([this] { teardownOnLoop(); });
+    // teardownOnLoop (module onStop + drop worker watches) runs on the loop; the
+    // reactor's shutdown() marshals it to the owned thread and joins, or runs it on
+    // this task for a startInline() server — so stop() is the same regardless.
+    reactor_.shutdown([this] { teardownOnLoop(); });
     if (fd_ >= 0) {
         backend_->closeFd(fd_);
         fd_ = -1;
