@@ -173,4 +173,48 @@ TEST(Reactor, CallerDrivenPumpServicesTimersAndWatchesWithNoOwnedThread) {
     be.closeFd(rx);
 }
 
+// A watch handler that removes its OWN watch must be safe — the dispatch copies the
+// stored std::function before invoking it, so erasing the watch (freeing that
+// function) mid-call cannot pull the running lambda out from under itself. This is
+// the pattern the unified server's self-terminating workers and END_TEST rely on.
+TEST(Reactor, WatchMayRemoveItselfFromWithinHandler) {
+    tc8::dut::PosixSocketBackend be;
+    tt::Reactor r{be};
+    r.open();
+
+    const int rx = be.createUdp();
+    ASSERT_GE(rx, 0);
+    constexpr std::uint16_t kPort = 39975;
+    ASSERT_TRUE(be.bindV4(rx, 0, kPort));
+
+    int fires = 0;
+    tt::WatchId wid = tt::kNoWatch;
+    wid = r.addWatch(rx, [&] {
+        std::uint8_t buf[32];
+        tc8::net::Endpoint src{};
+        be.recvFromV4(rx, buf, sizeof(buf), src);
+        ++fires;
+        r.removeWatch(wid);  // self-remove mid-handler — must not crash or re-fire
+    });
+
+    const int tx = be.createUdp();
+    ASSERT_GE(tx, 0);
+    const std::uint8_t payload[] = {0x1};
+    be.sendToV4(tx, payload, sizeof(payload), loopback(kPort));
+    be.sendToV4(tx, payload, sizeof(payload), loopback(kPort));  // watch is gone by now
+
+    const auto deadline = std::chrono::steady_clock::now() + ms{1000};
+    while (std::chrono::steady_clock::now() < deadline && fires == 0) {
+        r.runOnce(5);
+    }
+    for (int i = 0; i < 20; ++i) {  // extra pumps: a removed watch must not fire again
+        r.runOnce(2);
+    }
+    EXPECT_EQ(fires, 1) << "self-removed watch fires exactly once, no crash";
+
+    r.close();
+    be.closeFd(tx);
+    be.closeFd(rx);
+}
+
 }  // namespace

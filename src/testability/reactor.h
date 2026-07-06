@@ -278,7 +278,8 @@ public:
         for (const std::uint64_t id : fire_) {
             const auto it = watches_.find(id);
             if (it != watches_.end()) {  // still watched (a prior handler may have removed it)
-                it->second.fn();
+                std::function<void()> fn = it->second.fn;  // copy: a handler may remove its own
+                fn();                                       // watch, freeing the stored function
             }
         }
         return running_;
