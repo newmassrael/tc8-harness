@@ -1,22 +1,14 @@
 #include "testability/protocol_server.h"
 
-#include <cassert>
 #include <cstring>
-#include <deque>
-#include <future>
 #include <stdexcept>
 #include <utility>
 
-#include "testability/reactor.h"
 #include "wire/icmp_echo.h"
 
 namespace tc8::testability {
 
 namespace {
-
-// Wake interval for the async-event SP worker threads' wait loop — bounds how
-// fast acceptLoop / receiveLoop notice the stop / reset flags.
-constexpr int kEventThreadWakeUs = 200 * 1000;  // 200 ms
 
 // PRS_TPSP §6.10 SEND_DATA totalLen rule, shared by the UDP and TCP backends:
 // repeat `data` up to `total_len` bytes; if total_len < data_len send the full
@@ -51,73 +43,59 @@ Endpoint endpointFromWire(const std::uint8_t *addr_be4, std::uint16_t host_port)
 }  // namespace
 
 // Hosts one MiddlewareModule (PRS_TPSP §6.6 stateful extension): it is the
-// MiddlewareContext the module sees, plus the server-thread marshaling bridge that
-// preserves the synchronous request/response of the dispatch loop. The event loop
-// itself — timers, fd watches, posted tasks, the cross-thread Waker — is the
-// reusable Reactor (src/testability/reactor.h); this class owns one and delegates
-// to it, so every module callback still runs run-to-completion on the reactor's
-// single thread and the module needs no internal locking.
+// MiddlewareContext the module sees. It holds no loop of its own — every callback
+// and every timer/watch it schedules runs on the ProtocolServer's single shared
+// Reactor (src/testability/reactor.h), so a module callback, the module's timers,
+// and the control dispatch are all serialized run-to-completion on one thread and
+// the module needs no internal locking. Because dispatch is already on that loop,
+// a primitive is invoked directly (no cross-thread marshaling).
 struct ProtocolServer::ModuleRuntime final : MiddlewareContext {
     ModuleRuntime(ProtocolServer *server, std::unique_ptr<MiddlewareModule> module)
-        : server_(server),
-          module_(std::move(module)),
-          groups_(module_->groups()),
-          reactor_(*server_->backend_) {}
+        : server_(server), module_(std::move(module)), groups_(module_->groups()) {}
 
     const std::vector<std::uint8_t> &ownedGroups() const { return groups_; }
 
-    // ── server-thread lifecycle (each marshaled onto the reactor thread) ──
+    // ── lifecycle (each runs on the reactor loop) ──
 
-    void startExecutor() {
-        reactor_.start();
-        reactor_.post([this] { module_->onStart(*this); });  // ready before serving
+    void onStart() { module_->onStart(*this); }  // ready before serving
+    void onStop() { module_->onStop(); }
+
+    // Invoke a primitive directly: the caller (onControlReadable -> dispatch) is
+    // already on the reactor loop, serialized with this module's timers, so the
+    // synchronous request/response of PRS_TPSP §6.2 holds with no marshaling.
+    void invokePrimitive(const Header &req, const std::uint8_t *dat, std::size_t dat_len,
+                         const Endpoint &peer, std::uint8_t &rid_out,
+                         std::vector<std::uint8_t> &resp_dat) {
+        requester_ = peer;
+        service_id_ = req.service_id;
+        module_->onPrimitive(req, dat, dat_len, peer, rid_out, resp_dat);
     }
 
-    void stopExecutor() {
-        // onStop on the reactor thread, then join + free the waker. Idempotent.
-        reactor_.stop([this] { module_->onStop(); });
-    }
+    void startTest() { module_->onStartTest(); }
+    void endTest() { module_->onEndTest(); }
 
-    // Marshal a primitive onto the reactor and block for its Response — keeps it
-    // serialized with the module's timers (run-to-completion) while preserving
-    // the synchronous request/response of PRS_TPSP §6.2. `dat` / `rid_out` /
-    // `resp_dat` stay valid because the caller blocks until the task completes.
-    void invokePrimitiveSync(const Header &req, const std::uint8_t *dat, std::size_t dat_len,
-                             const Endpoint &peer, std::uint8_t &rid_out,
-                             std::vector<std::uint8_t> &resp_dat) {
-        reactor_.post([&] {
-            requester_ = peer;
-            service_id_ = req.service_id;
-            module_->onPrimitive(req, dat, dat_len, peer, rid_out, resp_dat);
-        });
-    }
-
-    void startTest() { reactor_.post([this] { module_->onStartTest(); }); }
-    void endTest() { reactor_.post([this] { module_->onEndTest(); }); }
-
-    // ── MiddlewareContext (invoked on the reactor thread by module callbacks) ──
-    // Each scheduling method delegates to the reactor, which asserts it runs on its
-    // own thread (the "call on the module executor" precondition).
+    // ── MiddlewareContext (invoked on the reactor loop by module callbacks) ──
+    // Each scheduling method delegates to the shared reactor, which asserts it runs
+    // on the loop thread (the "call on the module executor" precondition).
 
     net::SocketBackend &backend() override { return *server_->backend_; }
 
     TimerId scheduleEvery(std::chrono::milliseconds period, std::function<void()> fn) override {
-        return reactor_.armEvery(period, std::move(fn));
+        return server_->reactor_.armEvery(period, std::move(fn));
     }
     TimerId scheduleOnce(std::chrono::milliseconds delay, std::function<void()> fn) override {
-        return reactor_.armOnce(delay, std::move(fn));
+        return server_->reactor_.armOnce(delay, std::move(fn));
     }
-    void cancel(TimerId id) override { reactor_.cancel(id); }
+    void cancel(TimerId id) override { server_->reactor_.cancel(id); }
     WatchId watchReadable(int fd, std::function<void()> on_readable) override {
-        return reactor_.addWatch(fd, std::move(on_readable));
+        return server_->reactor_.addWatch(fd, std::move(on_readable));
     }
-    void unwatch(WatchId id) override { reactor_.removeWatch(id); }
+    void unwatch(WatchId id) override { server_->reactor_.removeWatch(id); }
     void emitEvent(std::uint8_t gid, std::uint8_t pid,
                    const std::vector<std::uint8_t> &dat) override {
         // To the requester of the module's most recent primitive (PRS_TPSP §6.2);
         // an event-capable test system keeps one persistent control socket, so
-        // that address stays valid across arm and fire. Serialised with the
-        // core's responses by ProtocolServer::emitEvent.
+        // that address stays valid across arm and fire.
         server_->emitEvent(service_id_, gid, pid, dat, requester_);
     }
 
@@ -125,51 +103,85 @@ private:
     ProtocolServer *server_;
     std::unique_ptr<MiddlewareModule> module_;
     std::vector<std::uint8_t> groups_;
-    Reactor reactor_;  // the per-module event loop (timers / watches / tasks / waker)
 
     // The requester of the module's most recent primitive — emitEvent's target
-    // (PRS_TPSP §6.2). Touched only on the reactor thread.
+    // (PRS_TPSP §6.2). Touched only on the reactor loop.
     Endpoint requester_{};
     std::uint16_t service_id_ = kDefaultServiceId;
 };
 
 ProtocolServer::ProtocolServer(std::unique_ptr<SocketBackend> backend)
-    : backend_(std::move(backend)) {}
+    : backend_(std::move(backend)), reactor_(*backend_) {}
 
 ProtocolServer::~ProtocolServer() {
     stop();
 }
 
-bool ProtocolServer::start(std::uint16_t port) {
+bool ProtocolServer::bindControl(std::uint16_t port) {
     fd_ = backend_->createUdp();
     if (fd_ < 0) {
         return false;
     }
     backend_->setReuseAddr(fd_);
-    // 200 ms recv timeout so the loop wakes to check stop_requested_.
-    backend_->setRecvTimeoutMs(fd_, 200);
     if (!backend_->bindV4(fd_, /*addr_be=*/0, port)) {  // 0 == INADDR_ANY
         backend_->closeFd(fd_);
         fd_ = -1;
         return false;
     }
-    startModules();  // each module ready (onStart) before the first request
-    thread_ = std::thread([this] { serverLoop(); });
     return true;
 }
 
-void ProtocolServer::stop() {
-    stop_requested_ = true;
-    if (thread_.joinable()) {
-        thread_.join();
+bool ProtocolServer::start(std::uint16_t port) {
+    if (!bindControl(port)) {
+        return false;
     }
-    joinEventThreads();
-    stopModules();  // onStop() + join executors while the control socket is open
+    reactor_.start();                          // the single loop, on its own thread
+    reactor_.post([this] { setupOnLoop(); });  // control watch + module onStart, on the loop
+    return true;
+}
+
+bool ProtocolServer::startInline(std::uint16_t port) {
+    if (!bindControl(port)) {
+        return false;
+    }
+    reactor_.open();  // caller-driven: the pumping task owns the loop
+    setupOnLoop();     // runs inline on the calling task
+    return true;
+}
+
+bool ProtocolServer::runOnce(int timeout_ms) {
+    return reactor_.runOnce(timeout_ms);
+}
+
+void ProtocolServer::run() {
+    reactor_.run();
+}
+
+void ProtocolServer::stop() {
+    // teardownOnLoop must run on the loop: under start() the reactor marshals it to
+    // its thread then joins (close() is then a no-op); under startInline() the
+    // reactor has no thread so stop() no-ops and close() runs it on this task. Each
+    // path runs the teardown exactly once.
+    reactor_.stop([this] { teardownOnLoop(); });
+    reactor_.close([this] { teardownOnLoop(); });
     if (fd_ >= 0) {
         backend_->closeFd(fd_);
         fd_ = -1;
     }
     closeAllSockets();
+}
+
+void ProtocolServer::setupOnLoop() {
+    // The control socket is level-triggered on the reactor; make it non-blocking so
+    // a spurious wake never stalls the shared loop in recv.
+    backend_->setNonBlocking(fd_, true);
+    control_watch_ = reactor_.addWatch(fd_, [this] { onControlReadable(); });
+    startModules();  // each module ready (onStart arms its timers/watches) before serving
+}
+
+void ProtocolServer::teardownOnLoop() {
+    stopModules();       // onStop() while the control socket is still open
+    stopAllWorkers();    // drop every async-event watch (their fds close in closeAllSockets)
 }
 
 void ProtocolServer::registerPrimitive(std::uint8_t gid, std::uint8_t pid, SpHandler handler) {
@@ -199,13 +211,13 @@ void ProtocolServer::registerModule(std::unique_ptr<MiddlewareModule> module) {
 
 void ProtocolServer::startModules() {
     for (const auto &rt : modules_) {
-        rt->startExecutor();
+        rt->onStart();
     }
 }
 
 void ProtocolServer::stopModules() {
     for (const auto &rt : modules_) {
-        rt->stopExecutor();
+        rt->onStop();
     }
 }
 
@@ -221,38 +233,38 @@ void ProtocolServer::broadcastEndTest() {
     }
 }
 
-void ProtocolServer::serverLoop() {
+void ProtocolServer::onControlReadable() {
+    // One datagram per readiness; the reactor is level-triggered, so a burst is
+    // drained across successive polls. fd_ is non-blocking (setupOnLoop), so a
+    // spurious wake just yields a short read and returns.
     std::uint8_t buf[2048];
-    while (!stop_requested_) {
-        Endpoint peer;
-        const int n = backend_->recvFromV4(fd_, buf, sizeof(buf), peer);
-        // recvFromV4 reports the true datagram length (may exceed the buffer);
-        // cap to what is actually in `buf` for parsing.
-        if (n < static_cast<int>(kHeaderSize)) {
-            continue;  // timeout or runt
-        }
-        const std::size_t avail =
-            (static_cast<std::size_t>(n) < sizeof(buf)) ? static_cast<std::size_t>(n) : sizeof(buf);
-        const auto header = parseHeader(buf, avail);
-        if (!header || header->tid != kTidRequest) {
-            continue;  // not a request addressed to us
-        }
-
-        const std::uint8_t *dat = buf + kHeaderSize;
-        const std::size_t dat_len = avail - kHeaderSize;
-
-        std::uint8_t rid = kRidEOk;
-        std::vector<std::uint8_t> resp_dat;
-        dispatch(*header, dat, dat_len, peer, rid, resp_dat);
-
-        Header resp = *header;     // echo service_id + method_id
-        resp.tid = kTidResponse;   // PRS_TPSP §6.2 Response
-        resp.rid = rid;
-        const auto out =
-            buildMessage(resp, resp_dat.empty() ? nullptr : resp_dat.data(), resp_dat.size());
-        std::lock_guard<std::mutex> lk(send_mu_);
-        backend_->sendToV4(fd_, out.data(), out.size(), peer);
+    Endpoint peer;
+    const int n = backend_->recvFromV4(fd_, buf, sizeof(buf), peer);
+    // recvFromV4 reports the true datagram length (may exceed the buffer); cap to
+    // what is actually in `buf` for parsing.
+    if (n < static_cast<int>(kHeaderSize)) {
+        return;  // would-block or runt
     }
+    const std::size_t avail =
+        (static_cast<std::size_t>(n) < sizeof(buf)) ? static_cast<std::size_t>(n) : sizeof(buf);
+    const auto header = parseHeader(buf, avail);
+    if (!header || header->tid != kTidRequest) {
+        return;  // not a request addressed to us
+    }
+
+    const std::uint8_t *dat = buf + kHeaderSize;
+    const std::size_t dat_len = avail - kHeaderSize;
+
+    std::uint8_t rid = kRidEOk;
+    std::vector<std::uint8_t> resp_dat;
+    dispatch(*header, dat, dat_len, peer, rid, resp_dat);
+
+    Header resp = *header;    // echo service_id + method_id
+    resp.tid = kTidResponse;  // PRS_TPSP §6.2 Response
+    resp.rid = rid;
+    const auto out =
+        buildMessage(resp, resp_dat.empty() ? nullptr : resp_dat.data(), resp_dat.size());
+    backend_->sendToV4(fd_, out.data(), out.size(), peer);
 }
 
 void ProtocolServer::dispatch(const Header &req, const std::uint8_t *dat, std::size_t dat_len,
@@ -272,7 +284,7 @@ void ProtocolServer::dispatch(const Header &req, const std::uint8_t *dat, std::s
     // the module's executor and awaited, after the registerPrimitive table and
     // before the built-in groups.
     if (const auto mit = gid_to_module_.find(gid); mit != gid_to_module_.end()) {
-        mit->second->invokePrimitiveSync(req, dat, dat_len, peer, rid_out, resp_dat);
+        mit->second->invokePrimitive(req, dat, dat_len, peer, rid_out, resp_dat);
         return;
     }
 
@@ -289,9 +301,7 @@ void ProtocolServer::dispatch(const Header &req, const std::uint8_t *dat, std::s
                 rid_out = kRidEOk;
                 return;
             case kPidEndTest:
-                reset_events_ = true;
-                joinEventThreads();
-                reset_events_ = false;
+                stopAllWorkers();    // drop every async-event watch (on the loop)
                 closeAllSockets();
                 broadcastEndTest();  // modules return to their inactive state
                 rid_out = kRidEOk;
@@ -767,69 +777,77 @@ std::uint8_t ProtocolServer::listenAndAcceptTcp(const std::uint8_t *dat, std::si
     }
 
     // Accept asynchronously: E_OK now, each accepted connection reported later as
-    // an Event. The worker's lifetime is owned by the listen socket (stopWorker
-    // on close), so re-arm the slot before installing.
+    // an Event. The worker is a reactor watch on the listen socket (non-blocking so
+    // accept never stalls the shared loop); its lifetime is owned by the listen
+    // socket (stopWorker on close), so re-arm the slot before installing.
     stopWorker(listen_socket_id);
-    auto stop = std::make_shared<std::atomic<bool>>(false);
-    std::thread t(&ProtocolServer::acceptLoop, this, *fd, service_id, listen_socket_id, max_con,
-                  peer, stop);
-    {
-        std::lock_guard<std::mutex> lk(workers_mu_);
-        auto &w = event_workers_[listen_socket_id];  // fresh: stopWorker erased any prior
-        w.stop = std::move(stop);
-        w.thread = std::move(t);
-    }
+    backend_->setNonBlocking(*fd, true);
+    EventWatch w;
+    w.kind = EventWatch::kAccept;
+    w.fd = *fd;
+    w.service_id = service_id;
+    w.peer = peer;
+    w.listen_socket_id = listen_socket_id;
+    w.max_con = max_con;
+    armEventWatch(listen_socket_id, w);
     return kRidEOk;
 }
 
-void ProtocolServer::runEventWorkerLoop(int fd, const std::shared_ptr<std::atomic<bool>> &stop,
-                                        const std::function<bool()> &again,
-                                        const std::function<bool()> &on_readable) {
-    // PRS_TPSP §6.2 async-SP worker skeleton, shared by acceptLoop /
-    // receiveLoopTcp / receiveLoopUdp. The fd is non-blocking only for the span
-    // of the loop (restored on exit) so the wait never blocks past the wake
-    // window — that bounds how fast the stop / reset flags are noticed.
-    backend_->setNonBlocking(fd, true);
-    while (!stop_requested_ && !reset_events_ && !stop->load() && again()) {
-        const int sr = backend_->waitReadable(fd, kEventThreadWakeUs);
-        if (sr == 0) {
-            continue;  // timeout / signal — re-check the stop / reset flags
-        }
-        if (sr < 0) {
-            break;  // fd closed under us / fatal error — stop
-        }
-        if (!on_readable()) {
-            break;  // the body signalled end-of-stream (e.g. a TCP peer close)
-        }
-    }
-    backend_->setNonBlocking(fd, false);  // restore (the fd lives on in the table)
+void ProtocolServer::armEventWatch(std::uint16_t socket_id, EventWatch w) {
+    // Install the watch, then record it under its socket_id so stopWorker /
+    // stopAllWorkers can remove it. The handler re-looks-up the record each fire, so
+    // its per-fire state (accepted / consumed) lives in event_watches_, not the
+    // lambda (the reactor copies the stored std::function before invoking it).
+    const WatchId id = reactor_.addWatch(w.fd, [this, socket_id] { onWorkerReadable(socket_id); });
+    w.id = id;
+    event_watches_[socket_id] = w;  // fresh: stopWorker erased any prior
 }
 
-void ProtocolServer::acceptLoop(int listen_fd, std::uint16_t service_id,
-                                std::uint16_t listen_socket_id, std::uint16_t max_con,
-                                Endpoint peer, std::shared_ptr<std::atomic<bool>> stop) {
-    std::uint16_t accepted = 0;
-    runEventWorkerLoop(
-        listen_fd, stop, [&] { return accepted < max_con; },
-        [&] {
-            Endpoint client;
-            const int conn = backend_->accept(listen_fd, client);
-            if (conn < 0) {
-                return true;  // spurious wakeup — keep waiting (not end-of-stream)
-            }
-            const std::uint16_t new_socket_id = registerSocket(conn);
-            ++accepted;
+void ProtocolServer::onWorkerReadable(std::uint16_t socket_id) {
+    const auto it = event_watches_.find(socket_id);
+    if (it == event_watches_.end()) {
+        return;  // already stopped (a prior handler this round may have removed it)
+    }
+    EventWatch &w = it->second;
+    bool keep = true;
+    switch (w.kind) {
+        case EventWatch::kAccept:
+            keep = acceptOne(w);
+            break;
+        case EventWatch::kRecvTcp:
+            keep = recvForwardTcpOne(w);
+            break;
+        case EventWatch::kRecvUdp:
+            keep = recvForwardUdpOne(w);
+            break;
+    }
+    if (!keep) {
+        reactor_.removeWatch(w.id);         // read w.id before erasing the record
+        event_watches_.erase(socket_id);    // do not touch w after this
+    }
+}
 
-            // PRS_TPSP §6.10 LISTEN_AND_ACCEPT Event: listenSocketId + newSocketId
-            // + clientPort + clientAddr(ipxaddr).
-            std::vector<std::uint8_t> ev_dat;
-            appendU16(ev_dat, listen_socket_id);
-            appendU16(ev_dat, new_socket_id);
-            appendU16(ev_dat, client.port);
-            appendIpv4Addr(ev_dat, client.addr_be);
-            emitEvent(service_id, kGidTcp, kPidListenAndAccept, ev_dat, peer);
-            return true;
-        });
+bool ProtocolServer::acceptOne(EventWatch &w) {
+    if (w.accepted >= w.max_con) {
+        return false;  // bound reached (the acceptLoop again() precheck)
+    }
+    Endpoint client;
+    const int conn = backend_->accept(w.fd, client);
+    if (conn < 0) {
+        return true;  // spurious readiness — keep watching
+    }
+    const std::uint16_t new_socket_id = registerSocket(conn);
+    ++w.accepted;
+
+    // PRS_TPSP §6.10 LISTEN_AND_ACCEPT Event: listenSocketId + newSocketId +
+    // clientPort + clientAddr(ipxaddr).
+    std::vector<std::uint8_t> ev_dat;
+    appendU16(ev_dat, w.listen_socket_id);
+    appendU16(ev_dat, new_socket_id);
+    appendU16(ev_dat, client.port);
+    appendIpv4Addr(ev_dat, client.addr_be);
+    emitEvent(w.service_id, kGidTcp, kPidListenAndAccept, ev_dat, w.peer);
+    return w.accepted < w.max_con;  // stop once the bound is reached
 }
 
 std::uint8_t ProtocolServer::closeSocket(const std::uint8_t *dat, std::size_t dat_len) {
@@ -927,119 +945,106 @@ std::uint8_t ProtocolServer::receiveAndForward(const std::uint8_t *dat, std::siz
     // dropCnt is a u16 field; saturate rather than wrap.
     appendU16(resp_dat, static_cast<std::uint16_t>(dropped > 0xFFFF ? 0xFFFF : dropped));
 
-    // Active phase: forward subsequently-received data as Events on a worker
-    // thread — same async lifecycle as the accept worker. Re-arm the slot first.
+    // Active phase: forward subsequently-received data as Events on a reactor watch
+    // — same async lifecycle as the accept worker. Non-blocking so recv in the
+    // handler never stalls the shared loop. Re-arm the slot first.
     stopWorker(socket_id);
-    auto stop = std::make_shared<std::atomic<bool>>(false);
-    std::thread t = udp ? std::thread(&ProtocolServer::receiveLoopUdp, this, *fd, service_id,
-                                      max_fwd, max_len, peer, stop)
-                        : std::thread(&ProtocolServer::receiveLoopTcp, this, *fd, service_id,
-                                      max_fwd, max_len, peer, stop);
-    {
-        std::lock_guard<std::mutex> lk(workers_mu_);
-        auto &w = event_workers_[socket_id];  // fresh: stopWorker erased any prior
-        w.stop = std::move(stop);
-        w.thread = std::move(t);
-    }
+    backend_->setNonBlocking(*fd, true);
+    EventWatch w;
+    w.kind = udp ? EventWatch::kRecvUdp : EventWatch::kRecvTcp;
+    w.fd = *fd;
+    w.service_id = service_id;
+    w.peer = peer;
+    w.max_fwd = max_fwd;
+    w.max_len = max_len;
+    w.limitless = (max_len == 0xFFFF);  // PRS_TPSP §6.10 maxLen 0xFFFF
+    armEventWatch(socket_id, w);
     return kRidEOk;
 }
 
-void ProtocolServer::receiveLoopTcp(int conn_fd, std::uint16_t service_id, std::uint16_t max_fwd,
-                                    std::uint16_t max_len, Endpoint peer,
-                                    std::shared_ptr<std::atomic<bool>> stop) {
-    const bool limitless = (max_len == 0xFFFF);  // PRS_TPSP §6.10 maxLen 0xFFFF
-    std::uint32_t consumed = 0;
-    runEventWorkerLoop(
-        conn_fd, stop, [&] { return limitless || consumed < max_len; },
-        [&]() -> bool {
-            std::uint8_t buf[2048];
-            std::size_t want = sizeof(buf);
-            if (!limitless) {
-                const std::uint32_t remaining = max_len - consumed;
-                if (remaining < want) {
-                    want = remaining;
-                }
-            }
-            const int n = backend_->recv(conn_fd, buf, want);
-            if (n <= 0) {
-                return n != 0;  // n==0 peer close -> stop; n<0 spurious -> keep waiting
-            }
-            consumed += static_cast<std::uint32_t>(n);
-            const std::uint16_t full_len = static_cast<std::uint16_t>(n);
-            const std::uint16_t fwd_len =
-                static_cast<std::uint16_t>(n < static_cast<int>(max_fwd) ? n : max_fwd);
+bool ProtocolServer::recvForwardTcpOne(EventWatch &w) {
+    if (!w.limitless && w.consumed >= w.max_len) {
+        return false;  // total-forward bound reached (the receiveLoop again() precheck)
+    }
+    std::uint8_t buf[2048];
+    std::size_t want = sizeof(buf);
+    if (!w.limitless) {
+        const std::uint32_t remaining = w.max_len - w.consumed;
+        if (remaining < want) {
+            want = remaining;
+        }
+    }
+    const int n = backend_->recv(w.fd, buf, want);
+    if (n <= 0) {
+        return n != 0;  // n==0 peer close -> stop; n<0 spurious -> keep watching
+    }
+    w.consumed += static_cast<std::uint32_t>(n);
+    const std::uint16_t full_len = static_cast<std::uint16_t>(n);
+    const std::uint16_t fwd_len =
+        static_cast<std::uint16_t>(n < static_cast<int>(w.max_fwd) ? n : w.max_fwd);
 
-            // PRS_TPSP §6.10 RECEIVE_AND_FORWARD Event (TCP): fullLen + payload(vint8).
-            std::vector<std::uint8_t> ev_dat;
-            appendU16(ev_dat, full_len);
-            appendVint8(ev_dat, buf, fwd_len);
-            emitEvent(service_id, kGidTcp, kPidReceiveAndForward, ev_dat, peer);
-            return true;
-        });
+    // PRS_TPSP §6.10 RECEIVE_AND_FORWARD Event (TCP): fullLen + payload(vint8).
+    std::vector<std::uint8_t> ev_dat;
+    appendU16(ev_dat, full_len);
+    appendVint8(ev_dat, buf, fwd_len);
+    emitEvent(w.service_id, kGidTcp, kPidReceiveAndForward, ev_dat, w.peer);
+    return w.limitless || w.consumed < w.max_len;
 }
 
-void ProtocolServer::receiveLoopUdp(int sock_fd, std::uint16_t service_id, std::uint16_t max_fwd,
-                                    std::uint16_t max_len, Endpoint peer,
-                                    std::shared_ptr<std::atomic<bool>> stop) {
-    const bool limitless = (max_len == 0xFFFF);  // PRS_TPSP §6.10 maxLen 0xFFFF
-    std::uint32_t consumed = 0;
-    runEventWorkerLoop(
-        sock_fd, stop, [&] { return limitless || consumed < max_len; },
-        [&]() -> bool {
-            std::uint8_t buf[2048];
-            Endpoint src;
-            // recvFromV4 reports the true datagram length even when it overflows
-            // `buf`, so fullLen is exact while the buffer holds at most
-            // sizeof(buf) bytes to forward from.
-            const int n = backend_->recvFromV4(sock_fd, buf, sizeof(buf), src);
-            if (n < 0) {
-                return true;  // spurious wakeup — keep waiting (UDP has no close)
-            }
-            // A zero-length UDP datagram is a valid event (fullLen 0), NOT a peer
-            // close — the key behavioural split from the TCP body.
-            const std::size_t in_buf = (static_cast<std::size_t>(n) < sizeof(buf))
-                                           ? static_cast<std::size_t>(n)
-                                           : sizeof(buf);
-            consumed += static_cast<std::uint32_t>(n);
-            const std::uint16_t full_len = static_cast<std::uint16_t>(n > 0xFFFF ? 0xFFFF : n);
-            const std::uint16_t fwd_len =
-                static_cast<std::uint16_t>(in_buf < max_fwd ? in_buf : max_fwd);
+bool ProtocolServer::recvForwardUdpOne(EventWatch &w) {
+    if (!w.limitless && w.consumed >= w.max_len) {
+        return false;  // total-forward bound reached
+    }
+    std::uint8_t buf[2048];
+    Endpoint src;
+    // recvFromV4 reports the true datagram length even when it overflows `buf`, so
+    // fullLen is exact while the buffer holds at most sizeof(buf) bytes to forward.
+    const int n = backend_->recvFromV4(w.fd, buf, sizeof(buf), src);
+    if (n < 0) {
+        return true;  // spurious readiness — keep watching (UDP has no close)
+    }
+    // A zero-length UDP datagram is a valid event (fullLen 0), NOT a peer close —
+    // the key behavioural split from the TCP body.
+    const std::size_t in_buf = (static_cast<std::size_t>(n) < sizeof(buf))
+                                   ? static_cast<std::size_t>(n)
+                                   : sizeof(buf);
+    w.consumed += static_cast<std::uint32_t>(n);
+    const std::uint16_t full_len = static_cast<std::uint16_t>(n > 0xFFFF ? 0xFFFF : n);
+    const std::uint16_t fwd_len =
+        static_cast<std::uint16_t>(in_buf < w.max_fwd ? in_buf : w.max_fwd);
 
-            // PRS_TPSP §6.10 RECEIVE_AND_FORWARD Event (UDP): fullLen + srcPort +
-            // srcAddr(ipxaddr) + payload(vint8).
-            std::vector<std::uint8_t> ev_dat;
-            appendU16(ev_dat, full_len);
-            appendU16(ev_dat, src.port);
-            appendIpv4Addr(ev_dat, src.addr_be);
-            appendVint8(ev_dat, buf, fwd_len);
-            emitEvent(service_id, kGidUdp, kPidReceiveAndForward, ev_dat, peer);
-            return true;
-        });
+    // PRS_TPSP §6.10 RECEIVE_AND_FORWARD Event (UDP): fullLen + srcPort +
+    // srcAddr(ipxaddr) + payload(vint8).
+    std::vector<std::uint8_t> ev_dat;
+    appendU16(ev_dat, full_len);
+    appendU16(ev_dat, src.port);
+    appendIpv4Addr(ev_dat, src.addr_be);
+    appendVint8(ev_dat, buf, fwd_len);
+    emitEvent(w.service_id, kGidUdp, kPidReceiveAndForward, ev_dat, w.peer);
+    return w.limitless || w.consumed < w.max_len;
 }
 
 void ProtocolServer::emitEvent(std::uint16_t service_id, std::uint8_t gid, std::uint8_t pid,
                                const std::vector<std::uint8_t> &dat, const Endpoint &peer) {
-    // PRS_TPSP §6.2 Event: EVB-set method id for group `gid` + TID 0x02. The
-    // shared listener egress is serialised by send_mu_ (see its declaration).
+    // PRS_TPSP §6.2 Event: EVB-set method id for group `gid` + TID 0x02. Emitted on
+    // the reactor loop (a module callback or worker handler), the same thread as the
+    // control responses, so the shared egress needs no lock.
     Header ev;
     ev.service_id = service_id;
     ev.method_id = methodId(gid, pid, /*event=*/true);
     ev.tid = kTidEvent;
     ev.rid = kRidEOk;
     const auto out = buildMessage(ev, dat.data(), dat.size());
-    std::lock_guard<std::mutex> lk(send_mu_);
     backend_->sendToV4(fd_, out.data(), out.size(), peer);
 }
 
 std::uint16_t ProtocolServer::registerSocket(int fd) {
-    std::lock_guard<std::mutex> lk(sockets_mu_);
     const std::uint16_t id = next_socket_id_++;
     sockets_[id] = fd;
     return id;
 }
 
 std::optional<int> ProtocolServer::lookupSocket(std::uint16_t id) const {
-    std::lock_guard<std::mutex> lk(sockets_mu_);
     const auto it = sockets_.find(id);
     if (it == sockets_.end()) {
         return std::nullopt;
@@ -1048,22 +1053,16 @@ std::optional<int> ProtocolServer::lookupSocket(std::uint16_t id) const {
 }
 
 bool ProtocolServer::eraseSocket(std::uint16_t id, bool abort) {
-    // Stop + join this socket's async-event worker (if any) BEFORE closing the
-    // fd, so the worker can never act on a closed (and possibly reused) fd. Done
-    // outside sockets_mu_ (stopWorker takes only workers_mu_) so a worker blocked
-    // in registerSocket cannot deadlock the join.
+    // Remove this socket's async-event watch (if any) BEFORE closing the fd, so the
+    // watch can never fire on a closed (and possibly reused) fd. All on the loop.
     stopWorker(id);
 
-    int fd = -1;
-    {
-        std::lock_guard<std::mutex> lk(sockets_mu_);
-        const auto it = sockets_.find(id);
-        if (it == sockets_.end()) {
-            return false;
-        }
-        fd = it->second;
-        sockets_.erase(it);
+    const auto it = sockets_.find(id);
+    if (it == sockets_.end()) {
+        return false;
     }
+    const int fd = it->second;
+    sockets_.erase(it);
     if (abort) {
         backend_->closeWithAbort(fd);
     } else {
@@ -1073,7 +1072,6 @@ bool ProtocolServer::eraseSocket(std::uint16_t id, bool abort) {
 }
 
 void ProtocolServer::closeAllSockets() {
-    std::lock_guard<std::mutex> lk(sockets_mu_);
     for (const auto &kv : sockets_) {
         backend_->closeFd(kv.second);
     }
@@ -1081,43 +1079,19 @@ void ProtocolServer::closeAllSockets() {
 }
 
 void ProtocolServer::stopWorker(std::uint16_t socket_id) {
-    EventWorker w;
-    {
-        std::lock_guard<std::mutex> lk(workers_mu_);
-        const auto it = event_workers_.find(socket_id);
-        if (it == event_workers_.end()) {
-            return;  // no worker on this socket
-        }
-        w = std::move(it->second);
-        event_workers_.erase(it);
+    const auto it = event_watches_.find(socket_id);
+    if (it == event_watches_.end()) {
+        return;  // no worker on this socket
     }
-    // Signal + join with workers_mu_ released: the worker may still take
-    // sockets_mu_ (registerSocket) as it winds down, and joining here never
-    // holds workers_mu_, so neither lock order can deadlock.
-    if (w.stop) {
-        w.stop->store(true);
-    }
-    if (w.thread.joinable()) {
-        w.thread.join();
-    }
+    reactor_.removeWatch(it->second.id);
+    event_watches_.erase(it);
 }
 
-void ProtocolServer::joinEventThreads() {
-    std::map<std::uint16_t, EventWorker> workers;
-    {
-        std::lock_guard<std::mutex> lk(workers_mu_);
-        workers.swap(event_workers_);
+void ProtocolServer::stopAllWorkers() {
+    for (auto &kv : event_watches_) {
+        reactor_.removeWatch(kv.second.id);
     }
-    for (auto &kv : workers) {
-        if (kv.second.stop) {
-            kv.second.stop->store(true);
-        }
-    }
-    for (auto &kv : workers) {
-        if (kv.second.thread.joinable()) {
-            kv.second.thread.join();
-        }
-    }
+    event_watches_.clear();
 }
 
 }  // namespace tc8::testability

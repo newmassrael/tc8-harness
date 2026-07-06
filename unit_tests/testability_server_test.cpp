@@ -1512,6 +1512,48 @@ TEST(TestabilityServerSeamTest, OemHandlerOverridesStandardPrimitive) {
     EXPECT_EQ(v->patch, 9u);
 }
 
+// Single-task entry (startInline): no owned thread — the caller pumps runOnce().
+// This is the bare-metal / RTOS shape. Drive it entirely on the test thread:
+// queue a request, pump the reactor, and read the response back, all single-
+// threaded, proving the endpoint serves without any std::thread of its own.
+TEST(TestabilityServerSeamTest, InlineSingleTaskServerAnswersOnCallerPump) {
+    constexpr std::uint16_t kPort = 39799;
+
+    testability::ProtocolServer server{std::make_unique<dut::PosixSocketBackend>()};
+    ASSERT_TRUE(server.startInline(kPort));  // no reactor thread; this test IS the loop
+
+    dut::PosixSocketBackend client;
+    const int cfd = client.createUdp();
+    ASSERT_GE(cfd, 0);
+    client.setNonBlocking(cfd, true);  // poll it via the pump, never block the single task
+
+    tp::Header h;
+    h.method_id = tp::methodId(tp::kGidGeneral, tp::kPidGetVersion);
+    const auto msg = tp::buildMessage(h);
+    const tc8::net::Endpoint dst{::htonl(INADDR_LOOPBACK), kPort};
+    client.sendToV4(cfd, msg.data(), msg.size(), dst);
+
+    std::uint8_t rb[256];
+    tc8::net::Endpoint src{};
+    int rn = -1;
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds{2000};
+    while (std::chrono::steady_clock::now() < deadline) {
+        server.runOnce(/*timeout_ms=*/5);  // the caller-driven single-task pump
+        rn = client.recvFromV4(cfd, rb, sizeof(rb), src);
+        if (rn >= static_cast<int>(tp::kHeaderSize)) {
+            break;
+        }
+    }
+    server.stop();
+    client.closeFd(cfd);
+
+    ASSERT_GE(rn, static_cast<int>(tp::kHeaderSize)) << "inline server answered on the caller pump";
+    const auto rh = tp::parseHeader(rb, static_cast<std::size_t>(rn));
+    ASSERT_TRUE(rh.has_value());
+    EXPECT_EQ(rh->tid, tp::kTidResponse);
+    EXPECT_EQ(rh->rid, tp::kRidEOk);
+}
+
 // ── Stateful middleware seam (registerModule, PRS_TPSP §6.6) ──
 //
 // A synthetic module owning an OEM-reserved GID (non-standard groups count down
