@@ -87,6 +87,20 @@ add_library(net_headers_strict_guard OBJECT net_headers_strict_guard.cpp)
 target_include_directories(net_headers_strict_guard PRIVATE ${PROJECT_SOURCE_DIR}/src)
 tc8_enable_strict_warnings(net_headers_strict_guard)
 
+# Compile-only witness: the testability server builds for a single-task target
+# (-DTC8_REACTOR_SINGLE_THREAD), i.e. with no std::thread/mutex/future and no
+# owned-thread reactor entry. Object only, no link/run — the runtime single-task
+# proof is reactor_single_thread_test; this guards that protocol_server.cpp itself
+# stays compilable on the no-threads path (the T2G / RTOS build), so a stray
+# threaded call there is caught in CI, not only when the arm build runs.
+add_library(testability_single_thread_check OBJECT
+    ${PROJECT_SOURCE_DIR}/src/testability/protocol_server.cpp)
+target_compile_definitions(testability_single_thread_check PRIVATE TC8_REACTOR_SINGLE_THREAD)
+target_include_directories(testability_single_thread_check PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/include
+)
+
 # Hermetic functional cover for the rtnetlink walk helpers (nlmsgOk/Next, rtaOk/
 # Next, nlmsgData/rtaData): a synthetic RTM_NEWNEIGH dump walked in memory, no
 # privilege. The privileged netns neighbor fixture self-skips without CAP_NET_ADMIN
@@ -96,6 +110,20 @@ add_executable(rtnetlink_walk_test rtnetlink_walk_test.cpp)
 target_include_directories(rtnetlink_walk_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
 target_link_libraries(rtnetlink_walk_test PRIVATE GTest::gtest GTest::gtest_main)
 add_test(NAME rtnetlink_walk_test COMMAND rtnetlink_walk_test)
+
+# The reactor compiled for a single-task (no-std::thread) target: -DTC8_REACTOR_
+# SINGLE_THREAD excludes <thread>/<mutex>/<future> and the owned-thread entry, so
+# this proves the caller-driven core builds and runs where libstdc++ is
+# --disable-threads (the T2G / RTOS target). Header-only under test + an in-TU fake
+# multiplexer, so it links nothing but GTest and never sees the default reactor.
+add_executable(reactor_single_thread_test reactor_single_thread_test.cpp)
+target_compile_definitions(reactor_single_thread_test PRIVATE TC8_REACTOR_SINGLE_THREAD)
+target_include_directories(reactor_single_thread_test PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/include
+)
+target_link_libraries(reactor_single_thread_test PRIVATE GTest::gtest GTest::gtest_main)
+add_test(NAME reactor_single_thread_test COMMAND reactor_single_thread_test)
 
 tc8_add_unit_test(captured_frame_observer_test)
 tc8_add_unit_test(bpf_filter_test)

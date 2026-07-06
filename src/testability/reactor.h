@@ -6,13 +6,21 @@
 #include <cstdint>
 #include <deque>
 #include <functional>
-#include <future>
 #include <map>
 #include <memory>
-#include <mutex>
 #include <optional>
-#include <thread>
 #include <vector>
+
+// The threading headers back the owned-thread start()/stop() and the cross-thread
+// post(). A single-task (bare-metal / RTOS) build — where the toolchain's libstdc++
+// is --disable-threads and <thread>/<mutex>/<future> are not even declared — defines
+// TC8_REACTOR_SINGLE_THREAD to compile those out and drives the loop with
+// open()/runOnce()/close() from its own task instead.
+#ifndef TC8_REACTOR_SINGLE_THREAD
+#include <future>
+#include <mutex>
+#include <thread>
+#endif
 
 #include "testability/io_multiplexer.h"  // Waker / IoMultiplexer (the ports it needs)
 #include "testability/middleware.h"  // TimerId / WatchId / kNoTimer / kNoWatch
@@ -34,7 +42,13 @@ namespace tc8::testability {
 class Reactor {
 public:
     explicit Reactor(IoMultiplexer &mux) : mux_(mux) {}
-    ~Reactor() { stop(); }  // idempotent; joins the thread if still running
+    ~Reactor() {
+#ifdef TC8_REACTOR_SINGLE_THREAD
+        close();  // no thread to join
+#else
+        stop();  // idempotent; joins the thread if still running
+#endif
+    }
     Reactor(const Reactor &) = delete;
     Reactor &operator=(const Reactor &) = delete;
 
@@ -44,8 +58,9 @@ public:
     // rx polling: a watched fd's readiness still wakes poll() immediately.
     static constexpr int kBackstopMs = 1000;
 
+#ifndef TC8_REACTOR_SINGLE_THREAD
     // Spawn the loop thread. createWaker() runs here (before the thread) so post()
-    // can immediately signal it.
+    // can immediately signal it. (Owned-thread mode; unavailable single-task.)
     void start() {
         running_ = true;  // visible to the new thread (thread creation synchronises)
         waker_ = mux_.createWaker();
@@ -71,6 +86,7 @@ public:
         thread_.join();
         waker_.reset();
     }
+#endif  // !TC8_REACTOR_SINGLE_THREAD
 
     // ── Caller-driven (single-task) mode: no owned thread ──
     // The alternative to start()/stop() for a deployment with no std::thread (a
@@ -80,8 +96,12 @@ public:
     // no cross-thread post() is needed. open() and the pump MUST run on one task.
     void open() {
         running_ = true;
+#ifndef TC8_REACTOR_SINGLE_THREAD
         waker_ = mux_.createWaker();
         thread_id_ = std::this_thread::get_id();  // the pumping task owns the loop
+#endif
+        // Single-task: no waker (nothing posts cross-thread) and no affinity id
+        // (there is only one task) — poll() runs over the watched fds and timers.
     }
 
     // Caller-driven teardown: run `final_task` (if any) on the calling task, drop all
@@ -106,6 +126,9 @@ public:
     // leaves the wake fd readable, so the task is never lost (a dropped best-effort
     // signal only delays it to the next backstop wakeup).
     void post(const std::function<void()> &fn) {
+#ifdef TC8_REACTOR_SINGLE_THREAD
+        fn();  // single task: the caller is always the loop task — run inline
+#else
         if (std::this_thread::get_id() == thread_id_) {
             fn();
             return;
@@ -123,6 +146,7 @@ public:
             waker_->signal();
         }
         fut.wait();
+#endif
     }
 
     TimerId armEvery(std::chrono::milliseconds period, std::function<void()> fn) {
@@ -150,8 +174,14 @@ public:
     }
 
     // True when called on the reactor's loop thread (the precondition for the
-    // lock-free timer/watch mutators).
-    bool onLoop() const { return std::this_thread::get_id() == thread_id_; }
+    // lock-free timer/watch mutators). Always true single-task (one task only).
+    bool onLoop() const {
+#ifdef TC8_REACTOR_SINGLE_THREAD
+        return true;
+#else
+        return std::this_thread::get_id() == thread_id_;
+#endif
+    }
 
 private:
     struct Timer {
@@ -167,7 +197,11 @@ private:
 
     // The lock-free timer/watch state is safe only because every mutator runs on
     // the loop thread. Assert it in debug builds rather than trust the convention.
-    void assertOnLoop() const { assert(std::this_thread::get_id() == thread_id_); }
+    void assertOnLoop() const {
+#ifndef TC8_REACTOR_SINGLE_THREAD
+        assert(std::this_thread::get_id() == thread_id_);
+#endif
+    }
 
     TimerId arm(std::chrono::milliseconds period, std::function<void()> fn, bool periodic) {
         assertOnLoop();
@@ -182,7 +216,9 @@ private:
         for (;;) {
             std::function<void()> t;
             {
+#ifndef TC8_REACTOR_SINGLE_THREAD
                 std::lock_guard<std::mutex> lk(mu_);
+#endif
                 if (tasks_.empty()) {
                     return;
                 }
@@ -287,11 +323,12 @@ public:
 
 private:
     IoMultiplexer &mux_;
+#ifndef TC8_REACTOR_SINGLE_THREAD
     std::thread thread_;
     std::thread::id thread_id_;
-
     std::mutex mu_;                 // guards tasks_ only (the cross-thread queue)
-    bool running_ = false;          // loop-thread state after start()
+#endif
+    bool running_ = false;          // loop state after start() / open()
     std::deque<std::function<void()>> tasks_;
     std::unique_ptr<Waker> waker_;  // cross-thread wake for poll(); null if unsupported
 

@@ -131,6 +131,7 @@ bool ProtocolServer::bindControl(std::uint16_t port) {
     return true;
 }
 
+#ifndef TC8_REACTOR_SINGLE_THREAD
 bool ProtocolServer::start(std::uint16_t port) {
     if (!bindControl(port)) {
         return false;
@@ -139,6 +140,7 @@ bool ProtocolServer::start(std::uint16_t port) {
     reactor_.post([this] { setupOnLoop(); });  // control watch + module onStart, on the loop
     return true;
 }
+#endif  // !TC8_REACTOR_SINGLE_THREAD — a single-task deployment uses startInline()
 
 bool ProtocolServer::startInline(std::uint16_t port) {
     if (!bindControl(port)) {
@@ -160,9 +162,11 @@ void ProtocolServer::run() {
 void ProtocolServer::stop() {
     // teardownOnLoop must run on the loop: under start() the reactor marshals it to
     // its thread then joins (close() is then a no-op); under startInline() the
-    // reactor has no thread so stop() no-ops and close() runs it on this task. Each
-    // path runs the teardown exactly once.
+    // reactor has no thread so it runs on this task via close(). Each path runs the
+    // teardown exactly once. (The single-task build has no reactor_.stop().)
+#ifndef TC8_REACTOR_SINGLE_THREAD
     reactor_.stop([this] { teardownOnLoop(); });
+#endif
     reactor_.close([this] { teardownOnLoop(); });
     if (fd_ >= 0) {
         backend_->closeFd(fd_);
