@@ -413,6 +413,22 @@ TEST(SomeIpCapturedConfigOption, EmptyValueAndKeyOnly) {
     EXPECT_EQ(c.sd_config_value_of("lone"), "");  // "lone" -> no value
 }
 
+// A Configuration Option may repeat the SAME key across items; sd_config_count_key
+// tallies every match (the first-match lookup cannot). Same rule as has-key: an exact
+// key, or "key=..." with or without a value.
+TEST(SomeIpCapturedConfigOption, CountsRepeatedKey) {
+    const auto opt = buildConfigOption({"abc=xyz", "abc=", "other=1"});
+    const auto payload = buildSdPayload(findServiceEntry(), opt);
+
+    tc8::SomeIpCaptured c;
+    tc8::parseSdInto(c, payload.data(), payload.size());
+
+    ASSERT_EQ(c.sd_config_item_count, 3u);
+    EXPECT_EQ(c.sd_config_count_key("abc"), 2u);     // "abc=xyz" and "abc="
+    EXPECT_EQ(c.sd_config_count_key("other"), 1u);   // single match
+    EXPECT_EQ(c.sd_config_count_key("absent"), 0u);  // no match
+}
+
 // An item longer than the capture cap records its true on-wire length but stores only
 // the capped bytes (captured < len) — no over-read, and the truncation is detectable.
 TEST(SomeIpCapturedConfigOption, ItemLongerThanCapTruncatesContent) {

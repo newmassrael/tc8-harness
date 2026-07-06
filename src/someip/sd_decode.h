@@ -173,14 +173,21 @@ struct SdDecoded {
     std::uint16_t sd_entry_count_wire = 0;
     std::uint16_t sd_ipv4_endpoint_count_wire = 0;
 
+    // SSOT for the config-item key match: `item` is exactly `key` (the key with no
+    // value) or `key=...`. The single rule shared by the first-match lookup and the
+    // per-key count below, so the two can never drift.
+    static bool sd_config_item_matches(std::string_view item, std::string_view key) {
+        return item == key || (item.size() > key.size() && item.compare(0, key.size(), key) == 0 &&
+                               item[key.size()] == '=');
+    }
+
     // The first parsed config item matching `key` ("key" exactly, or "key=..."), or
     // nullptr if absent. The single match site the has-key / value-of helpers share.
     const SdConfigItem *sd_config_item_for(std::string_view key) const {
         for (std::uint8_t i = 0; i < sd_config_item_count; ++i) {
             const std::string_view item(reinterpret_cast<const char *>(sd_config_items[i].bytes),
                                         sd_config_items[i].captured);
-            if (item == key || (item.size() > key.size() && item.compare(0, key.size(), key) == 0 &&
-                                 item[key.size()] == '=')) {
+            if (sd_config_item_matches(item, key)) {
                 return &sd_config_items[i];
             }
         }
@@ -204,6 +211,21 @@ struct SdDecoded {
             return std::string();  // "key" with no value
         }
         return std::string(item.substr(key.size() + 1));  // after "key="
+    }
+
+    // How many parsed config items carry `key` (either `key` with no value or `key=...`).
+    // A Configuration Option MAY repeat the same key across items; the first-match lookup
+    // above cannot express that, so a "same key appears N times" guard counts with this.
+    std::uint8_t sd_config_count_key(std::string_view key) const {
+        std::uint8_t n = 0;
+        for (std::uint8_t i = 0; i < sd_config_item_count; ++i) {
+            const std::string_view item(reinterpret_cast<const char *>(sd_config_items[i].bytes),
+                                        sd_config_items[i].captured);
+            if (sd_config_item_matches(item, key)) {
+                ++n;
+            }
+        }
+        return n;
     }
 
     // Returns true when at least one parsed option matches `(type, l4)`.
