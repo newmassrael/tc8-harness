@@ -128,4 +128,49 @@ TEST(Reactor, StopRunsFinalTaskThenJoinsAndIsIdempotent) {
     r.stop();  // second stop is a no-op — must not hang or crash
 }
 
+// Caller-driven (single-task) mode: no owned thread. open() makes the calling
+// thread the loop thread, so timers and watches are armed directly (no post()),
+// and the caller pumps runOnce() itself — the shape a bare-metal / RTOS task uses.
+TEST(Reactor, CallerDrivenPumpServicesTimersAndWatchesWithNoOwnedThread) {
+    tc8::dut::PosixSocketBackend be;
+    tt::Reactor r{be};
+    r.open();  // this thread IS the loop thread — no reactor thread is spawned
+
+    int fired = 0;  // plain int: single-threaded by construction in this mode
+    r.armOnce(ms{1}, [&] { ++fired; });
+
+    const int rx = be.createUdp();
+    ASSERT_GE(rx, 0);
+    constexpr std::uint16_t kPort = 39973;
+    ASSERT_TRUE(be.bindV4(rx, 0, kPort));
+    int got = 0;
+    r.addWatch(rx, [&] {
+        std::uint8_t buf[32];
+        tc8::net::Endpoint src{};
+        if (be.recvFromV4(rx, buf, sizeof(buf), src) > 0) {
+            ++got;
+        }
+    });
+
+    const int tx = be.createUdp();
+    ASSERT_GE(tx, 0);
+    const std::uint8_t payload[] = {0x42};
+    be.sendToV4(tx, payload, sizeof(payload), loopback(kPort));
+
+    // Pump from this task until both are serviced or a wall-clock deadline — bound
+    // by time, not iteration count, because a sub-millisecond timer makes runOnce()
+    // return at once (the poll timeout floors to 0), so a fixed iteration cap could
+    // elapse before real time reaches the timer's due point.
+    const auto deadline = std::chrono::steady_clock::now() + ms{2000};
+    while (std::chrono::steady_clock::now() < deadline && (fired == 0 || got == 0)) {
+        r.runOnce(/*max_wait_ms=*/5);
+    }
+    EXPECT_EQ(fired, 1) << "one-shot timer serviced by the caller-driven pump";
+    EXPECT_GE(got, 1) << "readable watch serviced by the caller-driven pump";
+
+    r.close();  // no thread to join
+    be.closeFd(tx);
+    be.closeFd(rx);
+}
+
 }  // namespace

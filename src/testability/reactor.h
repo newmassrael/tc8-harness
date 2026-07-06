@@ -49,7 +49,7 @@ public:
     void start() {
         running_ = true;  // visible to the new thread (thread creation synchronises)
         waker_ = mux_.createWaker();
-        thread_ = std::thread([this] { runLoop(); });
+        thread_ = std::thread([this] { run(); });
         thread_id_ = thread_.get_id();
     }
 
@@ -69,6 +69,34 @@ public:
             running_ = false;  // exit the loop after this task
         });
         thread_.join();
+        waker_.reset();
+    }
+
+    // ── Caller-driven (single-task) mode: no owned thread ──
+    // The alternative to start()/stop() for a deployment with no std::thread (a
+    // bare-metal / RTOS target): the caller's own task initialises with open(),
+    // pumps runOnce()/run() from that same task, and tears down with close(). Timers
+    // and watches are then armed directly from that task (it IS the loop thread), so
+    // no cross-thread post() is needed. open() and the pump MUST run on one task.
+    void open() {
+        running_ = true;
+        waker_ = mux_.createWaker();
+        thread_id_ = std::this_thread::get_id();  // the pumping task owns the loop
+    }
+
+    // Caller-driven teardown: run `final_task` (if any) on the calling task, drop all
+    // timers/watches, and mark the loop stopped. Idempotent; the counterpart of
+    // stop() with no thread to join.
+    void close(const std::function<void()> &final_task = {}) {
+        if (!running_) {
+            return;
+        }
+        if (final_task) {
+            final_task();
+        }
+        timers_.clear();
+        watches_.clear();
+        running_ = false;
         waker_.reset();
     }
 
@@ -165,81 +193,98 @@ private:
         }
     }
 
-    void runLoop() {
+public:
+    // Drive the loop to completion. Used by start()'s owned thread on a hosted
+    // build; a caller-driven (single-task) deployment pumps runOnce() itself.
+    void run() {
         while (running_) {
-            drainTasks();
-            if (!running_) {
-                break;  // a task (stop) cleared running_
-            }
-            // Fire the earliest due timer, else note the next due time. Ordered map,
-            // linear due-scan (n small).
-            const auto now = std::chrono::steady_clock::now();
-            bool have_due = false;
-            std::uint64_t due_id = 0;
-            std::optional<std::chrono::steady_clock::time_point> earliest;
-            for (const auto &kv : timers_) {
-                if (kv.second.next <= now) {
-                    due_id = kv.first;
-                    have_due = true;
-                    break;
-                }
-                if (!earliest || kv.second.next < *earliest) {
-                    earliest = kv.second.next;
-                }
-            }
-            if (have_due) {
-                const auto it = timers_.find(due_id);
-                std::function<void()> fn = it->second.fn;  // copy: a periodic timer re-fires
-                if (it->second.periodic) {
-                    it->second.next = now + it->second.period;
-                } else {
-                    timers_.erase(it);
-                }
-                fn();
-                continue;  // re-scan: the handler may have armed/cancelled timers
-            }
-            // Build the poll set: the wake fd plus every watched fd.
-            poll_fds_.clear();
-            if (waker_) {
-                poll_fds_.push_back(waker_->pollFd());
-            }
-            for (const auto &kv : watches_) {
-                poll_fds_.push_back(kv.second.fd);
-            }
-            int timeout_ms = kBackstopMs;
-            if (earliest) {
-                const auto d =
-                    std::chrono::duration_cast<std::chrono::milliseconds>(*earliest - now).count();
-                const int until = (d < 0) ? 0 : static_cast<int>(d);
-                if (until < timeout_ms) {
-                    timeout_ms = until;
-                }
-            }
-            mux_.poll(poll_fds_.data(), poll_fds_.size(), timeout_ms, readable_);
-            // Collect the watch IDs to fire, then dispatch by re-looking-up each — a
-            // handler may unwatch another watch readable this round, so membership is
-            // re-checked at fire time. The wake fd is drained, never dispatched.
-            fire_.clear();
-            for (const int fd : readable_) {
-                if (waker_ && fd == waker_->pollFd()) {
-                    waker_->drain();
-                    continue;
-                }
-                for (const auto &kv : watches_) {
-                    if (kv.second.fd == fd) {
-                        fire_.push_back(kv.first);
-                    }
-                }
-            }
-            for (const std::uint64_t id : fire_) {
-                const auto it = watches_.find(id);
-                if (it != watches_.end()) {  // still watched (a prior handler may have removed it)
-                    it->second.fn();
-                }
-            }
+            runOnce(kBackstopMs);
         }
     }
 
+    // One reactor iteration, factored out of run() so the same body serves both the
+    // owned-thread loop and a caller-driven pump. It drains the task queue, then
+    // EITHER fires the single earliest-due timer (returning at once so the next
+    // iteration re-scans — a handler may have armed/cancelled timers) OR blocks in
+    // poll() for at most `max_wait_ms` (further capped by the next timer's due time)
+    // and dispatches the readable watches. Returns running_, so a pump can loop on
+    // the result and observe a stop task promptly. `max_wait_ms` == 0 makes the poll
+    // non-blocking (a single-task caller that must also service other work).
+    bool runOnce(int max_wait_ms) {
+        drainTasks();
+        if (!running_) {
+            return false;  // a task (stop) cleared running_
+        }
+        // Fire the earliest due timer, else note the next due time. Ordered map,
+        // linear due-scan (n small).
+        const auto now = std::chrono::steady_clock::now();
+        bool have_due = false;
+        std::uint64_t due_id = 0;
+        std::optional<std::chrono::steady_clock::time_point> earliest;
+        for (const auto &kv : timers_) {
+            if (kv.second.next <= now) {
+                due_id = kv.first;
+                have_due = true;
+                break;
+            }
+            if (!earliest || kv.second.next < *earliest) {
+                earliest = kv.second.next;
+            }
+        }
+        if (have_due) {
+            const auto it = timers_.find(due_id);
+            std::function<void()> fn = it->second.fn;  // copy: a periodic timer re-fires
+            if (it->second.periodic) {
+                it->second.next = now + it->second.period;
+            } else {
+                timers_.erase(it);
+            }
+            fn();
+            return true;  // re-scan: the handler may have armed/cancelled timers
+        }
+        // Build the poll set: the wake fd plus every watched fd.
+        poll_fds_.clear();
+        if (waker_) {
+            poll_fds_.push_back(waker_->pollFd());
+        }
+        for (const auto &kv : watches_) {
+            poll_fds_.push_back(kv.second.fd);
+        }
+        int timeout_ms = max_wait_ms;
+        if (earliest) {
+            const auto d =
+                std::chrono::duration_cast<std::chrono::milliseconds>(*earliest - now).count();
+            const int until = (d < 0) ? 0 : static_cast<int>(d);
+            if (until < timeout_ms) {
+                timeout_ms = until;
+            }
+        }
+        mux_.poll(poll_fds_.data(), poll_fds_.size(), timeout_ms, readable_);
+        // Collect the watch IDs to fire, then dispatch by re-looking-up each — a
+        // handler may unwatch another watch readable this round, so membership is
+        // re-checked at fire time. The wake fd is drained, never dispatched.
+        fire_.clear();
+        for (const int fd : readable_) {
+            if (waker_ && fd == waker_->pollFd()) {
+                waker_->drain();
+                continue;
+            }
+            for (const auto &kv : watches_) {
+                if (kv.second.fd == fd) {
+                    fire_.push_back(kv.first);
+                }
+            }
+        }
+        for (const std::uint64_t id : fire_) {
+            const auto it = watches_.find(id);
+            if (it != watches_.end()) {  // still watched (a prior handler may have removed it)
+                it->second.fn();
+            }
+        }
+        return running_;
+    }
+
+private:
     IoMultiplexer &mux_;
     std::thread thread_;
     std::thread::id thread_id_;
