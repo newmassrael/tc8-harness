@@ -1004,6 +1004,30 @@ run_case() {
     local veth_d="veth-dut-$W"
     local vsp="$VSOMEIP_BASE/$W/"
     local harness_link="$vsp/tc8-harness"
+
+    # Per-case network isolation: rebuild this worker's netns BEFORE every case so
+    # each case starts on a PRISTINE kernel network stack — no ARP-cache, sysctl,
+    # multicast-membership, or iptables residue can leak in from the previous case.
+    # tear-down destroys the netns (all kernel residue gone with it); bring-up
+    # recreates it from setup-netns.sh's SSOT baseline and re-captures the DUT MAC
+    # (read below, after the rebuild). This is the root-cause form of test isolation
+    # — a fresh fixture per case — and it is what makes a DUT-side link-flap case
+    # (client re-Find after a real link-loss/-up) batch-safe: the flap leaves a stale
+    # multicast membership the kernel keeps across an IFF_UP down/up (an `ip addr
+    # flush` does NOT free it — verified), which would otherwise make the next case's
+    # DUT hit EADDRINUSE on IP_ADD_MEMBERSHIP and never emit its FindService; a fresh
+    # netns has no such residue. The per-case neigh flush and the teardown sysctl
+    # restores below are narrower cross-case-leak point-fixes this SUBSUMES — kept for
+    # now as belt-and-suspenders, retired once CI confirms the rebuild regression-free.
+    # TOPOLOGY_DUT_CONDITIONING=1 holds only for single-pc (the one topology that owns
+    # the netns and reuses it across cases); ssh-remote/external/lwip-tap set it 0
+    # (remote or persistent DUT — no netns of ours to rebuild), exactly where the
+    # conditioning this replaces is likewise skipped.
+    if [[ "$TOPOLOGY_DUT_CONDITIONING" == "1" ]]; then
+        topology_tear_down_worker "$W"
+        topology_bring_up_worker "$W"
+    fi
+
     local dut_mac
     dut_mac=$(cat "$WORK_ROOT/$W/dut_mac")
 
@@ -1797,6 +1821,15 @@ run_negative_case() {
     local vsp="$VSOMEIP_BASE/$W/"
     local mock_dut_link="$vsp/tc8-dut"
     local harness_link="$vsp/tc8-harness"
+
+    # Per-case network isolation — rebuild the worker's netns before every negative
+    # case too, symmetric with run_case (see the rebuild comment there for the full
+    # rationale). Gated on TOPOLOGY_DUT_CONDITIONING=1 (single-pc only).
+    if [[ "$TOPOLOGY_DUT_CONDITIONING" == "1" ]]; then
+        topology_tear_down_worker "$W"
+        topology_bring_up_worker "$W"
+    fi
+
     local dut_mac
     dut_mac=$(cat "$WORK_ROOT/$W/dut_mac")
 
