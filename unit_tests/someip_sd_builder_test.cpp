@@ -1,4 +1,6 @@
 #include <cstdint>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -485,6 +487,58 @@ TEST(BuildOfferServiceWithEndpointAndSdEndpointOption, TwoOptionsRedirect) {
     EXPECT_EQ(b[60], 0xACu); EXPECT_EQ(b[61], 0x10u);
     EXPECT_EQ(b[62], 0x00u); EXPECT_EQ(b[63], 0x02u);
     EXPECT_EQ(b[66], 0x77u); EXPECT_EQ(b[67], 0x77u);  // data_ep port BE
+}
+
+// An Offer that delivers a Configuration option carries options[0] = Type-0x04 IPv4
+// Endpoint (data endpoint) and options[1] = Type-0x01 Configuration option, with the
+// entry referencing BOTH (IndexFirstOptionRun=0, #Opt1=2). Each config item is
+// length-prefixed with a single byte counting `key '=' value`, and the sequence ends
+// in a zero-length terminator byte.
+TEST(BuildOfferServiceWithEndpointAndConfigOption, EndpointPlusReferencedConfig) {
+    OfferServiceWithEndpointTarget data{};
+    data.service.service_id = 0xF4E7;
+    data.service.instance_id = 0x0001;
+    data.service.session_id = 0x0001;
+    data.endpoint.ipv4_be = 0x020010AC;  // 172.16.0.2 (service data endpoint)
+    data.endpoint.port = 0x7777;
+    data.endpoint.l4proto = 0x11;
+    const std::vector<std::pair<std::string, std::string>> items{{"Name", "value"},
+                                                                 {"key", "value"}};
+    const auto b = buildOfferServiceWithEndpointAndConfigOption(data, items);
+
+    // 82 B = 16 (SOME/IP) + 4 (flags) + 4 (EntriesLen) + 16 (entry) + 4 (OptionsLen)
+    //      + 12 (endpoint option) + 26 (config option: 4 header + 22 config string).
+    ASSERT_EQ(b.size(), 82u);
+    EXPECT_EQ(b[7], 0x4Au);   // SOME/IP Length = 74 = 36 + 38
+    EXPECT_EQ(b[24], 0x01u);  // entry type = OfferService
+    EXPECT_EQ(b[25], 0x00u);  // IndexFirstOptionRun = 0
+    EXPECT_EQ(b[26], 0x00u);  // IndexSecondOptionRun = 0
+    EXPECT_EQ(b[27], 0x20u);  // #Opt1=2 | #Opt2=0 (references both options)
+    EXPECT_EQ(b[28], 0xF4u); EXPECT_EQ(b[29], 0xE7u);  // service id
+    EXPECT_EQ(b[30], 0x00u); EXPECT_EQ(b[31], 0x01u);  // instance id
+    EXPECT_EQ(b[43], 0x26u);  // OptionsLen = 38 (12 + 26)
+
+    // options[0] = Type-0x04 IPv4 Endpoint (172.16.0.2 : 0x7777, UDP).
+    EXPECT_EQ(b[45], 0x09u);  // option Length
+    EXPECT_EQ(b[46], 0x04u);  // type
+    EXPECT_EQ(b[48], 0xACu); EXPECT_EQ(b[49], 0x10u);
+    EXPECT_EQ(b[50], 0x00u); EXPECT_EQ(b[51], 0x02u);
+    EXPECT_EQ(b[53], 0x11u);  // l4proto UDP
+    EXPECT_EQ(b[54], 0x77u); EXPECT_EQ(b[55], 0x77u);  // port BE
+
+    // options[1] = Type-0x01 Configuration option, Length = 23 (1 Reserved + 22 cs).
+    EXPECT_EQ(b[57], 0x17u);  // option Length = 23
+    EXPECT_EQ(b[58], 0x01u);  // type = Configuration
+    EXPECT_EQ(b[59], 0x00u);  // Reserved
+    // Config string: [0x0A]"Name=value" [0x09]"key=value" [0x00].
+    EXPECT_EQ(b[60], 0x0Au);  // item len = 1 + 4 (Name) + 5 (value)
+    EXPECT_EQ(b[61], 0x4Eu);  // 'N'
+    EXPECT_EQ(b[65], 0x3Du);  // '=' inside "Name=value"
+    EXPECT_EQ(b[70], 0x65u);  // 'e' (last of "value")
+    EXPECT_EQ(b[71], 0x09u);  // item len = 1 + 3 (key) + 5 (value)
+    EXPECT_EQ(b[72], 0x6Bu);  // 'k'
+    EXPECT_EQ(b[80], 0x65u);  // 'e' (last of "value")
+    EXPECT_EQ(b[81], 0x00u);  // zero-length terminator
 }
 
 TEST(BuildMultiSubscribeEventgroup, HeaderAndTwoEntries) {

@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <string>
 #include <thread>
+#include <utility>
 
 #include "someip/protocol.h"  // tc8::someip::kSdServiceId / kSdMethodId (SD Message ID SSOT)
 #include "someip/sd_wire_constants.h"  // sd_option_type / sd_l4_proto / sd_entry_type (wire values SSOT)
@@ -63,6 +64,11 @@ void appendSdHeader(std::vector<std::uint8_t> &b, std::uint16_t session_id,
 // Subscribe builders.
 inline constexpr std::uint8_t kEntryOptionRun1 = 0x10;
 
+// SD entry option-count byte selecting two contiguous options in the first run
+// (#Opt1=2 | #Opt2=0), i.e. the entry references options index 0 and 1. Used by an
+// Offer that must reference both a data endpoint and a Configuration option.
+inline constexpr std::uint8_t kEntryTwoOptionsRun1 = 0x20;
+
 // Append one IPv4 (SD) Endpoint option to an SD Options Array: the fixed 12-byte
 // wire shape Length(9) | Type | Reserved(Discardable=0) | IPv4 address (streamed
 // MSB-first from the network-order uint32) | Reserved | L4-Proto | Port. Single
@@ -82,6 +88,33 @@ void appendIpv4EndpointOption(std::vector<std::uint8_t> &b, std::uint8_t option_
     b.push_back(0);  // Reserved
     b.push_back(ep.l4proto);
     putBe16(b, ep.port);
+}
+
+// Append one SOME/IP-SD Configuration option (Type 0x01) to an SD Options Array.
+// Wire shape: Length(2B BE) | Type(0x01) | Reserved(0) | config string, where the
+// config string is a sequence of length-prefixed "key=value" items terminated by a
+// single zero-length byte: `[len1]key1=value1 [len2]key2=value2 ... 0x00`. Each
+// item's length byte counts `key + '=' + value` (so `key.size() + 1 + value.size()`
+// must fit one byte). The Length field counts everything after the Type byte —
+// Reserved(1) + config string — matching `appendIpv4EndpointOption`'s convention and
+// the `sd_decode.h` Configuration-option reader. Single encoder for the config-option
+// shape so no call site hand-rolls the length-prefix arithmetic.
+void appendConfigurationOption(std::vector<std::uint8_t> &b,
+                              const std::vector<std::pair<std::string, std::string>> &items) {
+    std::vector<std::uint8_t> cs;  // config string: [len][key=value]...[0x00]
+    for (const auto &kv : items) {
+        const std::size_t item_len = kv.first.size() + 1u + kv.second.size();  // key '=' value
+        cs.push_back(static_cast<std::uint8_t>(item_len));
+        cs.insert(cs.end(), kv.first.begin(), kv.first.end());
+        cs.push_back('=');
+        cs.insert(cs.end(), kv.second.begin(), kv.second.end());
+    }
+    cs.push_back(0x00);  // zero-length item terminates the sequence
+    // Length = Reserved(1) + config string (everything after the Type byte).
+    putBe16(b, static_cast<std::uint16_t>(1u + cs.size()));
+    b.push_back(sd_option_type::kConfiguration);
+    b.push_back(0);  // Reserved (Discardable flag = 0)
+    b.insert(b.end(), cs.begin(), cs.end());
 }
 
 // Append one SOME/IP-SD Type-1 entry (FindService / OfferService, TR_SOMEIP §7.4
@@ -314,6 +347,42 @@ buildOfferServiceWithEndpointAndSdEndpointOption(const OfferServiceWithEndpointT
     putBe32(b, kOptionsLen);
     appendIpv4EndpointOption(b, sd_option_type::kIpv4SdEndpoint, sd_ep);           // options[0]
     appendIpv4EndpointOption(b, sd_option_type::kIpv4Endpoint, data_ep.endpoint);  // options[1]
+    return b;
+}
+
+std::vector<std::uint8_t>
+buildOfferServiceWithEndpointAndConfigOption(const OfferServiceWithEndpointTarget &data_ep,
+                                             const std::vector<std::pair<std::string, std::string>> &config_items) {
+    // Options array: options[0] = Type-0x04 IPv4 Endpoint (the data endpoint, so the
+    // Offer is accepted rather than dropped as an unknown offer), options[1] =
+    // Type-0x01 Configuration option. The entry references BOTH (IndexFirstOptionRun=0,
+    // #Opt1=2): a Configuration option is delivered only when the entry references it.
+    // The options array is variable-length (the config string grows with the items),
+    // so OptionsLen and the SOME/IP Length field are computed, not compile-time fixed.
+    std::vector<std::uint8_t> opts;
+    appendIpv4EndpointOption(opts, sd_option_type::kIpv4Endpoint, data_ep.endpoint);  // options[0]
+    appendConfigurationOption(opts, config_items);                                    // options[1]
+
+    constexpr std::uint32_t kEntriesLen = 16;
+    const std::uint32_t options_len = static_cast<std::uint32_t>(opts.size());
+    // SOME/IP Length counts from Request ID onwards = 8 (request id + proto/iface/
+    // msgtype/retcode) + payload, where payload = 4 (flags/reserved) + 4 (EntriesLen)
+    // + 16 (entry) + 4 (OptionsLen) + options bytes = 28 + options_len. So
+    // Length = 36 + options_len. Cross-check: options_len == 12 gives 48, matching
+    // buildOfferServiceWithEndpoint's Length.
+    const std::uint32_t length_field = 36u + options_len;
+
+    std::vector<std::uint8_t> b;
+    b.reserve(44u + opts.size());
+    // Reboot|Unicast flags; OEM override sets the Reboot bit.
+    appendSdHeader(b, data_ep.service.session_id, length_field, data_ep.service.sd_flags,
+                   kEntriesLen);
+    appendSdType1Entry(b, sd_entry_type::kOfferService, /*index_first_run=*/0,
+                       kEntryTwoOptionsRun1, data_ep.service.service_id,
+                       data_ep.service.instance_id, data_ep.service.major_version,
+                       data_ep.service.ttl, data_ep.service.minor_version);
+    putBe32(b, options_len);
+    b.insert(b.end(), opts.begin(), opts.end());
     return b;
 }
 

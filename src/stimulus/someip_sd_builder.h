@@ -5,7 +5,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "stimulus/boot_timing.h"
@@ -421,6 +423,27 @@ buildOfferServiceWithEndpoint(const OfferServiceWithEndpointTarget &t);
 std::vector<std::uint8_t>
 buildOfferServiceWithEndpointAndSdEndpointOption(const OfferServiceWithEndpointTarget &data_ep,
                                                  const Ipv4Endpoint &sd_ep);
+
+// OfferService carrying TWO entry-referenced options: options[0] is a Type-0x04
+// IPv4 Endpoint option (the service data endpoint `data_ep.endpoint`) and
+// options[1] is a Type-0x01 Configuration option holding `config_items`. The
+// entry references BOTH (IndexFirstOptionRun=0, #Opt1=2). The data endpoint is
+// mandatory here for the same reason as `buildOfferServiceWithEndpointAndSdEndpointOption`
+// — an OfferService without a data endpoint is dropped as an unknown offer.
+//
+// Unlike an endpoint option, a Configuration option is delivered to the receiving
+// application ONLY when the service entry references it: the reference SOME/IP-SD
+// receiver walks the entry's option runs (`get_options`) and an unreferenced option
+// in the array is never visited. Hence #Opt1=2 rather than leaving the config
+// option unreferenced.
+//
+// Each item is encoded per SOME/IP-SD OPTIONS Configuration-Option shape as
+// `[len][key '=' value]`, length-prefixed with a single byte (so `key + 1 + value`
+// must be <= 255), followed by a zero-length terminator byte. A pure builder with
+// no emit companion: emit via `sendSdUnicast` / `sendSdMulticastFromSourceIp`.
+std::vector<std::uint8_t>
+buildOfferServiceWithEndpointAndConfigOption(const OfferServiceWithEndpointTarget &data_ep,
+                                             const std::vector<std::pair<std::string, std::string>> &config_items);
 
 int emitOfferServiceMulticastWithEndpoint(std::string_view iface,
                                           const OfferServiceWithEndpointTarget &t,
