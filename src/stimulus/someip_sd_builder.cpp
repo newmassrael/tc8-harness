@@ -3,6 +3,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
+#include <cassert>
 #include <cstdio>
 #include <string>
 #include <thread>
@@ -58,16 +59,30 @@ void appendSdHeader(std::vector<std::uint8_t> &b, std::uint16_t session_id,
     putBe32(b, entries_len);
 }
 
-// SD entry option-count byte selecting exactly one option in the first run
-// (#Opt1=1 | #Opt2=0), i.e. the entry references the option at options index 0.
-// The single source for that nibble across the referenced Find / Offer /
-// Subscribe builders.
-inline constexpr std::uint8_t kEntryOptionRun1 = 0x10;
+// The #Opt1/#Opt2 option-run count byte of an SD entry (byte 3): #Opt1 in the high
+// nibble, #Opt2 in the low. Single source for the option-run packing shared by the
+// Type-1 (Find/Offer) and Type-2 (Subscribe/Ack) entry builders.
+constexpr std::uint8_t sdEntryOptionRun(std::uint8_t num_first, std::uint8_t num_second = 0) {
+    return static_cast<std::uint8_t>(((num_first & 0x0F) << 4) | (num_second & 0x0F));
+}
 
-// SD entry option-count byte selecting two contiguous options in the first run
-// (#Opt1=2 | #Opt2=0), i.e. the entry references options index 0 and 1. Used by an
-// Offer that must reference both a data endpoint and a Configuration option.
-inline constexpr std::uint8_t kEntryTwoOptionsRun1 = 0x20;
+// #Opt1=1 | #Opt2=0 — the entry references exactly one option at options index 0.
+// The single source for that nibble across the referenced Find / Offer / Subscribe
+// builders.
+inline constexpr std::uint8_t kEntryOptionRun1 = sdEntryOptionRun(1);
+
+// #Opt1=2 | #Opt2=0 — the entry references two contiguous options (index 0 and 1);
+// used by an Offer that references both a data endpoint and a Configuration option.
+inline constexpr std::uint8_t kEntryTwoOptionsRun1 = sdEntryOptionRun(2);
+
+// The SOME/IP Length field of an SD message: the 8 bytes counted from Request ID
+// (request id + proto/iface/msgtype/retcode) plus the SD framing — 4 (flags/reserved)
+// + 4 (EntriesLen field) + entries_bytes + 4 (OptionsLen field) + options_bytes.
+// Single source for every SD builder's Length arithmetic (was a per-builder 36/48/60).
+constexpr std::uint32_t sdSomeIpLengthField(std::uint32_t entries_bytes,
+                                            std::uint32_t options_bytes) {
+    return 20u + entries_bytes + options_bytes;
+}
 
 // Append one IPv4 (SD) Endpoint option to an SD Options Array: the fixed 12-byte
 // wire shape Length(9) | Type | Reserved(Discardable=0) | IPv4 address (streamed
@@ -90,28 +105,17 @@ void appendIpv4EndpointOption(std::vector<std::uint8_t> &b, std::uint8_t option_
     putBe16(b, ep.port);
 }
 
-// Append one SOME/IP-SD Configuration option (Type 0x01) to an SD Options Array.
-// Wire shape: Length(2B BE) | Type(0x01) | Reserved(0) | config string, where the
-// config string is a sequence of length-prefixed "key=value" items terminated by a
-// single zero-length byte: `[len1]key1=value1 [len2]key2=value2 ... 0x00`. Each
-// item's length byte counts `key + '=' + value` (so `key.size() + 1 + value.size()`
-// must fit one byte). The Length field counts everything after the Type byte —
-// Reserved(1) + config string — matching `appendIpv4EndpointOption`'s convention and
-// the `sd_decode.h` Configuration-option reader. Single encoder for the config-option
-// shape so no call site hand-rolls the length-prefix arithmetic.
+// Append one SOME/IP-SD Configuration option (Type 0x01) to an SD Options Array:
+// Length(2B BE) | Type(0x01) | Reserved(0) | config string (via the
+// `encodeSdConfigOptionBody` SSOT). The Length field counts everything after the Type
+// byte — Reserved(1) + config string — matching `appendIpv4EndpointOption`'s
+// convention and the `sd_decode.h` Configuration-option reader.
 void appendConfigurationOption(std::vector<std::uint8_t> &b,
                               const std::vector<std::pair<std::string, std::string>> &items) {
-    std::vector<std::uint8_t> cs;  // config string: [len][key=value]...[0x00]
-    for (const auto &kv : items) {
-        const std::size_t item_len = kv.first.size() + 1u + kv.second.size();  // key '=' value
-        cs.push_back(static_cast<std::uint8_t>(item_len));
-        cs.insert(cs.end(), kv.first.begin(), kv.first.end());
-        cs.push_back('=');
-        cs.insert(cs.end(), kv.second.begin(), kv.second.end());
-    }
-    cs.push_back(0x00);  // zero-length item terminates the sequence
-    // Length = Reserved(1) + config string (everything after the Type byte).
-    putBe16(b, static_cast<std::uint16_t>(1u + cs.size()));
+    const std::vector<std::uint8_t> cs = encodeSdConfigOptionBody(items);
+    const std::size_t opt_len = 1u + cs.size();  // Reserved(1) + config string.
+    assert(opt_len <= 0xFFFFu && "SD Configuration option exceeds the 16-bit Length");
+    putBe16(b, static_cast<std::uint16_t>(opt_len));
     b.push_back(sd_option_type::kConfiguration);
     b.push_back(0);  // Reserved (Discardable flag = 0)
     b.insert(b.end(), cs.begin(), cs.end());
@@ -194,9 +198,9 @@ std::vector<std::uint8_t> buildFindServiceWithOneOption(const FindServiceParams 
     // 56 B = 16 (SOME/IP header) + 4 (flags+reserved) + 4 (entries_len)
     //      + 16 (entry) + 4 (options_len) + 12 (one IPv4 Endpoint option).
     // Length field = 56 - 8 (header bytes before request_id) = 48.
-    constexpr std::uint32_t kLengthField = 48;
     constexpr std::uint32_t kEntriesLen = 16;
     constexpr std::uint32_t kOptionsLen = 12;
+    constexpr std::uint32_t kLengthField = sdSomeIpLengthField(kEntriesLen, kOptionsLen);
 
     std::vector<std::uint8_t> b;
     b.reserve(56);
@@ -216,6 +220,27 @@ std::vector<std::uint8_t> buildFindServiceWithOneOption(const FindServiceParams 
 
 }  // namespace
 
+std::vector<std::uint8_t>
+encodeSdConfigOptionBody(const std::vector<std::pair<std::string, std::string>> &items) {
+    // Config string: length-prefixed "key=value" items, zero-length-terminated —
+    // `[len1]key1=value1 [len2]key2=value2 ... 0x00`. Each length byte counts
+    // `key + '=' + value`. This is the body an SD Configuration option (Type 0x01)
+    // carries after its Reserved byte, and equally the `ExtraSdOption::body` a
+    // Subscribe entry references — one source for the shape (WRITER side; the READER
+    // is sd_decode.h, cross-checked by the builder round-trip test).
+    std::vector<std::uint8_t> cs;
+    for (const auto &kv : items) {
+        const std::size_t item_len = kv.first.size() + 1u + kv.second.size();  // key '=' value
+        assert(item_len <= 0xFFu && "SD config item length exceeds the 8-bit prefix");
+        cs.push_back(static_cast<std::uint8_t>(item_len));
+        cs.insert(cs.end(), kv.first.begin(), kv.first.end());
+        cs.push_back('=');
+        cs.insert(cs.end(), kv.second.begin(), kv.second.end());
+    }
+    cs.push_back(0x00);  // zero-length item terminates the sequence
+    return cs;
+}
+
 std::vector<std::uint8_t> buildFindService(const FindServiceParams &p) {
     // SOME/IP-SD TR_SOMEIP §7.3 wire layout:
     //   [SOME/IP header 16B] [Flags 1B | Reserved 3B] [EntriesLen 4B]
@@ -225,9 +250,9 @@ std::vector<std::uint8_t> buildFindService(const FindServiceParams &p) {
     //         = 28 bytes.
     // SOME/IP length field counts bytes from Request ID onwards:
     //   8 (request_id + proto/iface/msgtype/retcode) + 28 (payload) = 36.
-    constexpr std::uint32_t kLengthField = 36;
     constexpr std::uint32_t kEntriesLen = 16;
     constexpr std::uint32_t kOptionsLen = 0;
+    constexpr std::uint32_t kLengthField = sdSomeIpLengthField(kEntriesLen, kOptionsLen);
 
     std::vector<std::uint8_t> b;
     b.reserve(44);
@@ -267,9 +292,9 @@ std::vector<std::uint8_t> buildOfferService(const OfferServiceTarget &t) {
     // Wire layout mirrors buildFindService — 16 B SOME/IP + 4 B SD flags/
     // reserved + 4 B EntriesLen=16 + 16 B Type-0x01 entry + 4 B OptionsLen=0
     // = 44 B. Length field counts from request_id forward = 8 + 28 = 36.
-    constexpr std::uint32_t kLengthField  = 36;
     constexpr std::uint32_t kEntriesLen   = 16;
     constexpr std::uint32_t kOptionsLen   = 0;
+    constexpr std::uint32_t kLengthField  = sdSomeIpLengthField(kEntriesLen, kOptionsLen);
 
     std::vector<std::uint8_t> b;
     b.reserve(44);
@@ -300,9 +325,9 @@ buildOfferServiceWithEndpoint(const OfferServiceWithEndpointTarget &t) {
     // 56 B Offer: the entry references (#Opt1=1) one Type-0x04 IPv4 Endpoint option at
     // options index 0 — the tester advertises its own L4 data endpoint.
     // Length = 8 + 4 (flags) + 4 (EntriesLen) + 16 (entry) + 4 (OptionsLen) + 12 = 48.
-    constexpr std::uint32_t kLengthField = 48;
     constexpr std::uint32_t kEntriesLen  = 16;
     constexpr std::uint32_t kOptionsLen  = 12;
+    constexpr std::uint32_t kLengthField = sdSomeIpLengthField(kEntriesLen, kOptionsLen);
 
     std::vector<std::uint8_t> b;
     b.reserve(56);
@@ -327,9 +352,9 @@ buildOfferServiceWithEndpointAndSdEndpointOption(const OfferServiceWithEndpointT
     // Unlike a FindService (a query, no endpoint), an OfferService without a data
     // endpoint is dropped as an unknown offer — so the redirect Offer carries both.
     // Length = 8 + 4 (flags) + 4 (EntriesLen) + 16 (entry) + 4 (OptionsLen) + 24 = 60.
-    constexpr std::uint32_t kLengthField     = 60;
     constexpr std::uint32_t kEntriesLen      = 16;
     constexpr std::uint32_t kOptionsLen      = 24;  // two 12-byte options
+    constexpr std::uint32_t kLengthField     = sdSomeIpLengthField(kEntriesLen, kOptionsLen);
     constexpr std::uint8_t  kDataEndpointIdx = 1;   // entry references options[1]
 
     std::vector<std::uint8_t> b;
@@ -365,12 +390,7 @@ buildOfferServiceWithEndpointAndConfigOption(const OfferServiceWithEndpointTarge
 
     constexpr std::uint32_t kEntriesLen = 16;
     const std::uint32_t options_len = static_cast<std::uint32_t>(opts.size());
-    // SOME/IP Length counts from Request ID onwards = 8 (request id + proto/iface/
-    // msgtype/retcode) + payload, where payload = 4 (flags/reserved) + 4 (EntriesLen)
-    // + 16 (entry) + 4 (OptionsLen) + options bytes = 28 + options_len. So
-    // Length = 36 + options_len. Cross-check: options_len == 12 gives 48, matching
-    // buildOfferServiceWithEndpoint's Length.
-    const std::uint32_t length_field = 36u + options_len;
+    const std::uint32_t length_field = sdSomeIpLengthField(kEntriesLen, options_len);
 
     std::vector<std::uint8_t> b;
     b.reserve(44u + opts.size());
@@ -489,7 +509,6 @@ std::vector<std::uint8_t> buildSubscribeEventgroup(const SubscribeEventgroupPara
     //   8 (request_id + proto/iface/msgtype/retcode) + 40 (payload) = 48.
     // The SD Method ID comes from the someip::kSdMethodId SSOT; the rest of the
     // header is emitted by appendSdHeader. ETS_178 overrides it via method_id_override.
-    constexpr std::uint32_t kLengthFieldCanonical = 48;
     constexpr std::uint32_t kEntriesLenCanonical = 16;
     constexpr std::uint32_t kOptionsLenCanonical = 12;
     // Each extra option contributes (length 2B + type 1B + reserved 1B + body
@@ -500,8 +519,8 @@ std::vector<std::uint8_t> buildSubscribeEventgroup(const SubscribeEventgroupPara
     }
     // Optional second IPv4 Endpoint option is a fixed canonical 12 bytes.
     const std::uint32_t second_endpoint_bytes = p.second_endpoint.has_value() ? 12u : 0u;
-    const std::uint32_t length_field = p.length_override.value_or(
-        kLengthFieldCanonical + second_endpoint_bytes + extra_options_total_bytes);
+    const std::uint32_t length_field = p.length_override.value_or(sdSomeIpLengthField(
+        kEntriesLenCanonical, kOptionsLenCanonical + second_endpoint_bytes + extra_options_total_bytes));
     const std::uint32_t entries_len_field =
         p.entries_len_override == 0 ? kEntriesLenCanonical : p.entries_len_override;
     const std::uint32_t options_len_field = p.options_len_override.value_or(
@@ -521,8 +540,7 @@ std::vector<std::uint8_t> buildSubscribeEventgroup(const SubscribeEventgroupPara
         p.num_options_first_override.value_or(kNumOptionsFirstCanonical) & 0x0F;
     const std::uint8_t num_options_second =
         p.num_options_second_override.value_or(0) & 0x0F;
-    const std::uint8_t entry_byte3 = static_cast<std::uint8_t>(
-        (num_options_first << 4) | num_options_second);
+    const std::uint8_t entry_byte3 = sdEntryOptionRun(num_options_first, num_options_second);
     const std::uint8_t index_first  = p.index_first_options_override.value_or(0);
     const std::uint8_t index_second = p.index_second_options_override.value_or(0);
     // §5.1.6 SOMEIP_ETS_176 / _177: trailing payload after the Options
@@ -681,8 +699,7 @@ buildMultiSubscribeEventgroup(const MultiSubscribeEventgroupParams &p) {
     // SOME/IP Length field still counts the ACTUAL entries bytes (so the
     // wire layout is internally consistent: header reads X entries-bytes
     // even when EntriesLen field lies). The mismatch is the spec hook.
-    const std::uint32_t length_field =
-        8 + 4 + 4 + entries_len_actual + 4 + kOptionsLen;
+    const std::uint32_t length_field = sdSomeIpLengthField(entries_len_actual, kOptionsLen);
 
     std::vector<std::uint8_t> b;
     b.reserve(16 + 4 + 4 + entries_len + 4 + kOptionsLen);
@@ -703,7 +720,7 @@ buildMultiSubscribeEventgroup(const MultiSubscribeEventgroupParams &p) {
         entry.entry_type = sd_entry_type::kSubscribeEventgroup;
         entry.index_first_run = 0;
         entry.index_second_run = 0;
-        entry.option_run = static_cast<std::uint8_t>(num_opt1 << 4);  // #Opt1 | #Opt2=0
+        entry.option_run = sdEntryOptionRun(num_opt1);  // #Opt1 | #Opt2=0
         entry.service_id = t.service_id;
         entry.instance_id = t.instance_id;
         entry.major_version = t.major_version;
@@ -830,7 +847,7 @@ std::vector<std::uint8_t> buildSubscribeEventgroupAck(const SubscribeEventgroupA
     const std::uint32_t options_len = has_option ? 12u : 0u;
     // Length counts from Request ID onward: 8 + SD flags(4) + EntriesLen(4)
     // + entry(16) + OptionsLen(4) + option bytes.
-    const std::uint32_t length_field = 8 + 4 + 4 + kEntriesLen + 4 + options_len;
+    const std::uint32_t length_field = sdSomeIpLengthField(kEntriesLen, options_len);
 
     std::vector<std::uint8_t> b;
     b.reserve(16 + 4 + 4 + 16 + 4 + options_len);

@@ -424,6 +424,15 @@ std::vector<std::uint8_t>
 buildOfferServiceWithEndpointAndSdEndpointOption(const OfferServiceWithEndpointTarget &data_ep,
                                                  const Ipv4Endpoint &sd_ep);
 
+// Encode a SOME/IP-SD Configuration option BODY (the bytes after the option's
+// Reserved byte): length-prefixed "key=value" items terminated by a zero-length
+// byte — `[len1]key1=value1 [len2]key2=value2 ... 0x00`, each length byte counting
+// `key + '=' + value` (which must be <= 255). This is the single source for the
+// config-string shape, shared by `buildOfferServiceWithEndpointAndConfigOption` and
+// by any Subscribe/Ack case that references a config option via `ExtraSdOption::body`.
+std::vector<std::uint8_t>
+encodeSdConfigOptionBody(const std::vector<std::pair<std::string, std::string>> &items);
+
 // OfferService carrying TWO entry-referenced options: options[0] is a Type-0x04
 // IPv4 Endpoint option (the service data endpoint `data_ep.endpoint`) and
 // options[1] is a Type-0x01 Configuration option holding `config_items`. The

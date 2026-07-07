@@ -5,6 +5,7 @@
 
 #include <gtest/gtest.h>
 
+#include "someip/sd_decode.h"
 #include "stimulus/someip_sd_builder.h"
 
 namespace tc8::stimulus {
@@ -493,7 +494,8 @@ TEST(BuildOfferServiceWithEndpointAndSdEndpointOption, TwoOptionsRedirect) {
 // Endpoint (data endpoint) and options[1] = Type-0x01 Configuration option, with the
 // entry referencing BOTH (IndexFirstOptionRun=0, #Opt1=2). Each config item is
 // length-prefixed with a single byte counting `key '=' value`, and the sequence ends
-// in a zero-length terminator byte.
+// in a zero-length terminator byte. Key/value strings are neutral placeholders — the
+// wire encoding is value-agnostic.
 TEST(BuildOfferServiceWithEndpointAndConfigOption, EndpointPlusReferencedConfig) {
     OfferServiceWithEndpointTarget data{};
     data.service.service_id = 0xF4E7;
@@ -502,21 +504,20 @@ TEST(BuildOfferServiceWithEndpointAndConfigOption, EndpointPlusReferencedConfig)
     data.endpoint.ipv4_be = 0x020010AC;  // 172.16.0.2 (service data endpoint)
     data.endpoint.port = 0x7777;
     data.endpoint.l4proto = 0x11;
-    const std::vector<std::pair<std::string, std::string>> items{{"Name", "value"},
-                                                                 {"key", "value"}};
+    const std::vector<std::pair<std::string, std::string>> items{{"foo", "bar"}, {"x", "yz"}};
     const auto b = buildOfferServiceWithEndpointAndConfigOption(data, items);
 
-    // 82 B = 16 (SOME/IP) + 4 (flags) + 4 (EntriesLen) + 16 (entry) + 4 (OptionsLen)
-    //      + 12 (endpoint option) + 26 (config option: 4 header + 22 config string).
-    ASSERT_EQ(b.size(), 82u);
-    EXPECT_EQ(b[7], 0x4Au);   // SOME/IP Length = 74 = 36 + 38
+    // 74 B = 16 (SOME/IP) + 4 (flags) + 4 (EntriesLen) + 16 (entry) + 4 (OptionsLen)
+    //      + 12 (endpoint option) + 18 (config option: 4 header + 14 config string).
+    ASSERT_EQ(b.size(), 74u);
+    EXPECT_EQ(b[7], 0x42u);   // SOME/IP Length = 66 = 20 + 16 (entries) + 30 (options)
     EXPECT_EQ(b[24], 0x01u);  // entry type = OfferService
     EXPECT_EQ(b[25], 0x00u);  // IndexFirstOptionRun = 0
     EXPECT_EQ(b[26], 0x00u);  // IndexSecondOptionRun = 0
     EXPECT_EQ(b[27], 0x20u);  // #Opt1=2 | #Opt2=0 (references both options)
     EXPECT_EQ(b[28], 0xF4u); EXPECT_EQ(b[29], 0xE7u);  // service id
     EXPECT_EQ(b[30], 0x00u); EXPECT_EQ(b[31], 0x01u);  // instance id
-    EXPECT_EQ(b[43], 0x26u);  // OptionsLen = 38 (12 + 26)
+    EXPECT_EQ(b[43], 0x1Eu);  // OptionsLen = 30 (12 + 18)
 
     // options[0] = Type-0x04 IPv4 Endpoint (172.16.0.2 : 0x7777, UDP).
     EXPECT_EQ(b[45], 0x09u);  // option Length
@@ -526,19 +527,43 @@ TEST(BuildOfferServiceWithEndpointAndConfigOption, EndpointPlusReferencedConfig)
     EXPECT_EQ(b[53], 0x11u);  // l4proto UDP
     EXPECT_EQ(b[54], 0x77u); EXPECT_EQ(b[55], 0x77u);  // port BE
 
-    // options[1] = Type-0x01 Configuration option, Length = 23 (1 Reserved + 22 cs).
-    EXPECT_EQ(b[57], 0x17u);  // option Length = 23
+    // options[1] = Type-0x01 Configuration option, Length = 15 (1 Reserved + 14 cs).
+    EXPECT_EQ(b[57], 0x0Fu);  // option Length = 15
     EXPECT_EQ(b[58], 0x01u);  // type = Configuration
     EXPECT_EQ(b[59], 0x00u);  // Reserved
-    // Config string: [0x0A]"Name=value" [0x09]"key=value" [0x00].
-    EXPECT_EQ(b[60], 0x0Au);  // item len = 1 + 4 (Name) + 5 (value)
-    EXPECT_EQ(b[61], 0x4Eu);  // 'N'
-    EXPECT_EQ(b[65], 0x3Du);  // '=' inside "Name=value"
-    EXPECT_EQ(b[70], 0x65u);  // 'e' (last of "value")
-    EXPECT_EQ(b[71], 0x09u);  // item len = 1 + 3 (key) + 5 (value)
-    EXPECT_EQ(b[72], 0x6Bu);  // 'k'
-    EXPECT_EQ(b[80], 0x65u);  // 'e' (last of "value")
-    EXPECT_EQ(b[81], 0x00u);  // zero-length terminator
+    // Config string: [0x07]"foo=bar" [0x04]"x=yz" [0x00].
+    EXPECT_EQ(b[60], 0x07u);  // item len = 1 + 3 (foo) + 3 (bar)
+    EXPECT_EQ(b[61], 0x66u);  // 'f'
+    EXPECT_EQ(b[64], 0x3Du);  // '=' inside "foo=bar"
+    EXPECT_EQ(b[67], 0x72u);  // 'r' (last of "bar")
+    EXPECT_EQ(b[68], 0x04u);  // item len = 1 + 1 (x) + 2 (yz)
+    EXPECT_EQ(b[69], 0x78u);  // 'x'
+    EXPECT_EQ(b[70], 0x3Du);  // '=' inside "x=yz"
+    EXPECT_EQ(b[72], 0x7Au);  // 'z' (last of "yz")
+    EXPECT_EQ(b[73], 0x00u);  // zero-length terminator
+}
+
+// The builder's Configuration option round-trips through the harness's own SD decoder
+// (sd_decode.h) — the drift guard between the WRITER (encodeSdConfigOptionBody) and the
+// READER, which hand-code the same [len]key=value...[0x00] shape in separate files.
+TEST(BuildOfferServiceWithEndpointAndConfigOption, ConfigOptionRoundTripsThroughDecoder) {
+    OfferServiceWithEndpointTarget data{};
+    data.service.service_id = 0xF4E7;
+    data.service.session_id = 0x0001;
+    data.endpoint.ipv4_be = 0x020010AC;
+    data.endpoint.port = 0x7777;
+    data.endpoint.l4proto = 0x11;
+    const std::vector<std::pair<std::string, std::string>> items{{"foo", "bar"}, {"x", "yz"}};
+    const auto b = buildOfferServiceWithEndpointAndConfigOption(data, items);
+
+    // parseSdInto consumes the SD payload (the datagram past the 16-byte SOME/IP header).
+    ::tc8::SdDecoded decoded{};
+    ::tc8::parseSdInto(decoded, b.data() + 16, b.size() - 16);
+    EXPECT_EQ(decoded.sd_config_item_count, 2u);
+    EXPECT_TRUE(decoded.sd_config_has_key("foo"));
+    EXPECT_EQ(decoded.sd_config_value_of("foo"), "bar");
+    EXPECT_TRUE(decoded.sd_config_has_key("x"));
+    EXPECT_EQ(decoded.sd_config_value_of("x"), "yz");
 }
 
 TEST(BuildMultiSubscribeEventgroup, HeaderAndTwoEntries) {
