@@ -92,17 +92,13 @@ constexpr std::uint32_t sdSomeIpLengthField(std::uint32_t entries_bytes,
 // (0x24), whose bodies are byte-identical apart from the type byte.
 void appendIpv4EndpointOption(std::vector<std::uint8_t> &b, std::uint8_t option_type,
                              const Ipv4Endpoint &ep) {
-    constexpr std::uint16_t kOptionBodyLen = 9;
-    putBe16(b, kOptionBodyLen);
+    // Body (address + reserved + L4-proto + port) via the public sdIpv4OptionBody SSOT.
+    // Length counts the bytes after the Type byte: Reserved(1) + body(8) = 9.
+    const std::vector<std::uint8_t> body = sdIpv4OptionBody(ep);
+    putBe16(b, static_cast<std::uint16_t>(1u + body.size()));
     b.push_back(option_type);
     b.push_back(0);  // Reserved (Discardable flag = 0)
-    b.push_back(static_cast<std::uint8_t>((ep.ipv4_be >> 0) & 0xFF));
-    b.push_back(static_cast<std::uint8_t>((ep.ipv4_be >> 8) & 0xFF));
-    b.push_back(static_cast<std::uint8_t>((ep.ipv4_be >> 16) & 0xFF));
-    b.push_back(static_cast<std::uint8_t>((ep.ipv4_be >> 24) & 0xFF));
-    b.push_back(0);  // Reserved
-    b.push_back(ep.l4proto);
-    putBe16(b, ep.port);
+    b.insert(b.end(), body.begin(), body.end());
 }
 
 // Append one SOME/IP-SD Configuration option (Type 0x01) to an SD Options Array:
@@ -241,6 +237,25 @@ encodeSdConfigOptionBody(const std::vector<std::pair<std::string, std::string>> 
     return cs;
 }
 
+std::vector<std::uint8_t> sdIpv4OptionBody(const Ipv4Endpoint &ep) {
+    // The 8 bytes of an IPv4 Endpoint / Multicast / SD Endpoint option AFTER its
+    // Reserved byte: IPv4 address (streamed LSB-first — `ipv4_be` is already network
+    // byte order, so no host-to-network swap), Reserved(1), L4-Proto(1), Port(2 BE).
+    // appendIpv4EndpointOption wraps this with Length(9) + Type + Reserved; an
+    // SdExtraOption carrying it gets Length = 1 + 8 = 9 the same way. The `& 0xFF`
+    // masks defeat narrowing warnings under -Wconversion.
+    return {
+        static_cast<std::uint8_t>((ep.ipv4_be >> 0) & 0xFF),
+        static_cast<std::uint8_t>((ep.ipv4_be >> 8) & 0xFF),
+        static_cast<std::uint8_t>((ep.ipv4_be >> 16) & 0xFF),
+        static_cast<std::uint8_t>((ep.ipv4_be >> 24) & 0xFF),
+        0x00,
+        ep.l4proto,
+        static_cast<std::uint8_t>((ep.port >> 8) & 0xFF),
+        static_cast<std::uint8_t>(ep.port & 0xFF),
+    };
+}
+
 std::vector<std::uint8_t> buildFindService(const FindServiceParams &p) {
     // SOME/IP-SD TR_SOMEIP §7.3 wire layout:
     //   [SOME/IP header 16B] [Flags 1B | Reserved 3B] [EntriesLen 4B]
@@ -299,8 +314,8 @@ std::vector<std::uint8_t> buildOfferService(const OfferServiceTarget &t) {
     std::vector<std::uint8_t> b;
     b.reserve(44);
 
-    // Reboot|Unicast flags; OEM override sets the Reboot bit.
-    appendSdHeader(b, t.session_id, kLengthField, t.sd_flags, kEntriesLen);
+    // Reboot|Unicast flags; OEM override sets the Reboot bit. Reserved canonically 0.
+    appendSdHeader(b, t.session_id, kLengthField, t.sd_flags, kEntriesLen, t.sd_reserved);
 
     // OfferService entry (16B) — no option referenced; ttl == 0 -> StopOfferService.
     appendSdType1Entry(b, sd_entry_type::kOfferService, /*index_first_run=*/0,
@@ -323,22 +338,39 @@ int emitOfferServiceMulticast(std::string_view iface, const OfferServiceTarget &
 std::vector<std::uint8_t>
 buildOfferServiceWithEndpoint(const OfferServiceWithEndpointTarget &t) {
     // 56 B Offer: the entry references (#Opt1=1) one Type-0x04 IPv4 Endpoint option at
-    // options index 0 — the tester advertises its own L4 data endpoint.
-    // Length = 8 + 4 (flags) + 4 (EntriesLen) + 16 (entry) + 4 (OptionsLen) + 12 = 48.
-    constexpr std::uint32_t kEntriesLen  = 16;
-    constexpr std::uint32_t kOptionsLen  = 12;
-    constexpr std::uint32_t kLengthField = sdSomeIpLengthField(kEntriesLen, kOptionsLen);
+    // options index 0 — the tester advertises its own L4 data endpoint. Any
+    // `t.extra_options` are appended after it and also referenced (#Opt1 = 1 + N),
+    // growing OptionsLen and the SOME/IP Length; empty (the default) keeps the 56-byte
+    // single-option shape byte-identical.
+    // Length = 8 + 4 (flags) + 4 (EntriesLen) + 16 (entry) + 4 (OptionsLen) + options.
+    constexpr std::uint32_t kEntriesLen = 16;
+    std::uint32_t extra_bytes = 0;
+    for (const auto &eo : t.extra_options) {
+        extra_bytes += static_cast<std::uint32_t>(4u + eo.body.size());  // Len2+Type1+Reserved1+body
+    }
+    const std::uint32_t options_len  = 12u + extra_bytes;   // endpoint(12) + extras
+    const std::uint32_t length_field = sdSomeIpLengthField(kEntriesLen, options_len);
+    const std::uint8_t  num_opt1     = static_cast<std::uint8_t>(1u + t.extra_options.size());
 
     std::vector<std::uint8_t> b;
-    b.reserve(56);
+    b.reserve(44u + options_len);
 
-    // Reboot|Unicast flags; OEM override sets the Reboot bit.
-    appendSdHeader(b, t.service.session_id, kLengthField, t.service.sd_flags, kEntriesLen);
+    // Reboot|Unicast flags; OEM override sets the Reboot bit. Reserved canonically 0.
+    appendSdHeader(b, t.service.session_id, length_field, t.service.sd_flags, kEntriesLen,
+                   t.service.sd_reserved);
     appendSdType1Entry(b, sd_entry_type::kOfferService, /*index_first_run=*/0,
-                       kEntryOptionRun1, t.service.service_id, t.service.instance_id,
+                       sdEntryOptionRun(num_opt1), t.service.service_id, t.service.instance_id,
                        t.service.major_version, t.service.ttl, t.service.minor_version);
-    putBe32(b, kOptionsLen);
-    appendIpv4EndpointOption(b, sd_option_type::kIpv4Endpoint, t.endpoint);
+    putBe32(b, options_len);
+    appendIpv4EndpointOption(b, sd_option_type::kIpv4Endpoint, t.endpoint);   // options[0]
+    for (const auto &eo : t.extra_options) {                                  // options[1..]
+        // Spec-correct Length: counts the Reserved byte + body (contrast the legacy
+        // Subscribe extra-option path, which counts body only — see SdExtraOption).
+        putBe16(b, static_cast<std::uint16_t>(1u + eo.body.size()));
+        b.push_back(eo.type);
+        b.push_back(eo.reserved);
+        b.insert(b.end(), eo.body.begin(), eo.body.end());
+    }
     return b;
 }
 
@@ -360,9 +392,9 @@ buildOfferServiceWithEndpointAndSdEndpointOption(const OfferServiceWithEndpointT
     std::vector<std::uint8_t> b;
     b.reserve(68);
 
-    // Reboot|Unicast flags; OEM override sets the Reboot bit.
+    // Reboot|Unicast flags; OEM override sets the Reboot bit. Reserved canonically 0.
     appendSdHeader(b, data_ep.service.session_id, kLengthField, data_ep.service.sd_flags,
-                   kEntriesLen);
+                   kEntriesLen, data_ep.service.sd_reserved);
     // Entry references one option (the 0x04 data endpoint) starting at options[1]; the
     // 0x24 at options[0] is not entry-referenced (a DUT client reads it at message level).
     appendSdType1Entry(b, sd_entry_type::kOfferService, kDataEndpointIdx, kEntryOptionRun1,
@@ -394,9 +426,9 @@ buildOfferServiceWithEndpointAndConfigOption(const OfferServiceWithEndpointTarge
 
     std::vector<std::uint8_t> b;
     b.reserve(44u + opts.size());
-    // Reboot|Unicast flags; OEM override sets the Reboot bit.
+    // Reboot|Unicast flags; OEM override sets the Reboot bit. Reserved canonically 0.
     appendSdHeader(b, data_ep.service.session_id, length_field, data_ep.service.sd_flags,
-                   kEntriesLen);
+                   kEntriesLen, data_ep.service.sd_reserved);
     appendSdType1Entry(b, sd_entry_type::kOfferService, /*index_first_run=*/0,
                        kEntryTwoOptionsRun1, data_ep.service.service_id,
                        data_ep.service.instance_id, data_ep.service.major_version,
@@ -424,6 +456,27 @@ int emitOfferServiceMulticastWithEndpoint(std::string_view iface,
         }
     }
     return sendSdMulticast(buildOfferServiceWithEndpoint(filled), iface);
+}
+
+std::vector<std::uint8_t> buildMultiOfferService(const MultiOfferServiceParams &p) {
+    // Same wire layout as buildMultiSubscribeEventgroup but with N Type-1 OfferService
+    // entries: all share one referenced IPv4 Endpoint option (run 0 → option index 0,
+    // #Opt1=1 per entry). EntriesLen = 16 * N; OptionsLen = 12 (the single endpoint).
+    const std::uint32_t entries_len    = static_cast<std::uint32_t>(16 * p.entries.size());
+    constexpr std::uint32_t kOptionsLen = 12;  // one shared IPv4 Endpoint option
+    const std::uint32_t length_field   = sdSomeIpLengthField(entries_len, kOptionsLen);
+
+    std::vector<std::uint8_t> b;
+    b.reserve(16u + 8u + entries_len + 4u + kOptionsLen);
+    appendSdHeader(b, p.session_id, length_field, p.sd_flags, entries_len, p.sd_reserved);
+    for (const auto &e : p.entries) {
+        appendSdType1Entry(b, sd_entry_type::kOfferService, /*index_first_run=*/0,
+                           kEntryOptionRun1, e.service_id, e.instance_id, e.major_version,
+                           e.ttl, e.minor_version);
+    }
+    putBe32(b, kOptionsLen);
+    appendIpv4EndpointOption(b, sd_option_type::kIpv4Endpoint, p.endpoint);
+    return b;
 }
 
 int sendSdMulticast(const std::vector<std::uint8_t> &datagram, std::string_view iface_name,

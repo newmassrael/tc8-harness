@@ -45,4 +45,15 @@ inline constexpr std::uint8_t kSubscribeEventgroup = 0x06;
 inline constexpr std::uint8_t kSubscribeEventgroupAck = 0x07;
 }  // namespace sd_entry_type
 
+// SD message header Flags byte bits (TR_SOMEIP §4.2.1) — the top two bits of byte 0
+// of the SD payload. Reboot = bit 7, Unicast = bit 6; bits 5..0 are reserved. The
+// wire builders and cases OR these instead of spelling 0x80 / 0xC0 / 0x40 raw: the
+// canonical post-boot Offer/Find/Subscribe flags are `kReboot | kUnicast`, a Reboot=0
+// stream is `kUnicast`, and a case exercising undefined flag bits ORs in the low
+// reserved bits (e.g. `kReboot | kUnicast | 0x3F`).
+namespace sd_flags {
+inline constexpr std::uint8_t kReboot  = 0x80;
+inline constexpr std::uint8_t kUnicast = 0x40;
+}  // namespace sd_flags
+
 }  // namespace tc8

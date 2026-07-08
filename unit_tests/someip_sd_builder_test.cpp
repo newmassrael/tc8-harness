@@ -656,5 +656,214 @@ TEST(BuildSubscribeEventgroupAck, MulticastOptionTypeOverride) {
     EXPECT_EQ(b[46], 0x77u);
 }
 
+// --- OfferService: SD-header Reserved override (mirror of the FindService path) ---
+
+TEST(BuildOfferService, ReservedDefaultsToZero) {
+    OfferServiceTarget t{};
+    const auto b = buildOfferService(t);
+    ASSERT_GE(b.size(), 20u);
+    EXPECT_EQ(b[16], 0xC0u);  // Flags default (Reboot|Unicast)
+    EXPECT_EQ(b[17], 0x00u);
+    EXPECT_EQ(b[18], 0x00u);
+    EXPECT_EQ(b[19], 0x00u);
+}
+
+TEST(BuildOfferService, ReservedOverrideSetsHeaderReservedBytes) {
+    OfferServiceTarget t{};
+    t.sd_reserved = 0xABCDEF;
+    const auto b = buildOfferService(t);
+    ASSERT_GE(b.size(), 20u);
+    EXPECT_EQ(b[16], 0xC0u);  // Flags unaffected by the Reserved override
+    EXPECT_EQ(b[17], 0xABu);
+    EXPECT_EQ(b[18], 0xCDu);
+    EXPECT_EQ(b[19], 0xEFu);
+    EXPECT_EQ(b[23], 0x10u);  // EntriesLen still 16 (adjacent field uncorrupted)
+    EXPECT_EQ(b[24], 0x01u);  // entry type still Offer
+}
+
+TEST(BuildOfferServiceWithEndpoint, ReservedOverrideSetsHeaderReservedBytes) {
+    OfferServiceWithEndpointTarget t{};
+    t.service.sd_reserved = 0x123456;
+    t.endpoint.ipv4_be = 0x030010AC;
+    t.endpoint.port = 0x8765;
+    const auto b = buildOfferServiceWithEndpoint(t);
+    ASSERT_EQ(b.size(), 56u);  // size invariant to the reserved value
+    EXPECT_EQ(b[17], 0x12u);
+    EXPECT_EQ(b[18], 0x34u);
+    EXPECT_EQ(b[19], 0x56u);
+    EXPECT_EQ(b[27], 0x10u);  // #Opt1=1 (still single referenced option)
+    EXPECT_EQ(b[43], 0x0Cu);  // OptionsLen = 12
+}
+
+// --- sdIpv4OptionBody SSOT: the body the endpoint-option encoder emits ---
+
+// The public body helper produces exactly the 8 bytes appendIpv4EndpointOption
+// streams after its Length/Type/Reserved prefix — the bytes at offsets 48..55 of a
+// single-endpoint Offer. Guards that a case building an extra endpoint option via
+// sdIpv4OptionBody stays byte-for-byte identical to the mandatory endpoint encoder.
+TEST(SdIpv4OptionBody, MatchesAppendedEndpointOptionBody) {
+    const Ipv4Endpoint ep{0x030010AC, 0x8765, 0x11};  // 172.16.0.3 : 0x8765, UDP
+    const auto body = sdIpv4OptionBody(ep);
+    ASSERT_EQ(body.size(), 8u);
+    const std::vector<std::uint8_t> expected{0xAC, 0x10, 0x00, 0x03,  // address (NBO, LSB-first)
+                                             0x00, 0x11,               // Reserved, L4=UDP
+                                             0x87, 0x65};              // Port BE
+    EXPECT_EQ(body, expected);
+
+    OfferServiceWithEndpointTarget t{};
+    t.endpoint = ep;
+    const auto offer = buildOfferServiceWithEndpoint(t);
+    ASSERT_EQ(offer.size(), 56u);
+    // Option body sits at offsets 48..55 (after Length[44,45]+Type[46]+Reserved[47]).
+    const std::vector<std::uint8_t> on_wire(offer.begin() + 48, offer.begin() + 56);
+    EXPECT_EQ(on_wire, expected);
+}
+
+// --- OfferService referenced extra options (inert unless used) ---
+
+TEST(BuildOfferServiceWithEndpoint, EmptyExtraOptionsIsByteIdenticalSingleOption) {
+    OfferServiceWithEndpointTarget t{};
+    t.service.service_id = 0xF4E8;
+    t.endpoint.ipv4_be = 0x030010AC;
+    t.endpoint.port = 0x8765;
+    const auto b = buildOfferServiceWithEndpoint(t);
+    ASSERT_EQ(b.size(), 56u);   // unchanged single-option shape
+    EXPECT_EQ(b[7], 0x30u);     // SOME/IP Length = 48
+    EXPECT_EQ(b[27], 0x10u);    // #Opt1=1 | #Opt2=0
+    EXPECT_EQ(b[43], 0x0Cu);    // OptionsLen = 12
+}
+
+// An unknown-type referenced extra option (type 0x40, 4-byte body) extends the run to
+// #Opt1=2 and grows OptionsLen / Length; the option Length counts the Reserved byte
+// (spec-correct), and the whole message re-parses through the harness SD decoder.
+TEST(BuildOfferServiceWithEndpoint, UnknownTypeExtraOptionReferencedAndRoundTrips) {
+    OfferServiceWithEndpointTarget t{};
+    t.service.service_id = 0xF4E8;
+    t.service.instance_id = 0x0001;
+    t.endpoint.ipv4_be = 0x030010AC;  // 172.16.0.3
+    t.endpoint.port = 0x8765;
+    t.extra_options.push_back({/*type=*/0x40, /*body=*/{0xDE, 0xAD, 0xBE, 0xEF}, /*reserved=*/0});
+    const auto b = buildOfferServiceWithEndpoint(t);
+
+    // 56 (single-option) + 8 (Len2+Type1+Reserved1+body4) = 64.
+    ASSERT_EQ(b.size(), 64u);
+    EXPECT_EQ(b[7], 0x38u);   // SOME/IP Length = 56 (20 + 16 entries + 20 options)
+    EXPECT_EQ(b[27], 0x20u);  // #Opt1=2 | #Opt2=0
+    EXPECT_EQ(b[43], 0x14u);  // OptionsLen = 20 (12 + 8)
+    // Extra option at offset 56..63: Length = 1 + 4 = 5, Type 0x40, Reserved 0.
+    EXPECT_EQ(b[56], 0x00u);
+    EXPECT_EQ(b[57], 0x05u);
+    EXPECT_EQ(b[58], 0x40u);
+    EXPECT_EQ(b[59], 0x00u);
+    EXPECT_EQ(b[60], 0xDEu);
+    EXPECT_EQ(b[63], 0xEFu);
+
+    ::tc8::SdDecoded decoded{};
+    ::tc8::parseSdInto(decoded, b.data() + 16, b.size() - 16);
+    ASSERT_EQ(decoded.sd_entry_count, 1u);
+    EXPECT_EQ(decoded.sd_entries[0].type, ::tc8::sd_entry_type::kOfferService);
+    EXPECT_EQ(decoded.sd_entries[0].num_opt1, 2u);   // entry references both options
+    ASSERT_EQ(decoded.sd_option_count, 2u);
+    EXPECT_EQ(decoded.sd_options[0].type, ::tc8::sd_option_type::kIpv4Endpoint);
+    EXPECT_EQ(decoded.sd_options[1].type, 0x40u);    // unknown-type option present
+    EXPECT_EQ(decoded.sd_options[1].length, 5u);
+}
+
+// A referenced DUPLICATE / CONFLICTING IPv4 Endpoint extra option, its body built via
+// sdIpv4OptionBody, decodes as a second endpoint option (address / L4 / port intact).
+TEST(BuildOfferServiceWithEndpoint, DuplicateEndpointExtraOptionRoundTrips) {
+    OfferServiceWithEndpointTarget t{};
+    t.service.service_id = 0xF4E8;
+    t.endpoint.ipv4_be = 0x030010AC;  // 172.16.0.3 (mandatory data endpoint)
+    t.endpoint.port = 0x8765;
+    // Conflicting second endpoint: 172.16.0.4 : 0x9999, UDP.
+    const Ipv4Endpoint conflict{0x040010AC, 0x9999, 0x11};
+    t.extra_options.push_back({sd_option_type::kIpv4Endpoint, sdIpv4OptionBody(conflict), 0});
+    const auto b = buildOfferServiceWithEndpoint(t);
+
+    ASSERT_EQ(b.size(), 68u);   // 56 + 12 (a second canonical endpoint option)
+    EXPECT_EQ(b[7], 0x3Cu);     // SOME/IP Length = 60
+    EXPECT_EQ(b[27], 0x20u);    // #Opt1=2
+    EXPECT_EQ(b[43], 0x18u);    // OptionsLen = 24
+    EXPECT_EQ(b[57], 0x09u);    // extra option Length = 9 (Reserved + 8 body)
+    EXPECT_EQ(b[58], 0x04u);    // Type = IPv4 Endpoint
+
+    ::tc8::SdDecoded decoded{};
+    ::tc8::parseSdInto(decoded, b.data() + 16, b.size() - 16);
+    ASSERT_EQ(decoded.sd_option_count, 2u);
+    EXPECT_EQ(decoded.sd_options[0].ipv4, 0x030010ACu);
+    EXPECT_EQ(decoded.sd_options[0].port, 0x8765u);       // decoder stores port host-order
+    EXPECT_EQ(decoded.sd_options[1].type, ::tc8::sd_option_type::kIpv4Endpoint);
+    EXPECT_EQ(decoded.sd_options[1].ipv4, 0x040010ACu);   // conflicting address preserved
+    EXPECT_EQ(decoded.sd_options[1].port, 0x9999u);
+    EXPECT_EQ(decoded.sd_options[1].l4_proto, 0x11u);
+}
+
+// --- buildMultiOfferService: N Type-1 entries, one shared referenced endpoint ---
+
+TEST(BuildMultiOfferService, TwoEntriesShareOneEndpointOption) {
+    MultiOfferServiceParams p{};
+    OfferServiceTarget e{};
+    e.service_id = 0xF4E8;
+    e.major_version = 0x01;
+    e.ttl = 3;
+    e.instance_id = 0x0002;
+    p.entries.push_back(e);   // first (non-answering) instance
+    e.instance_id = 0x0001;
+    p.entries.push_back(e);   // second (answering) instance
+    p.endpoint = Ipv4Endpoint{0x020010AC, 0x7777, 0x11};  // 172.16.0.2 : 0x7777, UDP
+    p.session_id = 0x0001;
+    const auto b = buildMultiOfferService(p);
+
+    // 16 header + 4 SD + 4 EntriesLen + 32 (two entries) + 4 OptionsLen + 12 option.
+    ASSERT_EQ(b.size(), 72u);
+    EXPECT_EQ(b[7], 0x40u);   // SOME/IP Length = 64 (20 + 32 + 12)
+    EXPECT_EQ(b[16], 0xC0u);  // flags
+    EXPECT_EQ(b[23], 0x20u);  // EntriesLen = 32
+    EXPECT_EQ(b[24], 0x01u);  // entry 0 type Offer
+    EXPECT_EQ(b[27], 0x10u);  // entry 0 #Opt1=1
+    EXPECT_EQ(b[40], 0x01u);  // entry 1 type Offer (16B later)
+    EXPECT_EQ(b[43], 0x10u);  // entry 1 #Opt1=1
+    EXPECT_EQ(b[59], 0x0Cu);  // OptionsLen = 12
+    EXPECT_EQ(b[62], 0x04u);  // shared option type = IPv4 Endpoint
+
+    ::tc8::SdDecoded decoded{};
+    ::tc8::parseSdInto(decoded, b.data() + 16, b.size() - 16);
+    ASSERT_EQ(decoded.sd_entry_count, 2u);
+    EXPECT_EQ(decoded.sd_entries[0].type, ::tc8::sd_entry_type::kOfferService);
+    EXPECT_EQ(decoded.sd_entries[0].instance_id, 0x0002u);
+    EXPECT_EQ(decoded.sd_entries[1].instance_id, 0x0001u);
+    ASSERT_EQ(decoded.sd_option_count, 1u);
+    EXPECT_EQ(decoded.sd_options[0].type, ::tc8::sd_option_type::kIpv4Endpoint);
+    EXPECT_EQ(decoded.sd_options[0].ipv4, 0x020010ACu);
+}
+
+TEST(BuildMultiOfferService, ReservedPassthroughAndStopOfferPerEntry) {
+    MultiOfferServiceParams p{};
+    p.sd_reserved = 0xABCDEF;
+    OfferServiceTarget e{};
+    e.service_id = 0xF4E8;
+    e.ttl = 0;  // ttl == 0 → StopOffer entry
+    p.entries.push_back(e);
+    p.endpoint = Ipv4Endpoint{0x020010AC, 0x7777, 0x11};
+    const auto b = buildMultiOfferService(p);
+    ASSERT_GE(b.size(), 40u);
+    EXPECT_EQ(b[17], 0xABu);  // SD Reserved passthrough
+    EXPECT_EQ(b[18], 0xCDu);
+    EXPECT_EQ(b[19], 0xEFu);
+    EXPECT_EQ(b[33], 0x00u);  // entry TTL = 0 (StopOffer)
+    EXPECT_EQ(b[34], 0x00u);
+    EXPECT_EQ(b[35], 0x00u);
+}
+
+// --- SD-header Flags bit constants ---
+
+TEST(SdFlagConstants, RebootAndUnicastBits) {
+    EXPECT_EQ(::tc8::sd_flags::kReboot, 0x80u);
+    EXPECT_EQ(::tc8::sd_flags::kUnicast, 0x40u);
+    // The canonical post-boot flags equal the raw 0xC0 the builders default to.
+    EXPECT_EQ(::tc8::sd_flags::kReboot | ::tc8::sd_flags::kUnicast, 0xC0u);
+}
+
 }  // namespace
 }  // namespace tc8::stimulus

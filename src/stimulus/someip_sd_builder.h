@@ -137,6 +137,35 @@ struct Ipv4Endpoint {
     std::uint8_t l4proto = 0x11;  // 0x11 UDP, 0x06 TCP — subscribe uses UDP.
 };
 
+// One extra SOME/IP-SD option appended to an Options Array. Wire shape:
+//   Length(2B BE) | Type(1B) | Reserved(1B) | body
+// `body` is the bytes AFTER the Reserved byte (the Discardable flag lives in the
+// Reserved byte's MSB). The Length FIELD value is written by the emitting builder,
+// not carried here, and the two consumers differ by one byte on purpose:
+//   - the OfferService path (buildOfferServiceWithEndpoint) writes
+//     Length = 1 + body.size() — it counts the Reserved byte, spec-correct and
+//     matching appendIpv4EndpointOption / appendConfigurationOption / the sd_decode.h
+//     option walk (opt_total = 3 + Length);
+//   - the legacy Subscribe path (buildSubscribeEventgroup) writes
+//     Length = body.size() — it omits the Reserved byte. Its consumer references that
+//     extra option UNREFERENCED and last in the array, so the off-by-one Length is
+//     inert on the wire it targets; reconciling it would re-touch that case and is
+//     deliberately left as separate work.
+struct SdExtraOption {
+    std::uint8_t type;
+    std::vector<std::uint8_t> body;   // bytes after the Reserved byte
+    std::uint8_t reserved = 0;        // Discardable flag lives in this byte's MSB
+};
+
+// Body of an IPv4 Endpoint (0x04) / IPv4 Multicast (0x14) / IPv4 SD Endpoint (0x24)
+// option — the bytes AFTER the option's Reserved byte: IPv4 address (4B, network
+// order streamed LSB-first) + Reserved(1B) + L4-Proto(1B) + Port(2B BE), i.e. 8 bytes.
+// The single encoder for that body: appendIpv4EndpointOption prefixes Length(9) + Type
+// + Reserved around it, and a case building a duplicate / conflicting / multicast
+// endpoint as an SdExtraOption reuses it (its Length becomes 1 + 8 = 9). Keeps the
+// endpoint-body layout spelled exactly once.
+std::vector<std::uint8_t> sdIpv4OptionBody(const Ipv4Endpoint &ep);
+
 // §5.1.6 SOMEIP_ETS_118 helper: 56-byte FindService carrying one UNREFERENCED
 // IPv4 Endpoint option (#Opt1=0) in its Options Array — the option is physically
 // present but the DUT must ignore it per PRS_SOMEIPSD_00268 / SIP_SD_877 /
@@ -253,19 +282,18 @@ struct SubscribeEventgroupParams {
     std::optional<std::uint8_t> index_first_options_override;
     std::optional<std::uint8_t> index_second_options_override;
     std::optional<std::uint8_t> num_options_second_override;
-    // §5.1.6 SOMEIP_ETS_117 / _175 helper: extra options appended after
-    // the canonical IPv4 Endpoint option. Each `ExtraSdOption` is encoded
-    // as 4 + body.size() bytes (Length 2B BE + Type 1B + Reserved 1B + body)
-    // and contributes to the Options Array. OptionsLen and SOME/IP Length
-    // auto-extend by the total bytes unless `options_len_override` /
-    // `length_override` are explicitly set. Used by:
+    // §5.1.6 SOMEIP_ETS_117 / _175 helper: extra options appended after the
+    // canonical IPv4 Endpoint option, each contributing 4 + body.size() bytes
+    // (Length 2B BE + Type 1B + Reserved 1B + body) to the Options Array. OptionsLen
+    // and SOME/IP Length auto-extend by the total unless `options_len_override` /
+    // `length_override` are set. Used by:
     //   - _117 (two options of the same IPv4 Endpoint type)
     //   - _175 (one extra Configuration Option, Type 0x01, unreferenced)
-    struct ExtraSdOption {
-        std::uint8_t type;
-        std::vector<std::uint8_t> body;  // body bytes after type+reserved
-        std::uint8_t reserved = 0;
-    };
+    // The element type is the shared `SdExtraOption`; this path writes the option
+    // Length as body.size() (omitting the Reserved byte) — the historical convention
+    // its unreferenced-option consumers depend on. See `SdExtraOption` for the
+    // contrast with the spec-correct OfferService path.
+    using ExtraSdOption = SdExtraOption;
     std::vector<ExtraSdOption> extra_options;
 };
 
@@ -382,6 +410,12 @@ struct OfferServiceTarget {
     // exercised across an Offer stream; the session_id above is the matching
     // counter (TR_SOMEIP §4.2.1 reboot semantics).
     std::uint8_t  sd_flags      = 0xC0;
+    // SD header 24-bit Reserved field (the 3 bytes after the Flags byte). Canonically
+    // 0; a case sets non-zero bits to verify a receiver ignores undefined Reserved bits
+    // per PRS_SOMEIPSD_00307 — the OfferService mirror of FindServiceParams::sd_reserved.
+    // Passed through by every OfferService builder (buildOfferService and the
+    // *WithEndpoint* family). Must fit in 24 bits (putBe24 asserts otherwise).
+    std::uint32_t sd_reserved   = 0;
 };
 
 // 44-byte SOME/IP-SD OfferService datagram (16-byte SOME/IP header + 28-byte
@@ -407,6 +441,15 @@ int emitOfferServiceMulticast(std::string_view iface,
 struct OfferServiceWithEndpointTarget {
     OfferServiceTarget service{};   // Identity, ttl, session_id.
     Ipv4Endpoint       endpoint{};  // Tester's L4 endpoint advertised in Option run 1.
+    // Extra options the ENTRY references in addition to the mandatory data endpoint:
+    // #Opt1 becomes 1 + extra_options.size(), and OptionsLen / SOME/IP Length grow to
+    // match. Default empty → byte-identical to the single-option Offer. A client-role
+    // case injects a redundant / not-required / unknown-type / conflicting referenced
+    // option a receiver must ignore or reject; build an endpoint/multicast body via
+    // `sdIpv4OptionBody` so the encoder stays shared. Honoured ONLY by
+    // buildOfferServiceWithEndpoint — the *AndSdEndpointOption / *AndConfigOption
+    // builders carry their own fixed second option and ignore this field.
+    std::vector<SdExtraOption> extra_options;
 };
 
 std::vector<std::uint8_t>
@@ -458,6 +501,25 @@ int emitOfferServiceMulticastWithEndpoint(std::string_view iface,
                                           const OfferServiceWithEndpointTarget &t,
                                           std::chrono::milliseconds pre_emit_wait =
                                               std::chrono::milliseconds(500));
+
+// Multiple Type-1 OfferService entries in one SD message, all referencing one shared
+// IPv4 Endpoint option (run 0 → option index 0, #Opt1=1 per entry) — the OfferService
+// parallel of buildMultiSubscribeEventgroup. A receiver processes every entry in the
+// array in order (SOMEIPSD entry-array semantics). Per-entry Service/Instance/Major/
+// TTL/Minor live in each OfferServiceTarget; the SD header session/flags/reserved are
+// the message-level fields below (the per-entry header fields on each OfferServiceTarget
+// are header-level, so — like buildMultiSubscribeEventgroup — the multi-entry builder
+// ignores them). A pure builder with no emit companion: emit via sendSdMulticast /
+// sendSdUnicast / sendSdMulticastFromSourceIp.
+struct MultiOfferServiceParams {
+    std::vector<OfferServiceTarget> entries;   // one Type-1 OfferService entry each
+    Ipv4Endpoint  endpoint{};                  // the shared data endpoint every entry references
+    std::uint16_t session_id  = 0x0001;
+    std::uint8_t  sd_flags    = 0xC0;
+    std::uint32_t sd_reserved = 0;
+};
+
+std::vector<std::uint8_t> buildMultiOfferService(const MultiOfferServiceParams &p);
 
 // §5.1.6 SOMEIP_ETS_088 helper: SD message carrying multiple Type 2
 // SubscribeEventgroup entries, all sharing one option run 0
