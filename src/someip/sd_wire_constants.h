@@ -54,6 +54,11 @@ inline constexpr std::uint8_t kSubscribeEventgroupAck = 0x07;
 namespace sd_flags {
 inline constexpr std::uint8_t kReboot  = 0x80;
 inline constexpr std::uint8_t kUnicast = 0x40;
+// Canonical post-boot SD header flags (Reboot=1, Unicast=1) — the default every
+// FindService / OfferService / SubscribeEventgroup emit carries until a case
+// overrides it. The single source for that recurring 0xC0, spelled once here so the
+// builder struct defaults and boot cadences do not each restate the raw byte.
+inline constexpr std::uint8_t kRebootUnicast = static_cast<std::uint8_t>(kReboot | kUnicast);
 }  // namespace sd_flags
 
 }  // namespace tc8

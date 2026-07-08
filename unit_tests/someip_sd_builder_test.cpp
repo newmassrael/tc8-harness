@@ -863,6 +863,83 @@ TEST(SdFlagConstants, RebootAndUnicastBits) {
     EXPECT_EQ(::tc8::sd_flags::kUnicast, 0x40u);
     // The canonical post-boot flags equal the raw 0xC0 the builders default to.
     EXPECT_EQ(::tc8::sd_flags::kReboot | ::tc8::sd_flags::kUnicast, 0xC0u);
+    EXPECT_EQ(::tc8::sd_flags::kRebootUnicast, 0xC0u);
+}
+
+// Every SD builder that took a raw 0xC0 default now derives it from the SSOT — pin the
+// on-wire Flags byte across the family so the convergence cannot silently drift.
+TEST(SdFlagConstants, DefaultFlagsByteIsRebootUnicastAcrossBuilders) {
+    EXPECT_EQ(buildFindService(FindServiceParams{})[16], 0xC0u);
+    EXPECT_EQ(buildOfferService(OfferServiceTarget{})[16], 0xC0u);
+    EXPECT_EQ(buildSubscribeEventgroup(makeRef())[16], 0xC0u);
+    EXPECT_EQ(buildSubscribeEventgroupAck(makeAckRef())[16], 0xC0u);
+    MultiOfferServiceParams m{};
+    m.entries.push_back(OfferServiceTarget{});
+    m.endpoint = Ipv4Endpoint{0x020010AC, 0x7777, 0x11};
+    EXPECT_EQ(buildMultiOfferService(m)[16], 0xC0u);
+}
+
+// --- Subscribe extra option: reconciled onto the spec-correct Length SSOT ---
+
+// The Subscribe extra-option path now writes Length = 1 + body.size() (counting the
+// Reserved byte), identical to the Offer path and the appendSdExtraOption SSOT — the
+// value ETS_175's unreferenced Configuration Option carries on the wire. Guards the
+// reconciliation of the former body-only (undercounted) Length.
+TEST(BuildSubscribeEventgroup, ExtraOptionLengthCountsReservedByteAndRoundTrips) {
+    SubscribeEventgroupParams p = makeRef();
+    // One unreferenced Configuration Option (Type 0x01) with a single-byte body
+    // (the empty-list terminator), exactly as the ETS_175 stimulus builds it.
+    p.extra_options.push_back({/*type=*/0x01, /*body=*/{0x00}, /*reserved=*/0});
+    const auto b = buildSubscribeEventgroup(p);
+
+    // 56 (single-option) + 5 (Len2 + Type1 + Reserved1 + body1) = 61.
+    ASSERT_EQ(b.size(), 61u);
+    EXPECT_EQ(b[43], 0x11u);  // OptionsLen = 17 (12 + 5)
+    // Extra option at offset 56..60: Length = 1 + 1 = 2 (spec-correct, was 1).
+    EXPECT_EQ(b[56], 0x00u);
+    EXPECT_EQ(b[57], 0x02u);  // <-- the reconciled byte: counts Reserved + body
+    EXPECT_EQ(b[58], 0x01u);  // Type = Configuration
+    EXPECT_EQ(b[59], 0x00u);  // Reserved
+    EXPECT_EQ(b[60], 0x00u);  // body (empty-list terminator)
+
+    // The harness decoder walks options by opt_total = 3 + Length; the spec-correct
+    // Length lands its cursor exactly at the array end → both options parse.
+    ::tc8::SdDecoded decoded{};
+    ::tc8::parseSdInto(decoded, b.data() + 16, b.size() - 16);
+    ASSERT_EQ(decoded.sd_option_count, 2u);
+    EXPECT_EQ(decoded.sd_options[0].type, ::tc8::sd_option_type::kIpv4Endpoint);
+    EXPECT_EQ(decoded.sd_options[1].type, ::tc8::sd_option_type::kConfiguration);
+    EXPECT_EQ(decoded.sd_options[1].length, 2u);
+}
+
+// --- Reserved override on the remaining two Offer-family builders (exhaustiveness) ---
+
+TEST(BuildOfferServiceWithEndpointAndSdEndpointOption, ReservedOverrideSetsHeaderBytes) {
+    OfferServiceWithEndpointTarget data{};
+    data.service.sd_reserved = 0x123456;
+    data.endpoint.ipv4_be = 0x020010AC;
+    data.endpoint.port = 0x7777;
+    const Ipv4Endpoint sd_ep{0x030010AC, 0x8765, 0x11};
+    const auto b = buildOfferServiceWithEndpointAndSdEndpointOption(data, sd_ep);
+    ASSERT_EQ(b.size(), 68u);  // size invariant to the reserved value
+    EXPECT_EQ(b[17], 0x12u);
+    EXPECT_EQ(b[18], 0x34u);
+    EXPECT_EQ(b[19], 0x56u);
+    EXPECT_EQ(b[43], 0x18u);  // OptionsLen = 24 (adjacent field uncorrupted)
+}
+
+TEST(BuildOfferServiceWithEndpointAndConfigOption, ReservedOverrideSetsHeaderBytes) {
+    OfferServiceWithEndpointTarget data{};
+    data.service.sd_reserved = 0xABCDEF;
+    data.endpoint.ipv4_be = 0x020010AC;
+    data.endpoint.port = 0x7777;
+    const std::vector<std::pair<std::string, std::string>> items{{"foo", "bar"}};
+    const auto b = buildOfferServiceWithEndpointAndConfigOption(data, items);
+    ASSERT_GE(b.size(), 20u);
+    EXPECT_EQ(b[17], 0xABu);
+    EXPECT_EQ(b[18], 0xCDu);
+    EXPECT_EQ(b[19], 0xEFu);
+    EXPECT_EQ(b[27], 0x20u);  // #Opt1=2 still references both options
 }
 
 }  // namespace

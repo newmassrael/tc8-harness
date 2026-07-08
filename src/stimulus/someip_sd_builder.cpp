@@ -117,6 +117,21 @@ void appendConfigurationOption(std::vector<std::uint8_t> &b,
     b.insert(b.end(), cs.begin(), cs.end());
 }
 
+// Append one caller-supplied extra SD option to an Options Array — the entry-referenced
+// extras of an Offer and the trailing extras of a Subscribe. Wire shape:
+// Length(2B BE) | Type(1B) | Reserved(1B) | body. The Length field counts everything
+// after the Type byte — Reserved(1) + body — matching appendIpv4EndpointOption /
+// appendConfigurationOption and the sd_decode.h option walk (opt_total = 3 + Length).
+// The single source for the extra-option append shared by the Offer and Subscribe builders.
+void appendSdExtraOption(std::vector<std::uint8_t> &b, const SdExtraOption &eo) {
+    const std::size_t opt_len = 1u + eo.body.size();  // Reserved(1) + body.
+    assert(opt_len <= 0xFFFFu && "SD extra option exceeds the 16-bit Length");
+    putBe16(b, static_cast<std::uint16_t>(opt_len));
+    b.push_back(eo.type);
+    b.push_back(eo.reserved);
+    b.insert(b.end(), eo.body.begin(), eo.body.end());
+}
+
 // Append one SOME/IP-SD Type-1 entry (FindService / OfferService, TR_SOMEIP §7.4
 // Type 1 format): EntryType | IndexFirstOptionRun | IndexSecondOptionRun |
 // #Opt1|#Opt2 | ServiceID | InstanceID | MajorVersion | TTL(24b) | MinorVersion.
@@ -350,6 +365,8 @@ buildOfferServiceWithEndpoint(const OfferServiceWithEndpointTarget &t) {
     }
     const std::uint32_t options_len  = 12u + extra_bytes;   // endpoint(12) + extras
     const std::uint32_t length_field = sdSomeIpLengthField(kEntriesLen, options_len);
+    // #Opt1 is a 4-bit nibble: the mandatory endpoint + extras must fit in 15 refs.
+    assert(t.extra_options.size() <= 14u && "OfferService #Opt1 exceeds the 4-bit nibble");
     const std::uint8_t  num_opt1     = static_cast<std::uint8_t>(1u + t.extra_options.size());
 
     std::vector<std::uint8_t> b;
@@ -364,12 +381,7 @@ buildOfferServiceWithEndpoint(const OfferServiceWithEndpointTarget &t) {
     putBe32(b, options_len);
     appendIpv4EndpointOption(b, sd_option_type::kIpv4Endpoint, t.endpoint);   // options[0]
     for (const auto &eo : t.extra_options) {                                  // options[1..]
-        // Spec-correct Length: counts the Reserved byte + body (contrast the legacy
-        // Subscribe extra-option path, which counts body only — see SdExtraOption).
-        putBe16(b, static_cast<std::uint16_t>(1u + eo.body.size()));
-        b.push_back(eo.type);
-        b.push_back(eo.reserved);
-        b.insert(b.end(), eo.body.begin(), eo.body.end());
+        appendSdExtraOption(b, eo);
     }
     return b;
 }
@@ -517,10 +529,9 @@ int sendSdUnicast(const std::vector<std::uint8_t> &datagram, std::string_view if
 int emitFindServiceBoot(std::string_view iface, const FindServiceTarget &target, const BootTiming &timing) {
     // SD §4.2.1: Reboot=1 stays set until Session ID wraps 0xFFFF -> 0x0000.
     // This helper only runs the pre-wrap boot window (session 0x0001 up to
-    // timing.total_emits, always < 0xFFFF in practice), so Reboot stays 1
-    // on every emit and the Unicast-only 0x40 flag value is intentionally
-    // unused here.
-    constexpr std::uint8_t kSdFlagsBoot = 0xC0;
+    // timing.total_emits, always < 0xFFFF in practice), so Reboot stays 1 on
+    // every emit and the Unicast-only (sd_flags::kUnicast) value is unused here.
+    constexpr std::uint8_t kSdFlagsBoot = ::tc8::sd_flags::kRebootUnicast;
 
     return runBootCadence(timing, [&](int i) {
         FindServiceParams p{};
@@ -661,14 +672,11 @@ std::vector<std::uint8_t> buildSubscribeEventgroup(const SubscribeEventgroupPara
         appendIpv4EndpointOption(b, sd_option_type::kIpv4Endpoint, *p.second_endpoint);
     }
 
-    // §5.1.6 SOMEIP_ETS_117 / _175 extra options appended after the
-    // canonical IPv4 Endpoint option. Wire layout: Length 2B BE +
-    // Type 1B + Reserved 1B + body bytes.
+    // §5.1.6 SOMEIP_ETS_175 extra options appended after the canonical IPv4
+    // Endpoint option, via the shared appendSdExtraOption SSOT (spec-correct
+    // Length = Reserved + body).
     for (const auto& eo : p.extra_options) {
-        putBe16(b, static_cast<std::uint16_t>(eo.body.size()));
-        b.push_back(eo.type);
-        b.push_back(eo.reserved);
-        b.insert(b.end(), eo.body.begin(), eo.body.end());
+        appendSdExtraOption(b, eo);
     }
 
     // §5.1.6 SOMEIP_ETS_176 / _177 trailing payload (extra bytes after the
@@ -821,7 +829,7 @@ int emitMultiSubscribeEventgroup(std::string_view iface,
     p.tester_endpoint.port = kSdPort;
     p.tester_endpoint.l4proto = 0x11;
     p.session_id = 0x0001;
-    p.sd_flags = 0xC0;
+    p.sd_flags = ::tc8::sd_flags::kRebootUnicast;
     return sendUdpUnicast(buildMultiSubscribeEventgroup(p), iface, /*src_port=*/kSdPort, dest.ipv4_be,
                           dest.port);
 }
@@ -859,7 +867,7 @@ int emitMultiSubscribeEventgroupRaw(std::string_view iface,
 
 int emitSubscribeEventgroupBoot(std::string_view iface, const SubscribeEventgroupTarget &target,
                                 const BootTiming &timing, const SubscribeDestination &dest) {
-    constexpr std::uint8_t kSdFlagsBoot = 0xC0;
+    constexpr std::uint8_t kSdFlagsBoot = ::tc8::sd_flags::kRebootUnicast;
 
     return runBootCadence(timing, [&](int i) {
         return subscribeOnce(target, kSdFlagsBoot,
@@ -869,7 +877,7 @@ int emitSubscribeEventgroupBoot(std::string_view iface, const SubscribeEventgrou
 
 int emitSubscribeEventgroupBootTcpOption(std::string_view iface, const SubscribeEventgroupTarget &target,
                                          const BootTiming &timing, const SubscribeDestination &dest) {
-    constexpr std::uint8_t kSdFlagsBoot = 0xC0;
+    constexpr std::uint8_t kSdFlagsBoot = ::tc8::sd_flags::kRebootUnicast;
     constexpr std::uint8_t kL4ProtoTcp = 0x06;
 
     return runBootCadence(timing, [&](int i) {

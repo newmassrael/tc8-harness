@@ -10,6 +10,7 @@
 #include <utility>
 #include <vector>
 
+#include "someip/sd_wire_constants.h"  // sd_flags::kRebootUnicast — SD header flags SSOT.
 #include "stimulus/boot_timing.h"
 #include "tc8/dut_config.h"  // kSdPort / kSdMcastGroup — SD port/group SSOT.
 
@@ -38,9 +39,9 @@ struct FindServiceParams {
     // and mirrors FORMAT_02's requirement on the DUT side.
     std::uint16_t session_id = 0x0001;
 
-    // Reboot=1 Unicast=1 (0xC0) until Session ID wraps 0xFFFF -> 0x0000
-    // per SD §4.2.1; drops to Unicast-only (0x40) only after the wrap.
-    std::uint8_t sd_flags = 0xC0;
+    // Reboot=1 Unicast=1 until Session ID wraps 0xFFFF -> 0x0000 per SD §4.2.1;
+    // drops to Unicast-only (sd_flags::kUnicast) only after the wrap.
+    std::uint8_t sd_flags = ::tc8::sd_flags::kRebootUnicast;
 
     // SD header 24-bit Reserved field (the 3 bytes after the Flags byte).
     // Canonically 0; a case sets non-zero bits to verify the DUT ignores
@@ -140,17 +141,12 @@ struct Ipv4Endpoint {
 // One extra SOME/IP-SD option appended to an Options Array. Wire shape:
 //   Length(2B BE) | Type(1B) | Reserved(1B) | body
 // `body` is the bytes AFTER the Reserved byte (the Discardable flag lives in the
-// Reserved byte's MSB). The Length FIELD value is written by the emitting builder,
-// not carried here, and the two consumers differ by one byte on purpose:
-//   - the OfferService path (buildOfferServiceWithEndpoint) writes
-//     Length = 1 + body.size() — it counts the Reserved byte, spec-correct and
-//     matching appendIpv4EndpointOption / appendConfigurationOption / the sd_decode.h
-//     option walk (opt_total = 3 + Length);
-//   - the legacy Subscribe path (buildSubscribeEventgroup) writes
-//     Length = body.size() — it omits the Reserved byte. Its consumer references that
-//     extra option UNREFERENCED and last in the array, so the off-by-one Length is
-//     inert on the wire it targets; reconciling it would re-touch that case and is
-//     deliberately left as separate work.
+// Reserved byte's MSB). The Length FIELD value is not carried here — the emitting
+// builder writes it via the appendSdExtraOption SSOT as Length = 1 + body.size()
+// (counting the Reserved byte, spec-correct and matching appendIpv4EndpointOption /
+// appendConfigurationOption / the sd_decode.h option walk opt_total = 3 + Length).
+// Shared by the OfferService (buildOfferServiceWithEndpoint) and Subscribe
+// (buildSubscribeEventgroup) paths — one struct, one encoder, one Length convention.
 struct SdExtraOption {
     std::uint8_t type;
     std::vector<std::uint8_t> body;   // bytes after the Reserved byte
@@ -242,7 +238,7 @@ struct SubscribeEventgroupParams {
     // TCP endpoint option. `setDualEndpointSubscribe` wires both in one call.
     std::optional<Ipv4Endpoint> second_endpoint;
     std::uint16_t session_id = 0x0001;
-    std::uint8_t sd_flags = 0xC0;  // Reboot=1 Unicast=1 (same cadence as FindService)
+    std::uint8_t sd_flags = ::tc8::sd_flags::kRebootUnicast;  // same cadence as FindService
     std::uint32_t entries_len_override = 0;  // 0 → canonical 16; non-zero overrides EntriesLen.
     std::optional<std::uint32_t> length_override;
     std::optional<std::uint32_t> options_len_override;
@@ -282,17 +278,14 @@ struct SubscribeEventgroupParams {
     std::optional<std::uint8_t> index_first_options_override;
     std::optional<std::uint8_t> index_second_options_override;
     std::optional<std::uint8_t> num_options_second_override;
-    // §5.1.6 SOMEIP_ETS_117 / _175 helper: extra options appended after the
-    // canonical IPv4 Endpoint option, each contributing 4 + body.size() bytes
-    // (Length 2B BE + Type 1B + Reserved 1B + body) to the Options Array. OptionsLen
-    // and SOME/IP Length auto-extend by the total unless `options_len_override` /
-    // `length_override` are set. Used by:
-    //   - _117 (two options of the same IPv4 Endpoint type)
-    //   - _175 (one extra Configuration Option, Type 0x01, unreferenced)
-    // The element type is the shared `SdExtraOption`; this path writes the option
-    // Length as body.size() (omitting the Reserved byte) — the historical convention
-    // its unreferenced-option consumers depend on. See `SdExtraOption` for the
-    // contrast with the spec-correct OfferService path.
+    // §5.1.6 SOMEIP_ETS_175 helper: extra options appended after the canonical IPv4
+    // Endpoint option (and any `second_endpoint`), each contributing 4 + body.size()
+    // bytes (Length 2B BE + Type 1B + Reserved 1B + body) to the Options Array via the
+    // appendSdExtraOption SSOT. OptionsLen and SOME/IP Length auto-extend by the total
+    // unless `options_len_override` / `length_override` are set. _175 appends one
+    // unreferenced Configuration Option (Type 0x01). The element type is the shared
+    // `SdExtraOption`; the option Length is spec-correct (counts the Reserved byte),
+    // identical to the OfferService path.
     using ExtraSdOption = SdExtraOption;
     std::vector<ExtraSdOption> extra_options;
 };
@@ -367,7 +360,7 @@ int emitSubscribeEventgroupBootTcpOption(std::string_view iface, const Subscribe
 int emitSubscribeEventgroupOnce(std::string_view iface,
                                 const SubscribeEventgroupTarget &target,
                                 std::uint16_t session_id,
-                                std::uint8_t sd_flags = 0xC0,
+                                std::uint8_t sd_flags = ::tc8::sd_flags::kRebootUnicast,
                                 std::uint8_t l4proto = 0x11,
                                 const SubscribeDestination &dest = {});
 
@@ -404,12 +397,12 @@ struct OfferServiceTarget {
     std::uint32_t ttl           = 3;
     std::uint32_t minor_version = 0;
     std::uint16_t session_id    = 0x0001;
-    // SD Flags byte (Reboot bit7 | Unicast bit6). Default 0xC0 = Reboot=1
-    // Unicast=1, the canonical post-boot Offer. A server-role case overrides the
-    // Reboot flag (e.g. 0x40 Reboot=0) so the DUT's reboot-detection tracker is
+    // SD Flags byte (Reboot bit7 | Unicast bit6). Default kRebootUnicast = the
+    // canonical post-boot Offer. A server-role case overrides the Reboot flag (e.g.
+    // sd_flags::kUnicast alone, Reboot=0) so the DUT's reboot-detection tracker is
     // exercised across an Offer stream; the session_id above is the matching
     // counter (TR_SOMEIP §4.2.1 reboot semantics).
-    std::uint8_t  sd_flags      = 0xC0;
+    std::uint8_t  sd_flags      = ::tc8::sd_flags::kRebootUnicast;
     // SD header 24-bit Reserved field (the 3 bytes after the Flags byte). Canonically
     // 0; a case sets non-zero bits to verify a receiver ignores undefined Reserved bits
     // per PRS_SOMEIPSD_00307 — the OfferService mirror of FindServiceParams::sd_reserved.
@@ -515,7 +508,7 @@ struct MultiOfferServiceParams {
     std::vector<OfferServiceTarget> entries;   // one Type-1 OfferService entry each
     Ipv4Endpoint  endpoint{};                  // the shared data endpoint every entry references
     std::uint16_t session_id  = 0x0001;
-    std::uint8_t  sd_flags    = 0xC0;
+    std::uint8_t  sd_flags    = ::tc8::sd_flags::kRebootUnicast;
     std::uint32_t sd_reserved = 0;
 };
 
@@ -547,7 +540,7 @@ struct MultiSubscribeEventgroupParams {
     // reference does, instead of binding the unreliable entries reliably too.
     std::vector<std::uint8_t> per_entry_num_options_first;
     std::uint16_t session_id = 0x0001;
-    std::uint8_t sd_flags = 0xC0;
+    std::uint8_t sd_flags = ::tc8::sd_flags::kRebootUnicast;
     // §5.1.6 SOMEIP_ETS_114 helper: override the EntriesLen field. Default
     // (0) means "auto-compute from entries.size() * 16". Non-zero overrides
     // to inject malformed entries-array-length values per
@@ -623,7 +616,7 @@ struct SubscribeEventgroupAckTarget {
 struct SubscribeEventgroupAckParams {
     SubscribeEventgroupAckTarget target{};
     std::uint16_t session_id = 0x0001;     // server SD session counter.
-    std::uint8_t sd_flags = 0xC0;          // Reboot=1 Unicast=1, same cadence as Offer.
+    std::uint8_t sd_flags = ::tc8::sd_flags::kRebootUnicast;  // same cadence as Offer.
 };
 
 // Builds the SOME/IP-SD SubscribeEventgroupAck/Nack datagram (entry type 0x07):
