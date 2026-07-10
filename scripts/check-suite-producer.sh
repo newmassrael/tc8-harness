@@ -52,6 +52,21 @@ if ! grep -qE "^  SOMEIPSRV_OPTIONS_01[[:space:]]" <<<"${listing}"; then
     fail=1
 fi
 
+# Regression: the smoke-test id extractor (dut/env/list-cases-ids.awk) must
+# survive the qualified `demo:` prefix. A charset anchor (`^  [A-Z]`) silently
+# dropped every non-default-suite id, breaking N1 per-case SD-timing overrides
+# and secondary-iface detection for any injected suite. Run the REAL listing
+# through the SSOT filter and assert both the qualified and bare ids come out.
+ids="$(awk -f "${repo_root}/dut/env/list-cases-ids.awk" <<<"${listing}")"
+if ! grep -qxF "demo:SOMEIPSRV_OPTIONS_01" <<<"${ids}"; then
+    echo "[suite-producer] FAIL: list-cases-ids.awk dropped qualified id demo:SOMEIPSRV_OPTIONS_01" >&2
+    fail=1
+fi
+if ! grep -qxF "SOMEIPSRV_OPTIONS_01" <<<"${ids}"; then
+    echo "[suite-producer] FAIL: list-cases-ids.awk dropped bare id SOMEIPSRV_OPTIONS_01" >&2
+    fail=1
+fi
+
 if [[ ${fail} -ne 0 ]]; then
     echo "[suite-producer] FAILED — (suite, id) coexistence regressed" >&2
     exit 1

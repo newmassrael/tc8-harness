@@ -352,8 +352,11 @@ fi
 if (( PRINT_EXPECT )); then
     SECONDARY_IFACE_CASES=" "
 else
+    # list-cases-ids.awk is the SSOT id extractor (shared with the SD-timing
+    # override validator): an indent anchor that keeps qualified `suite:id` ids,
+    # so a Topology-2 case in a non-default suite still triggers the second veth.
     SECONDARY_IFACE_CASES=" $("$HARNESS" test --list-cases --only-secondary-iface 2>/dev/null \
-        | awk '/^  [A-Z]/{print $1}' | tr '\n' ' ')"
+        | awk -f "$HERE/list-cases-ids.awk" | tr '\n' ' ')"
 fi
 case_needs_secondary_iface() { [[ "$SECONDARY_IFACE_CASES" == *" $1 "* ]]; }
 
@@ -515,8 +518,12 @@ validate_dut_sd_timing_overrides() {
     local known
     # `|| true` so a harness crash (pipefail) reaches the friendly guard below
     # instead of aborting opaquely under set -e; an empty result then reports clearly.
+    # list-cases-ids.awk is the SSOT id extractor: an indent anchor that keeps
+    # qualified `suite:id` ids (e.g. an OEM `hkmc:SOMEIP...`) which a naive
+    # uppercase-first filter would drop, so a real registered case in a
+    # non-default suite is not mis-reported as unknown here.
     known=$("$HARNESS" test --list-cases --include-deprecated 2>/dev/null \
-        | awk '/^[[:space:]]+[A-Z][A-Z0-9_]+[[:space:]]/ { print $1 }' || true)
+        | awk -f "$HERE/list-cases-ids.awk" || true)
     if [[ -z "$known" ]]; then
         echo "smoke-test: cannot validate TC8_TOPOLOGY_DUT_SD_TIMING — '$HARNESS test --list-cases' yielded no case ids" >&2
         exit 1
