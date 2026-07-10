@@ -85,7 +85,8 @@ public:
 // Build a vsomeip-backed IEtsControlChannel over the CommonAPI ETS service's OWN
 // vsomeip application (retrieved by CommonAPI::DEFAULT_CONNECTION_ID, exactly as
 // makeEtsEventSink / makeEtsClientControl do). Call only AFTER the application
-// exists (registerService or the client-only proxy created it). If the
+// exists (server-mode registerService, or in client-only mode ClientOnlyApplication,
+// created it). If the
 // application is not found, returns a no-op channel and logs to stderr; never
 // returns null, so callers pass `*channel` to the extension hook unconditionally.
 // This header stays vsomeip-free; the wrapping lives in ets_control_channel.cpp.

@@ -102,6 +102,7 @@ endforeach()
 add_executable(tc8-dut
     client_mode.cpp
     client_mode_proxy.cpp
+    client_only_app.cpp
     dhcpv4_client.cpp
     dut_main.cpp
     ets2_impl.cpp

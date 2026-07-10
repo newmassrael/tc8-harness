@@ -9,7 +9,7 @@
 
 #include <CommonAPI/CommonAPI.hpp>
 
-#include "client_mode_proxy.h"
+#include "client_only_app.h"
 #include "env_flag.h"
 #include "ets_client_control.h"
 #include "ets_control_channel.h"
@@ -34,17 +34,18 @@ std::atomic<bool> g_stop{false};
 
 void onSignal(int /*signum*/) { g_stop.store(true); }
 
-// Bring up the CommonAPI-owned vsomeip application WITHOUT offering any service,
-// for client-only mode. CommonAPI has no offer-free app-creation primitive —
-// registerService and buildProxy are its only two app-creation triggers, both
-// keyed on DEFAULT_CONNECTION_ID — so the seam factories (which retrieve
-// get_application("")) resolve the app either way. We build a proxy purely as the
-// app-creation vehicle: ClientModeProxyRunner is reused here ONLY for that side
-// effect, NOT its ETS_097 role (subscribe() is never called), and the proxy's
-// FindService for its target is harmless unrelated SD traffic. The returned
-// runner OWNS the application and MUST be kept alive for the whole run.
-std::unique_ptr<tc8::dut::ClientModeProxyRunner> bringUpClientOnlyApplication() {
-    auto app = std::make_unique<tc8::dut::ClientModeProxyRunner>();
+// Bring up the vsomeip application for client-only mode WITHOUT offering or
+// finding any service. The seam factories retrieve it by CommonAPI's default
+// connection id (get_application("")), so it must exist under that key before they
+// run. Created DIRECTLY via vsomeip (create_application + init + threaded start),
+// NOT by building a CommonAPI proxy: a proxy's init() unconditionally
+// request_service()s its target, emitting a boot FindService for the SAME
+// ClientTarget service that pre-empts — and via vsomeip's per-service dedup
+// suppresses — the tester-triggered Find the client-only start-up cases measure.
+// ClientOnlyApplication emits no service-discovery traffic; see its header. The
+// returned owner holds the application and MUST be kept alive for the whole run.
+std::unique_ptr<tc8::dut::ClientOnlyApplication> bringUpClientOnlyApplication() {
+    auto app = std::make_unique<tc8::dut::ClientOnlyApplication>();
     if (!app->start()) {
         std::fprintf(stderr, "tc8-dut: client-only application bring-up failed\n");
         std::_Exit(1);
@@ -74,15 +75,15 @@ int main() {
     // pure CLIENT of the primary ETS service (0xF4E7) and must NOT offer it: a
     // local offer makes vsomeip satisfy the OEM client subscribe IN-PROCESS (local
     // Ack, no wire SubscribeEventgroup), so the tester (server) never sees it. The
-    // seam factories below still need the CommonAPI-owned vsomeip application
-    // (retrieved by DEFAULT_CONNECTION_ID); building a proxy creates it WITHOUT
-    // offering any service (bringUpClientOnlyApplication). Otherwise the DUT takes
-    // the SERVER role: a ServerRole registers the service(s), wires emission, and
-    // owns the suspendInterface re-offer — none of which exists in client-only
-    // mode. Constructing the ServerRole before the seam factories is REQUIRED:
+    // seam factories below still need the vsomeip application (retrieved by
+    // DEFAULT_CONNECTION_ID); creating it directly — offering and finding nothing —
+    // is what bringUpClientOnlyApplication does. Otherwise the DUT takes the SERVER
+    // role: a ServerRole registers the service(s), wires emission, and owns the
+    // suspendInterface re-offer — none of which exists in client-only mode.
+    // Constructing the ServerRole before the seam factories is REQUIRED:
     // registerService is what synchronously creates the application they retrieve.
     const bool client_only = tc8::dut::envFlagOn("TC8_DUT_CLIENT_ONLY");
-    std::unique_ptr<tc8::dut::ClientModeProxyRunner> client_only_app;
+    std::unique_ptr<tc8::dut::ClientOnlyApplication> client_only_app;
     std::optional<tc8::dut::ServerRole> server;
     // The server-role warm-suspendInterface lifecycle channel: the detached suspend thread
     // posts Suspend/Reactivate here and wakes the main loop via its Waker fd (drained by the
@@ -92,7 +93,7 @@ int main() {
     std::shared_ptr<tc8::dut::LifecycleSignal> lifecycle;
     if (client_only) {
         client_only_app = bringUpClientOnlyApplication();
-        std::printf("tc8-dut: client-only mode — %s NOT offered; app created via proxy\n",
+        std::printf("tc8-dut: client-only mode — %s NOT offered; app created directly\n",
                     tc8::dut::ets_deploy::kInterface);
     } else {
         if (auto waker = tc8::dut::makeEventfdWaker()) {

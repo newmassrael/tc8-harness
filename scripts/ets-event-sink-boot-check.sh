@@ -44,12 +44,16 @@ if grep -q "OEM client surface disabled" "$log"; then
 fi
 
 # Client-only mode (TC8_DUT_CLIENT_ONLY=1, the client-role CLT topology): the DUT must
-# NOT offer the primary ETS service, yet the seam must STILL resolve the
-# CommonAPI-owned vsomeip application — created here via a proxy on the default
-# connection instead of registerService. Guards the client-only design: a
-# regression that re-offered the service (local subscribe satisfaction, no wire
-# SubscribeEventgroup) or failed to create the app would surface here. Own
-# base-path so it never collides with the server-mode app above.
+# NOT offer the primary ETS service, yet the seam must STILL resolve the vsomeip
+# application — created here DIRECTLY (create_application under the default
+# connection id + init + threaded start, offering and finding nothing) instead of
+# via registerService or a proxy. Guards the client-only design: a regression that
+# re-offered the service (local subscribe satisfaction, no wire SubscribeEventgroup),
+# failed to create the app, or reverted to the boot-Find proxy vehicle would surface
+# here. This is a no-netns log check, so it does NOT observe SD egress on the wire —
+# the boot-Find guarantee is enforced STRUCTURALLY (ClientOnlyApplication issues no
+# request_service) and asserted here only via the proxy-vehicle marker below.
+# Own base-path so it never collides with the server-mode app above.
 clog="$work/dut-client-only.log"
 mkdir -p "$work/co"
 timeout 5 env \
@@ -65,9 +69,20 @@ if ! grep -q "client-only mode" "$clog"; then
     tail -20 "$clog" >&2
     exit 1
 fi
-if ! grep -q "ClientTarget proxy built" "$clog"; then
-    echo "FAIL: client-only app-creation proxy did not build" >&2
+if ! grep -q "application created directly" "$clog"; then
+    echo "FAIL: client-only vsomeip application was not created directly" >&2
     tail -20 "$clog" >&2
+    exit 1
+fi
+# Regression guard for the known boot-Find vehicle: the only thing that
+# request_service()s the ClientTarget at boot is building its CommonAPI proxy, which
+# prints this marker (client_mode_proxy.cpp). Its ABSENCE proves that vehicle was not
+# rebuilt. It does NOT prove the absence of every conceivable boot Find (a stray
+# request_service elsewhere would pass) — that is a structural property of
+# ClientOnlyApplication, not something this log check can observe.
+if grep -q "ClientTarget proxy built" "$clog"; then
+    echo "FAIL: client-only DUT rebuilt the boot-Find ClientTarget proxy vehicle" >&2
+    echo "      (its request_service would emit a boot FindService)" >&2
     exit 1
 fi
 if grep -q "registered (domain=" "$clog"; then
@@ -75,8 +90,14 @@ if grep -q "registered (domain=" "$clog"; then
     echo "      (would satisfy the OEM client subscribe locally — no wire frame)" >&2
     exit 1
 fi
+# Both seams share one acquireCommonApiApplication, so a keying regression disables
+# them together — assert both surfaces resolve (symmetric with the server block).
+if grep -q "OEM event surface disabled" "$clog"; then
+    echo "FAIL: client-only event-sink could not resolve the directly-created app" >&2
+    exit 1
+fi
 if grep -q "OEM client surface disabled" "$clog"; then
-    echo "FAIL: client-only seam could not resolve the CommonAPI app (proxy path)" >&2
+    echo "FAIL: client-only client-control could not resolve the directly-created app" >&2
     exit 1
 fi
 
