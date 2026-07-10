@@ -121,6 +121,7 @@ TC8_EXPECT_KEY(someip, U32, sd_cyclic_offer_delay_ms)
 TC8_EXPECT_KEY(someip, U32, sd_request_response_delay_ms)
 TC8_EXPECT_KEY(someip, U32, sd_timing_tolerance_ms)
 TC8_EXPECT_KEY(someip, U32, sd_raw_startup_ms)
+TC8_EXPECT_KEY(someip, U32, sd_service_down_ms)  // T_SERVICE_DOWN suspend interval; overlay-supplied like sd_raw_startup_ms
 // CAN-encapsulated SOME/IP cadence / delay timers.
 TC8_EXPECT_KEY(someip, U32, can_ets_cycle_0_ms)
 TC8_EXPECT_KEY(someip, U32, can_ets_cycle_1_ms)

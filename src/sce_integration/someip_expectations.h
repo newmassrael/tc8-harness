@@ -120,6 +120,20 @@ struct SomeIpExpectations {
     // reusing it would conflate two independent SD start-up test variables.
     std::uint32_t sd_raw_startup_ms = 0;
 
+    // SD service-down interval (T_SERVICE_DOWN): the duration a service is held
+    // suspended between a StopOffer and its resume. A suspend/resume delay
+    // verdict anchors the first re-Offer at `StopOffer arrival +
+    // sd_service_down_ms`; a stimulus that drives the suspend and the verdict
+    // that measures it can then read this one field instead of mirroring a
+    // suspend-duration constant as a hand-copied literal in the verdict.
+    // Operator/config-derived like the SD timers above; 0 stays the unset
+    // sentinel. Supplied via `--expect sd_service_down_ms=<ms>`. Like
+    // sd_raw_startup_ms it is a per-case value no base-identity producer emits
+    // (it is not a vsomeip.json DUT timer), so it lives in the parser schema but
+    // NOT in the generated base --expect surface; a case that needs it supplies
+    // it per-run. No in-tree case reads it yet.
+    std::uint32_t sd_service_down_ms = 0;
+
     // CAN-encapsulated SOME/IP cadence / delay timers (periodic cycle,
     // delay time after a message, start offset). The CAN Message IDs and
     // payload encoding stay OEM-side; only the configured timer values live
