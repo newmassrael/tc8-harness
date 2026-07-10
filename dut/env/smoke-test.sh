@@ -286,6 +286,19 @@ PRINT_EXPECT=0
 # at run-time consumption — a value channel, not a new key surface. Mirrored by the
 # orchestrator's `extra_expect` field so both --print-expect surfaces stay in parity.
 TC8_TOPOLOGY_EXTRA_EXPECT=()
+# A --topology-conf overlay may declare per-case DUT SOME/IP-SD start-up timer
+# preconditions here: a case_id (upper-case) -> a space-separated `KEY=VALUE` list of
+# `service-discovery` field overrides. When the runner brings up the DUT for that case
+# it derives a per-worker vsomeip.json = the resolved base config PATCHED with those
+# fields (tools/dut_sd_timing_override.py), so a timing case runs under the DUT config
+# ITS precondition specifies instead of the one global config. The map lives with the
+# deployment (case-specific config is not the shared harness's concern); the harness
+# only provides the mechanism, and validate_dut_sd_timing_overrides fails the whole
+# run fast if an entry names an unknown case or a malformed override. Declared empty so
+# a run with no overlay (or one that never sets it) uses the base config unchanged.
+# Bash-only, like CASE_VSOMEIP_VARIANT — the orchestrator brings the DUT up with one
+# config and has no per-case DUT-config axis. See docs/dut_sd_timing_preconditions.md.
+declare -A TC8_TOPOLOGY_DUT_SD_TIMING=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --topology)  TOPOLOGY="$2"; shift 2 ;;
@@ -485,6 +498,46 @@ if [[ -n "$TOPOLOGY_MAX_WORKERS" ]] && (( WORKERS > TOPOLOGY_MAX_WORKERS )); the
     exit 1
 fi
 
+# Validate every declared per-case DUT SD-timing override BEFORE any worker runs, so a
+# deployment-config error fails the run FAST with a clear message instead of surfacing
+# later. Two error classes this catches up front (see docs/dut_sd_timing_preconditions.md):
+#   * an entry keyed on an UNKNOWN case id (a typo, or a case not in this build) —
+#     which would otherwise never match a running case and SILENTLY let that case run
+#     under the unpatched config, defeating the whole precondition;
+#   * a MALFORMED override value — which would otherwise surface only when (and if)
+#     that specific case runs, mislabelled as a per-case conformance FAIL.
+# Case id is checked against the harness registry (--list-cases); each override is
+# checked against the base config via the transform's own --validate (a dry-run of the
+# exact apply the runtime uses, so the validation rule is single-sourced there).
+# The paired runtime apply is resolve_dut_sd_timing_cfg (near run_case).
+validate_dut_sd_timing_overrides() {
+    (( ${#TC8_TOPOLOGY_DUT_SD_TIMING[@]} )) || return 0
+    local known
+    # `|| true` so a harness crash (pipefail) reaches the friendly guard below
+    # instead of aborting opaquely under set -e; an empty result then reports clearly.
+    known=$("$HARNESS" test --list-cases --include-deprecated 2>/dev/null \
+        | awk '/^[[:space:]]+[A-Z][A-Z0-9_]+[[:space:]]/ { print $1 }' || true)
+    if [[ -z "$known" ]]; then
+        echo "smoke-test: cannot validate TC8_TOPOLOGY_DUT_SD_TIMING — '$HARNESS test --list-cases' yielded no case ids" >&2
+        exit 1
+    fi
+    local case_canon spec
+    local -a tokens
+    for case_canon in "${!TC8_TOPOLOGY_DUT_SD_TIMING[@]}"; do
+        if ! grep -qxF "$case_canon" <<<"$known"; then
+            echo "smoke-test: TC8_TOPOLOGY_DUT_SD_TIMING names an unknown case '$case_canon' (typo? not a registered case) — refusing to run so the override cannot silently no-op" >&2
+            exit 1
+        fi
+        spec=${TC8_TOPOLOGY_DUT_SD_TIMING[$case_canon]}
+        read -ra tokens <<<"$spec"
+        if ! python3 "$ROOT/tools/dut_sd_timing_override.py" --validate "$VSOMEIP_CFG" "${tokens[@]}" >&2; then
+            echo "smoke-test: TC8_TOPOLOGY_DUT_SD_TIMING['$case_canon'] override is malformed: '$spec'" >&2
+            exit 1
+        fi
+    done
+    (( PRINT_EXPECT )) || echo "smoke-test: validated ${#TC8_TOPOLOGY_DUT_SD_TIMING[@]} per-case DUT SD-timing override(s)"
+}
+
 if [[ -n "$TOPOLOGY_CONF" ]]; then
     [[ -f "$TOPOLOGY_CONF" ]] || {
         echo "smoke-test: --topology-conf '$TOPOLOGY_CONF' does not exist" >&2
@@ -494,6 +547,8 @@ if [[ -n "$TOPOLOGY_CONF" ]]; then
     source "$TOPOLOGY_CONF"
     (( PRINT_EXPECT )) || echo "smoke-test: topology options loaded from $TOPOLOGY_CONF"
 fi
+# Fail-fast on a malformed per-case DUT SD-timing overlay (no-op if none declared).
+validate_dut_sd_timing_overrides
 
 # Expectation defaults are evaluated here — after profile + options —
 # so TC8_TOPOLOGY_* overrides reach the --expect arrays.
@@ -972,6 +1027,40 @@ skip_case() {
         echo "=========================================="
     } | emit_block
     record_skip "$W" "$case_id" "$reason"
+}
+
+# Resolve the DUT vsomeip config for a case that declares an SD-timing
+# precondition, PATCHING the resolved base config with the case's
+# `service-discovery` timers (composition, so a services[] variant or an
+# OEM-derived base keeps everything else). Echoes the path the caller should
+# hand to topology_start_dut: the derived per-worker file when this case has an
+# override in TC8_TOPOLOGY_DUT_SD_TIMING, else the base cfg unchanged. The
+# derived file lives under the per-worker scratch ($WORK_ROOT/$W), cleaned with
+# it. A declared-but-unappliable override (bad key/value, base has no SD block)
+# is fail-loud: returns non-zero so the caller aborts rather than silently
+# running the case under the wrong config.
+#
+# Args: worker_id case_id_canon base_cfg
+resolve_dut_sd_timing_cfg() {
+    local W=$1 case_canon=$2 base_cfg=$3
+    local spec=${TC8_TOPOLOGY_DUT_SD_TIMING[$case_canon]:-}
+    if [[ -z "$spec" ]]; then
+        printf '%s' "$base_cfg"
+        return 0
+    fi
+    local out
+    out=$(mktemp "$WORK_ROOT/$W/${case_canon}.vsomeip.XXXXXX") || return 1
+    # Split the KEY=VALUE list into an array (no unquoted word-split, so pathname
+    # expansion cannot touch the tokens). The tokens were already validated at
+    # overlay load by validate_dut_sd_timing_overrides; this is the runtime apply.
+    local -a tokens
+    read -ra tokens <<<"$spec"
+    if ! python3 "$ROOT/tools/dut_sd_timing_override.py" "$base_cfg" "$out" "${tokens[@]}" >&2; then
+        rm -f "$out"
+        return 1
+    fi
+    printf '%s' "$out"
+    return 0
 }
 
 # Run one case against a specific worker's tester context.
@@ -1567,6 +1656,24 @@ run_case() {
             ;;
     esac
 
+    # Per-case DUT SD-timing precondition: patch the resolved base cfg with this
+    # case's service-discovery timers (composition over the variant/base above).
+    # A malformed override (bad key/value, base has no SD block) is an operator
+    # deployment error — fail the case loudly rather than run it under the wrong
+    # config; the helper's diagnostic is captured into the harness log.
+    if ! dut_vsomeip_cfg=$(resolve_dut_sd_timing_cfg "$W" "$case_id_canon" "$dut_vsomeip_cfg" 2>>"$hlog"); then
+        echo "[w$W] DUT SD-timing override for '$case_id_canon' could not be applied" >>"$hlog"
+        {
+            echo "=========================================="
+            echo "[w$W] FAIL ${case_id} — DUT SD-timing precondition override could not be applied"
+            echo "=========================================="
+            cat "$hlog"
+        } | emit_block
+        junit_record_case "$W" "$case_id" positive "$start_ts" "$hlog" 1
+        (( keep_logs == 0 )) && rm -f "$hlog" "$dlog"
+        return 1
+    fi
+
     # TC8 Topology 2 multi-iface (e.g. USAGE_01): harness opens a second
     # `PcapSource` on TIface-1 so DUT-emitted DISCOVERs from DIface-1 reach the
     # same pipeline as DIface-0's. Stimulus injection still uses the primary
@@ -1925,6 +2032,21 @@ run_negative_case() {
             neg_dut_extra_env+=(TC8_DUT_CLIENT_MODE=1 TC8_DUT_CLIENT_MODE_UDP=1)
             ;;
     esac
+
+    # Per-case DUT SD-timing precondition (mirror of run_case): patch the
+    # resolved base cfg with this case's service-discovery timers.
+    if ! neg_dut_vsomeip_cfg=$(resolve_dut_sd_timing_cfg "$W" "$case_id_canon" "$neg_dut_vsomeip_cfg" 2>>"$hlog"); then
+        echo "[w$W] DUT SD-timing override for '$case_id_canon' could not be applied" >>"$hlog"
+        {
+            echo "=========================================="
+            echo "[w$W] FAIL negative ${case_id} — DUT SD-timing precondition override could not be applied"
+            echo "=========================================="
+            cat "$hlog"
+        } | emit_block
+        junit_record_case "$W" "${case_id}_neg" negative "$start_ts" "$hlog" 1
+        (( keep_logs == 0 )) && rm -f "$hlog" "$dlog"
+        return 1
+    fi
 
     # Mirror run_case's CASE_EXPECT_OVERRIDES so a negative whose stimulus
     # subscribes to a non-default eventgroup (e.g. SD_MESSAGE_13 → 0x0008)

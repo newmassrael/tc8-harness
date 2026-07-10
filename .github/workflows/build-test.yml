@@ -299,6 +299,20 @@ jobs:
         # consumer to a zero sentinel. Pure-Python. See docs/tech-debt.md TD-03/TD-12.
         run: python3 tools/check_expect_keys.py
 
+      - name: DUT SD-timing override transform unit test
+        # tools/dut_sd_timing_override.py derives a per-case DUT vsomeip.json by
+        # patching service-discovery fields onto the ACTIVE base config (composition,
+        # never a lossy swap) for a case that declares an SD-timing precondition via a
+        # --topology-conf overlay's TC8_TOPOLOGY_DUT_SD_TIMING map. --self-test is an
+        # inline UNIT test of that transform (NOT a cross-file drift/freshness gate like
+        # the generator --check steps above): it proves the patch keeps every other
+        # field (incl. a derived base's services/events), round-trips values, derives
+        # the overridable set from the base, and fails loud on a bad token / unknown
+        # field / non-integer (incl. non-ASCII digit) value / no-SD-block base — the
+        # fail-loud paths the runtime and load-time --validate wiring depend on.
+        # Pure-Python. See docs/dut_sd_timing_preconditions.md.
+        run: python3 tools/dut_sd_timing_override.py --self-test
+
       - name: timing_serial cadence-lane drift gate
         # Every sub-second cadence case (*_within_us predicate) must be classified
         # for the smoke serial lane (timing_serial:true in inventory_overrides, or
