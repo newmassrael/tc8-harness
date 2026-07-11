@@ -9,7 +9,7 @@
 # (the id/`suite:id` display id never contains an intra-token space).
 #
 # A charset anchor such as `/^  [A-Z]/` was WRONG: the CLI prints a non-default
-# suite's `suite:` prefix verbatim, and it may begin lowercase (`hkmc:...`) or
+# suite's `suite:` prefix verbatim, and it may begin lowercase (`vendorx:...`) or
 # with any case (`Vendor_X:...`) — the registry constrains neither. Such lines
 # start with a non-uppercase char and were silently dropped, so every override
 # / probe keyed on a qualified id mis-fired as "unknown case".

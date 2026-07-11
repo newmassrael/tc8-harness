@@ -31,15 +31,24 @@ set(_banners "CONFIDENTIAL|DO NOT DISTRIBUTE|INTERNAL USE ONLY|RESTRICTED DISTRI
 # future) and is collision-free against public tokens. Distinct from RFC /
 # public-spec section refs (e.g. "RFC 6298 §5.3") and the public SOMEIPSRV_RPC / _SD
 # families, which these patterns do not match.
-set(_oem_ids "DS_[A-Z][A-Z]_[0-9]|HKMC|SOMEIPSRV_CAN_[0-9]")
+# The OEM name is matched case-INSENSITIVELY (`[Hh][Kk]...`): unlike the banners
+# above it has no legitimate lowercase sense, and a lowercase `hkmc:` suite prefix
+# in a shell/awk comment is exactly how it previously slipped a case-sensitive
+# `HKMC`. The DS_ / CAN families stay upper-anchored (they are upper-case by spec).
+set(_oem_ids "DS_[A-Z][A-Z]_[0-9]|[Hh][Kk][Mm][Cc]|SOMEIPSRV_CAN_[0-9]")
 set(_markers "${_banners}|${_oem_ids}")
 # Interface/case-definition files (.fidl/.fdepl/.scxml) and the X-macro SSOT .def
 # files are scanned too: they are exactly the surfaces whose public/OEM boundary the
 # ETS, case, and wire-SSOT headers document, so a banner or OEM id pasted into a
 # fidl, a case SCXML, or a .def must fail here, not slip through because the gate
 # only looked at C++. unit_tests is scanned alongside tests so a leak in a gtest TU
-# cannot slip past either.
-set(_roots src include dut examples tests unit_tests)
+# cannot slip past either. The shell/awk orchestration layer (.sh/.awk), the Python
+# tooling and CI workflows (.py/.yml), and the scripts/ + docs/ + tools/ + .github/
+# roots are scanned as well: an OEM suite prefix in a smoke-test comment previously
+# evaded this gate purely because .sh was not globbed and those roots were not walked,
+# so the gate now covers the whole authored-source surface (vendored third_party/ is
+# deliberately excluded — its content is not ours to police).
+set(_roots src include dut examples tests unit_tests scripts docs tools .github)
 set(_hits "")
 
 foreach(root ${_roots})
@@ -52,7 +61,11 @@ foreach(root ${_roots})
         ${TC8_SOURCE_DIR}/${root}/*.fidl
         ${TC8_SOURCE_DIR}/${root}/*.fdepl
         ${TC8_SOURCE_DIR}/${root}/*.scxml
-        ${TC8_SOURCE_DIR}/${root}/*.def)
+        ${TC8_SOURCE_DIR}/${root}/*.def
+        ${TC8_SOURCE_DIR}/${root}/*.sh
+        ${TC8_SOURCE_DIR}/${root}/*.awk
+        ${TC8_SOURCE_DIR}/${root}/*.py
+        ${TC8_SOURCE_DIR}/${root}/*.yml)
     foreach(f ${files})
         file(STRINGS ${f} matched REGEX "${_markers}")
         if(matched)
@@ -70,4 +83,4 @@ if(NOT _hits STREQUAL "")
         "OEM-proprietary content must not enter this public repo:\n${_hits}")
 endif()
 
-message(STATUS "NDA-hygiene: clean (no confidentiality banners or OEM identifiers in src/include/dut/examples/tests/unit_tests, incl. .fidl/.fdepl/.scxml/.def).")
+message(STATUS "NDA-hygiene: clean (no confidentiality banners or OEM identifiers in authored source — src/include/dut/examples/tests/unit_tests/scripts/docs/tools/.github, incl. .fidl/.fdepl/.scxml/.def/.sh/.awk/.py/.yml).")

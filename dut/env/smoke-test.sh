@@ -588,7 +588,7 @@ validate_dut_sd_timing_overrides() {
     # `|| true` so a harness crash (pipefail) reaches the friendly guard below
     # instead of aborting opaquely under set -e; an empty result then reports clearly.
     # list-cases-ids.awk is the SSOT id extractor: an indent anchor that keeps
-    # qualified `suite:id` ids (e.g. an OEM `hkmc:SOMEIP...`) which a naive
+    # qualified `suite:id` ids (e.g. `vendorx:SOMEIP...`) which a naive
     # uppercase-first filter would drop, so a real registered case in a
     # non-default suite is not mis-reported as unknown here.
     known=$("$HARNESS" test --list-cases --include-deprecated 2>/dev/null \
