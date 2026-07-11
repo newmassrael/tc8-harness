@@ -124,10 +124,12 @@ TC8_EXPECT_KEY(someip, U32, sd_raw_startup_ms)
 TC8_EXPECT_KEY(someip, U32, sd_service_down_ms)  // T_SERVICE_DOWN suspend interval; overlay-supplied like sd_raw_startup_ms
 // SD Initial-Wait acceptance-margin calibration (per-DUT); overlay-supplied
 // like sd_service_down_ms. 0 = fall back to the verdict's compiled default.
-TC8_EXPECT_KEY(someip, U32, sd_initial_wait_bias_ms)          // client anchor->request handler bias
-TC8_EXPECT_KEY(someip, U32, sd_initial_wait_jitter_ms)        // measurement-noise margin (client)
-TC8_EXPECT_KEY(someip, U32, sd_initial_wait_floor_margin_ms)  // measurement-noise margin below spec floor (server)
-TC8_EXPECT_KEY(someip, U32, sd_initial_wait_overhead_ms)      // one-sided re-registration overhead ceiling (server)
+// Per-field semantics (which is client vs server) live once in the struct
+// header someip_expectations.h; bare here like the SD-timer rows above.
+TC8_EXPECT_KEY(someip, U32, sd_initial_wait_bias_ms)
+TC8_EXPECT_KEY(someip, U32, sd_initial_wait_jitter_ms)
+TC8_EXPECT_KEY(someip, U32, sd_initial_wait_floor_margin_ms)
+TC8_EXPECT_KEY(someip, U32, sd_initial_wait_overhead_ms)
 // CAN-encapsulated SOME/IP cadence / delay timers.
 TC8_EXPECT_KEY(someip, U32, can_ets_cycle_0_ms)
 TC8_EXPECT_KEY(someip, U32, can_ets_cycle_1_ms)

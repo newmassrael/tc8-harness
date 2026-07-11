@@ -127,10 +127,12 @@ TEST(ApplyExpectToken, TimingThresholdKeys) {
     EXPECT_TRUE(applyExpectToken("sd_timing_tolerance_ms=5", e));
     EXPECT_TRUE(applyExpectToken("sd_raw_startup_ms=7", e));
     EXPECT_TRUE(applyExpectToken("sd_service_down_ms=3000", e));
-    EXPECT_TRUE(applyExpectToken("sd_initial_wait_bias_ms=10", e));
-    EXPECT_TRUE(applyExpectToken("sd_initial_wait_jitter_ms=8", e));
-    EXPECT_TRUE(applyExpectToken("sd_initial_wait_floor_margin_ms=5", e));
-    EXPECT_TRUE(applyExpectToken("sd_initial_wait_overhead_ms=25", e));
+    // Neutral distinct values, NOT the reference DUT's measured margins — the
+    // harness stays DUT-agnostic; distinctness catches a cross-wired field.
+    EXPECT_TRUE(applyExpectToken("sd_initial_wait_bias_ms=11", e));
+    EXPECT_TRUE(applyExpectToken("sd_initial_wait_jitter_ms=13", e));
+    EXPECT_TRUE(applyExpectToken("sd_initial_wait_floor_margin_ms=17", e));
+    EXPECT_TRUE(applyExpectToken("sd_initial_wait_overhead_ms=19", e));
     EXPECT_TRUE(applyExpectToken("can_ets_cycle_0_ms=200", e));
     EXPECT_TRUE(applyExpectToken("can_ets_cycle_1_ms=500", e));
     EXPECT_TRUE(applyExpectToken("can_delay_time_ms=20", e));
@@ -140,10 +142,10 @@ TEST(ApplyExpectToken, TimingThresholdKeys) {
     EXPECT_EQ(e.sd_cyclic_offer_delay_ms, 2000u);
     EXPECT_EQ(e.sd_raw_startup_ms, 7u);
     EXPECT_EQ(e.sd_service_down_ms, 3000u);
-    EXPECT_EQ(e.sd_initial_wait_bias_ms, 10u);
-    EXPECT_EQ(e.sd_initial_wait_jitter_ms, 8u);
-    EXPECT_EQ(e.sd_initial_wait_floor_margin_ms, 5u);
-    EXPECT_EQ(e.sd_initial_wait_overhead_ms, 25u);
+    EXPECT_EQ(e.sd_initial_wait_bias_ms, 11u);
+    EXPECT_EQ(e.sd_initial_wait_jitter_ms, 13u);
+    EXPECT_EQ(e.sd_initial_wait_floor_margin_ms, 17u);
+    EXPECT_EQ(e.sd_initial_wait_overhead_ms, 19u);
     EXPECT_EQ(e.sd_repetitions_max, 3u);
     EXPECT_EQ(e.can_ets_cycle_0_ms, 200u);
     EXPECT_EQ(e.can_start_offset_ms, 100u);
@@ -159,8 +161,8 @@ TEST(ApplyExpectToken, TimingThresholdKeys) {
     EXPECT_EQ(exp.sd_timing_tolerance_ms, 5u);
     EXPECT_EQ(exp.sd_raw_startup_ms, 7u);
     EXPECT_EQ(exp.sd_service_down_ms, 3000u);
-    EXPECT_EQ(exp.sd_initial_wait_bias_ms, 10u);
-    EXPECT_EQ(exp.sd_initial_wait_overhead_ms, 25u);
+    EXPECT_EQ(exp.sd_initial_wait_bias_ms, 11u);
+    EXPECT_EQ(exp.sd_initial_wait_overhead_ms, 19u);
     EXPECT_EQ(exp.can_ets_cycle_0_ms, 200u);
 }
 
