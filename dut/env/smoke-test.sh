@@ -276,6 +276,9 @@ DUT_CONTROL=""
 TOPOLOGY=${TC8_TOPOLOGY:-single-pc}
 TOPOLOGY_CONF=""
 PRINT_EXPECT=0
+# --selftest-case-id-canon: run the pure-string per-case-map key derivation
+# self-test and exit (no root, no built harness). Run by check-suite-producer.sh.
+SELFTEST_CASE_ID_CANON=0
 # A --topology-conf overlay may append DUT-specific expect tokens here that are not
 # derivable from vsomeip.json (timing / endpoint constants). Each entry is a bare
 # `key=value` (NO `--expect` prefix), matching the orchestrator's TOML `extra_expect`
@@ -287,18 +290,54 @@ PRINT_EXPECT=0
 # orchestrator's `extra_expect` field so both --print-expect surfaces stay in parity.
 TC8_TOPOLOGY_EXTRA_EXPECT=()
 # A --topology-conf overlay may declare per-case DUT SOME/IP-SD start-up timer
-# preconditions here: a case_id (upper-case) -> a space-separated `KEY=VALUE` list of
-# `service-discovery` field overrides. When the runner brings up the DUT for that case
-# it derives a per-worker vsomeip.json = the resolved base config PATCHED with those
-# fields (tools/dut_sd_timing_override.py), so a timing case runs under the DUT config
-# ITS precondition specifies instead of the one global config. The map lives with the
-# deployment (case-specific config is not the shared harness's concern); the harness
-# only provides the mechanism, and validate_dut_sd_timing_overrides fails the whole
-# run fast if an entry names an unknown case or a malformed override. Declared empty so
-# a run with no overlay (or one that never sets it) uses the base config unchanged.
-# Bash-only, like CASE_VSOMEIP_VARIANT — the orchestrator brings the DUT up with one
-# config and has no per-case DUT-config axis. See docs/dut_sd_timing_preconditions.md.
+# preconditions here: a display case id -> a space-separated `KEY=VALUE` list of
+# `service-discovery` field overrides. The key is the id form --list-cases prints and
+# canonicalise_case_id derives — a bare id upper-cased, or a qualified `suite:id`
+# (non-default suite) with the suite prefix VERBATIM and only the local id upper-cased.
+# When the runner brings up the DUT for that case it derives a per-worker vsomeip.json =
+# the resolved base config PATCHED with those fields (tools/dut_sd_timing_override.py),
+# so a timing case runs under the DUT config ITS precondition specifies instead of the
+# one global config. The map lives with the deployment (case-specific config is not the
+# shared harness's concern); the harness only provides the mechanism, and
+# validate_dut_sd_timing_overrides fails the whole run fast if an entry names an unknown
+# case or a malformed override. Declared empty so a run with no overlay (or one that
+# never sets it) uses the base config unchanged. Bash-only, like CASE_VSOMEIP_VARIANT —
+# the orchestrator brings the DUT up with one config and has no per-case DUT-config
+# axis. See docs/dut_sd_timing_preconditions.md.
 declare -A TC8_TOPOLOGY_DUT_SD_TIMING=()
+
+# Canonicalise a case id into the key form the per-case override maps use
+# (TC8_TOPOLOGY_DUT_SD_TIMING, CASE_EXPECT_OVERRIDES, CASE_VSOMEIP_VARIANT, ...).
+# Bash associative-array keys are case-sensitive, but case ids resolve
+# case-insensitively in the harness registry (equalsIgnoreAsciiCase) and are
+# upper-case by convention (the internal maps and the registry's canonical index
+# are upper-case; the split-brain identity closed as P10). Folding the lookup key to
+# upper-case lets a test-dir-name invocation (`dhcpv4_client_reacquisition_05`) hit
+# the upper-case map keys instead of silently missing and taking the default.
+#
+# For a qualified `suite:id` (a non-default suite) the key BOTH the map and
+# validate_dut_sd_timing_overrides use is the id `--list-cases` prints: the suite
+# prefix + local id exactly as registered — and the prefix keeps WHATEVER case it
+# was registered in (the registry constrains neither its charset nor its case).
+# Upper-casing the whole token (`${id^^}`) would fold the prefix too, so validate
+# (which keeps the printed prefix) and this runtime lookup would diverge: the
+# override would be accepted at load and then silently no-op at run — a
+# false-confidence trap for a falsification harness. So preserve the prefix verbatim
+# and upper-case only the local id.
+#
+# Residual (documented, not guarded): the prefix is compared case-sensitively here,
+# so a caller passing the prefix in a DIFFERENT case than it was registered would
+# still miss. Callers pass the `--list-cases` display id verbatim, so it does not
+# arise in practice.
+canonicalise_case_id() {
+    local id=$1
+    if [[ $id == *:* ]]; then
+        local pfx=${id%%:*} loc=${id#*:}
+        printf '%s:%s' "$pfx" "${loc^^}"
+    else
+        printf '%s' "${id^^}"
+    fi
+}
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --topology)  TOPOLOGY="$2"; shift 2 ;;
@@ -310,9 +349,39 @@ while [[ $# -gt 0 ]]; do
         --junit-xml) JUNIT_OUT="$2"; shift 2 ;;
         --dut-control) DUT_CONTROL="$2"; shift 2 ;;
         --print-expect) PRINT_EXPECT=1; shift ;;
+        --selftest-case-id-canon) SELFTEST_CASE_ID_CANON=1; shift ;;
         *) break ;;
     esac
 done
+
+# Pure-string self-test of the per-case-map key derivation (no root, no built
+# harness). A qualified `suite:id` must keep its prefix case verbatim — the miss
+# that let the N1 SD-timing override validate-but-no-op for suite-prefixed cases.
+# Runs before any worker/HARNESS setup so it stays dependency-free; wired into
+# scripts/check-suite-producer.sh alongside the list-cases-ids.awk guard.
+if (( SELFTEST_CASE_ID_CANON )); then
+    _st_fail=0
+    _st_check() {  # expected actual_id
+        local got
+        got=$(canonicalise_case_id "$2")
+        if [[ "$got" != "$1" ]]; then
+            echo "smoke-test --selftest-case-id-canon: canonicalise_case_id '$2' -> '$got', expected '$1'" >&2
+            _st_fail=1
+        fi
+    }
+    _st_check DHCPV4_CLIENT_REACQUISITION_05 dhcpv4_client_reacquisition_05  # bare, lower -> upper
+    _st_check SOMEIPSRV_FORMAT_01            SOMEIPSRV_FORMAT_01             # bare, already upper -> unchanged
+    _st_check vendorx:SOMEIPSRV_SD_BEHAVIOR_02 vendorx:SOMEIPSRV_SD_BEHAVIOR_02 # display id -> prefix + local verbatim
+    _st_check vendorx:SOMEIPSRV_SD_BEHAVIOR_02 vendorx:someipsrv_sd_behavior_02 # local folds up, prefix kept -> matches
+    _st_check demo:SOMEIPSRV_OPTIONS_01      demo:someipsrv_options_01       # in-tree suite-producer regression id
+    _st_check Vendor_X:ARP_01                Vendor_X:arp_01                 # mixed-case prefix preserved verbatim
+    if (( _st_fail )); then
+        echo "smoke-test --selftest-case-id-canon: FAILED" >&2
+        exit 1
+    fi
+    echo "smoke-test --selftest-case-id-canon: OK"
+    exit 0
+fi
 
 [[ "$WORKERS" =~ ^[1-9][0-9]*$ ]] \
     || { echo "smoke-test: --workers must be a positive integer, got '$WORKERS'" >&2; exit 1; }
@@ -1056,7 +1125,11 @@ resolve_dut_sd_timing_cfg() {
         return 0
     fi
     local out
-    out=$(mktemp "$WORK_ROOT/$W/${case_canon}.vsomeip.XXXXXX") || return 1
+    # A qualified `suite:id` canon carries a colon; keep it OUT of the derived
+    # filename (legal on Linux but a needless surprise for path consumers) while
+    # the map key above matched on the colon-bearing form verbatim.
+    local safe_name=${case_canon//:/_}
+    out=$(mktemp "$WORK_ROOT/$W/${safe_name}.vsomeip.XXXXXX") || return 1
     # Split the KEY=VALUE list into an array (no unquoted word-split, so pathname
     # expansion cannot touch the tokens). The tokens were already validated at
     # overlay load by validate_dut_sd_timing_overrides; this is the runtime apply.
@@ -1079,15 +1152,10 @@ resolve_dut_sd_timing_cfg() {
 run_case() {
     local W=$1
     local case_id=$2
-    # Canonical case identity for the per-case override maps below. Bash
-    # associative-array keys are case-sensitive, but case IDs are
-    # case-insensitive everywhere else: the harness registry resolves via
-    # equalsIgnoreAsciiCase and SpecInventory::canonicalise upper-cases
-    # (the split-brain identity closed as P10). Folding the lookup key to
-    # upper-case keeps this layer in agreement, so a test-dir-name
-    # invocation (`dhcpv4_client_reacquisition_05`) hits the upper-case
-    # map keys instead of silently missing and taking the default.
-    local case_id_canon=${case_id^^}
+    # Canonical case identity for the per-case override maps below (bare id
+    # upper-cased; a `suite:id` keeps its prefix verbatim) — see canonicalise_case_id.
+    local case_id_canon
+    case_id_canon=$(canonicalise_case_id "$case_id")
     local start_ts=$EPOCHREALTIME
     local tester_iface
     tester_iface=$(topology_tester_iface "$W")
@@ -1839,9 +1907,10 @@ run_case() {
 run_negative_case() {
     local W=$1
     local case_id=$2
-    # Canonical case identity for the override maps — see run_case
-    # (case-insensitive map keys, P10).
-    local case_id_canon=${case_id^^}
+    # Canonical case identity for the override maps — see canonicalise_case_id
+    # (case-insensitive local id, `suite:` prefix preserved verbatim; P10).
+    local case_id_canon
+    case_id_canon=$(canonicalise_case_id "$case_id")
     local wrong_token=$3
     local expected_reason=$4
     local start_ts=$EPOCHREALTIME

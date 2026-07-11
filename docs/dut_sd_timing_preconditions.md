@@ -36,7 +36,11 @@ per-precondition config file that could silently drift from the base.
 ### Declaring the overrides (overlay)
 
 The overlay (which `smoke-test.sh` *sources*) adds entries to the associative array
-`TC8_TOPOLOGY_DUT_SD_TIMING`, keyed by **upper-case** case id, whose value is a
+`TC8_TOPOLOGY_DUT_SD_TIMING`, keyed by the **display case id** — the exact form
+`tc8-harness test --list-cases` prints: a bare id **upper-cased**, or a qualified
+`suite:id` (non-default suite) with the suite prefix **verbatim** and only the local id
+upper-cased (e.g. `vendorx:SOMEIPSRV_SD_BEHAVIOR_02`). The runtime derives the same form via
+`canonicalise_case_id`, so validate and the per-case lookup agree. The value is a
 space-separated `KEY=VALUE` list of `service-discovery` field overrides — for example:
 
 ```bash
