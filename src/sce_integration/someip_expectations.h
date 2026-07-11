@@ -134,6 +134,28 @@ struct SomeIpExpectations {
     // it per-run. No in-tree case reads it yet.
     std::uint32_t sd_service_down_ms = 0;
 
+    // SD Initial-Wait acceptance-margin calibration (per-DUT). The Initial-Wait
+    // verdicts (SD_BEHAVIOR_01 client / _02 server) judge the first Find/Offer
+    // delay against [sd_initial_delay_min_ms, sd_initial_delay_max_ms], but the
+    // measured wire delay carries a DUT-specific offset between the
+    // stack-independent anchor and the true phase start (SD-handler latency /
+    // re-registration cost). These four size the acceptance margins for THAT
+    // offset. Unlike the SD window bounds, 0 here means "use the verdict's
+    // compiled-in measured default" (so a run that omits them behaves exactly as
+    // today), not "unset/required". Operator-supplied per DUT via --expect.
+    // Kept separate rather than merged (e.g. one shared "noise" field for the
+    // client jitter and server floor-margin) because each is an independent
+    // per-DUT measurement on a distinct anchor — merging would couple them by an
+    // assumption, the same reason major_version_alt is not major_version + 1.
+    // Like sd_service_down_ms / sd_raw_startup_ms these are per-case values no
+    // base-identity producer emits, so they live in the parser schema but NOT in
+    // the generated base --expect surface; a case that needs them supplies them
+    // per run. No in-tree case reads them yet.
+    std::uint32_t sd_initial_wait_bias_ms = 0;          // client anchor->request handler bias
+    std::uint32_t sd_initial_wait_jitter_ms = 0;        // measurement-noise margin (client)
+    std::uint32_t sd_initial_wait_floor_margin_ms = 0;  // measurement-noise margin below spec floor (server)
+    std::uint32_t sd_initial_wait_overhead_ms = 0;      // one-sided re-registration overhead ceiling (server)
+
     // CAN-encapsulated SOME/IP cadence / delay timers (periodic cycle,
     // delay time after a message, start offset). The CAN Message IDs and
     // payload encoding stay OEM-side; only the configured timer values live
