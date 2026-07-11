@@ -98,14 +98,28 @@ TEST(ArpResponderLive, AnswersRequestOnVethPeer) {
     // Poll BOTH the responder fd (to drive onReadable, which answers) and the
     // peer capture (to observe the Reply), within a bounded budget. Skip our own
     // injected Request (PACKET_OUTGOING) and any non-matching ARP traffic.
+    //
+    // Retransmit the Request on each idle tick instead of trusting the single send
+    // above: createVethPair brings both ends administratively up but does NOT wait
+    // for carrier/operstate, so a fresh veth can drop the first frame(s) in the
+    // brief settle window after RTM_NEWLINK — leaving the responder nothing to
+    // answer and the whole wait futile (the observed self-hosted CI flake). ARP is
+    // idempotent and real hosts retransmit unanswered Requests, so resending is
+    // behaviour-preserving and adapts to a loaded runner (a fixed settle sleep
+    // could still be too short). The initial send is asserted (failing to even
+    // queue a frame is a real bug, not a settle drop); resends are best-effort,
+    // matching the fire-and-forget sendRawEthernet callers elsewhere. The budget is
+    // generous headroom — the happy path exits within a few ticks the instant the
+    // Reply is captured.
     bool got_reply = false;
-    for (int waited_ms = 0; waited_ms < 2000 && !got_reply;) {
+    for (int waited_ms = 0; waited_ms < 5000 && !got_reply;) {
         pollfd p[2];
         p[0] = pollfd{responder.pollFd(), POLLIN, 0};
         p[1] = pollfd{cap, POLLIN, 0};
         const int rc = ::poll(p, 2, 100);
         if (rc <= 0) {
             waited_ms += 100;
+            tc8::stimulus::sendRawEthernet(request, kB);  // best-effort resend past the veth settle window
             continue;
         }
         if (p[0].revents & POLLIN) {
