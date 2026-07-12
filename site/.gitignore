@@ -8,6 +8,10 @@ dist/
 src/data/cases/
 src/data/index.json
 
+# OEM overlay locales staged from SITE_EXTRA_CASE_ROOTS roots (empty for a
+# public build). Consumed by src/lib/overrides.ts via import.meta.glob.
+src/data/extra_locales/
+
 # Legacy local walker output before the auto_messages/ rename (see
 # generate_messages.py DEFAULT_OUT_DIR). Kept ignored so a stale local
 # checkout doesn't show it as untracked.

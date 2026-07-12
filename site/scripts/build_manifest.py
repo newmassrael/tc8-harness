@@ -11,6 +11,27 @@ repo — trait headers (``src/sce_integration/cases/<case>.h``), SCXML, test
 runs — never from the upstream TC8 PDF spec body. Only factual metadata
 (case ID, section number) is taken from the spec inventory.
 
+OEM overlay (``SITE_EXTRA_CASE_ROOTS``):
+    A ``:``-separated list of extra content roots (shell-``PATH`` style,
+    mirroring the runtime ``TC8_EXTRA_CASE_DIRS`` seam). Unset ⇒ behaviour
+    byte-identical to a public-only build. Each root is self-describing::
+
+        <root>/inventory.json            # extra cases (bare list or {"cases":[…]})
+        <root>/deprecated.json           # optional, same shape as docs/spec/
+        <root>/inventory_overrides.json  # optional, {"overrides": {CID: {…}}}
+        <root>/protocol_map.json         # optional, [{section_prefix, protocol_label}]
+        <root>/traits/<cid>.h            # TestCaseTraits header
+        <root>/scxml/<cid>.scxml         # case SCXML
+        <root>/pcap/<CID>.json           # optional decoded-pcap JSON
+        <root>/locales/<lang>/<CID>.json # optional per-locale override
+
+    Extra cases are merged into the spec-order list and their artefacts
+    resolve under the owning root; nothing from a root is ever written to
+    the tracked public tree. Locale overrides are staged into the generated
+    (git-ignored) ``site/src/data/extra_locales/`` so the build-time
+    ``import.meta.glob`` in ``overrides.ts`` can still point at a fixed
+    in-tree path (see that file).
+
 Output:
     ``site/src/data/cases/<CASE_ID>.json`` — one file per case.
     ``site/src/data/index.json`` — summary list ordered by spec appearance.
@@ -18,16 +39,18 @@ Output:
 Usage:
     python3 site/scripts/build_manifest.py            # all cases
     python3 site/scripts/build_manifest.py --only ARP_03
+    SITE_EXTRA_CASE_ROOTS=/path/to/oem-root python3 site/scripts/build_manifest.py
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -36,8 +59,10 @@ OVERRIDES = REPO_ROOT / "docs" / "spec" / "inventory_overrides.json"
 DEPRECATED = REPO_ROOT / "docs" / "spec" / "deprecated_cases.json"
 TESTS_DIR = REPO_ROOT / "tests"
 TRAITS_DIR = REPO_ROOT / "src" / "sce_integration" / "cases"
+PCAP_DIR = REPO_ROOT / "site" / "src" / "data" / "pcap"
 OUT_DIR = REPO_ROOT / "site" / "src" / "data" / "cases"
 INDEX_OUT = REPO_ROOT / "site" / "src" / "data" / "index.json"
+EXTRA_LOCALES_OUT = REPO_ROOT / "site" / "src" / "data" / "extra_locales"
 
 
 def section_hint_for(case_id: str) -> str:
@@ -252,7 +277,10 @@ def category_of(case_id: str) -> str:
     return re.sub(r"_\d+$", "", canonical(case_id))
 
 
-def protocol_of(section: str) -> str:
+def protocol_of(section: str, extra_map: Sequence[tuple[str, str]] = ()) -> str:
+    """Coarse protocol label for a spec section. ``extra_map`` carries the
+    (section_prefix, protocol_label) pairs from OEM ``protocol_map.json``
+    roots, consulted as a fallback before defaulting to "Other"."""
     if section.startswith("4.2"):
         return "ARP"
     if section.startswith("4.3"):
@@ -271,11 +299,47 @@ def protocol_of(section: str) -> str:
         return "SOME/IP-SRV"
     if section.startswith("5.1.6"):
         return "SOME/IP-ETS"
+    for prefix, label in extra_map:
+        if prefix and section.startswith(prefix):
+            return label
     return "Other"
 
 
 def spec_order_key(case: dict) -> tuple:
     return (case.get("split", ""), case.get("line", 0))
+
+
+# ---------------------------------------------------------------------------
+# Per-case artefact resolution (root-aware)
+#
+# A public case resolves its trait header, SCXML and pcap under the in-tree
+# layout. An extra case carries its owning root in ``case["_root"]`` and
+# resolves the same artefacts under that root's self-describing layout, so
+# no OEM byte lands in the public tree.
+# ---------------------------------------------------------------------------
+
+
+def case_root(case: dict) -> Path | None:
+    """Owning OEM root for an extra case, or None for a public case."""
+    return case.get("_root")
+
+
+def trait_path_for(case: dict) -> Path:
+    lc = canonical(case["case_id"]).lower()
+    root = case_root(case)
+    return (root / "traits" / f"{lc}.h") if root else (TRAITS_DIR / f"{lc}.h")
+
+
+def scxml_path_for(case: dict) -> Path:
+    lc = canonical(case["case_id"]).lower()
+    root = case_root(case)
+    return (root / "scxml" / f"{lc}.scxml") if root else (TESTS_DIR / lc / f"{lc}.scxml")
+
+
+def pcap_path_for(case: dict) -> Path:
+    cid = canonical(case["case_id"])
+    root = case_root(case)
+    return (root / "pcap" / f"{cid}.json") if root else (PCAP_DIR / f"{cid}.json")
 
 
 # ---------------------------------------------------------------------------
@@ -291,7 +355,7 @@ def extract_header(case: dict, ctx: dict) -> dict:
         "case_id": cid,
         "case_id_raw": case["case_id"],
         "category": category_of(cid),
-        "protocol": protocol_of(section),
+        "protocol": protocol_of(section, ctx.get("protocol_map", ())),
         "section": section,
         "spec_order": case.get("_spec_order", 0),
         "status": "active",
@@ -301,9 +365,7 @@ def extract_header(case: dict, ctx: dict) -> dict:
 
 
 def extract_trait(case: dict, ctx: dict) -> dict:
-    cid = canonical(case["case_id"])
-    trait_path = TRAITS_DIR / f"{cid.lower()}.h"
-    info = parse_trait(trait_path)
+    info = parse_trait(trait_path_for(case))
     if not info or (not info.get("description") and not info.get("approach")
                     and not info.get("verdicts")):
         return {}
@@ -311,10 +373,20 @@ def extract_trait(case: dict, ctx: dict) -> dict:
 
 
 def extract_sources(case: dict, ctx: dict) -> dict:
-    cid = canonical(case["case_id"])
-    lc = cid.lower()
-    trait = TRAITS_DIR / f"{lc}.h"
-    scxml = TESTS_DIR / lc / f"{lc}.scxml"
+    lc = canonical(case["case_id"]).lower()
+    trait = trait_path_for(case)
+    scxml = scxml_path_for(case)
+    root = case_root(case)
+    if root:
+        # Paths are shown relative to the owning root; an OEM building from
+        # its own repo points REPO_URL/REPO_REF (see lib/links.ts) at it.
+        return {
+            "sources": {
+                "trait_h": str(trait.relative_to(root)) if trait.exists() else None,
+                "scxml": str(scxml.relative_to(root)) if scxml.exists() else None,
+                "test_dir": None,
+            }
+        }
     return {
         "sources": {
             "trait_h": str(trait.relative_to(REPO_ROOT)) if trait.exists() else None,
@@ -336,8 +408,7 @@ def extract_pcap(case: dict, ctx: dict) -> dict:
     ``site/src/data/pcap/<CASE_ID>.json``. The shape is documented in the
     site types (``PacketCapture``).
     """
-    cid = canonical(case["case_id"])
-    pcap_path = REPO_ROOT / "site" / "src" / "data" / "pcap" / f"{cid}.json"
+    pcap_path = pcap_path_for(case)
     if not pcap_path.exists():
         return {}
     try:
@@ -362,9 +433,7 @@ def extract_scxml(case: dict, ctx: dict) -> dict:
     highlighting via Astro's ``<Code>`` (shiki). Phase 7 will optionally
     add a ``diagram`` field with a Mermaid translation.
     """
-    cid = canonical(case["case_id"])
-    lc = cid.lower()
-    scxml_path = TESTS_DIR / lc / f"{lc}.scxml"
+    scxml_path = scxml_path_for(case)
     if not scxml_path.exists():
         return {}
     return {"scxml": {"content": scxml_path.read_text(encoding="utf-8")}}
@@ -393,6 +462,117 @@ def build_one(case: dict, ctx: dict) -> dict:
     return record
 
 
+# ---------------------------------------------------------------------------
+# OEM overlay (SITE_EXTRA_CASE_ROOTS)
+# ---------------------------------------------------------------------------
+
+
+def discover_extra_roots() -> list[Path]:
+    """Resolve ``SITE_EXTRA_CASE_ROOTS`` into existing directories.
+
+    ``:``-separated, shell-``PATH`` style. Empty entries are ignored; a
+    non-directory entry is warned and skipped rather than aborting the
+    build, so a public build with the var unset is a plain no-op."""
+    raw = os.environ.get("SITE_EXTRA_CASE_ROOTS", "")
+    roots: list[Path] = []
+    for part in raw.split(":"):
+        part = part.strip()
+        if not part:
+            continue
+        p = Path(part).expanduser().resolve()
+        if not p.is_dir():
+            print(f"warn: SITE_EXTRA_CASE_ROOTS entry is not a directory, skipping: {p}",
+                  file=sys.stderr)
+            continue
+        roots.append(p)
+    return roots
+
+
+def load_root_inventory(root: Path) -> list[dict]:
+    """Read a root's ``inventory.json`` and tag each case with its root.
+
+    Accepts either a bare ``[…]`` list or the ``{"cases": […]}`` shape used
+    by the public inventory, so an OEM can reuse either format."""
+    inv_path = root / "inventory.json"
+    if not inv_path.exists():
+        print(f"warn: extra root has no inventory.json, skipping: {root}", file=sys.stderr)
+        return []
+    data = json.loads(inv_path.read_text(encoding="utf-8"))
+    cases = data.get("cases", []) if isinstance(data, dict) else data
+    for c in cases:
+        c["_root"] = root
+    return cases
+
+
+def merge_root_metadata(roots: list[Path], overrides: dict,
+                        deprecated_doc: dict) -> list[tuple[str, str]]:
+    """Fold each root's optional overrides / deprecated into the in-memory
+    public documents and return the accumulated protocol map.
+
+    ``overrides`` / ``deprecated_doc`` are merged in place (main owns them);
+    the protocol map is returned rather than stashed in a module global so
+    ``protocol_of`` stays a pure function. Public keys are never removed;
+    extra keys are additive (case_ids are required disjoint)."""
+    protocol_map: list[tuple[str, str]] = []
+    for root in roots:
+        ov_path = root / "inventory_overrides.json"
+        if ov_path.exists():
+            extra = json.loads(ov_path.read_text(encoding="utf-8"))
+            overrides.setdefault("overrides", {}).update(extra.get("overrides", {}))
+
+        dep_path = root / "deprecated.json"
+        if dep_path.exists():
+            extra = json.loads(dep_path.read_text(encoding="utf-8"))
+            deprecated_doc.setdefault("cases", []).extend(extra.get("cases", []))
+
+        pm_path = root / "protocol_map.json"
+        if pm_path.exists():
+            for entry in json.loads(pm_path.read_text(encoding="utf-8")):
+                protocol_map.append(
+                    (entry["section_prefix"], entry["protocol_label"]))
+    return protocol_map
+
+
+def site_locales() -> list[str]:
+    """Languages the site renders, derived from the tracked per-case locale
+    dirs (``site/src/locales/cases/<lang>/``).
+
+    This is the filesystem SSOT for supported languages: the TS/JS side
+    (astro.config.mjs, i18n.ts, overrides.ts) must hard-code the same set
+    because Vite's ``import.meta.glob`` needs literal paths, but this script
+    cannot import those, so it reads the dirs instead of adding another
+    hand-maintained copy of the list."""
+    base = REPO_ROOT / "site" / "src" / "locales" / "cases"
+    if not base.is_dir():
+        return []
+    return sorted(d.name for d in base.iterdir() if d.is_dir())
+
+
+def stage_extra_locales(roots: list[Path]) -> None:
+    """Copy each root's ``locales/<lang>/*.json`` into the generated
+    (git-ignored) staging dir that ``overrides.ts`` globs at build time.
+
+    The staging dir is wiped and recreated on every run so a removed or
+    changed root set can never leave a stale override behind; the ``en``/
+    ``ko`` dirs are always created (empty when the var is unset) so the
+    build-time glob always resolves a real path."""
+    langs = site_locales()
+    for lang in langs:
+        d = EXTRA_LOCALES_OUT / lang
+        d.mkdir(parents=True, exist_ok=True)
+        for old in d.glob("*.json"):
+            old.unlink()
+    for root in roots:
+        loc_dir = root / "locales"
+        for lang in langs:
+            src = loc_dir / lang
+            if not src.is_dir():
+                continue
+            for f in src.glob("*.json"):
+                (EXTRA_LOCALES_OUT / lang / f.name).write_text(
+                    f.read_text(encoding="utf-8"), encoding="utf-8")
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--only", action="append", default=[],
@@ -404,14 +584,39 @@ def main(argv: list[str] | None = None) -> int:
     inventory = json.loads(INVENTORY.read_text(encoding="utf-8"))
     overrides = json.loads(OVERRIDES.read_text(encoding="utf-8"))
     deprecated_doc = json.loads(DEPRECATED.read_text(encoding="utf-8"))
-    ctx = {"overrides": overrides}
+
+    # OEM overlay: discover extra roots, fold their metadata into the public
+    # documents, stage their locales. All no-ops when the var is unset, so a
+    # public build is byte-identical.
+    extra_roots = discover_extra_roots()
+    protocol_map = merge_root_metadata(extra_roots, overrides, deprecated_doc)
+    stage_extra_locales(extra_roots)
+    ctx = {"overrides": overrides, "protocol_map": protocol_map}
+
+    # Extra case_ids must be disjoint from every public id — active *and*
+    # deprecated — so an OEM case can never silently shadow a retired one.
+    public_cases = list(inventory["cases"])
+    seen_ids = {canonical(c["case_id"]) for c in public_cases}
+    for entry in deprecated_doc.get("cases", []):
+        seen_ids.add(canonical(entry if isinstance(entry, str) else entry["case_id"]))
+
+    extra_cases: list[dict] = []
+    for root in extra_roots:
+        for c in load_root_inventory(root):
+            cid = canonical(c["case_id"])
+            if cid in seen_ids:
+                raise SystemExit(
+                    f"error: extra case_id {cid} from {root} collides with an "
+                    "existing case (extra ids must be disjoint)")
+            seen_ids.add(cid)
+            extra_cases.append(c)
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     if args.clean and not args.only:
         for old in OUT_DIR.glob("*.json"):
             old.unlink()
 
-    cases_in_spec_order = sorted(inventory["cases"], key=spec_order_key)
+    cases_in_spec_order = sorted(public_cases + extra_cases, key=spec_order_key)
     for i, case in enumerate(cases_in_spec_order):
         case["_spec_order"] = i
 
@@ -496,7 +701,7 @@ def main(argv: list[str] | None = None) -> int:
             "case_id": cid,
             "case_id_raw": cid,
             "category": category_of(cid),
-            "protocol": protocol_of(section),
+            "protocol": protocol_of(section, protocol_map),
             "section": section,
             "spec_order": deprecated_spec_order(cid, section),
             "status": "deprecated",

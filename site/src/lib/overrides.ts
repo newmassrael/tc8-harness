@@ -46,10 +46,21 @@ function buildMap(modules: Record<string, CaseOverride>): Record<string, CaseOve
   return out;
 }
 
-const koMap = buildMap(import.meta.glob<CaseOverride>(
-  '../locales/cases/ko/*.json', { eager: true, import: 'default' }));
-const enMap = buildMap(import.meta.glob<CaseOverride>(
-  '../locales/cases/en/*.json', { eager: true, import: 'default' }));
+// Base locales come from the tracked source tree; OEM overlay locales are
+// staged (git-ignored) into ../data/extra_locales/<lang>/ by build_manifest.py
+// from each SITE_EXTRA_CASE_ROOTS root. Both globs resolve fixed in-tree
+// paths at build time (Vite requirement); the extra dir is empty for a
+// public build, so the merged map is byte-identical when the var is unset.
+// Extra entries are spread last so an extra root wins on a same-id collision
+// (case_ids are required disjoint, so this is only a documented tie-break).
+const koMap = buildMap({
+  ...import.meta.glob<CaseOverride>('../locales/cases/ko/*.json', { eager: true, import: 'default' }),
+  ...import.meta.glob<CaseOverride>('../data/extra_locales/ko/*.json', { eager: true, import: 'default' }),
+});
+const enMap = buildMap({
+  ...import.meta.glob<CaseOverride>('../locales/cases/en/*.json', { eager: true, import: 'default' }),
+  ...import.meta.glob<CaseOverride>('../data/extra_locales/en/*.json', { eager: true, import: 'default' }),
+});
 
 interface AutoMessages {
   case_id: string;

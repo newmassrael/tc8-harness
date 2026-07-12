@@ -830,6 +830,40 @@ policy). OEM-specific skip/known-fail policy can still ride the
 `--inventory-overrides` flag with an OEM-maintained overrides JSON, which
 is applied across the merged set.
 
+### Case-documentation site (`SITE_EXTRA_CASE_ROOTS`)
+
+The Astro case-documentation site (`site/`) has the same overlay seam for
+the content pipeline. `SITE_EXTRA_CASE_ROOTS` is a `:`-separated list of
+content roots (shell-`PATH` style); unset ⇒ a public-only build is
+byte-identical. Each root is self-describing and stays entirely in the OEM
+repo — no OEM byte is ever written to the tracked public tree:
+
+```
+<root>/inventory.json            # extra cases (bare list or {"cases":[…]})
+<root>/deprecated.json           # optional — same shape as docs/spec/deprecated_cases.json
+<root>/inventory_overrides.json  # optional — {"overrides": {CID: {expected, defer_reason}}}
+<root>/protocol_map.json         # optional — [{section_prefix, protocol_label}] for new sections
+<root>/traits/<cid>.h            # TestCaseTraits header (same shape build_manifest.py parses)
+<root>/scxml/<cid>.scxml         # case SCXML
+<root>/pcap/<CID>.json           # optional — decoded-pcap JSON
+<root>/locales/<lang>/<CID>.json # optional — per-locale (en/ko) override
+```
+
+`build_manifest.py` merges each root's inventory into the spec-order list
+and resolves that case's trait/SCXML/pcap under its owning root; extra
+case_ids must be disjoint from the public set (a collision is a hard
+error). Locale overrides are staged into the generated (git-ignored)
+`site/src/data/extra_locales/` so the build-time `import.meta.glob` in
+`overrides.ts` still resolves a fixed in-tree path. An OEM points
+`REPO_URL`/`REPO_REF` (`site/src/lib/links.ts`) at its own repo so the
+Sources links resolve, and deploys from its own Pages target:
+
+```bash
+SITE_EXTRA_CASE_ROOTS=/path/to/oem-content-root \
+REPO_URL=https://github.com/oem/private-suite \
+    npm --prefix site run build
+```
+
 ### IEEE 802.1Q VLAN tagging
 
 TC8 v3.0 defines no VLAN cases, but vehicle-Ethernet OEM profiles routinely
