@@ -86,8 +86,23 @@ export interface TranslationCoverage {
   total: number;
 }
 
-export function translationCoverage(total: number): TranslationCoverage {
-  return { en: Object.keys(enMap).length, ko: Object.keys(koMap).length, total };
+/**
+ * Coverage counted against the *rendered* case set only. ``import.meta.glob``
+ * eagerly loads every locale file on disk (public + every OEM overlay root),
+ * but a subset or overlay-only build renders fewer cases — so counting raw
+ * map size would report coverage greater than the total. Intersecting with
+ * the rendered ids keeps ``en``/``ko`` ≤ ``total`` for any build; for a full
+ * public build every locale id is rendered, so the count is unchanged.
+ */
+export function translationCoverage(caseIds: Iterable<string>): TranslationCoverage {
+  const rendered = new Set<string>();
+  for (const id of caseIds) rendered.add(id.toUpperCase());
+  const inRendered = (id: string) => rendered.has(id);
+  return {
+    en: Object.keys(enMap).filter(inRendered).length,
+    ko: Object.keys(koMap).filter(inRendered).length,
+    total: rendered.size,
+  };
 }
 
 export function hasOverride(caseId: string, locale: Locale): boolean {

@@ -17,6 +17,9 @@ OEM overlay (``SITE_EXTRA_CASE_ROOTS``):
     byte-identical to a public-only build. Each root is self-describing::
 
         <root>/inventory.json            # extra cases (bare list or {"cases":[…]})
+                                         #   a case entry may carry an optional
+                                         #   root-relative ``test_dir`` shown as
+                                         #   its "Test directory" source link
         <root>/deprecated.json           # optional, same shape as docs/spec/
         <root>/inventory_overrides.json  # optional, {"overrides": {CID: {…}}}
         <root>/protocol_map.json         # optional, [{section_prefix, protocol_label}]
@@ -277,10 +280,8 @@ def category_of(case_id: str) -> str:
     return re.sub(r"_\d+$", "", canonical(case_id))
 
 
-def protocol_of(section: str, extra_map: Sequence[tuple[str, str]] = ()) -> str:
-    """Coarse protocol label for a spec section. ``extra_map`` carries the
-    (section_prefix, protocol_label) pairs from OEM ``protocol_map.json``
-    roots, consulted as a fallback before defaulting to "Other"."""
+def _builtin_protocol(section: str) -> str | None:
+    """Public spec-section → protocol label heuristic; None if unmatched."""
     if section.startswith("4.2"):
         return "ARP"
     if section.startswith("4.3"):
@@ -299,10 +300,33 @@ def protocol_of(section: str, extra_map: Sequence[tuple[str, str]] = ()) -> str:
         return "SOME/IP-SRV"
     if section.startswith("5.1.6"):
         return "SOME/IP-ETS"
-    for prefix, label in extra_map:
-        if prefix and section.startswith(prefix):
-            return label
-    return "Other"
+    return None
+
+
+def _extra_protocol(section: str, extra_map: Sequence[tuple[str, str]]) -> str | None:
+    """First OEM ``protocol_map`` label whose prefix matches; None if none."""
+    return next(
+        (label for prefix, label in extra_map if prefix and section.startswith(prefix)),
+        None,
+    )
+
+
+def protocol_of(section: str, extra_map: Sequence[tuple[str, str]] = (),
+                prefer_extra: bool = False) -> str:
+    """Coarse protocol label for a spec section, resolved from two sources
+    with an explicit precedence.
+
+    ``extra_map`` carries the (section_prefix, protocol_label) pairs from OEM
+    ``protocol_map.json`` roots. For an OEM overlay case (``prefer_extra``)
+    the root's own map is tried BEFORE the built-in public heuristic, so an
+    OEM chapter whose section overlaps a public prefix (e.g. an OEM
+    SOME/IP-GEN chapter under ``5.1.5.x``) is labelled by the OEM map rather
+    than bucketed into the public group. For a public case the built-in rules
+    win and the map is only a fallback. Unmatched by both ⇒ "Other"."""
+    builtin = _builtin_protocol(section)
+    extra = _extra_protocol(section, extra_map)
+    ordered = (extra, builtin) if prefer_extra else (builtin, extra)
+    return next((label for label in ordered if label), "Other")
 
 
 def spec_order_key(case: dict) -> tuple:
@@ -342,6 +366,24 @@ def pcap_path_for(case: dict) -> Path:
     return (root / "pcap" / f"{cid}.json") if root else (PCAP_DIR / f"{cid}.json")
 
 
+def overlay_test_dir(root: Path, case: dict) -> str | None:
+    """Resolve an overlay case's optional, OEM-declared ``test_dir`` field.
+
+    Unlike trait/scxml/pcap (built from the case_id, hence always under the
+    root), ``test_dir`` is free-form inventory input, so it is confined to
+    the root: an entry that resolves outside — an absolute path, or one
+    escaping via ``..`` — is rejected to None rather than emitting a link
+    that leaves the OEM's own tree. Returned normalised and root-relative,
+    mirroring the sibling source fields."""
+    declared = case.get("test_dir")
+    if not declared:
+        return None
+    resolved = (root / declared).resolve()
+    if not resolved.is_dir() or not resolved.is_relative_to(root):
+        return None
+    return str(resolved.relative_to(root))
+
+
 # ---------------------------------------------------------------------------
 # Extractors
 # ---------------------------------------------------------------------------
@@ -355,7 +397,8 @@ def extract_header(case: dict, ctx: dict) -> dict:
         "case_id": cid,
         "case_id_raw": case["case_id"],
         "category": category_of(cid),
-        "protocol": protocol_of(section, ctx.get("protocol_map", ())),
+        "protocol": protocol_of(section, ctx.get("protocol_map", ()),
+                                prefer_extra=case_root(case) is not None),
         "section": section,
         "spec_order": case.get("_spec_order", 0),
         "status": "active",
@@ -380,11 +423,15 @@ def extract_sources(case: dict, ctx: dict) -> dict:
     if root:
         # Paths are shown relative to the owning root; an OEM building from
         # its own repo points REPO_URL/REPO_REF (see lib/links.ts) at it.
+        # The overlay layout splits trait/scxml across per-kind dirs, so
+        # there is no implicit per-case test dir: an OEM declares one via an
+        # optional root-relative ``test_dir`` on the inventory entry, confined
+        # to the root by overlay_test_dir().
         return {
             "sources": {
                 "trait_h": str(trait.relative_to(root)) if trait.exists() else None,
                 "scxml": str(scxml.relative_to(root)) if scxml.exists() else None,
-                "test_dir": None,
+                "test_dir": overlay_test_dir(root, case),
             }
         }
     return {
