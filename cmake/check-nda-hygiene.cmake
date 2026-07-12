@@ -49,10 +49,10 @@ set(_markers "${_banners}|${_oem_ids}")
 # so the gate now covers the whole authored-source surface (vendored third_party/ is
 # deliberately excluded — its content is not ours to police).
 set(_roots src include dut examples tests unit_tests scripts docs tools .github)
-set(_hits "")
+set(_files "")
 
 foreach(root ${_roots})
-    file(GLOB_RECURSE files
+    file(GLOB_RECURSE _rootfiles
         ${TC8_SOURCE_DIR}/${root}/*.h
         ${TC8_SOURCE_DIR}/${root}/*.hpp
         ${TC8_SOURCE_DIR}/${root}/*.c
@@ -66,15 +66,37 @@ foreach(root ${_roots})
         ${TC8_SOURCE_DIR}/${root}/*.awk
         ${TC8_SOURCE_DIR}/${root}/*.py
         ${TC8_SOURCE_DIR}/${root}/*.yml)
-    foreach(f ${files})
-        file(STRINGS ${f} matched REGEX "${_markers}")
-        if(matched)
-            set(_hits "${_hits}${f}:\n")
-            foreach(line ${matched})
-                set(_hits "${_hits}    ${line}\n")
-            endforeach()
-        endif()
-    endforeach()
+    list(APPEND _files ${_rootfiles})
+endforeach()
+
+# The Astro case-doc site (site/) is publicly deployed (GitHub Pages) and, via the
+# SITE_EXTRA_CASE_ROOTS overlay, is an OEM-content-adjacent surface — so its tracked
+# authored source is scanned too: Astro components/lib/pages (.astro/.ts), the
+# manifest/message tooling (.py), root config (.mjs), and the per-case locale
+# overrides (.json under src/locales/). Recursion is scoped to site/src + site/scripts
+# (no vendored node_modules there) plus root config. Generated output is excluded —
+# src/data/ in particular may hold locally-staged, git-ignored SITE_EXTRA_CASE_ROOTS
+# overlay content, which is intentional and must never be read as a leak.
+file(GLOB_RECURSE _sitefiles
+    ${TC8_SOURCE_DIR}/site/src/*.astro
+    ${TC8_SOURCE_DIR}/site/src/*.ts
+    ${TC8_SOURCE_DIR}/site/src/*.json
+    ${TC8_SOURCE_DIR}/site/scripts/*.py)
+list(FILTER _sitefiles EXCLUDE REGEX "/site/src/data/")
+file(GLOB _sitecfg
+    ${TC8_SOURCE_DIR}/site/*.mjs
+    ${TC8_SOURCE_DIR}/site/*.md)
+list(APPEND _files ${_sitefiles} ${_sitecfg})
+
+set(_hits "")
+foreach(f ${_files})
+    file(STRINGS ${f} matched REGEX "${_markers}")
+    if(matched)
+        set(_hits "${_hits}${f}:\n")
+        foreach(line ${matched})
+            set(_hits "${_hits}    ${line}\n")
+        endforeach()
+    endif()
 endforeach()
 
 if(NOT _hits STREQUAL "")
@@ -83,4 +105,4 @@ if(NOT _hits STREQUAL "")
         "OEM-proprietary content must not enter this public repo:\n${_hits}")
 endif()
 
-message(STATUS "NDA-hygiene: clean (no confidentiality banners or OEM identifiers in authored source — src/include/dut/examples/tests/unit_tests/scripts/docs/tools/.github, incl. .fidl/.fdepl/.scxml/.def/.sh/.awk/.py/.yml).")
+message(STATUS "NDA-hygiene: clean (no confidentiality banners or OEM identifiers in authored source — src/include/dut/examples/tests/unit_tests/scripts/docs/tools/.github + site/ (.astro/.ts/.py/.mjs/.json under src/locales, excl. generated src/data), incl. .fidl/.fdepl/.scxml/.def/.sh/.awk/.py/.yml).")
