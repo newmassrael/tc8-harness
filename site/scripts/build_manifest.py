@@ -577,8 +577,6 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--only", action="append", default=[],
                     help="case_id (canonical) to build; repeatable. Default: all.")
-    ap.add_argument("--clean", action="store_true",
-                    help="Wipe OUT_DIR before writing (full builds only).")
     args = ap.parse_args(argv)
 
     inventory = json.loads(INVENTORY.read_text(encoding="utf-8"))
@@ -612,7 +610,11 @@ def main(argv: list[str] | None = None) -> int:
             extra_cases.append(c)
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    if args.clean and not args.only:
+    # A full build owns the whole directory: wipe it first so a case removed
+    # from the inventory — or an OEM case left behind after SITE_EXTRA_CASE_ROOTS
+    # changes between local runs — cannot linger and be re-globbed into the
+    # index. An ``--only`` build is incremental and must preserve its siblings.
+    if not args.only:
         for old in OUT_DIR.glob("*.json"):
             old.unlink()
 
