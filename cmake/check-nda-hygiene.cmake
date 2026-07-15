@@ -45,10 +45,20 @@ set(_markers "${_banners}|${_oem_ids}")
 # cannot slip past either. The shell/awk orchestration layer (.sh/.awk), the Python
 # tooling and CI workflows (.py/.yml), and the scripts/ + docs/ + tools/ + .github/
 # roots are scanned as well: an OEM suite prefix in a smoke-test comment previously
-# evaded this gate purely because .sh was not globbed and those roots were not walked,
-# so the gate now covers the whole authored-source surface (vendored third_party/ is
-# deliberately excluded — its content is not ours to police).
-set(_roots src include dut examples tests unit_tests scripts docs tools .github)
+# evaded this gate purely because .sh was not globbed and those roots were not walked.
+#
+# The build system (CMakeLists.txt, *.cmake, *.cmake.in, cmake/) is scanned for the
+# same reason, and it escaped for the same reason: it is authored prose-bearing
+# source, it is where architectural and NDA-boundary rationale naturally accretes,
+# and neither its extensions nor the cmake/ root were covered — so every build file
+# in the repo, including THIS gate, was invisible to it. That is the .sh escape
+# repeating one extension later, which is the standing weakness of an
+# extension-allowlist: it is only ever as complete as the last leak. Adding a file
+# type here is therefore mandatory, not optional, and the neg-control (plant a token,
+# watch the gate fail) is what proves the addition took.
+#
+# Vendored third_party/ is deliberately excluded — its content is not ours to police.
+set(_roots src include dut examples tests unit_tests scripts docs tools .github cmake)
 set(_files "")
 
 foreach(root ${_roots})
@@ -65,9 +75,27 @@ foreach(root ${_roots})
         ${TC8_SOURCE_DIR}/${root}/*.sh
         ${TC8_SOURCE_DIR}/${root}/*.awk
         ${TC8_SOURCE_DIR}/${root}/*.py
-        ${TC8_SOURCE_DIR}/${root}/*.yml)
+        ${TC8_SOURCE_DIR}/${root}/*.yml
+        ${TC8_SOURCE_DIR}/${root}/CMakeLists.txt
+        ${TC8_SOURCE_DIR}/${root}/*.cmake
+        ${TC8_SOURCE_DIR}/${root}/*.cmake.in)
     list(APPEND _files ${_rootfiles})
 endforeach()
+
+# The top-level CMakeLists.txt sits in no root, so the loop above cannot reach it —
+# and it is the single largest authored build file in the repo (the case registry,
+# the UTM SDK export, every option's rationale). Named explicitly rather than by
+# globbing the repo root, which would sweep vendored and generated trees back in.
+list(APPEND _files ${TC8_SOURCE_DIR}/CMakeLists.txt)
+
+# This file defines the denylist, so it necessarily SPELLS every token it hunts —
+# scanning it would make the gate fail on its own patterns, forever. It is the one
+# self-reference the cmake/ root introduces, and the exclusion is narrow: exactly
+# the gate's own source, by exact path, never a pattern that could widen. The cost
+# is that this file cannot police itself; the mitigation is that its whole content
+# IS the policy under review, so a token pasted here is a review-visible change to
+# the gate rather than a leak hidden in unrelated code.
+list(REMOVE_ITEM _files ${CMAKE_CURRENT_LIST_FILE})
 
 # The Astro case-doc site (site/) is publicly deployed (GitHub Pages) and, via the
 # SITE_EXTRA_CASE_ROOTS overlay, is an OEM-content-adjacent surface — so its tracked
@@ -105,4 +133,11 @@ if(NOT _hits STREQUAL "")
         "OEM-proprietary content must not enter this public repo:\n${_hits}")
 endif()
 
-message(STATUS "NDA-hygiene: clean (no confidentiality banners or OEM identifiers in authored source — src/include/dut/examples/tests/unit_tests/scripts/docs/tools/.github + site/ (.astro/.ts/.py/.mjs/.json under src/locales, excl. generated src/data), incl. .fidl/.fdepl/.scxml/.def/.sh/.awk/.py/.yml).")
+list(LENGTH _files _n_scanned)
+message(STATUS
+    "NDA-hygiene: clean — ${_n_scanned} authored file(s): "
+    "src/include/dut/examples/tests/unit_tests/scripts/docs/tools/.github/cmake "
+    "(.h/.hpp/.c/.cpp/.md/.fidl/.fdepl/.scxml/.def/.sh/.awk/.py/.yml + "
+    "CMakeLists.txt/.cmake/.cmake.in incl. the top-level CMakeLists.txt) "
+    "+ site/ (.astro/.ts/.py/.mjs/.json under src/locales, excl. generated src/data). "
+    "Excluded: vendored third_party/ and this gate's own source (it spells the denylist).")
