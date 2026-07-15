@@ -1,6 +1,6 @@
 #include "dhcpv4_client.h"
 
-#include "wire/ip_checksum.h"
+#include "tc8/wire/ip_checksum.h"
 
 #include <arpa/inet.h>
 #include <cerrno>

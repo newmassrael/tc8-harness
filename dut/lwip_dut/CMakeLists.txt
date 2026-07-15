@@ -190,12 +190,14 @@ function(tc8_lwip_app name)
     target_include_directories(${name} PRIVATE
         ${APP_LWIPOPTS_DIR}
         "${CMAKE_CURRENT_SOURCE_DIR}"
-        # tc8/upper_tester_protocol.h + tc8/testability_protocol.h — single
-        # source of truth for the UT + testability wire protocols, shared with
-        # the harness and the Linux tc8-dut.
+        # The public header root. Everything this port includes as "tc8/..." lives
+        # here — the UT + testability wire codecs, the testability seam, tc8::wire,
+        # the AES-CMAC engine — and it is the same root, with the same spellings,
+        # that the utm-sdk export installs. So an out-of-tree lwIP OEM compiling
+        # this bridge writes the includes exactly as they read here.
         "${CMAKE_CURRENT_SOURCE_DIR}/../../include"
-        # wire/icmp_echo.h + wire/ip_checksum.h (tc8::wire), included as
-        # "wire/...": the source root is the include root.
+        # The internal (non-exported) headers the .cpp files reach for, e.g.
+        # wire/wire_read.h. Public headers do NOT come from here.
         "${CMAKE_CURRENT_SOURCE_DIR}/../../src"
     )
     # The third-party lwIP header trees, demoted to -isystem so their C-style-cast

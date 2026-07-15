@@ -1,4 +1,4 @@
-#include "posix_socket_backend.h"
+#include "tc8/posix_socket_backend.h"
 
 #include <arpa/inet.h>
 #include <fcntl.h>
@@ -27,7 +27,7 @@
 
 #include "net/rtnetlink.h"
 #include "tc8/testability_protocol.h"
-#include "wire/ip_checksum.h"
+#include "tc8/wire/ip_checksum.h"
 
 namespace tc8::dut {
 

@@ -4,7 +4,7 @@
 
 #include <gtest/gtest.h>
 
-#include "autosar/pn_filter.h"
+#include "tc8/autosar/pn_filter.h"
 
 namespace tc8::pn {
 namespace {

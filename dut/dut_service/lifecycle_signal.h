@@ -6,7 +6,7 @@
 #include <utility>
 #include <vector>
 
-#include "testability/io_multiplexer.h"  // tc8::testability::Waker
+#include "tc8/testability/io_multiplexer.h"  // tc8::testability::Waker
 
 namespace tc8::dut {
 

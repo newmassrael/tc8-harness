@@ -4,7 +4,7 @@
 
 #include <gtest/gtest.h>
 
-#include "autosar/someiptp.h"
+#include "tc8/autosar/someiptp.h"
 
 namespace tc8::someiptp {
 namespace {

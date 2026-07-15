@@ -2834,10 +2834,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/wire/ip_checksum.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/_templates/dhcpv4_request_field.sce-template.xml",
           "kind": "implements"
         },
@@ -2864,6 +2860,10 @@
         {
           "file": "tests/_templates/dhcpv4_discover_field.sce-template.xml",
           "kind": "references"
+        },
+        {
+          "file": "include/tc8/wire/ip_checksum.h",
+          "kind": "implements"
         }
       ]
     },

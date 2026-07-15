@@ -10,7 +10,7 @@
 
 #include "tc8/protocol_frames/someip_frame.h"
 
-#include "autosar/someiptp.h"
+#include "tc8/autosar/someiptp.h"
 #include "someip/protocol.h"
 #include "someip/sd_decode.h"  // SdDecoded mixin + SD structs/namespaces + parseSdInto (neutral SD decode leaf)
 #include "sce_integration/captured_frame_timing.h"

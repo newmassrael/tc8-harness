@@ -23,12 +23,12 @@
 
 #include "netns_test_util.h"
 #include "test_port_util.h"
-#include "posix_socket_backend.h"
+#include "tc8/posix_socket_backend.h"
 #include "sce_integration/dut_control.h"
-#include "stimulus/testability_client.h"
+#include "tc8/testability_client.h"
 #include "tc8/testability_protocol.h"
-#include "testability/middleware.h"
-#include "testability/protocol_server.h"
+#include "tc8/testability/middleware.h"
+#include "tc8/testability/protocol_server.h"
 
 // Server-side integration: drive the real DUT-side TestabilityServer (which is
 // vsomeip-independent — a hand-rolled SOME/IP endpoint over a plain socket)

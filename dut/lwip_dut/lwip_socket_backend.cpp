@@ -5,7 +5,7 @@
 #include <memory>
 
 #include "tc8/testability_protocol.h"
-#include "wire/ip_checksum.h"
+#include "tc8/wire/ip_checksum.h"
 
 #include "lwip/api.h"
 #include "lwip/etharp.h"

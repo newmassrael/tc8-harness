@@ -14,7 +14,7 @@
 #include <utility>
 #include <vector>
 
-#include "autosar/someiptp.h"             // kMessageTypeTpFlag / kSegmentHeaderLen / parseTpHeader (TP SSOT).
+#include "tc8/autosar/someiptp.h"             // kMessageTypeTpFlag / kSegmentHeaderLen / parseTpHeader (TP SSOT).
 #include "someip/wire.h"                  // getBe16 / parseHeader / Header / MessageType.
 #include "stimulus/iface_addr.h"          // ipv4FromWire.
 #include "stimulus/someip_rpc_builder.h"  // emitMethodReply / MethodEndpoint.

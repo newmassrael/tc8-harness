@@ -30,7 +30,7 @@
 #include "lwip_socket_backend.h"
 #include "lwip_stack_bringup.h"
 #include "tc8/testability_protocol.h"
-#include "testability/protocol_server.h"
+#include "tc8/testability/protocol_server.h"
 
 int main(int argc, char **argv) {
     std::setvbuf(stdout, nullptr, _IOLBF, 0);

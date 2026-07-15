@@ -25,9 +25,9 @@
 #include <memory>
 #include <thread>
 
-#include "posix_socket_backend.h"
+#include "tc8/posix_socket_backend.h"
 #include "tc8/testability_protocol.h"
-#include "testability/protocol_server.h"
+#include "tc8/testability/protocol_server.h"
 
 namespace {
 

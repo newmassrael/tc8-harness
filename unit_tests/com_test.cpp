@@ -6,7 +6,7 @@
 
 #include <gtest/gtest.h>
 
-#include "autosar/com.h"
+#include "tc8/autosar/com.h"
 #include "hex.h"
 
 namespace tc8::com {

@@ -49,8 +49,10 @@ tc8_enable_strict_warnings(tc8_testability_core)
 add_library(tc8_posix_backend STATIC
     posix_socket_backend.cpp
 )
+# Its header is public API and lives at include/tc8/posix_socket_backend.h, so the
+# public root is what consumers need; this dir no longer carries a public header.
 target_include_directories(tc8_posix_backend PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
 )
 target_link_libraries(tc8_posix_backend PUBLIC tc8_testability_ports tc8_wire)
 tc8_enable_strict_warnings(tc8_posix_backend)

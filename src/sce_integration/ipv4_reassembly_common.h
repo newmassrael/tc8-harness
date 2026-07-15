@@ -10,7 +10,7 @@
 #include "sce_integration/test_config.h"
 #include "stimulus/icmpv4_builder.h"
 #include "stimulus/ipv4_frame_builder.h"
-#include "wire/icmp_echo.h"
+#include "tc8/wire/icmp_echo.h"
 
 namespace tc8::sce::ipv4::reassembly {
 

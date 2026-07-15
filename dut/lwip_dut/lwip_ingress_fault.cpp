@@ -45,7 +45,7 @@
 #include "lwip/priv/tcp_priv.h"
 
 #include "tc8/upper_tester_protocol.h"
-#include "wire/ip_checksum.h"
+#include "tc8/wire/ip_checksum.h"
 
 #include "lwip_wire.h"
 

@@ -8,9 +8,9 @@
 #include <optional>
 #include <vector>
 
-#include "testability/middleware.h"
-#include "testability/reactor.h"
-#include "testability/socket_backend.h"
+#include "tc8/testability/middleware.h"
+#include "tc8/testability/reactor.h"
+#include "tc8/testability/socket_backend.h"
 #include "tc8/testability_protocol.h"
 
 namespace tc8::testability {

@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "net/socket_backend.h"
+#include "tc8/net/socket_backend.h"
 #include "upper_tester/stack_probe.h"
 
 namespace tc8::dut {

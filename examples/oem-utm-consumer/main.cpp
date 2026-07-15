@@ -27,17 +27,17 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
-#include "posix_socket_backend.h"
-#include "stimulus/testability_client.h"
-#include "testability/middleware.h"
-#include "testability/protocol_server.h"
-#include "autosar/aes_cmac.h"
-#include "autosar/pn_filter.h"
-#include "autosar/crc.h"
-#include "autosar/e2e.h"
-#include "autosar/com.h"
-#include "autosar/nm.h"
-#include "autosar/someiptp.h"
+#include "tc8/posix_socket_backend.h"
+#include "tc8/testability_client.h"
+#include "tc8/testability/middleware.h"
+#include "tc8/testability/protocol_server.h"
+#include "tc8/autosar/aes_cmac.h"
+#include "tc8/autosar/pn_filter.h"
+#include "tc8/autosar/crc.h"
+#include "tc8/autosar/e2e.h"
+#include "tc8/autosar/com.h"
+#include "tc8/autosar/nm.h"
+#include "tc8/autosar/someiptp.h"
 
 namespace {
 

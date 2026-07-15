@@ -5,7 +5,7 @@
 
 #include <gtest/gtest.h>
 
-#include "autosar/e2e.h"
+#include "tc8/autosar/e2e.h"
 #include "hex.h"
 
 namespace tc8::e2e {

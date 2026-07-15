@@ -5,7 +5,7 @@
 
 #include <gtest/gtest.h>
 
-#include "autosar/nm.h"
+#include "tc8/autosar/nm.h"
 
 namespace tc8::nm {
 namespace {

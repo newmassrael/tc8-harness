@@ -1,6 +1,6 @@
-#include "wire/icmp_echo.h"
+#include "tc8/wire/icmp_echo.h"
 
-#include "wire/ip_checksum.h"
+#include "tc8/wire/ip_checksum.h"
 
 namespace tc8::wire {
 

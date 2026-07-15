@@ -5,7 +5,7 @@
 #include "sce_integration/dut_control.h"
 #include "sce_integration/dut_control_backend.h"
 #include "sce_integration/test_config.h"
-#include "stimulus/testability_client.h"
+#include "tc8/testability_client.h"
 #include "tc8/testability_protocol.h"
 #include "tc8/upper_tester_protocol.h"
 

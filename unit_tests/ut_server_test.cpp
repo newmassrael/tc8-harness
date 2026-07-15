@@ -22,7 +22,7 @@
 
 #include <gtest/gtest.h>
 
-#include "posix_socket_backend.h"
+#include "tc8/posix_socket_backend.h"
 #include "posix_stack_probe.h"
 #include "tc8/upper_tester_protocol.h"
 #include "upper_tester/ut_server.h"

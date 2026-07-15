@@ -1,6 +1,6 @@
 #include "stimulus/ipv4_frame_builder.h"
 
-#include "wire/ip_checksum.h"
+#include "tc8/wire/ip_checksum.h"
 
 #include <cstdint>
 #include <cstring>

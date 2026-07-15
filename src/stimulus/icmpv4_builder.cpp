@@ -5,7 +5,7 @@
 
 #include "stimulus/arp_builder.h"
 #include "stimulus/ipv4_frame_builder.h"
-#include "wire/icmp_echo.h"
+#include "tc8/wire/icmp_echo.h"
 
 namespace tc8::stimulus {
 

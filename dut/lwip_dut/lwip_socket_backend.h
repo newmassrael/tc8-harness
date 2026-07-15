@@ -5,8 +5,8 @@
 #include <memory>
 #include <string>
 
-#include "net/socket_backend.h"
-#include "testability/socket_backend.h"
+#include "tc8/net/socket_backend.h"
+#include "tc8/testability/socket_backend.h"
 
 namespace tc8::lwip_dut {
 

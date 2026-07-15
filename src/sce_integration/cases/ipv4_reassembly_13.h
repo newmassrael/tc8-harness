@@ -9,7 +9,7 @@
 #include "sce_integration/ipv4_reassembly_common.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/icmpv4_builder.h"
-#include "wire/icmp_echo.h"
+#include "tc8/wire/icmp_echo.h"
 
 #include "ipv4_reassembly_13_sm.h"
 

@@ -13,7 +13,7 @@
 #include <string>
 #include <vector>
 
-#include "autosar/someiptp.h"
+#include "tc8/autosar/someiptp.h"
 #include "sce_integration/someip_captured.h"
 
 namespace {

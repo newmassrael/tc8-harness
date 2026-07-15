@@ -10,7 +10,7 @@
 
 #include <gtest/gtest.h>
 
-#include "autosar/someiptp.h"
+#include "tc8/autosar/someiptp.h"
 #include "stimulus/someip_tp_emit.h"
 
 namespace tc8::stimulus {

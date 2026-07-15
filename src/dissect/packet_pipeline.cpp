@@ -20,7 +20,7 @@
 #include "tc8/protocol_frames/udp_frame.h"
 
 #include "sce_integration/dhcpv4_wire.h"
-#include "wire/ip_checksum.h"  // tc8::wire::tcpChecksumValid (RFC 793 pseudo-header SSOT)
+#include "tc8/wire/ip_checksum.h"  // tc8::wire::tcpChecksumValid (RFC 793 pseudo-header SSOT)
 
 namespace tc8::dissect {
 

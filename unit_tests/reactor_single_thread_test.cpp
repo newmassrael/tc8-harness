@@ -14,7 +14,7 @@
 
 #include <gtest/gtest.h>
 
-#include "testability/reactor.h"
+#include "tc8/testability/reactor.h"
 
 #ifndef TC8_REACTOR_SINGLE_THREAD
 #error "reactor_single_thread_test must be built with -DTC8_REACTOR_SINGLE_THREAD"

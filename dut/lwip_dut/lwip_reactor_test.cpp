@@ -38,9 +38,9 @@
 
 #include "lwip_socket_backend.h"
 #include "tc8/testability_protocol.h"
-#include "testability/middleware.h"
-#include "testability/protocol_server.h"
-#include "testability/reactor.h"
+#include "tc8/testability/middleware.h"
+#include "tc8/testability/protocol_server.h"
+#include "tc8/testability/reactor.h"
 
 #include "lwip/init.h"
 #include "lwip/sockets.h"

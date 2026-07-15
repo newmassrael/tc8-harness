@@ -1,7 +1,7 @@
 #include "stimulus/dhcpv4_frame_builder.h"
 
 #include "tc8/protocol_frames/dhcpv4_frame.h"  // ::tc8::kDhcpServerPort / kDhcpClientPort (SSOT)
-#include "wire/ip_checksum.h"
+#include "tc8/wire/ip_checksum.h"
 
 #include <cstring>
 

@@ -7,7 +7,7 @@
 
 #include "tc8/protocol_frames/ipv4_frame.h"
 
-#include "wire/ip_checksum.h"  // tc8::wire::inetChecksum (RFC 1071 SSOT)
+#include "tc8/wire/ip_checksum.h"  // tc8::wire::inetChecksum (RFC 1071 SSOT)
 
 #include "sce_integration/captured_frame_timing.h"
 #include "sce_integration/captured_trace.h"

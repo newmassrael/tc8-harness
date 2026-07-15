@@ -17,7 +17,7 @@
 #include "sce_integration/captured_payload_snapshot.h"
 #include "sce_integration/captured_trace.h"
 #include "test_config.h"
-#include "wire/ip_checksum.h"
+#include "tc8/wire/ip_checksum.h"
 
 namespace tc8 {
 

@@ -18,14 +18,14 @@
 #include "ets_fault.h"
 #include "ets_io_host.h"
 #include "pollable_host.h"
-#include "posix_socket_backend.h"
+#include "tc8/posix_socket_backend.h"
 #include "posix_stack_probe.h"
 #include "posix_ut_extensions.h"
 #include "lifecycle_dispatcher.h"
 #include "lifecycle_signal.h"
 #include "server_role.h"
 #include "tc8/dut_config.h"
-#include "testability/protocol_server.h"
+#include "tc8/testability/protocol_server.h"
 #include "upper_tester/ut_server.h"
 
 namespace {

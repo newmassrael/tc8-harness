@@ -7,10 +7,10 @@
 
 #include <gtest/gtest.h>
 
-#include "net/socket_backend.h"
-#include "posix_socket_backend.h"
+#include "tc8/net/socket_backend.h"
+#include "tc8/posix_socket_backend.h"
 #include "test_port_util.h"
-#include "testability/reactor.h"
+#include "tc8/testability/reactor.h"
 
 // The Reactor exercised in isolation against a real IoMultiplexer (the POSIX
 // backend) with NO ProtocolServer and NO MiddlewareModule — the point of

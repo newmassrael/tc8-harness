@@ -10,7 +10,7 @@
 
 #include "sce_integration/dut_capabilities.h"
 #include "sce_integration/dut_socket_control.h"
-#include "stimulus/testability_client.h"
+#include "tc8/testability_client.h"
 #include "stimulus/upper_tester_client.h"
 #include "tc8/testability_protocol.h"
 #include "tc8/upper_tester_protocol.h"

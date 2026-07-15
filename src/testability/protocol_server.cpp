@@ -1,11 +1,11 @@
-#include "testability/protocol_server.h"
+#include "tc8/testability/protocol_server.h"
 
 #include <cstring>
 #include <stdexcept>
 #include <string>
 #include <utility>
 
-#include "wire/icmp_echo.h"
+#include "tc8/wire/icmp_echo.h"
 
 namespace tc8::testability {
 

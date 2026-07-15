@@ -6,7 +6,7 @@
 #include <functional>
 #include <vector>
 
-#include "net/socket_backend.h"
+#include "tc8/net/socket_backend.h"
 #include "tc8/testability_protocol.h"
 
 // Stateful Upper-Tester extension seam (PRS_TPSP §6.6). The built-in groups and

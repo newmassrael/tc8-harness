@@ -7,7 +7,7 @@
 
 #include <gtest/gtest.h>
 
-#include "autosar/someiptp.h"
+#include "tc8/autosar/someiptp.h"
 #include "someip/protocol.h"
 #include "stimulus/method_responder.h"
 #include "stimulus/someip_rpc_builder.h"

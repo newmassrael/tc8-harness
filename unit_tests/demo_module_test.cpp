@@ -10,10 +10,10 @@
 
 #include <gtest/gtest.h>
 
-#include "autosar/nm.h"
+#include "tc8/autosar/nm.h"
 #include "demo_module.h"
 #include "tc8/testability_protocol.h"
-#include "testability/middleware.h"
+#include "tc8/testability/middleware.h"
 
 namespace tc8::demo {
 namespace {

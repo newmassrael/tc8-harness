@@ -4,8 +4,8 @@
 #include <cstdint>
 #include <string>
 
-#include "net/socket_backend.h"
-#include "testability/io_multiplexer.h"
+#include "tc8/net/socket_backend.h"
+#include "tc8/testability/io_multiplexer.h"
 
 namespace tc8::testability {
 

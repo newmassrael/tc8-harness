@@ -1,9 +1,9 @@
-#include "autosar/e2e.h"
+#include "tc8/autosar/e2e.h"
 
 #include <stdexcept>
 #include <vector>
 
-#include "autosar/crc.h"
+#include "tc8/autosar/crc.h"
 
 namespace tc8::e2e {
 namespace {

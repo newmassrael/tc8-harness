@@ -1,6 +1,6 @@
 #include "stimulus/udp_datagram_builder.h"
 
-#include "wire/ip_checksum.h"
+#include "tc8/wire/ip_checksum.h"
 
 #include <cstring>
 

@@ -5,7 +5,7 @@
 #include <optional>
 #include <vector>
 
-#include "stimulus/testability_client.h"
+#include "tc8/testability_client.h"
 #include "tc8/testability_protocol.h"
 
 namespace tc8::sce {

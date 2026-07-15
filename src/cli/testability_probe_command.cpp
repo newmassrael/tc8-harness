@@ -12,7 +12,7 @@
 #include <vector>
 
 #include "sce_integration/dut_control.h"
-#include "stimulus/testability_client.h"
+#include "tc8/testability_client.h"
 #include "tc8/testability_protocol.h"
 
 namespace tc8::cli {

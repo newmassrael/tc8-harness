@@ -15,7 +15,7 @@
 #include "sce_integration/test_runner.h"   // IStimulusScheduler
 #include "stimulus/icmpv4_builder.h"       // kIcmpEchoId / kIcmpEchoSeq
 #include "stimulus/ipv4_frame_builder.h"
-#include "wire/icmp_echo.h"                // tc8::wire::buildIcmpEchoRequestBody
+#include "tc8/wire/icmp_echo.h"                // tc8::wire::buildIcmpEchoRequestBody
 
 namespace tc8::sce::ipv4::fragments {
 

@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <string_view>
 
-#include "autosar/someiptp.h"
+#include "tc8/autosar/someiptp.h"
 
 namespace tc8::stimulus {
 

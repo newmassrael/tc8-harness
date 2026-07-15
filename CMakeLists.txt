@@ -127,7 +127,12 @@ add_library(tc8_wire STATIC
     src/wire/ip_checksum.cpp
     src/wire/icmp_echo.cpp
 )
-target_include_directories(tc8_wire PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>)
+# include/ carries the public headers (tc8/wire/*.h); src/ carries the .cpp's own
+# internal ones (wire_format.h / wire_read.h, which are NOT exported).
+target_include_directories(tc8_wire PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+)
 tc8_enable_strict_warnings(tc8_wire)
 
 # The tester-side AUTOSAR Testability Protocol client — the standard counterpart
@@ -168,7 +173,10 @@ tc8_enable_strict_warnings(tc8_testability_client)
 # engine is wired once in the TC8_UTM_INSTALL block below.
 function(tc8_add_engine name)
     add_library(${name} STATIC ${ARGN})
+    # include/ carries every engine's public header (tc8/autosar/*.h); src/ stays
+    # for the .cpp's own internal includes.
     target_include_directories(${name} PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>)
     tc8_enable_strict_warnings(${name})
     # Record the engine in the single list the UTM export iterates, so adding an
@@ -861,33 +869,42 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
 
     # The codec SSOT — shared by the exported client and the exported endpoint, the
     # reason both decode identically.
+    # Every public header ships under ONE namespaced root, include/tc8/ — never a
+    # bare net/ or wire/ in the consumer's include path. An SDK cannot know what
+    # else shares the prefix it is installed into (/usr/local is the common case),
+    # and `net/socket_backend.h` or `wire/ip_checksum.h` are names an OEM tree
+    # plausibly owns too; only the tc8/ prefix makes the spelling unambiguous.
+    # The layout mirrors the source tree under include/tc8/ exactly, so the in-tree
+    # and install-tree spellings are identical and cannot drift apart.
     install(FILES ${PROJECT_SOURCE_DIR}/include/tc8/testability_protocol.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/tc8 COMPONENT utm-sdk)
     # The tester-side client: the standard primitives plus the generic
-    # testabilityCall engine an OEM's own typed wrappers build on.
-    install(FILES ${PROJECT_SOURCE_DIR}/src/stimulus/testability_client.h
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/stimulus COMPONENT utm-sdk)
+    # testabilityCall engine an OEM's own typed wrappers build on. Sits beside the
+    # codec it frames against — the protocol's two public faces, one directory.
+    install(FILES ${PROJECT_SOURCE_DIR}/include/tc8/testability_client.h
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/tc8 COMPONENT utm-sdk)
     install(FILES
-            ${PROJECT_SOURCE_DIR}/src/testability/middleware.h
-            ${PROJECT_SOURCE_DIR}/src/testability/protocol_server.h
-            ${PROJECT_SOURCE_DIR}/src/testability/socket_backend.h
-            ${PROJECT_SOURCE_DIR}/src/testability/io_multiplexer.h
-            ${PROJECT_SOURCE_DIR}/src/testability/reactor.h
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/testability COMPONENT utm-sdk)
-    install(FILES ${PROJECT_SOURCE_DIR}/src/net/socket_backend.h
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/net COMPONENT utm-sdk)
+            ${PROJECT_SOURCE_DIR}/include/tc8/testability/middleware.h
+            ${PROJECT_SOURCE_DIR}/include/tc8/testability/protocol_server.h
+            ${PROJECT_SOURCE_DIR}/include/tc8/testability/socket_backend.h
+            ${PROJECT_SOURCE_DIR}/include/tc8/testability/io_multiplexer.h
+            ${PROJECT_SOURCE_DIR}/include/tc8/testability/reactor.h
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/tc8/testability COMPONENT utm-sdk)
+    install(FILES ${PROJECT_SOURCE_DIR}/include/tc8/net/socket_backend.h
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/tc8/net COMPONENT utm-sdk)
     install(FILES
-            ${PROJECT_SOURCE_DIR}/src/wire/icmp_echo.h
-            ${PROJECT_SOURCE_DIR}/src/wire/ip_checksum.h
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/wire COMPONENT utm-sdk)
+            ${PROJECT_SOURCE_DIR}/include/tc8/wire/icmp_echo.h
+            ${PROJECT_SOURCE_DIR}/include/tc8/wire/ip_checksum.h
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/tc8/wire COMPONENT utm-sdk)
     # One engine header per engine, globbed so a new engine's header installs
-    # without a second list (same source of truth as the lwIP src/autosar glob).
+    # without a second list. include/tc8/autosar/ holds exactly the public engine
+    # headers, so the glob cannot sweep an internal one into the export.
     file(GLOB _tc8_autosar_headers CONFIGURE_DEPENDS
-        ${PROJECT_SOURCE_DIR}/src/autosar/*.h)
+        ${PROJECT_SOURCE_DIR}/include/tc8/autosar/*.h)
     install(FILES ${_tc8_autosar_headers}
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/autosar COMPONENT utm-sdk)
-    install(FILES ${PROJECT_SOURCE_DIR}/dut/dut_service/posix_socket_backend.h
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT utm-sdk)
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/tc8/autosar COMPONENT utm-sdk)
+    install(FILES ${PROJECT_SOURCE_DIR}/include/tc8/posix_socket_backend.h
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/tc8 COMPONENT utm-sdk)
 
     # ── Optional lwIP backend (utm-sdk-lwip component) ──
     # SDK surface: the lwIP SocketBackend bridge + the self-contained UTM lwipopts.

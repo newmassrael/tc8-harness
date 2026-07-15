@@ -2,7 +2,7 @@
 
 #include <atomic>
 
-#include "testability/io_multiplexer.h"
+#include "tc8/testability/io_multiplexer.h"
 
 namespace tc8::dut::test {
 

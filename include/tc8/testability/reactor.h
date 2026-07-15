@@ -22,8 +22,8 @@
 #include <thread>
 #endif
 
-#include "testability/io_multiplexer.h"  // Waker / IoMultiplexer (the ports it needs)
-#include "testability/middleware.h"  // TimerId / WatchId / kNoTimer / kNoWatch
+#include "tc8/testability/io_multiplexer.h"  // Waker / IoMultiplexer (the ports it needs)
+#include "tc8/testability/middleware.h"  // TimerId / WatchId / kNoTimer / kNoWatch
 
 namespace tc8::testability {
 

@@ -246,13 +246,14 @@ add_test(NAME pollable_host_test COMMAND pollable_host_test)
 # Warm-suspendInterface lifecycle channel (dut/dut_service/lifecycle_signal.h): the
 # Waker-backed queue the detached suspend thread posts Suspend/Reactivate to and the DUT
 # main loop drains to dispatch onSuspend/onReactivate (FIFO, lossless, prompt — resolved
-# TD-13). Header-only; needs dut/dut_service (the header) + src (testability/io_multiplexer.h
-# for Waker) + this dir (fake_waker.h) + GTest + Threads (the concurrent-losslessness test).
+# TD-13). Header-only; needs dut/dut_service (the header) + include (tc8/testability/
+# io_multiplexer.h for Waker) + this dir (fake_waker.h) + GTest + Threads (the
+# concurrent-losslessness test).
 find_package(Threads REQUIRED)
 add_executable(lifecycle_signal_test lifecycle_signal_test.cpp)
 target_include_directories(lifecycle_signal_test PRIVATE
     ${PROJECT_SOURCE_DIR}/dut/dut_service
-    ${PROJECT_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(lifecycle_signal_test PRIVATE
     GTest::gtest GTest::gtest_main Threads::Threads)

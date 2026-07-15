@@ -4,7 +4,7 @@
 
 #include <gtest/gtest.h>
 
-#include "autosar/crc.h"
+#include "tc8/autosar/crc.h"
 
 namespace tc8::crc {
 namespace {

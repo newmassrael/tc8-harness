@@ -24,7 +24,7 @@
 #include "lwip_ut_extensions.h"
 #include "tc8/testability_protocol.h"
 #include "tc8_lwip_isn.h"
-#include "testability/protocol_server.h"
+#include "tc8/testability/protocol_server.h"
 #include "tcp_isn.h"
 #include "upper_tester/ut_server.h"
 
