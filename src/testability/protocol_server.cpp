@@ -123,7 +123,18 @@ bool ProtocolServer::bindControl(std::uint16_t port) {
     if (fd_ < 0) {
         return false;
     }
-    backend_->setReuseAddr(fd_);
+    // DELIBERATELY no setReuseAddr() here, unlike the data-plane sockets in
+    // createAndBind(). This is a unicast UDP socket, so SO_REUSEADDR buys nothing:
+    // UDP has no TIME_WAIT for it to relax, and the port is free for rebinding the
+    // moment closeFd() returns. What it DOES buy is a silent split brain — Linux
+    // permits a duplicate bind of the same unicast UDP address:port when every
+    // socket involved sets SO_REUSEADDR, and delivery then goes to the last binder.
+    // A second endpoint on this port would silently steal the first's requests and
+    // answer them, so the first serves nothing while both look healthy. Without the
+    // option the duplicate bind fails with EADDRINUSE and start() returns false —
+    // a second instance is a configuration error and must say so. (Data-plane
+    // sockets keep it: there SO_REUSEADDR earns its place on TCP TIME_WAIT and on
+    // multicast group binds.)
     if (!backend_->bindV4(fd_, /*addr_be=*/0, port)) {  // 0 == INADDR_ANY
         backend_->closeFd(fd_);
         fd_ = -1;
