@@ -77,6 +77,20 @@ target_include_directories(tc8_upper_tester_server PUBLIC
 )
 tc8_enable_strict_warnings(tc8_upper_tester_server)
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Everything ABOVE is the vendor-neutral UTM: no vsomeip, no CommonAPI, no ETS.
+# It is what the tc8-utm SDK exports, so it builds unconditionally — see dut/
+# CMakeLists.txt for why the layers are split.
+#
+# Everything BELOW is the ETS mock DUT executable, which links the ets/ targets
+# (CommonAPI-generated, vsomeip-backed) and therefore only exists when
+# TC8_BUILD_MOCK_DUT is on. The guard sits here rather than around this whole file
+# precisely because the file spans both layers.
+# ─────────────────────────────────────────────────────────────────────────────
+if(NOT TC8_BUILD_MOCK_DUT)
+    return()
+endif()
+
 # OEM override seams (compile-time source-selection — same idiom as
 # TC8_ETS_FIDL / TC8_CASE_OVERRIDE_DIRS, so the repo has ONE injection
 # philosophy, no link-time weak-symbol tricks). An OEM points these at its own

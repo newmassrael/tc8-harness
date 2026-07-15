@@ -730,12 +730,16 @@ target_link_libraries(tc8-harness PRIVATE
 tc8_enable_strict_warnings(tc8-harness)
 
 option(TC8_BUILD_MOCK_DUT
-    "Build the DUT service (ETS stub) from dut/"
+    "Build the vsomeip/CommonAPI ETS mock DUT (tc8-dut) from dut/"
     ON)
 
-if(TC8_BUILD_MOCK_DUT)
-    add_subdirectory(dut)
-endif()
+# Unconditional: dut/ hosts BOTH the vsomeip ETS mock DUT (gated by the option
+# above, inside) and the vendor-neutral testability UTM that the tc8-utm SDK
+# exports — and the latter must not depend on the former. Gating this whole
+# subdirectory on the option is what previously made -DTC8_BUILD_MOCK_DUT=OFF (the
+# hosted build-test CI configuration) silently drop the SDK and its export gate.
+# See dut/CMakeLists.txt for the layer split.
+add_subdirectory(dut)
 
 option(TC8_BUILD_UNIT_TESTS
     "Build C++ unit tests in unit_tests/ (requires GTest)"
