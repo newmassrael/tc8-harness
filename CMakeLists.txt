@@ -312,6 +312,7 @@ add_executable(tc8-harness
     src/cli/test_command.cpp
     src/cli/ut_ping_command.cpp
     src/cli/testability_probe_command.cpp
+    src/cli/testability_send_command.cpp
     src/sce_integration/case_registry.cpp
     src/sce_integration/dut_control_factory.cpp
     src/sce_integration/spec_inventory.cpp

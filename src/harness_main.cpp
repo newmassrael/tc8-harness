@@ -10,6 +10,7 @@
 #include "cli/replay_command.h"
 #include "cli/test_command.h"
 #include "cli/testability_probe_command.h"
+#include "cli/testability_send_command.h"
 #include "cli/ut_ping_command.h"
 
 int main(int argc, char** argv) {
@@ -31,6 +32,7 @@ int main(int argc, char** argv) {
     tc8::cli::DecodePcapCommand decode_pcap(app);
     tc8::cli::UtPingCommand ut_ping(app);
     tc8::cli::TestabilityProbeCommand testability_probe(app);
+    tc8::cli::TestabilitySendCommand testability_send(app);
 
     CLI11_PARSE(app, argc, argv);
 
@@ -44,6 +46,7 @@ int main(int argc, char** argv) {
         if (decode_pcap.parsed()) return decode_pcap.run();
         if (ut_ping.parsed()) return ut_ping.run();
         if (testability_probe.parsed()) return testability_probe.run();
+        if (testability_send.parsed()) return testability_send.run();
     } catch (const std::exception& e) {
         std::fprintf(stderr, "error: %s\n", e.what());
         return 1;
