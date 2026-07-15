@@ -22,6 +22,7 @@
 #include <gtest/gtest.h>
 
 #include "netns_test_util.h"
+#include "test_port_util.h"
 #include "posix_socket_backend.h"
 #include "sce_integration/dut_control.h"
 #include "stimulus/testability_client.h"
@@ -42,9 +43,11 @@ namespace {
 namespace tp = ::tc8::testability;
 using namespace testutil;  // createDummyIface / deleteIface / hasNetAdmin / ScopeExit
 
-// A high, uncommon port so the hermetic server bind does not collide with a
-// canonical-port (30700) tc8-dut a developer may have running.
-constexpr std::uint16_t kTestPort = 39701;
+// An uncommon port below the ephemeral range (see test_port_util.h for why every
+// fixed test port must be), distinct from the canonical 30700 so a tc8-dut a
+// developer has running does not collide with the hermetic server bind.
+constexpr std::uint16_t kTestPort = 31701;
+TC8_STATIC_ASSERT_TEST_PORT(kTestPort);
 
 stimulus::TestabilityConfig loopbackConfig() {
     stimulus::TestabilityConfig cfg;
@@ -221,7 +224,8 @@ TEST_F(TestabilityServerTest, TcpConnectToDeadPortReturnsError) {
 // new socket id and the tester's port/address.
 TEST_F(TestabilityServerTest, TcpListenAndAcceptEmitsEventOnConnect) {
     const auto cfg = loopbackConfig();
-    constexpr std::uint16_t kListenPort = 39811;
+    constexpr std::uint16_t kListenPort = 31811;
+    TC8_STATIC_ASSERT_TEST_PORT(kListenPort);
 
     // CREATE_AND_BIND (TCP) with a bound, known listen port.
     std::vector<std::uint8_t> cb;
@@ -270,7 +274,8 @@ TEST_F(TestabilityServerTest, TcpListenAndAcceptEmitsEventOnConnect) {
 // and leave the server responsive — a leaked thread would hang TearDown's join.
 TEST_F(TestabilityServerTest, EndTestTerminatesPendingAcceptThread) {
     const auto cfg = loopbackConfig();
-    constexpr std::uint16_t kListenPort = 39812;
+    constexpr std::uint16_t kListenPort = 31812;
+    TC8_STATIC_ASSERT_TEST_PORT(kListenPort);
 
     std::vector<std::uint8_t> cb;
     cb.push_back(0x01);
@@ -435,7 +440,8 @@ TEST_F(TestabilityServerTest, UdpReceiveAndForwardEmitsDatagramSourceEvent) {
     };
 
     // CREATE_AND_BIND a UDP socket on a known DUT port so the sender can target it.
-    constexpr std::uint16_t kDutUdpPort = 39733;
+    constexpr std::uint16_t kDutUdpPort = 31733;
+    TC8_STATIC_ASSERT_TEST_PORT(kDutUdpPort);
     std::vector<std::uint8_t> cb;
     cb.push_back(0x01);             // doBind = true
     tp::appendU16(cb, kDutUdpPort);  // localPort
@@ -710,7 +716,8 @@ TEST_F(TestabilityServerTest, TcpControlSeamActiveOpenWithLocalBind) {
     tv.tv_sec = 2;
     ::setsockopt(lfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
-    constexpr std::uint16_t kLocalBindPort = 39822;
+    constexpr std::uint16_t kLocalBindPort = 31822;
+    TC8_STATIC_ASSERT_TEST_PORT(kLocalBindPort);
     const auto conn = tcp->connectTcp(
         sce::Endpoint{::htonl(INADDR_LOOPBACK), ntohs(la.sin_port)},
         sce::BindSpec{/*do_bind=*/true, kLocalBindPort, /*local_addr_be=*/0});
@@ -735,7 +742,8 @@ TEST_F(TestabilityServerTest, TcpControlSeamPassiveOpen) {
     sce::ITcpControl *tcp = ctrl.tcpControl();
     ASSERT_NE(tcp, nullptr);
 
-    constexpr std::uint16_t kListenPort = 39813;
+    constexpr std::uint16_t kListenPort = 31813;
+    TC8_STATIC_ASSERT_TEST_PORT(kListenPort);
     int cfd = -1;
     const auto conn = tcp->acceptTcp(
         sce::BindSpec{/*do_bind=*/true, kListenPort, 0},
@@ -1453,7 +1461,8 @@ TEST_F(TestabilityServerTest, Ipv6StaticAddressPrefix128PassesGuardReturnsEIif) 
 // about (GID 0x7F, counted down per PRS_TPSP §6.6) is dispatched with the parsed
 // request and its DAT, and its Result ID + response DAT reach the caller.
 TEST(TestabilityServerSeamTest, OemHandlerExtendsNonStandardGroup) {
-    constexpr std::uint16_t kPort = 39711;
+    constexpr std::uint16_t kPort = 31711;
+    TC8_STATIC_ASSERT_TEST_PORT(kPort);
     constexpr std::uint8_t kVendorGid = 0x7F;
     constexpr std::uint8_t kVendorPid = 0x2A;
 
@@ -1486,7 +1495,8 @@ TEST(TestabilityServerSeamTest, OemHandlerExtendsNonStandardGroup) {
 // OVERRIDE: a registered handler for a built-in standard primitive (GENERAL
 // GET_VERSION) wins over the core implementation.
 TEST(TestabilityServerSeamTest, OemHandlerOverridesStandardPrimitive) {
-    constexpr std::uint16_t kPort = 39712;
+    constexpr std::uint16_t kPort = 31712;
+    TC8_STATIC_ASSERT_TEST_PORT(kPort);
 
     testability::ProtocolServer server{std::make_unique<dut::PosixSocketBackend>()};
     server.registerPrimitive(
@@ -1517,7 +1527,8 @@ TEST(TestabilityServerSeamTest, OemHandlerOverridesStandardPrimitive) {
 // queue a request, pump the reactor, and read the response back, all single-
 // threaded, proving the endpoint serves without any std::thread of its own.
 TEST(TestabilityServerSeamTest, InlineSingleTaskServerAnswersOnCallerPump) {
-    constexpr std::uint16_t kPort = 39799;
+    constexpr std::uint16_t kPort = 31799;
+    TC8_STATIC_ASSERT_TEST_PORT(kPort);
 
     testability::ProtocolServer server{std::make_unique<dut::PosixSocketBackend>()};
     ASSERT_TRUE(server.startInline(kPort));  // no reactor thread; this test IS the loop
@@ -1568,7 +1579,8 @@ constexpr std::uint8_t kProbePidReadCount = 0x03;
 constexpr std::uint8_t kProbePidArmEvent = 0x04;
 constexpr std::uint8_t kProbePidArmRx = 0x05;    // open+bind a data socket, watchReadable it
 constexpr std::uint8_t kProbePidReadRx = 0x06;   // return the last datagram the watch consumed
-constexpr std::uint16_t kProbeRxPort = 39902;    // the module's data-plane UDP port
+constexpr std::uint16_t kProbeRxPort = 31902;    // the module's data-plane UDP port
+TC8_STATIC_ASSERT_TEST_PORT(kProbeRxPort);
 constexpr std::size_t kProbeRxBufLen = 256;      // inbound datagram read buffer
 
 class SeamProbeModule : public testability::MiddlewareModule {
@@ -1712,7 +1724,8 @@ protected:
         return r.dat.size() == 2u ? ((r.dat[0] << 8) | r.dat[1]) : -1;
     }
 
-    static constexpr std::uint16_t kPort = 39901;
+    static constexpr std::uint16_t kPort = 31901;
+    TC8_STATIC_ASSERT_TEST_PORT(kPort);
     testability::ProtocolServer server_{std::make_unique<dut::PosixSocketBackend>()};
     stimulus::TestabilityConfig cfg_;
 };
@@ -1843,7 +1856,8 @@ TEST_F(MiddlewareSeamTest, WatchReadableConsumesInboundDatagramOverLoopback) {
 // just an E_OK. (The lwIP backend defers multicast; see lwip_socket_backend.cpp.)
 TEST(PosixBackendMulticast, JoinMulticastReceivesGroupDatagram) {
     dut::PosixSocketBackend be;
-    constexpr std::uint16_t kMcPort = 39903;
+    constexpr std::uint16_t kMcPort = 31903;
+    TC8_STATIC_ASSERT_TEST_PORT(kMcPort);
     const std::uint32_t group_be = ::htonl(0xEF010203);  // 239.1.2.3 (admin-scoped)
 
     const int rx = be.createUdp();

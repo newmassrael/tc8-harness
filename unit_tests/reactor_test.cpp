@@ -9,6 +9,7 @@
 
 #include "net/socket_backend.h"
 #include "posix_socket_backend.h"
+#include "test_port_util.h"
 #include "testability/reactor.h"
 
 // The Reactor exercised in isolation against a real IoMultiplexer (the POSIX
@@ -91,7 +92,8 @@ TEST(Reactor, WatchFiresOnReadableFd) {
 
     const int rx = be.createUdp();
     ASSERT_GE(rx, 0);
-    constexpr std::uint16_t kPort = 39971;
+    constexpr std::uint16_t kPort = 31971;
+    TC8_STATIC_ASSERT_TEST_PORT(kPort);
     ASSERT_TRUE(be.bindV4(rx, 0, kPort));
 
     std::atomic<int> got{0};
@@ -141,7 +143,8 @@ TEST(Reactor, CallerDrivenPumpServicesTimersAndWatchesWithNoOwnedThread) {
 
     const int rx = be.createUdp();
     ASSERT_GE(rx, 0);
-    constexpr std::uint16_t kPort = 39973;
+    constexpr std::uint16_t kPort = 31973;
+    TC8_STATIC_ASSERT_TEST_PORT(kPort);
     ASSERT_TRUE(be.bindV4(rx, 0, kPort));
     int got = 0;
     r.addWatch(rx, [&] {
@@ -183,7 +186,8 @@ TEST(Reactor, WatchMayRemoveItselfFromWithinHandler) {
 
     const int rx = be.createUdp();
     ASSERT_GE(rx, 0);
-    constexpr std::uint16_t kPort = 39975;
+    constexpr std::uint16_t kPort = 31975;
+    TC8_STATIC_ASSERT_TEST_PORT(kPort);
     ASSERT_TRUE(be.bindV4(rx, 0, kPort));
 
     int fires = 0;
