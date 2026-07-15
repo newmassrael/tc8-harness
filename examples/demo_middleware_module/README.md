@@ -58,6 +58,20 @@ goes through `net::SocketBackend`. Link targets:
 | `tc8::tc8_testability_core` | backend-agnostic protocol core — no socket syscalls |
 | `tc8::tc8_posix_backend` | POSIX `SocketBackend` adapter |
 | `tc8::tc8_testability_server` | convenience alias = `core` + `posix_backend` |
+| `tc8::tc8_testability_client` | tester-side client — drives your module over the wire |
+
+The full exported target set (including `tc8::tc8_wire` and the AUTOSAR engines)
+is documented in the package's own `tc8-utm-config.cmake`, which `utm_export_smoke`
+checks against the generated target list so it cannot drift.
+
+### Driving your module from a tester
+
+The hermetic `MiddlewareContext` test below exercises your module in-process. To
+drive it the way a real tester does — over the wire, through the endpoint's
+dispatch — link `tc8::tc8_testability_client` and call `testabilityCall()` with
+your GID/PID; it is the same client the harness itself uses, so there is no
+second framing implementation to keep in step. `examples/oem-utm-consumer` is a
+worked end-to-end example.
 
 ### POSIX UTM
 

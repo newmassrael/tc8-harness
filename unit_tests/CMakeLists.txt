@@ -42,7 +42,6 @@ add_library(tc8_harness_testable STATIC
     ${PROJECT_SOURCE_DIR}/src/stimulus/tcp_segment_builder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/udp_datagram_builder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/upper_tester_client.cpp
-    ${PROJECT_SOURCE_DIR}/src/stimulus/testability_client.cpp
 )
 target_include_directories(tc8_harness_testable PUBLIC
     ${PROJECT_SOURCE_DIR}/src
@@ -54,7 +53,11 @@ target_include_directories(tc8_harness_testable PUBLIC
 # std::this_thread::sleep_for (the responders are threadless — driven by the
 # capture loop), and consumers link this archive directly.
 find_package(Threads REQUIRED)
-target_link_libraries(tc8_harness_testable PUBLIC tc8_wire tc8_someiptp Threads::Threads)
+# tc8_testability_client is PUBLIC so testability_client_test and the server-side
+# integration test inherit the header — the same archive the harness links and the
+# UTM SDK exports, so the tests cover the shipped client, not a second copy.
+target_link_libraries(tc8_harness_testable PUBLIC
+    tc8_wire tc8_someiptp tc8_testability_client Threads::Threads)
 tc8_enable_strict_warnings(tc8_harness_testable)
 
 # DELIBERATE: test TUs are NOT strict-gated. GoogleTest's own macros (EXPECT_*/

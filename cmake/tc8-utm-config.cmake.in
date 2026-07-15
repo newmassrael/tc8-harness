@@ -1,14 +1,34 @@
 @PACKAGE_INIT@
 
-# tc8-utm — the vendor-neutral AUTOSAR Testability UTM core (ProtocolServer +
-# the MiddlewareModule extension seam + a SocketBackend adapter). A separate,
-# private OEM repository find_package()es this and attaches its own
-# MiddlewareModule groups. Public-standard surface only. Targets:
+# tc8-utm — the vendor-neutral AUTOSAR Testability UTM: the DUT-side endpoint
+# (ProtocolServer + the MiddlewareModule extension seam + a SocketBackend
+# adapter) AND the tester-side client that drives it. A separate, private OEM
+# repository find_package()es this, attaches its own MiddlewareModule groups to
+# the endpoint, and drives them through the client. Public-standard surface only.
+#
+# DUT-side targets:
 #   tc8::tc8_testability_core   — backend-agnostic protocol core (no syscalls)
 #   tc8::tc8_posix_backend      — POSIX SocketBackend adapter
 #   tc8::tc8_testability_server — convenience alias = core + POSIX backend
+#   tc8::tc8_testability_ports  — the seam the core owns and adapters implement
+# Tester-side target:
+#   tc8::tc8_testability_client — AUTOSAR Testability Protocol client: the generic
+#                                 testabilityCall engine an OEM's own typed
+#                                 wrappers build on, plus the standard primitives
+# Shared / composable mechanisms:
+#   tc8::tc8_wire               — RFC 1071 checksum + RFC 792 ICMP echo body
+#   tc8::tc8_crypto tc8::tc8_pn tc8::tc8_crc tc8::tc8_e2e tc8::tc8_com
+#   tc8::tc8_nm tc8::tc8_someiptp — AUTOSAR engines an OEM module composes
+#
 # A POSIX UTM links the alias (or core + posix_backend); an lwIP UTM links the
-# core and compiles the utm-sdk-lwip backend bridge against its own lwIP.
+# core and compiles the utm-sdk-lwip backend bridge against its own lwIP. Either
+# links tc8::tc8_testability_client to exercise its groups over the wire.
+#
+# This list is prose and cannot enforce itself, so utm_export_smoke checks it: the
+# gate diffs the target set this file documents against the set
+# tc8-utm-targets.cmake actually defines, and fails when an exported target goes
+# undocumented here. That is what keeps the package's own manifest — the one file
+# a consumer reads to discover what it got — from drifting behind the export.
 
 include(CMakeFindDependencyMacro)
 find_dependency(Threads)

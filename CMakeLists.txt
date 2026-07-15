@@ -130,6 +130,34 @@ add_library(tc8_wire STATIC
 target_include_directories(tc8_wire PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>)
 tc8_enable_strict_warnings(tc8_wire)
 
+# The tester-side AUTOSAR Testability Protocol client — the standard counterpart
+# to the DUT-side endpoint in dut/dut_service (tc8_testability_core + a backend).
+# Both halves frame against the one codec SSOT, include/tc8/testability_protocol.h,
+# so they decode identically; this archive adds the tester's socket round trip and
+# the standard typed primitives.
+#
+# A library for the same reason tc8_wire is one: the harness, the cross-compile
+# portability check and the unit tests all drive this client, and naming the source
+# by path in each list is what invites a second, drifting copy. It is also what the
+# UTM SDK exports — a consumer that attaches an OEM service-group module to the
+# endpoint links THIS to exercise it, so the exported surface carries both halves
+# of the protocol rather than the endpoint alone.
+#
+# Dependency-light and vendor-neutral by construction: POSIX sockets plus the
+# header-only codec — no threads, no libpcap/libtins/vsomeip — so it cross-compiles
+# and an out-of-tree consumer inherits nothing but the seam.
+add_library(tc8_testability_client STATIC
+    src/stimulus/testability_client.cpp
+)
+# include/ carries the codec SSOT the header includes; src/ carries this header's
+# own "stimulus/..." include prefix. Both PUBLIC so a consumer inherits them, and
+# both roots collapse onto the single install-tree include root in the export block.
+target_include_directories(tc8_testability_client PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+)
+tc8_enable_strict_warnings(tc8_testability_client)
+
 # Vendor-neutral AUTOSAR engines (src/autosar/) — the public mechanisms a
 # separate, private OEM UTM repo composes with its own config. Every engine is
 # the same shape: a dependency-light STATIC lib (pure byte math — no syscalls,
@@ -210,10 +238,13 @@ if(TC8_PORTABILITY_CHECK)
         src/stimulus/tcp_segment_builder.cpp
         src/stimulus/udp_datagram_builder.cpp
         src/stimulus/upper_tester_client.cpp
-        src/stimulus/testability_client.cpp
     )
     target_include_directories(tc8-core-portability PRIVATE src include)
-    target_link_libraries(tc8-core-portability PRIVATE sce_base tc8_wire tc8_someiptp)
+    # tc8_testability_client: the testability client is part of the dependency-light
+    # core this check cross-compiles — linked, not listed by path, so the one archive
+    # is what gets verified for the target.
+    target_link_libraries(tc8-core-portability PRIVATE
+        sce_base tc8_wire tc8_someiptp tc8_testability_client)
     tc8_enable_strict_warnings(tc8-core-portability)
     message(STATUS
         "TC8: portability-check configuration — building "
@@ -294,7 +325,6 @@ add_executable(tc8-harness
     src/stimulus/tcp_segment_builder.cpp
     src/stimulus/udp_datagram_builder.cpp
     src/stimulus/upper_tester_client.cpp
-    src/stimulus/testability_client.cpp
 )
 
 # Each TC8 case lives in tests/<case_id>/ with its SCXML. The matching
@@ -723,6 +753,10 @@ target_link_libraries(tc8-harness PRIVATE
     CommonAPI-SomeIP
     sce_base
     tc8_wire
+    # The tester-side testability client (testability-probe + the case-side
+    # primitives). The same archive the UTM SDK exports, so the harness drives a
+    # DUT through exactly the client an out-of-tree consumer gets.
+    tc8_testability_client
     Threads::Threads
     ${PCAP_LIBRARY}
     ${LIBTINS_LIBRARY}
@@ -760,15 +794,24 @@ if(TC8_BUILD_UNIT_TESTS)
 endif()
 
 # ── Out-of-tree UTM SDK (PRS_TPSP §6.6 stateful extension) ──
-# Export the vendor-neutral testability UTM core — the ProtocolServer, the
+# Export the vendor-neutral testability UTM — the ProtocolServer, the
 # MiddlewareModule / MiddlewareContext seam, and the POSIX SocketBackend — as a
 # find_package(tc8-utm) package so a separate, PRIVATE OEM repository links it
 # and attaches its own service-group modules without vendoring this tree. The
 # exported surface is public-standard only (AUTOSAR Testability + IETF RFC); it
 # carries no OEM-specific content. Install with: cmake --install <build>
 # --component utm-sdk --prefix <dir>.
+#
+# Both halves of the protocol ship: the DUT-side endpoint above and the
+# tester-side client (tc8_testability_client) that drives it. A module attached to
+# the endpoint is only reachable over the wire, so exporting the endpoint alone
+# would leave each consumer to hand-roll a client and re-derive the framing rules
+# include/tc8/testability_protocol.h owns. The client speaks the standard protocol
+# and carries no OEM content, so it belongs on this same standard-only surface.
+# utm_export_smoke holds the pairing: its consumer drives its own registered
+# module through the exported client, so dropping either half fails the gate.
 option(TC8_UTM_INSTALL
-    "Install the testability UTM core as a find_package(tc8-utm) package"
+    "Install the testability UTM (DUT endpoint + tester client) as a find_package(tc8-utm) package"
     ON)
 
 if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
@@ -788,6 +831,11 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
     # include root, so it carries the install include for consumers of that header.
     target_include_directories(tc8_posix_backend INTERFACE
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+    # The tester-side client installs its own header (stimulus/testability_client.h)
+    # and reaches the codec SSOT (tc8/testability_protocol.h) — both under the one
+    # install-tree include root, which its two BUILD_INTERFACE roots collapse onto.
+    target_include_directories(tc8_testability_client INTERFACE
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
     # AUTOSAR engines join the same exported surface so the OEM repo links the
     # mechanism it composes with its config. The set is TC8_UTM_ENGINES, built up
     # by tc8_add_engine() — there is one engine list, so the export cannot drift
@@ -798,17 +846,27 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
             $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
     endforeach()
 
-    # Export the ports (the seam), the split archives (core + POSIX adapter), and
-    # the INTERFACE convenience union. install(EXPORT) checks the link closure, so
-    # every target any exported one links must itself be exported — a dropped one
-    # fails install, not a consumer.
+    # Export the ports (the seam), the split archives (core + POSIX adapter), the
+    # INTERFACE convenience union, and the tester-side client. install(EXPORT)
+    # checks the link closure, so a target that an exported one LINKS must itself
+    # be exported — that is what protects tc8_wire and tc8_testability_ports, and
+    # a dropped one fails install rather than a consumer. It does NOT protect the
+    # closure roots: nothing links the client or the engines, so dropping either
+    # leaves install(EXPORT) happy and breaks the consumer's find_package instead.
+    # Those are held by utm_export_smoke, which links and drives them.
     install(TARGETS tc8_testability_server tc8_testability_core tc8_posix_backend
-            tc8_testability_ports tc8_wire ${TC8_UTM_ENGINES}
+            tc8_testability_ports tc8_wire tc8_testability_client ${TC8_UTM_ENGINES}
         EXPORT tc8-utm-targets
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT utm-sdk)
 
+    # The codec SSOT — shared by the exported client and the exported endpoint, the
+    # reason both decode identically.
     install(FILES ${PROJECT_SOURCE_DIR}/include/tc8/testability_protocol.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/tc8 COMPONENT utm-sdk)
+    # The tester-side client: the standard primitives plus the generic
+    # testabilityCall engine an OEM's own typed wrappers build on.
+    install(FILES ${PROJECT_SOURCE_DIR}/src/stimulus/testability_client.h
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/stimulus COMPONENT utm-sdk)
     install(FILES
             ${PROJECT_SOURCE_DIR}/src/testability/middleware.h
             ${PROJECT_SOURCE_DIR}/src/testability/protocol_server.h

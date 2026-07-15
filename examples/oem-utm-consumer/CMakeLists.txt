@@ -15,14 +15,18 @@ find_package(tc8-utm REQUIRED)
 add_executable(oem-utm-consumer main.cpp)
 # Link the backend-agnostic core + the POSIX backend explicitly — the canonical
 # composition (core + chosen backend) an lwIP OEM mirrors with its own backend —
-# plus each exported AUTOSAR engine the OEM module would compose. Linking and
-# calling them here is what makes the export a verified gate: drop the core, the
-# POSIX backend, or an engine from the install/EXPORT and this out-of-tree build
-# fails to link. (The tc8::tc8_testability_server alias is the same two under one
-# name, for callers who want the convenience; install(EXPORT) verifies its closure.)
+# plus the tester-side client and each exported AUTOSAR engine the OEM module
+# would compose. Linking and calling them here is what makes the export a verified
+# gate: drop the core, the POSIX backend, the client, or an engine from the
+# install/EXPORT and this out-of-tree build fails to link. (The
+# tc8::tc8_testability_server alias is the core + backend under one name, for
+# callers who want the convenience; install(EXPORT) verifies its closure.)
 target_link_libraries(oem-utm-consumer PRIVATE
     tc8::tc8_testability_core
     tc8::tc8_posix_backend
+    # The tester half: this consumer drives its own registered module over the wire,
+    # so the SDK's client ships and stays consumable out-of-tree.
+    tc8::tc8_testability_client
     tc8::tc8_crypto
     tc8::tc8_pn
     tc8::tc8_crc
