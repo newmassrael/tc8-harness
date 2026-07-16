@@ -60,13 +60,16 @@ struct SomeIpAnyBase {
         sm.raiseExternal(Event::Someip_notification);
         sm.step();
         // §5.1.5.4 SD_BEHAVIOR_01/_02 read inter-frame deltas via
-        // `SomeIpCaptured::frame_delta_us()`. Snapshot prev only when
-        // the SCXML transitioned on this frame so non-fired frames
+        // `SomeIpCaptured::frame_delta_us()`. `snapshotFired()` runs only
+        // when the SCXML transitioned on this frame so non-fired frames
         // (filter mismatches, cyclic offers between two phase
-        // boundaries) never pollute the delta. Mirrors the
-        // tcp_pilot_common / udp_pilot_common dispatch pattern.
+        // boundaries) never pollute the delta; it also latches the delta
+        // this frame's cond read for the trace. The two SD landmarks
+        // alongside it are the SOME/IP-specific half of the same
+        // fired-transition bookkeeping. Mirrors the tcp_pilot_common /
+        // udp_pilot_common dispatch pattern.
         if (sm.getCurrentState() != state_before) {
-            c.prev_observed_ts_us = c.observed_ts_us;
+            c.snapshotFired();
             c.prev_sd_session_id = c.session_id;
             c.prev_tp_more_segments = c.tp_more_segments;
         }
@@ -98,7 +101,7 @@ struct SomeIpSdOnlyBase : SomeIpAnyBase<StateMachine> {
         sm.raiseExternal(Event::Someip_notification);
         sm.step();
         if (sm.getCurrentState() != state_before) {
-            c.prev_observed_ts_us = c.observed_ts_us;
+            c.snapshotFired();
             c.prev_sd_session_id = c.session_id;
             c.prev_tp_more_segments = c.tp_more_segments;
         }

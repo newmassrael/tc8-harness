@@ -187,7 +187,7 @@ inline void dispatchIcmpFrame(typename SM::CapturedType& c, SM& sm,
     sm.step();
     const auto state_after = sm.getCurrentState();
     if (state_after != state_before) {
-        c.prev_observed_ts_us = c.observed_ts_us;
+        c.snapshotFired();
     }
 }
 
@@ -211,7 +211,7 @@ inline void dispatchAnyIcmpFrame(typename SM::CapturedType& c, SM& sm,
     sm.step();
     const auto state_after = sm.getCurrentState();
     if (state_after != state_before) {
-        c.prev_observed_ts_us = c.observed_ts_us;
+        c.snapshotFired();
     }
 }
 

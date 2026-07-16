@@ -64,7 +64,7 @@ inline void dispatchArpAndDhcpv4Frame(typename SM::CapturedType& c, SM& sm,
         sm.step();
         const auto state_after = sm.getCurrentState();
         if (state_after != state_before) {
-            c.dhcpv4.prev_observed_ts_us = c.dhcpv4.observed_ts_us;
+            c.dhcpv4.snapshotFired();
         }
         return;
     }

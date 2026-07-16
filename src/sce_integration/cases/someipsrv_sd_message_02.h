@@ -69,7 +69,7 @@ struct TestCaseTraits<cases::SdMessage02SM>
         sm.raiseExternal(Event::Someip_notification);
         sm.step();
         if (sm.getCurrentState() != state_before) {
-            c.prev_observed_ts_us = c.observed_ts_us;
+            c.snapshotFired();
             c.prev_sd_session_id = c.session_id;
         }
     }

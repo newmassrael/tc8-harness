@@ -14,12 +14,16 @@ namespace tc8 {
 // from the corresponding `*Frame::observed_ts_us` on every fill
 // regardless of whether the SCXML guard fires. `prev_observed_ts_us` is
 // the timestamp of the frame that fired the most recent SCXML
-// transition: it is auto-snapshotted by each protocol's dispatch helper
-// (`dispatchTcpFrame` / `dispatchUdpFrame` / `dispatchIcmpv4Frame` /
-// `dispatchIpv4Frame` / `dispatchDhcpv4Frame`, the SOME/IP
-// `SomeIpAnyBase::dispatch` hook, and inline in the ARP cases) ONLY when
-// `getCurrentState()` advances, so non-fired frames between two state
-// advances never pollute the gap.
+// transition: every protocol's dispatch helper advances it — together
+// with the `fired_frame_delta_us` latch — through the one `snapshotFired()`
+// SSOT below, called ONLY when `getCurrentState()` advances, so non-fired
+// frames between two state advances never pollute the gap.
+//
+// The two are a MATCHED PAIR and `snapshotFired()` is the only supported
+// way to move them: the latch must capture `frame_delta_us()` before the
+// `prev` assignment invalidates it. Assigning `prev_observed_ts_us`
+// directly at a dispatch site is what made the trace's `frame_delta_us`
+// structurally 0 for every frame-driven step.
 //
 // `frame_delta_us()` returns the microsecond gap between the current
 // frame and the most-recently-fired-transition frame. The
@@ -52,6 +56,37 @@ struct CapturedFrameTiming {
     std::int64_t observed_ts_us = 0;
     std::int64_t prev_observed_ts_us = 0;
 
+    // The value `frame_delta_us()` returned at the instant the most recent
+    // SCXML transition FIRED — latched by `snapshotFired()` before
+    // `prev_observed_ts_us` advances past it. This is a RECORD of a past
+    // evaluation, not a live accessor, and exists because the live one cannot
+    // be re-read after the fact: `snapshotFired()` sets
+    // `prev_observed_ts_us = observed_ts_us`, so from the moment a transition
+    // fires `frame_delta_us()` reads `x - x == 0` until the next frame lands.
+    // The trace step is recorded AFTER dispatch returns (`TestRunner::
+    // onCaptured` cannot record earlier — it detects the transition by
+    // comparing the pre/post-dispatch state), so the trace MUST read this
+    // latch rather than the accessor. See `appendTimingJson`.
+    //
+    // 0 until the first transition fires, and 0 for that first transition
+    // itself (it latches `frame_delta_us()`'s documented first-transition
+    // sentinel — no prior fired frame to measure from).
+    //
+    // NOT for SCXML conds: a cond runs mid-dispatch, BEFORE `snapshotFired()`,
+    // so this still holds the PREVIOUS transition's delta while the live
+    // `frame_delta_us()` holds the current frame's. `cpp:captured.
+    // frame_delta_us()` is the only correct form in a guard; this field is the
+    // evidence-export mirror of what that guard read.
+    //
+    // For a TICK-driven trace step (`deadline_exceeded`, `pcap_frame_idx ==
+    // -1`) no dispatch ran, so this still holds the last FRAME-driven fired
+    // delta: "the last delta that actually decided something", paired with a
+    // `pcap_frame_idx` of -1 that tells the reader no frame drove this step.
+    // That is deliberate — the alternative (the live accessor) would report
+    // the gap between an arbitrary non-firing frame and an unrelated earlier
+    // transition, which is non-zero and meaningless.
+    std::int64_t fired_frame_delta_us = 0;
+
     // Wall-clock (CLOCK_REALTIME epoch microseconds — the SAME domain as
     // `observed_ts_us`, which is the pcap `gettimeofday` arrival stamp) instant
     // the LISTEN WINDOW opened: stamped ONCE by `TestRunner::start()` right after
@@ -70,6 +105,29 @@ struct CapturedFrameTiming {
             return 0;
         }
         return observed_ts_us - prev_observed_ts_us;
+    }
+
+    // "A transition fired on the current frame — remember it." The single
+    // definition of the fired-frame bookkeeping every protocol's dispatch
+    // helper runs under its `getCurrentState() != state_before` guard, in
+    // place of the hand-repeated `prev_observed_ts_us = observed_ts_us` each
+    // site used to inline. Owned by the base that owns the fields so the
+    // latch can never be forgotten at a call site or drift out of order
+    // against the assignment.
+    //
+    // ORDER IS LOAD-BEARING: `fired_frame_delta_us` latches the accessor
+    // BEFORE the assignment invalidates it. Advancing `prev` first would make
+    // the latch read `x - x == 0` — the exact defect this method exists to
+    // make unrepresentable.
+    //
+    // Call ONLY when the SCXML actually transitioned on this frame, so
+    // non-fired frames (filter mismatches, cyclic offers between two phase
+    // boundaries) never pollute the gap. Contexts carrying extra
+    // fired-transition landmarks (the SOME/IP `prev_sd_session_id` /
+    // `prev_tp_more_segments`) snapshot those alongside this call.
+    void snapshotFired() noexcept {
+        fired_frame_delta_us = frame_delta_us();
+        prev_observed_ts_us  = observed_ts_us;
     }
 
     // Microsecond gap from the listen-window-open instant to the current frame —

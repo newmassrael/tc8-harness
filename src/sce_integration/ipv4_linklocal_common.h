@@ -257,9 +257,11 @@ inline void emitStartLLAutoconfFastCadence(
 }
 
 // Dispatch helper: ARP-only variant. Mirror of
-// udp_pilot_common::dispatchUdpFrame for ARP captures. Snapshots
-// observed_ts_us → prev_observed_ts_us only when the SM advances,
-// matching the inter-frame-delta convention.
+// udp_pilot_common::dispatchUdpFrame for ARP captures. Calls
+// `snapshotFired()` only when the SM advances, matching the
+// inter-frame-delta convention `CapturedFrameTiming` owns — which is
+// also what puts the witnessing delta on the trace for the cadence
+// cases that gate on `frame_delta_us()` bounds.
 template <typename SM>
 inline void dispatchArpFrame(typename SM::CapturedType& c, SM& sm,
                               const ::tc8::CapturedEvent& ev) {
@@ -271,7 +273,7 @@ inline void dispatchArpFrame(typename SM::CapturedType& c, SM& sm,
     sm.step();
     const auto state_after = sm.getCurrentState();
     if (state_after != state_before) {
-        c.prev_observed_ts_us = c.observed_ts_us;
+        c.snapshotFired();
     }
 }
 
@@ -354,7 +356,7 @@ inline void dispatchArpFrameWithFirstProbeSnapshot(
     sm.step();
     const auto state_after = sm.getCurrentState();
     if (state_after != state_before) {
-        c.prev_observed_ts_us = c.observed_ts_us;
+        c.snapshotFired();
         // First time we leave the wait-probe state, pin the probed
         // target IP. Subsequent transitions leave the value alone so
         // the post-conflict re-pick comparison stays anchored to
@@ -477,7 +479,7 @@ inline void dispatchArpFrameWithRepeatedConflictEmit(
     sm.step();
     const auto state_after = sm.getCurrentState();
     if (state_after != state_before) {
-        c.prev_observed_ts_us = c.observed_ts_us;
+        c.snapshotFired();
     }
     if (static_cast<int>(state_after) == spec.cycle_state_id &&
         c.is_arp_probe() &&

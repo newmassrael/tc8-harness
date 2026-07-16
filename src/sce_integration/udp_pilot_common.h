@@ -366,11 +366,11 @@ inline void emitIngressProbeAndQuery(const ::tc8::TestConfig& cfg,
 // Dispatch helper: select the UdpFrame variant, mirror into `c`, raise
 // `udp_observed` on the SM. Non-UDP events ignored.
 //
-// Inter-frame timing surface (auto-managed `prev_observed_ts_us`):
-// snapshots `c.observed_ts_us` into `c.prev_observed_ts_us` only when
-// the SM's current state advances after `step()` — same contract as
-// `tcp_pilot_common.h::dispatchTcpFrame`. Future §4.6 SOME/IP-SD
-// timing cases call `c.frame_delta_us()` from SCXML guards.
+// Inter-frame timing surface: calls `c.snapshotFired()` only when the
+// SM's current state advances after `step()` — same contract as
+// `tcp_pilot_common.h::dispatchTcpFrame`, owned and documented by
+// `CapturedFrameTiming`. §4.6 SOME/IP-SD timing cases call
+// `c.frame_delta_us()` from SCXML guards.
 template <typename SM>
 inline void dispatchUdpFrame(typename SM::CapturedType& c, SM& sm,
                               const ::tc8::CapturedEvent& ev) {
@@ -382,7 +382,7 @@ inline void dispatchUdpFrame(typename SM::CapturedType& c, SM& sm,
     sm.step();
     const auto state_after = sm.getCurrentState();
     if (state_after != state_before) {
-        c.prev_observed_ts_us = c.observed_ts_us;
+        c.snapshotFired();
     }
 }
 

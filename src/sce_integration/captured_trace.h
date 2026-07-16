@@ -138,9 +138,26 @@ inline void appendI64Json(std::string &out, const char *key, std::int64_t v) {
 // cases). Both read 0 until the case that needs them fires (mirrors
 // `frame_delta_us`'s first-transition 0). Leading comma — callers append it
 // after the family's own fields.
+//
+// `frame_delta_us` is emitted from the `fired_frame_delta_us` LATCH, not the
+// live `frame_delta_us()` accessor, and the distinction is what makes the
+// self-diagnosing claim above true rather than aspirational. This runs from
+// `recordTransition`, i.e. AFTER the dispatch helper returned — and dispatch
+// calls `snapshotFired()` on exactly the condition that causes a step to be
+// recorded (the state advanced), so by now `prev_observed_ts_us ==
+// observed_ts_us` and the accessor reads `x - x == 0` for EVERY frame-driven
+// step. The latch holds what the cond actually read. `observed_ts_us` and
+// `delta_from_listen_window_us` need no equivalent: no dispatch path rewrites
+// `listen_window_open_ts_us`, so the accessor stays valid post-dispatch.
+//
+// Trace-only by construction — the seven per-family `appendCapturedJson`
+// serialisers (ARP / IPv4 / ICMPv4 / TCP / UDP / DHCPv4 / SOME/IP) are the
+// only callers, and the two composite serialisers reach it only by delegating
+// to those. So the latch is an evidence-export concern no SCXML cond observes:
+// conds run mid-dispatch and correctly read the live accessor.
 inline void appendTimingJson(std::string &out, const ::tc8::CapturedFrameTiming &t) {
     appendI64Json(out, ",\"observed_ts_us\":", t.observed_ts_us);
-    appendI64Json(out, ",\"frame_delta_us\":", t.frame_delta_us());
+    appendI64Json(out, ",\"frame_delta_us\":", t.fired_frame_delta_us);
     appendI64Json(out, ",\"delta_from_listen_window_us\":",
                   t.delta_from_listen_window_us());
 }

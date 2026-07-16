@@ -429,19 +429,18 @@ inline void emitTcpStimulus(const ::tc8::TestConfig &cfg,
 // Dispatch helper: select the TcpFrame variant, mirror into `c`, raise
 // `tcp_observed` on the SM. Non-TCP events ignored.
 //
-// Inter-frame timing surface (auto-managed `prev_observed_ts_us`):
-// `c.observed_ts_us` is updated unconditionally from the frame, but
-// `c.prev_observed_ts_us` is snapshot ONLY when `sm.step()` advances
-// `getCurrentState()` — i.e. when the transition guard fired and
-// consumed the frame. This way `c.frame_delta_us()` always reads
-// "delta since the last transition-firing frame", regardless of how
-// many non-matching frames arrived between two state advancements.
-// First-transition guards see `prev_observed_ts_us == 0` so
-// `frame_delta_us()` returns 0 and the guard naturally evaluates only
-// the structural conjuncts (flags / 4-tuple); second-and-later
-// transitions see the stable per-frame interval. §4.8.6.11
-// RETRANSMISSION_TO_04/_05/_06 + §4.8.6.12 PROBING_WINDOWS_06 depend
-// on this contract.
+// Inter-frame timing surface: `c.observed_ts_us` is updated
+// unconditionally from the frame; `c.snapshotFired()` runs ONLY when
+// `sm.step()` advanced `getCurrentState()` — i.e. when the transition
+// guard fired and consumed the frame — so `c.frame_delta_us()` reads
+// "delta since the last transition-firing frame" regardless of how many
+// non-matching frames arrived in between. `CapturedFrameTiming` owns the
+// full contract (including the first-transition 0 that lets a guard
+// evaluate structural conjuncts alone, and the `fired_frame_delta_us`
+// latch the trace reads); it is documented there rather than restated at
+// each of the dispatch helpers that share it. §4.8.6.11
+// RETRANSMISSION_TO_04/_05/_06 + §4.8.6.12 PROBING_WINDOWS_06 depend on
+// this contract.
 template <typename SM>
 inline void dispatchTcpFrame(typename SM::CapturedType &c, SM &sm,
                              const ::tc8::CapturedEvent &ev) {
@@ -453,7 +452,7 @@ inline void dispatchTcpFrame(typename SM::CapturedType &c, SM &sm,
     sm.step();
     const auto state_after = sm.getCurrentState();
     if (state_after != state_before) {
-        c.prev_observed_ts_us = c.observed_ts_us;
+        c.snapshotFired();
     }
 }
 

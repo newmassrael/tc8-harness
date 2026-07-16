@@ -53,13 +53,20 @@ struct ArpCaptured : CapturedFrameTiming {
     // Inter-frame timing surface (`observed_ts_us` / `prev_observed_ts_us`
     // / `frame_delta_us()`) is inherited from `CapturedFrameTiming`.
     // `fillArpCapturedFromFrame` / `fillArpCapturedFromUdpFrame` mirror
-    // `observed_ts_us` on every fill. ARP cases dispatch inline (no shared
-    // `dispatchArpFrame` helper), so a case that needs inter-frame delta
-    // semantics must snapshot `prev_observed_ts_us = observed_ts_us`
-    // itself when `sm.getCurrentState()` advances — see
-    // `tcp_pilot_common.h::dispatchTcpFrame` for the auto-managed pattern.
-    // No current ARP case reads the delta, but the surface is shared so
-    // future §4.2.4.x ANNOUNCE_REPS gap-timing cases need no rewiring.
+    // `observed_ts_us` on every fill. The delta-reading ARP cases go
+    // through `ipv4_linklocal_common.h::dispatchArpFrame` (and its
+    // first-probe / repeated-conflict variants), which call
+    // `snapshotFired()` when `sm.getCurrentState()` advances — the same
+    // auto-managed pattern as `tcp_pilot_common.h::dispatchTcpFrame`. A
+    // case that instead dispatches inline must call `snapshotFired()`
+    // itself under that same state-advanced guard; never assign
+    // `prev_observed_ts_us` directly, or the trace's `frame_delta_us`
+    // silently reads 0 (see `CapturedFrameTiming::fired_frame_delta_us`).
+    // Read today by the `ipv4_autoconf_announcing_06` /
+    // `ipv4_autoconf_address_selection_10` cases (and their `_neg`
+    // mutants), whose cadence guards gate on `frame_delta_us()` bounds;
+    // the surface is shared, so §4.2.4.x ANNOUNCE_REPS gap-timing cases
+    // would need no rewiring.
 
     // §4.5.6.2 ADDRESS_SELECTION_11/_12/_13: snapshot of the FIRST
     // DUT-emitted ARP Probe's `target_proto_ip` so the SCXML can

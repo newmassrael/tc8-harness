@@ -9,6 +9,7 @@
 
 #include <array>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -646,6 +647,147 @@ TEST(CapturedFrameTimingListenWindow, SurvivesPerFrameFill) {
     EXPECT_EQ(c.listen_window_open_ts_us, 1'700'000'000'000'000LL);  // untouched
     EXPECT_EQ(c.observed_ts_us, c.listen_window_open_ts_us + 250'000LL);
     EXPECT_EQ(c.delta_from_listen_window_us(), 250'000LL);
+}
+
+// ---------------------------------------------------------------------------
+// `fired_frame_delta_us` — the delta the firing cond actually read.
+//
+// Regression guard for: the transition trace's `frame_delta_us` was
+// structurally 0 on EVERY frame-driven step. `snapshotFired()` advances
+// `prev_observed_ts_us` to `observed_ts_us` under the state-advanced guard,
+// and `TestRunner::onCaptured` records the step under the SAME condition,
+// AFTER dispatch returns — so a trace that recomputed `frame_delta_us()` read
+// `x - x == 0` every time. The conds themselves were always correct (they run
+// mid-dispatch, before the snapshot), so only the evidence export was wrong,
+// which is precisely why no verdict test caught it.
+//
+// These drive the real fill helper and the real JSON serialiser in the real
+// dispatch order rather than asserting on the accessor in isolation, because
+// the defect lived in the ORDER, not in any one function.
+// ---------------------------------------------------------------------------
+
+// Read back an integer field emitted by an appendCapturedJson serialiser.
+// Deliberately not a JSON parser: the point is to assert on the bytes a trace
+// consumer actually receives, so a change to the emitted key or value shows up
+// here rather than being normalised away.
+std::int64_t jsonIntField(const std::string &json, const std::string &key) {
+    const std::string needle = "\"" + key + "\":";
+    const auto pos = json.find(needle);
+    EXPECT_NE(pos, std::string::npos) << "key " << key << " absent from " << json;
+    if (pos == std::string::npos) return 0;
+    return std::strtoll(json.c_str() + pos + needle.size(), nullptr, 10);
+}
+
+// Fill from a frame at `ts`, evaluate the cond the way SCE does (mid-dispatch,
+// live accessor), then snapshot as a fired transition — the exact
+// fill/step/snapshot order every protocol's dispatch helper runs. Returns what
+// the cond saw so a test can pin the trace against it.
+std::int64_t dispatchFiringFrameAt(tc8::SomeIpCaptured &c, std::int64_t ts) {
+    std::vector<std::uint8_t> payload(8, 0x00);
+    tc8::SomeIpFrame f{};
+    f.service_id = 0xFFFF;
+    f.message_type = 0x02;
+    f.observed_ts_us = ts;
+    f.payload_data = payload.data();
+    f.payload_len = static_cast<std::uint32_t>(payload.size());
+    tc8::fillSomeIpCapturedFromFrame(c, f);
+    const std::int64_t delta_the_cond_read = c.frame_delta_us();  // sm.step()
+    c.snapshotFired();                                            // state advanced
+    return delta_the_cond_read;
+}
+
+TEST(CapturedFrameTimingFiredDelta, SnapshotLatchesDeltaBeforeAdvancingPrev) {
+    // The load-bearing order inside the SSOT. Inverting the two lines makes the
+    // latch read `x - x == 0` — the original defect, now unrepresentable at a
+    // call site because the assignment is not hand-written any more.
+    tc8::SomeIpCaptured c{};
+    c.prev_observed_ts_us = 1'700'000'000'000'000LL;
+    c.observed_ts_us      = c.prev_observed_ts_us + 400'000LL;
+
+    c.snapshotFired();
+
+    EXPECT_EQ(c.fired_frame_delta_us, 400'000LL);            // latched pre-advance
+    EXPECT_EQ(c.prev_observed_ts_us, c.observed_ts_us);      // prev advanced
+    EXPECT_EQ(c.frame_delta_us(), 0);  // live accessor now dead until next frame
+}
+
+TEST(CapturedFrameTimingFiredDelta, TraceReportsTheDeltaTheCondRead) {
+    // THE regression: a three-offer cadence (400 ms then 2000 ms gaps) with the
+    // trace recorded post-dispatch, as TestRunner::onCaptured does. Pre-fix
+    // every one of these read 0.
+    tc8::SomeIpCaptured c{};
+    const std::int64_t t0 = 1'700'000'000'000'000LL;
+
+    dispatchFiringFrameAt(c, t0);
+    std::string first;
+    tc8::appendCapturedJson(first, c);
+    // First transition: no prior fired frame, so the documented 0 sentinel —
+    // legitimately 0, unlike the steps below.
+    EXPECT_EQ(jsonIntField(first, "frame_delta_us"), 0);
+    EXPECT_EQ(jsonIntField(first, "observed_ts_us"), t0);
+
+    const std::int64_t cond_saw_2 = dispatchFiringFrameAt(c, t0 + 400'000LL);
+    std::string second;
+    tc8::appendCapturedJson(second, c);
+    EXPECT_EQ(cond_saw_2, 400'000LL);
+    EXPECT_EQ(jsonIntField(second, "frame_delta_us"), cond_saw_2);
+
+    const std::int64_t cond_saw_3 = dispatchFiringFrameAt(c, t0 + 2'400'000LL);
+    std::string third;
+    tc8::appendCapturedJson(third, c);
+    EXPECT_EQ(cond_saw_3, 2'000'000LL);
+    EXPECT_EQ(jsonIntField(third, "frame_delta_us"), cond_saw_3);
+}
+
+TEST(CapturedFrameTimingFiredDelta, NonFiringFrameDoesNotPolluteTheLatch) {
+    // `observed_ts_us` is mirrored on EVERY fill regardless of whether the
+    // guard fires, so a non-firing frame moves it while `prev` stays put. A
+    // tick-driven step (deadline_exceeded, pcap_frame_idx == -1) recorded after
+    // such a frame must still report the last delta that actually decided
+    // something — NOT the live accessor, which here would report a meaningless
+    // gap between an unrelated non-firing frame and the last transition.
+    tc8::SomeIpCaptured c{};
+    const std::int64_t t0 = 1'700'000'000'000'000LL;
+    dispatchFiringFrameAt(c, t0);
+    dispatchFiringFrameAt(c, t0 + 400'000LL);
+    ASSERT_EQ(c.fired_frame_delta_us, 400'000LL);
+
+    // A frame arrives that no cond accepts: fill only, no snapshotFired().
+    std::vector<std::uint8_t> payload(8, 0x00);
+    tc8::SomeIpFrame noise{};
+    noise.service_id   = 0xFFFF;
+    noise.message_type = 0x02;
+    noise.observed_ts_us = t0 + 3'900'000LL;
+    noise.payload_data = payload.data();
+    noise.payload_len  = static_cast<std::uint32_t>(payload.size());
+    tc8::fillSomeIpCapturedFromFrame(c, noise);
+
+    // The live accessor is now the meaningless 3.5 s gap between the noise
+    // frame and the last fired transition...
+    EXPECT_EQ(c.frame_delta_us(), 3'500'000LL);
+    // ...but the trace reports the last real decision.
+    EXPECT_EQ(c.fired_frame_delta_us, 400'000LL);
+    std::string tick_step;
+    tc8::appendCapturedJson(tick_step, c);
+    EXPECT_EQ(jsonIntField(tick_step, "frame_delta_us"), 400'000LL);
+}
+
+TEST(CapturedFrameTimingFiredDelta, LatchIsIndependentOfListenWindowDelta) {
+    // The two deltas answer different questions and must not perturb each
+    // other: `delta_from_listen_window_us` is derived from a stamp no dispatch
+    // path rewrites (which is why it was correct all along), the latch from the
+    // frame-to-frame gap.
+    tc8::SomeIpCaptured c{};
+    const std::int64_t t0 = 1'700'000'000'000'000LL;
+    c.listen_window_open_ts_us = t0;
+
+    dispatchFiringFrameAt(c, t0 + 100'000LL);
+    dispatchFiringFrameAt(c, t0 + 3'100'000LL);
+
+    std::string json;
+    tc8::appendCapturedJson(json, c);
+    EXPECT_EQ(jsonIntField(json, "frame_delta_us"), 3'000'000LL);
+    EXPECT_EQ(jsonIntField(json, "delta_from_listen_window_us"), 3'100'000LL);
 }
 
 // SOMEIPCLT DUT client-role SD recognizers: the DUT FindServices, Subscribes and

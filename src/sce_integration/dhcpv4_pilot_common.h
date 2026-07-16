@@ -235,12 +235,11 @@ inline void scheduleRetxLeaseEnvelopeReplies(
 // `captured.is_dhcp_discover()` in their SCXML pass-guards;
 // non-matching frames advance the SM but never satisfy the guard.
 //
-// Inter-frame timing surface (auto-managed `prev_observed_ts_us`):
-// snapshots `c.observed_ts_us` into `c.prev_observed_ts_us` only
-// when the SM's current state advances after `step()` — same
-// contract as `udp_pilot_common.h::dispatchUdpFrame`. Future §4.7
-// retransmission-timing cases (CONSTRUCTING_MESSAGES_12/_13) will
-// read `c.frame_delta_us()` from SCXML guards.
+// Inter-frame timing surface: calls `c.snapshotFired()` only when the
+// SM's current state advances after `step()` — same contract as
+// `udp_pilot_common.h::dispatchUdpFrame`, owned and documented by
+// `CapturedFrameTiming`. §4.7.6.8 REACQUISITION_05/_06 read the delta
+// (via `frame_delta_within_us`) from SCXML guards.
 template <typename SM>
 inline void dispatchDhcpv4Frame(typename SM::CapturedType& c, SM& sm,
                                  const ::tc8::CapturedEvent& ev) {
@@ -281,7 +280,7 @@ inline void dispatchDhcpv4Frame(typename SM::CapturedType& c, SM& sm,
     sm.step();
     const auto state_after = sm.getCurrentState();
     if (state_after != state_before) {
-        c.prev_observed_ts_us = c.observed_ts_us;
+        c.snapshotFired();
     }
 }
 

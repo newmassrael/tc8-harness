@@ -374,9 +374,28 @@ public:
         const State after = sm_.getCurrentState();
         if (before != after) {
             // Frame-driven transition fired. Record the step before any
-            // subsequent `tick()` mutates state further — captured_'s
-            // post-dispatch field values are the ground truth the SCXML
-            // cond evaluated against.
+            // subsequent `tick()` mutates state further, so a later frame
+            // cannot overwrite this step's wire observation.
+            //
+            // For the wire-derived fields, the post-dispatch values ARE the
+            // ground truth the SCXML cond evaluated against: dispatch fills
+            // them before `step()` and does not touch them after. That is NOT
+            // a general invariant over `captured_`, though — it fails for the
+            // fired-transition LANDMARKS, which dispatch rewrites on the way
+            // OUT under the very same state-advanced condition that brought us
+            // here (`prev_observed_ts_us`, the SOME/IP `prev_sd_session_id` /
+            // `prev_tp_more_segments`, the link-local probe pins). A cond read
+            // their pre-advance values; by now they hold post-advance ones.
+            //
+            // Only `prev_observed_ts_us` currently leaks that skew into the
+            // trace, because only it feeds a SERIALISED value
+            // (`frame_delta_us`) — which is why the trace reads the
+            // `fired_frame_delta_us` latch instead of recomputing the accessor
+            // (see `appendTimingJson`). The other landmarks are not emitted by
+            // any `appendCapturedJson`, so their skew is currently invisible
+            // rather than absent. Serialising one, or deriving an emitted
+            // value from it, inherits the same trap: latch the pre-advance
+            // value in `snapshotFired()` alongside the existing one.
             recordTransition(before, after,
                              /*event_name=*/eventNameForFrame(ev),
                              /*pcap_frame_idx=*/next_pcap_frame_idx_);
