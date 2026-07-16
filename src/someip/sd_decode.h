@@ -6,6 +6,7 @@
 #include <cstring>
 #include <string>
 #include <string_view>
+#include <type_traits>
 
 #include "someip/sd_wire_constants.h"  // sd_option_type / sd_l4_proto / sd_entry_type (neutral wire values)
 #include "wire/wire_read.h"
@@ -142,7 +143,10 @@ struct SdDecoded {
     std::uint32_t sd_reserved = 0;  // Bytes 1..3 of SD payload (24 bits, right-aligned).
 
     // Length of the entries array in bytes (multiples of kSdEntrySizeBytes) and
-    // of the options array. Stay 0 when the payload is too short to reach them.
+    // of the options array. Read 0 when the payload is too short to reach them —
+    // guaranteed by resetPerFrameDecode(), not by the reader's luck: each wire
+    // read is itself conditional on the payload covering the field, so on a
+    // reused context these would otherwise report the PREVIOUS frame's lengths.
     std::uint32_t sd_entries_len = 0;
     std::uint32_t sd_options_len = 0;
 
@@ -172,6 +176,40 @@ struct SdDecoded {
     // exceeds the parse cap. Verdict guards MUST use the capped counts, never these.
     std::uint16_t sd_entry_count_wire = 0;
     std::uint16_t sd_ipv4_endpoint_count_wire = 0;
+
+    // "Begin decoding a new SD frame into this context." Zeroes the whole
+    // per-frame decode aspect, so every field above is FRESH-OR-ZERO once
+    // `parseSdInto` returns — on EVERY path, including its early returns.
+    //
+    // Load-bearing because the capture context is REUSED across frames
+    // (`sce_integration/someip_captured.h` decodes each frame into the same
+    // `captured_`, and resets its own TP block per frame for this same reason),
+    // while `parseSdInto` fills only what the payload covers and returns early on
+    // a payload that is short, truncated before the options array, or simply
+    // OPTIONLESS. Without this reset those paths leave the PREVIOUS SD frame's
+    // values in place: an optionless Offer reported the prior frame's
+    // `sd_option_count` / `sd_options[]` / endpoint counts, so a verdict scanning
+    // the raw array saw a usable endpoint on a frame that carried none — a
+    // silently vacuous case rather than a visible failure. `sd_options_len` (its
+    // wire read is itself conditional) and `sd_config_item_count` (assigned only
+    // when a Configuration option is present) carried the same staleness.
+    //
+    // Zeroing HERE, once, rather than at each early return is the point: a future
+    // `return` added to `parseSdInto` cannot forget it, and a field added to this
+    // struct is covered automatically because this assigns a value-initialised
+    // base subobject rather than naming fields one by one.
+    //
+    // `cached_offer_endpoint_udp_port` is the ONE deliberate exception and is
+    // carried across: it is a CROSS-frame cache by contract (see its comment) —
+    // SD_MESSAGE_09's Phase-3 guard reads it on a later NON-SD frame. That still
+    // works because a non-SD frame never reaches `parseSdInto` at all, and an SD
+    // frame that is not a qualifying Offer must leave the cached value standing.
+    // A future sticky field must be added to this carry-across list explicitly.
+    void resetPerFrameDecode() noexcept {
+        const std::uint16_t keep_cached_offer_endpoint_udp_port = cached_offer_endpoint_udp_port;
+        *this = SdDecoded{};
+        cached_offer_endpoint_udp_port = keep_cached_offer_endpoint_udp_port;
+    }
 
     // SSOT for the config-item key match: `item` is exactly `key` (the key with no
     // value) or `key=...`. The single rule shared by the first-match lookup and the
@@ -282,6 +320,16 @@ struct SdDecoded {
     }
 };
 
+// `resetPerFrameDecode` is declared noexcept and resets by assigning a
+// value-initialised subobject, which is only nothrow while every member stays
+// trivially assignable. Pin that here so adding an allocating member (a
+// std::string config item, a std::vector option tail) fails the build rather
+// than turning the reset into a std::terminate on a throwing assignment.
+static_assert(std::is_nothrow_copy_assignable<SdDecoded>::value,
+              "SdDecoded must stay nothrow-assignable: resetPerFrameDecode() is noexcept");
+static_assert(std::is_nothrow_default_constructible<SdDecoded>::value,
+              "SdDecoded must stay nothrow-default-constructible: resetPerFrameDecode() is noexcept");
+
 // Peeks the first SD entry's Type byte without a full parse — used by dispatch()
 // filters that reject e.g. FindService echoes (type 0x00) before committing a
 // frame's fields. The Type byte lives at offset 8 (after the 4-byte flags/
@@ -298,9 +346,16 @@ inline std::uint8_t peekSdEntry0Type(const std::uint8_t *payload, std::size_t pa
 // Parse an SD payload (TR_SOMEIP §7.3) fully into `d`: 4-byte header (Flags +
 // Reserved), 4-byte LengthOfEntriesArray, Entries array (N * kSdEntrySizeBytes),
 // 4-byte LengthOfOptionsArray, Options array. Fills what the payload covers;
-// fields the parser can't reach keep their default 0. The caller gates on the
-// frame being SD (header Service ID) before calling.
+// fields the parser can't reach read 0 — NOT merely "keep their default", which
+// would only hold for a never-reused `d`. `resetPerFrameDecode()` below is what
+// makes the zero true for the reused capture context this normally decodes into,
+// so `d` describes THIS frame and nothing else. The one exception is the
+// documented cross-frame `cached_offer_endpoint_udp_port`. The caller gates on
+// the frame being SD (header Service ID) before calling.
 inline void parseSdInto(SdDecoded &d, const std::uint8_t *payload, std::size_t payload_len) {
+    // Before any early return below — see resetPerFrameDecode(). A `return` past
+    // this point can leave fields unwritten but never stale.
+    d.resetPerFrameDecode();
     if (payload == nullptr || payload_len < 4) {
         return;
     }

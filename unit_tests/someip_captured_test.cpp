@@ -487,6 +487,120 @@ TEST(SomeIpCapturedConfigOption, TruncatedItemDropped) {
     EXPECT_EQ(c.sd_config_item_count, 0u);
 }
 
+// ---------------------------------------------------------------------------
+// Reused-context staleness of the SD decode aspect (resetPerFrameDecode).
+//
+// The capture context is reused across frames, and parseSdInto fills only what
+// the payload covers — with early returns on a short, truncated, or OPTIONLESS
+// payload. Before the reset, every one of those paths left the PREVIOUS SD
+// frame's values standing, so a frame reported options it did not carry. These
+// are the SD analogue of `SomeIpCapturedTp.StaleStateClearedOnNonTpFrame`
+// below; each decodes two frames into ONE context, which is the only way the
+// defect is observable.
+// ---------------------------------------------------------------------------
+
+// THE reported defect: a well-formed Offer that simply carries no options must
+// not report the previous Offer's parsed options. A verdict asking "does THIS
+// Offer carry a usable UDP endpoint?" by scanning sd_options[0..sd_option_count)
+// otherwise sees the prior service's endpoint and silently passes a DUT that
+// should have been failed.
+TEST(SomeIpCapturedSdStale, OptionlessOfferDoesNotReportPriorFrameOptions) {
+    tc8::SomeIpCaptured c;
+
+    // Frame 1: an Offer WITH a UDP IPv4 Endpoint Option.
+    std::vector<std::uint8_t> opts;
+    appendIpv4EndpointOption(opts, tc8::sd_option_type::kIpv4Endpoint, 0xAC100002,
+                             tc8::sd_l4_proto::kUdp, 0x7777);
+    const auto with_opts = buildSdPayload(offerServiceEntry(0xF4E7), opts);
+    tc8::parseSdInto(c, with_opts.data(), with_opts.size());
+    ASSERT_EQ(c.sd_option_count, 1u);
+    ASSERT_EQ(c.sd_ipv4_endpoint_count, 1u);
+
+    // Frame 2: an Offer with NO options at all (declared_options_bytes == 0).
+    const auto optionless = buildSdPayload(offerServiceEntry(0xF4E8), {});
+    tc8::parseSdInto(c, optionless.data(), optionless.size());
+
+    // The entry aspect is this frame's...
+    EXPECT_EQ(c.sd_entry_count, 1u);
+    EXPECT_EQ(c.sd_entries[0].service_id, 0xF4E8);
+    // ...and so is the option aspect: zero, not frame 1's endpoint.
+    EXPECT_EQ(c.sd_option_count, 0u);
+    EXPECT_EQ(c.sd_ipv4_endpoint_count, 0u);
+    EXPECT_EQ(c.sd_ipv4_endpoint_count_wire, 0u);
+    EXPECT_EQ(c.sd_options_len, 0u);
+    EXPECT_FALSE(c.sd_has_option_with_l4(tc8::sd_option_type::kIpv4Endpoint, tc8::sd_l4_proto::kUdp));
+}
+
+// The truncated-before-the-options-array path. sd_options_len is itself read
+// conditionally (the wire read needs the payload to cover the length field), so
+// this path leaves it stale too — not just the parsed-option counts.
+TEST(SomeIpCapturedSdStale, TruncatedBeforeOptionsArrayReportsNoOptions) {
+    tc8::SomeIpCaptured c;
+
+    std::vector<std::uint8_t> opts;
+    appendIpv4EndpointOption(opts, tc8::sd_option_type::kIpv4Endpoint, 0xAC100002,
+                             tc8::sd_l4_proto::kUdp, 0x7777);
+    const auto full = buildSdPayload(offerServiceEntry(0xF4E7), opts);
+    tc8::parseSdInto(c, full.data(), full.size());
+    ASSERT_EQ(c.sd_option_count, 1u);
+    ASSERT_NE(c.sd_options_len, 0u);
+
+    // Cut the payload to the entries array — the 4-byte options-length field is
+    // no longer covered, so the parser returns before reading either.
+    const auto truncated = std::vector<std::uint8_t>(full.begin(), full.begin() + 8 + 16);
+    tc8::parseSdInto(c, truncated.data(), truncated.size());
+
+    EXPECT_EQ(c.sd_entry_count, 1u);   // the entries array still parsed
+    EXPECT_EQ(c.sd_options_len, 0u);   // NOT the previous frame's declared length
+    EXPECT_EQ(c.sd_option_count, 0u);
+    EXPECT_EQ(c.sd_ipv4_endpoint_count, 0u);
+}
+
+// sd_config_item_count is assigned only when a Configuration option is actually
+// present, so EVERY config-less SD frame — not merely a truncated-config one —
+// used to report the previous frame's items.
+TEST(SomeIpCapturedSdStale, ConfigItemsFreshOnAConfigLessFrame) {
+    tc8::SomeIpCaptured c;
+
+    const auto with_config = buildSdPayload(findServiceEntry(), buildConfigOption({"foo=bar"}));
+    tc8::parseSdInto(c, with_config.data(), with_config.size());
+    ASSERT_EQ(c.sd_config_item_count, 1u);
+    ASSERT_TRUE(c.sd_config_has_key("foo"));
+
+    // A subsequent SD frame carrying an endpoint option but NO config option.
+    std::vector<std::uint8_t> opts;
+    appendIpv4EndpointOption(opts, tc8::sd_option_type::kIpv4Endpoint, 0xAC100002,
+                             tc8::sd_l4_proto::kUdp, 0x7777);
+    const auto no_config = buildSdPayload(offerServiceEntry(0xF4E7), opts);
+    tc8::parseSdInto(c, no_config.data(), no_config.size());
+
+    EXPECT_EQ(c.sd_config_item_count, 0u);
+    EXPECT_FALSE(c.sd_config_has_key("foo"));
+    EXPECT_EQ(c.sd_option_count, 1u);  // this frame's own option still parsed
+}
+
+// The ONE field the reset deliberately carries across: SD_MESSAGE_09's cross-phase
+// Offer-endpoint cache. Its whole contract is to outlive the frame that set it,
+// so the staleness fix must not "clean" it — pinning that here because the
+// carry-across is invisible to every other test.
+TEST(SomeIpCapturedSdStale, CrossFrameOfferEndpointCacheSurvivesTheReset) {
+    tc8::SomeIpCaptured c;
+
+    std::vector<std::uint8_t> opts;
+    appendIpv4EndpointOption(opts, tc8::sd_option_type::kIpv4Endpoint, 0xAC100002,
+                             tc8::sd_l4_proto::kUdp, 0x7777);
+    const auto offer = buildSdPayload(offerServiceEntry(0xF4E7), opts);
+    tc8::parseSdInto(c, offer.data(), offer.size());
+    ASSERT_EQ(c.cached_offer_endpoint_udp_port, 0x7777);
+
+    // A later optionless Offer resets the decode aspect but must leave the cache
+    // standing, so the Phase-3 guard can still compare against it.
+    const auto optionless = buildSdPayload(offerServiceEntry(0xF4E8), {});
+    tc8::parseSdInto(c, optionless.data(), optionless.size());
+    EXPECT_EQ(c.sd_option_count, 0u);                      // decode aspect zeroed
+    EXPECT_EQ(c.cached_offer_endpoint_udp_port, 0x7777);   // cache carried across
+}
+
 // The capture context is reused across frames: a TP frame then a non-TP frame on the
 // same context must clear the TP fields, so is_tp never reads stale-true.
 TEST(SomeIpCapturedTp, StaleStateClearedOnNonTpFrame) {
