@@ -579,26 +579,51 @@ TEST(SomeIpCapturedSdStale, ConfigItemsFreshOnAConfigLessFrame) {
     EXPECT_EQ(c.sd_option_count, 1u);  // this frame's own option still parsed
 }
 
-// The ONE field the reset deliberately carries across: SD_MESSAGE_09's cross-phase
-// Offer-endpoint cache. Its whole contract is to outlive the frame that set it,
-// so the staleness fix must not "clean" it — pinning that here because the
-// carry-across is invisible to every other test.
-TEST(SomeIpCapturedSdStale, CrossFrameOfferEndpointCacheSurvivesTheReset) {
+// SD_MESSAGE_09's cross-phase Offer-endpoint cache has the OPPOSITE lifetime to
+// the decode aspect: it must outlive the frame that set it, while everything
+// parseSdInto touches is wiped per frame. It is therefore stamped by
+// fillSomeIpCapturedFromFrame (which spans frames) rather than by the neutral
+// decoder — so this drives the real fill path, and pins that the per-frame reset
+// cannot reach it. Nothing else covers the carry-across.
+TEST(SomeIpCapturedSdStale, CrossFrameOfferEndpointCacheOutlivesThePerFrameReset) {
     tc8::SomeIpCaptured c;
 
+    // Frame 1: an SD Offer carrying the UDP endpoint — stamps the cache.
     std::vector<std::uint8_t> opts;
     appendIpv4EndpointOption(opts, tc8::sd_option_type::kIpv4Endpoint, 0xAC100002,
                              tc8::sd_l4_proto::kUdp, 0x7777);
     const auto offer = buildSdPayload(offerServiceEntry(0xF4E7), opts);
-    tc8::parseSdInto(c, offer.data(), offer.size());
+    tc8::SomeIpFrame f1{};
+    f1.service_id = 0xFFFF;  // SD
+    f1.message_type = 0x02;
+    f1.payload_data = offer.data();
+    f1.payload_len = static_cast<std::uint32_t>(offer.size());
+    tc8::fillSomeIpCapturedFromFrame(c, f1);
     ASSERT_EQ(c.cached_offer_endpoint_udp_port, 0x7777);
 
-    // A later optionless Offer resets the decode aspect but must leave the cache
-    // standing, so the Phase-3 guard can still compare against it.
+    // Frame 2: a later optionless SD Offer wipes the decode aspect but must
+    // leave the cache standing.
     const auto optionless = buildSdPayload(offerServiceEntry(0xF4E8), {});
-    tc8::parseSdInto(c, optionless.data(), optionless.size());
-    EXPECT_EQ(c.sd_option_count, 0u);                      // decode aspect zeroed
-    EXPECT_EQ(c.cached_offer_endpoint_udp_port, 0x7777);   // cache carried across
+    tc8::SomeIpFrame f2{};
+    f2.service_id = 0xFFFF;
+    f2.message_type = 0x02;
+    f2.payload_data = optionless.data();
+    f2.payload_len = static_cast<std::uint32_t>(optionless.size());
+    tc8::fillSomeIpCapturedFromFrame(c, f2);
+    EXPECT_EQ(c.sd_option_count, 0u);                     // decode aspect zeroed
+    EXPECT_EQ(c.cached_offer_endpoint_udp_port, 0x7777);  // cache untouched
+
+    // Frame 3: the NON-SD Notification the Phase-3 guard actually fires on. It
+    // never reaches the decoder at all, so the cache must still be readable —
+    // this is the step the whole cross-phase compare depends on.
+    std::vector<std::uint8_t> body(8, 0x00);
+    tc8::SomeIpFrame f3{};
+    f3.service_id = 0xF4E7;  // the offered service, not SD
+    f3.message_type = 0x02;
+    f3.payload_data = body.data();
+    f3.payload_len = static_cast<std::uint32_t>(body.size());
+    tc8::fillSomeIpCapturedFromFrame(c, f3);
+    EXPECT_EQ(c.cached_offer_endpoint_udp_port, 0x7777);
 }
 
 // The capture context is reused across frames: a TP frame then a non-TP frame on the

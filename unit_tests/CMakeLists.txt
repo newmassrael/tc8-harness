@@ -19,6 +19,7 @@ FetchContent_MakeAvailable(googletest)
 # implementation the main binary does.
 add_library(tc8_harness_testable STATIC
     ${PROJECT_SOURCE_DIR}/src/capture/bpf_filter.cpp
+    ${PROJECT_SOURCE_DIR}/src/capture/pcap_source.cpp
     ${PROJECT_SOURCE_DIR}/src/cli/expect_parser.cpp
     ${PROJECT_SOURCE_DIR}/src/cli/packet_summary.cpp
     ${PROJECT_SOURCE_DIR}/src/sce_integration/case_registry.cpp
@@ -134,26 +135,18 @@ tc8_add_unit_test(bpf_filter_test)
 # wrap is valid libpcap syntax, so it links libpcap.
 target_include_directories(bpf_filter_test PRIVATE ${PCAP_INCLUDE_DIR})
 target_link_libraries(bpf_filter_test PRIVATE ${PCAP_LIBRARY})
-# Capture-loss accounting (tc8::CaptureStats + PcapSource::stats()). Compiles
-# pcap_source.cpp directly — it lives in the tc8-harness target, not the shared
-# testable lib — and links libpcap for it, mirroring bpf_filter_test. The live
-# counters need a real capture, so the in-tree gate is the offline branch (a
-# savefile reports "not measured", never a fabricated zero) plus the tri-state
-# predicate; a live run's `capture :` teardown line covers the rest.
-add_executable(capture_stats_test
-    capture_stats_test.cpp
-    ${PROJECT_SOURCE_DIR}/src/capture/pcap_source.cpp
-)
-target_include_directories(capture_stats_test PRIVATE
-    ${PROJECT_SOURCE_DIR}/src
-    ${PROJECT_SOURCE_DIR}/include
-    ${PCAP_INCLUDE_DIR}
-)
+# Capture-loss accounting (tc8::CaptureStats + PcapSource::stats()). Exercises
+# PcapSource out of the shared testable lib, so it pins the same translation unit
+# the main binary runs, and links libpcap for it exactly as bpf_filter_test does
+# for the sibling capture source. The live counters need a real capture, so the
+# in-tree gate is the offline branch (a savefile reports "not measured", never a
+# fabricated zero) plus the tri-state predicate; a live run's `capture :`
+# teardown line covers the rest.
+tc8_add_unit_test(capture_stats_test)
+target_include_directories(capture_stats_test PRIVATE ${PCAP_INCLUDE_DIR})
 target_compile_definitions(capture_stats_test PRIVATE
     TC8_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
-target_link_libraries(capture_stats_test PRIVATE
-    ${PCAP_LIBRARY} GTest::gtest GTest::gtest_main)
-add_test(NAME capture_stats_test COMMAND capture_stats_test)
+target_link_libraries(capture_stats_test PRIVATE ${PCAP_LIBRARY})
 
 tc8_add_unit_test(case_registry_test)
 # AES-CMAC engine: the RFC 4493 published vectors (the four example MACs plus the

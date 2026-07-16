@@ -115,6 +115,20 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     // was never observed (testability marker off, or a non-SD-start run).
     std::int64_t sd_start_ts_us = 0;
 
+    // SD_MESSAGE_09 cross-phase cache — UDP port from the most recent
+    // OfferService's IPv4 Endpoint Option (type 0x04, l4 UDP), so a Phase-3
+    // Notification guard can compare against the Phase-1 value without a
+    // datamodel.
+    //
+    // Lives HERE, beside sd_start_ts_us, and not on the inherited SdDecoded
+    // aspect, because the two have the same CROSS-frame lifetime while
+    // SdDecoded is wiped per frame by resetPerFrameDecode(). Keeping it there
+    // would both force that reset to carry an exception and put case knowledge
+    // (which entry type is worth caching) inside the neutral wire decoder.
+    // Stamped by fillSomeIpCapturedFromFrame — only ever set, never cleared —
+    // so it survives the non-SD Notification the Phase-3 guard reads it on.
+    std::uint16_t cached_offer_endpoint_udp_port = 0;
+
     // SOME/IP-TP segment header (PRS_SOMEIP §4.2.1.4), parsed when the message_type
     // carries the TP-Flag (someiptp::kMessageTypeTpFlag = 0x20). `is_tp` is false for a
     // non-segmented message and the rest stay default. The header bit layout is decoded
@@ -391,10 +405,24 @@ inline void fillSomeIpCapturedFromFrame(SomeIpCaptured &c, const SomeIpFrame &f)
     c.observed_ts_us = f.observed_ts_us;
     if (c.headerIsSd()) {
         // Decode the SD payload into the inherited SdDecoded aspect through the
-        // neutral leaf (someip/sd_decode.h). The §5.1.5.3.9 cross-phase
-        // OfferService endpoint cache (cached_offer_endpoint_udp_port) and the
-        // display wire totals are populated inside parseSdInto.
+        // neutral leaf (someip/sd_decode.h), which resets that aspect per frame
+        // and reports THIS frame only. The display wire totals are populated
+        // inside parseSdInto.
         parseSdInto(c, f.payload_data, f.payload_len);
+        // §5.1.5.3.9 cross-phase cache. Stamped here rather than inside the
+        // decoder: "an OfferService's UDP endpoint is worth remembering across
+        // frames" is case knowledge about a landmark that outlives its frame,
+        // and the decoder is a neutral per-frame function of the payload. Sits
+        // in the SD branch so a non-SD frame cannot disturb the cached value —
+        // which is exactly what the Phase-3 Notification guard depends on.
+        // Only ever set, never cleared, mirroring the sd_start_ts_us anchor below.
+        if (c.sd_entry_count > 0 && c.sd_entries[0].type == sd_entry_type::kOfferService) {
+            const SdOption &udp_endpoint =
+                c.sd_first_option_with_l4(sd_option_type::kIpv4Endpoint, sd_l4_proto::kUdp);
+            if (udp_endpoint.port != 0) {
+                c.cached_offer_endpoint_udp_port = udp_endpoint.port;
+            }
+        }
     }
     // Stamp the SD start() anchor from the marker Offer (is_sd_start_marker: an
     // OfferService for the reserved marker service id). Only set — never cleared —

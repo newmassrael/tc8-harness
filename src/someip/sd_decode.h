@@ -159,11 +159,6 @@ struct SdDecoded {
     std::uint8_t sd_config_item_count = 0;
     SdConfigItem sd_config_items[kMaxSdConfigItems]{};
 
-    // SD_MESSAGE_09 cross-phase cache — UDP port from the most recent
-    // OfferService's IPv4 Endpoint Option (type 0x04, l4 UDP), so a Phase-3
-    // Notification guard can compare against the Phase-1 value without a datamodel.
-    std::uint16_t cached_offer_endpoint_udp_port = 0;
-
     // Per-type counts for the two endpoint-bearing option types (capped alongside
     // sd_option_count), so guards assert presence without re-walking the array.
     std::uint8_t sd_ipv4_endpoint_count = 0;
@@ -197,18 +192,15 @@ struct SdDecoded {
     // Zeroing HERE, once, rather than at each early return is the point: a future
     // `return` added to `parseSdInto` cannot forget it, and a field added to this
     // struct is covered automatically because this assigns a value-initialised
-    // base subobject rather than naming fields one by one.
+    // subobject rather than naming fields one by one.
     //
-    // `cached_offer_endpoint_udp_port` is the ONE deliberate exception and is
-    // carried across: it is a CROSS-frame cache by contract (see its comment) —
-    // SD_MESSAGE_09's Phase-3 guard reads it on a later NON-SD frame. That still
-    // works because a non-SD frame never reaches `parseSdInto` at all, and an SD
-    // frame that is not a qualifying Offer must leave the cached value standing.
-    // A future sticky field must be added to this carry-across list explicitly.
+    // Total, with no carry-across exception, because this struct holds ONLY
+    // this-frame decode state. Anything that must outlive its frame is a
+    // different lifetime and lives on the owning capture context instead (see
+    // `SomeIpCaptured`'s cross-frame anchors) — keeping that split is what lets
+    // the reset stay unconditional and unexplained.
     void resetPerFrameDecode() noexcept {
-        const std::uint16_t keep_cached_offer_endpoint_udp_port = cached_offer_endpoint_udp_port;
         *this = SdDecoded{};
-        cached_offer_endpoint_udp_port = keep_cached_offer_endpoint_udp_port;
     }
 
     // SSOT for the config-item key match: `item` is exactly `key` (the key with no
@@ -347,11 +339,15 @@ inline std::uint8_t peekSdEntry0Type(const std::uint8_t *payload, std::size_t pa
 // Reserved), 4-byte LengthOfEntriesArray, Entries array (N * kSdEntrySizeBytes),
 // 4-byte LengthOfOptionsArray, Options array. Fills what the payload covers;
 // fields the parser can't reach read 0 — NOT merely "keep their default", which
-// would only hold for a never-reused `d`. `resetPerFrameDecode()` below is what
-// makes the zero true for the reused capture context this normally decodes into,
-// so `d` describes THIS frame and nothing else. The one exception is the
-// documented cross-frame `cached_offer_endpoint_udp_port`. The caller gates on
-// the frame being SD (header Service ID) before calling.
+// would only hold for a never-reused `d`. `resetPerFrameDecode()` is what makes
+// the zero true for the reused capture context this normally decodes into.
+//
+// `d` therefore describes THIS frame and nothing else, with no exceptions: a
+// pure function of the payload. Cross-frame state (a landmark one case compares
+// a later frame against) is deliberately NOT kept here — it belongs to the
+// capture context that spans frames, so this stays a neutral wire decoder with
+// no case knowledge. The caller gates on the frame being SD (header Service ID)
+// before calling.
 inline void parseSdInto(SdDecoded &d, const std::uint8_t *payload, std::size_t payload_len) {
     // Before any early return below — see resetPerFrameDecode(). A `return` past
     // this point can leave fields unwritten but never stale.
@@ -519,17 +515,6 @@ inline void parseSdInto(SdDecoded &d, const std::uint8_t *payload, std::size_t p
     d.sd_ipv4_endpoint_count = endpoint_count;
     d.sd_ipv4_multicast_count = multicast_count;
     d.sd_ipv4_endpoint_count_wire = wire_endpoints;
-
-    // SD_MESSAGE_09 cross-phase cache: an OfferService (entry type 0x01) carrying a
-    // UDP IPv4 Endpoint Option populates cached_offer_endpoint_udp_port; other
-    // frames leave it 0.
-    if (d.sd_entry_count > 0 && d.sd_entries[0].type == sd_entry_type::kOfferService) {
-        const SdOption &udp_endpoint =
-            d.sd_first_option_with_l4(sd_option_type::kIpv4Endpoint, sd_l4_proto::kUdp);
-        if (udp_endpoint.port != 0) {
-            d.cached_offer_endpoint_udp_port = udp_endpoint.port;
-        }
-    }
 }
 
 }  // namespace tc8
