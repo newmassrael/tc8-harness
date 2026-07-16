@@ -10,6 +10,7 @@
 #include <variant>
 #include <vector>
 
+#include "tc8/capture_stats.h"
 #include "tc8/captured_event.h"
 #include "tc8/pollable_service.h"
 
@@ -226,11 +227,28 @@ public:
     // "verdict-decider not retained" by the site walker.
     virtual void setNextPcapFrameIdx(int idx) = 0;
 
+    // Per-source capture accounting for this run, pushed by the CLI at capture
+    // teardown (the CLI owns the sources; the runner must not learn libpcap to
+    // report a number — same direction as `setNextPcapFrameIdx` above). Rides
+    // the trace so a verdict's evidence record states whether the observation
+    // underlying it was COMPLETE: a gap measured on a run that dropped frames is
+    // short by an unknown amount, and without this the false FAIL and the real
+    // violation are indistinguishable even with the pcap in hand.
+    //
+    // Empty (the default) means no source reported — the trace then says so
+    // rather than claiming a clean capture.
+    virtual void setCaptureStats(std::vector<::tc8::CaptureStats> stats) = 0;
+
     // Serialize the recorded transition trace as a JSON object compatible
     // with site/scripts/generate_messages.py's ``captured_trace`` schema.
     // Always returns valid JSON — at minimum
-    // ``{"schema_version":1,"steps":[]}`` for a case that fired no
-    // transitions before its deadline.
+    // ``{"schema_version":2,"final_state":"…","capture":[],"steps":[]}`` for a
+    // case that fired no transitions before its deadline.
+    //
+    // Schema 2 adds the run-level ``capture`` array (see `setCaptureStats`); it
+    // is purely additive, so a reader of the schema-1 keys is unaffected, and
+    // the version distinguishes "this trace can report capture loss" from an
+    // older one that simply could not.
     virtual std::string dumpTraceJson() const = 0;
 
     // The run-scoped pollable services a case adopted during kickStimulus (via
@@ -454,14 +472,42 @@ public:
         next_pcap_frame_idx_ = idx;
     }
 
+    void setCaptureStats(std::vector<::tc8::CaptureStats> stats) override {
+        capture_stats_ = std::move(stats);
+    }
+
     std::string dumpTraceJson() const override {
         std::string out;
         out.reserve(256 + trace_.size() * 192);
-        out.append("{\"schema_version\":1");
+        out.append("{\"schema_version\":2");
         out.append(",\"final_state\":\"");
         ::tc8::sce::appendJsonEscaped(
             out, StateMachine::PolicyType::getStateName(sm_.getCurrentState()));
-        out.append("\",\"steps\":[");
+        // Run-level capture accounting (schema 2). Always emitted — an empty
+        // array says "no source reported", which is a different and weaker claim
+        // than "nothing was dropped", and the reader must be able to tell.
+        // Per-source rather than summed so loss is attributed to the interface
+        // that suffered it.
+        out.append("\",\"capture\":[");
+        for (std::size_t i = 0; i < capture_stats_.size(); ++i) {
+            if (i != 0) out.append(",");
+            const auto &cs = capture_stats_[i];
+            out.append("{\"iface\":\"");
+            ::tc8::sce::appendJsonEscaped(out, cs.iface);
+            out.append("\",\"available\":");
+            out.append(cs.available ? "true" : "false");
+            // The counters are emitted ONLY when they mean something. A
+            // `frames_dropped_ring: 0` next to `available: false` would invite
+            // exactly the misreading this record exists to prevent — an
+            // unmeasured capture is not a clean one.
+            if (cs.available) {
+                ::tc8::sce::appendUintJson(out, ",\"frames_received\":", cs.frames_received);
+                ::tc8::sce::appendUintJson(out, ",\"frames_dropped_ring\":", cs.frames_dropped_ring);
+                ::tc8::sce::appendUintJson(out, ",\"frames_dropped_iface\":", cs.frames_dropped_iface);
+            }
+            out.append("}");
+        }
+        out.append("],\"steps\":[");
         for (std::size_t i = 0; i < trace_.size(); ++i) {
             if (i != 0) out.append(",");
             const auto &s = trace_[i];
@@ -679,6 +725,7 @@ private:
     // always hardcode ``-1`` (synthetic / timer-driven). ``onCaptured``
     // only reads it; never resets it.
     int                                next_pcap_frame_idx_ = -1;
+    std::vector<::tc8::CaptureStats>   capture_stats_;
     // Run-scoped background services a case adopted (via adoptService /
     // adoptObservingService): owns each pollable, RAII-destroyed here at TestRunner
     // teardown after the capture loop has returned, and fans captured frames out to

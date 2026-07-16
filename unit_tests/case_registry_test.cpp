@@ -36,8 +36,10 @@ public:
 
     void setNextPcapFrameIdx(int /*idx*/) override {}
 
+    void setCaptureStats(std::vector<::tc8::CaptureStats> /*stats*/) override {}
+
     std::string dumpTraceJson() const override {
-        return "{\"schema_version\":1,\"steps\":[]}";
+        return "{\"schema_version\":2,\"capture\":[],\"steps\":[]}";
     }
 
     std::vector<::tc8::IPollableService *> pollableServices() override {

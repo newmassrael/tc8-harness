@@ -8,6 +8,8 @@
 
 #include <pcap/pcap.h>
 
+#include "tc8/capture_stats.h"  // tc8::CaptureStats (neutral, libpcap-free leaf)
+
 namespace tc8::capture {
 
 class PcapSource {
@@ -46,6 +48,17 @@ public:
         return offline_;
     }
 
+    // Frame accounting for this source since the handle was activated — the
+    // per-run answer to "did the capture underlying the verdict lose frames?".
+    // Cheap (one syscall-ish read of counters libpcap already maintains), so
+    // the natural call site is teardown; there is no per-frame cost.
+    //
+    // Reports `available = false` rather than zeroes when the counters cannot be
+    // had — see `tc8::CaptureStats::available`. Offline replay is rejected up
+    // front because `pcap_stats` is documented to fail on a savefile: gating on
+    // `offline_` states that as intent instead of leaning on the error return.
+    ::tc8::CaptureStats stats() const;
+
     // libpcap timestamp precision for the underlying handle.
     // Returns `PCAP_TSTAMP_PRECISION_MICRO` (0) for live captures
     // (libpcap default) and `PCAP_TSTAMP_PRECISION_NANO` (1) for
@@ -70,10 +83,15 @@ public:
     }
 
 private:
-    PcapSource(pcap_t *h, bool offline) : handle_(h), offline_(offline) {}
+    PcapSource(pcap_t *h, bool offline, std::string iface)
+        : handle_(h), offline_(offline), iface_(std::move(iface)) {}
 
     pcap_t *handle_;
     bool offline_;
+    // The source `stats()` attributes its counters to. Held here because
+    // libpcap does not hand the device name back from an activated handle, and
+    // a multi-source run must say WHICH interface dropped.
+    std::string iface_;
 };
 
 }  // namespace tc8::capture

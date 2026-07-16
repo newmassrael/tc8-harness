@@ -17,6 +17,7 @@
 
 #include <pcap/pcap.h>
 
+#include "tc8/capture_stats.h"
 #include "tc8/captured_event.h"
 #include "tc8/pollable_service.h"
 
@@ -813,6 +814,20 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     //     budget is the deliberate observation bound, so reaching it means the
     //     purpose could not be decided -> INCONCLUSIVE. Never a false FAIL: the
     //     DUT was not shown to violate anything.
+    // Capture accounting, read once the dispatch loop is done and BEFORE any
+    // trace is serialised (the evidence print and the .trace.json sidecar both
+    // call dumpTraceJson below, and both must carry it). Cheap: libpcap already
+    // maintains these counters, so this is a teardown read with no per-frame
+    // cost. Both sources are reported — a run folding a second broadcast domain
+    // into the stream loses frames just as badly if the SECOND ring overflows,
+    // and only a per-source record says which one did.
+    std::vector<::tc8::CaptureStats> capture_stats;
+    capture_stats.push_back(src->stats());
+    if (src2) {
+        capture_stats.push_back(src2->stats());
+    }
+    runner->setCaptureStats(capture_stats);
+
     ::tc8::sce::Verdict verdict = runner->verdict();
     if (!runner->isDone()) {
         verdict = SignalGuard::stopRequested()
@@ -822,6 +837,22 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     }
     const std::string verdict_str = verdict.str();
     std::printf("verdict  : %s\n", verdict_str.c_str());
+    // After the verdict it qualifies, before the evidence it belongs to.
+    // Printed unconditionally, not only when frames were lost: a line that
+    // appears solely on loss is indistinguishable from a silently broken
+    // counter — the same "absence proves nothing" trap as the missing
+    // measurement itself. One line per source; a clean run stays one line.
+    for (const auto &cs : capture_stats) {
+        if (!cs.available) {
+            std::printf("capture  : %s stats unavailable\n", cs.iface.c_str());
+            continue;
+        }
+        std::printf("capture  : %s recv=%u drop=%u ifdrop=%u%s\n", cs.iface.c_str(),
+                    cs.frames_received, cs.frames_dropped_ring, cs.frames_dropped_iface,
+                    cs.lostFrames() ? "  WARNING: frames lost — a gap-derived verdict on this "
+                                      "run may be measured from a late anchor"
+                                    : "");
+    }
     // Surface the witnessing evidence on any non-pass verdict so a
     // value-comparison failure (e.g. a timing-window flake like
     // dut_*_interval_out_of_range) is self-diagnosing in the conformance

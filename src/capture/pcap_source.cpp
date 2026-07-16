@@ -54,7 +54,7 @@ std::unique_ptr<PcapSource> PcapSource::openLive(std::string_view iface, int sna
         pcap_close(h);
         throw std::runtime_error(msg);
     }
-    return std::unique_ptr<PcapSource>(new PcapSource(h, /*offline=*/false));
+    return std::unique_ptr<PcapSource>(new PcapSource(h, /*offline=*/false, std::string(iface)));
 }
 
 std::unique_ptr<PcapSource> PcapSource::openOffline(const std::filesystem::path &file) {
@@ -63,7 +63,27 @@ std::unique_ptr<PcapSource> PcapSource::openOffline(const std::filesystem::path 
     if (!h) {
         throw std::runtime_error("pcap_open_offline failed: " + std::string(errbuf));
     }
-    return std::unique_ptr<PcapSource>(new PcapSource(h, /*offline=*/true));
+    return std::unique_ptr<PcapSource>(new PcapSource(h, /*offline=*/true, file.string()));
+}
+
+::tc8::CaptureStats PcapSource::stats() const {
+    ::tc8::CaptureStats s;
+    s.iface = iface_;
+    // A savefile has no ring and no interface, so libpcap fails the call by
+    // contract. Leave `available` false — the honest "not measured", never a
+    // fabricated zero (see tc8::CaptureStats::available).
+    if (offline_) {
+        return s;
+    }
+    pcap_stat st{};
+    if (pcap_stats(handle_, &st) != 0) {
+        return s;
+    }
+    s.available = true;
+    s.frames_received = static_cast<std::uint32_t>(st.ps_recv);
+    s.frames_dropped_ring = static_cast<std::uint32_t>(st.ps_drop);
+    s.frames_dropped_iface = static_cast<std::uint32_t>(st.ps_ifdrop);
+    return s;
 }
 
 PcapSource::~PcapSource() {
