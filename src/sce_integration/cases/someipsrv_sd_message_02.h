@@ -70,7 +70,6 @@ struct TestCaseTraits<cases::SdMessage02SM>
         sm.step();
         if (sm.getCurrentState() != state_before) {
             c.snapshotFired();
-            c.prev_sd_session_id = c.session_id;
         }
     }
 

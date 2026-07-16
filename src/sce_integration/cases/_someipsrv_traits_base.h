@@ -63,15 +63,13 @@ struct SomeIpAnyBase {
         // `SomeIpCaptured::frame_delta_us()`. `snapshotFired()` runs only
         // when the SCXML transitioned on this frame so non-fired frames
         // (filter mismatches, cyclic offers between two phase
-        // boundaries) never pollute the delta; it also latches the delta
-        // this frame's cond read for the trace. The two SD landmarks
-        // alongside it are the SOME/IP-specific half of the same
-        // fired-transition bookkeeping. Mirrors the tcp_pilot_common /
-        // udp_pilot_common dispatch pattern.
+        // boundaries) never pollute the delta. It advances every
+        // "previous fired frame" landmark at once — the timing pair plus
+        // the SD ones — via `SomeIpCaptured`'s override, so this site
+        // states the fired-condition and nothing about the landmark set.
+        // Mirrors the tcp_pilot_common / udp_pilot_common pattern.
         if (sm.getCurrentState() != state_before) {
             c.snapshotFired();
-            c.prev_sd_session_id = c.session_id;
-            c.prev_tp_more_segments = c.tp_more_segments;
         }
     }
 };
@@ -102,8 +100,6 @@ struct SomeIpSdOnlyBase : SomeIpAnyBase<StateMachine> {
         sm.step();
         if (sm.getCurrentState() != state_before) {
             c.snapshotFired();
-            c.prev_sd_session_id = c.session_id;
-            c.prev_tp_more_segments = c.tp_more_segments;
         }
     }
 };

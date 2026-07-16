@@ -24,18 +24,26 @@ namespace tc8::sce {
 // SCXML and gate the matching transition with the appropriate
 // sub-context predicate.
 //
-// Inter-frame timing: each protocol manages its own `prev_observed_ts_us`
-// inside its sub-context, mirroring the existing single-protocol
-// behaviour. ARP-side `prev_observed_ts_us` updates are still the
-// caller's responsibility (consistent with §4.2 inline dispatch
-// convention); §4.7 frame timing stays auto-managed.
+// Inter-frame timing: each sub-context keeps its own fired-frame
+// landmarks, mirroring the single-protocol helpers — the §4.2 ARP branch
+// and the §4.7 DHCPv4 branch each call `snapshotFired()` on their own
+// sub-context when that frame advanced the state. The ARP branch used to
+// skip it entirely (deferred to the caller as an inline-dispatch
+// convention), which no caller discharged: `c.arp.prev_observed_ts_us`
+// never left 0, so the ARP half of this composite's trace reported
+// `frame_delta_us: 0` structurally and an ARP delta guard here would have
+// silently read 0. Symmetric now, so neither sub-context is a trap.
 template <typename SM>
 inline void dispatchArpAndDhcpv4Frame(typename SM::CapturedType& c, SM& sm,
                                       const ::tc8::CapturedEvent& ev) {
     if (const auto* a = std::get_if<::tc8::ArpFrame>(&ev)) {
         ::tc8::fillArpCapturedFromFrame(c.arp, *a);
+        const auto state_before = sm.getCurrentState();
         sm.raiseExternal(SM::PolicyType::Event::Arp_observed);
         sm.step();
+        if (sm.getCurrentState() != state_before) {
+            c.arp.snapshotFired();
+        }
         return;
     }
     if (const auto* d = std::get_if<::tc8::Dhcpv4Frame>(&ev)) {

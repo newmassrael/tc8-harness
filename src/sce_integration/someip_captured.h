@@ -137,6 +137,37 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     // byte-identical duplicate of it (same value, same snapshot point).
     bool          prev_tp_more_segments = false;
 
+    // The SOME/IP half of the fired-transition bookkeeping, completing the
+    // `CapturedFrameTiming::snapshotFired()` contract for this context: a
+    // transition fired on the current frame, so every "previous fired frame"
+    // landmark advances TOGETHER — the base's timing pair (which latches the
+    // delta before advancing) plus the two SD landmarks above.
+    //
+    // Deliberately HIDES the non-virtual base method rather than sitting
+    // beside it under a second name. Hiding is what makes the landmark set
+    // atomic: a dispatch site cannot advance the timestamps and forget the SD
+    // landmarks, because there is only one name to call. The three SOME/IP
+    // dispatch helpers previously inlined these two assignments next to the
+    // base call and had ALREADY drifted apart (one of the three omitted
+    // `prev_tp_more_segments`), which is the concrete argument for folding
+    // them in here rather than trusting each site to repeat the set.
+    //
+    // Hiding is safe here because nothing ever mutates the timing base through
+    // a `CapturedFrameTiming&` / `*`: the dispatch helpers call this on the
+    // concrete `Captured` type, and the only base-typed reference in the
+    // harness is `appendTimingJson`'s read-only `const&`. A future mutable
+    // base-typed path would silently skip the SD landmarks — add the landmark
+    // to `snapshotFired()`'s base contract instead of introducing one.
+    //
+    // Cannot be `virtual`: the Captured structs must stay C++17 aggregates for
+    // the `SomeIpCaptured c{}` value-init the runner relies on (see
+    // `CapturedFrameTiming`'s header comment), and a vptr would break that.
+    void snapshotFired() noexcept {
+        ::tc8::CapturedFrameTiming::snapshotFired();
+        prev_sd_session_id    = session_id;
+        prev_tp_more_segments = tp_more_segments;
+    }
+
     // Transport 4-tuple (`src_ip` / `dst_ip` / `src_port` / `dst_port`)
     // from the encapsulating UDP datagram or TCP segment is inherited
     // from `CapturedL3Endpoints` + `CapturedL4Ports`. §5.1.5.6 ONWIRE_01

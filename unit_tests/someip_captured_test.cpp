@@ -772,6 +772,35 @@ TEST(CapturedFrameTimingFiredDelta, NonFiringFrameDoesNotPolluteTheLatch) {
     EXPECT_EQ(jsonIntField(tick_step, "frame_delta_us"), 400'000LL);
 }
 
+TEST(CapturedFrameTimingFiredDelta, SomeIpAdvancesEveryLandmarkAtomically) {
+    // `SomeIpCaptured::snapshotFired()` hides the base method so the timing
+    // pair and the SD landmarks can never advance apart. Before they were
+    // folded in, the three SOME/IP dispatch sites repeated the two SD
+    // assignments by hand and had already drifted — one omitted
+    // `prev_tp_more_segments`. Pin the whole set to one call.
+    tc8::SomeIpCaptured c{};
+    c.observed_ts_us      = 1'700'000'000'000'000LL;
+    c.prev_observed_ts_us = c.observed_ts_us - 400'000LL;
+    c.session_id          = 0x0042;
+    c.tp_more_segments    = true;
+
+    c.snapshotFired();
+
+    EXPECT_EQ(c.fired_frame_delta_us, 400'000LL);          // base: latch
+    EXPECT_EQ(c.prev_observed_ts_us, c.observed_ts_us);    // base: prev
+    EXPECT_EQ(c.prev_sd_session_id, 0x0042);               // SD landmark
+    EXPECT_TRUE(c.prev_tp_more_segments);                  // SD landmark
+
+    // A second fired frame moves every landmark again, in lock-step.
+    c.observed_ts_us   = c.observed_ts_us + 250'000LL;
+    c.session_id       = 0x0043;
+    c.tp_more_segments = false;
+    c.snapshotFired();
+    EXPECT_EQ(c.fired_frame_delta_us, 250'000LL);
+    EXPECT_EQ(c.prev_sd_session_id, 0x0043);
+    EXPECT_FALSE(c.prev_tp_more_segments);
+}
+
 TEST(CapturedFrameTimingFiredDelta, LatchIsIndependentOfListenWindowDelta) {
     // The two deltas answer different questions and must not perturb each
     // other: `delta_from_listen_window_us` is derived from a stamp no dispatch
