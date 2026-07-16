@@ -26,7 +26,7 @@ namespace tc8::dut {
 // CLIENT-role IEtsClientControl (subscribe/stop, a subscription-status edge that
 // bounds the subscription lifetime by duration, plus an RPC call whose Response it
 // captures), and the inbound IEtsControlChannel (offers a control service so a
-// client-only DUT can be driven) — the client-role (CLT) topology shape: the
+// client-only DUT can be driven) — the client-role topology shape: the
 // tester drives a method, the DUT subscribes (for a bounded lifetime) or calls
 // back, and a readback method replies with what it observed.
 //

@@ -71,7 +71,7 @@ int main() {
     // well-defined.
     std::unique_ptr<tc8::dut::IEtsExtension> ets_extension = tc8::dut::createEtsExtension();
 
-    // Client-role (CLT) topology vs server role. In client-only mode the DUT is a
+    // Client-role topology vs server role. In client-only mode the DUT is a
     // pure CLIENT of the primary ETS service (0xF4E7) and must NOT offer it: a
     // local offer makes vsomeip satisfy the OEM client subscribe IN-PROCESS (local
     // Ack, no wire SubscribeEventgroup), so the tester (server) never sees it. The
@@ -115,7 +115,7 @@ int main() {
     std::unique_ptr<tc8::dut::IEtsEventSink> ets_sink =
         tc8::dut::makeEtsEventSink(tc8::dut::kServiceId, tc8::dut::kInstanceId);
 
-    // OEM client control (O2, CLT topology): the same CommonAPI-owned vsomeip
+    // OEM client control (O2, client-role topology): the same CommonAPI-owned vsomeip
     // application, used CLIENT-side so the extension can drive the DUT to subscribe
     // to / call a tester-offered service (no second app). Declared before the
     // extension context so it outlives the EtsExtensionContext that hands it to
@@ -123,7 +123,7 @@ int main() {
     std::unique_ptr<tc8::dut::IEtsClientControl> ets_client =
         tc8::dut::makeEtsClientControl();
 
-    // OEM inbound control channel (O2, CLT topology): offers a control service the
+    // OEM inbound control channel (O2, client-role topology): offers a control service the
     // tester drives a client-only DUT through (no second app — same CommonAPI-owned
     // application as the sink/client). Declared before the extension context so it
     // outlives the EtsExtensionContext that hands it to every hook.

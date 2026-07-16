@@ -127,14 +127,14 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
 
     // Snapshot of `tp_more_segments` from the previous fired TP-segment frame,
     // managed by the same dispatch hook that updates `prev_sd_session_id`, so a
-    // SOMEIPGEN_TP case can compare consecutive segments. TP_07 (More-Segments
-    // flag sequence — the final segment clears the flag a predecessor set) reads
+    // TP-segment case can compare consecutive segments. A More-Segments-sequence
+    // case (the final segment clears the flag a predecessor set) reads
     // `prev_tp_more_segments` (sentinel false on the first fired transition).
-    // TP_05 (all segments share one Session ID) needs NO TP-specific field: the
-    // unconditional `prev_sd_session_id` snapshot already holds the previous
-    // fired frame's session_id, so the case asserts `session_id ==
-    // prev_sd_session_id`. A dedicated prev_tp_session_id would be a
-    // byte-identical duplicate of it (same value, same snapshot point).
+    // A same-Session-ID case (all segments share one Session ID) needs NO
+    // TP-specific field: the unconditional `prev_sd_session_id` snapshot already
+    // holds the previous fired frame's session_id, so the case asserts
+    // `session_id == prev_sd_session_id`. A dedicated prev_tp_session_id would be
+    // a byte-identical duplicate of it (same value, same snapshot point).
     bool          prev_tp_more_segments = false;
 
     // The SOME/IP half of the fired-transition bookkeeping, completing the
@@ -293,25 +293,25 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
 
     // Returns true when this frame is the DUT's client-role Method Request to
     // `want_service_id` / `want_method_id`: a Request (0x00) or RequestNoReturn
-    // (0x01) carrying that service+method. In the SOMEIPCLT topology the DUT is
+    // (0x01) carrying that service+method. In the client-role topology the DUT is
     // the client, so this is the canonical recognizer for "the DUT called our
     // offered service" — the client-role mirror of is_offer_service_for. For a
     // Request (0x00) the reply target is this frame's src_ip / src_port (feed
     // emitMethodReply); a RequestNoReturn (0x01) gets NO reply per
     // PRS_SOMEIP_00701, so do not feed those to emitMethodReply. Single source
-    // of truth so CLT_RPC cases do not re-spell the type check.
+    // of truth so client-role RPC cases do not re-spell the type check.
     bool is_method_request_for(std::uint16_t want_service_id, std::uint16_t want_method_id) const {
         return service_id == want_service_id && method_id == want_method_id &&
                (message_type == static_cast<std::uint8_t>(someip::MessageType::REQUEST) ||
                 message_type == static_cast<std::uint8_t>(someip::MessageType::REQUEST_NO_RETURN));
     }
 
-    // --- SOMEIPCLT DUT client-role SD recognizers ---
+    // --- DUT client-role SD recognizers ---
     //
-    // In the CLT topology the DUT is the client: it emits FindService (0x00),
+    // In the client-role topology the DUT is the client: it emits FindService (0x00),
     // SubscribeEventgroup (0x06, ttl > 0) and StopSubscribeEventgroup (0x06,
     // ttl == 0 — same entry type, TTL discriminates). These mirror
-    // is_offer_service_for for the inbound DUT direction so a CLT case answers
+    // is_offer_service_for for the inbound DUT direction so a client-role case answers
     // (emitSubscribeEventgroupAck / emitMethodReply) without re-spelling the
     // entry-type + id checks. The reply target is this frame's src_ip / src_port.
     // `want_service_id == 0xFFFF` matches any service (a wildcard FindService).

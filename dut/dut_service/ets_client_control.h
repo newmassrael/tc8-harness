@@ -14,7 +14,7 @@ namespace tc8::dut {
 // tester-offered eventgroup (so vsomeip emits a SubscribeEventgroup SD entry) and
 // stop that subscription (StopSubscribe), and issue an RPC Request to a tester
 // method and capture its Response/Error. It is the missing call site the
-// client-role (CLT) topology needs — the DUT is the client there, and the
+// client-role topology needs — the DUT is the client there, and the
 // existing in-tree client paths (the ets3 CommonAPI proxy, the raw-UDP
 // FindService runner) target a HARDCODED service/eventgroup, so they cannot
 // drive an arbitrary subscribe or call.

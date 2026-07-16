@@ -78,7 +78,7 @@ public:
     // `reserved` sets the TP header's 3 Reserved bits (PRS_SOMEIP Table 4.8) on every
     // segment — only its low 3 bits are used; 0 (the default) is the spec-conformant
     // wire. A non-zero value drives a negative test that the receiver IGNORES Reserved
-    // (the Reassembler / parseTpHeader mask it off), e.g. SOMEIPGEN_TP_11.
+    // (the Reassembler / parseTpHeader mask it off).
     std::vector<std::vector<std::uint8_t>> segment(const MessageHeader& hdr,
                                                    const std::uint8_t* payload,
                                                    std::size_t len,

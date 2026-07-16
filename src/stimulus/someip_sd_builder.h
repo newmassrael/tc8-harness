@@ -575,7 +575,7 @@ int emitMultiSubscribeEventgroupRaw(std::string_view iface,
                                         std::chrono::milliseconds(500),
                                     const SubscribeDestination &dest = {});
 
-// --- Tester SERVER-role SD answer surface (SOMEIPCLT topology) ---
+// --- Tester SERVER-role SD answer surface (client-role topology) ---
 //
 // In the SERVER-role (tester-offers, DUT-subscribes) topology the DUT issues a
 // SubscribeEventgroup and the tester must answer with a SubscribeEventgroupAck

@@ -516,7 +516,7 @@ TEST(SomeIpCapturedTp, StaleStateClearedOnNonTpFrame) {
     EXPECT_EQ(c.tp_segment_len, 0u);
 }
 
-// SOMEIPCLT: the DUT acts as client and capture must surface its Method Request
+// Client-role topology: the DUT acts as client and capture must surface its Method Request
 // as a DUT-as-source frame — full header + the src_ip/src_port reply target that
 // feeds emitMethodReply. Capture is direction-agnostic, so the same
 // fillSomeIpCapturedFromFrame path that records DUT responses records DUT
@@ -819,7 +819,7 @@ TEST(CapturedFrameTimingFiredDelta, LatchIsIndependentOfListenWindowDelta) {
     EXPECT_EQ(jsonIntField(json, "delta_from_listen_window_us"), 3'100'000LL);
 }
 
-// SOMEIPCLT DUT client-role SD recognizers: the DUT FindServices, Subscribes and
+// DUT client-role SD recognizers: the DUT FindServices, Subscribes and
 // StopSubscribes; these distinguish the three over the shared SD header
 // (service_id 0xFFFF) and the first entry's type / TTL.
 TEST(SomeIpCapturedDutSdRecognizers, FindSubscribeStopDiscriminated) {

@@ -69,9 +69,9 @@ struct SomeIpRpcMessage {
 // per SOME/IP §4.1.
 std::vector<std::uint8_t> buildMethodRequest(const SomeIpRpcMessage &t);
 
-// --- Tester server-role reply builders (SOMEIPCLT topology) ---
+// --- Tester server-role reply builders (client-role topology) ---
 //
-// In the SOMEIPCLT cases the tester offers the service and the DUT is the
+// In the client-role topology the tester offers the service and the DUT is the
 // client: the DUT issues a Method Request and the tester answers. Per
 // PRS_SOMEIP_00701 a Request (message type 0x00) is answered by a Response
 // (0x80) when no error occurred, or an Error (0x81) when one did. The reply
@@ -81,7 +81,7 @@ std::vector<std::uint8_t> buildMethodRequest(const SomeIpRpcMessage &t);
 // identity.
 //
 // Both reuse the `buildMethodRequest` header core (one SOME/IP framing SSOT)
-// and honour `length_override`, so the CLT_RPC negative cases drive
+// and honour `length_override`, so the client-role RPC negative cases drive
 // deliberately-malformed replies through the same axis as the request side.
 
 // Method Response (PRS_SOMEIP_00701 message type 0x80). Forces message_type
@@ -117,7 +117,7 @@ std::vector<std::uint8_t> buildEventNotification(SomeIpRpcMessage t);
 // a hardcoded address.
 using MethodEndpoint = Endpoint;
 
-// Tester server-role reply EMIT (SOMEIPCLT). Sends a Response/Error datagram
+// Tester server-role reply EMIT (client-role topology). Sends a Response/Error datagram
 // (from buildMethodResponse/Error) back to the DUT client that issued the
 // request. Unlike emitMethodRequestAfter (client role, ephemeral source port),
 // a server reply originates from the tester's offered service port
@@ -128,7 +128,7 @@ using MethodEndpoint = Endpoint;
 int emitMethodReply(std::string_view iface, const std::vector<std::uint8_t> &reply,
                     std::uint16_t service_src_port, const MethodEndpoint &client_dest);
 
-// Tester server-role event Notification EMIT (SOMEIPCLT). Delivers a Notification
+// Tester server-role event Notification EMIT (client-role topology). Delivers a Notification
 // (from `buildEventNotification`) from the tester's offered event source port
 // `service_src_port` to the subscribed DUT's endpoint `client_dest` — the
 // endpoint the DUT advertised in its SubscribeEventgroup option. Shares the

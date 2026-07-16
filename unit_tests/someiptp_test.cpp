@@ -107,9 +107,10 @@ TEST(SomeipTpSegmenter, RejectsNullPayloadWithLen) {
     EXPECT_THROW(seg.segment(hdr(), nullptr, 8), std::invalid_argument);
 }
 
-// SOMEIPGEN_TP_11: a tester sets the TP Reserved field non-zero and the receiver MUST
-// ignore it. The reserved override writes bits 3..1 of the TP word; Offset (bits 31..4)
-// and More (bit 0) are untouched, and parseTpHeader (the receiver's decode) masks it off.
+// TP Reserved-ignored negative: a tester sets the TP Reserved field non-zero and the
+// receiver MUST ignore it. The reserved override writes bits 3..1 of the TP word; Offset
+// (bits 31..4) and More (bit 0) are untouched, and parseTpHeader (the receiver's decode)
+// masks it off.
 TEST(SomeipTpSegmenter, ReservedOverrideSetsBitsYetParsesIgnored) {
     const Segmenter seg{16};
     const auto payload = ramp(40);  // -> 3 segments at offsets 0/16/32, More 1/1/0

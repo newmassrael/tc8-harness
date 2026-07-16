@@ -15,7 +15,7 @@ namespace tc8::stimulus {
 namespace {
 
 // Identity of a Method Request the DUT (client role) would send to the
-// tester-server in the SOMEIPCLT topology. Non-default client_id/session_id
+// tester-server in the client-role topology. Non-default client_id/session_id
 // so the echo-into-reply assertions catch a swapped or dropped Request ID.
 // service/method mirror tc8-dut's echoUINT8 (the reply carries the same
 // Message ID per SOME/IP Request ID semantics).

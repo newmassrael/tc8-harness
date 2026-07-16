@@ -15,7 +15,7 @@ namespace tc8::dut {
 // IEtsClientControl (client-role outbound subscribe/call). It exists for ONE
 // concern the other two cannot serve: letting a tester drive a CLIENT-only DUT.
 //
-// In the client-role (CLT) topology the DUT offers no event surface of its own,
+// In the client-role topology the DUT offers no event surface of its own,
 // so the server sink's onMethod never receives a Request — there is no offered
 // service for the tester's method to land on. This seam offers a SEPARATE control
 // service (a distinct id that is NOT a subscribe target) and routes a method on

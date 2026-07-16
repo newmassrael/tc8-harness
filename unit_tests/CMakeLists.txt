@@ -196,7 +196,7 @@ add_test(NAME ets_emission_test COMMAND ets_emission_test)
 
 # DUT client-role Method Request wire builder (dut/dut_service/client_mode.*).
 # Self-contained raw-UDP firmware (no CommonAPI/vsomeip), compiled directly like
-# ets_emission_test. Pins the SOMEIPCLT outbound call wire layout.
+# ets_emission_test. Pins the client-role outbound call wire layout.
 add_executable(client_mode_wire_test
     client_mode_wire_test.cpp
     ${PROJECT_SOURCE_DIR}/dut/dut_service/client_mode.cpp)
@@ -286,11 +286,11 @@ tc8_add_unit_test(arp_responder_test)
 # built Eth+IPv4+UDP+SOME/IP Request frame, with no privilege. The live AF_PACKET
 # socket plumbing shares the ArpResponder pattern (privileged path covered there).
 tc8_add_unit_test(method_responder_test)
-# Tester-as-TCP-server accept surface (SOMEIPCLT): TcpServer/TcpConnection over a
+# Tester-as-TCP-server accept surface (client-role topology): TcpServer/TcpConnection over a
 # loopback round-trip — accept + peer endpoint, server send, peer-FIN observe,
 # multi-accept. No privilege (loopback only); no DUT required.
 tc8_add_unit_test(tcp_server_test)
-# Autonomous TCP-accept adapter (SOMEIPCLT): TcpAcceptService folds a non-blocking
+# Autonomous TCP-accept adapter (client-role topology): TcpAcceptService folds a non-blocking
 # accept into the capture-loop drain (IPollableService) so a DUT that opens the
 # reliable connection on its own schedule is accepted without blocking. Loopback
 # round-trip, no privilege, no DUT.

@@ -62,7 +62,7 @@ using TcpAcceptHandler = std::function<void(TcpConnection)>;
 // need only bind the tester's offered service endpoint.
 //
 // CONSUMER STATUS: this is the public, NDA-clean accept seam for autonomous
-// SOMEIPCLT cases; the production driver (a DUT-in-client-role case) is
+// client-role cases; the production driver (a DUT-in-client-role case) is
 // out-of-tree. No in-tree case adopts it yet — its in-tree contract is the
 // hermetic loopback unit test (unit_tests/tcp_accept_service_test.cpp). Land an
 // in-tree consumer alongside the first case that needs it.

@@ -17,7 +17,7 @@ namespace tc8::stimulus {
 // `max_segment_payload` is the per-non-last-segment payload cap (a non-zero multiple of
 // 16; default the spec-recommended 1392). `reserved` sets the TP header's 3 Reserved
 // bits on every segment (default 0 = conformant; non-zero drives the "receiver must
-// ignore Reserved" negative, e.g. SOMEIPGEN_TP_11). Returns 0 when every segment was
+// ignore Reserved" negative). Returns 0 when every segment was
 // sent, or the first negative sendUdpUnicast sentinel on failure (remaining segments are
 // not sent). Propagates the Segmenter's exceptions on a bad max_segment_payload or an
 // over-long payload (see someiptp::Segmenter).

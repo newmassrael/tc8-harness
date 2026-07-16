@@ -40,7 +40,7 @@ inline constexpr const char* kInterfaceSi2 = "org.tc8.ets2.EnhancedTestability2:
 }  // namespace ets_deploy
 
 // The DUT's SERVER role: everything that exists ONLY when the DUT offers the ETS
-// service — i.e. NOT in the client-only (CLT) topology. Bundles the registered
+// service — i.e. NOT in the client-only topology. Bundles the registered
 // primary stub, the optional second instance / second service, the single
 // event-emission engine, and the suspendInterface re-offer wiring into one
 // object, so dut_main no longer threads scattered `if (!client_only)` guards

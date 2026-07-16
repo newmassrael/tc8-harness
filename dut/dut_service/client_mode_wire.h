@@ -23,7 +23,7 @@ struct MethodCall {
 };
 
 // The datagram the DUT sends when it calls a method on the tester's offered
-// service (SOMEIPCLT). Builds the 16-byte SOME/IP header via someip::appendHeader
+// service (DUT in client role). Builds the 16-byte SOME/IP header via someip::appendHeader
 // — the shared wire SSOT, so the firmware and the tester's buildMethodRequest
 // cannot drift — plus the payload. Length field = 8 + payload.size() (Request ID
 // through the end); return_code is E_OK and protocol/interface version are 0x01.
