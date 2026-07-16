@@ -1180,9 +1180,13 @@ run_case() {
     # multicast membership the kernel keeps across an IFF_UP down/up (an `ip addr
     # flush` does NOT free it — verified), which would otherwise make the next case's
     # DUT hit EADDRINUSE on IP_ADD_MEMBERSHIP and never emit its FindService; a fresh
-    # netns has no such residue. The per-case neigh flush and the teardown sysctl
-    # restores below are narrower cross-case-leak point-fixes this SUBSUMES — kept for
-    # now as belt-and-suspenders, retired once CI confirms the rebuild regression-free.
+    # netns has no such residue. The narrower cross-case-leak point-fixes this
+    # SUBSUMES — the per-case DUT neigh flush and the DUT-side teardown sysctl
+    # restores — were RETIRED once CI confirmed the rebuild regression-free; each
+    # former site now states why it needs nothing ("no restore needed: the per-case
+    # netns rebuild at run_case top resets it"). What deliberately REMAINS is the
+    # TESTER-side arp_ignore restore in run_negative_case: the rebuild owns the DUT
+    # netns, not the tester config, so that one is not subsumed and must stay.
     # TOPOLOGY_DUT_CONDITIONING=1 holds only for single-pc (the one topology that owns
     # the netns and reuses it across cases); ssh-remote/external/lwip-tap set it 0
     # (remote or persistent DUT — no netns of ours to rebuild), exactly where the
@@ -1286,9 +1290,13 @@ run_case() {
     fi
 
     # §4.5 IPv4_AUTOCONF cluster: the tc8-dut's UT-Confirmation reply
-    # (sendResponse → sendto) goes through the kernel stack, which
-    # after the per-case DUT-side `neigh flush` above has no entry for
-    # the tester. The kernel then emits its own ARP Request to resolve
+    # (sendResponse → sendto) goes through the kernel stack, whose neigh
+    # cache the per-case netns rebuild above leaves cold — so it has no
+    # entry for the tester. (The rebuild is why; the per-case DUT-side
+    # `neigh flush` that used to be the reason was retired as subsumed.
+    # Same precondition, and the pin below is gated on the same
+    # TOPOLOGY_DUT_CONDITIONING=1 that gates the rebuild.)
+    # The kernel then emits its own ARP Request to resolve
     # <tester_ip> — eth_src=DUT_MAC, sender_proto_ip=DUT_IP,
     # target=tester_ip, which DOES match the cluster A field-shape
     # filter (`opcode==1 AND eth_src==DUT_MAC`) and breaks _01/_06/_08
