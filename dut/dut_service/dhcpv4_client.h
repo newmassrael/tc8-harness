@@ -402,8 +402,14 @@ private:
                               std::uint32_t server_id_be,
                               std::uint32_t lease_seconds);
 
-    // Send raw Ethernet frame on iface_ via AF_PACKET SOCK_RAW.
+    // Send raw Ethernet frame on iface_ via AF_PACKET SOCK_RAW, over the
+    // long-lived `raw_sk_` (opened on first use). See `raw_sk_` for why the
+    // socket is NOT created per message.
     int sendRaw(const std::uint8_t* frame, std::size_t len);
+
+    // Close `raw_sk_` and forget the cached ifindex. Safe to call when already
+    // closed. Only from a point where `worker_` is not running (bind / dtor).
+    void closeRawSocket();
 
     // §4.7.6.7 CM_05/_06 / RFC 2131 §3.5 BOUND application of Option 3
     // (Router). Installs a default route via `gateway_be` on `iface_`
@@ -424,6 +430,31 @@ private:
 
     std::string iface_;
     std::array<std::uint8_t, 6> dut_mac_{};
+
+    // Long-lived send-only AF_PACKET socket + the ifindex it was resolved for,
+    // opened lazily on the first `sendRaw` and reused for every emit.
+    //
+    // NOT one socket per message: closing an AF_PACKET socket makes the kernel
+    // run a `synchronize_net()` RCU grace period, measured on this host at
+    // p50 32 ms / max 60 ms. Per message that cost lands between the wire
+    // `sendto` and the next timer's start — i.e. inside the very interval a
+    // retransmission-cadence assertion measures — biasing every emitted gap by
+    // ~32 ms. It made CONSTRUCTING_MESSAGES_13 fail whenever the RFC 2131 §4.1
+    // jitter drew near its legal maximum: the DUT intended <= 5000 ms and the
+    // wire showed 5028 ms against a [3, 5] s window.
+    //
+    // Protocol 0, deliberately NOT ETH_P_ALL: a long-lived ETH_P_ALL socket
+    // would queue every packet on the host into a receive buffer nothing
+    // drains. The per-message version got away with ETH_P_ALL only because it
+    // closed immediately. 0 receives nothing and sends identically — SOCK_RAW
+    // sends the caller's frame verbatim and takes the egress link from
+    // `sockaddr_ll::sll_ifindex`, so the socket's protocol is never consulted.
+    //
+    // Touched only by `worker_` (every emit path runs inside `runLoop`), so no
+    // lock; `bind()` and the destructor close it while that thread is not
+    // running.
+    int raw_sk_  = -1;
+    int ifindex_ = -1;
 
     // §4.7 Phase F fault selectors. Copied from `Params` at runLoop entry.
     // `flavor_` is read by `emitDhcpMessage` (DISCOVER / SELECTING /
