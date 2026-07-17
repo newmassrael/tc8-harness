@@ -132,6 +132,27 @@ ip -n "$TESTER_NS" addr add "$TC8_WIRE_TESTER_ALIAS_IP/24" dev "$TESTER_L3IF"
 ip netns exec "$TESTER_NS" ethtool -K "$VETH_T" tx off >/dev/null 2>&1 || true
 ip netns exec "$DUT_NS"    ethtool -K "$VETH_D" tx off >/dev/null 2>&1 || true
 
+# Cap segmentation offload to the MTU on both veth ends, so what the capture
+# sees is what a real link would carry.
+#
+# veth defaults to a 64 KB gso_max_size, and AF_PACKET taps the TX path BEFORE
+# segmentation — so a large write reaches pcap as ONE super-frame that no wire
+# could carry. Measured on this veth shape: a 20 MB transfer arrived as 450
+# frames with a 65226-byte maximum; capped, the same transfer is 17323 frames
+# of at most 1514. A wire-conformance harness must observe the wire, not the
+# kernel's pre-segmentation skb.
+#
+# Uses `ip link`, NOT ethtool -K gso/tso: ethtool is not installed on the
+# self-hosted runner, so the `|| true` above is a silent no-op there and this
+# must not inherit that fate. `gso_max_size` is set through the netlink path
+# iproute2 already relies on for every other line in this script.
+#
+# Second-order benefit this unlocks: with no super-frames the capture snaplen no
+# longer has to be 65535, which is what forces libpcap into TPACKET_V2's
+# fixed 64 KB ring slots — the reason a 16 MB ring holds only 256 frames.
+ip netns exec "$TESTER_NS" ip link set dev "$VETH_T" gso_max_size 1500
+ip netns exec "$DUT_NS"    ip link set dev "$VETH_D" gso_max_size 1500
+
 # Enable gratuitous-ARP learning on the DUT interface (required by TC8
 # §4.2.4.1 ARP_05/06). Default `arp_accept=0` means Linux silently drops
 # gratuitous Responses for IPs not already in the neigh cache — the
@@ -197,6 +218,11 @@ if [[ "$SECOND_VETH" == 1 ]]; then
     ip -n "$DUT_NS"    addr add "$DUT_IP2"    dev "$VETH_D2"
     ip netns exec "$TESTER_NS" ethtool -K "$VETH_T2" tx off >/dev/null 2>&1 || true
     ip netns exec "$DUT_NS"    ethtool -K "$VETH_D2" tx off >/dev/null 2>&1 || true
+    # Same MTU-capped segmentation as the primary pair — the second broadcast
+    # domain is folded into the SAME capture stream, so a super-frame here would
+    # be just as unwireable. See the primary pair's comment above.
+    ip netns exec "$TESTER_NS" ip link set dev "$VETH_T2" gso_max_size 1500
+    ip netns exec "$DUT_NS"    ip link set dev "$VETH_D2" gso_max_size 1500
     ip netns exec "$DUT_NS" sysctl -wq "net.ipv4.conf.${VETH_D2}.arp_accept=1" >/dev/null
     ip netns exec "$DUT_NS" sysctl -wq "net.ipv4.neigh.${VETH_D2}.delay_first_probe_time=30" >/dev/null
     ip netns exec "$TESTER_NS" sysctl -wq "net.ipv4.neigh.${VETH_T2}.ucast_solicit=0" >/dev/null
