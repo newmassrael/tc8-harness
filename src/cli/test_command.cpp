@@ -23,6 +23,7 @@
 
 #include "capture/bpf_filter.h"
 #include "capture/pcap_source.h"
+#include "net/link_control.h"  // captureSnaplenFor
 #include "cli/expect_parser.h"
 #include "cli/signal_handler.h"
 #include "dissect/packet_pipeline.h"
@@ -488,7 +489,13 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     std::printf("source   : test live (%s)\n", iface_.c_str());
     std::printf("bpf      : %s\n", bpf.c_str());
 
-    auto src = capture::PcapSource::openLive(iface_, /*snaplen=*/65535,
+    // Snaplen from the link's own MTU, not a blanket 65535 — see
+    // tc8::net::captureSnaplenFor: immediate mode forces TPACKET_V2's fixed
+    // snaplen-sized ring slots, so 65535 shrinks a 16 MB ring to ~256 frames.
+    // 65535 stays the fallback for an unreadable MTU (never assume "small").
+    const unsigned snaplen = ::tc8::net::captureSnaplenFor(iface_, 65535);
+    std::printf("snaplen  : %u (iface mtu %u)\n", snaplen, ::tc8::net::linkMtu(iface_));
+    auto src = capture::PcapSource::openLive(iface_, static_cast<int>(snaplen),
                                              /*read_timeout_ms=*/100);
     src->applyBpf(bpf);
     SignalGuard guard(*src);
@@ -506,9 +513,12 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     std::unique_ptr<capture::PcapSource> src2;
     int dlt2 = DLT_EN10MB;
     if (!iface_secondary_.empty()) {
-        src2 = capture::PcapSource::openLive(iface_secondary_,
-                                              /*snaplen=*/65535,
-                                              /*read_timeout_ms=*/100);
+        // Sized from the SECOND link's own MTU: the two need not match, and a
+        // shared snaplen would either cut the larger or waste slots on the smaller.
+        src2 = capture::PcapSource::openLive(
+            iface_secondary_,
+            static_cast<int>(::tc8::net::captureSnaplenFor(iface_secondary_, 65535)),
+            /*read_timeout_ms=*/100);
         src2->applyBpf(bpf);
         dlt2 = src2->datalink();
     }
