@@ -199,13 +199,16 @@ thing.
 
 Cases: ARP_39, ARP_40.
 
-Override the MAC the SCXML compares the DUT's UDP egress eth_dst against. Without
-`arp_ignore=8` (`run_negative_case` omits the per-case toggle to keep the runtime
-path symmetric with other negatives), the DUT learns the tester KERNEL's MAC from
-the auto-Reply race; that lladdr != the wrong overridden value, so the SCXML lands
-on `fail:udp_eth_dst_not_injected_macN` — the intended fail branch. The test
-asserts the dependency on the per-case MAC expectation, not on the cache
-stickiness mechanism the positive path exercises.
+Override the MAC the SCXML compares the DUT's UDP egress eth_dst against. The
+negative run applies the SAME `arp_ignore=8` tester conditioning as the positive
+path (conditioning is keyed on the case id, not on positive/negative), which
+suppresses the tester kernel's own ARP replies so the DUT's neighbour entry keeps
+the injected MAC rather than being overridden by a kernel auto-reply. The fail is
+driven by the override alone: `arp.tester_mac2` is set to a wrong value, so the
+SCXML's expected eth_dst no longer matches the DUT's actual — and correct — UDP
+egress, and the case lands on `fail:udp_eth_dst_not_injected_macN`. The test
+asserts the dependency on the per-case MAC expectation, not on the cache-stickiness
+mechanism the positive path exercises.
 
 ## ARP_45 — two-Request target_hw check
 
