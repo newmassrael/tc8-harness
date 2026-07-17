@@ -41,18 +41,14 @@ using ::tc8::wire::writeBe16;
 LinklocalAutoconf::LinklocalAutoconf() = default;
 
 LinklocalAutoconf::~LinklocalAutoconf() {
-    // abort() joins worker_ first, so the only thread that touches raw_sk_ is
-    // gone before we close it.
+    // abort() joins worker_ first, so the only thread that drives raw_tx_ is
+    // gone before its destructor closes the socket.
     abort();
-    closeRawSocket();
 }
 
 void LinklocalAutoconf::bind(std::string iface,
                               std::array<std::uint8_t, 6> dut_mac,
                               std::uint32_t dut_iface_ip_be) {
-    // The cached socket resolved its ifindex from the OLD iface_; a re-bind to
-    // a different interface would otherwise keep emitting on the old link.
-    closeRawSocket();
     iface_           = std::move(iface);
     dut_mac_         = dut_mac;
     dut_iface_ip_be_ = dut_iface_ip_be;
@@ -102,39 +98,8 @@ std::uint32_t LinklocalAutoconf::pickLLAddress() {
     return htonl(0xA9FE0000U | (x << 8) | y);
 }
 
-void LinklocalAutoconf::closeRawSocket() {
-    if (raw_sk_ >= 0) {
-        ::close(raw_sk_);
-        raw_sk_ = -1;
-    }
-    ifindex_ = -1;
-}
-
 int LinklocalAutoconf::sendRaw(const std::uint8_t* frame, std::size_t len) {
-    // Open once, reuse. Socket and ifindex depend only on `iface_`, which
-    // `bind()` fixes for the object's life (and invalidates this cache on
-    // change). See `raw_sk_` in the header for why a per-message socket biased
-    // the emitted Probe/Announce cadence by ~32 ms.
-    if (raw_sk_ < 0) {
-        raw_sk_ = ::socket(AF_PACKET, SOCK_RAW, 0);
-        if (raw_sk_ < 0) return -1;
-        ifreq ifr{};
-        std::strncpy(ifr.ifr_name, iface_.c_str(), IFNAMSIZ - 1);
-        if (::ioctl(raw_sk_, SIOCGIFINDEX, &ifr) < 0) {
-            closeRawSocket();
-            return -2;
-        }
-        ifindex_ = ifr.ifr_ifindex;
-    }
-
-    sockaddr_ll dest{};
-    dest.sll_family   = AF_PACKET;
-    dest.sll_ifindex  = ifindex_;
-    dest.sll_halen    = 6;
-    std::memcpy(dest.sll_addr, frame, 6);  // Eth dst from frame head
-    ssize_t rc = ::sendto(raw_sk_, frame, len, 0,
-                          reinterpret_cast<sockaddr*>(&dest), sizeof(dest));
-    return rc < 0 ? -3 : 0;
+    return raw_tx_.send(iface_, frame, len);
 }
 
 void LinklocalAutoconf::emitArpProbe(std::uint32_t tentative_ll_be,

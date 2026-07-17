@@ -1,9 +1,10 @@
+#include "net/raw_packet_socket.h"
+
 #include "stimulus/arp_builder.h"
 
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
-#include <linux/if_packet.h>
 #include <net/ethernet.h>
 #include <net/if.h>
 #include <netinet/in.h>
@@ -99,57 +100,25 @@ std::vector<std::uint8_t> buildGratuitousArpResponse(const std::array<std::uint8
 }
 
 int sendRawEthernet(const std::vector<std::uint8_t> &frame, std::string_view iface) {
-    const int sock = ::socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
-    if (sock < 0) {
-        std::fprintf(stderr, "stimulus: socket(AF_PACKET) failed: %s\n", std::strerror(errno));
-        return -1;
+    // One socket per thread, reused across emits, instead of one per frame.
+    // The teardown of a per-frame AF_PACKET socket costs a synchronize_net()
+    // RCU grace period (measured p50 32 ms) and lands inside whatever cadence
+    // the caller is timing — see tc8::net::RawPacketSocket, which is also what
+    // the DUT's two emitters now share, so this frame-building path and the
+    // firmware cannot drift on how a frame reaches the wire.
+    //
+    // thread_local, not a bare static: the stimulus runs on the capture thread
+    // but nothing in the type's contract promises one. Worst case (a caller
+    // alternating interfaces) it re-binds per emit, i.e. exactly the old cost —
+    // never worse. Return codes are unchanged: -1 socket, -2 ifindex, -3 send.
+    static thread_local ::tc8::net::RawPacketSocket tx;
+    const int rc = tx.send(iface, frame.data(), frame.size());
+    if (rc < 0) {
+        std::fprintf(stderr, "stimulus: raw emit on '%.*s' failed at step %d: %s (%zu B)\n",
+                     static_cast<int>(iface.size()), iface.data(), rc, std::strerror(errno),
+                     frame.size());
     }
-
-    const unsigned int ifindex = ::if_nametoindex(std::string(iface).c_str());
-    if (ifindex == 0) {
-        std::fprintf(stderr, "stimulus: if_nametoindex('%.*s') failed: %s\n", static_cast<int>(iface.size()),
-                     iface.data(), std::strerror(errno));
-        ::close(sock);
-        return -2;
-    }
-
-    // Read the 16-bit ethertype from the Ethernet-II header at offset
-    // 12..13 so this injector works for any L2 frame the stimulus
-    // builders emit (ARP 0x0806, IPv4 0x0800, ...). sll_protocol is a
-    // hint the kernel passes down to drivers that implement offload/
-    // filtering by ethertype; for raw injection on veth the frame's own
-    // EtherType field is authoritative, but keeping sll_protocol aligned
-    // avoids any ambiguity across iproute/kernel versions.
-    std::uint16_t ethertype_host = 0;
-    if (frame.size() >= 14) {
-        ethertype_host = static_cast<std::uint16_t>((static_cast<std::uint16_t>(frame[12]) << 8) | frame[13]);
-    }
-
-    sockaddr_ll dst{};
-    dst.sll_family = AF_PACKET;
-    dst.sll_protocol = htons(ethertype_host);
-    dst.sll_ifindex = static_cast<int>(ifindex);
-    dst.sll_halen = 6;
-    // sll_addr is the link-layer destination; the kernel uses it when the
-    // frame is delivered over interfaces that require it (e.g. hardware
-    // MACs on physical adapters). For raw Ethernet injection on veth the
-    // destination in the frame header itself is authoritative; copying
-    // the first 6 bytes of the frame's eth-dst field keeps both in sync.
-    for (int i = 0; i < 6 && i < static_cast<int>(frame.size()); ++i) {
-        dst.sll_addr[i] = frame[static_cast<std::size_t>(i)];
-    }
-
-    const ssize_t n =
-        ::sendto(sock, frame.data(), frame.size(), 0, reinterpret_cast<sockaddr *>(&dst), sizeof(dst));
-    const int saved_errno = errno;
-    ::close(sock);
-
-    if (n < 0 || static_cast<std::size_t>(n) != frame.size()) {
-        std::fprintf(stderr, "stimulus: sendto(AF_PACKET %.*s) failed: %s (sent=%zd of %zu)\n",
-                     static_cast<int>(iface.size()), iface.data(), std::strerror(saved_errno), n, frame.size());
-        return -3;
-    }
-    return 0;
+    return rc;
 }
 
 int emitArpLearningBoot(std::string_view iface, std::uint32_t tester_ip_be, std::uint32_t dut_ip_be,

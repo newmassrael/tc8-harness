@@ -11,6 +11,8 @@
 #include "tc8/rfc3927_constants.h"
 #include "tc8/upper_tester_protocol.h"
 
+#include "net/raw_packet_socket.h"
+
 namespace tc8::dut {
 
 // TC8 §4.5 IPv4 Link-Local Autoconfiguration (RFC 3927) tc8-dut
@@ -182,13 +184,7 @@ private:
     // + DUT MAC so successive case runs see different picks.
     std::uint32_t pickLLAddress();
 
-    // Close `raw_sk_` and forget the cached ifindex. Safe when already closed.
-    // Only from a point where `worker_` is not running (bind / dtor).
-    void closeRawSocket();
-
-    // Send raw Ethernet frame on iface_ via AF_PACKET SOCK_RAW, over the
-    // long-lived `raw_sk_` (opened on first use). See `raw_sk_` for why the
-    // socket is NOT created per message.
+    // Send raw Ethernet frame on iface_ via the shared reusing emitter.
     int sendRaw(const std::uint8_t* frame, std::size_t len);
 
     // RFC 3927 §2.2.1 conflict listener. Spawns a thread bound to
@@ -234,29 +230,12 @@ private:
                       const std::array<std::uint8_t, 6>& target_hw,
                       LinklocalAutoconfFlavor flavor);
 
-    // Long-lived send-only AF_PACKET socket + the ifindex it was resolved for,
-    // opened lazily on the first `sendRaw` and reused for every Probe/Announce.
-    //
-    // NOT one socket per message: closing an AF_PACKET socket makes the kernel
-    // run a `synchronize_net()` RCU grace period, measured on this host at
-    // p50 32 ms / max 60 ms. Per message that cost falls between the wire
-    // `sendto` and the next inter-Probe/Announce wait, biasing every emitted
-    // cadence by ~32 ms — and RFC 3927 cadence windows are tight:
-    // ANNOUNCING_06 asserts ANNOUNCE_INTERVAL 2 s within [1950, 2050] ms, so a
-    // 32 ms bias spends 64% of the tolerance and leaves ~18 ms of headroom.
-    // (Same defect and same fix as Dhcpv4Client's `raw_sk_`, where it made
-    // CONSTRUCTING_MESSAGES_13 fail outright.)
-    //
-    // Protocol 0, deliberately NOT ETH_P_ALL: a long-lived ETH_P_ALL socket
-    // would queue every packet on the host into a receive buffer nothing
-    // drains. The per-message version got away with it by closing at once. 0
-    // receives nothing and sends identically — SOCK_RAW sends the caller's
-    // frame verbatim and takes the egress link from `sockaddr_ll::sll_ifindex`.
-    //
-    // Touched only by `worker_`; `bind()` and the destructor close it while
-    // that thread is not running.
-    int raw_sk_  = -1;
-    int ifindex_ = -1;
+    // The reusing raw emitter. NOT a socket per message — see
+    // `tc8::net::RawPacketSocket`. Here the bias mattered even more than in
+    // Dhcpv4Client: ANNOUNCING_06 asserts a 2 s ANNOUNCE_INTERVAL within
+    // [1950, 2050] ms, so ~32 ms spent 64% of the tolerance and left ~18 ms
+    // of headroom — a latent failure. Driven only by `worker_`.
+    ::tc8::net::RawPacketSocket raw_tx_;
 
     std::string iface_;
     std::array<std::uint8_t, 6> dut_mac_{};
