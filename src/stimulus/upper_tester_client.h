@@ -573,6 +573,39 @@ int sendUpperTesterRequest(std::string_view iface,
                            std::uint16_t tester_src_port,
                            const std::vector<std::uint8_t> &ut_payload);
 
+// As `sendUpperTesterRequest`, but WAITS for the DUT's UT response before
+// returning — use it for any request whose EFFECT the next stimulus step
+// depends on.
+//
+// A fire-and-forget send only puts the request on the wire; it says nothing
+// about the DUT having acted on it. Measured on the lwIP DUT: a flavor-set
+// request is answered ~500 us later, while the fault it enables was being
+// injected ~40 us after the send — so the DUT met the fault still
+// unconfigured and behaved conformantly, failing the `_NEG` mutant that
+// needed the fault to bite. That went unnoticed only because the emit path
+// used to burn ~32 ms closing an AF_PACKET socket per frame, which acted as
+// an accidental barrier; removing that (tc8::net::RawPacketSocket) exposed
+// the race, it did not create it.
+//
+// The request still goes out RAW, deliberately: sending through a kernel UDP
+// socket would make the tester's stack ARP for the DUT, and the tester's ARP
+// cache must keep the MAC the ARP cases inject (a kernel ARP would overwrite
+// it and break ARP_04/ARP_06's eth_dst assertions). Only the RECEIVE side uses
+// a UDP socket, bound to `tester_src_port` before the send so the reply cannot
+// be missed — receiving provokes no ARP.
+//
+// Returns the DUT's status byte (0 = success) on a correlated reply, or a
+// negative value: the send's own error code, or -4 on bind failure / timeout /
+// an uncorrelated reply. A caller that genuinely wants no synchronisation
+// keeps using `sendUpperTesterRequest`.
+int sendUpperTesterRequestAwaited(std::string_view iface,
+                                  std::uint32_t tester_ip_be,
+                                  std::uint32_t dut_ip_be,
+                                  const std::array<std::uint8_t, 6> &dut_mac,
+                                  std::uint16_t tester_src_port,
+                                  const std::vector<std::uint8_t> &ut_payload,
+                                  int timeout_ms = 1000);
+
 // DUT-side source port of the datagram a boot-cadence OpTriggerSendUdp
 // asks for. Disjoint from the §4.6 UDP_FIELDS per-case literals (20001+)
 // and from `ut::kDataPort` (20000) so a pcap reader can attribute the

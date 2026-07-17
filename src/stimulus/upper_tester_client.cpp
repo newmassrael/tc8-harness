@@ -1,6 +1,9 @@
 #include "stimulus/upper_tester_client.h"
 
 #include <algorithm>
+#include <cerrno>
+#include <cstdio>
+#include <cstring>
 #include <thread>
 
 #include <arpa/inet.h>
@@ -574,6 +577,60 @@ int sendUpperTesterRequest(std::string_view iface,
     return sendRawEthernet(frame, iface);
 }
 
+int sendUpperTesterRequestAwaited(std::string_view iface,
+                                  std::uint32_t tester_ip_be,
+                                  std::uint32_t dut_ip_be,
+                                  const std::array<std::uint8_t, 6> &dut_mac,
+                                  std::uint16_t tester_src_port,
+                                  const std::vector<std::uint8_t> &ut_payload,
+                                  int timeout_ms) {
+    if (ut_payload.size() < 2) {
+        return -4;  // no opcode/req_id to correlate a reply against
+    }
+    // Bind BEFORE the send: the DUT answers within ~500 us, so a socket opened
+    // afterwards can lose the race it exists to close.
+    const int fd = ::socket(AF_INET, SOCK_DGRAM, 0);
+    if (fd < 0) {
+        return -4;
+    }
+    sockaddr_in src{};
+    src.sin_family      = AF_INET;
+    src.sin_port        = htons(tester_src_port);
+    src.sin_addr.s_addr = tester_ip_be;
+    if (::bind(fd, reinterpret_cast<const sockaddr *>(&src), sizeof(src)) < 0) {
+        std::fprintf(stderr, "stimulus: UT await bind(:%u) failed: %s\n",
+                     tester_src_port, std::strerror(errno));
+        ::close(fd);
+        return -4;
+    }
+    timeval tv{};
+    tv.tv_sec  = timeout_ms / 1000;
+    tv.tv_usec = (timeout_ms % 1000) * 1000;
+    ::setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    const int sent = sendUpperTesterRequest(iface, tester_ip_be, dut_ip_be, dut_mac,
+                                            tester_src_port, ut_payload);
+    if (sent < 0) {
+        ::close(fd);
+        return sent;
+    }
+
+    // Correlate on <opcode|kResponseBit> <req_id>, the same rule dgramUtRoundTrip
+    // uses. A stray datagram on this port must not be read as our acknowledgement.
+    std::uint8_t resp[64] = {};
+    const ssize_t n = ::recv(fd, resp, sizeof(resp), 0);
+    ::close(fd);
+    if (n < 3 || resp[0] != (ut_payload[0] | ut::kResponseBit) ||
+        resp[1] != ut_payload[1]) {
+        std::fprintf(stderr,
+                     "stimulus: UT opcode 0x%02x got no correlated reply in %d ms"
+                     " — the DUT may not have applied it before the next step\n",
+                     ut_payload[0], timeout_ms);
+        return -4;
+    }
+    return resp[2];  // status byte
+}
+
 int emitTriggerSendUdpBoot(std::string_view iface,
                            std::uint32_t tester_ip_be,
                            std::uint32_t dut_ip_be,
@@ -611,7 +668,7 @@ int emitSetEgressFlavor(std::string_view iface,
                         const std::array<std::uint8_t, 6> &dut_mac,
                         std::uint8_t flavor) {
     const auto req = buildSetFlavorRequest(ut::OpSetEgressFlavor, 0x01, flavor);
-    return sendUpperTesterRequest(iface, tester_ip_be, dut_ip_be, dut_mac,
+    return sendUpperTesterRequestAwaited(iface, tester_ip_be, dut_ip_be, dut_mac,
                                   ut::kTesterSrcPort, req);
 }
 
@@ -621,7 +678,7 @@ int emitSetIngressFlavor(std::string_view iface,
                          const std::array<std::uint8_t, 6> &dut_mac,
                          std::uint8_t flavor) {
     const auto req = buildSetFlavorRequest(ut::OpSetIngressFlavor, 0x01, flavor);
-    return sendUpperTesterRequest(iface, tester_ip_be, dut_ip_be, dut_mac,
+    return sendUpperTesterRequestAwaited(iface, tester_ip_be, dut_ip_be, dut_mac,
                                   ut::kTesterSrcPort, req);
 }
 
@@ -631,7 +688,7 @@ int emitSetAppFlavor(std::string_view iface,
                      const std::array<std::uint8_t, 6> &dut_mac,
                      std::uint8_t flavor) {
     const auto req = buildSetFlavorRequest(ut::OpSetAppFlavor, 0x01, flavor);
-    return sendUpperTesterRequest(iface, tester_ip_be, dut_ip_be, dut_mac,
+    return sendUpperTesterRequestAwaited(iface, tester_ip_be, dut_ip_be, dut_mac,
                                   ut::kTesterSrcPort, req);
 }
 
@@ -641,7 +698,7 @@ int emitSetEtsFlavor(std::string_view iface,
                      const std::array<std::uint8_t, 6> &dut_mac,
                      std::uint8_t flavor) {
     const auto req = buildSetFlavorRequest(ut::OpSetEtsFlavor, 0x01, flavor);
-    return sendUpperTesterRequest(iface, tester_ip_be, dut_ip_be, dut_mac,
+    return sendUpperTesterRequestAwaited(iface, tester_ip_be, dut_ip_be, dut_mac,
                                   ut::kTesterSrcPort, req);
 }
 
