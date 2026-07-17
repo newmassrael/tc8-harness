@@ -1,6 +1,6 @@
 {
-  "schema_version": 5,
-  "description": "Per-case overrides applied on top of doc/spec/case_inventory.json for the Linux reference DUT (other DUT platforms supply their own overrides file via --inventory-overrides). Four independent axes: (1) `expected:false` (+ `reason`) marks a spec case the harness intentionally cannot cover (e.g. wall-time-permanent-deferred shapes) — counted as a gap by `--vs-spec`; (2) `platform_known_fail:true` (+ `platform_known_fail_ref`) marks a case that fails on this file's target platform due to platform-specific kernel/stack deviations from RFC MUST/SHOULD but passes on a strict-RFC DUT — kept ACTIVE in coverage reports so spec coverage stays honest, and filtered out of CI/smoke skip lists via `--exclude-platform-known-fail`; (3) `timing_serial:true` (+ `timing_serial_ref`) marks a case whose verdict measures a sub-second inter-frame cadence (a strict frame_delta_within_us window) that the reference DUT can only meet when NOT CPU-starved — CI runs these UNCONTENDED (--workers 1) via `--only-serial` and drops them from the parallel lane via `--exclude-serial`, mirroring how a conformance lab measures timing on dedicated DUT hardware; the case stays ACTIVE in coverage. (4) `requires_secondary_iface:true` marks a case the smoke harness must execute with a second tester interface (TC8 Topology 2 dual-broadcast-domain, e.g. USAGE_01) — surfaced via `--only-secondary-iface` so the harness brings up the second veth + passes `--interface-secondary` data-drivenly rather than by hardcoded case-ID. It is a harness-wiring need, NOT the overloaded spec `kTopology` number (UDP 'Topology 2' is two source hosts on ONE iface). The axes are disjoint in practice but can coexist on a single entry. Schema v3 renamed the second axis from `linux_known_fail` when the lwIP DUT became the second platform consumer; v4 added the third (timing_serial) axis; v5 added the fourth (requires_secondary_iface) axis. (A `_NEG` self-validation case's per-DUT applicability is NOT an inventory axis: it is derived from the DUT's own OpQueryCapabilities (0x16) bitmap via the case's `kRequiredCapabilities` + the Tier-2 capability-skip gate — the DUT is the SSOT for what it can fault.)",
+  "schema_version": 6,
+  "description": "Per-case overrides applied on top of doc/spec/case_inventory.json for the Linux reference DUT (other DUT platforms supply their own overrides file via --inventory-overrides). Five independent axes: (1) `expected:false` (+ `reason`) marks a spec case the harness intentionally cannot cover (e.g. wall-time-permanent-deferred shapes) — counted as a gap by `--vs-spec`; (2) `platform_known_fail:true` (+ `platform_known_fail_ref`) marks a case that fails on this file's target platform due to platform-specific kernel/stack deviations from RFC MUST/SHOULD but passes on a strict-RFC DUT — kept ACTIVE in coverage reports so spec coverage stays honest, and filtered out of CI/smoke skip lists via `--exclude-platform-known-fail`; (3) `timing_serial:true` (+ `timing_serial_ref`) marks a case whose verdict measures a sub-second inter-frame cadence (a strict frame_delta_within_us window) that the reference DUT can only meet when NOT CPU-starved — CI runs these UNCONTENDED (--workers 1) via `--only-serial` and drops them from the parallel lane via `--exclude-serial`, mirroring how a conformance lab measures timing on dedicated DUT hardware; the case stays ACTIVE in coverage. (4) `requires_secondary_iface:true` marks a case the smoke harness must execute with a second tester interface (TC8 Topology 2 dual-broadcast-domain, e.g. USAGE_01) — surfaced via `--only-secondary-iface` so the harness brings up the second veth + passes `--interface-secondary` data-drivenly rather than by hardcoded case-ID. It is a harness-wiring need, NOT the overloaded spec `kTopology` number (UDP 'Topology 2' is two source hosts on ONE iface). (5) `expect_overrides` (+ `expect_overrides_ref`) carries bare `--expect key=value` tokens a case needs on top of the deployment identity surface every case shares — they exist when the case's own STIMULUS diverges from the default (in practice: the eventgroup its trait subscribes to), so the SCXML guard's comparison target must follow the stimulus rather than the deployment, which makes them a property of the CASE. `TestCommand::runCase` appends them AFTER the driver's tokens; since each applyExpectToken assigns its field, last-wins needs no merge logic. Drivers emit only the base identity and never read this axis, so bash and the orchestrator cannot drift on it. The `_ref` names the prose + spec-§ rationale, which lives in a Mnemosyne scan root (dut/env/expect_overrides.md) because docs/spec/* is outside Mnemosyne's surface per mnemosyne.toml [workspace]. The axes are disjoint in practice but can coexist on a single entry. Schema v3 renamed the second axis from `linux_known_fail` when the lwIP DUT became the second platform consumer; v4 added the third (timing_serial) axis; v5 added the fourth (requires_secondary_iface) axis; v6 added the fifth (expect_overrides) axis, migrating it out of smoke-test.sh's CASE_EXPECT_OVERRIDES so the value has one home. (A `_NEG` self-validation case's per-DUT applicability is NOT an inventory axis: it is derived from the DUT's own OpQueryCapabilities (0x16) bitmap via the case's `kRequiredCapabilities` + the Tier-2 capability-skip gate — the DUT is the SSOT for what it can fault.)",
   "overrides": {
     "ARP_33": {
       "platform_known_fail": true,
@@ -84,13 +84,269 @@
       "platform_known_fail": true,
       "platform_known_fail_ref": "memory/reference_linux_ip_reassembly_deviations.md"
     },
+    "SOMEIPSRV_BASIC_03": {
+      "expect_overrides": [
+        "eventgroup_id=0x0002"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIPSRV_FORMAT_28": {
+      "expect_overrides": [
+        "eventgroup_id=0x0002"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIPSRV_OPTIONS_08": {
+      "expect_overrides": [
+        "eventgroup_id=0x0008"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIPSRV_OPTIONS_09": {
+      "expect_overrides": [
+        "eventgroup_id=0x0008"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIPSRV_OPTIONS_10": {
+      "expect_overrides": [
+        "eventgroup_id=0x0008"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIPSRV_OPTIONS_11": {
+      "expect_overrides": [
+        "eventgroup_id=0x0008"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIPSRV_OPTIONS_12": {
+      "expect_overrides": [
+        "eventgroup_id=0x0008"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIPSRV_OPTIONS_13": {
+      "expect_overrides": [
+        "eventgroup_id=0x0008"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIPSRV_OPTIONS_14": {
+      "expect_overrides": [
+        "eventgroup_id=0x0008"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
     "SOMEIPSRV_SD_BEHAVIOR_04": {
       "platform_known_fail": true,
       "platform_known_fail_ref": "memory/project_false_positive_remediation_round3.md"
     },
+    "SOMEIPSRV_SD_MESSAGE_09": {
+      "expect_overrides": [
+        "eventgroup_id=0x0002"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIPSRV_SD_MESSAGE_13": {
+      "expect_overrides": [
+        "eventgroup_id=0x0008"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIP_ETS_086": {
+      "expect_overrides": [
+        "eventgroup_id=0x0002"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIP_ETS_087": {
+      "expect_overrides": [
+        "eventgroup_id=0x0005"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIP_ETS_094": {
+      "expect_overrides": [
+        "eventgroup_id=0x0002"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIP_ETS_107": {
+      "expect_overrides": [
+        "eventgroup_id=0x0005"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIP_ETS_108": {
+      "expect_overrides": [
+        "eventgroup_id=0x0005"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIP_ETS_109": {
+      "expect_overrides": [
+        "eventgroup_id=0x0002"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIP_ETS_110": {
+      "expect_overrides": [
+        "eventgroup_id=0x0002"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIP_ETS_111": {
+      "expect_overrides": [
+        "eventgroup_id=0x0002"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIP_ETS_112": {
+      "expect_overrides": [
+        "eventgroup_id=0x0002"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIP_ETS_113": {
+      "expect_overrides": [
+        "eventgroup_id=0x0002"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIP_ETS_115": {
+      "expect_overrides": [
+        "eventgroup_id=0x0002"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIP_ETS_116": {
+      "expect_overrides": [
+        "eventgroup_id=0x0002"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
     "SOMEIP_ETS_117": {
       "platform_known_fail": true,
-      "platform_known_fail_ref": "memory/project_someip_ets_seed_coverage.md"
+      "platform_known_fail_ref": "memory/project_someip_ets_seed_coverage.md",
+      "expect_overrides": [
+        "eventgroup_id=0x0005"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIP_ETS_119": {
+      "expect_overrides": [
+        "eventgroup_id=0x0002"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIP_ETS_120": {
+      "expect_overrides": [
+        "eventgroup_id=0x0002"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIP_ETS_121": {
+      "expect_overrides": [
+        "eventgroup_id=0x0005"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIP_ETS_147": {
+      "expect_overrides": [
+        "eventgroup_id=0x0002"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIP_ETS_148": {
+      "expect_overrides": [
+        "eventgroup_id=0x0002"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIP_ETS_149": {
+      "expect_overrides": [
+        "eventgroup_id=0x0002"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIP_ETS_150": {
+      "expect_overrides": [
+        "eventgroup_id=0x0006"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIP_ETS_151": {
+      "expect_overrides": [
+        "eventgroup_id=0x0002"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIP_ETS_152": {
+      "expect_overrides": [
+        "eventgroup_id=0x0002"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIP_ETS_154": {
+      "expect_overrides": [
+        "eventgroup_id=0x0002"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIP_ETS_155": {
+      "expect_overrides": [
+        "eventgroup_id=0x0002"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIP_ETS_162": {
+      "expect_overrides": [
+        "eventgroup_id=0x0002"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIP_ETS_163": {
+      "expect_overrides": [
+        "eventgroup_id=0x0002"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIP_ETS_173": {
+      "expect_overrides": [
+        "eventgroup_id=0x0002"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIP_ETS_174": {
+      "expect_overrides": [
+        "eventgroup_id=0x0002"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIP_ETS_175": {
+      "expect_overrides": [
+        "eventgroup_id=0x0002"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIP_ETS_176": {
+      "expect_overrides": [
+        "eventgroup_id=0x0002"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIP_ETS_177": {
+      "expect_overrides": [
+        "eventgroup_id=0x0002"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIP_ETS_178": {
+      "expect_overrides": [
+        "eventgroup_id=0x0002"
+      ],
+      "expect_overrides_ref": "dut/env/expect_overrides.md"
     },
     "TCP_FLAGS_INVALID_15": {
       "platform_known_fail": true,

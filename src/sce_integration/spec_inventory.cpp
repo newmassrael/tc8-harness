@@ -69,6 +69,30 @@ bool findBoolField(const std::string &block, const std::string &key, bool dflt) 
     return dflt;
 }
 
+// Reads a `"key": ["a", "b"]` array of strings; empty when the key is absent
+// or the array is empty. Elements are taken verbatim — the one consumer
+// (`expect_overrides`) holds bare `key=value` --expect tokens, which the
+// --expect schema (tc8_expect_keys.def) already constrains to characters
+// needing no JSON escaping. The `[^\]]*` body match likewise assumes no ']'
+// inside an element, which that same schema guarantees. Flat and
+// regex-based, matching the field readers above.
+std::vector<std::string> findStringArrayField(const std::string &block,
+                                              const std::string &key) {
+    const std::regex pattern("\"" + key + "\"\\s*:\\s*\\[([^\\]]*)\\]");
+    std::smatch m;
+    if (!std::regex_search(block, m, pattern)) {
+        return {};
+    }
+    const std::string body = m[1].str();
+    const std::regex item("\"([^\"]*)\"");
+    std::vector<std::string> out;
+    for (auto it = std::sregex_iterator(body.begin(), body.end(), item);
+         it != std::sregex_iterator(); ++it) {
+        out.push_back((*it)[1].str());
+    }
+    return out;
+}
+
 // Walk a JSON-array body and yield each top-level `{...}` block as a string.
 // Tracks brace depth to handle nested objects safely; quoted strings opt
 // out of the brace counter so a `}` inside a string doesn't terminate
@@ -438,6 +462,10 @@ std::optional<SpecInventory> SpecInventory::load(
                 findStringField(body, "timing_serial_ref");
             const bool requires_secondary_iface =
                 findBoolField(body, "requires_secondary_iface", false);
+            std::vector<std::string> expect_overrides =
+                findStringArrayField(body, "expect_overrides");
+            std::string expect_overrides_ref =
+                findStringField(body, "expect_overrides_ref");
             for (auto &sc : result.cases_) {
                 if (canonicalise(sc.id) == canon) {
                     sc.expected = expected;
@@ -447,6 +475,8 @@ std::optional<SpecInventory> SpecInventory::load(
                     sc.timing_serial = timing_serial;
                     sc.timing_serial_ref = std::move(timing_serial_ref);
                     sc.requires_secondary_iface = requires_secondary_iface;
+                    sc.expect_overrides = std::move(expect_overrides);
+                    sc.expect_overrides_ref = std::move(expect_overrides_ref);
                     break;
                 }
             }

@@ -99,4 +99,83 @@ TEST_F(SpecInventoryMergeTest, BackCompatThreeArgLoad) {
     EXPECT_EQ(inv->cases().size(), 2u);
 }
 
+// --- expect_overrides axis (schema v6) ------------------------------------
+//
+// The per-case `--expect` tokens the harness appends after the driver's. The
+// value lives here (one home); `runCase` applies it. These pin the loader half:
+// that the array reaches SpecCase, that absence is empty (not a sentinel), and
+// that the axis composes with a platform_known_fail entry rather than
+// replacing it — SOMEIP_ETS_117 is exactly that shape in the real file.
+
+TEST_F(SpecInventoryMergeTest, ExpectOverridesLoadFromOverridesJson) {
+    const auto primary = writeTemp("primary.json", kPrimary);
+    const auto ov = writeTemp("ov.json", R"({
+      "overrides": {
+        "ARP_07": {
+          "expect_overrides": ["eventgroup_id=0x0002"],
+          "expect_overrides_ref": "dut/env/expect_overrides.md"
+        }
+      }
+    })");
+
+    std::string err;
+    auto inv = SpecInventory::load(primary.string(), {}, ov.string(), &err);
+    ASSERT_TRUE(inv.has_value()) << err;
+
+    const auto *sc = inv->find("ARP_07");
+    ASSERT_NE(sc, nullptr);
+    ASSERT_EQ(sc->expect_overrides.size(), 1u);
+    EXPECT_EQ(sc->expect_overrides[0], "eventgroup_id=0x0002");
+    EXPECT_EQ(sc->expect_overrides_ref, "dut/env/expect_overrides.md");
+
+    // A case with no entry keeps an EMPTY vector — runCase appends nothing,
+    // so the driver's surface passes through untouched.
+    const auto *other = inv->find("IPV4_HEADER_05");
+    ASSERT_NE(other, nullptr);
+    EXPECT_TRUE(other->expect_overrides.empty());
+}
+
+TEST_F(SpecInventoryMergeTest, ExpectOverridesCoexistWithPlatformKnownFail) {
+    const auto primary = writeTemp("primary.json", kPrimary);
+    const auto ov = writeTemp("ov.json", R"({
+      "overrides": {
+        "ARP_07": {
+          "platform_known_fail": true,
+          "platform_known_fail_ref": "memory/some_note.md",
+          "expect_overrides": ["eventgroup_id=0x0005"]
+        }
+      }
+    })");
+
+    std::string err;
+    auto inv = SpecInventory::load(primary.string(), {}, ov.string(), &err);
+    ASSERT_TRUE(inv.has_value()) << err;
+
+    const auto *sc = inv->find("ARP_07");
+    ASSERT_NE(sc, nullptr);
+    EXPECT_TRUE(sc->platform_known_fail);
+    EXPECT_EQ(sc->platform_known_fail_ref, "memory/some_note.md");
+    ASSERT_EQ(sc->expect_overrides.size(), 1u);
+    EXPECT_EQ(sc->expect_overrides[0], "eventgroup_id=0x0005");
+}
+
+TEST_F(SpecInventoryMergeTest, ExpectOverridesReadsEveryArrayElementInOrder) {
+    const auto primary = writeTemp("primary.json", kPrimary);
+    // Order is load-bearing: runCase appends the array as-is and --expect is
+    // last-wins, so a multi-token array's own last element must win.
+    const auto ov = writeTemp("ov.json", R"({
+      "overrides": {
+        "ARP_07": { "expect_overrides": ["a=1", "b=2", "a=3"] }
+      }
+    })");
+
+    std::string err;
+    auto inv = SpecInventory::load(primary.string(), {}, ov.string(), &err);
+    ASSERT_TRUE(inv.has_value()) << err;
+
+    const auto *sc = inv->find("ARP_07");
+    ASSERT_NE(sc, nullptr);
+    EXPECT_EQ(sc->expect_overrides, (std::vector<std::string>{"a=1", "b=2", "a=3"}));
+}
+
 }  // namespace

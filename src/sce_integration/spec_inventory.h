@@ -55,6 +55,28 @@ struct SpecCase {
     // `--only-secondary-iface` so the smoke harness brings up the second veth
     // and passes `--interface-secondary` data-drivenly rather than by case-ID.
     bool requires_secondary_iface = false;
+    // Fifth axis: `expect_overrides` — bare `--expect key=value` tokens this
+    // case needs on top of the deployment identity surface every case shares.
+    // They exist when a case's own STIMULUS diverges from the default (e.g. a
+    // trait that subscribes to a non-default eventgroup), so the guard's
+    // comparison target must follow the stimulus rather than the deployment.
+    // That makes them a property of the CASE, not of the DUT deployment — the
+    // same reason the four axes above live here and not in a driver.
+    //
+    // `runCase` appends them AFTER the driver's `--expect` tokens. Precedence
+    // is therefore last-wins and needs no merge logic of its own: each
+    // `applyExpectToken` assigns its field, so a later token simply overwrites
+    // an earlier one. Drivers do not read this axis — they pass only the base
+    // identity — which is what keeps bash and the orchestrator from being able
+    // to drift on it (the property `timing_serial` already has).
+    //
+    // The `_ref` points at the prose (spec §, and why the stimulus diverges);
+    // it is not parsed. Rationale lives in a scanned path so its § citations
+    // keep their mnemosyne bindings — docs/spec/ is deliberately outside
+    // Mnemosyne's surface (see mnemosyne.toml `[workspace]`), so this JSON
+    // holds the VALUES only, exactly as `platform_known_fail_ref` already does.
+    std::vector<std::string> expect_overrides;
+    std::string expect_overrides_ref;
 };
 
 // Loads docs/spec/case_inventory.json + docs/spec/inventory_overrides.json

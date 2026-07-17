@@ -5420,10 +5420,6 @@
       "intent": "TC8 §5.1 — auto-seeded TC8-internal sub-section (28 code citations at baseline).",
       "bindings": [
         {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
-        {
           "file": "include/tc8/bpf_group.h",
           "kind": "implements"
         },
@@ -5486,6 +5482,10 @@
         {
           "file": "tests/someipsrv_sd_behavior_02/someipsrv_sd_behavior_02.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "dut/env/expect_overrides.md",
+          "kind": "references"
         }
       ]
     },
@@ -5960,16 +5960,16 @@
       "intent": "TC8 §5.1.5.1.28 — auto-seeded TC8-internal sub-section (4 code citations at baseline).",
       "bindings": [
         {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/cases/someipsrv_format_28.h",
           "kind": "implements"
         },
         {
           "file": "tests/someipsrv_format_28/someipsrv_format_28.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "dut/env/expect_overrides.md",
+          "kind": "references"
         }
       ]
     },
@@ -6164,6 +6164,10 @@
         {
           "file": "dut/dut_service/server_role.h",
           "kind": "implements"
+        },
+        {
+          "file": "dut/env/expect_overrides.md",
+          "kind": "references"
         }
       ]
     },
@@ -6562,6 +6566,10 @@
         {
           "file": "tests/someip_ets_027/someip_ets_027.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "dut/env/expect_overrides.md",
+          "kind": "references"
         }
       ]
     },
@@ -8304,6 +8312,10 @@
         {
           "file": "dut/dut_service/server_role.cpp",
           "kind": "implements"
+        },
+        {
+          "file": "dut/env/expect_overrides.md",
+          "kind": "references"
         }
       ]
     },

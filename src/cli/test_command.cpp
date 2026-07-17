@@ -52,11 +52,19 @@ std::string sectionOf(const sce::SpecCase *sc) {
     return (sc != nullptr && !sc->section.empty()) ? sc->section : std::string{"-"};
 }
 
-std::string specSectionFor(const std::optional<sce::SpecInventory> &inv, std::string_view id) {
+// The inventory's SpecCase for `id`, or nullptr when the inventory is
+// unavailable or the id is out-of-spec — the same best-effort contract
+// sectionOf's "-" fallback encodes, so both consumers share one lookup.
+const sce::SpecCase *specCaseFor(const std::optional<sce::SpecInventory> &inv,
+                                 std::string_view id) {
     if (!inv.has_value()) {
-        return "-";
+        return nullptr;
     }
-    return sectionOf(inv->find(sce::SpecInventory::canonicalise(std::string{id})));
+    return inv->find(sce::SpecInventory::canonicalise(std::string{id}));
+}
+
+std::string specSectionFor(const std::optional<sce::SpecInventory> &inv, std::string_view id) {
+    return sectionOf(specCaseFor(inv, id));
 }
 
 }  // namespace
@@ -538,7 +546,19 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // Context parses them in its own applyTestConfig overload. The strict
     // --expect loop below keeps owning the closed in-tree key set.
     config.expect_extra_tokens = expect_extra_tokens_;
-    for (const auto &tok : expect_tokens_) {
+    // The effective surface is the driver's identity tokens followed by this
+    // case's `expect_overrides` (spec_inventory.h's fifth axis). Appending last
+    // IS the mechanism: every applyExpectToken below assigns its field, so a
+    // trailing token overrides the deployment default with no merge logic and
+    // no precedence table. Drivers never learn the axis exists — they emit only
+    // the base identity — which is what makes bash and the orchestrator unable
+    // to drift on it, the same property `timing_serial` already has.
+    std::vector<std::string> effective_expect = expect_tokens_;
+    if (const sce::SpecCase *sc = specCaseFor(inv, entry->id); sc != nullptr) {
+        effective_expect.insert(effective_expect.end(), sc->expect_overrides.begin(),
+                                sc->expect_overrides.end());
+    }
+    for (const auto &tok : effective_expect) {
         // Try each protocol's parser; the first that recognises the token
         // wins. ARP's parser short-circuits on the `arp.` prefix so SOME/IP
         // keys never reach it. A token unrecognised by both is a CLI error.
