@@ -858,10 +858,19 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // UNKNOWN counts as unproven, not as clean: `captureProvenComplete` demands
     // every source actually measured. "We could not check our own capture" is
     // not a basis for asserting an absence either.
+    // "The capture represents the wire" has two independent halves, and an
+    // absence-based pass needs both: nothing was DROPPED (the kernel's own
+    // counters) and nothing was CUT SHORT (a frame past the snaplen, which the
+    // dissector refuses rather than mis-decodes — see
+    // PacketPipeline::truncatedFrames). A drop and a truncation are different
+    // holes in the same claim, so they answer the same question here.
+    const bool capture_whole =
+        ::tc8::captureProvenComplete(capture_stats) && pipeline.truncatedFrames() == 0;
     if (verdict.cls == ::tc8::sce::VerdictClass::Pass &&
-        !runner->finalTransitionWasFrameDriven() &&
-        !::tc8::captureProvenComplete(capture_stats)) {
-        const char *reason = ::tc8::anySourceLostFrames(capture_stats)
+        !runner->finalTransitionWasFrameDriven() && !capture_whole) {
+        const char *reason = pipeline.truncatedFrames() != 0
+                                 ? "capture_truncated_frames_absence_unproven"
+                             : ::tc8::anySourceLostFrames(capture_stats)
                                  ? "capture_lost_frames_absence_unproven"
                                  : "capture_completeness_unknown_absence_unproven";
         verdict = ::tc8::sce::Verdict{::tc8::sce::VerdictClass::Inconclusive, reason};
@@ -873,6 +882,15 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // appears solely on loss is indistinguishable from a silently broken
     // counter — the same "absence proves nothing" trap as the missing
     // measurement itself. One line per source; a clean run stays one line.
+    // A truncation is loud on its own line, not folded into a per-source one:
+    // it is a run-level snaplen fact, and it means frames were REFUSED — the
+    // reader must not mistake a clean drop=0 for a complete capture.
+    if (pipeline.truncatedFrames() != 0) {
+        std::printf("capture  : %llu frame(s) exceeded the snaplen and were REFUSED — "
+                    "segmentation offload is likely on; this capture does not represent "
+                    "the wire\n",
+                    static_cast<unsigned long long>(pipeline.truncatedFrames()));
+    }
     for (const auto &cs : capture_stats) {
         if (!cs.available) {
             std::printf("capture  : %s stats unavailable\n", cs.iface.c_str());

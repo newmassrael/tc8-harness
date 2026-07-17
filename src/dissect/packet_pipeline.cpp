@@ -95,6 +95,15 @@ void PacketPipeline::processFrame(const pcap_pkthdr &hdr, const std::uint8_t *by
     if (datalink_type != DLT_EN10MB) {
         return;
     }
+    // Refuse a frame the capture cut short. Everything below dissects `caplen`
+    // bytes, so a frame longer than the snaplen does not fail — it decodes
+    // SHORT and looks plausible. Dropping it keeps a fabricated observation out
+    // of the verdict; the count is what tells the run its capture was not the
+    // wire (see truncatedFrames()).
+    if (hdr.caplen < hdr.len) {
+        ++truncated_frames_;
+        return;
+    }
     // Wall-clock arrival timestamp normalised to microseconds for
     // every Frame variant. Live capture path uses libpcap's default
     // PCAP_TSTAMP_PRECISION_MICRO so `tv_usec` is already in µs;

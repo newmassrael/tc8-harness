@@ -32,7 +32,31 @@ public:
 
     explicit PacketPipeline(Listener listener);
 
+    // Dissect one captured frame. A frame the capture TRUNCATED
+    // (`hdr.caplen < hdr.len`) is counted and dropped rather than dissected —
+    // see `truncatedFrames()`.
     void processFrame(const pcap_pkthdr &hdr, const std::uint8_t *bytes, int datalink_type);
+
+    // Frames this run refused because the capture did not retain all of them.
+    //
+    // The dissector parses `hdr.caplen` bytes and every offset/length check
+    // below is written against that, so a frame longer than the snaplen would
+    // not fail — it would parse SHORT and yield a plausible, wrong decode: a
+    // truncated TCP payload reads as a smaller segment, a cut option list as a
+    // shorter one. That is a fabricated observation, which is worse than a
+    // dropped frame (a drop is at least an absence). So the frame is refused
+    // here, once, for every caller — the live capture loop and `decode-pcap`
+    // replaying a saved file alike.
+    //
+    // Run-level, not per-source, because the snaplen is a property of the run:
+    // both capture sources are opened with the same one, so attributing a
+    // truncation to an interface would add no information.
+    //
+    // Non-zero means the capture cannot represent the wire — today's snaplen is
+    // 65535 while a GSO super-frame can reach 65536+, so this is reachable
+    // wherever segmentation offload is on (the netns veths cap it; an
+    // externally-owned interface may not).
+    std::uint64_t truncatedFrames() const noexcept { return truncated_frames_; }
 
     // libpcap's `pcap_pkthdr::ts.tv_usec` carries microseconds when the
     // capture handle was opened with the default precision and
@@ -55,6 +79,9 @@ private:
     SomeIpDispatcher dispatcher_;
     Tins::TCPIP::StreamFollower follower_;
     int tstamp_precision_ = PCAP_TSTAMP_PRECISION_MICRO;
+
+    // See truncatedFrames(). Counted, never reset — it describes the run.
+    std::uint64_t truncated_frames_ = 0;
     // Arrival timestamp (us, epoch) of the packet currently being processed,
     // stashed so the TCP stream-follower callbacks (which fire synchronously
     // inside follower_.process_packet) can stamp the reassembled Transport —
