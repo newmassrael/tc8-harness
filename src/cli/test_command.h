@@ -22,6 +22,7 @@ public:
 
 private:
     int runListCases() const;
+    int runListNegRows() const;
     int runVsSpecReport() const;
     int runCase(std::optional<std::string> bpf_override);
 
@@ -72,13 +73,15 @@ private:
     // need a second tester veth + `--interface-secondary` — data-driven, not by
     // hardcoded case-ID.
     bool only_secondary_iface_ = false;
-    // `--negative-row`: this invocation is the case's negative row — the driver
-    // has flipped one --expect value to a deliberately wrong one to prove the
-    // guard is not trivially-true (smoke-test.sh `run_negative_case`). It
-    // suppresses the case's `expect_overrides`, which describe the POSITIVE run
-    // and would otherwise be appended after the flip and overwrite it. NOT
-    // related to a `_NEG`-suffixed case, which is a separately registered
-    // firmware-fault-injection mutant.
+    // `--list-neg-rows`: print each case carrying an authored negative row as
+    // `CASE|wrong_token|fail:reason` — the grammar smoke-test.sh's NEG_ROWS
+    // array used, so the drivers and tools/negative_coverage_audit.py all read
+    // ONE source instead of re-parsing bash.
+    bool list_neg_rows_ = false;
+    // `--negative-row`: run the case with its authored expectation flip applied
+    // (spec_inventory.h's sixth axis) — the self-check that proves the guard is
+    // not trivially-true. NOT related to a `_NEG`-suffixed case, which is a
+    // separately registered firmware-fault-injection mutant.
     bool negative_row_ = false;
     std::string inventory_path_;
     std::string overrides_path_;

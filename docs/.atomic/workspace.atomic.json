@@ -386,6 +386,10 @@
         {
           "file": "tests/_templates/arp_field_check.sce-template.xml",
           "kind": "implements"
+        },
+        {
+          "file": "dut/env/negative_rows.md",
+          "kind": "references"
         }
       ]
     },
@@ -656,6 +660,10 @@
         {
           "file": "dut/lwip_dut/README.md",
           "kind": "references"
+        },
+        {
+          "file": "dut/env/negative_rows.md",
+          "kind": "references"
         }
       ]
     },
@@ -782,6 +790,10 @@
         {
           "file": "tests/_templates/icmpv4_synth_neg.sce-template.xml",
           "kind": "implements"
+        },
+        {
+          "file": "dut/env/negative_rows.md",
+          "kind": "references"
         }
       ]
     },
@@ -809,10 +821,6 @@
       "parent_doc": "tc8-spec",
       "intent": "TC8 §4.3.3.1 — ICMPv4 — Error message handling. 4 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
-        {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
         {
           "file": "src/sce_integration/icmpv4_captured.h",
           "kind": "implements"
@@ -856,6 +864,10 @@
         {
           "file": "tests/icmpv4_error_05_neg/icmpv4_error_05_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "dut/env/negative_rows.md",
+          "kind": "references"
         }
       ]
     },
@@ -1102,6 +1114,10 @@
         {
           "file": "src/sce_integration/cases/_icmpv4_traits_base.h",
           "kind": "implements"
+        },
+        {
+          "file": "dut/env/negative_rows.md",
+          "kind": "references"
         }
       ]
     },
@@ -1123,10 +1139,6 @@
       "parent_doc": "tc8-spec",
       "intent": "TC8 §4.4.4.1 — IPv4 — Header field handling. 7 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
-        {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
         {
           "file": "src/sce_integration/cases/ipv4_header_08.h",
           "kind": "implements"
@@ -1222,6 +1234,10 @@
         {
           "file": "tests/ipv4_header_05_neg2/ipv4_header_05_neg2.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "dut/env/negative_rows.md",
+          "kind": "references"
         }
       ]
     },
@@ -1544,6 +1560,10 @@
         {
           "file": "tests/tcp_flags_invalid_01/tcp_flags_invalid_01.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "dut/env/negative_rows.md",
+          "kind": "references"
         }
       ]
     },
@@ -1629,6 +1649,10 @@
         },
         {
           "file": "dut/lwip_dut/README.md",
+          "kind": "references"
+        },
+        {
+          "file": "dut/env/negative_rows.md",
           "kind": "references"
         }
       ]
@@ -2198,10 +2222,6 @@
       "intent": "TC8 §4.6 — auto-seeded TC8-internal sub-section (20 code citations at baseline).",
       "bindings": [
         {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
-        {
           "file": "include/tc8/bpf_group.h",
           "kind": "implements"
         },
@@ -2252,6 +2272,10 @@
         {
           "file": "src/sce_integration/cases/_icmpv4_traits_base.h",
           "kind": "implements"
+        },
+        {
+          "file": "dut/env/negative_rows.md",
+          "kind": "references"
         }
       ]
     },
@@ -2309,10 +2333,6 @@
       "parent_doc": "tc8-spec",
       "intent": "TC8 §4.6.5.4 — UDP — Fields. 15 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
-        {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
         {
           "file": "src/dissect/packet_pipeline.cpp",
           "kind": "implements"
@@ -2512,6 +2532,10 @@
         {
           "file": "src/sce_integration/cases/udp_fields_12_neg.h",
           "kind": "implements"
+        },
+        {
+          "file": "dut/env/negative_rows.md",
+          "kind": "references"
         }
       ]
     },
@@ -2521,10 +2545,6 @@
       "bindings": [
         {
           "file": "dut/env/setup-netns.sh",
-          "kind": "implements"
-        },
-        {
-          "file": "dut/env/smoke-test.sh",
           "kind": "implements"
         },
         {
@@ -2650,6 +2670,10 @@
         {
           "file": "tests/udp_user_interface_06_neg/udp_user_interface_06_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "dut/env/negative_rows.md",
+          "kind": "references"
         }
       ]
     },
@@ -2657,10 +2681,6 @@
       "parent_doc": "tc8-spec",
       "intent": "TC8 §4.6.5.6 — UDP — Introduction. 3 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
-        {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
         {
           "file": "src/sce_integration/cases/udp_introduction_01.h",
           "kind": "implements"
@@ -2724,6 +2744,10 @@
         {
           "file": "tests/udp_introduction_03_neg/udp_introduction_03_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "dut/env/negative_rows.md",
+          "kind": "references"
         }
       ]
     },
@@ -3700,10 +3724,6 @@
       "intent": "TC8 §4.8 — auto-seeded TC8-internal sub-section (36 code citations at baseline).",
       "bindings": [
         {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
-        {
           "file": "include/tc8/bpf_group.h",
           "kind": "implements"
         },
@@ -3870,6 +3890,10 @@
         {
           "file": "src/sce_integration/cases/tcp_header_04_neg.h",
           "kind": "implements"
+        },
+        {
+          "file": "dut/env/negative_rows.md",
+          "kind": "references"
         }
       ]
     },
@@ -4596,10 +4620,6 @@
           "kind": "implements"
         },
         {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
-        {
           "file": "include/tc8/protocol_frames/tcp_frame.h",
           "kind": "implements"
         },
@@ -4666,6 +4686,10 @@
         {
           "file": "tests/tcp_checksum_02_neg/tcp_checksum_02_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "dut/env/negative_rows.md",
+          "kind": "references"
         }
       ]
     },
@@ -4673,10 +4697,6 @@
       "parent_doc": "tc8-spec",
       "intent": "TC8 §4.8.6.3 — TCP — Unacceptable Segments. 14 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
-        {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
         {
           "file": "src/sce_integration/tcp_captured.h",
           "kind": "implements"
@@ -4756,6 +4776,10 @@
         {
           "file": "tests/tcp_unacceptable_10_neg/tcp_unacceptable_10_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "dut/env/negative_rows.md",
+          "kind": "references"
         }
       ]
     },
@@ -4847,10 +4871,6 @@
       "parent_doc": "tc8-spec",
       "intent": "TC8 §4.8.6.6 — TCP — Invalid Flag Combinations. 15 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
-        {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
         {
           "file": "src/sce_integration/cases/tcp_basics_13.h",
           "kind": "implements"
@@ -5054,6 +5074,10 @@
         {
           "file": "tests/tcp_flags_invalid_05_neg2/tcp_flags_invalid_05_neg2.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "dut/env/negative_rows.md",
+          "kind": "references"
         }
       ]
     },
@@ -6142,10 +6166,6 @@
       "intent": "TC8 §5.1.5.3 — SOME/IP-SD — Message. 17 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
-        {
           "file": "dut/ets/ets.fdepl",
           "kind": "implements"
         },
@@ -6167,6 +6187,10 @@
         },
         {
           "file": "dut/env/expect_overrides.md",
+          "kind": "references"
+        },
+        {
+          "file": "dut/env/negative_rows.md",
           "kind": "references"
         }
       ]
@@ -6520,10 +6544,6 @@
           "kind": "implements"
         },
         {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
-        {
           "file": "dut/ets/ets.fdepl",
           "kind": "implements"
         },
@@ -6569,6 +6589,10 @@
         },
         {
           "file": "dut/env/expect_overrides.md",
+          "kind": "references"
+        },
+        {
+          "file": "dut/env/negative_rows.md",
           "kind": "references"
         }
       ]
@@ -8315,6 +8339,10 @@
         },
         {
           "file": "dut/env/expect_overrides.md",
+          "kind": "references"
+        },
+        {
+          "file": "dut/env/negative_rows.md",
           "kind": "references"
         }
       ]

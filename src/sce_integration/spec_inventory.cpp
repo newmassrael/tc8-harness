@@ -466,6 +466,48 @@ std::optional<SpecInventory> SpecInventory::load(
                 findStringArrayField(body, "expect_overrides");
             std::string expect_overrides_ref =
                 findStringField(body, "expect_overrides_ref");
+            std::string neg_wrong_token = findStringField(body, "neg_wrong_token");
+            std::string neg_expect_fail = findStringField(body, "neg_expect_fail");
+            std::vector<std::string> neg_expect_overrides =
+                findStringArrayField(body, "neg_expect_overrides");
+            std::string neg_row_ref = findStringField(body, "neg_row_ref");
+
+            // A negative row is the (flip, expected-verdict) PAIR — half a row
+            // cannot be executed, so refuse it rather than silently skipping the
+            // case's self-check.
+            if (neg_wrong_token.empty() != neg_expect_fail.empty()) {
+                return fail("overrides: " + id +
+                            " has only half a negative row (neg_wrong_token and "
+                            "neg_expect_fail must be set together)");
+            }
+            // Only --negative-row reads neg_expect_overrides, and it refuses a
+            // case with no neg_wrong_token — so this shape is unreachable data
+            // that LOOKS like a negative control. 38 of the 40 bash
+            // NEG_CASE_EXPECT_OVERRIDES rows were exactly this (mirrored from
+            // the positive table onto cases with no row to run); rejecting it is
+            // a check the bash form could not have.
+            if (!neg_expect_overrides.empty() && neg_wrong_token.empty()) {
+                return fail("overrides: " + id +
+                            " sets neg_expect_overrides but has no negative row "
+                            "(neg_wrong_token); it could never be applied");
+            }
+            // See SpecCase's sixth-axis note: neg_expect_overrides is applied
+            // AFTER neg_wrong_token, so a shared key would overwrite the
+            // deliberate mistake and the negative control would pass for the
+            // wrong reason.
+            if (!neg_wrong_token.empty()) {
+                const std::string wrong_key =
+                    neg_wrong_token.substr(0, neg_wrong_token.find('='));
+                for (const auto &tok : neg_expect_overrides) {
+                    if (tok.substr(0, tok.find('=')) == wrong_key) {
+                        return fail("overrides: " + id + " neg_expect_overrides token '" +
+                                    tok + "' collides with neg_wrong_token key '" +
+                                    wrong_key +
+                                    "'; the override is applied last and would "
+                                    "overwrite the deliberate mistake");
+                    }
+                }
+            }
             for (auto &sc : result.cases_) {
                 if (canonicalise(sc.id) == canon) {
                     sc.expected = expected;
@@ -477,6 +519,10 @@ std::optional<SpecInventory> SpecInventory::load(
                     sc.requires_secondary_iface = requires_secondary_iface;
                     sc.expect_overrides = std::move(expect_overrides);
                     sc.expect_overrides_ref = std::move(expect_overrides_ref);
+                    sc.neg_wrong_token = std::move(neg_wrong_token);
+                    sc.neg_expect_fail = std::move(neg_expect_fail);
+                    sc.neg_expect_overrides = std::move(neg_expect_overrides);
+                    sc.neg_row_ref = std::move(neg_row_ref);
                     break;
                 }
             }

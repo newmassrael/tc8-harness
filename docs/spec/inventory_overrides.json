@@ -1,14 +1,100 @@
 {
-  "schema_version": 6,
-  "description": "Per-case overrides applied on top of doc/spec/case_inventory.json for the Linux reference DUT (other DUT platforms supply their own overrides file via --inventory-overrides). Five independent axes: (1) `expected:false` (+ `reason`) marks a spec case the harness intentionally cannot cover (e.g. wall-time-permanent-deferred shapes) — counted as a gap by `--vs-spec`; (2) `platform_known_fail:true` (+ `platform_known_fail_ref`) marks a case that fails on this file's target platform due to platform-specific kernel/stack deviations from RFC MUST/SHOULD but passes on a strict-RFC DUT — kept ACTIVE in coverage reports so spec coverage stays honest, and filtered out of CI/smoke skip lists via `--exclude-platform-known-fail`; (3) `timing_serial:true` (+ `timing_serial_ref`) marks a case whose verdict measures a sub-second inter-frame cadence (a strict frame_delta_within_us window) that the reference DUT can only meet when NOT CPU-starved — CI runs these UNCONTENDED (--workers 1) via `--only-serial` and drops them from the parallel lane via `--exclude-serial`, mirroring how a conformance lab measures timing on dedicated DUT hardware; the case stays ACTIVE in coverage. (4) `requires_secondary_iface:true` marks a case the smoke harness must execute with a second tester interface (TC8 Topology 2 dual-broadcast-domain, e.g. USAGE_01) — surfaced via `--only-secondary-iface` so the harness brings up the second veth + passes `--interface-secondary` data-drivenly rather than by hardcoded case-ID. It is a harness-wiring need, NOT the overloaded spec `kTopology` number (UDP 'Topology 2' is two source hosts on ONE iface). (5) `expect_overrides` (+ `expect_overrides_ref`) carries bare `--expect key=value` tokens a case needs on top of the deployment identity surface every case shares — they exist when the case's own STIMULUS diverges from the default (in practice: the eventgroup its trait subscribes to), so the SCXML guard's comparison target must follow the stimulus rather than the deployment, which makes them a property of the CASE. `TestCommand::runCase` appends them AFTER the driver's tokens; since each applyExpectToken assigns its field, last-wins needs no merge logic. Drivers emit only the base identity and never read this axis, so bash and the orchestrator cannot drift on it. The `_ref` names the prose + spec-§ rationale, which lives in a Mnemosyne scan root (dut/env/expect_overrides.md) because docs/spec/* is outside Mnemosyne's surface per mnemosyne.toml [workspace]. The axes are disjoint in practice but can coexist on a single entry. Schema v3 renamed the second axis from `linux_known_fail` when the lwIP DUT became the second platform consumer; v4 added the third (timing_serial) axis; v5 added the fourth (requires_secondary_iface) axis; v6 added the fifth (expect_overrides) axis, migrating it out of smoke-test.sh's CASE_EXPECT_OVERRIDES so the value has one home. (A `_NEG` self-validation case's per-DUT applicability is NOT an inventory axis: it is derived from the DUT's own OpQueryCapabilities (0x16) bitmap via the case's `kRequiredCapabilities` + the Tier-2 capability-skip gate — the DUT is the SSOT for what it can fault.)",
+  "schema_version": 7,
+  "description": "Per-case overrides applied on top of doc/spec/case_inventory.json for the Linux reference DUT (other DUT platforms supply their own overrides file via --inventory-overrides). Six independent axes: (1) `expected:false` (+ `reason`) marks a spec case the harness intentionally cannot cover (e.g. wall-time-permanent-deferred shapes) — counted as a gap by `--vs-spec`; (2) `platform_known_fail:true` (+ `platform_known_fail_ref`) marks a case that fails on this file's target platform due to platform-specific kernel/stack deviations from RFC MUST/SHOULD but passes on a strict-RFC DUT — kept ACTIVE in coverage reports so spec coverage stays honest, and filtered out of CI/smoke skip lists via `--exclude-platform-known-fail`; (3) `timing_serial:true` (+ `timing_serial_ref`) marks a case whose verdict measures a sub-second inter-frame cadence (a strict frame_delta_within_us window) that the reference DUT can only meet when NOT CPU-starved — CI runs these UNCONTENDED (--workers 1) via `--only-serial` and drops them from the parallel lane via `--exclude-serial`, mirroring how a conformance lab measures timing on dedicated DUT hardware; the case stays ACTIVE in coverage. (4) `requires_secondary_iface:true` marks a case the smoke harness must execute with a second tester interface (TC8 Topology 2 dual-broadcast-domain, e.g. USAGE_01) — surfaced via `--only-secondary-iface` so the harness brings up the second veth + passes `--interface-secondary` data-drivenly rather than by hardcoded case-ID. It is a harness-wiring need, NOT the overloaded spec `kTopology` number (UDP 'Topology 2' is two source hosts on ONE iface). (5) `expect_overrides` (+ `expect_overrides_ref`) carries bare `--expect key=value` tokens a case needs on top of the deployment identity surface every case shares — they exist when the case's own STIMULUS diverges from the default (in practice: the eventgroup its trait subscribes to), so the SCXML guard's comparison target must follow the stimulus rather than the deployment, which makes them a property of the CASE. `TestCommand::runCase` appends them AFTER the driver's tokens; since each applyExpectToken assigns its field, last-wins needs no merge logic. Drivers emit only the base identity and never read this axis, so bash and the orchestrator cannot drift on it. The `_ref` names the prose + spec-§ rationale, which lives in a Mnemosyne scan root (dut/env/expect_overrides.md) because docs/spec/* is outside Mnemosyne's surface per mnemosyne.toml [workspace]. (6) the NEGATIVE row (`neg_wrong_token` + `neg_expect_fail`, optional `neg_expect_overrides`, `neg_row_ref`) is the case's authored self-check: --negative-row replaces one --expect value with the deliberately wrong `neg_wrong_token` and the case must land on `neg_expect_fail`, proving the guard reacts to the value rather than passing regardless. It is the SOUND_ROW disposition of the negative-coverage exhaustiveness audit (tools/negative_coverage_audit.py, docs/verdict_policy.md Section 6); most cases have none because their guard asserts DUT behaviour, which no --expect flip can fault, and they carry a different disposition instead. neg_expect_overrides REPLACES the positive expect_overrides for that run and is applied AFTER the flip, so load() rejects one naming the flip's own key (it would overwrite the lie). The axes are disjoint in practice but can coexist on a single entry. Schema v3 renamed the second axis from `linux_known_fail` when the lwIP DUT became the second platform consumer; v4 added the third (timing_serial) axis; v5 added the fourth (requires_secondary_iface) axis; v6 added the fifth (expect_overrides) axis, migrating it out of smoke-test.sh's CASE_EXPECT_OVERRIDES so the value has one home; v7 added the sixth (negative row), migrating smoke-test.sh's NEG_ROWS + the 2 live NEG_CASE_EXPECT_OVERRIDES (38 of that table's 40 rows were unreachable and were dropped, not migrated). (A `_NEG` self-validation case's per-DUT applicability is NOT an inventory axis: it is derived from the DUT's own OpQueryCapabilities (0x16) bitmap via the case's `kRequiredCapabilities` + the Tier-2 capability-skip gate — the DUT is the SSOT for what it can fault.)",
   "overrides": {
+    "ARP_03": {
+      "neg_wrong_token": "arp.tester_ip=10.99.99.99",
+      "neg_expect_fail": "fail:dut_arp_request_after_cache_populated",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "ARP_04": {
+      "neg_wrong_token": "arp.tester_mac=de:ad:be:ef:00:00",
+      "neg_expect_fail": "fail:udp_eth_dst_not_tester_mac",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "ARP_05": {
+      "neg_wrong_token": "arp.tester_ip=10.99.99.99",
+      "neg_expect_fail": "fail:dut_arp_request_after_gratuitous_learning",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "ARP_06": {
+      "neg_wrong_token": "arp.tester_mac=de:ad:be:ef:00:00",
+      "neg_expect_fail": "fail:udp_eth_dst_not_tester_mac",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "ARP_13": {
+      "neg_wrong_token": "arp.dut_iface_mac=de:ad:be:ef:00:00",
+      "neg_expect_fail": "fail:sender_hw_addr_not_dut_iface",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "ARP_14": {
+      "neg_wrong_token": "arp.dut_iface_ip=10.99.99.99",
+      "neg_expect_fail": "fail:sender_proto_ip_not_dut_iface",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "ARP_15": {
+      "neg_wrong_token": "arp.tester_ip=10.99.99.99",
+      "neg_expect_fail": "fail:target_proto_ip_not_tester",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "ARP_32": {
+      "neg_wrong_token": "arp.tester_mac2=de:ad:be:ef:00:00",
+      "neg_expect_fail": "fail:udp_eth_dst_neither_mac1_nor_mac2",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
     "ARP_33": {
       "platform_known_fail": true,
-      "platform_known_fail_ref": "memory/reference_linux_arp_garp.md"
+      "platform_known_fail_ref": "memory/reference_linux_arp_garp.md",
+      "neg_wrong_token": "arp.tester_mac2=de:ad:be:ef:00:00",
+      "neg_expect_fail": "fail:udp_eth_dst_is_mac1_not_mac2",
+      "neg_row_ref": "dut/env/negative_rows.md"
     },
     "ARP_34": {
       "platform_known_fail": true,
-      "platform_known_fail_ref": "memory/reference_linux_arp_garp.md"
+      "platform_known_fail_ref": "memory/reference_linux_arp_garp.md",
+      "neg_wrong_token": "arp.tester_mac2=de:ad:be:ef:00:00",
+      "neg_expect_fail": "fail:udp_eth_dst_is_mac1_not_mac2",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "ARP_35": {
+      "neg_wrong_token": "arp.tester_mac2=de:ad:be:ef:00:00",
+      "neg_expect_fail": "fail:udp_eth_dst_neither_mac1_nor_mac2",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "ARP_39": {
+      "neg_wrong_token": "arp.tester_mac2=de:ad:be:ef:00:00",
+      "neg_expect_fail": "fail:udp_eth_dst_not_injected_mac2",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "ARP_40": {
+      "neg_wrong_token": "arp.tester_mac3=de:ad:be:ef:00:00",
+      "neg_expect_fail": "fail:udp_eth_dst_not_injected_mac3",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "ARP_43": {
+      "neg_wrong_token": "arp.dut_iface_mac=de:ad:be:ef:00:00",
+      "neg_expect_fail": "fail:eth_src_not_dut_iface_mac",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "ARP_44": {
+      "neg_wrong_token": "arp.dut_iface_ip=10.99.99.99",
+      "neg_expect_fail": "fail:reply_sender_ip_not_dut_iface",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "ARP_45": {
+      "neg_wrong_token": "arp.tester_mac=de:ad:be:ef:00:00",
+      "neg_expect_fail": "fail:first_response_target_hw_not_mac1",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "ARP_48": {
+      "neg_wrong_token": "arp.tester_mac=de:ad:be:ef:00:00",
+      "neg_expect_fail": "fail:first_udp_eth_dst_not_learned_mac",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "ARP_49": {
+      "neg_wrong_token": "arp.tester_mac=de:ad:be:ef:00:00",
+      "neg_expect_fail": "fail:first_udp_eth_dst_not_learned_mac",
+      "neg_row_ref": "dut/env/negative_rows.md"
     },
     "DHCPV4_CLIENT_ALLOCATING_08": {
       "timing_serial": true,
@@ -76,6 +162,11 @@
       "platform_known_fail": true,
       "platform_known_fail_ref": "memory/reference_icmp_parameter_problem_pointer.md"
     },
+    "ICMPv4_TYPE_12": {
+      "neg_wrong_token": "icmpv4.echo_id=0xFFFE",
+      "neg_expect_fail": "fail:timestamp_reply_identifier_not_echoed",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
     "IPV4_REASSEMBLY_11": {
       "platform_known_fail": true,
       "platform_known_fail_ref": "memory/reference_linux_ip_reassembly_deviations.md"
@@ -84,17 +175,87 @@
       "platform_known_fail": true,
       "platform_known_fail_ref": "memory/reference_linux_ip_reassembly_deviations.md"
     },
+    "IPv4_FRAGMENTS_01": {
+      "neg_wrong_token": "icmpv4.echo_id=0xFFFE",
+      "neg_expect_fail": "fail:echo_id_mismatch",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "IPv4_FRAGMENTS_02": {
+      "neg_wrong_token": "icmpv4.echo_id=0xFFFE",
+      "neg_expect_fail": "fail:echo_id_mismatch_after_id_retry",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "IPv4_FRAGMENTS_03": {
+      "neg_wrong_token": "icmpv4.echo_id=0xFFFE",
+      "neg_expect_fail": "fail:echo_id_mismatch_after_src_retry",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "IPv4_FRAGMENTS_04": {
+      "neg_wrong_token": "icmpv4.echo_id=0xFFFE",
+      "neg_expect_fail": "fail:echo_id_mismatch_after_protocol_retry",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "IPv4_REASSEMBLY_04": {
+      "neg_wrong_token": "icmpv4.echo_id=0xFFFE",
+      "neg_expect_fail": "fail:echo_id_mismatch_after_unordered_reassembly",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "IPv4_REASSEMBLY_10": {
+      "neg_wrong_token": "icmpv4.echo_id=0xFFFE",
+      "neg_expect_fail": "fail:echo_id_mismatch_phase_a_within_timer",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "IPv4_REASSEMBLY_12": {
+      "neg_wrong_token": "icmpv4.echo_id=0xFFFE",
+      "neg_expect_fail": "fail:echo_id_mismatch_after_low_ttl_reassembly",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
     "SOMEIPSRV_BASIC_03": {
       "expect_overrides": [
         "eventgroup_id=0x0002"
       ],
       "expect_overrides_ref": "dut/env/expect_overrides.md"
     },
+    "SOMEIPSRV_FORMAT_14": {
+      "neg_wrong_token": "service_id=0x0000",
+      "neg_expect_fail": "fail:entry_service_id_mismatch",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIPSRV_FORMAT_15": {
+      "neg_wrong_token": "instance_id=0xFFFE",
+      "neg_expect_fail": "fail:entry_instance_id_mismatch",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIPSRV_FORMAT_16": {
+      "neg_wrong_token": "major_version=9",
+      "neg_expect_fail": "fail:entry_major_version_mismatch",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIPSRV_FORMAT_17": {
+      "neg_wrong_token": "ttl=99",
+      "neg_expect_fail": "fail:entry_ttl_mismatch",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIPSRV_FORMAT_18": {
+      "neg_wrong_token": "minor_version=42",
+      "neg_expect_fail": "fail:entry_minor_version_mismatch",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
     "SOMEIPSRV_FORMAT_28": {
       "expect_overrides": [
         "eventgroup_id=0x0002"
       ],
       "expect_overrides_ref": "dut/env/expect_overrides.md"
+    },
+    "SOMEIPSRV_OPTIONS_04": {
+      "neg_wrong_token": "dut_iface_ip=10.99.99.99",
+      "neg_expect_fail": "fail:ipv4_endpoint_address_not_dut_iface_ip",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIPSRV_OPTIONS_07": {
+      "neg_wrong_token": "udp_port=12345",
+      "neg_expect_fail": "fail:ipv4_endpoint_udp_port_mismatch",
+      "neg_row_ref": "dut/env/negative_rows.md"
     },
     "SOMEIPSRV_OPTIONS_08": {
       "expect_overrides": [
@@ -118,7 +279,13 @@
       "expect_overrides": [
         "eventgroup_id=0x0008"
       ],
-      "expect_overrides_ref": "dut/env/expect_overrides.md"
+      "expect_overrides_ref": "dut/env/expect_overrides.md",
+      "neg_wrong_token": "mcast_ipv4=10.99.99.99",
+      "neg_expect_fail": "fail:ipv4_multicast_address_mismatch",
+      "neg_expect_overrides": [
+        "eventgroup_id=0x0008"
+      ],
+      "neg_row_ref": "dut/env/negative_rows.md"
     },
     "SOMEIPSRV_OPTIONS_12": {
       "expect_overrides": [
@@ -138,9 +305,29 @@
       ],
       "expect_overrides_ref": "dut/env/expect_overrides.md"
     },
+    "SOMEIPSRV_OPTIONS_15": {
+      "neg_wrong_token": "tcp_port=12345",
+      "neg_expect_fail": "fail:no_ipv4_endpoint_option_with_tcp_l4_or_port_mismatch",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
     "SOMEIPSRV_SD_BEHAVIOR_04": {
       "platform_known_fail": true,
       "platform_known_fail_ref": "memory/project_false_positive_remediation_round3.md"
+    },
+    "SOMEIPSRV_SD_MESSAGE_03": {
+      "neg_wrong_token": "major_version=99",
+      "neg_expect_fail": "fail:offer_entry_major_version_mismatch",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIPSRV_SD_MESSAGE_05": {
+      "neg_wrong_token": "minor_version=42",
+      "neg_expect_fail": "fail:offer_entry_minor_version_mismatch",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIPSRV_SD_MESSAGE_07": {
+      "neg_wrong_token": "ttl=99",
+      "neg_expect_fail": "fail:offer_entry_ttl_mismatch",
+      "neg_row_ref": "dut/env/negative_rows.md"
     },
     "SOMEIPSRV_SD_MESSAGE_09": {
       "expect_overrides": [
@@ -148,11 +335,132 @@
       ],
       "expect_overrides_ref": "dut/env/expect_overrides.md"
     },
+    "SOMEIPSRV_SD_MESSAGE_11": {
+      "neg_wrong_token": "service_id=0x0000",
+      "neg_expect_fail": "fail:ack_entry_service_id_mismatch",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
     "SOMEIPSRV_SD_MESSAGE_13": {
       "expect_overrides": [
         "eventgroup_id=0x0008"
       ],
-      "expect_overrides_ref": "dut/env/expect_overrides.md"
+      "expect_overrides_ref": "dut/env/expect_overrides.md",
+      "neg_wrong_token": "service_id=0x0000",
+      "neg_expect_fail": "fail:subscribe_ack_field_mismatch",
+      "neg_expect_overrides": [
+        "eventgroup_id=0x0008"
+      ],
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIPSRV_SD_MESSAGE_15": {
+      "neg_wrong_token": "instance_id=0xFFFE",
+      "neg_expect_fail": "fail:nack_entry_echo_fields_mismatch",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIP_ETS_005": {
+      "neg_wrong_token": "payload=00:00:34:69",
+      "neg_expect_fail": "fail:check_byte_order_response_did_not_match_expected_uint32_sum",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIP_ETS_007": {
+      "neg_wrong_token": "payload=01:80:02:1E:6A:2C:49",
+      "neg_expect_fail": "fail:echo_bitfields_response_did_not_match_reversed_request",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIP_ETS_008": {
+      "neg_wrong_token": "payload=3F:F9:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00",
+      "neg_expect_fail": "fail:echo_common_datatypes_response_did_not_match_reversed_echo",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIP_ETS_009": {
+      "neg_wrong_token": "payload=03",
+      "neg_expect_fail": "fail:echo_enum_response_did_not_match_request",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIP_ETS_019": {
+      "neg_wrong_token": "payload=3F:F8:00:00:00:00:00:01",
+      "neg_expect_fail": "fail:echo_float64_response_did_not_match_request",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIP_ETS_022": {
+      "neg_wrong_token": "payload=10:11:12:13:15",
+      "neg_expect_fail": "fail:echo_static_array_response_did_not_match_request",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIP_ETS_027": {
+      "neg_wrong_token": "payload=43",
+      "neg_expect_fail": "fail:echo_uint8_response_payload_did_not_match_request",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIP_ETS_028": {
+      "neg_wrong_token": "payload=00:00:00:03:42:43:45",
+      "neg_expect_fail": "fail:echo_array_response_did_not_match_request",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIP_ETS_029": {
+      "neg_wrong_token": "payload=00:03:42:43:45",
+      "neg_expect_fail": "fail:echo_array16_response_did_not_match_request",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIP_ETS_030": {
+      "neg_wrong_token": "payload=00:00:00:0A:00:00:00:01:42:00:00:00:01:44",
+      "neg_expect_fail": "fail:echo_array2dim_response_did_not_match_request",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIP_ETS_031": {
+      "neg_wrong_token": "payload=03:42:43:45",
+      "neg_expect_fail": "fail:echo_array8_response_did_not_match_request",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIP_ETS_032": {
+      "neg_wrong_token": "payload=00:00:00:04:10:11:12:14",
+      "neg_expect_fail": "fail:echo_arraymin_response_did_not_match_request",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIP_ETS_034": {
+      "neg_wrong_token": "payload=00:00:00:05:00:00:00:01:CA:FE:BA:BE:DE:AD:BE:EF:43",
+      "neg_expect_fail": "fail:echo_uint8_e2e_response_did_not_match_request",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIP_ETS_035": {
+      "neg_wrong_token": "tcp_port=12345",
+      "neg_expect_fail": "fail:echo_uint8_reliable_response_did_not_match_request_or_wrong_tcp_src_port",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIP_ETS_038": {
+      "neg_wrong_token": "payload=00:00:00:01:00:00:00:02:43",
+      "neg_expect_fail": "fail:echo_union_response_did_not_match_request",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIP_ETS_039": {
+      "neg_wrong_token": "payload=00:00:00:08:FE:FF:00:68:00:6A:00:00",
+      "neg_expect_fail": "fail:echo_utf16_response_did_not_match_request",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIP_ETS_044": {
+      "neg_wrong_token": "payload=00:00:00:08:FE:FF:00:68:00:6A:00:00",
+      "neg_expect_fail": "fail:echo_utf16_response_did_not_match_request",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIP_ETS_046": {
+      "neg_wrong_token": "payload=FE:FF:00:68:00:6A:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00",
+      "neg_expect_fail": "fail:echo_utf16_fixed_response_did_not_match_request",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIP_ETS_047": {
+      "neg_wrong_token": "payload=FE:FF:00:68:00:6A:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00",
+      "neg_expect_fail": "fail:echo_utf16_fixed_response_did_not_match_request",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIP_ETS_048": {
+      "neg_wrong_token": "payload=00:00:00:06:EF:BB:BF:68:6A:00",
+      "neg_expect_fail": "fail:echo_utf8_dynamic_response_did_not_match_request",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIP_ETS_053": {
+      "neg_wrong_token": "payload=EF:BB:BF:68:6A:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00",
+      "neg_expect_fail": "fail:echo_utf8_fixed_response_did_not_match_request",
+      "neg_row_ref": "dut/env/negative_rows.md"
     },
     "SOMEIP_ETS_086": {
       "expect_overrides": [
@@ -371,6 +679,16 @@
     "TCP_UNACCEPTABLE_10": {
       "platform_known_fail": true,
       "platform_known_fail_ref": "memory/reference_linux_tw_substate_oow.md"
+    },
+    "UDP_USER_INTERFACE_07": {
+      "neg_wrong_token": "ipv4.dut_alias_ip=10.99.99.99",
+      "neg_expect_fail": "fail:dut_emitted_udp_with_wrong_user_interface_src_ip",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "UDP_USER_INTERFACE_08": {
+      "neg_wrong_token": "ipv4.tester_alias_ip=10.99.99.99",
+      "neg_expect_fail": "fail:dut_emitted_udp_with_wrong_user_interface_dst_ip",
+      "neg_row_ref": "dut/env/negative_rows.md"
     }
   }
 }

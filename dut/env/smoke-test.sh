@@ -1926,34 +1926,22 @@ run_negative_case() {
         ip netns exec "$dut_ns" sysctl -qw "net.ipv4.neigh.$veth_d.gc_stale_time=1"             >/dev/null
     fi
 
-    # Rebuild the expect array: keep every baseline entry whose key does
-    # not match the wrong token's key, then append the wrong value. The
-    # baseline combines SOME/IP and ARP tokens so this loop handles
-    # negatives for either protocol without per-protocol branching.
+    # The unmodified baseline identity — the same surface run_case passes. The
+    # flip is NOT applied here: `--negative-row` makes the harness append the
+    # case's authored `neg_wrong_token` (and its `neg_expect_overrides`) after
+    # these, and `--expect` is last-wins, so the harness's token beats the
+    # baseline's correct value for that key. That is why the old key-strip loop
+    # is gone rather than merely moved — with the flip applied last, there is
+    # nothing to strip.
     local -a _mac_expect
     readarray -t _mac_expect < <(tc8_expect_mac "$dut_mac")
-    local -a baseline=(
+    local -a override=(
         "${TC8_DUT_EXPECT[@]}"
         "${ARP_DUT_EXPECT_STATIC[@]}"
         "${_mac_expect[@]}"
         "${ICMPV4_DUT_EXPECT_STATIC[@]}"
         "${IPV4_DUT_EXPECT_STATIC[@]}"
     )
-    local wrong_key="${wrong_token%%=*}"
-    local -a override=()
-    local i=0 tok
-    while (( i < ${#baseline[@]} )); do
-        if [[ "${baseline[i]}" == "--expect" ]]; then
-            tok="${baseline[i+1]}"
-            if [[ "${tok%%=*}" != "$wrong_key" ]]; then
-                override+=(--expect "$tok")
-            fi
-            (( i += 2 ))
-        else
-            (( i += 1 ))
-        fi
-    done
-    override+=(--expect "$wrong_token")
 
     # Mirror run_case: when --log-dir is set, capture the per-case pcap so
     # a flaky negative (should not happen, but parity matters) is debuggable.
@@ -2021,73 +2009,6 @@ run_negative_case() {
         return 1
     fi
 
-    # The negative mirror of the harness-owned `expect_overrides` axis
-    # (docs/spec/inventory_overrides.json; rationale in expect_overrides.md):
-    # a negative whose stimulus subscribes to a non-default eventgroup
-    # (e.g. SD_MESSAGE_13 → 0x0008) must still assert against the correct
-    # expected.eventgroup_id baseline. This table is the remaining bash-side
-    # half — the positive half moved into the harness, which cannot apply it
-    # here because the harness has no --negative mode and so cannot know the
-    # wrong token this run injects. Migrating it is stage 2 of that work.
-    # `--expect` is last-wins so appending the override after the wrong
-    # token cleanly shadows the global default without colliding with
-    # the wrong_key strip above (which only removes the `wrong_token`
-    # key from baseline). Skipped for keys whose wrong_token would
-    # itself touch the override key — none today, and NOTHING ENFORCES IT:
-    # a future colliding row would silently neuter its own negative control
-    # (the override, appended last, would overwrite the deliberate mistake).
-    declare -A NEG_CASE_EXPECT_OVERRIDES=(
-        [SOMEIPSRV_OPTIONS_08]="eventgroup_id=0x0008"
-        [SOMEIPSRV_OPTIONS_09]="eventgroup_id=0x0008"
-        [SOMEIPSRV_OPTIONS_10]="eventgroup_id=0x0008"
-        [SOMEIPSRV_OPTIONS_11]="eventgroup_id=0x0008"
-        [SOMEIPSRV_OPTIONS_12]="eventgroup_id=0x0008"
-        [SOMEIPSRV_OPTIONS_13]="eventgroup_id=0x0008"
-        [SOMEIPSRV_OPTIONS_14]="eventgroup_id=0x0008"
-        [SOMEIPSRV_SD_MESSAGE_13]="eventgroup_id=0x0008"
-        # §5.1.6 SOMEIP_ETS_086/_087 mirror run_case's per-case
-        # eventgroup_id override so the negative service_id flip still
-        # asserts against the correct eventgroup_id (the cond never
-        # fires, but symmetry keeps the harness state consistent).
-        [SOMEIP_ETS_086]="eventgroup_id=0x0002"
-        [SOMEIP_ETS_087]="eventgroup_id=0x0005"
-        [SOMEIP_ETS_121]="eventgroup_id=0x0005"
-        [SOMEIP_ETS_094]="eventgroup_id=0x0002"
-        [SOMEIP_ETS_154]="eventgroup_id=0x0002"
-        [SOMEIP_ETS_162]="eventgroup_id=0x0002"
-        [SOMEIP_ETS_163]="eventgroup_id=0x0002"
-        [SOMEIP_ETS_109]="eventgroup_id=0x0002"
-        [SOMEIP_ETS_110]="eventgroup_id=0x0002"
-        [SOMEIP_ETS_111]="eventgroup_id=0x0002"
-        [SOMEIP_ETS_112]="eventgroup_id=0x0002"
-        [SOMEIP_ETS_113]="eventgroup_id=0x0002"
-        [SOMEIP_ETS_119]="eventgroup_id=0x0002"
-        [SOMEIP_ETS_115]="eventgroup_id=0x0002"
-        [SOMEIP_ETS_116]="eventgroup_id=0x0002"
-        [SOMEIP_ETS_174]="eventgroup_id=0x0002"
-        [SOMEIP_ETS_178]="eventgroup_id=0x0002"
-        [SOMEIP_ETS_176]="eventgroup_id=0x0002"
-        [SOMEIP_ETS_177]="eventgroup_id=0x0002"
-        [SOMEIP_ETS_117]="eventgroup_id=0x0005"
-        [SOMEIP_ETS_173]="eventgroup_id=0x0002"
-        [SOMEIP_ETS_175]="eventgroup_id=0x0002"
-        [SOMEIP_ETS_107]="eventgroup_id=0x0005"
-        [SOMEIP_ETS_108]="eventgroup_id=0x0005"
-        [SOMEIP_ETS_120]="eventgroup_id=0x0002"
-        [SOMEIP_ETS_155]="eventgroup_id=0x0002"
-        [SOMEIP_ETS_147]="eventgroup_id=0x0002"
-        [SOMEIP_ETS_148]="eventgroup_id=0x0002"
-        [SOMEIP_ETS_149]="eventgroup_id=0x0002"
-        [SOMEIP_ETS_150]="eventgroup_id=0x0006"
-        [SOMEIP_ETS_151]="eventgroup_id=0x0002"
-        [SOMEIP_ETS_152]="eventgroup_id=0x0002"
-    )
-    local neg_case_overrides="${NEG_CASE_EXPECT_OVERRIDES[$case_id_canon]:-}"
-    if [[ -n "$neg_case_overrides" ]]; then
-        for tok in $neg_case_overrides; do
-            override+=(--expect "$tok")
-        done
-    fi
 
     # Harness watchdog backstop — same global value as run_case. The
     # negative SCXML branches self-terminate on their own deadlines, so
@@ -2232,285 +2153,20 @@ distribute() {
 }
 
 if [[ "$NEGATIVE" == "1" ]]; then
-    # Each row wires one FORMAT_14..18 or ARP_13..15 to a deliberately-
-    # wrong expectation and the `fail:*` reason the case's SCXML
-    # prescribes for that mismatch. Wrong values are chosen to not
-    # collide with any plausible DUT identity (tc8-dut ships
-    # service_id=0xF4E7 etc. — see TC8_DUT_EXPECT above).
-    NEG_ROWS=(
-        "SOMEIPSRV_FORMAT_14|service_id=0x0000|fail:entry_service_id_mismatch"
-        "SOMEIPSRV_FORMAT_15|instance_id=0xFFFE|fail:entry_instance_id_mismatch"
-        "SOMEIPSRV_FORMAT_16|major_version=9|fail:entry_major_version_mismatch"
-        "SOMEIPSRV_FORMAT_17|ttl=99|fail:entry_ttl_mismatch"
-        "SOMEIPSRV_FORMAT_18|minor_version=42|fail:entry_minor_version_mismatch"
-        # §5.1.5.5 OPTIONS NEG rows — cases 04/07/15 read expected.*
-        # endpoint values (dut_iface_ip, udp_port, tcp_port). Cases
-        # 01/02/03/05/06 verify spec invariants on captured fields
-        # alone (length, type, reserved bytes, L4-Proto presence) so
-        # an expectation flip can't fault them.
-        "SOMEIPSRV_OPTIONS_04|dut_iface_ip=10.99.99.99|fail:ipv4_endpoint_address_not_dut_iface_ip"
-        "SOMEIPSRV_OPTIONS_07|udp_port=12345|fail:ipv4_endpoint_udp_port_mismatch"
-        "SOMEIPSRV_OPTIONS_15|tcp_port=12345|fail:no_ipv4_endpoint_option_with_tcp_l4_or_port_mismatch"
-        # §5.1.5.5 OPTIONS_11 / §5.1.5.3 SD_MESSAGE_13 NEG rows — both
-        # cases assert echoed/configured Multicast Option fields against
-        # expected.* baselines. _11's mcast_ipv4 flip lands directly on
-        # fail_ipv4; SD_MESSAGE_13's service_id flip lands on fail_ack_
-        # field (the cond ANDs across multiple echoed fields). 08/09/
-        # 10/12/13/14 verify spec invariants on captured fields alone
-        # (length / type / reserveds / l4-proto presence / port literal)
-        # so an expectation flip can't fault them — same precedent as
-        # OPTIONS_01/02/03/05/06.
-        "SOMEIPSRV_OPTIONS_11|mcast_ipv4=10.99.99.99|fail:ipv4_multicast_address_mismatch"
-        "SOMEIPSRV_SD_MESSAGE_13|service_id=0x0000|fail:subscribe_ack_field_mismatch"
-        # §5.1.5.3 SD_MESSAGE NEG rows — _03/_04 read expected.major_version,
-        # _05/_06 read expected.minor_version, _07 reads expected.ttl,
-        # _11 reads expected.service_id, _15 reads expected.instance_id
-        # / eventgroup_id / major_version. _14/_16/_17/_18/_19 verify
-        # spec-defined sentinels (TTL=0 + literal 0xFFFE / 0x0002 / 2)
-        # on captured fields alone so an expectation flip can't fault
-        # them — same precedent as OPTIONS_01/02/03/05/06.
-        "SOMEIPSRV_SD_MESSAGE_03|major_version=99|fail:offer_entry_major_version_mismatch"
-        "SOMEIPSRV_SD_MESSAGE_05|minor_version=42|fail:offer_entry_minor_version_mismatch"
-        "SOMEIPSRV_SD_MESSAGE_07|ttl=99|fail:offer_entry_ttl_mismatch"
-        "SOMEIPSRV_SD_MESSAGE_11|service_id=0x0000|fail:ack_entry_service_id_mismatch"
-        "SOMEIPSRV_SD_MESSAGE_15|instance_id=0xFFFE|fail:nack_entry_echo_fields_mismatch"
-        # SD_MESSAGE_02 + RPC_14/_17: count/liveness cases whose sole
-        # fail is precondition-break (the old service_id=0x0000 rows just
-        # timed the gate out before the real observation — vacuous, so
-        # removed). They are liveness guards in
-        # tools/conformant_absence_registry.json, alongside the former
-        # "omitted" captured-only cases (SD_MESSAGE_01, RPC_01/_02/_13).
-        # Expect-flippable cases with no verified sound row yet
-        # (SD_MESSAGE_04/_06) are in tools/deferred_negatives.json.
-        # See docs/verdict_policy.md Section 6.
-        # §5.1.6 SOMEIP_ETS sound expect-flip negatives. Each is a stateless
-        # echo whose conformant payload is the case-local applyExpectedDefaults
-        # SSOT; the payload= (or tcp_port=) token flips it so a conformant DUT's
-        # correct echo lands fail_phase2_*_mismatch (observed_violation),
-        # proving the byte-equality guard non-vacuous. The §5.1.6 dut-mutation
-        # and liveness guards (former service_id=0x0000 precondition-break rows)
-        # are in tools/conformant_absence_registry.json (docs/verdict_policy.md
-        # Section 6).
-        "SOMEIP_ETS_005|payload=00:00:34:69|fail:check_byte_order_response_did_not_match_expected_uint32_sum"
-        "SOMEIP_ETS_027|payload=43|fail:echo_uint8_response_payload_did_not_match_request"
-        "SOMEIP_ETS_035|tcp_port=12345|fail:echo_uint8_reliable_response_did_not_match_request_or_wrong_tcp_src_port"
-        "SOMEIP_ETS_028|payload=00:00:00:03:42:43:45|fail:echo_array_response_did_not_match_request"
-        "SOMEIP_ETS_029|payload=00:03:42:43:45|fail:echo_array16_response_did_not_match_request"
-        "SOMEIP_ETS_031|payload=03:42:43:45|fail:echo_array8_response_did_not_match_request"
-        "SOMEIP_ETS_032|payload=00:00:00:04:10:11:12:14|fail:echo_arraymin_response_did_not_match_request"
-        "SOMEIP_ETS_019|payload=3F:F8:00:00:00:00:00:01|fail:echo_float64_response_did_not_match_request"
-        "SOMEIP_ETS_022|payload=10:11:12:13:15|fail:echo_static_array_response_did_not_match_request"
-        "SOMEIP_ETS_030|payload=00:00:00:0A:00:00:00:01:42:00:00:00:01:44|fail:echo_array2dim_response_did_not_match_request"
-        "SOMEIP_ETS_009|payload=03|fail:echo_enum_response_did_not_match_request"
-        "SOMEIP_ETS_039|payload=00:00:00:08:FE:FF:00:68:00:6A:00:00|fail:echo_utf16_response_did_not_match_request"
-        "SOMEIP_ETS_046|payload=FE:FF:00:68:00:6A:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00|fail:echo_utf16_fixed_response_did_not_match_request"
-        "SOMEIP_ETS_048|payload=00:00:00:06:EF:BB:BF:68:6A:00|fail:echo_utf8_dynamic_response_did_not_match_request"
-        "SOMEIP_ETS_053|payload=EF:BB:BF:68:6A:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00|fail:echo_utf8_fixed_response_did_not_match_request"
-        "SOMEIP_ETS_044|payload=00:00:00:08:FE:FF:00:68:00:6A:00:00|fail:echo_utf16_response_did_not_match_request"
-        "SOMEIP_ETS_047|payload=FE:FF:00:68:00:6A:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00|fail:echo_utf16_fixed_response_did_not_match_request"
-        "SOMEIP_ETS_007|payload=01:80:02:1E:6A:2C:49|fail:echo_bitfields_response_did_not_match_reversed_request"
-        "SOMEIP_ETS_008|payload=3F:F9:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00|fail:echo_common_datatypes_response_did_not_match_reversed_echo"
-        "SOMEIP_ETS_034|payload=00:00:00:05:00:00:00:01:CA:FE:BA:BE:DE:AD:BE:EF:43|fail:echo_uint8_e2e_response_did_not_match_request"
-        "SOMEIP_ETS_038|payload=00:00:00:01:00:00:00:02:43|fail:echo_union_response_did_not_match_request"
-        "ARP_13|arp.dut_iface_mac=de:ad:be:ef:00:00|fail:sender_hw_addr_not_dut_iface"
-        "ARP_14|arp.dut_iface_ip=10.99.99.99|fail:sender_proto_ip_not_dut_iface"
-        "ARP_15|arp.tester_ip=10.99.99.99|fail:target_proto_ip_not_tester"
-        # §4.2.4.1 Phase 2 (ARP_03..06) negatives:
-        #   ARP_03/05: override arp.tester_ip so the learning stimulus
-        #     injects a *wrong* sender_proto_ip; DUT's cache stays cold
-        #     for the real tester IP; the UT-provoked unicast egress
-        #     (envelope pinned to the ipv4.tester_ip topology identity,
-        #     untouched by this override) then triggers a real ARP
-        #     Request → case lands on fail_unexpected_arp_request.
-        #   ARP_04/06: override arp.tester_mac so the SCXML expected.tester_mac
-        #     mismatches the MAC actually injected (hardcoded in arp_builder.h);
-        #     observed UDP's Eth-dst == injected synthetic MAC != expected →
-        #     lands on fail_wrong_eth_dst.
-        "ARP_03|arp.tester_ip=10.99.99.99|fail:dut_arp_request_after_cache_populated"
-        "ARP_04|arp.tester_mac=de:ad:be:ef:00:00|fail:udp_eth_dst_not_tester_mac"
-        "ARP_05|arp.tester_ip=10.99.99.99|fail:dut_arp_request_after_gratuitous_learning"
-        "ARP_06|arp.tester_mac=de:ad:be:ef:00:00|fail:udp_eth_dst_not_tester_mac"
-        # §4.2.4.2 Phase 3a field-check cases ARP_43/44: opened via the
-        # Phase 3b CLI split (`dut.ip` / `dut.mac` feed
-        # the stimulus, `arp.dut_iface_ip` / `arp.dut_iface_mac` feed the
-        # SCXML expectation). Overriding only the iface key shifts the
-        # SCXML comparison target without silencing the DUT; the SCXML
-        # fail guards were also relaxed (dropped the `sender_hw ==
-        # expected.dut_iface_mac` conjunction) so the override reaches the
-        # intended fail branch instead of fail_no_reply.
-        "ARP_43|arp.dut_iface_mac=de:ad:be:ef:00:00|fail:eth_src_not_dut_iface_mac"
-        "ARP_44|arp.dut_iface_ip=10.99.99.99|fail:reply_sender_ip_not_dut_iface"
-        # §4.2.4.2 Phase 3b Group C cache-merge cases (ARP_32..35):
-        # override `arp.tester_mac2` so the SCXML expectation no longer
-        # matches the DUT's observed UDP egress eth_dst (= real MAC2,
-        # still hardcoded to `kTesterInjectedMac2` in arp_builder.h).
-        # The observed eth_dst equals neither `expected.tester_mac` (MAC1
-        # = 02:00:00:00:00:A1) nor the overridden `expected.tester_mac2`,
-        # so the SCXML falls through to `fail:udp_eth_dst_neither_mac1_nor_mac2`.
-        # This validates the pass-guard dependency on tester_mac2 without
-        # needing a DUT that actually does the wrong thing.
-        "ARP_32|arp.tester_mac2=de:ad:be:ef:00:00|fail:udp_eth_dst_neither_mac1_nor_mac2"
-        "ARP_33|arp.tester_mac2=de:ad:be:ef:00:00|fail:udp_eth_dst_is_mac1_not_mac2"
-        "ARP_34|arp.tester_mac2=de:ad:be:ef:00:00|fail:udp_eth_dst_is_mac1_not_mac2"
-        "ARP_35|arp.tester_mac2=de:ad:be:ef:00:00|fail:udp_eth_dst_neither_mac1_nor_mac2"
-        # §4.2.4.2 Phase 3c Group D stateful-learning cases (ARP_39/40):
-        # override the MAC the SCXML compares the DUT's UDP egress
-        # eth_dst against. Without arp_ignore=8 (run_negative_case omits
-        # the per-case toggle to keep the runtime path symmetric with
-        # other negatives), the DUT learns the tester KERNEL'S MAC from
-        # the auto-Reply race; that lladdr ≠ the wrong overridden
-        # value, so SCXML lands on `fail:udp_eth_dst_not_injected_macN`
-        # — the intended fail branch (the test asserts the dependency
-        # on the per-case MAC expectation, not on the cache stickiness
-        # mechanism that the positive path exercises).
-        "ARP_39|arp.tester_mac2=de:ad:be:ef:00:00|fail:udp_eth_dst_not_injected_mac2"
-        "ARP_40|arp.tester_mac3=de:ad:be:ef:00:00|fail:udp_eth_dst_not_injected_mac3"
-        # ARP_45 (two-Request target_hw check): override `arp.tester_mac`
-        # so the SCXML expectation for the FIRST Reply's target_hw no
-        # longer matches the DUT's actual reply (target_hw=real MAC1
-        # from the injected Request). Lands on the first-response fail
-        # branch.
-        "ARP_45|arp.tester_mac=de:ad:be:ef:00:00|fail:first_response_target_hw_not_mac1"
-        # §4.2.4.2 Phase 3c Group E timeout cases (ARP_48/49): override
-        # the MAC the SCXML expects on the FIRST DUT UDP egress. The
-        # cache-expiry path itself doesn't matter for the negative —
-        # UDP1 fires while the cache still has MAC1 (whether REACHABLE
-        # or DELAY), and the SCXML's wait_udp1 fail branch fires before
-        # the rest of the stimulus completes.
-        "ARP_48|arp.tester_mac=de:ad:be:ef:00:00|fail:first_udp_eth_dst_not_learned_mac"
-        "ARP_49|arp.tester_mac=de:ad:be:ef:00:00|fail:first_udp_eth_dst_not_learned_mac"
-        # ARP_46/47 still closed: guards check hardcoded RFC constants
-        # (hw_type=1, hw_addr_len=6) with no `expected.*` override knob.
-        # Reaching those fail branches requires a non-conformant DUT.
-        # §4.4 IPv4 conformant-absence cases live in
-        # tools/conformant_absence_registry.json (docs/verdict_policy.md
-        # Section 6): no --expect flip can fault them — each guard asserts
-        # DUT behaviour, not a comparison against an operator value.
-        #   incorrect_emission (DUT emits, value must be right):
-        #     IPv4_HEADER_01 (Total Length >= RFC 791 min), IPv4_VERSION_03
-        #     (Version=4), IPv4_FRAGMENTS_05 (egress UDP MF/offset=0),
-        #     IPv4_ADDRESSING_01 (UT received-count), IPv4_HEADER_05
-        #     (§4.4.4.1, 576-byte Echo Reply payload).
-        #   (IPv4_TTL_01, IPv4_CHECKSUM_05 and IPv4_ADDRESSING_02 graduated
-        #    to FAULT_INJECTION — they now carry lwIP `_neg` self-validation
-        #    cases, so they are no longer conformant-absence registry rows.)
-        #   liveness (must emit an IPv4 packet, no wrong-value variant):
-        #     IPv4_HEADER_03, IPv4_VERSION_01, IPv4_TTL_05.
-        #   prohibited_emission (silence conformant, must not emit):
-        #     IPv4_REASSEMBLY_06/07/09.
-        # §4.3 ICMPv4 conformant-absence cases live in
-        # tools/conformant_absence_registry.json (docs/verdict_policy.md
-        # Section 6): no --expect flip can fault them — each guard asserts
-        # DUT behaviour, not a comparison against an operator value.
-        #   incorrect_emission (DUT emits, value must be right):
-        #     ICMPv4_ERROR_02 (§4.3.3.1, Parameter Problem Pointer=22;
-        #     Linux emits 20, RFC-792 latitude), ICMPv4_TYPE_11
-        #     (Timestamp Reply originate/receive/transmit), ICMPv4_TYPE_18
-        #     (Dest Unreachable code=2).
-        #   prohibited_emission (silence conformant, must not emit):
-        #     ICMPv4_ERROR_03/04/05, ICMPv4_TYPE_04/05/10/16.
-        #   liveness (must emit, no wrong-value variant): ICMPv4_TYPE_22.
-        # TYPE_12 keeps a sound expect-flip row: its echo_id is an operator-
-        # supplied expected value, so flipping icmpv4.echo_id drives the SCXML
-        # into the id-mismatch branch (higher specificity than the seq branch),
-        # proving the identifier-echo conjunct is load-bearing. TYPE_09 is the
-        # structural twin but its row was unverified on the wire -- deferred
-        # (deferred_negatives.json) until a smoke run confirms it lands on fail.
-        "ICMPv4_TYPE_12|icmpv4.echo_id=0xFFFE|fail:timestamp_reply_identifier_not_echoed"
-        # §4.4.4.6 IPv4_FRAGMENTS_01: flipping icmpv4.echo_id moves
-        # the pass conjunct (echo_id match) out of reach so the SCXML
-        # lands on fail_echo_id (the explicit mismatch branch fires
-        # before fail_data_mismatch since it has higher specificity).
-        # Proves the echo_id match is load-bearing in the reassembly
-        # path — not just "any DUT reply".
-        "IPv4_FRAGMENTS_01|icmpv4.echo_id=0xFFFE|fail:echo_id_mismatch"
-        # §4.4.4.6 IPv4_FRAGMENTS_02/03/04: flipping icmpv4.echo_id
-        # moves phase 2's pass conjunct out of reach — the DUT's
-        # reassembled Echo Reply has the real kIcmpEchoId in its
-        # header, but the SCXML compares against the wrong expected.
-        # Lands on fail_echo_id with the case-specific reason string
-        # (compound template's 3-way phase-2 fail split mirrors
-        # FRAGMENTS_01's diagnostic granularity). Proves the phase 2
-        # echo_id conjunct is load-bearing across all three
-        # compound consumers.
-        "IPv4_FRAGMENTS_02|icmpv4.echo_id=0xFFFE|fail:echo_id_mismatch_after_id_retry"
-        "IPv4_FRAGMENTS_03|icmpv4.echo_id=0xFFFE|fail:echo_id_mismatch_after_src_retry"
-        "IPv4_FRAGMENTS_04|icmpv4.echo_id=0xFFFE|fail:echo_id_mismatch_after_protocol_retry"
-        # §4.4.4.7 IPv4_REASSEMBLY_04: flipping icmpv4.echo_id moves the
-        # pass conjunct (echo_id match on the unordered-reassembly Echo
-        # Reply) out of reach. The DUT still reassembles by offset key
-        # and emits Echo Reply with the real kIcmpEchoId, but the SCXML
-        # compares against the wrong expected → lands on fail_echo_id
-        # with the unordered-reassembly reason string. Proves the
-        # echo_id match is load-bearing on the out-of-order path —
-        # complements FRAGMENTS_01's same-axis check on the in-order
-        # 2-fragment path.
-        "IPv4_REASSEMBLY_04|icmpv4.echo_id=0xFFFE|fail:echo_id_mismatch_after_unordered_reassembly"
-        # §4.4.4.7 IPv4_REASSEMBLY_12: same axis as REASSEMBLY_04 —
-        # flipping icmpv4.echo_id sends the pass conjunct out of reach
-        # so the SCXML lands on fail_echo_id with the low-TTL reason
-        # string. Proves the echo_id match is load-bearing on the
-        # Low-TTL reassembly path.
-        "IPv4_REASSEMBLY_12|icmpv4.echo_id=0xFFFE|fail:echo_id_mismatch_after_low_ttl_reassembly"
-        # §4.4.4.7 IPv4_REASSEMBLY_11 carries no negative row — the
-        # case's positive path already lands on fail_timeout on Linux
-        # (ipfrag_time=2 dut_ns toggle + 3 s inter-fragment wait =
-        # bucket expired before frag 1, no Echo Reply). An echo_id
-        # flip would land on the same fail_timeout, providing zero
-        # diagnostic variance. Same precedent as _13 (overlap drop):
-        # no flippable conjunct that can be observed when no reply lands.
-        # §4.4.4.7 IPv4_REASSEMBLY_10: flipping icmpv4.echo_id sends
-        # phase_a's pass conjunct out of reach. The DUT reassembles
-        # Phase A (inside ipfrag_time=2 s) and emits Echo Reply with
-        # the real id=0x1234, but the SCXML compares against 0xFFFE →
-        # lands on fail_phase_a_echo_id. Phase B's hypothetical reply
-        # is unreachable since phase_a's terminal final state already
-        # ended the case. Proves the phase_a echo_id match is load-
-        # bearing on the within-timer reassembly path.
-        "IPv4_REASSEMBLY_10|icmpv4.echo_id=0xFFFE|fail:echo_id_mismatch_phase_a_within_timer"
-        # §4.8 TCP conformant-absence cases live in
-        # tools/conformant_absence_registry.json (docs/verdict_policy.md
-        # Section 6): no --expect flip can fault them — each guard asserts
-        # DUT behaviour (must emit a correct segment, must not emit a
-        # prohibited one, or liveness), not a comparison against an
-        # operator value. The negative coverage for §4.8.6.2
-        # TCP_CHECKSUM_01, §4.8.6.3 TCP_UNACCEPTABLE_01 and §4.8.6.6
-        # TCP_FLAGS_INVALID_01 (and the other §4.8 sub-areas) is now that
-        # registry guard, not a row here. The former ipv4.dut_iface_ip
-        # flip rows only suppressed L3 observation (absence/timeout) and
-        # proved nothing about the guards; the spurious-filter rejection
-        # in tools/negative_coverage_audit.py codifies why they were
-        # removed.
-        # §4.6 UDP conformant-absence cases live in
-        # tools/conformant_absence_registry.json (docs/verdict_policy.md
-        # Section 6): no --expect flip can fault them — each guard asserts
-        # DUT behaviour, not a comparison against an operator value.
-        #   incorrect_emission (DUT emits, value must be right):
-        #     UDP_FIELDS_01/02 (src/dst port), UDP_FIELDS_06/07 (Length),
-        #     UDP_FIELDS_12 (§4.6.5.4 UT received length), UDP_FIELDS_13/14
-        #     (pseudo-header checksum), UDP_USER_INTERFACE_01/05/06 (UT port
-        #     count / src / dst port), UDP_Padding_02 (no even-payload
-        #     padding), UDP_INTRODUCTION_03 (§4.6.5.6 ICMP type 3 code 3).
-        #   liveness (must originate UDP, no wrong-value variant):
-        #     UDP_FIELDS_04 (per-host egress), UDP_FIELDS_05 (per-host UT
-        #     receipt).
-        # UI_07/08 below keep sound expect-flip rows (alias-IP axis).
-        # §4.6.5.5 UI_07 strict-axis NEG: stimulus pins src_ip override
-        # to the conformant DIface-0 alias (kDutAliasIp4Be=172.16.0.5)
-        # via a constant in udp_pilot_common.h, so flipping
-        # `ipv4.dut_alias_ip` diverts ONLY the SCXML expectation. DUT
-        # still emits with src=alias, harness expected diverges, cond
-        # lands on `fail_wrong_src_ip_or_port` — proves the strict-axis
-        # cond literal is load-bearing rather than vacuous on the
-        # passing path.
-        "UDP_USER_INTERFACE_07|ipv4.dut_alias_ip=10.99.99.99|fail:dut_emitted_udp_with_wrong_user_interface_src_ip"
-        # §4.6.5.5 UI_08 strict-axis NEG: same pattern as UI_07 but on
-        # the destination axis. Stimulus pins target_ip to the AIface-0
-        # alias (kTesterAliasIp4Be=172.16.0.4); flipping
-        # `ipv4.tester_alias_ip` makes SCXML expect a different dst,
-        # forcing the cond to land on `fail_wrong_dst_ip`.
-        "UDP_USER_INTERFACE_08|ipv4.tester_alias_ip=10.99.99.99|fail:dut_emitted_udp_with_wrong_user_interface_dst_ip"
-    )
+    # The negative rows are the inventory overrides' sixth axis, not a table
+    # here: `--list-neg-rows` prints them in the historical
+    # CASE|wrong_token|fail:reason grammar. The harness applies the flip itself
+    # under `--negative-row`, so the wrong_token below is carried only for the
+    # log line and the reason for the verdict assertion. One home means the
+    # orchestrator, this driver and tools/negative_coverage_audit.py cannot
+    # drift; rationale + which cases have no row: dut/env/negative_rows.md.
+    readarray -t NEG_ROWS < <("$HARNESS" test --list-neg-rows)
+    if (( ${#NEG_ROWS[@]} == 0 )); then
+        echo "smoke-test: --list-neg-rows returned no rows — the negative set is" >&2
+        echo "  the inventory overrides' sixth axis; an empty list would run ZERO" >&2
+        echo "  negatives and pass by vacuity. Refusing." >&2
+        exit 1
+    fi
     # Filter NEG_ROWS to only those whose case_id appears in the
     # positional CASES array (when the user passed any). Keeps the
     # `--negative SOMEIP_ETS_027` ergonomic for rapid per-case

@@ -119,14 +119,21 @@ TestCommand::TestCommand(CLI::App &app) {
                    "requires_secondary_iface:true (TC8 Topology 2 dual-iface). "
                    "The smoke harness lists these to bring up a second tester "
                    "veth + pass --interface-secondary data-drivenly.");
+    sub_->add_flag("--list-neg-rows", list_neg_rows_,
+                   "Print every case carrying an authored negative row as "
+                   "CASE|wrong_token|fail:reason (the grammar smoke-test.sh's "
+                   "NEG_ROWS array used) and exit. A driver iterates this to "
+                   "know which cases to run with --negative-row and which "
+                   "verdict to assert; --negative-row injects the token itself, "
+                   "so the driver never re-emits it.");
     sub_->add_flag("--negative-row", negative_row_,
-                   "This invocation is the case's NEGATIVE row: the driver has "
-                   "replaced one --expect value with a deliberately wrong one "
-                   "to prove the guard is not trivially-true. Suppresses the "
-                   "case's expect_overrides, which describe the POSITIVE run "
-                   "and would be appended after — and so overwrite — the "
-                   "driver's flip. Unrelated to a _NEG-suffixed case, which is "
-                   "a separately registered firmware-mutant case.");
+                   "Run the case with its authored expectation flip applied — "
+                   "the self-check that its guard is not trivially-true. The "
+                   "flip and its expected fail verdict are the inventory "
+                   "overrides' sixth axis, and neg_expect_overrides replaces the "
+                   "positive expect_overrides. Errors if the case has no "
+                   "authored row. Unrelated to a _NEG-suffixed case, which is a "
+                   "separately registered firmware-mutant case.");
     sub_->add_option("--inventory", inventory_path_,
                      "Path to spec inventory JSON "
                      "(default: docs/spec/case_inventory.json)");
@@ -175,7 +182,40 @@ TestCommand::TestCommand(CLI::App &app) {
                      "(debug only). Empty = disabled.");
 }
 
+// Emits the authored negative rows in the historical NEG_ROWS grammar
+// (`CASE|wrong_token|fail:reason`), sorted by case id so a driver's iteration
+// order — and any diff of this output — is stable. This is the surface that
+// replaces the bash array for BOTH drivers and for
+// tools/negative_coverage_audit.py's SOUND_ROW disposition.
+int TestCommand::runListNegRows() const {
+    const std::string inv_path =
+        inventory_path_.empty() ? std::string("docs/spec/case_inventory.json") : inventory_path_;
+    const std::string ov_path = overrides_path_.empty()
+        ? std::string("docs/spec/inventory_overrides.json")
+        : overrides_path_;
+    std::string err;
+    const auto inv = sce::SpecInventory::load(inv_path, inventory_extra_paths_, ov_path, &err);
+    if (!inv.has_value()) {
+        std::fprintf(stderr, "error: %s\n", err.c_str());
+        return 1;
+    }
+    std::vector<std::string> rows;
+    for (const auto &sc : inv->cases()) {
+        if (!sc.neg_wrong_token.empty()) {
+            rows.push_back(sc.id + "|" + sc.neg_wrong_token + "|" + sc.neg_expect_fail);
+        }
+    }
+    std::sort(rows.begin(), rows.end());
+    for (const auto &r : rows) {
+        std::printf("%s\n", r.c_str());
+    }
+    return 0;
+}
+
 int TestCommand::run(std::optional<std::string> bpf_override) {
+    if (list_neg_rows_) {
+        return runListNegRows();
+    }
     if (list_cases_) {
         if (vs_spec_) {
             return runVsSpecReport();
@@ -562,20 +602,30 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // the base identity — which is what makes bash and the orchestrator unable
     // to drift on it, the same property `timing_serial` already has.
     //
-    // ...EXCEPT on a negative row, where the driver's LAST token is a
-    // deliberately wrong value and must stay final. `expect_overrides`
-    // describes the positive run's stimulus; appending it here would overwrite
-    // the flip whenever the two name the same key, and the case would pass for
-    // the wrong reason — a silent false PASS in the test-of-the-test. The
-    // driver supplies the negative run's own overrides (smoke-test.sh's
-    // NEG_CASE_EXPECT_OVERRIDES) ahead of that; re-homing those alongside this
-    // axis is the open half of the migration.
+    // ...and under --negative-row the case's SIXTH axis takes over instead: the
+    // authored flip, then the negative run's own overrides. Same append-only
+    // mechanism, and `load()` has already rejected a neg_expect_overrides that
+    // would collide with — and so overwrite — the flip.
     std::vector<std::string> effective_expect = expect_tokens_;
-    if (!negative_row_) {
-        if (const sce::SpecCase *sc = specCaseFor(inv, entry->id); sc != nullptr) {
-            effective_expect.insert(effective_expect.end(), sc->expect_overrides.begin(),
-                                    sc->expect_overrides.end());
+    const sce::SpecCase *sc = specCaseFor(inv, entry->id);
+    if (negative_row_) {
+        // Fail loud rather than fall through to the positive surface: a negative
+        // run that silently ran POSITIVE would report a pass and be read as "the
+        // guard is not trivially-true" — the exact false reassurance this mode
+        // exists to disprove.
+        if (sc == nullptr || sc->neg_wrong_token.empty()) {
+            std::fprintf(stderr,
+                         "error: --negative-row: case %.*s has no authored negative row "
+                         "(neg_wrong_token) in the inventory overrides\n",
+                         static_cast<int>(entry->id.size()), entry->id.data());
+            return 1;
         }
+        effective_expect.push_back(sc->neg_wrong_token);
+        effective_expect.insert(effective_expect.end(), sc->neg_expect_overrides.begin(),
+                                sc->neg_expect_overrides.end());
+    } else if (sc != nullptr) {
+        effective_expect.insert(effective_expect.end(), sc->expect_overrides.begin(),
+                                sc->expect_overrides.end());
     }
     for (const auto &tok : effective_expect) {
         // Try each protocol's parser; the first that recognises the token

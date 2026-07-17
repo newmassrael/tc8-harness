@@ -7,9 +7,12 @@ that proves its verdict guard is checkable — that a non-conformant DUT would l
 on `fail`. ISO 9646 suite validation / mutation analysis: a test whose guard can
 never fire is vacuous and validates nothing. The four terminal dispositions are:
 
-  SOUND_ROW        a NEG_ROW lands the conformant DUT on a `fail` final via a
-                   deliberately-wrong --expect token (expect-flip negative;
-                   dut/env/smoke-test.sh run_negative_case).
+  SOUND_ROW        a negative row lands the conformant DUT on a `fail` final via
+                   a deliberately-wrong --expect token (expect-flip negative).
+                   The row is the inventory overrides' sixth axis
+                   (docs/spec/inventory_overrides.json neg_wrong_token /
+                   neg_expect_fail), applied by `tc8-harness --negative-row`;
+                   rationale + which cases have none: dut/env/negative_rows.md.
   FAULT_INJECTION  a `<case>_neg` registered case drives a faulty DUT flavour to
                    `fail` (empirically verified — the Phase F north star, realised).
   REGISTRY         conformant_absence_registry.json — the guard asserts DUT
@@ -74,7 +77,13 @@ from verdict_drift_audit import (  # noqa: E402
     extract_donedata,
 )
 
-SMOKE_SH = REPO / "dut" / "env" / "smoke-test.sh"
+# The negative rows moved out of smoke-test.sh's NEG_ROWS array into the
+# inventory overrides' sixth axis, so the harness can apply a row itself
+# (`--negative-row`) and both drivers read one source instead of hand-mirroring
+# the table. Read here as JSON rather than via `tc8-harness --list-neg-rows`
+# deliberately: this audit is a pure-Python gate that must run in pre-commit
+# without a build. Rationale + which cases have no row: dut/env/negative_rows.md.
+OVERRIDES_JSON = REPO / "docs" / "spec" / "inventory_overrides.json"
 HERE = Path(__file__).resolve().parent
 LEDGER = HERE / "negative_coverage_undisposed.txt"
 REGISTRY = HERE / "conformant_absence_registry.json"
@@ -95,9 +104,6 @@ _NEG_RE = re.compile(r"_neg\d*$")
 # pins the honest role so a re-tagged or new `_neg` cannot silently regress it
 # (docs/verdict_policy.md Section 6.1; verdict_taxonomy.def).
 NEG_FAIL_ROLE = "fault_injection_inert"
-
-# One `NEG_ROWS` entry: "CASE_ID|wrong_token|<class>:<reason>".
-_ROW_RE = re.compile(r'"([^"|]+)\|([^"|]*)\|([a-z_]+):([^"]+)"')
 
 # Token keys that are the L3 source-IP observation filter every guard conjuncts on.
 # Flipping one suppresses observation entirely, so the case lands on an
@@ -155,22 +161,31 @@ class NegRow:
     exp_reason: str
 
 
-def parse_neg_rows(smoke_path: Path) -> list[NegRow]:
-    """Extract the `NEG_ROWS=( ... )` array (the negative-set SSOT). Commented-out
-    lines (leading `#`) are skipped so example rows don't count."""
-    text = smoke_path.read_text(encoding="utf-8")
-    m = re.search(r"\n\s*NEG_ROWS=\(\n(.*?)\n\s*\)\n", text, re.S)
-    if not m:
-        raise SystemExit("negative_coverage_audit: NEG_ROWS=( ... ) block not found")
+def parse_neg_rows(overrides_path: Path) -> list[NegRow]:
+    """Read the negative rows (the negative-set SSOT) from the inventory
+    overrides' sixth axis. A case carries a row iff it sets `neg_wrong_token` +
+    `neg_expect_fail`; both together or neither, which the harness's own loader
+    also rejects — asserted here too so the gate fails on a half row rather than
+    silently dropping the case's disposition to UNDISPOSED."""
+    data = json.loads(overrides_path.read_text(encoding="utf-8"))
     rows: list[NegRow] = []
-    for raw in m.group(1).splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#"):
+    for case_id, body in sorted(data.get("overrides", {}).items()):
+        token = body.get("neg_wrong_token", "")
+        expect = body.get("neg_expect_fail", "")
+        if not token and not expect:
             continue
-        rm = _ROW_RE.search(line)
-        if not rm:
-            continue
-        rows.append(NegRow(rm.group(1), rm.group(2), rm.group(3), rm.group(4)))
+        if not token or not expect:
+            raise SystemExit(
+                f"negative_coverage_audit: {case_id} has half a negative row "
+                "(neg_wrong_token and neg_expect_fail must be set together)"
+            )
+        exp_class, sep, exp_reason = expect.partition(":")
+        if not sep or not exp_reason:
+            raise SystemExit(
+                f"negative_coverage_audit: {case_id} neg_expect_fail "
+                f"{expect!r} is not <class>:<reason>"
+            )
+        rows.append(NegRow(case_id, token, exp_class, exp_reason))
     return rows
 
 
@@ -505,7 +520,7 @@ class Model:
 
 
 def build_model() -> Model:
-    rows = parse_neg_rows(SMOKE_SH)
+    rows = parse_neg_rows(OVERRIDES_JSON)
     names = all_case_names()
     neg_names = [n for n in names if _NEG_RE.search(n)]
     positives = [n for n in names if not _NEG_RE.search(n)]
@@ -812,7 +827,7 @@ def main() -> int:
         for kind in ("SOUND_ROW", "FAULT_INJECTION", "REGISTRY", "DEFERRED", "UNDISPOSED"):
             print(f"  {kind:16} = {counts.get(kind, 0)}")
         print("=" * 64)
-        print(f"  NEG_ROWS: {len(m.rows)} ({len(m.sound_cases)} sound cases, "
+        print(f"  neg rows: {len(m.rows)} ({len(m.sound_cases)} sound cases, "
               f"{len(m.vacuous_cases)} cases with only vacuous rows)")
         print(f"  registry: {len(m.registry)} | deferred: {len(m.deferred)} | "
               f"_neg mechanisms: {len(m.neg_names)} over {len(m.fault_bases)} bases")

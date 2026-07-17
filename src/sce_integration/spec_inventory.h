@@ -77,6 +77,31 @@ struct SpecCase {
     // holds the VALUES only, exactly as `platform_known_fail_ref` already does.
     std::vector<std::string> expect_overrides;
     std::string expect_overrides_ref;
+    // Sixth axis — the NEGATIVE row: the case's authored self-check. It replaces
+    // ONE expectation with `neg_wrong_token` and asserts the harness reports
+    // `neg_expect_fail`, proving the guard reacts to the value instead of
+    // passing regardless. Empty for most cases — a guard that asserts DUT
+    // BEHAVIOUR (must emit a correct frame / must not emit a prohibited one)
+    // cannot be faulted by lying about an expectation, and those cases carry a
+    // different non-vacuity disposition instead (docs/verdict_policy.md
+    // Section 6; rationale + which-and-why in dut/env/negative_rows.md).
+    //
+    // `--negative-row` selects it, and `neg_expect_overrides` then REPLACES
+    // `expect_overrides`: a negative run's stimulus is the positive one, but its
+    // expectation baseline is authored separately, and conflating them would let
+    // a positive override overwrite the deliberate mistake.
+    //
+    // ★The order base -> neg_wrong_token -> neg_expect_overrides is load-bearing,
+    // which is why `load()` REJECTS a case whose neg_expect_overrides names the
+    // same key as its neg_wrong_token: the override, applied last, would
+    // overwrite the lie and the case would pass for the wrong reason — a silent
+    // false PASS in the test-of-the-test. Nothing enforced that while the rows
+    // lived in bash ("none today", by luck); one home is what makes the check
+    // possible.
+    std::string neg_wrong_token;
+    std::string neg_expect_fail;
+    std::vector<std::string> neg_expect_overrides;
+    std::string neg_row_ref;
 };
 
 // Loads docs/spec/case_inventory.json + docs/spec/inventory_overrides.json
