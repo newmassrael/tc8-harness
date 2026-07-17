@@ -239,6 +239,26 @@ public:
     // rather than claiming a clean capture.
     virtual void setCaptureStats(std::vector<::tc8::CaptureStats> stats) = 0;
 
+    // Did an observed FRAME decide the run's last transition, or did a timer?
+    //
+    // The distinction is what a verdict's soundness rests on when the capture
+    // is lossy. A frame-driven final transition carries its own evidence — the
+    // frame is right there in the trace. A TICK-driven one concluded from an
+    // ABSENCE ("no such frame arrived before the deadline"), and an absence is
+    // only as trustworthy as the capture underneath it: a dropped frame is an
+    // unobserved event, so "the DUT did not send it" and "we did not see it"
+    // become the same observation and the verdict takes the first. ~107 public
+    // cases decide their pass this way (the must-not-send / ExpectNoX shape).
+    //
+    // This reports the FACT — the runner owns the trace, so only it can say
+    // what drove the step. What to DO about a lossy absence is verdict policy
+    // and lives with the CLI's other run-level overrides; keeping the split
+    // means `verdict()` stays the SCXML donedata SSOT and nothing else.
+    //
+    // False when no transition was ever recorded: nothing was observed to
+    // decide anything, which must not read as "a frame decided it".
+    virtual bool finalTransitionWasFrameDriven() const = 0;
+
     // Serialize the recorded transition trace as a JSON object compatible
     // with site/scripts/generate_messages.py's ``captured_trace`` schema.
     // Always returns valid JSON — at minimum
@@ -474,6 +494,14 @@ public:
 
     void setCaptureStats(std::vector<::tc8::CaptureStats> stats) override {
         capture_stats_ = std::move(stats);
+    }
+
+    bool finalTransitionWasFrameDriven() const override {
+        // `pcap_frame_idx >= 0` is precisely "a retained frame drove this step"
+        // — recordTransition stamps -1 for a tick (deadline_exceeded) and for a
+        // frame the saved pcap did not retain, both of which are absences as far
+        // as the evidence record goes.
+        return !trace_.empty() && trace_.back().pcap_frame_idx >= 0;
     }
 
     std::string dumpTraceJson() const override {

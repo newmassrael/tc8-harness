@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace tc8 {
 
@@ -55,5 +56,46 @@ struct CaptureStats {
         return available && (frames_dropped_ring != 0 || frames_dropped_iface != 0);
     }
 };
+
+// --- Run-level predicates over every source a run captured on -------------
+//
+// These live next to the tri-state they read so "unknown is not clean" is
+// stated ONCE. A verdict rule that re-derived it from `lostFrames()` alone
+// would silently take the third state for the first: `lostFrames()` is false
+// for an unmeasured source, which is the right answer to "did it lose frames?"
+// and the WRONG answer to "was it complete?".
+
+// True when some source PROVED loss. Never true for a source that could not
+// measure — that one is unknown, not clean.
+inline bool anySourceLostFrames(const std::vector<CaptureStats> &sources) {
+    for (const CaptureStats &s : sources) {
+        if (s.lostFrames()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// True only when EVERY source reported real counters. An empty list is false:
+// no source reporting is an absence of evidence, not evidence of completeness —
+// the same reason `available` exists at all.
+inline bool everySourceMeasured(const std::vector<CaptureStats> &sources) {
+    if (sources.empty()) {
+        return false;
+    }
+    for (const CaptureStats &s : sources) {
+        if (!s.available) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// The claim an absence-based verdict needs: "the run observed the whole window
+// on every source". Requires BOTH that each source measured and that none lost
+// a frame, so the unknown state can never masquerade as a clean capture.
+inline bool captureProvenComplete(const std::vector<CaptureStats> &sources) {
+    return everySourceMeasured(sources) && !anySourceLostFrames(sources);
+}
 
 }  // namespace tc8

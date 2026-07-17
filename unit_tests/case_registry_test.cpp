@@ -38,6 +38,10 @@ public:
 
     void setCaptureStats(std::vector<::tc8::CaptureStats> /*stats*/) override {}
 
+    bool finalTransitionWasFrameDriven() const override {
+        return false;
+    }
+
     std::string dumpTraceJson() const override {
         return "{\"schema_version\":2,\"capture\":[],\"steps\":[]}";
     }

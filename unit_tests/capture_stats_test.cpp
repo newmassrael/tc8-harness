@@ -61,6 +61,81 @@ TEST(CaptureStats, IfaceDropIsLoss) {
     EXPECT_TRUE(s.lostFrames());
 }
 
+// --- Run-level predicates: the claim an absence-based verdict rests on ------
+//
+// A pass decided by an absence ("the DUT did not send X in the window") is only
+// supported if the run observed the WHOLE window. These pin that the third state
+// — unmeasured — can never masquerade as a clean capture, which is the exact way
+// a false PASS would slip back in.
+
+std::vector<tc8::CaptureStats> src(bool available, std::uint32_t ring, std::uint32_t ifd = 0) {
+    tc8::CaptureStats s{};
+    s.iface = "veth-tester";
+    s.available = available;
+    s.frames_received = 1000;
+    s.frames_dropped_ring = ring;
+    s.frames_dropped_iface = ifd;
+    return {s};
+}
+
+TEST(CaptureStatsRunLevel, MeasuredAndCleanIsProvenComplete) {
+    EXPECT_TRUE(tc8::captureProvenComplete(src(/*available=*/true, /*ring=*/0)));
+    EXPECT_FALSE(tc8::anySourceLostFrames(src(true, 0)));
+    EXPECT_TRUE(tc8::everySourceMeasured(src(true, 0)));
+}
+
+TEST(CaptureStatsRunLevel, ProvenLossIsNotComplete) {
+    EXPECT_FALSE(tc8::captureProvenComplete(src(true, /*ring=*/114)));
+    EXPECT_TRUE(tc8::anySourceLostFrames(src(true, 114)));
+}
+
+TEST(CaptureStatsRunLevel, IfaceDropAloneIsNotComplete) {
+    EXPECT_FALSE(tc8::captureProvenComplete(src(true, /*ring=*/0, /*ifd=*/3)));
+    EXPECT_TRUE(tc8::anySourceLostFrames(src(true, 0, 3)));
+}
+
+// THE tri-state guard: an unmeasured source must not read as a clean one.
+// `lostFrames()` is false here — correctly, it did not PROVE loss — so a rule
+// written on `lostFrames()` alone would call this capture complete and let the
+// absence-based pass stand on evidence it never had.
+TEST(CaptureStatsRunLevel, UnknownIsNotProvenComplete) {
+    EXPECT_FALSE(tc8::captureProvenComplete(src(/*available=*/false, /*ring=*/0)));
+    EXPECT_FALSE(tc8::anySourceLostFrames(src(false, 0)));  // unknown != lost...
+    EXPECT_FALSE(tc8::everySourceMeasured(src(false, 0)));  // ...and != measured
+}
+
+// No source reporting at all is an absence of evidence, not evidence of a clean
+// capture — the same reason the `available` flag exists.
+TEST(CaptureStatsRunLevel, NoSourcesIsNotProvenComplete) {
+    EXPECT_FALSE(tc8::captureProvenComplete({}));
+    EXPECT_FALSE(tc8::everySourceMeasured({}));
+}
+
+// A multi-source run (a second broadcast domain folded into one stream) is only
+// complete when EVERY source was: loss on either one is a hole in the window.
+TEST(CaptureStatsRunLevel, OneLossySourceSpoilsTheRun) {
+    std::vector<tc8::CaptureStats> two = src(true, 0);
+    tc8::CaptureStats secondary{};
+    secondary.iface = "veth-tester2";
+    secondary.available = true;
+    secondary.frames_dropped_ring = 7;
+    two.push_back(secondary);
+
+    EXPECT_TRUE(tc8::anySourceLostFrames(two));
+    EXPECT_FALSE(tc8::captureProvenComplete(two));
+}
+
+TEST(CaptureStatsRunLevel, OneUnmeasuredSourceSpoilsTheRun) {
+    std::vector<tc8::CaptureStats> two = src(true, 0);
+    tc8::CaptureStats secondary{};
+    secondary.iface = "veth-tester2";
+    secondary.available = false;  // could not report
+    two.push_back(secondary);
+
+    EXPECT_FALSE(tc8::everySourceMeasured(two));
+    EXPECT_FALSE(tc8::captureProvenComplete(two));
+}
+
 // A savefile has no ring to overflow and no interface, so libpcap cannot report
 // counters for it. `stats()` must say "not measured" rather than hand back a
 // fabricated 0/0/0 that a reader would take for a clean capture. Offline is the

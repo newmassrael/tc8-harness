@@ -835,6 +835,37 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
                       : ::tc8::sce::Verdict{::tc8::sce::VerdictClass::Inconclusive,
                                             "harness_budget_exceeded"};
     }
+    // A PASS decided by an ABSENCE is only as good as the capture under it.
+    // Such a case concludes "the DUT did not send X within the window"; the
+    // evidence for that is the window itself, so a frame the capture dropped is
+    // an unobserved event and "the DUT did not send it" collapses into "we did
+    // not see it" — the verdict then takes the first and silently certifies a
+    // DUT that may be violating. That is the worse direction of the asymmetry:
+    // a lossy capture makes a gap-MEASURING case false-FAIL (loud, someone
+    // investigates), but makes an absence-ASSERTING case false-PASS (silent).
+    //
+    // Gated on the final transition being tick-driven, so this reaches exactly
+    // the exposed population (~107 public must-not-send / ExpectNoX cases) and
+    // never a pass whose own frame is the evidence — loss cannot invalidate
+    // those. Downgrading to INCONCLUSIVE is the honest "not measured", not a
+    // fail: the DUT was not shown to violate anything.
+    //
+    // The rule lives HERE, in the one place that emits the verdict, rather than
+    // as a per-case `cond` — an invariant handed to 107 case authors (and every
+    // future one) is an invariant that gets forgotten, and a forgotten one here
+    // is a silent false pass.
+    //
+    // UNKNOWN counts as unproven, not as clean: `captureProvenComplete` demands
+    // every source actually measured. "We could not check our own capture" is
+    // not a basis for asserting an absence either.
+    if (verdict.cls == ::tc8::sce::VerdictClass::Pass &&
+        !runner->finalTransitionWasFrameDriven() &&
+        !::tc8::captureProvenComplete(capture_stats)) {
+        const char *reason = ::tc8::anySourceLostFrames(capture_stats)
+                                 ? "capture_lost_frames_absence_unproven"
+                                 : "capture_completeness_unknown_absence_unproven";
+        verdict = ::tc8::sce::Verdict{::tc8::sce::VerdictClass::Inconclusive, reason};
+    }
     const std::string verdict_str = verdict.str();
     std::printf("verdict  : %s\n", verdict_str.c_str());
     // After the verdict it qualifies, before the evidence it belongs to.
