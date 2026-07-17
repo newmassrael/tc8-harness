@@ -119,6 +119,14 @@ TestCommand::TestCommand(CLI::App &app) {
                    "requires_secondary_iface:true (TC8 Topology 2 dual-iface). "
                    "The smoke harness lists these to bring up a second tester "
                    "veth + pass --interface-secondary data-drivenly.");
+    sub_->add_flag("--negative-row", negative_row_,
+                   "This invocation is the case's NEGATIVE row: the driver has "
+                   "replaced one --expect value with a deliberately wrong one "
+                   "to prove the guard is not trivially-true. Suppresses the "
+                   "case's expect_overrides, which describe the POSITIVE run "
+                   "and would be appended after — and so overwrite — the "
+                   "driver's flip. Unrelated to a _NEG-suffixed case, which is "
+                   "a separately registered firmware-mutant case.");
     sub_->add_option("--inventory", inventory_path_,
                      "Path to spec inventory JSON "
                      "(default: docs/spec/case_inventory.json)");
@@ -553,10 +561,21 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // no precedence table. Drivers never learn the axis exists — they emit only
     // the base identity — which is what makes bash and the orchestrator unable
     // to drift on it, the same property `timing_serial` already has.
+    //
+    // ...EXCEPT on a negative row, where the driver's LAST token is a
+    // deliberately wrong value and must stay final. `expect_overrides`
+    // describes the positive run's stimulus; appending it here would overwrite
+    // the flip whenever the two name the same key, and the case would pass for
+    // the wrong reason — a silent false PASS in the test-of-the-test. The
+    // driver supplies the negative run's own overrides (smoke-test.sh's
+    // NEG_CASE_EXPECT_OVERRIDES) ahead of that; re-homing those alongside this
+    // axis is the open half of the migration.
     std::vector<std::string> effective_expect = expect_tokens_;
-    if (const sce::SpecCase *sc = specCaseFor(inv, entry->id); sc != nullptr) {
-        effective_expect.insert(effective_expect.end(), sc->expect_overrides.begin(),
-                                sc->expect_overrides.end());
+    if (!negative_row_) {
+        if (const sce::SpecCase *sc = specCaseFor(inv, entry->id); sc != nullptr) {
+            effective_expect.insert(effective_expect.end(), sc->expect_overrides.begin(),
+                                    sc->expect_overrides.end());
+        }
     }
     for (const auto &tok : effective_expect) {
         // Try each protocol's parser; the first that recognises the token

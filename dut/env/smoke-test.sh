@@ -2094,9 +2094,14 @@ run_negative_case() {
     # the backstop only catches a hang.
     local case_timeout=$HARNESS_BACKSTOP_SEC
 
+    # --negative-row tells the harness this run's LAST --expect is a deliberate
+    # lie, so it must not append the case's positive expect_overrides (the
+    # harness-owned axis in docs/spec/inventory_overrides.json) on top and
+    # overwrite it. Without the flag a positive override sharing the wrong
+    # token's key would silently neuter this very negative control.
     local hp dp
     ip netns exec "$tester_ns" "$harness_link" test \
-        --case "$case_id" -i "$veth_t" -t "$case_timeout" \
+        --case "$case_id" -i "$veth_t" -t "$case_timeout" --negative-row \
         "${override[@]}" "${neg_extra_args[@]}" >"$hlog" 2>&1 &
     hp=$!
 
