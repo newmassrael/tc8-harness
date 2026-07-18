@@ -14,18 +14,18 @@ TD-03.
 Scope (honest): this is a STATIC key-literal scan. It catches a producer
 emitting an out-of-registry key; it does NOT catch a producer FORGETTING to
 emit a key a guard needs (that producer-side omission leaves the field at 0 and
-stays a per-scenario test-authoring concern). The actual emitted key SETS are
-additionally diffed at runtime by dut/env/parity-check.sh.
+stays a per-scenario test-authoring concern).
 
 Producers checked (key NAMES only; their values/parity are checked elsewhere by
-config_test.rs and parity-check.sh). The base identity surface is generated from
+config_test.rs). The base identity surface is generated from
 tools/expect_surface.def into the two .gen files (TD-12), so those are scanned
 alongside the drivers that still hand-emit the conditional glue keys:
   * Rust orchestrator  dut/env/orchestrator/src/dispatch.rs             (ex(e, "k", v))
   *                    dut/env/orchestrator/src/expect_surface.gen.rs   (generated)
-  * bash smoke driver  dut/env/smoke-test.sh                            (--expect "k=...")
-  *                    dut/env/expect_surface.gen.sh                    (generated)
   * Python identity    tools/dut_identity.py                            ("k": _require(...))
+
+  (The bash smoke driver was retired — the orchestrator is now the sole driver —
+  so smoke-test.sh / expect_surface.gen.sh are no longer scanned.)
 
 Exits non-zero listing any producer key not in the registry.
 """
@@ -39,8 +39,6 @@ ROOT = Path(__file__).resolve().parent.parent
 DEF = ROOT / "src/cli/tc8_expect_keys.def"
 RUST = ROOT / "dut/env/orchestrator/src/dispatch.rs"
 RUST_GEN = ROOT / "dut/env/orchestrator/src/expect_surface.gen.rs"
-BASH = ROOT / "dut/env/smoke-test.sh"
-BASH_GEN = ROOT / "dut/env/expect_surface.gen.sh"
 PYID = ROOT / "tools/dut_identity.py"
 
 _GROUP_RE = re.compile(r"^TC8_EXPECT_GROUP\(\s*(\w+)\s*,\s*\"([^\"]*)\"\s*\)$")
@@ -52,12 +50,10 @@ _PAYLOAD_RE = re.compile(r"^TC8_EXPECT_PAYLOAD\(\s*(\w+)\s*,\s*(\w+)\s*\)$")
 # producer's key SET regardless of the surrounding call shape. The Rust side
 # emits via both ex(&mut e, "k", v) and .push(format!("k={v}")); both forms are
 # matched. Runtime-flipped tokens (the --negative harness's `--expect "$tok"`)
-# reuse keys already present as literals, and the actual emitted sets are
-# additionally diffed at runtime by parity-check.sh, so this static scan is not
-# the only producer guard.
+# reuse keys already present as literals; with the bash driver + parity-check
+# gate retired, this static scan plus config_test.rs are the producer guards.
 _RUST_EX_RE = re.compile(r'ex\((?:&mut )?e,\s*"([a-z0-9_.]+)"')
 _RUST_FMT_RE = re.compile(r'push\(format!\("([a-z0-9_.]+)=')
-_BASH_RE = re.compile(r'--expect\s+"([a-z0-9_.]+)=')
 _PYID_RE = re.compile(r'"([a-z0-9_.]+)":\s*_require\(')
 
 
@@ -108,8 +104,6 @@ def main() -> int:
     producers = {
         "Rust (dispatch.rs)": extract(RUST, [_RUST_EX_RE, _RUST_FMT_RE], "Rust"),
         "Rust (expect_surface.gen.rs)": extract(RUST_GEN, [_RUST_EX_RE], "Rust gen"),
-        "bash (smoke-test.sh)": extract(BASH, [_BASH_RE], "bash"),
-        "bash (expect_surface.gen.sh)": extract(BASH_GEN, [_BASH_RE], "bash gen"),
         "Python (dut_identity.py)": extract(PYID, [_PYID_RE], "Python"),
     }
     rc = 0
