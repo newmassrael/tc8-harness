@@ -54,6 +54,10 @@ jobs:
       - name: Build harness + tc8-dut
         run: cmake --build build -j4
 
+      - name: Build orchestrator (drives the capture)
+        working-directory: dut/env/orchestrator
+        run: cargo build
+
       - name: Capture pcaps for the active spec
         # `|| true` lets known-deviating cases (Linux DUT vs strict-RFC,
         # see smoke-test.yml comment) fail without aborting the refresh
@@ -61,7 +65,7 @@ jobs:
         # timeline regardless of pass/fail outcome.
         run: |
           mkdir -p /tmp/pcap-logs
-          sudo -n dut/env/smoke-test.sh \
+          sudo -n dut/env/orchestrator/target/debug/tc8-orchestrator \
             --workers 4 \
             --log-dir /tmp/pcap-logs \
             --junit-xml /tmp/pcap-logs/junit.xml \

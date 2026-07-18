@@ -91,10 +91,9 @@ jobs:
         uses: ./.github/actions/build-harness
 
       - name: Build orchestrator (drives the smoke lanes below)
-        # The Rust successor now DRIVES the lanes (was dut/env/smoke-test.sh). Its
-        # NOPASSWD sudoers entry is provisioned alongside smoke-test.sh's, so
-        # `sudo -n .../tc8-orchestrator` works. smoke-test.sh stays in-tree as the
-        # parity reference (parity-check.yml still diffs the two) until it is retired.
+        # The Rust successor DRIVES the lanes below; smoke-test.sh (the bash driver)
+        # and the parity-check gate were retired once the orch reached full parity.
+        # The runner's NOPASSWD sudoers lets `sudo -n .../tc8-orchestrator` work.
         working-directory: dut/env/orchestrator
         run: cargo build
 

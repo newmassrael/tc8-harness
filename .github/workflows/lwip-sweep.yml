@@ -52,6 +52,10 @@ jobs:
         # live in .github/actions/build-lwip-dut/action.yml.
         uses: ./.github/actions/build-lwip-dut
 
+      - name: Build orchestrator (drives the sweep)
+        working-directory: dut/env/orchestrator
+        run: cargo build
+
       - name: Run full sweep (single invocation + JUnit)
         # Case selection comes from dut/lwip_dut/sweep-cases.sh — the
         # single source shared with the README's "Running the sweep"
@@ -62,7 +66,7 @@ jobs:
         # way a certification run would see it.
         run: |
           mkdir -p reports
-          sudo -n dut/env/smoke-test.sh \
+          sudo -n dut/env/orchestrator/target/debug/tc8-orchestrator \
             --topology lwip-tap \
             --junit-xml reports/junit-lwip-sweep.xml \
             $(dut/lwip_dut/sweep-cases.sh)
@@ -78,7 +82,7 @@ jobs:
         # conditioning-skip honestly rather than fail. TCP carries every
         # seam case (driveSeam* is TCP-only), so the grep is the slice.
         run: |
-          sudo -n dut/env/smoke-test.sh \
+          sudo -n dut/env/orchestrator/target/debug/tc8-orchestrator \
             --topology lwip-tap \
             --dut-control testability \
             --junit-xml reports/junit-lwip-sweep-testability.xml \

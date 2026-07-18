@@ -50,10 +50,6 @@
       "intent": "TC8 §4.2 — auto-seeded TC8-internal sub-section (40 code citations at baseline).",
       "bindings": [
         {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
-        {
           "file": "include/tc8/bpf_group.h",
           "kind": "implements"
         },
@@ -272,10 +268,6 @@
           "kind": "implements"
         },
         {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
-        {
           "file": "src/cli/expect_parser.h",
           "kind": "implements"
         },
@@ -399,10 +391,6 @@
       "bindings": [
         {
           "file": "dut/env/setup-netns.sh",
-          "kind": "implements"
-        },
-        {
-          "file": "dut/env/smoke-test.sh",
           "kind": "implements"
         },
         {
@@ -672,10 +660,6 @@
       "intent": "TC8 §4.3 — auto-seeded TC8-internal sub-section (30 code citations at baseline).",
       "bindings": [
         {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
-        {
           "file": "include/tc8/bpf_group.h",
           "kind": "implements"
         },
@@ -876,10 +860,6 @@
       "intent": "TC8 §4.3.3.2 — ICMPv4 — Type-specific message handling. 10 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
-        {
           "file": "src/cli/expect_parser.h",
           "kind": "implements"
         },
@@ -999,10 +979,6 @@
       "parent_doc": "tc8-spec",
       "intent": "TC8 §4.4 — auto-seeded TC8-internal sub-section (29 code citations at baseline).",
       "bindings": [
-        {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
         {
           "file": "include/tc8/bpf_group.h",
           "kind": "implements"
@@ -1486,10 +1462,6 @@
       "intent": "TC8 §4.4.4.6 — IPv4 — Fragments. 5 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
-        {
           "file": "include/tc8/protocol_frames/udp_frame.h",
           "kind": "implements"
         },
@@ -1571,10 +1543,6 @@
       "parent_doc": "tc8-spec",
       "intent": "TC8 §4.4.4.7 — IPv4 — Reassembly. 8 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
-        {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
         {
           "file": "include/tc8/protocol_frames/ipv4_frame.h",
           "kind": "implements"
@@ -1709,10 +1677,6 @@
         },
         {
           "file": "dut/dut_service/linklocal_autoconf.h",
-          "kind": "implements"
-        },
-        {
-          "file": "dut/env/smoke-test.sh",
           "kind": "implements"
         },
         {
@@ -2170,10 +2134,6 @@
       "intent": "TC8 §4.5.6.5 — IPv4 Link-Local Autoconf — Link-local Packets. 1 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/ipv4_linklocal_common.h",
           "kind": "implements"
         },
@@ -2191,10 +2151,6 @@
       "parent_doc": "tc8-spec",
       "intent": "TC8 §4.5.6.6 — IPv4 Link-Local Autoconf — Network Partitions. 1 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
-        {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
         {
           "file": "tests/ipv4_autoconf_network_partitions_01/ipv4_autoconf_network_partitions_01.scxml",
           "kind": "implements"
@@ -2778,10 +2734,6 @@
           "kind": "implements"
         },
         {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
-        {
           "file": "include/tc8/bpf_group.h",
           "kind": "implements"
         },
@@ -3299,10 +3251,6 @@
         },
         {
           "file": "dut/dut_service/dhcpv4_client.h",
-          "kind": "implements"
-        },
-        {
-          "file": "dut/env/smoke-test.sh",
           "kind": "implements"
         },
         {
@@ -4022,10 +3970,6 @@
       "intent": "TC8 §4.8.6.1 — TCP — Basics. 15 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
-        {
           "file": "include/tc8/upper_tester_protocol.h",
           "kind": "implements"
         },
@@ -4169,10 +4113,6 @@
       "parent_doc": "tc8-spec",
       "intent": "TC8 §4.8.6.11 — TCP — Retransmission Timeout. 6 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
-        {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
         {
           "file": "include/tc8/protocol_frames/tcp_frame.h",
           "kind": "implements"
@@ -6446,10 +6386,6 @@
           "kind": "implements"
         },
         {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
-        {
           "file": "include/tc8/protocol_frames/someip_frame.h",
           "kind": "implements"
         },
@@ -7099,10 +7035,6 @@
         },
         {
           "file": "dut/dut_service/ets_impl.h",
-          "kind": "implements"
-        },
-        {
-          "file": "dut/env/smoke-test.sh",
           "kind": "implements"
         },
         {

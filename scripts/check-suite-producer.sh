@@ -67,19 +67,6 @@ if ! grep -qxF "SOMEIPSRV_OPTIONS_01" <<<"${ids}"; then
     fail=1
 fi
 
-# Regression: the smoke-test per-case-map key derivation (canonicalise_case_id)
-# must keep a qualified `suite:id` prefix's case verbatim. Upper-casing the whole
-# token folds a lower-case prefix (e.g. `vendorx:`->`VENDORX:`), so
-# validate_dut_sd_timing_overrides (which keeps the printed prefix) and the runtime
-# lookup diverge and a per-case DUT SD-timing override validates-but-no-ops — a
-# silent false-confidence trap. Pure-string self-test, no DUT bring-up (so it needs
-# neither root nor this build).
-echo "[suite-producer] asserting smoke-test case-id canonicalisation (suite prefix preserved verbatim)"
-if ! "${repo_root}/dut/env/smoke-test.sh" --selftest-case-id-canon; then
-    echo "[suite-producer] FAIL: smoke-test --selftest-case-id-canon regressed" >&2
-    fail=1
-fi
-
 if [[ ${fail} -ne 0 ]]; then
     echo "[suite-producer] FAILED — (suite, id) coexistence regressed" >&2
     exit 1
