@@ -177,8 +177,14 @@ fn main() -> Result<()> {
     // needs a fixture-owned per-case respawn (drain → SIGTERM-slot-abort → respawn)
     // a persistent External does not do; it self-provisions the tap + DUT in
     // provision_run and reaps them in teardown_run.
+    // single-pc provisions the Topology-2 second veth pair only when the schedule
+    // contains a requires_secondary_iface case (bash's sticky NEED_SECOND_VETH), so
+    // the common single-pair run pays nothing. Computed once from the harness's
+    // authoritative list (the requires_secondary_iface axis).
     let topo: Box<dyn Topology + Sync> = match &site {
-        TopologyConf::SinglePc { .. } => Box::new(SinglePc::new(&cfg)),
+        TopologyConf::SinglePc { .. } => {
+            Box::new(SinglePc::new(&cfg, schedule_needs_secondary_iface(&cfg, &cases)?))
+        }
         TopologyConf::LwipTap { lwip, iface_secondary } => {
             Box::new(topology::LwipTap::new(&cfg, lwip, iface_secondary.as_deref()))
         }
@@ -345,6 +351,35 @@ fn main() -> Result<()> {
     let _ = fs::remove_dir_all(&cfg.vsomeip_base);
 
     summarize(topology, cases.len(), workers, &results)
+}
+
+/// Does the scheduled case set contain a case that needs the Topology-2 second
+/// tester interface? The `requires_secondary_iface` axis is the harness's, surfaced
+/// by `--list-cases --only-secondary-iface`; this is the orchestrator's
+/// `case_needs_secondary_iface` (bash smoke-test.sh) — a case id is the first token
+/// of each indented listing line. Case-insensitive, matching the registry.
+fn schedule_needs_secondary_iface(cfg: &Config, cases: &[String]) -> Result<bool> {
+    let out = std::process::Command::new(&cfg.harness)
+        .args(["test", "--list-cases", "--only-secondary-iface"])
+        .output()
+        .with_context(|| format!("running {} --list-cases", cfg.harness.display()))?;
+    if !out.status.success() {
+        bail!(
+            "{} test --list-cases --only-secondary-iface exited {}",
+            cfg.harness.display(),
+            out.status
+        );
+    }
+    let text = String::from_utf8_lossy(&out.stdout);
+    let secondary: HashSet<String> = text
+        .lines()
+        // Case lines are the only indented lines; the id is the first token
+        // (dut/env/list-cases-ids.awk). Flush-left lines are banners/summary.
+        .filter(|l| l.starts_with(char::is_whitespace))
+        .filter_map(|l| l.split_whitespace().next())
+        .map(|id| id.to_uppercase())
+        .collect();
+    Ok(cases.iter().any(|c| secondary.contains(&c.to_uppercase())))
 }
 
 /// The run timestamp for the JUnit `<testsuites timestamp=...>` — `date -u

@@ -12,7 +12,7 @@ use std::process::{Child, Command, Stdio};
 
 use crate::conditioning::{self, CondDir, CondStep, Side};
 use crate::config::Config;
-use crate::netns::{self, NetnsParams};
+use crate::netns::{self, NetnsParams, SecondVeth};
 use crate::wire;
 
 use super::{
@@ -24,11 +24,16 @@ use super::{
 /// single-pc: tester + reference tc8-dut in per-worker netns pairs on this host.
 pub struct SinglePc<'a> {
     cfg: &'a Config,
+    /// Provision the Topology-2 second veth pair (DIface-1 / TIface-1) per worker,
+    /// so `tester_iface_secondary` returns it and USAGE_01 runs instead of skipping.
+    /// main sets this iff the schedule contains a `requires_secondary_iface` case —
+    /// bash's sticky `NEED_SECOND_VETH`, so the common single-pair run pays nothing.
+    secondary_iface: bool,
 }
 
 impl<'a> SinglePc<'a> {
-    pub fn new(cfg: &'a Config) -> Self {
-        SinglePc { cfg }
+    pub fn new(cfg: &'a Config, secondary_iface: bool) -> Self {
+        SinglePc { cfg, secondary_iface }
     }
 }
 
@@ -77,10 +82,16 @@ impl Topology for SinglePc<'_> {
         // needed here. A persistent topology (external/ssh-remote) that reuses a
         // netns WILL need that flush ported alongside it.
         //
-        // second_veth / vlan are None: the single-pc orchestrator drives the
-        // single-pair, no-VLAN path. netns::setup implements both optional
-        // branches (full setup-netns.sh port); S5 / USAGE_01 wire the Config
-        // fields + a parity case that drive them.
+        // The Topology-2 second veth pair (DIface-1 / TIface-1, 172.17.0.0/24 from
+        // wire.def — the same source bash's setup-netns.sh SECOND_VETH path reads) is
+        // provisioned only when the schedule needs it (self.secondary_iface). vlan
+        // stays None (no 802.1Q on single-pc). netns::setup fully implements both.
+        let second_veth = self.secondary_iface.then(|| SecondVeth {
+            veth_t2: veth_tester2(w),
+            veth_d2: veth_dut2(w),
+            tester_ip2: format!("{}/24", wire::TESTER_IP_2),
+            dut_ip2: format!("{}/24", wire::DUT_IP_2),
+        });
         netns::setup(&NetnsParams {
             tester_ns: netns_tester(w),
             dut_ns: netns_dut(w),
@@ -88,7 +99,7 @@ impl Topology for SinglePc<'_> {
             veth_d: veth_dut(w),
             tester_ip: format!("{}/24", cfg.tester_ip4),
             dut_ip: format!("{}/24", cfg.dut_ip4),
-            second_veth: None,
+            second_veth,
             vlan: None,
         })
         .with_context(|| format!("bringing up netns for worker {w}"))?;
@@ -119,13 +130,12 @@ impl Topology for SinglePc<'_> {
         veth_tester(w)
     }
 
-    fn tester_iface_secondary(&self, _w: u32) -> Option<String> {
-        // The single-pc netns bring-up does not yet provision the Topology-2 second
-        // veth pair (netns::setup is called with second_veth: None), so no secondary
-        // iface is available and USAGE_01 SKIPs here. Wiring the second pair (and
-        // running USAGE_01) is deferred; this is a noted gap, not a silent
-        // wrong-pass — bash single-pc runs USAGE_01 via NEED_SECOND_VETH.
-        None
+    fn tester_iface_secondary(&self, w: u32) -> Option<String> {
+        // The second tester veth (TIface-1) — Some only when bring_up_worker
+        // provisioned the pair (self.secondary_iface). run_case passes it as
+        // --interface-secondary; when None it SKIPs USAGE_01 (schedule has no
+        // Topology-2 case, so the pair was never brought up).
+        self.secondary_iface.then(|| veth_tester2(w))
     }
 
     fn condition_case(&self, w: u32, case_id: &str, ctx: &WorkerCtx) -> Result<Conditioning<'_>> {
@@ -213,6 +223,14 @@ fn veth_tester(w: u32) -> String {
 }
 fn veth_dut(w: u32) -> String {
     format!("veth-dut-{w}")
+}
+// Topology-2 second pair (TIface-1 / DIface-1), worker-scoped like the first pair
+// so parallel workers never contend. Provisioned only when secondary_iface is set.
+fn veth_tester2(w: u32) -> String {
+    format!("veth-tester2-{w}")
+}
+fn veth_dut2(w: u32) -> String {
+    format!("veth-dut2-{w}")
 }
 
 // --- single-pc conditioning rendering ---------------------------------------
