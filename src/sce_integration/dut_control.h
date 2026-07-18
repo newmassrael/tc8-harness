@@ -507,8 +507,21 @@ private:
     // OpQueryCapabilities (0x16) attempts before giving up: a single dropped
     // UDP datagram must NOT masquerade as "DUT lacks the seam" and silently skip
     // a `_NEG` proof. Only the no-answer (transport) case retries; a DUT that
-    // answers (even kStatusUnknownOpcode) is definitive.
-    static constexpr int kCapQueryAttempts = 3;
+    // answers (even kStatusUnknownOpcode) is definitive — so cap-query silence is
+    // ALWAYS a transient drop, NEVER a real "capability absent". Retrying more can
+    // therefore only resolve a live DUT sooner; it can never flip a verdict.
+    //
+    // 8, not 3, to match the driver's readiness gate. Before the harness runs, the
+    // topology fixture proves the DUT reachable with up to 25 probes (lwip_tap
+    // READY_ATTEMPTS); the cap query is the SAME UDP round trip to the SAME DUT
+    // moments later, equally subject to a transient drop, yet gave up after 3 —
+    // an under-resilient asymmetry. Under a long per-case-respawn sequence that
+    // occasionally surfaced as a spurious dut_capability_query_unresolved skip of
+    // a runnable `_NEG` (observed once in a 140-case lwip lane; not reproduced in
+    // 34 controlled runs, so this raises resilience rather than fixing a pinned
+    // repro). A live DUT answers on the first non-dropped attempt, so the happy
+    // path pays nothing; only genuine drops spend the extra budget.
+    static constexpr int kCapQueryAttempts = 8;
 
     // Resolve the DUT-derived fault caps once, lazily, from the DUT's 0x16
     // bitmap (the SSOT for what it can fault). Caches both the derived bits and
