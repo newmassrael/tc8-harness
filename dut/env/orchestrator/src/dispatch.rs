@@ -136,6 +136,131 @@ pub fn run_case(
     case_id: &str,
     dut_first: bool,
 ) -> Result<Verdict> {
+    run_case_impl(cfg, topo, w, ctx, case_id, dut_first, false)
+}
+
+/// Run a case as its authored NEGATIVE row: the harness flips one `--expect`
+/// value to a deliberately wrong one (`--negative-row`, applied last so it wins)
+/// and the case MUST land on `expected_fail`, proving the guard is not
+/// trivially-true. The flip + expected verdict are the inventory overrides' sixth
+/// axis, listed via `list_negative_rows`; the harness owns the flip, so this only
+/// passes the flag and asserts the outcome.
+///
+/// The harness verdict is mapped into the negative test's frame, matching bash
+/// `run_negative_case` (smoke-test.sh) precedence EXACTLY — parity with that SSOT
+/// is the strangler's cutover precondition:
+///   skip / inconclusive / error  -> Skip  (the guard was never exercised; the
+///                                          DUT never offered / never replied —
+///                                          non-gating, bash's skip ledger)
+///   fail == expected_fail         -> Pass  (the guard reacted; green)
+///   fail != expected_fail         -> Fail  (landed on the wrong reason)
+///   pass                          -> Fail  (the DUT accepted the bad input —
+///                                          exactly what the row guards against)
+pub fn run_negative_row(
+    cfg: &Config,
+    topo: &dyn Topology,
+    w: u32,
+    ctx: &WorkerCtx,
+    case_id: &str,
+    expected_fail: &str,
+) -> Result<Verdict> {
+    // Negative rows run DUT-first — the deliberate mis-expectation plus start-order
+    // control bash's negative path uses (a topology that supports negatives spawns
+    // the reference DUT, so dut_first is always valid here).
+    let raw = run_case_impl(cfg, topo, w, ctx, case_id, true, true)?;
+    Ok(map_negative_verdict(raw, expected_fail))
+}
+
+/// Map a harness verdict into the negative test's frame — the bash
+/// `run_negative_case` precedence, pure over the inputs so it is unit-tested
+/// without a harness run (the parity-critical decision, so it must be pinned).
+fn map_negative_verdict(raw: Verdict, expected_fail: &str) -> Verdict {
+    match raw {
+        // A sound non-conclusion — the DUT never offered / never replied, so the
+        // fault was never reachable and the guard was never exercised. Bash routes
+        // this to its skip ledger; non-gating, never a negative-test failure.
+        Verdict::Skip(reason) | Verdict::NonConclusion(reason) => {
+            Verdict::Skip(format!("guard not exercised: {reason}"))
+        }
+        // The guard reacted with exactly the authored reason — the negative passed.
+        Verdict::Fail(reason) if reason == expected_fail => Verdict::Pass,
+        // A fail, but the wrong reason — the guard fired on something else.
+        Verdict::Fail(reason) => Verdict::Fail(format!(
+            "expected '{expected_fail}', harness returned '{reason}'"
+        )),
+        // The DUT accepted the deliberately-wrong input — exactly what the row
+        // guards against. A hard fail, matching bash (a `pass` reds the gate).
+        Verdict::Pass => Verdict::Fail(format!(
+            "DUT accepted the non-conformant input; expected '{expected_fail}'"
+        )),
+    }
+}
+
+/// The negative set: every case carrying an authored negative row, read from the
+/// harness's `--list-neg-rows` (which prints the inventory overrides' sixth axis in
+/// the historical `CASE|wrong_token|fail:reason` grammar). Returns `(case_id,
+/// expected_fail)`; the `wrong_token` is informational (the harness applies it), so
+/// it is dropped here. This is the SAME source the bash driver and
+/// `negative_coverage_audit.py` read — one home, no drift. A non-zero exit or an
+/// empty list is a hard error: an empty negative run would pass by vacuity.
+pub fn list_negative_rows(cfg: &Config) -> Result<Vec<(String, String)>> {
+    use anyhow::{bail, Context};
+    let out = std::process::Command::new(&cfg.harness)
+        .args(["test", "--list-neg-rows"])
+        .output()
+        .with_context(|| format!("running {} test --list-neg-rows", cfg.harness.display()))?;
+    if !out.status.success() {
+        bail!(
+            "{} test --list-neg-rows exited {}: {}",
+            cfg.harness.display(),
+            out.status,
+            String::from_utf8_lossy(&out.stderr).trim()
+        );
+    }
+    let text = String::from_utf8(out.stdout).context("--list-neg-rows output not UTF-8")?;
+    parse_neg_rows_output(&text)
+}
+
+/// Parse the `CASE|wrong_token|class:reason` lines into `(case_id, expected_fail)`.
+/// Pure over the text so it is unit-tested without invoking the harness. A
+/// malformed row or an empty set is a hard error (an empty negative run would pass
+/// by vacuity).
+fn parse_neg_rows_output(text: &str) -> Result<Vec<(String, String)>> {
+    use anyhow::bail;
+    let mut rows = Vec::new();
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        // The expected verdict is the 3rd field (a `class:reason`, e.g.
+        // `fail:entry_service_id_mismatch`), which contains no `|`, so splitn(3)
+        // keeps it intact even though a reason could in principle hold a colon.
+        let mut it = line.splitn(3, '|');
+        match (it.next(), it.next(), it.next()) {
+            (Some(case), Some(_wrong), Some(expected))
+                if !case.is_empty() && !expected.is_empty() =>
+            {
+                rows.push((case.to_string(), expected.to_string()));
+            }
+            _ => bail!("--list-neg-rows produced a malformed row: {line:?}"),
+        }
+    }
+    if rows.is_empty() {
+        bail!("--list-neg-rows returned no rows; an empty negative run would pass by vacuity");
+    }
+    Ok(rows)
+}
+
+fn run_case_impl(
+    cfg: &Config,
+    topo: &dyn Topology,
+    w: u32,
+    ctx: &WorkerCtx,
+    case_id: &str,
+    dut_first: bool,
+    negative_row: bool,
+) -> Result<Verdict> {
     let hlog = cfg.work_root.join(format!("{w}/{case_id}.harness.log"));
     let dlog = cfg.work_root.join(format!("{w}/{case_id}.dut.log"));
     let iface = topo.tester_iface(w);
@@ -182,11 +307,19 @@ pub fn run_case(
     // Topology-level UT ARP-cache conditioning (lwIP DUT — bash smoke-test.sh):
     // a global expect so the harness UT-ages the DUT's ARP table for ARP_48/49 (the
     // stack has no host sysctls to compress). Inert for cases that do not read it.
-    // NOTE for the S6 negative stage: bash also splices this expect into the negative
-    // baseline (smoke-test.sh) — the negative dispatch path must replicate this.
+    // A negative run gets it too (the same expect surface bash's negative baseline
+    // splices in); the row's flip is applied by the harness AFTER all of these, so
+    // it still wins.
     if let Some(t) = topo.ut_arp_cache_timeout() {
         args.push("--expect".to_string());
         args.push(format!("arp_stimulus.ut_cache_conditioning_s={t}"));
+    }
+    // This invocation IS the case's negative row: the harness appends the authored
+    // flip after every --expect above and asserts the guard reacts. Suppresses the
+    // positive expect_overrides (which describe the positive run) so they cannot
+    // overwrite the flip.
+    if negative_row {
+        args.push("--negative-row".to_string());
     }
 
     // Spawn order: harness first so its pcap is open before the DUT's first
@@ -448,7 +581,7 @@ mod tests {
         let want = format!("tester_ipv4={}", cfg.tester_ip4);
         let args = expect_args(&cfg, "02:00:00:00:00:DD");
         assert!(
-            args.iter().any(|a| *a == want),
+            args.contains(&want),
             "expect_args missing {want} (bash emits it): {args:?}"
         );
     }
@@ -475,5 +608,60 @@ mod tests {
         assert!(!expect_args(&fake_cfg(), "02:00:00:00:00:DD")
             .iter()
             .any(|a| a.starts_with("can_") || a.starts_with("tester_udp_port=")));
+    }
+
+    // --- negative-row dispatch (Stage B) ------------------------------------
+
+    #[test]
+    fn map_negative_verdict_matches_bash_precedence() {
+        let want = "fail:entry_service_id_mismatch";
+        // fail on the authored reason -> the guard reacted -> negative PASS.
+        assert!(matches!(
+            map_negative_verdict(Verdict::Fail(want.to_string()), want),
+            Verdict::Pass
+        ));
+        // fail on a DIFFERENT reason -> the guard fired on something else -> FAIL.
+        assert!(matches!(
+            map_negative_verdict(Verdict::Fail("fail:other".to_string()), want),
+            Verdict::Fail(_)
+        ));
+        // pass -> the DUT accepted the bad input -> hard FAIL (bash reds the gate).
+        assert!(matches!(
+            map_negative_verdict(Verdict::Pass, want),
+            Verdict::Fail(_)
+        ));
+        // non-conclusion / skip -> guard never exercised -> non-gating SKIP.
+        assert!(matches!(
+            map_negative_verdict(
+                Verdict::NonConclusion("inconclusive:no_method_response".to_string()),
+                want
+            ),
+            Verdict::Skip(_)
+        ));
+        assert!(matches!(
+            map_negative_verdict(Verdict::Skip("requires_secondary_iface".to_string()), want),
+            Verdict::Skip(_)
+        ));
+    }
+
+    #[test]
+    fn parse_neg_rows_keeps_case_and_expected_drops_wrong_token() {
+        let rows = parse_neg_rows_output(
+            "SOMEIPSRV_FORMAT_14|service_id=0x0000|fail:entry_service_id_mismatch\n\
+             ARP_03|arp.tester_ip=10.99.99.99|fail:dut_arp_request_after_cache_populated\n",
+        )
+        .expect("well-formed rows parse");
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].0, "SOMEIPSRV_FORMAT_14");
+        assert_eq!(rows[0].1, "fail:entry_service_id_mismatch");
+        assert_eq!(rows[1].0, "ARP_03");
+    }
+
+    #[test]
+    fn parse_neg_rows_rejects_malformed_and_empty() {
+        // Only two fields — a half row.
+        assert!(parse_neg_rows_output("SOMEIPSRV_FORMAT_14|service_id=0x0000\n").is_err());
+        // No rows at all — an empty negative run would pass by vacuity.
+        assert!(parse_neg_rows_output("\n  \n").is_err());
     }
 }

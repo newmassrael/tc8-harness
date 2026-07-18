@@ -40,6 +40,7 @@ TOPOLOGY=single-pc
 BASH_CONF=""
 ORCH_CONF=""
 IDENTITY_ONLY=0
+NEGATIVE=0
 CASES=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -51,10 +52,22 @@ while [[ $# -gt 0 ]]; do
         # the extra_expect channel parity gate on the hosted CI leg (docs/tech-debt.md
         # TD-11) — no netns, no self-hosted runner.
         --identity-only) IDENTITY_ONLY=1; shift ;;
+        # Run both drivers over their NEGATIVE rows (each flips one --expect value
+        # and asserts the guard reacts) and diff the disposition, exactly as for
+        # positives. The negative set is the harness's --list-neg-rows, so both
+        # drivers dispatch the same authored rows. single-pc only (a fresh DUT per
+        # case). No positional cases = a representative sample across the verdict
+        # arms; pass cases to narrow.
+        --negative)      NEGATIVE=1; shift ;;
         --) shift; CASES+=("$@"); break ;;
         *)  CASES+=("$1"); shift ;;
     esac
 done
+
+if (( NEGATIVE )) && [[ "$TOPOLOGY" != single-pc ]]; then
+    echo "parity-check: --negative is single-pc only (fresh per-case DUT)" >&2
+    exit 2
+fi
 
 # Default case set: positive cases that conclude on the orchestrator's expect
 # surface (base SOME/IP identity + the DUT-MAC block + ARP/ICMPv4/IPv4 category
@@ -81,7 +94,15 @@ done
 DRIVER_TOPO=$TOPOLOGY
 case "$TOPOLOGY" in
     single-pc)
-        [[ ${#CASES[@]} -eq 0 ]] && CASES=(ICMPv4_TYPE_08 ARP_03 ICMPv4_TYPE_04 ARP_38 ARP_48)
+        if (( NEGATIVE )); then
+            # A representative sample across the negative verdict arms: a SOME/IP
+            # entry-field flip (PASS), an ARP identity flip (PASS), a case that goes
+            # inconclusive so the guard is never exercised (SKIP/NONCONC), and a row
+            # carrying neg_expect_overrides (PASS). Pass cases to override.
+            [[ ${#CASES[@]} -eq 0 ]] && CASES=(SOMEIPSRV_FORMAT_14 ARP_13 SOMEIP_ETS_035 SOMEIPSRV_OPTIONS_11)
+        else
+            [[ ${#CASES[@]} -eq 0 ]] && CASES=(ICMPv4_TYPE_08 ARP_03 ICMPv4_TYPE_04 ARP_38 ARP_48)
+        fi
         ;;
     external)
         [[ -z "$BASH_CONF" ]] && BASH_CONF="$ROOT/dut/env/topology.d/examples/external-netns-fixture.conf"
@@ -123,7 +144,9 @@ esac
 #   $1 = full driver output   $2 = case id
 disposition() {
     local out=$1 case=$2 line
-    line=$(grep -E "\[w[0-9]+\] (PASS|FAIL|SKIP\*?) ${case}([^A-Za-z0-9_]|$)" <<<"$out" | head -1)
+    # bash prints `[wN] DISP negative CASE ...` for a negative row, the
+    # orchestrator `[wN] DISP CASE ...`; the optional `negative ` covers both.
+    line=$(grep -E "\[w[0-9]+\] (PASS|FAIL|SKIP\*?) (negative )?${case}([^A-Za-z0-9_]|$)" <<<"$out" | head -1)
     if [[ -z "$line" ]]; then echo "ABSENT"; return; fi
     case "$line" in
         *" FAIL "*) echo "FAIL" ;;
@@ -197,9 +220,11 @@ fi
 
 if [[ "$TOPOLOGY" == single-pc ]]; then
     # One invocation per case: each brings up its own fresh netns (clean attribution).
+    # --negative (if set) goes to BOTH drivers so each runs the case's authored row.
+    neg_arg=(); (( NEGATIVE )) && neg_arg=(--negative)
     for case in "${CASES[@]}"; do
-        bash_out=$(sudo -n "$SMOKE" --workers 1 "$case" 2>&1)
-        orch_out=$(sudo -n "$ORCH" --workers 1 "$case" 2>&1)
+        bash_out=$(sudo -n "$SMOKE" --workers 1 "${neg_arg[@]}" "$case" 2>&1)
+        orch_out=$(sudo -n "$ORCH" --workers 1 "${neg_arg[@]}" "$case" 2>&1)
         compare_case "$case" "$bash_out" "$orch_out"
     done
 else

@@ -55,6 +55,7 @@ mod taxonomy {
 
 use anyhow::{bail, Result};
 use clap::Parser;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -117,7 +118,7 @@ struct Cli {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let cases: Vec<String> = if cli.cases.is_empty() {
+    let mut cases: Vec<String> = if cli.cases.is_empty() {
         vec!["SOMEIPSRV_FORMAT_01".to_string()]
     } else {
         cli.cases.clone()
@@ -195,12 +196,38 @@ fn main() -> Result<()> {
 
     // Contract gates (smoke-test.sh) — BEFORE provisioning a fixture, so a
     // rejected invocation never executes side-effectful host setup.
-    if cli.negative {
+    // A `--negative` run dispatches each case as its authored negative row instead
+    // of positively. Built here (after the topology gate) so the schedule and the
+    // worker cap below see the negative case set, not the positive default.
+    let neg_schedule: Option<HashMap<String, String>> = if cli.negative {
         if !topo.supports_negative() {
             bail!("--negative requires a topology with a spawned reference DUT (deliberate mis-expectations + start-order control); topology '{topology}' does not support it");
         }
-        bail!("--negative not yet implemented");
-    }
+        // The negative set is the harness's --list-neg-rows (the inventory
+        // overrides' sixth axis) — the SAME source bash and the coverage audit read.
+        let rows = dispatch::list_negative_rows(&cfg)?;
+        // A positional case list narrows the run to those rows (rapid per-case
+        // iteration); bare --negative runs the whole curated set. Case-insensitive,
+        // matching the harness registry.
+        let filtered: Vec<(String, String)> = if cli.cases.is_empty() {
+            rows
+        } else {
+            let want: HashSet<String> = cli.cases.iter().map(|c| c.to_uppercase()).collect();
+            rows.into_iter()
+                .filter(|(case, _)| want.contains(&case.to_uppercase()))
+                .collect()
+        };
+        if filtered.is_empty() {
+            bail!("--negative: none of the requested case(s) carry an authored negative row");
+        }
+        // Sorted case-id schedule (deterministic worker distribution + summary),
+        // plus the case_id -> expected_fail map the workers assert against.
+        cases = filtered.iter().map(|(case, _)| case.clone()).collect();
+        cases.sort();
+        Some(filtered.into_iter().collect())
+    } else {
+        None
+    };
     if cli.dut_first && !topo.supports_dut_spawn() {
         bail!("--dut-first controls DUT-vs-harness start order, but topology '{topology}' does not spawn the DUT");
     }
@@ -294,7 +321,7 @@ fn main() -> Result<()> {
     topo.provision_run()?;
 
     let buckets = worker::distribute(&cases, workers);
-    let results = worker::run_all(&cfg, topo.as_ref(), buckets, cli.dut_first);
+    let results = worker::run_all(&cfg, topo.as_ref(), buckets, cli.dut_first, neg_schedule.as_ref());
 
     // Run-level teardown of what provision_run owns (bash topology_teardown_run, run
     // from the cleanup trap). Best-effort — a failure here must not mask the case

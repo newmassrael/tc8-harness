@@ -10,9 +10,18 @@
 //! reap. The execution ledger (processed vs scheduled) is preserved: a worker
 //! that dies mid-bucket must surface as a hard error, never as a silent pass.
 
+use std::collections::HashMap;
+
 use crate::config::Config;
 use crate::dispatch::{self, Verdict};
 use crate::topology::Topology;
+
+/// The negative schedule: `case_id -> expected_fail` for a `--negative` run. When
+/// present, every scheduled case is dispatched as its authored negative row
+/// (`dispatch::run_negative_row`) instead of positively. `None` = a positive run.
+/// Threaded by reference into the scoped worker threads (it is `Sync` and outlives
+/// the scope), so `distribute` stays over plain case-id strings.
+pub type NegSchedule<'a> = Option<&'a HashMap<String, String>>;
 
 /// A non-failing case outcome carrying its reason — `case` + `reason` kept
 /// structured (the bash `case|reason` string encoding existed only for its file
@@ -77,6 +86,7 @@ fn run_worker(
     w: u32,
     bucket: Vec<String>,
     dut_first: bool,
+    neg: NegSchedule,
 ) -> WorkerResult {
     let mut r = WorkerResult::default();
     let _guard = WorkerGuard { topo, w };
@@ -91,7 +101,19 @@ fn run_worker(
     };
 
     for case in &bucket {
-        match dispatch::run_case(cfg, topo, w, &ctx, case, dut_first) {
+        // A negative run dispatches each case as its authored negative row; the
+        // schedule carries every scheduled case's expected fail (built alongside
+        // the bucket in main), so a miss is a construction bug, not a data gap.
+        let outcome = match neg {
+            Some(map) => {
+                let expected = map
+                    .get(case)
+                    .expect("negative schedule carries every scheduled case");
+                dispatch::run_negative_row(cfg, topo, w, &ctx, case, expected)
+            }
+            None => dispatch::run_case(cfg, topo, w, &ctx, case, dut_first),
+        };
+        match outcome {
             Ok(Verdict::Pass) => println!("[w{w}] PASS {case}"),
             Ok(Verdict::Fail(reason)) => {
                 println!("[w{w}] FAIL {case} — {reason}");
@@ -126,6 +148,7 @@ pub fn run_all(
     topo: &(dyn Topology + Sync),
     buckets: Vec<Vec<String>>,
     dut_first: bool,
+    neg: NegSchedule,
 ) -> Vec<WorkerResult> {
     std::thread::scope(|s| {
         let handles: Vec<(u32, _)> = buckets
@@ -133,7 +156,7 @@ pub fn run_all(
             .enumerate()
             .map(|(w, bucket)| {
                 let w = w as u32;
-                (w, s.spawn(move || run_worker(cfg, topo, w, bucket, dut_first)))
+                (w, s.spawn(move || run_worker(cfg, topo, w, bucket, dut_first, neg)))
             })
             .collect();
         handles
