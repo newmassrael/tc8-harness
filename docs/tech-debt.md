@@ -193,8 +193,9 @@ typo silently dropping a field, which is now impossible. Two further guards:
   parser and pinned by `RejectsOverflowTtl24Bit`.
 - Producer validation: `tools/check_expect_keys.py` (CI `build-test`, alongside the
   wire/verdict `.def` gates) statically scans the producers' key LITERALS and fails
-  if any (dispatch.rs / smoke-test.sh / dut_identity.py) emits a key absent from the
-  registry — i.e. a key the generated consumer would silently drop.
+  if any (the orchestrator `dispatch.rs` + its generated `expect_surface.gen.rs`, and
+  `dut_identity.py`) emits a key absent from the registry — i.e. a key the generated
+  consumer would silently drop.
 
 The producers stay hand-written: they map keys to deployment VALUES (vsomeip.json
 paths, bash vars), which is producer-specific and not the schema's concern. The
@@ -207,9 +208,17 @@ behaviour across all seven groups.
 if a producer FORGETS to emit a key a guard needs, the field stays at its 0
 sentinel and the guard false-passes — the static producer scan checks
 producer ⊆ registry, not registry ⊆ producer, so it cannot see a missing
-emission. That residual is covered by per-scenario test design plus the runtime
-`dut/env/parity-check.sh` (which diffs the actual emitted key sets) and
-`config_test.rs`, not by this schema.
+emission. That residual is covered by per-scenario test design plus `config_test.rs`,
+not by this schema.
+
+**Update (post-cutover).** The drift surface has since SHRUNK. With the strangler
+cutover the bash emitter (`smoke-test.sh`) and the runtime `parity-check.sh` key-set diff
+were both retired, and the base `--expect` identity surface is single-sourced through
+`tools/expect_surface.def` codegen (TD-12). The producers that remain are the Rust
+orchestrator (`dispatch.rs` + generated `expect_surface.gen.rs`) and Python
+(`dut_identity.py`), and the only static gate over them is `tools/check_expect_keys.py`
+(producer ⊆ registry) plus `config_test.rs` — the runtime cross-driver diff is gone
+because there is no longer a second driver to diff against.
 
 ---
 
@@ -603,8 +612,16 @@ independently-verified change.
 
 ## TD-11 — the topology extra-expect channel has no automated cross-driver parity coverage
 
-**Status:** RESOLVED (2026-07-03 — hosted `--print-expect` parity gate). **Logged:** 2026-07-01
-(added with the extra_expect channel).
+**Status:** RESOLVED (2026-07-03), then DEBT DISSOLVED by the 2026-07-18 cutover. **Logged:**
+2026-07-01 (added with the extra_expect channel).
+
+**Update (post-cutover 2026-07-18) — DEBT DISSOLVED.** The 2026-07-03 gate below
+(`parity-check.sh --identity-only`, run by a `build-test.yml` step) was REMOVED with the
+strangler cutover that retired the bash driver. The debt is now moot: `smoke-test.sh` is
+gone, so the extra_expect channel has a SINGLE producer (the orchestrator's `.toml` via
+`site.rs`) — there is no second hand-mirrored `.conf` to drift against, so nothing to
+cross-diff. The example `.conf`/`.toml` pair and the gate were dropped. The 2026-07-03
+resolution and the original finding below are historical.
 
 **Resolution (2026-07-03).** The "blocked on the self-hosted runner" premise was too pessimistic:
 the extra_expect PARITY is observable in the UNPRIVILEGED `--print-expect` dump — both drivers fold

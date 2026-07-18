@@ -186,9 +186,11 @@ broaden whitelists, leave `MT_RESPONSE` validation intact, attach a
 
 ## Topology profiles
 
-`smoke-test.sh` separates *what to test* (case list) from *where the DUT
-lives* through topology profiles (`dut/env/topology.d/<name>.conf`,
-selected with `--topology NAME`; default `single-pc`):
+The **orchestrator** separates *what to test* (case list) from *where the DUT
+lives* through topology profiles, selected with `--topology NAME` (default
+`single-pc`); the `external` and `ssh-remote` profiles additionally take a
+`--topology-conf FILE` (a TOML site descriptor under
+`dut/env/orchestrator/examples/`):
 
 | Profile | Tester | DUT | Workers | DUT spawn | DUT kernel conditioning | `--negative` |
 |---------|--------|-----|---------|-----------|------------------------|--------------|
@@ -198,23 +200,25 @@ selected with `--topology NAME`; default `single-pc`):
 
 This covers the deployment matrix: one PC (`single-pc`), PC↔PC
 (`ssh-remote`, or `external` when the second PC runs its own DUT
-image), PC↔target ECU (`external`), and target↔target (run
-`smoke-test.sh --topology external|ssh-remote` *on* an embedded-Linux
+image), PC↔target ECU (`external`), and target↔target (run the
+orchestrator with `--topology external|ssh-remote` *on* an embedded-Linux
 tester — only cross-building the binaries is left to the integrator;
 the orchestration is identical).
 
-Site parameters travel in a `--topology-conf FILE` (a sourced shell
-fragment setting `TC8_TOPOLOGY_*` variables) because `sudo`'s
-`env_reset` strips environment variables under NOPASSWD rules:
+Site parameters travel in a `--topology-conf FILE` (a TOML descriptor)
+rather than the environment because `sudo`'s `env_reset` strips
+environment variables under NOPASSWD rules:
+
+```toml
+# external-dut.toml
+iface = "eth1"
+dut_ip = "192.168.10.2"
+tester_ip = "192.168.10.1"
+```
 
 ```sh
-# external-dut.conf
-TC8_TOPOLOGY_IFACE=eth1
-TC8_TOPOLOGY_DUT_IP=192.168.10.2
-TC8_TOPOLOGY_TESTER_IP=192.168.10.1
-
-sudo ./dut/env/smoke-test.sh --topology external \
-     --topology-conf external-dut.conf ICMPv4_TYPE_08 ARP_07 ...
+sudo dut/env/orchestrator/target/debug/tc8-orchestrator --topology external \
+     --topology-conf external-dut.toml ICMPv4_TYPE_08 ARP_07 ...
 ```
 
 No-silent-failure guarantees, regardless of profile:
@@ -225,8 +229,8 @@ No-silent-failure guarantees, regardless of profile:
   (`ssh-remote`), and an Upper Tester probe (`tc8-harness ut-ping`,
   the side-effect-free UT `OpPing` 0x15 — the reply also reports the
   DUT firmware's highest implemented opcode). On `external` a missing
-  UT is a WARNING by default (`TC8_TOPOLOGY_REQUIRE_UT=1` makes it
-  fatal); on `ssh-remote` the probe spawns one transient remote
+  UT is a WARNING by default (the `--topology-conf`'s `require_ut = true`
+  makes it fatal); on `ssh-remote` the probe spawns one transient remote
   `tc8-dut` and a non-answer is a hard failure with the remote log
   dumped.
 - **Explicit SKIP**: a case the topology cannot execute (e.g.
@@ -246,9 +250,11 @@ No-silent-failure guarantees, regardless of profile:
   the profile's capability are rejected at startup with the reason.
 
 Self-contained verification fixtures for the non-default profiles live
-in `dut/env/topology.d/examples/` — each emulates its deployment shape
-with an isolated netns (the `ssh-remote` fixture includes a dedicated
-`sshd`) and can be run on any single machine.
+in `dut/env/orchestrator/examples/` (`external-netns-fixture.toml`,
+`ssh-remote-netns-fixture.toml`) — each declares a `[fixture]` selector
+that emulates its deployment shape with an isolated netns (the
+`ssh-remote` fixture includes a dedicated `sshd`) and can be run on any
+single machine.
 
 The `lwip-tap` profile (`--topology lwip-tap`) goes further: it drives a
 real embedded TCP/IP stack (lwIP, `dut/lwip_dut/`) on a host tap,
@@ -325,15 +331,27 @@ Optional 2nd veth pair for `USAGE_01` (Topology 2, `SECOND_VETH=1`):
 After `cmake --build build -j4` finishes and `setup-vsomeip.sh` has
 installed the patched vsomeip:
 
+The Rust **orchestrator** (`tc8-orchestrator`) is the sole driver — the bash
+`smoke-test.sh` was retired once the orchestrator reached full parity. Build it
+once, then run:
+
 ```sh
-sudo ./dut/env/smoke-test.sh                       # 1 worker, default case (SOMEIPSRV_FORMAT_01)
-sudo ./dut/env/smoke-test.sh ARP_03 ARP_05         # one or more specific cases
-sudo ./dut/env/smoke-test.sh --workers 4           # parallel positive suite
-sudo ./dut/env/smoke-test.sh --workers 4 --negative
-                                                   # negative-assertion suite
+( cd dut/env/orchestrator && cargo build )
+ORCH=dut/env/orchestrator/target/debug/tc8-orchestrator
+
+sudo "$ORCH"                                 # 1 worker, default case (SOMEIPSRV_FORMAT_01)
+sudo "$ORCH" ARP_03 ARP_05                   # one or more specific cases
+sudo "$ORCH" --workers 4 --negative          # negative-assertion suite
+
+# Full positive suite: the harness enumerates the case set (the filters live on
+# `--list-cases`, not the driver); the orchestrator runs the resulting list — the
+# exact form CI uses:
+sudo "$ORCH" --workers 4 $(build/tc8-harness test --list-cases \
+    --exclude-deferred --exclude-platform-known-fail --exclude-serial \
+  | awk '/^  [A-Z]/{print $1}')
 ```
 
-`smoke-test.sh` does everything end-to-end:
+The orchestrator does everything end-to-end:
 
 1. provisions `--workers N` parallel netns pairs (`tc8-tester-$W` /
    `tc8-dut-$W`) with their own veth pair, vsomeip scratch dir, and
@@ -356,7 +374,7 @@ is the CI-validated upper bound.
 
 ### Manual workflow (step-by-step)
 
-If you want to inspect what `smoke-test.sh` automates, drive the same
+If you want to inspect what the orchestrator automates, drive the same
 flow by hand:
 
 ```sh
@@ -388,9 +406,10 @@ sudo ip netns exec tc8-tester ./build/tc8-harness test \
 sudo ./dut/env/cleanup.sh
 ```
 
-The `--expect` set above mirrors `TC8_DUT_EXPECT` in `smoke-test.sh` and
-matches `dut/dut_service/vsomeip.json` + `ets.fidl`. If you swap the
-DUT for a different vsomeip configuration, update both sides together.
+The `--expect` set above mirrors the identity surface the orchestrator
+derives from `dut/dut_service/vsomeip.json` + `ets.fidl` (see
+`dut/env/orchestrator/src/dispatch.rs`). If you swap the DUT for a
+different vsomeip configuration, update both sides together.
 
 ### Listing cases and case-name conventions
 
@@ -411,13 +430,14 @@ Case IDs follow `<CATEGORY>_<NAME>_<NN>` (e.g. `ARP_03`, `SOMEIPSRV_FORMAT_14`,
 
 ### Negative-test mode (`--negative`)
 
-`smoke-test.sh --negative` runs a curated set of cases with a
-deliberately-wrong `--expect` token (e.g. `arp.dut_iface_ip` flipped to a
-non-DUT address) and confirms the SCXML lands on the matching
-`fail:<reason>` final state. This guards against the regression class
-"`expected.*` cond became trivially-true so any DUT behaviour passes."
-A case must already be green in positive mode before its negative row is
-added (`run_negative_case` rows in `smoke-test.sh`).
+`--negative` runs a curated set of cases with a deliberately-wrong
+`--expect` token (e.g. `arp.dut_iface_ip` flipped to a non-DUT address)
+and confirms the SCXML lands on the matching `fail:<reason>` final state.
+This guards against the regression class "`expected.*` cond became
+trivially-true so any DUT behaviour passes." A case must already be green
+in positive mode before its negative row is added; the negative rows live
+in `docs/spec/inventory_overrides.json` (each case's `neg_wrong_token` /
+`neg_expect_fail` axis, which the orchestrator drives under `--negative`).
 
 ### Parallel workers and isolation
 
@@ -442,17 +462,17 @@ Two ways:
 - One case at a time: `tc8-harness test --case <ID> --pcap-dump /tmp/case.pcap`
   writes every captured frame (post-BPF, so just the per-case scope) to
   the path. Useful for diffing positive vs negative runs.
-- Whole smoke run: `sudo ./dut/env/smoke-test.sh --log-dir /tmp/logs ...`
-  preserves the per-worker `tc8-{harness,dut}.log` files; the harness's
-  own `--pcap-dump` flag isn't on by default for smoke, but you can pass
-  extra args to a single case via positional arg syntax:
-  `./dut/env/smoke-test.sh ARP_03 -- --pcap-dump /tmp/arp_03.pcap` (the
-  `--` separator forwards args to the harness invocation).
+- Whole orchestrator run:
+  `sudo dut/env/orchestrator/target/debug/tc8-orchestrator --log-dir /tmp/logs ...`
+  preserves the per-worker `tc8-{harness,dut}.log` files. The orchestrator
+  does not forward a `--pcap-dump`; to capture one case's frames, run that
+  case directly with the per-case form above
+  (`tc8-harness test --case <ID> --pcap-dump ...`).
 
 ### JUnit XML for CI consumers
 
 ```sh
-sudo ./dut/env/smoke-test.sh --workers 4 --junit-xml /tmp/tc8-smoke.xml
+sudo dut/env/orchestrator/target/debug/tc8-orchestrator --workers 4 --junit-xml /tmp/tc8-smoke.xml
 ```
 
 Emits a Surefire-shape `<testsuites><testsuite><testcase>` document that
@@ -467,7 +487,7 @@ worker N does not prevent worker M's records from landing in the XML.
 | `tester→dut ping failed` during `setup-netns.sh`                          | Stale veth from a prior crash                                                                            | Re-run `cleanup.sh`; if that fails `sudo ip link del veth-tester` then retry                             |
 | First case after a fresh netns hangs ~5 s                                 | Linux STALE→DELAY→PROBE on the DUT neigh entry                                                           | `setup-netns.sh` already widens `delay_first_probe_time=30`; no action needed                            |
 | `--workers 4` smoke flakes on TCP retransmit timing cases                  | pcap-delivery jitter under load                                                                          | Those cases (RETRANSMISSION_TO_03..06) migrated to kernel-side `OpQueryTcpInfo` — not jitter-sensitive   |
-| vsomeip clients can't find each other after a kernel update               | UDS / shm leftover in `/tmp/tc8-vsomeip.$$`                                                              | The scratch is PID-scoped; rerun smoke-test.sh, the next invocation gets a fresh PID dir                 |
+| vsomeip clients can't find each other after a kernel update               | UDS / shm leftover in `/tmp/tc8-vsomeip.$$`                                                              | The scratch is PID-scoped; rerun the orchestrator, the next invocation gets a fresh PID dir              |
 | `quilt push -a` returns 2, reversed-patch or "already exists" errors       | Patched / patch-created sources or stale `.pc/` from a prior run                                         | `setup-vsomeip.sh` resets tracked files + cleans untracked (except `build/`) first; by hand: `git -C third_party/vsomeip checkout -- . && git -C third_party/vsomeip clean -fdx -e build` |
 | `--negative` row passes (i.e. doesn't fail) when expected to fail         | `expected.*` cond became trivially-true                                                                  | This is exactly the regression class `--negative` exists to catch — fix the SCXML cond                   |
 
@@ -637,8 +657,8 @@ Mandatory flags:
 
 Mandatory `--expect` keys depend on the case. Default `--expect`
 values come from `dut/dut_service/vsomeip.json` and `dut/ets/ets.fidl`
-(see `TC8_DUT_EXPECT` in `smoke-test.sh`). For a third-party DUT, pull
-the values from your own SD configuration:
+(the orchestrator derives them in `dut/env/orchestrator/src/dispatch.rs`).
+For a third-party DUT, pull the values from your own SD configuration:
 
 | `--expect KEY=VALUE`             | Pulled from                                                                                  |
 |----------------------------------|----------------------------------------------------------------------------------------------|
@@ -651,7 +671,7 @@ the values from your own SD configuration:
 | `udp_port` / `tcp_port`          | DUT IPv4 Endpoint Option UDP / TCP port                                                      |
 | `sd_multicast_ip`                | SD multicast group the DUT replies to FindService on (vsomeip `service-discovery.multicast`) |
 | `mcast_ipv4` / `mcast_port`      | Multicast eventgroup option address / port (only used by OPTIONS_11/14)                      |
-| `arp.dut_iface_ip` / `…_mac` / `arp.tester_ip` / `arp.tester_mac` | ARP §4.2 verdict literals (see `smoke-test.sh` ARP_* groups)              |
+| `arp.dut_iface_ip` / `…_mac` / `arp.tester_ip` / `arp.tester_mac` | ARP §4.2 verdict literals (orchestrator L2/L3 identity surface, `dispatch.rs`) |
 
 Other flags worth knowing:
 
@@ -719,10 +739,11 @@ while read CASE_ID; do
 done < /tmp/runnable.txt
 ```
 
-For DUTs that implement the UT, the same `smoke-test.sh` can be adapted
-— skip its `setup-netns.sh` invocation, swap the per-worker veth name
-for your physical NIC, and remove the `ip netns exec` wrappers. The
-shape is otherwise identical.
+For DUTs that implement the UT, drive the full corpus with the
+orchestrator's `external` topology (`--topology external --topology-conf`)
+— it skips netns provisioning, targets a persistent DUT on your physical
+NIC, and drops the `ip netns exec` wrappers. The shape is otherwise
+identical to the single-pc run.
 
 ## Embedding tc8-harness (out-of-tree OEM cases)
 
@@ -886,9 +907,9 @@ an out-of-tree profile can observe and inject single-tagged (C-TAG, TPID
   (vlan and (<expr>))` so a tagged frame is never silently dropped by the
   kernel BPF (a plain predicate reads L3 fields at fixed offsets the tag
   shifts). A `-f/--bpf` override is passed verbatim and not re-wrapped.
-- **Topology** — `setup-netns.sh` stacks a VLAN subinterface and homes L3
-  on it when `VLAN_ID` is set (default off); `single-pc.conf` forwards
-  `VLAN_ID`. The harness still captures on the **bare veth** so the tag
+- **Topology** — the orchestrator stacks a VLAN subinterface and homes L3
+  on it when a topology conf enables the 802.1Q profile (default off; the
+  `netns.rs` `Vlan` branch). The harness still captures on the **bare veth** so the tag
   stays visible (libpcap on the subinterface would see the kernel strip
   it), while kernel-socket stimulus and the DUT egress are tagged because
   their address lives on the subinterface.
@@ -904,7 +925,7 @@ matrix:
 | workflow                 | runner                  | scope                                                                                                  |
 | ------------------------ | ----------------------- | ------------------------------------------------------------------------------------------------------ |
 | `build-test.yml`         | `ubuntu-22.04` (hosted) | submodule init → Boost 1.75 + `setup-vsomeip.sh` (patched) + CommonAPI into `/opt/someip-stack` → `cmake build` → `ctest` → `--list-cases --vs-spec` drift gate |
-| `smoke-test.yml`         | self-hosted `[netns]`   | `setup-vsomeip.sh /opt/someip-stack` (idempotent reset/push) → harness build → `dut/env/smoke-test.sh --workers 4` (positive + `--negative`) |
+| `smoke-test.yml`         | self-hosted `[netns]`   | `setup-vsomeip.sh /opt/someip-stack` (idempotent reset/push) → harness build → orchestrator build (`cd dut/env/orchestrator && cargo build`) → `sudo -n .../tc8-orchestrator --workers 4` (positive + `--negative`) |
 
 Both workflows pass `submodules: recursive` to `actions/checkout@v4` so
 `third_party/vsomeip` is populated before any build step. The hosted
@@ -915,9 +936,10 @@ vsomeip under the job-scoped `/opt/someip-stack`, never `/usr/local`:
 the self-hosted runner's `/usr/local` may carry an operator-managed
 SOME/IP stack, and a CI reinstall there would overwrite it (and a
 mid-suite restore of it would swap the runtime under the DUT — both
-observed as mass no-verdict smoke failures). `smoke-test.sh`'s
-runtime-binding preflight fails fast if the DUT would bind a
-libvsomeip3 outside the directory it was built against.
+observed as mass no-verdict smoke failures). The DUT and harness binaries
+carry a build-time RPATH to `/opt/someip-stack` (`setup-vsomeip.sh`'s
+`$ORIGIN` RUNPATH), so the DUT binds the libvsomeip3 it was built against
+rather than a divergent `/usr/local` copy.
 
 ### Self-hosted runner (`[netns]` label)
 
@@ -929,16 +951,17 @@ provide that. Provision a self-hosted runner once per host:
 # 1. install the actions runner under /opt/actions-runner (per-GitHub docs)
 # 2. apply the [self-hosted, netns] labels at registration time
 # 3. install build deps (cmake, build-essential, quilt, libpcap-dev,
-#    libtins-dev) plus Boost >= 1.75 from source (vsomeip 3.7.3 floor;
-#    22.04's apt boost is 1.74)
-# 4. add a sudoers fragment so the runner can run smoke-test.sh,
+#    libtins-dev, and a Rust toolchain — cargo — for the orchestrator)
+#    plus Boost >= 1.75 from source (vsomeip 3.7.3 floor; 22.04's apt
+#    boost is 1.74)
+# 4. add a sudoers fragment so the runner can run the orchestrator,
 #    setup-vsomeip.sh and the testability-*-sp-check.sh observable checks
 #    non-interactively (setup-vsomeip's `sudo cmake --install` runs as
 #    root-from-root, no extra entry needed; the rules name the command
 #    WITHOUT an argument list, so they match the job-prefix argv
 #    `setup-vsomeip.sh /opt/someip-stack` as-is):
 sudo tee /etc/sudoers.d/tc8-runner <<'EOF'
-%docker ALL=(root) NOPASSWD: /opt/actions-runner/_work/tc8-harness/tc8-harness/dut/env/smoke-test.sh
+%docker ALL=(root) NOPASSWD: /opt/actions-runner/_work/tc8-harness/tc8-harness/dut/env/orchestrator/target/debug/tc8-orchestrator
 %docker ALL=(root) NOPASSWD: /opt/actions-runner/_work/tc8-harness/tc8-harness/dut/env/testability-eth-sp-check.sh
 %docker ALL=(root) NOPASSWD: /opt/actions-runner/_work/tc8-harness/tc8-harness/dut/env/testability-ip-static-check.sh
 %docker ALL=(root) NOPASSWD: /opt/actions-runner/_work/tc8-harness/tc8-harness/dut/env/testability-ipv6-static-check.sh

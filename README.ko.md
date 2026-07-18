@@ -148,9 +148,10 @@ sudo ./scripts/setup-vsomeip.sh             # 재팝 → 재푸시 → 재빌드
 
 ## 토폴로지 프로필
 
-`smoke-test.sh`는 *무엇을 테스트할지*(케이스 목록)와 *DUT가 어디에
-있는지*를 토폴로지 프로필(`dut/env/topology.d/<name>.conf`, `--topology
-NAME`으로 선택, 기본 `single-pc`)로 분리합니다:
+**오케스트레이터**는 *무엇을 테스트할지*(케이스 목록)와 *DUT가 어디에
+있는지*를 토폴로지 프로필로 분리하며, `--topology NAME`으로 선택합니다(기본
+`single-pc`). `external`과 `ssh-remote` 프로필은 추가로 `--topology-conf
+FILE`(`dut/env/orchestrator/examples/` 아래의 TOML 사이트 서술자)을 받습니다:
 
 | 프로필 | 테스터 | DUT | 워커 | DUT 스폰 | DUT 커널 컨디셔닝 | `--negative` |
 |--------|--------|-----|------|----------|------------------|--------------|
@@ -161,22 +162,24 @@ NAME`으로 선택, 기본 `single-pc`)로 분리합니다:
 배포 매트릭스 전체를 커버합니다: PC 1대(`single-pc`), PC↔PC
 (`ssh-remote`, 또는 두 번째 PC가 자체 DUT 이미지를 돌리면
 `external`), PC↔target ECU(`external`), target↔target(임베디드
-Linux 테스터 *위에서* `smoke-test.sh --topology external|ssh-remote`
+Linux 테스터 *위에서* 오케스트레이터를 `--topology external|ssh-remote`로
 실행 — 통합자에게 남는 것은 바이너리 크로스빌드뿐이고 오케스트레이션은
 동일).
 
-사이트 파라미터는 `--topology-conf FILE`(`TC8_TOPOLOGY_*` 변수를
-설정하는 source되는 셸 단편)로 전달합니다 — `sudo`의 `env_reset`이
-NOPASSWD 규칙에서 환경 변수를 제거하기 때문입니다:
+사이트 파라미터는 환경 변수 대신 `--topology-conf FILE`(TOML 서술자)로
+전달합니다 — `sudo`의 `env_reset`이 NOPASSWD 규칙에서 환경 변수를 제거하기
+때문입니다:
+
+```toml
+# external-dut.toml
+iface = "eth1"
+dut_ip = "192.168.10.2"
+tester_ip = "192.168.10.1"
+```
 
 ```sh
-# external-dut.conf
-TC8_TOPOLOGY_IFACE=eth1
-TC8_TOPOLOGY_DUT_IP=192.168.10.2
-TC8_TOPOLOGY_TESTER_IP=192.168.10.1
-
-sudo ./dut/env/smoke-test.sh --topology external \
-     --topology-conf external-dut.conf ICMPv4_TYPE_08 ARP_07 ...
+sudo dut/env/orchestrator/target/debug/tc8-orchestrator --topology external \
+     --topology-conf external-dut.toml ICMPv4_TYPE_08 ARP_07 ...
 ```
 
 프로필과 무관하게 보장되는 no-silent-failure 장치:
@@ -186,7 +189,7 @@ sudo ./dut/env/smoke-test.sh --topology external \
   SSH/원격 바이너리 검사(`ssh-remote`), 그리고 Upper Tester 프로브
   (`tc8-harness ut-ping` — 부작용 없는 UT `OpPing` 0x15; 응답은 DUT
   펌웨어가 구현한 최고 opcode도 보고합니다). `external`에서 UT 부재는
-  기본 WARNING(`TC8_TOPOLOGY_REQUIRE_UT=1`로 치명화), `ssh-remote`는
+  기본 WARNING(`--topology-conf`의 `require_ut = true`로 치명화), `ssh-remote`는
   일시적 원격 `tc8-dut`를 스폰해 프로브하며 무응답은 원격 로그 덤프와
   함께 하드 실패입니다.
 - **명시적 SKIP**: 토폴로지가 실행할 수 없는 케이스(예: 보조
@@ -204,9 +207,10 @@ sudo ./dut/env/smoke-test.sh --topology external \
   `--dut-first`, `--workers`는 시작 시점에 사유와 함께 거부됩니다.
 
 비기본 프로필의 자가-완결 검증 픽스처가
-`dut/env/topology.d/examples/`에 있습니다 — 각각 격리된 netns로 해당
-배포 형태를 재현하며(`ssh-remote` 픽스처는 전용 `sshd` 포함) 어떤 단일
-머신에서도 실행 가능합니다.
+`dut/env/orchestrator/examples/`(`external-netns-fixture.toml`,
+`ssh-remote-netns-fixture.toml`)에 있습니다 — 각각 `[fixture]` 셀렉터를
+선언해 격리된 netns로 해당 배포 형태를 재현하며(`ssh-remote` 픽스처는 전용
+`sshd` 포함) 어떤 단일 머신에서도 실행 가능합니다.
 
 `lwip-tap` 프로필(`--topology lwip-tap`)은 한발 더 나아가 실제 임베디드
 TCP/IP 스택(lwIP, `dut/lwip_dut/`)을 호스트 tap 위에서 구동합니다 — lwIP
@@ -281,15 +285,27 @@ flowchart LR
 `cmake --build build -j4` 빌드와 `setup-vsomeip.sh`로 패치된 vsomeip 설치가
 끝났다면:
 
+Rust **오케스트레이터**(`tc8-orchestrator`)가 유일한 드라이버입니다 — bash
+`smoke-test.sh`는 오케스트레이터가 완전한 패리티에 도달하면서 은퇴했습니다.
+한 번 빌드한 뒤 실행하세요:
+
 ```sh
-sudo ./dut/env/smoke-test.sh                       # 워커 1개, 기본 케이스 (SOMEIPSRV_FORMAT_01)
-sudo ./dut/env/smoke-test.sh ARP_03 ARP_05         # 특정 케이스 한 개 이상
-sudo ./dut/env/smoke-test.sh --workers 4           # 병렬 정상 케이스 묶음
-sudo ./dut/env/smoke-test.sh --workers 4 --negative
-                                                   # 음성(negative) 단정문 묶음
+( cd dut/env/orchestrator && cargo build )
+ORCH=dut/env/orchestrator/target/debug/tc8-orchestrator
+
+sudo "$ORCH"                                 # 워커 1개, 기본 케이스 (SOMEIPSRV_FORMAT_01)
+sudo "$ORCH" ARP_03 ARP_05                   # 특정 케이스 한 개 이상
+sudo "$ORCH" --workers 4 --negative          # 음성(negative) 단정문 묶음
+
+# 정상 케이스 전체 묶음: 하네스가 케이스 집합을 열거하고(필터는 드라이버가
+# 아니라 `--list-cases`에 있음) 오케스트레이터가 그 목록을 실행합니다 — CI가
+# 쓰는 바로 그 형태:
+sudo "$ORCH" --workers 4 $(build/tc8-harness test --list-cases \
+    --exclude-deferred --exclude-platform-known-fail --exclude-serial \
+  | awk '/^  [A-Z]/{print $1}')
 ```
 
-`smoke-test.sh`는 end-to-end로 다음을 모두 수행합니다:
+오케스트레이터는 end-to-end로 다음을 모두 수행합니다:
 
 1. `--workers N`개의 병렬 netns 페어 (`tc8-tester-$W` / `tc8-dut-$W`)를
    각각의 veth 페어, vsomeip 작업 디렉터리, 심볼릭 링크된 바이너리
@@ -311,7 +327,7 @@ sudo ./dut/env/smoke-test.sh --workers 4 --negative
 
 ### 수동 진행 (단계별)
 
-`smoke-test.sh`가 자동화하는 흐름을 직접 확인하려면 동일한 흐름을 손으로
+오케스트레이터가 자동화하는 흐름을 직접 확인하려면 동일한 흐름을 손으로
 실행해 봅니다:
 
 ```sh
@@ -343,9 +359,9 @@ sudo ip netns exec tc8-tester ./build/tc8-harness test \
 sudo ./dut/env/cleanup.sh
 ```
 
-위 `--expect` 세트는 `smoke-test.sh`의 `TC8_DUT_EXPECT` 그대로이며,
-`dut/dut_service/vsomeip.json` + `ets.fidl`과 일치합니다. DUT를 다른
-vsomeip 설정으로 교체한다면 양쪽을 함께 갱신하세요.
+위 `--expect` 세트는 오케스트레이터가 `dut/dut_service/vsomeip.json` +
+`ets.fidl`에서 유도하는 정체성 표면 그대로입니다(`dut/env/orchestrator/src/dispatch.rs`
+참고). DUT를 다른 vsomeip 설정으로 교체한다면 양쪽을 함께 갱신하세요.
 
 ### 케이스 목록과 ID 규칙
 
@@ -366,13 +382,14 @@ vsomeip 설정으로 교체한다면 양쪽을 함께 갱신하세요.
 
 ### 음성 테스트 모드 (`--negative`)
 
-`smoke-test.sh --negative`는 의도적으로 잘못된 `--expect` 토큰을 한 개
+`--negative`는 의도적으로 잘못된 `--expect` 토큰을 한 개
 주입한(예: `arp.dut_iface_ip`를 DUT가 아닌 주소로) 큐레이션된 케이스를
 실행해, SCXML이 대응되는 `fail:<reason>` final 상태에 도달하는지
 확인합니다. "`expected.*` cond가 자명하게 참이 되어 어떤 DUT 동작이든
 통과되는" 류의 회귀를 막아주는 가드입니다. 음성 row를 추가하려면 먼저
-정상 모드에서 그 케이스가 녹색이어야 합니다 (`smoke-test.sh`의
-`run_negative_case` rows).
+정상 모드에서 그 케이스가 녹색이어야 합니다. 음성 row는
+`docs/spec/inventory_overrides.json`(케이스별 `neg_wrong_token` /
+`neg_expect_fail` 축, 오케스트레이터가 `--negative`에서 구동)에 있습니다.
 
 ### 병렬 워커와 격리
 
@@ -397,16 +414,17 @@ PID 범위화(`.$$` 접미)는 CI runner와 로컬 개발 실행이 같은 호�
 - 단일 케이스: `tc8-harness test --case <ID> --pcap-dump /tmp/case.pcap` —
   BPF 적용 후의 (케이스 범위) 모든 캡처 프레임을 그 경로로 기록.
   positive 대 negative 실행 결과를 diff하기에 유용.
-- 스모크 전체: `sudo ./dut/env/smoke-test.sh --log-dir /tmp/logs ...` —
-  워커별 `tc8-{harness,dut}.log`를 보존. 하네스의 `--pcap-dump`는 스모크
-  기본값이 아니므로, 단일 케이스에 추가 인자를 전달하려면 위치 인자
-  분리자를 사용: `./dut/env/smoke-test.sh ARP_03 -- --pcap-dump
-  /tmp/arp_03.pcap`.
+- 오케스트레이터 전체 실행:
+  `sudo dut/env/orchestrator/target/debug/tc8-orchestrator --log-dir /tmp/logs ...` —
+  워커별 `tc8-{harness,dut}.log`를 보존. 오케스트레이터는 `--pcap-dump`를
+  전달하지 않으므로, 한 케이스의 프레임을 캡처하려면 위의 케이스 단위
+  형태(`tc8-harness test --case <ID> --pcap-dump ...`)로 그 케이스를 직접
+  실행하세요.
 
 ### CI 소비용 JUnit XML
 
 ```sh
-sudo ./dut/env/smoke-test.sh --workers 4 --junit-xml /tmp/tc8-smoke.xml
+sudo dut/env/orchestrator/target/debug/tc8-orchestrator --workers 4 --junit-xml /tmp/tc8-smoke.xml
 ```
 
 `dorny/test-reporter`(및 GitLab / Jenkins surefire collector)가 그대로
@@ -421,7 +439,7 @@ M의 레코드는 XML에 그대로 들어갑니다.
 | `setup-netns.sh` 도중 `tester→dut ping failed`                            | 이전 크래시로 남은 stale veth                                                                      | `cleanup.sh` 재실행. 그래도 안 되면 `sudo ip link del veth-tester` 후 재시도                              |
 | 새 netns 뒤 첫 케이스가 ~5 s 지연                                         | Linux의 STALE→DELAY→PROBE (DUT 측 neigh 엔트리)                                                   | `setup-netns.sh`가 이미 `delay_first_probe_time=30`로 확대. 추가 조치 불필요                              |
 | `--workers 4` 스모크가 TCP 재전송 타이밍 케이스에서 flaky                  | 부하 상태에서 pcap delivery jitter                                                                 | 해당 케이스(RETRANSMISSION_TO_03..06)는 커널-측 `OpQueryTcpInfo`로 이전됨 — jitter 영향 없음              |
-| 커널 업데이트 후 vsomeip 클라이언트가 서로를 찾지 못함                    | `/tmp/tc8-vsomeip.$$`의 UDS / shm 잔여물                                                          | 스크래치가 PID 범위이므로, smoke-test.sh를 재실행하면 새 PID dir이 만들어짐                               |
+| 커널 업데이트 후 vsomeip 클라이언트가 서로를 찾지 못함                    | `/tmp/tc8-vsomeip.$$`의 UDS / shm 잔여물                                                          | 스크래치가 PID 범위이므로, 오케스트레이터를 재실행하면 새 PID dir이 만들어짐                             |
 | `quilt push -a`가 종료 코드 2                                              | 이전 서브모듈 동기화 후 `.pc/` 잔재                                                                | `setup-vsomeip.sh`는 먼저 `.pc/`를 삭제. quilt를 손으로 돌렸다면 `rm -rf third_party/vsomeip/.pc` 후 재시도 |
 | `--negative` row가 실패를 예상하는데 통과해버림                            | `expected.*` cond가 자명하게 참이 됨                                                              | 정확히 `--negative`가 잡으려는 회귀 — 해당 SCXML cond를 수정                                              |
 
@@ -587,8 +605,8 @@ sudo ./build/tc8-harness test \
 
 필수 `--expect` 키는 케이스에 따라 다릅니다. 기본 `--expect` 값은
 `dut/dut_service/vsomeip.json`과 `dut/ets/ets.fidl`에서 옵니다
-(`smoke-test.sh`의 `TC8_DUT_EXPECT` 참고). 서드파티 DUT에 대해서는 자체
-SD 설정에서 값을 가져오세요:
+(오케스트레이터가 `dut/env/orchestrator/src/dispatch.rs`에서 유도). 서드파티
+DUT에 대해서는 자체 SD 설정에서 값을 가져오세요:
 
 | `--expect KEY=VALUE`             | 출처                                                                                                  |
 |----------------------------------|-------------------------------------------------------------------------------------------------------|
@@ -601,7 +619,7 @@ SD 설정에서 값을 가져오세요:
 | `udp_port` / `tcp_port`          | DUT IPv4 Endpoint Option UDP / TCP 포트                                                               |
 | `sd_multicast_ip`                | DUT가 FindService에 응답하는 SD 멀티캐스트 그룹 (vsomeip `service-discovery.multicast`)              |
 | `mcast_ipv4` / `mcast_port`      | 멀티캐스트 이벤트그룹 옵션 주소 / 포트 (OPTIONS_11/14 에서만 사용)                                    |
-| `arp.dut_iface_ip` / `…_mac` / `arp.tester_ip` / `arp.tester_mac` | ARP §4.2 판정 리터럴 (`smoke-test.sh`의 ARP_* 그룹 참조)                            |
+| `arp.dut_iface_ip` / `…_mac` / `arp.tester_ip` / `arp.tester_mac` | ARP §4.2 판정 리터럴 (오케스트레이터 L2/L3 정체성 표면, `dispatch.rs`)              |
 
 알아두면 좋은 다른 플래그:
 
@@ -669,9 +687,10 @@ while read CASE_ID; do
 done < /tmp/runnable.txt
 ```
 
-UT를 구현한 DUT라면 `smoke-test.sh`도 적응시킬 수 있습니다 —
-`setup-netns.sh` 호출을 제거하고, 워커별 veth 이름을 물리 NIC로 바꾸고,
-`ip netns exec` 래퍼를 제거하세요. 형태는 동일합니다.
+UT를 구현한 DUT라면 오케스트레이터의 `external` 토폴로지(`--topology
+external --topology-conf`)로 전체 코퍼스를 구동하세요 — netns 프로비저닝을
+건너뛰고, 물리 NIC 상의 지속 DUT를 대상으로 하며, `ip netns exec` 래퍼를
+제거합니다. 형태는 single-pc 실행과 동일합니다.
 
 ## tc8-harness 임베딩 (out-of-tree OEM 케이스)
 
@@ -796,9 +815,9 @@ VLAN-투명합니다:
   감싸져, 태그된 프레임이 커널 BPF에서 조용히 누락되지 않습니다(plain 술어는
   태그가 시프트하는 고정 오프셋에서 L3 필드를 읽음). `-f/--bpf` override는
   verbatim 전달되며 재래핑되지 않습니다.
-- **토폴로지** — `VLAN_ID` 설정 시(기본 off) `setup-netns.sh`가 VLAN
-  서브인터페이스를 쌓고 L3를 그 위에 둡니다. `single-pc.conf`가 `VLAN_ID`를
-  전달합니다. 하네스는 **bare veth**에서 캡처하여 태그가 보이도록 유지하고
+- **토폴로지** — 오케스트레이터의 `netns.rs` `Vlan`(802.1Q) 브랜치가 VLAN
+  프로필이 설정되면 VLAN 서브인터페이스를 쌓고 L3를 그 위에 둡니다. 하네스는
+  **bare veth**에서 캡처하여 태그가 보이도록 유지하고
   (서브인터페이스에서의 libpcap은 커널이 태그를 벗긴 것을 봄), 커널-소켓
   stimulus와 DUT egress는 주소가 서브인터페이스에 있으므로 태깅됩니다.
 
@@ -813,7 +832,7 @@ VLAN-투명합니다:
 | 워크플로                 | runner                  | 범위                                                                                                                       |
 | ------------------------ | ----------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `build-test.yml`         | `ubuntu-22.04` (hosted) | 서브모듈 init → `setup-vsomeip.sh` (patched) + CommonAPI → `cmake build` → `ctest` → `--list-cases --vs-spec` 드리프트 게이트  |
-| `smoke-test.yml`         | self-hosted `[netns]`   | `setup-vsomeip.sh` (idempotent 재팝/푸시) → 하네스 빌드 → `dut/env/smoke-test.sh --workers 4` (정상 + `--negative`)         |
+| `smoke-test.yml`         | self-hosted `[netns]`   | `setup-vsomeip.sh` (idempotent 재팝/푸시) → 하네스 빌드 → 오케스트레이터 빌드(`cd dut/env/orchestrator && cargo build`) → `sudo -n .../tc8-orchestrator --workers 4` (정상 + `--negative`) |
 
 두 워크플로 모두 `actions/checkout@v4`에 `submodules: recursive`를 전달해
 빌드 단계 전에 `third_party/vsomeip`가 채워지도록 합니다. hosted 빌드는
@@ -830,12 +849,13 @@ VLAN-투명합니다:
 # 1. /opt/actions-runner에 actions runner 설치 (GitHub 공식 문서 기준)
 # 2. 등록 시 [self-hosted, netns] 라벨 적용
 # 3. 빌드 의존성 설치 (cmake, build-essential, quilt, libpcap-dev,
-#    libtins-dev, libboost-{system,thread,filesystem,log}-dev)
-# 4. runner가 smoke-test.sh, setup-vsomeip.sh, testability-*-sp-check.sh
+#    libtins-dev, libboost-{system,thread,filesystem,log}-dev, 그리고
+#    오케스트레이터용 Rust 툴체인 — cargo)
+# 4. runner가 오케스트레이터, setup-vsomeip.sh, testability-*-sp-check.sh
 #    관측 체크를 비대화식으로 돌릴 수 있도록 sudoers fragment 추가
 #    (setup-vsomeip의 `sudo cmake --install`는 root→root이므로 별도 항목 불필요):
 sudo tee /etc/sudoers.d/tc8-runner <<'EOF'
-%docker ALL=(root) NOPASSWD: /opt/actions-runner/_work/tc8-harness/tc8-harness/dut/env/smoke-test.sh
+%docker ALL=(root) NOPASSWD: /opt/actions-runner/_work/tc8-harness/tc8-harness/dut/env/orchestrator/target/debug/tc8-orchestrator
 %docker ALL=(root) NOPASSWD: /opt/actions-runner/_work/tc8-harness/tc8-harness/dut/env/testability-eth-sp-check.sh
 %docker ALL=(root) NOPASSWD: /opt/actions-runner/_work/tc8-harness/tc8-harness/dut/env/testability-ip-static-check.sh
 %docker ALL=(root) NOPASSWD: /opt/actions-runner/_work/tc8-harness/tc8-harness/dut/env/testability-ipv6-static-check.sh

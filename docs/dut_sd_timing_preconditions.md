@@ -35,8 +35,9 @@ per-precondition config file that could silently drift from the base.
 
 ### Declaring the overrides (overlay)
 
-The overlay (which `smoke-test.sh` *sources*) adds entries to the associative array
-`TC8_TOPOLOGY_DUT_SD_TIMING`, keyed by the **display case id** — the exact form
+The overlay (the `--topology-conf` form the retired bash `smoke-test.sh` *sourced*) adds
+entries to the associative array `TC8_TOPOLOGY_DUT_SD_TIMING`, keyed by the **display case
+id** — the exact form
 `tc8-harness test --list-cases` prints: a bare id **upper-cased**, or a qualified
 `suite:id` (non-default suite) with the suite prefix **verbatim** and only the local id
 upper-cased (e.g. `vendorx:SOMEIPSRV_SD_BEHAVIOR_02`). The runtime derives the same form via
@@ -48,7 +49,7 @@ space-separated `KEY=VALUE` list of `service-discovery` field overrides — for 
 TC8_TOPOLOGY_DUT_SD_TIMING[MY_SD_TIMING_CASE]="initial_delay_min=<ms> initial_delay_max=<ms>"
 ```
 
-The array is declared empty by `smoke-test.sh`, so a run with no overlay — or an
+The array is declared empty by default, so a run with no overlay — or an
 overlay that never sets it — uses the base config unchanged, byte-identical to today.
 
 `KEY` may be any field the base config's `service-discovery` block already declares (the
@@ -65,9 +66,8 @@ silently no-op).
 
 ### Fail-fast validation at overlay load
 
-Before any worker runs, `validate_dut_sd_timing_overrides` (in `smoke-test.sh`, right
-after the overlay is sourced) checks every declared entry and **aborts the whole run**
-with a clear message if:
+Before any worker runs, the overlay's load-time check validates every declared entry —
+right after the overlay is loaded — and **aborts the whole run** with a clear message if:
 
 - the entry is keyed on a case id the harness registry does not know
   (`tc8-harness test --list-cases`) — a typo that would otherwise never match a running
@@ -78,14 +78,20 @@ with a clear message if:
 So a deployment-config error surfaces immediately as a config error, never later as a
 per-case conformance FAIL and never as a silent no-op.
 
-## Scope: bash smoke-test only
+## Scope: DUT configuration, not the expect surface
 
-This is a `dut/env/smoke-test.sh` feature, exactly like the existing
-`CASE_VSOMEIP_VARIANT` (services[] variant) selection. The Rust `tc8-orchestrator`
-brings the DUT up with one config for the run and has no per-case DUT-config axis at
-all, so there is nothing to mirror there and no cross-driver drift to gate — the
-override is DUT configuration, not part of the `--expect` identity surface the two
-drivers keep in parity.
+The per-case SD-timing field-patch overlay described above was a `dut/env/smoke-test.sh`
+feature and was retired with that bash driver; the pure transform
+(`tools/dut_sd_timing_override.py`) remains available for field-level patching. The
+per-case DUT-config path that survives in the sole driver is the orchestrator's
+whole-config vsomeip variant selection (the former `CASE_VSOMEIP_VARIANT`), declared per
+case in `docs/spec/inventory_overrides.json` and applied by the Rust `tc8-orchestrator`
+when it brings the DUT up for that case — so a deployment whose profile needs per-case SD
+start-up timers points the case at a vsomeip config variant carrying those
+`service-discovery` values through that axis (the harness `tc8-harness test --list-cases`
+still enumerates the ids these entries are keyed on). Either way the override is DUT
+configuration applied at bring-up, not part of the `--expect` identity surface the harness
+reads for the verdict.
 
 ## Implementation
 
@@ -94,10 +100,11 @@ drivers keep in parity.
   bad token). `--validate` is a dry-run apply used by the load-time check; `--self-test`
   is an inline unit test wired into CI (build-test.yml) — it exercises the transform's
   composition/validation guarantees, not a cross-file drift gate.
-- `dut/env/smoke-test.sh` — `validate_dut_sd_timing_overrides` (load-time fail-fast) and
-  `resolve_dut_sd_timing_cfg` (per-case runtime apply, on both the positive `run_case`
-  and negative `run_negative_case` DUT bring-up paths). Derived per-worker configs live
-  under the per-worker scratch (`$WORK_ROOT/$W`), cleaned at teardown.
+- the per-case DUT bring-up (config selection + apply) is the driver's. The bash
+  `smoke-test.sh` load-time fail-fast validation and per-case apply functions were retired
+  with that driver; under the Rust `tc8-orchestrator` per-case DUT config rides the
+  `docs/spec/inventory_overrides.json` vsomeip variant axis (see *Scope* above), applied in
+  the worker's per-case vsomeip scratch and cleaned at teardown.
 
 ## Relationship to the expect surface (verdict side)
 
