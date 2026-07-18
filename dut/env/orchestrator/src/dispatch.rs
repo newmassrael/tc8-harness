@@ -276,13 +276,15 @@ fn run_case_impl(
     };
     let iface = topo.tester_iface(w);
 
-    // TC8 Topology 2 (DHCPv4_CLIENT_USAGE_01) needs a second tester interface. A
-    // topology that provides none cannot execute the case — explicit SKIP, never a
-    // misleading timeout FAIL (bash run_case, smoke-test.sh). Decided
+    // TC8 Topology 2 cases need a second tester interface — data-driven from the
+    // harness's requires_secondary_iface axis (cfg.secondary_iface_cases), NOT a
+    // hardcoded id, so USAGE_01 AND its _NEG mutant (and any future member) are all
+    // covered. A topology that provides none cannot execute such a case — explicit
+    // SKIP, never a misleading timeout FAIL (bash run_case, smoke-test.sh). Decided
     // before conditioning: a skipped case applies none, and the next case's flush
     // covers the DUT-cache reset regardless.
     let mut extra_args: Vec<String> = Vec::new();
-    if case_id.eq_ignore_ascii_case("DHCPv4_CLIENT_USAGE_01") {
+    if cfg.secondary_iface_cases.contains(&case_id.to_uppercase()) {
         match topo.tester_iface_secondary(w) {
             None => {
                 return Ok(Verdict::Skip(
@@ -577,6 +579,7 @@ mod tests {
             extra_expect: Vec::new(),
             log_dir: None,
             dut_control: None,
+            secondary_iface_cases: std::collections::HashSet::new(),
         }
     }
 

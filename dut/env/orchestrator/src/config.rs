@@ -4,6 +4,7 @@
 //! (TESTER_IP4 / DUT_IP4).
 
 use anyhow::{Context, Result};
+use std::collections::HashSet;
 use std::env;
 use std::path::{Path, PathBuf};
 
@@ -99,6 +100,12 @@ pub struct Config {
     /// in-house opcode UT). None = the harness default (opcode); cases that call the
     /// opcode builders directly ignore it. Populated by main() from the CLI.
     pub dut_control: Option<String>,
+    /// Case ids (UPPER-cased) that need the Topology-2 second tester interface —
+    /// the harness's `requires_secondary_iface` axis (`--list-cases
+    /// --only-secondary-iface`). run_case passes `--interface-secondary` for a
+    /// member (or SKIPs it when the topology has no secondary), bash's per-case
+    /// `case_needs_secondary_iface`. Populated by main(), like extra_expect.
+    pub secondary_iface_cases: HashSet<String>,
 }
 
 fn env_path(key: &str, default: PathBuf) -> PathBuf {
@@ -216,6 +223,7 @@ impl Config {
             // Populated by main() from the CLI flags, parallel to extra_expect.
             log_dir: None,
             dut_control: None,
+            secondary_iface_cases: HashSet::new(),
             root,
         })
     }

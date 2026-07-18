@@ -177,14 +177,17 @@ fn main() -> Result<()> {
     // needs a fixture-owned per-case respawn (drain → SIGTERM-slot-abort → respawn)
     // a persistent External does not do; it self-provisions the tap + DUT in
     // provision_run and reaps them in teardown_run.
-    // single-pc provisions the Topology-2 second veth pair only when the schedule
-    // contains a requires_secondary_iface case (bash's sticky NEED_SECOND_VETH), so
-    // the common single-pair run pays nothing. Computed once from the harness's
-    // authoritative list (the requires_secondary_iface axis).
+    // The requires_secondary_iface set (harness axis). Stored on cfg so run_case can
+    // pass --interface-secondary per-case; single-pc also provisions the second veth
+    // pair only when a SCHEDULED case is in it (bash's sticky NEED_SECOND_VETH), so
+    // the common single-pair run pays nothing.
+    cfg.secondary_iface_cases = list_secondary_iface_cases(&cfg)?;
+    let schedule_needs_secondary = cases
+        .iter()
+        .any(|c| cfg.secondary_iface_cases.contains(&c.to_uppercase()));
+
     let topo: Box<dyn Topology + Sync> = match &site {
-        TopologyConf::SinglePc { .. } => {
-            Box::new(SinglePc::new(&cfg, schedule_needs_secondary_iface(&cfg, &cases)?))
-        }
+        TopologyConf::SinglePc { .. } => Box::new(SinglePc::new(&cfg, schedule_needs_secondary)),
         TopologyConf::LwipTap { lwip, iface_secondary } => {
             Box::new(topology::LwipTap::new(&cfg, lwip, iface_secondary.as_deref()))
         }
@@ -353,12 +356,14 @@ fn main() -> Result<()> {
     summarize(topology, cases.len(), workers, &results)
 }
 
-/// Does the scheduled case set contain a case that needs the Topology-2 second
-/// tester interface? The `requires_secondary_iface` axis is the harness's, surfaced
-/// by `--list-cases --only-secondary-iface`; this is the orchestrator's
-/// `case_needs_secondary_iface` (bash smoke-test.sh) — a case id is the first token
-/// of each indented listing line. Case-insensitive, matching the registry.
-fn schedule_needs_secondary_iface(cfg: &Config, cases: &[String]) -> Result<bool> {
+/// The case ids (UPPER-cased) that need the Topology-2 second tester interface —
+/// the harness's `requires_secondary_iface` axis via `--list-cases
+/// --only-secondary-iface`. A case id is the first token of each indented listing
+/// line (dut/env/list-cases-ids.awk); flush-left lines are banners/summary. This is
+/// the SSOT for both "provision the second veth" (any scheduled member) and
+/// "pass --interface-secondary for THIS case" (per-case membership), matching
+/// bash's `case_needs_secondary_iface`.
+fn list_secondary_iface_cases(cfg: &Config) -> Result<HashSet<String>> {
     let out = std::process::Command::new(&cfg.harness)
         .args(["test", "--list-cases", "--only-secondary-iface"])
         .output()
@@ -370,16 +375,12 @@ fn schedule_needs_secondary_iface(cfg: &Config, cases: &[String]) -> Result<bool
             out.status
         );
     }
-    let text = String::from_utf8_lossy(&out.stdout);
-    let secondary: HashSet<String> = text
+    Ok(String::from_utf8_lossy(&out.stdout)
         .lines()
-        // Case lines are the only indented lines; the id is the first token
-        // (dut/env/list-cases-ids.awk). Flush-left lines are banners/summary.
         .filter(|l| l.starts_with(char::is_whitespace))
         .filter_map(|l| l.split_whitespace().next())
         .map(|id| id.to_uppercase())
-        .collect();
-    Ok(cases.iter().any(|c| secondary.contains(&c.to_uppercase())))
+        .collect())
 }
 
 /// The run timestamp for the JUnit `<testsuites timestamp=...>` — `date -u
