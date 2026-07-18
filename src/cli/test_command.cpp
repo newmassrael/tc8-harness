@@ -126,6 +126,13 @@ TestCommand::TestCommand(CLI::App &app) {
                    "know which cases to run with --negative-row and which "
                    "verdict to assert; --negative-row injects the token itself, "
                    "so the driver never re-emits it.");
+    sub_->add_flag("--list-vsomeip-variants", list_vsomeip_variants_,
+                   "Print every case carrying a DUT vsomeip flavor (the seventh "
+                   "inventory-overrides axis) as CASE|cfg|env1,env2 and exit — cfg "
+                   "is an alternate vsomeip config basename (empty = keep the base) "
+                   "and env are TC8_DUT_* the DUT app reads. The harness never "
+                   "launches the DUT; a driver iterates this to spawn it with the "
+                   "right flavor.");
     sub_->add_flag("--negative-row", negative_row_,
                    "Run the case with its authored expectation flip applied — "
                    "the self-check that its guard is not trivially-true. The "
@@ -212,7 +219,47 @@ int TestCommand::runListNegRows() const {
     return 0;
 }
 
+// The seventh axis (vsomeip_cfg / vsomeip_env) as CASE|cfg|env1,env2 lines — the
+// harness's exposer for a driver-launched DUT flavor, mirroring runListNegRows.
+// Both smoke-test.sh and the orchestrator read this ONE source, so the flavor
+// table cannot drift across the two drivers.
+int TestCommand::runListVsomeipVariants() const {
+    const std::string inv_path =
+        inventory_path_.empty() ? std::string("docs/spec/case_inventory.json") : inventory_path_;
+    const std::string ov_path = overrides_path_.empty()
+        ? std::string("docs/spec/inventory_overrides.json")
+        : overrides_path_;
+    std::string err;
+    const auto inv = sce::SpecInventory::load(inv_path, inventory_extra_paths_, ov_path, &err);
+    if (!inv.has_value()) {
+        std::fprintf(stderr, "error: %s\n", err.c_str());
+        return 1;
+    }
+    std::vector<std::string> rows;
+    for (const auto &sc : inv->cases()) {
+        if (sc.vsomeip_cfg.empty() && sc.vsomeip_env.empty()) {
+            continue;
+        }
+        std::string env;
+        for (std::size_t i = 0; i < sc.vsomeip_env.size(); ++i) {
+            if (i != 0) {
+                env += ",";
+            }
+            env += sc.vsomeip_env[i];
+        }
+        rows.push_back(sc.id + "|" + sc.vsomeip_cfg + "|" + env);
+    }
+    std::sort(rows.begin(), rows.end());
+    for (const auto &r : rows) {
+        std::printf("%s\n", r.c_str());
+    }
+    return 0;
+}
+
 int TestCommand::run(std::optional<std::string> bpf_override) {
+    if (list_vsomeip_variants_) {
+        return runListVsomeipVariants();
+    }
     if (list_neg_rows_) {
         return runListNegRows();
     }

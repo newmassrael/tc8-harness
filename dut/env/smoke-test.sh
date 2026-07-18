@@ -1553,80 +1553,21 @@ run_case() {
         extra_args+=(--dut-control "$DUT_CONTROL")
     fi
 
-    # §5.1.5 SOMEIPSRV multi-instance / multi-service plumbing:
-    # SD_MESSAGE_01/_02 + RPC_14/_17 require Number Of Instances=2 for
-    # SERVICE-ID-1; RPC_01/_02/_13 require a second SERVICE-ID-2. Each
-    # variant ships its own vsomeip.json (services[] differs) and is
-    # gated at runtime by env vars dut_main.cpp inspects (TC8_DUT_*).
-    # The single-instance baseline (every other §5.1.5 case) is
-    # untouched.
-    #
-    # CRITICAL: SD_MESSAGE_17/_18 use `cfg.someip.instance_id + 1` and
-    # `cfg.someip.major_version + 1` as UNKNOWN-* sentinels; activating
-    # instance 0x0002 in the multi-instance variant would convert
-    # vsomeip's Nack into an Ack and break those legacy assertions.
-    # Mapping a §5.1.5 case here MUST be paired with a verification that
-    # its cond does not depend on (instance_id+1) or (major_version+1)
-    # being unknown.
+    # DUT vsomeip flavor (CASE_VSOMEIP_VARIANT) — the seventh inventory-overrides
+    # axis, read once at init from the harness's --list-vsomeip-variants into
+    # CASE_VSOMEIP_CFG / CASE_VSOMEIP_ENV (the SAME source the orchestrator reads,
+    # so the two drivers cannot drift). An alternate cfg is a sibling of the base.
+    # Flavors + the SD_MESSAGE_17/_18 multi-instance caveat: dut/env/vsomeip_variants.md.
     local dut_vsomeip_cfg="$VSOMEIP_CFG"
     local -a dut_extra_env=()
-    declare -A CASE_VSOMEIP_VARIANT=(
-        [SOMEIPSRV_SD_MESSAGE_01]="multi-instance"
-        [SOMEIPSRV_SD_MESSAGE_02]="multi-instance"
-        [SOMEIPSRV_RPC_14]="multi-instance"
-        [SOMEIPSRV_RPC_17]="multi-instance"
-        [SOMEIPSRV_RPC_01]="multi-service"
-        [SOMEIPSRV_RPC_02]="multi-service"
-        [SOMEIPSRV_RPC_13]="multi-service-shared-port"
-        # §5.1.6 SOMEIP_ETS_097 routes clientServiceActivate to the
-        # CommonAPI Proxy spawn path (ets3 ClientTarget) instead of the
-        # ETS_098..101 raw-UDP runner. Env-gated so the existing
-        # client-mode cases keep their wire shape.
-        [SOMEIP_ETS_097]="client-mode"
-        # §5.1.6 SOMEIP_ETS_084 reuses ETS_097's CommonAPI Proxy path —
-        # observation of DUT-emitted Subscribe + StopSubscribe for ets3
-        # depends on the proxy spawn on activate / unsubscribe on deactivate.
-        [SOMEIP_ETS_084]="client-mode"
-        # §5.1.6 SOMEIP_ETS_081 reuses the same Proxy spawn path; the
-        # reboot OfferService verdict depends on the DUT vsomeip TCP
-        # client-endpoint lifecycle reacting to the lower-sid offer.
-        [SOMEIP_ETS_081]="client-mode"
-        # §5.1.6 SOMEIP_ETS_082 selects the UDP-unreliable target event
-        # in ets3.fdepl (eventgroup 0x000B) so the DUT-emitted
-        # SubscribeEventgroup carries an IPv4 Endpoint Option with
-        # l4proto = 0x11 (UDP). Implies TC8_DUT_CLIENT_MODE=1.
-        [SOMEIP_ETS_082]="client-mode-udp"
-        # §5.1.6 SOMEIP_ETS_106 ClientServiceSubscribeEventgroup chain reuses
-        # the UDP variant: clientServiceActivate + clientServiceSubscribeEvent
-        # group + UDP-OfferService → DUT proxy emits Subscribe via UDP.
-        [SOMEIP_ETS_106]="client-mode-udp"
-        # §5.1.6 SOMEIP_ETS_103/_104/_105 GetLastValueOfEvent* require Client
-        # Mode active so clientServiceSubscribeEventgroup wires up the proxy
-        # subscribe path (without it the Method 0x32 dispatch is a no-op).
-        [SOMEIP_ETS_103]="client-mode-udp"
-        [SOMEIP_ETS_104]="client-mode-udp"
-        [SOMEIP_ETS_105]="client-mode-udp"
-    )
-    case "${CASE_VSOMEIP_VARIANT[$case_id_canon]:-}" in
-        multi-instance)
-            dut_vsomeip_cfg="$ROOT/dut/dut_service/vsomeip-multi-instance.json"
-            dut_extra_env+=(TC8_DUT_INSTANCE_2=1)
-            ;;
-        multi-service)
-            dut_vsomeip_cfg="$ROOT/dut/dut_service/vsomeip-multi-service.json"
-            dut_extra_env+=(TC8_DUT_SERVICE_2=1)
-            ;;
-        multi-service-shared-port)
-            dut_vsomeip_cfg="$ROOT/dut/dut_service/vsomeip-multi-service-shared-port.json"
-            dut_extra_env+=(TC8_DUT_SERVICE_2=1)
-            ;;
-        client-mode)
-            dut_extra_env+=(TC8_DUT_CLIENT_MODE=1)
-            ;;
-        client-mode-udp)
-            dut_extra_env+=(TC8_DUT_CLIENT_MODE=1 TC8_DUT_CLIENT_MODE_UDP=1)
-            ;;
-    esac
+    if [[ -n "${CASE_VSOMEIP_CFG[$case_id_canon]:-}" ]]; then
+        dut_vsomeip_cfg="$ROOT/dut/dut_service/${CASE_VSOMEIP_CFG[$case_id_canon]}"
+    fi
+    if [[ -n "${CASE_VSOMEIP_ENV[$case_id_canon]:-}" ]]; then
+        local -a _flavor_env
+        IFS=',' read -ra _flavor_env <<<"${CASE_VSOMEIP_ENV[$case_id_canon]}"
+        dut_extra_env+=("${_flavor_env[@]}")
+    fi
 
     # Per-case DUT SD-timing precondition: patch the resolved base cfg with this
     # case's service-discovery timers (composition over the variant/base above).
@@ -2115,6 +2056,20 @@ distribute() {
         (( i += 1 ))
     done
 }
+
+# DUT vsomeip flavor table (CASE_VSOMEIP_VARIANT) — the seventh inventory-overrides
+# axis, read ONCE from the harness's --list-vsomeip-variants (the SAME source the
+# orchestrator reads; one home means the two drivers cannot drift). Grammar
+# CASE|cfg|env1,env2 (empty cfg = base). Read in the main shell so the backgrounded
+# worker subshells inherit it, and AFTER --print-expect's exit above so the identity
+# path stays harness-free. run_case applies it (positive only); run_negative_case
+# keeps the base cfg. Rationale: dut/env/vsomeip_variants.md.
+declare -A CASE_VSOMEIP_CFG CASE_VSOMEIP_ENV
+while IFS='|' read -r _vc _vcfg _venv; do
+    [[ -n "$_vc" ]] || continue
+    CASE_VSOMEIP_CFG[$_vc]="$_vcfg"
+    CASE_VSOMEIP_ENV[$_vc]="$_venv"
+done < <("$HARNESS" test --list-vsomeip-variants)
 
 if [[ "$NEGATIVE" == "1" ]]; then
     # The negative rows are the inventory overrides' sixth axis, not a table

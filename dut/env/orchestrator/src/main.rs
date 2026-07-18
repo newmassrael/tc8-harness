@@ -25,6 +25,7 @@ mod cleanup;
 mod conditioning;
 mod config;
 mod dispatch;
+mod dut_variant;
 mod fixtures;
 mod junit;
 mod netns;
@@ -246,6 +247,12 @@ fn main() -> Result<()> {
     } else {
         None
     };
+    // Load the DUT vsomeip flavor table once from the harness (the SSOT:
+    // --list-vsomeip-variants, the seventh inventory-overrides axis — the SAME
+    // source bash reads). Positive runs look it up per case; a negative run keeps
+    // the base cfg, so it is inert there but harmless. After --print-expect's early
+    // return above, so the identity path never shells the harness.
+    dut_variant::init(&cfg)?;
     if cli.dut_first && !topo.supports_dut_spawn() {
         bail!("--dut-first controls DUT-vs-harness start order, but topology '{topology}' does not spawn the DUT");
     }

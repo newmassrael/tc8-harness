@@ -418,7 +418,8 @@ impl Topology for External<'_> {
         self.host.run_harness(w, hlog, args)
     }
 
-    fn start_dut(&self, _w: u32, dlog: &Path, _cfg_path: &Path) -> Result<Option<Child>> {
+    fn start_dut(&self, _w: u32, dlog: &Path, _cfg_path: &Path, _extra_env: &[String])
+        -> Result<Option<Child>> {
         // Persistent DUT — nothing to spawn. Record the provenance in the dut log
         // (bash run_case, smoke-test.sh) so a postmortem shows which DUT a case
         // ran against. `None` tells the dispatcher there is no Child to reap.
@@ -567,7 +568,7 @@ impl Topology for SshRemote<'_> {
         // full spawn-over-SSH + UT path before any case runs. The reference tc8-dut
         // always implements UT, so no answer here is fatal (remote log dumped).
         let probe_log = self.cfg.work_root.join("ut-probe.dut.log");
-        let child = self.start_dut(0, &probe_log, &self.cfg.vsomeip_cfg)?;
+        let child = self.start_dut(0, &probe_log, &self.cfg.vsomeip_cfg, &[])?;
         sleep(Duration::from_millis(1500));
         let ut_ok = ut_ping(&self.cfg.harness, dut_ip, None);
         let _ = self.stop_dut(0);
@@ -641,7 +642,8 @@ impl Topology for SshRemote<'_> {
         self.host.run_harness(w, hlog, args)
     }
 
-    fn start_dut(&self, w: u32, dlog: &Path, cfg_path: &Path) -> Result<Option<Child>> {
+    fn start_dut(&self, w: u32, dlog: &Path, cfg_path: &Path, extra_env: &[String])
+        -> Result<Option<Child>> {
         // Map the local cfg's basename onto a sibling of the remote vsomeip cfg
         // (per-case flavor support; S5a always passes the default, so the basename
         // equals remote_vsomeip_cfg's). mkdir + wipe the per-worker remote vsomeip
@@ -662,10 +664,17 @@ impl Topology for SshRemote<'_> {
         let rcapi = self.site.remote_capi_cfg.as_str();
         let wrap = self.site.remote_wrap.as_deref().unwrap_or("");
         let scratch = format!("{REMOTE_VSOMEIP_PREFIX}-{w}");
+        // Per-case DUT flavor env (CASE_VSOMEIP_VARIANT); empty for the common case.
+        // TC8_DUT_*=1 tokens are shell-safe, so a plain space-join needs no quoting.
+        let flavor_env = if extra_env.is_empty() {
+            String::new()
+        } else {
+            format!("{} ", extra_env.join(" "))
+        };
         let remote_cmd = format!(
             "mkdir -p {scratch} && rm -f {scratch}/{VSOMEIP_RT_SOCK_PREFIX}* {scratch}/{VSOMEIP_RT_LOCK} && \
              {wrap} env COMMONAPI_CONFIG='{rcapi}' VSOMEIP_CONFIGURATION='{remote_cfg}' \
-             VSOMEIP_APPLICATION_NAME=tc8-dut VSOMEIP_BASE_PATH={scratch}/ '{rbin}'"
+             VSOMEIP_APPLICATION_NAME=tc8-dut VSOMEIP_BASE_PATH={scratch}/ {flavor_env}'{rbin}'"
         );
         let log = fs::File::create(dlog).context("creating remote dut log")?;
         let err = log.try_clone()?;

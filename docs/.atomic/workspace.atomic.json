@@ -5662,10 +5662,6 @@
           "kind": "implements"
         },
         {
-          "file": "dut/env/smoke-test.sh",
-          "kind": "implements"
-        },
-        {
           "file": "dut/ets/CMakeLists.txt",
           "kind": "implements"
         },
@@ -5696,6 +5692,10 @@
         {
           "file": "dut/dut_service/server_role.cpp",
           "kind": "implements"
+        },
+        {
+          "file": "dut/env/vsomeip_variants.md",
+          "kind": "references"
         }
       ]
     },
@@ -8339,6 +8339,10 @@
         },
         {
           "file": "dut/env/negative_rows.md",
+          "kind": "references"
+        },
+        {
+          "file": "dut/env/vsomeip_variants.md",
           "kind": "references"
         }
       ]

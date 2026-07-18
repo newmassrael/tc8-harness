@@ -436,7 +436,8 @@ impl Topology for LwipTap<'_> {
         self.host.run_harness(w, hlog, args)
     }
 
-    fn start_dut(&self, _w: u32, dlog: &Path, _cfg_path: &Path) -> Result<Option<Child>> {
+    fn start_dut(&self, _w: u32, dlog: &Path, _cfg_path: &Path, _extra_env: &[String])
+        -> Result<Option<Child>> {
         // The fixture already has the DUT up (bring-up, or the prior case's respawn).
         // Surface a write failure: a silently-missing dut.log defeats the postmortem.
         if let Err(e) = fs::write(dlog, format!("[lwip-tap] persistent lwIP DUT on {TAP} at {DUT_IP}\n")) {

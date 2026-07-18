@@ -351,15 +351,34 @@ fn run_case_impl(
     // Spawn order: harness first so its pcap is open before the DUT's first
     // OfferService (FORMAT_02 session_id==0x0001); --dut-first inverts it. On any
     // spawn error the `?` returns and CaseProcs::drop reaps whatever started.
+    // Per-case DUT vsomeip flavor (CASE_VSOMEIP_VARIANT), POSITIVE runs only — a
+    // negative run keeps the base cfg (bash run_negative_case). The flavor (an
+    // alternate config sibling + TC8_DUT_* env) comes from the harness's
+    // --list-vsomeip-variants (the SSOT), loaded once in main.
+    let variant = if negative_row {
+        None
+    } else {
+        crate::dut_variant::resolve(case_id)
+    };
+    let vcfg = match variant.and_then(|v| v.cfg_basename.as_deref()) {
+        Some(name) => cfg
+            .vsomeip_cfg
+            .parent()
+            .map(|p| p.join(name))
+            .unwrap_or_else(|| cfg.vsomeip_cfg.clone()),
+        None => cfg.vsomeip_cfg.clone(),
+    };
+    let flavor_env: Vec<String> = variant.map(|v| v.env.clone()).unwrap_or_default();
+
     let mut procs = CaseProcs::new(topo, w);
     if dut_first {
-        procs.dut = topo.start_dut(w, &dlog, &cfg.vsomeip_cfg)?;
+        procs.dut = topo.start_dut(w, &dlog, &vcfg, &flavor_env)?;
         sleep(Duration::from_millis(DUT_FIRST_SETTLE_MS));
         procs.harness = Some(topo.run_harness(w, &hlog, &args)?);
     } else {
         procs.harness = Some(topo.run_harness(w, &hlog, &args)?);
         sleep(Duration::from_millis(HARNESS_FIRST_SETTLE_MS));
-        procs.dut = topo.start_dut(w, &dlog, &cfg.vsomeip_cfg)?;
+        procs.dut = topo.start_dut(w, &dlog, &vcfg, &flavor_env)?;
     }
 
     // Poll ceiling in ticks — ports bash's wait_budget (smoke-test.sh):

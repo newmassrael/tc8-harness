@@ -228,7 +228,8 @@ pub trait Topology {
     /// persistent / externally-owned DUT (external, ssh-remote, lwip-tap) returns
     /// `Ok(None)` to signal "no per-case spawn". The caller owns any returned Child
     /// and must `wait()` it after stop_dut to reap the `ip netns exec` wrapper PID.
-    fn start_dut(&self, w: u32, dlog: &Path, cfg_path: &Path) -> Result<Option<Child>>;
+    fn start_dut(&self, w: u32, dlog: &Path, cfg_path: &Path, extra_env: &[String])
+        -> Result<Option<Child>>;
     /// SIGKILL+confirm the DUT process tree (keeps the netns alive for the next
     /// case on this worker).
     fn stop_dut(&self, w: u32) -> Result<()>;

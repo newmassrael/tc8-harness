@@ -1,5 +1,5 @@
 {
-  "schema_version": 7,
+  "schema_version": 8,
   "description": "Per-case overrides applied on top of doc/spec/case_inventory.json for the Linux reference DUT (other DUT platforms supply their own overrides file via --inventory-overrides). Six independent axes: (1) `expected:false` (+ `reason`) marks a spec case the harness intentionally cannot cover (e.g. wall-time-permanent-deferred shapes) — counted as a gap by `--vs-spec`; (2) `platform_known_fail:true` (+ `platform_known_fail_ref`) marks a case that fails on this file's target platform due to platform-specific kernel/stack deviations from RFC MUST/SHOULD but passes on a strict-RFC DUT — kept ACTIVE in coverage reports so spec coverage stays honest, and filtered out of CI/smoke skip lists via `--exclude-platform-known-fail`; (3) `timing_serial:true` (+ `timing_serial_ref`) marks a case whose verdict measures a sub-second inter-frame cadence (a strict frame_delta_within_us window) that the reference DUT can only meet when NOT CPU-starved — CI runs these UNCONTENDED (--workers 1) via `--only-serial` and drops them from the parallel lane via `--exclude-serial`, mirroring how a conformance lab measures timing on dedicated DUT hardware; the case stays ACTIVE in coverage. (4) `requires_secondary_iface:true` marks a case the smoke harness must execute with a second tester interface (TC8 Topology 2 dual-broadcast-domain, e.g. USAGE_01) — surfaced via `--only-secondary-iface` so the harness brings up the second veth + passes `--interface-secondary` data-drivenly rather than by hardcoded case-ID. It is a harness-wiring need, NOT the overloaded spec `kTopology` number (UDP 'Topology 2' is two source hosts on ONE iface). (5) `expect_overrides` (+ `expect_overrides_ref`) carries bare `--expect key=value` tokens a case needs on top of the deployment identity surface every case shares — they exist when the case's own STIMULUS diverges from the default (in practice: the eventgroup its trait subscribes to), so the SCXML guard's comparison target must follow the stimulus rather than the deployment, which makes them a property of the CASE. `TestCommand::runCase` appends them AFTER the driver's tokens; since each applyExpectToken assigns its field, last-wins needs no merge logic. Drivers emit only the base identity and never read this axis, so bash and the orchestrator cannot drift on it. The `_ref` names the prose + spec-§ rationale, which lives in a Mnemosyne scan root (dut/env/expect_overrides.md) because docs/spec/* is outside Mnemosyne's surface per mnemosyne.toml [workspace]. (6) the NEGATIVE row (`neg_wrong_token` + `neg_expect_fail`, optional `neg_expect_overrides`, `neg_row_ref`) is the case's authored self-check: --negative-row replaces one --expect value with the deliberately wrong `neg_wrong_token` and the case must land on `neg_expect_fail`, proving the guard reacts to the value rather than passing regardless. It is the SOUND_ROW disposition of the negative-coverage exhaustiveness audit (tools/negative_coverage_audit.py, docs/verdict_policy.md Section 6); most cases have none because their guard asserts DUT behaviour, which no --expect flip can fault, and they carry a different disposition instead. neg_expect_overrides REPLACES the positive expect_overrides for that run and is applied AFTER the flip, so load() rejects one naming the flip's own key (it would overwrite the lie). The axes are disjoint in practice but can coexist on a single entry. Schema v3 renamed the second axis from `linux_known_fail` when the lwIP DUT became the second platform consumer; v4 added the third (timing_serial) axis; v5 added the fourth (requires_secondary_iface) axis; v6 added the fifth (expect_overrides) axis, migrating it out of smoke-test.sh's CASE_EXPECT_OVERRIDES so the value has one home; v7 added the sixth (negative row), migrating smoke-test.sh's NEG_ROWS + the 2 live NEG_CASE_EXPECT_OVERRIDES (38 of that table's 40 rows were unreachable and were dropped, not migrated). (A `_NEG` self-validation case's per-DUT applicability is NOT an inventory axis: it is derived from the DUT's own OpQueryCapabilities (0x16) bitmap via the case's `kRequiredCapabilities` + the Tier-2 capability-skip gate — the DUT is the SSOT for what it can fault.)",
   "overrides": {
     "ARP_03": {
@@ -689,6 +689,108 @@
       "neg_wrong_token": "ipv4.tester_alias_ip=10.99.99.99",
       "neg_expect_fail": "fail:dut_emitted_udp_with_wrong_user_interface_dst_ip",
       "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIPSRV_SD_MESSAGE_01": {
+      "vsomeip_cfg": "vsomeip-multi-instance.json",
+      "vsomeip_env": [
+        "TC8_DUT_INSTANCE_2=1"
+      ],
+      "vsomeip_variant_ref": "dut/env/vsomeip_variants.md"
+    },
+    "SOMEIPSRV_SD_MESSAGE_02": {
+      "vsomeip_cfg": "vsomeip-multi-instance.json",
+      "vsomeip_env": [
+        "TC8_DUT_INSTANCE_2=1"
+      ],
+      "vsomeip_variant_ref": "dut/env/vsomeip_variants.md"
+    },
+    "SOMEIPSRV_RPC_14": {
+      "vsomeip_cfg": "vsomeip-multi-instance.json",
+      "vsomeip_env": [
+        "TC8_DUT_INSTANCE_2=1"
+      ],
+      "vsomeip_variant_ref": "dut/env/vsomeip_variants.md"
+    },
+    "SOMEIPSRV_RPC_17": {
+      "vsomeip_cfg": "vsomeip-multi-instance.json",
+      "vsomeip_env": [
+        "TC8_DUT_INSTANCE_2=1"
+      ],
+      "vsomeip_variant_ref": "dut/env/vsomeip_variants.md"
+    },
+    "SOMEIPSRV_RPC_01": {
+      "vsomeip_cfg": "vsomeip-multi-service.json",
+      "vsomeip_env": [
+        "TC8_DUT_SERVICE_2=1"
+      ],
+      "vsomeip_variant_ref": "dut/env/vsomeip_variants.md"
+    },
+    "SOMEIPSRV_RPC_02": {
+      "vsomeip_cfg": "vsomeip-multi-service.json",
+      "vsomeip_env": [
+        "TC8_DUT_SERVICE_2=1"
+      ],
+      "vsomeip_variant_ref": "dut/env/vsomeip_variants.md"
+    },
+    "SOMEIPSRV_RPC_13": {
+      "vsomeip_cfg": "vsomeip-multi-service-shared-port.json",
+      "vsomeip_env": [
+        "TC8_DUT_SERVICE_2=1"
+      ],
+      "vsomeip_variant_ref": "dut/env/vsomeip_variants.md"
+    },
+    "SOMEIP_ETS_097": {
+      "vsomeip_env": [
+        "TC8_DUT_CLIENT_MODE=1"
+      ],
+      "vsomeip_variant_ref": "dut/env/vsomeip_variants.md"
+    },
+    "SOMEIP_ETS_084": {
+      "vsomeip_env": [
+        "TC8_DUT_CLIENT_MODE=1"
+      ],
+      "vsomeip_variant_ref": "dut/env/vsomeip_variants.md"
+    },
+    "SOMEIP_ETS_081": {
+      "vsomeip_env": [
+        "TC8_DUT_CLIENT_MODE=1"
+      ],
+      "vsomeip_variant_ref": "dut/env/vsomeip_variants.md"
+    },
+    "SOMEIP_ETS_082": {
+      "vsomeip_env": [
+        "TC8_DUT_CLIENT_MODE=1",
+        "TC8_DUT_CLIENT_MODE_UDP=1"
+      ],
+      "vsomeip_variant_ref": "dut/env/vsomeip_variants.md"
+    },
+    "SOMEIP_ETS_106": {
+      "vsomeip_env": [
+        "TC8_DUT_CLIENT_MODE=1",
+        "TC8_DUT_CLIENT_MODE_UDP=1"
+      ],
+      "vsomeip_variant_ref": "dut/env/vsomeip_variants.md"
+    },
+    "SOMEIP_ETS_103": {
+      "vsomeip_env": [
+        "TC8_DUT_CLIENT_MODE=1",
+        "TC8_DUT_CLIENT_MODE_UDP=1"
+      ],
+      "vsomeip_variant_ref": "dut/env/vsomeip_variants.md"
+    },
+    "SOMEIP_ETS_104": {
+      "vsomeip_env": [
+        "TC8_DUT_CLIENT_MODE=1",
+        "TC8_DUT_CLIENT_MODE_UDP=1"
+      ],
+      "vsomeip_variant_ref": "dut/env/vsomeip_variants.md"
+    },
+    "SOMEIP_ETS_105": {
+      "vsomeip_env": [
+        "TC8_DUT_CLIENT_MODE=1",
+        "TC8_DUT_CLIENT_MODE_UDP=1"
+      ],
+      "vsomeip_variant_ref": "dut/env/vsomeip_variants.md"
     }
   }
 }

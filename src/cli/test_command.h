@@ -23,6 +23,7 @@ public:
 private:
     int runListCases() const;
     int runListNegRows() const;
+    int runListVsomeipVariants() const;
     int runVsSpecReport() const;
     int runCase(std::optional<std::string> bpf_override);
 
@@ -78,6 +79,11 @@ private:
     // array used, so the drivers and tools/negative_coverage_audit.py all read
     // ONE source instead of re-parsing bash.
     bool list_neg_rows_ = false;
+    // `--list-vsomeip-variants`: print each case with a DUT vsomeip flavor (the
+    // seventh axis) as `CASE|cfg|env1,env2`. The harness never launches the DUT;
+    // both spawning drivers (single-pc / ssh-remote) read this ONE source instead
+    // of each re-authoring the flavor table.
+    bool list_vsomeip_variants_ = false;
     // `--negative-row`: run the case with its authored expectation flip applied
     // (spec_inventory.h's sixth axis) — the self-check that proves the guard is
     // not trivially-true. NOT related to a `_NEG`-suffixed case, which is a

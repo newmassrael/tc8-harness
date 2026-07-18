@@ -102,6 +102,17 @@ struct SpecCase {
     std::string neg_expect_fail;
     std::vector<std::string> neg_expect_overrides;
     std::string neg_row_ref;
+
+    // Seventh axis: `vsomeip_cfg` / `vsomeip_env` — the DUT-launch flavor a case
+    // needs (bash CASE_VSOMEIP_VARIANT). The harness NEVER launches the DUT, so it
+    // does not apply these; it only parses and EXPOSES them via
+    // `--list-vsomeip-variants` for whichever driver spawns the DUT, exactly as it
+    // exposes `--list-neg-rows` for a driver-applied negative row. `vsomeip_cfg` is
+    // an alternate config basename (a sibling of the base vsomeip.json) or empty to
+    // keep the base; `vsomeip_env` are KEY=VALUE the DUT app reads (TC8_DUT_*).
+    std::string vsomeip_cfg;
+    std::vector<std::string> vsomeip_env;
+    std::string vsomeip_variant_ref;
 };
 
 // Loads docs/spec/case_inventory.json + docs/spec/inventory_overrides.json

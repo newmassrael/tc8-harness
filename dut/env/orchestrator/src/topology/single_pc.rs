@@ -181,7 +181,8 @@ impl Topology for SinglePc<'_> {
             .context("spawning harness via ip netns exec")
     }
 
-    fn start_dut(&self, w: u32, dlog: &Path, cfg_path: &Path) -> Result<Option<Child>> {
+    fn start_dut(&self, w: u32, dlog: &Path, cfg_path: &Path, extra_env: &[String])
+        -> Result<Option<Child>> {
         let cfg = self.cfg;
         let log = fs::File::create(dlog).context("creating dut log")?;
         let err = log.try_clone()?;
@@ -191,12 +192,19 @@ impl Topology for SinglePc<'_> {
         // fresh DUT's vsomeip routing init bind stale. Scoped to vsomeip-*/.lck —
         // never the worker symlinks kill_by_marker matches.
         wipe_vsomeip_runtime(&base);
-        let child = Command::new("ip")
-            .args(["netns", "exec", &netns_dut(w), "env"])
+        let mut cmd = Command::new("ip");
+        cmd.args(["netns", "exec", &netns_dut(w), "env"])
             .arg(format!("COMMONAPI_CONFIG={}", cfg.capi_cfg.display()))
             .arg(format!("VSOMEIP_CONFIGURATION={}", cfg_path.display()))
             .arg("VSOMEIP_APPLICATION_NAME=tc8-dut")
-            .arg(format!("VSOMEIP_BASE_PATH={}/", base.display()))
+            .arg(format!("VSOMEIP_BASE_PATH={}/", base.display()));
+        // Per-case DUT flavor env (CASE_VSOMEIP_VARIANT): TC8_DUT_* the DUT app reads
+        // to offer a 2nd instance/service or run as a client. Empty for the common
+        // case; goes in the `env KEY=VAL ...` list before the binary.
+        for kv in extra_env {
+            cmd.arg(kv);
+        }
+        let child = cmd
             .arg(dut_link(&cfg.vsomeip_base, w))
             .stdout(Stdio::from(log))
             .stderr(Stdio::from(err))

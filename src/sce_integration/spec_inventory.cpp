@@ -471,6 +471,11 @@ std::optional<SpecInventory> SpecInventory::load(
             std::vector<std::string> neg_expect_overrides =
                 findStringArrayField(body, "neg_expect_overrides");
             std::string neg_row_ref = findStringField(body, "neg_row_ref");
+            std::string vsomeip_cfg = findStringField(body, "vsomeip_cfg");
+            std::vector<std::string> vsomeip_env =
+                findStringArrayField(body, "vsomeip_env");
+            std::string vsomeip_variant_ref =
+                findStringField(body, "vsomeip_variant_ref");
 
             // A negative row is the (flip, expected-verdict) PAIR — half a row
             // cannot be executed, so refuse it rather than silently skipping the
@@ -508,6 +513,21 @@ std::optional<SpecInventory> SpecInventory::load(
                     }
                 }
             }
+            // Seventh-axis gates the bash array could not have: a cfg must be a
+            // bare `*.json` basename (a sibling of the base cfg the driver resolves),
+            // never a path; each env token must be KEY=VALUE.
+            if (!vsomeip_cfg.empty() &&
+                (vsomeip_cfg.find('/') != std::string::npos || vsomeip_cfg.size() < 6 ||
+                 vsomeip_cfg.compare(vsomeip_cfg.size() - 5, 5, ".json") != 0)) {
+                return fail("overrides: " + id + " vsomeip_cfg '" + vsomeip_cfg +
+                            "' must be a bare *.json basename (sibling of the base cfg)");
+            }
+            for (const auto &e : vsomeip_env) {
+                if (e.find('=') == std::string::npos) {
+                    return fail("overrides: " + id + " vsomeip_env token '" + e +
+                                "' is not KEY=VALUE");
+                }
+            }
             for (auto &sc : result.cases_) {
                 if (canonicalise(sc.id) == canon) {
                     sc.expected = expected;
@@ -523,6 +543,9 @@ std::optional<SpecInventory> SpecInventory::load(
                     sc.neg_expect_fail = std::move(neg_expect_fail);
                     sc.neg_expect_overrides = std::move(neg_expect_overrides);
                     sc.neg_row_ref = std::move(neg_row_ref);
+                    sc.vsomeip_cfg = std::move(vsomeip_cfg);
+                    sc.vsomeip_env = std::move(vsomeip_env);
+                    sc.vsomeip_variant_ref = std::move(vsomeip_variant_ref);
                     break;
                 }
             }
