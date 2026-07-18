@@ -180,11 +180,18 @@ fn main() -> Result<()> {
     // The requires_secondary_iface set (harness axis). Stored on cfg so run_case can
     // pass --interface-secondary per-case; single-pc also provisions the second veth
     // pair only when a SCHEDULED case is in it (bash's sticky NEED_SECOND_VETH), so
-    // the common single-pair run pays nothing.
-    cfg.secondary_iface_cases = list_secondary_iface_cases(&cfg)?;
-    let schedule_needs_secondary = cases
-        .iter()
-        .any(|c| cfg.secondary_iface_cases.contains(&c.to_uppercase()));
+    // the common single-pair run pays nothing. ONLY for actual case runs: it shells
+    // the harness, and --print-expect must stay a pure identity dump with no harness
+    // dependency (the flag it feeds is unused on that path — the topology's
+    // ut_arp_cache_timeout is all --print-expect reads).
+    let schedule_needs_secondary = if cli.print_expect {
+        false
+    } else {
+        cfg.secondary_iface_cases = list_secondary_iface_cases(&cfg)?;
+        cases
+            .iter()
+            .any(|c| cfg.secondary_iface_cases.contains(&c.to_uppercase()))
+    };
 
     let topo: Box<dyn Topology + Sync> = match &site {
         TopologyConf::SinglePc { .. } => Box::new(SinglePc::new(&cfg, schedule_needs_secondary)),
