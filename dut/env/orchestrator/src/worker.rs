@@ -11,9 +11,11 @@
 //! that dies mid-bucket must surface as a hard error, never as a silent pass.
 
 use std::collections::HashMap;
+use std::time::Instant;
 
 use crate::config::Config;
 use crate::dispatch::{self, Verdict};
+use crate::junit::{CaseRecord, Status};
 use crate::topology::Topology;
 
 /// The negative schedule: `case_id -> expected_fail` for a `--negative` run. When
@@ -43,6 +45,10 @@ pub struct WorkerResult {
     pub nonconclusions: Vec<Skip>,
     /// Cases this worker actually concluded — cross-checked against the schedule.
     pub processed: usize,
+    /// One record per concluded case (name, status, duration, message) for the
+    /// `--junit-xml` report. Built unconditionally — cheap, and it keeps the
+    /// dispatch loop's bookkeeping in one place; main emits XML only when asked.
+    pub records: Vec<CaseRecord>,
     /// Set when the worker never ran its bucket (bring-up failed, or panicked).
     pub worker_error: Option<String>,
 }
@@ -104,6 +110,8 @@ fn run_worker(
         // A negative run dispatches each case as its authored negative row; the
         // schedule carries every scheduled case's expected fail (built alongside
         // the bucket in main), so a miss is a construction bug, not a data gap.
+        let negative = neg.is_some();
+        let started = Instant::now();
         let outcome = match neg {
             Some(map) => {
                 let expected = map
@@ -113,28 +121,41 @@ fn run_worker(
             }
             None => dispatch::run_case(cfg, topo, w, &ctx, case, dut_first),
         };
-        match outcome {
-            Ok(Verdict::Pass) => println!("[w{w}] PASS {case}"),
+        let duration_s = started.elapsed().as_secs_f64();
+        // bash names a negative testcase `<case>_neg` in the junit stream.
+        let rec_name = if negative { format!("{case}_neg") } else { case.clone() };
+        // Derive the report status + message per outcome (a non-conclusion and a
+        // dispatch fault both render as a skip carrying their reason, matching bash).
+        let (status, message) = match outcome {
+            Ok(Verdict::Pass) => {
+                println!("[w{w}] PASS {case}");
+                (Status::Pass, String::new())
+            }
             Ok(Verdict::Fail(reason)) => {
                 println!("[w{w}] FAIL {case} — {reason}");
                 r.fails.push(case.clone());
+                (Status::Fail, reason)
             }
             Ok(Verdict::Skip(reason)) => {
                 println!("[w{w}] SKIP {case} — {reason}");
-                r.skips.push(Skip { case: case.clone(), reason });
+                r.skips.push(Skip { case: case.clone(), reason: reason.clone() });
+                (Status::Skip, reason)
             }
             Ok(Verdict::NonConclusion(reason)) => {
                 println!("[w{w}] SKIP* {case} — {reason}  (non-conclusion)");
-                r.nonconclusions.push(Skip { case: case.clone(), reason });
+                r.nonconclusions.push(Skip { case: case.clone(), reason: reason.clone() });
+                (Status::Skip, reason)
             }
             Err(e) => {
                 // A dispatch failure (spawn/IO) is a test-system fault, not a DUT
                 // violation — route to the error non-conclusion class, not Fail.
                 let reason = format!("error:dispatch_fault: {e:#}");
                 println!("[w{w}] SKIP* {case} — {reason}  (non-conclusion)");
-                r.nonconclusions.push(Skip { case: case.clone(), reason });
+                r.nonconclusions.push(Skip { case: case.clone(), reason: reason.clone() });
+                (Status::Skip, reason)
             }
-        }
+        };
+        r.records.push(CaseRecord { name: rec_name, status, duration_s, message, negative });
         r.processed += 1;
     }
     r

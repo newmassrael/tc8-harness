@@ -26,6 +26,7 @@ mod conditioning;
 mod config;
 mod dispatch;
 mod fixtures;
+mod junit;
 mod netns;
 mod proc;
 mod site;
@@ -127,13 +128,6 @@ fn main() -> Result<()> {
     // clap parsed --topology into a TopologyKind (Copy), so the valid set is
     // enforced at parse time — no stringly-typed re-validation here.
     let topology = cli.topology;
-    // --junit-xml is the one remaining unported flag — fail loudly rather than
-    // silently drop the report a CI consumer expects. (--log-dir and --dut-control
-    // are wired onto cfg once it is resolved, below.)
-    if cli.junit_xml.is_some() {
-        bail!("--junit-xml not yet implemented");
-    }
-
     let mut cfg = Config::resolve()?;
     // Run-level CLI knobs consumed deep in dispatch — set on Config right after
     // resolve, parallel to extra_expect (which main also populates post-resolve).
@@ -338,10 +332,34 @@ fn main() -> Result<()> {
         eprintln!("orchestrator: warning: run-level teardown failed: {e:#}");
     }
 
+    // Write the JUnit report BEFORE summarize (which may bail on the gate) so the
+    // CI consumer gets a report reflecting what ran, pass or fail — bash emits it
+    // unconditionally too. Records are cloned out; summarize still reads &results.
+    if let Some(path) = &cli.junit_xml {
+        let records: Vec<junit::CaseRecord> =
+            results.iter().flat_map(|r| r.records.iter().cloned()).collect();
+        junit::write(Path::new(path), &records, &junit_timestamp())?;
+    }
+
     let _ = fs::remove_dir_all(&cfg.work_root);
     let _ = fs::remove_dir_all(&cfg.vsomeip_base);
 
     summarize(topology, cases.len(), workers, &results)
+}
+
+/// The run timestamp for the JUnit `<testsuites timestamp=...>` — `date -u
+/// +%Y-%m-%dT%H:%M:%S`, the exact command + format bash uses. Shelling out (the
+/// orchestrator already invokes `ip`/`pgrep`/the harness) avoids a civil-time
+/// dependency for one informational attribute; an empty string on failure is
+/// harmless (the attribute is not load-bearing for dorny/test-reporter).
+fn junit_timestamp() -> String {
+    std::process::Command::new("date")
+        .args(["-u", "+%Y-%m-%dT%H:%M:%S"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_default()
 }
 
 /// Aggregate worker tallies, print the summary, and apply the gates: the
