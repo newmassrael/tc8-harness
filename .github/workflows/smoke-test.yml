@@ -474,17 +474,36 @@ jobs:
           name: junit-reports
           path: reports/
 
-      # The JUnit above carries only the verdict string. When a step fails, the
-      # WHY — a "no verdict line" crash/timeout, the DUT's stderr, the wire trace —
-      # lives in the per-case harness log, DUT log, and pcap that each step's
-      # `--log-dir smoke-logs/<step>` captured. `gh run view --log` returns nothing
-      # for this self-hosted job, so without this upload that evidence vanishes with
-      # the runner and every CI failure becomes guesswork. Failure-only: green runs
-      # generate the logs (so the path is always exercised) but cost no artifact
-      # storage. (The Testability SP checks below use standalone probe scripts, not
-      # smoke-test.sh, so they have no --log-dir to feed this.)
-      - name: Upload harness logs + pcaps (failure only)
-        if: failure()
+      # A harness `error:` verdict (a test-system non-conclusion — e.g. an unresolved
+      # DUT capability query) is mapped to a JUnit <skipped>, so the run stays GREEN
+      # and the failure-only upload below would never fire — discarding the very
+      # diagnostic that explains the flake. Detect those error-class skips (they carry
+      # the `error:` prefix; deterministic skips use `skip:`) so diagnostics are kept
+      # for them too. Verified discriminator: a green run's 132 skips carried exactly
+      # one `error:` (the flake); the other 123 were legitimate `skip:`.
+      - name: Detect error-class verdicts in JUnit
+        id: junit_errors
+        if: always()
+        run: |
+          if grep -rq 'message="error:' reports/ 2>/dev/null; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "error-class verdicts (preserving diagnostics despite a green run):"
+            grep -rho 'message="error:[^"]*"' reports/ | sort -u
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # The JUnit above carries only the verdict string. The WHY — a "no verdict line"
+      # crash/timeout, the DUT's stderr, the wire trace — lives in the per-case harness
+      # log, DUT log, and pcap that each step's `--log-dir smoke-logs/<step>` captured.
+      # `gh run view --log` returns nothing for this self-hosted job, so without this
+      # upload that evidence vanishes with the runner and every failure — or GREEN
+      # error-skip flake — becomes guesswork. Fires on failure OR an error-class skip,
+      # so a flake that stays green still preserves its logs; ordinary green runs cost
+      # no artifact storage. (The Testability SP checks below use standalone probe
+      # scripts, not smoke-test.sh, so they have no --log-dir to feed this.)
+      - name: Upload harness logs + pcaps (failure or error-skip)
+        if: ${{ failure() || steps.junit_errors.outputs.found == 'true' }}
         uses: actions/upload-artifact@v6
         with:
           name: smoke-diagnostics
