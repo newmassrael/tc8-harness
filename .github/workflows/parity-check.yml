@@ -6,12 +6,26 @@ name: parity-check
 # this accrues evidence as the orchestrator ports stages; make it a required
 # gate at the final cutover.
 #
-# Manual-trigger only for now: the orchestrator binary needs its own NOPASSWD
-# sudoers entry on the self-hosted runner (alongside smoke-test.sh's), i.e.
-#   <runner> ALL=(root) NOPASSWD: /home/<runner>/tc8-harness/dut/env/orchestrator/target/debug/tc8-orchestrator
-# Once that is provisioned, switch this to `push: branches: [main]` to run
-# non-gating on every push (and gate before cutover).
+# Runs non-gating on every push to main (a red parity-check does not block the
+# push — it accrues evidence until the cutover, when it becomes a required gate).
+# The orchestrator's NOPASSWD sudoers entry on the self-hosted runner is
+# provisioned, so `sudo -n tc8-orchestrator` works alongside smoke-test.sh's.
+#
+# Self-hosted, so NO pull_request trigger — a fork PR could otherwise run
+# arbitrary code on the runner host (same rule as smoke-test.yml). Only
+# maintainer-controlled push-to-main / manual dispatch. The single self-hosted
+# runner serializes jobs, so this never races smoke-test.yml over the shared
+# netns names.
 on:
+  push:
+    branches: [main]
+    # Pure-site / pcap-tooling pushes cannot change driver parity — skip them,
+    # mirroring smoke-test.yml.
+    paths-ignore:
+      - 'site/**'
+      - '.github/workflows/site.yml'
+      - '.github/workflows/pcap-refresh.yml'
+      - 'docs/spec/deprecated_cases.json'
   workflow_dispatch: {}
 
 concurrency:
@@ -40,5 +54,12 @@ jobs:
         working-directory: dut/env/orchestrator
         run: cargo build
 
-      - name: Parity diff (orchestrator-implemented categories)
+      - name: Parity diff — positive (orchestrator-implemented categories)
         run: dut/env/orchestrator/parity-check.sh ICMPv4_TYPE_08 ARP_03
+
+      # The orchestrator now ports --negative (the authored expect-flip rows), so
+      # gate its parity too: a representative sample across the verdict arms (a
+      # SOME/IP field flip, an ARP identity flip, a guard-not-exercised skip, and a
+      # row carrying neg_expect_overrides). Same disposition-diff mechanism.
+      - name: Parity diff — negative rows
+        run: dut/env/orchestrator/parity-check.sh --negative
