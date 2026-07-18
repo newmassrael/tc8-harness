@@ -101,7 +101,20 @@ case "$TOPOLOGY" in
             # carrying neg_expect_overrides (PASS). Pass cases to override.
             [[ ${#CASES[@]} -eq 0 ]] && CASES=(SOMEIPSRV_FORMAT_14 ARP_13 SOMEIP_ETS_035 SOMEIPSRV_OPTIONS_11)
         else
-            [[ ${#CASES[@]} -eq 0 ]] && CASES=(ICMPv4_TYPE_08 ARP_03 ICMPv4_TYPE_04 ARP_38 ARP_48)
+            # One+ case per protocol category, plus the historically-tricky ones —
+            # a per-case eventgroup override (FORMAT_28 / ETS_086, now harness-owned),
+            # the TCP RTO case that the old "no TCP branch" note flagged, the
+            # secondary-iface case (USAGE_01), and the three conditioning families
+            # (ipfrag / arp_accept / neigh-timer). Verified all-agree 2026-07-18.
+            [[ ${#CASES[@]} -eq 0 ]] && CASES=(
+                ARP_03 ARP_38 ARP_48 ICMPv4_TYPE_08 ICMPv4_TYPE_04
+                IPv4_HEADER_05 IPv4_AUTOCONF_ADDRESS_SELECTION_03
+                UDP_INTRODUCTION_03 UDP_USER_INTERFACE_07
+                DHCPv4_CLIENT_ALLOCATING_01 DHCPv4_CLIENT_USAGE_01
+                TCP_BASICS_01 TCP_FLAGS_INVALID_01 TCP_RETRANSMISSION_TO_03
+                SOMEIPSRV_FORMAT_01 SOMEIPSRV_FORMAT_28 SOMEIPSRV_SD_MESSAGE_09
+                SOMEIPSRV_RPC_05 SOMEIP_ETS_027 SOMEIP_ETS_086
+            )
         fi
         ;;
     external)

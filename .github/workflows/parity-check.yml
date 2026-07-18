@@ -54,8 +54,8 @@ jobs:
         working-directory: dut/env/orchestrator
         run: cargo build
 
-      - name: Parity diff — positive (orchestrator-implemented categories)
-        run: dut/env/orchestrator/parity-check.sh ICMPv4_TYPE_08 ARP_03
+      - name: Parity diff — positive (one+ per category + tricky cases)
+        run: dut/env/orchestrator/parity-check.sh
 
       # The orchestrator now ports --negative (the authored expect-flip rows), so
       # gate its parity too: a representative sample across the verdict arms (a
