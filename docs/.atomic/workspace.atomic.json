@@ -4616,10 +4616,6 @@
       "intent": "TC8 §4.8.6.2 — TCP — Checksum. 4 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
-          "file": "dut/env/setup-netns.sh",
-          "kind": "implements"
-        },
-        {
           "file": "include/tc8/protocol_frames/tcp_frame.h",
           "kind": "implements"
         },

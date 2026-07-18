@@ -117,20 +117,15 @@ ip -n "$DUT_NS"    addr add "$DUT_IP"    dev "$DUT_L3IF"
 ip -n "$DUT_NS"    addr add "$TC8_WIRE_DUT_ALIAS_IP/24" dev "$DUT_L3IF"
 ip -n "$TESTER_NS" addr add "$TC8_WIRE_TESTER_ALIAS_IP/24" dev "$TESTER_L3IF"
 
-# Disable TX checksum offload on both veth ends. Linux's veth driver
-# defaults to reporting CHECKSUM_PARTIAL on transmit, leaving the L4
-# checksum field carrying only the pseudo-header partial sum (the NIC
-# would normally finalise it). On a real wire the destination side
-# never sees the partial form because the NIC computes the final
-# checksum before the packet leaves. On veth the packet stays
-# in-kernel and the destination sees the partial form — pcap on
-# either end captures bytes that fail the RFC 793 §3.1 / RFC 768
-# pseudo-header validation. §4.8.6.2 TCP_CHECKSUM_03 reads
-# captured.tcp_checksum_valid() to assert the DUT-emitted segment
-# carries a correct checksum, so the offload must be disabled here
-# for the harness to see the value the spec is asserting.
-ip netns exec "$TESTER_NS" ethtool -K "$VETH_T" tx off >/dev/null 2>&1 || true
-ip netns exec "$DUT_NS"    ethtool -K "$VETH_D" tx off >/dev/null 2>&1 || true
+# TX checksum offload is NOT disabled here. veth transmits CHECKSUM_PARTIAL, so
+# a pcap capture would otherwise see only the pseudo-header partial sum and the
+# sender-checksum conformance case would read an invalid L4 checksum. The disable
+# that actually matters is issued by the DUT service itself
+# (dut/dut_service/posix_ut_extensions.cpp disableTxOffload), which calls the
+# SIOCETHTOOL ioctl directly on each up interface — that makes the DUT write the
+# finalised checksum the capture validates. A shell `ethtool -K tx off` here would
+# silently no-op (ethtool is absent from this env) and be a dead duplicate of the
+# DUT-side ioctl, so no offload handling belongs on the tester side.
 
 # Cap segmentation offload to the MTU on both veth ends, so what the capture
 # sees is what a real link would carry.
@@ -202,7 +197,7 @@ ip -n "$TESTER_NS" route add "$MCAST_ROUTE" dev "$TESTER_L3IF"
 ip -n "$DUT_NS"    route add "$MCAST_ROUTE" dev "$DUT_L3IF"
 
 # §4.7.6.5 USAGE_01 second veth pair. Mirrors the first pair's setup
-# (veth + addr + tx-offload off + arp_accept + delay_first_probe_time +
+# (veth + addr + gso-cap + arp_accept + delay_first_probe_time +
 # tester ucast_solicit) so DIface-1 ↔ TIface-1 is a structurally
 # identical broadcast domain on a distinct subnet. RFC 2131 §3.6 MUST
 # requires the DUT use DHCP through each interface independently, so the
@@ -216,8 +211,6 @@ if [[ "$SECOND_VETH" == 1 ]]; then
     ip -n "$DUT_NS"    link set "$VETH_D2" up
     ip -n "$TESTER_NS" addr add "$TESTER_IP2" dev "$VETH_T2"
     ip -n "$DUT_NS"    addr add "$DUT_IP2"    dev "$VETH_D2"
-    ip netns exec "$TESTER_NS" ethtool -K "$VETH_T2" tx off >/dev/null 2>&1 || true
-    ip netns exec "$DUT_NS"    ethtool -K "$VETH_D2" tx off >/dev/null 2>&1 || true
     # Same MTU-capped segmentation as the primary pair — the second broadcast
     # domain is folded into the SAME capture stream, so a super-frame here would
     # be just as unwireable. See the primary pair's comment above.
