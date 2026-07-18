@@ -89,6 +89,16 @@ pub struct Config {
     /// (generated from tools/wire.def), the same source bash's
     /// `HARNESS_BACKSTOP_SEC` reads via $TC8_WIRE_BACKSTOP_SEC.
     pub backstop_sec: u32,
+    /// `--log-dir DIR` (bash smoke-test.sh): when set, per-case harness/dut logs go
+    /// here and are KEPT (not scratch removed with work_root), and each case also
+    /// dumps its pcap to `DIR/<case>.pcap`. None = scratch logs, removed at run end.
+    /// Populated by main() from the CLI, parallel to extra_expect.
+    pub log_dir: Option<PathBuf>,
+    /// `--dut-control opcode|testability` (bash smoke-test.sh): passed through to the
+    /// harness for seam-migrated cases (the Tier-2 Testability endpoint vs the
+    /// in-house opcode UT). None = the harness default (opcode); cases that call the
+    /// opcode builders directly ignore it. Populated by main() from the CLI.
+    pub dut_control: Option<String>,
 }
 
 fn env_path(key: &str, default: PathBuf) -> PathBuf {
@@ -203,6 +213,9 @@ impl Config {
             // Populated by main() from the resolved --topology-conf, parallel to
             // tester_ip4/dut_ip4 (site-derived run identity). Empty until then.
             extra_expect: Vec::new(),
+            // Populated by main() from the CLI flags, parallel to extra_expect.
+            log_dir: None,
+            dut_control: None,
             root,
         })
     }

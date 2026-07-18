@@ -53,7 +53,7 @@ mod taxonomy {
     include!("verdict_taxonomy.gen.rs");
 }
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use clap::Parser;
 use std::collections::{HashMap, HashSet};
 use std::env;
@@ -127,14 +127,22 @@ fn main() -> Result<()> {
     // clap parsed --topology into a TopologyKind (Copy), so the valid set is
     // enforced at parse time — no stringly-typed re-validation here.
     let topology = cli.topology;
-    // Flags parsed for CLI parity with smoke-test.sh but not yet ported — fail
-    // loudly, never silently ignore. (Stage-agnostic wording: a stage number in a
-    // user-facing string goes stale every stage.)
-    if cli.log_dir.is_some() || cli.junit_xml.is_some() || cli.dut_control.is_some() {
-        bail!("--log-dir/--junit-xml/--dut-control not yet implemented");
+    // --junit-xml is the one remaining unported flag — fail loudly rather than
+    // silently drop the report a CI consumer expects. (--log-dir and --dut-control
+    // are wired onto cfg once it is resolved, below.)
+    if cli.junit_xml.is_some() {
+        bail!("--junit-xml not yet implemented");
     }
 
     let mut cfg = Config::resolve()?;
+    // Run-level CLI knobs consumed deep in dispatch — set on Config right after
+    // resolve, parallel to extra_expect (which main also populates post-resolve).
+    cfg.log_dir = cli.log_dir.as_deref().map(std::path::PathBuf::from);
+    cfg.dut_control = cli.dut_control.clone();
+    if let Some(dir) = &cfg.log_dir {
+        fs::create_dir_all(dir)
+            .with_context(|| format!("creating --log-dir {}", dir.display()))?;
+    }
 
     // Site config (TOML --topology-conf). external/ssh-remote REQUIRE it — their
     // iface / wire IPs / remote paths live there, and sudo strips the environment.

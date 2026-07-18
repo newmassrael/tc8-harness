@@ -261,8 +261,19 @@ fn run_case_impl(
     dut_first: bool,
     negative_row: bool,
 ) -> Result<Verdict> {
-    let hlog = cfg.work_root.join(format!("{w}/{case_id}.harness.log"));
-    let dlog = cfg.work_root.join(format!("{w}/{case_id}.dut.log"));
+    // --log-dir redirects the per-case logs to a KEPT directory (bash smoke-test.sh
+    // keep_logs=1); otherwise they are scratch under work_root, removed at run end.
+    // The verdict is read from hlog either way, so classification is unaffected.
+    let (hlog, dlog) = match &cfg.log_dir {
+        Some(dir) => (
+            dir.join(format!("{case_id}.harness.log")),
+            dir.join(format!("{case_id}.dut.log")),
+        ),
+        None => (
+            cfg.work_root.join(format!("{w}/{case_id}.harness.log")),
+            cfg.work_root.join(format!("{w}/{case_id}.dut.log")),
+        ),
+    };
     let iface = topo.tester_iface(w);
 
     // TC8 Topology 2 (DHCPv4_CLIENT_USAGE_01) needs a second tester interface. A
@@ -320,6 +331,19 @@ fn run_case_impl(
     // overwrite the flip.
     if negative_row {
         args.push("--negative-row".to_string());
+    }
+    // --dut-control backend passthrough (bash smoke-test.sh): seam-migrated cases
+    // route their stimulus through the selected UT backend; opcode-builder cases
+    // ignore it. Validated by the harness's CLI (opcode|testability), not here.
+    if let Some(backend) = &cfg.dut_control {
+        args.push("--dut-control".to_string());
+        args.push(backend.clone());
+    }
+    // --log-dir also saves every captured frame to a per-case pcap for post-mortem
+    // (bash smoke-test.sh appends --pcap-dump under $LOG_DIR).
+    if let Some(dir) = &cfg.log_dir {
+        args.push("--pcap-dump".to_string());
+        args.push(dir.join(format!("{case_id}.pcap")).to_string_lossy().into_owned());
     }
 
     // Spawn order: harness first so its pcap is open before the DUT's first
@@ -551,6 +575,8 @@ mod tests {
             },
             backstop_sec: 240,
             extra_expect: Vec::new(),
+            log_dir: None,
+            dut_control: None,
         }
     }
 
