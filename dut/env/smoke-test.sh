@@ -1950,49 +1950,13 @@ run_negative_case() {
         neg_extra_args+=(--pcap-dump "$LOG_DIR/${case_id}.neg.pcap")
     fi
 
-    # Mirror run_case's §5.1.5 multi-instance / multi-service variant
-    # dispatch so SOMEIPSRV negatives that depend on the multi-* DUT
-    # plumbing (RPC_14/_17 phase 2 cond on expected.service_id, etc.)
-    # actually exercise the phase they're trying to fault.
+    # The negative DUT uses the base vsomeip config. A NEG_CASE_VSOMEIP_VARIANT
+    # table (multi-instance / multi-service / client-mode dispatch, mirrored from
+    # run_case) was removed as dead: all 15 of its keys were cases with no negative
+    # row, so run_negative_case — invoked only over the neg-row set — never read it.
+    # Re-add a variant when a case that needs one actually gains a negative row.
     local neg_dut_vsomeip_cfg="$VSOMEIP_CFG"
     local -a neg_dut_extra_env=()
-    declare -A NEG_CASE_VSOMEIP_VARIANT=(
-        [SOMEIPSRV_SD_MESSAGE_01]="multi-instance"
-        [SOMEIPSRV_SD_MESSAGE_02]="multi-instance"
-        [SOMEIPSRV_RPC_14]="multi-instance"
-        [SOMEIPSRV_RPC_17]="multi-instance"
-        [SOMEIPSRV_RPC_01]="multi-service"
-        [SOMEIPSRV_RPC_02]="multi-service"
-        [SOMEIPSRV_RPC_13]="multi-service-shared-port"
-        [SOMEIP_ETS_097]="client-mode"
-        [SOMEIP_ETS_084]="client-mode"
-        [SOMEIP_ETS_081]="client-mode"
-        [SOMEIP_ETS_082]="client-mode-udp"
-        [SOMEIP_ETS_106]="client-mode-udp"
-        [SOMEIP_ETS_103]="client-mode-udp"
-        [SOMEIP_ETS_104]="client-mode-udp"
-        [SOMEIP_ETS_105]="client-mode-udp"
-    )
-    case "${NEG_CASE_VSOMEIP_VARIANT[$case_id_canon]:-}" in
-        multi-instance)
-            neg_dut_vsomeip_cfg="$ROOT/dut/dut_service/vsomeip-multi-instance.json"
-            neg_dut_extra_env+=(TC8_DUT_INSTANCE_2=1)
-            ;;
-        multi-service)
-            neg_dut_vsomeip_cfg="$ROOT/dut/dut_service/vsomeip-multi-service.json"
-            neg_dut_extra_env+=(TC8_DUT_SERVICE_2=1)
-            ;;
-        multi-service-shared-port)
-            neg_dut_vsomeip_cfg="$ROOT/dut/dut_service/vsomeip-multi-service-shared-port.json"
-            neg_dut_extra_env+=(TC8_DUT_SERVICE_2=1)
-            ;;
-        client-mode)
-            neg_dut_extra_env+=(TC8_DUT_CLIENT_MODE=1)
-            ;;
-        client-mode-udp)
-            neg_dut_extra_env+=(TC8_DUT_CLIENT_MODE=1 TC8_DUT_CLIENT_MODE_UDP=1)
-            ;;
-    esac
 
     # Per-case DUT SD-timing precondition (mirror of run_case): patch the
     # resolved base cfg with this case's service-discovery timers.
