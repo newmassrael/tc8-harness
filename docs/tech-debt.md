@@ -665,6 +665,14 @@ conscious, tracked deferral rather than an oversight.
 **Status:** RESOLVED (2026-07-03 — single-sourced via codegen). **Logged:** 2026-07-01
 (surfaced by the tester_ipv4 drift).
 
+**Update (2026-07-19, `dcaf968a`).** The strangler cutover later retired the bash
+`smoke-test.sh` driver — the orchestrator is now the sole driver — so the bash mirror
+`dut/env/expect_surface.gen.sh` and its emit path in `gen_expect_surface.py` were removed;
+only `expect_surface.gen.rs` is generated now, and `check_expect_keys.py` no longer scans the
+bash file. `tools/expect_surface.def` stays the structured SSOT. This is exactly the
+single-driver end state the "Textbook fix" note below predicted, so the fix carries forward
+unchanged — the RESOLVED prose below describes the two-driver world as it stood in 2026-07-03.
+
 **Resolution (2026-07-03).** Done as the "textbook fix" below. The key->source list is now
 single-sourced in `tools/expect_surface.def` and GENERATED into both drivers by
 `tools/gen_expect_surface.py` (mirroring `gen_wire_manifest.py`): `dut/env/expect_surface.gen.sh`
