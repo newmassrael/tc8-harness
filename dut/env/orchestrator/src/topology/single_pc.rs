@@ -49,6 +49,13 @@ impl Topology for SinglePc<'_> {
     fn supports_negative(&self) -> bool {
         true
     }
+    fn rebuild_netns_per_case(&self) -> bool {
+        // single-pc owns the per-worker netns pair and reuses it across the bucket,
+        // so it MUST rebuild between cases (bash TOPOLOGY_DUT_CONDITIONING=1).
+        // `netns::setup` is idempotent (teardown-first) and re-captures the veth
+        // MACs, so each case starts on a pristine stack with a fresh WorkerCtx.
+        true
+    }
 
     fn preflight(&self) -> Result<()> {
         let cfg = self.cfg;

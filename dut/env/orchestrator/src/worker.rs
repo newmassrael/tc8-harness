@@ -106,7 +106,53 @@ fn run_worker(
         }
     };
 
+    // Static per-topology contract bit: does this worker own a netns it must rebuild
+    // before every case? Queried once (single-pc → true; remote/persistent → false).
+    let rebuild = topo.rebuild_netns_per_case();
+
     for case in &bucket {
+        // Per-case network isolation — bash run_case's TOPOLOGY_DUT_CONDITIONING
+        // rebuild (smoke-test.sh). On a netns-owning topology, tear the worker's
+        // netns down and bring it back up before every case so each starts on a
+        // PRISTINE kernel network stack. Without this, any kernel-network mutation a
+        // case leaves behind — a flushed `224.0.0.0/4` multicast route after a
+        // link-flap teardown case (a link down/up on either leg drops that leg's
+        // explicit route), a stale multicast membership, a sysctl, a neigh entry, an
+        // iptables rule — leaks into every later case on this worker
+        // (deterministically: one link-flap SD case can turn every subsequent
+        // multicast-SD case a false `inconclusive`). The rebuild re-reads the fresh
+        // veth MACs, so `case_ctx` (the `--expect` dut_mac and the tester-side neigh
+        // pins) tracks the new namespace, never a stale one.
+        let rebuilt;
+        let case_ctx = if rebuild {
+            // Idempotent teardown (kills any lingering DUT/harness before its netns is
+            // destroyed); a failure here is non-fatal — bring_up_worker teardown-firsts
+            // again and is the real gate.
+            if let Err(e) = topo.tear_down_worker(w) {
+                eprintln!(
+                    "orchestrator: warning: worker {w} per-case teardown before {case}: {e:#}"
+                );
+            }
+            match topo.bring_up_worker(w) {
+                Ok(c) => {
+                    rebuilt = c;
+                    &rebuilt
+                }
+                Err(e) => {
+                    // The netns is now down and cannot be rebuilt, so every remaining
+                    // case on this worker is doomed. Abort the bucket with a worker
+                    // error (bash's `set -e` worker-subshell death) — the execution
+                    // ledger fails the run rather than silently skipping the tail.
+                    r.worker_error = Some(format!(
+                        "worker {w} per-case netns rebuild before {case} failed: {e:#}"
+                    ));
+                    break;
+                }
+            }
+        } else {
+            &ctx
+        };
+
         // A negative run dispatches each case as its authored negative row; the
         // schedule carries every scheduled case's expected fail (built alongside
         // the bucket in main), so a miss is a construction bug, not a data gap.
@@ -117,9 +163,9 @@ fn run_worker(
                 let expected = map
                     .get(case)
                     .expect("negative schedule carries every scheduled case");
-                dispatch::run_negative_row(cfg, topo, w, &ctx, case, expected)
+                dispatch::run_negative_row(cfg, topo, w, case_ctx, case, expected)
             }
-            None => dispatch::run_case(cfg, topo, w, &ctx, case, dut_first),
+            None => dispatch::run_case(cfg, topo, w, case_ctx, case, dut_first),
         };
         let duration_s = started.elapsed().as_secs_f64();
         // bash names a negative testcase `<case>_neg` in the junit stream.

@@ -144,9 +144,13 @@ pub(crate) fn harness_link(vsomeip_base: &Path, w: u32) -> PathBuf {
 /// vars consumed by the `main` gates (smoke-test.sh). They are required —
 /// no default — so every topology states its contract explicitly, the same
 /// guarantee bash got from its startup contract check. The fourth bash var,
-/// TOPOLOGY_DUT_CONDITIONING, is not a separate method: each topology encodes that
-/// policy directly in `condition_case` (single-pc applies the toggles; external /
-/// ssh-remote log the omission and return an empty guard).
+/// TOPOLOGY_DUT_CONDITIONING, drives two things: the per-case kernel CONDITIONING
+/// (each topology encodes that directly in `condition_case` — single-pc applies the
+/// toggles; external / ssh-remote log the omission and return an empty guard) and
+/// the per-case netns REBUILD, surfaced as `rebuild_netns_per_case` because the
+/// worker fan-out must query it before it dispatches a case. Both derive from the
+/// same fact: single-pc owns and reuses a per-worker netns pair; the remote /
+/// persistent topologies own none of ours.
 pub trait Topology {
     /// Worker cap (bash `TOPOLOGY_MAX_WORKERS`): `None` = no cap (single-pc netns
     /// pairs are cheap), `Some(1)` = one shared physical/remote DUT serves one
@@ -170,6 +174,26 @@ pub trait Topology {
     /// `None` (Linux DUTs) → host sysctls. Default `None`; only LwipTap overrides.
     fn ut_arp_cache_timeout(&self) -> Option<String> {
         None
+    }
+    /// Whether the orchestrator rebuilds this worker's netns before EVERY case —
+    /// bash run_case's `TOPOLOGY_DUT_CONDITIONING`-gated per-case tear-down +
+    /// bring-up (smoke-test.sh). `true` only for a topology that OWNS and REUSES a
+    /// per-worker netns pair (single-pc): the rebuild hands each case a pristine
+    /// kernel network stack, so no residue a prior case left behind can leak
+    /// forward — a flushed `224.0.0.0/4` multicast route after a link-flap teardown
+    /// case (a link down/up on either leg drops that leg's explicit route and the
+    /// kernel restores only the connected one, which would otherwise turn every
+    /// later multicast-SD case on this worker a false `inconclusive`), a stale
+    /// multicast membership the kernel keeps across an IFF_UP down/up, a sysctl, a
+    /// neigh entry, or an iptables rule. A topology whose DUT is remote or
+    /// persistent (external / ssh-remote / lwip-tap)
+    /// owns no netns of ours to rebuild and returns `false` — exactly where the
+    /// per-case conditioning this pairs with is likewise skipped. `bring_up_worker`
+    /// re-reads the fresh veth MACs, so the caller re-homes the `WorkerCtx` on the
+    /// rebuilt namespace rather than carrying a stale one. Default `false`; only
+    /// SinglePc overrides.
+    fn rebuild_netns_per_case(&self) -> bool {
+        false
     }
     /// Pre-provision precondition checks ONLY (required config, local binary/tool/
     /// interface existence) — never DUT liveness (bash `topology_preflight`). Runs
