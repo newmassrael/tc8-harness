@@ -150,7 +150,12 @@ jobs:
             smoke-logs/positive smoke-logs/serial smoke-logs/negative \
             smoke-logs/topology-external smoke-logs/topology-ssh-remote \
             smoke-logs/lwip-dut
-          sudo -n dut/env/orchestrator/target/debug/tc8-orchestrator \
+          # run-isolated.sh runs the single-pc orchestrator in a PRIVATE net + mount
+          # namespace so its tc8-* netns/veths cannot collide with a concurrent
+          # orchestrator on this host (e.g. an OEM conformance run driving the
+          # vendored copy) — the per-case netns rebuild widens that window ~700x.
+          sudo -n dut/env/orchestrator/run-isolated.sh \
+            dut/env/orchestrator/target/debug/tc8-orchestrator \
             --workers 4 \
             --junit-xml reports/junit-smoke-positive.xml \
             --log-dir smoke-logs/positive \
@@ -168,7 +173,8 @@ jobs:
         # conformance lab's dedicated DUT. Separate JUnit file (junit_emit_xml
         # clobbers); dorny/test-reporter globs reports/junit-*.xml.
         run: |
-          sudo -n dut/env/orchestrator/target/debug/tc8-orchestrator \
+          sudo -n dut/env/orchestrator/run-isolated.sh \
+            dut/env/orchestrator/target/debug/tc8-orchestrator \
             --workers 1 \
             --junit-xml reports/junit-smoke-positive-serial.xml \
             --log-dir smoke-logs/serial \
@@ -178,7 +184,8 @@ jobs:
 
       - name: Run negative curated set (--workers 4)
         run: |
-          sudo -n dut/env/orchestrator/target/debug/tc8-orchestrator \
+          sudo -n dut/env/orchestrator/run-isolated.sh \
+            dut/env/orchestrator/target/debug/tc8-orchestrator \
             --workers 4 \
             --junit-xml reports/junit-smoke-negative.xml \
             --log-dir smoke-logs/negative \
