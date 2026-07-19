@@ -1,15 +1,14 @@
 // Single source of truth (SSOT) for the base `--expect key=value` IDENTITY
-// SURFACE both test drivers emit for every case — the per-case-invariant wire /
-// SOME/IP identity (IPs, MACs, service identity, SD timing) that the bash
-// smoke-test.sh driver and the Rust tc8-orchestrator MUST agree on. Before this
-// file the two drivers HAND-MIRRORED the same key->source list, and they drifted
-// (tester_ipv4 was added bash-only and the orchestrator never mirrored it). This
-// manifest ends that: the list is written once here and GENERATED into both
-// drivers, so they cannot diverge by construction (docs/tech-debt.md TD-12).
+// SURFACE the test driver emits for every case — the per-case-invariant wire /
+// SOME/IP identity (IPs, MACs, service identity, SD timing). Historically the
+// bash smoke-test.sh driver and the Rust tc8-orchestrator HAND-MIRRORED the same
+// key->source list and drifted (tester_ipv4 was added bash-only and the
+// orchestrator never mirrored it); this manifest ended that by generating the
+// list from one place (docs/tech-debt.md TD-12). The bash driver has since been
+// retired — the orchestrator is the sole driver — so the .def now single-sources
+// the Rust generator alone, while remaining the structured SSOT.
 //
 // Consumed one way — by tools/gen_expect_surface.py, which renders:
-//   dut/env/expect_surface.gen.sh                    sourced by smoke-test.sh;
-//                                                    assigns the TC8_*_EXPECT arrays
 //   dut/env/orchestrator/src/expect_surface.gen.rs   include!-d into dispatch.rs;
 //                                                    appends to expect_args' Vec
 // Run `python3 tools/gen_expect_surface.py` to regenerate; `--check` is the CI /

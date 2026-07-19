@@ -150,19 +150,11 @@
           "kind": "references"
         },
         {
-          "file": "dut/env/topology.d/external.conf",
-          "kind": "references"
-        },
-        {
           "file": "include/tc8/upper_tester_protocol.h",
           "kind": "implements"
         },
         {
           "file": "src/upper_tester/ut_server.h",
-          "kind": "references"
-        },
-        {
-          "file": "dut/env/topology.d/lwip-tap.conf",
           "kind": "references"
         },
         {
@@ -574,10 +566,6 @@
           "kind": "references"
         },
         {
-          "file": "dut/env/topology.d/lwip-tap.conf",
-          "kind": "implements"
-        },
-        {
           "file": "tests/arp_46_neg/arp_46_neg.scxml",
           "kind": "implements"
         },
@@ -746,10 +734,6 @@
         {
           "file": "tests/tcp_closing_13/tcp_closing_13.scxml",
           "kind": "implements"
-        },
-        {
-          "file": "dut/env/topology.d/external.conf",
-          "kind": "references"
         },
         {
           "file": "tests/_templates/icmpv4_egress_field_check.sce-template.xml",
@@ -1740,10 +1724,6 @@
           "kind": "implements"
         },
         {
-          "file": "dut/env/topology.d/single-pc.conf",
-          "kind": "implements"
-        },
-        {
           "file": "src/upper_tester/ut_server.h",
           "kind": "references"
         },
@@ -2374,10 +2354,6 @@
           "kind": "implements"
         },
         {
-          "file": "dut/env/topology.d/single-pc.conf",
-          "kind": "implements"
-        },
-        {
           "file": "src/upper_tester/ut_server.cpp",
           "kind": "implements"
         },
@@ -2570,10 +2546,6 @@
         {
           "file": "dut/lwip_dut/README.md",
           "kind": "references"
-        },
-        {
-          "file": "dut/env/topology.d/lwip-tap.conf",
-          "kind": "implements"
         },
         {
           "file": "tests/udp_user_interface_05_neg/udp_user_interface_05_neg.scxml",

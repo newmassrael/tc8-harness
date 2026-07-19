@@ -186,10 +186,10 @@ jobs:
 
       # Topology-profile regression: the external / ssh-remote profiles
       # are exercised against the self-contained netns fixtures in
-      # dut/env/topology.d/examples/ (a persistent "external ECU" and an
+      # dut/env/orchestrator/examples/*.toml (a persistent "external ECU" and an
       # "SSH-reachable second PC" with a dedicated sshd, both emulated
       # on this runner — no extra hardware). single-pc is already
-      # covered by the two steps above; without these, a smoke-test.sh
+      # covered by the two steps above; without these, an orchestrator
       # change could silently break the OEM deployment paths and only
       # surface months later in a customer lab. Each run covers the
       # whole profile path: preflight (iface / ICMP / UT OpPing probe /
