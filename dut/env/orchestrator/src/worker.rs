@@ -11,12 +11,12 @@
 //! that dies mid-bucket must surface as a hard error, never as a silent pass.
 
 use std::collections::HashMap;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use crate::config::Config;
 use crate::dispatch::{self, Verdict};
 use crate::junit::{CaseRecord, Status};
-use crate::topology::Topology;
+use crate::topology::{Topology, WorkerCtx};
 
 /// The negative schedule: `case_id -> expected_fail` for a `--negative` run. When
 /// present, every scheduled case is dispatched as its authored negative row
@@ -84,6 +84,50 @@ impl Drop for WorkerGuard<'_> {
     }
 }
 
+/// Per-case netns rebuild policy: total attempts and the growing backoff between
+/// them. The first attempt runs with no delay (the common case succeeds there, so
+/// a clean run pays nothing); each retry waits `REBUILD_BACKOFF_MS * attempt` for
+/// in-flight kernel teardown to drain. Four attempts + 100/200/300 ms backoffs
+/// bound a retrying case's extra latency to ~0.6 s and only when it actually races.
+const REBUILD_ATTEMPTS: u32 = 4;
+const REBUILD_BACKOFF_MS: u64 = 100;
+
+/// Rebuild one worker's netns fixture (single-pc), retrying a transient failure.
+///
+/// Tearing down a case leaves the kernel asynchronously freeing the just-killed
+/// DUT's sockets, multicast memberships, and netns references AFTER the process is
+/// reaped; recreating the netns before that finishes can race (a half-freed veth, a
+/// stale `/run/netns` mount, a route the recreate cannot re-add) and surface as a
+/// transient `ip` error mid-`netns::setup`. bash masked this with its per-`ip`
+/// fork/exec latency; the native path runs the setup ops back to back and can
+/// outrun the cleanup. Each attempt tears down first (idempotent — `netns::setup`
+/// itself teardown-firsts, and this also reaps any lingering DUT/harness) and, from
+/// the second attempt on, waits a short growing backoff so the cleanup drains. A
+/// rebuild that fails every attempt is a real fixture fault and returns the last
+/// error (the caller routes it to the FATAL execution-ledger path).
+fn rebuild_worker_netns(topo: &(dyn Topology + Sync), w: u32) -> anyhow::Result<WorkerCtx> {
+    let mut last_err = None;
+    for attempt in 0..REBUILD_ATTEMPTS {
+        if attempt > 0 {
+            std::thread::sleep(Duration::from_millis(REBUILD_BACKOFF_MS * attempt as u64));
+        }
+        if let Err(e) = topo.tear_down_worker(w) {
+            eprintln!("orchestrator: warning: worker {w} rebuild teardown (attempt {}): {e:#}", attempt + 1);
+        }
+        match topo.bring_up_worker(w) {
+            Ok(ctx) => return Ok(ctx),
+            Err(e) => {
+                eprintln!(
+                    "orchestrator: warning: worker {w} netns rebuild attempt {}/{REBUILD_ATTEMPTS} failed: {e:#}",
+                    attempt + 1
+                );
+                last_err = Some(e);
+            }
+        }
+    }
+    Err(last_err.expect("REBUILD_ATTEMPTS >= 1 guarantees at least one attempt ran"))
+}
+
 /// Bring up one worker, drain its bucket sequentially, tear down. The teardown
 /// guard is armed *before* bring-up so a partial `netns::setup` still gets reaped.
 fn run_worker(
@@ -122,27 +166,21 @@ fn run_worker(
         // (deterministically: one link-flap SD case can turn every subsequent
         // multicast-SD case a false `inconclusive`). The rebuild re-reads the fresh
         // veth MACs, so `case_ctx` (the `--expect` dut_mac and the tester-side neigh
-        // pins) tracks the new namespace, never a stale one.
+        // pins) tracks the new namespace, never a stale one. `rebuild_worker_netns`
+        // retries a transient bring-up (see there) so only a persistent fixture
+        // fault reaches the FATAL path.
         let rebuilt;
         let case_ctx = if rebuild {
-            // Idempotent teardown (kills any lingering DUT/harness before its netns is
-            // destroyed); a failure here is non-fatal — bring_up_worker teardown-firsts
-            // again and is the real gate.
-            if let Err(e) = topo.tear_down_worker(w) {
-                eprintln!(
-                    "orchestrator: warning: worker {w} per-case teardown before {case}: {e:#}"
-                );
-            }
-            match topo.bring_up_worker(w) {
+            match rebuild_worker_netns(topo, w) {
                 Ok(c) => {
                     rebuilt = c;
                     &rebuilt
                 }
                 Err(e) => {
-                    // The netns is now down and cannot be rebuilt, so every remaining
-                    // case on this worker is doomed. Abort the bucket with a worker
-                    // error (bash's `set -e` worker-subshell death) — the execution
-                    // ledger fails the run rather than silently skipping the tail.
+                    // The netns is down and could not be rebuilt after retries, so
+                    // every remaining case on this worker is doomed. Abort the bucket
+                    // with a worker error (bash's `set -e` worker-subshell death) —
+                    // the ledger fails the run rather than silently skipping the tail.
                     r.worker_error = Some(format!(
                         "worker {w} per-case netns rebuild before {case} failed: {e:#}"
                     ));
