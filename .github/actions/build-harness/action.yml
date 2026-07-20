@@ -35,12 +35,26 @@ runs:
       # CMAKE_PREFIX_PATH steers find_package(vsomeip3) to the job-scoped
       # install above — deterministic even when /usr/local holds a foreign
       # vsomeip. CommonAPI still resolves from the host (/usr/local).
+      #
+      # ccache (when present) launches every compile. The checkout wipes build/
+      # before each run (clean: true, the hermetic default we keep), so without a
+      # content-addressed cache the 500+ case-stub objects recompile cold every
+      # time — ~16 min idle, minutes-to-hours under host contention. ccache turns
+      # that into cache hits keyed on preprocessed source + flags (identical
+      # output), and its ~/.cache/ccache store lives outside the workspace so the
+      # wipe never touches it. Absent ccache the configure is unchanged.
       shell: bash
       run: |
         export CMAKE_PREFIX_PATH=/opt/someip-stack${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}
+        ccache_args=()
+        if command -v ccache >/dev/null 2>&1; then
+          ccache_args=(-DCMAKE_C_COMPILER_LAUNCHER=ccache
+                       -DCMAKE_CXX_COMPILER_LAUNCHER=ccache)
+        fi
         cmake -S . -B build \
           -DCMAKE_BUILD_TYPE=Release \
-          -DTC8_SCE_FIND_PACKAGE=OFF
+          -DTC8_SCE_FIND_PACKAGE=OFF \
+          "${ccache_args[@]}"
 
     - name: Build harness + tc8-dut
       shell: bash

@@ -126,10 +126,25 @@ extra_cmake_args=()
 if [[ -n "${TC8_EXTRA_VSOMEIP_CMAKE_ARGS:-}" ]]; then
     read -r -a extra_cmake_args <<< "$TC8_EXTRA_VSOMEIP_CMAKE_ARGS"
 fi
+# Content-addressed compiler cache when ccache is on PATH. ccache keys each
+# object on the preprocessed source + flags, so rebuilding after the CI checkout
+# wiped build/ (git clean runs before every run) is a cache hit rather than a
+# cold recompile — identical output, purely a wall-clock win. Omitted when ccache
+# is absent so a local or OEM build without it is byte-for-byte unchanged. Under
+# CI this runs as root (sudo), so its store is /root/.cache/ccache, disjoint from
+# the unprivileged harness build's ~/.cache/ccache; the two compile different
+# sources and never contend. Placed before extra_cmake_args so an OEM -D still
+# wins (it can even override the launcher, matching that seam's documented rule).
+ccache_args=()
+if command -v ccache >/dev/null 2>&1; then
+    ccache_args=(-DCMAKE_C_COMPILER_LAUNCHER=ccache
+                 -DCMAKE_CXX_COMPILER_LAUNCHER=ccache)
+fi
 cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo \
       -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
       -DCMAKE_INSTALL_RPATH='$ORIGIN:$ORIGIN/../lib' \
       -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
+      "${ccache_args[@]}" \
       "${extra_cmake_args[@]}"
 cmake --build build -j4
 sudo cmake --install build
