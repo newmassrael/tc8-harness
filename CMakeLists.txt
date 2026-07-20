@@ -262,38 +262,91 @@ if(TC8_PORTABILITY_CHECK)
     return()
 endif()
 
-find_package(vsomeip3 REQUIRED)
-find_package(CommonAPI REQUIRED)
-find_package(CommonAPI-SomeIP REQUIRED)
+# ── Build-shape options ─────────────────────────────────────────────────────
+# Three targets carry the project's heavy host prerequisites; each is now
+# individually skippable so a pure tc8-utm SDK consumer (TC8_UTM_INSTALL=ON,
+# building only the exported library archives) needs none of them installed at
+# configure time:
+#
+#   * TC8_BUILD_HARNESS    — the tc8-harness tester executable (the SOME/IP wire
+#                            runner) and its per-case state machines. Owns the
+#                            vsomeip3 + CommonAPI link and the libpcap/libtins
+#                            capture stack.
+#   * TC8_BUILD_MOCK_DUT   — the vsomeip/CommonAPI ETS mock DUT under dut/ets,
+#                            which also links the SOME/IP stack.
+#   * TC8_BUILD_UNIT_TESTS — the C++ unit tests (declared here, not at their
+#                            add_subdirectory below, so the capture-stack probe
+#                            can be gated on them too).
+#
+# None of the exported SDK archives links any of the gated dependencies. All
+# default ON, so every existing configuration — including the hosted build-test
+# job, which sets only TC8_BUILD_MOCK_DUT=OFF — configures byte-for-byte as before.
+option(TC8_BUILD_HARNESS
+    "Build the tc8-harness tester executable (SOME/IP wire runner)"
+    ON)
+option(TC8_BUILD_MOCK_DUT
+    "Build the vsomeip/CommonAPI ETS mock DUT (tc8-dut) from dut/"
+    ON)
+option(TC8_BUILD_UNIT_TESTS
+    "Build C++ unit tests in unit_tests/ (requires GTest)"
+    ON)
 
-# Demote vsomeip / CommonAPI third-party include dirs to SYSTEM (same idiom as the
-# SCE demotion above) so a first-party strict-warning gate on the DUT does not
-# fire against headers we do not own. The generated CommonAPI proxy/stub headers
-# (GEN_DIR) are marked SYSTEM on the ets/ets2/ets3 targets where they are added.
-foreach(_tp vsomeip3 CommonAPI CommonAPI-SomeIP)
-    if(TARGET ${_tp})
-        get_target_property(_tp_incs ${_tp} INTERFACE_INCLUDE_DIRECTORIES)
-        if(_tp_incs)
-            set_property(TARGET ${_tp} APPEND PROPERTY
-                INTERFACE_SYSTEM_INCLUDE_DIRECTORIES ${_tp_incs})
+# The SOME/IP wire stack is a REQUIRED configure-time dependency of exactly two
+# consumers: the tester executable and the ETS mock DUT (dut/ets links vsomeip3 +
+# CommonAPI and is added only under TC8_BUILD_MOCK_DUT, relying on the imported
+# targets found here). Gate the whole find_package set — and the SYSTEM-include
+# demotion that operates on its imported targets — on whether either is built.
+if(TC8_BUILD_HARNESS OR TC8_BUILD_MOCK_DUT)
+    find_package(vsomeip3 REQUIRED)
+    find_package(CommonAPI REQUIRED)
+    find_package(CommonAPI-SomeIP REQUIRED)
+
+    # Demote vsomeip / CommonAPI third-party include dirs to SYSTEM (same idiom as
+    # the SCE demotion above) so a first-party strict-warning gate on the DUT does
+    # not fire against headers we do not own. The generated CommonAPI proxy/stub
+    # headers (GEN_DIR) are marked SYSTEM on the ets/ets2/ets3 targets where added.
+    foreach(_tp vsomeip3 CommonAPI CommonAPI-SomeIP)
+        if(TARGET ${_tp})
+            get_target_property(_tp_incs ${_tp} INTERFACE_INCLUDE_DIRECTORIES)
+            if(_tp_incs)
+                set_property(TARGET ${_tp} APPEND PROPERTY
+                    INTERFACE_SYSTEM_INCLUDE_DIRECTORIES ${_tp_incs})
+            endif()
         endif()
+    endforeach()
+endif()
+
+# libpcap + libtins — the packet capture/dissection stack. Consumed by the tester
+# and by the capture/dissection unit tests (which read the PCAP_*/LIBTINS_*
+# variables set here), so gate the probe on either. A mock-DUT-only or SDK-only
+# configure needs neither.
+if(TC8_BUILD_HARNESS OR TC8_BUILD_UNIT_TESTS)
+    find_path(PCAP_INCLUDE_DIR NAMES pcap/pcap.h pcap.h)
+    find_library(PCAP_LIBRARY NAMES pcap)
+    if(NOT PCAP_INCLUDE_DIR OR NOT PCAP_LIBRARY)
+        message(FATAL_ERROR "libpcap not found — install libpcap-dev")
     endif()
-endforeach()
+
+    find_path(LIBTINS_INCLUDE_DIR NAMES tins/tins.h)
+    find_library(LIBTINS_LIBRARY NAMES tins)
+    if(NOT LIBTINS_INCLUDE_DIR OR NOT LIBTINS_LIBRARY)
+        message(FATAL_ERROR "libtins not found — install libtins-dev")
+    endif()
+endif()
+
+# ── Tester executable + per-case state machines (TC8_BUILD_HARNESS) ──────────
+# Everything from here to tc8_enable_strict_warnings(tc8-harness) builds the
+# tc8-harness tester and its case machinery; none of it is reachable from the
+# exported SDK, so an SDK-only configure skips the SOME/IP link, the whole case
+# glob, and the codegen probe (mirroring the portability check's early return
+# above). The guarded body is left un-indented so this decoupling stays a minimal,
+# reviewable diff over a ~475-line region; the endif() below is labelled to match.
+if(TC8_BUILD_HARNESS)
+
 # The tester-side ArpResponder owns a std::thread worker; link Threads
-# explicitly rather than relying on a transitive vsomeip pull-in.
+# explicitly rather than relying on a transitive vsomeip pull-in. Only the tester
+# needs it at this scope — dut_service and unit_tests each find their own.
 find_package(Threads REQUIRED)
-
-find_path(PCAP_INCLUDE_DIR NAMES pcap/pcap.h pcap.h)
-find_library(PCAP_LIBRARY NAMES pcap)
-if(NOT PCAP_INCLUDE_DIR OR NOT PCAP_LIBRARY)
-    message(FATAL_ERROR "libpcap not found — install libpcap-dev")
-endif()
-
-find_path(LIBTINS_INCLUDE_DIR NAMES tins/tins.h)
-find_library(LIBTINS_LIBRARY NAMES tins)
-if(NOT LIBTINS_INCLUDE_DIR OR NOT LIBTINS_LIBRARY)
-    message(FATAL_ERROR "libtins not found — install libtins-dev")
-endif()
 
 add_executable(tc8-harness
     src/harness_main.cpp
@@ -772,21 +825,16 @@ target_link_libraries(tc8-harness PRIVATE
 )
 tc8_enable_strict_warnings(tc8-harness)
 
-option(TC8_BUILD_MOCK_DUT
-    "Build the vsomeip/CommonAPI ETS mock DUT (tc8-dut) from dut/"
-    ON)
+endif() # TC8_BUILD_HARNESS
 
-# Unconditional: dut/ hosts BOTH the vsomeip ETS mock DUT (gated by the option
-# above, inside) and the vendor-neutral testability UTM that the tc8-utm SDK
-# exports — and the latter must not depend on the former. Gating this whole
-# subdirectory on the option is what previously made -DTC8_BUILD_MOCK_DUT=OFF (the
-# hosted build-test CI configuration) silently drop the SDK and its export gate.
-# See dut/CMakeLists.txt for the layer split.
+# Unconditional: dut/ hosts BOTH the vsomeip ETS mock DUT (gated internally by
+# TC8_BUILD_MOCK_DUT, declared with the build-shape options above) and the
+# vendor-neutral testability UTM that the tc8-utm SDK exports — and the latter
+# must not depend on the former. Gating this whole subdirectory on the option is
+# what previously made -DTC8_BUILD_MOCK_DUT=OFF (the hosted build-test CI
+# configuration) silently drop the SDK and its export gate. See dut/CMakeLists.txt
+# for the layer split.
 add_subdirectory(dut)
-
-option(TC8_BUILD_UNIT_TESTS
-    "Build C++ unit tests in unit_tests/ (requires GTest)"
-    ON)
 
 if(TC8_BUILD_UNIT_TESTS)
     enable_testing()
@@ -992,7 +1040,7 @@ option(TC8_AUTO_SETCAP
     "Apply cap_net_raw,cap_net_admin after build (requires sudoers NOPASSWD for /usr/sbin/setcap)"
     OFF)
 
-if(TC8_AUTO_SETCAP AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+if(TC8_AUTO_SETCAP AND TARGET tc8-harness AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     find_program(SETCAP_BIN setcap REQUIRED)
     add_custom_command(TARGET tc8-harness POST_BUILD
         COMMAND sudo -n ${SETCAP_BIN}
