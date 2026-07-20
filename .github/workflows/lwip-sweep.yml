@@ -65,10 +65,15 @@ jobs:
         # (port-quad reuse, per-case fixture respawn) is exercised the
         # way a certification run would see it.
         run: |
-          mkdir -p reports
+          # Pre-create the log dirs as the runner user (before the sudo'd
+          # orchestrator writes root-owned FILES into them) so the next
+          # checkout's `git clean` — which runs unprivileged — can remove them.
+          # A root-owned DIR here would fail git clean and block future runs.
+          mkdir -p reports sweep-logs/full sweep-logs/testability
           sudo -n dut/env/orchestrator/target/debug/tc8-orchestrator \
             --topology lwip-tap \
             --junit-xml reports/junit-lwip-sweep.xml \
+            --log-dir sweep-logs/full \
             $(dut/lwip_dut/sweep-cases.sh)
 
       - name: Run testability-backend TCP slice (--dut-control testability)
@@ -86,6 +91,7 @@ jobs:
             --topology lwip-tap \
             --dut-control testability \
             --junit-xml reports/junit-lwip-sweep-testability.xml \
+            --log-dir sweep-logs/testability \
             $(dut/lwip_dut/sweep-cases.sh | grep '^TCP_')
 
       - name: Upload JUnit reports
@@ -94,6 +100,20 @@ jobs:
         with:
           name: junit-lwip-sweep
           path: reports/
+
+      # Preserve every case's harness log, DUT log, and pcap for EVERY run —
+      # `if: always()` (pass, fail, or the 150-min timeout) mirrors smoke-test.yml
+      # so a sweep flake is diagnosed from the wire, never guessed. `gh run view
+      # --log` returns nothing for this self-hosted job, so this artifact is the
+      # only place the per-case evidence survives the next checkout clean.
+      - name: Upload harness logs + pcaps (always)
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: lwip-sweep-diagnostics
+          path: sweep-logs/
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Publish JUnit summary
         if: always()

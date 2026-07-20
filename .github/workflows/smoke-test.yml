@@ -511,13 +511,16 @@ jobs:
       # crash/timeout, the DUT's stderr, the wire trace — lives in the per-case harness
       # log, DUT log, and pcap that each step's `--log-dir smoke-logs/<step>` captured.
       # `gh run view --log` returns nothing for this self-hosted job, so without this
-      # upload that evidence vanishes with the runner and every failure — or GREEN
-      # error-skip flake — becomes guesswork. Fires on failure OR an error-class skip,
-      # so a flake that stays green still preserves its logs; ordinary green runs cost
-      # no artifact storage. (The Testability SP checks below use standalone probe
-      # scripts, not smoke-test.sh, so they have no --log-dir to feed this.)
-      - name: Upload harness logs + pcaps (failure or error-skip)
-        if: ${{ failure() || steps.junit_errors.outputs.found == 'true' }}
+      # upload that evidence vanishes with the runner on the next checkout clean.
+      # `if: always()` preserves the logs of EVERY run — pass, fail, or the 120-min
+      # timeout cancellation — so diagnosis is never guesswork and a flake that
+      # fails once then passes on re-run keeps BOTH runs' wire traces for comparison.
+      # This trades a per-run artifact upload (bounded by retention-days) for the
+      # standing guarantee that the evidence always exists. (The Testability SP checks
+      # below use standalone probe scripts, not the orchestrator, so they have no
+      # --log-dir to feed this.)
+      - name: Upload harness logs + pcaps (always)
+        if: always()
         uses: actions/upload-artifact@v6
         with:
           name: smoke-diagnostics
