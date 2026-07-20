@@ -11,6 +11,12 @@ runs:
   using: composite
   steps:
     - name: Build lwIP DUT (pinned)
+      # build-lwip-dut/ is a fresh in-workspace tree wiped by the checkout clean
+      # each run, so its compile (the pinned lwIP stack + the DUT) is cold every
+      # time. ccache (when present) keys objects on preprocessed source + flags:
+      # the lwIP sources are pin-stable, so after the first populate they are pure
+      # cache hits. Its store lives outside the workspace, surviving the wipe;
+      # absent ccache the build is unchanged.
       shell: bash
       run: |
         LWIP_PIN=$(cat dut/lwip_dut/LWIP_PIN)
@@ -19,7 +25,13 @@ runs:
           git clone https://github.com/lwip-tcpip/lwip.git "$HOME/lwip-cache/$LWIP_PIN"
           git -C "$HOME/lwip-cache/$LWIP_PIN" checkout --detach "$LWIP_PIN"
         fi
+        ccache_args=()
+        if command -v ccache >/dev/null 2>&1; then
+          ccache_args=(-DCMAKE_C_COMPILER_LAUNCHER=ccache
+                       -DCMAKE_CXX_COMPILER_LAUNCHER=ccache)
+        fi
         cmake -S dut/lwip_dut -B build-lwip-dut \
           -DLWIP_DIR="$HOME/lwip-cache/$LWIP_PIN" \
-          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_BUILD_TYPE=Release \
+          "${ccache_args[@]}"
         cmake --build build-lwip-dut -j4

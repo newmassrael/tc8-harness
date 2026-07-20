@@ -18,9 +18,22 @@ build_dir="${1:-${repo_root}/build-suite-producer-check}"
 jobs="${2:-4}"
 
 echo "[suite-producer] configuring ${build_dir} with examples/demo-suite (suite=demo)"
+# Content-addressed compiler cache when ccache is on PATH. This step configures a
+# FRESH tree every run, so without ccache it cold-rebuilds the whole harness — the
+# same cold-build cost the main build-harness path already offloads to ccache. It
+# shares the caller's ~/.cache/ccache and the same Release flags as that build, so
+# most core objects cross-hit the already-warm entries; only the demo-suite /
+# MOCK_DUT-off variants miss until they populate. Omitted when ccache is absent so
+# a local build without it is byte-for-byte unchanged.
+ccache_args=()
+if command -v ccache >/dev/null 2>&1; then
+    ccache_args=(-DCMAKE_C_COMPILER_LAUNCHER=ccache
+                 -DCMAKE_CXX_COMPILER_LAUNCHER=ccache)
+fi
 # -DTC8_SCE_FIND_PACKAGE=OFF matches both CI jobs (embed the vendored SCE);
 # MOCK_DUT/UNIT_TESTS OFF keep this to a harness-only build. CMAKE_EXTRA_ARGS
-# lets a caller append environment-specific flags (e.g. CMAKE_PREFIX_PATH-driven).
+# lets a caller append environment-specific flags (e.g. CMAKE_PREFIX_PATH-driven),
+# appended last so an explicit caller override still wins over the ccache launcher.
 cmake -S "${repo_root}" -B "${build_dir}" \
     -DCMAKE_BUILD_TYPE=Release \
     -DTC8_SCE_FIND_PACKAGE=OFF \
@@ -28,6 +41,7 @@ cmake -S "${repo_root}" -B "${build_dir}" \
     -DTC8_BUILD_UNIT_TESTS=OFF \
     -DTC8_EXTRA_CASE_DIRS="${repo_root}/examples/demo-suite" \
     -DTC8_EXTRA_CASE_SUITES="demo" \
+    "${ccache_args[@]}" \
     ${CMAKE_EXTRA_ARGS:-}
 
 echo "[suite-producer] building tc8-harness (-j${jobs})"
