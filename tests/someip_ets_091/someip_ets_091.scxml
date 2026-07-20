@@ -4,19 +4,31 @@
 
   The DUT's regular cyclic OfferService Messages must increment the SD
   Session-ID from one iteration to the next (PRS_SOMEIPSD_00154 / 00157 /
-  00355). Pure-observation case — no tester stimulus required beyond the
-  default FindServiceBoot envelope used elsewhere; the cyclic OfferService
-  cadence is what carries the session_id sequence.
+  00355). The SD Session-ID is maintained PER COMMUNICATION RELATION
+  (PRS_SOMEIPSD_00160): the cyclic multicast OfferService stream carries its
+  own monotonic counter, and every unicast relation carries a separate one.
+  This case checks the MULTICAST cyclic stream, so both phases are pinned to
+  the multicast SD destination (captured.dst_ip == expected.sd_multicast_ip).
 
-    Phase 1 (listening_phase1, 6 s): observe ANY OfferService entry on
-            SERVICE-ID-1 with sd_ipv4_endpoint_count >= 1. The fired
+  The FindServiceBoot envelope re-engages the DUT's Repetition / Main-Phase
+  cadence, but it also provokes a UNICAST solicited OfferService (the DUT's
+  answer to the tester's FindService) interleaved with the cyclic multicast
+  stream. Without the cast guard, phase 1 and phase 2 could latch offers from
+  two different relations and compare session ids across independent counters
+  — a test defect, not a DUT fault. The guard makes the snapshotted
+  prev_sd_session_id and the phase-2 session_id same-relation by construction.
+
+    Phase 1 (listening_phase1, 6 s): observe a MULTICAST OfferService entry
+            on SERVICE-ID-1 with sd_ipv4_endpoint_count >= 1. The fired
             transition snapshots `prev_sd_session_id` via the
             `_someipsrv_traits_base.h` dispatch hook.
-    Phase 2 (listening_phase2, 6 s): observe the NEXT OfferService entry
-            and assert `session_id > prev_sd_session_id`. The cadence
-            (vsomeip default cyclic_offer_delay = 1 s) keeps phase 2
-            inside the deadline; non-strict increase (e.g. wraparound
-            or replay) trips fail.
+    Phase 2 (listening_phase2, 6 s): observe the NEXT MULTICAST OfferService
+            entry and assert `session_id > prev_sd_session_id`. The cadence
+            (vsomeip default cyclic_offer_delay = 1 s) keeps phase 2 inside
+            the deadline; non-strict increase (e.g. wraparound or replay)
+            trips fail. A unicast solicited offer matches neither phase-2
+            transition and is ignored, so the machine keeps waiting for the
+            next multicast offer.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -39,7 +51,7 @@
       <send event="phase1_deadline_exceeded" delay="6s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.sd_ipv4_endpoint_count &gt;= 1"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.sd_ipv4_endpoint_count &gt;= 1 and captured.dst_ip == expected.sd_multicast_ip"
                 target="listening_phase2"/>
     <transition event="phase1_deadline_exceeded" target="inconclusive_phase1_no_offer_with_endpoint"/>
   </state>
@@ -49,10 +61,10 @@
       <send event="phase2_deadline_exceeded" delay="6s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.session_id &gt; captured.prev_sd_session_id"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.dst_ip == expected.sd_multicast_ip and captured.session_id &gt; captured.prev_sd_session_id"
                 target="pass"/>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.session_id &lt;= captured.prev_sd_session_id"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.dst_ip == expected.sd_multicast_ip and captured.session_id &lt;= captured.prev_sd_session_id"
                 target="fail_phase2_session_id_did_not_increment"/>
     <transition event="phase2_deadline_exceeded" target="inconclusive_phase2_no_second_offer"/>
   </state>
