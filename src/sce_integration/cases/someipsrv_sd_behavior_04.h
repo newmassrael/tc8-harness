@@ -1,6 +1,5 @@
 #pragma once
 
-#include <chrono>
 #include <string_view>
 
 #include "sce_integration/case_registry.h"
@@ -20,20 +19,25 @@ using SdBehavior04SM =
 namespace tc8::sce {
 
 // TC8 v3.0 §5.1.5.4.4 SOMEIPSRV_SD_BEHAVIOR_04: a multicast FindService
-// with Unicast Flag = 0 shall be answered with multicast OfferService.
-// Stimulus schedules the multicast Find emit at +4040 ms — well past
-// TOTAL_REP_INTV (~1.5 s) and the post-repetition rep4 emission at
-// ~T_sd+3075 ms, so the DUT is fully in Main Phase when the Find
-// arrives. The Find carries sd_flags = 0x80 (Reboot=1, Unicast=0).
+// with Unicast Flag = 0 shall be answered with a multicast OfferService.
+// A fixed wall-clock emit offset leaves the reply window at an unknown
+// cycle position, so under CPU contention a cyclic Offer can drift into it
+// and be counted as a solicited reply — a false PASS. So the emit is
+// CADENCE-RELATIVE (same as SD_BEHAVIOR_03): the SCXML waits into the main
+// phase, observes one cyclic OfferService (the anchor), and enters
+// `listening_offer_reply` on it; this trait emits the multicast Find
+// (sd_flags 0x80, Reboot=1/Unicast=0) on that entry, and the reply window
+// ends before the DUT's next cyclic (+2000 ms) — so the window sits between
+// two cyclics and the verdict is deterministic. Unlike SD_BEHAVIOR_03 a
+// multicast Find has no ½-cyclic rule, so the Find fires right on the anchor.
 //
-// Note: vsomeip 3.7.1 IGNORES multicast Finds (per its own comment at
-// `service_discovery_impl.cpp::send_uni_or_multicast_offerservice`,
-// citing SIP_SD_91); a strict-spec DUT would emit a multicast solicited
-// reply per SOMEIPSD §6.7.5.2 / TR_SOMEIP_00423 page 73. Tightened
-// Phase 2 deadline (1500 ms) excludes the next Main-Phase cyclic at
-// ~T_sd+6000 ms, so on vsomeip this test lands `fail_no_offer_after_
-// multicast_find` (run-and-fail-by-design). CI grep filter handles
-// the known deviation.
+// Reference-stack note: vsomeip 3.7.x IGNORES multicast Finds (per its own
+// `service_discovery_impl.cpp::send_uni_or_multicast_offerservice`, citing
+// SIP_SD_91), so it sends no solicited reply and this case now lands
+// `inconclusive_no_offer_after_multicast_find` DETERMINISTICALLY (never a
+// cyclic-drift false PASS). It is platform_known_fail (excluded from the CI
+// green lane); a strict-spec DUT passes via the solicited multicast reply
+// per SOMEIPSD §6.7.5.2 / TR_SOMEIP_00423.
 template <>
 struct TestCaseTraits<cases::SdBehavior04SM>
     : SomeIpSdOnlyBase<cases::SdBehavior04SM> {
@@ -45,9 +49,15 @@ struct TestCaseTraits<cases::SdBehavior04SM>
                          const ::tc8::TestConfig& /*cfg*/,
                          std::string_view iface,
                          IStimulusScheduler& scheduler) {
+        // Fire the multicast Find on entry to `listening_offer_reply`, which
+        // the SCXML reaches on the observed anchor cyclic offer — so the whole
+        // Find/reply window sits between two of the DUT's own offers. Captures
+        // iface by value (the observer runs on the poll-loop thread long after
+        // this returns).
         const std::string iface_owned(iface);
-        scheduler.schedule(std::chrono::milliseconds(4040),
-                           [iface_owned]() {
+        scheduler.scheduleAfterStateEntry(
+            static_cast<int>(State::Listening_offer_reply),
+            [iface_owned]() {
             // Multicast FindService with Unicast Flag = 0
             // (sd_flags = 0x80 — Reboot bit set, Unicast bit clear).
             ::tc8::stimulus::FindServiceParams p{};
