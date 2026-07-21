@@ -77,6 +77,10 @@ add_library(tc8_upper_tester_server STATIC
 )
 target_include_directories(tc8_upper_tester_server PUBLIC
     ${PROJECT_SOURCE_DIR}/include
+    # This lib owns the upper_tester/ core headers (ut_server.h, stack_probe.h),
+    # moved out of the flat src/ tree; consumers (tc8-dut, ut_server_test) inherit
+    # this root by linking, so upper_tester/*.h resolves only through the owner.
+    ${PROJECT_SOURCE_DIR}/src/upper_tester/include
     ${PROJECT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}
 )

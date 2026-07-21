@@ -146,10 +146,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/upper_tester/ut_server.h",
-          "kind": "references"
-        },
-        {
           "file": "tests/_templates/arp_field_check.sce-template.xml",
           "kind": "implements"
         },
@@ -180,6 +176,10 @@
         {
           "file": "src/dissect/include/dissect/packet_pipeline.h",
           "kind": "implements"
+        },
+        {
+          "file": "src/upper_tester/include/upper_tester/ut_server.h",
+          "kind": "references"
         }
       ]
     },
@@ -1036,14 +1036,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/upper_tester/ut_server.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/upper_tester/stack_probe.h",
-          "kind": "implements"
-        },
-        {
           "file": "dut/dut_service/posix_stack_probe.h",
           "kind": "implements"
         },
@@ -1077,6 +1069,14 @@
         },
         {
           "file": "src/cli/include/cli/expect_parser.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/upper_tester/include/upper_tester/ut_server.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/upper_tester/include/upper_tester/stack_probe.h",
           "kind": "implements"
         }
       ]
@@ -1388,10 +1388,6 @@
           "kind": "references"
         },
         {
-          "file": "src/upper_tester/ut_server.h",
-          "kind": "references"
-        },
-        {
           "file": "dut/lwip_dut/lwip_stack_probe.h",
           "kind": "references"
         },
@@ -1438,6 +1434,10 @@
         {
           "file": "tests/ipv4_addressing_03_neg/ipv4_addressing_03_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "src/upper_tester/include/upper_tester/ut_server.h",
+          "kind": "references"
         }
       ]
     },
@@ -1716,10 +1716,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/upper_tester/ut_server.h",
-          "kind": "references"
-        },
-        {
           "file": "dut/dut_service/posix_ut_extensions.h",
           "kind": "implements"
         },
@@ -1738,6 +1734,10 @@
         {
           "file": "src/dissect/include/dissect/packet_pipeline.h",
           "kind": "implements"
+        },
+        {
+          "file": "src/upper_tester/include/upper_tester/ut_server.h",
+          "kind": "references"
         }
       ]
     },
@@ -2778,10 +2778,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/upper_tester/ut_server.h",
-          "kind": "references"
-        },
-        {
           "file": "dut/dut_service/posix_ut_extensions.h",
           "kind": "implements"
         },
@@ -2812,6 +2808,10 @@
         {
           "file": "src/cli/include/cli/expect_parser.h",
           "kind": "implements"
+        },
+        {
+          "file": "src/upper_tester/include/upper_tester/ut_server.h",
+          "kind": "references"
         }
       ]
     },
@@ -3890,11 +3890,11 @@
           "kind": "implements"
         },
         {
-          "file": "src/upper_tester/ut_server.h",
+          "file": "dut/lwip_dut/tc8_lwip_dut.cpp",
           "kind": "implements"
         },
         {
-          "file": "dut/lwip_dut/tc8_lwip_dut.cpp",
+          "file": "src/upper_tester/include/upper_tester/ut_server.h",
           "kind": "implements"
         }
       ]
@@ -4142,7 +4142,7 @@
           "kind": "implements"
         },
         {
-          "file": "src/upper_tester/stack_probe.h",
+          "file": "src/upper_tester/include/upper_tester/stack_probe.h",
           "kind": "implements"
         }
       ]

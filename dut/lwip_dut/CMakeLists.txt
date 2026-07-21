@@ -199,6 +199,10 @@ function(tc8_lwip_app name)
         # The internal (non-exported) headers the .cpp files reach for, e.g.
         # wire/wire_read.h. Public headers do NOT come from here.
         "${CMAKE_CURRENT_SOURCE_DIR}/../../src"
+        # The upper_tester/ core headers (ut_server.h, stack_probe.h), owned by their
+        # own per-lib include root since they moved out of the flat src/ tree; the
+        # shared lwIP core compiles ut_server.cpp, which reaches upper_tester/*.h.
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../src/upper_tester/include"
     )
     # The third-party lwIP header trees, demoted to -isystem so their C-style-cast
     # macros don't trip the first-party strict gate (-Wold-style-cast etc.). This
