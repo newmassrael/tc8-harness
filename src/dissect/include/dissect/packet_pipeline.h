@@ -8,7 +8,7 @@
 
 #include "tc8/captured_event.h"
 
-#include "someip_dispatcher.h"
+#include "dissect/someip_dispatcher.h"
 
 namespace tc8::dissect {
 

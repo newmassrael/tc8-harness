@@ -247,12 +247,15 @@ add_library(tc8_stimulus STATIC
     src/stimulus/udp_datagram_builder.cpp
     src/stimulus/upper_tester_client.cpp
 )
-# include/ carries the public tc8/... headers (wire math, protocol frames,
-# dut_config, and the now-namespaced tc8/net + tc8/someip + tc8/wire helpers the
-# builders use); src/ carries the builders' own "stimulus/..." include prefix.
-# Both roots PUBLIC so every consumer inherits the one seam.
+# PUBLIC roots consumers inherit by linkage: include/ (the tc8/... headers — wire
+# math, protocol frames, dut_config, the namespaced tc8/net + tc8/someip + tc8/wire
+# helpers the builders use), src/dissect/include (this lib's own dissect/ headers —
+# the SOME/IP dissectors — moved out of the flat tree so dissect/*.h resolves only
+# through here), and the shared src/ seam (the stimulus/ builder prefix it still
+# owns). All PUBLIC so every consumer inherits the one seam.
 target_include_directories(tc8_stimulus PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/dissect/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
 )
 # tc8_wire: RFC 1071 checksum / RFC 792 echo body, used by the IPv4-family builders.

@@ -74,10 +74,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/dissect/packet_pipeline.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/arp_and_dhcpv4_pilot_common.h",
           "kind": "implements"
         },
@@ -179,6 +175,10 @@
         },
         {
           "file": "src/capture/include/capture/bpf_filter.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/dissect/include/dissect/packet_pipeline.h",
           "kind": "implements"
         }
       ]
@@ -660,10 +660,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/dissect/packet_pipeline.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/cases/_icmpv4_traits_base.h",
           "kind": "implements"
         },
@@ -761,6 +757,10 @@
         },
         {
           "file": "src/capture/include/capture/bpf_filter.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/dissect/include/dissect/packet_pipeline.h",
           "kind": "implements"
         }
       ]
@@ -1040,10 +1040,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/dissect/packet_pipeline.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/upper_tester/ut_server.h",
           "kind": "implements"
         },
@@ -1077,6 +1073,10 @@
         },
         {
           "file": "src/capture/include/capture/bpf_filter.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/dissect/include/dissect/packet_pipeline.h",
           "kind": "implements"
         }
       ]
@@ -1684,10 +1684,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/dissect/packet_pipeline.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/arp_captured.h",
           "kind": "implements"
         },
@@ -1737,6 +1733,10 @@
         },
         {
           "file": "src/capture/include/capture/bpf_filter.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/dissect/include/dissect/packet_pipeline.h",
           "kind": "implements"
         }
       ]
@@ -2166,10 +2166,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/dissect/packet_pipeline.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/cases/_udp_traits_base.h",
           "kind": "implements"
         },
@@ -2211,6 +2207,10 @@
         },
         {
           "file": "src/capture/include/capture/bpf_filter.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/dissect/include/dissect/packet_pipeline.h",
           "kind": "implements"
         }
       ]
@@ -2726,10 +2726,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/dissect/packet_pipeline.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/arp_and_dhcpv4_pilot_common.h",
           "kind": "implements"
         },
@@ -2811,6 +2807,10 @@
         },
         {
           "file": "src/capture/include/capture/bpf_filter.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/dissect/include/dissect/packet_pipeline.h",
           "kind": "implements"
         }
       ]
@@ -3668,10 +3668,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/dissect/packet_pipeline.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/cases/_tcp_traits_base.h",
           "kind": "implements"
         },
@@ -3813,6 +3809,10 @@
         },
         {
           "file": "src/capture/include/capture/bpf_filter.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/dissect/include/dissect/packet_pipeline.h",
           "kind": "implements"
         }
       ]
@@ -5372,10 +5372,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/dissect/packet_pipeline.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/arp_expected.h",
           "kind": "implements"
         },
@@ -5417,6 +5413,10 @@
         },
         {
           "file": "src/capture/include/capture/bpf_filter.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/dissect/include/dissect/packet_pipeline.h",
           "kind": "implements"
         }
       ]
@@ -6362,10 +6362,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/dissect/transport.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/cases/_someipsrv_traits_base.h",
           "kind": "implements"
         },
@@ -6379,6 +6375,10 @@
         },
         {
           "file": "src/stimulus/someip_sd_builder.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/dissect/include/dissect/transport.h",
           "kind": "implements"
         }
       ]

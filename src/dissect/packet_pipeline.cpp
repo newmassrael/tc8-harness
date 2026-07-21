@@ -1,4 +1,4 @@
-#include "packet_pipeline.h"
+#include "dissect/packet_pipeline.h"
 
 #include <algorithm>
 #include <cstring>

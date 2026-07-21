@@ -8,8 +8,8 @@
 
 #include "tc8/captured_event.h"
 
-#include "someip_header.h"
-#include "transport.h"
+#include "dissect/someip_header.h"
+#include "dissect/transport.h"
 
 namespace tc8::dissect {
 
