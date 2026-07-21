@@ -151,59 +151,12 @@ target_include_directories(tc8_testability_client PUBLIC
 )
 tc8_enable_strict_warnings(tc8_testability_client)
 
-# Vendor-neutral AUTOSAR engines (src/autosar/) — the public mechanisms a
-# separate, private OEM UTM repo composes with its own config. Every engine is
-# the same shape: a dependency-light STATIC lib (pure byte math — no syscalls,
-# no third-party deps, no OEM content) with the src/ include root on its
-# BUILD_INTERFACE and the strict first-party warning set. tc8_add_engine is the
-# single home for that recipe so adding an engine is one line and the lib
-# pattern never drifts across copies. The install/EXPORT interface for each
-# engine is wired once in the TC8_UTM_INSTALL block below.
-function(tc8_add_engine name)
-    add_library(${name} STATIC ${ARGN})
-    # Every engine's public header (tc8/autosar/*.h) and every include its .cpp
-    # reaches live under include/tc8/autosar/ — all namespaced — so include/ is the
-    # sole PUBLIC root; no engine reaches through the flat src/ tree.
-    target_include_directories(${name} PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
-    tc8_enable_strict_warnings(${name})
-    # Record the engine in the single list the UTM export iterates, so adding an
-    # engine stays one line and the install/EXPORT never drifts from the build.
-    set(TC8_UTM_ENGINES ${TC8_UTM_ENGINES} ${name} PARENT_SCOPE)
-endfunction()
-
-# tc8::crypto — AES-CMAC (FIPS-197 AES-128 + RFC 4493), the SecOC MAC primitive.
-# Keys are passed per call by the caller, so no keying material lives here.
-tc8_add_engine(tc8_crypto src/autosar/aes_cmac.cpp)
-
-# tc8::pn — AUTOSAR Partial Networking relevance filter: a bitwise AND of the
-# received PNC bit vector with the ECU's cluster mask. Range location and
-# cluster membership are injected config.
-tc8_add_engine(tc8_pn src/autosar/pn_filter.cpp)
-
-# tc8::crc — AUTOSAR CRC Routines (CRC-8/SAE-J1850 + CRC-16/CCITT-FALSE), the
-# shared primitive the E2E profiles compose. Its own module so each CRC consumer
-# links one verified implementation rather than re-deriving it.
-tc8_add_engine(tc8_crc src/autosar/crc.cpp)
-
-# tc8::e2e — AUTOSAR FO PRS E2EProtocol protect/check. Composes tc8::crc for the
-# CRC; profile/Data ID/offset are injected config. Links tc8_crc.
-tc8_add_engine(tc8_e2e src/autosar/e2e.cpp)
-target_link_libraries(tc8_e2e PUBLIC tc8_crc)
-
-# tc8::com — AUTOSAR SWS COM signal pack/unpack into I-PDUs (Intel + Motorola
-# bit layout). Signal/PDU database is injected config.
-tc8_add_engine(tc8_com src/autosar/com.cpp)
-
-# tc8::nm — AUTOSAR Network Management state machine (SWS UDPNetworkManagement).
-# State logic only; timings/layout/node id are injected config, and the owning
-# module drives it via mainFunction()/rxNmPdu() and onTransmit.
-tc8_add_engine(tc8_nm src/autosar/nm.cpp)
-
-# tc8::someiptp — AUTOSAR SOME/IP-TP transport (PRS_SOMEIP §4.2.1.4): segment a
-# large SOME/IP message into TP segments and reassemble received ones. Wire framing
-# only; OEM ids and any connection lifecycle are the owning module's config.
-tc8_add_engine(tc8_someiptp src/autosar/someiptp.cpp)
+# Vendor-neutral AUTOSAR engines (src/autosar/) — the dependency-light byte-math
+# mechanisms (crypto / pn / crc / e2e / com / nm / someiptp) an OEM UTM module
+# composes with its own config. Built in their own component dir via the
+# tc8_add_engine recipe; each also joins TC8_UTM_ENGINES (propagated back to this
+# scope) for the UTM SDK export wired in the TC8_UTM_INSTALL block below.
+add_subdirectory(src/autosar)
 
 # tc8_stimulus — the wire-frame builders (ARP / 802.1Q / IPv4 / ICMPv4 / DHCPv4 /
 # UDP / TCP-segment / SOME/IP RPC+SD+TP) plus the SOME/IP header dissectors. Pure
