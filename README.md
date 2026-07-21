@@ -285,6 +285,37 @@ arm64 sysroot carrying libpcap, libtins, boost, vsomeip, and CommonAPI
 (point `CMAKE_SYSROOT` at it and drop the portability flag) — sysroot
 assembly is integrator-specific and intentionally out of scope here.
 
+### Building only the vendor-neutral UTM SDK (no SOME/IP toolchain)
+
+A consumer that only wants the exported `tc8-utm` SDK — the vendor-neutral
+AUTOSAR Testability UTM (`ProtocolServer`, the `MiddlewareModule` /
+`MiddlewareContext` seam, the POSIX `SocketBackend`, the tester-side client,
+and the AUTOSAR engine libraries) — does not need the SOME/IP wire stack. Those
+targets live behind three build-shape options, each defaulting `ON`:
+
+- `TC8_BUILD_HARNESS` — the `tc8-harness` tester executable (the SOME/IP wire
+  runner) and its per-case state machines; owns the vsomeip / CommonAPI link and
+  the libpcap / libtins capture stack.
+- `TC8_BUILD_MOCK_DUT` — the vsomeip / CommonAPI ETS mock DUT (`tc8-dut`).
+- `TC8_BUILD_UNIT_TESTS` — the C++ unit tests.
+
+The SOME/IP `find_package` set is gated on the first two, and the capture stack
+on the harness or the unit tests, so an SDK-only configure needs neither:
+
+```sh
+cmake -S . -B build-sdk \
+      -DTC8_UTM_INSTALL=ON \
+      -DTC8_BUILD_HARNESS=OFF \
+      -DTC8_BUILD_MOCK_DUT=OFF \
+      -DTC8_BUILD_UNIT_TESTS=OFF
+cmake --build build-sdk
+cmake --install build-sdk --component utm-sdk --prefix <dir>   # find_package(tc8-utm)
+```
+
+With all three off, the build needs only a C++17 compiler and CMake — no
+vsomeip3, CommonAPI, CommonAPI-SomeIP, libpcap, or libtins on the host. Every
+default configuration keeps all three `ON`, so full builds are unchanged.
+
 ## Testing on a single computer (Linux netns)
 
 The harness's primary development environment is a Linux network-namespace

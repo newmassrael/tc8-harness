@@ -239,6 +239,37 @@ boost, vsomeip, CommonAPI를 담은 arm64 sysroot가 필요합니다
 (`CMAKE_SYSROOT`를 지정하고 portability 플래그를 제거) — sysroot 구성은
 통합자별 환경에 종속되므로 의도적으로 이 레포 범위 밖입니다.
 
+### 벤더 중립 UTM SDK만 빌드하기 (SOME/IP 툴체인 불필요)
+
+내보낸 `tc8-utm` SDK — 벤더 중립 AUTOSAR Testability UTM (`ProtocolServer`,
+`MiddlewareModule` / `MiddlewareContext` 시임, POSIX `SocketBackend`,
+테스터측 클라이언트, AUTOSAR 엔진 라이브러리) — 만 필요한 소비자는 SOME/IP
+wire 스택이 필요 없습니다. 해당 타깃들은 세 개의 빌드 형태 옵션 뒤에 있으며
+각각 기본값 `ON`입니다:
+
+- `TC8_BUILD_HARNESS` — `tc8-harness` 테스터 실행 파일(SOME/IP wire 러너)과
+  케이스별 상태 머신. vsomeip / CommonAPI 링크와 libpcap / libtins 캡처
+  스택을 소유합니다.
+- `TC8_BUILD_MOCK_DUT` — vsomeip / CommonAPI ETS 목 DUT (`tc8-dut`).
+- `TC8_BUILD_UNIT_TESTS` — C++ 단위 테스트.
+
+SOME/IP `find_package` 세트는 앞의 두 옵션에, 캡처 스택은 하네스 또는 단위
+테스트에 게이트되므로 SDK 전용 configure 는 둘 다 필요 없습니다:
+
+```sh
+cmake -S . -B build-sdk \
+      -DTC8_UTM_INSTALL=ON \
+      -DTC8_BUILD_HARNESS=OFF \
+      -DTC8_BUILD_MOCK_DUT=OFF \
+      -DTC8_BUILD_UNIT_TESTS=OFF
+cmake --build build-sdk
+cmake --install build-sdk --component utm-sdk --prefix <dir>   # find_package(tc8-utm)
+```
+
+세 옵션을 모두 끄면 C++17 컴파일러와 CMake 만 있으면 되고, 호스트에 vsomeip3,
+CommonAPI, CommonAPI-SomeIP, libpcap, libtins 가 필요 없습니다. 모든 기본
+구성은 세 옵션을 `ON` 으로 유지하므로 전체 빌드는 그대로입니다.
+
 ## 단일 컴퓨터에서 테스트하기 (Linux netns)
 
 하네스의 주된 개발 환경은 단일 호스트의 Linux network-namespace
