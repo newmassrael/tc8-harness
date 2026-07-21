@@ -3122,10 +3122,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/cli/test_command.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/dhcpv4_captured.h",
           "kind": "implements"
         },
@@ -3155,6 +3151,10 @@
         },
         {
           "file": "src/sce_integration/dhcpv4_pilot_common.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/cli/commands/include/cli/test_command.h",
           "kind": "implements"
         }
       ]
@@ -5368,10 +5368,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/cli/test_command.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/arp_expected.h",
           "kind": "implements"
         },
@@ -5417,6 +5413,10 @@
         },
         {
           "file": "src/dissect/include/dissect/packet_pipeline.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/cli/commands/include/cli/test_command.h",
           "kind": "implements"
         }
       ]

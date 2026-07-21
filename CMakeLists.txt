@@ -384,12 +384,14 @@ if(TC8_BUILD_HARNESS OR TC8_BUILD_UNIT_TESTS)
         src/stimulus/subscribe_tcp_session.cpp
     )
     # PUBLIC roots consumers inherit by linkage: the shared src/ seam (the stimulus/
-    # and sce_integration/ prefixes it still owns, plus the 9 tester-side cli/ command
-    # headers); src/capture/include and src/cli/include (this lib's OWN capture/
-    # headers and its cli/ helpers — expect_parser + packet_summary — moved out of the
-    # flat tree so those resolve only through their owner); and include/ for the tc8/
-    # namespace. PRIVATE pcap headers for the capture sources (pcap_source /
-    # bpf_filter) — a test that #includes a capture header directly adds its own.
+    # and sce_integration/ prefixes it still owns); src/capture/include and
+    # src/cli/include (this lib's OWN capture/ headers and its cli/ helpers —
+    # expect_parser + packet_summary — moved out of the flat tree so those resolve
+    # only through their owner; the 9 tester-side cli/ command headers now live under
+    # src/cli/commands/include, private to the tester executables, so this dep-light
+    # core does not expose them); and include/ for the tc8/ namespace. PRIVATE pcap
+    # headers for the capture sources (pcap_source / bpf_filter) — a test that
+    # #includes a capture header directly adds its own.
     target_include_directories(tc8_harness_core
         PUBLIC
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
@@ -846,6 +848,12 @@ message(STATUS
 target_sources(tc8-harness PRIVATE ${TC8_CASE_STUBS})
 target_include_directories(tc8-harness PRIVATE
     src
+    # The tester's own CLI command headers (capture_driver/live/replay/test/…),
+    # exposed under the cli/ prefix from their owning sub-dir. Private to the two
+    # executables that compile the commands (this one and tc8-testability-send);
+    # kept off tc8_harness_core's public surface so a dep-light test linking the
+    # core cannot reach the tester's libpcap/CLI11 command headers.
+    src/cli/commands/include
     include
     third_party/CLI11
     ${TC8_CASE_GEN_DIR}
@@ -1028,8 +1036,12 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
     add_executable(tc8-testability-send
         ${PROJECT_SOURCE_DIR}/src/cli/testability_send_main.cpp
         ${PROJECT_SOURCE_DIR}/src/cli/testability_send_command.cpp)
+    # Only the command header it shares with the harness (cli/testability_send_command
+    # .h, from the tester-command include root) plus header-only CLI11; the tc8/...
+    # protocol + client headers arrive via tc8_testability_client's public include/.
+    # No flat src/ root — this SDK tool depends on nothing else under the source tree.
     target_include_directories(tc8-testability-send PRIVATE
-        ${PROJECT_SOURCE_DIR}/src
+        ${PROJECT_SOURCE_DIR}/src/cli/commands/include
         ${PROJECT_SOURCE_DIR}/third_party/CLI11)
     target_link_libraries(tc8-testability-send PRIVATE tc8_testability_client)
     tc8_enable_strict_warnings(tc8-testability-send)
