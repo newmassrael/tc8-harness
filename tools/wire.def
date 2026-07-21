@@ -29,21 +29,21 @@
 # KIND ∈ { IPV4, MAC, U16, STR, INT }. KIND drives the Rust type (INT → u32,
 # else &str) and the cross-check decoder; bash always gets a quoted string.
 
-# --- Tester-injected ARP MACs — src/stimulus/arp_builder.h ------------------
+# --- Tester-injected ARP MACs — src/stimulus/include/stimulus/arp_builder.h ------------------
 /// `kTesterInjectedMac` — the sender MAC the harness injects in ARP stimulus, and
 /// the lladdr the DHCPv4 CM_05/_06 synthetic-gateway pin binds to. Locally-
 /// administered (`02:` prefix) so it cannot collide with a real OUI.
-TC8_WIRE_MAC(ARP_TESTER_MAC, "02:00:00:00:00:A1", cpp=src/stimulus/arp_builder.h:kTesterInjectedMac)
+TC8_WIRE_MAC(ARP_TESTER_MAC, "02:00:00:00:00:A1", cpp=src/stimulus/include/stimulus/arp_builder.h:kTesterInjectedMac)
 /// `kTesterInjectedMac2` — Group C cache-merge cases (ARP_32..35).
-TC8_WIRE_MAC(ARP_TESTER_MAC2, "02:00:00:00:00:A2", cpp=src/stimulus/arp_builder.h:kTesterInjectedMac2)
+TC8_WIRE_MAC(ARP_TESTER_MAC2, "02:00:00:00:00:A2", cpp=src/stimulus/include/stimulus/arp_builder.h:kTesterInjectedMac2)
 /// `kTesterInjectedMac3` — Group D Response-learning case ARP_40.
-TC8_WIRE_MAC(ARP_TESTER_MAC3, "02:00:00:00:00:A3", cpp=src/stimulus/arp_builder.h:kTesterInjectedMac3)
+TC8_WIRE_MAC(ARP_TESTER_MAC3, "02:00:00:00:00:A3", cpp=src/stimulus/include/stimulus/arp_builder.h:kTesterInjectedMac3)
 
-# --- ICMP echo identity — src/stimulus/icmpv4_builder.h ---------------------
+# --- ICMP echo identity — src/stimulus/include/stimulus/icmpv4_builder.h ---------------------
 /// `kIcmpEchoId`.
-TC8_WIRE_U16(ICMP_ECHO_ID, "0x1234", cpp=src/stimulus/icmpv4_builder.h:kIcmpEchoId)
+TC8_WIRE_U16(ICMP_ECHO_ID, "0x1234", cpp=src/stimulus/include/stimulus/icmpv4_builder.h:kIcmpEchoId)
 /// `kIcmpEchoSeq`.
-TC8_WIRE_U16(ICMP_ECHO_SEQ, "0x5678", cpp=src/stimulus/icmpv4_builder.h:kIcmpEchoSeq)
+TC8_WIRE_U16(ICMP_ECHO_SEQ, "0x5678", cpp=src/stimulus/include/stimulus/icmpv4_builder.h:kIcmpEchoSeq)
 
 # --- UDP UI_07/_08 alias + FIELDS_04/_05 host-2 IPs — udp_pilot_common.h ----
 # Bare addresses (the value SCXML asserts). `netns` derives the `/24` CIDR it

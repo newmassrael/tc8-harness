@@ -250,13 +250,14 @@ add_library(tc8_stimulus STATIC
 # PUBLIC roots consumers inherit by linkage: include/ (the tc8/... headers — wire
 # math, protocol frames, dut_config, the namespaced tc8/net + tc8/someip + tc8/wire
 # helpers the builders use), src/dissect/include (this lib's own dissect/ headers —
-# the SOME/IP dissectors — moved out of the flat tree so dissect/*.h resolves only
-# through here), and the shared src/ seam (the stimulus/ builder prefix it still
-# owns). All PUBLIC so every consumer inherits the one seam.
+# the SOME/IP dissectors), and src/stimulus/include (this lib's own stimulus/ builder
+# + header-only helper headers — moved out of the flat tree so stimulus/*.h resolves
+# only through here; the socket responders live in tc8_harness_core's own stimulus/
+# responder root). All PUBLIC so every consumer inherits the roots by linkage.
 target_include_directories(tc8_stimulus PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/dissect/include>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/stimulus/include>
 )
 # tc8_wire: RFC 1071 checksum / RFC 792 echo body, used by the IPv4-family builders.
 # tc8_someiptp: someip_tp_emit frames via someiptp::Segmenter. Threads:
@@ -383,18 +384,20 @@ if(TC8_BUILD_HARNESS OR TC8_BUILD_UNIT_TESTS)
         src/stimulus/tcp_accept_service.cpp
         src/stimulus/subscribe_tcp_session.cpp
     )
-    # PUBLIC roots consumers inherit by linkage: the shared src/ seam (the stimulus/
-    # and sce_integration/ prefixes it still owns); src/capture/include and
-    # src/cli/include (this lib's OWN capture/ headers and its cli/ helpers —
-    # expect_parser + packet_summary — moved out of the flat tree so those resolve
-    # only through their owner; the 9 tester-side cli/ command headers now live under
-    # src/cli/commands/include, private to the tester executables, so this dep-light
-    # core does not expose them); and include/ for the tc8/ namespace. PRIVATE pcap
-    # headers for the capture sources (pcap_source / bpf_filter) — a test that
-    # #includes a capture header directly adds its own.
+    # PUBLIC roots consumers inherit by linkage: the shared src/ seam (the
+    # sce_integration/ prefix it still owns — until that too gets its own root);
+    # src/stimulus/responders/include (this lib's OWN socket responders — arp/method
+    # responder, tcp_server/accept_service, subscribe_tcp_session — under the stimulus/
+    # prefix, a separate root from tc8_stimulus's builder headers); src/capture/include
+    # and src/cli/include (its capture/ headers and cli/ helpers expect_parser +
+    # packet_summary; the 9 tester-side cli/ command headers live under
+    # src/cli/commands/include, private to the tester exes, not exposed here); and
+    # include/ for the tc8/ namespace. PRIVATE pcap headers for the capture sources
+    # (pcap_source / bpf_filter) — a test that #includes a capture header adds its own.
     target_include_directories(tc8_harness_core
         PUBLIC
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/stimulus/responders/include>
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/capture/include>
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/cli/include>
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

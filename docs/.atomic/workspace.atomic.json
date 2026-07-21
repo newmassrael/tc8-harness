@@ -5,11 +5,11 @@
       "intent": "TC8 §4.1 — auto-seeded TC8-internal sub-section (11 code citations at baseline).",
       "bindings": [
         {
-          "file": "src/stimulus/someip_rpc_builder.h",
+          "file": "src/stimulus/include/stimulus/someip_rpc_builder.h",
           "kind": "implements"
         },
         {
-          "file": "src/stimulus/upper_tester_client.h",
+          "file": "src/stimulus/include/stimulus/upper_tester_client.h",
           "kind": "implements"
         }
       ]
@@ -114,10 +114,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/stimulus/someip_sd_builder.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/someip_ets_084/someip_ets_084.scxml",
           "kind": "implements"
         },
@@ -135,10 +131,6 @@
         },
         {
           "file": "src/stimulus/upper_tester_client.cpp",
-          "kind": "references"
-        },
-        {
-          "file": "src/stimulus/upper_tester_client.h",
           "kind": "references"
         },
         {
@@ -180,6 +172,14 @@
         {
           "file": "src/upper_tester/include/upper_tester/ut_server.h",
           "kind": "references"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/someip_sd_builder.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/upper_tester_client.h",
+          "kind": "references"
         }
       ]
     },
@@ -196,7 +196,7 @@
           "kind": "implements"
         },
         {
-          "file": "src/stimulus/someip_sd_builder.h",
+          "file": "src/stimulus/include/stimulus/someip_sd_builder.h",
           "kind": "implements"
         }
       ]
@@ -242,11 +242,11 @@
           "kind": "references"
         },
         {
-          "file": "src/stimulus/upper_tester_client.h",
+          "file": "src/sce_integration/cases/_arp_traits_base.h",
           "kind": "references"
         },
         {
-          "file": "src/sce_integration/cases/_arp_traits_base.h",
+          "file": "src/stimulus/include/stimulus/upper_tester_client.h",
           "kind": "references"
         }
       ]
@@ -269,14 +269,6 @@
         },
         {
           "file": "src/sce_integration/test_runner.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/stimulus/arp_builder.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/stimulus/icmpv4_builder.h",
           "kind": "implements"
         },
         {
@@ -374,6 +366,14 @@
         {
           "file": "src/cli/include/cli/expect_parser.h",
           "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/arp_builder.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/icmpv4_builder.h",
+          "kind": "implements"
         }
       ]
     },
@@ -403,10 +403,6 @@
         },
         {
           "file": "src/sce_integration/cases/arp_16.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/stimulus/arp_builder.h",
           "kind": "implements"
         },
         {
@@ -542,10 +538,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/stimulus/upper_tester_client.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/arp_stimulus_config.h",
           "kind": "implements"
         },
@@ -640,6 +632,14 @@
         {
           "file": "src/cli/include/cli/expect_parser.h",
           "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/arp_builder.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/upper_tester_client.h",
+          "kind": "implements"
         }
       ]
     },
@@ -685,14 +685,6 @@
         },
         {
           "file": "src/sce_integration/tcp_pilot_common.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/stimulus/icmpv4_builder.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/stimulus/ipv4_frame_builder.h",
           "kind": "implements"
         },
         {
@@ -762,6 +754,14 @@
         {
           "file": "src/dissect/include/dissect/packet_pipeline.h",
           "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/icmpv4_builder.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/ipv4_frame_builder.h",
+          "kind": "implements"
         }
       ]
     },
@@ -795,10 +795,6 @@
         },
         {
           "file": "src/sce_integration/icmpv4_pilot_common.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/stimulus/icmpv4_builder.h",
           "kind": "implements"
         },
         {
@@ -836,6 +832,10 @@
         {
           "file": "dut/env/negative_rows.md",
           "kind": "references"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/icmpv4_builder.h",
+          "kind": "implements"
         }
       ]
     },
@@ -857,14 +857,6 @@
         },
         {
           "file": "src/stimulus/icmpv4_builder.cpp",
-          "kind": "implements"
-        },
-        {
-          "file": "src/stimulus/icmpv4_builder.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/stimulus/ipv4_frame_builder.h",
           "kind": "implements"
         },
         {
@@ -946,6 +938,14 @@
         {
           "file": "src/cli/include/cli/expect_parser.h",
           "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/icmpv4_builder.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/ipv4_frame_builder.h",
+          "kind": "implements"
         }
       ]
     },
@@ -1012,10 +1012,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/stimulus/icmpv4_builder.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/_templates/ipv4_field_check.sce-template.xml",
           "kind": "implements"
         },
@@ -1078,6 +1074,10 @@
         {
           "file": "src/upper_tester/include/upper_tester/stack_probe.h",
           "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/icmpv4_builder.h",
+          "kind": "implements"
         }
       ]
     },
@@ -1113,14 +1113,6 @@
         },
         {
           "file": "src/sce_integration/ipv4_pilot_common.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/stimulus/icmpv4_builder.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/stimulus/ipv4_frame_builder.h",
           "kind": "implements"
         },
         {
@@ -1198,6 +1190,14 @@
         {
           "file": "dut/env/negative_rows.md",
           "kind": "references"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/icmpv4_builder.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/ipv4_frame_builder.h",
+          "kind": "implements"
         }
       ]
     },
@@ -1215,18 +1215,6 @@
         },
         {
           "file": "src/sce_integration/ipv4_pilot_common.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/stimulus/icmpv4_builder.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/stimulus/ipv4_frame_builder.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/stimulus/tcp_segment_builder.h",
           "kind": "implements"
         },
         {
@@ -1251,6 +1239,18 @@
         },
         {
           "file": "src/cli/include/cli/expect_parser.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/icmpv4_builder.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/ipv4_frame_builder.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/tcp_segment_builder.h",
           "kind": "implements"
         }
       ]
@@ -1294,14 +1294,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/stimulus/icmpv4_builder.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/stimulus/ipv4_frame_builder.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/ipv4_version_01/ipv4_version_01.scxml",
           "kind": "implements"
         },
@@ -1327,6 +1319,14 @@
         },
         {
           "file": "tests/ipv4_version_03_neg/ipv4_version_03_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/icmpv4_builder.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/ipv4_frame_builder.h",
           "kind": "implements"
         }
       ]
@@ -1482,14 +1482,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/stimulus/icmpv4_builder.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/stimulus/ipv4_frame_builder.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/_templates/ipv4_fragments_compound.sce-template.xml",
           "kind": "implements"
         },
@@ -1520,6 +1512,14 @@
         {
           "file": "dut/env/negative_rows.md",
           "kind": "references"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/icmpv4_builder.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/ipv4_frame_builder.h",
+          "kind": "implements"
         }
       ]
     },
@@ -1708,10 +1708,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/stimulus/upper_tester_client.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/_templates/ipv4_linklocal_announce_field.sce-template.xml",
           "kind": "implements"
         },
@@ -1738,6 +1734,10 @@
         {
           "file": "src/upper_tester/include/upper_tester/ut_server.h",
           "kind": "references"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/upper_tester_client.h",
+          "kind": "implements"
         }
       ]
     },
@@ -1794,11 +1794,11 @@
           "kind": "implements"
         },
         {
-          "file": "src/stimulus/upper_tester_client.h",
+          "file": "src/capture/include/capture/bpf_filter.h",
           "kind": "implements"
         },
         {
-          "file": "src/capture/include/capture/bpf_filter.h",
+          "file": "src/stimulus/include/stimulus/upper_tester_client.h",
           "kind": "implements"
         }
       ]
@@ -1845,10 +1845,6 @@
         },
         {
           "file": "src/sce_integration/test_runner.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/stimulus/upper_tester_client.h",
           "kind": "implements"
         },
         {
@@ -1977,6 +1973,10 @@
         },
         {
           "file": "src/sce_integration/cases/_ipv4_autoconf_traits_base.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/upper_tester_client.h",
           "kind": "implements"
         }
       ]
@@ -2194,10 +2194,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/stimulus/upper_tester_client.h",
-          "kind": "references"
-        },
-        {
           "file": "src/sce_integration/cases/_icmpv4_traits_base.h",
           "kind": "implements"
         },
@@ -2212,6 +2208,10 @@
         {
           "file": "src/dissect/include/dissect/packet_pipeline.h",
           "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/upper_tester_client.h",
+          "kind": "references"
         }
       ]
     },
@@ -2283,10 +2283,6 @@
         },
         {
           "file": "src/sce_integration/udp_pilot_common.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/stimulus/udp_datagram_builder.h",
           "kind": "implements"
         },
         {
@@ -2468,6 +2464,10 @@
         {
           "file": "dut/env/negative_rows.md",
           "kind": "references"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/udp_datagram_builder.h",
+          "kind": "implements"
         }
       ]
     },
@@ -2501,10 +2501,6 @@
         },
         {
           "file": "src/sce_integration/udp_pilot_common.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/stimulus/upper_tester_client.h",
           "kind": "implements"
         },
         {
@@ -2602,6 +2598,10 @@
         {
           "file": "dut/env/negative_rows.md",
           "kind": "references"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/upper_tester_client.h",
+          "kind": "implements"
         }
       ]
     },
@@ -2762,14 +2762,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/stimulus/dhcpv4_frame_builder.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/stimulus/upper_tester_client.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/_templates/dhcpv4_request_field.sce-template.xml",
           "kind": "implements"
         },
@@ -2812,6 +2804,14 @@
         {
           "file": "src/upper_tester/include/upper_tester/ut_server.h",
           "kind": "references"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/dhcpv4_frame_builder.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/upper_tester_client.h",
+          "kind": "implements"
         }
       ]
     },
@@ -2820,7 +2820,7 @@
       "intent": "TC8 §4.7.1 — auto-seeded TC8-internal sub-section (1 code citations at baseline).",
       "bindings": [
         {
-          "file": "src/stimulus/someip_rpc_builder.h",
+          "file": "src/stimulus/include/stimulus/someip_rpc_builder.h",
           "kind": "implements"
         }
       ]
@@ -2830,7 +2830,7 @@
       "intent": "TC8 §4.7.2 — auto-seeded TC8-internal sub-section (1 code citations at baseline).",
       "bindings": [
         {
-          "file": "src/stimulus/someip_rpc_builder.h",
+          "file": "src/stimulus/include/stimulus/someip_rpc_builder.h",
           "kind": "implements"
         }
       ]
@@ -2914,10 +2914,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/stimulus/dhcpv4_frame_builder.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/dhcpv4_client_summary_01/dhcpv4_client_summary_01.scxml",
           "kind": "implements"
         },
@@ -2943,6 +2939,10 @@
         },
         {
           "file": "tests/dhcpv4_client_summary_02_neg/dhcpv4_client_summary_02_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/dhcpv4_frame_builder.h",
           "kind": "implements"
         }
       ]
@@ -3014,10 +3014,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/stimulus/upper_tester_client.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/_templates/dhcpv4_post_bound_discover.sce-template.xml",
           "kind": "implements"
         },
@@ -3080,6 +3076,10 @@
         {
           "file": "tests/dhcpv4_client_allocating_04_neg/dhcpv4_client_allocating_04_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/upper_tester_client.h",
+          "kind": "implements"
         }
       ]
     },
@@ -3126,10 +3126,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/stimulus/upper_tester_client.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/dhcpv4_client_usage_01/dhcpv4_client_usage_01.scxml",
           "kind": "implements"
         },
@@ -3155,6 +3151,10 @@
         },
         {
           "file": "src/cli/commands/include/cli/test_command.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/upper_tester_client.h",
           "kind": "implements"
         }
       ]
@@ -3274,14 +3274,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/stimulus/dhcpv4_frame_builder.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/stimulus/upper_tester_client.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/_templates/dhcpv4_router_option_egress.sce-template.xml",
           "kind": "implements"
         },
@@ -3323,6 +3315,14 @@
         },
         {
           "file": "src/capture/include/capture/bpf_filter.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/dhcpv4_frame_builder.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/upper_tester_client.h",
           "kind": "implements"
         }
       ]
@@ -3542,10 +3542,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/stimulus/upper_tester_client.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/dhcpv4_client_initialization_allocation_01/dhcpv4_client_initialization_allocation_01.scxml",
           "kind": "implements"
         },
@@ -3636,6 +3632,10 @@
         {
           "file": "tests/dhcpv4_client_initialization_allocation_01_neg/dhcpv4_client_initialization_allocation_01_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/upper_tester_client.h",
+          "kind": "implements"
         }
       ]
     },
@@ -3693,10 +3693,6 @@
         },
         {
           "file": "src/sce_integration/tcp_pilot_common.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/stimulus/tcp_segment_builder.h",
           "kind": "implements"
         },
         {
@@ -3814,6 +3810,10 @@
         {
           "file": "src/dissect/include/dissect/packet_pipeline.h",
           "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/tcp_segment_builder.h",
+          "kind": "implements"
         }
       ]
     },
@@ -3839,10 +3839,6 @@
         },
         {
           "file": "src/sce_integration/udp_captured.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/stimulus/upper_tester_client.h",
           "kind": "implements"
         },
         {
@@ -3896,6 +3892,10 @@
         {
           "file": "src/upper_tester/include/upper_tester/ut_server.h",
           "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/upper_tester_client.h",
+          "kind": "implements"
         }
       ]
     },
@@ -3916,10 +3916,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/stimulus/tcp_segment_builder.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/tcp_header_01/tcp_header_01.scxml",
           "kind": "implements"
         },
@@ -3934,6 +3930,10 @@
         {
           "file": "tests/_templates/tcp_egress_field_check.sce-template.xml",
           "kind": "references"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/tcp_segment_builder.h",
+          "kind": "implements"
         }
       ]
     },
@@ -3955,14 +3955,6 @@
         },
         {
           "file": "src/sce_integration/tcp_pilot_common.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/stimulus/tcp_segment_builder.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/stimulus/upper_tester_client.h",
           "kind": "implements"
         },
         {
@@ -4052,6 +4044,14 @@
         {
           "file": "tests/tcp_basics_05_neg2/tcp_basics_05_neg2.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/tcp_segment_builder.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/upper_tester_client.h",
+          "kind": "implements"
         }
       ]
     },
@@ -4110,10 +4110,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/stimulus/upper_tester_client.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/tcp_probing_windows_06/tcp_probing_windows_06.scxml",
           "kind": "implements"
         },
@@ -4143,6 +4139,10 @@
         },
         {
           "file": "src/upper_tester/include/upper_tester/stack_probe.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/upper_tester_client.h",
           "kind": "implements"
         }
       ]
@@ -4208,11 +4208,11 @@
           "kind": "implements"
         },
         {
-          "file": "src/stimulus/upper_tester_client.h",
+          "file": "tests/tcp_urgent_ptr_04/tcp_urgent_ptr_04.scxml",
           "kind": "implements"
         },
         {
-          "file": "tests/tcp_urgent_ptr_04/tcp_urgent_ptr_04.scxml",
+          "file": "src/stimulus/include/stimulus/upper_tester_client.h",
           "kind": "implements"
         }
       ]
@@ -4552,14 +4552,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/stimulus/tcp_segment_builder.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/stimulus/upper_tester_client.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/tcp_checksum_01/tcp_checksum_01.scxml",
           "kind": "implements"
         },
@@ -4598,6 +4590,14 @@
         {
           "file": "dut/env/negative_rows.md",
           "kind": "references"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/tcp_segment_builder.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/upper_tester_client.h",
+          "kind": "implements"
         }
       ]
     },
@@ -4754,10 +4754,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/stimulus/upper_tester_client.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/tcp_call_abort_02/tcp_call_abort_02.scxml",
           "kind": "implements"
         },
@@ -4771,6 +4767,10 @@
         },
         {
           "file": "src/sce_integration/cases/tcp_call_abort_03.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/upper_tester_client.h",
           "kind": "implements"
         }
       ]
@@ -5164,10 +5164,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/stimulus/upper_tester_client.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/tcp_call_abort_02/tcp_call_abort_02.scxml",
           "kind": "implements"
         },
@@ -5234,6 +5230,10 @@
         {
           "file": "tests/tcp_closing_13_neg/tcp_closing_13_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/upper_tester_client.h",
+          "kind": "implements"
         }
       ]
     },
@@ -5251,10 +5251,6 @@
         },
         {
           "file": "src/sce_integration/tcp_pilot_common.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/stimulus/upper_tester_client.h",
           "kind": "implements"
         },
         {
@@ -5344,6 +5340,10 @@
         {
           "file": "tests/tcp_mss_options_09_neg2/tcp_mss_options_09_neg2.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/upper_tester_client.h",
+          "kind": "implements"
         }
       ]
     },
@@ -5392,10 +5392,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/stimulus/someip_sd_builder.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/someipsrv_sd_behavior_01/someipsrv_sd_behavior_01.scxml",
           "kind": "implements"
         },
@@ -5417,6 +5413,10 @@
         },
         {
           "file": "src/cli/commands/include/cli/test_command.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/someip_sd_builder.h",
           "kind": "implements"
         }
       ]
@@ -5616,7 +5616,7 @@
       "intent": "TC8 §5.1.5.1 — SOME/IP Server — Message Format. 27 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
-          "file": "src/stimulus/someip_rpc_builder.h",
+          "file": "src/stimulus/include/stimulus/someip_rpc_builder.h",
           "kind": "implements"
         }
       ]
@@ -6374,11 +6374,11 @@
           "kind": "implements"
         },
         {
-          "file": "src/stimulus/someip_sd_builder.h",
+          "file": "src/dissect/include/dissect/transport.h",
           "kind": "implements"
         },
         {
-          "file": "src/dissect/include/dissect/transport.h",
+          "file": "src/stimulus/include/stimulus/someip_sd_builder.h",
           "kind": "implements"
         }
       ]
@@ -6722,10 +6722,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/stimulus/someip_rpc_builder.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/_templates/someipsrv_rpc_field_check.sce-template.xml",
           "kind": "implements"
         },
@@ -6735,6 +6731,10 @@
         },
         {
           "file": "dut/dut_service/server_role.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/someip_rpc_builder.h",
           "kind": "implements"
         }
       ]
@@ -7586,15 +7586,7 @@
           "kind": "implements"
         },
         {
-          "file": "src/stimulus/someip_rpc_builder.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/stimulus/someip_sd_builder.cpp",
-          "kind": "implements"
-        },
-        {
-          "file": "src/stimulus/someip_sd_builder.h",
           "kind": "implements"
         },
         {
@@ -8178,10 +8170,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/stimulus/upper_tester_client.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/someip_ets_146_neg/someip_ets_146_neg.scxml",
           "kind": "implements"
         },
@@ -8230,10 +8218,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/stimulus/tcp_server.h",
-          "kind": "implements"
-        },
-        {
           "file": "dut/dut_service/server_role.cpp",
           "kind": "implements"
         },
@@ -8248,6 +8232,22 @@
         {
           "file": "dut/env/vsomeip_variants.md",
           "kind": "references"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/someip_rpc_builder.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/someip_sd_builder.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/upper_tester_client.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/responders/include/stimulus/tcp_server.h",
+          "kind": "implements"
         }
       ]
     },
