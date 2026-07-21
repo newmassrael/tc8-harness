@@ -27,16 +27,37 @@ namespace tc8::cli {
 // on transport failure, a malformed reply, or any non-E_OK Result ID (the RID is
 // still printed — a DUT answering E_NTF is a real answer, and the caller decides
 // whether that is the expected outcome).
+//
+// One implementation, two build footprints. Bound onto a subcommand it is the
+// tc8-harness `testability-send` verb; bound onto the root CLI::App it is the
+// standalone tc8-testability-send tool the tc8-utm SDK installs. An SDK-only
+// build (TC8_BUILD_HARNESS=OFF) has no wire runner and so no subcommand host,
+// but the addressed primitive caller depends only on the SDK-exported client —
+// not on vsomeip/libpcap/libtins — so it ships as its own executable beside the
+// client library. The option set and run() are identical either way, so the two
+// footprints cannot drift from the single codec/client path.
 class TestabilitySendCommand {
 public:
+    // Register a `testability-send` subcommand on `app` (the tc8-harness verb).
     explicit TestabilitySendCommand(CLI::App &app);
 
-    bool parsed() const { return sub_->parsed(); }
+    // Bind the same options directly onto `app` as the root command, with no
+    // subcommand layer (the standalone tc8-testability-send tool). The tag makes
+    // the overload selection explicit at the call site.
+    struct AsRootCommand {};
+    TestabilitySendCommand(CLI::App &app, AsRootCommand);
+
+    // Whether this command was selected. A root binding is always the selected
+    // command; a subcommand binding defers to whether CLI matched it.
+    bool parsed() const { return sub_ == nullptr || sub_->parsed(); }
 
     int run();
 
 private:
-    CLI::App *sub_ = nullptr;
+    // Add the shared option/flag set to `target` (a subcommand or the root app).
+    void addOptions(CLI::App &target);
+
+    CLI::App *sub_ = nullptr;  // null when bound as the root command
     std::string dut_ip_;
     std::string source_ip_;  // empty -> kernel-chosen source address
     std::string dat_hex_;    // request DAT as hex, empty -> no parameters

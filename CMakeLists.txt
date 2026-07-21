@@ -1001,6 +1001,32 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
     install(FILES ${PROJECT_SOURCE_DIR}/include/tc8/posix_socket_backend.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/tc8 COMPONENT utm-sdk)
 
+    # ── The SDK's runnable tool: tc8-testability-send ──
+    # The exported client library lets a consumer speak the protocol, but the
+    # only CLI that addresses an arbitrary (GID, PID) — testability-send — lives
+    # in the tc8-harness executable, which an SDK-only build gates off
+    # (TC8_BUILD_HARNESS=OFF, no vsomeip/libpcap/libtins). So the SDK ships that
+    # command as its own standalone executable: a consumer that links tc8-utm and
+    # attaches its service groups gets a runnable way to drive the standard groups
+    # its DUT now serves, without rebuilding the wire runner it configured out.
+    #
+    # It compiles the SAME command TU the harness does (testability_send_command
+    # .cpp) behind a thin main, and links only the exported tc8_testability_client
+    # (POSIX sockets + the header-only codec SSOT) and header-only CLI11 — none of
+    # the harness's heavy prerequisites — so there is one codec/client path and the
+    # two footprints cannot drift. Guarded by the SDK-install path, not
+    # TC8_BUILD_HARNESS, so it is present exactly when the SDK it serves is.
+    add_executable(tc8-testability-send
+        ${PROJECT_SOURCE_DIR}/src/cli/testability_send_main.cpp
+        ${PROJECT_SOURCE_DIR}/src/cli/testability_send_command.cpp)
+    target_include_directories(tc8-testability-send PRIVATE
+        ${PROJECT_SOURCE_DIR}/src
+        ${PROJECT_SOURCE_DIR}/third_party/CLI11)
+    target_link_libraries(tc8-testability-send PRIVATE tc8_testability_client)
+    tc8_enable_strict_warnings(tc8-testability-send)
+    install(TARGETS tc8-testability-send
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT utm-sdk)
+
     # ── Optional lwIP backend (utm-sdk-lwip component) ──
     # SDK surface: the lwIP SocketBackend bridge + the self-contained UTM lwipopts.
     # Shipped as SOURCE because they compile against the OEM's own (target-specific)

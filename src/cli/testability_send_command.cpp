@@ -84,28 +84,36 @@ TestabilitySendCommand::TestabilitySendCommand(CLI::App &app) {
         "and print the decoded Response. The addressable counterpart to "
         "testability-probe's fixed sweep — reaches any group, including a "
         "non-standard OEM one");
-    sub_->add_option("--dut-ip", dut_ip_, "DUT IPv4 address")->required();
-    sub_->add_option("--gid", gid_,
-                     "Service group ID, 0x00-0x7F (PRS_TPSP §6.9; standard "
-                     "groups from 0x00, non-standard down from 0x7F)")
+    addOptions(*sub_);
+}
+
+TestabilitySendCommand::TestabilitySendCommand(CLI::App &app, AsRootCommand) {
+    addOptions(app);
+}
+
+void TestabilitySendCommand::addOptions(CLI::App &target) {
+    target.add_option("--dut-ip", dut_ip_, "DUT IPv4 address")->required();
+    target.add_option("--gid", gid_,
+                      "Service group ID, 0x00-0x7F (PRS_TPSP §6.9; standard "
+                      "groups from 0x00, non-standard down from 0x7F)")
         ->required();
-    sub_->add_option("--pid", pid_,
-                     "Service primitive ID within the group, 0x00-0xFF")
+    target.add_option("--pid", pid_,
+                      "Service primitive ID within the group, 0x00-0xFF")
         ->required();
-    sub_->add_option("--dat", dat_hex_,
-                     "Request parameters as hex bytes (e.g. A1B2C3, "
-                     "'a1 b2 c3', A1:B2:C3). Omit for a primitive that takes "
-                     "none");
-    sub_->add_option("--port", port_,
-                     "Testability UDP/TCP port (default: protocol constant 30700)");
-    sub_->add_option("--service-id", service_id_,
-                     "Testability Service ID (default: 0x0105)");
-    sub_->add_option("-t,--timeout", timeout_ms_, "Reply timeout in milliseconds")
+    target.add_option("--dat", dat_hex_,
+                      "Request parameters as hex bytes (e.g. A1B2C3, "
+                      "'a1 b2 c3', A1:B2:C3). Omit for a primitive that takes "
+                      "none");
+    target.add_option("--port", port_,
+                      "Testability UDP/TCP port (default: protocol constant 30700)");
+    target.add_option("--service-id", service_id_,
+                      "Testability Service ID (default: 0x0105)");
+    target.add_option("-t,--timeout", timeout_ms_, "Reply timeout in milliseconds")
         ->capture_default_str();
-    sub_->add_flag("--tcp", use_tcp_, "Carry SOME/IP over TCP instead of UDP");
-    sub_->add_option("--source-ip", source_ip_,
-                     "Bind the request's source to this local IPv4 address "
-                     "(default: kernel-chosen)");
+    target.add_flag("--tcp", use_tcp_, "Carry SOME/IP over TCP instead of UDP");
+    target.add_option("--source-ip", source_ip_,
+                      "Bind the request's source to this local IPv4 address "
+                      "(default: kernel-chosen)");
 }
 
 int TestabilitySendCommand::run() {
