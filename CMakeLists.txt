@@ -117,24 +117,11 @@ if(TARGET sce_core)
     endif()
 endif()
 
-# Shared IPv4-family wire math — the single build-level home for src/wire
-# (RFC 1071 Internet checksum, RFC 792 ICMP echo body). Linked by the harness,
-# tc8-dut, the testability server library and the unit tests so no target names
-# the source by path (the former pattern left ip_checksum.cpp listed in four
-# CMakeLists and tempted in-tree checksum copies). Pure byte math — no syscalls,
-# no third-party deps — so it cross-compiles and the lwIP DUT port can link it.
-add_library(tc8_wire STATIC
-    src/wire/ip_checksum.cpp
-    src/wire/icmp_echo.cpp
-)
-# Every header tc8_wire exposes, and every header its .cpp compile against, lives
-# under include/tc8/wire/ (RFC 1071 checksum, RFC 792 echo body, the read/format
-# helpers) — all namespaced. So include/ is the sole PUBLIC include root; this
-# target reaches nothing through the flat src/ tree.
-target_include_directories(tc8_wire PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-)
-tc8_enable_strict_warnings(tc8_wire)
+# Shared IPv4-family wire math (tc8_wire) — RFC 1071 Internet checksum + RFC 792
+# ICMP echo body. A dependency-light leaf STATIC lib built in its own component
+# dir; linked by the harness, tc8-dut, the testability server and the unit tests,
+# and exported on the UTM SDK surface (install wiring in the TC8_UTM_INSTALL block).
+add_subdirectory(src/wire)
 
 # The tester-side AUTOSAR Testability Protocol client — the standard counterpart
 # to the DUT-side endpoint in dut/dut_service (tc8_testability_core + a backend).
