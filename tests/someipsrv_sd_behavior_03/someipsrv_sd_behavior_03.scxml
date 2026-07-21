@@ -6,26 +6,37 @@
   answer with a multicast OfferService. (Per SOMEIPSD §6.7.5.2 /
   TR_SOMEIP_00423.)
 
-  Stimulus (provided by `TestCaseTraits<...>::stimulus`):
-    - Schedule a unicast FindService (Unicast Flag = 1) emit at ~4500 ms.
-      That gives TOTAL_REP_INTV (~1.5 s) + 1× CYCLIC (~2 s) +
-      ½× CYCLIC (~1 s) of wall time so the last cyclic Offer is
-      reliably more than ½ CYCLIC ago when the Find arrives.
+  Cadence-relative timing. Emitting the Find at a fixed wall-clock offset
+  assumes the DUT's cyclic-offer timer is on an assumed schedule; under CPU
+  contention that timer skews, the Find lands at an unknown position in the
+  cycle, and a Find that arrives <½ CYCLIC after the last offer draws a
+  (correct-for-that-input) UNICAST reply — a harness-timing false fail, not a
+  DUT defect. Instead the harness ANCHORS the Find to the DUT's own offer:
+  it waits past the repetition phase into the main phase, observes one cyclic
+  OfferService, and emits the Find exactly ½ CYCLIC + margin after THAT
+  observed offer. So the last offer the DUT sent is reliably >½ CYCLIC
+  (1000 ms, cyclic_offer_delay = 2000 ms) ago and its next cyclic (at
+  +2000 ms) has not yet fired — regardless of how the DUT's SD timer skews,
+  because the anchor is the DUT's actual offer, not a clock guess.
 
-  Phase 1 (listening_pre_find): deadline 3940 ms — ends 100 ms before
-  the scheduled Find emit (4040 ms) so the SOLICITED reply lands in
-  phase 2 rather than being silently absorbed here. All pre-Find traffic
-  is absorbed: init Offer at ~T_sd+75 ms, repetitions at +275/+675/
-  +1475 ms, post-repetition Offer (rep4) at ~T_sd+3075 ms.
+  Stimulus (TestCaseTraits<...>::stimulus): scheduleAfterStateEntry on
+  `listening_offer_reply` emits the unicast Find on entry. The SCXML owns the
+  1300 ms anchor hold; the trait just fires on the symbolic state.
 
-  Phase 2 (listening_offer_reply): deadline 1500 ms — sized to catch the
-  solicited reply (~50 ms after Find emit ⇒ ~150 ms into phase 2) while
-  excluding the first true Main-Phase cyclic at ~T_sd+6000 ms (well
-  past the 1500 ms window for any reasonable T_sd-T_kick offset). Pass
-  on the DUT's solicited multicast OfferService (dst_ip ==
-  expected.sd_multicast_ip), fail on a unicast solicited reply, fail
-  on deadline. The tightened window prevents a cyclic Offer from
-  masking a unicast solicited reply.
+  Phases:
+    waiting_main_phase    — absorb the init/repetition offers; a 6500 ms timer
+      clears them across the plausible DUT-start delay so the next observed
+      offer is a clean main-phase cyclic (2000 ms cadence, ≥2000 ms follower).
+    awaiting_anchor       — the next multicast OfferService is the anchor; a
+      2600 ms deadline (>1 cyclic) guarantees one is seen or the run is
+      inconclusive (never a false fail).
+    anchored              — hold 1300 ms (½ cyclic + 300 ms) so the Find lands
+      in the multicast-reply window, then enter listening_offer_reply.
+    listening_offer_reply — the Find is emitted on entry; a 500 ms deadline
+      catches the solicited reply (~50 ms) yet fires before the next cyclic
+      (+700 ms into this state), so a cyclic Offer cannot mask a unicast
+      solicited reply. Pass on a multicast solicited OfferService, fail on a
+      unicast one, inconclusive on no reply.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -33,7 +44,7 @@
        version="1.0"
        name="someipsrv_sd_behavior_03"
        datamodel="null"
-       initial="listening_pre_find">
+       initial="waiting_main_phase">
 
   <sce:context id="captured"
                cpp:type="tc8::SomeIpCaptured"
@@ -43,16 +54,33 @@
                cpp:type="tc8::SomeIpExpected"
                cpp:include="sce_integration/someip_expected.h"/>
 
-  <state id="listening_pre_find">
+  <state id="waiting_main_phase">
     <onentry>
-      <send event="s1_pre_find_done" delay="3940ms"/>
+      <send event="main_phase_reached" delay="6500ms"/>
     </onentry>
-    <transition event="s1_pre_find_done" target="listening_offer_reply"/>
+    <transition event="main_phase_reached" target="awaiting_anchor"/>
+  </state>
+
+  <state id="awaiting_anchor">
+    <onentry>
+      <send event="anchor_timeout" delay="2600ms"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.dst_ip == expected.sd_multicast_ip"
+                target="anchored"/>
+    <transition event="anchor_timeout" target="inconclusive_no_offer_after_unicast_find"/>
+  </state>
+
+  <state id="anchored">
+    <onentry>
+      <send event="find_due" delay="1300ms"/>
+    </onentry>
+    <transition event="find_due" target="listening_offer_reply"/>
   </state>
 
   <state id="listening_offer_reply">
     <onentry>
-      <send event="s2_deadline_exceeded" delay="1500ms"/>
+      <send event="s2_deadline_exceeded" delay="500ms"/>
     </onentry>
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.dst_ip == expected.sd_multicast_ip"

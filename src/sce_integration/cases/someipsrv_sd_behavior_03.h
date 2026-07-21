@@ -1,6 +1,5 @@
 #pragma once
 
-#include <chrono>
 #include <string_view>
 
 #include "sce_integration/case_registry.h"
@@ -27,17 +26,15 @@ namespace tc8::sce {
 // Timing: vsomeip's `last_offer_shorter_half_offer_delay_ago()` reads
 // the position within the current main_phase_timer cycle (period =
 // cyclic_offer_delay = 2000 ms, anchored at SD startup T_sd). Replies
-// multicast iff position ≥ 1000 ms. Stimulus emits the unicast Find at
-// kickStimulus+4040 ms; empirical T_sd-T_kick ≈ 440 ms so the Find
-// lands at ≈ T_sd+3500 ms = position 1500 ms in cycle 1 (well past
-// the 1000 ms threshold). Robust against ±400 ms T_sd jitter — the
-// safe Δ range is (-60, 940) ms, and the post-repetition Offer at
-// ~T_sd+3075 ms (rep4) is absorbed by Phase 1 for Δ < 765 ms.
-//
-// Uses the 4-arg `IStimulusScheduler` overload to defer the emit until
-// after `kickStimulus` returns; running synchronously inside
-// `kickStimulus` would block the harness for ~4 s before the SCXML
-// is initialized and the listen window has begun.
+// multicast iff position ≥ 1000 ms. A fixed wall-clock emit offset lands
+// at an unknown cycle position once the DUT's SD timer skews under CPU
+// contention, drawing a (correct-for-that-input) unicast reply — a
+// harness-timing false fail. So the emit is CADENCE-RELATIVE: the SCXML
+// waits into the main phase, observes one cyclic OfferService (the
+// anchor), holds ½ cyclic + 300 ms, and only then enters
+// `listening_offer_reply`. This trait emits the unicast Find on entry to
+// that state — so the Find lands >½ cyclic after the DUT's own last
+// offer and before its next one, whatever the timer skew.
 template <>
 struct TestCaseTraits<cases::SdBehavior03SM>
     : SomeIpSdOnlyBase<cases::SdBehavior03SM> {
@@ -49,17 +46,17 @@ struct TestCaseTraits<cases::SdBehavior03SM>
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,
                          IStimulusScheduler& scheduler) {
-        // Emit at +4040 ms (lands at ~position 1500 ms within
-        // cyclic_offer_delay cycle, so vsomeip's
-        // last_offer_shorter_half_offer_delay_ago() returns false →
-        // multicast reply per SOMEIPSD §6.7.5.2 / SIP_SD_90).
-        // Captures iface name + DUT IP by value because the scheduler
-        // runs the action on the poll-loop thread long after this
-        // function returns.
+        // Fire the Find on entry to `listening_offer_reply`, which the SCXML
+        // reaches exactly 1300 ms (½ cyclic + margin) after it observes the
+        // anchor cyclic offer — so the anchor delay is a real SCXML timing
+        // promise, not a magic constant this trait measures. Captures iface
+        // name + DUT IP by value because the observer runs on the poll-loop
+        // thread long after this function returns.
         const std::string iface_owned(iface);
         const std::uint32_t dut_ip_be = cfg.someip.dut_iface_ip;
-        scheduler.schedule(std::chrono::milliseconds(4040),
-                           [iface_owned, dut_ip_be]() {
+        scheduler.scheduleAfterStateEntry(
+            static_cast<int>(State::Listening_offer_reply),
+            [iface_owned, dut_ip_be]() {
             // Unicast FindService (Unicast Flag = 1, the default 0xC0
             // sd_flags value carrying Reboot=1 + Unicast=1) addressed to
             // the DUT's SD endpoint.
