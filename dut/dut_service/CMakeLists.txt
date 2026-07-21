@@ -26,7 +26,6 @@ find_package(Threads REQUIRED)
 add_library(tc8_testability_ports INTERFACE)
 target_include_directories(tc8_testability_ports INTERFACE
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
-    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>
 )
 # The POSIX adapter's posix_socket_backend.cpp includes tc8/net/raw_packet_socket.h
 # and the DUT firmware includes tc8/someip/...; both are now namespaced under the
@@ -81,7 +80,6 @@ target_include_directories(tc8_upper_tester_server PUBLIC
     # moved out of the flat src/ tree; consumers (tc8-dut, ut_server_test) inherit
     # this root by linking, so upper_tester/*.h resolves only through the owner.
     ${PROJECT_SOURCE_DIR}/src/upper_tester/include
-    ${PROJECT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 tc8_enable_strict_warnings(tc8_upper_tester_server)
@@ -142,7 +140,6 @@ add_executable(tc8-dut
 )
 target_include_directories(tc8-dut PRIVATE
     ${PROJECT_SOURCE_DIR}/include
-    ${PROJECT_SOURCE_DIR}/src
     # The DUT's own dir, so an out-of-directory TC8_ETS_EXTENSION_SRC /
     # TC8_ETS_FACTORY_SRC slot file (e.g. examples/demo_ets_extension) can
     # #include "ets_extension.h" / "ets_event_sink.h" / "ets_factory.h". The

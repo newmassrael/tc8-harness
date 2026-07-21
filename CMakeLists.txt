@@ -394,12 +394,12 @@ if(TC8_BUILD_HARNESS OR TC8_BUILD_UNIT_TESTS)
     # and src/cli/include (its capture/ headers and cli/ helpers expect_parser +
     # packet_summary; the 9 tester-side cli/ command headers live under
     # src/cli/commands/include, private to the tester exes, not exposed here); and
-    # include/ for the tc8/ namespace. The flat src/ seam remains only transitionally —
-    # no bare prefix resolves through it now. PRIVATE pcap headers for the capture
-    # sources (pcap_source / bpf_filter) — a test that #includes one adds its own.
+    # include/ for the tc8/ namespace. The flat src/ -I root is gone — every prefix
+    # now resolves through an owned root, and the sce_integration/*.def X-macro
+    # fragments are included relatively from their headers. PRIVATE pcap headers for
+    # the capture sources (pcap_source / bpf_filter) — a test that #includes one adds its own.
     target_include_directories(tc8_harness_core
         PUBLIC
-            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/sce_integration/include>
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/stimulus/responders/include>
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/capture/include>
@@ -854,7 +854,6 @@ message(STATUS
     "out-of-tree extra")
 target_sources(tc8-harness PRIVATE ${TC8_CASE_STUBS})
 target_include_directories(tc8-harness PRIVATE
-    src
     # The tester's own CLI command headers (capture_driver/live/replay/test/…),
     # exposed under the cli/ prefix from their owning sub-dir. Private to the two
     # executables that compile the commands (this one and tc8-testability-send);

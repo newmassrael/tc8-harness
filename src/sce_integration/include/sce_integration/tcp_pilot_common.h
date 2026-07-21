@@ -170,7 +170,7 @@ inline constexpr std::uint16_t kRfcDefaultMss = 536U;
 // updates BOTH the named constant here AND kActiveOpenOffsetRegistry below.
 #define TC8_TCP_OFFSET(name, value)        inline constexpr std::uint16_t name = value##U;
 #define TC8_TCP_OFFSET_SPAN5(name, base)   inline constexpr std::uint16_t name = base##U;
-#include "sce_integration/tcp_active_open_offsets.def"
+#include "../../tcp_active_open_offsets.def"
 #undef TC8_TCP_OFFSET
 #undef TC8_TCP_OFFSET_SPAN5
 
@@ -342,7 +342,7 @@ inline constexpr std::uint16_t kTcpConnEstab07ListenPort     = 13179U;
     static_cast<std::uint16_t>(name + 2U), static_cast<std::uint16_t>(name + 3U), \
     static_cast<std::uint16_t>(name + 4U),
 inline constexpr std::uint16_t kActiveOpenOffsetRegistry[] = {
-#include "sce_integration/tcp_active_open_offsets.def"
+#include "../../tcp_active_open_offsets.def"
 };
 #undef TC8_TCP_OFFSET
 #undef TC8_TCP_OFFSET_SPAN5

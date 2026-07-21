@@ -241,7 +241,7 @@ bool matchExpect(std::string_view token, std::string_view prefix, T &e,
 
 // Per-group `--expect` namespace prefixes, generated from the .def GROUP rows.
 #define TC8_EXPECT_GROUP(group, prefix) constexpr std::string_view ekPrefix_##group = prefix;
-#include "cli/tc8_expect_keys.def"
+#include "tc8_expect_keys.def"
 #undef TC8_EXPECT_GROUP
 
 }  // namespace
@@ -252,7 +252,7 @@ bool applyExpectToken(std::string_view token, ::tc8::SomeIpExpectations &e) {
     static constexpr EKey<::tc8::SomeIpExpectations> kKeys[] = {
 #define TC8_EK_someip(kind, name) TC8_EK_ROW(SomeIpExpectations, kind, name)
 #define TC8_EKP_someip(name)      TC8_EKP_ROW(SomeIpExpectations, name)
-#include "cli/tc8_expect_keys.def"
+#include "tc8_expect_keys.def"
 #undef TC8_EK_someip
 #undef TC8_EKP_someip
     };
@@ -262,7 +262,7 @@ bool applyExpectToken(std::string_view token, ::tc8::SomeIpExpectations &e) {
 bool applyExpectToken(std::string_view token, ::tc8::ArpExpectations &e) {
     static constexpr EKey<::tc8::ArpExpectations> kKeys[] = {
 #define TC8_EK_arp(kind, name) TC8_EK_ROW(ArpExpectations, kind, name)
-#include "cli/tc8_expect_keys.def"
+#include "tc8_expect_keys.def"
 #undef TC8_EK_arp
     };
     return matchExpect(token, ekPrefix_arp, e, kKeys, std::size(kKeys));
@@ -271,7 +271,7 @@ bool applyExpectToken(std::string_view token, ::tc8::ArpExpectations &e) {
 bool applyExpectToken(std::string_view token, ::tc8::DutIdentity &e) {
     static constexpr EKey<::tc8::DutIdentity> kKeys[] = {
 #define TC8_EK_dut(kind, name) TC8_EK_ROW(DutIdentity, kind, name)
-#include "cli/tc8_expect_keys.def"
+#include "tc8_expect_keys.def"
 #undef TC8_EK_dut
     };
     return matchExpect(token, ekPrefix_dut, e, kKeys, std::size(kKeys));
@@ -280,7 +280,7 @@ bool applyExpectToken(std::string_view token, ::tc8::DutIdentity &e) {
 bool applyExpectToken(std::string_view token, ::tc8::ArpStimulusConfig &e) {
     static constexpr EKey<::tc8::ArpStimulusConfig> kKeys[] = {
 #define TC8_EK_arp_stimulus(kind, name) TC8_EK_ROW(ArpStimulusConfig, kind, name)
-#include "cli/tc8_expect_keys.def"
+#include "tc8_expect_keys.def"
 #undef TC8_EK_arp_stimulus
     };
     return matchExpect(token, ekPrefix_arp_stimulus, e, kKeys, std::size(kKeys));
@@ -289,7 +289,7 @@ bool applyExpectToken(std::string_view token, ::tc8::ArpStimulusConfig &e) {
 bool applyExpectToken(std::string_view token, ::tc8::Icmpv4Expectations &e) {
     static constexpr EKey<::tc8::Icmpv4Expectations> kKeys[] = {
 #define TC8_EK_icmpv4(kind, name) TC8_EK_ROW(Icmpv4Expectations, kind, name)
-#include "cli/tc8_expect_keys.def"
+#include "tc8_expect_keys.def"
 #undef TC8_EK_icmpv4
     };
     return matchExpect(token, ekPrefix_icmpv4, e, kKeys, std::size(kKeys));
@@ -298,7 +298,7 @@ bool applyExpectToken(std::string_view token, ::tc8::Icmpv4Expectations &e) {
 bool applyExpectToken(std::string_view token, ::tc8::Ipv4Expectations &e) {
     static constexpr EKey<::tc8::Ipv4Expectations> kKeys[] = {
 #define TC8_EK_ipv4(kind, name) TC8_EK_ROW(Ipv4Expectations, kind, name)
-#include "cli/tc8_expect_keys.def"
+#include "tc8_expect_keys.def"
 #undef TC8_EK_ipv4
     };
     return matchExpect(token, ekPrefix_ipv4, e, kKeys, std::size(kKeys));
@@ -307,7 +307,7 @@ bool applyExpectToken(std::string_view token, ::tc8::Ipv4Expectations &e) {
 bool applyExpectToken(std::string_view token, ::tc8::Dhcpv4Expectations &e) {
     static constexpr EKey<::tc8::Dhcpv4Expectations> kKeys[] = {
 #define TC8_EK_dhcpv4(kind, name) TC8_EK_ROW(Dhcpv4Expectations, kind, name)
-#include "cli/tc8_expect_keys.def"
+#include "tc8_expect_keys.def"
 #undef TC8_EK_dhcpv4
     };
     return matchExpect(token, ekPrefix_dhcpv4, e, kKeys, std::size(kKeys));

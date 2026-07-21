@@ -28,7 +28,7 @@ namespace tc8::sce {
 
 enum class VerdictClass {
 #define TC8_VERDICT_CLASS(Enum, name, code) Enum,
-#include "sce_integration/verdict_taxonomy.def"
+#include "../../verdict_taxonomy.def"
 #undef TC8_VERDICT_CLASS
 };
 
@@ -37,7 +37,7 @@ enum class VerdictClass {
 constexpr std::string_view verdictClassName(VerdictClass c) {
     switch (c) {
 #define TC8_VERDICT_CLASS(Enum, name, code) case VerdictClass::Enum: return name;
-#include "sce_integration/verdict_taxonomy.def"
+#include "../../verdict_taxonomy.def"
 #undef TC8_VERDICT_CLASS
     }
     return "running";
@@ -49,7 +49,7 @@ constexpr std::string_view verdictClassName(VerdictClass c) {
 constexpr VerdictClass verdictClassFromName(std::string_view name) {
 #define TC8_VERDICT_CLASS(Enum, name, code) if (n == name) return VerdictClass::Enum;
     const std::string_view n = name;
-#include "sce_integration/verdict_taxonomy.def"
+#include "../../verdict_taxonomy.def"
 #undef TC8_VERDICT_CLASS
     return VerdictClass::Fail;  // "fail" and anything unknown
 }
@@ -60,7 +60,7 @@ constexpr VerdictClass verdictClassFromName(std::string_view name) {
 constexpr int verdictExitCode(VerdictClass c) {
     switch (c) {
 #define TC8_VERDICT_CLASS(Enum, name, code) case VerdictClass::Enum: return code;
-#include "sce_integration/verdict_taxonomy.def"
+#include "../../verdict_taxonomy.def"
 #undef TC8_VERDICT_CLASS
     }
     return 1;

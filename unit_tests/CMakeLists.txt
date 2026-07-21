@@ -37,7 +37,6 @@ function(tc8_add_unit_test name)
         GTest::gtest_main
     )
     target_include_directories(${name} PRIVATE
-        ${PROJECT_SOURCE_DIR}/src
         ${PROJECT_SOURCE_DIR}/include
     )
     add_test(NAME ${name} COMMAND ${name})
@@ -53,8 +52,7 @@ endfunction()
 add_library(net_headers_strict_guard OBJECT net_headers_strict_guard.cpp)
 # tc8/net/link_control.h is namespaced under the public include/ root.
 target_include_directories(net_headers_strict_guard PRIVATE
-    ${PROJECT_SOURCE_DIR}/include
-    ${PROJECT_SOURCE_DIR}/src)
+    ${PROJECT_SOURCE_DIR}/include)
 tc8_enable_strict_warnings(net_headers_strict_guard)
 
 # Compile-only witness: the testability server builds for a single-task target
@@ -67,7 +65,6 @@ add_library(testability_single_thread_check OBJECT
     ${PROJECT_SOURCE_DIR}/src/testability/protocol_server.cpp)
 target_compile_definitions(testability_single_thread_check PRIVATE TC8_REACTOR_SINGLE_THREAD)
 target_include_directories(testability_single_thread_check PRIVATE
-    ${PROJECT_SOURCE_DIR}/src
     ${PROJECT_SOURCE_DIR}/include
 )
 
@@ -79,8 +76,7 @@ target_include_directories(testability_single_thread_check PRIVATE
 add_executable(rtnetlink_walk_test rtnetlink_walk_test.cpp)
 # tc8/net/rtnetlink.h is namespaced under the public include/ root.
 target_include_directories(rtnetlink_walk_test PRIVATE
-    ${PROJECT_SOURCE_DIR}/include
-    ${PROJECT_SOURCE_DIR}/src)
+    ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(rtnetlink_walk_test PRIVATE GTest::gtest GTest::gtest_main)
 add_test(NAME rtnetlink_walk_test COMMAND rtnetlink_walk_test)
 
@@ -92,7 +88,6 @@ add_test(NAME rtnetlink_walk_test COMMAND rtnetlink_walk_test)
 add_executable(reactor_single_thread_test reactor_single_thread_test.cpp)
 target_compile_definitions(reactor_single_thread_test PRIVATE TC8_REACTOR_SINGLE_THREAD)
 target_include_directories(reactor_single_thread_test PRIVATE
-    ${PROJECT_SOURCE_DIR}/src
     ${PROJECT_SOURCE_DIR}/include
 )
 target_link_libraries(reactor_single_thread_test PRIVATE GTest::gtest GTest::gtest_main)
@@ -185,7 +180,6 @@ add_executable(client_mode_wire_test
     ${PROJECT_SOURCE_DIR}/dut/dut_service/client_mode.cpp)
 target_include_directories(client_mode_wire_test PRIVATE
     ${PROJECT_SOURCE_DIR}/dut/dut_service
-    ${PROJECT_SOURCE_DIR}/src
     ${PROJECT_SOURCE_DIR}/include)
 # client_mode.cpp includes tc8/someip/..., namespaced under the public include/ root.
 target_link_libraries(client_mode_wire_test PRIVATE
