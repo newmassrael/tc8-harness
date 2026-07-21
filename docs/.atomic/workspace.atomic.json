@@ -66,10 +66,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/capture/bpf_filter.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/cli/capture_driver.cpp",
           "kind": "implements"
         },
@@ -180,6 +176,10 @@
         {
           "file": "tests/_templates/icmpv4_synth_neg.sce-template.xml",
           "kind": "references"
+        },
+        {
+          "file": "src/capture/include/capture/bpf_filter.h",
+          "kind": "implements"
         }
       ]
     },
@@ -656,10 +656,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/capture/bpf_filter.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/dissect/packet_pipeline.cpp",
           "kind": "implements"
         },
@@ -762,6 +758,10 @@
         {
           "file": "dut/env/negative_rows.md",
           "kind": "references"
+        },
+        {
+          "file": "src/capture/include/capture/bpf_filter.h",
+          "kind": "implements"
         }
       ]
     },
@@ -984,10 +984,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/capture/bpf_filter.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/cli/expect_parser.h",
           "kind": "implements"
         },
@@ -1078,6 +1074,10 @@
         {
           "file": "dut/env/negative_rows.md",
           "kind": "references"
+        },
+        {
+          "file": "src/capture/include/capture/bpf_filter.h",
+          "kind": "implements"
         }
       ]
     },
@@ -1684,10 +1684,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/capture/bpf_filter.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/dissect/packet_pipeline.h",
           "kind": "implements"
         },
@@ -1738,6 +1734,10 @@
         {
           "file": "src/sce_integration/cases/_fault_flavor_arm.h",
           "kind": "references"
+        },
+        {
+          "file": "src/capture/include/capture/bpf_filter.h",
+          "kind": "implements"
         }
       ]
     },
@@ -1755,10 +1755,6 @@
         },
         {
           "file": "src/capture/bpf_filter.cpp",
-          "kind": "implements"
-        },
-        {
-          "file": "src/capture/bpf_filter.h",
           "kind": "implements"
         },
         {
@@ -1799,6 +1795,10 @@
         },
         {
           "file": "src/stimulus/upper_tester_client.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/capture/include/capture/bpf_filter.h",
           "kind": "implements"
         }
       ]
@@ -2166,10 +2166,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/capture/bpf_filter.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/dissect/packet_pipeline.h",
           "kind": "implements"
         },
@@ -2212,6 +2208,10 @@
         {
           "file": "dut/env/negative_rows.md",
           "kind": "references"
+        },
+        {
+          "file": "src/capture/include/capture/bpf_filter.h",
+          "kind": "implements"
         }
       ]
     },
@@ -2718,10 +2718,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/capture/bpf_filter.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/cli/expect_parser.h",
           "kind": "implements"
         },
@@ -2811,6 +2807,10 @@
         },
         {
           "file": "include/tc8/wire/ip_checksum.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/capture/include/capture/bpf_filter.h",
           "kind": "implements"
         }
       ]
@@ -3234,10 +3234,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/capture/bpf_filter.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/cases/dhcpv4_router_option_egress_common.h",
           "kind": "implements"
         },
@@ -3323,6 +3319,10 @@
         },
         {
           "file": "src/sce_integration/dhcpv4_pilot_common.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/capture/include/capture/bpf_filter.h",
           "kind": "implements"
         }
       ]
@@ -3660,10 +3660,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/capture/bpf_filter.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/capture/pcap_source.cpp",
           "kind": "implements"
         },
@@ -3814,6 +3810,10 @@
         {
           "file": "dut/env/negative_rows.md",
           "kind": "references"
+        },
+        {
+          "file": "src/capture/include/capture/bpf_filter.h",
+          "kind": "implements"
         }
       ]
     },
@@ -5368,10 +5368,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/capture/bpf_filter.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/cli/test_command.h",
           "kind": "implements"
         },
@@ -5418,6 +5414,10 @@
         {
           "file": "dut/env/expect_overrides.md",
           "kind": "references"
+        },
+        {
+          "file": "src/capture/include/capture/bpf_filter.h",
+          "kind": "implements"
         }
       ]
     },
@@ -12446,8 +12446,16 @@
   "frames": {},
   "branches": {},
   "entities": {},
+  "entity_kinds": {},
+  "units": {},
   "predicates": {},
   "narrative_facts": {},
   "disclosure_plans": {},
-  "schema_version": 23
+  "edge_costs": {},
+  "edge_guards": {},
+  "parameters": {},
+  "parameter_deltas": {},
+  "parameter_gates": {},
+  "fact_counts": {},
+  "schema_version": 39
 }
