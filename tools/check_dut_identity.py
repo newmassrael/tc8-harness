@@ -15,7 +15,7 @@ agree, or a case binds/advertises the wrong endpoint and silently fails:
     - dut/ets/ets.fdepl                     CommonAPI deployment (instance "ETS")
   SECONDARY identity (SERVICE-ID-1 instance 0x0002, and SERVICE-ID-2 0xF4E8) used
   by the multi-instance / multi-service cases, with C++ mirrors:
-    - src/sce_integration/someip_method_dest.h  (kSi1Inst2*/kSi2UdpPort)
+    - src/sce_integration/include/sce_integration/someip_method_dest.h  (kSi1Inst2*/kSi2UdpPort)
     - the variant vsomeip JSONs + dut/ets/ets.fdepl ("ETS2") + dut/ets/ets2.fdepl
 
 These are distinct formats with no single SUPERSET source (vsomeip.json alone has
@@ -129,7 +129,7 @@ def parse_fdepl(rel):
 def main():
     try:
         cfg = parse_dut_config(_read("include/tc8/dut_config.h"))
-        md = parse_method_dest(_read("src/sce_integration/someip_method_dest.h"))
+        md = parse_method_dest(_read("src/sce_integration/include/sce_integration/someip_method_dest.h"))
         json_names = (
             "vsomeip.json",
             "vsomeip-multi-instance.json",
@@ -203,7 +203,7 @@ def main():
         for d in drift:
             print(f"  - {d}", file=sys.stderr)
         print("check_dut_identity: fix the source(s) so all named copies agree (see "
-              "include/tc8/dut_config.h + src/sce_integration/someip_method_dest.h).",
+              "include/tc8/dut_config.h + src/sce_integration/include/sce_integration/someip_method_dest.h).",
               file=sys.stderr)
         return 1
 

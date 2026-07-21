@@ -37,7 +37,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-CASES_DIR = REPO / "src" / "sce_integration" / "cases"
+CASES_DIR = REPO / "src" / "sce_integration" / "include" / "sce_integration" / "cases"
 TESTS_DIR = REPO / "tests"
 
 SCE_NS = "http://sce.dev/ext"

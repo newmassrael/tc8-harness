@@ -49,18 +49,18 @@ TC8_WIRE_U16(ICMP_ECHO_SEQ, "0x5678", cpp=src/stimulus/include/stimulus/icmpv4_b
 # Bare addresses (the value SCXML asserts). `netns` derives the `/24` CIDR it
 # configures from these, the same way bring-up derives the primary CIDRs.
 /// `kDutAliasIp4Be` — DUT-side source-IP alias (UDP_USER_INTERFACE_07).
-TC8_WIRE_IPV4(DUT_ALIAS_IP, "172.16.0.5", cpp=src/sce_integration/udp_pilot_common.h:kDutAliasIp4Be)
+TC8_WIRE_IPV4(DUT_ALIAS_IP, "172.16.0.5", cpp=src/sce_integration/include/sce_integration/udp_pilot_common.h:kDutAliasIp4Be)
 /// `kTesterAliasIp4Be` — tester-side destination-IP alias (UDP_USER_INTERFACE_08).
-TC8_WIRE_IPV4(TESTER_ALIAS_IP, "172.16.0.4", cpp=src/sce_integration/udp_pilot_common.h:kTesterAliasIp4Be)
+TC8_WIRE_IPV4(TESTER_ALIAS_IP, "172.16.0.4", cpp=src/sce_integration/include/sce_integration/udp_pilot_common.h:kTesterAliasIp4Be)
 /// `kUdpHost2IpBe` — the UDP_FIELDS_04/_05 "second host on the link" address.
 /// single-pc bring-up pins `<HOST2_IP, tester_mac>` NUD_PERMANENT on the DUT side
 /// so the DUT's egress ARP for it resolves without a real third node; the lwIP tap
 /// fixture answers ARP for it from the tap (/32). One value, two consumers.
-TC8_WIRE_IPV4(HOST2_IP, "172.16.0.3", cpp=src/sce_integration/udp_pilot_common.h:kUdpHost2IpBe)
+TC8_WIRE_IPV4(HOST2_IP, "172.16.0.3", cpp=src/sce_integration/include/sce_integration/udp_pilot_common.h:kUdpHost2IpBe)
 
 # --- DHCPv4 synthetic server/gateway — dhcpv4_default_endpoints.h -----------
 /// `kDefaultServerIdBe` — the Option-3 router the DHCPv4 CM_05/_06 conditioning pins.
-TC8_WIRE_IPV4(DHCPV4_SERVER1_IP4, "172.16.0.10", cpp=src/sce_integration/dhcpv4_default_endpoints.h:kDefaultServerIdBe)
+TC8_WIRE_IPV4(DHCPV4_SERVER1_IP4, "172.16.0.10", cpp=src/sce_integration/include/sce_integration/dhcpv4_default_endpoints.h:kDefaultServerIdBe)
 
 # --- SOME/IP-SD version + default subscribe target --------------------------
 # SSOT for the major/minor is `dut/ets/ets.fidl` (`version { major 1 minor 0 }`);

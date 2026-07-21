@@ -17,7 +17,7 @@ namespace tc8::dhcpv4_wire {
 
 // Named offsets/constants owned by the .def (TC8_DHCP_CONST rows).
 #define TC8_DHCP_CONST(name, value) inline constexpr std::uint32_t name = (value);
-#include "dhcpv4_wire.def"
+#include "sce_integration/dhcpv4_wire.def"
 #undef TC8_DHCP_CONST
 
 // Decode the RFC 951 / RFC 2131 BOOTP fixed header (op..chaddr) from `bp`
@@ -33,7 +33,7 @@ inline void decodeBootpFixedHeader(const std::uint8_t *bp, Dhcpv4Frame &df) {
 #define TC8_DHCP_ADDR(member, off) std::memcpy(&df.member, bp + (off), 4);
 #define TC8_DHCP_BYTES(member, off, len) \
     std::copy(bp + (off), bp + (off) + (len), df.member.begin());
-#include "dhcpv4_wire.def"
+#include "sce_integration/dhcpv4_wire.def"
 #undef TC8_DHCP_FIELD
 #undef TC8_DHCP_ADDR
 #undef TC8_DHCP_BYTES

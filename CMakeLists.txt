@@ -384,19 +384,23 @@ if(TC8_BUILD_HARNESS OR TC8_BUILD_UNIT_TESTS)
         src/stimulus/tcp_accept_service.cpp
         src/stimulus/subscribe_tcp_session.cpp
     )
-    # PUBLIC roots consumers inherit by linkage: the shared src/ seam (the
-    # sce_integration/ prefix it still owns — until that too gets its own root);
+    # PUBLIC roots consumers inherit by linkage: src/sce_integration/include (this
+    # lib's OWN sce_integration/ tree — case registry, spec inventory, the expected/
+    # captured helpers, and the 764 case traits headers under cases/ — moved out of
+    # the flat tree so sce_integration/*.h resolves only through here);
     # src/stimulus/responders/include (this lib's OWN socket responders — arp/method
     # responder, tcp_server/accept_service, subscribe_tcp_session — under the stimulus/
     # prefix, a separate root from tc8_stimulus's builder headers); src/capture/include
     # and src/cli/include (its capture/ headers and cli/ helpers expect_parser +
     # packet_summary; the 9 tester-side cli/ command headers live under
     # src/cli/commands/include, private to the tester exes, not exposed here); and
-    # include/ for the tc8/ namespace. PRIVATE pcap headers for the capture sources
-    # (pcap_source / bpf_filter) — a test that #includes a capture header adds its own.
+    # include/ for the tc8/ namespace. The flat src/ seam remains only transitionally —
+    # no bare prefix resolves through it now. PRIVATE pcap headers for the capture
+    # sources (pcap_source / bpf_filter) — a test that #includes one adds its own.
     target_include_directories(tc8_harness_core
         PUBLIC
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/sce_integration/include>
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/stimulus/responders/include>
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/capture/include>
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/cli/include>
@@ -444,11 +448,11 @@ add_executable(tc8-harness
 )
 
 # Each TC8 case lives in tests/<case_id>/ with its SCXML. The matching
-# src/sce_integration/cases/<case_id>.h carries the TestCaseTraits
+# src/sce_integration/include/sce_integration/cases/<case_id>.h carries the TestCaseTraits
 # specialization and a TC8_REGISTER_CASE() inline registrar. CMake generates
 # a thin translation unit per case that includes the header, forcing the
 # registrar to be pulled into the final link — so adding a case is just
-# tests/<id>/<id>.scxml + src/sce_integration/cases/<id>.h.
+# tests/<id>/<id>.scxml + src/sce_integration/include/sce_integration/cases/<id>.h.
 #
 # Out-of-tree extension points, for consumers embedding tc8-harness via
 # FetchContent/add_subdirectory without forking it:
@@ -465,7 +469,7 @@ add_executable(tc8-harness
 #                            in-tree case is a configure error (typo guard).
 #
 # Traits header resolution for every collected case: <case_dir>/<case_id>.h
-# first, then src/sce_integration/cases/<case_id>.h. An override that ships
+# first, then src/sce_integration/include/sce_integration/cases/<case_id>.h. An override that ships
 # only the .scxml therefore reuses the in-tree traits (SCXML-level
 # override); shipping <case_id>.h alongside replaces the whole case. New
 # out-of-tree cases must carry their own traits header.
@@ -499,15 +503,15 @@ if(NOT DEFINED TC8_EXTRA_CASE_SUITES)
 endif()
 
 # The in-tree default suite name has its single source of truth in the C++
-# constant kDefaultSuite (src/sce_integration/case_registry.h). Derive it here
+# constant kDefaultSuite (src/sce_integration/include/sce_integration/case_registry.h). Derive it here
 # rather than restating the literal, so the configure-time suite logic and the
 # runtime registry can never disagree on the default suite's name.
-file(STRINGS src/sce_integration/case_registry.h _tc8_kdefault_line
+file(STRINGS src/sce_integration/include/sce_integration/case_registry.h _tc8_kdefault_line
      REGEX "kDefaultSuite[ \t]*=[ \t]*\"[^\"]+\"")
 if(NOT _tc8_kdefault_line)
     message(FATAL_ERROR
         "TC8: could not derive the default suite name from kDefaultSuite in "
-        "src/sce_integration/case_registry.h — update the SSOT-extraction regex")
+        "src/sce_integration/include/sce_integration/case_registry.h — update the SSOT-extraction regex")
 endif()
 string(REGEX REPLACE ".*\"([^\"]+)\".*" "\\1" TC8_DEFAULT_SUITE "${_tc8_kdefault_line}")
 
@@ -632,14 +636,14 @@ function(tc8_add_case case_dir origin suite)
     set(traits_kind "case-local")
     if(NOT EXISTS ${case_header})
         set(case_header
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/sce_integration/cases/${case_id}.h)
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/sce_integration/include/sce_integration/cases/${case_id}.h)
         set(traits_kind "in-tree")
     endif()
     if(NOT EXISTS ${case_header})
         message(FATAL_ERROR
             "TC8: case '${case_id}' (${case_dir}): no traits header at "
             "${case_dir}/${case_id}.h or "
-            "src/sce_integration/cases/${case_id}.h")
+            "src/sce_integration/include/sce_integration/cases/${case_id}.h")
     endif()
 
     if(_suite STREQUAL "")

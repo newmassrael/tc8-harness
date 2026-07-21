@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - 'site/**'
-      - 'src/sce_integration/cases/**'
+      - 'src/sce_integration/include/sce_integration/cases/**'
       - 'tests/**/*.scxml'
       - 'docs/spec/case_inventory.json'
       - 'docs/spec/inventory_overrides.json'

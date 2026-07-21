@@ -109,8 +109,8 @@ since  = "2026-05-13 (TC8 adoption Phase E closure)"
 
 [[orphan_ledger]]
 kind = "inventory_citation"
-doc  = "src/sce_integration/ipv4_captured.h"
-from = "src/sce_integration/ipv4_captured.h"
+doc  = "src/sce_integration/include/sce_integration/ipv4_captured.h"
+from = "src/sce_integration/include/sce_integration/ipv4_captured.h"
 to   = "IPv4_OPTIONS_01"
 reason = "Historical: same rationale as packet_pipeline.cpp:121"
 since  = "2026-05-13 (TC8 adoption Phase E closure)"

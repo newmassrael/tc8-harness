@@ -44,7 +44,7 @@ flowchart LR
 ```
 
 Each TC8 case lives at `tests/<case_id>/<case_id>.scxml` plus a
-matching `src/sce_integration/cases/<case_id>.h` that specialises
+matching `src/sce_integration/include/sce_integration/cases/<case_id>.h` that specialises
 `TestCaseTraits<SM>`. Adding a case = those two files. CMake auto-wires
 the rest (codegen, registration, BPF group, build dependency on
 `tests/_templates/*.sce-template.xml` fragments via SCE's
@@ -789,7 +789,7 @@ cache variables inject cases from outside the source tree:
 
 Traits header resolution for every collected case tries
 `<case_dir>/<case_id>.h` first, then falls back to
-`src/sce_integration/cases/<case_id>.h`. So:
+`src/sce_integration/include/sce_integration/cases/<case_id>.h`. So:
 
 - **SCXML-only override** — ship only `<id>.scxml`; the in-tree traits
   (stimulus, BPF group, verdict strings) are reused. Use this to adjust

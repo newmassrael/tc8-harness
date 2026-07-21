@@ -43,7 +43,7 @@ flowchart LR
 ```
 
 각 TC8 케이스는 `tests/<case_id>/<case_id>.scxml` 한 개와, `TestCaseTraits<SM>`을
-특수화하는 `src/sce_integration/cases/<case_id>.h` 한 개로 구성됩니다.
+특수화하는 `src/sce_integration/include/sce_integration/cases/<case_id>.h` 한 개로 구성됩니다.
 케이스 추가 = 이 두 파일만 작성하면 됩니다. 나머지(코드젠, 등록, BPF
 그룹, `tests/_templates/*.sce-template.xml` 조각에 대한 빌드 의존성 추적)는
 CMake가 SCE의 `--write-deps`를 통해 자동으로 처리합니다.
@@ -735,7 +735,7 @@ FetchContent, git 서브모듈, 벤더링 스냅샷 모두 가능합니다. 두 
 | `TC8_CASE_OVERRIDE_DIRS` | `;` 구분 디렉토리 목록. 케이스 서브디렉토리가 같은 이름의 in-tree `tests/<case_id>/`를 **대체**합니다. 일치하는 in-tree 케이스가 없으면 configure 에러입니다. |
 
 수집된 모든 케이스의 traits 헤더는 `<case_dir>/<case_id>.h`를 먼저
-찾고, 없으면 `src/sce_integration/cases/<case_id>.h`로 폴백합니다.
+찾고, 없으면 `src/sce_integration/include/sce_integration/cases/<case_id>.h`로 폴백합니다.
 따라서:
 
 - **SCXML-only 오버라이드** — `<id>.scxml`만 배치하면 in-tree traits
