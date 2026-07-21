@@ -55,19 +55,19 @@ jobs:
           path: ~/.cargo/bin/mnemosyne-cli
           # Pin to upstream commit so the gate is reproducible. Bump when
           # adopting a newer Mnemosyne (e.g., when a Round NN fix is needed).
-          key: mnemosyne-cli-${{ runner.os }}-f71306b7
+          key: mnemosyne-cli-${{ runner.os }}-eaeedbb6
 
       - name: Install mnemosyne-cli (cache miss only)
         if: steps.cache-mnemosyne.outputs.cache-hit != 'true'
-        # f71306b7 = Round 538 (upstream HEAD). Pin-forward from R470
-        # (10d26cd3): the local CLI advanced to an atomic-store schema
-        # (22) that the R470 pin rejected with
-        # "schema version mismatch: store=22 expected <= 19", so CI
+        # eaeedbb6 = upstream HEAD (mnemosyne-engine + render). Pin-forward
+        # from f71306b7 (R538): the local CLI advanced to atomic-store schema
+        # 39, which the f71306b7 pin rejected with
+        # "schema version mismatch: store=39 expected <= 23", so CI
         # must track the local CLI to validate the same store.
         # Policy: the pin tracks the local CLI, never the reverse.
         run: |
           cargo install --git https://github.com/newmassrael/mnemosyne \
-            --rev f71306b7 mnemosyne-cli
+            --rev eaeedbb6 mnemosyne-cli
 
       - name: validate-workspace
         run: mnemosyne-cli validate-workspace
