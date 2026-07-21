@@ -43,7 +43,7 @@ function(tc8_add_unit_test name)
     add_test(NAME ${name} COMMAND ${name})
 endfunction()
 
-# Strict-set compile witness for libs/common/net/link_control.h (the only net header
+# Strict-set compile witness for tc8/net/link_control.h (the only net header
 # with no strict production consumer — rtnetlink.h is now strict-compiled via the
 # strict-gated tc8_posix_backend, but link_control.h is included only by unit-test
 # TUs, which are not strict-gated). Without this, a glibc-macro cast/conversion
@@ -51,9 +51,10 @@ endfunction()
 # (an OEM conformance case) hit it. This OBJECT target compiles it UNDER the strict
 # gate so the contract is build-enforced and cannot regress. Compile, no link.
 add_library(net_headers_strict_guard OBJECT net_headers_strict_guard.cpp)
-target_include_directories(net_headers_strict_guard PRIVATE ${PROJECT_SOURCE_DIR}/src)
-# The "net/..." headers under test now live in tc8_common (libs/common), not src/.
-target_link_libraries(net_headers_strict_guard PRIVATE tc8_common)
+# tc8/net/link_control.h is namespaced under the public include/ root.
+target_include_directories(net_headers_strict_guard PRIVATE
+    ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/src)
 tc8_enable_strict_warnings(net_headers_strict_guard)
 
 # Compile-only witness: the testability server builds for a single-task target
@@ -76,9 +77,11 @@ target_include_directories(testability_single_thread_check PRIVATE
 # and walks an empty lo table, so rtaOk/rtaNext/rtaData run nowhere else in the
 # hosted CI lane. Needs only the header (src on the include path) + GTest.
 add_executable(rtnetlink_walk_test rtnetlink_walk_test.cpp)
-target_include_directories(rtnetlink_walk_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
-# The rtnetlink walk helpers under test now live in tc8_common (libs/common/net).
-target_link_libraries(rtnetlink_walk_test PRIVATE GTest::gtest GTest::gtest_main tc8_common)
+# tc8/net/rtnetlink.h is namespaced under the public include/ root.
+target_include_directories(rtnetlink_walk_test PRIVATE
+    ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/src)
+target_link_libraries(rtnetlink_walk_test PRIVATE GTest::gtest GTest::gtest_main)
 add_test(NAME rtnetlink_walk_test COMMAND rtnetlink_walk_test)
 
 # The reactor compiled for a single-task (no-std::thread) target: -DTC8_REACTOR_
@@ -184,9 +187,9 @@ target_include_directories(client_mode_wire_test PRIVATE
     ${PROJECT_SOURCE_DIR}/dut/dut_service
     ${PROJECT_SOURCE_DIR}/src
     ${PROJECT_SOURCE_DIR}/include)
-# client_mode.cpp includes "someip/...", now owned by tc8_common (libs/common).
+# client_mode.cpp includes tc8/someip/..., namespaced under the public include/ root.
 target_link_libraries(client_mode_wire_test PRIVATE
-    GTest::gtest GTest::gtest_main Threads::Threads tc8_common)
+    GTest::gtest GTest::gtest_main Threads::Threads)
 add_test(NAME client_mode_wire_test COMMAND client_mode_wire_test)
 
 # Availability-gated Request buffer (dut/dut_service/pending_requests.h): the

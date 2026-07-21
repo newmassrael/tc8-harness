@@ -1,4 +1,4 @@
-// Hermetic functional test for the netlink walk helpers in libs/common/net/rtnetlink.h
+// Hermetic functional test for the netlink walk helpers in tc8/net/rtnetlink.h
 // (nlmsgOk/nlmsgNext/rtaOk/rtaNext/nlmsgData/rtaData). The only other exercise of
 // these on real entries is the privileged netns neighbor fixture, which self-skips
 // without CAP_NET_ADMIN AND walks an empty `lo` table (no rtattrs) — so rtaOk /
@@ -6,7 +6,7 @@
 // synthetic RTM_NEWNEIGH dump in memory and walks it, with no privilege, pinning
 // the helpers byte-for-byte against the glibc NLMSG_*/RTA_* layout they mirror.
 
-#include "net/rtnetlink.h"
+#include "tc8/net/rtnetlink.h"
 
 #include <sys/socket.h>
 

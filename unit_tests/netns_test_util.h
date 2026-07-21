@@ -10,7 +10,7 @@
 #include <cstring>
 #include <utility>
 
-#include "net/rtnetlink.h"
+#include "tc8/net/rtnetlink.h"
 #include "tc8/posix_socket_backend.h"
 
 // Scaffolding shared by the privileged netns tests (neighbor ops, interface

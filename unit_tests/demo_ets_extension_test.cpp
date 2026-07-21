@@ -29,7 +29,7 @@
 #include "ets_extension.h"
 #include "ets_io_host.h"
 #include "ets_payload.h"  // payloadBytes (vsomeip-free SSOT, exercised below)
-#include "someip/protocol.h"  // someip::MessageType / ReturnCode (EtsReply fields)
+#include "tc8/someip/protocol.h"  // someip::MessageType / ReturnCode (EtsReply fields)
 
 namespace {
 

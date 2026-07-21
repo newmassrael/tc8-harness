@@ -9,7 +9,7 @@
 
 namespace tc8::testability {
 
-// The shared socket seam lives in tc8::net (src/net/socket_backend.h); the
+// The shared socket seam lives in tc8::net (tc8/net/socket_backend.h); the
 // testability core speaks its endpoint type, so import the name here.
 using net::Endpoint;
 

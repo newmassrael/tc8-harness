@@ -8,7 +8,7 @@
 #include <gtest/gtest.h>
 
 #include "tc8/autosar/someiptp.h"
-#include "someip/protocol.h"
+#include "tc8/someip/protocol.h"
 #include "stimulus/method_responder.h"
 #include "stimulus/someip_rpc_builder.h"
 #include "stimulus/udp_emit.h"

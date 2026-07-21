@@ -1,6 +1,6 @@
 #include "someip_header.h"
 
-#include "someip/wire.h"
+#include "tc8/someip/wire.h"
 
 namespace tc8::dissect {
 

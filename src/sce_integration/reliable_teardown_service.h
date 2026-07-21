@@ -6,7 +6,7 @@
 
 #include "sce_integration/captured_frame_observer.h"
 #include "sce_integration/tcp_pilot_common.h"  // tcp::TesterInboundDropScope (INPUT DROP RAII).
-#include "someip/protocol.h"                    // MessageType::NOTIFICATION.
+#include "tc8/someip/protocol.h"                    // MessageType::NOTIFICATION.
 #include "stimulus/subscribe_tcp_session.h"
 #include "tc8/captured_event.h"
 

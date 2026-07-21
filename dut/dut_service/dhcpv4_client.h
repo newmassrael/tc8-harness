@@ -10,7 +10,7 @@
 
 #include "tc8/upper_tester_protocol.h"
 
-#include "net/raw_packet_socket.h"
+#include "tc8/net/raw_packet_socket.h"
 
 namespace tc8::dut {
 

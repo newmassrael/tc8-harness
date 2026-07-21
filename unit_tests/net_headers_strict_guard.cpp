@@ -1,5 +1,5 @@
-// Strict-set compile witness for libs/common/net/link_control.h (the setLinkState
-// link-loss fault injector) and the libs/common/net/rtnetlink.h SSOT it pulls in.
+// Strict-set compile witness for tc8/net/link_control.h (the setLinkState
+// link-loss fault injector) and the tc8/net/rtnetlink.h SSOT it pulls in.
 //
 // rtnetlink.h is now strict-compiled in PRODUCTION via tc8_posix_backend
 // (posix_socket_backend.cpp includes it and that target is strict-gated). But
@@ -12,7 +12,7 @@
 // -Wold-style-cast / -Wsign-conversion checks fire while parsing the inline
 // bodies, which is all the guard needs. Referencing setLinkState ODR-uses the
 // inline entry point and documents intent; the function is never called.
-#include "net/link_control.h"
+#include "tc8/net/link_control.h"
 
 namespace tc8::net::detail {
 

@@ -32,8 +32,8 @@
 #include <gtest/gtest.h>
 
 #include "netns_test_util.h"
-#include "someip/protocol.h"
-#include "someip/wire.h"
+#include "tc8/someip/protocol.h"
+#include "tc8/someip/wire.h"
 #include "stimulus/someip_rpc_builder.h"
 #include "stimulus/udp_emit.h"
 

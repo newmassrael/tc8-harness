@@ -8,7 +8,7 @@
 #include "sce_integration/captured_frame_timing.h"
 #include "sce_integration/captured_l3_endpoints.h"
 #include "sce_integration/captured_l4_ports.h"
-#include "wire/wire_format.h"  // tc8::wire::macToHex / ipv4ToDotted (neutral leaf, TD-10)
+#include "tc8/wire/wire_format.h"  // tc8::wire::macToHex / ipv4ToDotted (neutral leaf, TD-10)
 
 // Transition trace recording infrastructure (Evidence Export — Option 3).
 //
@@ -86,7 +86,7 @@ inline void appendJsonEscaped(std::string &out, std::string_view s) {
 // Append a 6-byte MAC array as a JSON string (quoted colon-separated lowercase
 // hex, e.g. "86:e1:db:ae:77:f3"). Used by every Captured family's
 // appendCapturedJson when emitting sender_hw / eth_src style fields. The bare
-// (unquoted) formatter is tc8::wire::macToHex (src/wire/wire_format.h) — a neutral
+// (unquoted) formatter is tc8::wire::macToHex (tc8/wire/wire_format.h) — a neutral
 // leaf the decode-pcap exporter also shares (TD-10); this wraps it for JSON.
 template <typename ByteArray>
 inline void appendMacJson(std::string &out, const ByteArray &mac) {
@@ -98,7 +98,7 @@ inline void appendMacJson(std::string &out, const ByteArray &mac) {
 // Append an NBO-stored IPv4 address as a JSON string (quoted dotted-quad). `ip` is
 // the uint32 with the wire's first octet in the low byte (LE host / NBO convention
 // shared by the whole harness). The bare (unquoted) formatter is
-// tc8::wire::ipv4ToDotted (src/wire/wire_format.h) — a neutral leaf the decode-pcap
+// tc8::wire::ipv4ToDotted (tc8/wire/wire_format.h) — a neutral leaf the decode-pcap
 // exporter also shares (TD-10); this wraps it for JSON.
 inline void appendIpv4Json(std::string &out, std::uint32_t ip) {
     out.push_back('"');

@@ -10,7 +10,7 @@
 #include <utility>
 #include <vector>
 
-#include "someip/sd_wire_constants.h"  // sd_flags::kRebootUnicast — SD header flags SSOT.
+#include "tc8/someip/sd_wire_constants.h"  // sd_flags::kRebootUnicast — SD header flags SSOT.
 #include "stimulus/boot_timing.h"
 #include "tc8/dut_config.h"  // kSdPort / kSdMcastGroup — SD port/group SSOT.
 

@@ -8,8 +8,8 @@
 #include <string_view>
 #include <type_traits>
 
-#include "someip/sd_wire_constants.h"  // sd_option_type / sd_l4_proto / sd_entry_type (neutral wire values)
-#include "wire/wire_read.h"
+#include "tc8/someip/sd_wire_constants.h"  // sd_option_type / sd_l4_proto / sd_entry_type (neutral wire values)
+#include "tc8/wire/wire_read.h"
 
 // Neutral SOME/IP-SD payload decoder (docs/tech-debt.md TD-06/TD-05 north star:
 // one authoritative decoder, pure presentation on top). This leaf owns the SD
@@ -120,7 +120,7 @@ inline void decodeSdEntry(SdEntry &dst, const std::uint8_t *src) {
 #define TC8_SD_ENTRY_FIELD(group, member, off, size, shift, mask) \
     dst.member = static_cast<decltype(dst.member)>(              \
         (::tc8::wire::readBe(src + (off), (size)) >> (shift)) & (mask));
-#include "someip/someip_sd_wire.def"
+#include "tc8/someip/someip_sd_wire.def"
 #undef TC8_SD_ENTRY_FIELD
 }
 
@@ -358,7 +358,7 @@ inline void parseSdInto(SdDecoded &d, const std::uint8_t *payload, std::size_t p
 #define TC8_SD_HEADER_FIELD(member, off, size, shift, mask) \
     d.member = static_cast<decltype(d.member)>(            \
         (::tc8::wire::readBe(payload + (off), (size)) >> (shift)) & (mask));
-#include "someip/someip_sd_wire.def"
+#include "tc8/someip/someip_sd_wire.def"
 #undef TC8_SD_HEADER_FIELD
 
     if (payload_len < 8) {
@@ -367,7 +367,7 @@ inline void parseSdInto(SdDecoded &d, const std::uint8_t *payload, std::size_t p
 #define TC8_SD_ENTRIESLEN_FIELD(member, off, size, shift, mask) \
     d.member = static_cast<decltype(d.member)>(                \
         (::tc8::wire::readBe(payload + (off), (size)) >> (shift)) & (mask));
-#include "someip/someip_sd_wire.def"
+#include "tc8/someip/someip_sd_wire.def"
 #undef TC8_SD_ENTRIESLEN_FIELD
 
     // Parse entries. Each entry is kSdEntrySizeBytes at offset 8 + i*size. Stop
@@ -468,7 +468,7 @@ inline void parseSdInto(SdDecoded &d, const std::uint8_t *payload, std::size_t p
             dst.member = static_cast<decltype(dst.member)>( \
                 (::tc8::wire::readBe(o + (off), (size)) >> (shift)) & (mask));
 #define TC8_SD_OPTION_ADDR(member, off) std::memcpy(&dst.member, o + (off), 4);
-#include "someip/someip_sd_wire.def"
+#include "tc8/someip/someip_sd_wire.def"
 #undef TC8_SD_OPTION_FIELD
 #undef TC8_SD_OPTION_ADDR
         }

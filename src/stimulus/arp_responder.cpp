@@ -11,7 +11,7 @@
 #include <unistd.h>
 #include <utility>
 
-#include "someip/wire.h"           // getBe16 (shared big-endian reader SSOT)
+#include "tc8/someip/wire.h"           // getBe16 (shared big-endian reader SSOT)
 #include "stimulus/arp_builder.h"  // ArpFrameSpec / buildArpFrame / sendRawEthernet
 #include "stimulus/iface_addr.h"   // ipv4FromWire (shared NBO-IPv4 reader SSOT)
 

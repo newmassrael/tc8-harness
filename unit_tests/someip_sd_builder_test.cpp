@@ -5,7 +5,7 @@
 
 #include <gtest/gtest.h>
 
-#include "someip/sd_decode.h"
+#include "tc8/someip/sd_decode.h"
 #include "stimulus/someip_sd_builder.h"
 
 namespace tc8::stimulus {

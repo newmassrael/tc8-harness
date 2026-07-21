@@ -8,7 +8,7 @@
 #include <string_view>
 #include <vector>
 
-#include "someip/protocol.h"             // MessageType / ReturnCode (shared wire constants).
+#include "tc8/someip/protocol.h"             // MessageType / ReturnCode (shared wire constants).
 #include "stimulus/arp_builder.h"        // kEthBroadcast (Ethernet dst default, SSOT).
 #include "stimulus/endpoint.h"           // Endpoint — MethodEndpoint aliases it (SSOT).
 #include "stimulus/someip_sd_builder.h"  // BootTiming for shared envelope.

@@ -1,7 +1,7 @@
 #include "client_mode.h"
 
 #include "client_mode_wire.h"
-#include "someip/wire.h"
+#include "tc8/someip/wire.h"
 #include "tc8/dut_config.h"  // kSdPort / kSdMcastGroup — SD port/group SSOT
 
 #include <arpa/inet.h>

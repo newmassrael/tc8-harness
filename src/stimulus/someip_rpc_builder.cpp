@@ -10,7 +10,7 @@
 #include <thread>
 #include <unistd.h>
 
-#include "someip/wire.h"
+#include "tc8/someip/wire.h"
 #include "stimulus/iface_addr.h"
 #include "stimulus/tcp_client.h"
 #include "stimulus/udp_emit.h"

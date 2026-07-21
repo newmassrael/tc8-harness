@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <vector>
 
-#include "someip/protocol.h"
+#include "tc8/someip/protocol.h"
 
 namespace tc8::someip {
 

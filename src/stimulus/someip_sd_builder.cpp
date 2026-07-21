@@ -9,9 +9,9 @@
 #include <thread>
 #include <utility>
 
-#include "someip/protocol.h"  // tc8::someip::kSdServiceId / kSdMethodId (SD Message ID SSOT)
-#include "someip/sd_wire_constants.h"  // sd_option_type / sd_l4_proto / sd_entry_type (wire values SSOT)
-#include "someip/wire.h"
+#include "tc8/someip/protocol.h"  // tc8::someip::kSdServiceId / kSdMethodId (SD Message ID SSOT)
+#include "tc8/someip/sd_wire_constants.h"  // sd_option_type / sd_l4_proto / sd_entry_type (wire values SSOT)
+#include "tc8/someip/wire.h"
 #include "stimulus/iface_addr.h"
 #include "stimulus/udp_emit.h"
 #include "tc8/dut_config.h"

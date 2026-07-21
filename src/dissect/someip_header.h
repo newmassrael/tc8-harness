@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <optional>
 
-#include "someip/protocol.h"
+#include "tc8/someip/protocol.h"
 
 namespace tc8::dissect {
 

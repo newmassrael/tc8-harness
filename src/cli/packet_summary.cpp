@@ -8,10 +8,10 @@
 #include <variant>
 #include <vector>
 
-#include "someip/protocol.h"                  // tc8::someip::MessageType / ReturnCode / isSdMessageId
-#include "someip/sd_decode.h"                 // SdDecoded + parseSdInto + sd_entry_type/sd_option_type (neutral SD decode)
+#include "tc8/someip/protocol.h"                  // tc8::someip::MessageType / ReturnCode / isSdMessageId
+#include "tc8/someip/sd_decode.h"                 // SdDecoded + parseSdInto + sd_entry_type/sd_option_type (neutral SD decode)
 #include "tc8/upper_tester_protocol.h"        // tc8::ut::Opcode / decodeResponse / kPort / kStatus*
-#include "wire/wire_format.h"                 // tc8::wire::ipv4ToDotted / macToHex (neutral leaf, TD-10)
+#include "tc8/wire/wire_format.h"                 // tc8::wire::ipv4ToDotted / macToHex (neutral leaf, TD-10)
 
 namespace tc8::cli {
 
@@ -51,7 +51,7 @@ std::string join(const std::vector<std::string> &parts, const char *sep) {
 // ---------------------------------------------------------------------------
 
 // Value->meaning for both of these is the shared SSOT enum
-// (libs/common/someip/protocol.h, owned by neither builder nor parser); this only
+// (tc8/someip/protocol.h, owned by neither builder nor parser); this only
 // attaches a display string. A wire value the harness does not model (e.g. the
 // *Ack message-type family) matches no enumerator and falls through to the
 // caller's numeric form.

@@ -11,8 +11,8 @@
 #include "tc8/protocol_frames/someip_frame.h"
 
 #include "tc8/autosar/someiptp.h"
-#include "someip/protocol.h"
-#include "someip/sd_decode.h"  // SdDecoded mixin + SD structs/namespaces + parseSdInto (neutral SD decode leaf)
+#include "tc8/someip/protocol.h"
+#include "tc8/someip/sd_decode.h"  // SdDecoded mixin + SD structs/namespaces + parseSdInto (neutral SD decode leaf)
 #include "sce_integration/captured_frame_timing.h"
 #include "sce_integration/captured_l3_endpoints.h"
 #include "sce_integration/captured_l4_ports.h"

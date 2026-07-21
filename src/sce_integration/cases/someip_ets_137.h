@@ -9,7 +9,7 @@
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_someipsrv_traits_base.h"
 #include "sce_integration/test_runner.h"
-#include "someip/protocol.h"  // tc8::someip::kSdServiceId / kSdMethodId (SD Message ID SSOT)
+#include "tc8/someip/protocol.h"  // tc8::someip::kSdServiceId / kSdMethodId (SD Message ID SSOT)
 #include "stimulus/someip_sd_builder.h"
 
 #include "someip_ets_137_sm.h"

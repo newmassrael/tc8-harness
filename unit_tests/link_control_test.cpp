@@ -7,7 +7,7 @@
 
 #include <gtest/gtest.h>
 
-#include "net/link_control.h"
+#include "tc8/net/link_control.h"
 #include "netns_test_util.h"
 
 namespace tc8::net {

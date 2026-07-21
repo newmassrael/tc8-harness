@@ -5,7 +5,7 @@
 #include <utility>
 #include <vector>
 
-#include "someip/protocol.h"  // someip::MessageType / ReturnCode
+#include "tc8/someip/protocol.h"  // someip::MessageType / ReturnCode
 
 namespace tc8::dut {
 

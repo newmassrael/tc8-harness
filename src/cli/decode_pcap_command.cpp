@@ -19,7 +19,7 @@
 #include "cli/packet_summary.h"                // Candidate + makeCandidate (presentation layer, TD-08)
 #include "dissect/packet_pipeline.h"
 #include "sce_integration/captured_trace.h"    // tc8::sce::appendJsonEscaped (JSON escaping)
-#include "wire/wire_format.h"                   // tc8::wire::ipv4ToDotted / macToHex (neutral leaf, TD-10)
+#include "tc8/wire/wire_format.h"                   // tc8::wire::ipv4ToDotted / macToHex (neutral leaf, TD-10)
 
 namespace tc8::cli {
 

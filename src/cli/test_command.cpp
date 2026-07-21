@@ -23,7 +23,7 @@
 
 #include "capture/bpf_filter.h"
 #include "capture/pcap_source.h"
-#include "net/link_control.h"  // captureSnaplenFor
+#include "tc8/net/link_control.h"  // captureSnaplenFor
 #include "cli/expect_parser.h"
 #include "cli/signal_handler.h"
 #include "dissect/packet_pipeline.h"
