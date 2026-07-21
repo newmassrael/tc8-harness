@@ -127,12 +127,12 @@ add_library(tc8_wire STATIC
     src/wire/ip_checksum.cpp
     src/wire/icmp_echo.cpp
 )
-# include/ carries the public headers (tc8/wire/*.h), including the wire read/format
-# helpers now namespaced under tc8/wire/. The .cpp compile against those; src/ stays
-# only as the shared root the other bare-prefix components still reach.
+# Every header tc8_wire exposes, and every header its .cpp compile against, lives
+# under include/tc8/wire/ (RFC 1071 checksum, RFC 792 echo body, the read/format
+# helpers) — all namespaced. So include/ is the sole PUBLIC include root; this
+# target reaches nothing through the flat src/ tree.
 target_include_directories(tc8_wire PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
 )
 tc8_enable_strict_warnings(tc8_wire)
 
@@ -155,12 +155,12 @@ tc8_enable_strict_warnings(tc8_wire)
 add_library(tc8_testability_client STATIC
     src/stimulus/testability_client.cpp
 )
-# include/ carries the codec SSOT the header includes; src/ carries this header's
-# own "stimulus/..." include prefix. Both PUBLIC so a consumer inherits them, and
-# both roots collapse onto the single install-tree include root in the export block.
+# The client's public header (include/tc8/testability_client.h) and the codec SSOT
+# it frames against (tc8/testability_protocol.h) both live under include/tc8/, and
+# the .cpp compiles against only those — so include/ is the sole PUBLIC include
+# root, which the export block collapses onto the single install-tree include root.
 target_include_directories(tc8_testability_client PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
 )
 tc8_enable_strict_warnings(tc8_testability_client)
 
@@ -174,11 +174,11 @@ tc8_enable_strict_warnings(tc8_testability_client)
 # engine is wired once in the TC8_UTM_INSTALL block below.
 function(tc8_add_engine name)
     add_library(${name} STATIC ${ARGN})
-    # include/ carries every engine's public header (tc8/autosar/*.h); src/ stays
-    # for the .cpp's own internal includes.
+    # Every engine's public header (tc8/autosar/*.h) and every include its .cpp
+    # reaches live under include/tc8/autosar/ — all namespaced — so include/ is the
+    # sole PUBLIC root; no engine reaches through the flat src/ tree.
     target_include_directories(${name} PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>)
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
     tc8_enable_strict_warnings(${name})
     # Record the engine in the single list the UTM export iterates, so adding an
     # engine stays one line and the install/EXPORT never drifts from the build.
@@ -934,9 +934,9 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
     # include root, so it carries the install include for consumers of that header.
     target_include_directories(tc8_posix_backend INTERFACE
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-    # The tester-side client installs its own header (stimulus/testability_client.h)
-    # and reaches the codec SSOT (tc8/testability_protocol.h) — both under the one
-    # install-tree include root, which its two BUILD_INTERFACE roots collapse onto.
+    # The tester-side client installs its own header (tc8/testability_client.h) and
+    # reaches the codec SSOT (tc8/testability_protocol.h) — both under the one
+    # install-tree include root, which its BUILD_INTERFACE include root collapses onto.
     target_include_directories(tc8_testability_client INTERFACE
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
     # AUTOSAR engines join the same exported surface so the OEM repo links the
