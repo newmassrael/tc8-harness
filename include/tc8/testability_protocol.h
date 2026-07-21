@@ -8,7 +8,7 @@
 
 // AUTOSAR Testability Protocol and Service Primitives wire framing — the
 // single source of truth shared by the tester-side client
-// (src/stimulus/testability_client.*) and the DUT-side endpoint
+// (src/testability_client/testability_client.cpp) and the DUT-side endpoint
 // (dut/dut_service/testability_server.*).
 //
 // Spec: docs/spec/AUTOSAR_PRS_TestabilityProtocolAndServicePrimitives.pdf,
