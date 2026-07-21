@@ -1,4 +1,4 @@
-// Hermetic functional test for the netlink walk helpers in src/net/rtnetlink.h
+// Hermetic functional test for the netlink walk helpers in libs/common/net/rtnetlink.h
 // (nlmsgOk/nlmsgNext/rtaOk/rtaNext/nlmsgData/rtaData). The only other exercise of
 // these on real entries is the privileged netns neighbor fixture, which self-skips
 // without CAP_NET_ADMIN AND walks an empty `lo` table (no rtattrs) — so rtaOk /

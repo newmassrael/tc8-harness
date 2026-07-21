@@ -7,7 +7,7 @@ Initial-Wait delay — the randomized wait before a server emits its first multi
 reference vsomeip stack.
 
 The harness half of the contract is live: the reserved marker id
-(`src/someip/protocol.h`), the recognizer and anchor
+(`libs/common/someip/protocol.h`), the recognizer and anchor
 (`tc8::SomeIpCaptured::is_sd_start_marker` / `sd_start_ts_us` /
 `delta_from_sd_start_us` in `src/sce_integration/someip_captured.h`), and the trace
 emit (`decode_pcap` exporter) are all in-tree. The DUT half is an opt-in,
@@ -88,7 +88,7 @@ run never carries it.
 `0xFFFD` is dedicated to the marker and is deliberately distinct from `0xFFFE`, the
 unknown-service sentinel (`sd_test_unknown::kServiceId`) used by the negative-axis
 "unknown service" cases, so the marker and those cases never collide. Both literals
-are single-sourced in `src/someip/protocol.h`.
+are single-sourced in `libs/common/someip/protocol.h`.
 
 ---
 
@@ -181,9 +181,9 @@ delta_from_sd_start_us() >= (initial_delay_min_ms - timing_tolerance_ms) * 1000
 
 | constant | value | home |
 |----------|-------|------|
-| `someip::kSdStartMarkerServiceId` | `0xFFFD` | `src/someip/protocol.h` |
-| `sd_test_unknown::kServiceId` (contrast) | `0xFFFE` | `src/someip/protocol.h` |
-| SD Message ID (service / method) | `0xFFFF` / `0x8100` | `src/someip/protocol.h` |
+| `someip::kSdStartMarkerServiceId` | `0xFFFD` | `libs/common/someip/protocol.h` |
+| `sd_test_unknown::kServiceId` (contrast) | `0xFFFE` | `libs/common/someip/protocol.h` |
+| SD Message ID (service / method) | `0xFFFF` / `0x8100` | `libs/common/someip/protocol.h` |
 | `VSOMEIP_SD_START_MARKER_SERVICE` (reference DUT) | must equal `0xFFFD` | reference vsomeip patch |
 
 The harness constant is authoritative. Any DUT that implements the profile — and the

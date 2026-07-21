@@ -135,6 +135,28 @@ target_include_directories(tc8_wire PUBLIC
 )
 tc8_enable_strict_warnings(tc8_wire)
 
+# tc8_common — the cross-cutting header-only infrastructure that more than one
+# component includes but no single one owns: the raw-socket / rtnetlink / link
+# helpers under net/ and the SOME/IP wire constants + SD decoder under someip/.
+# They live at libs/common (their own root, not src/), so the "net/..." and
+# "someip/..." include prefixes resolve through THIS seam rather than through
+# every consumer independently naming src/ on its include path — the same
+# "shared headers → a library, don't list the path in each target" principle
+# tc8_wire embodies. An INTERFACE lib (no translation units of its own): a
+# consumer links it to inherit the one include root.
+#
+# BUILD-only by construction. The exported UTM SDK ships every public header
+# under the namespaced include/tc8/ root (see the install block below: a bare
+# net/ or someip/ in a consumer's include path is a name an OEM tree plausibly
+# owns too), so these headers are never installed. The include root is therefore
+# $<BUILD_INTERFACE:...>-scoped, and an exported target that needs them at build
+# time links $<BUILD_INTERFACE:tc8_common> so install(EXPORT) never pulls this
+# into the SDK's link closure.
+add_library(tc8_common INTERFACE)
+target_include_directories(tc8_common INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/libs/common>
+)
+
 # The tester-side AUTOSAR Testability Protocol client — the standard counterpart
 # to the DUT-side endpoint in dut/dut_service (tc8_testability_core + a backend).
 # Both halves frame against the one codec SSOT, include/tc8/testability_protocol.h,
@@ -247,18 +269,21 @@ add_library(tc8_stimulus STATIC
     src/stimulus/upper_tester_client.cpp
 )
 # include/ carries the public tc8/... headers (wire math, protocol frames,
-# dut_config); src/ carries the builders' own "stimulus/..." / "someip/..." /
-# "net/..." include prefixes. Both PUBLIC so every consumer inherits the one seam.
+# dut_config); src/ carries the builders' own "stimulus/..." include prefix. The
+# "someip/..." and "net/..." prefixes now come from tc8_common (linked below).
+# Both roots PUBLIC so every consumer inherits the one seam.
 target_include_directories(tc8_stimulus PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
 )
 # tc8_wire: RFC 1071 checksum / RFC 792 echo body, used by the IPv4-family builders.
 # tc8_someiptp: someip_tp_emit frames via someiptp::Segmenter. Threads:
-# someip_sd_builder / upper_tester_client use std::this_thread::sleep_for. All PUBLIC
-# so consumers inherit them transitively.
+# someip_sd_builder / upper_tester_client use std::this_thread::sleep_for.
+# tc8_common: the SD builders / dissectors include "someip/..." and arp_builder
+# includes "net/...", now owned by that seam. All PUBLIC so consumers inherit them
+# transitively (the tester and tc8_harness_core reach net/someip through here).
 find_package(Threads REQUIRED)
-target_link_libraries(tc8_stimulus PUBLIC tc8_wire tc8_someiptp Threads::Threads)
+target_link_libraries(tc8_stimulus PUBLIC tc8_wire tc8_someiptp Threads::Threads tc8_common)
 tc8_enable_strict_warnings(tc8_stimulus)
 
 # Portability check: cross-compile the dependency-light core — sce_base, tc8_wire,

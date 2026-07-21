@@ -1,5 +1,5 @@
-// Strict-set compile witness for src/net/link_control.h (the setLinkState
-// link-loss fault injector) and the src/net/rtnetlink.h SSOT it pulls in.
+// Strict-set compile witness for libs/common/net/link_control.h (the setLinkState
+// link-loss fault injector) and the libs/common/net/rtnetlink.h SSOT it pulls in.
 //
 // rtnetlink.h is now strict-compiled in PRODUCTION via tc8_posix_backend
 // (posix_socket_backend.cpp includes it and that target is strict-gated). But

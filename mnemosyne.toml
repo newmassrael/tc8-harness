@@ -47,6 +47,7 @@ max_section_body_length = 8000
 paths = [
  "include/",
  "src/",
+ "libs/",
  "dut/",
  "tests/",
 ]

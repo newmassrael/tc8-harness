@@ -28,6 +28,13 @@ target_include_directories(tc8_testability_ports INTERFACE
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>
 )
+# The POSIX adapter's posix_socket_backend.cpp includes "net/raw_packet_socket.h"
+# and the DUT firmware includes "someip/..."; both prefixes now live in tc8_common
+# (libs/common), not src/. Link it build-tree-only via $<BUILD_INTERFACE:...> so
+# the core, the POSIX backend, the alias, and tc8-dut inherit the include root at
+# build time WITHOUT tc8_common entering the exported link closure — those bare
+# headers are never installed (the SDK ships namespaced include/tc8/ headers).
+target_link_libraries(tc8_testability_ports INTERFACE $<BUILD_INTERFACE:tc8_common>)
 
 add_library(tc8_testability_core STATIC
     ${PROJECT_SOURCE_DIR}/src/testability/protocol_server.cpp

@@ -6,7 +6,7 @@ namespace tc8 {
 
 // SOME/IP-SD wire enumeration values (option Type, L4-Proto, entry Type),
 // shared by the wire BUILDER (src/stimulus/someip_sd_builder.cpp) and the wire
-// PARSER (src/someip/sd_decode.h) so a value is spelled exactly once across
+// PARSER (libs/common/someip/sd_decode.h) so a value is spelled exactly once across
 // encode and decode. Neutral leaf owned by neither layer: it carries only the
 // constants (no logic), so the encoder does not have to include the decoder to
 // name an option type. Constants stay in namespace `tc8::sd_*` (not

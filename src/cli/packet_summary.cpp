@@ -51,7 +51,7 @@ std::string join(const std::vector<std::string> &parts, const char *sep) {
 // ---------------------------------------------------------------------------
 
 // Value->meaning for both of these is the shared SSOT enum
-// (src/someip/protocol.h, owned by neither builder nor parser); this only
+// (libs/common/someip/protocol.h, owned by neither builder nor parser); this only
 // attaches a display string. A wire value the harness does not model (e.g. the
 // *Ack message-type family) matches no enumerator and falls through to the
 // caller's numeric form.
