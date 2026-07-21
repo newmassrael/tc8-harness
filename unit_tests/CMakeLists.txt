@@ -14,53 +14,25 @@ FetchContent_Declare(googletest
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
-# A slim static library of the harness internals we want to unit-test,
-# reused across every test executable so each one links the same
-# implementation the main binary does. The stateless wire builders + SOME/IP
-# dissectors come from tc8_stimulus (linked below) — the same archive the tester
-# and the portability check use, so the tests exercise the shipped builders, not a
-# private copy. Listed here: the capture / CLI / SCE-glue pieces plus the socket
-# responders that own a thread or a capture loop.
-add_library(tc8_harness_testable STATIC
-    ${PROJECT_SOURCE_DIR}/src/capture/bpf_filter.cpp
-    ${PROJECT_SOURCE_DIR}/src/capture/pcap_source.cpp
-    ${PROJECT_SOURCE_DIR}/src/cli/expect_parser.cpp
-    ${PROJECT_SOURCE_DIR}/src/cli/packet_summary.cpp
-    ${PROJECT_SOURCE_DIR}/src/sce_integration/case_registry.cpp
-    ${PROJECT_SOURCE_DIR}/src/sce_integration/spec_inventory.cpp
-    ${PROJECT_SOURCE_DIR}/src/stimulus/arp_responder.cpp
-    ${PROJECT_SOURCE_DIR}/src/stimulus/method_responder.cpp
-    ${PROJECT_SOURCE_DIR}/src/stimulus/tcp_server.cpp
-    ${PROJECT_SOURCE_DIR}/src/stimulus/tcp_accept_service.cpp
-    ${PROJECT_SOURCE_DIR}/src/stimulus/subscribe_tcp_session.cpp
-)
-target_include_directories(tc8_harness_testable PUBLIC
-    ${PROJECT_SOURCE_DIR}/src
-    ${PROJECT_SOURCE_DIR}/include
-)
-# Threads is PUBLIC because tc8_stimulus's builders (someip_sd_builder /
-# upper_tester_client) use std::this_thread::sleep_for and test executables link
-# this archive directly; tc8_stimulus already carries Threads, kept explicit here
-# for the socket responders above.
+# The harness internals under test — pcap capture, the expect/summary CLI helpers,
+# the SCE case registry + spec inventory, and the socket responders — live in the
+# tc8_harness_core library defined at the top level, which the tester executable ALSO
+# links. Every test therefore exercises the exact objects the main binary ships.
+# (This was a separate testable archive defined here until the shared core folded
+# both consumers onto one set, removing the tester<->tests duplication.)
+# Threads is imported for the test executables that link it directly (below);
+# tc8_harness_core already carries it transitively via tc8_stimulus.
 find_package(Threads REQUIRED)
-# tc8_stimulus: the shared wire builders + SOME/IP dissectors (brings tc8_wire /
-# tc8_someiptp transitively). tc8_testability_client is PUBLIC so
-# testability_client_test and the server-side integration test inherit the header —
-# the same archive the harness links and the UTM SDK exports, so the tests cover the
-# shipped client, not a second copy.
-target_link_libraries(tc8_harness_testable PUBLIC
-    tc8_stimulus tc8_testability_client Threads::Threads)
-tc8_enable_strict_warnings(tc8_harness_testable)
 
 # DELIBERATE: test TUs are NOT strict-gated. GoogleTest's own macros (EXPECT_*/
 # TEST) and headers expand C-style casts and sign conversions that -Wold-style-cast
 # / -Wsign-conversion / -Werror would flag in every test, drowning real signal.
-# The code UNDER test is strict-gated where it lives (tc8_harness_testable + the
+# The code UNDER test is strict-gated where it lives (tc8_harness_core + the
 # engine/DUT libraries carry tc8_enable_strict_warnings); the tests exercise it.
 function(tc8_add_unit_test name)
     add_executable(${name} ${name}.cpp)
     target_link_libraries(${name} PRIVATE
-        tc8_harness_testable
+        tc8_harness_core
         GTest::gtest
         GTest::gtest_main
     )
@@ -178,7 +150,7 @@ target_link_libraries(someiptp_test PRIVATE tc8_someiptp)
 tc8_add_unit_test(demo_module_test)
 target_sources(demo_module_test PRIVATE
     ${PROJECT_SOURCE_DIR}/examples/demo_middleware_module/demo_module.cpp)
-# nm/com/e2e/crypto resolve via tc8_harness_testable; pn and someiptp are their own
+# nm/com/e2e/crypto resolve via tc8_harness_core; pn and someiptp are their own
 # engine libs, so the demo (which now composes them too) links them explicitly.
 target_link_libraries(demo_module_test PRIVATE tc8_pn tc8_someiptp)
 target_include_directories(demo_module_test PRIVATE
@@ -189,7 +161,7 @@ target_link_libraries(demo_module_test PRIVATE tc8_nm tc8_com tc8_e2e tc8_crypto
 # than linked from the tc8-dut executable. Covers the trigger-policy timing logic
 # (incl. the zero-duration single-shot regression) and the controller's source
 # dispatch + owned counters, driven deterministically via the step(now) seam.
-# (Threads::Threads is already imported above for tc8_harness_testable.)
+# (Threads::Threads is already imported above for tc8_harness_core.)
 add_executable(ets_emission_test
     ets_emission_test.cpp
     ${PROJECT_SOURCE_DIR}/dut/dut_service/ets_emission.cpp)
@@ -423,7 +395,7 @@ target_include_directories(dot1q_test PRIVATE ${LIBTINS_INCLUDE_DIR})
 target_link_libraries(dot1q_test PRIVATE ${LIBTINS_LIBRARY})
 
 # packet_pipeline_test drives the real dissect pipeline (packet_pipeline.cpp is
-# not in tc8_harness_testable) with libtins-built TCP frames to pin the
+# not in tc8_harness_core) with libtins-built TCP frames to pin the
 # reliable-transport SOME/IP frame timestamp (observed_ts_us) fix.
 tc8_add_unit_test(packet_pipeline_test)
 target_sources(packet_pipeline_test PRIVATE ${PROJECT_SOURCE_DIR}/src/dissect/packet_pipeline.cpp)

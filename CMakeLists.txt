@@ -5,8 +5,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Strict warnings applied to first-party targets (tc8-harness and the
-# `tc8_harness_testable` library used by unit tests). SCE-generated /
+# Strict warnings applied to first-party targets (tc8-harness, the shared
+# tc8_stimulus / tc8_harness_core libraries, and the engines). SCE-generated /
 # third-party headers live behind SYSTEM include paths where available,
 # so they do not contribute to this warning set. `-Werror` IS on by default
 # (TC8_WARNINGS_AS_ERRORS) now that the first-party tree is clean — opt out with
@@ -355,6 +355,46 @@ if(TC8_BUILD_HARNESS OR TC8_BUILD_UNIT_TESTS)
     endif()
 endif()
 
+# tc8_harness_core — the dependency-light harness internals shared by the tester
+# executable and the unit tests: pcap capture, the expect/summary CLI helpers, the
+# SCE case registry + spec inventory, and the socket responders (ARP / method / TCP
+# server + accept + subscribe) that own a thread or a capture loop. A library for the
+# same reason tc8_stimulus is: the tester and every unit test link the SAME objects,
+# so a responder covered by a test is the one the tester ships — no second, drifting
+# copy (this set was listed by path in the tester AND in unit_tests' testable lib).
+# harness_main, dut_control_factory, and the pcap/vsomeip-driving CLI commands stay in
+# the tester: they pull heavier deps and are the executable's own edges. Built only
+# when the tester or the unit tests are — an SDK-only configure needs none of it.
+if(TC8_BUILD_HARNESS OR TC8_BUILD_UNIT_TESTS)
+    add_library(tc8_harness_core STATIC
+        src/capture/bpf_filter.cpp
+        src/capture/pcap_source.cpp
+        src/cli/expect_parser.cpp
+        src/cli/packet_summary.cpp
+        src/sce_integration/case_registry.cpp
+        src/sce_integration/spec_inventory.cpp
+        src/stimulus/arp_responder.cpp
+        src/stimulus/method_responder.cpp
+        src/stimulus/tcp_server.cpp
+        src/stimulus/tcp_accept_service.cpp
+        src/stimulus/subscribe_tcp_session.cpp
+    )
+    # PUBLIC src/include so consumers inherit the one seam; PRIVATE pcap headers for
+    # the capture sources (pcap_source / bpf_filter) — consumers add their own if a
+    # test #includes a capture header directly, as they already do.
+    target_include_directories(tc8_harness_core
+        PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        PRIVATE ${PCAP_INCLUDE_DIR})
+    # tc8_stimulus: the responders drive the stateless builders (tcp_server →
+    # tcp_segment_builder, arp_responder → arp_builder, …) and it carries tc8_wire /
+    # tc8_someiptp / Threads transitively. tc8_testability_client: the case runner and
+    # the UTM probe path. Both PUBLIC so consumers inherit the seam.
+    target_link_libraries(tc8_harness_core PUBLIC tc8_stimulus tc8_testability_client)
+    tc8_enable_strict_warnings(tc8_harness_core)
+endif()
+
 # ── Tester executable + per-case state machines (TC8_BUILD_HARNESS) ──────────
 # Everything from here to tc8_enable_strict_warnings(tc8-harness) builds the
 # tc8-harness tester and its case machinery; none of it is reachable from the
@@ -369,35 +409,23 @@ if(TC8_BUILD_HARNESS)
 # needs it at this scope — dut_service and unit_tests each find their own.
 find_package(Threads REQUIRED)
 
-# The stateless wire builders, SOME/IP dissectors, and the RPC TCP client come from
-# tc8_stimulus (linked below). Listed here are the tester's own sources: entry
-# point, pcap capture, the CLI commands, the SCE case-integration glue, and the
-# socket responders that own a thread or a capture loop (arp_responder,
-# method_responder, tcp_server / tcp_accept_service, subscribe_tcp_session).
+# The stateless wire builders + SOME/IP dissectors come from tc8_stimulus, and the
+# capture / CLI-helper / case-registry / responder core from tc8_harness_core (both
+# linked below). Listed here are the tester's own edges: the entry point, the
+# pcap/vsomeip-driving CLI commands, the packet pipeline, and the DUT control factory.
 add_executable(tc8-harness
     src/harness_main.cpp
-    src/capture/pcap_source.cpp
-    src/capture/bpf_filter.cpp
     src/dissect/packet_pipeline.cpp
     src/cli/signal_handler.cpp
     src/cli/capture_driver.cpp
     src/cli/decode_pcap_command.cpp
-    src/cli/packet_summary.cpp
-    src/cli/expect_parser.cpp
     src/cli/live_command.cpp
     src/cli/replay_command.cpp
     src/cli/test_command.cpp
     src/cli/ut_ping_command.cpp
     src/cli/testability_probe_command.cpp
     src/cli/testability_send_command.cpp
-    src/sce_integration/case_registry.cpp
     src/sce_integration/dut_control_factory.cpp
-    src/sce_integration/spec_inventory.cpp
-    src/stimulus/arp_responder.cpp
-    src/stimulus/method_responder.cpp
-    src/stimulus/tcp_server.cpp
-    src/stimulus/tcp_accept_service.cpp
-    src/stimulus/subscribe_tcp_session.cpp
 )
 
 # Each TC8 case lives in tests/<case_id>/ with its SCXML. The matching
@@ -829,6 +857,9 @@ target_link_libraries(tc8-harness PRIVATE
     # The stateless wire builders + SOME/IP dissectors, shared with the portability
     # check and the unit tests. Carries tc8_wire / tc8_someiptp / Threads transitively.
     tc8_stimulus
+    # The dependency-light harness core (capture, CLI helpers, case registry, socket
+    # responders) shared with the unit tests. Carries tc8_stimulus transitively.
+    tc8_harness_core
     # The tester-side testability client (testability-probe + the case-side
     # primitives). The same archive the UTM SDK exports, so the harness drives a
     # DUT through exactly the client an out-of-tree consumer gets.
