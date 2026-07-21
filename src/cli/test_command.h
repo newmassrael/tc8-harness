@@ -121,6 +121,15 @@ private:
     // debugging of flaky cases. Empty = off. Must be a writable path.
     std::string pcap_dump_path_;
 
+    // Optional "capture is live" barrier signal. When set, the file at this
+    // path is created once the live capture is armed (kernel ring bound, BPF
+    // applied) and before any DUT-driving stimulus. A launcher that must not
+    // start the DUT until the harness can observe its first frame (e.g. the
+    // orchestrator's harness-first ordering for SOMEIPSRV_FORMAT_02, which
+    // needs the DUT's very first OfferService with session_id 0x0001) waits for
+    // this file instead of guessing a fixed startup delay. Empty = off.
+    std::string ready_file_path_;
+
     // `--dut-control` backend selector for the Tier-2 seam: "opcode"
     // (default, in-house Upper Tester) or "testability" (AUTOSAR
     // Testability Protocol). Mapped to TestConfig::dut_control_backend in

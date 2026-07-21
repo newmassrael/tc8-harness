@@ -187,6 +187,11 @@ TestCommand::TestCommand(CLI::App &app) {
     sub_->add_option("--pcap-dump", pcap_dump_path_,
                      "Write every captured frame to the given pcap file "
                      "(debug only). Empty = disabled.");
+    sub_->add_option("--ready-file", ready_file_path_,
+                     "Create this file once the live capture is armed (before "
+                     "any DUT-driving stimulus), so a launcher can start the "
+                     "DUT only after the capture can observe its first frame. "
+                     "Empty = disabled.");
 }
 
 // Emits the authored negative rows in the historical NEG_ROWS grammar
@@ -633,6 +638,21 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
             std::fprintf(stderr, "pcap_dump_open('%s') failed: %s\n",
                          pcap_dump_path_.c_str(), pcap_geterr(src->handle()));
             return 1;
+        }
+    }
+
+    // The capture is now armed — both sources opened and BPF applied, so the
+    // kernel ring is already receiving matching frames. Signal a waiting
+    // launcher (see --ready-file) that it may start the DUT: from here the
+    // harness cannot miss the DUT's first frame, a guarantee a fixed startup
+    // delay could not give under CPU load (SOMEIPSRV_FORMAT_02 needs the DUT's
+    // first OfferService, session_id 0x0001).
+    if (!ready_file_path_.empty()) {
+        if (std::FILE *rf = std::fopen(ready_file_path_.c_str(), "wb")) {
+            std::fclose(rf);
+        } else {
+            std::fprintf(stderr, "warning: could not create --ready-file '%s'\n",
+                         ready_file_path_.c_str());
         }
     }
 

@@ -32,9 +32,13 @@ const POLL_INTERVAL_MS: u64 = 200;
 /// dut_first: let the DUT's first OfferService settle before the harness opens
 /// its pcap (negative tests only).
 const DUT_FIRST_SETTLE_MS: u64 = 1500;
-/// harness-first: let the harness pcap open before the DUT's first OfferService
-/// (FORMAT_02 expects session_id==0x0001 captured).
-const HARNESS_FIRST_SETTLE_MS: u64 = 500;
+/// harness-first barrier: poll interval and ceiling for the harness's
+/// `--ready-file` capture-live signal (see `wait_for_capture_ready`). The
+/// ceiling is a backstop only — the signal normally lands in tens of ms; it
+/// sits far above capture setup even under CPU starvation, which is exactly the
+/// load that made the retired fixed 500 ms settle miss the DUT's first offer.
+const CAPTURE_READY_POLL_MS: u64 = 20;
+const CAPTURE_READY_MAX_POLLS: u32 = 250;
 /// Bound on waiting for a case DUT's wrapper / ssh-client `Child` to exit after
 /// `stop_dut` (≈3 s at 200 ms/tick). On the happy path the wrapper exits in the
 /// first tick or two; the bound exists only so a MISSED remote kill (an ssh failure
@@ -56,6 +60,26 @@ pub(crate) fn wait_bounded(child: &mut Child, ticks: u32) -> bool {
         }
     }
     matches!(child.try_wait(), Ok(Some(_)) | Err(_))
+}
+
+/// Block until the harness signals its capture is live (its `--ready-file`
+/// appears), then let the caller start the DUT. Returns early — proceeding
+/// anyway — if the harness exits first (capture open failed; hlog will classify
+/// it) or the poll ceiling elapses, so a missing signal never hangs the worker.
+fn wait_for_capture_ready(ready: &Path, harness: &mut Child) {
+    for _ in 0..CAPTURE_READY_MAX_POLLS {
+        if ready.exists() {
+            return;
+        }
+        if matches!(harness.try_wait(), Ok(Some(_)) | Err(_)) {
+            return;
+        }
+        sleep(Duration::from_millis(CAPTURE_READY_POLL_MS));
+    }
+    eprintln!(
+        "orchestrator: warning: harness capture-ready signal did not arrive; \
+         proceeding to start the DUT"
+    );
 }
 
 // --- Verdict line parsing ---------------------------------------------------
@@ -376,8 +400,22 @@ fn run_case_impl(
         sleep(Duration::from_millis(DUT_FIRST_SETTLE_MS));
         procs.harness = Some(topo.run_harness(w, &hlog, &args)?);
     } else {
-        procs.harness = Some(topo.run_harness(w, &hlog, &args)?);
-        sleep(Duration::from_millis(HARNESS_FIRST_SETTLE_MS));
+        // Harness-first with a real barrier: the harness creates its
+        // `--ready-file` once the capture is armed, and we start the DUT only
+        // after that file appears. This replaces a fixed startup sleep — under
+        // CPU starvation capture setup can outlast any guess, letting the DUT's
+        // first OfferService (session_id 0x0001, SOMEIPSRV_FORMAT_02) precede
+        // the live capture. Anchoring to the observed ready state, not wall
+        // time, is robust to load (and faster on the common path).
+        let ready = hlog.with_extension("ready");
+        let _ = std::fs::remove_file(&ready);
+        let mut hargs = args.clone();
+        hargs.push("--ready-file".to_string());
+        hargs.push(ready.to_string_lossy().into_owned());
+        let mut harness = topo.run_harness(w, &hlog, &hargs)?;
+        wait_for_capture_ready(&ready, &mut harness);
+        let _ = std::fs::remove_file(&ready);
+        procs.harness = Some(harness);
         procs.dut = topo.start_dut(w, &dlog, &vcfg, &flavor_env)?;
     }
 
