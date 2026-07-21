@@ -16,7 +16,11 @@ FetchContent_MakeAvailable(googletest)
 
 # A slim static library of the harness internals we want to unit-test,
 # reused across every test executable so each one links the same
-# implementation the main binary does.
+# implementation the main binary does. The stateless wire builders + SOME/IP
+# dissectors come from tc8_stimulus (linked below) — the same archive the tester
+# and the portability check use, so the tests exercise the shipped builders, not a
+# private copy. Listed here: the capture / CLI / SCE-glue pieces plus the socket
+# responders that own a thread or a capture loop.
 add_library(tc8_harness_testable STATIC
     ${PROJECT_SOURCE_DIR}/src/capture/bpf_filter.cpp
     ${PROJECT_SOURCE_DIR}/src/capture/pcap_source.cpp
@@ -24,41 +28,28 @@ add_library(tc8_harness_testable STATIC
     ${PROJECT_SOURCE_DIR}/src/cli/packet_summary.cpp
     ${PROJECT_SOURCE_DIR}/src/sce_integration/case_registry.cpp
     ${PROJECT_SOURCE_DIR}/src/sce_integration/spec_inventory.cpp
-    ${PROJECT_SOURCE_DIR}/src/dissect/someip_header.cpp
-    ${PROJECT_SOURCE_DIR}/src/dissect/someip_dispatcher.cpp
-    ${PROJECT_SOURCE_DIR}/src/stimulus/arp_builder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/arp_responder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/method_responder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/tcp_server.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/tcp_accept_service.cpp
-    ${PROJECT_SOURCE_DIR}/src/stimulus/dot1q.cpp
-    ${PROJECT_SOURCE_DIR}/src/stimulus/ipv4_frame_builder.cpp
-    ${PROJECT_SOURCE_DIR}/src/stimulus/icmpv4_builder.cpp
-    ${PROJECT_SOURCE_DIR}/src/stimulus/someip_sd_builder.cpp
-    ${PROJECT_SOURCE_DIR}/src/stimulus/someip_rpc_builder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/subscribe_tcp_session.cpp
-    ${PROJECT_SOURCE_DIR}/src/stimulus/tcp_client.cpp
-    ${PROJECT_SOURCE_DIR}/src/stimulus/udp_emit.cpp
-    ${PROJECT_SOURCE_DIR}/src/stimulus/someip_tp_emit.cpp
-    ${PROJECT_SOURCE_DIR}/src/stimulus/tcp_segment_builder.cpp
-    ${PROJECT_SOURCE_DIR}/src/stimulus/udp_datagram_builder.cpp
-    ${PROJECT_SOURCE_DIR}/src/stimulus/upper_tester_client.cpp
 )
 target_include_directories(tc8_harness_testable PUBLIC
     ${PROJECT_SOURCE_DIR}/src
     ${PROJECT_SOURCE_DIR}/include
 )
-# Shared wire math (checksum + ICMP echo body); PUBLIC so every test executable
-# linking tc8_harness_testable inherits the one tc8_wire archive. Threads is
-# PUBLIC because someip_sd_builder.cpp / upper_tester_client.cpp use
-# std::this_thread::sleep_for (the responders are threadless — driven by the
-# capture loop), and consumers link this archive directly.
+# Threads is PUBLIC because tc8_stimulus's builders (someip_sd_builder /
+# upper_tester_client) use std::this_thread::sleep_for and test executables link
+# this archive directly; tc8_stimulus already carries Threads, kept explicit here
+# for the socket responders above.
 find_package(Threads REQUIRED)
-# tc8_testability_client is PUBLIC so testability_client_test and the server-side
-# integration test inherit the header — the same archive the harness links and the
-# UTM SDK exports, so the tests cover the shipped client, not a second copy.
+# tc8_stimulus: the shared wire builders + SOME/IP dissectors (brings tc8_wire /
+# tc8_someiptp transitively). tc8_testability_client is PUBLIC so
+# testability_client_test and the server-side integration test inherit the header —
+# the same archive the harness links and the UTM SDK exports, so the tests cover the
+# shipped client, not a second copy.
 target_link_libraries(tc8_harness_testable PUBLIC
-    tc8_wire tc8_someiptp tc8_testability_client Threads::Threads)
+    tc8_stimulus tc8_testability_client Threads::Threads)
 tc8_enable_strict_warnings(tc8_harness_testable)
 
 # DELIBERATE: test TUs are NOT strict-gated. GoogleTest's own macros (EXPECT_*/

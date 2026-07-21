@@ -217,48 +217,69 @@ tc8_add_engine(tc8_nm src/autosar/nm.cpp)
 # only; OEM ids and any connection lifecycle are the owning module's config.
 tc8_add_engine(tc8_someiptp src/autosar/someiptp.cpp)
 
-# Portability check: cross-compile the dependency-light core — the SCE
-# engine plus every wire builder / SOME/IP dissector where the
-# endianness- and bit-layout-sensitive code lives — without needing a
-# target sysroot for libpcap / libtins / vsomeip / CommonAPI. Used with
+# tc8_stimulus — the wire-frame builders (ARP / 802.1Q / IPv4 / ICMPv4 / DHCPv4 /
+# UDP / TCP-segment / SOME/IP RPC+SD+TP) plus the SOME/IP header dissectors. Pure
+# byte-layout code: endianness- and bit-layout-sensitive, POSIX sockets at most, no
+# libpcap / libtins / vsomeip — so it cross-compiles. A library for the same reason
+# tc8_wire is one: the tester, the cross-compile portability check, and the unit
+# tests all drive these builders, and listing them by path in three CMakeLists (as
+# they were) is exactly what invites a second, drifting copy. tcp_client is here
+# because someip_rpc_builder emits RPC over TCP through it (connectTcpFromIface) —
+# the builder graph is closed over it, so it must not sit in a consumer. The socket
+# responders that own threads / capture loops (arp_responder, tcp_server, …) stay
+# with the tester; this archive is the stateless builders + dissectors + that
+# client.
+add_library(tc8_stimulus STATIC
+    src/dissect/someip_header.cpp
+    src/dissect/someip_dispatcher.cpp
+    src/stimulus/arp_builder.cpp
+    src/stimulus/dot1q.cpp
+    src/stimulus/dhcpv4_frame_builder.cpp
+    src/stimulus/ipv4_frame_builder.cpp
+    src/stimulus/icmpv4_builder.cpp
+    src/stimulus/someip_rpc_builder.cpp
+    src/stimulus/someip_sd_builder.cpp
+    src/stimulus/tcp_client.cpp
+    src/stimulus/udp_emit.cpp
+    src/stimulus/someip_tp_emit.cpp
+    src/stimulus/tcp_segment_builder.cpp
+    src/stimulus/udp_datagram_builder.cpp
+    src/stimulus/upper_tester_client.cpp
+)
+# include/ carries the public tc8/... headers (wire math, protocol frames,
+# dut_config); src/ carries the builders' own "stimulus/..." / "someip/..." /
+# "net/..." include prefixes. Both PUBLIC so every consumer inherits the one seam.
+target_include_directories(tc8_stimulus PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+)
+# tc8_wire: RFC 1071 checksum / RFC 792 echo body, used by the IPv4-family builders.
+# tc8_someiptp: someip_tp_emit frames via someiptp::Segmenter. Threads:
+# someip_sd_builder / upper_tester_client use std::this_thread::sleep_for. All PUBLIC
+# so consumers inherit them transitively.
+find_package(Threads REQUIRED)
+target_link_libraries(tc8_stimulus PUBLIC tc8_wire tc8_someiptp Threads::Threads)
+tc8_enable_strict_warnings(tc8_stimulus)
+
+# Portability check: cross-compile the dependency-light core — sce_base, tc8_wire,
+# the AUTOSAR engines, tc8_stimulus (wire builders + SOME/IP dissectors), and
+# tc8_testability_client, all defined above — without needing a target sysroot for
+# libpcap / libtins / vsomeip / CommonAPI. Used with
 # cmake/toolchains/aarch64-linux-gnu.cmake to keep the embedded-tester
-# (target-to-target topology) build path verifiable on a host with only
-# a cross compiler installed. `return()` ends top-level processing: the
-# heavy find_package set, the case glob, tc8-dut, and unit tests are
-# all host-build concerns.
+# (target-to-target topology) build path verifiable on a host with only a cross
+# compiler installed. `return()` ends top-level processing before the heavy
+# find_package set, the case glob, tc8-dut, and unit tests — all host-build
+# concerns — so `cmake --build` cross-compiles exactly the core libraries.
 option(TC8_PORTABILITY_CHECK
     "Build only the dependency-light core (for cross-compile verification)"
     OFF)
 
 if(TC8_PORTABILITY_CHECK)
-    add_library(tc8-core-portability STATIC
-        src/dissect/someip_header.cpp
-        src/dissect/someip_dispatcher.cpp
-        src/stimulus/arp_builder.cpp
-        src/stimulus/dot1q.cpp
-        src/stimulus/dhcpv4_frame_builder.cpp
-        src/stimulus/ipv4_frame_builder.cpp
-        src/stimulus/icmpv4_builder.cpp
-        src/stimulus/someip_rpc_builder.cpp
-        src/stimulus/someip_sd_builder.cpp
-        src/stimulus/udp_emit.cpp
-        src/stimulus/someip_tp_emit.cpp
-        src/stimulus/tcp_segment_builder.cpp
-        src/stimulus/udp_datagram_builder.cpp
-        src/stimulus/upper_tester_client.cpp
-    )
-    target_include_directories(tc8-core-portability PRIVATE src include)
-    # tc8_testability_client: the testability client is part of the dependency-light
-    # core this check cross-compiles — linked, not listed by path, so the one archive
-    # is what gets verified for the target.
-    target_link_libraries(tc8-core-portability PRIVATE
-        sce_base tc8_wire tc8_someiptp tc8_testability_client)
-    tc8_enable_strict_warnings(tc8-core-portability)
     message(STATUS
-        "TC8: portability-check configuration — building "
-        "tc8-core-portability for ${CMAKE_SYSTEM_PROCESSOR} only; "
-        "harness/tc8-dut/cases/unit tests are skipped (no target "
-        "sysroot required)")
+        "TC8: portability-check configuration — cross-compiling the "
+        "dependency-light core libraries (tc8_wire, AUTOSAR engines, "
+        "tc8_stimulus, tc8_testability_client) for ${CMAKE_SYSTEM_PROCESSOR}; "
+        "harness/tc8-dut/cases/unit tests are skipped (no target sysroot required)")
     return()
 endif()
 
@@ -348,12 +369,15 @@ if(TC8_BUILD_HARNESS)
 # needs it at this scope — dut_service and unit_tests each find their own.
 find_package(Threads REQUIRED)
 
+# The stateless wire builders, SOME/IP dissectors, and the RPC TCP client come from
+# tc8_stimulus (linked below). Listed here are the tester's own sources: entry
+# point, pcap capture, the CLI commands, the SCE case-integration glue, and the
+# socket responders that own a thread or a capture loop (arp_responder,
+# method_responder, tcp_server / tcp_accept_service, subscribe_tcp_session).
 add_executable(tc8-harness
     src/harness_main.cpp
     src/capture/pcap_source.cpp
     src/capture/bpf_filter.cpp
-    src/dissect/someip_header.cpp
-    src/dissect/someip_dispatcher.cpp
     src/dissect/packet_pipeline.cpp
     src/cli/signal_handler.cpp
     src/cli/capture_driver.cpp
@@ -369,24 +393,11 @@ add_executable(tc8-harness
     src/sce_integration/case_registry.cpp
     src/sce_integration/dut_control_factory.cpp
     src/sce_integration/spec_inventory.cpp
-    src/stimulus/arp_builder.cpp
     src/stimulus/arp_responder.cpp
     src/stimulus/method_responder.cpp
     src/stimulus/tcp_server.cpp
     src/stimulus/tcp_accept_service.cpp
-    src/stimulus/dot1q.cpp
-    src/stimulus/dhcpv4_frame_builder.cpp
-    src/stimulus/ipv4_frame_builder.cpp
-    src/stimulus/icmpv4_builder.cpp
-    src/stimulus/someip_rpc_builder.cpp
-    src/stimulus/someip_sd_builder.cpp
     src/stimulus/subscribe_tcp_session.cpp
-    src/stimulus/tcp_client.cpp
-    src/stimulus/udp_emit.cpp
-    src/stimulus/someip_tp_emit.cpp
-    src/stimulus/tcp_segment_builder.cpp
-    src/stimulus/udp_datagram_builder.cpp
-    src/stimulus/upper_tester_client.cpp
 )
 
 # Each TC8 case lives in tests/<case_id>/ with its SCXML. The matching
@@ -815,6 +826,9 @@ target_link_libraries(tc8-harness PRIVATE
     CommonAPI-SomeIP
     sce_base
     tc8_wire
+    # The stateless wire builders + SOME/IP dissectors, shared with the portability
+    # check and the unit tests. Carries tc8_wire / tc8_someiptp / Threads transitively.
+    tc8_stimulus
     # The tester-side testability client (testability-probe + the case-side
     # primitives). The same archive the UTM SDK exports, so the harness drives a
     # DUT through exactly the client an out-of-tree consumer gets.
