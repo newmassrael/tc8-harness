@@ -297,11 +297,11 @@ if(TC8_BUILD_HARNESS OR TC8_BUILD_UNIT_TESTS)
         src/cli/packet_summary.cpp
         src/sce_integration/case_registry.cpp
         src/sce_integration/spec_inventory.cpp
-        src/stimulus/arp_responder.cpp
-        src/stimulus/method_responder.cpp
-        src/stimulus/tcp_server.cpp
-        src/stimulus/tcp_accept_service.cpp
-        src/stimulus/subscribe_tcp_session.cpp
+        src/stimulus/responders/arp_responder.cpp
+        src/stimulus/responders/method_responder.cpp
+        src/stimulus/responders/tcp_server.cpp
+        src/stimulus/responders/tcp_accept_service.cpp
+        src/stimulus/responders/subscribe_tcp_session.cpp
     )
     # PUBLIC roots consumers inherit by linkage: src/sce_integration/include (this
     # lib's OWN sce_integration/ tree — case registry, spec inventory, the expected/
