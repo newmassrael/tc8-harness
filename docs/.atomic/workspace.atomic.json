@@ -102,10 +102,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/sce_integration/dut_control_factory.cpp",
-          "kind": "references"
-        },
-        {
           "file": "dut/lwip_dut/lwip_egress_fault.cpp",
           "kind": "implements"
         },
@@ -180,6 +176,10 @@
         {
           "file": "src/cli/commands/capture_driver.cpp",
           "kind": "implements"
+        },
+        {
+          "file": "src/harness/dut_control_factory.cpp",
+          "kind": "references"
         }
       ]
     },

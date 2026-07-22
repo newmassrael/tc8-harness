@@ -352,7 +352,7 @@ find_package(Threads REQUIRED)
 # linked below). Listed here are the tester's own edges: the entry point, the
 # pcap/vsomeip-driving CLI commands, the packet pipeline, and the DUT control factory.
 add_executable(tc8-harness
-    src/harness_main.cpp
+    src/harness/harness_main.cpp
     src/dissect/packet_pipeline.cpp
     src/cli/commands/signal_handler.cpp
     src/cli/commands/capture_driver.cpp
@@ -363,7 +363,7 @@ add_executable(tc8-harness
     src/cli/commands/ut_ping_command.cpp
     src/cli/commands/testability_probe_command.cpp
     src/cli/commands/testability_send_command.cpp
-    src/sce_integration/dut_control_factory.cpp
+    src/harness/dut_control_factory.cpp
 )
 
 # Each TC8 case lives in tests/<case_id>/ with its SCXML. The matching
