@@ -152,14 +152,14 @@ int TestabilitySendCommand::run() {
         return 1;
     }
 
-    stimulus::TestabilityConfig cfg;
+    testability::TestabilityConfig cfg;
     cfg.dut_ip_be = addr.s_addr;
     cfg.dut_port = port_ > 0 ? static_cast<std::uint16_t>(port_) : tp::kDefaultPort;
     cfg.service_id = service_id_ > 0 ? static_cast<std::uint16_t>(service_id_)
                                      : tp::kDefaultServiceId;
     cfg.use_tcp = use_tcp_;
 
-    const auto resp = stimulus::testabilityCall(
+    const auto resp = testability::testabilityCall(
         cfg, static_cast<std::uint8_t>(gid_), static_cast<std::uint8_t>(pid_), dat,
         timeout_ms_, src_addr.s_addr);
 

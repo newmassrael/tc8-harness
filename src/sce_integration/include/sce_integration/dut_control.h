@@ -579,17 +579,17 @@ private:
 // wrappers (written out of tree) build on.
 class TestabilityControl final : public IDutControl {
 public:
-    explicit TestabilityControl(const stimulus::TestabilityConfig &cfg, int timeout_ms = 1000,
+    explicit TestabilityControl(const testability::TestabilityConfig &cfg, int timeout_ms = 1000,
                                 std::uint32_t src_ip_be = 0)
         : cfg_(cfg), timeout_ms_(timeout_ms), src_ip_be_(src_ip_be),
           tcp_ctrl_(cfg, timeout_ms, src_ip_be), udp_ctrl_(cfg, timeout_ms, src_ip_be) {}
 
     bool probe() override { return getVersion().has_value(); }
     bool startTest() override {
-        return stimulus::testabilityStartTest(cfg_, timeout_ms_, src_ip_be_).eok();
+        return testability::testabilityStartTest(cfg_, timeout_ms_, src_ip_be_).eok();
     }
     bool endTest() override {
-        return stimulus::testabilityEndTest(cfg_, /*tc_id=*/0, "tc8-harness", timeout_ms_,
+        return testability::testabilityEndTest(cfg_, /*tc_id=*/0, "tc8-harness", timeout_ms_,
                                             src_ip_be_)
             .eok();
     }
@@ -603,15 +603,15 @@ public:
     IUdpControl *udpControl() override { return &udp_ctrl_; }
 
     // GET_VERSION (GENERAL/0x01).
-    std::optional<stimulus::TestabilityVersion> getVersion() {
-        return stimulus::testabilityGetVersion(cfg_, timeout_ms_, src_ip_be_);
+    std::optional<testability::TestabilityVersion> getVersion() {
+        return testability::testabilityGetVersion(cfg_, timeout_ms_, src_ip_be_);
     }
 
     // Generic service-primitive call — the OEM-specific extension surface
     // (non-standard SPs build on this directly).
-    stimulus::TestabilityResponse call(std::uint8_t gid, std::uint8_t pid,
+    testability::TestabilityResponse call(std::uint8_t gid, std::uint8_t pid,
                                        const std::vector<std::uint8_t> &dat = {}) {
-        return stimulus::testabilityCall(cfg_, gid, pid, dat, timeout_ms_, src_ip_be_);
+        return testability::testabilityCall(cfg_, gid, pid, dat, timeout_ms_, src_ip_be_);
     }
 
     // Standard typed service primitives are NOT re-exposed here: they are the
@@ -619,10 +619,10 @@ public:
     // wire encoding), invoked with config(). The case-facing seam for
     // protocol-agnostic DUT operations belongs on IDutControl as semantic
     // operations, not as protocol-specific SP forwarders — see that interface.
-    const stimulus::TestabilityConfig &config() const { return cfg_; }
+    const testability::TestabilityConfig &config() const { return cfg_; }
 
 private:
-    stimulus::TestabilityConfig cfg_;
+    testability::TestabilityConfig cfg_;
     int timeout_ms_;
     std::uint32_t src_ip_be_;
     TestabilityTcpControl tcp_ctrl_;

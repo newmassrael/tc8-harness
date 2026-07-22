@@ -16,7 +16,7 @@
 #include "tc8/testability_client.h"
 #include "tc8/testability_protocol.h"
 
-namespace tc8::stimulus {
+namespace tc8::testability {
 namespace {
 
 namespace tp = ::tc8::testability;
@@ -493,4 +493,4 @@ TEST(TestabilityClient, ListenAndAcceptEncodesRequestAndParsesEvent) {
 }
 
 }  // namespace
-}  // namespace tc8::stimulus
+}  // namespace tc8::testability

@@ -49,8 +49,8 @@ using namespace testutil;  // createDummyIface / deleteIface / hasNetAdmin / Sco
 constexpr std::uint16_t kTestPort = 31701;
 TC8_STATIC_ASSERT_TEST_PORT(kTestPort);
 
-stimulus::TestabilityConfig loopbackConfig() {
-    stimulus::TestabilityConfig cfg;
+testability::TestabilityConfig loopbackConfig() {
+    testability::TestabilityConfig cfg;
     cfg.dut_ip_be = ::htonl(INADDR_LOOPBACK);
     cfg.dut_port = kTestPort;
     return cfg;
@@ -66,14 +66,14 @@ protected:
 
 TEST_F(TestabilityServerTest, GeneralLifecycleRoundTrips) {
     const auto cfg = loopbackConfig();
-    const auto v = stimulus::testabilityGetVersion(cfg);
+    const auto v = testability::testabilityGetVersion(cfg);
     ASSERT_TRUE(v.has_value());
     EXPECT_EQ(v->major, tp::kVersionMajor);
     EXPECT_EQ(v->minor, tp::kVersionMinor);
     EXPECT_EQ(v->patch, tp::kVersionPatch);
 
-    EXPECT_TRUE(stimulus::testabilityStartTest(cfg).eok());
-    EXPECT_TRUE(stimulus::testabilityEndTest(cfg, /*tc_id=*/1, "server-test").eok());
+    EXPECT_TRUE(testability::testabilityStartTest(cfg).eok());
+    EXPECT_TRUE(testability::testabilityEndTest(cfg, /*tc_id=*/1, "server-test").eok());
 }
 
 // The socktype refactor must keep the UDP CREATE_AND_BIND/CLOSE_SOCKET path
@@ -84,12 +84,12 @@ TEST_F(TestabilityServerTest, UdpCreateAndCloseStillWork) {
     cb.push_back(0x01);              // doBind = true
     tp::appendU16(cb, 0xFFFF);       // localPort = PORT_ANY
     tp::appendIpv4Addr(cb, 0);       // localAddr = any
-    const auto cb_resp = stimulus::testabilityCall(cfg, tp::kGidUdp, tp::kPidCreateAndBind, cb);
+    const auto cb_resp = testability::testabilityCall(cfg, tp::kGidUdp, tp::kPidCreateAndBind, cb);
     ASSERT_TRUE(cb_resp.eok());
     ASSERT_EQ(cb_resp.dat.size(), 2u);
     const std::uint16_t sid =
         static_cast<std::uint16_t>((cb_resp.dat[0] << 8) | cb_resp.dat[1]);
-    EXPECT_TRUE(stimulus::testabilityCloseSocket(cfg, tp::kGidUdp, sid).eok());
+    EXPECT_TRUE(testability::testabilityCloseSocket(cfg, tp::kGidUdp, sid).eok());
 }
 
 // Full TCP active-open loop against a tester-side listener: CONNECT must drive
@@ -117,11 +117,11 @@ TEST_F(TestabilityServerTest, TcpActiveOpenAndSendDataObservable) {
     ::setsockopt(lfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
     // CREATE_AND_BIND (TCP) -> CONNECT to the tester listener.
-    const auto sock = stimulus::testabilityCreateAndBind(cfg, tp::kGidTcp, /*do_bind=*/false,
+    const auto sock = testability::testabilityCreateAndBind(cfg, tp::kGidTcp, /*do_bind=*/false,
                                                          /*local_port=*/0xFFFF,
                                                          /*local_addr_be=*/0);
     ASSERT_TRUE(sock.has_value());
-    const auto co = stimulus::testabilityTcpConnect(cfg, *sock, listen_port,
+    const auto co = testability::testabilityTcpConnect(cfg, *sock, listen_port,
                                                     ::htonl(INADDR_LOOPBACK));
     EXPECT_TRUE(co.eok());
 
@@ -132,7 +132,7 @@ TEST_F(TestabilityServerTest, TcpActiveOpenAndSendDataObservable) {
 
     // SEND_DATA (TCP): bytes flow over the established connection.
     const std::vector<std::uint8_t> body = {'T', 'C', '8'};
-    const auto sd = stimulus::testabilityTcpSendData(cfg, *sock, /*total_len=*/3,
+    const auto sd = testability::testabilityTcpSendData(cfg, *sock, /*total_len=*/3,
                                                      /*flags=*/0, body);
     EXPECT_TRUE(sd.eok());
     if (afd >= 0) {
@@ -147,7 +147,7 @@ TEST_F(TestabilityServerTest, TcpActiveOpenAndSendDataObservable) {
     }
     ::close(lfd);
 
-    EXPECT_TRUE(stimulus::testabilityCloseSocket(cfg, tp::kGidTcp, *sock).eok());
+    EXPECT_TRUE(testability::testabilityCloseSocket(cfg, tp::kGidTcp, *sock).eok());
 }
 
 // SEND_DATA totalLen repeats the data up to the requested length (PRS_TPSP §6.10).
@@ -168,9 +168,9 @@ TEST_F(TestabilityServerTest, TcpSendDataRepeatsUpToTotalLen) {
     ASSERT_EQ(::getsockname(lfd, reinterpret_cast<sockaddr *>(&la), &ll), 0);
     const std::uint16_t listen_port = ntohs(la.sin_port);
 
-    const auto sock = stimulus::testabilityCreateAndBind(cfg, tp::kGidTcp, false, 0xFFFF, 0);
+    const auto sock = testability::testabilityCreateAndBind(cfg, tp::kGidTcp, false, 0xFFFF, 0);
     ASSERT_TRUE(sock.has_value());
-    ASSERT_TRUE(stimulus::testabilityTcpConnect(cfg, *sock, listen_port,
+    ASSERT_TRUE(testability::testabilityTcpConnect(cfg, *sock, listen_port,
                                                 ::htonl(INADDR_LOOPBACK))
                     .eok());
     sockaddr_in peer{};
@@ -180,7 +180,7 @@ TEST_F(TestabilityServerTest, TcpSendDataRepeatsUpToTotalLen) {
 
     // data = {AB}, totalLen = 4 -> four AB bytes on the wire.
     const std::vector<std::uint8_t> body = {0xAB};
-    ASSERT_TRUE(stimulus::testabilityTcpSendData(cfg, *sock, /*total_len=*/4, 0, body).eok());
+    ASSERT_TRUE(testability::testabilityTcpSendData(cfg, *sock, /*total_len=*/4, 0, body).eok());
 
     timeval tv{};
     tv.tv_sec = 2;
@@ -198,25 +198,25 @@ TEST_F(TestabilityServerTest, TcpSendDataRepeatsUpToTotalLen) {
     }
     ::close(afd);
     ::close(lfd);
-    EXPECT_TRUE(stimulus::testabilityCloseSocket(cfg, tp::kGidTcp, *sock).eok());
+    EXPECT_TRUE(testability::testabilityCloseSocket(cfg, tp::kGidTcp, *sock).eok());
 }
 
 // CONNECT to a port with no listener must fail (bounded, not hang) and not
 // stall later requests on the single server thread.
 TEST_F(TestabilityServerTest, TcpConnectToDeadPortReturnsError) {
     const auto cfg = loopbackConfig();
-    const auto sock = stimulus::testabilityCreateAndBind(cfg, tp::kGidTcp, false, 0xFFFF, 0);
+    const auto sock = testability::testabilityCreateAndBind(cfg, tp::kGidTcp, false, 0xFFFF, 0);
     ASSERT_TRUE(sock.has_value());
     // Port 1 on loopback: nothing listening -> connection refused.
-    const auto co = stimulus::testabilityTcpConnect(cfg, *sock, /*dest_port=*/1,
+    const auto co = testability::testabilityTcpConnect(cfg, *sock, /*dest_port=*/1,
                                                     ::htonl(INADDR_LOOPBACK),
                                                     /*timeout_ms=*/1500);
     EXPECT_TRUE(co.ok);              // the SP itself round-tripped
     EXPECT_NE(co.rid, tp::kRidEOk);  // but reported a non-success result
 
     // The server thread is still responsive afterwards.
-    EXPECT_TRUE(stimulus::testabilityCloseSocket(cfg, tp::kGidTcp, *sock).eok());
-    EXPECT_TRUE(stimulus::testabilityStartTest(cfg).eok());
+    EXPECT_TRUE(testability::testabilityCloseSocket(cfg, tp::kGidTcp, *sock).eok());
+    EXPECT_TRUE(testability::testabilityStartTest(cfg).eok());
 }
 
 // Full passive-open loop: bind a DUT listen socket, LISTEN_AND_ACCEPT, connect
@@ -232,14 +232,14 @@ TEST_F(TestabilityServerTest, TcpListenAndAcceptEmitsEventOnConnect) {
     cb.push_back(0x01);              // doBind = true
     tp::appendU16(cb, kListenPort);  // localPort
     tp::appendIpv4Addr(cb, 0);       // localAddr = any
-    const auto cb_resp = stimulus::testabilityCall(cfg, tp::kGidTcp, tp::kPidCreateAndBind, cb);
+    const auto cb_resp = testability::testabilityCall(cfg, tp::kGidTcp, tp::kPidCreateAndBind, cb);
     ASSERT_TRUE(cb_resp.eok());
     ASSERT_EQ(cb_resp.dat.size(), 2u);
     const std::uint16_t listen_sid =
         static_cast<std::uint16_t>((cb_resp.dat[0] << 8) | cb_resp.dat[1]);
 
     int cfd = -1;
-    const auto ev = stimulus::testabilityTcpListenAndAccept(
+    const auto ev = testability::testabilityTcpListenAndAccept(
         cfg, listen_sid, /*max_con=*/1,
         [&] {
             cfd = ::socket(AF_INET, SOCK_STREAM, 0);
@@ -266,8 +266,8 @@ TEST_F(TestabilityServerTest, TcpListenAndAcceptEmitsEventOnConnect) {
     if (cfd >= 0) {
         ::close(cfd);
     }
-    EXPECT_TRUE(stimulus::testabilityCloseSocket(cfg, tp::kGidTcp, ev.new_socket_id).eok());
-    EXPECT_TRUE(stimulus::testabilityCloseSocket(cfg, tp::kGidTcp, listen_sid).eok());
+    EXPECT_TRUE(testability::testabilityCloseSocket(cfg, tp::kGidTcp, ev.new_socket_id).eok());
+    EXPECT_TRUE(testability::testabilityCloseSocket(cfg, tp::kGidTcp, listen_sid).eok());
 }
 
 // END_TEST must terminate a pending accept thread (no connection ever arrives)
@@ -281,7 +281,7 @@ TEST_F(TestabilityServerTest, EndTestTerminatesPendingAcceptThread) {
     cb.push_back(0x01);
     tp::appendU16(cb, kListenPort);
     tp::appendIpv4Addr(cb, 0);
-    const auto cb_resp = stimulus::testabilityCall(cfg, tp::kGidTcp, tp::kPidCreateAndBind, cb);
+    const auto cb_resp = testability::testabilityCall(cfg, tp::kGidTcp, tp::kPidCreateAndBind, cb);
     ASSERT_TRUE(cb_resp.eok());
     const std::uint16_t listen_sid =
         static_cast<std::uint16_t>((cb_resp.dat[0] << 8) | cb_resp.dat[1]);
@@ -291,11 +291,11 @@ TEST_F(TestabilityServerTest, EndTestTerminatesPendingAcceptThread) {
     tp::appendU16(la, listen_sid);
     tp::appendU16(la, 1);  // maxCon
     EXPECT_TRUE(
-        stimulus::testabilityCall(cfg, tp::kGidTcp, tp::kPidListenAndAccept, la).eok());
+        testability::testabilityCall(cfg, tp::kGidTcp, tp::kPidListenAndAccept, la).eok());
 
     // END_TEST terminates the pending accept thread, then the server still answers.
-    EXPECT_TRUE(stimulus::testabilityEndTest(cfg, /*tc_id=*/0, "reset").eok());
-    EXPECT_TRUE(stimulus::testabilityStartTest(cfg).eok());
+    EXPECT_TRUE(testability::testabilityEndTest(cfg, /*tc_id=*/0, "reset").eok());
+    EXPECT_TRUE(testability::testabilityStartTest(cfg).eok());
 }
 
 // RECEIVE_AND_FORWARD (TCP): bytes queued before the arm are consumed and
@@ -316,9 +316,9 @@ TEST_F(TestabilityServerTest, TcpReceiveAndForwardConsumesThenForwards) {
     socklen_t ll = sizeof(la);
     ASSERT_EQ(::getsockname(lfd, reinterpret_cast<sockaddr *>(&la), &ll), 0);
 
-    const auto sock = stimulus::testabilityCreateAndBind(cfg, tp::kGidTcp, false, 0xFFFF, 0);
+    const auto sock = testability::testabilityCreateAndBind(cfg, tp::kGidTcp, false, 0xFFFF, 0);
     ASSERT_TRUE(sock.has_value());
-    ASSERT_TRUE(stimulus::testabilityTcpConnect(cfg, *sock, ntohs(la.sin_port),
+    ASSERT_TRUE(testability::testabilityTcpConnect(cfg, *sock, ntohs(la.sin_port),
                                                 ::htonl(INADDR_LOOPBACK))
                     .eok());
     const int afd = ::accept(lfd, nullptr, nullptr);
@@ -332,7 +332,7 @@ TEST_F(TestabilityServerTest, TcpReceiveAndForwardConsumesThenForwards) {
 
     // Arm; in on_armed, send the payload to be forwarded back as one Event.
     const std::vector<std::uint8_t> body = {'T', 'C', '8', 'd', 'a', 't', 'a'};
-    const auto res = stimulus::testabilityReceiveAndForward(
+    const auto res = testability::testabilityReceiveAndForward(
         cfg, *sock, /*max_fwd=*/16, /*max_len=*/static_cast<std::uint16_t>(body.size()),
         [&] { ::send(afd, body.data(), body.size(), 0); });
 
@@ -343,7 +343,7 @@ TEST_F(TestabilityServerTest, TcpReceiveAndForwardConsumesThenForwards) {
 
     ::close(afd);
     ::close(lfd);
-    EXPECT_TRUE(stimulus::testabilityCloseSocket(cfg, tp::kGidTcp, *sock).eok());
+    EXPECT_TRUE(testability::testabilityCloseSocket(cfg, tp::kGidTcp, *sock).eok());
 }
 
 // RECEIVE_AND_FORWARD aggregation: a stream the DUT reads as several recv()s
@@ -366,9 +366,9 @@ TEST_F(TestabilityServerTest, TcpReceiveAndForwardReassemblesMultiSegment) {
     socklen_t ll = sizeof(la);
     ASSERT_EQ(::getsockname(lfd, reinterpret_cast<sockaddr *>(&la), &ll), 0);
 
-    const auto sock = stimulus::testabilityCreateAndBind(cfg, tp::kGidTcp, false, 0xFFFF, 0);
+    const auto sock = testability::testabilityCreateAndBind(cfg, tp::kGidTcp, false, 0xFFFF, 0);
     ASSERT_TRUE(sock.has_value());
-    ASSERT_TRUE(stimulus::testabilityTcpConnect(cfg, *sock, ntohs(la.sin_port),
+    ASSERT_TRUE(testability::testabilityTcpConnect(cfg, *sock, ntohs(la.sin_port),
                                                 ::htonl(INADDR_LOOPBACK))
                     .eok());
     const int afd = ::accept(lfd, nullptr, nullptr);
@@ -380,7 +380,7 @@ TEST_F(TestabilityServerTest, TcpReceiveAndForwardReassemblesMultiSegment) {
     constexpr int kSeg = 32;
     constexpr int kCount = 4;
     std::vector<std::uint8_t> expected;
-    const auto res = stimulus::testabilityReceiveAndForward(
+    const auto res = testability::testabilityReceiveAndForward(
         cfg, *sock, /*max_fwd=*/kSeg * kCount, /*max_len=*/kSeg * kCount, [&] {
             for (int i = 0; i < kCount; ++i) {
                 const std::vector<std::uint8_t> chunk(kSeg, static_cast<std::uint8_t>(0xA0 + i));
@@ -396,7 +396,7 @@ TEST_F(TestabilityServerTest, TcpReceiveAndForwardReassemblesMultiSegment) {
 
     ::close(afd);
     ::close(lfd);
-    EXPECT_TRUE(stimulus::testabilityCloseSocket(cfg, tp::kGidTcp, *sock).eok());
+    EXPECT_TRUE(testability::testabilityCloseSocket(cfg, tp::kGidTcp, *sock).eok());
 }
 
 // UDP RECEIVE_AND_FORWARD (PRS_TPSP §6.10): a datagram received before the arm
@@ -827,7 +827,7 @@ TEST_F(TestabilityServerTest, ConfigureSocketTtlAppliesToEmittedDatagram) {
 
     // DUT: create a UDP socket, set its TTL = 7, emit a datagram to the receiver.
     const auto sock =
-        stimulus::testabilityCreateAndBind(cfg, tp::kGidUdp, /*do_bind=*/true, 0xFFFF, 0);
+        testability::testabilityCreateAndBind(cfg, tp::kGidUdp, /*do_bind=*/true, 0xFFFF, 0);
     ASSERT_TRUE(sock.has_value());
 
     constexpr std::uint8_t kTtl = 7;
@@ -836,7 +836,7 @@ TEST_F(TestabilityServerTest, ConfigureSocketTtlAppliesToEmittedDatagram) {
     tp::appendU16(cs, tp::kCfgTtl);  // paramId 0x0000
     const std::uint8_t ttl_val = kTtl;
     tp::appendVint8(cs, &ttl_val, 1);  // paramVal (1 byte)
-    EXPECT_TRUE(stimulus::testabilityCall(cfg, tp::kGidUdp, tp::kPidConfigureSocket, cs).eok());
+    EXPECT_TRUE(testability::testabilityCall(cfg, tp::kGidUdp, tp::kPidConfigureSocket, cs).eok());
 
     std::vector<std::uint8_t> sd;
     tp::appendU16(sd, *sock);                          // socketId
@@ -845,7 +845,7 @@ TEST_F(TestabilityServerTest, ConfigureSocketTtlAppliesToEmittedDatagram) {
     tp::appendIpv4Addr(sd, ::htonl(INADDR_LOOPBACK));  // destAddr
     const std::vector<std::uint8_t> body = {'T', 'T', 'L'};
     tp::appendVint8(sd, body.data(), body.size());  // data
-    EXPECT_TRUE(stimulus::testabilityCall(cfg, tp::kGidUdp, tp::kPidSendData, sd).eok());
+    EXPECT_TRUE(testability::testabilityCall(cfg, tp::kGidUdp, tp::kPidSendData, sd).eok());
 
     // recvmsg reads the payload plus the ancillary TTL (IP_RECVTTL -> cmsg IP_TTL).
     std::uint8_t buf[16];
@@ -872,7 +872,7 @@ TEST_F(TestabilityServerTest, ConfigureSocketTtlAppliesToEmittedDatagram) {
     EXPECT_EQ(got_ttl, static_cast<int>(kTtl))
         << "CONFIGURE_SOCKET TTL not reflected on the emitted datagram";
 
-    EXPECT_TRUE(stimulus::testabilityCloseSocket(cfg, tp::kGidUdp, *sock).eok());
+    EXPECT_TRUE(testability::testabilityCloseSocket(cfg, tp::kGidUdp, *sock).eok());
     ::close(rfd);
 }
 
@@ -904,7 +904,7 @@ TEST_F(TestabilityServerTest, ConfigureSocketTosAndPriorityApplyToEmittedDatagra
     ::setsockopt(rfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
     const auto sock =
-        stimulus::testabilityCreateAndBind(cfg, tp::kGidUdp, /*do_bind=*/true, 0xFFFF, 0);
+        testability::testabilityCreateAndBind(cfg, tp::kGidUdp, /*do_bind=*/true, 0xFFFF, 0);
     ASSERT_TRUE(sock.has_value());
 
     // Set <paramId>=<value> on the DUT socket, have it emit one datagram, and
@@ -915,7 +915,7 @@ TEST_F(TestabilityServerTest, ConfigureSocketTosAndPriorityApplyToEmittedDatagra
         tp::appendU16(cs, param_id);  // paramId
         tp::appendVint8(cs, &value, 1);
         EXPECT_TRUE(
-            stimulus::testabilityCall(cfg, tp::kGidUdp, tp::kPidConfigureSocket, cs).eok());
+            testability::testabilityCall(cfg, tp::kGidUdp, tp::kPidConfigureSocket, cs).eok());
 
         std::vector<std::uint8_t> sd;
         tp::appendU16(sd, *sock);                          // socketId
@@ -924,7 +924,7 @@ TEST_F(TestabilityServerTest, ConfigureSocketTosAndPriorityApplyToEmittedDatagra
         tp::appendIpv4Addr(sd, ::htonl(INADDR_LOOPBACK));  // destAddr
         const std::vector<std::uint8_t> body = {'T', 'O', 'S'};
         tp::appendVint8(sd, body.data(), body.size());
-        EXPECT_TRUE(stimulus::testabilityCall(cfg, tp::kGidUdp, tp::kPidSendData, sd).eok());
+        EXPECT_TRUE(testability::testabilityCall(cfg, tp::kGidUdp, tp::kPidSendData, sd).eok());
 
         std::uint8_t buf[16];
         iovec iov{};
@@ -959,7 +959,7 @@ TEST_F(TestabilityServerTest, ConfigureSocketTosAndPriorityApplyToEmittedDatagra
     EXPECT_EQ(emitAndReadTos(tp::kCfgPriority, 0x10), 0x10)
         << "CONFIGURE_SOCKET PRIORITY not reflected on the emitted datagram's TOS";
 
-    EXPECT_TRUE(stimulus::testabilityCloseSocket(cfg, tp::kGidUdp, *sock).eok());
+    EXPECT_TRUE(testability::testabilityCloseSocket(cfg, tp::kGidUdp, *sock).eok());
     ::close(rfd);
 }
 
@@ -975,18 +975,18 @@ TEST_F(TestabilityServerTest, ConfigureSocketResultCodes) {
         tp::appendU16(cs, tp::kCfgTtl);
         const std::uint8_t v = 5;
         tp::appendVint8(cs, &v, 1);
-        EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidUdp, tp::kPidConfigureSocket, cs).rid,
+        EXPECT_EQ(testability::testabilityCall(cfg, tp::kGidUdp, tp::kPidConfigureSocket, cs).rid,
                   tp::kRidEIsd);
     }
 
-    const auto sock = stimulus::testabilityCreateAndBind(cfg, tp::kGidTcp, false, 0xFFFF, 0);
+    const auto sock = testability::testabilityCreateAndBind(cfg, tp::kGidTcp, false, 0xFFFF, 0);
     ASSERT_TRUE(sock.has_value());
 
     // Truncated: socketId only, no paramId / paramVal.
     {
         std::vector<std::uint8_t> cs;
         tp::appendU16(cs, *sock);
-        EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidTcp, tp::kPidConfigureSocket, cs).rid,
+        EXPECT_EQ(testability::testabilityCall(cfg, tp::kGidTcp, tp::kPidConfigureSocket, cs).rid,
                   tp::kRidEInv);
     }
 
@@ -997,7 +997,7 @@ TEST_F(TestabilityServerTest, ConfigureSocketResultCodes) {
         tp::appendU16(cs, 0x00FF);  // not a defined selector
         const std::uint8_t v = 1;
         tp::appendVint8(cs, &v, 1);
-        EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidTcp, tp::kPidConfigureSocket, cs).rid,
+        EXPECT_EQ(testability::testabilityCall(cfg, tp::kGidTcp, tp::kPidConfigureSocket, cs).rid,
                   tp::kRidENtf);
     }
 
@@ -1009,10 +1009,10 @@ TEST_F(TestabilityServerTest, ConfigureSocketResultCodes) {
         const std::uint8_t v = 0;  // disable Nagle
         tp::appendVint8(cs, &v, 1);
         EXPECT_TRUE(
-            stimulus::testabilityCall(cfg, tp::kGidTcp, tp::kPidConfigureSocket, cs).eok());
+            testability::testabilityCall(cfg, tp::kGidTcp, tp::kPidConfigureSocket, cs).eok());
     }
 
-    EXPECT_TRUE(stimulus::testabilityCloseSocket(cfg, tp::kGidTcp, *sock).eok());
+    EXPECT_TRUE(testability::testabilityCloseSocket(cfg, tp::kGidTcp, *sock).eok());
 }
 
 // CONFIGURE_SOCKET parameter-mapping contract for the selectors whose on-wire
@@ -1032,14 +1032,14 @@ TEST_F(TestabilityServerTest, ConfigureSocketParameterMappingContract) {
         tp::appendU16(cs, sock);
         tp::appendU16(cs, param_id);
         tp::appendVint8(cs, param_val.data(), param_val.size());
-        return stimulus::testabilityCall(cfg, gid, tp::kPidConfigureSocket, cs).rid;
+        return testability::testabilityCall(cfg, gid, tp::kPidConfigureSocket, cs).rid;
     };
 
     // UDP socket: DONT_FRAGMENT (IP_MTU_DISCOVER) and UDP_CHECKSUM (SO_NO_CHECK),
     // both single-byte selectors.
     {
         const auto sock =
-            stimulus::testabilityCreateAndBind(cfg, tp::kGidUdp, /*do_bind=*/true, 0xFFFF, 0);
+            testability::testabilityCreateAndBind(cfg, tp::kGidUdp, /*do_bind=*/true, 0xFFFF, 0);
         ASSERT_TRUE(sock.has_value());
         EXPECT_EQ(cfgCall(tp::kGidUdp, *sock, tp::kCfgDontFragment, {0x01}), tp::kRidEOk);
         EXPECT_EQ(cfgCall(tp::kGidUdp, *sock, tp::kCfgDontFragment, {0x00}), tp::kRidEOk);
@@ -1047,18 +1047,18 @@ TEST_F(TestabilityServerTest, ConfigureSocketParameterMappingContract) {
         // Wrong-length paramVal (2 bytes where the fixed(1) gate wants 1) -> E_INV.
         EXPECT_EQ(cfgCall(tp::kGidUdp, *sock, tp::kCfgDontFragment, {0x00, 0x00}),
                   tp::kRidEInv);
-        EXPECT_TRUE(stimulus::testabilityCloseSocket(cfg, tp::kGidUdp, *sock).eok());
+        EXPECT_TRUE(testability::testabilityCloseSocket(cfg, tp::kGidUdp, *sock).eok());
     }
 
     // TCP socket: MSS (TCP_MAXSEG), a two-byte selector, plus its length gate.
     {
         const auto sock =
-            stimulus::testabilityCreateAndBind(cfg, tp::kGidTcp, /*do_bind=*/false, 0xFFFF, 0);
+            testability::testabilityCreateAndBind(cfg, tp::kGidTcp, /*do_bind=*/false, 0xFFFF, 0);
         ASSERT_TRUE(sock.has_value());
         EXPECT_EQ(cfgCall(tp::kGidTcp, *sock, tp::kCfgMss, {0x02, 0x18}), tp::kRidEOk);  // 536
         // Wrong-length MSS paramVal (1 byte where the fixed(2) gate wants 2) -> E_INV.
         EXPECT_EQ(cfgCall(tp::kGidTcp, *sock, tp::kCfgMss, {0x05}), tp::kRidEInv);
-        EXPECT_TRUE(stimulus::testabilityCloseSocket(cfg, tp::kGidTcp, *sock).eok());
+        EXPECT_TRUE(testability::testabilityCloseSocket(cfg, tp::kGidTcp, *sock).eok());
     }
 }
 
@@ -1066,10 +1066,10 @@ TEST_F(TestabilityServerTest, ConfigureSocketParameterMappingContract) {
 TEST_F(TestabilityServerTest, UnknownSocketIdIsInvalid) {
     const auto cfg = loopbackConfig();
     const std::uint16_t bogus = 0xBEEF;
-    EXPECT_EQ(stimulus::testabilityTcpConnect(cfg, bogus, 80, ::htonl(INADDR_LOOPBACK)).rid,
+    EXPECT_EQ(testability::testabilityTcpConnect(cfg, bogus, 80, ::htonl(INADDR_LOOPBACK)).rid,
               tp::kRidEIsd);
-    EXPECT_EQ(stimulus::testabilityTcpSendData(cfg, bogus, 1, 0, {0x01}).rid, tp::kRidEIsd);
-    EXPECT_EQ(stimulus::testabilityCloseSocket(cfg, tp::kGidTcp, bogus).rid, tp::kRidEIsd);
+    EXPECT_EQ(testability::testabilityTcpSendData(cfg, bogus, 1, 0, {0x01}).rid, tp::kRidEIsd);
+    EXPECT_EQ(testability::testabilityCloseSocket(cfg, tp::kGidTcp, bogus).rid, tp::kRidEIsd);
 }
 
 // ── ICMP group (GID 0x03): ECHO_REQUEST (PRS_TPSP §6.10) ──
@@ -1081,7 +1081,7 @@ TEST_F(TestabilityServerTest, IcmpEchoRequestToLoopbackReturnsEOk) {
     const auto cfg = loopbackConfig();
     const std::vector<std::uint8_t> payload = {'p', 'i', 'n', 'g'};
     const auto r =
-        stimulus::testabilityEchoRequest(cfg, /*iface=*/"", ::htonl(INADDR_LOOPBACK), payload);
+        testability::testabilityEchoRequest(cfg, /*iface=*/"", ::htonl(INADDR_LOOPBACK), payload);
     EXPECT_TRUE(r.eok()) << "ECHO_REQUEST to loopback should emit and report E_OK (rid="
                          << static_cast<int>(r.rid) << ")";
 }
@@ -1089,7 +1089,7 @@ TEST_F(TestabilityServerTest, IcmpEchoRequestToLoopbackReturnsEOk) {
 // An empty payload is valid (data vint8 n=0): a bare Echo Request still emits.
 TEST_F(TestabilityServerTest, IcmpEchoRequestEmptyPayloadReturnsEOk) {
     const auto cfg = loopbackConfig();
-    const auto r = stimulus::testabilityEchoRequest(cfg, /*iface=*/"", ::htonl(INADDR_LOOPBACK), {});
+    const auto r = testability::testabilityEchoRequest(cfg, /*iface=*/"", ::htonl(INADDR_LOOPBACK), {});
     EXPECT_TRUE(r.eok()) << "rid=" << static_cast<int>(r.rid);
 }
 
@@ -1097,7 +1097,7 @@ TEST_F(TestabilityServerTest, IcmpEchoRequestEmptyPayloadReturnsEOk) {
 // unprivileged SO_BINDTODEVICE returning ENODEV (Linux >= 5.7).
 TEST_F(TestabilityServerTest, IcmpEchoRequestInvalidInterfaceReturnsEIif) {
     const auto cfg = loopbackConfig();
-    const auto r = stimulus::testabilityEchoRequest(cfg, /*iface=*/"tc8-no-such-if",
+    const auto r = testability::testabilityEchoRequest(cfg, /*iface=*/"tc8-no-such-if",
                                                     ::htonl(INADDR_LOOPBACK), {});
     EXPECT_TRUE(r.ok);  // the SP itself round-tripped
     EXPECT_EQ(r.rid, tp::kRidEIif) << "unknown interface should map to E_IIF";
@@ -1114,14 +1114,14 @@ TEST_F(TestabilityServerTest, Icmpv6EchoRequestWrongAddrLengthReturnsEInv) {
     tp::appendText(dat, "");                            // ifName
     tp::appendIpv4Addr(dat, ::htonl(INADDR_LOOPBACK));  // 4-byte addr — wrong for ICMPv6
     tp::appendVint8(dat, nullptr, 0);                   // data
-    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidIcmpv6, tp::kPidEchoRequest, dat).rid,
+    EXPECT_EQ(testability::testabilityCall(cfg, tp::kGidIcmpv6, tp::kPidEchoRequest, dat).rid,
               tp::kRidEInv);
 }
 
 // The ICMPv6 group defines only ECHO_REQUEST; any other PID is E_NTF.
 TEST_F(TestabilityServerTest, Icmpv6UnknownPrimitiveReturnsENtf) {
     const auto cfg = loopbackConfig();
-    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidIcmpv6, /*pid=*/0x7E, {}).rid, tp::kRidENtf);
+    EXPECT_EQ(testability::testabilityCall(cfg, tp::kGidIcmpv6, /*pid=*/0x7E, {}).rid, tp::kRidENtf);
 }
 
 // True if this host can open an ICMPv6 socket (the same acquisition the backend
@@ -1149,7 +1149,7 @@ TEST_F(TestabilityServerTest, Icmpv6EchoRequestToLoopbackReturnsEOk) {
     const auto cfg = loopbackConfig();
     const std::uint8_t loop6[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};  // ::1
     const std::vector<std::uint8_t> payload = {'p', 'i', 'n', 'g', '6'};
-    const auto r = stimulus::testabilityEchoRequestV6(cfg, /*iface=*/"", loop6, payload);
+    const auto r = testability::testabilityEchoRequestV6(cfg, /*iface=*/"", loop6, payload);
     EXPECT_TRUE(r.eok()) << "ICMPv6 ECHO_REQUEST to ::1 should emit and report E_OK (rid="
                          << static_cast<int>(r.rid) << ")";
 }
@@ -1163,7 +1163,7 @@ TEST_F(TestabilityServerTest, Icmpv6EchoRequestInvalidInterfaceReturnsEIif) {
     const auto cfg = loopbackConfig();
     const std::uint8_t loop6[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};  // ::1
     const auto r =
-        stimulus::testabilityEchoRequestV6(cfg, /*iface=*/"tc8-no-such-if", loop6, {});
+        testability::testabilityEchoRequestV6(cfg, /*iface=*/"tc8-no-such-if", loop6, {});
     EXPECT_TRUE(r.ok);  // the SP itself round-tripped
     EXPECT_EQ(r.rid, tp::kRidEIif) << "unknown interface should map to E_IIF";
 }
@@ -1175,14 +1175,14 @@ TEST_F(TestabilityServerTest, Icmpv6EchoRequestInvalidInterfaceReturnsEIif) {
 // CI host (no link-state change is attempted).
 TEST_F(TestabilityServerTest, EthInterfaceUpInvalidInterfaceReturnsEIif) {
     const auto cfg = loopbackConfig();
-    const auto r = stimulus::testabilityInterfaceUp(cfg, /*iface=*/"tc8-no-such-if");
+    const auto r = testability::testabilityInterfaceUp(cfg, /*iface=*/"tc8-no-such-if");
     EXPECT_TRUE(r.ok);  // the SP itself round-tripped
     EXPECT_EQ(r.rid, tp::kRidEIif) << "unknown interface should map to E_IIF";
 }
 
 TEST_F(TestabilityServerTest, EthInterfaceDownInvalidInterfaceReturnsEIif) {
     const auto cfg = loopbackConfig();
-    const auto r = stimulus::testabilityInterfaceDown(cfg, /*iface=*/"tc8-no-such-if");
+    const auto r = testability::testabilityInterfaceDown(cfg, /*iface=*/"tc8-no-such-if");
     EXPECT_TRUE(r.ok);
     EXPECT_EQ(r.rid, tp::kRidEIif) << "unknown interface should map to E_IIF";
 }
@@ -1192,14 +1192,14 @@ TEST_F(TestabilityServerTest, EthInterfaceDownInvalidInterfaceReturnsEIif) {
 // and resolves to E_IIF).
 TEST_F(TestabilityServerTest, EthInterfaceUpMissingIfNameReturnsEInv) {
     const auto cfg = loopbackConfig();
-    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidEth, tp::kPidInterfaceUp, {}).rid,
+    EXPECT_EQ(testability::testabilityCall(cfg, tp::kGidEth, tp::kPidInterfaceUp, {}).rid,
               tp::kRidEInv);
 }
 
 // The ETH group defines only INTERFACE_UP / INTERFACE_DOWN; any other PID is E_NTF.
 TEST_F(TestabilityServerTest, EthUnknownPrimitiveReturnsENtf) {
     const auto cfg = loopbackConfig();
-    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidEth, /*pid=*/0x7E, {}).rid, tp::kRidENtf);
+    EXPECT_EQ(testability::testabilityCall(cfg, tp::kGidEth, /*pid=*/0x7E, {}).rid, tp::kRidENtf);
 }
 
 // True if this process may change a link's administrative state. Probed by
@@ -1231,7 +1231,7 @@ TEST_F(TestabilityServerTest, EthInterfaceUpLoopbackReturnsEOk) {
         GTEST_SKIP() << "no CAP_NET_ADMIN to change link state on this host";
     }
     const auto cfg = loopbackConfig();
-    const auto r = stimulus::testabilityInterfaceUp(cfg, /*iface=*/"lo");
+    const auto r = testability::testabilityInterfaceUp(cfg, /*iface=*/"lo");
     EXPECT_TRUE(r.eok()) << "INTERFACE_UP on already-up loopback should report E_OK (rid="
                          << static_cast<int>(r.rid) << ")";
 }
@@ -1245,7 +1245,7 @@ TEST_F(TestabilityServerTest, EthInterfaceUpLoopbackReturnsEOk) {
 
 TEST_F(TestabilityServerTest, IpStaticAddressInvalidInterfaceReturnsEIif) {
     const auto cfg = loopbackConfig();
-    const auto r = stimulus::testabilityStaticAddress(cfg, /*iface=*/"tc8-no-such-if",
+    const auto r = testability::testabilityStaticAddress(cfg, /*iface=*/"tc8-no-such-if",
                                                       ::htonl(0x0A000001), /*cidr=*/24);
     EXPECT_TRUE(r.ok);  // the SP itself round-tripped
     EXPECT_EQ(r.rid, tp::kRidEIif) << "unknown interface should map to E_IIF";
@@ -1253,7 +1253,7 @@ TEST_F(TestabilityServerTest, IpStaticAddressInvalidInterfaceReturnsEIif) {
 
 TEST_F(TestabilityServerTest, IpStaticRouteInvalidInterfaceReturnsEIif) {
     const auto cfg = loopbackConfig();
-    const auto r = stimulus::testabilityStaticRoute(cfg, /*iface=*/"tc8-no-such-if",
+    const auto r = testability::testabilityStaticRoute(cfg, /*iface=*/"tc8-no-such-if",
                                                     ::htonl(0x0A000000), /*cidr=*/24,
                                                     ::htonl(0x0A0000FE));
     EXPECT_TRUE(r.ok);
@@ -1271,7 +1271,7 @@ TEST_F(TestabilityServerTest, IpStaticRouteWrongSubnetLengthReturnsEInv) {
     tp::appendIpv6Addr(dat, subnet16);  // 16-byte subNet under the IPv4 GID
     dat.push_back(24);                  // netMask
     tp::appendIpv4Addr(dat, ::htonl(0x0A0000FE));
-    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidIp, tp::kPidStaticRoute, dat).rid,
+    EXPECT_EQ(testability::testabilityCall(cfg, tp::kGidIp, tp::kPidStaticRoute, dat).rid,
               tp::kRidEInv);
 }
 
@@ -1280,7 +1280,7 @@ TEST_F(TestabilityServerTest, IpStaticRouteMissingNetMaskReturnsEInv) {
     std::vector<std::uint8_t> dat;
     tp::appendText(dat, "lo");
     tp::appendIpv4Addr(dat, ::htonl(0x0A000000));  // subNet, then truncate (no netMask)
-    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidIp, tp::kPidStaticRoute, dat).rid,
+    EXPECT_EQ(testability::testabilityCall(cfg, tp::kGidIp, tp::kPidStaticRoute, dat).rid,
               tp::kRidEInv);
 }
 
@@ -1292,14 +1292,14 @@ TEST_F(TestabilityServerTest, IpStaticRouteWrongGatewayLengthReturnsEInv) {
     dat.push_back(24);                             // netMask
     const std::uint8_t gw16[16] = {};
     tp::appendIpv6Addr(dat, gw16);                 // 16-byte gateway under the IPv4 GID
-    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidIp, tp::kPidStaticRoute, dat).rid,
+    EXPECT_EQ(testability::testabilityCall(cfg, tp::kGidIp, tp::kPidStaticRoute, dat).rid,
               tp::kRidEInv);
 }
 
 // A request with no parameters at all (missing the ifName text) is malformed -> E_INV.
 TEST_F(TestabilityServerTest, IpStaticAddressMissingParamsReturnsEInv) {
     const auto cfg = loopbackConfig();
-    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidIp, tp::kPidStaticAddress, {}).rid,
+    EXPECT_EQ(testability::testabilityCall(cfg, tp::kGidIp, tp::kPidStaticAddress, {}).rid,
               tp::kRidEInv);
 }
 
@@ -1312,14 +1312,14 @@ TEST_F(TestabilityServerTest, IpStaticAddressWrongAddrLengthReturnsEInv) {
     const std::uint8_t addr16[16] = {};
     tp::appendIpv6Addr(dat, addr16);  // 16-byte addr under the IPv4 GID
     dat.push_back(24);                // netMask
-    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidIp, tp::kPidStaticAddress, dat).rid,
+    EXPECT_EQ(testability::testabilityCall(cfg, tp::kGidIp, tp::kPidStaticAddress, dat).rid,
               tp::kRidEInv);
 }
 
 // The IP group defines only STATIC_ADDRESS / STATIC_ROUTE; any other PID is E_NTF.
 TEST_F(TestabilityServerTest, IpUnknownPrimitiveReturnsENtf) {
     const auto cfg = loopbackConfig();
-    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidIp, /*pid=*/0x7E, {}).rid, tp::kRidENtf);
+    EXPECT_EQ(testability::testabilityCall(cfg, tp::kGidIp, /*pid=*/0x7E, {}).rid, tp::kRidENtf);
 }
 
 // A CIDR prefix > 32 is invalid input -> E_INV, returned by the backend BEFORE it
@@ -1327,7 +1327,7 @@ TEST_F(TestabilityServerTest, IpUnknownPrimitiveReturnsENtf) {
 // real interface ("lo" is never touched).
 TEST_F(TestabilityServerTest, IpStaticAddressBadCidrReturnsEInv) {
     const auto cfg = loopbackConfig();
-    const auto r = stimulus::testabilityStaticAddress(cfg, /*iface=*/"lo",
+    const auto r = testability::testabilityStaticAddress(cfg, /*iface=*/"lo",
                                                       ::htonl(0x7F000002), /*cidr=*/33);
     EXPECT_EQ(r.rid, tp::kRidEInv) << "cidr > 32 should be E_INV";
 }
@@ -1337,7 +1337,7 @@ TEST_F(TestabilityServerTest, IpStaticAddressBadCidrReturnsEInv) {
 // unknown iface yields E_IIF (an off-by-one `>= 32` would wrongly return E_INV here).
 TEST_F(TestabilityServerTest, IpStaticAddressCidr32PassesGuardReturnsEIif) {
     const auto cfg = loopbackConfig();
-    const auto r = stimulus::testabilityStaticAddress(cfg, /*iface=*/"tc8-no-such-if",
+    const auto r = testability::testabilityStaticAddress(cfg, /*iface=*/"tc8-no-such-if",
                                                       ::htonl(0x0A000001), /*cidr=*/32);
     EXPECT_EQ(r.rid, tp::kRidEIif) << "cidr == 32 is valid and should pass to E_IIF";
 }
@@ -1352,7 +1352,7 @@ TEST_F(TestabilityServerTest, Ipv6StaticAddressInvalidInterfaceReturnsEIif) {
     const auto cfg = loopbackConfig();
     const std::uint8_t addr16[16] = {0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
                                      0,    0,    0,    0,    0, 0, 0, 0x01};
-    const auto r = stimulus::testabilityStaticAddressV6(cfg, /*iface=*/"tc8-no-such-if", addr16,
+    const auto r = testability::testabilityStaticAddressV6(cfg, /*iface=*/"tc8-no-such-if", addr16,
                                                         /*prefix=*/64);
     EXPECT_TRUE(r.ok);  // the SP itself round-tripped
     EXPECT_EQ(r.rid, tp::kRidEIif) << "unknown interface should map to E_IIF";
@@ -1363,7 +1363,7 @@ TEST_F(TestabilityServerTest, Ipv6StaticRouteInvalidInterfaceReturnsEIif) {
     const std::uint8_t subnet16[16] = {0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     const std::uint8_t gw16[16] = {0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
                                    0,    0,    0,    0,    0, 0, 0, 0x01};
-    const auto r = stimulus::testabilityStaticRouteV6(cfg, /*iface=*/"tc8-no-such-if", subnet16,
+    const auto r = testability::testabilityStaticRouteV6(cfg, /*iface=*/"tc8-no-such-if", subnet16,
                                                       /*prefix=*/64, gw16);
     EXPECT_TRUE(r.ok);
     EXPECT_EQ(r.rid, tp::kRidEIif) << "unknown interface should map to E_IIF";
@@ -1380,7 +1380,7 @@ TEST_F(TestabilityServerTest, Ipv6StaticRouteWrongSubnetLengthReturnsEInv) {
     dat.push_back(64);                             // netMask
     const std::uint8_t gw16[16] = {};
     tp::appendIpv6Addr(dat, gw16);
-    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidIpv6, tp::kPidStaticRoute, dat).rid,
+    EXPECT_EQ(testability::testabilityCall(cfg, tp::kGidIpv6, tp::kPidStaticRoute, dat).rid,
               tp::kRidEInv);
 }
 
@@ -1390,7 +1390,7 @@ TEST_F(TestabilityServerTest, Ipv6StaticRouteMissingNetMaskReturnsEInv) {
     tp::appendText(dat, "lo");
     const std::uint8_t subnet16[16] = {};
     tp::appendIpv6Addr(dat, subnet16);  // subNet, then truncate (no netMask)
-    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidIpv6, tp::kPidStaticRoute, dat).rid,
+    EXPECT_EQ(testability::testabilityCall(cfg, tp::kGidIpv6, tp::kPidStaticRoute, dat).rid,
               tp::kRidEInv);
 }
 
@@ -1402,14 +1402,14 @@ TEST_F(TestabilityServerTest, Ipv6StaticRouteWrongGatewayLengthReturnsEInv) {
     tp::appendIpv6Addr(dat, subnet16);             // subNet (n=16, valid)
     dat.push_back(64);                             // netMask
     tp::appendIpv4Addr(dat, ::htonl(0x7F000001));  // 4-byte gateway under the IPv6 GID
-    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidIpv6, tp::kPidStaticRoute, dat).rid,
+    EXPECT_EQ(testability::testabilityCall(cfg, tp::kGidIpv6, tp::kPidStaticRoute, dat).rid,
               tp::kRidEInv);
 }
 
 // A request with no parameters at all (missing the ifName text) is malformed -> E_INV.
 TEST_F(TestabilityServerTest, Ipv6StaticAddressMissingParamsReturnsEInv) {
     const auto cfg = loopbackConfig();
-    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidIpv6, tp::kPidStaticAddress, {}).rid,
+    EXPECT_EQ(testability::testabilityCall(cfg, tp::kGidIpv6, tp::kPidStaticAddress, {}).rid,
               tp::kRidEInv);
 }
 
@@ -1421,14 +1421,14 @@ TEST_F(TestabilityServerTest, Ipv6StaticAddressWrongAddrLengthReturnsEInv) {
     tp::appendText(dat, "lo");                          // ifName
     tp::appendIpv4Addr(dat, ::htonl(0x7F000001));       // 4-byte addr under the IPv6 GID
     dat.push_back(64);                                  // netMask
-    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidIpv6, tp::kPidStaticAddress, dat).rid,
+    EXPECT_EQ(testability::testabilityCall(cfg, tp::kGidIpv6, tp::kPidStaticAddress, dat).rid,
               tp::kRidEInv);
 }
 
 // The IPv6 group defines only STATIC_ADDRESS / STATIC_ROUTE; any other PID is E_NTF.
 TEST_F(TestabilityServerTest, Ipv6UnknownPrimitiveReturnsENtf) {
     const auto cfg = loopbackConfig();
-    EXPECT_EQ(stimulus::testabilityCall(cfg, tp::kGidIpv6, /*pid=*/0x7E, {}).rid, tp::kRidENtf);
+    EXPECT_EQ(testability::testabilityCall(cfg, tp::kGidIpv6, /*pid=*/0x7E, {}).rid, tp::kRidENtf);
 }
 
 // A prefix length > 128 is invalid input -> E_INV, returned by the backend BEFORE it
@@ -1438,7 +1438,7 @@ TEST_F(TestabilityServerTest, Ipv6StaticAddressBadPrefixReturnsEInv) {
     const auto cfg = loopbackConfig();
     const std::uint8_t addr16[16] = {0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
                                      0,    0,    0,    0,    0, 0, 0, 0x02};
-    const auto r = stimulus::testabilityStaticAddressV6(cfg, /*iface=*/"lo", addr16,
+    const auto r = testability::testabilityStaticAddressV6(cfg, /*iface=*/"lo", addr16,
                                                         /*prefix=*/129);
     EXPECT_EQ(r.rid, tp::kRidEInv) << "prefix > 128 should be E_INV";
 }
@@ -1450,7 +1450,7 @@ TEST_F(TestabilityServerTest, Ipv6StaticAddressPrefix128PassesGuardReturnsEIif) 
     const auto cfg = loopbackConfig();
     const std::uint8_t addr16[16] = {0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
                                      0,    0,    0,    0,    0, 0, 0, 0x03};
-    const auto r = stimulus::testabilityStaticAddressV6(cfg, /*iface=*/"tc8-no-such-if", addr16,
+    const auto r = testability::testabilityStaticAddressV6(cfg, /*iface=*/"tc8-no-such-if", addr16,
                                                         /*prefix=*/128);
     EXPECT_EQ(r.rid, tp::kRidEIif) << "prefix == 128 is valid and should pass to E_IIF";
 }
@@ -1477,11 +1477,11 @@ TEST(TestabilityServerSeamTest, OemHandlerExtendsNonStandardGroup) {
         });
     ASSERT_TRUE(server.start(kPort));
 
-    stimulus::TestabilityConfig cfg;
+    testability::TestabilityConfig cfg;
     cfg.dut_ip_be = ::htonl(INADDR_LOOPBACK);
     cfg.dut_port = kPort;
     const std::vector<std::uint8_t> req = {0x01, 0x02, 0x03};
-    const auto r = stimulus::testabilityCall(cfg, kVendorGid, kVendorPid, req);
+    const auto r = testability::testabilityCall(cfg, kVendorGid, kVendorPid, req);
     server.stop();
 
     ASSERT_TRUE(r.ok);
@@ -1510,10 +1510,10 @@ TEST(TestabilityServerSeamTest, OemHandlerOverridesStandardPrimitive) {
         });
     ASSERT_TRUE(server.start(kPort));
 
-    stimulus::TestabilityConfig cfg;
+    testability::TestabilityConfig cfg;
     cfg.dut_ip_be = ::htonl(INADDR_LOOPBACK);
     cfg.dut_port = kPort;
-    const auto v = stimulus::testabilityGetVersion(cfg);
+    const auto v = testability::testabilityGetVersion(cfg);
     server.stop();
 
     ASSERT_TRUE(v.has_value());
@@ -1681,8 +1681,8 @@ public:
     }
 };
 
-stimulus::TestabilityConfig loopbackOn(std::uint16_t port) {
-    stimulus::TestabilityConfig cfg;
+testability::TestabilityConfig loopbackOn(std::uint16_t port) {
+    testability::TestabilityConfig cfg;
     cfg.dut_ip_be = ::htonl(INADDR_LOOPBACK);
     cfg.dut_port = port;
     return cfg;
@@ -1705,7 +1705,7 @@ protected:
         const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
         int v = 0;
         do {
-            const auto r = stimulus::testabilityCall(cfg_, kProbeGid, kProbePidReadCount, {});
+            const auto r = testability::testabilityCall(cfg_, kProbeGid, kProbePidReadCount, {});
             if (r.eok() && r.dat.size() == 2u) {
                 v = (r.dat[0] << 8) | r.dat[1];
                 if (v > 0) {
@@ -1718,7 +1718,7 @@ protected:
     }
 
     int readCount() {
-        const auto r = stimulus::testabilityCall(cfg_, kProbeGid, kProbePidReadCount, {});
+        const auto r = testability::testabilityCall(cfg_, kProbeGid, kProbePidReadCount, {});
         EXPECT_TRUE(r.eok());
         EXPECT_EQ(r.dat.size(), 2u);
         return r.dat.size() == 2u ? ((r.dat[0] << 8) | r.dat[1]) : -1;
@@ -1727,27 +1727,27 @@ protected:
     static constexpr std::uint16_t kPort = 31901;
     TC8_STATIC_ASSERT_TEST_PORT(kPort);
     testability::ProtocolServer server_{std::make_unique<dut::PosixSocketBackend>()};
-    stimulus::TestabilityConfig cfg_;
+    testability::TestabilityConfig cfg_;
 };
 
 TEST_F(MiddlewareSeamTest, PrimitiveRoutesEchoesAndUnknownPidIsNotFound) {
     const std::vector<std::uint8_t> body = {0x11, 0x22, 0x33};
-    const auto echo = stimulus::testabilityCall(cfg_, kProbeGid, kProbePidEcho, body);
+    const auto echo = testability::testabilityCall(cfg_, kProbeGid, kProbePidEcho, body);
     EXPECT_TRUE(echo.eok());
     EXPECT_EQ(echo.dat, body);
 
-    const auto unknown = stimulus::testabilityCall(cfg_, kProbeGid, 0xFE, {});
+    const auto unknown = testability::testabilityCall(cfg_, kProbeGid, 0xFE, {});
     EXPECT_TRUE(unknown.ok);
     EXPECT_EQ(unknown.rid, tp::kRidENtf);
 }
 
 TEST_F(MiddlewareSeamTest, TimerAdvancesStateAndEndTestResetsIt) {
-    EXPECT_TRUE(stimulus::testabilityCall(cfg_, kProbeGid, kProbePidArmTick, {}).eok());
+    EXPECT_TRUE(testability::testabilityCall(cfg_, kProbeGid, kProbePidArmTick, {}).eok());
     EXPECT_GT(pollCounterPositive(), 0);  // periodic timer advanced the counter
 
     // END_TEST is synchronous (onEndTest awaited), so the count is cleared and the
     // timer cancelled by the time the Response returns — and stays so.
-    EXPECT_TRUE(stimulus::testabilityEndTest(cfg_, /*tc_id=*/1, "demo").eok());
+    EXPECT_TRUE(testability::testabilityEndTest(cfg_, /*tc_id=*/1, "demo").eok());
     EXPECT_EQ(readCount(), 0);
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
     EXPECT_EQ(readCount(), 0);
@@ -1820,7 +1820,7 @@ TEST(MiddlewareSeam, RegisterModuleRejectsDuplicateAndCoreGid) {
 // executor blocks in poll() indefinitely — so the READ_RX primitive returning at
 // all proves the cross-thread waker broke that poll (otherwise this would hang).
 TEST_F(MiddlewareSeamTest, WatchReadableConsumesInboundDatagramOverLoopback) {
-    ASSERT_TRUE(stimulus::testabilityCall(cfg_, kProbeGid, kProbePidArmRx, {}).eok());
+    ASSERT_TRUE(testability::testabilityCall(cfg_, kProbeGid, kProbePidArmRx, {}).eok());
 
     // Tester -> the module's data port.
     const int s = ::socket(AF_INET, SOCK_DGRAM, 0);
@@ -1840,7 +1840,7 @@ TEST_F(MiddlewareSeamTest, WatchReadableConsumesInboundDatagramOverLoopback) {
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
     std::vector<std::uint8_t> got;
     do {
-        const auto r = stimulus::testabilityCall(cfg_, kProbeGid, kProbePidReadRx, {});
+        const auto r = testability::testabilityCall(cfg_, kProbeGid, kProbePidReadRx, {});
         if (r.eok() && r.dat == payload) {
             got = r.dat;
             break;

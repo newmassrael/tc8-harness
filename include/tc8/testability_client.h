@@ -8,7 +8,7 @@
 
 #include "tc8/testability_protocol.h"
 
-namespace tc8::stimulus {
+namespace tc8::testability {
 
 // Tester-side AUTOSAR Testability Protocol client (PRS Testability TC 1.2.0,
 // PRS_TPSP §6). The standard counterpart to the in-house opcode Upper Tester
@@ -268,4 +268,4 @@ TestabilityResponse testabilityStaticRouteV6(const TestabilityConfig &cfg, const
                                              const std::uint8_t gateway16[16], int timeout_ms = 1000,
                                              std::uint32_t src_ip_be = 0);
 
-}  // namespace tc8::stimulus
+}  // namespace tc8::testability

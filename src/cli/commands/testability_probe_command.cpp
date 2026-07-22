@@ -49,7 +49,7 @@ std::uint32_t localAddrToReach(std::uint32_t dut_ip_be) {
 // UDP data-plane loop: CREATE_AND_BIND -> SEND_DATA -> CLOSE_SOCKET, with a
 // tester-side receiver so the emitted datagram is observably confirmed. Driven
 // through the in-tree typed wrappers (the SP encoding SSOT). false on failure.
-bool runUdpDataLoop(const stimulus::TestabilityConfig &cfg, int timeout_ms) {
+bool runUdpDataLoop(const testability::TestabilityConfig &cfg, int timeout_ms) {
     const std::uint32_t tester_ip = localAddrToReach(cfg.dut_ip_be);
 
     // Tester receiver bound to (tester_ip, ephemeral) — the SEND_DATA target.
@@ -71,7 +71,7 @@ bool runUdpDataLoop(const stimulus::TestabilityConfig &cfg, int timeout_ms) {
         ::setsockopt(rfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
     }
 
-    const auto socket_id = stimulus::testabilityCreateAndBind(
+    const auto socket_id = testability::testabilityCreateAndBind(
         cfg, tp::kGidUdp, /*do_bind=*/true, /*local_port=*/0xFFFF, /*local_addr_be=*/0,
         timeout_ms);
     if (!socket_id) {
@@ -83,7 +83,7 @@ bool runUdpDataLoop(const stimulus::TestabilityConfig &cfg, int timeout_ms) {
 
     static constexpr std::uint8_t kPayload[3] = {'T', 'C', '8'};
     const std::vector<std::uint8_t> body(kPayload, kPayload + sizeof(kPayload));
-    const auto sd = stimulus::testabilityUdpSendData(cfg, *socket_id, sizeof(kPayload),
+    const auto sd = testability::testabilityUdpSendData(cfg, *socket_id, sizeof(kPayload),
                                                      recv_port, tester_ip, body, timeout_ms);
     if (!sd.eok()) {
         std::fprintf(stderr, "testability-probe: UDP SEND_DATA failed (ok=%d rid=0x%02X)\n",
@@ -101,7 +101,7 @@ bool runUdpDataLoop(const stimulus::TestabilityConfig &cfg, int timeout_ms) {
                 observed ? "observed on tester" : "issued; receipt not confirmed");
     if (rfd >= 0) ::close(rfd);
 
-    const auto cs = stimulus::testabilityCloseSocket(cfg, tp::kGidUdp, *socket_id, timeout_ms);
+    const auto cs = testability::testabilityCloseSocket(cfg, tp::kGidUdp, *socket_id, timeout_ms);
     std::printf("testability-probe: UDP CLOSE_SOCKET -> %s (rid=0x%02X)\n",
                 cs.eok() ? "E_OK" : "non-E_OK", cs.rid);
     return true;
@@ -110,7 +110,7 @@ bool runUdpDataLoop(const stimulus::TestabilityConfig &cfg, int timeout_ms) {
 // TCP active-open loop: a tester-side listener accepts the DUT's CONNECT, so
 // reaching ESTABLISHED is observably confirmed; SEND_DATA is then read back on
 // the accepted connection. Over the (UDP) control transport. false on failure.
-bool runTcpActiveLoop(const stimulus::TestabilityConfig &cfg, int timeout_ms) {
+bool runTcpActiveLoop(const testability::TestabilityConfig &cfg, int timeout_ms) {
     const std::uint32_t tester_ip = localAddrToReach(cfg.dut_ip_be);
 
     const int lfd = ::socket(AF_INET, SOCK_STREAM, 0);
@@ -139,7 +139,7 @@ bool runTcpActiveLoop(const stimulus::TestabilityConfig &cfg, int timeout_ms) {
         return false;
     }
 
-    const auto sock = stimulus::testabilityCreateAndBind(
+    const auto sock = testability::testabilityCreateAndBind(
         cfg, tp::kGidTcp, /*do_bind=*/false, /*local_port=*/0xFFFF, /*local_addr_be=*/0,
         timeout_ms);
     if (!sock) {
@@ -149,12 +149,12 @@ bool runTcpActiveLoop(const stimulus::TestabilityConfig &cfg, int timeout_ms) {
     }
     std::printf("testability-probe: TCP CREATE_AND_BIND -> E_OK (socketId %u)\n", *sock);
 
-    const auto co = stimulus::testabilityTcpConnect(cfg, *sock, listen_port, tester_ip,
+    const auto co = testability::testabilityTcpConnect(cfg, *sock, listen_port, tester_ip,
                                                     timeout_ms);
     if (!co.eok()) {
         std::fprintf(stderr, "testability-probe: TCP CONNECT failed (ok=%d rid=0x%02X)\n",
                      co.ok, co.rid);
-        stimulus::testabilityCloseSocket(cfg, tp::kGidTcp, *sock, timeout_ms);
+        testability::testabilityCloseSocket(cfg, tp::kGidTcp, *sock, timeout_ms);
         ::close(lfd);
         return false;
     }
@@ -166,7 +166,7 @@ bool runTcpActiveLoop(const stimulus::TestabilityConfig &cfg, int timeout_ms) {
 
     static constexpr std::uint8_t kPayload[3] = {'T', 'C', '8'};
     const std::vector<std::uint8_t> body(kPayload, kPayload + sizeof(kPayload));
-    const auto sd = stimulus::testabilityTcpSendData(cfg, *sock, sizeof(kPayload),
+    const auto sd = testability::testabilityTcpSendData(cfg, *sock, sizeof(kPayload),
                                                      /*flags=*/0, body, timeout_ms);
     bool observed = false;
     if (afd >= 0 && sd.eok()) {
@@ -183,7 +183,7 @@ bool runTcpActiveLoop(const stimulus::TestabilityConfig &cfg, int timeout_ms) {
     if (afd >= 0) ::close(afd);
     ::close(lfd);
 
-    const auto cs = stimulus::testabilityCloseSocket(cfg, tp::kGidTcp, *sock, timeout_ms);
+    const auto cs = testability::testabilityCloseSocket(cfg, tp::kGidTcp, *sock, timeout_ms);
     std::printf("testability-probe: TCP CLOSE_SOCKET -> %s (rid=0x%02X)\n",
                 cs.eok() ? "E_OK" : "non-E_OK", cs.rid);
     return true;
@@ -191,9 +191,9 @@ bool runTcpActiveLoop(const stimulus::TestabilityConfig &cfg, int timeout_ms) {
 
 // TCP passive-open loop: bind a DUT listen socket, LISTEN_AND_ACCEPT, then
 // connect to it from the tester so the DUT accepts and emits the accept Event.
-bool runTcpPassiveLoop(const stimulus::TestabilityConfig &cfg, int timeout_ms) {
+bool runTcpPassiveLoop(const testability::TestabilityConfig &cfg, int timeout_ms) {
     constexpr std::uint16_t kListenPort = 30750;
-    const auto listen_sock = stimulus::testabilityCreateAndBind(
+    const auto listen_sock = testability::testabilityCreateAndBind(
         cfg, tp::kGidTcp, /*do_bind=*/true, kListenPort, /*local_addr_be=*/0, timeout_ms);
     if (!listen_sock) {
         std::fprintf(stderr, "testability-probe: TCP CREATE_AND_BIND (listen) failed\n");
@@ -203,7 +203,7 @@ bool runTcpPassiveLoop(const stimulus::TestabilityConfig &cfg, int timeout_ms) {
                 "(socketId %u, port %u)\n", *listen_sock, kListenPort);
 
     int cfd = -1;
-    const auto ev = stimulus::testabilityTcpListenAndAccept(
+    const auto ev = testability::testabilityTcpListenAndAccept(
         cfg, *listen_sock, /*max_con=*/1,
         [&] {
             // Trigger: the tester connects to the DUT's listen port.
@@ -228,13 +228,13 @@ bool runTcpPassiveLoop(const stimulus::TestabilityConfig &cfg, int timeout_ms) {
         std::printf("testability-probe: TCP LISTEN_AND_ACCEPT -> Event "
                     "(newSocketId %u, client %s:%u)\n",
                     ev.new_socket_id, ab, ev.client_port);
-        stimulus::testabilityCloseSocket(cfg, tp::kGidTcp, ev.new_socket_id, timeout_ms);
+        testability::testabilityCloseSocket(cfg, tp::kGidTcp, ev.new_socket_id, timeout_ms);
     } else {
         std::fprintf(stderr,
                      "testability-probe: TCP LISTEN_AND_ACCEPT -> no accept Event\n");
     }
     if (cfd >= 0) ::close(cfd);
-    stimulus::testabilityCloseSocket(cfg, tp::kGidTcp, *listen_sock, timeout_ms);
+    testability::testabilityCloseSocket(cfg, tp::kGidTcp, *listen_sock, timeout_ms);
     return ok;
 }
 
@@ -243,12 +243,12 @@ bool runTcpPassiveLoop(const stimulus::TestabilityConfig &cfg, int timeout_ms) {
 // tolerates ARP warm-up; a single short timeout suffices for the negative case.
 // Observing the toggle THROUGH the testability protocol itself (rather than a
 // re-implemented ICMP/ARP probe) keeps the wire-observation single-sourced.
-bool reachableByVersion(const stimulus::TestabilityConfig &base, std::uint32_t ip_be,
+bool reachableByVersion(const testability::TestabilityConfig &base, std::uint32_t ip_be,
                         int per_try_ms, int tries) {
-    stimulus::TestabilityConfig cfg = base;
+    testability::TestabilityConfig cfg = base;
     cfg.dut_ip_be = ip_be;
     for (int i = 0; i < tries; ++i) {
-        if (stimulus::testabilityGetVersion(cfg, per_try_ms)) {
+        if (testability::testabilityGetVersion(cfg, per_try_ms)) {
             return true;
         }
     }
@@ -267,7 +267,7 @@ int observeBudgetMs(int timeout_ms) { return std::min(timeout_ms / 2, 300); }
 // strictly stronger claim than E_OK alone: ETH's effect, unlike ICMP's, is
 // observable, so the probe observes it. `eth_iface` is the DUT-side interface
 // name to toggle; `observe_ip_be` is the DUT's IP on a different interface.
-bool runEthInterfaceLoop(const stimulus::TestabilityConfig &cfg, const std::string &eth_iface,
+bool runEthInterfaceLoop(const testability::TestabilityConfig &cfg, const std::string &eth_iface,
                          std::uint32_t observe_ip_be, int timeout_ms) {
     char ob[INET_ADDRSTRLEN] = {};
     ::inet_ntop(AF_INET, &observe_ip_be, ob, sizeof(ob));
@@ -284,7 +284,7 @@ bool runEthInterfaceLoop(const stimulus::TestabilityConfig &cfg, const std::stri
     }
     std::printf("testability-probe: ETH precondition -> %s reachable (secondary up)\n", ob);
 
-    const auto down = stimulus::testabilityInterfaceDown(cfg, eth_iface, timeout_ms);
+    const auto down = testability::testabilityInterfaceDown(cfg, eth_iface, timeout_ms);
     if (!down.eok()) {
         std::fprintf(stderr, "testability-probe: ETH INTERFACE_DOWN(%s) failed (ok=%d rid=0x%02X)\n",
                      eth_iface.c_str(), down.ok, down.rid);
@@ -300,7 +300,7 @@ bool runEthInterfaceLoop(const stimulus::TestabilityConfig &cfg, const std::stri
     std::printf("testability-probe: ETH INTERFACE_DOWN(%s) -> E_OK (%s now unreachable)\n",
                 eth_iface.c_str(), ob);
 
-    const auto up = stimulus::testabilityInterfaceUp(cfg, eth_iface, timeout_ms);
+    const auto up = testability::testabilityInterfaceUp(cfg, eth_iface, timeout_ms);
     if (!up.eok()) {
         std::fprintf(stderr, "testability-probe: ETH INTERFACE_UP(%s) failed (ok=%d rid=0x%02X)\n",
                      eth_iface.c_str(), up.ok, up.rid);
@@ -325,7 +325,7 @@ bool runEthInterfaceLoop(const stimulus::TestabilityConfig &cfg, const std::stri
 // params are given, command STATIC_ROUTE and assert E_OK (the route's presence in
 // the DUT's table is observed by the check script, which holds netns access). Like
 // the ETH loop, STATIC_ADDRESS's effect is observable, so the probe observes it.
-bool runIpStaticLoop(const stimulus::TestabilityConfig &cfg, const std::string &iface,
+bool runIpStaticLoop(const testability::TestabilityConfig &cfg, const std::string &iface,
                      std::uint32_t new_addr_be, std::uint8_t cidr, bool do_route,
                      std::uint32_t route_subnet_be, std::uint8_t route_cidr,
                      std::uint32_t route_gw_be, int timeout_ms) {
@@ -344,7 +344,7 @@ bool runIpStaticLoop(const stimulus::TestabilityConfig &cfg, const std::string &
     }
     std::printf("testability-probe: IP precondition -> %s not yet assigned\n", nb);
 
-    const auto sa = stimulus::testabilityStaticAddress(cfg, iface, new_addr_be, cidr, timeout_ms);
+    const auto sa = testability::testabilityStaticAddress(cfg, iface, new_addr_be, cidr, timeout_ms);
     if (!sa.eok()) {
         std::fprintf(stderr,
                      "testability-probe: IP STATIC_ADDRESS(%s, %s/%u) failed (ok=%d rid=0x%02X)\n",
@@ -364,7 +364,7 @@ bool runIpStaticLoop(const stimulus::TestabilityConfig &cfg, const std::string &
     if (do_route) {
         char sb[INET_ADDRSTRLEN] = {};
         ::inet_ntop(AF_INET, &route_subnet_be, sb, sizeof(sb));
-        const auto sr = stimulus::testabilityStaticRoute(cfg, iface, route_subnet_be, route_cidr,
+        const auto sr = testability::testabilityStaticRoute(cfg, iface, route_subnet_be, route_cidr,
                                                          route_gw_be, timeout_ms);
         if (!sr.eok()) {
             std::fprintf(stderr,
@@ -386,14 +386,14 @@ bool runIpStaticLoop(const stimulus::TestabilityConfig &cfg, const std::string &
 // and asserts E_OK; both the precondition (address not yet reachable) and the effect
 // observation (ping6 reachability + route table presence) move to the check script,
 // which holds netns access — the same division the IPv4 loop uses for STATIC_ROUTE.
-bool runIpv6StaticLoop(const stimulus::TestabilityConfig &cfg, const std::string &iface,
+bool runIpv6StaticLoop(const testability::TestabilityConfig &cfg, const std::string &iface,
                        const std::uint8_t addr16[16], std::uint8_t prefix, bool do_route,
                        const std::uint8_t subnet16[16], std::uint8_t route_prefix,
                        const std::uint8_t gw16[16], int timeout_ms) {
     char nb[INET6_ADDRSTRLEN] = {};
     ::inet_ntop(AF_INET6, addr16, nb, sizeof(nb));
 
-    const auto sa = stimulus::testabilityStaticAddressV6(cfg, iface, addr16, prefix, timeout_ms);
+    const auto sa = testability::testabilityStaticAddressV6(cfg, iface, addr16, prefix, timeout_ms);
     if (!sa.eok()) {
         std::fprintf(stderr,
                      "testability-probe: IPv6 STATIC_ADDRESS(%s, %s/%u) failed (ok=%d rid=0x%02X)\n",
@@ -408,7 +408,7 @@ bool runIpv6StaticLoop(const stimulus::TestabilityConfig &cfg, const std::string
         char sb[INET6_ADDRSTRLEN] = {};
         ::inet_ntop(AF_INET6, subnet16, sb, sizeof(sb));
         const auto sr =
-            stimulus::testabilityStaticRouteV6(cfg, iface, subnet16, route_prefix, gw16, timeout_ms);
+            testability::testabilityStaticRouteV6(cfg, iface, subnet16, route_prefix, gw16, timeout_ms);
         if (!sr.eok()) {
             std::fprintf(stderr,
                          "testability-probe: IPv6 STATIC_ROUTE(%s/%u) failed (ok=%d rid=0x%02X)\n",
@@ -431,13 +431,13 @@ bool runIpv6StaticLoop(const stimulus::TestabilityConfig &cfg, const std::string
 // honestly. Observing the emitted Echo Request on the wire is the job of the
 // framework conformance case, which reuses the shared ICMP dissector / Captured
 // / SCXML path rather than minting a second observer here. false on non-E_OK.
-bool runIcmpEchoLoop(const stimulus::TestabilityConfig &cfg, int timeout_ms) {
+bool runIcmpEchoLoop(const testability::TestabilityConfig &cfg, int timeout_ms) {
     const std::uint32_t tester_ip = localAddrToReach(cfg.dut_ip_be);
 
     static constexpr std::uint8_t kPayload[3] = {'T', 'C', '8'};
     const std::vector<std::uint8_t> payload(kPayload, kPayload + sizeof(kPayload));
     // ifName empty => "any" (the DUT's default egress); destAddr = the tester.
-    const auto er = stimulus::testabilityEchoRequest(cfg, /*iface=*/"", tester_ip, payload,
+    const auto er = testability::testabilityEchoRequest(cfg, /*iface=*/"", tester_ip, payload,
                                                      timeout_ms);
     if (!er.eok()) {
         std::fprintf(stderr, "testability-probe: ICMP ECHO_REQUEST failed (ok=%d rid=0x%02X)\n",
@@ -616,7 +616,7 @@ int TestabilityProbeCommand::run() {
         }
     }
 
-    stimulus::TestabilityConfig cfg;
+    testability::TestabilityConfig cfg;
     cfg.dut_ip_be = addr.s_addr;
     cfg.dut_port = port_ > 0 ? static_cast<std::uint16_t>(port_) : tp::kDefaultPort;
     cfg.service_id =

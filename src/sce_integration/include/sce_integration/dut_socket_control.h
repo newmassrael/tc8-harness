@@ -206,19 +206,19 @@ public:
 // functions in testability_client.h (the SP-encoding SSOT).
 class TestabilityTcpControl final : public ITcpControl {
 public:
-    TestabilityTcpControl(const stimulus::TestabilityConfig &cfg, int timeout_ms,
+    TestabilityTcpControl(const testability::TestabilityConfig &cfg, int timeout_ms,
                           std::uint32_t src_ip_be)
         : cfg_(cfg), timeout_ms_(timeout_ms), src_ip_be_(src_ip_be) {}
 
     std::optional<DutConnection> connectTcp(const Endpoint &peer,
                                             const BindSpec &local) override {
-        const auto id = stimulus::testabilityCreateAndBind(
+        const auto id = testability::testabilityCreateAndBind(
             cfg_, testability::kGidTcp, local.do_bind, local.local_port, local.local_addr_be,
             timeout_ms_, src_ip_be_);
         if (!id) {
             return std::nullopt;
         }
-        if (!stimulus::testabilityTcpConnect(cfg_, *id, peer.port, peer.addr_be, timeout_ms_,
+        if (!testability::testabilityTcpConnect(cfg_, *id, peer.port, peer.addr_be, timeout_ms_,
                                              src_ip_be_)
                  .eok()) {
             return std::nullopt;
@@ -228,17 +228,17 @@ public:
 
     std::optional<DutConnection> acceptTcp(const BindSpec &listen,
                                            const std::function<void()> &trigger) override {
-        const auto listen_id = stimulus::testabilityCreateAndBind(
+        const auto listen_id = testability::testabilityCreateAndBind(
             cfg_, testability::kGidTcp, listen.do_bind, listen.local_port, listen.local_addr_be,
             timeout_ms_, src_ip_be_);
         if (!listen_id) {
             return std::nullopt;
         }
-        const auto ev = stimulus::testabilityTcpListenAndAccept(
+        const auto ev = testability::testabilityTcpListenAndAccept(
             cfg_, *listen_id, /*max_con=*/1, trigger, timeout_ms_, /*event_timeout_ms=*/2000,
             src_ip_be_);
         // The listen socket has done its job; the accepted connection lives on.
-        stimulus::testabilityCloseSocket(cfg_, testability::kGidTcp, *listen_id, timeout_ms_,
+        testability::testabilityCloseSocket(cfg_, testability::kGidTcp, *listen_id, timeout_ms_,
                                          src_ip_be_);
         if (!ev.received) {
             return std::nullopt;
@@ -248,7 +248,7 @@ public:
     }
 
     std::optional<DutSocket> listenTcp(const BindSpec &listen) override {
-        const auto listen_id = stimulus::testabilityCreateAndBind(
+        const auto listen_id = testability::testabilityCreateAndBind(
             cfg_, testability::kGidTcp, listen.do_bind, listen.local_port, listen.local_addr_be,
             timeout_ms_, src_ip_be_);
         if (!listen_id) {
@@ -261,7 +261,7 @@ public:
         // injected stimulus completes a handshake (e.g. FLAGS_PROCESSING_05's
         // SYN+ACK third-leg) does not back the queue up and block later SYNs; the
         // thread's lifetime is bounded by the socket (server stopWorker on close).
-        if (!stimulus::testabilityTcpListen(cfg_, *listen_id, /*max_con=*/1, timeout_ms_,
+        if (!testability::testabilityTcpListen(cfg_, *listen_id, /*max_con=*/1, timeout_ms_,
                                             src_ip_be_)
                  .eok()) {
             return std::nullopt;
@@ -271,7 +271,7 @@ public:
 
     bool sendTcp(DutSocket sock, const std::vector<std::uint8_t> &data) override {
         // SEND_DATA with totalLen == size: a literal send, no repeat.
-        return stimulus::testabilityTcpSendData(cfg_, sock.id,
+        return testability::testabilityTcpSendData(cfg_, sock.id,
                                                 static_cast<std::uint16_t>(data.size()),
                                                 /*flags=*/0, data, timeout_ms_, src_ip_be_)
             .eok();
@@ -282,7 +282,7 @@ public:
         // SEND_DATA: a one-byte template repeated to total_len (PRS_TPSP §6.10
         // totalLen rule) — the DUT generates the bytes, so a multi-kB fill
         // rides a tiny request.
-        return stimulus::testabilityTcpSendData(cfg_, sock.id, total_len, /*flags=*/0,
+        return testability::testabilityTcpSendData(cfg_, sock.id, total_len, /*flags=*/0,
                                                 std::vector<std::uint8_t>{pattern},
                                                 timeout_ms_, src_ip_be_)
             .eok();
@@ -294,7 +294,7 @@ public:
         // Arm RECEIVE_AND_FORWARD (maxFwd = maxLen, so one Event carries the whole
         // bulk), drive the inbound data via trigger, collect the forwarded
         // payload. nullopt only when the arm itself failed to round-trip.
-        const auto res = stimulus::testabilityReceiveAndForward(
+        const auto res = testability::testabilityReceiveAndForward(
             cfg_, sock.id, max_len, max_len, trigger, timeout_ms_, /*event_timeout_ms=*/2000,
             src_ip_be_);
         if (!res.ok) {
@@ -306,13 +306,13 @@ public:
     bool shutdownTcpWr(DutSocket sock) override {
         // SHUTDOWN typeId=0x01 (further transmission disallowed) — graceful FIN,
         // read direction left open (PRS_TPSP §6.10).
-        return stimulus::testabilityShutdown(cfg_, testability::kGidTcp, sock.id,
+        return testability::testabilityShutdown(cfg_, testability::kGidTcp, sock.id,
                                              testability::kShutdownWr, timeout_ms_, src_ip_be_)
             .eok();
     }
 
     bool closeTcp(DutSocket sock) override {
-        return stimulus::testabilityCloseSocket(cfg_, testability::kGidTcp, sock.id, timeout_ms_,
+        return testability::testabilityCloseSocket(cfg_, testability::kGidTcp, sock.id, timeout_ms_,
                                                 src_ip_be_)
             .eok();
     }
@@ -320,13 +320,13 @@ public:
     bool abortTcp(DutSocket sock) override {
         // CLOSE_SOCKET with abort=true: immediate RST close, no wait for
         // outstanding tx/acks (PRS_TPSP §6.10 CLOSE_SOCKET abort param).
-        return stimulus::testabilityAbortSocket(cfg_, testability::kGidTcp, sock.id, timeout_ms_,
+        return testability::testabilityAbortSocket(cfg_, testability::kGidTcp, sock.id, timeout_ms_,
                                                 src_ip_be_)
             .eok();
     }
 
 private:
-    stimulus::TestabilityConfig cfg_;
+    testability::TestabilityConfig cfg_;
     int timeout_ms_;
     std::uint32_t src_ip_be_;
 };
@@ -336,29 +336,29 @@ private:
 // seam asks for over the connection-table SPs.
 class TestabilityUdpControl final : public IUdpControl {
 public:
-    TestabilityUdpControl(const stimulus::TestabilityConfig &cfg, int timeout_ms,
+    TestabilityUdpControl(const testability::TestabilityConfig &cfg, int timeout_ms,
                           std::uint32_t src_ip_be)
         : cfg_(cfg), timeout_ms_(timeout_ms), src_ip_be_(src_ip_be) {}
 
     bool sendDatagram(std::uint16_t src_port, const Endpoint &dest,
                       const std::vector<std::uint8_t> &data) override {
-        const auto id = stimulus::testabilityCreateAndBind(cfg_, testability::kGidUdp,
+        const auto id = testability::testabilityCreateAndBind(cfg_, testability::kGidUdp,
                                                            /*do_bind=*/true, src_port, 0,
                                                            timeout_ms_, src_ip_be_);
         if (!id) {
             return false;
         }
-        const bool ok = stimulus::testabilityUdpSendData(
+        const bool ok = testability::testabilityUdpSendData(
                             cfg_, *id, static_cast<std::uint16_t>(data.size()), dest.port,
                             dest.addr_be, data, timeout_ms_, src_ip_be_)
                             .eok();
-        stimulus::testabilityCloseSocket(cfg_, testability::kGidUdp, *id, timeout_ms_,
+        testability::testabilityCloseSocket(cfg_, testability::kGidUdp, *id, timeout_ms_,
                                          src_ip_be_);
         return ok;
     }
 
 private:
-    stimulus::TestabilityConfig cfg_;
+    testability::TestabilityConfig cfg_;
     int timeout_ms_;
     std::uint32_t src_ip_be_;
 };

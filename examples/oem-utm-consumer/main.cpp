@@ -89,14 +89,14 @@ public:
 // Drive the registered OEM module the way a tester does: a request through the
 // exported client, over the loopback wire, into the module's handler and back.
 bool driveOemModuleOverTheWire() {
-    tc8::stimulus::TestabilityConfig cfg;
+    tc8::testability::TestabilityConfig cfg;
     cfg.dut_ip_be = ::htonl(INADDR_LOOPBACK);
     cfg.dut_port = kConsumerPort;
 
     // A standard GENERAL primitive first (PRS_TPSP §6.10 GET_VERSION), through the
     // exported typed wrapper: the endpoint's own built-in groups must answer an
     // out-of-tree client, not just the OEM extension.
-    const auto version = tc8::stimulus::testabilityGetVersion(cfg);
+    const auto version = tc8::testability::testabilityGetVersion(cfg);
     if (!version) {
         std::fprintf(stderr, "oem-utm-consumer: GET_VERSION got no response from the endpoint\n");
         return false;
@@ -107,7 +107,7 @@ bool driveOemModuleOverTheWire() {
     // reach because the group is non-standard by construction.
     const std::vector<std::uint8_t> req{0xA1, 0xB2, 0xC3};
     const std::vector<std::uint8_t> want{0xC3, 0xB2, 0xA1};
-    const auto resp = tc8::stimulus::testabilityCall(cfg, kOemGroupHigh, kOemPidReverse, req);
+    const auto resp = tc8::testability::testabilityCall(cfg, kOemGroupHigh, kOemPidReverse, req);
     if (!resp.eok()) {
         std::fprintf(stderr,
                      "oem-utm-consumer: OEM primitive did not return E_OK "

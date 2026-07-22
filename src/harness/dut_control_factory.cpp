@@ -19,7 +19,7 @@ std::unique_ptr<IDutControl> makeDutControl(const ::tc8::TestConfig &cfg, int ti
 
     switch (cfg.dut_control_backend) {
         case DutControlBackend::kTestability: {
-            stimulus::TestabilityConfig tcfg;
+            testability::TestabilityConfig tcfg;
             tcfg.dut_ip_be = dut_ip_be;
             tcfg.dut_port = testability::kDefaultPort;
             return std::make_unique<TestabilityControl>(tcfg, timeout_ms);

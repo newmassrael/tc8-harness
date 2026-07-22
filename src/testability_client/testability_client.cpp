@@ -9,7 +9,7 @@
 #include <chrono>
 #include <cstring>
 
-namespace tc8::stimulus {
+namespace tc8::testability {
 
 namespace {
 
@@ -609,4 +609,4 @@ TestabilityForwardResult testabilityReceiveAndForward(
     return res;
 }
 
-}  // namespace tc8::stimulus
+}  // namespace tc8::testability
