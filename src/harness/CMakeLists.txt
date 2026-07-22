@@ -33,6 +33,15 @@ add_executable(tc8-harness
     dut_control_factory.cpp
 )
 
+# The executable stays at the top-level build dir (${PROJECT_BINARY_DIR}/tc8-harness),
+# NOT this component's build/src/harness/ subdir. It is invoked BY PATH as
+# ./build/tc8-harness by the CI gates (build-test spec-coverage, smoke, pcap-refresh),
+# the orchestrator (dut/env/orchestrator config default), setup-netns.sh, lib-sp-check.sh,
+# and check-suite-producer.sh — moving it under the component dir broke all of them
+# (exit 127). Pinning RUNTIME_OUTPUT_DIRECTORY restores the canonical path from the subdir.
+set_target_properties(tc8-harness PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
+
 # Each TC8 case lives in tests/<case_id>/ with its SCXML. The matching
 # src/sce_integration/include/sce_integration/cases/<case_id>.h carries the TestCaseTraits
 # specialization and a TC8_REGISTER_CASE() inline registrar. CMake generates
