@@ -66,10 +66,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/dissect/packet_pipeline.cpp",
-          "kind": "implements"
-        },
-        {
           "file": "src/stimulus/someip_sd_builder.cpp",
           "kind": "implements"
         },
@@ -180,6 +176,10 @@
         {
           "file": "src/harness/dut_control_factory.cpp",
           "kind": "references"
+        },
+        {
+          "file": "src/harness/packet_pipeline.cpp",
+          "kind": "implements"
         }
       ]
     },
@@ -656,10 +656,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/dissect/packet_pipeline.cpp",
-          "kind": "implements"
-        },
-        {
           "file": "tests/_templates/icmpv4_negative_absence.sce-template.xml",
           "kind": "implements"
         },
@@ -761,6 +757,10 @@
         },
         {
           "file": "src/sce_integration/include/sce_integration/tcp_pilot_common.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/harness/packet_pipeline.cpp",
           "kind": "implements"
         }
       ]
@@ -984,10 +984,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/dissect/packet_pipeline.cpp",
-          "kind": "implements"
-        },
-        {
           "file": "tests/_templates/ipv4_field_check.sce-template.xml",
           "kind": "implements"
         },
@@ -1077,6 +1073,10 @@
         },
         {
           "file": "src/sce_integration/include/sce_integration/cases/_icmpv4_traits_base.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/harness/packet_pipeline.cpp",
           "kind": "implements"
         }
       ]
@@ -2270,10 +2270,6 @@
       "intent": "TC8 §4.6.5.4 — UDP — Fields. 15 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
         {
-          "file": "src/dissect/packet_pipeline.cpp",
-          "kind": "implements"
-        },
-        {
           "file": "tests/_templates/udp_field_check.sce-template.xml",
           "kind": "implements"
         },
@@ -2467,6 +2463,10 @@
         },
         {
           "file": "src/sce_integration/include/sce_integration/cases/udp_fields_12_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/harness/packet_pipeline.cpp",
           "kind": "implements"
         }
       ]
@@ -2718,10 +2718,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/dissect/packet_pipeline.cpp",
-          "kind": "implements"
-        },
-        {
           "file": "tests/_templates/dhcpv4_request_field.sce-template.xml",
           "kind": "implements"
         },
@@ -2811,6 +2807,10 @@
         },
         {
           "file": "src/sce_integration/include/sce_integration/dhcpv4_server_stimulus.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/harness/packet_pipeline.cpp",
           "kind": "implements"
         }
       ]
@@ -3664,10 +3664,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/dissect/packet_pipeline.cpp",
-          "kind": "implements"
-        },
-        {
           "file": "tests/_templates/tcp_time_wait_dual_phase_otw_probe.sce-template.xml",
           "kind": "implements"
         },
@@ -3814,6 +3810,10 @@
         {
           "file": "src/sce_integration/include/sce_integration/cases/tcp_header_04_neg.h",
           "kind": "implements"
+        },
+        {
+          "file": "src/harness/packet_pipeline.cpp",
+          "kind": "implements"
         }
       ]
     },
@@ -3946,10 +3946,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/dissect/packet_pipeline.cpp",
-          "kind": "implements"
-        },
-        {
           "file": "tests/_templates/tcp_time_wait_4state.sce-template.xml",
           "kind": "implements"
         },
@@ -4051,6 +4047,10 @@
         },
         {
           "file": "src/sce_integration/include/sce_integration/tcp_pilot_common.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/harness/packet_pipeline.cpp",
           "kind": "implements"
         }
       ]
@@ -4536,10 +4536,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/dissect/packet_pipeline.cpp",
-          "kind": "implements"
-        },
-        {
           "file": "src/stimulus/tcp_segment_builder.cpp",
           "kind": "implements"
         },
@@ -4597,6 +4593,10 @@
         },
         {
           "file": "src/sce_integration/include/sce_integration/cases/tcp_checksum_02_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/harness/packet_pipeline.cpp",
           "kind": "implements"
         }
       ]

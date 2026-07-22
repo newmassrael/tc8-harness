@@ -353,7 +353,7 @@ find_package(Threads REQUIRED)
 # pcap/vsomeip-driving CLI commands, the packet pipeline, and the DUT control factory.
 add_executable(tc8-harness
     src/harness/harness_main.cpp
-    src/dissect/packet_pipeline.cpp
+    src/harness/packet_pipeline.cpp
     src/cli/commands/signal_handler.cpp
     src/cli/commands/capture_driver.cpp
     src/cli/commands/decode_pcap_command.cpp

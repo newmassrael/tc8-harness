@@ -101,8 +101,8 @@ comment_only = true
 
 [[orphan_ledger]]
 kind = "inventory_citation"
-doc  = "src/dissect/packet_pipeline.cpp"
-from = "src/dissect/packet_pipeline.cpp"
+doc  = "src/harness/packet_pipeline.cpp"
+from = "src/harness/packet_pipeline.cpp"
 to   = "IPv4_OPTIONS_01"
 reason = "Historical: IPv4_OPTIONS_01..14 deleted V2→V3, documents why dissector skips IP options"
 since  = "2026-05-13 (TC8 adoption Phase E closure)"

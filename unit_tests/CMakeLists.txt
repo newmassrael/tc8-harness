@@ -399,7 +399,7 @@ target_link_libraries(dot1q_test PRIVATE ${LIBTINS_LIBRARY})
 # not in tc8_harness_core) with libtins-built TCP frames to pin the
 # reliable-transport SOME/IP frame timestamp (observed_ts_us) fix.
 tc8_add_unit_test(packet_pipeline_test)
-target_sources(packet_pipeline_test PRIVATE ${PROJECT_SOURCE_DIR}/src/dissect/packet_pipeline.cpp)
+target_sources(packet_pipeline_test PRIVATE ${PROJECT_SOURCE_DIR}/src/harness/packet_pipeline.cpp)
 target_include_directories(packet_pipeline_test PRIVATE ${LIBTINS_INCLUDE_DIR})
 target_link_libraries(packet_pipeline_test PRIVATE ${LIBTINS_LIBRARY})
 
