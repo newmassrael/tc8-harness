@@ -66,10 +66,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/cli/capture_driver.cpp",
-          "kind": "implements"
-        },
-        {
           "file": "src/dissect/packet_pipeline.cpp",
           "kind": "implements"
         },
@@ -180,6 +176,10 @@
         {
           "file": "src/sce_integration/include/sce_integration/dut_control.h",
           "kind": "references"
+        },
+        {
+          "file": "src/cli/commands/capture_driver.cpp",
+          "kind": "implements"
         }
       ]
     },
@@ -3118,10 +3118,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/cli/test_command.cpp",
-          "kind": "implements"
-        },
-        {
           "file": "tests/dhcpv4_client_usage_01/dhcpv4_client_usage_01.scxml",
           "kind": "implements"
         },
@@ -3155,6 +3151,10 @@
         },
         {
           "file": "src/sce_integration/include/sce_integration/dhcpv4_pilot_common.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/cli/commands/test_command.cpp",
           "kind": "implements"
         }
       ]

@@ -354,15 +354,15 @@ find_package(Threads REQUIRED)
 add_executable(tc8-harness
     src/harness_main.cpp
     src/dissect/packet_pipeline.cpp
-    src/cli/signal_handler.cpp
-    src/cli/capture_driver.cpp
-    src/cli/decode_pcap_command.cpp
-    src/cli/live_command.cpp
-    src/cli/replay_command.cpp
-    src/cli/test_command.cpp
-    src/cli/ut_ping_command.cpp
-    src/cli/testability_probe_command.cpp
-    src/cli/testability_send_command.cpp
+    src/cli/commands/signal_handler.cpp
+    src/cli/commands/capture_driver.cpp
+    src/cli/commands/decode_pcap_command.cpp
+    src/cli/commands/live_command.cpp
+    src/cli/commands/replay_command.cpp
+    src/cli/commands/test_command.cpp
+    src/cli/commands/ut_ping_command.cpp
+    src/cli/commands/testability_probe_command.cpp
+    src/cli/commands/testability_send_command.cpp
     src/sce_integration/dut_control_factory.cpp
 )
 
@@ -959,8 +959,8 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
     # two footprints cannot drift. Guarded by the SDK-install path, not
     # TC8_BUILD_HARNESS, so it is present exactly when the SDK it serves is.
     add_executable(tc8-testability-send
-        ${PROJECT_SOURCE_DIR}/src/cli/testability_send_main.cpp
-        ${PROJECT_SOURCE_DIR}/src/cli/testability_send_command.cpp)
+        ${PROJECT_SOURCE_DIR}/src/cli/commands/testability_send_main.cpp
+        ${PROJECT_SOURCE_DIR}/src/cli/commands/testability_send_command.cpp)
     # Only the command header it shares with the harness (cli/testability_send_command
     # .h, from the tester-command include root) plus header-only CLI11; the tc8/...
     # protocol + client headers arrive via tc8_testability_client's public include/.
