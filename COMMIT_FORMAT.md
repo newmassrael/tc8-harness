@@ -20,6 +20,12 @@ TC8 / SOME/IP 컨포먼스 하네스 프로젝트의 커밋 메시지 규칙.
 - Subject: 변경을 명확하고 간결하게 기술
 - 마침표 없음
 - 최대 72자
+- **라운드 라벨 (`(R807)` / `(Round 807)`) 은 이 워크스페이스의 atomic store 에
+  changelog 항목이 있는 라운드만.** mnemosyne commit↔ledger drift 게이트가 commit
+  **subject** 를 스캔하므로, 항목 없는 라운드를 인용하면 저장소가 게이트를 통과하지
+  못한다. upstream (Mnemosyne 등) 라운드는 **body** 에 쓸 것 — 게이트는 body 를 보지
+  않는다. 위반은 커밋이 만들어진 뒤에야 드러나서 pre-commit 훅이 잡지 못하고 push
+  에서 막히므로, commit-msg 훅이 사전에 차단한다 (upstream rev 는 SHA 로 인용)
 
 ### 2. Body
 - Subject 아래 빈 줄 1개

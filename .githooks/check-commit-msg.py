@@ -20,6 +20,13 @@ Rules — distilled from COMMIT_FORMAT.md, in priority order:
      - ``Generated with Claude Code`` footer
      - ``Co-Authored-By:`` tag
      - emoji code points (broad heuristic)
+  4. A round label in the SUBJECT — ``(R807)`` / ``(Round 807)`` — must
+     name a round this workspace's atomic store has a changelog entry
+     for. Mnemosyne's commit-ledger drift gate reads commit subjects and
+     rejects a cited round with no entry, and it can only see the subject
+     once the commit object exists — so pre-commit passes and the push
+     then fails. Checking it here is the only place it is catchable
+     before the fact. Cite an upstream project's round in the body.
 
 Exits 0 on a clean message, non-zero on any rule violation. The hook is
 intended to keep messages consistent across this repo's history without
@@ -28,12 +35,24 @@ requiring contributors to re-read COMMIT_FORMAT.md every time.
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
 
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+ATOMIC_STORE = REPO_ROOT / "docs" / ".atomic" / "workspace.atomic.json"
+
 ALLOWED_TYPES = {"feat", "refactor", "fix", "docs", "test", "chore", "build", "perf"}
+
+# Deliberately byte-identical in meaning to the upstream gate's own pattern
+# (`\((?:R|Round )(\d+)\)`): the two must agree on what counts as a citation,
+# or this hook either blocks a subject the gate would accept or waves through
+# one it will reject. Unparenthesized text — "RFC 826", "R24-11" — is not a
+# citation to either of them.
+ROUND_LABEL_RE = re.compile(r"\((?:R|Round )(\d+)\)")
+LEDGER_ROUND_RE = re.compile(r"^Round (\d+)\b")
 
 SUBJECT_RE = re.compile(
     r"^(?P<type>\w+)(?:\((?P<scope>[\w./-]+)\))?:\s+(?P<subject>\S.*?)\s*$"
@@ -56,6 +75,28 @@ EMOJI_RANGES = [
 def _is_emoji(ch: str) -> bool:
     cp = ord(ch)
     return any(lo <= cp <= hi for lo, hi in EMOJI_RANGES)
+
+
+def _ledger_rounds() -> set[int] | None:
+    """Round numbers the atomic store has a changelog entry for.
+
+    ``None`` means the store could not be read, and the round-label rule is
+    then skipped rather than guessed at: an unreadable store is the Mnemosyne
+    gate's business (it validates store integrity directly), and blocking
+    every commit in this repo over it would be the wrong failure.
+    """
+    try:
+        entries = json.loads(ATOMIC_STORE.read_text(encoding="utf-8"))["changelog_entries"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    if not isinstance(entries, dict):
+        return None
+    rounds = set()
+    for key in entries:
+        m = LEDGER_ROUND_RE.match(key)
+        if m:
+            rounds.add(int(m.group(1)))
+    return rounds
 
 
 def validate(raw: str) -> list[str]:
@@ -81,6 +122,21 @@ def validate(raw: str) -> list[str]:
     elif m.group("type") not in ALLOWED_TYPES:
         allowed = ", ".join(sorted(ALLOWED_TYPES))
         issues.append(f"허용되지 않은 type: {m.group('type')} (허용: {allowed})")
+
+    cited = {int(n) for n in ROUND_LABEL_RE.findall(subject)}
+    if cited:
+        ledger = _ledger_rounds()
+        unbacked = sorted(cited - ledger) if ledger is not None else []
+        for n in unbacked:
+            issues.append(
+                f"subject의 라운드 라벨 (R{n}) — atomic store 에 'Round {n}' "
+                "changelog 항목이 없음\n"
+                "  mnemosyne commit↔ledger drift 게이트는 commit SUBJECT 를 "
+                "스캔하므로, 커밋이 만들어진 뒤에야 실패한다\n"
+                "  (pre-commit 은 커밋 전에 돌아 이를 볼 수 없고, push 에서 막힌다)\n"
+                "  upstream 프로젝트의 라운드 인용이면 body 로 내릴 것; 이 "
+                "워크스페이스의 라운드면 append-changelog-entry 로 항목을 먼저 만들 것"
+            )
 
     if len(lines) >= 2:
         if lines[1].strip() != "":
