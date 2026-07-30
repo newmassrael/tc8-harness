@@ -35,6 +35,21 @@ export function captureHref(uri: string | undefined): string | null {
 }
 
 /**
+ * ``protocol`` value of the synthetic row ``site/scripts/trim_pcap.py`` splices
+ * in when a capture's JSON is too large for the pcap-data branch: it stands for
+ * the elided span, not for one frame. Its ``idx`` is a real frame number (the
+ * first elided one), which is exactly why it must not be offered as a link —
+ * a reader would take the row to BE that frame. The string is the contract
+ * between the trimmer and this component; changing it needs both sides.
+ */
+const TRUNCATION_MARKER_PROTOCOL = '[truncated]';
+
+/** True when this record summarizes elided frames instead of naming one. */
+export function isTruncationMarker(protocol: string): boolean {
+  return protocol === TRUNCATION_MARKER_PROTOCOL;
+}
+
+/**
  * Expand an ``open_uri_template`` for one packet: ``{idx}`` → the 0-based
  * record index, ``{frame}`` → the 1-based frame number (``idx + 1``).
  *

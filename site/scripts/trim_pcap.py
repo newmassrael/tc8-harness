@@ -14,6 +14,13 @@ that many rows usefully anyway. This trimmer:
 
 Idempotent: a re-run on already-trimmed output is a no-op because the
 remaining packet count is small.
+
+Surviving packets keep their ORIGINAL ``idx``; nothing is renumbered. That
+is what lets a capture deep-link stay frame-accurate after trimming (``idx``
+remains the frame's position in the untrimmed file, so ``frame == idx + 1``
+holds for every real row). The marker's ``protocol`` value is read by
+``site/src/lib/pcap.ts`` to leave that row unlinked — it names an elided
+span, not a frame — so changing the string needs both sides.
 """
 
 from __future__ import annotations

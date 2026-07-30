@@ -54,10 +54,17 @@ export interface PacketCapture {
    *   {frame} 1-based frame number in pcap_url, i.e. idx + 1
    * Example: "tc8pcap://open?cid=SOMEIPSRV_RPC_01&idx={idx}"
    *
-   * The two differ by exactly one because ``tc8-harness decode-pcap`` appends
-   * one record per dispatched frame, in file order, and never prunes the list
-   * — so a consumer may rely on the offset to build a frame-accurate link.
-   * Absent ⇒ the '#' cells stay plain text.
+   * The two differ by exactly one because ``idx`` IS the frame's position in
+   * the capture: ``tc8-harness decode-pcap`` filters nothing and appends one
+   * record per dispatched frame, in file order. A consumer may rely on the
+   * offset to build a frame-accurate link.
+   *
+   * ``packets`` is not necessarily dense, and does not have to be for the
+   * offset to hold: ``site/scripts/trim_pcap.py`` elides the middle of an
+   * oversize capture, keeping each surviving record's original ``idx`` (never
+   * renumbering) and splicing in one synthetic ``[truncated]`` row. That row
+   * stands for the elided span rather than a frame, and the timeline leaves it
+   * unlinked. Absent ⇒ the '#' cells stay plain text.
    */
   open_uri_template?: string;
   packets: PacketRecord[];
