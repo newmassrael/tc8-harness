@@ -57,5 +57,18 @@ export function isTruncationMarker(protocol: string): boolean {
  * ``captureHref`` once — per-row expansion cannot introduce a new scheme.
  */
 export function expandOpenUri(template: string, idx: number): string {
-  return template.replace(/\{idx\}/g, String(idx)).replace(/\{frame\}/g, String(idx + 1));
+  return template
+    .replace(/\{idx\}/g, String(idx))
+    .replace(/\{frame\}/g, String(frameNumber(idx)));
+}
+
+/**
+ * The frame number a record names, as every capture tool counts them: 1-based.
+ *
+ * The single home of the 0-to-1 offset. The link target and the label that tells
+ * the reader which frame they are about to open must never disagree, and they
+ * cannot while both derive the number here.
+ */
+export function frameNumber(idx: number): number {
+  return idx + 1;
 }

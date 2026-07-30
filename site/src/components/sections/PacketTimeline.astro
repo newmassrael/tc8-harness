@@ -1,7 +1,7 @@
 ---
-import { t } from '~/lib/i18n';
+import { t, tf } from '~/lib/i18n';
 import { localizedMessages } from '~/lib/overrides';
-import { captureHref, expandOpenUri, isTruncationMarker } from '~/lib/pcap';
+import { captureHref, expandOpenUri, frameNumber, isTruncationMarker } from '~/lib/pcap';
 import type { CaseRecord, Locale, MessageHighlight, PacketRecord } from '~/lib/types';
 
 interface Props {
@@ -90,7 +90,7 @@ const openTemplate = captureHref(cap.open_uri_template);
         const roleClass = m ? `role-${m.role}` : '';
         return (
           <tr id={`pkt-${p.idx}`} class={`${roleClass} ${m ? 'highlighted' : ''}`}>
-            <td class="mono muted">{openTemplate && !isTruncationMarker(p.protocol) ? <a href={expandOpenUri(openTemplate, p.idx)} title={t(locale, 'pcap.open')}>{p.idx}</a> : p.idx}</td>
+            <td class="mono muted">{openTemplate && !isTruncationMarker(p.protocol) ? <a href={expandOpenUri(openTemplate, p.idx)} title={tf(locale, 'pcap.open', { frame: frameNumber(p.idx) })}>{p.idx}</a> : p.idx}</td>
             <td class="mono">{fmtMs(p.ts_delta_us)}</td>
             <td><span class={`dir-pill ${dirClass(p.direction)}`}>{dirLabel(p.direction, locale)}</span></td>
             <td><span class="proto-pill">{p.protocol}</span></td>
