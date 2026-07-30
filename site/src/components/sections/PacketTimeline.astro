@@ -1,6 +1,7 @@
 ---
 import { t } from '~/lib/i18n';
 import { localizedMessages } from '~/lib/overrides';
+import { captureHref, expandOpenUri } from '~/lib/pcap';
 import type { CaseRecord, Locale, MessageHighlight, PacketRecord } from '~/lib/types';
 
 interface Props {
@@ -39,6 +40,12 @@ function dirClass(d: PacketRecord['direction']): string {
 }
 
 const outcomeKey = cap.outcome === 'pass' ? 'pcap.outcome.pass' : 'pcap.outcome.fail';
+
+// Both null unless the capture JSON opts in (see lib/pcap.ts for the policy).
+// The template is filtered once here, not per row: its placeholders expand to
+// integers, so no row can widen what the check accepted.
+const pcapUrl = captureHref(cap.pcap_url);
+const openTemplate = captureHref(cap.open_uri_template);
 ---
 
 <section class="section" id="pcap">
@@ -47,7 +54,7 @@ const outcomeKey = cap.outcome === 'pass' ? 'pcap.outcome.pass' : 'pcap.outcome.
     <span class={`badge outcome-badge ${cap.outcome === 'pass' ? 'pass' : 'fail'}`} style="margin-left:8px;font-size:11px">
       {t(locale, outcomeKey as any)}
     </span>
-    {cap.captured_at && <span class="muted" style="font-size:12px;margin-left:10px">{cap.captured_at}</span>}
+    {cap.captured_at && <span class="muted" style="font-size:12px;margin-left:10px">{cap.captured_at}</span>}{pcapUrl && <a class="pcap-dl" href={pcapUrl}>{t(locale, 'pcap.download')}</a>}
   </h2>
 
   <div class="pcap-meta muted" style="margin-bottom:10px;font-size:12px">
@@ -83,7 +90,7 @@ const outcomeKey = cap.outcome === 'pass' ? 'pcap.outcome.pass' : 'pcap.outcome.
         const roleClass = m ? `role-${m.role}` : '';
         return (
           <tr id={`pkt-${p.idx}`} class={`${roleClass} ${m ? 'highlighted' : ''}`}>
-            <td class="mono muted">{p.idx}</td>
+            <td class="mono muted">{openTemplate ? <a href={expandOpenUri(openTemplate, p.idx)} title={t(locale, 'pcap.open')}>{p.idx}</a> : p.idx}</td>
             <td class="mono">{fmtMs(p.ts_delta_us)}</td>
             <td><span class={`dir-pill ${dirClass(p.direction)}`}>{dirLabel(p.direction, locale)}</span></td>
             <td><span class="proto-pill">{p.protocol}</span></td>

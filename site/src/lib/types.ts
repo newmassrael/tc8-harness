@@ -42,6 +42,24 @@ export interface PacketCapture {
   tester_ip?: string;
   dut_mac?: string;
   dut_ip?: string;
+  /**
+   * Fetchable location of the capture these records were decoded from,
+   * rendered as a download link in the timeline header. Any URL the browser
+   * can resolve — same-origin relative path or absolute. Absent ⇒ no link.
+   */
+  pcap_url?: string;
+  /**
+   * URI template for opening one packet in a local analyzer. Placeholders:
+   *   {idx}   0-based, equals PacketRecord.idx (the '#' column)
+   *   {frame} 1-based frame number in pcap_url, i.e. idx + 1
+   * Example: "tc8pcap://open?cid=SOMEIPSRV_RPC_01&idx={idx}"
+   *
+   * The two differ by exactly one because ``tc8-harness decode-pcap`` appends
+   * one record per dispatched frame, in file order, and never prunes the list
+   * — so a consumer may rely on the offset to build a frame-accurate link.
+   * Absent ⇒ the '#' cells stay plain text.
+   */
+  open_uri_template?: string;
   packets: PacketRecord[];
 }
 

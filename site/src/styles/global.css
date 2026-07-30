@@ -211,6 +211,17 @@ pre {
   border-radius: 3px;
 }
 
+/* Capture download link beside the timeline heading, rendered only when the
+   capture JSON carries ``pcap_url``. Opts out of the h2's uppercase/tracking
+   so it reads as an action rather than part of the section label. */
+.pcap-dl {
+  margin-left: 10px;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
 .pcap-table {
   width: 100%;
   border-collapse: collapse;

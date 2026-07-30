@@ -1,0 +1,46 @@
+/**
+ * Capture-link policy for the packet timeline.
+ *
+ * A ``PacketCapture`` may carry two optional fields — ``pcap_url`` (where the
+ * capture can be fetched) and ``open_uri_template`` (how one packet is handed
+ * to a local analyzer). Both are authored by whoever writes
+ * ``pcap/<CASE_ID>.json``: the public site build, or an out-of-repo overlay
+ * root (``SITE_EXTRA_CASE_ROOTS``). Because that value ends up in an ``href``
+ * on a publicly deployed page, the scheme is filtered here rather than in
+ * markup — this module owns the policy, the component only renders what it
+ * hands back.
+ */
+
+/** Schemes that execute rather than locate. Never emitted into an ``href``. */
+const EXECUTABLE_SCHEMES = ['javascript:', 'vbscript:', 'data:'];
+
+/**
+ * Return ``uri`` when it is safe to place in an ``href``, else ``null``.
+ *
+ * Deliberately a denylist: the useful set is open-ended (a relative URL,
+ * ``http(s):``, or any locally registered custom scheme such as ``tc8pcap:``),
+ * while the executable set is small and closed — an allowlist would have to
+ * enumerate every analyzer scheme an integrator might register. Whitespace and
+ * C0 controls are stripped before the comparison because a browser strips them
+ * before parsing the scheme, so ``java\nscript:`` is the same threat.
+ */
+export function captureHref(uri: string | undefined): string | null {
+  if (!uri) return null;
+  const probe = uri.replace(/[\u0000-\u0020]/g, '').toLowerCase();
+  if (EXECUTABLE_SCHEMES.some((scheme) => probe.startsWith(scheme))) {
+    console.warn(`[pcap] refusing executable URI scheme, link dropped: ${uri}`);
+    return null;
+  }
+  return uri;
+}
+
+/**
+ * Expand an ``open_uri_template`` for one packet: ``{idx}`` → the 0-based
+ * record index, ``{frame}`` → the 1-based frame number (``idx + 1``).
+ *
+ * Both substitutions are integers, so the template only has to clear
+ * ``captureHref`` once — per-row expansion cannot introduce a new scheme.
+ */
+export function expandOpenUri(template: string, idx: number): string {
+  return template.replace(/\{idx\}/g, String(idx)).replace(/\{frame\}/g, String(idx + 1));
+}

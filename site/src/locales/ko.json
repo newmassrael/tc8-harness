@@ -45,6 +45,8 @@
   "pcap.note": "비고",
   "pcap.outcome.pass": "통과",
   "pcap.outcome.fail": "실패",
+  "pcap.download": "캡처 다운로드",
+  "pcap.open": "이 프레임을 로컬 분석기에서 열기",
   "pcap.role.stimulus": "자극",
   "pcap.role.expected": "기대",
   "pcap.role.fail-trigger": "실패 유발",

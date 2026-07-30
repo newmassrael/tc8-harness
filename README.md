@@ -901,6 +901,13 @@ repo — no OEM byte is ever written to the tracked public tree:
 <root>/locales/<lang>/<CID>.json # optional — per-locale (en/ko) override
 ```
 
+A `pcap/<CID>.json` may additionally carry `pcap_url` (a fetchable location
+for the capture, rendered as a download link) and `open_uri_template` (a
+`{idx}`/`{frame}` template making each `#` cell a link, e.g. to a local
+analyzer via a registered URI scheme). Both are optional and inert when
+absent; `PacketCapture` in `site/src/lib/types.ts` declares both, and
+`site/src/lib/pcap.ts` states which URI schemes are refused.
+
 `build_manifest.py` merges each root's inventory into the spec-order list
 and resolves that case's trait/SCXML/pcap under its owning root; extra
 case_ids must be disjoint from the public set (a collision is a hard

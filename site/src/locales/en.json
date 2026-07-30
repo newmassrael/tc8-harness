@@ -45,6 +45,8 @@
   "pcap.note": "Note",
   "pcap.outcome.pass": "Pass",
   "pcap.outcome.fail": "Fail",
+  "pcap.download": "Download capture",
+  "pcap.open": "Open this frame in a local analyzer",
   "pcap.role.stimulus": "Stimulus",
   "pcap.role.expected": "Expected",
   "pcap.role.fail-trigger": "Fail trigger",
