@@ -49,6 +49,11 @@ paths = [
  "src/",
  "dut/",
  "tests/",
+ # 2026-07-30 — R783 citation-gate coverage requires every Rust source to be
+ # either scanned here or declared as a scan exclusion. `tools/verdict_migrate/`
+ # is the only Rust tree outside `dut/` (the orchestrator); scanned rather than
+ # excluded so a §-citing comment added to the migration tool still has to bind.
+ "tools/verdict_migrate/",
 ]
 # P0: TC8 카테고리. case_inventory.json 정본은 mixed-case (`IPv4_HEADER_05` 등 PDF 그대로)이지만
 # 코드에는 UPPERCASE drift 가 공존 — 양 표기 모두 스캔해서 drift 를 InventoryMissing 으로 surface.
