@@ -55,19 +55,32 @@ jobs:
           path: ~/.cargo/bin/mnemosyne-cli
           # Pin to upstream commit so the gate is reproducible. Bump when
           # adopting a newer Mnemosyne (e.g., when a Round NN fix is needed).
-          key: mnemosyne-cli-${{ runner.os }}-eaeedbb6
+          key: mnemosyne-cli-${{ runner.os }}-27396a9
 
       - name: Install mnemosyne-cli (cache miss only)
         if: steps.cache-mnemosyne.outputs.cache-hit != 'true'
-        # eaeedbb6 = upstream HEAD (mnemosyne-engine + render). Pin-forward
-        # from f71306b7 (R538): the local CLI advanced to atomic-store schema
-        # 39, which the f71306b7 pin rejected with
-        # "schema version mismatch: store=39 expected <= 23", so CI
-        # must track the local CLI to validate the same store.
-        # Policy: the pin tracks the local CLI, never the reverse.
+        # 27396a9 = upstream HEAD at adoption, 108 commits forward of the
+        # previous pin eaeedbb6 (mnemosyne-engine + render; itself a pin-forward
+        # from f71306b7, which rejected the local atomic-store schema 39 with
+        # "expected <= 23"). The locally installed CLI was moved to the same rev
+        # in the same change, so both sides judge with one binary.
+        #
+        # Bump reason: the round that made an unscanned tree loud added the
+        # citation-gate coverage check — every Rust source must be scanned or
+        # explicitly excluded. It fired locally on tools/verdict_migrate/,
+        # blocking every commit, while CI at eaeedbb6 stayed green because that
+        # pin has no such check. A gate the local hook enforces and CI does not
+        # is drift in the invisible direction.
+        #
+        # Policy: the pin and the local CLI move together, and the pin never
+        # runs ahead of a rev exercised here. Before bumping: confirm the target
+        # is a descendant of the current pin, install it locally, and run BOTH
+        # validators below against this store — the interval added several new
+        # validators (exclusion integrity, fact-id citations, quote re-resolve),
+        # any of which can reject a store CI has never seen.
         run: |
           cargo install --git https://github.com/newmassrael/mnemosyne \
-            --rev eaeedbb6 mnemosyne-cli
+            --rev 27396a9 mnemosyne-cli
 
       - name: validate-workspace
         run: mnemosyne-cli validate-workspace
