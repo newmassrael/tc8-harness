@@ -17,6 +17,23 @@
 # 삭제됨 (WorkspaceSection = optional `root` + `spec_source` 만).
 # TC8 spec 자산 (`docs/spec/*` PDF/JSON) 은 별개 immutable legacy — Mnemosyne 관리 surface 밖.
 
+# 2026-07-30 — the workspace declares which Mnemosyne revision may open it
+# (upstream R826, extended by R832: on a mismatch the binary re-execs the
+# installed pinned build rather than merely refusing). Until now "the CI pin
+# tracks the local CLI" was a policy in a YAML comment, and the divergence it
+# forbids is exactly what happened: a local CLI 108 commits ahead enforced a
+# gate CI had never run. With the pin declared, a mismatched binary fails
+# closed, and .github/workflows/mnemosyne.yml READS this value instead of
+# repeating it — one place to bump, both sides judged by one revision.
+#
+# Bump together with the locally installed CLI; the pre-bump checks live in
+# that workflow's comment. A `-dirty` or git-less build satisfies no pin (it is
+# not any revision), and `MNEMOSYNE_PIN_SKIP=1` waives the check with a warning
+# — a result produced under the waiver is not attributable to this revision.
+# Requires a CLI that knows `[tool]` (upstream R826 or newer).
+[tool]
+pin = "27396a9"
+
 [schema]
 changelog_titles = ["Changelog"]
 entry_id_prefix = "Round "

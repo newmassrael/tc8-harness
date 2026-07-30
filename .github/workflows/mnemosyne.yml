@@ -44,43 +44,58 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Install protoc (mnemosyne-server build dep)
-        if: steps.cache-mnemosyne.outputs.cache-hit != 'true'
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      # The pinned revision is NOT written here — `[tool] pin` in mnemosyne.toml
+      # is its single home, because that is the value the CLI itself enforces at
+      # config load (upstream R826). Repeating it in a cache key and an install
+      # flag is how the pin and the local CLI drifted in the first place, so both
+      # read it from the workspace instead. Fails the job when it is absent or
+      # too short to name one commit (git's 7-hex abbreviation floor).
+      - name: Resolve the pinned mnemosyne rev
+        id: pin
+        run: |
+          set -euo pipefail
+          rev=$(sed -n '/^\[tool\]/,/^\[/{s/^pin *= *"\([0-9a-fA-F]\{7,\}\)".*/\1/p;}' \
+              mnemosyne.toml)
+          if [ -z "$rev" ]; then
+            echo "mnemosyne.toml: [tool] pin missing, or not >=7 hex chars" >&2
+            exit 1
+          fi
+          echo "rev=$rev" >> "$GITHUB_OUTPUT"
+          echo "pinned mnemosyne rev: $rev"
 
       - name: Cache cargo install of mnemosyne-cli
         id: cache-mnemosyne
         uses: actions/cache@v5
         with:
           path: ~/.cargo/bin/mnemosyne-cli
-          # Pin to upstream commit so the gate is reproducible. Bump when
-          # adopting a newer Mnemosyne (e.g., when a Round NN fix is needed).
-          key: mnemosyne-cli-${{ runner.os }}-27396a9
+          key: mnemosyne-cli-${{ runner.os }}-${{ steps.pin.outputs.rev }}
+
+      # After the cache step, not before: this condition reads its output, and a
+      # forward reference silently evaluates to empty — which made the apt
+      # install run on every hit.
+      - name: Install protoc (mnemosyne-server build dep)
+        if: steps.cache-mnemosyne.outputs.cache-hit != 'true'
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
 
       - name: Install mnemosyne-cli (cache miss only)
         if: steps.cache-mnemosyne.outputs.cache-hit != 'true'
-        # 27396a9 = upstream HEAD at adoption, 108 commits forward of the
-        # previous pin eaeedbb6 (mnemosyne-engine + render; itself a pin-forward
-        # from f71306b7, which rejected the local atomic-store schema 39 with
-        # "expected <= 23"). The locally installed CLI was moved to the same rev
-        # in the same change, so both sides judge with one binary.
+        # The pin was last moved to upstream 27396a9, 108 commits forward of
+        # eaeedbb6 (itself a pin-forward from f71306b7, which rejected the local
+        # atomic-store schema 39 with "expected <= 23"). The bump reason: the
+        # round that made an unscanned tree loud added the citation-gate coverage
+        # check — every Rust source must be scanned or explicitly excluded. It
+        # fired locally on tools/verdict_migrate/, blocking every commit, while
+        # CI stayed green because the old pin has no such check. A gate the local
+        # hook enforces and CI does not is drift in the invisible direction.
         #
-        # Bump reason: the round that made an unscanned tree loud added the
-        # citation-gate coverage check — every Rust source must be scanned or
-        # explicitly excluded. It fired locally on tools/verdict_migrate/,
-        # blocking every commit, while CI at eaeedbb6 stayed green because that
-        # pin has no such check. A gate the local hook enforces and CI does not
-        # is drift in the invisible direction.
-        #
-        # Policy: the pin and the local CLI move together, and the pin never
-        # runs ahead of a rev exercised here. Before bumping: confirm the target
-        # is a descendant of the current pin, install it locally, and run BOTH
-        # validators below against this store — the interval added several new
-        # validators (exclusion integrity, fact-id citations, quote re-resolve),
-        # any of which can reject a store CI has never seen.
+        # Before bumping `[tool] pin`: confirm the target is a descendant of the
+        # current one, install it locally (the workspace refuses a binary that is
+        # not it), and run BOTH validators below against this store — a bump
+        # interval can add validators, and any of them can reject a store CI has
+        # never seen.
         run: |
           cargo install --git https://github.com/newmassrael/mnemosyne \
-            --rev 27396a9 mnemosyne-cli
+            --rev '${{ steps.pin.outputs.rev }}' mnemosyne-cli
 
       - name: validate-workspace
         run: mnemosyne-cli validate-workspace
