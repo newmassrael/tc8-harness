@@ -30,7 +30,11 @@
       offer is a clean main-phase cyclic (2000 ms cadence).
     awaiting_anchor       — the next multicast OfferService is the anchor; a
       2600 ms deadline (>1 cyclic) guarantees one is seen or the run is
-      inconclusive (never a false fail).
+      inconclusive (never a false fail). That timeout means the DUT never
+      offered at all, so the Find is never emitted — it is reported
+      `precondition_unmet`, distinct from the reply-window timeout below
+      (docs/verdict_policy.md: preamble incomplete vs mandated reaction
+      unobserved).
     listening_offer_reply — the multicast Find is emitted on entry; a 1300 ms
       deadline catches a solicited reply (~50 ms) yet ends before the next
       cyclic (+2000 ms). Pass on a multicast solicited OfferService, fail on a
@@ -66,7 +70,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.dst_ip == expected.sd_multicast_ip"
                 target="listening_offer_reply"/>
-    <transition event="anchor_timeout" target="inconclusive_no_offer_after_multicast_find"/>
+    <transition event="anchor_timeout" target="inconclusive_no_cyclic_offer"/>
   </state>
 
   <state id="listening_offer_reply">
@@ -91,6 +95,12 @@
   <final id="fail_offer_not_multicast">
     <donedata>
       <content>{"verdict":"fail","reason":"offer_dst_ip_not_multicast_after_multicast_find","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_cyclic_offer">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_cyclic_offer_service_to_anchor_on","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
