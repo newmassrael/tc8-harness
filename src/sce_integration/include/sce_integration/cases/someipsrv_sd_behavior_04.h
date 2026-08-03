@@ -31,13 +31,13 @@ namespace tc8::sce {
 // two cyclics and the verdict is deterministic. Unlike SD_BEHAVIOR_03 a
 // multicast Find has no ½-cyclic rule, so the Find fires right on the anchor.
 //
-// Reference-stack note: vsomeip 3.7.x IGNORES multicast Finds (per its own
-// `service_discovery_impl.cpp::send_uni_or_multicast_offerservice`, citing
-// SIP_SD_91), so it sends no solicited reply and this case now lands
-// `inconclusive_no_offer_after_multicast_find` DETERMINISTICALLY (never a
-// cyclic-drift false PASS). It is platform_known_fail (excluded from the CI
-// green lane); a strict-spec DUT passes via the solicited multicast reply
-// per SOMEIPSD §6.7.5.2 / TR_SOMEIP_00423.
+// Reference-stack note: upstream vsomeip 3.7.x IGNORES multicast Finds (per
+// its own `service_discovery_impl.cpp::send_uni_or_multicast_offerservice`,
+// citing SIP_SD_91), which left this case at
+// `inconclusive_no_offer_after_multicast_find`. `patches/vsomeip/0002` answers
+// such a Find with a multicast OfferService — the reading SOMEIPSD §6.7.5.2 /
+// TR_SOMEIP_00423 carries — so the reference DUT now passes on the solicited
+// reply. The Unicast Flag = 1 path is untouched by that patch.
 template <>
 struct TestCaseTraits<cases::SdBehavior04SM>
     : SomeIpSdOnlyBase<cases::SdBehavior04SM> {

@@ -1,0 +1,40 @@
+Subject: Answer a FindService carrying Unicast Flag = 0
+
+vsomeip drops any FindService whose SD Unicast Flag is 0: the else branch
+of send_uni_or_multicast_offerservice() is empty, citing SIP_SD_91 ("Find
+messages received with Unicast Flag set to 0 (multicast), shall be
+ignored"). No solicited OfferService ever leaves the stack for such a Find.
+
+TC8 §5.1.5.4.4 SOMEIPSRV_SD_BEHAVIOR_04 and §5.1.6 SOMEIP_ETS_130 assert
+the opposite reading, the one PRS_SOMEIPSD_00268 / 00305 / 00306 / 00307
+carries: the server answers a FindService and the Unicast Flag does not
+suppress that answer. SD_BEHAVIOR_04 further asserts the answer is
+multicast. With upstream behaviour the assertion is unobservable on a
+Linux DUT — SD_BEHAVIOR_04 lands `inconclusive_no_offer_after_multicast_find`,
+and ETS_130 only ever passes on an unrelated cyclic OfferService drifting
+into its listen window.
+
+This patch answers such a Find with a multicast OfferService. The Unicast
+Flag = 1 path (SID_SD_826 / SIP_SD_89 / SIP_SD_90) is untouched, so the
+half-offer-delay unicast-vs-multicast choice every other case depends on
+keeps its upstream behaviour.
+
+Affects:
+  implementation/service_discovery/src/service_discovery_impl.cpp
+Index: vsomeip/implementation/service_discovery/src/service_discovery_impl.cpp
+===================================================================
+--- vsomeip.orig/implementation/service_discovery/src/service_discovery_impl.cpp
++++ vsomeip/implementation/service_discovery/src/service_discovery_impl.cpp
+@@ -2818,8 +2818,11 @@ void service_discovery_impl::send_uni_or
+             send_multicast_offer_service(_info);
+         }
+     } else {
+-        // SIP_SD_91
+-        // Find messages received with Unicast Flag set to 0 (multicast), shall be ignored
++        // SIP_SD_91 relaxed for TC8 conformance: PRS_SOMEIPSD_00268/00305/00306/00307
++        // require the server to answer a FindService regardless of the Unicast Flag,
++        // and TC8 asserts the multicast answer. Answer with a multicast OfferService
++        // instead of dropping the Find.
++        send_multicast_offer_service(_info);
+     }
+ }

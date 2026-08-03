@@ -310,10 +310,6 @@
       "neg_expect_fail": "fail:no_ipv4_endpoint_option_with_tcp_l4_or_port_mismatch",
       "neg_row_ref": "dut/env/negative_rows.md"
     },
-    "SOMEIPSRV_SD_BEHAVIOR_04": {
-      "platform_known_fail": true,
-      "platform_known_fail_ref": "memory/project_false_positive_remediation_round3.md"
-    },
     "SOMEIPSRV_SD_MESSAGE_03": {
       "neg_wrong_token": "major_version=99",
       "neg_expect_fail": "fail:offer_entry_major_version_mismatch",

@@ -17,11 +17,12 @@
   ½-cyclic constraint (a multicast Find is answered multicast regardless of
   cycle position), so the Find fires right on the anchor, no hold.
 
-  Reference-stack note: vsomeip 3.7.x IGNORES multicast Finds (SIP_SD_91), so
-  it sends no solicited reply and this case lands
-  `inconclusive_no_offer_after_multicast_find` — DETERMINISTICALLY now, never
-  a cyclic-drift false PASS. The case is platform_known_fail (excluded from the
-  CI green lane); a strict-spec DUT passes via the solicited multicast reply.
+  Reference-stack note: upstream vsomeip 3.7.x IGNORES multicast Finds
+  (SIP_SD_91), which left this case at
+  `inconclusive_no_offer_after_multicast_find` — deterministically, never a
+  cyclic-drift false PASS. `patches/vsomeip/0002` answers such a Find with a
+  multicast OfferService, so the reference DUT now reaches `pass` on the
+  solicited reply observed inside the anchored window.
 
   Phases:
     waiting_main_phase    — absorb the init/repetition offers; a 6500 ms timer
