@@ -22,16 +22,16 @@ namespace tc8::sce {
 
 // TC8 v3.0 §5.1.6 SOMEIP_ETS_117 — SubscribeEventgroup with two options of
 // the same IPv4 Endpoint type. Per PRS_SOMEIPSD_00393 the DUT MUST Nack OR
-// silently ignore. Wire shape: canonical first option + extra IPv4
-// Endpoint option in the array (unreferenced; entry's #Opt1 stays 1).
-// vsomeip-deviation: `sdi::process_eventgroupentry` accepts the Subscribe
-// (uses the first IPv4 Endpoint and silently disregards the second) and
-// emits an Ack — strictly non-spec. Verdict is strict: Nack (Type 0x07
-// ttl==0) OR silent ignore → pass; Ack (Type 0x07 ttl>0) → fail. Linux
-// DUT (vsomeip 3.7.1) therefore lands fail; case is excluded from CI
-// green via grep filter in .github/workflows/smoke-test.yml. The
-// "duplicate referenced" scenario (both options in `#Opt1=2`) is
-// exercised by ETS_173 phase 2 instead.
+// silently ignore. Wire shape: canonical first option + a second IPv4
+// Endpoint option of the same kind, BOTH referenced by the entry
+// (`#Opt1=2`). Verdict is strict: Nack (Type 0x07 ttl==0) OR silent ignore
+// → pass; Ack (Type 0x07 ttl>0) → fail. vsomeip rejects the pair in
+// `sdi::process_eventgroupentry` ("Multiple IPv4 endpoint options of same
+// kind referenced", SIP_SD_1144) and Nacks, so the reference DUT passes.
+// The earlier wire shape left the second option UNREFERENCED (`#Opt1=1`),
+// which vsomeip accepted with an Ack — that is why this case was once
+// platform_known_fail. ETS_173 phase 2 exercises the mixed-transport
+// variant of the same option-reference rule.
 template <>
 struct TestCaseTraits<cases::SomeipEts117SM> : SomeIpAnyBase<cases::SomeipEts117SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_117";

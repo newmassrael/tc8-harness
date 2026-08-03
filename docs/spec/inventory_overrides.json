@@ -531,8 +531,6 @@
       "expect_overrides_ref": "dut/env/expect_overrides.md"
     },
     "SOMEIP_ETS_117": {
-      "platform_known_fail": true,
-      "platform_known_fail_ref": "memory/project_someip_ets_seed_coverage.md",
       "expect_overrides": [
         "eventgroup_id=0x0005"
       ],
@@ -667,10 +665,6 @@
     "TCP_UNACCEPTABLE_04": {
       "platform_known_fail": true,
       "platform_known_fail_ref": "memory/reference_unacc_ack_dispatch.md"
-    },
-    "TCP_UNACCEPTABLE_08": {
-      "platform_known_fail": true,
-      "platform_known_fail_ref": "memory/reference_tcp_unacceptable_08_phase2_race.md"
     },
     "TCP_UNACCEPTABLE_10": {
       "platform_known_fail": true,

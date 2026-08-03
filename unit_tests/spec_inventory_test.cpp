@@ -105,7 +105,9 @@ TEST_F(SpecInventoryMergeTest, BackCompatThreeArgLoad) {
 // value lives here (one home); `runCase` applies it. These pin the loader half:
 // that the array reaches SpecCase, that absence is empty (not a sentinel), and
 // that the axis composes with a platform_known_fail entry rather than
-// replacing it — SOMEIP_ETS_117 is exactly that shape in the real file.
+// replacing it (SOMEIP_ETS_117 carried exactly that shape in the real file
+// until its known-fail was retired; the composition is pinned here so a
+// future entry of that shape cannot regress).
 
 TEST_F(SpecInventoryMergeTest, ExpectOverridesLoadFromOverridesJson) {
     const auto primary = writeTemp("primary.json", kPrimary);

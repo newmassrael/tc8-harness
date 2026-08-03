@@ -3,18 +3,20 @@
   TC8 v3.0 §5.1.6 SOMEIP_ETS_117: SD_Entry_references_options_of_same_kind.
 
   Tester sends a SubscribeEventgroup with two options of the same IPv4
-  Endpoint type (only the first referenced via #Opt1=1). Per
+  Endpoint type, both referenced by the entry (#Opt1=2). Per
   PRS_SOMEIPSD_00393 the DUT MUST Nack OR silently ignore.
 
     Phase 1 (listening_phase1): OfferService observation on SERVICE-ID-1.
     Phase 2 (listening_phase2):
       - Type 0x07 entry, ttl == 0  → Nack          → pass
-      - Type 0x07 entry, ttl  > 0  → Ack           → fail (vsomeip
-        deviation: sdi::process_eventgroupentry uses the first endpoint
-        and silently disregards the second, emitting an Ack — strictly
-        non-spec). Linux DUT therefore lands fail and is excluded from
-        CI green via grep filter in .github/workflows/smoke-test.yml.
+      - Type 0x07 entry, ttl  > 0  → Ack           → fail
       - Deadline                   → silent ignore → pass
+
+  The reference DUT reaches the Nack terminal: vsomeip rejects a pair of
+  referenced same-kind endpoint options in sdi::process_eventgroupentry
+  (SIP_SD_1144). An earlier wire shape left the second option unreferenced
+  (#Opt1=1), which vsomeip accepted with an Ack — the reason this case was
+  once carried as platform_known_fail.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
