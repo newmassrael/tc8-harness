@@ -20,9 +20,10 @@ using SomeipEts171SM = ::SCE::Generated::someip_ets_171::someip_ets_171;
 namespace tc8::sce {
 
 // TC8 v3.0 §5.1.6 SOMEIP_ETS_171 — Tester sends several UNICAST FindService
-// messages (vs the canonical multicast). Per PRS_SOMEIPSD_00268 / 00305 /
-// 00306 / 00307 the DUT shall respond with at least one OfferService for
-// the requested SERVICE-ID-1.
+// messages (vs the canonical multicast). Per PRS_SOMEIPSD_00422 / 00423 the
+// DUT shall respond with at least one OfferService for the requested
+// SERVICE-ID-1; the ids in TC8's Reference row (00268 / 00305 / 00306 /
+// 00307) are entry- and option-format requirements, not the answer duty.
 //
 // This trait skips `emitFindServiceBoot` (which emits multicast) and instead
 // builds + unicast-sends the FindService directly to the DUT's SD endpoint

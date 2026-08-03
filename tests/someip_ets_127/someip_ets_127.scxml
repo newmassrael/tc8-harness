@@ -3,8 +3,10 @@
   TC8 v3.0 §5.1.6 SOMEIP_ETS_127: SD_Multicast_FindService.
 
   Tester sends 10 multicast FindService at 100 ms intervals; DUT must
-  respond with at least one OfferService per PRS_SOMEIPSD_00305 / 00306
-  / 00307 / 00261. Spec wording is "unicast OfferService" but Linux
+  respond with at least one OfferService per PRS_SOMEIPSD_00422 / 00423
+  (the ids in TC8's Reference row — 00305 / 00306 / 00307 / 00261 — are
+  option- and header-format requirements, not the duty to answer). Spec
+  wording is "unicast OfferService" but Linux
   DUT (vsomeip) responds with multicast OfferService when the FindService
   burst falls within 1/2 cyclic of the last cyclic Offer (per
   SD_BEHAVIOR_03/_04 cadence rules). Lenient verdict accepts any

@@ -20,7 +20,9 @@ namespace tc8::sce {
 
 // TC8 v3.0 §5.1.6 SOMEIP_ETS_127 — 10 multicast FindService at 100 ms
 // intervals; DUT replies with at least one unicast OfferService per
-// PRS_SOMEIPSD_00305 / 00306 / 00307 / 00261. Reuses emitFindServiceBoot
+// PRS_SOMEIPSD_00422 / 00423 (TC8's Reference row cites 00305 / 00306 /
+// 00307 / 00261 — option- and header-format requirements, not the answer
+// duty). Reuses emitFindServiceBoot
 // with `total_emits = 10` + `retry_interval = 100 ms` (default initial
 // wait 1.5 s for SD warm-up).
 template <>

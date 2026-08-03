@@ -6,8 +6,11 @@
   Tester sends two bursts of 10 multicast FindService at 100 ms cadence:
   burst A with Major Version = 0xFF (wildcard "any major"); burst B with
   Minor Version = 0xFFFFFFFF (wildcard "any minor"). DUT must reply with
-  at least one OfferService per burst per PRS_SOMEIPSD_00268 / 00305 /
-  00306 / 00307 / 00351. Lenient verdict mirrors ETS_127 — accepts any
+  at least one OfferService per burst per PRS_SOMEIPSD_00422 / 00423; the
+  ids in TC8's Reference row (00268 / 00305 / 00306 / 00307 / 00351) are
+  entry- and option-format requirements — 00351 is the Find entry's own
+  field encoding, including the wildcard values this case sets — not the
+  duty to answer. Lenient verdict mirrors ETS_127 — accepts any
   OfferService observation (multicast or unicast) since vsomeip emits
   multicast Offer during the burst window.
 

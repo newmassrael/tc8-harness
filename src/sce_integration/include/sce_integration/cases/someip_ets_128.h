@@ -21,8 +21,10 @@ namespace tc8::sce {
 // TC8 v3.0 §5.1.6 SOMEIP_ETS_128 — burst A: 10 FindService at 100 ms with
 // Major Version = 0xFF (wildcard "any major"); burst B: 10 FindService at
 // 100 ms with Minor Version = 0xFFFFFFFF (wildcard "any minor"). Per
-// PRS_SOMEIPSD_00268 / 00305 / 00306 / 00307 / 00351 the DUT must reply
-// with at least one OfferService per burst.
+// PRS_SOMEIPSD_00422 / 00423 the DUT must reply with at least one
+// OfferService per burst; the ids in TC8's Reference row (00268 / 00305 /
+// 00306 / 00307 / 00351) are entry- and option-format requirements, with
+// 00351 covering the wildcard fields this case sets, not the answer duty.
 template <>
 struct TestCaseTraits<cases::SomeipEts128SM> : SomeIpAnyBase<cases::SomeipEts128SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_128";
