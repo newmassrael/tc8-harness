@@ -138,7 +138,7 @@ directory — a prefix outside the ld.so search path needs no ldconfig or
 ### OEM extension layers (patches + configure flags)
 
 An OEM consuming this harness stacks private vsomeip changes WITHOUT
-editing the base series, through two environment seams:
+editing the base series, through three environment seams:
 
 - `TC8_EXTRA_VSOMEIP_PATCHES` — `:`-separated list of quilt patch dirs
   (each with its own `series`), applied on top of `patches/vsomeip/` as
@@ -148,6 +148,8 @@ editing the base series, through two environment seams:
 - `TC8_EXTRA_VSOMEIP_CMAKE_ARGS` — whitespace-separated extra configure
   args (e.g. the feature toggle an OEM patch layer introduces). Appended
   after the defaults, so a duplicated `-D` overrides them.
+- `TC8_VSOMEIP_SRC` — the vsomeip **source tree** to patch and build,
+  replacing the vendored submodule (see below).
 
 ```sh
 TC8_EXTRA_VSOMEIP_PATCHES=/path/to/oem/patches \
@@ -155,10 +157,51 @@ TC8_EXTRA_VSOMEIP_CMAKE_ARGS="-DENABLE_MY_FEATURE=ON" \
 sudo -E ./scripts/setup-vsomeip.sh /opt/oem-someip
 ```
 
-Both unset => the public build, byte-identical. If the OEM caches the
+All unset => the public build, byte-identical. If the OEM caches the
 install, the cache key must hash the OEM patch dir + flags too — a key
 covering only `patches/vsomeip/` reuses stale builds when the OEM layer
 changes.
+
+#### Pinning the vsomeip source independently (`TC8_VSOMEIP_SRC`)
+
+The two patch/flag seams stack layers *on* a source tree; neither selects
+it. Without a third seam the vsomeip commit a consumer's DUT is built
+from is whatever the harness pin happens to carry, so a harness bump
+taken for a harness reason moves the consumer's SOME/IP base too —
+`9e5d3c54` moved the vendored pin across a minor release (3.7.1 → 3.7.3).
+For a consumer whose DUT is part of what it certifies, that base is
+evidence: it has to be held while unrelated harness pins move, and
+advanced when the consumer chooses.
+
+`TC8_VSOMEIP_SRC` names the tree to patch and build:
+
+```sh
+TC8_VSOMEIP_SRC=/path/to/oem/third_party/vsomeip \
+TC8_EXTRA_VSOMEIP_PATCHES=/path/to/oem/patches \
+sudo -E ./scripts/setup-vsomeip.sh /opt/oem-someip
+```
+
+Rules that come with it:
+
+- It must be a **git checkout of vsomeip**. The script resets the tree to
+  pristine sources (`git checkout -- .` + `git clean -fdx -e build`)
+  before applying the series, so it needs git, and it refuses a tree that
+  does not look like vsomeip rather than running a destructive clean in
+  the wrong directory. A relative path is resolved before use.
+- **The base series still applies**, to whatever tree is named. A
+  different COVESA commit may fuzz or fail there; quilt refuses loudly and
+  the consumer owns that consequence — the harness does not adapt its
+  series to a tree it does not pin.
+- **The install prefix is what the tester compiles against**
+  (`find_package(vsomeip3 REQUIRED)`), not the source tree, so the harness
+  build itself is unaffected.
+- **Cache keys**: CI folds `git rev-parse HEAD:third_party/vsomeip` into
+  the SOME/IP stack cache key. With the override set that SHA no longer
+  describes what was built, so a consumer caching the install must fold in
+  its own source pin — the same caveat as for the OEM patch dir and flags.
+
+Unset => the vendored submodule, so public CI and any public build are
+unchanged.
 
 #### Declining a base-patch behaviour
 

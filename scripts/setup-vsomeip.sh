@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Idempotent vsomeip setup: reset the vendored submodule to its pinned
+# Idempotent vsomeip setup: reset the vsomeip source tree (the vendored
+# submodule, or a consumer-owned checkout via TC8_VSOMEIP_SRC) to its pinned
 # sources, apply the tc8-harness patch series (plus any OEM extension layers
 # via TC8_EXTRA_VSOMEIP_PATCHES), configure (plus any OEM flags via
 # TC8_EXTRA_VSOMEIP_CMAKE_ARGS), build, install.
@@ -11,8 +12,18 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-VSOMEIP_DIR="$REPO_ROOT/third_party/vsomeip"
 PATCHES_DIR="$REPO_ROOT/patches/vsomeip"
+
+# Source tree: TC8_VSOMEIP_SRC > the vendored submodule. The two seams further
+# down stack layers ON a tree; neither selects it, so without this a harness pin
+# bump taken for a harness reason also moves the consumer's SOME/IP base (commit
+# 9e5d3c54 moved the vendored pin 3.7.1 -> 3.7.3). A consumer whose DUT is part
+# of what it certifies has to pin that base itself and move it deliberately.
+# The override must be a git checkout of vsomeip: the pristine reset below
+# applies to it unchanged, and so does the base series — a different COVESA
+# commit may fuzz or fail there, which quilt refuses loudly rather than building
+# something unintended. Unset => vendored submodule => public build unchanged.
+VSOMEIP_DIR="${TC8_VSOMEIP_SRC:-$REPO_ROOT/third_party/vsomeip}"
 
 # Install prefix: argv[1] > VSOMEIP_INSTALL_PREFIX > /usr/local. CI passes a
 # job-scoped prefix (/opt/someip-stack, the build-test.yml convention) so the
@@ -22,9 +33,34 @@ PATCHES_DIR="$REPO_ROOT/patches/vsomeip"
 # passing VAR=val through sudo additionally requires the SETENV tag.
 INSTALL_PREFIX="${1:-${VSOMEIP_INSTALL_PREFIX:-/usr/local}}"
 
+if [[ -n "${TC8_VSOMEIP_SRC:-}" ]]; then
+    if [[ ! -d "$VSOMEIP_DIR" ]]; then
+        echo "error: TC8_VSOMEIP_SRC is not a directory: $VSOMEIP_DIR" >&2
+        exit 1
+    fi
+    # Absolutise: this script cd's into the tree, and the chown + `git describe`
+    # at the end address it again from that new cwd, so a relative override would
+    # resolve somewhere else there.
+    VSOMEIP_DIR="$(cd "$VSOMEIP_DIR" && pwd)"
+    # The pristine reset below runs `git clean -fdx` in this tree, deleting every
+    # untracked file in it. Refuse that on a tree that is not vsomeip: a mistyped
+    # override pointing at another checkout would otherwise destroy work before a
+    # patch or build failure could surface the mistake.
+    if [[ ! -e "$VSOMEIP_DIR/CMakeLists.txt" || ! -d "$VSOMEIP_DIR/interface/vsomeip" ]]; then
+        echo "error: TC8_VSOMEIP_SRC does not look like a vsomeip checkout: $VSOMEIP_DIR" >&2
+        echo "       expected CMakeLists.txt and interface/vsomeip/ in it" >&2
+        exit 1
+    fi
+fi
+
 if [[ ! -e "$VSOMEIP_DIR/.git" ]]; then
-    echo "error: $VSOMEIP_DIR submodule not initialised" >&2
-    echo "       run: git submodule update --init --recursive" >&2
+    if [[ -n "${TC8_VSOMEIP_SRC:-}" ]]; then
+        echo "error: TC8_VSOMEIP_SRC is not a git checkout: $VSOMEIP_DIR" >&2
+        echo "       the pristine reset needs git checkout/clean to restore the tree" >&2
+    else
+        echo "error: $VSOMEIP_DIR submodule not initialised" >&2
+        echo "       run: git submodule update --init --recursive" >&2
+    fi
     exit 1
 fi
 if ! command -v quilt >/dev/null; then
@@ -163,4 +199,7 @@ if [[ -n "${SUDO_USER:-}" ]]; then
     chown -R "$SUDO_USER:$SUDO_USER" "$VSOMEIP_DIR"
 fi
 
-echo "vsomeip setup complete: $(git -C "$VSOMEIP_DIR" describe --always) -> $INSTALL_PREFIX"
+# Name the source tree too when it is not the vendored one: which vsomeip commit
+# a DUT was built from is evidence a consumer has to be able to state, and this
+# line is what a build log carries.
+echo "vsomeip setup complete: $(git -C "$VSOMEIP_DIR" describe --always)${TC8_VSOMEIP_SRC:+ (source: $VSOMEIP_DIR)} -> $INSTALL_PREFIX"
