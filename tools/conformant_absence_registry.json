@@ -692,7 +692,7 @@
       "guards": [
         {
           "class": "liveness",
-          "property": "DUT must emit offer service"
+          "property": "DUT must answer a Unicast-Flag=0 FindService with an OfferService; the window is anchored between two cyclic offers so only a solicited reply can satisfy it, and its absence is inconclusive (no reachable fail final)"
         }
       ]
     },

@@ -5,15 +5,41 @@
 
   Tester sends a multicast FindService with the SD Unicast Flag = 0
   (sd_flags = 0x80 = Reboot=1 Unicast=0). DUT must ignore the flag and
-  respond with at least one unicast OfferService per PRS_SOMEIPSD_00268
-  / 00305 / 00306 / 00307. Lenient verdict mirrors ETS_127 — accepts
-  any OfferService observation; the spec's Unicast-vs-Multicast wire
-  distinction is not reliably observable on Linux DUT (vsomeip emits
-  multicast Offer during burst windows per SD §4.1.3 cadence rules).
+  respond with at least one OfferService per PRS_SOMEIPSD_00268 / 00305 /
+  00306 / 00307. The case asserts that the answer HAPPENS; it does not
+  assert the answer's transport, so a unicast or a multicast reply both
+  pass (SOMEIPSRV_SD_BEHAVIOR_04 is the case that asserts multicast).
 
-    Phase 1 (listening_phase1): OfferService for SERVICE-ID-1 -> pass.
-            Phase 1 deadline only fires if DUT crashed under the
-            Unicast-Flag=0 input.
+  Cadence-relative timing (same rationale as SD_BEHAVIOR_03/_04). Per the SD
+  §4.1.3 cadence rules the DUT emits a cyclic OfferService every
+  cyclic_offer_delay (2000 ms here) throughout the main phase, so a listen
+  window opened at a fixed wall-clock offset will collect one whether or not
+  the Find was ever answered — the verdict then passes on cyclic drift and
+  asserts nothing. That same cadence rule is what makes anchoring sound: two
+  consecutive cyclics bound a gap no third offer can occupy unsolicited.
+  (This case carried exactly that shape until 2026-08-03: a single 6 s
+  window accepting any OfferService, its own comment conceding the deadline
+  "only fires if DUT crashed".) Instead the harness ANCHORS to the DUT's own
+  offer: it waits into the main phase, takes the next cyclic as the anchor,
+  emits the Find on entry to the reply state, and closes the window before
+  the next cyclic is due. The window then sits strictly between two cyclics,
+  so the only OfferService that can land in it is a solicited one.
+
+  Phases:
+    waiting_main_phase    — absorb the init/repetition offers; a 6500 ms
+      timer clears them across the plausible DUT-start delay so the next
+      observed offer is a clean main-phase cyclic.
+    awaiting_anchor       — the next multicast OfferService is the anchor; a
+      2600 ms deadline (>1 cyclic) means a DUT that never offers at all is
+      reported as a precondition failure, not a property failure.
+    listening_offer_reply — the multicast Find is emitted on entry; a
+      1300 ms deadline catches a solicited reply (~50 ms) yet ends before
+      the next cyclic (+2000 ms).
+
+  Reference-stack note: upstream vsomeip drops Unicast-Flag=0 Finds
+  (SIP_SD_91), so before `patches/vsomeip/0002` the only OfferService this
+  case could ever observe was a cyclic one. The patch supplies the solicited
+  answer that makes the anchored window reachable.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -21,7 +47,7 @@
        version="1.0"
        name="someip_ets_130"
        datamodel="null"
-       initial="listening_phase1">
+       initial="waiting_main_phase">
 
   <sce:context id="captured"
                cpp:type="tc8::SomeIpCaptured"
@@ -31,14 +57,31 @@
                cpp:type="tc8::SomeIpExpected"
                cpp:include="sce_integration/someip_expected.h"/>
 
-  <state id="listening_phase1">
+  <state id="waiting_main_phase">
     <onentry>
-      <send event="phase1_deadline_exceeded" delay="6s"/>
+      <send event="main_phase_reached" delay="6500ms"/>
+    </onentry>
+    <transition event="main_phase_reached" target="awaiting_anchor"/>
+  </state>
+
+  <state id="awaiting_anchor">
+    <onentry>
+      <send event="anchor_timeout" delay="2600ms"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.sd_entries[0].ttl &gt; 0"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.dst_ip == expected.sd_multicast_ip"
+                target="listening_offer_reply"/>
+    <transition event="anchor_timeout" target="inconclusive_no_cyclic_offer"/>
+  </state>
+
+  <state id="listening_offer_reply">
+    <onentry>
+      <send event="reply_deadline_exceeded" delay="1300ms"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count &gt;= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
                 target="pass"/>
-    <transition event="phase1_deadline_exceeded" target="inconclusive_phase1_no_offer"/>
+    <transition event="reply_deadline_exceeded" target="inconclusive_no_offer_after_multicast_find"/>
   </state>
 
   <final id="pass">
@@ -47,9 +90,15 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_phase1_no_offer">
+  <final id="inconclusive_no_cyclic_offer">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_offer_service_within_listen_window","role":"precondition_unmet"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_cyclic_offer_service_to_anchor_on","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_offer_after_multicast_find">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_offer_within_listen_window_after_multicast_find","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>
