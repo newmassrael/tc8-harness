@@ -36,8 +36,15 @@ namespace tc8::sce {
 // citing SIP_SD_91), which left this case at
 // `inconclusive_no_offer_after_multicast_find`. `patches/vsomeip/0002` answers
 // such a Find with a multicast OfferService — the reading SOMEIPSD §6.7.5.2 /
-// TR_SOMEIP_00423 carries — so the reference DUT now passes on the solicited
-// reply. The Unicast Flag = 1 path is untouched by that patch.
+// TR_SOMEIP_00423 carries, which TC8's Reference row for this case marks
+// SHOULD — so the reference DUT now passes on the solicited reply. The Unicast
+// Flag = 1 path is untouched by that patch.
+//
+// AUTOSAR reads the flag the other way and says so with a SHALL: in the current
+// PRS the same requirement number is scoped to Unicast Flag = 1
+// (PRS_SOMEIPSD_00423), and PRS_SOMEIPSD_00843 requires that entries with the
+// flag set to 0 "shall not be answered with unicast but ignored". This case
+// therefore asserts a TC8 requirement, not a universally agreed one.
 //
 // That branch is compile-gated on `ENABLE_TC8_ANSWER_MULTICAST_FIND`, default
 // ON. A DUT built with it OFF keeps the upstream drop and lands this case back

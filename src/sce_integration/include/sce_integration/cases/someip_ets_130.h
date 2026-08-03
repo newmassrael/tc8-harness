@@ -19,9 +19,14 @@ using SomeipEts130SM = ::SCE::Generated::someip_ets_130::someip_ets_130;
 namespace tc8::sce {
 
 // TC8 v3.0 §5.1.6 SOMEIP_ETS_130 — multicast FindService with SD Unicast
-// Flag = 0 (sd_flags = 0x80 — Reboot=1 Unicast=0). DUT must ignore the
-// flag and respond with at least one OfferService per PRS_SOMEIPSD_00268
-// / 00305 / 00306 / 00307. Builds the FindService directly via
+// Flag = 0 (sd_flags = 0x80 — Reboot=1 Unicast=0). The case requires the DUT
+// to ignore the flag and respond with at least one OfferService. That is TC8's
+// requirement, not AUTOSAR's: PRS_SOMEIPSD_00843 requires the opposite (such
+// entries "shall not be answered with unicast but ignored"), which is why the
+// reference stack's answer is compile-gated — see the SCXML header. The ids in
+// TC8's own Reference row for this case (PRS_SOMEIPSD_00268 / 00305 / 00306 /
+// 00307) are entry- and option-format requirements; they cover the encoding the
+// case exercises, not the duty to answer. Builds the FindService directly via
 // buildFindService + sendSdMulticast because emitFindServiceBoot
 // hardcodes sd_flags = 0xC0.
 //

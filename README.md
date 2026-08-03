@@ -177,12 +177,22 @@ renaming of the patch that introduces it.
 
 | Option | Patch | ON (default) | OFF | Cases asserting ON |
 |--------|-------|--------------|-----|--------------------|
-| `ENABLE_TC8_ANSWER_MULTICAST_FIND` | `0002-answer-multicast-findservice` | a FindService whose SD Unicast Flag is 0 is answered with a multicast OfferService (`PRS_SOMEIPSD_00268/00305/00306/00307`) | stock `SIP_SD_91` — such a Find is ignored | `SOMEIPSRV_SD_BEHAVIOR_04`, `SOMEIP_ETS_130` |
+| `ENABLE_TC8_ANSWER_MULTICAST_FIND` | `0002-answer-multicast-findservice` | a FindService whose SD Unicast Flag is 0 is answered with a multicast OfferService | stock `SIP_SD_91` — such a Find is ignored | `SOMEIPSRV_SD_BEHAVIOR_04`, `SOMEIP_ETS_130` |
 
 ```sh
 TC8_EXTRA_VSOMEIP_CMAKE_ARGS="-DENABLE_TC8_ANSWER_MULTICAST_FIND=OFF" \
 sudo -E ./scripts/setup-vsomeip.sh /opt/oem-someip
 ```
+
+That row's two sides are not equally backed, which is worth knowing before
+picking a side. `PRS_SOMEIPSD_00843` (AUTOSAR FO R22-11) requires the drop
+with a SHALL — "Entries received with the unicast flag set to 0, shall not
+be answered with unicast but ignored" — and `PRS_SOMEIPSD_00423` scopes its
+answer behaviours to Unicast Flag = 1; only the basic-implementation rule
+`PRS_SOMEIPSD_00422` is flag-agnostic, and it names unicast. TC8's own
+Reference row for `SOMEIPSRV_SD_BEHAVIOR_04` marks its source **(SHOULD)**.
+The default is ON because this harness certifies against TC8, not because
+the answer is the better-supported reading.
 
 Turning a gate off makes the cases in the last column stop asserting
 their property against that DUT — record them in the consumer's own

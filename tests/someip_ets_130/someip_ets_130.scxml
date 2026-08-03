@@ -5,10 +5,17 @@
 
   Tester sends a multicast FindService with the SD Unicast Flag = 0
   (sd_flags = 0x80 = Reboot=1 Unicast=0). DUT must ignore the flag and
-  respond with at least one OfferService per PRS_SOMEIPSD_00268 / 00305 /
-  00306 / 00307. The case asserts that the answer HAPPENS; it does not
-  assert the answer's transport, so a unicast or a multicast reply both
-  pass (SOMEIPSRV_SD_BEHAVIOR_04 is the case that asserts multicast).
+  respond with at least one OfferService. The case asserts that the answer
+  HAPPENS; it does not assert the answer's transport, so a unicast or a
+  multicast reply both pass (SOMEIPSRV_SD_BEHAVIOR_04 is the case that
+  asserts multicast).
+
+  The duty to answer is TC8's, and AUTOSAR reads it the other way:
+  PRS_SOMEIPSD_00843 (FO R22-11) requires that entries with the unicast flag
+  set to 0 "shall not be answered with unicast but ignored". The ids in TC8's
+  own Reference row here (PRS_SOMEIPSD_00268 / 00305 / 00306 / 00307) are
+  entry- and option-format requirements covering the encoding this case
+  exercises, not the duty to answer.
 
   Cadence-relative timing (same rationale as SD_BEHAVIOR_03/_04). Per the SD
   §4.1.3 cadence rules the DUT emits a cyclic OfferService every
