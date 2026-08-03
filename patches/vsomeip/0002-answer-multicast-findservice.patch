@@ -19,22 +19,75 @@ Flag = 1 path (SID_SD_826 / SIP_SD_89 / SIP_SD_90) is untouched, so the
 half-offer-delay unicast-vs-multicast choice every other case depends on
 keeps its upstream behaviour.
 
+The new branch is compile-gated on ENABLE_TC8_ANSWER_MULTICAST_FIND, a CMake
+option defaulting to ON. Both readings of the Unicast Flag are deployed: a
+consumer whose own specification mandates the SIP_SD_91 drop configures
+-DENABLE_TC8_ANSWER_MULTICAST_FIND=OFF through the existing
+TC8_EXTRA_VSOMEIP_CMAKE_ARGS seam and compiles the stock branch, instead of
+declining this patch or carrying a revert whose text sits on the lines
+inserted here. OFF is byte-identical to unpatched vsomeip in this function;
+ON is what every harness build and both TC8 cases above see.
+
+The added lines follow the stock SIP_SD_91 comment instead of replacing it, so
+the diff is purely additive and every stock line in the branch survives as
+context. Measured against a downstream layer that patches this same function:
+replacing those two comment lines cost that layer one fuzzed hunk, keeping
+them costs it none.
+
 Affects:
   implementation/service_discovery/src/service_discovery_impl.cpp
+  CMakeLists.txt
 Index: vsomeip/implementation/service_discovery/src/service_discovery_impl.cpp
 ===================================================================
 --- vsomeip.orig/implementation/service_discovery/src/service_discovery_impl.cpp
 +++ vsomeip/implementation/service_discovery/src/service_discovery_impl.cpp
-@@ -2818,8 +2818,11 @@ void service_discovery_impl::send_uni_or
-             send_multicast_offer_service(_info);
-         }
+@@ -2820,6 +2820,22 @@ void service_discovery_impl::send_uni_or
      } else {
--        // SIP_SD_91
--        // Find messages received with Unicast Flag set to 0 (multicast), shall be ignored
-+        // SIP_SD_91 relaxed for TC8 conformance: PRS_SOMEIPSD_00268/00305/00306/00307
-+        // require the server to answer a FindService regardless of the Unicast Flag,
-+        // and TC8 asserts the multicast answer. Answer with a multicast OfferService
-+        // instead of dropping the Find.
+         // SIP_SD_91
+         // Find messages received with Unicast Flag set to 0 (multicast), shall be ignored
++#ifdef ENABLE_TC8_ANSWER_MULTICAST_FIND
++        // ... except for TC8 conformance, where SIP_SD_91 above is relaxed:
++        // PRS_SOMEIPSD_00268/00305/00306/00307 require the server to answer a
++        // FindService regardless of the Unicast Flag, and TC8 asserts the multicast
++        // answer. Answer with a multicast OfferService instead of dropping the Find.
++        //
++        // Compile-gated because both readings of the Unicast Flag are deployed: a
++        // consumer whose own specification mandates the SIP_SD_91 drop configures
++        // -DENABLE_TC8_ANSWER_MULTICAST_FIND=OFF and compiles this branch out.
++        // Default ON, so the harness reference DUT is unaffected.
++        //
++        // The stock comment lines above are deliberately kept in place, ahead of
++        // this block: a downstream patch layer whose own hunks carry them as
++        // context then still applies at zero fuzz.
 +        send_multicast_offer_service(_info);
++#endif
      }
  }
+ 
+Index: vsomeip/CMakeLists.txt
+===================================================================
+--- vsomeip.orig/CMakeLists.txt
++++ vsomeip/CMakeLists.txt
+@@ -117,6 +117,22 @@ if (ENABLE_SIGNAL_HANDLING)
+ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DVSOMEIP_ENABLE_SIGNAL_HANDLING")
+ endif ()
+ 
++# TC8 conformance: answer a FindService carrying SD Unicast Flag = 0.
++# ON  => service_discovery_impl::send_uni_or_multicast_offerservice() answers such
++#        a Find with a multicast OfferService, the reading
++#        PRS_SOMEIPSD_00268/00305/00306/00307 carries and TC8
++#        SOMEIPSRV_SD_BEHAVIOR_04 / SOMEIP_ETS_130 assert.
++# OFF => the stock SIP_SD_91 drop, for a consumer whose own specification mandates
++#        ignoring a Find whose Unicast Flag is not 1.
++# Default ON: this is the harness reference DUT's behaviour. The name is the
++# stable contract — it survives renumbering or renaming of the patch that
++# introduces it. Turn it off through TC8_EXTRA_VSOMEIP_CMAKE_ARGS.
++option(ENABLE_TC8_ANSWER_MULTICAST_FIND
++       "Answer a FindService whose SD Unicast Flag is 0 (OFF = stock SIP_SD_91 drop)" ON)
++if (ENABLE_TC8_ANSWER_MULTICAST_FIND)
++set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DENABLE_TC8_ANSWER_MULTICAST_FIND")
++endif ()
++
+ if (NOT MSVC)
+     # Sanitizers
+     if (ENABLE_SANITIZERS)

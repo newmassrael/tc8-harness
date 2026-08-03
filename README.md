@@ -160,6 +160,39 @@ install, the cache key must hash the OEM patch dir + flags too — a key
 covering only `patches/vsomeip/` reuses stale builds when the OEM layer
 changes.
 
+#### Declining a base-patch behaviour
+
+Both seams above are *additive*: they stack layers on the base series,
+they cannot remove one. A base patch that relaxes a stock vsomeip
+behaviour can therefore collide with a consumer whose own specification
+mandates exactly the behaviour it relaxed — and reverting it from the OEM
+layer would couple that layer's patch text to the base patch's inserted
+lines, so every upstream touch of the same function breaks it.
+
+Such patches are instead **compile-gated behind an `ENABLE_TC8_*` CMake
+option, defaulting to ON**, so declining the behaviour is one flag through
+the existing `TC8_EXTRA_VSOMEIP_CMAKE_ARGS` seam and needs no patch at
+all. The option name is the stable contract: it survives renumbering or
+renaming of the patch that introduces it.
+
+| Option | Patch | ON (default) | OFF | Cases asserting ON |
+|--------|-------|--------------|-----|--------------------|
+| `ENABLE_TC8_ANSWER_MULTICAST_FIND` | `0002-answer-multicast-findservice` | a FindService whose SD Unicast Flag is 0 is answered with a multicast OfferService (`PRS_SOMEIPSD_00268/00305/00306/00307`) | stock `SIP_SD_91` — such a Find is ignored | `SOMEIPSRV_SD_BEHAVIOR_04`, `SOMEIP_ETS_130` |
+
+```sh
+TC8_EXTRA_VSOMEIP_CMAKE_ARGS="-DENABLE_TC8_ANSWER_MULTICAST_FIND=OFF" \
+sudo -E ./scripts/setup-vsomeip.sh /opt/oem-someip
+```
+
+Turning a gate off makes the cases in the last column stop asserting
+their property against that DUT — record them in the consumer's own
+`--inventory-overrides` JSON rather than reading the result as a harness
+regression.
+
+`0001-relax-return-code-on-requests` carries no gate: no consumer
+specification is known that mandates the stock return-code whitelist for
+Requests. Gate it the same way, and add a row here, if one turns up.
+
 ### Adding a vsomeip patch
 
 The harness vendors vsomeip via `third_party/vsomeip/` (submodule pinned to
@@ -183,6 +216,13 @@ reference for patch shape, ABI-preservation rules, and upstream-bug
 narration. Keep patches surgical: gate by `MT_REQUEST` rather than
 broaden whitelists, leave `MT_RESPONSE` validation intact, attach a
 `Refs:` line to a tracking issue.
+
+If the patch relaxes a stock behaviour that a consumer's own
+specification could mandate the other way, compile-gate it as described
+in [Declining a base-patch behaviour](#declining-a-base-patch-behaviour)
+— `0002-answer-multicast-findservice.patch` is the reference for that
+shape (`#ifdef` around the new branch, stock code preserved in the
+`#else`, `option(... ON)` next to vsomeip's own toggles).
 
 ## Topology profiles
 

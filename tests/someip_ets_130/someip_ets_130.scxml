@@ -39,7 +39,10 @@
   Reference-stack note: upstream vsomeip drops Unicast-Flag=0 Finds
   (SIP_SD_91), so before `patches/vsomeip/0002` the only OfferService this
   case could ever observe was a cyclic one. The patch supplies the solicited
-  answer that makes the anchored window reachable.
+  answer that makes the anchored window reachable. Its branch is compile-gated
+  on `ENABLE_TC8_ANSWER_MULTICAST_FIND` (default ON): a DUT built with the gate
+  OFF keeps the upstream drop and this case returns to its inconclusive
+  terminal — see README, "Declining a base-patch behaviour".
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"

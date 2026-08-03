@@ -120,8 +120,12 @@ fi
 #   vsomeip 3.7.3 raised the floor past ubuntu-22.04's apt 1.74).
 # - TC8_EXTRA_VSOMEIP_CMAKE_ARGS: whitespace-separated extra configure args —
 #   the OEM seam mirroring TC8_EXTRA_VSOMEIP_PATCHES, e.g. the feature
-#   toggle an OEM patch layer introduces. Appended last so a duplicated -D
-#   overrides the defaults above. Unset => public behaviour unchanged.
+#   toggle an OEM patch layer introduces, or an ENABLE_TC8_* gate a base
+#   patch introduces that a consumer's own specification forbids (the two
+#   seams are additive, so declining a base patch happens through the gate
+#   rather than by removing the patch — README, "Declining a base-patch
+#   behaviour"). Appended last so a duplicated -D overrides the defaults
+#   above. Unset => public behaviour unchanged.
 extra_cmake_args=()
 if [[ -n "${TC8_EXTRA_VSOMEIP_CMAKE_ARGS:-}" ]]; then
     read -r -a extra_cmake_args <<< "$TC8_EXTRA_VSOMEIP_CMAKE_ARGS"

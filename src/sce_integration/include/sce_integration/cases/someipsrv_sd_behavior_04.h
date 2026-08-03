@@ -38,6 +38,12 @@ namespace tc8::sce {
 // such a Find with a multicast OfferService — the reading SOMEIPSD §6.7.5.2 /
 // TR_SOMEIP_00423 carries — so the reference DUT now passes on the solicited
 // reply. The Unicast Flag = 1 path is untouched by that patch.
+//
+// That branch is compile-gated on `ENABLE_TC8_ANSWER_MULTICAST_FIND`, default
+// ON. A DUT built with it OFF keeps the upstream drop and lands this case back
+// on its inconclusive terminal — expected for a consumer whose own
+// specification mandates ignoring such a Find, not a harness regression (see
+// README, "Declining a base-patch behaviour").
 template <>
 struct TestCaseTraits<cases::SdBehavior04SM>
     : SomeIpSdOnlyBase<cases::SdBehavior04SM> {
