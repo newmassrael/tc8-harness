@@ -102,13 +102,13 @@
     </onentry>
     <transition event="evaluate"
                 cond="cpp:not captured.ut_handshake_completed"
-                target="fail_handshake_did_not_complete"/>
+                target="inconclusive_handshake_did_not_complete"/>
     <transition event="evaluate"
                 cond="cpp:not captured.ut_tcpi_p1_valid"
-                target="fail_phase1_query_failed"/>
+                target="error_phase1_query_failed"/>
     <transition event="evaluate"
                 cond="cpp:not captured.ut_tcpi_p2_valid"
-                target="fail_phase2_query_failed"/>
+                target="error_phase2_query_failed"/>
     <transition event="evaluate"
                 cond="cpp:captured.ut_tcpi_p1_retransmits == 0"
                 target="fail_no_phase1_retx"/>
@@ -127,19 +127,19 @@
     </donedata>
   </final>
 
-  <final id="fail_handshake_did_not_complete">
+  <final id="inconclusive_handshake_did_not_complete">
     <donedata>
       <content>{"verdict":"inconclusive","reason":"dut_handshake_did_not_complete","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_phase1_query_failed">
+  <final id="error_phase1_query_failed">
     <donedata>
       <content>{"verdict":"error","reason":"phase1_tcp_info_query_failed","role":"test_system_fault"}</content>
     </donedata>
   </final>
 
-  <final id="fail_phase2_query_failed">
+  <final id="error_phase2_query_failed">
     <donedata>
       <content>{"verdict":"error","reason":"phase2_tcp_info_query_failed","role":"test_system_fault"}</content>
     </donedata>

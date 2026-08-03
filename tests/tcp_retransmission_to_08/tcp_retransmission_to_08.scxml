@@ -12,12 +12,12 @@
 
   Verdict ladder (single kernel-state (TCP_INFO) snapshot off the DUT
   socket, evaluate-pattern SCXML):
-    1. `not ut_handshake_completed`        → fail_handshake_did_not_complete
-    2. `not ut_tcpi_p1_valid`              → fail_query_failed
+    1. `not ut_handshake_completed`        → inconclusive_handshake_did_not_complete
+    2. `not ut_tcpi_p1_valid`              → error_query_failed
     3. `ut_tcpi_p1_retransmits == 0`       → fail_no_retx
     4. `rto_us > 63_000_000`               → fail_rto_above_2msl_cap
        (Linux RTO_MAX path, 120 s — exceeds spec's 60 s)
-    5. `rto_us < 57_000_000`               → fail_rto_below_2msl_cap
+    5. `rto_us < 57_000_000`               → inconclusive_rto_below_2msl_cap
        (Linux mid-doubling at observation budget cap, or any DUT
         plateauing too low)
     6. fall-through                        → pass (rto_us within
@@ -26,7 +26,7 @@
   Wall-time budget: 35 s. Linux's RTO doubling at this budget is
   in the 25-50 s cumulative range with `tcpi_rto` in mid-doubling
   (typically 6.4-25.6 s). The verdict at 35 s ladder cap will fall
-  on `fail_rto_below_2msl_cap` because Linux hasn't plateaued yet.
+  on `inconclusive_rto_below_2msl_cap` because Linux hasn't plateaued yet.
   Reaching the 120 s plateau requires ~200 s wall-time and would
   hit the case envelope cap before observing it.
 
@@ -57,10 +57,10 @@
     </onentry>
     <transition event="evaluate"
                 cond="cpp:not captured.ut_handshake_completed"
-                target="fail_handshake_did_not_complete"/>
+                target="inconclusive_handshake_did_not_complete"/>
     <transition event="evaluate"
                 cond="cpp:not captured.ut_tcpi_p1_valid"
-                target="fail_query_failed"/>
+                target="error_query_failed"/>
     <transition event="evaluate"
                 cond="cpp:captured.ut_tcpi_p1_retransmits == 0"
                 target="fail_no_retx"/>
@@ -69,7 +69,7 @@
                 target="fail_rto_above_2msl_cap"/>
     <transition event="evaluate"
                 cond="cpp:captured.ut_tcpi_p1_rto_us &lt; 57000000"
-                target="fail_rto_below_2msl_cap"/>
+                target="inconclusive_rto_below_2msl_cap"/>
     <transition event="evaluate" target="pass"/>
   </state>
 
@@ -79,13 +79,13 @@
     </donedata>
   </final>
 
-  <final id="fail_handshake_did_not_complete">
+  <final id="inconclusive_handshake_did_not_complete">
     <donedata>
       <content>{"verdict":"inconclusive","reason":"dut_handshake_did_not_complete","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_query_failed">
+  <final id="error_query_failed">
     <donedata>
       <content>{"verdict":"error","reason":"tcp_info_query_failed","role":"test_system_fault"}</content>
     </donedata>
@@ -103,7 +103,7 @@
     </donedata>
   </final>
 
-  <final id="fail_rto_below_2msl_cap">
+  <final id="inconclusive_rto_below_2msl_cap">
     <donedata>
       <content>{"verdict":"inconclusive","reason":"rto_below_2_msl_did_not_plateau_within_observation_budget","role":"property_unobserved"}</content>
     </donedata>

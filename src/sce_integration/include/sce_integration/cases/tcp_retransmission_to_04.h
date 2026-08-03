@@ -119,8 +119,8 @@ struct TestCaseTraits<cases::TcpRetransmissionTo04SM> {
 
         // Prelude success — the SCXML's first cond gates on this so a
         // negative IP-flip variant lands on
-        // `fail_handshake_did_not_complete` instead of the indirect
-        // `fail_phase1_query_failed`.
+        // `inconclusive_handshake_did_not_complete` instead of the indirect
+        // `error_phase1_query_failed`.
         c.ut_handshake_completed = true;
 
         // Tester-kernel auto-ACK suppression must outlive every retx

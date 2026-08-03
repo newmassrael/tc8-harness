@@ -119,7 +119,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo05SM> {
 
         // A nullopt open is an unreachable DUT (e.g. the negative
         // dut_iface_ip flip): nothing to probe → ut_handshake_completed
-        // stays false → SCXML verdicts fail_handshake_did_not_complete.
+        // stays false → SCXML verdicts inconclusive_handshake_did_not_complete.
         if (!open_conn) return;
         const ::tc8::sce::DutSocket dut_sock = open_conn->socket;
 
@@ -129,7 +129,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo05SM> {
         // semantic _03/_04 use (DUT reached the spec-mandated prelude
         // state). Doubles as the negative-flip detector: an unreachable
         // DUT leaves every probe invalid → flag stays false → SCXML's
-        // first cond verdicts fail_handshake_did_not_complete.
+        // first cond verdicts inconclusive_handshake_did_not_complete.
         const auto probe_start = std::chrono::steady_clock::now();
         while (true) {
             std::this_thread::sleep_for(kPollInterval);

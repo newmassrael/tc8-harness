@@ -115,7 +115,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo06SM> {
 
         // A nullopt open is an unreachable DUT (e.g. the negative
         // dut_iface_ip flip): nothing to probe → ut_handshake_completed
-        // stays false → SCXML verdicts fail_handshake_did_not_complete.
+        // stays false → SCXML verdicts inconclusive_handshake_did_not_complete.
         if (!open_conn) return;
         const ::tc8::sce::DutSocket dut_sock = open_conn->socket;
 
@@ -128,7 +128,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo06SM> {
         //   * retransmits>=1 → too late, the kernel already doubled
         //     icsk_rto; let the SCXML verdict on the missed window
         //   * deadline → no observation made; ut_handshake_completed
-        //     stays false → fail_handshake_did_not_complete
+        //     stays false → inconclusive_handshake_did_not_complete
         // Transient probe failures (`probe == nullopt`) retry within
         // the deadline rather than aborting — a single dropped probe
         // response under workers=4 CPU saturation must not collapse

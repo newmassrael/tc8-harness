@@ -13,16 +13,16 @@
 
   Verdict ladder (single kernel-state (TCP_INFO) snapshot,
   evaluate-pattern):
-    1. `not ut_handshake_completed`        → fail_handshake_did_not_complete
+    1. `not ut_handshake_completed`        → inconclusive_handshake_did_not_complete
        (the DUT never initiated the active OPEN; on the negative
         IP-flip path the harness never reaches the DUT.)
-    2. `not ut_tcpi_p1_valid`              → fail_query_failed
+    2. `not ut_tcpi_p1_valid`              → error_query_failed
     3. `ut_tcpi_p1_retransmits == 0`       → fail_no_retx
        (SYN retransmits never fired — the tester's auto-RST suppression
         probably leaked or the DUT exited SYN-SENT for another reason.)
     4. `rto_us > 63_000_000`               → fail_rto_above_2msl_cap
        (Linux RTO_MAX path, 120 s — exceeds spec's 60 s)
-    5. `rto_us < 57_000_000`               → fail_rto_below_2msl_cap
+    5. `rto_us < 57_000_000`               → inconclusive_rto_below_2msl_cap
        (Linux mid-doubling at observation budget cap, or any DUT
         plateauing too low)
     6. fall-through                        → pass (rto_us within
@@ -31,7 +31,7 @@
   Wall-time budget: 35 s. Linux's SYN RTO timeline at 35 s mark
   is in mid-exponential phase (rto ≈ 16-25 s); plateau detection
   never fires within the budget on this kernel. The verdict
-  consistently lands on `fail_rto_below_2msl_cap`.
+  consistently lands on `inconclusive_rto_below_2msl_cap`.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -55,10 +55,10 @@
     </onentry>
     <transition event="evaluate"
                 cond="cpp:not captured.ut_handshake_completed"
-                target="fail_handshake_did_not_complete"/>
+                target="inconclusive_handshake_did_not_complete"/>
     <transition event="evaluate"
                 cond="cpp:not captured.ut_tcpi_p1_valid"
-                target="fail_query_failed"/>
+                target="error_query_failed"/>
     <transition event="evaluate"
                 cond="cpp:captured.ut_tcpi_p1_retransmits == 0"
                 target="fail_no_retx"/>
@@ -67,7 +67,7 @@
                 target="fail_rto_above_2msl_cap"/>
     <transition event="evaluate"
                 cond="cpp:captured.ut_tcpi_p1_rto_us &lt; 57000000"
-                target="fail_rto_below_2msl_cap"/>
+                target="inconclusive_rto_below_2msl_cap"/>
     <transition event="evaluate" target="pass"/>
   </state>
 
@@ -77,13 +77,13 @@
     </donedata>
   </final>
 
-  <final id="fail_handshake_did_not_complete">
+  <final id="inconclusive_handshake_did_not_complete">
     <donedata>
       <content>{"verdict":"inconclusive","reason":"dut_active_open_did_not_initiate","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_query_failed">
+  <final id="error_query_failed">
     <donedata>
       <content>{"verdict":"error","reason":"tcp_info_query_failed","role":"test_system_fault"}</content>
     </donedata>
@@ -101,7 +101,7 @@
     </donedata>
   </final>
 
-  <final id="fail_rto_below_2msl_cap">
+  <final id="inconclusive_rto_below_2msl_cap">
     <donedata>
       <content>{"verdict":"inconclusive","reason":"rto_below_2_msl_did_not_plateau_within_observation_budget","role":"property_unobserved"}</content>
     </donedata>

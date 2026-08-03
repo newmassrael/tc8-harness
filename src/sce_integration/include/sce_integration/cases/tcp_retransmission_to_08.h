@@ -55,7 +55,7 @@ namespace tc8::sce {
 //   5. SCXML evaluates the captured `tcpi_rto`:
 //        * `rto_us == 60_000_000 ± 5%`  ⇒ pass (spec's 2*MSL cap)
 //        * `rto_us > 63_000_000`        ⇒ fail_rto_above_2msl_cap
-//        * `rto_us < 57_000_000`        ⇒ fail_rto_below_2msl_cap
+//        * `rto_us < 57_000_000`        ⇒ inconclusive_rto_below_2msl_cap
 //          (covers both Linux mid-doubling at budget cap and any DUT
 //          that plateaus too low)
 //
@@ -64,7 +64,7 @@ namespace tc8::sce {
 // budget deadline `tcpi_rto` is in mid-doubling around 25-50 s
 // (geometric series: 200ms+400+800+1.6+3.2+6.4+12.8+25.6 = ~50 s
 // cumulative wall-time to reach 25.6 s RTO setting). The verdict
-// will fall on `fail_rto_below_2msl_cap` because Linux hasn't
+// will fall on `inconclusive_rto_below_2msl_cap` because Linux hasn't
 // plateaued yet, which is correct: the spec's 2*MSL=60s plateau
 // is not reachable on this kernel within any reasonable budget.
 template <>

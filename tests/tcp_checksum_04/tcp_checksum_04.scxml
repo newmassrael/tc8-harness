@@ -41,11 +41,11 @@
     snapshots (this file) sidesteps that race entirely.
 
   Verdict ladder (first-match wins per W3C SCXML §3.13, fail-first):
-    1. `cycle1_isn_captured == false` → `fail_no_cycle1_isn`
+    1. `cycle1_isn_captured == false` → `inconclusive_no_cycle1_isn`
        (snippet timed out before SYN1 hit the wire — likely UT RPC
        failure or a negative-flip path where dut_iface_ip is
        mis-pointed).
-    2. `cycle2_isn_captured == false` → `fail_no_cycle2_isn`
+    2. `cycle2_isn_captured == false` → `inconclusive_no_cycle2_isn`
        (cycle 2's snippet timed out — same diagnostic).
     3. `cycle1_isn == cycle2_isn` → `fail_isn_unchanged`
        (RFC 1122 §4.2.2.9 violation — DUT reused the prior ISN).
@@ -54,7 +54,7 @@
   Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes the SYN capture
   filter (`src host <dut_iface_ip>`) unreachable on every observed
   SYN; both captures time out and the verdict lands on
-  `fail_no_cycle1_isn`. (The earliest-fail-first ordering means
+  `inconclusive_no_cycle1_isn`. (The earliest-fail-first ordering means
   cycle 2's matching failure is masked by cycle 1's, which is fine
   — the failure surface is uniformly "no DUT SYN observable from
   this case's vantage".)
@@ -90,10 +90,10 @@
     </onentry>
     <transition event="evaluate"
                 cond="cpp:not captured.cycle1_isn_captured"
-                target="fail_no_cycle1_isn"/>
+                target="inconclusive_no_cycle1_isn"/>
     <transition event="evaluate"
                 cond="cpp:not captured.cycle2_isn_captured"
-                target="fail_no_cycle2_isn"/>
+                target="inconclusive_no_cycle2_isn"/>
     <transition event="evaluate"
                 cond="cpp:captured.cycle1_isn == captured.cycle2_isn"
                 target="fail_isn_unchanged"/>
@@ -106,13 +106,13 @@
     </donedata>
   </final>
 
-  <final id="fail_no_cycle1_isn">
+  <final id="inconclusive_no_cycle1_isn">
     <donedata>
       <content>{"verdict":"inconclusive","reason":"cycle1_syn_capture_timeout","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_no_cycle2_isn">
+  <final id="inconclusive_no_cycle2_isn">
     <donedata>
       <content>{"verdict":"inconclusive","reason":"cycle2_syn_capture_timeout","role":"precondition_unmet"}</content>
     </donedata>

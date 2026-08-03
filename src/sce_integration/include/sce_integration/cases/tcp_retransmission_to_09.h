@@ -66,7 +66,7 @@ namespace tc8::sce {
 //   t=19:   SYN9 (rto = 8 s)
 //   t=35:  → budget cap, RTO ~16 s, mid-doubling
 // Spec's 2*MSL = 60 s plateau is unreachable inside the 35 s budget,
-// so verdict consistently lands on `fail_rto_below_2msl_cap` for the
+// so verdict consistently lands on `inconclusive_rto_below_2msl_cap` for the
 // Linux DUT.
 template <>
 struct TestCaseTraits<cases::TcpRetransmissionTo09SM> {

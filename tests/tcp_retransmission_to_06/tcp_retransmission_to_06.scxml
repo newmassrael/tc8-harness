@@ -82,16 +82,16 @@
     </onentry>
     <transition event="evaluate"
                 cond="cpp:not captured.ut_handshake_completed"
-                target="fail_handshake_did_not_complete"/>
+                target="inconclusive_handshake_did_not_complete"/>
     <transition event="evaluate"
                 cond="cpp:not captured.ut_tcpi_p1_valid"
-                target="fail_phase1_query_failed"/>
+                target="error_phase1_query_failed"/>
     <transition event="evaluate"
                 cond="cpp:captured.ut_tcpi_p1_state != 2U"
-                target="fail_socket_not_syn_sent"/>
+                target="inconclusive_socket_not_syn_sent"/>
     <transition event="evaluate"
                 cond="cpp:captured.ut_tcpi_p1_retransmits != 0U"
-                target="fail_initial_window_missed"/>
+                target="inconclusive_initial_window_missed"/>
     <transition event="evaluate"
                 cond="cpp:captured.ut_tcpi_p1_rto_us &lt; 800000U or captured.ut_tcpi_p1_rto_us &gt; 1500000U"
                 target="fail_initial_rto_out_of_window"/>
@@ -104,25 +104,25 @@
     </donedata>
   </final>
 
-  <final id="fail_handshake_did_not_complete">
+  <final id="inconclusive_handshake_did_not_complete">
     <donedata>
       <content>{"verdict":"inconclusive","reason":"dut_handshake_did_not_complete","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_phase1_query_failed">
+  <final id="error_phase1_query_failed">
     <donedata>
       <content>{"verdict":"error","reason":"phase1_tcp_info_query_failed","role":"test_system_fault"}</content>
     </donedata>
   </final>
 
-  <final id="fail_socket_not_syn_sent">
+  <final id="inconclusive_socket_not_syn_sent">
     <donedata>
       <content>{"verdict":"inconclusive","reason":"socket_state_not_syn_sent","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 
-  <final id="fail_initial_window_missed">
+  <final id="inconclusive_initial_window_missed">
     <donedata>
       <content>{"verdict":"inconclusive","reason":"initial_rto_window_missed_retransmit_already_fired","role":"property_unobserved"}</content>
     </donedata>
