@@ -533,6 +533,35 @@ public:
                 ::tc8::sce::appendUintJson(out, ",\"frames_dropped_ring\":", cs.frames_dropped_ring);
                 ::tc8::sce::appendUintJson(out, ",\"frames_dropped_iface\":", cs.frames_dropped_iface);
             }
+            // Multicast delivery — emitted only when the run needed a group, so
+            // the overwhelming majority of cases (which ride no multicast) keep
+            // a byte-identical record. Unlike the counters above this is NOT
+            // gated on `available`: it is a decision taken before the capture
+            // ran, and it stays true evidence even for a source that could not
+            // report its own counters.
+            if (!cs.multicast_groups.empty()) {
+                out.append(",\"multicast_groups\":[");
+                for (std::size_t g = 0; g < cs.multicast_groups.size(); ++g) {
+                    if (g != 0) out.append(",");
+                    out.append("\"");
+                    ::tc8::sce::appendJsonEscaped(out, cs.multicast_groups[g]);
+                    out.append("\"");
+                }
+                out.append("],\"multicast_membership_held\":");
+                out.append(cs.multicastMembershipHeld() ? "true" : "false");
+                // The failures carry their own cause, so a reader diagnoses
+                // from the trace instead of re-running to find out why.
+                if (!cs.multicast_groups_failed.empty()) {
+                    out.append(",\"multicast_groups_failed\":[");
+                    for (std::size_t g = 0; g < cs.multicast_groups_failed.size(); ++g) {
+                        if (g != 0) out.append(",");
+                        out.append("\"");
+                        ::tc8::sce::appendJsonEscaped(out, cs.multicast_groups_failed[g]);
+                        out.append("\"");
+                    }
+                    out.append("]");
+                }
+            }
             out.append("}");
         }
         out.append("],\"steps\":[");

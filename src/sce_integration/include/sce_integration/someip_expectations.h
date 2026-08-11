@@ -1,8 +1,15 @@
 #pragma once
 
+#include <arpa/inet.h>
+
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <string>
+#include <vector>
+
+#include "tc8/bpf_group.h"  // BpfGroup — which protocol scope the case observes
 
 namespace tc8 {
 
@@ -174,5 +181,62 @@ struct SomeIpExpectations {
     std::array<std::uint8_t, kMaxExpectedPayload> payload{};
     std::uint32_t payload_len = 0;
 };
+
+// The IPv4 multicast groups a run must be able to HEAR for its observation of
+// the wire to mean anything — the input to the capture's IGMP memberships (see
+// `tc8::capture::MulticastMembership`).
+//
+// Derived, never configured. The groups are already stated by the case: its
+// `BpfGroup` says whether SOME/IP Service Discovery is in scope at all, and the
+// expectation surface carries any specific group the case reasons about. A
+// second, operator-maintained list of groups would be a second source for a
+// value this one already owns, and the two would drift the first time an
+// eventgroup address changed.
+//
+// Lives HERE, beside the fields it reads, so a future multicast expectation is
+// added to a struct whose own header is the thing that must also list it.
+//
+// `group_of_sd_default` is the SD group's compiled-in default
+// (`tc8::dut::kSdMcastGroup`, passed in rather than included so this header
+// stays a leaf); `sd_multicast_ip` overrides it when a case pins one.
+inline std::vector<std::string> multicastGroupsToHold(BpfGroup group,
+                                                      const SomeIpExpectations &someip,
+                                                      const char *group_of_sd_default) {
+    std::vector<std::string> groups;
+    auto push_nbo = [&groups](std::uint32_t ipv4_nbo) {
+        if (ipv4_nbo == 0) {
+            return;
+        }
+        ::in_addr a{};
+        a.s_addr = ipv4_nbo;
+        char buf[INET_ADDRSTRLEN] = {};
+        if (::inet_ntop(AF_INET, &a, buf, sizeof(buf)) != nullptr) {
+            groups.emplace_back(buf);
+        }
+    };
+
+    // Only SOME/IP cases ride multicast. Joining unconditionally would put IGMP
+    // reports on the wire of an ARP or TCP case that has no use for them, and a
+    // conformance run is entitled to expect the tester to be silent about
+    // traffic it is not testing.
+    if (group == BpfGroup::SomeIp) {
+        if (someip.sd_multicast_ip != 0) {
+            push_nbo(someip.sd_multicast_ip);
+        } else if (group_of_sd_default != nullptr) {
+            groups.emplace_back(group_of_sd_default);
+        }
+    }
+    // The eventgroup notification endpoint, when the case names one. Held even
+    // outside the SD group above because a case may assert on notifications
+    // without pinning the SD group itself.
+    push_nbo(someip.mcast_ipv4);
+
+    // A case can name the same group twice (SD pinned to the eventgroup address
+    // is legal); joining it twice would be harmless but would report a
+    // misleading count in the trace.
+    std::sort(groups.begin(), groups.end());
+    groups.erase(std::unique(groups.begin(), groups.end()), groups.end());
+    return groups;
+}
 
 }  // namespace tc8

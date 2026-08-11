@@ -341,6 +341,23 @@ No-silent-failure guarantees, regardless of profile:
   of a clean "all cases passed".
 - **Flag gates**: `--negative`, `--dut-first`, and `--workers` beyond
   the profile's capability are rejected at startup with the reason.
+- **Multicast the capture can actually hear**: a passive pcap emits no
+  IGMP report, so a bridge doing IGMP snooping (a wireless AP, or any
+  managed switch with snooping on) prunes the DUT's SD traffic one hop
+  short of the capture — and leaves no trace: the frames reach the
+  interface, so they are dropped by no ring and truncated by no
+  snaplen, and every completeness counter reads clean. The harness
+  therefore holds memberships for the groups the case's own
+  expectations name, before the `--ready-file` barrier releases the
+  DUT, and records them in the trace (`capture[].multicast_groups`,
+  `multicast_membership_held`). A group it could not join turns an
+  absence-based pass into `inconclusive:capture_multicast_group_unheld_absence_unproven`
+  rather than a pass the capture cannot support. A site whose wire
+  forwards multicast unconditionally — and where the tester must emit
+  no IGMP of its own — declines with `no_multicast_membership = true`
+  in the `--topology-conf`; declining still records the groups as
+  needed-and-unheld, so it cannot quietly restore the silent
+  false-pass.
 
 Self-contained verification fixtures for the non-default profiles live
 in `dut/env/orchestrator/examples/` (`external-netns-fixture.toml`,

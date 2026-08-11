@@ -182,6 +182,21 @@ struct SiteConf {
     /// carries them as opaque strings rather than re-typing the schema.
     #[serde(default)]
     extra_expect: Vec<String>,
+
+    /// Decline the capture's IGMP memberships (harness `--no-multicast-membership`).
+    ///
+    /// Topology-agnostic, like `extra_expect`: it describes the WIRE, and every
+    /// topology runs a capture on one. Default false — holding the groups is what
+    /// lets an absence-based verdict mean anything on a wire that prunes unjoined
+    /// multicast, and a site that does not know its switch should get the safe
+    /// behaviour without saying so.
+    ///
+    /// Declining does not restore the old silence: the harness records the groups
+    /// as needed-and-unheld, so an absence-asserting case reports inconclusive
+    /// rather than a pass it cannot support. Set it only on a wire that forwards
+    /// multicast unconditionally AND where the tester must emit no IGMP of its own.
+    #[serde(default)]
+    no_multicast_membership: bool,
 }
 
 /// Host-NIC wire identity common to the external and ssh-remote topologies. The
@@ -257,6 +272,8 @@ pub struct ResolvedSite {
     pub conf: TopologyConf,
     /// Operator-supplied "key=value" `--expect` tokens; empty when none declared.
     pub extra_expect: Vec<String>,
+    /// Site declines the capture's IGMP memberships; false (hold them) by default.
+    pub no_multicast_membership: bool,
 }
 
 impl TopologyConf {
@@ -325,6 +342,7 @@ impl SiteConf {
             fixture: _, // kind is a fixed selector literal, never ${}-bearing
             lwip,
             extra_expect,
+            no_multicast_membership: _, // bool — no ${} to expand
         } = self;
         let strings = [
             iface,
@@ -383,6 +401,7 @@ impl SiteConf {
             fixture,
             lwip,
             extra_expect,
+            no_multicast_membership,
         } = self;
         let ne = |o: Option<String>| o.filter(|s| !s.is_empty());
         let iface = ne(iface);
@@ -439,9 +458,10 @@ impl SiteConf {
             bail!("[lwip] config is only valid for --topology lwip-tap (got '{topology}')");
         }
 
-        // extra_expect is topology-agnostic (folded into the common --expect surface
-        // by every topology), so it is NOT subject to the foreign-field rejection
-        // above and is carried through to the ResolvedSite unchanged.
+        // extra_expect and no_multicast_membership are topology-agnostic (the first
+        // folds into the common --expect surface, the second describes the wire every
+        // topology captures on), so neither is subject to the foreign-field rejection
+        // above and both are carried through to the ResolvedSite unchanged.
         let conf = match topology {
             TopologyKind::SinglePc => {
                 reject_fixture(&fixture, topology)?;
@@ -538,7 +558,7 @@ impl SiteConf {
                 })
             }
         };
-        Ok(ResolvedSite { conf, extra_expect })
+        Ok(ResolvedSite { conf, extra_expect, no_multicast_membership })
     }
 }
 

@@ -123,12 +123,23 @@ private:
 
     // Optional "capture is live" barrier signal. When set, the file at this
     // path is created once the live capture is armed (kernel ring bound, BPF
-    // applied) and before any DUT-driving stimulus. A launcher that must not
-    // start the DUT until the harness can observe its first frame (e.g. the
-    // orchestrator's harness-first ordering for SOMEIPSRV_FORMAT_02, which
-    // needs the DUT's very first OfferService with session_id 0x0001) waits for
-    // this file instead of guessing a fixed startup delay. Empty = off.
+    // applied, multicast groups held) and before any DUT-driving stimulus. A
+    // launcher that must not start the DUT until the harness can observe its
+    // first frame (e.g. the orchestrator's harness-first ordering for
+    // SOMEIPSRV_FORMAT_02, which needs the DUT's very first OfferService with
+    // session_id 0x0001) waits for this file instead of guessing a fixed
+    // startup delay. Empty = off.
     std::string ready_file_path_;
+
+    // Hold IGMP memberships for the multicast groups the case observes
+    // (`--no-multicast-membership` clears it). Default ON: without the
+    // membership a snooping bridge prunes the group before it reaches the
+    // capture, and the resulting silence is indistinguishable from a silent
+    // DUT — see tc8::CaptureStats. Declining does not make the run pretend it
+    // needed nothing; it records the groups as needed-and-unheld, so an
+    // absence-asserting case reports inconclusive instead of a bare pass.
+    bool multicast_membership_ = true;
+
 
     // `--dut-control` backend selector for the Tier-2 seam: "opcode"
     // (default, in-house Upper Tester) or "testability" (AUTOSAR

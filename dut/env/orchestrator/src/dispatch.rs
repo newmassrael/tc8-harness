@@ -365,6 +365,15 @@ fn run_case_impl(
         args.push("--dut-control".to_string());
         args.push(backend.clone());
     }
+    // Site-declared opt-out of the capture's IGMP memberships (--topology-conf
+    // `no_multicast_membership`). Passed through, never inferred from the topology:
+    // whether the wire prunes unjoined multicast is a property of the switch in
+    // front of the tester, which no topology name can tell us. Absent = hold them,
+    // so a site that says nothing gets the behaviour that keeps an absence-based
+    // verdict honest.
+    if cfg.no_multicast_membership {
+        args.push("--no-multicast-membership".to_string());
+    }
     // --log-dir also saves every captured frame to a per-case pcap for post-mortem
     // (bash smoke-test.sh appends --pcap-dump under $LOG_DIR).
     if let Some(dir) = &cfg.log_dir {
@@ -634,6 +643,7 @@ mod tests {
             },
             backstop_sec: 240,
             extra_expect: Vec::new(),
+            no_multicast_membership: false,
             log_dir: None,
             dut_control: None,
             secondary_iface_cases: std::collections::HashSet::new(),

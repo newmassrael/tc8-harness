@@ -146,9 +146,10 @@ fn main() -> Result<()> {
     // standalone-UTM binary / probe / kill-name).
     // The site's extra_expect is cross-cutting run identity (like the wire IPs
     // below), so it moves into cfg; `site` then names the typed per-topology conf.
-    let ResolvedSite { conf: site, extra_expect } =
+    let ResolvedSite { conf: site, extra_expect, no_multicast_membership } =
         TopologyConf::load(cli.topology_conf.as_deref().map(Path::new), topology, &cfg.root)?;
     cfg.extra_expect = extra_expect;
+    cfg.no_multicast_membership = no_multicast_membership;
     // The site's wire IPs override the defaults Config resolved, so expect_args + the
     // conditioning-skip log see the real tester/DUT addresses. lwip-tap is wire-fixed
     // — its variant carries no IP field, so it structurally cannot override (the flat

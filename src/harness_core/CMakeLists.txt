@@ -16,6 +16,7 @@
 # top-level find_package.
 add_library(tc8_harness_core STATIC
     ${PROJECT_SOURCE_DIR}/src/capture/bpf_filter.cpp
+    ${PROJECT_SOURCE_DIR}/src/capture/multicast_membership.cpp
     ${PROJECT_SOURCE_DIR}/src/capture/pcap_source.cpp
     ${PROJECT_SOURCE_DIR}/src/cli/expect_parser.cpp
     ${PROJECT_SOURCE_DIR}/src/cli/packet_summary.cpp

@@ -55,6 +55,39 @@ struct CaptureStats {
     bool lostFrames() const {
         return available && (frames_dropped_ring != 0 || frames_dropped_iface != 0);
     }
+
+    // --- Multicast delivery: the third way a capture can misrepresent the wire
+    //
+    // The counters above measure loss AFTER a frame reached this interface. A
+    // frame an upstream snooping bridge pruned never reaches it, so it is
+    // dropped by nothing here, truncated by nothing here, and leaves every
+    // counter above at a clean zero. Measured on a WiFi hop: the DUT put 18 SD
+    // frames on the wire and this source recorded `recv=0 drop=0 ifdrop=0`,
+    // i.e. a capture that provably did not represent the wire reported itself
+    // complete. Passive pcap emits no IGMP report, so a snooping bridge has no
+    // reason to forward a group to us and the pruning is the DEFAULT there.
+    //
+    // Holding the membership is what removes that cause, and only then does
+    // "we saw nothing" mean "the DUT sent nothing". These two fields are the
+    // record of whether that precondition actually held, so an absence-based
+    // pass can require it the same way it already requires no drop and no
+    // truncation.
+    //
+    // Groups this source was asked to hold for the run — derived from the
+    // case's own expectation surface, never configured separately. Empty means
+    // the run needs no multicast to reason, and the question does not apply.
+    std::vector<std::string> multicast_groups;
+
+    // The subset of `multicast_groups` the kernel refused. Non-empty means the
+    // run observed a wire it had NOT established it could hear.
+    std::vector<std::string> multicast_groups_failed;
+
+    // True when every group this source needed was actually joined. Vacuously
+    // true when none were needed — unlike `available`, there is no unknown
+    // state here: a join either succeeded or reported why it did not.
+    bool multicastMembershipHeld() const {
+        return multicast_groups_failed.empty();
+    }
 };
 
 // --- Run-level predicates over every source a run captured on -------------
@@ -91,11 +124,29 @@ inline bool everySourceMeasured(const std::vector<CaptureStats> &sources) {
     return true;
 }
 
+// True when some source needed a multicast group it did not get. Reported
+// separately from loss because the remedy is different in kind: a drop says the
+// reader fell behind, an unheld group says the run was never in a position to
+// hear the traffic at all.
+inline bool anySourceMissingMulticastMembership(const std::vector<CaptureStats> &sources) {
+    for (const CaptureStats &s : sources) {
+        if (!s.multicastMembershipHeld()) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // The claim an absence-based verdict needs: "the run observed the whole window
-// on every source". Requires BOTH that each source measured and that none lost
-// a frame, so the unknown state can never masquerade as a clean capture.
+// on every source". Three independent halves, because there are three ways the
+// claim fails: a frame the kernel DROPPED, a frame delivered but CUT SHORT
+// (checked by the caller, which owns the dissector), and a frame the network
+// never DELIVERED because we did not hold its group. The third is the one no
+// counter can see after the fact, which is exactly why it is established up
+// front and recorded rather than inferred here.
 inline bool captureProvenComplete(const std::vector<CaptureStats> &sources) {
-    return everySourceMeasured(sources) && !anySourceLostFrames(sources);
+    return everySourceMeasured(sources) && !anySourceLostFrames(sources)
+           && !anySourceMissingMulticastMembership(sources);
 }
 
 }  // namespace tc8

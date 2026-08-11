@@ -82,6 +82,10 @@ pub struct Config {
     /// `TC8_DUT_EXPECT`. Carried opaquely — the keys are validated against
     /// tc8_expect_keys.def by the harness parser at consumption, not re-typed here.
     pub extra_expect: Vec<String>,
+    /// Site declines the capture's IGMP memberships (harness
+    /// `--no-multicast-membership`). Default false — the safe behaviour must not
+    /// require a site to know about its own switch's snooping.
+    pub no_multicast_membership: bool,
     /// DUT SOME/IP identity derived from vsomeip.json.
     pub identity: DutIdentity,
     /// DUT SOME/IP-SD start-up timing derived from vsomeip.json.
@@ -220,6 +224,10 @@ impl Config {
             // Populated by main() from the resolved --topology-conf, parallel to
             // tester_ip4/dut_ip4 (site-derived run identity). Empty until then.
             extra_expect: Vec::new(),
+            // Same channel; false until main() reads the site. The default is the
+            // safe one on purpose — a site that never heard of this field still
+            // gets the memberships that make its absence-based passes mean something.
+            no_multicast_membership: false,
             // Populated by main() from the CLI flags, parallel to extra_expect.
             log_dir: None,
             dut_control: None,

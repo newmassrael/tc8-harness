@@ -22,7 +22,9 @@
 #include "tc8/pollable_service.h"
 
 #include "capture/bpf_filter.h"
+#include "capture/multicast_membership.h"
 #include "capture/pcap_source.h"
+#include "tc8/dut_config.h"  // kSdMcastGroup — the SD group's compiled-in default
 #include "tc8/net/link_control.h"  // captureSnaplenFor
 #include "cli/expect_parser.h"
 #include "cli/signal_handler.h"
@@ -188,10 +190,18 @@ TestCommand::TestCommand(CLI::App &app) {
                      "Write every captured frame to the given pcap file "
                      "(debug only). Empty = disabled.");
     sub_->add_option("--ready-file", ready_file_path_,
-                     "Create this file once the live capture is armed (before "
-                     "any DUT-driving stimulus), so a launcher can start the "
-                     "DUT only after the capture can observe its first frame. "
-                     "Empty = disabled.");
+                     "Create this file once the live capture is armed and its "
+                     "multicast memberships are held (before any DUT-driving "
+                     "stimulus), so a launcher can start the DUT only after the "
+                     "capture can observe its first frame. Empty = disabled.");
+    sub_->add_flag("!--no-multicast-membership", multicast_membership_,
+                   "Do not hold IGMP memberships for the multicast groups this "
+                   "case observes. The default (hold them) is what lets an "
+                   "absence-based verdict mean anything on a wire that prunes "
+                   "unjoined groups. Decline it only on a wire that forwards "
+                   "multicast unconditionally AND where the tester must emit no "
+                   "IGMP of its own — an absence-asserting case then reports "
+                   "inconclusive rather than a pass it cannot support.");
 }
 
 // Emits the authored negative rows in the historical NEG_ROWS grammar
@@ -641,20 +651,11 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
         }
     }
 
-    // The capture is now armed — both sources opened and BPF applied, so the
-    // kernel ring is already receiving matching frames. Signal a waiting
-    // launcher (see --ready-file) that it may start the DUT: from here the
-    // harness cannot miss the DUT's first frame, a guarantee a fixed startup
-    // delay could not give under CPU load (SOMEIPSRV_FORMAT_02 needs the DUT's
-    // first OfferService, session_id 0x0001).
-    if (!ready_file_path_.empty()) {
-        if (std::FILE *rf = std::fopen(ready_file_path_.c_str(), "wb")) {
-            std::fclose(rf);
-        } else {
-            std::fprintf(stderr, "warning: could not create --ready-file '%s'\n",
-                         ready_file_path_.c_str());
-        }
-    }
+    // Both sources are open and their BPF applied, so the kernel ring is
+    // already receiving matching frames. The launcher is NOT signalled yet:
+    // arming the ring is only half of "we can hear the DUT" on a wire that
+    // prunes multicast, and the groups are named by the expectation surface
+    // parsed just below. See the --ready-file write further down.
 
     ::tc8::TestConfig config{};
     // OEM passthrough tokens ride into the config verbatim — an out-of-tree
@@ -736,6 +737,76 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     config.dut_control_backend = (dut_control_ == "testability")
                                      ? sce::DutControlBackend::kTestability
                                      : sce::DutControlBackend::kOpcode;
+
+    // Establish the second half of "the capture represents the wire": hold the
+    // multicast groups this case must be able to hear. A passive pcap emits no
+    // IGMP report, so on a snooping bridge the DUT's SD traffic is pruned before
+    // it ever reaches the ring — invisible to every drop counter, and
+    // indistinguishable from a silent DUT. Joining removes that cause, which is
+    // what makes a later `recv == 0` a statement about the DUT.
+    //
+    // Held for the whole run by living in this scope, and released when it ends.
+    // Joined BEFORE the launcher is told to start the DUT (below), because a
+    // group joined after the first Offer has already been pruned buys nothing.
+    // Derived whether or not we intend to join: declining must record what the
+    // run NEEDED, not pretend it needed nothing.
+    const std::vector<std::string> mcast_groups =
+        ::tc8::multicastGroupsToHold(entry->bpf_group, config.someip, ::tc8::dut::kSdMcastGroup);
+    auto membership = multicast_membership_
+                          ? capture::MulticastMembership::join(iface_, mcast_groups)
+                          : capture::MulticastMembership::declined(mcast_groups);
+    // The secondary source captures the same BPF on a second broadcast domain,
+    // so it needs the same groups to be able to hear the same traffic.
+    auto membership2 = iface_secondary_.empty()
+                           ? capture::MulticastMembership::join(iface_secondary_, {})
+                       : multicast_membership_
+                           ? capture::MulticastMembership::join(iface_secondary_, mcast_groups)
+                           : capture::MulticastMembership::declined(mcast_groups);
+    if (!mcast_groups.empty()) {
+        std::string joined;
+        for (const auto &g : mcast_groups) {
+            joined += (joined.empty() ? "" : " ") + g;
+        }
+        std::printf("mcast    : %s (%s)\n", joined.c_str(),
+                    membership.allHeld() ? "held" : "NOT HELD");
+    }
+    // NOTE — a settle interval was tried here and REMOVED as disproven.
+    //
+    // The hypothesis was that a snooping bridge needs time after our report
+    // before it forwards, and that traffic sent meanwhile is released in a burst
+    // (SOMEIPSRV_SD_BEHAVIOR_01 over an 802.11 hop reads two Offers 3-5 us apart
+    // from a DUT whose repetition timer is 200 ms, and fails its gap check). It
+    // is a good story and it is wrong: waiting 500 ms, 3 s and 8 s before
+    // releasing the DUT each reproduced the burst exactly. What DOES fix it is a
+    // membership held continuously by a separate long-lived process, which this
+    // per-case join is not — cause still unidentified.
+    //
+    // Left absent rather than shipped at some default: a knob that plausibly
+    // ought to help, measured not to, is worse than none — the next reader
+    // tunes it instead of finding the real cause.
+    for (const auto &f : membership.failed()) {
+        std::fprintf(stderr, "warning: multicast membership on %s failed: %s\n", iface_.c_str(),
+                     f.c_str());
+    }
+    for (const auto &f : membership2.failed()) {
+        std::fprintf(stderr, "warning: multicast membership on %s failed: %s\n",
+                     iface_secondary_.c_str(), f.c_str());
+    }
+
+    // NOW the launcher may start the DUT: the ring is armed AND the groups the
+    // DUT will multicast to are held, so from here the harness cannot miss its
+    // first frame — a guarantee a fixed startup delay could not give under CPU
+    // load (SOMEIPSRV_FORMAT_02 needs the DUT's first OfferService,
+    // session_id 0x0001). Signalling this after --expect parsing also means a
+    // bad token fails before a launcher has spawned a DUT for nothing.
+    if (!ready_file_path_.empty()) {
+        if (std::FILE *rf = std::fopen(ready_file_path_.c_str(), "wb")) {
+            std::fclose(rf);
+        } else {
+            std::fprintf(stderr, "warning: could not create --ready-file '%s'\n",
+                         ready_file_path_.c_str());
+        }
+    }
 
     std::unique_ptr<sce::ITestRunner> runner = entry->factory(config);
 
@@ -987,10 +1058,20 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // cost. Both sources are reported — a run folding a second broadcast domain
     // into the stream loses frames just as badly if the SECOND ring overflows,
     // and only a per-source record says which one did.
+    //
+    // The membership state is folded in here rather than read from libpcap
+    // because it is not a libpcap fact: it was established before the DUT
+    // started and is the one completeness half that CANNOT be recovered after
+    // the run. A group we failed to join leaves no counter behind — that is
+    // precisely why it has to be carried forward as a recorded decision.
     std::vector<::tc8::CaptureStats> capture_stats;
     capture_stats.push_back(src->stats());
+    capture_stats.back().multicast_groups = membership.requested();
+    capture_stats.back().multicast_groups_failed = membership.failed();
     if (src2) {
         capture_stats.push_back(src2->stats());
+        capture_stats.back().multicast_groups = membership2.requested();
+        capture_stats.back().multicast_groups_failed = membership2.failed();
     }
     runner->setCaptureStats(capture_stats);
 
@@ -1024,12 +1105,22 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // UNKNOWN counts as unproven, not as clean: `captureProvenComplete` demands
     // every source actually measured. "We could not check our own capture" is
     // not a basis for asserting an absence either.
-    // "The capture represents the wire" has two independent halves, and an
-    // absence-based pass needs both: nothing was DROPPED (the kernel's own
-    // counters) and nothing was CUT SHORT (a frame past the snaplen, which the
+    // "The capture represents the wire" has THREE independent halves, and an
+    // absence-based pass needs all of them: nothing was DROPPED (the kernel's
+    // own counters), nothing was CUT SHORT (a frame past the snaplen, which the
     // dissector refuses rather than mis-decodes — see
-    // PacketPipeline::truncatedFrames). A drop and a truncation are different
-    // holes in the same claim, so they answer the same question here.
+    // PacketPipeline::truncatedFrames), and nothing was never DELIVERED because
+    // we did not hold its multicast group (tc8::CaptureStats::multicast_groups).
+    // They are different holes in the same claim, so they answer the same
+    // question here.
+    //
+    // The third is the one with no counter of its own: a pruned frame is
+    // dropped by nothing and truncated by nothing, so on a snooping wire the
+    // first two halves both read clean while the capture saw none of the
+    // traffic. Measured — a source reporting `recv=0 drop=0 ifdrop=0` while the
+    // DUT was demonstrably putting 18 frames on the wire. That is why the
+    // membership is established up front and carried here as evidence rather
+    // than inferred from what arrived.
     const bool capture_whole =
         ::tc8::captureProvenComplete(capture_stats) && pipeline.truncatedFrames() == 0;
     if (verdict.cls == ::tc8::sce::VerdictClass::Pass &&
@@ -1038,6 +1129,8 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
                                  ? "capture_truncated_frames_absence_unproven"
                              : ::tc8::anySourceLostFrames(capture_stats)
                                  ? "capture_lost_frames_absence_unproven"
+                             : ::tc8::anySourceMissingMulticastMembership(capture_stats)
+                                 ? "capture_multicast_group_unheld_absence_unproven"
                                  : "capture_completeness_unknown_absence_unproven";
         verdict = ::tc8::sce::Verdict{::tc8::sce::VerdictClass::Inconclusive, reason};
     }

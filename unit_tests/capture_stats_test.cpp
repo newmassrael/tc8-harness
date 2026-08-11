@@ -136,6 +136,77 @@ TEST(CaptureStatsRunLevel, OneUnmeasuredSourceSpoilsTheRun) {
     EXPECT_FALSE(tc8::captureProvenComplete(two));
 }
 
+// --- Multicast delivery: the completeness half with no counter of its own ----
+//
+// The counters above see loss only AFTER a frame reaches the interface. A frame
+// an upstream snooping bridge pruned reaches nothing, so it is dropped by no
+// ring and truncated by no snaplen — the state these pin is a source that looks
+// PERFECTLY clean by every other measure and still did not represent the wire.
+// Measured in the field: recv=0 drop=0 ifdrop=0 while the DUT was putting 18 SD
+// frames on that wire.
+
+TEST(CaptureStatsMulticast, NoGroupsNeededIsVacuouslyHeld) {
+    // The overwhelming majority of cases ride no multicast. They must be
+    // completely unaffected — this is what makes the new half additive rather
+    // than a re-litigation of every existing verdict.
+    tc8::CaptureStats s{};
+    EXPECT_TRUE(s.multicastMembershipHeld());
+    EXPECT_TRUE(tc8::captureProvenComplete(src(true, 0)));
+    EXPECT_FALSE(tc8::anySourceMissingMulticastMembership(src(true, 0)));
+}
+
+TEST(CaptureStatsMulticast, HeldGroupsAreComplete) {
+    std::vector<tc8::CaptureStats> one = src(true, 0);
+    one[0].multicast_groups = {"224.244.224.245"};
+    EXPECT_TRUE(one[0].multicastMembershipHeld());
+    EXPECT_TRUE(tc8::captureProvenComplete(one));
+}
+
+TEST(CaptureStatsMulticast, UnheldGroupDefeatsAnOtherwisePerfectCapture) {
+    // Every classic counter is clean: measured, zero ring drop, zero iface
+    // drop. Before this half existed the run would have certified an absence on
+    // a wire it had never established it could hear.
+    std::vector<tc8::CaptureStats> one = src(/*available=*/true, /*ring=*/0, /*ifd=*/0);
+    one[0].multicast_groups = {"224.244.224.245"};
+    one[0].multicast_groups_failed = {"224.244.224.245: setsockopt(IP_ADD_MEMBERSHIP): No such device"};
+
+    EXPECT_TRUE(tc8::everySourceMeasured(one));
+    EXPECT_FALSE(tc8::anySourceLostFrames(one));
+    EXPECT_TRUE(tc8::anySourceMissingMulticastMembership(one));
+    EXPECT_FALSE(tc8::captureProvenComplete(one));
+}
+
+TEST(CaptureStatsMulticast, DecliningRecordsNeedRatherThanPretendingNoneExisted) {
+    // `--no-multicast-membership` must not read as "this run needed nothing".
+    // An empty group list would make the predicate vacuously true and quietly
+    // restore the unsound behaviour the whole half exists to remove; the opt-out
+    // instead records the groups as needed-and-unheld.
+    std::vector<tc8::CaptureStats> declined = src(true, 0);
+    declined[0].multicast_groups = {"224.244.224.245", "224.244.224.246"};
+    declined[0].multicast_groups_failed = {"224.244.224.245: declined by --no-multicast-membership",
+                                           "224.244.224.246: declined by --no-multicast-membership"};
+    EXPECT_FALSE(tc8::captureProvenComplete(declined));
+
+    std::vector<tc8::CaptureStats> pretended = src(true, 0);  // the wrong shape
+    EXPECT_TRUE(tc8::captureProvenComplete(pretended));
+}
+
+TEST(CaptureStatsMulticast, OneSourceMissingItsGroupSpoilsTheRun) {
+    // Same rule as loss: a second broadcast domain that cannot hear its group
+    // makes the RUN's observation incomplete, not just that source's.
+    std::vector<tc8::CaptureStats> two = src(true, 0);
+    tc8::CaptureStats secondary{};
+    secondary.iface = "veth-tester2";
+    secondary.available = true;
+    secondary.multicast_groups = {"224.244.224.246"};
+    secondary.multicast_groups_failed = {"224.244.224.246: declined by --no-multicast-membership"};
+    two.push_back(secondary);
+
+    EXPECT_TRUE(tc8::everySourceMeasured(two));
+    EXPECT_FALSE(tc8::anySourceLostFrames(two));
+    EXPECT_FALSE(tc8::captureProvenComplete(two));
+}
+
 // A savefile has no ring to overflow and no interface, so libpcap cannot report
 // counters for it. `stats()` must say "not measured" rather than hand back a
 // fabricated 0/0/0 that a reader would take for a clean capture. Offline is the
