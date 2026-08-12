@@ -1,4 +1,4 @@
-#include "tc8/posix_socket_backend.h"
+#include "tc8/linux_socket_backend.h"
 
 #include <arpa/inet.h>
 #include <fcntl.h>
@@ -149,32 +149,32 @@ bool sendNeighborOp(unsigned ifindex, std::uint16_t nlmsg_type, std::uint16_t ex
 
 }  // namespace
 
-int PosixSocketBackend::createUdp() {
+int LinuxSocketBackend::createUdp() {
     return ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 }
 
-int PosixSocketBackend::createTcp() {
+int LinuxSocketBackend::createTcp() {
     return ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 }
 
-void PosixSocketBackend::setReuseAddr(int fd) {
+void LinuxSocketBackend::setReuseAddr(int fd) {
     int on = 1;
     ::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
 }
 
-void PosixSocketBackend::setBroadcast(int fd) {
+void LinuxSocketBackend::setBroadcast(int fd) {
     int on = 1;
     ::setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &on, sizeof(on));
 }
 
-void PosixSocketBackend::setRecvTimeoutMs(int fd, int ms) {
+void LinuxSocketBackend::setRecvTimeoutMs(int fd, int ms) {
     timeval tv{};
     tv.tv_sec = ms / 1000;
     tv.tv_usec = (ms % 1000) * 1000;
     ::setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 }
 
-bool PosixSocketBackend::bindV4(int fd, std::uint32_t addr_be, std::uint16_t port) {
+bool LinuxSocketBackend::bindV4(int fd, std::uint32_t addr_be, std::uint16_t port) {
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = addr_be;  // 0 == INADDR_ANY
@@ -182,7 +182,7 @@ bool PosixSocketBackend::bindV4(int fd, std::uint32_t addr_be, std::uint16_t por
     return ::bind(fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) == 0;
 }
 
-int PosixSocketBackend::recvFromV4(int fd, void *buf, std::size_t len, Endpoint &src) {
+int LinuxSocketBackend::recvFromV4(int fd, void *buf, std::size_t len, Endpoint &src) {
     sockaddr_in sa{};
     socklen_t sl = sizeof(sa);
     // MSG_TRUNC: the return value is the true datagram length even when it
@@ -196,7 +196,7 @@ int PosixSocketBackend::recvFromV4(int fd, void *buf, std::size_t len, Endpoint 
     return static_cast<int>(n);
 }
 
-int PosixSocketBackend::sendToV4(int fd, const void *buf, std::size_t len, const Endpoint &dst) {
+int LinuxSocketBackend::sendToV4(int fd, const void *buf, std::size_t len, const Endpoint &dst) {
     sockaddr_in d{};
     d.sin_family = AF_INET;
     d.sin_addr.s_addr = dst.addr_be;
@@ -205,21 +205,21 @@ int PosixSocketBackend::sendToV4(int fd, const void *buf, std::size_t len, const
         ::sendto(fd, buf, len, 0, reinterpret_cast<sockaddr *>(&d), sizeof(d)));
 }
 
-bool PosixSocketBackend::joinMulticast(int fd, std::uint32_t group_be, std::uint32_t ifaddr_be) {
+bool LinuxSocketBackend::joinMulticast(int fd, std::uint32_t group_be, std::uint32_t ifaddr_be) {
     ip_mreq mreq{};
     mreq.imr_multiaddr.s_addr = group_be;
     mreq.imr_interface.s_addr = ifaddr_be;  // 0 == INADDR_ANY -> default interface
     return ::setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) == 0;
 }
 
-bool PosixSocketBackend::leaveMulticast(int fd, std::uint32_t group_be, std::uint32_t ifaddr_be) {
+bool LinuxSocketBackend::leaveMulticast(int fd, std::uint32_t group_be, std::uint32_t ifaddr_be) {
     ip_mreq mreq{};
     mreq.imr_multiaddr.s_addr = group_be;
     mreq.imr_interface.s_addr = ifaddr_be;  // 0 == INADDR_ANY -> default interface
     return ::setsockopt(fd, IPPROTO_IP, IP_DROP_MEMBERSHIP, &mreq, sizeof(mreq)) == 0;
 }
 
-bool PosixSocketBackend::flushDynamicArp(const std::string &ifname) {
+bool LinuxSocketBackend::flushDynamicArp(const std::string &ifname) {
     // Delete the learned (non-permanent) IPv4 neighbor entries on `ifname` via a
     // direct rtnetlink dump + per-entry RTM_DELNEIGH — the same "speak netlink, do
     // not shell out to `ip neigh`" stance as destroyTimeWaitResidual (fork+exec is
@@ -329,7 +329,7 @@ bool PosixSocketBackend::flushDynamicArp(const std::string &ifname) {
     return ok;
 }
 
-bool PosixSocketBackend::addStaticNeighbor(const std::string &ifname, std::uint32_t addr_be,
+bool LinuxSocketBackend::addStaticNeighbor(const std::string &ifname, std::uint32_t addr_be,
                                            const std::uint8_t *mac) {
     const unsigned ifindex = ::if_nametoindex(ifname.c_str());
     if (ifindex == 0) {
@@ -341,7 +341,7 @@ bool PosixSocketBackend::addStaticNeighbor(const std::string &ifname, std::uint3
                           addr_be, mac, /*enoent_ok=*/false);
 }
 
-bool PosixSocketBackend::removeNeighbor(const std::string &ifname, std::uint32_t addr_be) {
+bool LinuxSocketBackend::removeNeighbor(const std::string &ifname, std::uint32_t addr_be) {
     const unsigned ifindex = ::if_nametoindex(ifname.c_str());
     if (ifindex == 0) {
         return false;  // unknown interface
@@ -353,7 +353,7 @@ bool PosixSocketBackend::removeNeighbor(const std::string &ifname, std::uint32_t
                           /*mac=*/nullptr, /*enoent_ok=*/true);
 }
 
-bool PosixSocketBackend::setNeighborReachableMs(const std::string &ifname, int reachable_ms) {
+bool LinuxSocketBackend::setNeighborReachableMs(const std::string &ifname, int reachable_ms) {
     // Reject a '/' in the name BEFORE building the procfs path: if_nametoindex does
     // NOT screen out traversal — a colon-alias form like "lo:/../.." resolves to a
     // real index (it matches the base device and ignores the suffix). The path
@@ -379,17 +379,17 @@ bool PosixSocketBackend::setNeighborReachableMs(const std::string &ifname, int r
     return w == static_cast<ssize_t>(val.size());
 }
 
-int PosixSocketBackend::recv(int fd, void *buf, std::size_t len) {
+int LinuxSocketBackend::recv(int fd, void *buf, std::size_t len) {
     return static_cast<int>(::recv(fd, buf, len, 0));
 }
 
-int PosixSocketBackend::send(int fd, const void *buf, std::size_t len) {
+int LinuxSocketBackend::send(int fd, const void *buf, std::size_t len) {
     // MSG_NOSIGNAL: a send to a peer that already RST/closed returns EPIPE
     // instead of raising SIGPIPE (which would kill the multi-threaded server).
     return static_cast<int>(::send(fd, buf, len, MSG_NOSIGNAL));
 }
 
-bool PosixSocketBackend::connectBoundedV4(int fd, const Endpoint &dst, int timeout_ms) {
+bool LinuxSocketBackend::connectBoundedV4(int fd, const Endpoint &dst, int timeout_ms) {
     sockaddr_in d{};
     d.sin_family = AF_INET;
     d.sin_addr.s_addr = dst.addr_be;
@@ -430,11 +430,11 @@ bool PosixSocketBackend::connectBoundedV4(int fd, const Endpoint &dst, int timeo
     return ok;
 }
 
-bool PosixSocketBackend::listen(int fd, int backlog) {
+bool LinuxSocketBackend::listen(int fd, int backlog) {
     return ::listen(fd, backlog) == 0;
 }
 
-int PosixSocketBackend::accept(int fd, Endpoint &client) {
+int LinuxSocketBackend::accept(int fd, Endpoint &client) {
     sockaddr_in cli{};
     socklen_t cl = sizeof(cli);
     const int c = ::accept(fd, reinterpret_cast<sockaddr *>(&cli), &cl);
@@ -445,17 +445,17 @@ int PosixSocketBackend::accept(int fd, Endpoint &client) {
     return c;
 }
 
-bool PosixSocketBackend::shutdown(int fd, int how) {
+bool LinuxSocketBackend::shutdown(int fd, int how) {
     const int h = (how == 0) ? SHUT_RD : (how == 1) ? SHUT_WR : SHUT_RDWR;
     return ::shutdown(fd, h) == 0;
 }
 
-void PosixSocketBackend::setNonBlocking(int fd, bool on) {
+void LinuxSocketBackend::setNonBlocking(int fd, bool on) {
     const int flags = ::fcntl(fd, F_GETFL, 0);
     ::fcntl(fd, F_SETFL, on ? (flags | O_NONBLOCK) : (flags & ~O_NONBLOCK));
 }
 
-int PosixSocketBackend::waitReadable(int fd, int timeout_us) {
+int LinuxSocketBackend::waitReadable(int fd, int timeout_us) {
     fd_set rset;
     FD_ZERO(&rset);
     FD_SET(fd, &rset);
@@ -471,7 +471,7 @@ int PosixSocketBackend::waitReadable(int fd, int timeout_us) {
     return 1;
 }
 
-int PosixSocketBackend::poll(const int *fds, std::size_t n, int timeout_ms,
+int LinuxSocketBackend::poll(const int *fds, std::size_t n, int timeout_ms,
                              std::vector<int> &readable) {
     readable.clear();
     // ::poll (not select) so a long-lived UTM with many sockets is not bounded by
@@ -537,11 +537,11 @@ std::unique_ptr<tc8::testability::Waker> makeEventfdWaker() {
     return std::make_unique<EventfdWaker>(fd);
 }
 
-std::unique_ptr<tc8::testability::Waker> PosixSocketBackend::createWaker() {
+std::unique_ptr<tc8::testability::Waker> LinuxSocketBackend::createWaker() {
     return makeEventfdWaker();
 }
 
-void PosixSocketBackend::closeFd(int fd) {
+void LinuxSocketBackend::closeFd(int fd) {
     {
         std::lock_guard<std::mutex> lk(tuples_mu_);
         tuples_.erase(fd);
@@ -549,7 +549,7 @@ void PosixSocketBackend::closeFd(int fd) {
     ::close(fd);
 }
 
-void PosixSocketBackend::closeWithAbort(int fd) {
+void LinuxSocketBackend::closeWithAbort(int fd) {
     // SO_LINGER {on, 0} makes ::close emit a RST and skip the graceful FIN
     // (PRS_TPSP §6.10 CLOSE_SOCKET abort). Reaches CLOSED from EST / FIN-WAIT /
     // CLOSING / LAST-ACK on its own; a TIME-WAIT residual needs the SOCK_DESTROY.
@@ -570,7 +570,7 @@ void PosixSocketBackend::closeWithAbort(int fd) {
     }
 }
 
-std::uint8_t PosixSocketBackend::configureOption(int fd, std::uint16_t param_id,
+std::uint8_t LinuxSocketBackend::configureOption(int fd, std::uint16_t param_id,
                                                  const std::uint8_t *val, std::uint16_t len) {
     // PRS_TPSP §6.10.10: each fixed-width parameter must carry exactly its
     // paramVal length; a mismatch is a malformed request.
@@ -606,7 +606,7 @@ std::uint8_t PosixSocketBackend::configureOption(int fd, std::uint16_t param_id,
     }
 }
 
-std::uint8_t PosixSocketBackend::sendIcmpEcho(const std::string &ifname, std::uint32_t dst_be,
+std::uint8_t LinuxSocketBackend::sendIcmpEcho(const std::string &ifname, std::uint32_t dst_be,
                                               const std::uint8_t *body, std::size_t len) {
     // Prefer the unprivileged ICMP datagram (ping) socket where ping_group_range
     // permits; fall back to a raw socket for root deployments where ping sockets
@@ -638,7 +638,7 @@ std::uint8_t PosixSocketBackend::sendIcmpEcho(const std::string &ifname, std::ui
     return (sent == static_cast<ssize_t>(len)) ? tp::kRidEOk : tp::kRidENok;
 }
 
-std::uint8_t PosixSocketBackend::sendIcmpv6Echo(const std::string &ifname,
+std::uint8_t LinuxSocketBackend::sendIcmpv6Echo(const std::string &ifname,
                                                 const std::uint8_t *dst16,
                                                 const std::uint8_t *body, std::size_t len) {
     // The IPv6 mirror of sendIcmpEcho: an unprivileged ICMPv6 datagram (ping6)
@@ -673,7 +673,7 @@ std::uint8_t PosixSocketBackend::sendIcmpv6Echo(const std::string &ifname,
     return (sent == static_cast<ssize_t>(len)) ? tp::kRidEOk : tp::kRidENok;
 }
 
-std::uint8_t PosixSocketBackend::setInterfaceUp(const std::string &ifname, bool up) {
+std::uint8_t LinuxSocketBackend::setInterfaceUp(const std::string &ifname, bool up) {
     // PRS_TPSP §6.10 INTERFACE_UP / INTERFACE_DOWN: toggle IFF_UP via the classic
     // SIOCGIFFLAGS/SIOCSIFFLAGS ioctl pair. openAndResolveIface does the GET (ENODEV
     // => unknown interface => E_IIF) and hands back the current flags; flipping
@@ -695,7 +695,7 @@ std::uint8_t PosixSocketBackend::setInterfaceUp(const std::string &ifname, bool 
     return ok ? tp::kRidEOk : ridFromIfaceErrno(e);
 }
 
-std::uint8_t PosixSocketBackend::setStaticAddressV4(const std::string &ifname,
+std::uint8_t LinuxSocketBackend::setStaticAddressV4(const std::string &ifname,
                                                     std::uint32_t addr_be, std::uint8_t cidr) {
     // PRS_TPSP §6.10 STATIC_ADDRESS: SIOCSIFADDR assigns the IPv4 address,
     // SIOCSIFNETMASK the mask (CIDR -> dotted via tc8::wire::cidrToMaskHost).
@@ -725,7 +725,7 @@ std::uint8_t PosixSocketBackend::setStaticAddressV4(const std::string &ifname,
     return ok ? tp::kRidEOk : ridFromIfaceErrno(e);
 }
 
-std::uint8_t PosixSocketBackend::setStaticRouteV4(const std::string &ifname,
+std::uint8_t LinuxSocketBackend::setStaticRouteV4(const std::string &ifname,
                                                   std::uint32_t subnet_be, std::uint8_t cidr,
                                                   std::uint32_t gateway_be) {
     // PRS_TPSP §6.10 STATIC_ROUTE: SIOCADDRT installs a non-persistent route to
@@ -767,7 +767,7 @@ std::uint8_t PosixSocketBackend::setStaticRouteV4(const std::string &ifname,
     return ridFromIfaceErrno(e, {ENODEV, ENXIO});
 }
 
-std::uint8_t PosixSocketBackend::setStaticAddressV6(const std::string &ifname,
+std::uint8_t LinuxSocketBackend::setStaticAddressV6(const std::string &ifname,
                                                     const std::uint8_t *addr16,
                                                     std::uint8_t prefix) {
     // PRS_TPSP §6.10 STATIC_ADDRESS (IPv6): SIOCSIFADDR with a struct in6_ifreq on an
@@ -795,7 +795,7 @@ std::uint8_t PosixSocketBackend::setStaticAddressV6(const std::string &ifname,
     return ok ? tp::kRidEOk : ridFromIfaceErrno(e);
 }
 
-std::uint8_t PosixSocketBackend::setStaticRouteV6(const std::string &ifname,
+std::uint8_t LinuxSocketBackend::setStaticRouteV6(const std::string &ifname,
                                                   const std::uint8_t *subnet16, std::uint8_t prefix,
                                                   const std::uint8_t *gateway16) {
     // PRS_TPSP §6.10 STATIC_ROUTE (IPv6): SIOCADDRT with a struct in6_rtmsg on an
@@ -838,7 +838,7 @@ std::uint8_t PosixSocketBackend::setStaticRouteV6(const std::string &ifname,
     return ridFromIfaceErrno(e, {ENODEV, ENXIO});
 }
 
-void PosixSocketBackend::destroyTimeWaitResidual(const TcpConnTuple &t) {
+void LinuxSocketBackend::destroyTimeWaitResidual(const TcpConnTuple &t) {
     // sock_diag SOCK_DESTROY over a direct netlink request — terminate the
     // TIME-WAIT residual that SO_LINGER + close left behind. A direct netlink
     // send, not a shell-out to `ss -K`: fork+exec from this multi-threaded

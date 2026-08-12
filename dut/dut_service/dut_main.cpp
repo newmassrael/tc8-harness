@@ -18,7 +18,7 @@
 #include "ets_fault.h"
 #include "ets_io_host.h"
 #include "pollable_host.h"
-#include "tc8/posix_socket_backend.h"
+#include "tc8/linux_socket_backend.h"
 #include "posix_stack_probe.h"
 #include "posix_ut_extensions.h"
 #include "lifecycle_dispatcher.h"
@@ -170,7 +170,7 @@ int main() {
     // capture its members.
     tc8::dut::PosixUtExtensions ut_ext;
     ut_ext.discoverInterfaces();
-    tc8::ut::UpperTesterServer upper_tester{std::make_unique<tc8::dut::PosixSocketBackend>(),
+    tc8::ut::UpperTesterServer upper_tester{std::make_unique<tc8::dut::LinuxSocketBackend>(),
                                             std::make_unique<tc8::dut::PosixStackProbe>()};
     ut_ext.registerOn(upper_tester);
     // §5.1.6 ETS_103/104/105/146/166/167/168 + §5.1.5 SOMEIPSRV_RPC_11 EtsImpl fault arm (UT 0x1B
@@ -199,7 +199,7 @@ int main() {
     // standard-compliant tester drives the DUT over SOME/IP on the testability
     // port (30700). A bind failure is non-fatal — the opcode UT still serves
     // the in-tree cases; testability is an OEM-neutral enablement channel.
-    tc8::testability::ProtocolServer testability{std::make_unique<tc8::dut::PosixSocketBackend>()};
+    tc8::testability::ProtocolServer testability{std::make_unique<tc8::dut::LinuxSocketBackend>()};
     if (!testability.start()) {
         std::fprintf(stderr, "tc8-dut: testability endpoint start failed (continuing)\n");
     }

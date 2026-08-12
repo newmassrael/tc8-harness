@@ -10,7 +10,7 @@ namespace tc8::dut {
 
 // POSIX (Linux) adapter for the Upper Tester's StackProbe seam: the stack
 // operations the UT server needs beyond plain socket primitives (those are
-// PosixSocketBackend). queryTcpInfo reads getsockopt(TCP_INFO); recvOob reads
+// LinuxSocketBackend). queryTcpInfo reads getsockopt(TCP_INFO); recvOob reads
 // recv(MSG_OOB); the original-destination listener uses IP_PKTINFO ancillary
 // data so the §4.4 ADDRESSING data listener can recover each datagram's wire
 // destination. Stateless — every method acts on the fd or option it is given.

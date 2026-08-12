@@ -27,7 +27,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
-#include "tc8/posix_socket_backend.h"
+#include "tc8/linux_socket_backend.h"
 #include "tc8/testability_client.h"
 #include "tc8/testability/middleware.h"
 #include "tc8/testability/protocol_server.h"
@@ -133,7 +133,7 @@ bool driveOemModuleOverTheWire() {
 }  // namespace
 
 int main() {
-    tc8::testability::ProtocolServer server{std::make_unique<tc8::dut::PosixSocketBackend>()};
+    tc8::testability::ProtocolServer server{std::make_unique<tc8::dut::LinuxSocketBackend>()};
     server.registerModule(std::make_unique<OemModule>());
     if (!server.start(kConsumerPort)) {
         std::fprintf(stderr, "oem-utm-consumer: could not bind the endpoint on port %u\n",

@@ -8,7 +8,7 @@
 #
 # DUT-side targets:
 #   tc8::tc8_testability_core   — backend-agnostic protocol core (no syscalls)
-#   tc8::tc8_posix_backend      — POSIX SocketBackend adapter
+#   tc8::tc8_linux_backend      — POSIX SocketBackend adapter
 #   tc8::tc8_testability_server — convenience alias = core + POSIX backend
 #   tc8::tc8_testability_ports  — the seam the core owns and adapters implement
 # Tester-side target:

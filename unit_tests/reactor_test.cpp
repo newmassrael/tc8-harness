@@ -8,7 +8,7 @@
 #include <gtest/gtest.h>
 
 #include "tc8/net/socket_backend.h"
-#include "tc8/posix_socket_backend.h"
+#include "tc8/linux_socket_backend.h"
 #include "test_port_util.h"
 #include "tc8/testability/reactor.h"
 
@@ -41,7 +41,7 @@ tc8::net::Endpoint loopback(std::uint16_t port) {
 }
 
 TEST(Reactor, PostRunsTaskOnLoopThread) {
-    tc8::dut::PosixSocketBackend be;
+    tc8::dut::LinuxSocketBackend be;
     tt::Reactor r{be};
     r.start();
 
@@ -57,7 +57,7 @@ TEST(Reactor, PostRunsTaskOnLoopThread) {
 }
 
 TEST(Reactor, OneShotTimerFiresExactlyOnce) {
-    tc8::dut::PosixSocketBackend be;
+    tc8::dut::LinuxSocketBackend be;
     tt::Reactor r{be};
     r.start();
 
@@ -70,7 +70,7 @@ TEST(Reactor, OneShotTimerFiresExactlyOnce) {
 }
 
 TEST(Reactor, PeriodicTimerFiresRepeatedlyUntilCancelled) {
-    tc8::dut::PosixSocketBackend be;
+    tc8::dut::LinuxSocketBackend be;
     tt::Reactor r{be};
     r.start();
 
@@ -86,7 +86,7 @@ TEST(Reactor, PeriodicTimerFiresRepeatedlyUntilCancelled) {
 }
 
 TEST(Reactor, WatchFiresOnReadableFd) {
-    tc8::dut::PosixSocketBackend be;
+    tc8::dut::LinuxSocketBackend be;
     tt::Reactor r{be};
     r.start();
 
@@ -120,7 +120,7 @@ TEST(Reactor, WatchFiresOnReadableFd) {
 }
 
 TEST(Reactor, StopRunsFinalTaskThenJoinsAndIsIdempotent) {
-    tc8::dut::PosixSocketBackend be;
+    tc8::dut::LinuxSocketBackend be;
     tt::Reactor r{be};
     r.start();
 
@@ -134,7 +134,7 @@ TEST(Reactor, StopRunsFinalTaskThenJoinsAndIsIdempotent) {
 // thread the loop thread, so timers and watches are armed directly (no post()),
 // and the caller pumps runOnce() itself — the shape a bare-metal / RTOS task uses.
 TEST(Reactor, CallerDrivenPumpServicesTimersAndWatchesWithNoOwnedThread) {
-    tc8::dut::PosixSocketBackend be;
+    tc8::dut::LinuxSocketBackend be;
     tt::Reactor r{be};
     r.open();  // this thread IS the loop thread — no reactor thread is spawned
 
@@ -180,7 +180,7 @@ TEST(Reactor, CallerDrivenPumpServicesTimersAndWatchesWithNoOwnedThread) {
 // function) mid-call cannot pull the running lambda out from under itself. This is
 // the pattern the unified server's self-terminating workers and END_TEST rely on.
 TEST(Reactor, WatchMayRemoveItselfFromWithinHandler) {
-    tc8::dut::PosixSocketBackend be;
+    tc8::dut::LinuxSocketBackend be;
     tt::Reactor r{be};
     r.open();
 

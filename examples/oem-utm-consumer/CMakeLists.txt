@@ -23,7 +23,7 @@ add_executable(oem-utm-consumer main.cpp)
 # callers who want the convenience; install(EXPORT) verifies its closure.)
 target_link_libraries(oem-utm-consumer PRIVATE
     tc8::tc8_testability_core
-    tc8::tc8_posix_backend
+    tc8::tc8_linux_backend
     # The tester half: this consumer drives its own registered module over the wire,
     # so the SDK's client ships and stays consumable out-of-tree.
     tc8::tc8_testability_client

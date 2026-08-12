@@ -23,7 +23,7 @@
 
 #include "netns_test_util.h"
 #include "test_port_util.h"
-#include "tc8/posix_socket_backend.h"
+#include "tc8/linux_socket_backend.h"
 #include "sce_integration/dut_control.h"
 #include "tc8/testability_client.h"
 #include "tc8/testability_protocol.h"
@@ -61,7 +61,7 @@ protected:
     void SetUp() override { ASSERT_TRUE(server_.start(kTestPort)); }
     void TearDown() override { server_.stop(); }
 
-    testability::ProtocolServer server_{std::make_unique<dut::PosixSocketBackend>()};
+    testability::ProtocolServer server_{std::make_unique<dut::LinuxSocketBackend>()};
 };
 
 TEST_F(TestabilityServerTest, GeneralLifecycleRoundTrips) {
@@ -1503,7 +1503,7 @@ TEST(TestabilityServerSeamTest, OemHandlerExtendsNonStandardGroup) {
     constexpr std::uint8_t kVendorGid = 0x7F;
     constexpr std::uint8_t kVendorPid = 0x2A;
 
-    testability::ProtocolServer server{std::make_unique<dut::PosixSocketBackend>()};
+    testability::ProtocolServer server{std::make_unique<dut::LinuxSocketBackend>()};
     server.registerPrimitive(
         kVendorGid, kVendorPid,
         [](const tp::Header &, const std::uint8_t *dat, std::size_t dat_len, const tc8::net::Endpoint &,
@@ -1535,7 +1535,7 @@ TEST(TestabilityServerSeamTest, OemHandlerOverridesStandardPrimitive) {
     constexpr std::uint16_t kPort = 31712;
     TC8_STATIC_ASSERT_TEST_PORT(kPort);
 
-    testability::ProtocolServer server{std::make_unique<dut::PosixSocketBackend>()};
+    testability::ProtocolServer server{std::make_unique<dut::LinuxSocketBackend>()};
     server.registerPrimitive(
         tp::kGidGeneral, tp::kPidGetVersion,
         [](const tp::Header &, const std::uint8_t *, std::size_t, const tc8::net::Endpoint &,
@@ -1567,10 +1567,10 @@ TEST(TestabilityServerSeamTest, InlineSingleTaskServerAnswersOnCallerPump) {
     constexpr std::uint16_t kPort = 31799;
     TC8_STATIC_ASSERT_TEST_PORT(kPort);
 
-    testability::ProtocolServer server{std::make_unique<dut::PosixSocketBackend>()};
+    testability::ProtocolServer server{std::make_unique<dut::LinuxSocketBackend>()};
     ASSERT_TRUE(server.startInline(kPort));  // no reactor thread; this test IS the loop
 
-    dut::PosixSocketBackend client;
+    dut::LinuxSocketBackend client;
     const int cfd = client.createUdp();
     ASSERT_GE(cfd, 0);
     client.setNonBlocking(cfd, true);  // poll it via the pump, never block the single task
@@ -1763,7 +1763,7 @@ protected:
 
     static constexpr std::uint16_t kPort = 31901;
     TC8_STATIC_ASSERT_TEST_PORT(kPort);
-    testability::ProtocolServer server_{std::make_unique<dut::PosixSocketBackend>()};
+    testability::ProtocolServer server_{std::make_unique<dut::LinuxSocketBackend>()};
     testability::TestabilityConfig cfg_;
 };
 
@@ -1844,7 +1844,7 @@ TEST_F(MiddlewareSeamTest, EmitsAsyncEventToRequester) {
 
 // registerModule must fail fast on a clashing GID rather than silently shadow.
 TEST(MiddlewareSeam, RegisterModuleRejectsDuplicateAndCoreGid) {
-    testability::ProtocolServer server{std::make_unique<dut::PosixSocketBackend>()};
+    testability::ProtocolServer server{std::make_unique<dut::LinuxSocketBackend>()};
     server.registerModule(std::make_unique<SeamProbeModule>());
     EXPECT_THROW(server.registerModule(std::make_unique<SeamProbeModule>()), std::invalid_argument);
     EXPECT_THROW(server.registerModule(std::make_unique<CoreGidModule>()), std::invalid_argument);
@@ -1892,7 +1892,7 @@ TEST_F(MiddlewareSeamTest, WatchReadableConsumesInboundDatagramOverLoopback) {
 // by default), proving the IP_ADD_MEMBERSHIP mapping with a real consumer — not
 // just an E_OK. (The lwIP backend defers multicast; see lwip_socket_backend.cpp.)
 TEST(PosixBackendMulticast, JoinMulticastReceivesGroupDatagram) {
-    dut::PosixSocketBackend be;
+    dut::LinuxSocketBackend be;
     constexpr std::uint16_t kMcPort = 31903;
     TC8_STATIC_ASSERT_TEST_PORT(kMcPort);
     const std::uint32_t group_be = ::htonl(0xEF010203);  // 239.1.2.3 (admin-scoped)
@@ -1933,7 +1933,7 @@ TEST(PosixBackendMulticast, JoinMulticastReceivesGroupDatagram) {
 // so this needs no CAP_NET_ADMIN — the delete phase sends nothing). Flushing
 // entries that actually exist is exercised under NET_ADMIN in the netns fixture.
 TEST(PosixBackendArp, FlushDynamicArpResolvesInterfaceAndSucceedsOnEmpty) {
-    dut::PosixSocketBackend be;
+    dut::LinuxSocketBackend be;
     EXPECT_FALSE(be.flushDynamicArp("tc8_no_such_iface")) << "unknown interface must be rejected";
     EXPECT_TRUE(be.flushDynamicArp("lo")) << "flush on an entry-free interface should succeed";
 }
@@ -1942,7 +1942,7 @@ TEST(PosixBackendArp, FlushDynamicArpResolvesInterfaceAndSucceedsOnEmpty) {
 // if_nametoindex / the procfs path), so an unknown interface is rejected on any
 // host, no CAP_NET_ADMIN needed.
 TEST(PosixBackendNeighbor, UnknownInterfaceRejected) {
-    dut::PosixSocketBackend be;
+    dut::LinuxSocketBackend be;
     const std::uint8_t mac[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
     const std::uint32_t ip_be = ::htonl(0x0A000002);  // 10.0.0.2
     EXPECT_FALSE(be.addStaticNeighbor("tc8_no_such_iface", ip_be, mac));
@@ -1959,7 +1959,7 @@ TEST(PosixBackendNeighbor, PrivilegedWritesOnLoopback) {
     if (!hasNetAdmin()) {
         GTEST_SKIP() << "neighbor writes need CAP_NET_ADMIN on this host";
     }
-    dut::PosixSocketBackend be;
+    dut::LinuxSocketBackend be;
     constexpr const char *kPath = "/proc/sys/net/ipv4/neigh/lo/base_reachable_time_ms";
     int original = 0;
     {
@@ -2002,7 +2002,7 @@ TEST(PosixBackendNeighbor, PrivilegedAddStaticNeighborOnDummy) {
     // also make the next run's NLM_F_EXCL create self-mask as a skip).
     ScopeExit cleanup([&] { deleteIface(kIf); });
 
-    dut::PosixSocketBackend be;
+    dut::LinuxSocketBackend be;
     const std::uint32_t ip_be = ::htonl(0x0A000002);  // 10.0.0.2
     const std::uint8_t mac[6] = {0x02, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE};
     EXPECT_TRUE(be.addStaticNeighbor(kIf, ip_be, mac))

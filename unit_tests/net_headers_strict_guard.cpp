@@ -1,8 +1,8 @@
 // Strict-set compile witness for tc8/net/link_control.h (the setLinkState
 // link-loss fault injector) and the tc8/net/rtnetlink.h SSOT it pulls in.
 //
-// rtnetlink.h is now strict-compiled in PRODUCTION via tc8_posix_backend
-// (posix_socket_backend.cpp includes it and that target is strict-gated). But
+// rtnetlink.h is now strict-compiled in PRODUCTION via tc8_linux_backend
+// (linux_socket_backend.cpp includes it and that target is strict-gated). But
 // link_control.h has NO production consumer — only link_control_test.cpp and
 // netns_test_util.h include it, and unit-test TUs are not strict-gated — so a
 // glibc-macro cast/conversion leaking into it would surface only when a STRICT

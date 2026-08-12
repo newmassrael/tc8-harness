@@ -7,3 +7,8 @@ claudedocs/
 node_modules/
 __pycache__/
 *.pyc
+
+# Cargo/build-wrapper output. The orchestrator crate builds into
+# dut/env/orchestrator/target/, and the remote-build wrapper writes its lock and
+# logs into a target/ at the repo root; neither is source.
+target/

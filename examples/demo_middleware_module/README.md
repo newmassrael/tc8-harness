@@ -44,7 +44,7 @@ executor), and `emitEvent` (an asynchronous testability EVENT to the requester).
 Link the SDK via `find_package(tc8-utm)` (see `../oem-utm-consumer/`), then:
 
 ```cpp
-tc8::testability::ProtocolServer server{std::make_unique<tc8::dut::PosixSocketBackend>()};
+tc8::testability::ProtocolServer server{std::make_unique<tc8::dut::LinuxSocketBackend>()};
 server.registerModule(std::make_unique<MyOemModule>(/* my config */));
 server.start(/* port */);
 ```
@@ -56,7 +56,7 @@ goes through `net::SocketBackend`. Link targets:
 | Target | Contents |
 |---|---|
 | `tc8::tc8_testability_core` | backend-agnostic protocol core — no socket syscalls |
-| `tc8::tc8_posix_backend` | POSIX `SocketBackend` adapter |
+| `tc8::tc8_linux_backend` | POSIX `SocketBackend` adapter |
 | `tc8::tc8_testability_server` | convenience alias = `core` + `posix_backend` |
 | `tc8::tc8_testability_client` | tester-side client — drives your module over the wire |
 
@@ -75,8 +75,8 @@ worked end-to-end example.
 
 ### POSIX UTM
 
-Link `tc8::tc8_testability_core` + `tc8::tc8_posix_backend` (or the
-`tc8::tc8_testability_server` alias) and construct `PosixSocketBackend` in `main()`,
+Link `tc8::tc8_testability_core` + `tc8::tc8_linux_backend` (or the
+`tc8::tc8_testability_server` alias) and construct `LinuxSocketBackend` in `main()`,
 as above.
 
 ### lwIP UTM (embedded)

@@ -40,9 +40,9 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
     # the ports.
     target_include_directories(tc8_testability_ports INTERFACE
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-    # The POSIX adapter also installs its own header (posix_socket_backend.h) at the
+    # The POSIX adapter also installs its own header (linux_socket_backend.h) at the
     # include root, so it carries the install include for consumers of that header.
-    target_include_directories(tc8_posix_backend INTERFACE
+    target_include_directories(tc8_linux_backend INTERFACE
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
     # The tester-side client installs its own header (tc8/testability_client.h) and
     # reaches the codec SSOT (tc8/testability_protocol.h) — both under the one
@@ -67,7 +67,7 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
     # closure roots: nothing links the client or the engines, so dropping either
     # leaves install(EXPORT) happy and breaks the consumer's find_package instead.
     # Those are held by utm_export_smoke, which links and drives them.
-    install(TARGETS tc8_testability_server tc8_testability_core tc8_posix_backend
+    install(TARGETS tc8_testability_server tc8_testability_core tc8_linux_backend
             tc8_testability_ports tc8_wire tc8_testability_client ${TC8_UTM_ENGINES}
         EXPORT tc8-utm-targets
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT utm-sdk)
@@ -108,7 +108,7 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
         ${PROJECT_SOURCE_DIR}/include/tc8/autosar/*.h)
     install(FILES ${_tc8_autosar_headers}
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/tc8/autosar COMPONENT utm-sdk)
-    install(FILES ${PROJECT_SOURCE_DIR}/include/tc8/posix_socket_backend.h
+    install(FILES ${PROJECT_SOURCE_DIR}/include/tc8/linux_socket_backend.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/tc8 COMPONENT utm-sdk)
 
     # ── The SDK's runnable tool: tc8-testability-send ──

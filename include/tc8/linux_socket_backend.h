@@ -14,11 +14,11 @@
 
 namespace tc8::dut {
 
-// The LINUX adapter for the testability ProtocolServer's SocketBackend seam.
+// The Linux adapter for the testability ProtocolServer's SocketBackend seam.
 //
-// READ THIS BEFORE PORTING: the name says POSIX, the implementation is Linux.
-// It does not compile on QNX, the BSDs, or any other POSIX system, because it
-// reaches past the portable socket API in four places:
+// The name is the contract: this is Linux, not POSIX. It does not compile on
+// QNX, the BSDs, or any other POSIX system, because it reaches past the
+// portable socket API in four places:
 //
 //   * rtnetlink (<linux/netlink.h>, <linux/rtnetlink.h>) for the neighbor
 //     operations — flush / add-static / remove
@@ -39,11 +39,16 @@ namespace tc8::dut {
 // lwIP, a stack with no netlink, no procfs and no eventfd. A QNX adapter is the
 // third of its kind, not the first.
 //
-// The class name is kept for source compatibility — it is exported public API
-// (`include/tc8/posix_socket_backend.h`) that out-of-tree UTM consumers include,
-// so renaming it to LinuxSocketBackend is a breaking change to coordinate with
-// them rather than something to slip in.
-class PosixSocketBackend : public tc8::testability::SocketBackend {
+// This was `PosixSocketBackend` in `tc8/posix_socket_backend.h` until the name
+// was corrected. No compatibility alias was left behind: an alias would keep
+// the misleading name reachable and readable forever, which is the whole defect
+// it was meant to retire — and a second spelling of one type is a duplicate
+// source waiting to drift. Out-of-tree UTM consumers update the include and the
+// type name once, and the compiler tells them exactly where. Note the sibling
+// `posix_stack_probe` keeps its name deliberately: it really is POSIX (nothing
+// but <arpa/inet.h>, <netinet/*>, <sys/socket.h>), so the distinction the two
+// names now draw is a real one.
+class LinuxSocketBackend : public tc8::testability::SocketBackend {
 public:
     int createUdp() override;
     int createTcp() override;
@@ -103,7 +108,7 @@ private:
 };
 
 // Standalone eventfd Waker factory (the single source of the eventfd-creation code —
-// PosixSocketBackend::createWaker() delegates here). A caller that needs ONLY a
+// LinuxSocketBackend::createWaker() delegates here). A caller that needs ONLY a
 // cross-thread wake (e.g. the DUT lifecycle channel) mints one without constructing a
 // whole socket backend just to reach a stateless factory. Returns nullptr iff eventfd()
 // fails (fd exhaustion); the caller degrades gracefully.

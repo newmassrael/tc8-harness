@@ -744,7 +744,7 @@ once per pass through a `ResumeEdge` edge-detector (`dut/dut_service/resume_edge
 `onReactivate` on the main thread. The repo already ships a purpose-built cross-thread wake primitive for exactly
 "a detached thread must signal a poll() loop" — `tc8::testability::Waker`
 (`src/testability/io_multiplexer.h`; POSIX eventfd + lwIP loopback-UDP backends,
-`EventfdWaker` in `dut/dut_service/posix_socket_backend.cpp`) — used by the testability
+`EventfdWaker` in `dut/dut_service/linux_socket_backend.cpp`) — used by the testability
 `Reactor`, and the DUT main loop already folds `IPollableService::pollFd()` into its `poll()`
 set via `PollableHost::drainReady`. The event-driven delivery is thus buildable from parts
 already in tree; the hook instead adds a second, polled idiom for the same problem.

@@ -11,7 +11,7 @@
 #include <utility>
 
 #include "tc8/net/rtnetlink.h"
-#include "tc8/posix_socket_backend.h"
+#include "tc8/linux_socket_backend.h"
 
 // Scaffolding shared by the privileged netns tests (neighbor ops, interface
 // link-state). Builds a throwaway "dummy" netdevice via rtnetlink so a privileged
@@ -176,7 +176,7 @@ inline bool createVethPair(const char *name_a, const char *name_b) {
 // absent neighbor on loopback: a harmless no-op the kernel still gates on
 // CAP_NET_ADMIN (→ -ENOENT/true with it, -EPERM/false without).
 inline bool hasNetAdmin() {
-    ::tc8::dut::PosixSocketBackend be;
+    ::tc8::dut::LinuxSocketBackend be;
     return be.removeNeighbor("lo", ::htonl(0x0A0000FE));
 }
 

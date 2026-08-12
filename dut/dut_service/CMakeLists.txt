@@ -9,7 +9,7 @@
 #   tc8_testability_core   — the platform-agnostic protocol core
 #                            (src/testability/protocol_server.cpp). Depends on the
 #                            ports + tc8_wire + Threads. No socket syscalls.
-#   tc8_posix_backend      — the POSIX adapter (posix_socket_backend). Depends on
+#   tc8_linux_backend      — the POSIX adapter (linux_socket_backend). Depends on
 #                            the ports + tc8_wire — NOT on the core.
 #   tc8_testability_server — INTERFACE convenience union = core + POSIX adapter,
 #                            under one name (consumers may equally link the two).
@@ -27,7 +27,7 @@ add_library(tc8_testability_ports INTERFACE)
 target_include_directories(tc8_testability_ports INTERFACE
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
 )
-# The POSIX adapter's posix_socket_backend.cpp includes tc8/net/raw_packet_socket.h
+# The POSIX adapter's linux_socket_backend.cpp includes tc8/net/raw_packet_socket.h
 # and the DUT firmware includes tc8/someip/...; both are now namespaced under the
 # public include/tc8/ root the ports target already exposes, so no extra seam.
 
@@ -47,27 +47,27 @@ tc8_enable_strict_warnings(tc8_testability_core)
 
 # The POSIX adapter implements the testability port and frames ICMP via tc8_wire;
 # it does NOT call into the ProtocolServer, so it depends on the ports + tc8_wire,
-# never on the core. Its own dir is PUBLIC so consumers find posix_socket_backend.h.
-add_library(tc8_posix_backend STATIC
-    posix_socket_backend.cpp
+# never on the core. Its own dir is PUBLIC so consumers find linux_socket_backend.h.
+add_library(tc8_linux_backend STATIC
+    linux_socket_backend.cpp
 )
-# Its header is public API and lives at include/tc8/posix_socket_backend.h, so the
+# Its header is public API and lives at include/tc8/linux_socket_backend.h, so the
 # public root is what consumers need; this dir no longer carries a public header.
-target_include_directories(tc8_posix_backend PUBLIC
+target_include_directories(tc8_linux_backend PUBLIC
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
 )
-target_link_libraries(tc8_posix_backend PUBLIC tc8_testability_ports tc8_wire)
-tc8_enable_strict_warnings(tc8_posix_backend)
+target_link_libraries(tc8_linux_backend PUBLIC tc8_testability_ports tc8_wire)
+tc8_enable_strict_warnings(tc8_linux_backend)
 
 add_library(tc8_testability_server INTERFACE)
 target_link_libraries(tc8_testability_server INTERFACE
-    tc8_testability_core tc8_posix_backend)
+    tc8_testability_core tc8_linux_backend)
 
 # The TC8 Upper Tester server, built once as a library so the DUT service and
 # the unit test link the same translation units. Ports & adapters: the
 # platform-agnostic core (src/upper_tester/) plus the POSIX StackProbe adapter.
-# The socket primitives come from tc8::net::SocketBackend (PosixSocketBackend in
-# tc8_posix_backend), so consumers link that too. The lwIP DUT fixture
+# The socket primitives come from tc8::net::SocketBackend (LinuxSocketBackend in
+# tc8_linux_backend), so consumers link that too. The lwIP DUT fixture
 # compiles the same core against its own adapters — a single source of truth for
 # the UT protocol logic across both platforms.
 add_library(tc8_upper_tester_server STATIC

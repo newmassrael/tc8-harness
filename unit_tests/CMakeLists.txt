@@ -44,7 +44,7 @@ endfunction()
 
 # Strict-set compile witness for tc8/net/link_control.h (the only net header
 # with no strict production consumer — rtnetlink.h is now strict-compiled via the
-# strict-gated tc8_posix_backend, but link_control.h is included only by unit-test
+# strict-gated tc8_linux_backend, but link_control.h is included only by unit-test
 # TUs, which are not strict-gated). Without this, a glibc-macro cast/conversion
 # leak into link_control.h would surface only when a strict first-party consumer
 # (an OEM conformance case) hit it. This OBJECT target compiles it UNDER the strict
@@ -328,11 +328,11 @@ if(TARGET tc8_testability_server)
     # The reusable Reactor (src/testability/reactor.h) exercised in isolation
     # against the real POSIX IoMultiplexer — no ProtocolServer/module — proving the
     # extracted event loop stands on its own. Links tc8_testability_server for
-    # PosixSocketBackend (the IoMultiplexer) and the server header include path.
+    # LinuxSocketBackend (the IoMultiplexer) and the server header include path.
     tc8_add_unit_test(reactor_test)
     target_link_libraries(reactor_test PRIVATE tc8_testability_server)
     # Tester-side interface link-state fault injector (net::setLinkState, rtnetlink
-    # RTM_NEWLINK). Links tc8_testability_server for the PosixSocketBackend the
+    # RTM_NEWLINK). Links tc8_testability_server for the LinuxSocketBackend the
     # CAP_NET_ADMIN probe (netns_test_util hasNetAdmin) uses. The privileged toggle
     # self-skips without CAP_NET_ADMIN; re-run it in a no-sudo user+net namespace.
     tc8_add_unit_test(link_control_test)
@@ -344,7 +344,7 @@ if(TARGET tc8_testability_server)
     set_tests_properties(link_state_privileged PROPERTIES SKIP_RETURN_CODE 77)
     # Live ArpResponder over a veth pair (CAP_NET_RAW + CAP_NET_ADMIN). Links
     # tc8_testability_server for the netns_test_util veth/CAP_NET_ADMIN scaffolding
-    # (PosixSocketBackend + the dut include path). The plain run self-skips without
+    # (LinuxSocketBackend + the dut include path). The plain run self-skips without
     # privilege; the netns re-run exercises the success path with no sudo.
     tc8_add_unit_test(arp_responder_privileged_test)
     target_link_libraries(arp_responder_privileged_test PRIVATE tc8_testability_server)
@@ -370,7 +370,7 @@ endif()
 # covering the opcode dispatch, capability derivation, TCP session lifecycle,
 # and UDP backends end to end — the hermetic oracle the netns case suite alone
 # previously provided. Links the UT server lib plus tc8_testability_server for
-# the shared net::SocketBackend (PosixSocketBackend) adapter.
+# the shared net::SocketBackend (LinuxSocketBackend) adapter.
 if(TARGET tc8_upper_tester_server AND TARGET tc8_testability_server)
     tc8_add_unit_test(ut_server_test)
     target_link_libraries(ut_server_test PRIVATE

@@ -22,7 +22,7 @@
 
 #include <gtest/gtest.h>
 
-#include "tc8/posix_socket_backend.h"
+#include "tc8/linux_socket_backend.h"
 #include "posix_stack_probe.h"
 #include "tc8/upper_tester_protocol.h"
 #include "upper_tester/ut_server.h"
@@ -30,7 +30,7 @@
 namespace {
 
 namespace ut = ::tc8::ut;
-using ::tc8::dut::PosixSocketBackend;
+using ::tc8::dut::LinuxSocketBackend;
 using ::tc8::dut::PosixStackProbe;
 
 constexpr std::uint16_t kUtPort = 30650;
@@ -104,7 +104,7 @@ void settle() { std::this_thread::sleep_for(std::chrono::milliseconds(150)); }
 class UtServerTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        server_ = std::make_unique<ut::UpperTesterServer>(std::make_unique<PosixSocketBackend>(),
+        server_ = std::make_unique<ut::UpperTesterServer>(std::make_unique<LinuxSocketBackend>(),
                                                           std::make_unique<PosixStackProbe>());
         ASSERT_TRUE(server_->start(::htonl(INADDR_LOOPBACK), /*bcast=*/0, kUtPort, kDataPort));
     }
@@ -405,7 +405,7 @@ TEST_F(UtServerTest, TcpActiveConnectAndAbort) {
 // ---- extension registration (platform-specific opcode families) -------------
 
 TEST(UtServerExtensionTest, RegisteredOpcodeDispatchesAndAdvertises) {
-    ut::UpperTesterServer server(std::make_unique<PosixSocketBackend>(),
+    ut::UpperTesterServer server(std::make_unique<LinuxSocketBackend>(),
                                  std::make_unique<PosixStackProbe>());
     // Atomic: the handler runs on the server thread, the assertion on the main
     // thread; UDP send/recv is not a happens-before TSan recognises.
