@@ -6,7 +6,9 @@
 #include <gtest/gtest.h>
 
 #include "tc8/someip/sd_decode.h"
+#include "stimulus/site_target.h"
 #include "stimulus/someip_sd_builder.h"
+#include "tc8/dut_config.h"
 
 namespace tc8::stimulus {
 namespace {
@@ -940,6 +942,39 @@ TEST(BuildOfferServiceWithEndpointAndConfigOption, ReservedOverrideSetsHeaderByt
     EXPECT_EQ(b[18], 0xCDu);
     EXPECT_EQ(b[19], 0xEFu);
     EXPECT_EQ(b[27], 0x20u);  // #Opt1=2 still references both options
+}
+
+// --- Subscribe destination: the run supplies it, not a literal ---------------
+//
+// `SubscribeDestination::ipv4_be` used to default to 172.16.0.2 — the reference
+// DUT's address inside the single-pc netns. That is correct in exactly one
+// topology: on netns the literal IS the DUT, so every case passed there while
+// silently mis-addressing the Subscribe on any real two-machine site, where it
+// fell through to the default route and never reached the wire under test. The
+// symptom was 24 cases reporting `no_ack_within_listen_window` — a wire-shaped
+// verdict with no wire fault behind it.
+//
+// These pin the replacement contract: unset means UNSET, and the address comes
+// from the run. A literal reinstated here fails the first test.
+
+TEST(SubscribeDestinationDefault, UnsetMeansUnsetNotANetnsLiteral) {
+    const SubscribeDestination d{};
+    EXPECT_EQ(d.ipv4_be, 0u)
+        << "a compile-time destination default is correct in one topology and "
+           "wrong everywhere else; the run must supply the DUT address";
+    EXPECT_EQ(d.port, tc8::dut::kSdPort);
+}
+
+TEST(SubscribeDestinationDefault, SiteAddressIsWhatTheRunPublished) {
+    // The runner publishes TestConfig::dut.ip once per run; the emitters resolve
+    // an unset destination from it. Round-trip the holder so the seam the
+    // emitters read is covered, not just the struct default.
+    setSiteDutIpv4(0);
+    EXPECT_EQ(siteDutIpv4(), 0u) << "unknown must stay 0, never a usable address";
+
+    setSiteDutIpv4(0x02D2A8C0u);  // 192.168.210.2 in network byte order
+    EXPECT_EQ(siteDutIpv4(), 0x02D2A8C0u);
+    setSiteDutIpv4(0);
 }
 
 }  // namespace

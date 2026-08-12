@@ -13,6 +13,7 @@
 #include "tc8/someip/sd_wire_constants.h"  // sd_option_type / sd_l4_proto / sd_entry_type (wire values SSOT)
 #include "tc8/someip/wire.h"
 #include "stimulus/iface_addr.h"
+#include "stimulus/site_target.h"  // siteDutIpv4 — resolves an unset SubscribeDestination
 #include "stimulus/udp_emit.h"
 #include "tc8/dut_config.h"
 
@@ -711,6 +712,28 @@ namespace {
 // the option is the port the DUT should send its Ack to — kept as the
 // SD port as well to mirror real-client behaviour; pcap on the tester
 // iface captures the Ack regardless of whether anything is bound there.
+// Resolve a possibly-unset SubscribeDestination to the address this run targets.
+//
+// Mirrors the tester-endpoint resolution a few lines below: 0 means "derive it".
+// A case that names a destination keeps it; one that does not gets the DUT the
+// run was pointed at (`TestConfig::dut.ip`, published by the runner). Returns 0
+// when neither supplied one, which callers must treat as refuse-to-send —
+// addressing 0.0.0.0 would put a Subscribe on the wire that no DUT can answer
+// and turn a configuration mistake into a timeout that looks like DUT silence.
+std::uint32_t resolveDestIpv4(const SubscribeDestination &dest) {
+    if (dest.ipv4_be != 0) {
+        return dest.ipv4_be;
+    }
+    const std::uint32_t site = siteDutIpv4();
+    if (site == 0) {
+        std::fprintf(stderr,
+                     "stimulus: SubscribeEventgroup has no destination — the case named "
+                     "none and this run published no DUT address (TestConfig::dut.ip, "
+                     "from --expect dut.ip=). Refusing to send.\n");
+    }
+    return site;
+}
+
 int subscribeOnce(const SubscribeEventgroupTarget &target, std::uint8_t sd_flags, std::uint16_t session_id,
                   std::string_view iface, const SubscribeDestination &dest, std::uint8_t l4proto = 0x11) {
     // The tester's own IPv4 is advertised inside the Subscribe option (the DUT
@@ -732,7 +755,11 @@ int subscribeOnce(const SubscribeEventgroupTarget &target, std::uint8_t sd_flags
     p.tester_endpoint.l4proto = l4proto;
     p.session_id = session_id;
     p.sd_flags = sd_flags;
-    return sendUdpUnicast(buildSubscribeEventgroup(p), iface, /*src_port=*/kSdPort, dest.ipv4_be, dest.port);
+    const std::uint32_t dst = resolveDestIpv4(dest);
+    if (dst == 0) {
+        return -7;
+    }
+    return sendUdpUnicast(buildSubscribeEventgroup(p), iface, /*src_port=*/kSdPort, dst, dest.port);
 }
 
 }  // namespace
@@ -830,7 +857,11 @@ int emitMultiSubscribeEventgroup(std::string_view iface,
     p.tester_endpoint.l4proto = 0x11;
     p.session_id = 0x0001;
     p.sd_flags = ::tc8::sd_flags::kRebootUnicast;
-    return sendUdpUnicast(buildMultiSubscribeEventgroup(p), iface, /*src_port=*/kSdPort, dest.ipv4_be,
+    const std::uint32_t dst = resolveDestIpv4(dest);
+    if (dst == 0) {
+        return -7;
+    }
+    return sendUdpUnicast(buildMultiSubscribeEventgroup(p), iface, /*src_port=*/kSdPort, dst,
                           dest.port);
 }
 
@@ -861,7 +892,11 @@ int emitMultiSubscribeEventgroupRaw(std::string_view iface,
             params.tester_endpoint.l4proto = 0x11;
         }
     }
-    return sendUdpUnicast(buildMultiSubscribeEventgroup(params), iface, /*src_port=*/kSdPort, dest.ipv4_be,
+    const std::uint32_t dst = resolveDestIpv4(dest);
+    if (dst == 0) {
+        return -7;
+    }
+    return sendUdpUnicast(buildMultiSubscribeEventgroup(params), iface, /*src_port=*/kSdPort, dst,
                           dest.port);
 }
 
@@ -988,7 +1023,11 @@ int emitSubscribeEventgroupRaw(std::string_view iface,
             params.tester_endpoint.l4proto = 0x11;
         }
     }
-    return sendUdpUnicast(buildSubscribeEventgroup(params), iface, /*src_port=*/kSdPort, dest.ipv4_be,
+    const std::uint32_t dst = resolveDestIpv4(dest);
+    if (dst == 0) {
+        return -7;
+    }
+    return sendUdpUnicast(buildSubscribeEventgroup(params), iface, /*src_port=*/kSdPort, dst,
                           dest.port, source_ip_be);
 }
 

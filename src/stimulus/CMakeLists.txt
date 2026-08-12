@@ -24,6 +24,7 @@ add_library(tc8_stimulus STATIC
     ipv4_frame_builder.cpp
     icmpv4_builder.cpp
     someip_rpc_builder.cpp
+    site_target.cpp
     someip_sd_builder.cpp
     tcp_client.cpp
     udp_emit.cpp

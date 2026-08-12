@@ -314,10 +314,22 @@ void setDualEndpointSubscribe(SubscribeEventgroupParams &p, const Ipv4Endpoint &
 // address, not multicast). Default matches the tc8-dut bundled in this
 // repo (172.16.0.2 : 30490); real DUTs override via the emitter param.
 struct SubscribeDestination {
-    // IPv4 in network byte order. 172.16.0.2 → 0xAC 0x10 0x00 0x02 →
-    // stored as 0x020010AC on little-endian Linux (byte-order semantics
-    // match `Ipv4Endpoint::ipv4_be`).
-    std::uint32_t ipv4_be = 0x020010AC;
+    // IPv4 in network byte order (byte-order semantics match
+    // `Ipv4Endpoint::ipv4_be`).
+    //
+    // 0 means "the DUT this run targets" and is resolved from the site identity
+    // the runner publishes (`tc8::stimulus::siteDutIpv4()`, fed from
+    // `TestConfig::dut.ip`) — the same 0-means-derive idiom this file already
+    // uses for the tester's own endpoint. A case that must address something
+    // OTHER than the DUT sets the field.
+    //
+    // This used to default to the literal 172.16.0.2, the reference DUT's
+    // address inside the single-pc netns. That made every case pass on netns —
+    // where the literal IS the DUT — and silently mis-address the Subscribe on
+    // any real two-machine site, where it fell through to the default route.
+    // A default that is correct in exactly one topology is a trap, not a
+    // default; the sentinel makes the run supply the answer.
+    std::uint32_t ipv4_be = 0;
     std::uint16_t port = tc8::dut::kSdPort;
 };
 

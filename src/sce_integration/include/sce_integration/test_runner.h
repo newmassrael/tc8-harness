@@ -14,6 +14,8 @@
 #include "tc8/captured_event.h"
 #include "tc8/pollable_service.h"
 
+#include "stimulus/site_target.h"  // setSiteDutIpv4 — published once in kickStimulus
+
 #include "adopted_services.h"
 #include "captured_frame_observer.h"
 #include "captured_frame_timing.h"
@@ -333,6 +335,17 @@ public:
         // CLI hands a temporary, and dispatch may fire arbitrarily
         // later from the poll loop.
         iface_ = std::string(iface);
+        // Publish the DUT address this run targets, ONCE, before any case code
+        // can emit. A SOME/IP unicast stimulus needs it, and `TestConfig::dut.ip`
+        // is the domain-neutral home every other protocol's stimulus already
+        // reads (dut_identity.h). Doing it here rather than in each case is the
+        // point: 51 case headers reach the SD emitters and nearly none name a
+        // destination, so the address that used to fill that gap was a
+        // compile-time literal — the single-pc netns DUT — which is correct in
+        // exactly one topology and silently mis-addresses every other. Setting
+        // it at the one seam every stimulus is dispatched through leaves no
+        // case, in-tree or out, able to miss it.
+        ::tc8::stimulus::setSiteDutIpv4(cfg_.dut.ip);
         if constexpr (has_dut_scheduled_stimulus_v<Traits>) {
             // Tier-2 seam + scheduler: drive the DUT through the backend
             // selected by `--dut-control` AND let the case enqueue actions
