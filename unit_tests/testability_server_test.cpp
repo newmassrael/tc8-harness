@@ -1074,10 +1074,39 @@ TEST_F(TestabilityServerTest, UnknownSocketIdIsInvalid) {
 
 // ── ICMP group (GID 0x03): ECHO_REQUEST (PRS_TPSP §6.10) ──
 
-// ECHO_REQUEST to loopback emits and reports E_OK. ping_group_range is open on
-// CI / dev hosts, so the unprivileged SOCK_DGRAM/IPPROTO_ICMP path applies (the
-// server falls back to SOCK_RAW only where ping sockets are restricted).
+// Can this process open an ICMP socket at all?
+//
+// The server takes the unprivileged SOCK_DGRAM/IPPROTO_ICMP path when
+// `net.ipv4.ping_group_range` admits our GID, and falls back to SOCK_RAW (which
+// needs CAP_NET_RAW) when it does not. Where NEITHER is available there is no
+// echo to emit, and the tests below would be asserting on the host's sysctl
+// rather than on the server.
+//
+// This guard exists because that assumption was once written as a comment
+// ("ping_group_range is open on CI / dev hosts") and nothing enforced it. The
+// range resets to the restrictive default `1 0` on boot, so a runner reboot
+// turned three tests red on a commit that touched none of this code — the gate
+// blamed the change in front of it for a fact about the machine. A skip states
+// what is actually true.
+bool hasIcmpv4Socket() {
+    // Same order the server tries, so the probe cannot pass where the server
+    // would fail (or vice versa).
+    for (const int type : {SOCK_DGRAM, SOCK_RAW}) {
+        const int fd = ::socket(AF_INET, type | SOCK_CLOEXEC, IPPROTO_ICMP);
+        if (fd >= 0) {
+            ::close(fd);
+            return true;
+        }
+    }
+    return false;
+}
+
+// ECHO_REQUEST to loopback emits and reports E_OK.
 TEST_F(TestabilityServerTest, IcmpEchoRequestToLoopbackReturnsEOk) {
+    if (!hasIcmpv4Socket()) {
+        GTEST_SKIP() << "no usable ICMPv4 socket on this host "
+                        "(ping_group_range excludes this GID, no CAP_NET_RAW)";
+    }
     const auto cfg = loopbackConfig();
     const std::vector<std::uint8_t> payload = {'p', 'i', 'n', 'g'};
     const auto r =
@@ -1088,6 +1117,10 @@ TEST_F(TestabilityServerTest, IcmpEchoRequestToLoopbackReturnsEOk) {
 
 // An empty payload is valid (data vint8 n=0): a bare Echo Request still emits.
 TEST_F(TestabilityServerTest, IcmpEchoRequestEmptyPayloadReturnsEOk) {
+    if (!hasIcmpv4Socket()) {
+        GTEST_SKIP() << "no usable ICMPv4 socket on this host "
+                        "(ping_group_range excludes this GID, no CAP_NET_RAW)";
+    }
     const auto cfg = loopbackConfig();
     const auto r = testability::testabilityEchoRequest(cfg, /*iface=*/"", ::htonl(INADDR_LOOPBACK), {});
     EXPECT_TRUE(r.eok()) << "rid=" << static_cast<int>(r.rid);
@@ -1096,6 +1129,10 @@ TEST_F(TestabilityServerTest, IcmpEchoRequestEmptyPayloadReturnsEOk) {
 // An unknown interface name maps to the spec's E_IIF (PRS_TPSP §6.8). Relies on
 // unprivileged SO_BINDTODEVICE returning ENODEV (Linux >= 5.7).
 TEST_F(TestabilityServerTest, IcmpEchoRequestInvalidInterfaceReturnsEIif) {
+    if (!hasIcmpv4Socket()) {
+        GTEST_SKIP() << "no usable ICMPv4 socket on this host "
+                        "(ping_group_range excludes this GID, no CAP_NET_RAW)";
+    }
     const auto cfg = loopbackConfig();
     const auto r = testability::testabilityEchoRequest(cfg, /*iface=*/"tc8-no-such-if",
                                                     ::htonl(INADDR_LOOPBACK), {});
