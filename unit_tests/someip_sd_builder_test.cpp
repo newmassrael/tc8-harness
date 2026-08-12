@@ -972,8 +972,11 @@ TEST(SubscribeDestinationDefault, SiteAddressIsWhatTheRunPublished) {
     setSiteDutIpv4(0);
     EXPECT_EQ(siteDutIpv4(), 0u) << "unknown must stay 0, never a usable address";
 
-    setSiteDutIpv4(0x02D2A8C0u);  // 192.168.210.2 in network byte order
-    EXPECT_EQ(siteDutIpv4(), 0x02D2A8C0u);
+    // RFC 5737 TEST-NET-1 (192.0.2.0/24) in network byte order. A documentation
+    // range on purpose: a test constant must be arbitrary by construction, not
+    // traceable to whatever wire the author happened to be sitting on.
+    setSiteDutIpv4(0x630200C0u);  // 192.0.2.99
+    EXPECT_EQ(siteDutIpv4(), 0x630200C0u);
     setSiteDutIpv4(0);
 }
 
