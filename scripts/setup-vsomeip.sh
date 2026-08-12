@@ -187,7 +187,17 @@ cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo \
       "${ccache_args[@]}" \
       "${extra_cmake_args[@]}"
 cmake --build build -j4
-sudo cmake --install build
+# Install with sudo only when we are not already root. The script is
+# routinely run as root (CI wraps it in `sudo -n`, and the comment below
+# depends on that), and in that mode `sudo` adds nothing but a dependency —
+# one a minimal root environment such as a container image does not have,
+# where the unconditional call failed with `sudo: command not found` after a
+# complete build. Non-root callers are unaffected.
+if [[ $EUID -eq 0 ]]; then
+    cmake --install build
+else
+    sudo cmake --install build
+fi
 
 # CI runs this whole script as root (build-harness wraps it in `sudo -n` for
 # the /usr/local install above), which leaves the quilt `.pc/`, the patched
