@@ -329,3 +329,59 @@ jobs:
         # or land an explicit `expected:false` override in
         # docs/spec/inventory_overrides.json.
         run: ./build/tc8-harness test --list-cases --vs-spec --strict
+
+  container:
+    name: tester container image builds + runs
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # docker/Dockerfile runs scripts/setup-vsomeip.sh, which resets the
+          # vendored vsomeip tree with git before applying the quilt series.
+          # Without the submodule there is nothing to patch and the script says so.
+          submodules: recursive
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build the tester image
+        # WHY THIS JOB EXISTS: the `build` job above proves the harness compiles
+        # on ONE machine — a GitHub runner that happens to ship libxml2-dev,
+        # libclang and sudo. The image proves it REPRODUCES on a bare base, which
+        # is the stronger claim, and it is the claim that caught three real
+        # defects when the image was first written (an unconditional `sudo` in
+        # setup-vsomeip.sh that a minimal root env has no answer for, plus two
+        # host dependencies absent from this workflow's own apt list). Without
+        # this job those regressions become invisible again the moment someone
+        # adds a fourth.
+        #
+        # Layer cache keeps the per-push cost to the source layers: the Boost /
+        # vsomeip / CommonAPI / sce-codegen builds are reused until their pins or
+        # the apt list change, at which point rebuilding them is the point.
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          load: true
+          tags: tc8-tester:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: The image's harness actually runs
+        # A linked binary is not a working one. Listing the registry exercises
+        # the case-stub table the build generates, so a link that resolved but
+        # loads wrong still fails here rather than at a customer's first run.
+        run: |
+          docker run --rm --entrypoint /src/build/tc8-harness tc8-tester:ci \
+            test --list-cases > /tmp/ci-cases.txt
+          count=$(grep -cE '^  [A-Z][A-Za-z0-9_]+ ' /tmp/ci-cases.txt)
+          echo "cases listed from inside the image: $count"
+          # Guard against a silently empty registry: the exact number moves with
+          # coverage, so assert a floor rather than pin a value that would turn
+          # every new case into a workflow edit.
+          test "$count" -ge 300
+
+      - name: The orchestrator entrypoint answers
+        # The image's ENTRYPOINT is the orchestrator; --help needs no network,
+        # no privileges and no DUT, so it is the cheapest proof that the Rust
+        # half of the image is present and executable.
+        run: docker run --rm tc8-tester:ci --help > /dev/null
