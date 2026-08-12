@@ -372,6 +372,36 @@ including an Upper Tester on the lwIP socket API and a per-platform
 known-fail ledger — see `dut/lwip_dut/README.md` for the verified
 deviation list and the sweep recipe.
 
+### Running the tester from a container
+
+The DUT half of a two-machine run needs no toolchain — staged binaries and a
+vsomeip runtime suffice. The tester half is ~18 shared libraries deep plus a
+source-built SOME/IP stack, and every distribution spells those differently,
+which is what makes "run the harness from the other machine" a chore. The image
+in `docker/` removes the distribution from the equation:
+
+```sh
+docker build -f docker/Dockerfile -t tc8-tester .
+
+docker run --rm --network host --cap-add=NET_RAW --cap-add=NET_ADMIN \
+    -v "$PWD/site.toml:/site.toml:ro" \
+    -v "$HOME/.ssh/id_ed25519:/root/.ssh/id_ed25519:ro" \
+    -v "$HOME/.ssh/known_hosts:/root/.ssh/known_hosts:ro" \
+    tc8-tester --topology ssh-remote --workers 1 \
+    --topology-conf /site.toml SOMEIPSRV_FORMAT_01
+```
+
+It packages, it does not isolate: a conformance tester puts crafted frames on a
+real wire, so it runs with host networking and raw-socket capability by
+necessity. The site descriptor and the ssh key are MOUNTED, never baked — they
+carry the operator's addresses, account names and interface names (an `enx…`
+name encodes a MAC), none of which belong in a shared image any more than in
+git. `.dockerignore` refuses `site.toml`, `*.local.toml` and key-shaped files
+for the same reason.
+
+The base is pinned to the distribution `build-test.yml` uses, so the image and
+CI cannot drift onto different SOME/IP stacks.
+
 ### Cross-building for embedded testers (target↔target)
 
 Running the tester on an embedded-Linux board reuses the topology

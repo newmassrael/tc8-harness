@@ -1,0 +1,43 @@
+# Keep the build context to what the image actually compiles from.
+#
+# Two reasons, and the second is the important one:
+#   * speed — build/ alone is gigabytes of object files the image rebuilds anyway
+#   * hygiene — a site descriptor or a private key that wanders into the tree
+#     must not be baked into an image that gets shared. The site conf is MOUNTED
+#     at run time (see docker/Dockerfile), never copied in.
+build/
+build-*/
+dut/env/orchestrator/target/
+
+# Nested build trees too — a .dockerignore pattern without ** matches only the
+# context root, and the one that bites is third_party/vsomeip/build: its
+# CMakeCache.txt records the HOST's absolute source path, and cmake refuses a
+# cache whose directory does not match. setup-vsomeip.sh cannot save us there —
+# its pristine reset is `git clean -fdx -e build`, deliberately PRESERVING that
+# directory so a developer keeps an incremental build. Correct on a workstation,
+# poison in an image.
+**/build/
+
+# The site's npm tree is neither built nor served here.
+site/node_modules/
+*.pcap
+*.log
+
+# NOTE: .git/ is deliberately NOT excluded. scripts/setup-vsomeip.sh resets the
+# vendored vsomeip tree with `git checkout -- .` + `git clean -fdx` before
+# applying the quilt series, and third_party/vsomeip/.git is a 47-byte pointer
+# into .git/modules/ — drop the parent and the submodule stops being a git
+# checkout, which the script refuses (correctly) rather than building something
+# unintended. It costs 64 MB of context; the alternative is an image built from
+# an unpinned vsomeip.
+
+# Operator site descriptors: real addresses, account names, and interface names
+# that encode a MAC. Never in the image, never in git.
+*.local.toml
+site.toml
+
+# Keys and anything key-shaped.
+*.pem
+*.key
+id_rsa*
+id_ed25519*
