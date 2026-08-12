@@ -14,11 +14,35 @@
 
 namespace tc8::dut {
 
-// POSIX (Linux) adapter for the testability ProtocolServer's SocketBackend
-// seam: every operation is a kernel socket syscall. The abortive close uses
-// SO_LINGER{1,0} + a sock_diag SOCK_DESTROY to also clear a TIME-WAIT residual,
-// so this backend privately tracks each active-open connection's 4-tuple (the
-// detached tw_sock no longer maps to the fd by abort time).
+// The LINUX adapter for the testability ProtocolServer's SocketBackend seam.
+//
+// READ THIS BEFORE PORTING: the name says POSIX, the implementation is Linux.
+// It does not compile on QNX, the BSDs, or any other POSIX system, because it
+// reaches past the portable socket API in four places:
+//
+//   * rtnetlink (<linux/netlink.h>, <linux/rtnetlink.h>) for the neighbor
+//     operations — flush / add-static / remove
+//   * sock_diag SOCK_DESTROY for the abortive close that also clears a
+//     TIME-WAIT residual
+//   * eventfd for the waker, and /proc/sys/net/ipv4/neigh/... for the
+//     reachable-time knob
+//   * SO_BINDTODEVICE for interface pinning
+//
+// None of that is a defect: the operations a TC8 Upper Tester must perform
+// (shape the neighbor cache, destroy a socket abortively) simply have no
+// portable spelling, which is exactly why they sit behind a seam.
+//
+// So a DUT on another stack does NOT port this file — it writes a sibling
+// adapter against `tc8::net::SocketBackend` (24 pure virtuals) and hands it to
+// the same ProtocolServer. That is a travelled path, not a theory:
+// `dut/lwip_dut/lwip_socket_backend.cpp` already implements the same seam for
+// lwIP, a stack with no netlink, no procfs and no eventfd. A QNX adapter is the
+// third of its kind, not the first.
+//
+// The class name is kept for source compatibility — it is exported public API
+// (`include/tc8/posix_socket_backend.h`) that out-of-tree UTM consumers include,
+// so renaming it to LinuxSocketBackend is a breaking change to coordinate with
+// them rather than something to slip in.
 class PosixSocketBackend : public tc8::testability::SocketBackend {
 public:
     int createUdp() override;
