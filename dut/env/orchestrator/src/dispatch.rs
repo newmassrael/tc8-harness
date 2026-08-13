@@ -612,43 +612,7 @@ mod tests {
         assert!(matches!(classify_verdict("bogus"), Verdict::Fail(_)));
     }
 
-    fn fake_cfg() -> Config {
-        use crate::config::{DutIdentity, DutSdTiming};
-        Config {
-            root: "/x".into(),
-            harness: "/x".into(),
-            dut_bin: "/x".into(),
-            vsomeip_cfg: "/x".into(),
-            capi_cfg: "/x".into(),
-            work_root: "/x".into(),
-            vsomeip_base: "/x".into(),
-            tester_ip4: "172.16.0.1".into(),
-            dut_ip4: "172.16.0.2".into(),
-            identity: DutIdentity {
-                service_id: "0xF4E7".into(),
-                instance_id: "0x0001".into(),
-                udp_port: "30502".into(),
-                tcp_port: "30501".into(),
-                sd_multicast_ip: "224.244.224.245".into(),
-                ttl: "3".into(),
-                mcast_ipv4: "224.244.224.246".into(),
-                mcast_port: "30495".into(),
-            },
-            sd_timing: DutSdTiming {
-                sd_initial_delay_min_ms: "10".into(),
-                sd_initial_delay_max_ms: "100".into(),
-                sd_repetition_base_delay_ms: "200".into(),
-                sd_repetitions_max: "3".into(),
-                sd_cyclic_offer_delay_ms: "2000".into(),
-            },
-            backstop_sec: 240,
-            extra_expect: Vec::new(),
-            no_multicast_membership: false,
-            log_dir: None,
-            dut_control: None,
-            secondary_iface_cases: std::collections::HashSet::new(),
-        }
-    }
+    use crate::config::fake_cfg;
 
     #[test]
     fn expect_args_emits_dut_mac_block_for_every_case() {

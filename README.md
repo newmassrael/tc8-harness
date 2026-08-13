@@ -287,7 +287,7 @@ lives* through topology profiles, selected with `--topology NAME` (default
 
 | Profile | Tester | DUT | Workers | DUT spawn | DUT kernel conditioning | `--negative` |
 |---------|--------|-----|---------|-----------|------------------------|--------------|
-| `single-pc` | netns on this host | reference `tc8-dut`, netns on this host | unlimited | per case | yes | yes |
+| `single-pc` | netns on this host | reference `tc8-dut` in that netns, or whatever [`[dut]`](#choosing-how-single-pc-launches-its-dut) names | unlimited | per case | yes | reference DUT only |
 | `external` | this host's NIC | persistent external device (target ECU, second PC) | 1 | no — assumed running | no (logged) | no (rejected) |
 | `ssh-remote` | this host's NIC | reference `tc8-dut` spawned per case on a second Linux PC over SSH | 1 | per case via SSH | no (logged) | no (rejected) |
 
@@ -313,6 +313,44 @@ tester_ip = "192.168.10.1"
 sudo dut/env/orchestrator/target/debug/tc8-orchestrator --topology external \
      --topology-conf external-dut.toml ICMPv4_TYPE_08 ARP_07 ...
 ```
+
+### Choosing how `single-pc` launches its DUT
+
+A topology is a pairing of a **tester transport** (where the harness runs and what
+wire it sees) with a **DUT lifecycle** (how a DUT gets onto that wire). `single-pc`
+builds a per-worker netns pair and, by default, exec's the in-tree reference
+`tc8-dut` into it. An optional `[dut]` section replaces only that second half — the
+namespace, the vsomeip environment, the per-case log capture and the reap all stay
+with the orchestrator:
+
+```toml
+# The DUT is a local executable, but not the in-tree one. The tester image can
+# then ship with NO DUT in it and have one mounted in at run time — which is what
+# keeps a confidential DUT stack out of the certification instrument's artifact.
+[dut]
+bin = "/mnt/dut/tc8-dut"
+```
+
+```toml
+# The DUT is not an executable on this filesystem at all: a sibling container, a
+# rig behind a script, a device that only has to be told to start.
+[dut]
+start = ["/opt/lab/launch-dut.sh", "--worker", "${WORKER}", "--netns", "${DUT_NETNS}"]
+stop  = ["/opt/lab/stop-dut.sh", "--worker", "${WORKER}"]
+```
+
+`start` requires `stop`: the reap cannot fall back to the per-worker `argv[0]`
+marker when the argv is the operator's, and a DUT that survives its case would
+corrupt the next one. Both forms are run inside the prepared namespace, so per-case
+DUT-side kernel conditioning keeps working. Available placeholders: `${WORKER}`,
+`${DUT_NETNS}`, `${DUT_LOG}`, `${VSOMEIP_CONFIG}`, `${COMMONAPI_CONFIG}`,
+`${VSOMEIP_BASE_PATH}`; the argv is executed directly, never through a shell.
+
+Two consequences are enforced rather than documented-and-hoped: `--negative` is
+**rejected** for any DUT that is not the in-tree reference (its curated rows assert
+deliberately wrong expectations to prove the harness fails them — against a foreign
+DUT a "pass" could just be a DUT that differs), and the `start`/`stop` form caps at
+`max_workers` (default 1), since a site launcher usually fronts a single device.
 
 No-silent-failure guarantees, regardless of profile:
 

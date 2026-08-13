@@ -155,7 +155,7 @@ fn main() -> Result<()> {
     // — its variant carries no IP field, so it structurally cannot override (the flat
     // struct used to let a stray lwip-tap dut_ip clobber the default).
     match &site {
-        TopologyConf::SinglePc { tester_ip, dut_ip } => {
+        TopologyConf::SinglePc { tester_ip, dut_ip, .. } => {
             if let Some(ip) = tester_ip {
                 cfg.tester_ip4 = ip.clone();
             }
@@ -196,7 +196,9 @@ fn main() -> Result<()> {
     };
 
     let topo: Box<dyn Topology + Sync> = match &site {
-        TopologyConf::SinglePc { .. } => Box::new(SinglePc::new(&cfg, schedule_needs_secondary)),
+        TopologyConf::SinglePc { dut, .. } => {
+            Box::new(SinglePc::new(&cfg, schedule_needs_secondary, dut))
+        }
         TopologyConf::LwipTap { lwip, iface_secondary } => {
             Box::new(topology::LwipTap::new(&cfg, lwip, iface_secondary.as_deref()))
         }

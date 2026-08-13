@@ -21,8 +21,10 @@ use anyhow::{bail, Result};
 use std::path::Path;
 use std::process::Child;
 
+mod command;
 mod local_exec;
 
+pub(crate) use command::CommandDut;
 pub(crate) use local_exec::LocalExec;
 
 /// Where a DUT has to run in order to sit on the wire the tester transport built.
@@ -41,6 +43,14 @@ pub(crate) enum DutPlacement {
 }
 
 impl DutPlacement {
+    /// The namespace, when there is one. For a lifecycle that can work either way.
+    pub(crate) fn netns(&self) -> Option<&str> {
+        match self {
+            DutPlacement::Netns(ns) => Some(ns),
+            DutPlacement::Foreign => None,
+        }
+    }
+
     /// The namespace to exec into, or an error naming the mismatch. A lifecycle that
     /// can only work against a namespace (it exec's the DUT itself) calls this rather
     /// than silently degrading: pairing it with a transport that owns no namespace is
@@ -113,6 +123,8 @@ pub(crate) trait DutLifecycle {
     ) -> Result<Option<Child>>;
 
     /// Reap whatever `start_dut` started, by the selector this lifecycle's own start
-    /// path makes correct.
-    fn stop_dut(&self, w: u32) -> Result<()>;
+    /// path makes correct. Takes the same `placement` as `start_dut` so a lifecycle
+    /// whose stop path needs to address the DUT's location reads it from the axis
+    /// boundary rather than reaching into the transport's naming.
+    fn stop_dut(&self, w: u32, placement: &DutPlacement) -> Result<()>;
 }

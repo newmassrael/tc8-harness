@@ -10,7 +10,7 @@
 
 use anyhow::{Context, Result};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 
 use super::{DutLifecycle, DutPlacement};
@@ -19,14 +19,28 @@ use crate::topology::{
     dut_link, kill_by_marker, symlink_force, VSOMEIP_RT_LOCK, VSOMEIP_RT_SOCK_PREFIX,
 };
 
-/// The reference tc8-dut, exec'd per case into the transport's namespace.
+/// A local DUT executable, exec'd per case into the transport's namespace.
 pub(crate) struct LocalExec<'a> {
     cfg: &'a Config,
+    /// The executable to run. `cfg.dut_bin` (the in-tree reference tc8-dut) unless a
+    /// site conf named another — which is what lets a tester image ship with NO DUT
+    /// in it and have one bind-mounted in at run time.
+    bin: PathBuf,
+    /// Whether `bin` is the in-tree reference implementation. Only that one may be
+    /// held to the curated negative rows' deliberately wrong expectations.
+    is_reference: bool,
 }
 
 impl<'a> LocalExec<'a> {
-    pub(crate) fn new(cfg: &'a Config) -> Self {
-        LocalExec { cfg }
+    /// The in-tree reference tc8-dut — the default when no `[dut]` section selects
+    /// anything else, i.e. every existing site and CI lane.
+    pub(crate) fn reference(cfg: &'a Config) -> Self {
+        LocalExec { cfg, bin: cfg.dut_bin.clone(), is_reference: true }
+    }
+
+    /// A site-named DUT executable.
+    pub(crate) fn site_binary(cfg: &'a Config, bin: impl Into<PathBuf>) -> Self {
+        LocalExec { cfg, bin: bin.into(), is_reference: false }
     }
 }
 
@@ -36,12 +50,11 @@ impl DutLifecycle for LocalExec<'_> {
     }
 
     fn preflight(&self) -> Result<()> {
-        let cfg = self.cfg;
-        if !cfg.dut_bin.is_file() {
-            anyhow::bail!("preflight: tc8-dut binary missing: {}", cfg.dut_bin.display());
+        if !self.bin.is_file() {
+            anyhow::bail!("preflight: tc8-dut binary missing: {}", self.bin.display());
         }
-        if !cfg.vsomeip_cfg.is_file() {
-            anyhow::bail!("preflight: vsomeip.json missing: {}", cfg.vsomeip_cfg.display());
+        if !self.cfg.vsomeip_cfg.is_file() {
+            anyhow::bail!("preflight: vsomeip.json missing: {}", self.cfg.vsomeip_cfg.display());
         }
         Ok(())
     }
@@ -49,7 +62,7 @@ impl DutLifecycle for LocalExec<'_> {
     fn bring_up_worker(&self, w: u32) -> Result<()> {
         // Worker-unique argv[0] so the per-case reap is scoped to this worker. Only
         // read at spawn time, so its position relative to the wire build is inert.
-        symlink_force(&self.cfg.dut_bin, &dut_link(&self.cfg.vsomeip_base, w))
+        symlink_force(&self.bin, &dut_link(&self.cfg.vsomeip_base, w))
     }
 
     fn max_workers(&self) -> Option<u32> {
@@ -62,9 +75,12 @@ impl DutLifecycle for LocalExec<'_> {
     }
 
     fn supports_negative(&self) -> bool {
-        // Our own reference implementation — the only DUT the curated negative rows
-        // can be held against.
-        true
+        // The curated negative rows assert deliberately WRONG expectations to prove
+        // the harness still fails them. That is self-validation, and it only means
+        // something against the implementation we built: for a site-supplied binary a
+        // "passing" negative row could just as easily be a DUT that differs, so the
+        // run would report a check it never actually performed.
+        self.is_reference
     }
 
     fn start_dut(
@@ -106,7 +122,7 @@ impl DutLifecycle for LocalExec<'_> {
         Ok(Some(child))
     }
 
-    fn stop_dut(&self, w: u32) -> Result<()> {
+    fn stop_dut(&self, w: u32, _placement: &DutPlacement) -> Result<()> {
         // argv[0] is this worker's unique symlink path, so `-f` hits exactly this
         // run's DUT (reap-selector matrix, `topology` mod docs).
         kill_by_marker(&dut_link(&self.cfg.vsomeip_base, w));

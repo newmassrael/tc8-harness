@@ -106,6 +106,117 @@ pub struct LwipSpec {
     pub kill_name: Option<String>,
 }
 
+/// The `[dut]` sub-table — how a DUT gets onto the wire the tester transport built.
+/// Absent = the in-tree reference tc8-dut, i.e. exactly today's behaviour.
+///
+/// Two mutually exclusive forms, because a deployment needs one of two different
+/// things and conflating them would make the simple case pay for the general one:
+///
+///   * `bin` — a local executable, the reference DUT shape with a different binary.
+///     The orchestrator keeps the whole lifecycle: it symlinks the binary to a
+///     worker-unique argv[0], exec's it into the prepared namespace with the vsomeip
+///     environment, captures its log, and reaps it by that marker. This is what lets
+///     a tester image carry NO DUT and have one bind-mounted in at run time.
+///   * `start` + `stop` — an arbitrary launcher, for a DUT that is not an executable
+///     on this filesystem at all. `stop` is REQUIRED alongside `start`: the reap
+///     cannot fall back to the argv[0] marker (the argv is the operator's, and a
+///     `pkill -f` on it could match anything), so a launcher that cannot say how to
+///     stop its DUT would leak it into the next case — the FORMAT_02
+///     session_id==0x0001 race the reap-selector matrix exists to prevent.
+///
+/// Both forms are run INSIDE the namespace the transport prepared, so the DUT shares
+/// a kernel stack we own and per-case DUT-side conditioning stays meaningful. A DUT
+/// that attaches itself to the wire instead would be a third lifecycle, and would
+/// have to give up both that conditioning and the per-case namespace rebuild.
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DutSpec {
+    /// A local DUT executable to run in place of the in-tree reference tc8-dut.
+    pub bin: Option<String>,
+    /// argv that starts the DUT. Mutually exclusive with `bin`; requires `stop`.
+    pub start: Option<Vec<String>>,
+    /// argv that stops the DUT started by `start`.
+    pub stop: Option<Vec<String>>,
+    /// How many DUTs the launcher can stand up at once (the `start`/`stop` form
+    /// only). Default 1 — a site-supplied launcher usually fronts a single container
+    /// or device, and silently running several would corrupt a run rather than fail
+    /// it. Raise it only when the launcher is genuinely worker-scoped (it is handed
+    /// `${WORKER}` for exactly that purpose).
+    pub max_workers: Option<u32>,
+}
+
+/// The per-case placeholders a `[dut]` `start`/`stop` argv may carry.
+///
+/// These are NOT environment variables: they take a value only when a case is
+/// dispatched to a worker, so config load must leave them verbatim rather than
+/// resolve them (or, as `expand_env` does for a genuinely unset variable, reject the
+/// conf outright). Single-homed here so the loader that PRESERVES them and the
+/// lifecycle that RENDERS them cannot drift into disagreeing about the set — a name
+/// in one list but not the other would either be rejected at load or silently
+/// survive into an executed argv.
+pub(crate) const DUT_ARGV_PLACEHOLDERS: [&str; 6] = [
+    "WORKER",
+    "DUT_NETNS",
+    "DUT_LOG",
+    "VSOMEIP_CONFIG",
+    "COMMONAPI_CONFIG",
+    "VSOMEIP_BASE_PATH",
+];
+
+/// The resolved `[dut]` selector — which DUT lifecycle to build.
+#[derive(Debug)]
+pub enum DutLaunch {
+    /// A local executable exec'd into the prepared namespace; `None` = the in-tree
+    /// reference tc8-dut (the default when no `[dut]` section is present).
+    Local { bin: Option<String> },
+    /// An operator-supplied launcher and its matching stop command.
+    Command { start: Vec<String>, stop: Vec<String>, max_workers: u32 },
+}
+
+impl Default for DutLaunch {
+    fn default() -> Self {
+        DutLaunch::Local { bin: None }
+    }
+}
+
+impl DutSpec {
+    /// Enforce the two-form contract and resolve to a [`DutLaunch`].
+    fn resolve(self) -> Result<DutLaunch> {
+        let ne = |o: Option<String>| o.filter(|s| !s.is_empty());
+        let nev = |o: Option<Vec<String>>| o.filter(|v| !v.is_empty());
+        let bin = ne(self.bin);
+        let start = nev(self.start);
+        let stop = nev(self.stop);
+        match (bin, start) {
+            (Some(_), Some(_)) => bail!(
+                "[dut] sets both 'bin' and 'start' — they are alternative ways to launch the same DUT; keep exactly one"
+            ),
+            (Some(b), None) => {
+                if stop.is_some() || self.max_workers.is_some() {
+                    bail!("[dut] 'stop'/'max_workers' belong to the 'start' launcher form, not 'bin'");
+                }
+                Ok(DutLaunch::Local { bin: Some(b) })
+            }
+            (None, Some(s)) => {
+                let stop = stop.ok_or_else(|| anyhow::anyhow!(
+                    "[dut] sets 'start' without 'stop'; a launcher must say how to stop its DUT, or a surviving DUT leaks into the next case"
+                ))?;
+                let max_workers = self.max_workers.unwrap_or(1);
+                if max_workers == 0 {
+                    bail!("[dut] max_workers must be at least 1");
+                }
+                Ok(DutLaunch::Command { start: s, stop, max_workers })
+            }
+            (None, None) => {
+                if stop.is_some() || self.max_workers.is_some() {
+                    bail!("[dut] sets 'stop'/'max_workers' without 'start'");
+                }
+                Ok(DutLaunch::Local { bin: None })
+            }
+        }
+    }
+}
+
 /// The raw `--topology-conf` TOML shape — the permissive deserialization boundary.
 /// Every field is optional here; [`SiteConf::resolve`] enforces the per-topology
 /// required set (enumerating every gap at once, bash contract-validation parity)
@@ -168,6 +279,14 @@ struct SiteConf {
     /// probe / kill name). Absent = run on the defaults. Valid only under
     /// `--topology lwip-tap`.
     lwip: Option<LwipSpec>,
+
+    // --- DUT lifecycle (single-pc) ---
+    /// How the DUT gets onto the wire. Absent = the in-tree reference tc8-dut.
+    /// Valid only under `--topology single-pc` so far: it selects a DUT lifecycle,
+    /// and single-pc is the only topology expressed through that axis. The other
+    /// three still carry their DUT half in the topology itself, so accepting the
+    /// section there would silently do nothing — rejected loudly instead.
+    dut: Option<DutSpec>,
 
     // --- common to every topology ---
     /// Extra `--expect` tokens ("key=value", NO `--expect` prefix) this site
@@ -246,10 +365,11 @@ pub struct SshSite {
 #[derive(Debug)]
 pub enum TopologyConf {
     /// single-pc derives its wire identity from defaults and provisions its own
-    /// netns; a conf may only override the tester/DUT IPs.
+    /// netns; a conf may override the tester/DUT IPs and select a DUT lifecycle.
     SinglePc {
         tester_ip: Option<String>,
         dut_ip: Option<String>,
+        dut: DutLaunch,
     },
     External(ExternalSite),
     SshRemote(SshSite),
@@ -341,6 +461,7 @@ impl SiteConf {
             remote_wrap,
             fixture: _, // kind is a fixed selector literal, never ${}-bearing
             lwip,
+            dut,
             extra_expect,
             no_multicast_membership: _, // bool — no ${} to expand
         } = self;
@@ -366,6 +487,21 @@ impl SiteConf {
         if let Some(LwipSpec { app, ready_probe, kill_name }) = lwip {
             for v in [app, ready_probe, kill_name].into_iter().flatten() {
                 *v = expand_env(v, root)?;
+            }
+        }
+        // The DUT launch spec: `bin` is a path and every start/stop argv element may
+        // embed `${ROOT}`/`${VAR}` (a mounted DUT tree, a container name from the
+        // environment). Destructured for the same compile-time completeness. The
+        // per-worker `${WORKER}` / `${DUT_NETNS}` placeholders are NOT resolved here —
+        // they are not environment values and are rendered per case at spawn time.
+        if let Some(DutSpec { bin, start, stop, max_workers: _ }) = dut {
+            if let Some(b) = bin {
+                *b = expand_env(b, root)?;
+            }
+            for argv in [start, stop].into_iter().flatten() {
+                for v in argv.iter_mut() {
+                    *v = expand_env_reserving(v, root, &DUT_ARGV_PLACEHOLDERS)?;
+                }
             }
         }
         // Each extra --expect token may embed ${ROOT}/${VAR} (e.g. an endpoint value
@@ -400,6 +536,7 @@ impl SiteConf {
             remote_wrap,
             fixture,
             lwip,
+            dut,
             extra_expect,
             no_multicast_membership,
         } = self;
@@ -458,6 +595,14 @@ impl SiteConf {
             bail!("[lwip] config is only valid for --topology lwip-tap (got '{topology}')");
         }
 
+        // `[dut]` selects a DUT LIFECYCLE, and single-pc is the only topology built
+        // from the lifecycle axis so far. Under the others the section would parse
+        // and then do nothing, which is the same silent-frankenstate hazard the
+        // `[lwip]` guard above exists for — reject it before any host setup.
+        if dut.is_some() && topology != TopologyKind::SinglePc {
+            bail!("[dut] config is only valid for --topology single-pc (got '{topology}')");
+        }
+
         // extra_expect and no_multicast_membership are topology-agnostic (the first
         // folds into the common --expect surface, the second describes the wire every
         // topology captures on), so neither is subject to the foreign-field rejection
@@ -466,7 +611,8 @@ impl SiteConf {
             TopologyKind::SinglePc => {
                 reject_fixture(&fixture, topology)?;
                 reject_unless_allowed(topology, &all_fields, &["tester_ip", "dut_ip"])?;
-                TopologyConf::SinglePc { tester_ip, dut_ip }
+                let dut = dut.unwrap_or_default().resolve()?;
+                TopologyConf::SinglePc { tester_ip, dut_ip, dut }
             }
             TopologyKind::LwipTap => {
                 reject_fixture(&fixture, topology)?;
@@ -632,6 +778,13 @@ fn reject_unless_allowed(topology: TopologyKind, all: &[(&str, bool)], allowed: 
 /// empty string that would silently mis-path a binary. A literal `$` not followed
 /// by `{` passes through verbatim.
 fn expand_env(s: &str, root: &Path) -> Result<String> {
+    expand_env_reserving(s, root, &[])
+}
+
+/// As [`expand_env`], but leaving any `${NAME}` whose NAME is in `reserved` verbatim
+/// for a later stage to render. Used for the `[dut]` argv, whose per-case
+/// placeholders have no value at config-load time.
+fn expand_env_reserving(s: &str, root: &Path, reserved: &[&str]) -> Result<String> {
     let mut out = String::with_capacity(s.len());
     let mut rest = s;
     while let Some(start) = rest.find("${") {
@@ -641,6 +794,14 @@ fn expand_env(s: &str, root: &Path) -> Result<String> {
             .find('}')
             .with_context(|| format!("unterminated '${{' in topology-conf value '{s}'"))?;
         let var = &after[..end];
+        if reserved.contains(&var) {
+            // Put it back untouched — this one belongs to a later rendering stage.
+            out.push_str("${");
+            out.push_str(var);
+            out.push('}');
+            rest = &after[end + 1..];
+            continue;
+        }
         let val = if var == "ROOT" {
             root.to_string_lossy().into_owned()
         } else {
@@ -753,7 +914,7 @@ mod tests {
             ..SiteConf::default()
         };
         match conf.resolve(TopologyKind::SinglePc).unwrap().conf {
-            TopologyConf::SinglePc { tester_ip, dut_ip } => {
+            TopologyConf::SinglePc { tester_ip, dut_ip, .. } => {
                 assert_eq!(tester_ip.as_deref(), Some("10.0.0.1"));
                 assert_eq!(dut_ip.as_deref(), Some("10.0.0.2"));
             }
@@ -935,5 +1096,103 @@ mod tests {
         let r = conf.resolve(TopologyKind::SinglePc).unwrap();
         assert_eq!(r.extra_expect, vec!["tester_ipv4=172.16.9.9", "can_start_offset_ms=1000"]);
         std::env::remove_var("TC8_SITE_EXTRA_IP");
+    }
+
+    fn with_dut(dut: DutSpec) -> SiteConf {
+        SiteConf { dut: Some(dut), ..SiteConf::default() }
+    }
+
+    #[test]
+    fn absent_dut_section_is_the_reference_binary() {
+        // The default must stay byte-identical to pre-[dut] behaviour: every existing
+        // site and CI lane omits the section entirely.
+        match SiteConf::default().resolve(TopologyKind::SinglePc).unwrap().conf {
+            TopologyConf::SinglePc { dut, .. } => {
+                assert!(matches!(dut, DutLaunch::Local { bin: None }));
+            }
+            other => panic!("expected SinglePc, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dut_bin_selects_a_site_binary() {
+        let conf = with_dut(DutSpec { bin: Some("/mnt/dut/tc8-dut".into()), ..DutSpec::default() });
+        match conf.resolve(TopologyKind::SinglePc).unwrap().conf {
+            TopologyConf::SinglePc { dut: DutLaunch::Local { bin: Some(b) }, .. } => {
+                assert_eq!(b, "/mnt/dut/tc8-dut");
+            }
+            other => panic!("expected a site binary, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dut_bin_and_start_are_mutually_exclusive() {
+        let conf = with_dut(DutSpec {
+            bin: Some("/mnt/dut/tc8-dut".into()),
+            start: Some(vec!["/launch.sh".into()]),
+            stop: Some(vec!["/stop.sh".into()]),
+            ..DutSpec::default()
+        });
+        let err = conf.resolve(TopologyKind::SinglePc).unwrap_err().to_string();
+        assert!(err.contains("both 'bin' and 'start'"), "{err}");
+    }
+
+    #[test]
+    fn dut_start_without_stop_is_rejected() {
+        // A launcher that cannot say how to stop its DUT would leak it into the next
+        // case — the reap cannot fall back to the argv[0] marker for a foreign argv.
+        let conf = with_dut(DutSpec { start: Some(vec!["/launch.sh".into()]), ..DutSpec::default() });
+        let err = conf.resolve(TopologyKind::SinglePc).unwrap_err().to_string();
+        assert!(err.contains("'start' without 'stop'"), "{err}");
+    }
+
+    #[test]
+    fn dut_start_stop_resolves_with_default_single_worker() {
+        let conf = with_dut(DutSpec {
+            start: Some(vec!["/launch.sh".into(), "${WORKER}".into()]),
+            stop: Some(vec!["/stop.sh".into()]),
+            ..DutSpec::default()
+        });
+        match conf.resolve(TopologyKind::SinglePc).unwrap().conf {
+            TopologyConf::SinglePc { dut: DutLaunch::Command { start, stop, max_workers }, .. } => {
+                // ${WORKER} is per-case, so it must survive resolution unexpanded.
+                assert_eq!(start, vec!["/launch.sh", "${WORKER}"]);
+                assert_eq!(stop, vec!["/stop.sh"]);
+                assert_eq!(max_workers, 1);
+            }
+            other => panic!("expected a command launcher, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dut_section_is_single_pc_only() {
+        // Same misplaced-section guard as [lwip]: the other topologies do not build
+        // their DUT half from the lifecycle axis, so the section would silently
+        // do nothing there.
+        for k in [TopologyKind::LwipTap, TopologyKind::External, TopologyKind::SshRemote] {
+            let conf = with_dut(DutSpec { bin: Some("/x".into()), ..DutSpec::default() });
+            let err = conf.resolve(k).unwrap_err().to_string();
+            assert!(err.contains("[dut]"), "{k}: {err}");
+        }
+    }
+
+    #[test]
+    fn dut_argv_is_env_expanded_but_per_case_placeholders_survive() {
+        let toml = r#"
+            [dut]
+            start = ["${ROOT}/launch.sh", "--ns", "${DUT_NETNS}"]
+            stop  = ["${ROOT}/stop.sh"]
+        "#;
+        let mut conf: SiteConf = toml::from_str(toml).unwrap();
+        conf.expand_all(Path::new("/repo")).unwrap();
+        match conf.resolve(TopologyKind::SinglePc).unwrap().conf {
+            TopologyConf::SinglePc { dut: DutLaunch::Command { start, stop, .. }, .. } => {
+                // ${ROOT} is an environment concern and resolves at load; ${DUT_NETNS}
+                // is a per-case value the lifecycle renders at spawn.
+                assert_eq!(start, vec!["/repo/launch.sh", "--ns", "${DUT_NETNS}"]);
+                assert_eq!(stop, vec!["/repo/stop.sh"]);
+            }
+            other => panic!("expected a command launcher, got {other:?}"),
+        }
     }
 }

@@ -48,11 +48,21 @@
 # `--network host` — every frame single-pc handles lives in namespaces
 # run-isolated.sh creates, so it needs no host stack.
 #
-# One precondition: single-pc exec's a local tc8-dut, and this image is built
-# with -DTC8_BUILD_MOCK_DUT=OFF and therefore carries none. Running single-pc
-# from the stock image needs a DUT put there by a derived image — which is a
-# packaging consequence of the topology's launch path, tracked in
-# claudedocs/dut-role-separation-request.md, not something the flags above fix.
+# One precondition: this image is built with -DTC8_BUILD_MOCK_DUT=OFF and so
+# carries no tc8-dut. Mount one in and name it, rather than baking a DUT into the
+# tester — which is the whole point of keeping the two products apart:
+#
+#   -v /path/to/dut:/mnt/dut:ro -v "$PWD/site.toml:/site.toml:ro"
+#   --topology single-pc --topology-conf /site.toml
+#
+# with the site conf naming it (see "Choosing how single-pc launches its DUT" in
+# the README):
+#
+#   [dut]
+#   bin = "/mnt/dut/tc8-dut"
+#
+# A DUT that is not an executable at all — a sibling container, a rig behind a
+# script — uses the `start`/`stop` form of the same section.
 #
 # The site descriptor is MOUNTED, never baked: it carries the operator's own
 # addresses, account names and interface names (an `enx…` name literally encodes

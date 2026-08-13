@@ -23,8 +23,9 @@ use std::process::Child;
 use crate::conditioning::{CondDir, CondStep};
 use crate::config::Config;
 
-use super::dut::{DutLifecycle, DutPlacement, LocalExec};
+use super::dut::{CommandDut, DutLifecycle, DutPlacement, LocalExec};
 use super::{teardown_worker, Conditioning, NetnsPair, Topology, WorkerCtx};
+use crate::site::DutLaunch;
 
 /// single-pc: tester + DUT in per-worker netns pairs on this host.
 pub struct SinglePc<'a> {
@@ -38,12 +39,18 @@ pub struct SinglePc<'a> {
 }
 
 impl<'a> SinglePc<'a> {
-    pub fn new(cfg: &'a Config, secondary_iface: bool) -> Self {
-        SinglePc {
-            cfg,
-            wire: NetnsPair::new(cfg, secondary_iface),
-            dut: Box::new(LocalExec::new(cfg)),
-        }
+    /// Build the topology from its two axes. `launch` selects the DUT lifecycle; the
+    /// default (`DutLaunch::Local { bin: None }`, i.e. no `[dut]` section) is the
+    /// in-tree reference tc8-dut, so every existing site and CI lane is unaffected.
+    pub fn new(cfg: &'a Config, secondary_iface: bool, launch: &'a DutLaunch) -> Self {
+        let dut: Box<dyn DutLifecycle + Sync + 'a> = match launch {
+            DutLaunch::Local { bin: None } => Box::new(LocalExec::reference(cfg)),
+            DutLaunch::Local { bin: Some(b) } => Box::new(LocalExec::site_binary(cfg, b)),
+            DutLaunch::Command { start, stop, max_workers } => {
+                Box::new(CommandDut::new(cfg, start.clone(), stop.clone(), *max_workers))
+            }
+        };
+        SinglePc { cfg, wire: NetnsPair::new(cfg, secondary_iface), dut }
     }
 
     /// Where a DUT must sit to be on this worker's wire.
@@ -119,7 +126,7 @@ impl Topology for SinglePc<'_> {
     }
 
     fn stop_dut(&self, w: u32) -> Result<()> {
-        self.dut.stop_dut(w)
+        self.dut.stop_dut(w, &self.placement(w))
     }
 
     fn stop_harness(&self, w: u32) -> Result<()> {
