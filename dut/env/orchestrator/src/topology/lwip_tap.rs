@@ -13,6 +13,33 @@
 //! exec harness + host conditioning) via the shared [`super::HostTester`] — this
 //! module is a sibling of `host.rs` under `topology/`, no longer a `fixtures/` peer.
 //!
+//! WHY THIS ONE IS NOT SPLIT ACROSS THE TWO AXES
+//! ----------------------------------------------
+//! Every other topology is a pairing of a tester transport with a DUT lifecycle
+//! (`topology` mod docs), and single-pc / external / ssh-remote are all built that
+//! way. lwip-tap deliberately is NOT, because here the two halves are not two things:
+//! the fixture is ONE host-global object and the coupling runs in both directions.
+//!
+//!   * the DUT attaches to the transport's own device and addresses — `spawn_dut`
+//!     passes `PRECONFIGURED_TAPIF=<tap>` and `TC8_LWIP_DUT_GW=<tester ip>`, both
+//!     created by `provision_tap`. There is no "place the DUT on the wire" step that
+//!     could be varied; attaching IS the wire.
+//!   * the transport depends on the DUT's readiness probe: `bring_up_worker` resolves
+//!     the lwIP MAC from the host neigh entry that `wait_dut_ready` warmed.
+//!   * the DUT's teardown reads TESTER-side state — `drain_tester_sockets` polls the
+//!     host's own sockets toward the DUT before the kill, so tester-side halves reach
+//!     CLOSED against a live stack instead of orphaning.
+//!   * one flock guards tap, scratch dir and DUT single-instance together; that flock
+//!     is also what makes `kill_dut`'s process-NAME reap selector safe at all.
+//!
+//! Forcing a `DutLifecycle` boundary through that would mean an interface carrying the
+//! tap name, the neigh warm-up, the tester socket set and the lock — i.e. re-exporting
+//! the whole fixture through a seam, to buy a reuse that cannot exist (this lifecycle
+//! pairs with a tap transport and nothing else; a userspace TCP/IP stack does not go
+//! in a netns). The fusion is a property of embedding a non-Linux stack on a tap we
+//! own, not leftover un-refactored code. It is a deliberate scope boundary — do not
+//! "finish the migration" here without first refuting the four couplings above.
+//!
 //! Lock: bash held a flock on /var/lock and ran a fuser/leaked-holder SELF-HEAL,
 //! because it leaked the lock fd to backgrounded children that outlived the run. A
 //! Rust `File` is `O_CLOEXEC` by default, so the orchestrator's spawned DUT never

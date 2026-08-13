@@ -54,12 +54,22 @@ use crate::netns;
 //     spawned per case over ssh (SshRemote), or respawned by a fixture that owns it
 //     (LwipTap).
 //
-// The transport axis is factored; the lifecycle axis is still open-coded in each
-// topology's `start_dut`/`stop_dut`. That is why the reap-selector matrix above has
-// to be prose — there is not yet a type to hang the dispatch on. The interface
-// BETWEEN the axes is deliberately one method wide (`NetnsPair::dut_netns`, the
-// placement a DUT must occupy to sit on the wire), so neither side can grow a
-// dependency on the other's internals.
+// Both axes are now factored. The interface BETWEEN them is deliberately narrow — a
+// `DutPlacement` (the spot a DUT must occupy to sit on the wire) and nothing else —
+// so neither side can grow a dependency on the other's internals. single-pc, external
+// and ssh-remote are each a transport plus a lifecycle and re-assert no contract bit
+// of their own; `max_workers` / `supports_dut_spawn` / `supports_negative` /
+// `ut_arp_cache_timeout` all describe the DUT and so come from the lifecycle, while
+// the interface names and `rebuild_netns_per_case` describe the wire and come from
+// the transport.
+//
+// Per-case CONDITIONING stays with the transport, and that is not a compromise:
+// whether the DUT-side kernel stack can be conditioned at all is decided by whether
+// the transport OWNS that stack (NetnsPair does; HostTester cannot), so the question
+// never reaches the lifecycle.
+//
+// lwip-tap is the deliberate exception — see its module docs for the four couplings
+// that make its tap and its DUT one object rather than two.
 mod dut;
 mod host;
 mod lwip_tap;
