@@ -216,6 +216,40 @@ mod tests {
     }
 
     #[test]
+    fn start_against_a_placementless_transport_names_the_mismatch() {
+        // Pairing this lifecycle with a transport that owns no namespace is a
+        // construction bug. It must say so rather than start a DUT on the wrong stack,
+        // and it must decide that BEFORE touching the log file.
+        let cfg = fake_cfg();
+        let err = dut(&cfg)
+            .start_dut(0, &DutPlacement::Foreign, Path::new("/x.log"), Path::new("/c"), &[])
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("command"), "{err}");
+        assert!(err.contains("namespace"), "{err}");
+    }
+
+    #[test]
+    fn stop_failure_is_surfaced_but_never_aborts_the_run() {
+        // Both failure shapes return Ok: the run continues (the dispatcher's bounded
+        // wait is the backstop) while the warning tells the operator a DUT may have
+        // survived into the next case. An Err here would abort a worker from the
+        // teardown path, turning one leaked DUT into a lost run.
+        let cfg = fake_cfg();
+        let ns = DutPlacement::Netns("tc8-dut-0".into());
+        // (a) the stop command cannot be spawned at all
+        let unspawnable =
+            CommandDut::new(&cfg, vec!["/nx/start".into()], vec!["/nx/stop".into()], 1);
+        assert!(unspawnable.stop_dut(0, &ns).is_ok());
+        // (b) it runs and exits non-zero
+        let failing =
+            CommandDut::new(&cfg, vec!["/bin/true".into()], vec!["/bin/false".into()], 1);
+        assert!(failing.stop_dut(0, &ns).is_ok());
+        // (c) and it stays non-fatal even with no namespace to address
+        assert!(failing.stop_dut(0, &DutPlacement::Foreign).is_ok());
+    }
+
+    #[test]
     fn renders_known_placeholders_and_leaves_unknown_verbatim() {
         let cfg = fake_cfg();
         let d = dut(&cfg);
