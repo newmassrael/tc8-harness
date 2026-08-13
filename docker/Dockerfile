@@ -27,6 +27,33 @@
 #       tc8-tester \
 #       --topology ssh-remote --workers 1 --topology-conf /site.toml SOMEIPSRV_FORMAT_01
 #
+# Those flags are the `ssh-remote` shape — the topology this image is built for.
+# `single-pc` is a DIFFERENT shape, and the difference is not obvious enough to
+# leave a reader to rediscover:
+#
+#   docker run --rm \
+#       --cap-add=NET_ADMIN --cap-add=NET_RAW --cap-add=SYS_ADMIN \
+#       --security-opt apparmor=unconfined \
+#       tc8-tester --topology single-pc ...
+#
+# `run-isolated.sh` wraps the single-pc orchestrator in a private net + mount
+# namespace, so it needs SYS_ADMIN for `unshare --net --mount` and its tmpfs.
+# The capability alone is not enough: Ubuntu's `docker-default` AppArmor profile
+# denies the propagation change outright, and the run dies at "unshare: cannot
+# change root filesystem propagation: Permission denied" — a failure the two
+# capabilities named above give no hint about. Dropping SYS_ADMIN instead fails
+# earlier, at "unshare: unshare failed: Operation not permitted"; those two
+# negative controls are what make this set measured rather than guessed.
+# `--privileged` is NOT required, nor is `seccomp=unconfined`, nor is
+# `--network host` — every frame single-pc handles lives in namespaces
+# run-isolated.sh creates, so it needs no host stack.
+#
+# One precondition: single-pc exec's a local tc8-dut, and this image is built
+# with -DTC8_BUILD_MOCK_DUT=OFF and therefore carries none. Running single-pc
+# from the stock image needs a DUT put there by a derived image — which is a
+# packaging consequence of the topology's launch path, tracked in
+# claudedocs/dut-role-separation-request.md, not something the flags above fix.
+#
 # The site descriptor is MOUNTED, never baked: it carries the operator's own
 # addresses, account names and interface names (an `enx…` name literally encodes
 # a MAC), none of which belong in a shared image any more than in git.
