@@ -73,8 +73,8 @@ pub const DUT_MASK: &str = "255.255.255.0";
 
 /// Topology-2 second veth pair (TIface-1) tester IP — the second broadcast
 /// domain (172.17.0.0/24) for the dual-interface DHCP client usage case.
-/// Consumed by setup-netns.sh (SECOND_VETH) and the Rust orchestrator's single-pc
-/// topology (secondary veth for USAGE_01, dut/env/orchestrator/src/topology/single_pc.rs).
+/// Consumed by setup-netns.sh (SECOND_VETH) and the Rust orchestrator's netns-pair
+/// transport (secondary veth for USAGE_01, dut/env/orchestrator/src/topology/netns_pair.rs).
 pub const TESTER_IP_2: &str = "172.17.0.1";
 
 /// Topology-2 second veth pair (DIface-1) DUT IP.

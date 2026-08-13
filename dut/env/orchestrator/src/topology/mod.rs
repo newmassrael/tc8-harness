@@ -35,18 +35,39 @@ use std::time::Duration;
 use crate::conditioning::{CondDir, CondStep};
 use crate::netns;
 
-// Every topology lives in a submodule (host = External + SshRemote + the shared
-// HostTester transport; lwip_tap; single_pc); this file keeps only the cross-topology
-// layer they share — the Topology trait, the worker-scoped netns/symlink naming +
-// teardown, and `kill_by_marker`. LwipTap moved here from `fixtures/` (it is a
-// first-class host-NIC topology, not a verification fixture); SinglePc moved out of
-// this file into `single_pc` so all four topologies are siblings.
+// Every topology lives in a submodule (host = External + SshRemote; lwip_tap;
+// single_pc); this file keeps only the cross-topology layer they share — the
+// Topology trait, the worker-scoped netns/symlink naming + teardown, and
+// `kill_by_marker`. LwipTap moved here from `fixtures/` (it is a first-class
+// host-NIC topology, not a verification fixture); SinglePc moved out of this file
+// into `single_pc` so all four topologies are siblings.
+//
+// A topology is a PAIRING of two independent axes, and keeping them apart is what
+// stops each new deployment shape from forking a whole topology:
+//
+//   * TESTER TRANSPORT — where the harness runs and what wire it sees. Two exist,
+//     and both are COMPOSED rather than inherited: `HostTester` (a host NIC, no
+//     namespaces of ours) and `NetnsPair` (a per-worker netns pair we build and own
+//     end to end, which is why it alone can condition the DUT-side kernel stack).
+//   * DUT LIFECYCLE — how a DUT gets onto that wire and off it again: persistent and
+//     untouched (External), exec'd locally into the prepared namespace (SinglePc),
+//     spawned per case over ssh (SshRemote), or respawned by a fixture that owns it
+//     (LwipTap).
+//
+// The transport axis is factored; the lifecycle axis is still open-coded in each
+// topology's `start_dut`/`stop_dut`. That is why the reap-selector matrix above has
+// to be prose — there is not yet a type to hang the dispatch on. The interface
+// BETWEEN the axes is deliberately one method wide (`NetnsPair::dut_netns`, the
+// placement a DUT must occupy to sit on the wire), so neither side can grow a
+// dependency on the other's internals.
 mod host;
 mod lwip_tap;
+mod netns_pair;
 mod single_pc;
 
 pub use host::{ssh_reap_remote_dut, External, SshRemote};
 pub(crate) use host::HostTester;
+pub(crate) use netns_pair::NetnsPair;
 pub use lwip_tap::LwipTap;
 pub(crate) use lwip_tap::{resolve_kill_name, signal_teardown as lwip_signal_teardown};
 pub use single_pc::SinglePc;
