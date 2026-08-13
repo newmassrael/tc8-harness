@@ -60,6 +60,7 @@ use crate::netns;
 // BETWEEN the axes is deliberately one method wide (`NetnsPair::dut_netns`, the
 // placement a DUT must occupy to sit on the wire), so neither side can grow a
 // dependency on the other's internals.
+mod dut;
 mod host;
 mod lwip_tap;
 mod netns_pair;
