@@ -97,6 +97,20 @@ if(NOT DEFINED TC8_EXTRA_CASE_SUITES)
         "Suite name per TC8_EXTRA_CASE_DIRS root (;-aligned); empty/missing => default")
 endif()
 
+#   TC8_EXTRA_CASE_LIBS    — ;-separated link libraries added to tc8-harness, for
+#                            out-of-tree cases whose code needs something the base
+#                            tester does not link. The tester-side counterpart of
+#                            the DUT's TC8_ETS_EXTENSION_LIBS, and the supported
+#                            way to reach a SOME/IP middleware stack from a case:
+#                            the tester itself does not link one (see the
+#                            target_link_libraries comment below), so a consumer
+#                            that wants vsomeip in its own case names it here
+#                            rather than relying on it being incidentally present.
+if(NOT DEFINED TC8_EXTRA_CASE_LIBS)
+    set(TC8_EXTRA_CASE_LIBS "" CACHE STRING
+        "Additional link libraries for tc8-harness (out-of-tree case dependencies)")
+endif()
+
 # The in-tree default suite name has its single source of truth in the C++
 # constant kDefaultSuite (src/sce_integration/include/sce_integration/case_registry.h). Derive it here
 # rather than restating the literal, so the configure-time suite logic and the
@@ -468,9 +482,19 @@ target_link_libraries(tc8-harness PRIVATE
     # for E2E verdicts. No in-tree consumer references it, so the static archive
     # contributes no objects to the base binary (nothing to dead-strip differently).
     tc8_e2e
-    vsomeip3
-    CommonAPI
-    CommonAPI-SomeIP
+    # NOT linked here: vsomeip3 / CommonAPI / CommonAPI-SomeIP. The tester puts
+    # crafted SOME/IP bytes on the wire and dissects what comes back; it does not
+    # USE a SOME/IP middleware stack, and no source under src/ includes one. They
+    # were on this line historically and resolved no symbol (readelf -d showed no
+    # DT_NEEDED for any of the three), so the produced binary is unchanged — but
+    # naming them here made the stack a REQUIRED configure-time dependency of the
+    # tester, which is why a tester-only build had to install Boost, a source-built
+    # vsomeip and two CommonAPI runtimes. The stack is the DUT's dependency and is
+    # now found only under TC8_BUILD_MOCK_DUT (root CMakeLists.txt).
+    #
+    # An out-of-tree case that genuinely wants to call into a SOME/IP stack links
+    # it explicitly via TC8_EXTRA_CASE_LIBS below — the tester-side counterpart of
+    # the DUT's TC8_ETS_EXTENSION_LIBS.
     sce_base
     tc8_wire
     # The stateless wire builders + SOME/IP dissectors, shared with the portability
@@ -487,5 +511,11 @@ target_link_libraries(tc8-harness PRIVATE
     ${PCAP_LIBRARY}
     ${LIBTINS_LIBRARY}
 )
+# Out-of-tree case dependencies (TC8_EXTRA_CASE_LIBS). Applied after the base set so
+# a consumer's library can resolve against it; empty for every in-tree configure, so
+# the default link line is unchanged.
+if(TC8_EXTRA_CASE_LIBS)
+    target_link_libraries(tc8-harness PRIVATE ${TC8_EXTRA_CASE_LIBS})
+endif()
 tc8_enable_strict_warnings(tc8-harness)
 

@@ -180,10 +180,12 @@ endif()
 #
 #   * TC8_BUILD_HARNESS    — the tc8-harness tester executable (the SOME/IP wire
 #                            runner) and its per-case state machines. Owns the
-#                            vsomeip3 + CommonAPI link and the libpcap/libtins
-#                            capture stack.
-#   * TC8_BUILD_MOCK_DUT   — the vsomeip/CommonAPI ETS mock DUT under dut/ets,
-#                            which also links the SOME/IP stack.
+#                            libpcap/libtins capture stack — and NOT the SOME/IP
+#                            middleware stack: it writes and reads SOME/IP bytes
+#                            rather than using an implementation of it.
+#   * TC8_BUILD_MOCK_DUT   — the vsomeip/CommonAPI ETS mock DUT under dut/ets. The
+#                            sole consumer of the SOME/IP middleware stack, and so
+#                            the only option that requires it at configure time.
 #   * TC8_BUILD_UNIT_TESTS — the C++ unit tests (declared here, not at their
 #                            add_subdirectory below, so the capture-stack probe
 #                            can be gated on them too).
@@ -201,12 +203,25 @@ option(TC8_BUILD_UNIT_TESTS
     "Build C++ unit tests in unit_tests/ (requires GTest)"
     ON)
 
-# The SOME/IP wire stack is a REQUIRED configure-time dependency of exactly two
-# consumers: the tester executable and the ETS mock DUT (dut/ets links vsomeip3 +
-# CommonAPI and is added only under TC8_BUILD_MOCK_DUT, relying on the imported
-# targets found here). Gate the whole find_package set — and the SYSTEM-include
-# demotion that operates on its imported targets — on whether either is built.
-if(TC8_BUILD_HARNESS OR TC8_BUILD_MOCK_DUT)
+# The SOME/IP middleware stack is a REQUIRED configure-time dependency of exactly
+# ONE consumer: the ETS mock DUT (dut/ets links vsomeip3 + CommonAPI and is added
+# only under TC8_BUILD_MOCK_DUT, relying on the imported targets found here). Gate
+# the whole find_package set — and the SYSTEM-include demotion that operates on its
+# imported targets — on that.
+#
+# The TESTER is deliberately NOT a consumer, which is the opposite of what this gate
+# said before. It puts crafted SOME/IP bytes on the wire and dissects the replies;
+# it never drives a middleware stack, and no source under src/ includes one. It did
+# NAME the three on its link line, which made them required for any configure that
+# built the tester while resolving no symbol from them (measured: no DT_NEEDED in
+# the produced binary). The cost of that was not cosmetic — it forced Boost, a
+# source-built vsomeip and two CommonAPI runtimes onto every tester-only build,
+# including the container image whose whole point is to be the portable instrument.
+#
+# Consequence to keep in mind when editing: a tester-only configure
+# (-DTC8_BUILD_MOCK_DUT=OFF) now needs NONE of this stack installed. An out-of-tree
+# case that wants it links it itself via TC8_EXTRA_CASE_LIBS (src/harness).
+if(TC8_BUILD_MOCK_DUT)
     find_package(vsomeip3 REQUIRED)
     find_package(CommonAPI REQUIRED)
     find_package(CommonAPI-SomeIP REQUIRED)
