@@ -5,13 +5,37 @@
 # The DUT half of a two-machine run needs no toolchain — staged binaries and a
 # vsomeip runtime are enough. The TESTER half does not have that luxury: it is
 # ~18 shared libraries deep (libpcap pulls in libnl / libibverbs / libsystemd /
-# libdbus) plus a source-built SOME/IP stack, and every distribution spells
-# those differently. That asymmetry, not the topology layer, is what makes
-# "run the harness from the other machine" a chore.
+# libdbus) and every distribution spells them differently. That asymmetry, not
+# the topology layer, is what makes "run the harness from the other machine" a
+# chore.
 #
 # This image removes the distribution from the equation: the harness and every
 # library it needs travel together. Any Linux host with a container runtime can
 # be the tester, and it needs nothing installed but that runtime.
+#
+# WHAT IS DELIBERATELY ABSENT, AND WHY THAT IS LOAD-BEARING
+# ---------------------------------------------------------
+# There is NO SOME/IP middleware stack in this image — no Boost, no vsomeip, no
+# CommonAPI runtimes, no CommonAPI code generators, no JRE. Earlier revisions
+# source-built all of them, because the tester NAMED vsomeip3/CommonAPI on its
+# link line. It never used them: the produced binary carried no DT_NEEDED for any
+# of the three, and no source under src/ includes their headers. The tester writes
+# and reads SOME/IP bytes on the wire; it does not drive an implementation of the
+# protocol. That link entry has been removed and the find_package set now gates on
+# TC8_BUILD_MOCK_DUT alone (root CMakeLists.txt).
+#
+# Their absence here is not just a size win — it is the ENFORCEMENT of that split,
+# and the reason to keep it that way. A comment claiming "the tester needs no
+# SOME/IP stack" has exactly the same standing as the wrong comment it replaced;
+# nothing about it fails if someone re-adds a find_package. An image that cannot
+# supply the stack does fail, visibly, in the CI job that builds it. So: do not
+# add a SOME/IP stack back here to fix a build error. The error is the signal, and
+# the fix belongs in whatever re-coupled the tester to the middleware.
+#
+# A DERIVED image that also carries a DUT (a self-test fixture) is a different
+# artifact and must add these layers itself — which is the correct place for them,
+# since a DUT stack may be a vendor-patched one under NDA and the tester is the
+# artifact that has to stand in front of third-party hardware.
 #
 # WHAT IT DELIBERATELY DOES NOT DO
 # --------------------------------
@@ -72,31 +96,17 @@
 #   -v "$HOME/.ssh/id_ed25519:/root/.ssh/id_ed25519:ro"
 # and point `ssh_opts` in the site conf at that path.
 #
-# Base pinned to 22.04 to match build-test.yml exactly.
+# Base pinned to 22.04 to match build-test.yml exactly, so the image rides the
+# environment CI already verifies end to end on every push. A consequence worth
+# naming: the image's libtins is 22.04's, not the host's, which is the whole
+# point of packaging it.
 #
-# 24.04 was tried first (it is what the reference two-PC setup runs) and its
-# GCC refuses to build CommonAPI 3.2.0: upstream compiles with -Werror, and the
-# newer toolchain both deprecates std::ptr_fun and stops pulling <string> in
-# transitively, so capicxx-core-runtime fails on its own sources. Carrying a
-# patch for a third-party dependency to satisfy a base-image preference is debt
-# for nothing — CI proves 22.04 end to end on every push, so the image rides the
-# environment that is already continuously verified. A consequence worth naming:
-# the image's libtins is 22.04's, not the host's, which is the whole point of
-# packaging it.
+# (The original reason for the pin was that 24.04's GCC refuses to build
+# CommonAPI 3.2.0 under its -Werror. That no longer applies here — nothing in
+# this image builds CommonAPI — but it still applies to any DERIVED image that
+# adds a DUT, so the constraint is recorded rather than dropped.)
 FROM ubuntu:22.04
 
-# Single source for the Boost pin: the fetch, the checksum and the comment all
-# derive from these, mirroring build-test.yml so the image and CI cannot drift
-# to different SOME/IP stacks. vsomeip 3.7.3 needs Boost >= 1.75.
-ARG BOOST_VERSION=1.75.0
-ARG BOOST_SHA256=aeb26f80e80945e82ee93e5939baebdca47b9dee80a07d3144be1e1a6a66dd6a
-ARG COMMONAPI_TAG=3.2.0
-# Everything lands in one prefix so CMAKE_PREFIX_PATH stays single-rooted, and
-# so vsomeip's $ORIGIN rpath resolves its dlopen'd plugin modules from a sibling
-# lib/ — the failure mode that otherwise surfaces as the misleading
-# "Configuration module could not be loaded!" with the dlerror swallowed.
-ENV SOMEIP_PREFIX=/opt/someip-stack
-ENV CMAKE_PREFIX_PATH=/opt/someip-stack
 ENV DEBIAN_FRONTEND=noninteractive
 
 # --- Layer 1: distribution packages -----------------------------------------
@@ -116,7 +126,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         ninja-build \
         pkg-config \
         python3 \
-        quilt \
         iproute2 \
         iputils-ping \
         openssh-client \
@@ -137,58 +146,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable
 ENV PATH=/root/.cargo/bin:$PATH
 
-# --- Layer 2: Boost (source) -------------------------------------------------
-# Only `filesystem` is needed (libvsomeip3-cfg links it). The tarball is
-# checksum-verified before it is compiled and installed into the runtime stack:
-# an unverified download here would be a supply-chain hole, not a convenience.
-RUN set -eux; \
-    boost_uscore="$(echo "${BOOST_VERSION}" | tr . _)"; \
-    curl -fsSL -o /tmp/boost.tar.gz \
-        "https://archives.boost.io/release/${BOOST_VERSION}/source/boost_${boost_uscore}.tar.gz"; \
-    echo "${BOOST_SHA256}  /tmp/boost.tar.gz" | sha256sum -c -; \
-    tar -xzf /tmp/boost.tar.gz -C /tmp; \
-    cd "/tmp/boost_${boost_uscore}"; \
-    ./bootstrap.sh --prefix="${SOMEIP_PREFIX}" --with-libraries=filesystem; \
-    ./b2 -j"$(nproc)" variant=release link=shared threading=multi install; \
-    rm -rf /tmp/boost*
-
-# --- Layer 3: the pinned sources the dependency builds need ------------------
-# Only the parts setup-vsomeip.sh and the sce pin read, copied BEFORE the rest of
-# the tree: an ordinary source edit then leaves these expensive layers cached.
-# .git comes along because the pristine reset below is a git operation and
-# third_party/vsomeip/.git is a pointer into .git/modules (see .dockerignore).
+# --- Layer 2: the pinned sources the dependency build needs ------------------
+# Only the part the sce pin reads (third_party/sce/VERSION), copied BEFORE the
+# rest of the tree so an ordinary source edit leaves the expensive layer below
+# cached.
+#
+# Boost, vsomeip and CommonAPI were built here until the tester stopped naming a
+# SOME/IP stack it never called into. Nothing in this image needs them now, and
+# their absence is what keeps that true (see the header). `patches/` and `.git`
+# went with them: both existed only for the vsomeip quilt series and its pristine
+# git reset, and nothing in this build embeds a commit SHA.
 WORKDIR /src
-COPY .git /src/.git
-COPY scripts /src/scripts
-COPY patches /src/patches
 COPY third_party /src/third_party
 
-# vsomeip: patched in place by the repo's own quilt series. Using the script
-# rather than open-coding cmake keeps the image on the SAME patch stack the
-# harness is tested against — the series is what RPC_07/_08 depend on.
-RUN ./scripts/setup-vsomeip.sh "${SOMEIP_PREFIX}"
-
-# --- Layer 4: CommonAPI (source) --------------------------------------------
-# AFTER vsomeip: capicxx-someip-runtime links it, which is why build-test.yml
-# orders them this way. Upstream and unpatched, so they only rebuild when the
-# tag or the prefix changes.
-RUN set -eux; \
-    mkdir -p /tmp/capi && cd /tmp/capi; \
-    git clone --depth=1 --branch "${COMMONAPI_TAG}" https://github.com/COVESA/capicxx-core-runtime.git; \
-    cmake -S capicxx-core-runtime -B capicxx-core-runtime/build \
-        -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="${SOMEIP_PREFIX}"; \
-    cmake --build capicxx-core-runtime/build -j"$(nproc)"; \
-    cmake --install capicxx-core-runtime/build; \
-    git clone --depth=1 --branch "${COMMONAPI_TAG}" https://github.com/COVESA/capicxx-someip-runtime.git; \
-    cmake -S capicxx-someip-runtime -B capicxx-someip-runtime/build \
-        -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="${SOMEIP_PREFIX}" \
-        -DCMAKE_PREFIX_PATH="${SOMEIP_PREFIX}"; \
-    cmake --build capicxx-someip-runtime/build -j"$(nproc)"; \
-    cmake --install capicxx-someip-runtime/build; \
-    rm -rf /tmp/capi
-
-
-# --- Layer 5: sce-codegen at the pinned SHA. Built here rather than fetched so
+# --- Layer 3: sce-codegen at the pinned SHA. Built here rather than fetched so
 # the image carries no unpinned binary.
 RUN set -eux; \
     rev="$(tr -d '[:space:]' < third_party/sce/VERSION)"; \
@@ -199,10 +170,15 @@ RUN set -eux; \
     install /tmp/sce-src/target/release/sce-codegen /usr/local/bin/; \
     rm -rf /tmp/sce-src /root/.cargo/registry
 
-# --- Layer 6: the harness + orchestrator ------------------------------------
+# --- Layer 4: the harness + orchestrator ------------------------------------
 # The rest of the tree, now that every dependency layer above is settled.
 COPY . /src
 
+# TC8_BUILD_MOCK_DUT=OFF is what makes this a TESTER image: it is the option that
+# owns the SOME/IP middleware dependency, so declining it means no find_package
+# for vsomeip/CommonAPI runs at all. If this configure ever fails looking for one
+# of them, something has re-coupled the tester to the middleware — fix that, do
+# not install a stack here (see the header).
 RUN cmake -S . -B build \
         -DCMAKE_BUILD_TYPE=Release \
         -DTC8_SCE_FIND_PACKAGE=OFF \

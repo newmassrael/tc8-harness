@@ -23,13 +23,18 @@ site/node_modules/
 *.pcap
 *.log
 
-# NOTE: .git/ is deliberately NOT excluded. scripts/setup-vsomeip.sh resets the
-# vendored vsomeip tree with `git checkout -- .` + `git clean -fdx` before
-# applying the quilt series, and third_party/vsomeip/.git is a 47-byte pointer
-# into .git/modules/ — drop the parent and the submodule stops being a git
-# checkout, which the script refuses (correctly) rather than building something
-# unintended. It costs 64 MB of context; the alternative is an image built from
-# an unpinned vsomeip.
+# .git/ is excluded. It used to be deliberately KEPT — at 64 MB of context —
+# because scripts/setup-vsomeip.sh reset the vendored vsomeip tree with
+# `git checkout -- .` + `git clean -fdx` before applying the quilt series, and
+# third_party/vsomeip/.git is a 47-byte pointer into .git/modules/ that stops
+# being a git checkout the moment its parent is dropped.
+#
+# The tester image no longer builds vsomeip at all (docker/Dockerfile header), so
+# nothing in it runs a git operation against this tree and nothing embeds a commit
+# SHA. Re-including .git would mean something started doing one of those — check
+# which before adding it back, because a DUT-carrying derived image that restores
+# setup-vsomeip.sh genuinely does need it.
+.git/
 
 # Operator site descriptors: real addresses, account names, and interface names
 # that encode a MAC. Never in the image, never in git.
