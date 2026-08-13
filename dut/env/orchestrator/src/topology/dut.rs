@@ -23,9 +23,14 @@ use std::process::Child;
 
 mod command;
 mod local_exec;
+mod persistent;
+mod probe;
+mod ssh_exec;
 
 pub(crate) use command::CommandDut;
 pub(crate) use local_exec::LocalExec;
+pub(crate) use persistent::PersistentDut;
+pub(crate) use ssh_exec::{remote_reap_dut_and_scratch, SshExecDut};
 
 /// Where a DUT has to run in order to sit on the wire the tester transport built.
 ///
@@ -87,6 +92,21 @@ pub(crate) trait DutLifecycle {
     /// Per-worker setup this lifecycle owns (e.g. the worker-unique argv[0] marker a
     /// later reap scopes to). The transport has already built the wire.
     fn bring_up_worker(&self, _w: u32) -> Result<()> {
+        Ok(())
+    }
+
+    /// Stand up and/or VERIFY the DUT once for the whole run, after the transport has
+    /// provisioned the wire. A lifecycle that stands nothing up (a persistent DUT)
+    /// still uses this as its liveness gate — "is the thing we are about to certify
+    /// actually there" is a DUT question, so it belongs on this axis even when the
+    /// answer costs nothing to obtain.
+    fn provision_run(&self, _placement: &DutPlacement) -> Result<()> {
+        Ok(())
+    }
+
+    /// Reap whatever `provision_run` stood up, once, on the teardown path.
+    /// Best-effort: the caller logs a failure rather than aborting.
+    fn teardown_run(&self) -> Result<()> {
         Ok(())
     }
 
