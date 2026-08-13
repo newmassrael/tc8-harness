@@ -27,6 +27,16 @@ exec unshare --net --mount --propagation private -- bash -c '
     set -euo pipefail
     # Shadow /run/netns with a private tmpfs so `ip netns add` name files are ours
     # alone (the veth devices are already isolated by the private net namespace).
+    #
+    # The directory is created first because its existence is NOT guaranteed: on a
+    # workstation some earlier `ip netns add` left it behind, but on a clean root
+    # filesystem (a container image, a freshly booted host) it is absent and the
+    # mount below dies with "mount point does not exist" — a message that reads
+    # like a permission fault and is not one, which makes it expensive to
+    # diagnose. Creating it is exactly what iproute2 does for itself, so this
+    # takes nothing away from the host: an empty /run/netns is the state
+    # `ip netns add` would have produced anyway.
+    mkdir -p /run/netns
     mount -t tmpfs tmpfs /run/netns
     # A fresh net namespace ships lo DOWN; bring it up so anything expecting a
     # working loopback in the run root behaves as on the host.
