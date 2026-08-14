@@ -112,6 +112,11 @@ target_compile_definitions(capture_stats_test PRIVATE
     TC8_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 target_link_libraries(capture_stats_test PRIVATE ${PCAP_LIBRARY})
 
+# The stimulus-axis twin of capture_stats_test above: a verdict rests on both
+# "could we have observed it" and "did the stimulus actually happen", and this
+# covers the second. Header-only, so no extra link deps.
+tc8_add_unit_test(unperformed_stimulus_test)
+
 tc8_add_unit_test(case_registry_test)
 # AES-CMAC engine: the RFC 4493 published vectors (the four example MACs plus the
 # key-length guard) pin FIPS-197 AES-128 and the CMAC construction. Pure byte

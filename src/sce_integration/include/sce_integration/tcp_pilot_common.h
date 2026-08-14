@@ -21,6 +21,7 @@
 #include <unistd.h>
 
 #include "tc8/captured_event.h"
+#include "tc8/unperformed_stimulus.h"  // record a filter that would not install.
 #include "tc8/upper_tester_protocol.h"
 #include "sce_integration/tcp_captured.h"
 #include "sce_integration/test_config.h"
@@ -757,22 +758,27 @@ class TesterInboundDropScope {
 public:
     TesterInboundDropScope(const ::tc8::stimulus::Endpoint &dut,
                            const ::tc8::stimulus::Endpoint &tester) {
+        // EVERY exit that leaves the filter uninstalled records the fact, so the
+        // verdict site can refuse to grade a DUT on a teardown that never
+        // happened (tc8/unperformed_stimulus.h). Two of these paths used to
+        // return in total silence, which is strictly worse than the warned ones:
+        // there was not even a log line to contradict the verdict.
         char dut_ip[INET_ADDRSTRLEN] = {};
         char tester_ip[INET_ADDRSTRLEN] = {};
         if (::inet_ntop(AF_INET, &dut.ipv4_be, dut_ip, sizeof(dut_ip)) == nullptr ||
             ::inet_ntop(AF_INET, &tester.ipv4_be, tester_ip, sizeof(tester_ip)) == nullptr) {
+            fail("endpoint address could not be rendered");
             return;
         }
         if (!ensureTesterStimulusChain("INPUT")) {
-            std::fprintf(stderr,
-                         "tcp-pilot: TesterInboundDropScope chain setup failed "
-                         "(continuing without the drop filter)\n");
+            fail("chain setup failed");
             return;
         }
         const int rc = std::snprintf(match_, sizeof(match_),
                       "-p tcp -s %s --sport %u -d %s --dport %u -j DROP",
                       dut_ip, dut.port, tester_ip, tester.port);
         if (rc < 0 || rc >= static_cast<int>(sizeof(match_))) {
+            fail("match expression did not fit");
             return;
         }
         char cmd[320];
@@ -781,9 +787,7 @@ public:
         if (std::system(cmd) == 0) {
             installed_ = true;
         } else {
-            std::fprintf(stderr,
-                         "tcp-pilot: TesterInboundDropScope install failed "
-                         "(continuing without the drop filter)\n");
+            fail("install failed");
         }
     }
 
@@ -802,6 +806,19 @@ public:
     bool installed() const { return installed_; }
 
 private:
+    /// Warn AND record. The warning is for a human reading the log; the record is
+    /// for the verdict, which is the half that was missing — this accessor
+    /// existed and nothing ever called it, so the failure could not reach a
+    /// conclusion no matter how loudly it printed.
+    static void fail(const char *why) {
+        std::fprintf(stderr,
+                     "tcp-pilot: TesterInboundDropScope %s "
+                     "(continuing without the drop filter; the case will be "
+                     "inconclusive rather than graded)\n",
+                     why);
+        ::tc8::UnperformedStimulus::record("tester_inbound_drop");
+    }
+
     bool installed_ = false;
     char match_[256] = {};
 };
@@ -826,6 +843,7 @@ public:
         char dut_ip[INET_ADDRSTRLEN] = {};
         if (::inet_ntop(AF_INET, &cfg.ipv4.dut_iface_ip, dut_ip,
                          sizeof(dut_ip)) == nullptr) {
+            fail("DUT address could not be rendered");
             return;
         }
         char cmd[256];
@@ -834,23 +852,22 @@ public:
         // (/run/xtables.lock) and iptables-nft (netlink-layer
         // serialisation) backends.
         if (!ensureTesterStimulusChain()) {
-            std::fprintf(stderr,
-                         "tcp-pilot: TesterAutoRstDrop chain setup failed "
-                         "(continuing without RST suppression)\n");
+            fail("chain setup failed");
             return;
         }
         const int rc = std::snprintf(cmd, sizeof(cmd),
                       "iptables -w 5 -A %s -p tcp --tcp-flags RST RST "
                       "-d %s -j DROP 2>/dev/null",
                       kTesterStimulusChain, dut_ip);
-        if (rc < 0 || rc >= static_cast<int>(sizeof(cmd))) return;
+        if (rc < 0 || rc >= static_cast<int>(sizeof(cmd))) {
+            fail("rule expression did not fit");
+            return;
+        }
         if (std::system(cmd) == 0) {
             installed_ = true;
             dut_ip_.assign(dut_ip);
         } else {
-            std::fprintf(stderr,
-                         "tcp-pilot: TesterAutoRstDrop install failed "
-                         "(continuing without RST suppression)\n");
+            fail("install failed");
         }
     }
 
@@ -871,6 +888,21 @@ public:
     bool installed() const { return installed_; }
 
 private:
+    /// Warn AND record (tc8/unperformed_stimulus.h). The header above used to
+    /// argue that a failed install is safe because "any race condition surfaces
+    /// as a deterministic case timeout". That is an assumption about how the
+    /// failure manifests, and it does not hold: an unsuppressed tester RST can
+    /// equally leave the DUT looking like it responded wrongly, which grades as a
+    /// confident FAIL. Recording removes the need to predict the shape.
+    static void fail(const char *why) {
+        std::fprintf(stderr,
+                     "tcp-pilot: TesterAutoRstDrop %s "
+                     "(continuing without RST suppression; the case will be "
+                     "inconclusive rather than graded)\n",
+                     why);
+        ::tc8::UnperformedStimulus::record("tester_auto_rst_drop");
+    }
+
     bool installed_ = false;
     std::string dut_ip_;
 };

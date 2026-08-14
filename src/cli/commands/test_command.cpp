@@ -18,6 +18,7 @@
 #include <pcap/pcap.h>
 
 #include "tc8/capture_stats.h"
+#include "tc8/unperformed_stimulus.h"
 #include "tc8/captured_event.h"
 #include "tc8/pollable_service.h"
 
@@ -1121,6 +1122,37 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // DUT was demonstrably putting 18 frames on the wire. That is why the
     // membership is established up front and carried here as evidence rather
     // than inferred from what arrived.
+    // The stimulus axis, checked FIRST because it is the more fundamental of the
+    // two preconditions. The capture rule below asks whether we could have
+    // OBSERVED the DUT's behaviour; this asks whether the behaviour we are
+    // grading a response to was ever PROVOKED. If the stimulus never happened,
+    // the case has no premise, so neither direction of verdict is about the DUT —
+    // and unlike the capture rule (which only threatens an absence-based PASS)
+    // this invalidates a FAIL just as much. That is the expensive direction:
+    // measured, a host without iptables produced
+    // `fail:event_0x8003_sent_after_tcp_connection_lost` against a DUT that was
+    // behaving correctly, with a capture that appeared to corroborate it.
+    //
+    // Like the capture rule, it lives here rather than in each case: the scopes
+    // are RAII objects built deep in case code, and an invariant that every case
+    // author must remember is one that gets forgotten.
+    // Applies to an already-INCONCLUSIVE verdict too, which is diagnostics rather
+    // than disposition (both are non-conclusions, so no gate outcome changes).
+    // Measured: with the filter uninstalled, TCP_FLAGS_INVALID_07 reported
+    // `no_dut_ack_to_otw_seq_syn_in_syn_recv` — true, and a description of the
+    // SYMPTOM. The DUT did not ACK because the tester's kernel was free to RST it.
+    // Reporting the symptom sends an operator to look for a DUT defect; reporting
+    // the unperformed stimulus sends them to their own host, which is where the
+    // problem is. Naming the root cause is the whole point of the request this
+    // implements: "a missing host tool did not look like a missing host tool".
+    //
+    // Error is deliberately left alone — a test-system fault outranks this and
+    // must not be softened into a precondition note.
+    if (verdict.cls != ::tc8::sce::VerdictClass::Error &&
+        ::tc8::UnperformedStimulus::any()) {
+        verdict = ::tc8::sce::Verdict{::tc8::sce::VerdictClass::Inconclusive,
+                                      ::tc8::UnperformedStimulus::reason()};
+    }
     const bool capture_whole =
         ::tc8::captureProvenComplete(capture_stats) && pipeline.truncatedFrames() == 0;
     if (verdict.cls == ::tc8::sce::VerdictClass::Pass &&
