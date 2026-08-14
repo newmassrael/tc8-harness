@@ -66,8 +66,8 @@ fn append_l2l3_identity(e: &mut Vec<String>, cfg: &Config, dut_mac: &str) {
     // Netns alias IPs (setup-netns.sh) for the UDP_USER_INTERFACE caller-specified
     // IP axis. External topologies whose DUT carries different aliases override via
     // TC8_TOPOLOGY_{DUT,TESTER}_ALIAS_IP (bash side only).
-    ex(e, "ipv4.dut_alias_ip", wire::DUT_ALIAS_IP);
-    ex(e, "ipv4.tester_alias_ip", wire::TESTER_ALIAS_IP);
+    ex(e, "ipv4.dut_alias_ip", &cfg.dut_alias_ip4);
+    ex(e, "ipv4.tester_alias_ip", &cfg.tester_alias_ip4);
 }
 
 /// The per-worker DUT-MAC `--expect` keys (kernel-assigned veth MAC,

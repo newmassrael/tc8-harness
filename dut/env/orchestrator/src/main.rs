@@ -1,10 +1,15 @@
 //! tc8-orchestrator — Rust successor to `dut/env/smoke-test.sh`.
 //!
 //! Drives the TC8 conformance harness against a per-topology DUT, extracts the
-//! verdict, and (later stages) aggregates JUnit and ports the per-case
-//! conditioning from bash. Built incrementally (strangler): each stage absorbs
-//! more of smoke-test.sh, with the bash original kept as the parity baseline
-//! until the S8 CI cutover.
+//! verdict, and aggregates JUnit. Built incrementally (strangler): each stage
+//! absorbed more of smoke-test.sh.
+//!
+//! THE STRANGLER IS FINISHED. `dut/env/smoke-test.sh` was deleted at the S8
+//! cutover and this binary is the sole CI driver; there is no bash baseline left
+//! to stay in parity with. The stage list below is kept as the record of how the
+//! port was sequenced — it explains why the modules are shaped the way they are —
+//! but nothing in it is pending. Comments elsewhere that spoke of the bash
+//! original as a live SSOT were true once and are not now.
 //!
 //! Stage 1: CLI + single-pc topology + single-worker positive-case dispatch.
 //! Stage 2: round-robin distribution across N parallel workers (per-worker
@@ -118,6 +123,20 @@ struct Cli {
     cases: Vec<String>,
 }
 
+/// Overlay the site's caller-specified-IP aliases onto the run identity, leaving
+/// the wire.def defaults in place for whichever the site did not name. Only the
+/// host-NIC topologies reach this: single-pc and lwip-tap build the aliases
+/// themselves, so their configured value IS the wire constant and there is
+/// nothing to override.
+fn apply_alias_overrides(cfg: &mut Config, wire: &site::WireSite) {
+    if let Some(ip) = &wire.dut_alias_ip {
+        cfg.dut_alias_ip4 = ip.clone();
+    }
+    if let Some(ip) = &wire.tester_alias_ip {
+        cfg.tester_alias_ip4 = ip.clone();
+    }
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
     let mut cases: Vec<String> = if cli.cases.is_empty() {
@@ -166,10 +185,12 @@ fn main() -> Result<()> {
         TopologyConf::External(e) => {
             cfg.tester_ip4 = e.wire.tester_ip.clone();
             cfg.dut_ip4 = e.wire.dut_ip.clone();
+            apply_alias_overrides(&mut cfg, &e.wire);
         }
         TopologyConf::SshRemote(s) => {
             cfg.tester_ip4 = s.wire.tester_ip.clone();
             cfg.dut_ip4 = s.wire.dut_ip.clone();
+            apply_alias_overrides(&mut cfg, &s.wire);
         }
         TopologyConf::LwipTap { .. } => {}
     }

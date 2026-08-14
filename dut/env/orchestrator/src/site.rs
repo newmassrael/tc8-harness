@@ -11,9 +11,11 @@
 //! down by the `fixtures` module — so a production deployment names a real DUT
 //! (no `[fixture]`), while the in-tree verification runs name a fixture the
 //! orchestrator owns end to end. There is deliberately no legacy bash-conf
-//! compatibility: the strangler keeps smoke-test.sh as the SSOT (and the channel
-//! OEM bash confs target) until the S8 cutover, so nothing drives the orchestrator
-//! with a bash fragment yet.
+//! compatibility, and that is now a permanent decision rather than a staging one:
+//! the bash driver those confs targeted was deleted at the S8 cutover, so this
+//! TOML is the only site channel there is. An OEM arriving with a
+//! `TC8_TOPOLOGY_*` shell fragment has to port it, and `deny_unknown_fields`
+//! makes a half-ported one fail loudly rather than run on defaults.
 //!
 //! Two layers, parse-don't-validate: [`SiteConf`] is the permissive TOML boundary
 //! (every field optional, `deny_unknown_fields`); [`SiteConf::resolve`] turns it
@@ -246,13 +248,18 @@ struct SiteConf {
     /// (external.conf TC8_TOPOLOGY_REQUIRE_UT).
     #[serde(default)]
     require_ut: bool,
-    // NOTE: bash also exposes TC8_TOPOLOGY_DUT_ALIAS_IP / TC8_TOPOLOGY_TESTER_ALIAS_IP
-    // (UDP_USER_INTERFACE_07/08 against a real external DUT). They are deliberately
-    // NOT fields yet: dispatch hardcodes the netns-default aliases (wire::*), and the
-    // per-case --expect OVERRIDE layer that would consume site-supplied aliases lands
-    // with the S6 override stage. `deny_unknown_fields` makes an OEM conf carrying
-    // those keys fail LOUD (a clear rejection), not silently ignored — so this is a
-    // tracked deferral, not a silent gap.
+    /// The caller-specified-IP aliases UDP_USER_INTERFACE_07/08 source traffic
+    /// from (bash TC8_TOPOLOGY_DUT_ALIAS_IP / TC8_TOPOLOGY_TESTER_ALIAS_IP).
+    ///
+    /// Absent = the netns addresses from wire.def, which is what every in-tree
+    /// topology uses. A real external DUT carries whatever aliases its operator
+    /// configured, and those cases assert traffic from them, so the site has to be
+    /// able to say. Note this is NOT reachable through `extra_expect`: the L2/L3
+    /// statics are folded in AFTER the operator tokens and win over a colliding
+    /// one, so a token naming these keys would be silently outranked — which is
+    /// precisely why they need to be real fields.
+    dut_alias_ip: Option<String>,
+    tester_alias_ip: Option<String>,
 
     // --- ssh-remote only ---
     /// user@host for the DUT machine.
@@ -330,6 +337,10 @@ pub struct WireSite {
     pub dut_mac: Option<String>,
     /// Secondary tester NIC (TC8 Topology 2); empty-normalized to `None`.
     pub iface_secondary: Option<String>,
+    /// UDP_USER_INTERFACE caller-specified-IP aliases; `None` = the wire.def
+    /// netns defaults `Config` was seeded with.
+    pub dut_alias_ip: Option<String>,
+    pub tester_alias_ip: Option<String>,
     /// Verification fixture to provision (kind compatibility already checked).
     pub fixture: Option<FixtureSpec>,
 }
@@ -452,6 +463,8 @@ impl SiteConf {
             dut_mac,
             iface_secondary,
             preflight_src_ip,
+            dut_alias_ip,
+            tester_alias_ip,
             require_ut: _, // bool — no ${} to expand
             ssh_target,
             ssh_opts,
@@ -472,6 +485,8 @@ impl SiteConf {
             dut_mac,
             iface_secondary,
             preflight_src_ip,
+            dut_alias_ip,
+            tester_alias_ip,
             ssh_target,
             ssh_opts,
             remote_dut_bin,
@@ -527,6 +542,8 @@ impl SiteConf {
             dut_mac,
             iface_secondary,
             preflight_src_ip,
+            dut_alias_ip,
+            tester_alias_ip,
             require_ut,
             ssh_target,
             ssh_opts,
@@ -547,6 +564,8 @@ impl SiteConf {
         let dut_mac = ne(dut_mac);
         let iface_secondary = ne(iface_secondary);
         let preflight_src_ip = ne(preflight_src_ip);
+        let dut_alias_ip = ne(dut_alias_ip);
+        let tester_alias_ip = ne(tester_alias_ip);
         let ssh_target = ne(ssh_target);
         let ssh_opts = ne(ssh_opts);
         let remote_dut_bin = ne(remote_dut_bin);
@@ -572,13 +591,15 @@ impl SiteConf {
         // topology-specific field consumed by one arm but FORGOTTEN here would not be
         // rejected when set under a different topology — keep it in sync with the
         // struct's topology-specific fields.
-        let all_fields: [(&str, bool); 13] = [
+        let all_fields: [(&str, bool); 15] = [
             ("iface", iface.is_some()),
             ("dut_ip", dut_ip.is_some()),
             ("tester_ip", tester_ip.is_some()),
             ("dut_mac", dut_mac.is_some()),
             ("iface_secondary", iface_secondary.is_some()),
             ("preflight_src_ip", preflight_src_ip.is_some()),
+            ("dut_alias_ip", dut_alias_ip.is_some()),
+            ("tester_alias_ip", tester_alias_ip.is_some()),
             ("require_ut", require_ut),
             ("ssh_target", ssh_target.is_some()),
             ("ssh_opts", ssh_opts.is_some()),
@@ -627,7 +648,8 @@ impl SiteConf {
                     topology,
                     &all_fields,
                     &["iface", "dut_ip", "tester_ip", "dut_mac", "iface_secondary",
-                      "preflight_src_ip", "require_ut"],
+                      "preflight_src_ip", "dut_alias_ip", "tester_alias_ip",
+                      "require_ut"],
                 )?;
                 let mut missing: Vec<&str> = Vec::new();
                 if iface.is_none() {
@@ -648,6 +670,8 @@ impl SiteConf {
                         tester_ip: tester_ip.unwrap(),
                         dut_mac,
                         iface_secondary,
+                        dut_alias_ip,
+                        tester_alias_ip,
                         fixture,
                     },
                     preflight_src_ip,
@@ -659,6 +683,7 @@ impl SiteConf {
                     topology,
                     &all_fields,
                     &["iface", "dut_ip", "tester_ip", "dut_mac", "iface_secondary",
+                      "dut_alias_ip", "tester_alias_ip",
                       "ssh_target", "ssh_opts", "remote_dut_bin", "remote_vsomeip_cfg",
                       "remote_capi_cfg", "remote_wrap"],
                 )?;
@@ -693,6 +718,8 @@ impl SiteConf {
                         tester_ip: tester_ip.unwrap(),
                         dut_mac,
                         iface_secondary,
+                        dut_alias_ip,
+                        tester_alias_ip,
                         fixture,
                     },
                     ssh_target: ssh_target.unwrap(),
@@ -858,6 +885,48 @@ mod tests {
             }
             other => panic!("expected External, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn alias_ips_are_carried_for_a_real_dut_and_default_to_absent() {
+        // A real external DUT carries whatever aliases its operator gave it, and
+        // UDP_USER_INTERFACE_07/08 assert traffic sourced from them. Absent = the
+        // wire.def netns defaults Config was seeded with, which is what keeps the
+        // --print-expect parity dump byte-identical for every in-tree run.
+        let plain = external_triple().resolve(TopologyKind::External).unwrap().conf;
+        match plain {
+            TopologyConf::External(e) => {
+                assert!(e.wire.dut_alias_ip.is_none());
+                assert!(e.wire.tester_alias_ip.is_none());
+            }
+            other => panic!("expected External, got {other:?}"),
+        }
+        let conf = SiteConf {
+            dut_alias_ip: Some("192.168.10.55".into()),
+            tester_alias_ip: Some("192.168.10.44".into()),
+            ..external_triple()
+        };
+        match conf.resolve(TopologyKind::External).unwrap().conf {
+            TopologyConf::External(e) => {
+                assert_eq!(e.wire.dut_alias_ip.as_deref(), Some("192.168.10.55"));
+                assert_eq!(e.wire.tester_alias_ip.as_deref(), Some("192.168.10.44"));
+            }
+            other => panic!("expected External, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn alias_ips_are_foreign_to_the_wire_fixed_topologies() {
+        // single-pc and lwip-tap BUILD their aliases themselves, so a site value
+        // there would be a lie the run could not honour — rejected, not ignored.
+        let conf = || SiteConf {
+            dut_alias_ip: Some("10.0.0.9".into()),
+            ..SiteConf::default()
+        };
+        assert!(conf().resolve(TopologyKind::SinglePc).unwrap_err().to_string()
+            .contains("dut_alias_ip"));
+        assert!(conf().resolve(TopologyKind::LwipTap).unwrap_err().to_string()
+            .contains("dut_alias_ip"));
     }
 
     #[test]

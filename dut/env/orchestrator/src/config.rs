@@ -74,6 +74,16 @@ pub struct Config {
     pub vsomeip_base: PathBuf,
     pub tester_ip4: String,
     pub dut_ip4: String,
+    /// The UDP_USER_INTERFACE caller-specified-IP aliases. Default to the netns
+    /// addresses `setup-netns.sh` puts on the veths (wire.def), which is what the
+    /// generated `--expect` surface used to read directly. They are Config fields
+    /// rather than constants because a real external DUT carries whatever aliases
+    /// its operator gave it, and the case asserts traffic sourced from them — bash
+    /// exposed exactly this as TC8_TOPOLOGY_{DUT,TESTER}_ALIAS_IP. Seeded from the
+    /// same wire constants, so a run that overrides nothing emits an identical
+    /// surface.
+    pub tester_alias_ip4: String,
+    pub dut_alias_ip4: String,
     /// Operator-supplied extra `--expect` tokens ("key=value", NO `--expect`
     /// prefix) from a `--topology-conf` — DUT values vsomeip.json cannot supply
     /// (timing / endpoint constants). Empty by default; folded into the `--expect`
@@ -218,6 +228,10 @@ impl Config {
                 .unwrap_or_else(|_| crate::wire::TESTER_IP.into()),
             dut_ip4: env::var("TC8_TOPOLOGY_DUT_IP")
                 .unwrap_or_else(|_| crate::wire::DUT_IP.into()),
+            // Seeded from wire.def; main() overwrites from the site conf when one
+            // names different aliases.
+            tester_alias_ip4: crate::wire::TESTER_ALIAS_IP.into(),
+            dut_alias_ip4: crate::wire::DUT_ALIAS_IP.into(),
             identity,
             sd_timing,
             backstop_sec: crate::wire::BACKSTOP_SEC,
@@ -253,6 +267,8 @@ pub(crate) fn fake_cfg() -> Config {
         vsomeip_base: "/x".into(),
         tester_ip4: "172.16.0.1".into(),
         dut_ip4: "172.16.0.2".into(),
+        tester_alias_ip4: crate::wire::TESTER_ALIAS_IP.into(),
+        dut_alias_ip4: crate::wire::DUT_ALIAS_IP.into(),
         identity: DutIdentity {
             service_id: "0xF4E7".into(),
             instance_id: "0x0001".into(),

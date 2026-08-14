@@ -117,8 +117,16 @@ def _rust_value(r: Row) -> str:
         return f"&id.{r.ref}"
     if r.source == "vs_sd":
         return f"&t.{r.ref}"
-    if r.source in ("wire", "wire_alias"):
+    if r.source == "wire":
         return f"wire::{r.ref}"
+    if r.source == "wire_alias":
+        # An alias the SITE may override, so it reads a Config field rather than
+        # the wire constant directly. `Config` seeds that field FROM the same
+        # wire constant, so a run with no override emits the identical value and
+        # the --print-expect parity dump is unchanged. Field name is derived, not
+        # listed: DUT_ALIAS_IP -> cfg.dut_alias_ip4, matching the dut_ip4 /
+        # tester_ip4 spelling of the other site-overridable addresses.
+        return f"&cfg.{r.ref.lower()}4"
     if r.source == "dut_ip":
         return "&cfg.dut_ip4"
     if r.source == "tester_ip":

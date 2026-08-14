@@ -38,8 +38,10 @@
 //         vs_id      vsomeip.json identity  bash ${DUT_ID[ref]}  rust &id.ref
 //         vs_sd      vsomeip.json SD timing bash ${DUT_ID[ref]}  rust &t.ref
 //         wire       wire.def constant      bash $TC8_WIRE_ref    rust wire::ref
-//         wire_alias wire.def + bash override (${TC8_TOPOLOGY_ref:-$TC8_WIRE_ref});
-//                    rust uses wire::ref (the orchestrator has no alias override)
+//         wire_alias wire.def default that a SITE may override
+//                    (bash: ${TC8_TOPOLOGY_ref:-$TC8_WIRE_ref}; rust:
+//                    cfg.<ref lowercased>4, seeded from wire::ref so an
+//                    un-overridden run emits the identical value)
 //         dut_ip     topology DUT IPv4      bash $DUT_IP4         rust &cfg.dut_ip4
 //         tester_ip  topology tester IPv4   bash $TESTER_IP4      rust &cfg.tester_ip4
 //         dut_mac    per-worker veth MAC    bash $1 (fn arg)      rust dut_mac
