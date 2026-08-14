@@ -535,11 +535,18 @@ impl Topology for SshRemote<'_> {
 /// borrowed `SshRemote`. Builds ssh from owned params but shares the reap command
 /// with `SshRemote::stop_dut` (via `remote_reap_dut_and_scratch`), so the two can
 /// never drift.
-pub fn ssh_reap_remote_dut(target: &str, opts: Option<&str>) {
+///
+/// `wrap` is the site's `remote_wrap`, carried here for the same reason the
+/// per-case reap carries it: an elevated launch needs an elevated kill. This path
+/// is the one that runs when the operator gives up on a run, which is exactly when
+/// a leaked root DUT would be least likely to be noticed.
+pub fn ssh_reap_remote_dut(target: &str, opts: Option<&str>, wrap: Option<&str>) {
     let mut c = Command::new("ssh");
     c.args(["-n", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5"]);
     if let Some(o) = opts {
         c.args(o.split_whitespace());
     }
-    crate::proc::run_quiet(c.arg(target).arg(remote_reap_dut_and_scratch()).stdin(Stdio::null()));
+    crate::proc::run_quiet(
+        c.arg(target).arg(remote_reap_dut_and_scratch(wrap)).stdin(Stdio::null()),
+    );
 }

@@ -352,6 +352,33 @@ deliberately wrong expectations to prove the harness fails them — against a fo
 DUT a "pass" could just be a DUT that differs), and the `start`/`stop` form caps at
 `max_workers` (default 1), since a site launcher usually fronts a single device.
 
+### Giving the `ssh-remote` DUT the privileges its role needs
+
+`suspendEthernetInterface` is an Upper Tester opcode: a conforming DUT is required
+to be able to drop its own link, so `CAP_NET_ADMIN` is part of the DUT role rather
+than a local packaging preference. On `single-pc` the DUT inherits root from the
+orchestrator inside its netns and the question never comes up; over SSH it does,
+and `remote_wrap` is the seam for it:
+
+```toml
+ssh_target = "developer@192.168.10.2"
+remote_dut_bin = "/opt/tc8/tc8-dut"
+# Prefix on the remote launch. sudo -n is the usual content; a lab fixture,
+# taskset, or a container client also fit.
+remote_wrap = "sudo -n"
+```
+
+The prefix is applied to the **reap** as well as the launch. That is not a
+convenience: elevating only the launch fixes the DUT completely and leaves it
+*unreapable* — the ssh user's `pkill` cannot signal a root process — and the
+survivor then holds the SD and Upper Tester ports for every case after the first.
+The rule is the same one the `[dut]` `start`/`stop` pair states, at the narrower
+width this lifecycle needs: the binary is still ours so the *selector* stays
+derivable (`pkill -x tc8-dut`); what the site supplies is the *authority*. Whether
+the pair actually works is then measured in preflight rather than assumed — a
+sudoers rule that permits the DUT binary but not `pkill` fails the run at
+provisioning, with the reap command it tried printed out.
+
 No-silent-failure guarantees, regardless of profile:
 
 - **Preflight before any case**: profile contract validation (missing
@@ -363,7 +390,20 @@ No-silent-failure guarantees, regardless of profile:
   UT is a WARNING by default (the `--topology-conf`'s `require_ut = true`
   makes it fatal); on `ssh-remote` the probe spawns one transient remote
   `tc8-dut` and a non-answer is a hard failure with the remote log
-  dumped.
+  dumped. That same transient DUT pays for two more checks, because
+  every one of the four above can pass while the run is still
+  meaningless:
+  - **the tester listens for the DUT's SD** (`tc8-harness sd-probe`, a
+    passive capture that holds the SD multicast membership). The Upper
+    Tester is unicast, so it cannot exercise the multicast leg — and a
+    DUT host missing a multicast route on its test NIC emits no SD at
+    all while answering everything else, which reads as a silent DUT and
+    is not one. Zero SD frames stops the run and names the route.
+  - **the reap is proved to work**: if a `tc8-dut` survives the probe's
+    own reap, the launch and the reap do not have the same privileges
+    (see `remote_wrap` below). Caught here rather than on the *second*
+    case, where the survivor would be holding the SD and Upper Tester
+    ports.
 - **Explicit SKIP**: a case the topology cannot execute (e.g.
   `DHCPv4_CLIENT_USAGE_01` without a secondary interface) is reported
   as SKIP with the reason in stdout, the summary, and JUnit

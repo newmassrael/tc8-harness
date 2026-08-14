@@ -191,7 +191,19 @@ sudo dut/env/orchestrator/target/debug/tc8-orchestrator --topology external \
   펌웨어가 구현한 최고 opcode도 보고합니다). `external`에서 UT 부재는
   기본 WARNING(`--topology-conf`의 `require_ut = true`로 치명화), `ssh-remote`는
   일시적 원격 `tc8-dut`를 스폰해 프로브하며 무응답은 원격 로그 덤프와
-  함께 하드 실패입니다.
+  함께 하드 실패입니다. 그 일시적 DUT는 두 가지 검사를 더 지불합니다 —
+  위의 네 검사가 모두 통과해도 런 자체가 무의미할 수 있기 때문입니다:
+  - **테스터가 DUT의 SD를 실제로 듣는지**(`tc8-harness sd-probe` — SD
+    멀티캐스트 멤버십을 쥔 수동 캡처). Upper Tester는 유니캐스트라
+    멀티캐스트 경로를 구조적으로 검사할 수 없습니다. 테스트 NIC에
+    멀티캐스트 라우트가 없는 DUT 호스트는 나머지 모든 검사에 정상
+    응답하면서 SD를 한 프레임도 내보내지 않으며, 이는 조용한 DUT처럼
+    보이지만 DUT 결함이 아닙니다. SD 프레임이 0이면 런을 중단하고
+    라우트를 지목합니다.
+  - **reap이 실제로 동작하는지 증명**: 프로브 자신의 reap 이후에도
+    `tc8-dut`가 살아남으면 launch와 reap의 권한이 다른 것입니다(아래
+    `remote_wrap`). *두 번째* 케이스가 아니라 여기서 잡습니다 —
+    생존자는 SD/Upper Tester 포트를 쥐고 있습니다.
 - **명시적 SKIP**: 토폴로지가 실행할 수 없는 케이스(예: 보조
   인터페이스 없는 `DHCPv4_CLIENT_USAGE_01`)는 stdout, 요약, JUnit
   (`<skipped/>`) 세 곳 모두에 사유와 함께 SKIP으로 보고됩니다 —
@@ -205,6 +217,33 @@ sudo dut/env/orchestrator/target/debug/tc8-orchestrator --topology external \
   프로세스)는 깨끗한 "all cases passed" 대신 하드 FATAL이 됩니다.
 - **플래그 게이트**: 프로필 능력을 벗어나는 `--negative`,
   `--dut-first`, `--workers`는 시작 시점에 사유와 함께 거부됩니다.
+
+### `ssh-remote` DUT에 역할이 요구하는 권한 주기
+
+`suspendEthernetInterface`는 Upper Tester opcode입니다 — 적합한 DUT는 자기
+링크를 스스로 내릴 수 있어야 하므로 `CAP_NET_ADMIN`은 로컬 패키징 취향이
+아니라 DUT 역할의 일부입니다. `single-pc`에서는 DUT가 netns 안에서
+오케스트레이터의 root를 물려받아 이 문제가 드러나지 않지만, SSH 너머에서는
+드러나며 `remote_wrap`이 그 심(seam)입니다:
+
+```toml
+ssh_target = "developer@192.168.10.2"
+remote_dut_bin = "/opt/tc8/tc8-dut"
+# 원격 launch에 붙는 접두사. 보통은 sudo -n; 랩 픽스처, taskset,
+# 컨테이너 클라이언트도 들어갈 수 있습니다.
+remote_wrap = "sudo -n"
+```
+
+이 접두사는 launch뿐 아니라 **reap에도** 적용됩니다. 편의가 아닙니다 —
+launch만 승격하면 DUT는 완전히 고쳐지지만 *reap 불가* 상태가 되고(ssh
+사용자의 `pkill`은 root 프로세스에 시그널을 보낼 수 없습니다), 그 생존자가
+첫 케이스 이후 모든 케이스에서 SD/Upper Tester 포트를 쥡니다. `[dut]`의
+`start`/`stop` 쌍이 말하는 규칙과 같되, 이 라이프사이클에 필요한 만큼만
+좁힌 것입니다: 바이너리는 여전히 우리 것이라 *셀렉터*는 도출 가능하고
+(`pkill -x tc8-dut`), 사이트가 공급하는 것은 *권한*입니다. 그 쌍이 실제로
+동작하는지는 가정하지 않고 프리플라이트에서 측정합니다 — DUT 바이너리는
+허용하되 `pkill`은 허용하지 않는 sudoers 규칙은 프로비저닝 단계에서 시도한
+reap 명령과 함께 런을 실패시킵니다.
 
 비기본 프로필의 자가-완결 검증 픽스처가
 `dut/env/orchestrator/examples/`(`external-netns-fixture.toml`,

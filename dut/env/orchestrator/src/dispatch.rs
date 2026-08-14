@@ -62,11 +62,16 @@ pub(crate) fn wait_bounded(child: &mut Child, ticks: u32) -> bool {
     matches!(child.try_wait(), Ok(Some(_)) | Err(_))
 }
 
-/// Block until the harness signals its capture is live (its `--ready-file`
+/// Block until a harness capture child signals it is live (its `--ready-file`
 /// appears), then let the caller start the DUT. Returns early — proceeding
-/// anyway — if the harness exits first (capture open failed; hlog will classify
+/// anyway — if the child exits first (capture open failed; its log will classify
 /// it) or the poll ceiling elapses, so a missing signal never hangs the worker.
-fn wait_for_capture_ready(ready: &Path, harness: &mut Child) {
+///
+/// Shared with the ssh-remote SD-egress preflight, whose `sd-probe` child arms
+/// the same kind of capture around the same kind of DUT spawn: both need the
+/// ring armed before the DUT's first frame, and one barrier is the only way the
+/// two can stay right together.
+pub(crate) fn wait_for_capture_ready(ready: &Path, harness: &mut Child) {
     for _ in 0..CAPTURE_READY_MAX_POLLS {
         if ready.exists() {
             return;

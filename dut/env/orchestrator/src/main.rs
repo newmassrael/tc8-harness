@@ -316,8 +316,13 @@ fn main() -> Result<()> {
     // installing it early is sound. It composes the teardown the per-worker reap
     // cannot do: the ssh-remote remote DUT (owned ssh params — the handler cannot
     // borrow the topology) then the verification fixture.
-    let ssh_reap: Option<(String, Option<String>)> = match &site {
-        TopologyConf::SshRemote(s) => Some((s.ssh_target.clone(), s.ssh_opts.clone())),
+    // The wrap rides along with the ssh params: the handler's reap must carry the
+    // same elevation the launch did, or a SIGINT leaks the very DUT it is trying
+    // to clean up (see `remote_reap_dut`).
+    let ssh_reap: Option<(String, Option<String>, Option<String>)> = match &site {
+        TopologyConf::SshRemote(s) => {
+            Some((s.ssh_target.clone(), s.ssh_opts.clone(), s.remote_wrap.clone()))
+        }
         _ => None,
     };
     let fixture_kind: Option<String> = match &site {
@@ -332,8 +337,8 @@ fn main() -> Result<()> {
         _ => None,
     };
     cleanup::install_signal_handler(&cfg, workers, move || {
-        if let Some((target, opts)) = &ssh_reap {
-            topology::ssh_reap_remote_dut(target, opts.as_deref());
+        if let Some((target, opts, wrap)) = &ssh_reap {
+            topology::ssh_reap_remote_dut(target, opts.as_deref(), wrap.as_deref());
         }
         if let Some(kill) = &lwip_signal_kill {
             topology::lwip_signal_teardown(kill);
