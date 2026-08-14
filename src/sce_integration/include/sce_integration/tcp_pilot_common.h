@@ -539,7 +539,10 @@ public:
     explicit TesterTcpListener(std::uint16_t port,
                                 int backlog = kBasicsTesterListenBacklog) {
         fd_ = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-        if (fd_ < 0) return;
+        if (fd_ < 0) {
+            fail(port, "socket() failed");
+            return;
+        }
         int on = 1;
         ::setsockopt(fd_, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
         // SO_REUSEPORT covers a quirk SO_REUSEADDR alone does not: a
@@ -558,17 +561,13 @@ public:
         addr.sin_addr.s_addr = htonl(INADDR_ANY);
         addr.sin_port        = htons(port);
         if (::bind(fd_, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) < 0) {
-            std::fprintf(stderr,
-                         "tcp-pilot: tester listen bind port %u failed: %d\n",
-                         port, errno);
+            fail(port, "bind failed");
             ::close(fd_);
             fd_ = -1;
             return;
         }
         if (::listen(fd_, backlog) < 0) {
-            std::fprintf(stderr,
-                         "tcp-pilot: tester listen() on port %u failed: %d\n",
-                         port, errno);
+            fail(port, "listen() failed");
             ::close(fd_);
             fd_ = -1;
         }
@@ -587,6 +586,24 @@ public:
 
     bool ok() const { return fd_ >= 0; }
     int  fd() const { return fd_; }
+
+    /// Warn AND record (tc8/unperformed_stimulus.h). A listener is a STIMULUS, not
+    /// just scaffolding: with it bound the DUT's SYN completes a handshake, and
+    /// without it the tester kernel RSTs that SYN, so the DUT does something
+    /// different and the case grades the difference as DUT behaviour. Constructing
+    /// this object is what expresses "there should be a listener here" — the
+    /// SYN-SENT cases that deliberately want none simply never build one — so a
+    /// construction that failed is always an unperformed stimulus.
+    ///
+    /// `ok()` above has existed all along and, like the drop scopes' `installed()`,
+    /// was never consulted by any caller.
+    static void fail(std::uint16_t port, const char *why) {
+        std::fprintf(stderr,
+                     "tcp-pilot: tester listener on port %u %s: %d "
+                     "(the case will be inconclusive rather than graded)\n",
+                     port, why, errno);
+        ::tc8::UnperformedStimulus::record("tester_tcp_listener");
+    }
 
     // Accept one queued connection, polling for up to `timeout`. Returns
     // the connected fd on success, -1 on timeout or accept failure. The
@@ -929,6 +946,7 @@ public:
         char dut_ip[INET_ADDRSTRLEN] = {};
         if (::inet_ntop(AF_INET, &cfg.ipv4.dut_iface_ip, dut_ip,
                          sizeof(dut_ip)) == nullptr) {
+            fail("DUT address could not be rendered");
             return;
         }
         char cmd[256];
@@ -938,9 +956,7 @@ public:
         // /run/xtables.lock; iptables-nft serialises at the netlink
         // layer instead. Defensive across both backends.
         if (!ensureTesterStimulusChain()) {
-            std::fprintf(stderr,
-                         "tcp-pilot: TesterAutoAckDrop chain setup failed "
-                         "(continuing without ACK suppression)\n");
+            fail("chain setup failed");
             return;
         }
         const int rc = std::snprintf(cmd, sizeof(cmd),
@@ -948,14 +964,15 @@ public:
                       "--tcp-flags FIN,SYN,RST,ACK ACK "
                       "-d %s -j DROP 2>/dev/null",
                       kTesterStimulusChain, dut_ip);
-        if (rc < 0 || rc >= static_cast<int>(sizeof(cmd))) return;
+        if (rc < 0 || rc >= static_cast<int>(sizeof(cmd))) {
+            fail("rule expression did not fit");
+            return;
+        }
         if (std::system(cmd) == 0) {
             installed_ = true;
             dut_ip_.assign(dut_ip);
         } else {
-            std::fprintf(stderr,
-                         "tcp-pilot: TesterAutoAckDrop install failed "
-                         "(continuing without ACK suppression)\n");
+            fail("install failed");
         }
     }
 
@@ -977,6 +994,21 @@ public:
     bool installed() const { return installed_; }
 
 private:
+    /// Warn AND record (tc8/unperformed_stimulus.h). Like its two siblings, the
+    /// header above predicted a benign failure shape — "a deterministic FIN-WAIT-2
+    /// collapse on pcap". §4.8.6.3 UNACCEPTABLE_09/_12 assert what the DUT does
+    /// while it is held in FIN-WAIT-1 / LAST-ACK; if the tester's own kernel ACKed
+    /// the DUT out of that state, the case observed a DUT that was never in the
+    /// asserted state at all, and any conclusion it draws is about the tester.
+    static void fail(const char *why) {
+        std::fprintf(stderr,
+                     "tcp-pilot: TesterAutoAckDrop %s "
+                     "(continuing without ACK suppression; the case will be "
+                     "inconclusive rather than graded)\n",
+                     why);
+        ::tc8::UnperformedStimulus::record("tester_auto_ack_drop");
+    }
+
     bool installed_ = false;
     std::string dut_ip_;
 };
