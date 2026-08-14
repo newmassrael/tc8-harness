@@ -3,8 +3,9 @@
 //! trait. single-pc spawns per-worker netns pairs.
 //!
 //! Stage 3 ported the netns fixture natively: bring-up/teardown call the `netns`
-//! module instead of shelling out to `setup-netns.sh` / `cleanup.sh` (the bash
-//! originals remain the SSOT baseline for smoke-test.sh until the S8 CI cutover).
+//! module instead of shelling out to `setup-netns.sh` / `cleanup.sh`. Those
+//! scripts are the historical source of the sequence, not a baseline to hold
+//! parity with — the bash driver that used them is gone (S8 cutover).
 //!
 //! Reap-selector decision matrix (the SINGLE place this is documented; the four
 //! kill sites below all point here). The rule is: scope the match as narrowly as

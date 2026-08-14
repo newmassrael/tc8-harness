@@ -2,21 +2,25 @@
 //! neigh sequence that builds a TC8 tester/DUT veth-pair fixture. Replaces the
 //! Stage-1 shell-out to those scripts (topology.rs).
 //!
-//! The bash originals remain the SSOT baseline (smoke-test.sh still sources them)
-//! until the S8 CI cutover; this module is validated behaviour-equivalent by
-//! parity-check.sh. Every step below cites the `setup-netns.sh` / `cleanup.sh`
-//! line it mirrors so the two can be diffed by eye until parity covers all paths.
+//! `setup-netns.sh` / `cleanup.sh` are still on disk and are still what this
+//! module was ported from, so the per-step citations below remain useful for
+//! reading it. They are NOT a live baseline any more: `smoke-test.sh`, the driver
+//! that sourced them, was deleted at the S8 cutover, and this module is what CI
+//! actually runs.
 //!
 //! `set -e` parity: a mandatory `ip`/`sysctl`/`ping`/`neigh` step that fails
 //! aborts the bring-up (the helpers return `Err`); the offload-disable and the
 //! pre-create teardown deletes are best-effort, matching bash's `|| true`.
 //!
-//! Coverage note: the single-pc orchestrator drives only the single-pair, no-VLAN
-//! path, so parity-check.sh exercises that. The `SecondVeth` (USAGE_01
-//! Topology-2 second pair) and `Vlan` (802.1Q OEM profile) branches are ported
-//! faithfully but are not yet parity-exercised — they become reachable + gated
-//! when S5 / USAGE_01 wire the Config fields and a parity case that drive them.
-//! See [[project-smoke-rust-rewrite]].
+//! Coverage note. `SecondVeth` (the USAGE_01 Topology-2 second pair) IS exercised:
+//! single-pc provisions it when the schedule contains a `requires_secondary_iface`
+//! case, and `DHCPv4_CLIENT_USAGE_01` runs on it and passes — it no longer SKIPs
+//! for want of a second interface.
+//!
+//! `Vlan` (the 802.1Q OEM profile) is the branch that remains unexercised in
+//! tree: every in-tree topology passes `vlan: None`, so the code is ported
+//! faithfully and never run here. An OEM profile that sets it is the first thing
+//! that will prove it, and that is the honest status — not "pending a stage".
 
 use anyhow::{bail, Context, Result};
 use std::process::Command;
