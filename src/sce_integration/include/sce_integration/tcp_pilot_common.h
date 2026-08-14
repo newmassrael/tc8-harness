@@ -584,6 +584,9 @@ public:
         return *this;
     }
 
+    /// Informational only — see the note on the drop scopes' `installed()`. A
+    /// listener that failed to bind is recorded in `tc8::UnperformedStimulus` and
+    /// turns the case inconclusive there, not here.
     bool ok() const { return fd_ >= 0; }
     int  fd() const { return fd_; }
 
@@ -820,6 +823,12 @@ public:
     TesterInboundDropScope(const TesterInboundDropScope &)            = delete;
     TesterInboundDropScope &operator=(const TesterInboundDropScope &) = delete;
 
+    /// Informational only. The VERDICT does not read this — a failed install is
+    /// recorded in `tc8::UnperformedStimulus` and consulted once, at the single
+    /// verdict-emission site. Kept because an out-of-tree case may legitimately
+    /// want to branch on it, but do not add a check here and assume the case is
+    /// now safe: an accessor nobody calls is exactly what let a missing filter
+    /// produce a confident DUT verdict for as long as it did.
     bool installed() const { return installed_; }
 
 private:
@@ -902,6 +911,12 @@ public:
     TesterAutoRstDrop(const TesterAutoRstDrop &)            = delete;
     TesterAutoRstDrop &operator=(const TesterAutoRstDrop &) = delete;
 
+    /// Informational only. The VERDICT does not read this — a failed install is
+    /// recorded in `tc8::UnperformedStimulus` and consulted once, at the single
+    /// verdict-emission site. Kept because an out-of-tree case may legitimately
+    /// want to branch on it, but do not add a check here and assume the case is
+    /// now safe: an accessor nobody calls is exactly what let a missing filter
+    /// produce a confident DUT verdict for as long as it did.
     bool installed() const { return installed_; }
 
 private:
@@ -991,6 +1006,12 @@ public:
     TesterAutoAckDrop(const TesterAutoAckDrop &)            = delete;
     TesterAutoAckDrop &operator=(const TesterAutoAckDrop &) = delete;
 
+    /// Informational only. The VERDICT does not read this — a failed install is
+    /// recorded in `tc8::UnperformedStimulus` and consulted once, at the single
+    /// verdict-emission site. Kept because an out-of-tree case may legitimately
+    /// want to branch on it, but do not add a check here and assume the case is
+    /// now safe: an accessor nobody calls is exactly what let a missing filter
+    /// produce a confident DUT verdict for as long as it did.
     bool installed() const { return installed_; }
 
 private:
