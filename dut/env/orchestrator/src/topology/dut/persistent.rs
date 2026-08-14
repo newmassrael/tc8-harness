@@ -101,23 +101,33 @@ impl DutLifecycle for PersistentDut<'_> {
         _placement: &DutPlacement,
         dlog: &Path,
         _cfg_path: &Path,
-        _extra_env: &[String],
+        extra_env: &[String],
     ) -> Result<Option<Child>> {
-        // Nothing to spawn. Record the provenance in the dut log so a postmortem shows
-        // which DUT a case ran against. `None` tells the dispatcher there is no Child.
-        //
-        // `_cfg_path` is ignored because a persistent DUT provides whatever services it
-        // provides. When a case requests a non-default vsomeip FLAVOR against a
-        // non-spawning lifecycle, bash emits an INFO ("the external DUT must provide
-        // the equivalent service"); that warning must be ported here alongside the
-        // flavor stage. Surface a write failure: a silently-missing dut.log defeats
-        // the postmortem.
+        // Nothing to spawn. Record the provenance in the dut log so a postmortem
+        // shows which DUT a case ran against. `None` tells the dispatcher there is
+        // no Child. Surface a write failure: a silently-missing dut.log defeats the
+        // postmortem.
         if let Err(e) =
             fs::write(dlog, format!("[external] using persistent DUT at {}\n", self.dut_ip))
         {
             eprintln!(
                 "orchestrator[external]: WARNING — could not write DUT provenance to {}: {e}",
                 dlog.display()
+            );
+        }
+        // A case can ask for a non-default DUT vsomeip FLAVOR (an alternate config
+        // and/or TC8_DUT_* env). A persistent DUT is whatever the operator already
+        // started, so the request cannot be honoured — and unlike a spawn failure it
+        // fails SILENTLY: the case runs against the base service and grades the DUT
+        // for not offering the second one. Say so, naming the tokens, so the result
+        // is read as "this DUT was not configured for this case" rather than a
+        // conformance defect. `cfg_path` is deliberately not inspected: the flavor's
+        // observable half is this env, and the dispatcher passes the base config
+        // whenever no variant applies.
+        if !extra_env.is_empty() {
+            eprintln!(
+                "orchestrator[external]: INFO — this case wants DUT flavor [{}], which a persistent DUT cannot be given; it must already provide the equivalent service or the case will report a difference that is configuration, not conformance",
+                extra_env.join(" ")
             );
         }
         Ok(None)
