@@ -12,6 +12,8 @@
 #include <sys/time.h>
 #include <unistd.h>
 
+#include "tc8/unperformed_stimulus.h"
+
 #include "stimulus/arp_builder.h"  // sendRawEthernet
 #include "stimulus/ipv4_frame_builder.h"
 #include "stimulus/udp_datagram_builder.h"
@@ -583,7 +585,8 @@ int sendUpperTesterRequestAwaited(std::string_view iface,
                                   const std::array<std::uint8_t, 6> &dut_mac,
                                   std::uint16_t tester_src_port,
                                   const std::vector<std::uint8_t> &ut_payload,
-                                  int timeout_ms) {
+                                  int timeout_ms,
+                                  std::string_view stimulus_name) {
     if (ut_payload.size() < 2) {
         return -4;  // no opcode/req_id to correlate a reply against
     }
@@ -628,7 +631,23 @@ int sendUpperTesterRequestAwaited(std::string_view iface,
                      ut_payload[0], timeout_ms);
         return -4;
     }
-    return resp[2];  // status byte
+    const std::uint8_t status = resp[2];
+    if (status != ut::kStatusOk) {
+        // The DUT answered, and its answer is "I did not do that". Name the
+        // stimulus so the verdict points at the step that did not happen instead
+        // of at a DUT behaviour nothing ever provoked. The mechanical fallback
+        // keeps an unnamed caller honest rather than silent.
+        char fallback[32];
+        std::snprintf(fallback, sizeof(fallback), "dut_ut_opcode_0x%02x", ut_payload[0]);
+        const std::string name =
+            stimulus_name.empty() ? std::string(fallback) : std::string(stimulus_name);
+        std::fprintf(stderr,
+                     "stimulus: UT opcode 0x%02x answered status 0x%02x — the DUT did not "
+                     "perform '%s'; the case has no premise and its verdict is downgraded\n",
+                     ut_payload[0], status, name.c_str());
+        ::tc8::UnperformedStimulus::record(name);
+    }
+    return status;
 }
 
 int emitTriggerSendUdpBoot(std::string_view iface,
@@ -668,8 +687,13 @@ int emitSetEgressFlavor(std::string_view iface,
                         const std::array<std::uint8_t, 6> &dut_mac,
                         std::uint8_t flavor) {
     const auto req = buildSetFlavorRequest(ut::OpSetEgressFlavor, 0x01, flavor);
+    // Named for the ledger: a `_neg` mutant whose fault never armed observes a
+    // COMPLIANT DUT and would otherwise report the harness's own self-validation
+    // as passed — the false direction that costs the most, since the point of the
+    // row is to prove the verdict machinery still fails a wrong expectation.
     return sendUpperTesterRequestAwaited(iface, tester_ip_be, dut_ip_be, dut_mac,
-                                  ut::kTesterSrcPort, req);
+                                  ut::kTesterSrcPort, req, kAwaitedUtTimeoutMs,
+                                  "dut_egress_flavor_arm");
 }
 
 int emitSetIngressFlavor(std::string_view iface,
@@ -679,7 +703,8 @@ int emitSetIngressFlavor(std::string_view iface,
                          std::uint8_t flavor) {
     const auto req = buildSetFlavorRequest(ut::OpSetIngressFlavor, 0x01, flavor);
     return sendUpperTesterRequestAwaited(iface, tester_ip_be, dut_ip_be, dut_mac,
-                                  ut::kTesterSrcPort, req);
+                                  ut::kTesterSrcPort, req, kAwaitedUtTimeoutMs,
+                                  "dut_ingress_flavor_arm");
 }
 
 int emitSetAppFlavor(std::string_view iface,
@@ -689,7 +714,8 @@ int emitSetAppFlavor(std::string_view iface,
                      std::uint8_t flavor) {
     const auto req = buildSetFlavorRequest(ut::OpSetAppFlavor, 0x01, flavor);
     return sendUpperTesterRequestAwaited(iface, tester_ip_be, dut_ip_be, dut_mac,
-                                  ut::kTesterSrcPort, req);
+                                  ut::kTesterSrcPort, req, kAwaitedUtTimeoutMs,
+                                  "dut_app_flavor_arm");
 }
 
 int emitSetEtsFlavor(std::string_view iface,
@@ -699,7 +725,8 @@ int emitSetEtsFlavor(std::string_view iface,
                      std::uint8_t flavor) {
     const auto req = buildSetFlavorRequest(ut::OpSetEtsFlavor, 0x01, flavor);
     return sendUpperTesterRequestAwaited(iface, tester_ip_be, dut_ip_be, dut_mac,
-                                  ut::kTesterSrcPort, req);
+                                  ut::kTesterSrcPort, req, kAwaitedUtTimeoutMs,
+                                  "dut_ets_flavor_arm");
 }
 
 }  // namespace tc8::stimulus

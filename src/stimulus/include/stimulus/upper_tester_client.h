@@ -598,13 +598,46 @@ int sendUpperTesterRequest(std::string_view iface,
 // negative value: the send's own error code, or -4 on bind failure / timeout /
 // an uncorrelated reply. A caller that genuinely wants no synchronisation
 // keeps using `sendUpperTesterRequest`.
+//
+// A NON-OK STATUS IS RECORDED AS AN UNPERFORMED STIMULUS.
+// ------------------------------------------------------
+// This function's whole contract is "a request whose EFFECT the next stimulus
+// step depends on". A correlated reply carrying a non-zero status is the DUT
+// stating, in its own words, that the effect did not happen — so the case is
+// about to grade a response to a stimulus that was never applied. That is the
+// same defect `tc8::UnperformedStimulus` was built for on the tester side (an
+// iptables filter that would not install), one lifecycle over: the tester ASKED
+// the DUT to do something and the DUT said it could not. Recording it here means
+// the verdict reports `stimulus_<name>_not_performed` instead of naming a DUT
+// behaviour that was never provoked.
+//
+// `stimulus_name` is the stable identifier that reaches that reason. Left empty
+// it falls back to `dut_ut_opcode_0xNN`, which is honest but says nothing about
+// intent — every caller that knows what it was asking for should name it. An
+// out-of-tree opcode names its own stimulus and needs no change here; its DUT
+// only has to answer with a failing status instead of silently substituting some
+// other behaviour.
+//
+// Deliberately NOT recorded: the no-reply / uncorrelated case (return -4). That
+// is absence of evidence, not evidence of absence — the request is raw-injected
+// UDP and a LOST REPLY says nothing about whether the DUT applied it, so
+// recording there would turn a dropped datagram into an inconclusive case. It
+// keeps the warning it always had.
+
+// Default reply timeout for an awaited UT request. Named because the parameter
+// list grows append-only (the same convention the request builders follow), so a
+// caller that wants to name its stimulus must restate the timeout — and a
+// restated literal is a value with two homes.
+inline constexpr int kAwaitedUtTimeoutMs = 1000;
+
 int sendUpperTesterRequestAwaited(std::string_view iface,
                                   std::uint32_t tester_ip_be,
                                   std::uint32_t dut_ip_be,
                                   const std::array<std::uint8_t, 6> &dut_mac,
                                   std::uint16_t tester_src_port,
                                   const std::vector<std::uint8_t> &ut_payload,
-                                  int timeout_ms = 1000);
+                                  int timeout_ms = kAwaitedUtTimeoutMs,
+                                  std::string_view stimulus_name = {});
 
 // DUT-side source port of the datagram a boot-cadence OpTriggerSendUdp
 // asks for. Disjoint from the §4.6 UDP_FIELDS per-case literals (20001+)
