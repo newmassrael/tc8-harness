@@ -28,6 +28,7 @@ add_executable(tc8-harness
     ${PROJECT_SOURCE_DIR}/src/cli/commands/replay_command.cpp
     ${PROJECT_SOURCE_DIR}/src/cli/commands/test_command.cpp
     ${PROJECT_SOURCE_DIR}/src/cli/commands/ut_ping_command.cpp
+    ${PROJECT_SOURCE_DIR}/src/cli/commands/sd_probe_command.cpp
     ${PROJECT_SOURCE_DIR}/src/cli/commands/testability_probe_command.cpp
     ${PROJECT_SOURCE_DIR}/src/cli/commands/testability_send_command.cpp
     dut_control_factory.cpp
