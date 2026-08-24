@@ -117,6 +117,12 @@ target_link_libraries(capture_stats_test PRIVATE ${PCAP_LIBRARY})
 # covers the second. Header-only, so no extra link deps.
 tc8_add_unit_test(unperformed_stimulus_test)
 
+# The start-order barrier's reader: what the launcher's --go-file says about the
+# DUT. Feeds the ledger above (an unproven DUT records an unperformed stimulus),
+# and is the half the orchestrator's own Rust tests cannot reach — they pin the
+# WRITER. Header-only, so no extra link deps.
+tc8_add_unit_test(dut_ready_signal_test)
+
 tc8_add_unit_test(case_registry_test)
 # AES-CMAC engine: the RFC 4493 published vectors (the four example MACs plus the
 # key-length guard) pin FIPS-197 AES-128 and the CMAC construction. Pure byte

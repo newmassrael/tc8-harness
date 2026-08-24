@@ -18,6 +18,7 @@
 #include <pcap/pcap.h>
 
 #include "tc8/capture_stats.h"
+#include "tc8/dut_ready_signal.h"  // the --go-file contract (start-order barrier)
 #include "tc8/unperformed_stimulus.h"
 #include "tc8/captured_event.h"
 #include "tc8/pollable_service.h"
@@ -55,52 +56,25 @@ namespace {
 //
 // `--go-file` is the mirror the launcher creates once it has finished deciding
 // whether the DUT came up (the orchestrator polls the DUT log for the DUT's own
-// readiness announcement), and this is the wait for it — placed before
+// readiness announcement), and this is the WAIT for it — placed before
 // `makeDutControl` so it also covers the DUT-control capability query, which is
 // itself a UT round trip that a not-yet-listening DUT would fail.
 //
-// THE SIGNAL CARRIES THE VERDICT, NOT JUST ITS ARRIVAL
-// ----------------------------------------------------
-// The file appears when the launcher has DECIDED, which is not the same as the DUT
-// being up:
-//     empty     -> the launcher observed the DUT announce every endpoint bound.
-//     non-empty -> it did not; the content is a one-line reason to echo.
-// Created atomically (written elsewhere, then renamed into place), so a file that
-// exists always has its complete content.
+// The signal's three states, and why its content and not merely its presence
+// carries the answer, are the contract in `tc8/dut_ready_signal.h` — which owns
+// the reading so that contract has one tested home. Only the waiting is here.
 //
-// Two values rather than presence-versus-absence because the fast failure is the
-// one that matters: a DUT that DIED at startup is decided by the launcher in
-// milliseconds, and encoding that as "the file never appears" would make every one
-// of those cases sit out the full ceiling below — hours across a several-hundred
-// case sweep, for a fact already known.
-//
-// Reaching the ceiling therefore means something narrower than "no DUT": the
-// launcher itself died or never intended to signal. It is set ABOVE the launcher's
-// own DUT-ready ceiling (dispatch.rs `DUT_READY_POLL_MS` × `DUT_READY_MAX_POLLS` =
-// 10 s) so the launcher is always the party that gets to decide first.
+// Reaching the ceiling below means something narrower than "no DUT": the launcher
+// itself died or never intended to signal, since a launcher that decided "not
+// bound" says so in milliseconds. It is set ABOVE the launcher's own DUT-ready
+// ceiling (dispatch.rs `DUT_READY_POLL_MS` × `DUT_READY_MAX_POLLS` = 10 s) so the
+// launcher is always the party that gets to decide first.
 constexpr int kGoFilePollMs = 20;
 constexpr int kGoFileMaxPolls = 750;  // 15 s = the launcher's 10 s + 5 s of grace
 
 /// The name recorded in `tc8::UnperformedStimulus` when the barrier is not
 /// honoured. It reaches a report as `inconclusive:stimulus_<name>_not_performed`.
 constexpr const char *kDutReadyBarrierStimulus = "dut_ready_barrier";
-
-/// Read a signal file that may not exist yet. `std::nullopt` = not there; a string
-/// (possibly empty) = there, with its content, trailing newline trimmed.
-std::optional<std::string> readSignalFile(const std::string &path) {
-    std::FILE *f = std::fopen(path.c_str(), "rb");
-    if (f == nullptr) {
-        return std::nullopt;
-    }
-    char buf[256];
-    const std::size_t n = std::fread(buf, 1, sizeof(buf) - 1, f);
-    std::fclose(f);
-    std::string s(buf, n);
-    while (!s.empty() && (s.back() == '\n' || s.back() == '\r')) {
-        s.pop_back();
-    }
-    return s;
-}
 
 /// Block until the launcher signals what happened to the DUT, then let the caller
 /// proceed. Returns whether the DUT was proven bound.
@@ -110,19 +84,22 @@ std::optional<std::string> readSignalFile(const std::string &path) {
 /// as one whose stimulus could not be performed. That is not bookkeeping: for a
 /// case asserting an ABSENCE, a stimulus the DUT never received produces silence,
 /// and silence is the pass condition, so without this the case would report a
-/// confident PASS having tested nothing. The ledger's verdict-site guard turns it
-/// into a non-conclusion instead, overriding pass and fail alike.
+/// confident PASS having tested nothing. Measured: with the DUT replaced by a
+/// binary that exits immediately, ICMPv4_TYPE_08 reported `pass`. The ledger's
+/// verdict-site guard turns it into a non-conclusion instead, overriding pass and
+/// fail alike.
 bool waitForDutReady(const std::string &go_file) {
     for (int i = 0; i < kGoFileMaxPolls; ++i) {
-        if (const std::optional<std::string> signal = readSignalFile(go_file)) {
-            if (signal->empty()) {
-                return true;
-            }
+        const ::tc8::DutReadyReport signal = ::tc8::readDutReadySignal(go_file);
+        if (signal.state == ::tc8::DutReadyState::Bound) {
+            return true;
+        }
+        if (signal.state == ::tc8::DutReadyState::NotBound) {
             std::fprintf(stderr,
                          "warning: the launcher could not prove the DUT was listening: %s. "
                          "The stimulus is sent anyway so the capture and logs survive, but "
                          "this run cannot conclude about the DUT.\n",
-                         signal->c_str());
+                         signal.reason.c_str());
             ::tc8::UnperformedStimulus::record(kDutReadyBarrierStimulus);
             return false;
         }
