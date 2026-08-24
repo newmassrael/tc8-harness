@@ -198,6 +198,18 @@ pub trait Topology {
     /// deliberate mis-expectations and start-order tricks. Gated in `main`;
     /// consumed in full by the S6 negative stage.
     fn supports_negative(&self) -> bool;
+    /// The line this topology's DUT prints once every endpoint a tester stimulus can
+    /// arrive on is bound, or `None` for a DUT that announces nothing observable.
+    ///
+    /// `Some` is what lets dispatch hold the harness's stimulus until the DUT is
+    /// actually listening — the inbound half of the start-order barrier whose
+    /// outbound half is `--ready-file` (see `dispatch::wait_for_dut_ready`). A
+    /// topology that pairs with a DUT lifecycle forwards the lifecycle's answer,
+    /// because whether a DUT announces is a fact about the DUT, not about where the
+    /// harness runs. Required, no default, for the same reason `supports_dut_spawn`
+    /// is: a topology that silently inherited "announces nothing" would silently lose
+    /// the barrier.
+    fn dut_ready_marker(&self) -> Option<&'static str>;
     /// For a DUT that ages its ARP cache through the Upper Tester channel (UT 0x17)
     /// instead of host sysctls — the lwIP stack — the cache-conditioning window in
     /// virtual seconds (bash `TOPOLOGY_UT_ARP_CACHE_TIMEOUT_S`). `Some(n)` makes

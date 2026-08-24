@@ -70,6 +70,15 @@ impl DutLifecycle for PersistentDut<'_> {
         false
     }
 
+    fn ready_marker(&self) -> Option<&'static str> {
+        // There is no per-case spawn to wait on: this DUT was already running before
+        // the run began and stays up across every case, so the race the barrier exists
+        // for cannot occur here. Its liveness question is asked once, in
+        // `provision_run` below, where an ACTIVE probe is affordable precisely because
+        // no case's capture is open yet.
+        None
+    }
+
     fn provision_run(&self, _placement: &DutPlacement) -> Result<()> {
         // The DUT is operator-owned and already running — nothing to stand up; verify
         // it is live (and warm the neigh entry bring-up reads) before any case runs.

@@ -110,6 +110,17 @@ impl DutLifecycle for CommandDut<'_> {
         false
     }
 
+    fn ready_marker(&self) -> Option<&'static str> {
+        // The whole point of this lifecycle is that the DUT is not an executable of
+        // ours — a sibling container, a lab rig behind a script — so it announces
+        // nothing we can recognise. Its output IS captured into the per-case DUT log
+        // like every other lifecycle's, so the day a site's launcher wants the barrier
+        // the transport is already there; what is missing is a marker to agree on, and
+        // inventing one on the site's behalf would be a guess that costs every case the
+        // barrier's full ceiling when it turns out wrong.
+        None
+    }
+
     fn start_dut(
         &self,
         w: u32,

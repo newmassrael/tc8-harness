@@ -131,6 +131,19 @@ private:
     // startup delay. Empty = off.
     std::string ready_file_path_;
 
+    // Optional "the DUT is bound" barrier signal — the mirror of the above, and
+    // the half that makes the pair two-directional. When set, no stimulus is sent
+    // until the file at this path appears; the launcher creates it once it has
+    // OBSERVED the DUT announce that every endpoint a stimulus can arrive on is
+    // bound. Without it a fire-and-forget stimulus (a datagram with no retry and
+    // no solicited response to re-drive it) races the DUT's boot and is answered
+    // by the DUT host's kernel with ICMP port-unreachable — measured at a 147 ms
+    // margin on a two-machine wire, invisible in every artifact because the
+    // datagram IS on the wire. A timeout does not abort the case; it records an
+    // unperformed stimulus, which downgrades the verdict to a non-conclusion so an
+    // absence-asserting case cannot pass on silence it never earned. Empty = off.
+    std::string go_file_path_;
+
     // Hold IGMP memberships for the multicast groups the case observes
     // (`--no-multicast-membership` clears it). Default ON: without the
     // membership a snooping bridge prunes the group before it reaches the

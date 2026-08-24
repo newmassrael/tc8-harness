@@ -30,6 +30,35 @@
 
 namespace {
 
+// The DUT's readiness announcement, printed on stdout once every endpoint a tester
+// stimulus can arrive on is bound. The orchestrator polls the per-case DUT log for
+// this exact line before it releases the harness to send its stimulus (dispatch.rs
+// `wait_for_dut_ready`, whose DUT_READY_MARKER pins this literal and is drift-tested
+// against this file).
+//
+// WHY A LOG LINE RATHER THAN THE HARNESS'S --ready-file SHAPE
+// -----------------------------------------------------------
+// The barrier this feeds is the mirror of the harness's `--ready-file`, but it
+// cannot itself be a file: on the ssh-remote lifecycle the DUT runs on another
+// host, so a file it creates is invisible to the orchestrator without a second ssh
+// round trip. Our stdout is ALREADY streamed into the per-case DUT log by every
+// lifecycle that spawns a DUT, which makes a log line the remote-transparent
+// equivalent. (main() also takes no argv, so there is no path to hand us one.)
+//
+// WHY THE ORCHESTRATOR DOES NOT SIMPLY PROBE US
+// ----------------------------------------------
+// By the time this matters the tester's capture is already armed and the case's
+// kernel conditioning already applied, so an active probe (the shape lwip-tap's
+// readiness gate can afford, because it runs between cases) would put its own
+// frames into the case's pcap and warm the tester's ARP cache — which is exactly
+// what the cold-cache ARP cases assert is absent. The announcement therefore has to
+// be PASSIVE, and it has to come from the only party that knows when the last bind
+// completed: us.
+//
+// Pure ASCII on purpose — it is matched byte-for-byte by a reader written in
+// another language.
+constexpr const char *kReadyMarker = "tc8-dut: ready (all receive endpoints bound)";
+
 std::atomic<bool> g_stop{false};
 
 void onSignal(int /*signum*/) { g_stop.store(true); }
@@ -214,6 +243,22 @@ int main() {
     if (server) {
         server->startEmission();
     }
+
+    // ---- READINESS ANNOUNCEMENT — KEEP THIS THE LAST STATEMENT BEFORE THE LOOP ----
+    // Everything a tester stimulus can arrive on is bound above, in this order and on
+    // this one thread: the vsomeip application and its offer (ServerRole /
+    // ClientOnlyApplication), the extension's adopted receivers (onRegister — an OEM
+    // extension's own UDP receivers land here), the lifecycle dispatcher, the §4.8.5
+    // Upper Tester (20000 + 30600), and the AUTOSAR Testability endpoint (30700). The
+    // orchestrator treats this line as proof of ALL of them, so a bind added below it
+    // would be a bind the barrier does not cover — and the case that needs it would
+    // race exactly as it did before the barrier existed. Add new binds ABOVE.
+    //
+    // Printed in client-only mode too: the UT and testability endpoints are the
+    // role-INDEPENDENT control plane and bind in both modes, and a client-only DUT
+    // puts no SD on the wire at all — so for that topology this line is the ONLY
+    // observable "I am listening" the tester can have.
+    std::printf("%s\n", kReadyMarker);
 
     // onTick fires on a steady ~200 ms cadence (the OEM extension's cyclic /
     // duration-windowed hook); between ticks the loop drains any pollable receiver

@@ -69,6 +69,9 @@ impl Topology for SinglePc<'_> {
     fn supports_negative(&self) -> bool {
         self.dut.supports_negative()
     }
+    fn dut_ready_marker(&self) -> Option<&'static str> {
+        self.dut.ready_marker()
+    }
     fn ut_arp_cache_timeout(&self) -> Option<String> {
         self.dut.ut_arp_cache_timeout()
     }

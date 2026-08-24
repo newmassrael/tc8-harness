@@ -303,6 +303,9 @@ impl Topology for External<'_> {
     fn supports_negative(&self) -> bool {
         self.dut.supports_negative()
     }
+    fn dut_ready_marker(&self) -> Option<&'static str> {
+        self.dut.ready_marker()
+    }
 
     fn preflight(&self) -> Result<()> {
         // Preconditions only. Required config vars (iface/dut_ip/tester_ip) are
@@ -448,6 +451,9 @@ impl Topology for SshRemote<'_> {
     }
     fn supports_negative(&self) -> bool {
         self.dut.supports_negative()
+    }
+    fn dut_ready_marker(&self) -> Option<&'static str> {
+        self.dut.ready_marker()
     }
 
     fn preflight(&self) -> Result<()> {

@@ -3,6 +3,8 @@
 //! then restore conditioning. Mirrors smoke-test.sh run_case for the positive path.
 
 use anyhow::Result;
+use std::fs;
+use std::io::Read;
 use std::path::Path;
 use std::process::Child;
 use std::thread::sleep;
@@ -39,6 +41,17 @@ const DUT_FIRST_SETTLE_MS: u64 = 1500;
 /// load that made the retired fixed 500 ms settle miss the DUT's first offer.
 const CAPTURE_READY_POLL_MS: u64 = 20;
 const CAPTURE_READY_MAX_POLLS: u32 = 250;
+/// The DUT half of the same barrier: poll interval and ceiling for the DUT's own
+/// readiness announcement in its per-case log (see `wait_for_dut_ready`). Same
+/// cadence as the capture half; a wider ceiling because this one may be waiting on
+/// an ssh spawn, a remote exec and a vsomeip init, where the capture half waits only
+/// on a local ring. 10 s is a backstop, not a budget — measured, the announcement
+/// lands ~1.5 s after an ssh-spawned DUT's start and in tens of ms for a local one.
+/// It sits deliberately BELOW the harness's own `--go-file` ceiling (15 s, see
+/// `kGoFileMaxPolls` in src/cli/commands/test_command.cpp) so the orchestrator is
+/// always the party that decides a DUT never came up.
+const DUT_READY_POLL_MS: u64 = 20;
+const DUT_READY_MAX_POLLS: u32 = 500;
 /// Bound on waiting for a case DUT's wrapper / ssh-client `Child` to exit after
 /// `stop_dut` (≈3 s at 200 ms/tick). On the happy path the wrapper exits in the
 /// first tick or two; the bound exists only so a MISSED remote kill (an ssh failure
@@ -84,6 +97,143 @@ pub(crate) fn wait_for_capture_ready(ready: &Path, harness: &mut Child) {
     eprintln!(
         "orchestrator: warning: harness capture-ready signal did not arrive; \
          proceeding to start the DUT"
+    );
+}
+
+/// The line the reference tc8-dut prints once every endpoint a tester stimulus can
+/// arrive on is bound.
+///
+/// SSOT is `kReadyMarker` in dut/dut_service/dut_main.cpp, which names this reader.
+/// Pinned here rather than generated: it is one string crossing a language boundary,
+/// which does not earn a codegen step — but it IS drift-tested against that file
+/// (`the_dut_ready_marker_is_what_the_dut_prints`), and the same test asserts the
+/// announcement still sits after every bind, which is the property that makes it
+/// mean anything.
+pub(crate) const DUT_READY_MARKER: &str = "tc8-dut: ready (all receive endpoints bound)";
+
+/// One incremental pass over whatever `f` has grown since the last call, reporting
+/// whether `marker` has appeared.
+///
+/// `carry` holds the tail of what was already scanned so a marker split across two
+/// reads still matches. Incremental rather than re-reading the file each poll
+/// because a vsomeip DUT writes tens of KB during the window this polls, and
+/// re-reading would make the scan quadratic in the number of polls for no reason.
+fn scan_for_marker(f: &mut fs::File, carry: &mut Vec<u8>, marker: &[u8]) -> bool {
+    if marker.is_empty() {
+        // Total rather than panicking on the `marker.len() - 1` below: an empty marker
+        // would otherwise match everything, which is the one answer a readiness
+        // barrier must never give by accident.
+        return false;
+    }
+    let mut chunk = Vec::new();
+    if f.read_to_end(&mut chunk).is_err() || chunk.is_empty() {
+        return false;
+    }
+    let mut hay = std::mem::take(carry);
+    hay.extend_from_slice(&chunk);
+    let found = hay.windows(marker.len()).any(|w| w == marker);
+    // Keep just enough of the tail that a marker straddling this read and the next
+    // is still contiguous when the next chunk is appended.
+    let keep = (marker.len() - 1).min(hay.len());
+    *carry = hay.split_off(hay.len() - keep);
+    found
+}
+
+/// Block until the DUT started for this case announces that every endpoint a
+/// stimulus can arrive on is bound, by watching for `marker` in its per-case log.
+/// Returns whether the announcement was seen.
+///
+/// The mirror of [`wait_for_capture_ready`], and deliberately the same shape: an
+/// observation rather than a sleep, an early return if the child we are waiting on
+/// dies first (its log classifies it), and a poll ceiling so a missing signal can
+/// never hang the worker.
+///
+/// It exists because the capture barrier was one-directional. The harness tells the
+/// launcher "you may start the DUT now" and then walks on to `kickStimulus` without
+/// ever learning that the DUT did start, so a fire-and-forget stimulus — a datagram
+/// with no retry and no solicited response to re-drive it — loses that race whenever
+/// the DUT is the slower of the two. Measured on a two-machine wire: three CAN
+/// triggers all answered by the DUT host's kernel with ICMP port-unreachable, the
+/// last of them missing the bind by 147 ms, and nothing in any artifact said so.
+///
+/// PASSIVE on purpose. An active probe (the shape lwip-tap's readiness gate uses)
+/// would be a stronger liveness proof, but by this point in the harness-first order
+/// the case's capture is already armed and its kernel conditioning already applied —
+/// so a probe would put its own frames into the case's pcap and warm the tester's
+/// ARP cache, which is exactly what the cold-cache ARP cases assert is absent.
+/// lwip-tap can afford one because its DUT is respawned BETWEEN cases; a per-case
+/// barrier cannot.
+pub(crate) fn wait_for_dut_ready(dlog: &Path, marker: &str, dut: Option<&mut Child>) -> DutReady {
+    let mut dut = dut;
+    let mut carry: Vec<u8> = Vec::new();
+    // The log is created (and truncated) by `start_dut` before it spawns, so a
+    // missing file here means only that we got in first; keep polling for it.
+    let mut file: Option<fs::File> = None;
+    for _ in 0..DUT_READY_MAX_POLLS {
+        if file.is_none() {
+            file = fs::File::open(dlog).ok();
+        }
+        if let Some(f) = file.as_mut() {
+            if scan_for_marker(f, &mut carry, marker.as_bytes()) {
+                return DutReady::Announced;
+            }
+        }
+        // The DUT (or, on ssh-remote, the ssh client carrying it) exited before it
+        // announced. Nothing more will be written, so decide NOW rather than sit out
+        // the ceiling: across a several-hundred case sweep against a DUT that cannot
+        // start, that difference is hours.
+        if let Some(d) = dut.as_deref_mut() {
+            if matches!(d.try_wait(), Ok(Some(_)) | Err(_)) {
+                return DutReady::NotAnnounced(format!(
+                    "the DUT exited before announcing readiness (see {})",
+                    dlog.display()
+                ));
+            }
+        }
+        sleep(Duration::from_millis(DUT_READY_POLL_MS));
+    }
+    DutReady::NotAnnounced(format!(
+        "the DUT did not announce readiness within {} ms (see {})",
+        DUT_READY_POLL_MS * u64::from(DUT_READY_MAX_POLLS),
+        dlog.display()
+    ))
+}
+
+/// What the DUT-ready barrier concluded. This IS the payload of the harness's
+/// `--go-file`, which is why the negative arm carries a reason rather than a bare
+/// `false`: the harness echoes it, so an operator reading the case log learns why
+/// the run could not conclude without also having to find the orchestrator's.
+pub(crate) enum DutReady {
+    /// The DUT announced that every endpoint a stimulus can arrive on is bound.
+    Announced,
+    /// It did not, for this reason.
+    NotAnnounced(String),
+}
+
+/// Publish the barrier's outcome to the waiting harness.
+///
+/// Written to a sibling path and RENAMED into place so the file the harness finds
+/// always has its complete content — the contract is "empty = the DUT is bound,
+/// non-empty = the reason it could not be shown", and a harness that read a
+/// half-written reason as an empty file would silently lose the guard.
+///
+/// A failure to signal is loud but never fatal: the harness's own ceiling is the
+/// backstop, and it fails in the safe direction (an unperformed stimulus, so a
+/// non-conclusion) rather than towards a verdict nobody can support.
+fn signal_dut_ready(go: &Path, outcome: &DutReady) {
+    let body = match outcome {
+        DutReady::Announced => String::new(),
+        DutReady::NotAnnounced(reason) => format!("{reason}\n"),
+    };
+    let tmp = go.with_extension("tmp");
+    if fs::write(&tmp, body).is_ok() && fs::rename(&tmp, go).is_ok() {
+        return;
+    }
+    let _ = fs::remove_file(&tmp);
+    eprintln!(
+        "orchestrator: warning: could not publish the DUT-ready signal to {}; the harness \
+         will fall back to its own ceiling",
+        go.display()
     );
 }
 
@@ -408,29 +558,94 @@ fn run_case_impl(
     };
     let flavor_env: Vec<String> = variant.map(|v| v.env.clone()).unwrap_or_default();
 
+    // Whether this topology's DUT announces its own readiness. `None` — a DUT we did
+    // not build, or one the fixture owns and has already probed — means no barrier is
+    // offered in either start order, and the dispatch behaves exactly as it did
+    // before the barrier existed rather than blocking for a signal that never comes.
+    let ready_marker = topo.dut_ready_marker();
+    // The harness's inbound signal path, declared here so the cleanup below can name
+    // it whichever start order ran (the `--dut-first` path never creates it).
+    let go = hlog.with_extension("go");
+
     let mut procs = CaseProcs::new(topo, w);
     if dut_first {
         procs.dut = topo.start_dut(w, &dlog, &vcfg, &flavor_env)?;
+        // Two separate things happen here, and conflating them is a mistake this code
+        // has already made once.
+        //
+        // ORDERING is free on this path: the DUT starts before the harness, so no
+        // stimulus can outrun it. What the wait adds is that the settle below — a
+        // GUESS about how long the DUT's first OfferService takes to clear — no longer
+        // has to also absorb an unbounded, load-dependent boot, which under CPU
+        // starvation is exactly what used to eat the whole constant.
+        //
+        // VERDICT INTEGRITY is NOT free, and does not follow from the ordering. If the
+        // DUT never came up at all, the case still runs against silence — and for a
+        // case asserting an absence, silence is the pass condition. Measured in this
+        // tree: with the DUT replaced by a binary that exits immediately, ICMPv4_TYPE_08
+        // reported a confident `pass` on this path while the orchestrator was printing
+        // that the DUT had exited before announcing. So the signal is published here
+        // too. It is written BEFORE the harness is spawned, the answer already being
+        // known, so the harness's wait returns on its first poll and costs nothing.
+        let mut dargs = args.clone();
+        if let Some(marker) = ready_marker {
+            let outcome = wait_for_dut_ready(&dlog, marker, procs.dut.as_mut());
+            if let DutReady::NotAnnounced(why) = &outcome {
+                eprintln!("orchestrator: warning: {why}");
+            }
+            let _ = fs::remove_file(&go);
+            signal_dut_ready(&go, &outcome);
+            dargs.push("--go-file".to_string());
+            dargs.push(go.to_string_lossy().into_owned());
+        }
         sleep(Duration::from_millis(DUT_FIRST_SETTLE_MS));
-        procs.harness = Some(topo.run_harness(w, &hlog, &args)?);
+        procs.harness = Some(topo.run_harness(w, &hlog, &dargs)?);
     } else {
-        // Harness-first with a real barrier: the harness creates its
-        // `--ready-file` once the capture is armed, and we start the DUT only
-        // after that file appears. This replaces a fixed startup sleep — under
-        // CPU starvation capture setup can outlast any guess, letting the DUT's
-        // first OfferService (session_id 0x0001, SOMEIPSRV_FORMAT_02) precede
-        // the live capture. Anchoring to the observed ready state, not wall
-        // time, is robust to load (and faster on the common path).
+        // Harness-first with a real barrier in BOTH directions.
+        //
+        // Outbound: the harness creates its `--ready-file` once the capture is armed,
+        // and we start the DUT only after that file appears. This replaces a fixed
+        // startup sleep — under CPU starvation capture setup can outlast any guess,
+        // letting the DUT's first OfferService (session_id 0x0001,
+        // SOMEIPSRV_FORMAT_02) precede the live capture.
+        //
+        // Inbound: we then watch the DUT's log for its own readiness announcement and
+        // create the `--go-file` the harness is waiting on before it sends any
+        // stimulus. Without this half the harness reached `kickStimulus` never having
+        // learned that the DUT started, and a fire-and-forget stimulus lost that race
+        // whenever the DUT was the slower of the two — measured, three CAN triggers
+        // answered by the DUT host's kernel with ICMP port-unreachable, the last of
+        // them missing the bind by 147 ms, with nothing in any artifact saying so.
+        //
+        // Anchoring both ends to an observed state, not wall time, is robust to load
+        // (and faster on the common path).
         let ready = hlog.with_extension("ready");
-        let _ = std::fs::remove_file(&ready);
+        let _ = fs::remove_file(&ready);
+        let _ = fs::remove_file(&go);
         let mut hargs = args.clone();
         hargs.push("--ready-file".to_string());
         hargs.push(ready.to_string_lossy().into_owned());
+        if ready_marker.is_some() {
+            hargs.push("--go-file".to_string());
+            hargs.push(go.to_string_lossy().into_owned());
+        }
         let mut harness = topo.run_harness(w, &hlog, &hargs)?;
         wait_for_capture_ready(&ready, &mut harness);
-        let _ = std::fs::remove_file(&ready);
+        let _ = fs::remove_file(&ready);
         procs.harness = Some(harness);
         procs.dut = topo.start_dut(w, &dlog, &vcfg, &flavor_env)?;
+        if let Some(marker) = ready_marker {
+            let outcome = wait_for_dut_ready(&dlog, marker, procs.dut.as_mut());
+            if let DutReady::NotAnnounced(why) = &outcome {
+                eprintln!("orchestrator: warning: {why}");
+            }
+            // Release the harness either way. It owns the verdict, so it is the only
+            // party that can record the unperformed stimulus that keeps a case from
+            // passing on silence it never earned — and it can only do that once it
+            // stops waiting. A harness left blocked would burn the case backstop and
+            // report nothing at all.
+            signal_dut_ready(&go, &outcome);
+        }
     }
 
     // Poll ceiling in ticks — ports bash's wait_budget (smoke-test.sh):
@@ -457,6 +672,12 @@ fn run_case_impl(
     // Reap on the happy path BEFORE reading the log (the harness must be stopped
     // and its log flushed); Drop then no-ops via the `reaped` flag.
     procs.reap();
+    // The barrier's signal file has served its purpose now that the harness is down.
+    // Removed for the same reason `--ready-file` is: under `--log-dir` these land in
+    // the operator's evidence directory, and a signal file left among the artifacts
+    // reads like evidence when it is only a handshake. (Staleness is already handled
+    // at the other end — the harness-first branch deletes it before spawning.)
+    let _ = fs::remove_file(&go);
     // Restore conditioning after the procs are down — mirrors bash run_case
     // (kill_worker_procs → restore toggles → classify, smoke-test.sh).
     // Drop is the backstop for the error/panic paths.
@@ -728,5 +949,104 @@ mod tests {
         assert!(parse_neg_rows_output("SOMEIPSRV_FORMAT_14|service_id=0x0000\n").is_err());
         // No rows at all — an empty negative run would pass by vacuity.
         assert!(parse_neg_rows_output("\n  \n").is_err());
+    }
+
+    /// The DUT_READY_MARKER pin, against the file that actually prints it. One string
+    /// crossing a language boundary does not earn a codegen step, but it does earn a
+    /// drift guard: if this pin and the DUT's literal part ways, the barrier does not
+    /// fail loudly — it waits out its ceiling on EVERY case and then lets each one
+    /// run unbarriered, which is the pre-barrier behaviour wearing a warning.
+    #[test]
+    fn the_dut_ready_marker_is_what_the_dut_prints() {
+        let src = std::fs::read_to_string(dut_main_path()).expect("read dut_main.cpp");
+        assert!(
+            src.contains(&format!("\"{DUT_READY_MARKER}\"")),
+            "dut_main.cpp no longer prints the marker this reader waits for: {DUT_READY_MARKER}"
+        );
+    }
+
+    /// ...and that it is still printed AFTER every bind, which is the whole of what
+    /// makes it mean anything. A marker that moved above a bind would still MATCH —
+    /// the test above would stay green — while silently narrowing the barrier to the
+    /// binds that happened to precede it, reopening the race for the rest. Asserts
+    /// source order for the binds we know about; the loud comment at the announcement
+    /// site carries the rule for binds added later.
+    #[test]
+    fn the_dut_announces_only_after_it_has_bound_everything() {
+        let src = std::fs::read_to_string(dut_main_path()).expect("read dut_main.cpp");
+        let announce = src
+            .rfind("std::printf(\"%s\\n\", kReadyMarker)")
+            .expect("dut_main.cpp still announces readiness");
+        for bind in [
+            "ets_extension->onRegister(",  // the extension's adopted receivers
+            "adoptPollable(",              // the lifecycle dispatcher
+            // The section citation for each of these lives at the bind itself in
+            // dut_main.cpp, which is where the binding is backed; naming one again
+            // here would be an unbound copy of it.
+            "upper_tester.start(",         // the Upper Tester channel, 20000 + 30600
+            "testability.start(",          // AUTOSAR Testability, 30700
+        ] {
+            let at = src.find(bind).unwrap_or_else(|| panic!("dut_main.cpp no longer has {bind}"));
+            assert!(
+                at < announce,
+                "{bind} now runs AFTER the readiness announcement, so the barrier no \
+                 longer covers it — move the announcement back below every bind"
+            );
+        }
+    }
+
+    fn dut_main_path() -> std::path::PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../..")
+            .join("dut/dut_service/dut_main.cpp")
+    }
+
+    /// The incremental scan must behave exactly like "does the whole log contain the
+    /// marker", including across the read boundary — the case it exists to handle and
+    /// the one a naive implementation silently gets wrong, since the DUT writes its
+    /// line into a log another process is appending to.
+    #[test]
+    fn the_marker_scan_survives_a_split_across_reads() {
+        let dir = std::env::temp_dir().join(format!("tc8-marker-scan-{}", std::process::id()));
+        let _ = fs::create_dir_all(&dir);
+        let log = dir.join("split.log");
+        let marker = b"tc8-dut: ready";
+
+        fs::write(&log, "some vsomeip noise\ntc8-dut: rea").expect("first half");
+        let mut f = fs::File::open(&log).expect("open");
+        let mut carry = Vec::new();
+        assert!(!scan_for_marker(&mut f, &mut carry, marker), "half a marker is not a marker");
+
+        // Append the rest, exactly as the DUT would while we were polling.
+        let mut app = fs::OpenOptions::new().append(true).open(&log).expect("append");
+        std::io::Write::write_all(&mut app, b"dy (all receive endpoints bound)\n").expect("write");
+        assert!(scan_for_marker(&mut f, &mut carry, marker), "the marker straddled two reads");
+
+        // And it stays found-once: a later poll reads nothing new and must not panic
+        // or re-report, which is what the dispatcher's loop relies on to exit.
+        assert!(!scan_for_marker(&mut f, &mut carry, marker));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// An empty go-file means "the DUT is bound" and a non-empty one carries the
+    /// reason it is not — the distinction the harness reads, so it is pinned here
+    /// rather than left to the writer's shape.
+    #[test]
+    fn the_go_signal_is_empty_only_when_the_dut_announced() {
+        let dir = std::env::temp_dir().join(format!("tc8-go-signal-{}", std::process::id()));
+        let _ = fs::create_dir_all(&dir);
+
+        let ok = dir.join("ok.go");
+        signal_dut_ready(&ok, &DutReady::Announced);
+        assert_eq!(fs::read_to_string(&ok).expect("ok.go"), "");
+
+        let bad = dir.join("bad.go");
+        signal_dut_ready(&bad, &DutReady::NotAnnounced("the DUT exited".into()));
+        assert_eq!(fs::read_to_string(&bad).expect("bad.go"), "the DUT exited\n");
+
+        // The staging file must not survive as litter next to the evidence.
+        assert!(!ok.with_extension("tmp").exists());
+        assert!(!bad.with_extension("tmp").exists());
+        let _ = fs::remove_dir_all(&dir);
     }
 }

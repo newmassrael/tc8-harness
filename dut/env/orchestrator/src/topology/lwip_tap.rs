@@ -366,6 +366,20 @@ impl Topology for LwipTap<'_> {
         false
     }
 
+    fn dut_ready_marker(&self) -> Option<&'static str> {
+        // This topology already has a readiness barrier, and a STRONGER one: an
+        // OpPing / GET_VERSION round trip (`wait_dut_ready`) proving the tap link, the
+        // lwIP netif and the server bind end to end, rather than a line the DUT prints
+        // about itself. It can afford an active probe because its DUT is respawned
+        // BETWEEN cases (`stop_dut`), where no case's capture is open to record the
+        // probe's own frames and no cold-cache ARP assertion can be spoiled by them —
+        // the exact affordance the per-case barrier does not have.
+        //
+        // So: nothing missing here, and adding a second barrier would only make the
+        // dispatcher wait on a marker this DUT never prints.
+        None
+    }
+
     fn ut_arp_cache_timeout(&self) -> Option<String> {
         Some(wire::ARP_CACHE_TIMEOUT_S.to_string())
     }

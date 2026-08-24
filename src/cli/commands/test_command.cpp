@@ -41,6 +41,103 @@ namespace tc8::cli {
 
 namespace {
 
+// --- The DUT-ready half of the start-order barrier (--go-file) ---------------
+//
+// `--ready-file` is one-directional: it tells a launcher "you may start the DUT
+// now" and this process then walks straight on to `kickStimulus`, never learning
+// that the DUT did start. A case whose stimulus is fire-and-forget — a datagram
+// with no retry and no solicited response to re-drive it — loses that race
+// whenever the DUT is the slower of the two, and NOTHING reports it: the datagram
+// is on the wire, the case simply observes nothing. Measured on a two-machine
+// wire: three On-Event CAN triggers all answered by the DUT host's kernel with
+// ICMP port-unreachable (`Udp: NoPorts` +3, time-aligned), the last of them
+// missing the DUT's bind of its receive port by 147 ms.
+//
+// `--go-file` is the mirror the launcher creates once it has finished deciding
+// whether the DUT came up (the orchestrator polls the DUT log for the DUT's own
+// readiness announcement), and this is the wait for it — placed before
+// `makeDutControl` so it also covers the DUT-control capability query, which is
+// itself a UT round trip that a not-yet-listening DUT would fail.
+//
+// THE SIGNAL CARRIES THE VERDICT, NOT JUST ITS ARRIVAL
+// ----------------------------------------------------
+// The file appears when the launcher has DECIDED, which is not the same as the DUT
+// being up:
+//     empty     -> the launcher observed the DUT announce every endpoint bound.
+//     non-empty -> it did not; the content is a one-line reason to echo.
+// Created atomically (written elsewhere, then renamed into place), so a file that
+// exists always has its complete content.
+//
+// Two values rather than presence-versus-absence because the fast failure is the
+// one that matters: a DUT that DIED at startup is decided by the launcher in
+// milliseconds, and encoding that as "the file never appears" would make every one
+// of those cases sit out the full ceiling below — hours across a several-hundred
+// case sweep, for a fact already known.
+//
+// Reaching the ceiling therefore means something narrower than "no DUT": the
+// launcher itself died or never intended to signal. It is set ABOVE the launcher's
+// own DUT-ready ceiling (dispatch.rs `DUT_READY_POLL_MS` × `DUT_READY_MAX_POLLS` =
+// 10 s) so the launcher is always the party that gets to decide first.
+constexpr int kGoFilePollMs = 20;
+constexpr int kGoFileMaxPolls = 750;  // 15 s = the launcher's 10 s + 5 s of grace
+
+/// The name recorded in `tc8::UnperformedStimulus` when the barrier is not
+/// honoured. It reaches a report as `inconclusive:stimulus_<name>_not_performed`.
+constexpr const char *kDutReadyBarrierStimulus = "dut_ready_barrier";
+
+/// Read a signal file that may not exist yet. `std::nullopt` = not there; a string
+/// (possibly empty) = there, with its content, trailing newline trimmed.
+std::optional<std::string> readSignalFile(const std::string &path) {
+    std::FILE *f = std::fopen(path.c_str(), "rb");
+    if (f == nullptr) {
+        return std::nullopt;
+    }
+    char buf[256];
+    const std::size_t n = std::fread(buf, 1, sizeof(buf) - 1, f);
+    std::fclose(f);
+    std::string s(buf, n);
+    while (!s.empty() && (s.back() == '\n' || s.back() == '\r')) {
+        s.pop_back();
+    }
+    return s;
+}
+
+/// Block until the launcher signals what happened to the DUT, then let the caller
+/// proceed. Returns whether the DUT was proven bound.
+///
+/// The case still RUNS when it was not — the pcap and the logs are the evidence an
+/// operator needs, and refusing to run would destroy them — but the run is marked
+/// as one whose stimulus could not be performed. That is not bookkeeping: for a
+/// case asserting an ABSENCE, a stimulus the DUT never received produces silence,
+/// and silence is the pass condition, so without this the case would report a
+/// confident PASS having tested nothing. The ledger's verdict-site guard turns it
+/// into a non-conclusion instead, overriding pass and fail alike.
+bool waitForDutReady(const std::string &go_file) {
+    for (int i = 0; i < kGoFileMaxPolls; ++i) {
+        if (const std::optional<std::string> signal = readSignalFile(go_file)) {
+            if (signal->empty()) {
+                return true;
+            }
+            std::fprintf(stderr,
+                         "warning: the launcher could not prove the DUT was listening: %s. "
+                         "The stimulus is sent anyway so the capture and logs survive, but "
+                         "this run cannot conclude about the DUT.\n",
+                         signal->c_str());
+            ::tc8::UnperformedStimulus::record(kDutReadyBarrierStimulus);
+            return false;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(kGoFilePollMs));
+    }
+    std::fprintf(stderr,
+                 "warning: the --go-file DUT-ready signal '%s' did not arrive within "
+                 "%d ms — the launcher never decided. The stimulus is sent WITHOUT the "
+                 "DUT having been proven bound, so this run cannot conclude about the "
+                 "DUT.\n",
+                 go_file.c_str(), kGoFilePollMs * kGoFileMaxPolls);
+    ::tc8::UnperformedStimulus::record(kDutReadyBarrierStimulus);
+    return false;
+}
+
 // Resolve a case's spec section from the loaded inventory — the SSOT
 // (docs/spec/case_inventory.json, mined from the TC8 spec PDF). The
 // harness deliberately does NOT store a per-case section copy in the
@@ -195,6 +292,16 @@ TestCommand::TestCommand(CLI::App &app) {
                      "multicast memberships are held (before any DUT-driving "
                      "stimulus), so a launcher can start the DUT only after the "
                      "capture can observe its first frame. Empty = disabled.");
+    sub_->add_option("--go-file", go_file_path_,
+                     "Wait for this file before sending any stimulus. The mirror of "
+                     "--ready-file: the launcher creates it once it has decided "
+                     "whether the DUT bound its receive ports — empty means it did, "
+                     "non-empty is the reason it could not be shown — so a "
+                     "fire-and-forget stimulus is never emitted at a DUT that is not "
+                     "listening yet. When the DUT was not proven bound the case still "
+                     "runs, but its stimulus is recorded as unperformed and the "
+                     "verdict is a non-conclusion rather than a pass it cannot "
+                     "support. Empty = disabled.");
     sub_->add_flag("!--no-multicast-membership", multicast_membership_,
                    "Do not hold IGMP memberships for the multicast groups this "
                    "case observes. The default (hold them) is what lets an "
@@ -807,6 +914,16 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
             std::fprintf(stderr, "warning: could not create --ready-file '%s'\n",
                          ready_file_path_.c_str());
         }
+    }
+
+    // ...and NOW wait for the other half. Having released the launcher to start
+    // the DUT, we must not reach `kickStimulus` before it has bound the ports that
+    // stimulus is aimed at. Sits here — before the runner and the DUT-control
+    // backend — so the capability query below (a UT round trip) is covered too.
+    // The barrier is opt-in: without `--go-file` this is a no-op and a standalone
+    // harness run behaves exactly as it always did.
+    if (!go_file_path_.empty()) {
+        waitForDutReady(go_file_path_);
     }
 
     std::unique_ptr<sce::ITestRunner> runner = entry->factory(config);

@@ -124,6 +124,21 @@ pub(crate) trait DutLifecycle {
     /// the DUT as a failure of the harness's self-validation.
     fn supports_negative(&self) -> bool;
 
+    /// The line this lifecycle's DUT prints on stdout — and so into the per-case DUT
+    /// log — once every endpoint a tester stimulus can arrive on is bound, or `None`
+    /// for a DUT that announces nothing observable.
+    ///
+    /// `Some` is what lets the dispatcher hold the harness's stimulus until the DUT
+    /// is actually listening ([`crate::dispatch::wait_for_dut_ready`]). `None` is not
+    /// a degraded mode to be ashamed of: it is the honest answer for a DUT we did not
+    /// build, and the dispatcher then behaves exactly as it did before the barrier
+    /// existed rather than blocking for a signal that will never come.
+    ///
+    /// Required, with no default, for the same reason `supports_negative` is: it is a
+    /// contract bit, and a lifecycle that silently inherited "announces nothing" would
+    /// silently lose the barrier. Every lifecycle states it.
+    fn ready_marker(&self) -> Option<&'static str>;
+
     /// For a DUT that ages its ARP cache through the Upper Tester (the lwIP stack)
     /// rather than host sysctls: the conditioning window in virtual seconds.
     fn ut_arp_cache_timeout(&self) -> Option<String> {
