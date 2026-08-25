@@ -43,6 +43,22 @@ runs:
       # that into cache hits keyed on preprocessed source + flags (identical
       # output), and its ~/.cache/ccache store lives outside the workspace so the
       # wipe never touches it. Absent ccache the configure is unchanged.
+      #
+      # CCACHE_BASEDIR is what lets those hits cross CHECKOUTS. Without it every
+      # -I on the command line is an absolute path under the workspace, so this
+      # runner's entries and a developer tree's entries for the identical commit
+      # are distinct — two full copies in one shared cache, and neither warms the
+      # other. Set to the workspace root, ccache rewrites paths beneath it to
+      # relative before hashing, and the two collapse into one working set (which
+      # also halves what this repo occupies in a cache that is measurably
+      # evicting: 37.9/50 GB with 4035 cleanups on 2026-08-24).
+      #
+      # It pairs with the generated case stubs including their traits header by a
+      # RELATIVE path (src/harness/CMakeLists.txt) — basedir normalises the
+      # command line, that normalises the SOURCE TEXT, and a direct-mode hit needs
+      # both. CCACHE_NOHASHDIR drops the build directory from the hash for the
+      # same reason; it is safe here because these are -DCMAKE_BUILD_TYPE=Release
+      # objects with no debug info to carry a stale path.
       shell: bash
       run: |
         export CMAKE_PREFIX_PATH=/opt/someip-stack${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}
@@ -50,6 +66,12 @@ runs:
         if command -v ccache >/dev/null 2>&1; then
           ccache_args=(-DCMAKE_C_COMPILER_LAUNCHER=ccache
                        -DCMAKE_CXX_COMPILER_LAUNCHER=ccache)
+          # Exported for the BUILD step too, not just this one: ccache reads them
+          # when it launches each compile, which happens in the next step.
+          {
+            echo "CCACHE_BASEDIR=${GITHUB_WORKSPACE:-$PWD}"
+            echo "CCACHE_NOHASHDIR=1"
+          } >> "$GITHUB_ENV"
         fi
         cmake -S . -B build \
           -DCMAKE_BUILD_TYPE=Release \
