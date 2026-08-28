@@ -103,120 +103,146 @@ int LwipSocketBackend::sendToV4(int fd, const void *buf, std::size_t len, const 
 // One socket-level IGMP membership setsockopt (IP_ADD_MEMBERSHIP /
 // IP_DROP_MEMBERSHIP), shared by join and leave: build the ip_mreq and report
 // success on a zero return. ifaddr_be == 0 selects the default interface.
-static bool ipMembership(int fd, int optname, std::uint32_t group_be, std::uint32_t ifaddr_be) {
+// A rejection is Failed rather than a more specific status: lwIP's setsockopt
+// does not tell the causes apart here, and naming one would be a guess.
+static tc8::net::OpStatus ipMembership(int fd, int optname, std::uint32_t group_be,
+                                       std::uint32_t ifaddr_be) {
     ip_mreq mreq{};
     mreq.imr_multiaddr.s_addr = group_be;
     mreq.imr_interface.s_addr = ifaddr_be;
-    return lwip_setsockopt(fd, IPPROTO_IP, optname, &mreq, sizeof(mreq)) == 0;
+    return lwip_setsockopt(fd, IPPROTO_IP, optname, &mreq, sizeof(mreq)) == 0
+               ? tc8::net::OpStatus::Ok
+               : tc8::net::OpStatus::Failed;
 }
 #endif
 
-bool LwipSocketBackend::joinMulticast(int fd, std::uint32_t group_be, std::uint32_t ifaddr_be) {
+tc8::net::OpStatus LwipSocketBackend::joinMulticast(int fd, std::uint32_t group_be,
+                                                    std::uint32_t ifaddr_be) {
 #if LWIP_IGMP
     // The UTM core builds with LWIP_IGMP (utm/lwipopts.h); IP_ADD_MEMBERSHIP joins
-    // the group on the netif carrying ifaddr_be (0 = default). Returns false on a
-    // setsockopt rejection (e.g. no IGMP-capable netif) — surfaced, not dropped.
+    // the group on the netif carrying ifaddr_be (0 = default).
     return ipMembership(fd, IP_ADD_MEMBERSHIP, group_be, ifaddr_be);
 #else
     // The conformance core (lwipopts.h) builds IGMP OFF to stay wire-silent on the
     // broadcast/multicast discard cases; IP_ADD_MEMBERSHIP is not even defined
-    // there. Surfaced as false — a module that needs the group degrades exactly as
-    // on a failed bind.
+    // there. Unsupported, not Failed: no privilege and no argument makes this work
+    // on this build, so a caller should stop asking rather than retry.
     (void)fd;
     (void)group_be;
     (void)ifaddr_be;
-    return false;
+    return tc8::net::OpStatus::Unsupported;
 #endif
 }
 
-bool LwipSocketBackend::leaveMulticast(int fd, std::uint32_t group_be, std::uint32_t ifaddr_be) {
+tc8::net::OpStatus LwipSocketBackend::leaveMulticast(int fd, std::uint32_t group_be,
+                                                     std::uint32_t ifaddr_be) {
 #if LWIP_IGMP
     return ipMembership(fd, IP_DROP_MEMBERSHIP, group_be, ifaddr_be);
 #else
     (void)fd;
     (void)group_be;
     (void)ifaddr_be;
-    return false;  // IGMP off in the conformance core (see joinMulticast)
+    return tc8::net::OpStatus::Unsupported;  // IGMP off in the core (see joinMulticast)
 #endif
 }
 
-bool LwipSocketBackend::flushDynamicArp(const std::string & /*ifname*/) {
+tc8::net::OpStatus LwipSocketBackend::flushDynamicArp(const std::string & /*ifname*/) {
     // lwIP's socket layer exposes no per-interface dynamic-ARP flush (etharp has
-    // no public "drop learned entries on this netif" call), so this is surfaced as
-    // false rather than silently succeeding — consistent with the other
-    // unsupported-capability stubs. The conformance fixture conditions ARP per
-    // case by respawning the DUT (empty cache each case), not via this primitive.
-    return false;
+    // no public "drop learned entries on this netif" call). Unsupported states
+    // that exactly: a permanent property of this stack, not a failure that a
+    // different interface name or more privilege could get past. The conformance
+    // fixture conditions ARP per case by respawning the DUT (empty cache each
+    // case), not via this primitive.
+    return tc8::net::OpStatus::Unsupported;
 }
 
-bool LwipSocketBackend::addStaticNeighbor(const std::string &ifname, std::uint32_t addr_be,
-                                          const std::uint8_t *mac) {
+tc8::net::OpStatus LwipSocketBackend::addStaticNeighbor(const std::string &ifname,
+                                                        std::uint32_t addr_be,
+                                                        const std::uint8_t *mac) {
 #if ETHARP_SUPPORT_STATIC_ENTRIES
     if (mac == nullptr) {
-        return false;  // the seam requires a 6-byte MAC for an add; guard the memcpy
+        // The seam requires a 6-byte MAC for an add; guard the memcpy.
+        return tc8::net::OpStatus::InvalidArgument;
     }
     ip4_addr_t ip{};
     ip4_addr_set_u32(&ip, addr_be);
     struct eth_addr eth{};
     std::memcpy(eth.addr, mac, 6);
-    bool ok = false;
+    tc8::net::OpStatus status = tc8::net::OpStatus::Ok;
     LOCK_TCPIP_CORE();
     // etharp_add_static_entry attaches the entry to whatever netif lwIP routes the
     // address through, with no ifname parameter. Honor the seam's "on ifname"
     // contract by requiring the named interface to be that route (on the typical
-    // single-netif UTM they coincide); an unknown interface, or an address not
-    // reachable via it, is false.
+    // single-netif UTM they coincide). The two ways that can fail are different
+    // answers: no such netif is UnknownInterface, while a netif that exists but is
+    // not the route to `addr_be` is an inconsistent pair — InvalidArgument.
     struct netif *nif = netif_find(ifname.c_str());
-    if (nif != nullptr && ip4_route(&ip) == nif) {
-        ok = etharp_add_static_entry(&ip, &eth) == ERR_OK;
+    if (nif == nullptr) {
+        status = tc8::net::OpStatus::UnknownInterface;
+    } else if (ip4_route(&ip) != nif) {
+        status = tc8::net::OpStatus::InvalidArgument;
+    } else if (etharp_add_static_entry(&ip, &eth) != ERR_OK) {
+        status = tc8::net::OpStatus::Failed;  // ERR_MEM: the ARP table is full
     }
     UNLOCK_TCPIP_CORE();
-    return ok;
+    return status;
 #else
+    // Built without static ARP entries: no privilege or argument reaches this.
     (void)ifname;
     (void)addr_be;
     (void)mac;
-    return false;
+    return tc8::net::OpStatus::Unsupported;
 #endif
 }
 
-bool LwipSocketBackend::removeNeighbor(const std::string &ifname, std::uint32_t addr_be) {
+tc8::net::OpStatus LwipSocketBackend::removeNeighbor(const std::string &ifname,
+                                                     std::uint32_t addr_be) {
 #if ETHARP_SUPPORT_STATIC_ENTRIES
     ip4_addr_t ip{};
     ip4_addr_set_u32(&ip, addr_be);
-    bool ok = false;
+    tc8::net::OpStatus status = tc8::net::OpStatus::Ok;
     LOCK_TCPIP_CORE();
     // Mirror addStaticNeighbor's "on ifname" scoping: etharp_remove_static_entry is
     // interface-global (no netif arg), so require the named interface to be the
     // route to the address — an entry added through this seam (which enforces the
     // same predicate) is then removable through it, and an unknown / non-routing
-    // interface is false rather than silently removing a same-IP entry on another.
+    // interface is refused rather than silently removing a same-IP entry on another.
     struct netif *nif = netif_find(ifname.c_str());
-    if (nif != nullptr && ip4_route(&ip) == nif) {
+    if (nif == nullptr) {
+        status = tc8::net::OpStatus::UnknownInterface;
+    } else if (ip4_route(&ip) != nif) {
+        status = tc8::net::OpStatus::InvalidArgument;
+    } else {
         // ERR_OK = a static entry was removed; ERR_MEM = none was there. Both leave
         // the end-state "no static entry for this IP", so both are success
-        // (idempotent, matching the POSIX backend). ERR_ARG (a *dynamic* entry
-        // exists) is false: lwIP has no public per-IP dynamic-entry removal, so the
-        // entry persists — surfaced, not masked. See the README known-limitation.
+        // (idempotent, matching the POSIX backend). ERR_ARG means a *dynamic* entry
+        // exists and lwIP has no public per-IP dynamic-entry removal, so the entry
+        // persists: Unsupported, because that is a permanent limit of this stack
+        // for this kind of entry rather than a transient failure. Surfaced, not
+        // masked. See the README known-limitation.
         const err_t e = etharp_remove_static_entry(&ip);
-        ok = (e == ERR_OK || e == ERR_MEM);
+        if (e != ERR_OK && e != ERR_MEM) {
+            status = tc8::net::OpStatus::Unsupported;
+        }
     }
     UNLOCK_TCPIP_CORE();
-    return ok;
+    return status;
 #else
     (void)ifname;
     (void)addr_be;
-    return false;
+    return tc8::net::OpStatus::Unsupported;
 #endif
 }
 
-bool LwipSocketBackend::setNeighborReachableMs(const std::string & /*ifname*/,
-                                               int /*reachable_ms*/) {
+tc8::net::OpStatus LwipSocketBackend::setNeighborReachableMs(const std::string & /*ifname*/,
+                                                             int /*reachable_ms*/) {
     // lwIP ages ARP entries on a fixed ARP_MAXAGE (a compile-time constant, units of
     // ARP_TMR_INTERVAL ticks), with no per-interface runtime knob. This is a genuine
     // platform limitation, not a deferral: the value cannot change at runtime on this
-    // stack, so the control is surfaced as false rather than silently accepted.
-    return false;
+    // stack, so the control answers Unsupported rather than being silently accepted
+    // — and Unsupported, not Failed, is what tells a test system the difference
+    // between this target and a Linux one that merely lacked the privilege.
+    return tc8::net::OpStatus::Unsupported;
 }
 
 int LwipSocketBackend::recv(int fd, void *buf, std::size_t len) {

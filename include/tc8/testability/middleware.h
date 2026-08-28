@@ -88,6 +88,15 @@ public:
     // The shared socket/stack adapter (the same backend the core uses). A module
     // opens its own data-plane sockets here — never a raw OS API, so it stays
     // neutral across the POSIX and lwIP backends.
+    //
+    // Its capability operations (multicast membership, ARP/neighbor cache) answer
+    // a net::OpStatus rather than a bool, because a wrong interface name and a
+    // stack that cannot perform the primitive at all are different facts for the
+    // test system. Forward that answer with ridFromOpStatus() —
+    //     rid_out = ridFromOpStatus(ctx.backend().flushDynamicArp(ifname));
+    // — rather than re-deciding it as `ok ? kRidEOk : kRidENok`, which is what
+    // collapsed every cause onto E_NOK and made a typo indistinguishable from a
+    // permanent platform limit.
     virtual net::SocketBackend &backend() = 0;
 
     // Periodic timer: invoke `fn` every `period` until cancel() / onStop(). The

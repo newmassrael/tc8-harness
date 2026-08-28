@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <string>
 
+#include "tc8/net/op_status.h"
+
 namespace tc8::net {
 
 // A platform-neutral IPv4 endpoint (network byte order). A server core speaks
@@ -16,7 +18,9 @@ struct Endpoint {
 
 // The protocol-neutral I/O seam (ports & adapters): every socket operation a
 // DUT-side conformance server needs from the network stack, expressed in raw
-// terms (fds, byte counts, bool) with no application-protocol vocabulary. A
+// terms (fds, byte counts, bool, and — for the operations a stack may not have
+// at all — the neutral OpStatus of op_status.h) with no application-protocol
+// vocabulary. A
 // Linux (POSIX syscalls) and an lwIP (socket API + core-API) adapter implement
 // it once, and every server core written against this interface — the AUTOSAR
 // testability ProtocolServer, the TC8 Upper Tester server — reuses the same
@@ -42,48 +46,61 @@ public:
     virtual int recvFromV4(int fd, void *buf, std::size_t len, Endpoint &src) = 0;
     virtual int sendToV4(int fd, const void *buf, std::size_t len, const Endpoint &dst) = 0;
 
+    // ── Capability operations (OpStatus, not bool) ──────────────────────────
+    //
+    // The six below are not socket plumbing: they are controls a stack may
+    // structurally not have, and they fail for reasons a caller must tell apart
+    // (tc8/net/op_status.h). Each names the statuses it can answer; a backend
+    // returns the most specific one it can establish, never a vaguer stand-in.
+
     // Join the IPv4 multicast group `group_be` (network byte order) on a bound
     // UDP `fd`, receiving on the interface carrying `ifaddr_be` (0 = the default
-    // interface). true on success. A backend whose stack has no multicast/IGMP
-    // support answers false (surfaced, not silently dropped) — a module that
-    // needs the group then degrades the same way it does on a failed bind.
-    virtual bool joinMulticast(int fd, std::uint32_t group_be, std::uint32_t ifaddr_be) = 0;
+    // interface). Unsupported on a stack built without multicast/IGMP (surfaced,
+    // not silently dropped — a module that needs the group then degrades the way
+    // it does on a failed bind); UnknownInterface when no interface carries
+    // `ifaddr_be`; InvalidArgument when `group_be` is not a multicast address.
+    virtual OpStatus joinMulticast(int fd, std::uint32_t group_be, std::uint32_t ifaddr_be) = 0;
 
     // Leave a multicast group previously joined on `fd` (the joinMulticast
-    // counterpart). true on success; a stack without multicast answers false.
-    virtual bool leaveMulticast(int fd, std::uint32_t group_be, std::uint32_t ifaddr_be) = 0;
+    // counterpart), with the same status set.
+    virtual OpStatus leaveMulticast(int fd, std::uint32_t group_be, std::uint32_t ifaddr_be) = 0;
 
     // Flush the dynamic (learned, non-permanent) IPv4 ARP/neighbor entries on
     // interface `ifname` — the network-stack reset a module backing an ARP
     // cache-control primitive needs, done via the stack's own API rather than
-    // shelling out. true if the flush completed (including "nothing to flush");
-    // false on an unknown interface, insufficient privilege, or a stack with no
-    // such control (surfaced). Per-interface, so it takes no fd.
-    virtual bool flushDynamicArp(const std::string &ifname) = 0;
+    // shelling out. Ok if the flush completed, including "nothing to flush";
+    // otherwise UnknownInterface, NotPermitted where the delete is privileged,
+    // or Unsupported on a stack exposing no such control (surfaced).
+    // Per-interface, so it takes no fd.
+    virtual OpStatus flushDynamicArp(const std::string &ifname) = 0;
 
     // Install a static (permanent) IPv4 ARP/neighbor entry on `ifname` mapping
     // `addr_be` (network byte order) to the 6-byte MAC at `mac` — the ARP-cache
     // pre-conditioning a module needs to suppress an ARP request for a peer it
-    // already knows. true on success; false on an unknown interface, insufficient
-    // privilege, or a stack with no static-entry support (surfaced). Pairs with
-    // removeNeighbor; the data plane stays the stack's own API, never a shell-out.
-    virtual bool addStaticNeighbor(const std::string &ifname, std::uint32_t addr_be,
-                                   const std::uint8_t *mac) = 0;
+    // already knows. UnknownInterface; InvalidArgument on a null `mac` or an
+    // address not reachable via `ifname`; NotPermitted; or Unsupported on a stack
+    // with no static-entry support (surfaced). Pairs with removeNeighbor; the
+    // data plane stays the stack's own API, never a shell-out.
+    virtual OpStatus addStaticNeighbor(const std::string &ifname, std::uint32_t addr_be,
+                                       const std::uint8_t *mac) = 0;
 
     // Remove the single IPv4 neighbor entry for `addr_be` on `ifname`, whatever
     // its kind (static or learned) — the per-IP counterpart of flushDynamicArp,
     // used both to drop a pre-installed static entry and to force a re-ARP for one
-    // peer. true on success, including when no such entry exists (idempotent);
-    // false on an unknown interface, insufficient privilege, or no such control.
-    virtual bool removeNeighbor(const std::string &ifname, std::uint32_t addr_be) = 0;
+    // peer. Ok including when no such entry exists (idempotent); otherwise
+    // UnknownInterface, InvalidArgument, NotPermitted, or Unsupported where the
+    // stack cannot remove an entry of that kind.
+    virtual OpStatus removeNeighbor(const std::string &ifname, std::uint32_t addr_be) = 0;
 
     // Set the base reachable time (milliseconds) for learned IPv4 neighbor entries
     // on `ifname` — the ARP-cache aging control a module uses to drive entries
-    // stale and provoke revalidation. true on success; false on an unknown
-    // interface, insufficient privilege, or a stack whose aging is fixed at
-    // compile time and cannot be changed at runtime (surfaced, not silently
-    // accepted). The caller restores the prior value if it needs to.
-    virtual bool setNeighborReachableMs(const std::string &ifname, int reachable_ms) = 0;
+    // stale and provoke revalidation. UnknownInterface; InvalidArgument on a
+    // negative time; NotPermitted where the knob is privileged; or Unsupported on
+    // a stack whose aging is fixed at compile time and cannot be changed at
+    // runtime (surfaced, not silently accepted — a permanent target property and
+    // a caller-side one are different answers, and only the caller-side one is
+    // worth a retry). The caller restores the prior value if it needs to.
+    virtual OpStatus setNeighborReachableMs(const std::string &ifname, int reachable_ms) = 0;
 
     // Stream I/O. < 0 error, 0 peer close, else byte count.
     virtual int recv(int fd, void *buf, std::size_t len) = 0;

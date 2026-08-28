@@ -1902,7 +1902,8 @@ TEST(PosixBackendMulticast, JoinMulticastReceivesGroupDatagram) {
     be.setReuseAddr(rx);
     be.setRecvTimeoutMs(rx, 2000);  // bound the recv so a non-multicast host cannot hang
     ASSERT_TRUE(be.bindV4(rx, 0, kMcPort));
-    ASSERT_TRUE(be.joinMulticast(rx, group_be, 0))  // 0 = default interface
+    ASSERT_EQ(be.joinMulticast(rx, group_be, 0),  // 0 = default interface
+              net::OpStatus::Ok)
         << "IP_ADD_MEMBERSHIP failed";
 
     const int tx = be.createUdp();
@@ -1922,7 +1923,8 @@ TEST(PosixBackendMulticast, JoinMulticastReceivesGroupDatagram) {
     EXPECT_EQ(std::vector<std::uint8_t>(buf, buf + n), payload);
 
     // The leaveMulticast counterpart: dropping the membership succeeds.
-    EXPECT_TRUE(be.leaveMulticast(rx, group_be, 0)) << "IP_DROP_MEMBERSHIP failed";
+    EXPECT_EQ(be.leaveMulticast(rx, group_be, 0), net::OpStatus::Ok)
+        << "IP_DROP_MEMBERSHIP failed";
 
     be.closeFd(tx);
     be.closeFd(rx);
@@ -1934,20 +1936,85 @@ TEST(PosixBackendMulticast, JoinMulticastReceivesGroupDatagram) {
 // entries that actually exist is exercised under NET_ADMIN in the netns fixture.
 TEST(PosixBackendArp, FlushDynamicArpResolvesInterfaceAndSucceedsOnEmpty) {
     dut::LinuxSocketBackend be;
-    EXPECT_FALSE(be.flushDynamicArp("tc8_no_such_iface")) << "unknown interface must be rejected";
-    EXPECT_TRUE(be.flushDynamicArp("lo")) << "flush on an entry-free interface should succeed";
+    EXPECT_EQ(be.flushDynamicArp("tc8_no_such_iface"), net::OpStatus::UnknownInterface)
+        << "an unknown interface must be named as such, not merely rejected";
+    EXPECT_EQ(be.flushDynamicArp("lo"), net::OpStatus::Ok)
+        << "flush on an entry-free interface should succeed";
 }
 
 // Neighbor ops (POSIX): each resolves the interface unprivileged FIRST (via
 // if_nametoindex / the procfs path), so an unknown interface is rejected on any
-// host, no CAP_NET_ADMIN needed.
+// host, no CAP_NET_ADMIN needed — and is reported AS an unknown interface, the
+// distinction the seam exists to make (E_IIF on the wire, not a bare E_NOK).
 TEST(PosixBackendNeighbor, UnknownInterfaceRejected) {
     dut::LinuxSocketBackend be;
     const std::uint8_t mac[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
     const std::uint32_t ip_be = ::htonl(0x0A000002);  // 10.0.0.2
-    EXPECT_FALSE(be.addStaticNeighbor("tc8_no_such_iface", ip_be, mac));
-    EXPECT_FALSE(be.removeNeighbor("tc8_no_such_iface", ip_be));
-    EXPECT_FALSE(be.setNeighborReachableMs("tc8_no_such_iface", 30000));
+    EXPECT_EQ(be.addStaticNeighbor("tc8_no_such_iface", ip_be, mac),
+              net::OpStatus::UnknownInterface);
+    EXPECT_EQ(be.removeNeighbor("tc8_no_such_iface", ip_be), net::OpStatus::UnknownInterface);
+    EXPECT_EQ(be.setNeighborReachableMs("tc8_no_such_iface", 30000),
+              net::OpStatus::UnknownInterface);
+}
+
+// The causes the seam previously collapsed into one `false` are now distinct
+// answers, and this is the test that says so: a bad interface NAME, a bad
+// ARGUMENT and (below) a missing PRIVILEGE must not compare equal. Unprivileged
+// on purpose — every assertion here holds on any host.
+TEST(PosixBackendNeighbor, DistinctCausesAreDistinctStatuses) {
+    dut::LinuxSocketBackend be;
+    const std::uint32_t ip_be = ::htonl(0x0A000002);  // 10.0.0.2
+    const std::uint8_t mac[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
+
+    // A negative aging time is the request's fault, not the interface's — and it
+    // is screened before the name is even resolved.
+    EXPECT_EQ(be.setNeighborReachableMs("lo", -1), net::OpStatus::InvalidArgument);
+    // A '/' in the name is refused as an argument (the procfs traversal guard),
+    // never silently attempted.
+    EXPECT_EQ(be.setNeighborReachableMs("lo/../../evil", 30000),
+              net::OpStatus::InvalidArgument);
+    // A null MAC cannot be installed; that is the caller's error, not the stack's.
+    EXPECT_EQ(be.addStaticNeighbor("lo", ip_be, nullptr), net::OpStatus::InvalidArgument);
+
+    // The point of the whole change: an operator mistake and a real interface do
+    // not produce the same answer.
+    EXPECT_NE(be.addStaticNeighbor("tc8_no_such_iface", ip_be, mac),
+              be.addStaticNeighbor("lo", ip_be, nullptr));
+}
+
+// Without CAP_NET_ADMIN the aging write is refused by the kernel, and the seam
+// says WHICH refusal it was: NotPermitted (the caller lacks a privilege, so a
+// privileged retry would work) rather than Unsupported (the target can never do
+// it). Conflating the two is exactly what a test system driving a bare-metal DUT
+// versus an unprivileged Linux one has to be able to tell apart. Skipped where
+// the process HOLDS the capability — the privileged path is covered above.
+TEST(PosixBackendNeighbor, UnprivilegedAgingWriteIsNotPermittedNotUnsupported) {
+    if (hasNetAdmin()) {
+        GTEST_SKIP() << "this asserts the unprivileged answer; the process has CAP_NET_ADMIN";
+    }
+    dut::LinuxSocketBackend be;
+    // lo does publish the knob (so this is not Unsupported); the sysctl is
+    // root-owned (so an unprivileged open is EACCES).
+    EXPECT_EQ(be.setNeighborReachableMs("lo", 30000), net::OpStatus::NotPermitted);
+    // And it stays distinguishable from the unknown-interface answer.
+    EXPECT_NE(be.setNeighborReachableMs("lo", 30000),
+              be.setNeighborReachableMs("tc8_no_such_iface", 30000));
+}
+
+// The wire projection of those statuses (PRS_TPSP §6.8): a module forwarding a
+// seam result must reach E_IIF and E_NTF, not one E_NOK for everything. This is
+// the half of the change a test system actually observes.
+TEST(OpStatusRid, ProjectsOntoDistinctResultIds) {
+    EXPECT_EQ(testability::ridFromOpStatus(net::OpStatus::Ok), testability::kRidEOk);
+    EXPECT_EQ(testability::ridFromOpStatus(net::OpStatus::UnknownInterface),
+              testability::kRidEIif);
+    EXPECT_EQ(testability::ridFromOpStatus(net::OpStatus::InvalidArgument),
+              testability::kRidEInv);
+    EXPECT_EQ(testability::ridFromOpStatus(net::OpStatus::Unsupported), testability::kRidENtf);
+    // No spec code for "insufficient privilege" — both fold to E_NOK, deliberately
+    // and in one place. The distinction survives in the OpStatus itself.
+    EXPECT_EQ(testability::ridFromOpStatus(net::OpStatus::NotPermitted), testability::kRidENok);
+    EXPECT_EQ(testability::ridFromOpStatus(net::OpStatus::Failed), testability::kRidENok);
 }
 
 // Where the process holds CAP_NET_ADMIN, the writes themselves are exercised on
@@ -1970,7 +2037,8 @@ TEST(PosixBackendNeighbor, PrivilegedWritesOnLoopback) {
     // ASSERT below early-returns), so the host sysctl is never left mutated.
     ScopeExit restore([&] { be.setNeighborReachableMs("lo", original); });
 
-    EXPECT_TRUE(be.setNeighborReachableMs("lo", 45000)) << "privileged aging write should succeed";
+    EXPECT_EQ(be.setNeighborReachableMs("lo", 45000), net::OpStatus::Ok)
+        << "privileged aging write should succeed";
     int after = 0;
     {
         std::ifstream in(kPath);
@@ -1979,7 +2047,7 @@ TEST(PosixBackendNeighbor, PrivilegedWritesOnLoopback) {
     EXPECT_EQ(after, 45000) << "the aging time should read back as written";
 
     // Deleting an entry that does not exist is idempotent success (-ENOENT).
-    EXPECT_TRUE(be.removeNeighbor("lo", ::htonl(0x0A0000FE)))
+    EXPECT_EQ(be.removeNeighbor("lo", ::htonl(0x0A0000FE)), net::OpStatus::Ok)
         << "removing an absent neighbor should succeed (idempotent)";
 }
 
@@ -2005,10 +2073,12 @@ TEST(PosixBackendNeighbor, PrivilegedAddStaticNeighborOnDummy) {
     dut::LinuxSocketBackend be;
     const std::uint32_t ip_be = ::htonl(0x0A000002);  // 10.0.0.2
     const std::uint8_t mac[6] = {0x02, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE};
-    EXPECT_TRUE(be.addStaticNeighbor(kIf, ip_be, mac))
+    EXPECT_EQ(be.addStaticNeighbor(kIf, ip_be, mac), net::OpStatus::Ok)
         << "RTM_NEWNEIGH with NUD_PERMANENT + NDA_LLADDR was rejected";
-    EXPECT_TRUE(be.removeNeighbor(kIf, ip_be)) << "RTM_DELNEIGH of the static entry failed";
-    EXPECT_TRUE(be.removeNeighbor(kIf, ip_be)) << "removeNeighbor should be idempotent";
+    EXPECT_EQ(be.removeNeighbor(kIf, ip_be), net::OpStatus::Ok)
+        << "RTM_DELNEIGH of the static entry failed";
+    EXPECT_EQ(be.removeNeighbor(kIf, ip_be), net::OpStatus::Ok)
+        << "removeNeighbor should be idempotent";
 }
 
 }  // namespace

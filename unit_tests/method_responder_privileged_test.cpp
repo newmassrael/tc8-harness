@@ -91,7 +91,8 @@ TEST(MethodResponderLive, AnswersRequestOnVethPeer) {
     // rather than waiting on an ARP that nothing would answer (kB has no IP).
     const std::array<std::uint8_t, 6> client_mac{0x02, 0, 0, 0, 0, 0xC9};
     tc8::dut::LinuxSocketBackend backend;
-    ASSERT_TRUE(backend.addStaticNeighbor(kA, client_ip, client_mac.data()))
+    ASSERT_EQ(backend.addStaticNeighbor(kA, client_ip, client_mac.data()),
+              tc8::net::OpStatus::Ok)
         << "could not install static neighbor";
 
     // Capture on the PEER end: the reply egresses kA toward the client and crosses

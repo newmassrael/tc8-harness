@@ -8,10 +8,22 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <ostream>
 #include <utility>
 
+#include "tc8/net/op_status.h"
 #include "tc8/net/rtnetlink.h"
 #include "tc8/linux_socket_backend.h"
+
+namespace tc8::net {
+
+// Print an OpStatus by name in a GoogleTest failure message. Found by ADL, so
+// EXPECT_EQ on a status reads "Unsupported vs UnknownInterface" rather than two
+// raw bytes. Test-only on purpose: the production header keeps toString() and
+// stays free of <ostream> and of any test-framework convention.
+inline void PrintTo(OpStatus status, std::ostream *os) { *os << toString(status); }
+
+}  // namespace tc8::net
 
 // Scaffolding shared by the privileged netns tests (neighbor ops, interface
 // link-state). Builds a throwaway "dummy" netdevice via rtnetlink so a privileged
@@ -174,10 +186,10 @@ inline bool createVethPair(const char *name_a, const char *name_b) {
 // uid 0, so a CAP_NET_ADMIN-via-file-caps process isn't wrongly skipped and a
 // capability-less uid-0 container isn't run red. The probe is a delete of an
 // absent neighbor on loopback: a harmless no-op the kernel still gates on
-// CAP_NET_ADMIN (→ -ENOENT/true with it, -EPERM/false without).
+// CAP_NET_ADMIN (→ -ENOENT/Ok with it, -EPERM/NotPermitted without).
 inline bool hasNetAdmin() {
     ::tc8::dut::LinuxSocketBackend be;
-    return be.removeNeighbor("lo", ::htonl(0x0A0000FE));
+    return be.removeNeighbor("lo", ::htonl(0x0A0000FE)) == ::tc8::net::OpStatus::Ok;
 }
 
 // RAII: run a cleanup at scope exit even if an ASSERT_* early-returns or the test

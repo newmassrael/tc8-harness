@@ -903,3 +903,46 @@ Response is rejected on major-version mismatch. If yes, extend `ResponseCorrelat
 Request's major alongside its session and reject a Response whose `get_interface_version()` differs
 — the record/accept API already carries the key, so this is additive. If no, the property belongs
 in the case authoring / spec reading, not the harness client.
+
+---
+
+## TD-16 — "insufficient privilege" has no PRS_TPSP result code, so it reaches the wire as E_NOK
+
+**Status:** OPEN (accepted). **Logged:** 2026-08-28, alongside the change that gave the
+neighbor/multicast seam a status vocabulary (`include/tc8/net/op_status.h`).
+
+**What it is.** The six capability operations on `net::SocketBackend` answer a
+`net::OpStatus` that names WHY they failed, and `testability::ridFromOpStatus`
+(`include/tc8/testability_protocol.h`) projects that onto a PRS_TPSP §6.8 Result ID. Four of
+the six statuses reach a distinct code — `Ok` → E_OK, `UnknownInterface` → E_IIF,
+`InvalidArgument` → E_INV, `Unsupported` → E_NTF. `NotPermitted` does not: it shares E_NOK
+with the residual `Failed`. A test system therefore still cannot distinguish, FROM THE WIRE
+ALONE, "the target could do this but the UTM process lacks CAP_NET_ADMIN" from "it was
+attempted and failed for some other reason".
+
+**Why it exists.** PRS_TPSP §6.8 defines no privilege code. The available vocabulary is
+E_OK / E_NOK, the testability-specific E_NTF / E_PEN / E_ISB / E_INV, and the
+primitive-specific E_ISD / E_UCS / E_UBS / E_IIF — none of which means "insufficient
+privilege". Minting one would mean an AUTOSAR-specific code in the 0x02..0x7F range, i.e. a
+wire value this repository invents. The sibling seam (`testability::SocketBackend`, via
+`ridFromIfaceErrno`) already folds EPERM into E_NOK for the same reason, so folding here
+keeps the two seams consistent instead of giving one of them a private code.
+
+**Risk if left.** Bounded, and smaller than what it replaced. The distinction the originating
+report needed — an operator's mistake (E_IIF) versus a permanent platform limit (E_NTF) — IS
+now on the wire. What stays ambiguous is a privilege problem versus a generic failure, and
+both are conditions of the deployment rather than of the target's capability. The distinction
+is NOT lost in-process: the backend returns `OpStatus::NotPermitted` and a module can log it
+via `net::toString`; it is only unrepresented on the wire.
+
+**Textbook fix.** Two independent halves, either of which closes it:
+1. An OEM profile that owns a 0x02..0x7F allocation defines a privilege code and changes the
+   single `NotPermitted` arm of `ridFromOpStatus`. The projection is deliberately one
+   function, so this is a one-line change and not a sweep of six backends.
+2. A future PRS_TPSP release adds one. Same one-line change.
+
+**Deferred because.** Inventing a wire code with no spec or profile behind it would make this
+UTM's responses non-conformant for the sake of a distinction ranked below the E_IIF / E_NTF
+split that was actually asked for. See also the `Unsupported` → E_NTF reading documented at
+`ridFromOpStatus`: that is a spec reading rather than a spec quotation, and it carries the
+same "change it here, once" property should a narrower reading of PRS_TPSP §6.8 later prevail.

@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 
+#include "tc8/net/op_status.h"
+
 // AUTOSAR Testability Protocol and Service Primitives wire framing — the
 // single source of truth shared by the tester-side client
 // (src/testability_client/testability_client.cpp) and the DUT-side endpoint
@@ -162,6 +164,44 @@ inline constexpr std::uint8_t kRidEIsd = 0xEF;  // invalid socket ID
 inline constexpr std::uint8_t kRidEUcs = 0xEE;  // unable to create / no free socket
 inline constexpr std::uint8_t kRidEUbs = 0xED;  // unable to bind, port taken
 inline constexpr std::uint8_t kRidEIif = 0xEC;  // invalid network / virtual interface
+
+// Project a socket-seam capability outcome (tc8::net::OpStatus) onto the Result
+// ID a Response carries. The seam is protocol-neutral by design, so the reading
+// of PRS_TPSP §6.8 that binds the two vocabularies lives HERE, once, instead of
+// being re-decided in every backend and every module that forwards a result:
+//
+//   UnknownInterface -> E_IIF, the code PRS_TPSP §6.8 defines for exactly this.
+//   InvalidArgument  -> E_INV, "invalid input or parameter".
+//   Unsupported      -> E_NTF. The gloss is "service primitive not found", and a
+//     primitive this build's stack structurally cannot perform is, to the test
+//     system, the same actionable fact: it is not served here, stop asking. (A
+//     module answering an unknown PID under an owned GID already uses E_NTF —
+//     see MiddlewareModule::onPrimitive.) If a later spec reading holds E_NTF to
+//     the narrower "no such primitive", an AUTOSAR-specific code in the
+//     0x02..0x7F range replaces it in this one line.
+//   NotPermitted     -> E_NOK. PRS_TPSP §6.8 has no "insufficient privilege"
+//     code, and the sibling seam already folds EPERM the same way. The
+//     distinction is not lost, only not on the wire: it survives in the
+//     OpStatus, where a module can log it or act on it.
+//   Failed           -> E_NOK, the general error the spec provides.
+inline constexpr std::uint8_t ridFromOpStatus(net::OpStatus status) {
+    switch (status) {
+        case net::OpStatus::Ok:
+            return kRidEOk;
+        case net::OpStatus::UnknownInterface:
+            return kRidEIif;
+        case net::OpStatus::InvalidArgument:
+            return kRidEInv;
+        case net::OpStatus::Unsupported:
+            return kRidENtf;
+        case net::OpStatus::NotPermitted:
+        case net::OpStatus::Failed:
+            return kRidENok;
+    }
+    // Unreachable for a valid enumerator (the switch is exhaustive, and -Wswitch
+    // is an error here, so a new status cannot be added without landing above).
+    return kRidENok;
+}
 
 // PRS_TPSP §6.10 GET_VERSION response — bound to the TC release the protocol is based
 // on. This build implements TC 1.2.0.

@@ -44,6 +44,41 @@ std::uint8_t setIntSockOpt(int fd, int level, int optname, int value) {
                                                                         : tp::kRidENok;
 }
 
+// errno (or a negated netlink ACK error) from a CAPABILITY operation -> the
+// neutral seam status (tc8/net/op_status.h). The kernel already distinguishes
+// these causes; this is the one place that translation is written, so no
+// capability method open-codes "EPERM means the privilege, not the target".
+//
+// Kept separate from ridFromIfaceErrno below on purpose: that one answers for the
+// testability seam, whose PRS_TPSP §6.8 vocabulary has no privilege code and must
+// fold EPERM into E_NOK. This one loses nothing, and ridFromOpStatus performs the
+// folding once, at the wire boundary, where it belongs.
+net::OpStatus opStatusFromErrno(int e) {
+    switch (e) {
+        case 0:
+            return net::OpStatus::Ok;
+        case EPERM:
+        case EACCES:
+            return net::OpStatus::NotPermitted;
+        case ENODEV:
+        case ENXIO:
+        case EADDRNOTAVAIL:
+            // No such interface, or (for an address-selected one) none carrying
+            // that address — the kernel's spelling of UnknownInterface.
+            return net::OpStatus::UnknownInterface;
+        case EINVAL:
+            return net::OpStatus::InvalidArgument;
+        case EOPNOTSUPP:
+        case ENOPROTOOPT:
+        case EAFNOSUPPORT:
+            // The stack was built without the feature this call needs: a
+            // permanent property of the target, not of the request.
+            return net::OpStatus::Unsupported;
+        default:
+            return net::OpStatus::Failed;
+    }
+}
+
 // errno from a privileged netif / route ioctl -> testability Result ID: an unknown
 // interface (an errno in `iif`) is E_IIF; everything else (notably EPERM on a host
 // without CAP_NET_ADMIN) is E_NOK, surfaced rather than dropped.
@@ -120,15 +155,31 @@ struct in6_rtmsg {
     int ifindex;
 };
 
+// The one IP_ADD_MEMBERSHIP / IP_DROP_MEMBERSHIP setsockopt behind join and
+// leave: the kernel names the cause in errno (EADDRNOTAVAIL = no interface
+// carries `ifaddr_be`, EINVAL = `group_be` is not a multicast address), so the
+// membership ops answer with that rather than one bool for every path.
+net::OpStatus ipMembership(int fd, int optname, std::uint32_t group_be,
+                           std::uint32_t ifaddr_be) {
+    ip_mreq mreq{};
+    mreq.imr_multiaddr.s_addr = group_be;
+    mreq.imr_interface.s_addr = ifaddr_be;  // 0 == INADDR_ANY -> default interface
+    if (::setsockopt(fd, IPPROTO_IP, optname, &mreq, sizeof(mreq)) == 0) {
+        return net::OpStatus::Ok;
+    }
+    return opStatusFromErrno(errno);
+}
+
 // Build and send a single RTM_NEWNEIGH / RTM_DELNEIGH via the shared rtnetlink
 // request primitive (tc8::net::rtnl) — the request+ACK sibling of
 // flushDynamicArp's dump. A non-null `mac` adds an NDA_LLADDR (an add carries it,
-// a delete does not). Returns true on a zero-error ACK; `enoent_ok` additionally
-// treats -ENOENT ("entry already absent") as success, making a delete idempotent.
-// The write needs CAP_NET_ADMIN, so a privilege-less host gets false.
-bool sendNeighborOp(unsigned ifindex, std::uint16_t nlmsg_type, std::uint16_t extra_flags,
-                    std::uint16_t ndm_state, std::uint32_t dst_be, const std::uint8_t *mac,
-                    bool enoent_ok) {
+// a delete does not). Ok on a zero-error ACK; `enoent_ok` additionally treats
+// -ENOENT ("entry already absent") as Ok, making a delete idempotent. Any other
+// ACK is named by opStatusFromErrno — notably -EPERM on a host without
+// CAP_NET_ADMIN, which is NotPermitted and not a property of the target.
+net::OpStatus sendNeighborOp(unsigned ifindex, std::uint16_t nlmsg_type,
+                             std::uint16_t extra_flags, std::uint16_t ndm_state,
+                             std::uint32_t dst_be, const std::uint8_t *mac, bool enoent_ok) {
     char buf[256] = {};
     auto *nlh = reinterpret_cast<::nlmsghdr *>(buf);
     nlh->nlmsg_len = NLMSG_LENGTH(sizeof(::ndmsg));
@@ -144,7 +195,14 @@ bool sendNeighborOp(unsigned ifindex, std::uint16_t nlmsg_type, std::uint16_t ex
         ::tc8::net::rtnl::appendAttr(buf, &off, NDA_LLADDR, mac, 6);
     }
     nlh->nlmsg_len = static_cast<std::uint32_t>(off);
-    return ::tc8::net::rtnl::sendRequestCheckAck(buf, nlh->nlmsg_len, enoent_ok);
+    int nl_errno = 0;
+    if (!::tc8::net::rtnl::sendRequestAck(buf, nlh->nlmsg_len, nl_errno)) {
+        return net::OpStatus::Failed;  // no ACK at all: socket, send, or short reply
+    }
+    if (enoent_ok && nl_errno == -ENOENT) {
+        return net::OpStatus::Ok;  // already absent — the delete is idempotent
+    }
+    return opStatusFromErrno(-nl_errno);  // netlink reports a NEGATED errno
 }
 
 }  // namespace
@@ -205,35 +263,33 @@ int LinuxSocketBackend::sendToV4(int fd, const void *buf, std::size_t len, const
         ::sendto(fd, buf, len, 0, reinterpret_cast<sockaddr *>(&d), sizeof(d)));
 }
 
-bool LinuxSocketBackend::joinMulticast(int fd, std::uint32_t group_be, std::uint32_t ifaddr_be) {
-    ip_mreq mreq{};
-    mreq.imr_multiaddr.s_addr = group_be;
-    mreq.imr_interface.s_addr = ifaddr_be;  // 0 == INADDR_ANY -> default interface
-    return ::setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) == 0;
+net::OpStatus LinuxSocketBackend::joinMulticast(int fd, std::uint32_t group_be,
+                                                std::uint32_t ifaddr_be) {
+    return ipMembership(fd, IP_ADD_MEMBERSHIP, group_be, ifaddr_be);
 }
 
-bool LinuxSocketBackend::leaveMulticast(int fd, std::uint32_t group_be, std::uint32_t ifaddr_be) {
-    ip_mreq mreq{};
-    mreq.imr_multiaddr.s_addr = group_be;
-    mreq.imr_interface.s_addr = ifaddr_be;  // 0 == INADDR_ANY -> default interface
-    return ::setsockopt(fd, IPPROTO_IP, IP_DROP_MEMBERSHIP, &mreq, sizeof(mreq)) == 0;
+net::OpStatus LinuxSocketBackend::leaveMulticast(int fd, std::uint32_t group_be,
+                                                 std::uint32_t ifaddr_be) {
+    return ipMembership(fd, IP_DROP_MEMBERSHIP, group_be, ifaddr_be);
 }
 
-bool LinuxSocketBackend::flushDynamicArp(const std::string &ifname) {
+net::OpStatus LinuxSocketBackend::flushDynamicArp(const std::string &ifname) {
     // Delete the learned (non-permanent) IPv4 neighbor entries on `ifname` via a
     // direct rtnetlink dump + per-entry RTM_DELNEIGH — the same "speak netlink, do
     // not shell out to `ip neigh`" stance as destroyTimeWaitResidual (fork+exec is
     // slow and unsafe in this multi-threaded server). The dump is unprivileged; the
-    // deletes need CAP_NET_ADMIN, so a flush with entries present returns false
-    // without it. Two-phase (collect during the dump, delete after it drains) so
-    // the delete ACKs never interleave with dump messages on the shared socket.
+    // deletes need CAP_NET_ADMIN, so a flush with entries present is NotPermitted
+    // without it — distinct from an interface that does not exist, which is
+    // answered before any socket is opened. Two-phase (collect during the dump,
+    // delete after it drains) so the delete ACKs never interleave with dump
+    // messages on the shared socket.
     const unsigned ifindex = ::if_nametoindex(ifname.c_str());
     if (ifindex == 0) {
-        return false;  // unknown interface
+        return net::OpStatus::UnknownInterface;
     }
     const int nl = ::socket(AF_NETLINK, SOCK_RAW | SOCK_CLOEXEC, NETLINK_ROUTE);
     if (nl < 0) {
-        return false;
+        return net::OpStatus::Failed;
     }
 
     struct {
@@ -245,18 +301,27 @@ bool LinuxSocketBackend::flushDynamicArp(const std::string &ifname) {
     dump.nlh.nlmsg_flags = NLM_F_REQUEST | NLM_F_DUMP;
     dump.nd.ndm_family = AF_INET;
     if (::send(nl, &dump, sizeof(dump), 0) < 0) {
+        const int e = errno;
         ::close(nl);
-        return false;
+        return opStatusFromErrno(e);
     }
 
     std::vector<std::uint32_t> targets;  // NDA_DST (network order) of entries to flush
-    bool ok = true;
+    // The first non-Ok answer wins and is never overwritten: the causes below are
+    // per-request, so a later generic Failed must not mask the specific reason the
+    // flush actually stopped being possible (typically NotPermitted on entry one).
+    net::OpStatus status = net::OpStatus::Ok;
+    const auto note = [&status](net::OpStatus s) {
+        if (status == net::OpStatus::Ok) {
+            status = s;
+        }
+    };
     bool done = false;
     char buf[8192];
     while (!done) {
         const ssize_t r = ::recv(nl, buf, sizeof(buf), 0);
         if (r <= 0) {
-            ok = false;
+            note(r < 0 ? opStatusFromErrno(errno) : net::OpStatus::Failed);
             break;
         }
         int len = static_cast<int>(r);
@@ -268,7 +333,11 @@ bool LinuxSocketBackend::flushDynamicArp(const std::string &ifname) {
                 break;
             }
             if (nh->nlmsg_type == NLMSG_ERROR) {
-                ok = false;
+                // The dump itself was rejected; the payload names why (a truncated
+                // error message leaves only "Failed" honestly sayable).
+                note(nh->nlmsg_len >= NLMSG_LENGTH(sizeof(::nlmsgerr))
+                         ? opStatusFromErrno(-::tc8::net::rtnl::nlmsgData<::nlmsgerr>(nh)->error)
+                         : net::OpStatus::Failed);
                 done = true;
                 break;
             }
@@ -311,7 +380,7 @@ bool LinuxSocketBackend::flushDynamicArp(const std::string &ifname) {
         ::tc8::net::rtnl::appendAttr(del, &off, NDA_DST, &dst_be, sizeof(dst_be));
         nlh->nlmsg_len = static_cast<std::uint32_t>(off);
         if (::send(nl, del, nlh->nlmsg_len, 0) < 0) {
-            ok = false;
+            note(opStatusFromErrno(errno));
             continue;
         }
         const ssize_t r = ::recv(nl, buf, sizeof(buf), 0);
@@ -320,20 +389,24 @@ bool LinuxSocketBackend::flushDynamicArp(const std::string &ifname) {
             if (nh->nlmsg_type == NLMSG_ERROR) {
                 const auto *e = ::tc8::net::rtnl::nlmsgData<::nlmsgerr>(nh);
                 if (e->error != 0 && e->error != -ENOENT) {  // -ENOENT = already gone (benign)
-                    ok = false;
+                    note(opStatusFromErrno(-e->error));
                 }
             }
         }
     }
     ::close(nl);
-    return ok;
+    return status;
 }
 
-bool LinuxSocketBackend::addStaticNeighbor(const std::string &ifname, std::uint32_t addr_be,
-                                           const std::uint8_t *mac) {
+net::OpStatus LinuxSocketBackend::addStaticNeighbor(const std::string &ifname,
+                                                    std::uint32_t addr_be,
+                                                    const std::uint8_t *mac) {
+    if (mac == nullptr) {
+        return net::OpStatus::InvalidArgument;  // the seam requires a 6-byte MAC
+    }
     const unsigned ifindex = ::if_nametoindex(ifname.c_str());
     if (ifindex == 0) {
-        return false;  // unknown interface
+        return net::OpStatus::UnknownInterface;
     }
     // NUD_PERMANENT = a static entry (never aged out); NLM_F_CREATE|NLM_F_REPLACE
     // so an existing entry for this address is overwritten rather than rejected.
@@ -341,10 +414,11 @@ bool LinuxSocketBackend::addStaticNeighbor(const std::string &ifname, std::uint3
                           addr_be, mac, /*enoent_ok=*/false);
 }
 
-bool LinuxSocketBackend::removeNeighbor(const std::string &ifname, std::uint32_t addr_be) {
+net::OpStatus LinuxSocketBackend::removeNeighbor(const std::string &ifname,
+                                                 std::uint32_t addr_be) {
     const unsigned ifindex = ::if_nametoindex(ifname.c_str());
     if (ifindex == 0) {
-        return false;  // unknown interface
+        return net::OpStatus::UnknownInterface;
     }
     // No NDA_LLADDR and no state filter: the named entry is deleted whatever its
     // kind (static or learned), and a missing entry is success (-ENOENT) so the
@@ -353,30 +427,41 @@ bool LinuxSocketBackend::removeNeighbor(const std::string &ifname, std::uint32_t
                           /*mac=*/nullptr, /*enoent_ok=*/true);
 }
 
-bool LinuxSocketBackend::setNeighborReachableMs(const std::string &ifname, int reachable_ms) {
+net::OpStatus LinuxSocketBackend::setNeighborReachableMs(const std::string &ifname,
+                                                         int reachable_ms) {
     // Reject a '/' in the name BEFORE building the procfs path: if_nametoindex does
     // NOT screen out traversal — a colon-alias form like "lo:/../.." resolves to a
     // real index (it matches the base device and ignores the suffix). The path
     // happens not to escape (the literal "<alias>:" is not a real procfs directory,
     // so open() fails ENOENT), but the safety must be enforced by code, not left to
     // an accident of procfs layout — a '/' is the only character that could traverse.
-    if (reachable_ms < 0 || ifname.find('/') != std::string::npos ||
-        ::if_nametoindex(ifname.c_str()) == 0) {
-        return false;  // nonsensical aging time, traversal attempt, or unknown interface
+    if (reachable_ms < 0 || ifname.find('/') != std::string::npos) {
+        return net::OpStatus::InvalidArgument;  // nonsensical aging time, or traversal
+    }
+    if (::if_nametoindex(ifname.c_str()) == 0) {
+        return net::OpStatus::UnknownInterface;
     }
     // Per-interface neighbor aging is the procfs sysctl
     // /proc/sys/net/ipv4/neigh/<dev>/base_reachable_time_ms, written via the file
-    // API (sysctl(2) is deprecated on Linux). The write needs CAP_NET_ADMIN, so a
-    // privilege-less host gets false.
+    // API (sysctl(2) is deprecated on Linux). The write needs CAP_NET_ADMIN, so an
+    // unprivileged host gets NotPermitted (EACCES on a root-owned sysctl) — the
+    // interface resolved, so this is the caller's privilege, not a missing target.
+    // A kernel that does not publish the knob for this device answers ENOENT, and
+    // that IS a property of the target: the control is not there to be used.
     const std::string path = "/proc/sys/net/ipv4/neigh/" + ifname + "/base_reachable_time_ms";
     const int fd = ::open(path.c_str(), O_WRONLY | O_CLOEXEC);
     if (fd < 0) {
-        return false;
+        const int e = errno;
+        return e == ENOENT ? net::OpStatus::Unsupported : opStatusFromErrno(e);
     }
     const std::string val = std::to_string(reachable_ms);
     const ssize_t w = ::write(fd, val.c_str(), val.size());
+    const int e = errno;
     ::close(fd);
-    return w == static_cast<ssize_t>(val.size());
+    if (w == static_cast<ssize_t>(val.size())) {
+        return net::OpStatus::Ok;
+    }
+    return w < 0 ? opStatusFromErrno(e) : net::OpStatus::Failed;  // short write
 }
 
 int LinuxSocketBackend::recv(int fd, void *buf, std::size_t len) {

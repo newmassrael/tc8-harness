@@ -592,19 +592,27 @@ ETH (0x0B) — the same set the Linux endpoint serves.
   — surfaced, not silently accepted.
 - The network-management backend ops an out-of-tree middleware module composes
   (`net::SocketBackend`, not PRS_TPSP primitives) split by capability.
+  These six answer `net::OpStatus` (`include/tc8/net/op_status.h`), not a bool,
+  and that is load-bearing on this backend: lwIP's limits below are *permanent*,
+  and as one `false` they were indistinguishable from a mistyped interface name.
   `joinMulticast` / `leaveMulticast` are real only in `tc8-lwip-utm`, whose own
   core enables `LWIP_IGMP` (`utm/lwipopts.h`, R2) and maps them to
   `IP_ADD_MEMBERSHIP` / `IP_DROP_MEMBERSHIP`; the conformance core builds IGMP
-  off (where the option is not even defined) and returns false. `addStaticNeighbor`
-  / `removeNeighbor` use `etharp_add_static_entry` / `etharp_remove_static_entry`
-  under the core lock (`ETHARP_SUPPORT_STATIC_ENTRIES`, on in both cores), with
-  the named interface required to be the route to the address. Two lwIP limits are
-  surfaced as false, not masked: `removeNeighbor` drops only *static* entries
-  (lwIP has no public per-IP dynamic-entry removal, the same gap as
-  `flushDynamicArp`), and `setNeighborReachableMs` cannot work at all — lwIP ages
-  ARP on a fixed compile-time `ARP_MAXAGE`, with no per-interface runtime knob.
-  Exercised in-process (loopback + a stub ethernet netif, no tap/root) by
-  `lwip_arp_multicast_test`.
+  off (where the option is not even defined) and answers `Unsupported`.
+  `addStaticNeighbor` / `removeNeighbor` use `etharp_add_static_entry` /
+  `etharp_remove_static_entry` under the core lock
+  (`ETHARP_SUPPORT_STATIC_ENTRIES`, on in both cores), with the named interface
+  required to be the route to the address — no such netif is `UnknownInterface`,
+  a netif that exists but does not route to the address is `InvalidArgument`.
+  Two lwIP limits are surfaced as `Unsupported`, not masked: `removeNeighbor`
+  drops only *static* entries (lwIP has no public per-IP dynamic-entry removal,
+  the same gap as `flushDynamicArp`), and `setNeighborReachableMs` cannot work at
+  all — lwIP ages ARP on a fixed compile-time `ARP_MAXAGE`, with no per-interface
+  runtime knob. A module forwarding those to the wire reaches `E_NTF` through
+  `testability::ridFromOpStatus`, which is what tells a test system "this target
+  will never do it" rather than a bare `E_NOK`. Exercised in-process (loopback +
+  a stub ethernet netif, no tap/root) by `lwip_arp_multicast_test`, which asserts
+  the exact status rather than merely that the call failed.
 - Response and asynchronous Event egress on the shared listener socket
   are serialised by a send mutex: lwIP gives no cross-thread send
   ordering on one netconn, unlike the Linux kernel the original relies

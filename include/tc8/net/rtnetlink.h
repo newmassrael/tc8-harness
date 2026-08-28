@@ -94,31 +94,50 @@ inline ::rtattr *appendAttr(char *buf, std::size_t *off, std::uint16_t type, con
 }
 
 // Send one already-built request `msg` of `len` bytes (with NLM_F_REQUEST |
-// NLM_F_ACK set by the caller) over a transient NETLINK_ROUTE socket and check
-// the kernel ACK. Strict: returns true ONLY on a received NLMSG_ERROR carrying
-// error == 0, or (when `enoent_ok`) error == -ENOENT ("entry already absent",
-// making a delete idempotent). A failed send, a short/absent reply, or any other
-// error is false. The write needs CAP_NET_ADMIN, so a privilege-less caller gets
-// false (surfaced, not silently accepted).
-inline bool sendRequestCheckAck(const void *msg, std::uint32_t len, bool enoent_ok) {
+// NLM_F_ACK set by the caller) over a transient NETLINK_ROUTE socket and read
+// the kernel ACK, reporting WHICH answer came back: true when an NLMSG_ERROR was
+// received, with `nl_errno` set to the kernel's verdict (0 = performed, else a
+// negative errno such as -EPERM for a missing CAP_NET_ADMIN or -ENOENT for an
+// entry that is already absent); false when no ACK could be obtained at all (the
+// socket, the send, or a short/absent reply), leaving `nl_errno` untouched.
+//
+// Splitting "the kernel answered X" from "nothing answered" is what lets a
+// caller name the cause instead of collapsing every path to one bool — the
+// distinction the capability seam (net/op_status.h) is built on.
+inline bool sendRequestAck(const void *msg, std::uint32_t len, int &nl_errno) {
     const int nl = ::socket(AF_NETLINK, SOCK_RAW | SOCK_CLOEXEC, NETLINK_ROUTE);
     if (nl < 0) {
         return false;
     }
-    bool ok = false;
+    bool acked = false;
     if (::send(nl, msg, len, 0) >= 0) {
         char rbuf[512];
         const ssize_t r = ::recv(nl, rbuf, sizeof(rbuf), 0);
         if (r >= static_cast<ssize_t>(NLMSG_LENGTH(sizeof(::nlmsgerr)))) {
             const auto *rh = reinterpret_cast<const ::nlmsghdr *>(rbuf);
             if (rh->nlmsg_type == NLMSG_ERROR) {
-                const auto *e = nlmsgData<::nlmsgerr>(rh);
-                ok = e->error == 0 || (enoent_ok && e->error == -ENOENT);
+                nl_errno = nlmsgData<::nlmsgerr>(rh)->error;
+                acked = true;
             }
         }
     }
     ::close(nl);
-    return ok;
+    return acked;
+}
+
+// The boolean form of sendRequestAck, for callers whose result is a plain
+// success/failure. Strict: true ONLY on an ACK carrying error == 0, or (when
+// `enoent_ok`) error == -ENOENT ("entry already absent", making a delete
+// idempotent). A failed send, a short/absent reply, or any other error is false.
+// The write needs CAP_NET_ADMIN, so a privilege-less caller gets false
+// (surfaced, not silently accepted). Derived from sendRequestAck rather than
+// repeating the socket+send+ACK dance, so there is one copy of it.
+inline bool sendRequestCheckAck(const void *msg, std::uint32_t len, bool enoent_ok) {
+    int nl_errno = 0;
+    if (!sendRequestAck(msg, len, nl_errno)) {
+        return false;
+    }
+    return nl_errno == 0 || (enoent_ok && nl_errno == -ENOENT);
 }
 
 }  // namespace tc8::net::rtnl

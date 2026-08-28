@@ -51,14 +51,25 @@ public:
         sent.push_back({std::vector<std::uint8_t>(p, p + len), dst});
         return static_cast<int>(len);
     }
-    bool joinMulticast(int, std::uint32_t, std::uint32_t) override { return true; }
-    bool leaveMulticast(int, std::uint32_t, std::uint32_t) override { return true; }
-    bool flushDynamicArp(const std::string&) override { return true; }
-    bool addStaticNeighbor(const std::string&, std::uint32_t, const std::uint8_t*) override {
-        return true;
+    tc8::net::OpStatus joinMulticast(int, std::uint32_t, std::uint32_t) override {
+        return tc8::net::OpStatus::Ok;
     }
-    bool removeNeighbor(const std::string&, std::uint32_t) override { return true; }
-    bool setNeighborReachableMs(const std::string&, int) override { return true; }
+    tc8::net::OpStatus leaveMulticast(int, std::uint32_t, std::uint32_t) override {
+        return tc8::net::OpStatus::Ok;
+    }
+    tc8::net::OpStatus flushDynamicArp(const std::string&) override {
+        return tc8::net::OpStatus::Ok;
+    }
+    tc8::net::OpStatus addStaticNeighbor(const std::string&, std::uint32_t,
+                                         const std::uint8_t*) override {
+        return tc8::net::OpStatus::Ok;
+    }
+    tc8::net::OpStatus removeNeighbor(const std::string&, std::uint32_t) override {
+        return tc8::net::OpStatus::Ok;
+    }
+    tc8::net::OpStatus setNeighborReachableMs(const std::string&, int) override {
+        return tc8::net::OpStatus::Ok;
+    }
     int recv(int, void*, std::size_t) override { return -1; }
     int send(int, const void*, std::size_t) override { return -1; }
     bool connectBoundedV4(int, const tc8::net::Endpoint&, int) override { return false; }

@@ -39,6 +39,19 @@ void check(bool ok, const char *what) {
     }
 }
 
+// The capability ops answer an OpStatus, so assert the exact one: "it failed" was
+// the defect, and a test that only checks for failure would carry it forward.
+// Reports both names, so a wrong-but-failing status is legible.
+void checkStatus(tc8::net::OpStatus got, tc8::net::OpStatus want, const char *what) {
+    if (got == want) {
+        std::fprintf(stderr, "ok: %s (%s)\n", what, tc8::net::toString(want));
+        return;
+    }
+    std::fprintf(stderr, "FAIL: %s — want %s, got %s\n", what, tc8::net::toString(want),
+                 tc8::net::toString(got));
+    ++g_failures;
+}
+
 void initSemSignal(void *sem) { sys_sem_signal(static_cast<sys_sem_t *>(sem)); }
 
 // Bring up the lwIP stack (tcpip_init also creates the 127/8 loopif). No tap.
@@ -136,9 +149,11 @@ int main() {
     check(sock >= 0, "createUdp");
     const std::uint32_t group_be = PP_HTONL(0xEF010203);  // 239.1.2.3 (admin-scoped)
     check(!groupJoined(stub, group_be), "group not joined before join");
-    check(be.joinMulticast(sock, group_be, 0), "joinMulticast on IGMP netif (default iface)");
+    checkStatus(be.joinMulticast(sock, group_be, 0), tc8::net::OpStatus::Ok,
+                "joinMulticast on IGMP netif (default iface)");
     check(groupJoined(stub, group_be), "IGMP membership present after join");
-    check(be.leaveMulticast(sock, group_be, 0), "leaveMulticast on IGMP netif");
+    checkStatus(be.leaveMulticast(sock, group_be, 0), tc8::net::OpStatus::Ok,
+                "leaveMulticast on IGMP netif");
     check(!groupJoined(stub, group_be), "IGMP membership gone after leave");
     be.closeFd(sock);
 
@@ -146,17 +161,33 @@ int main() {
     const std::uint32_t nbr_be = PP_HTONL(0xC0A83202);  // 192.168.50.2 (on the stub's /24)
     const std::uint8_t mac[6] = {0x02, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE};
     check(!staticEntryPresent(stub, nbr_be), "no static entry before add");
-    check(be.addStaticNeighbor(ifname, nbr_be, mac), "addStaticNeighbor on stub netif");
+    checkStatus(be.addStaticNeighbor(ifname, nbr_be, mac), tc8::net::OpStatus::Ok,
+                "addStaticNeighbor on stub netif");
     check(staticEntryPresent(stub, nbr_be), "static entry present after add");
-    check(be.removeNeighbor(ifname, nbr_be), "removeNeighbor removes the entry");
+    checkStatus(be.removeNeighbor(ifname, nbr_be), tc8::net::OpStatus::Ok,
+                "removeNeighbor removes the entry");
     check(!staticEntryPresent(stub, nbr_be), "static entry gone after remove");
-    check(be.removeNeighbor(ifname, nbr_be), "removeNeighbor is idempotent (absent => true)");
+    checkStatus(be.removeNeighbor(ifname, nbr_be), tc8::net::OpStatus::Ok,
+                "removeNeighbor is idempotent (absent => Ok)");
 
-    // 3) Contract edges: unknown interface is rejected; runtime ARP aging is a
-    //    platform limitation on lwIP (fixed ARP_MAXAGE), surfaced as false.
-    check(!be.addStaticNeighbor("tc8_no_such", nbr_be, mac), "addStaticNeighbor unknown iface");
-    check(!be.removeNeighbor("tc8_no_such", nbr_be), "removeNeighbor unknown iface");
-    check(!be.setNeighborReachableMs(ifname, 30000), "setNeighborReachableMs unsupported on lwIP");
+    // 3) Contract edges, and the reason this seam answers a status rather than a
+    //    bool: an unknown interface, an argument the seam cannot honor, and a
+    //    capability lwIP does not have are THREE different answers on this stack.
+    //    Collapsed to `false` a test system could not tell an operator's typo from
+    //    a permanent property of the target.
+    checkStatus(be.addStaticNeighbor("tc8_no_such", nbr_be, mac),
+                tc8::net::OpStatus::UnknownInterface, "addStaticNeighbor unknown iface");
+    checkStatus(be.removeNeighbor("tc8_no_such", nbr_be), tc8::net::OpStatus::UnknownInterface,
+                "removeNeighbor unknown iface");
+    checkStatus(be.addStaticNeighbor(ifname, nbr_be, nullptr),
+                tc8::net::OpStatus::InvalidArgument, "addStaticNeighbor null MAC");
+    // Runtime ARP aging is a fixed ARP_MAXAGE on lwIP: Unsupported, not Failed —
+    // no privilege and no argument makes it work here, which is precisely what a
+    // tester needs to learn without reading this file.
+    checkStatus(be.setNeighborReachableMs(ifname, 30000), tc8::net::OpStatus::Unsupported,
+                "setNeighborReachableMs unsupported on lwIP");
+    checkStatus(be.flushDynamicArp(ifname), tc8::net::OpStatus::Unsupported,
+                "flushDynamicArp unsupported on lwIP (no per-netif etharp flush)");
 
     if (g_failures == 0) {
         std::fprintf(stderr, "lwip_arp_multicast_test: PASS\n");

@@ -95,7 +95,12 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
             ${PROJECT_SOURCE_DIR}/include/tc8/testability/io_multiplexer.h
             ${PROJECT_SOURCE_DIR}/include/tc8/testability/reactor.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/tc8/testability COMPONENT utm-sdk)
-    install(FILES ${PROJECT_SOURCE_DIR}/include/tc8/net/socket_backend.h
+    # op_status.h ships beside the seam that returns it: socket_backend.h includes
+    # it, so an SDK missing it does not compile at all. (testability_protocol.h
+    # includes it too, for ridFromOpStatus.)
+    install(FILES
+            ${PROJECT_SOURCE_DIR}/include/tc8/net/socket_backend.h
+            ${PROJECT_SOURCE_DIR}/include/tc8/net/op_status.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/tc8/net COMPONENT utm-sdk)
     install(FILES
             ${PROJECT_SOURCE_DIR}/include/tc8/wire/icmp_echo.h

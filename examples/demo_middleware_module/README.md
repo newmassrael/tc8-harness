@@ -34,6 +34,13 @@ executor), and `emitEvent` (an asynchronous testability EVENT to the requester).
   host consults modules before the built-in groups).
 - **Non-blocking primitives** — `onPrimitive` must return promptly (PRS_TPSP §6.2):
   arm a timer or emit a later EVENT instead of waiting.
+- **Forward a capability result, don't re-decide it** — `backend()`'s capability
+  ops (`joinMulticast`, `leaveMulticast`, `flushDynamicArp`, `addStaticNeighbor`,
+  `removeNeighbor`, `setNeighborReachableMs`) answer a `net::OpStatus`. Write
+  `rid_out = ridFromOpStatus(ctx.backend().flushDynamicArp(ifname));`, never
+  `ok ? kRidEOk : kRidENok` — the latter collapses an unknown interface (`E_IIF`)
+  and a capability the target structurally lacks (`E_NTF`) onto one `E_NOK`, and
+  a test system then cannot tell an operator's typo from a platform limit.
 - **Engines, not values** — compose `tc8::nm`, `tc8::com`, `tc8::e2e`, `tc8::crc`,
   `tc8::crypto` (the public mechanisms); your proprietary frame layouts, signal
   database, timings, and keys are constructor/config inputs you supply, not part of
