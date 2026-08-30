@@ -897,12 +897,13 @@ VLAN-투명합니다:
 ## CI
 
 `.github/workflows/` 아래 두 워크플로가 테스트 매트릭스의 직교 슬라이스를
-담당합니다:
+담당하고, 세 번째가 워크플로 파일 자체를 지킵니다:
 
 | 워크플로                 | runner                  | 범위                                                                                                                       |
 | ------------------------ | ----------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `build-test.yml`         | `ubuntu-22.04` (hosted) | 서브모듈 init → `setup-vsomeip.sh` (patched) + CommonAPI → `cmake build` → `ctest` → `--list-cases --vs-spec` 드리프트 게이트  |
 | `smoke-test.yml`         | self-hosted `[netns]`   | `setup-vsomeip.sh` (idempotent 재팝/푸시) → 하네스 빌드 → 오케스트레이터 빌드(`cd dut/env/orchestrator && cargo build`) → `sudo -n .../tc8-orchestrator --workers 4` (정상 + `--negative`) |
+| `workflow-hygiene.yml`   | `ubuntu-22.04` (hosted) | `tools/workflow_runner_audit.py` — self-hosted runner 트리거 게이트(아래); `.github/workflows/` 변경 시마다 실행 |
 
 두 워크플로 모두 `actions/checkout@v4`에 `submodules: recursive`를 전달해
 빌드 단계 전에 `third_party/vsomeip`가 채워지도록 합니다. hosted 빌드는
@@ -933,6 +934,40 @@ sudo tee /etc/sudoers.d/tc8-runner <<'EOF'
 EOF
 # 5. `sudo systemctl enable --now actions.runner.<owner>-<repo>.<runner-name>.service`
 ```
+
+#### Runner 트리거 게이트
+
+이 호스트는 스위트를 root + `CAP_NET_ADMIN`으로 돌리므로, 어떤 이벤트가
+여기에 도달할 수 있는가는 취향이 아니라 보안 속성입니다.
+`tools/workflow_runner_audit.py`가 이를 강제합니다: **GitHub-hosted runner임이
+정적으로 증명되지 않는 job은 저장소 write 권한이 있어야 발생시킬 수 있는
+이벤트로만 트리거될 수 있다** — `push`, `workflow_dispatch`, `schedule`.
+`smoke-test.yml` · `lwip-sweep.yml` · `pcap-refresh.yml`에 `pull_request:`,
+`pull_request_target:`, `issue_comment:`, 또는 연쇄된 `workflow_run:`을
+추가하면 이제 커밋이 실패합니다. 이 규칙은 그동안 해당 파일 상단의 주석으로만
+존재했고, 주석은 아무것도 막지 못했습니다.
+
+검사는 의도적으로 fail-closed라서, `self-hosted` 문자열 grep이 놓치는 변형도
+잡습니다: 커스텀 라벨만으로 지정한 runner(`runs-on: netns`), 정적 해석이
+불가능한 `runs-on:`(`${{ inputs.runner }}`, `fromJSON` 매트릭스, runner
+`group:`), 매트릭스 축에 숨은 self-hosted 값, 그리고 호출자가 외부 트리거를
+가진 재사용 워크플로 안의 self-hosted job. 게이트가 아직 모르는
+GitHub-hosted 이미지 계열은 통과가 아니라 실패하며, 그때
+`HOSTED_LABEL_RE`에 추가하면 됩니다.
+
+`.githooks/pre-commit`(작성 시점 차단)과 `workflow-hygiene.yml`에서 돌고,
+후자는 `.github/workflows/` 아래 변경마다 트리거됩니다 — `build-test.yml`의
+스텝으로 넣지 않은 것은 의도적입니다. 그 워크플로의 `paths-ignore`는
+`pcap-refresh.yml`만 건드리는 푸시를 건너뛰기 때문입니다. CI는 스캔 전에
+`--self-test`를 먼저 돌립니다. 분석기가 깨진 채로 통과한 스캔은 공허한
+green이기 때문입니다.
+
+범위는 분명히 해둡니다: 이것은 메인테이너 측 드리프트, `--no-verify`,
+웹 에디터 커밋을 막는 래칫이지, 실제 공격자의 첫 PR에 대한 방어가 아닙니다.
+나쁜 트리거를 추가한 fork PR이 실행 허가까지 받으면, 게이트가 빨개지는 바로
+그 이벤트에서 self-hosted job도 함께 돌고, 빨간 게이트는 이미 실행된 코드를
+되돌리지 못합니다. 그 경우의 통제 수단은 저장소 Actions 설정의
+*Require approval for all external collaborators*입니다.
 
 하네스의 스펙 커버리지 게이트(`--list-cases --vs-spec --strict`)는
 `build-test.yml`에서 동작합니다. 추후 세션에 큐잉된 ~235개 §4.6 UDP /

@@ -54,3 +54,14 @@ if ! python3 "$HERE/../tools/negative_coverage_audit.py" --check >/dev/null; the
     python3 "$HERE/../tools/negative_coverage_audit.py" --check >&2
     exit 1
 fi
+
+# Self-hosted runner exposure: a workflow job that is not provably on a
+# GitHub-hosted runner may only be triggered by events needing repo WRITE access
+# (push / workflow_dispatch / schedule). Stops a `pull_request` or issue_comment
+# trigger from reaching the root netns host, which smoke-test.yml and
+# lwip-sweep.yml previously only asked for in a comment. Pure-Python.
+if ! python3 "$HERE/../tools/workflow_runner_audit.py" --check >/dev/null; then
+    echo "pre-commit: self-hosted runner trigger gate FAILED — details:" >&2
+    python3 "$HERE/../tools/workflow_runner_audit.py" --check >&2
+    exit 1
+fi

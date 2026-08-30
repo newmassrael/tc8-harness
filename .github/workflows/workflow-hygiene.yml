@@ -1,0 +1,57 @@
+name: workflow-hygiene
+
+# Guards invariants about the workflow files THEMSELVES, so its trigger has to
+# cover exactly its subject: every change under .github/workflows/. That is why
+# this is a workflow of its own rather than a step in build-test.yml — that
+# workflow's `paths-ignore` skips pushes touching only pcap-refresh.yml, which
+# is one of the three self-hosted workflows this gate exists to watch.
+#
+# Today it enforces one invariant: a job that is not provably on a
+# GitHub-hosted runner may only be reached by events requiring repository WRITE
+# access. See tools/workflow_runner_audit.py for the reasoning and its honest
+# scope. Further whole-file workflow invariants belong here too.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/**'
+      - 'tools/workflow_runner_audit.py'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/**'
+      - 'tools/workflow_runner_audit.py'
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  runner-triggers:
+    name: self-hosted runner trigger gate
+    # Hosted on purpose: this job reads untrusted workflow text on pull_request,
+    # so it must never be the thing it is guarding against.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install PyYAML
+        run: python3 -m pip install --quiet --disable-pip-version-check pyyaml
+
+      - name: Gate self-test
+        # Runs FIRST: a scan that passes because the analyzer was broken is a
+        # vacuous green. The self-test asserts the gate still FIRES on each
+        # evasion it is meant to catch (fork trigger, bare custom label,
+        # unresolvable runs-on, matrix value, reusable-workflow inheritance).
+        run: python3 tools/workflow_runner_audit.py --self-test
+
+      - name: Self-hosted runner trigger gate
+        # Fails if any job that is not provably GitHub-hosted became reachable
+        # from an event an outsider can raise (pull_request from a fork,
+        # issue_comment, pull_request_target, a chained workflow_run, ...).
+        run: python3 tools/workflow_runner_audit.py --check

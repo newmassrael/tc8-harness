@@ -1176,12 +1176,13 @@ tag reaches libpcap in-band rather than being stripped into packet metadata.
 ## CI
 
 Two workflows under `.github/workflows/` cover orthogonal slices of the test
-matrix:
+matrix, and a third guards the workflow files themselves:
 
 | workflow                 | runner                  | scope                                                                                                  |
 | ------------------------ | ----------------------- | ------------------------------------------------------------------------------------------------------ |
 | `build-test.yml`         | `ubuntu-22.04` (hosted) | submodule init → Boost 1.75 + `setup-vsomeip.sh` (patched) + CommonAPI into `/opt/someip-stack` → `cmake build` → `ctest` → `--list-cases --vs-spec` drift gate |
 | `smoke-test.yml`         | self-hosted `[netns]`   | `setup-vsomeip.sh /opt/someip-stack` (idempotent reset/push) → harness build → orchestrator build (`cd dut/env/orchestrator && cargo build`) → `sudo -n .../tc8-orchestrator --workers 4` (positive + `--negative`) |
+| `workflow-hygiene.yml`   | `ubuntu-22.04` (hosted) | `tools/workflow_runner_audit.py` — self-hosted runner trigger gate (below); runs on any change under `.github/workflows/` |
 
 Both workflows pass `submodules: recursive` to `actions/checkout@v4` so
 `third_party/vsomeip` is populated before any build step. The hosted
@@ -1225,6 +1226,39 @@ sudo tee /etc/sudoers.d/tc8-runner <<'EOF'
 EOF
 # 5. `sudo systemctl enable --now actions.runner.<owner>-<repo>.<runner-name>.service`
 ```
+
+#### Runner trigger gate
+
+That host runs the suite as root with `CAP_NET_ADMIN`, so which events may
+reach it is a security property, not a preference. `tools/workflow_runner_audit.py`
+enforces it: **a job that is not provably on a GitHub-hosted runner may only be
+triggered by events that need repository write access to raise** — `push`,
+`workflow_dispatch`, `schedule`. Adding `pull_request:`, `pull_request_target:`,
+`issue_comment:` or a chained `workflow_run:` to `smoke-test.yml`,
+`lwip-sweep.yml` or `pcap-refresh.yml` now fails the commit. The rule used to
+live only in a comment at the top of those files, which enforced nothing.
+
+The check is fail-closed by design, so it also catches the variants a
+`self-hosted`-literal grep misses: a runner addressed by its bare custom label
+(`runs-on: netns`), a `runs-on:` that cannot be resolved statically
+(`${{ inputs.runner }}`, a `fromJSON` matrix, a runner `group:`), a self-hosted
+value hidden in a matrix axis, and a self-hosted job in a reusable workflow
+whose caller carries the outside trigger. A GitHub-hosted image family the gate
+does not yet know fails rather than passes; add it to `HOSTED_LABEL_RE`.
+
+It runs in `.githooks/pre-commit` (the authorship-time block) and in
+`workflow-hygiene.yml`, which triggers on any change under
+`.github/workflows/` — deliberately not as a step in `build-test.yml`, whose
+`paths-ignore` skips pushes touching only `pcap-refresh.yml`. CI runs
+`--self-test` before the scan, because a scan passing on a broken analyzer is a
+vacuous green.
+
+Scope, stated plainly: this is a ratchet against maintainer-side drift, a
+`--no-verify`, or a web-editor commit. It is not a defence against a live
+attacker's first pull request — a fork PR that both adds the bad trigger and is
+allowed to run executes on the runner in the same event that turns this gate
+red, and a red gate does not un-run code. The control for that is the
+repository's Actions setting *Require approval for all external collaborators*.
 
 The harness's spec-coverage gate (`--list-cases --vs-spec --strict`)
 runs in `build-test.yml` and currently emits a non-zero exit for the
