@@ -168,6 +168,24 @@ target_link_libraries(demo_module_test PRIVATE tc8_pn tc8_someiptp)
 target_include_directories(demo_module_test PRIVATE
     ${PROJECT_SOURCE_DIR}/examples/demo_middleware_module)
 target_link_libraries(demo_module_test PRIVATE tc8_nm tc8_com tc8_e2e tc8_crypto)
+
+# SCXML-authored middleware module: the same seam as demo_module above, but the
+# module's SEQUENCING is authored in examples/scxml_module/utm_module.scxml and
+# emitted to C++ by SCE rather than hand-written. The adapter only translates,
+# so these tests are the check that the machine (not the adapter) decides which
+# primitives a state accepts. Hermetic without a fake context or backend: this
+# module owns no data plane, so the Result ID is the whole observable.
+tc8_add_unit_test(scxml_module_test)
+sce_add_state_machine(
+    TARGET     scxml_module_test
+    SCXML_FILE ${PROJECT_SOURCE_DIR}/examples/scxml_module/utm_module.scxml)
+target_sources(scxml_module_test PRIVATE
+    ${PROJECT_SOURCE_DIR}/examples/scxml_module/utm_module_adapter.cpp)
+target_include_directories(scxml_module_test PRIVATE
+    ${PROJECT_SOURCE_DIR}/examples/scxml_module)
+# The generated machine derives from the SCE static execution engine, so the
+# emitting target needs the engine's headers and compiled base.
+target_link_libraries(scxml_module_test PRIVATE sce_base)
 # ETS DUT emission engine (dut/dut_service/ets_emission.*). It is self-contained
 # (no CommonAPI/vsomeip deps), so it is compiled directly into the test rather
 # than linked from the tc8-dut executable. Covers the trigger-policy timing logic

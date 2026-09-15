@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The sequencing body of an Upper-Tester middleware module (PRS_TPSP §6.6),
+  authored once here and emitted to C++ by SCE. This is the "prove it on one
+  machine" exercise from claudedocs/utm-module-from-scxml-requirements.md: one
+  START_TEST boundary, one service primitive, one END_TEST boundary.
+
+  Every sequencing decision lives in this document. The adapter that implements
+  MiddlewareModule may only translate: it raises an event per callback and
+  projects the resulting state onto a PRS_TPSP Result ID. It decides nothing.
+  That is the requirement R1 is written against, and the check for it is direct
+  — delete the `ready -> answered` transition below and `ping` starts answering
+  E_NTF without the adapter changing at all.
+
+  There is deliberately no <final> state. A test case terminates with a verdict;
+  a module does not terminate at all — it returns to `inactive` on END_TEST and
+  stays registered, which is the lifecycle PRS_TPSP §6.10.1 describes.
+
+  The machine is total: every event is handled in every state, so an unexpected
+  primitive produces a defined refusal rather than a silent no-op that the
+  adapter would have to interpret.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       version="1.0"
+       name="utm_module"
+       datamodel="null"
+       initial="inactive">
+
+  <!--
+    Before START_TEST the module answers nothing. A primitive arriving here is
+    refused by the machine, not by a guard in the adapter.
+  -->
+  <state id="inactive">
+    <transition event="start_test" target="ready"/>
+    <transition event="ping" target="refused"/>
+    <transition event="end_test" target="inactive"/>
+  </state>
+
+  <!-- Armed by START_TEST: the one primitive this machine accepts. -->
+  <state id="ready">
+    <transition event="ping" target="answered"/>
+    <transition event="end_test" target="inactive"/>
+    <transition event="start_test" target="ready"/>
+  </state>
+
+  <!--
+    The accepting state. The adapter maps exactly this state to E_OK and every
+    other state to E_NTF, so "which primitives a state accepts" is readable off
+    this document alone.
+  -->
+  <state id="answered">
+    <transition event="ping" target="answered"/>
+    <transition event="end_test" target="inactive"/>
+    <transition event="start_test" target="ready"/>
+  </state>
+
+  <!-- A primitive was issued outside the test boundary. -->
+  <state id="refused">
+    <transition event="ping" target="refused"/>
+    <transition event="start_test" target="ready"/>
+    <transition event="end_test" target="inactive"/>
+  </state>
+</scxml>
