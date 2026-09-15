@@ -98,6 +98,15 @@ else()
     set(_SCE_BASE_REAL_TARGET sce_base)
 endif()
 
+# SCE pin integrity (R5 of the UTM-module-from-SCXML requirements): the vendored
+# snapshot must agree with itself about which revision it is, and the resolved
+# generator must be able to render that snapshot's templates. Checked at
+# configure time so the mismatch fails here, naming both sides, instead of
+# surfacing midway through a build as an unknown-filter render error that names
+# neither. The module also records why a true revision-to-revision comparison is
+# not expressible at the current pin.
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/tc8_sce_pin.cmake)
+
 # Demote third-party SCE include dirs to SYSTEM so the strict-warning set
 # below (Wshadow, Wold-style-cast, ...) does not fire against headers we
 # do not own. CMake requires a path to be in both INTERFACE_INCLUDE_DIRECTORIES
