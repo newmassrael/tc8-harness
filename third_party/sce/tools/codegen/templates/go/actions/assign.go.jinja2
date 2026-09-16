@@ -8,7 +8,7 @@
 {% if not loc or loc in ('_sessionid', '_event', '_name', '_ioprocessors') %}
 	// W3C SCXML 5.3/B.2: Invalid or read-only location "{{ loc }}"
 {% if 'error.execution' in model.events %}
-	engine.Raise(sce.NewPlatformEvent({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}))
+	engine.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<assign> has an invalid or read-only location '{{ loc }}'"))
 {% endif %}
 {% if in_entry_exit is defined and in_entry_exit %}
 	break
@@ -16,19 +16,35 @@
 {% else %}
 {% if action.content %}
 	// W3C SCXML 5.3: <assign location="{{ loc }}"> (inline content)
-	if err := p.assignVariable(`{{ loc }}`, `'{{ action.content | escape_go }}'`); err != nil {
+	{# W3C SCXML 5.4.2: the children specify the same legal data value
+	   `expr` would, read by the same filter `<data>` content goes
+	   through — quoting the text made `21` the string "21".
+
+	   An interpreted Go string, not the raw one the `expr` branch uses,
+	   and one `escape_go` for that one boundary. The value crosses two:
+	   `to_lua_assign_content` already produced Lua source, so text that
+	   is not an expression arrives here as `"…"` with its own quotes
+	   escaped Lua-side. Putting that inside backticks *and* running
+	   `escape_go` over it emitted `\"` into the Lua chunk, which is not
+	   a string opener — test530's serialised `<scxml>` document stopped
+	   assigning and the case reached `fail`. Same arrangement as
+	   `go/actions/send.go.jinja2`, for the same reason. #}
+	if err := p.assignVariable(`{{ loc | to_lua_location }}`, "{{ action.content | to_lua_assign_content | escape_go }}"); err != nil {
 {% if 'error.execution' in model.events %}
-		engine.Raise(sce.NewPlatformEvent({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}))
+		engine.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<assign> to '{{ loc }}' failed"))
 {% endif %}
 {% if in_entry_exit is defined and in_entry_exit %}
 		break
 {% endif %}
 	}
 {% elif action.expr %}
-	// W3C SCXML 5.3: <assign location="{{ loc }}" expr="{{ action.expr | escape_go }}">
-	if err := p.assignVariable(`{{ loc }}`, `{{ action.expr | to_lua_expr }}`); err != nil {
+	// W3C SCXML 5.3: <assign location="{{ loc }}" expr="{{ action.expr }}">
+	{# W3C SCXML B.2: the target is authored ECMAScript, lowered by the
+	   same frontend the reads go through — `arr[0]` names one cell
+	   whichever side of the `=` it is written on. #}
+	if err := p.assignVariable(`{{ loc | to_lua_location }}`, `{{ action.expr | to_lua_expr }}`); err != nil {
 {% if 'error.execution' in model.events %}
-		engine.Raise(sce.NewPlatformEvent({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}))
+		engine.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<assign> to '{{ loc }}' failed"))
 {% endif %}
 {% if in_entry_exit is defined and in_entry_exit %}
 		break

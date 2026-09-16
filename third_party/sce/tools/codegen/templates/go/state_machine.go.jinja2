@@ -10,13 +10,13 @@
 // Implements sce.StatePolicy with full transition logic,
 // entry/exit actions, and event processing.
 
-{# Watching-zenoh RFC §synth-5-O: SCE-MAP marker anchoring the
+{# SCE Protocol-Synthesis RFC §synth-5-O: SCE-MAP marker anchoring the
    generated Go source to the `<scxml>` root element's position.
    Module-level form is a comment (not `//line`) because `//line`
    remaps subsequent line positions for the rest of the file — fine
    per-function but disruptive at file scope. #}
 
-{{ sce_map.source_marker(model.source_location, "go", module_level=true) }}
+{{ sce_map.source_marker(model.source_location, "go", module_level=true, symbol_artifact=sce_artifact.machine) }}
 
 package {{ model.name | to_snake_case }}
 
@@ -65,6 +65,45 @@ func (s {{ machine_name }}State) String() string {
 	return "unknown"
 }
 
+// {{ machine_name }}StateFromName is the read half of the pair above — a state
+// id back into the state it names (W3C SCXML 3.3).
+//
+// A host that persists where a machine was has to write it down as TEXT: the
+// constants above are a build artefact of one binary, and the process that
+// resumes is a different one. String publishes the name and this reads it back,
+// which is what lets a journal survive its own record and reach
+// sce.Engine.EnterAt.
+//
+// The second return is false for a name this document does not declare. A name
+// guessed at rather than refused is how a restore reaches a configuration
+// nobody recorded — and the refusal is what makes a typo in a journal a
+// reported failure instead of a machine quietly somewhere else.
+//
+// Emitted from the same loop over the document's states as String, so the two
+// age together.
+func {{ machine_name }}StateFromName(name string) ({{ machine_name }}State, bool) {
+	switch name {
+{% for state_id in model.states | sort %}
+	case "{{ state_id }}":
+		return {{ machine_name }}State{{ state_id | to_state_variant }}, true
+{% endfor %}
+	}
+	var zero {{ machine_name }}State
+	return zero, false
+}
+
+// {{ machine_name }}AllStates is every state this document declares, in the
+// order the constants above are issued.
+//
+// Emitted from the same loop, so a walk over it is a walk over the document
+// rather than over a list somebody maintained beside it — a test that spells
+// its own list goes on passing when the document grows a state.
+var {{ machine_name }}AllStates = []{{ machine_name }}State{
+{% for state_id in model.states | sort %}
+	{{ machine_name }}State{{ state_id | to_state_variant }},
+{% endfor %}
+}
+
 // ======================================================================
 // Event type (W3C SCXML 3.12)
 // ======================================================================
@@ -106,11 +145,23 @@ func (e {{ machine_name }}Event) String() string {
 // ── NL→IR Item C1 Path A: typed `_event.data` payload channel ─────────
 {{ event_payload_defs }}
 {% endif %}
+{% if has_native_actions %}
+// ── W3C SCXML G.7: `<sce:action>` host dispatch ───────────────────────
+{{ native_actions_defs }}
+{% endif %}
 // ======================================================================
 // Policy struct
 // ======================================================================
 
 type {{ machine_name }}Policy struct {
+{% if has_native_actions %}
+	// W3C SCXML G.7: the host implementation every `<sce:action>` in the
+	// document calls directly (`p.actions.<Op>(…)`) instead of a runtime
+	// script engine. Taken at construction, because the initial state's
+	// `<onentry>` may already perform an act — a host installed afterwards
+	// would arrive one act too late.
+	actions {{ native_actions_interface }}
+{% endif %}
 {% if event_payload_active %}
 	// NL→IR Item C1 Path A: the current event's typed `_event.data` payload,
 	// lifted from the dequeued event by PopulateEventMetadata and read by the
@@ -160,29 +211,33 @@ type {{ machine_name }}Policy struct {
 	// W3C SCXML 3.11: History state {{ history_id }} ({{ history_info.type }})
 	history{{ history_id | to_pascal_case }} []{{ machine_name }}State
 {% endfor %}
-{% if model.variables %}
-	// W3C SCXML 5.3: Datamodel variables
-{% for var in model.variables %}
-{% if var.type == 'int' %}
-	{{ var.id | to_camel_case | escape_go_keyword }} int64
-{% elif var.type == 'string' %}
-	{{ var.id | to_camel_case | escape_go_keyword }} string
-{% elif var.type == 'bool' %}
-	{{ var.id | to_camel_case | escape_go_keyword }} bool
-{% endif %}
-{% endfor %}
-{% endif %}
+{# W3C SCXML 5.3: the datamodel has ONE home, and it is not this struct.
+
+   A `<data>` that carries an initialiser is owned by the script engine for
+   the life of the session: `<assign>` writes there and every guard reads from
+   there. A field here holding the same variable would be a second
+   representation that stops agreeing with the first `<assign>` and never
+   agrees again — so the machine reads the datamodel back out through
+   `sce.ReadDatamodel*` (see the accessors after the constructor) instead of
+   shadowing it. Kotlin's template already drew this line; the other backends
+   now do too. #}
 	// W3C SCXML 5.10: Session ID
 	SessionID string
 {% if model.needs_script_engine %}
 	// W3C SCXML B.1: Script engine handle (per-instance, Path B+ Q1=(d) Go=interface ref)
 	ScriptEngine sce.IScriptEngine
 	scriptEngineInitialized bool
+	// W3C SCXML C.2.3: inbound BasicHTTP endpoint serving this machine,
+	// declared by the deployment before Initialize(). The address belongs to
+	// whoever runs the listener, so the machine takes it from here rather than
+	// guessing one. Empty means no such endpoint is deployed, and no BasicHTTP
+	// entry is published in _ioprocessors.
+	BasicHTTPAccessURI string
 {% if model.has_parallel_states or model.uses_in_predicate %}
 	inPredicateStates []string
 {% endif %}
 {% endif %}
-{% if model.invokes | scxml or model.invokes | hybrid %}
+{% if model.invokes | scxml or model.invokes | hybrid or model.invokes | unsupported %}
 	pendingInvokes []sce.PendingInvoke[{{ machine_name }}State]
 	activeInvokes  map[string]*sce.ChildSession
 {% for invoke_info in model.invokes | scxml %}
@@ -198,41 +253,65 @@ type {{ machine_name }}Policy struct {
 	ParentExternalQueue chan sce.ParentEvent
 	InvokeID           string
 	ChildSessionID     string
-	// W3C SCXML 6.4.1: Deferred params from parent invoke (applied after datamodel init)
-	pendingParams      map[string]string
+	// §scxml-6.4.3: invoke param VALUES staged by the parent, applied after
+	// this machine's datamodel init so they override its `<data>` defaults.
+	pendingParams      map[string]interface{}
 }
 
 // New{{ machine_name }}Policy creates a new policy with default values.
+{% if has_native_actions %}
+//
+// W3C SCXML G.7: `actions` is the host implementation of every `<sce:action>`
+// this document declares. It is a parameter rather than a setter because the
+// initial state's `<onentry>` can already perform an act — this is the one
+// call every host has to make, so it is where the requirement belongs.
+func New{{ machine_name }}Policy(actions {{ native_actions_interface }}) {{ machine_name }}Policy {
+	return {{ machine_name }}Policy{
+		actions: actions,
+		lastTransitionSourceState: {{ machine_name }}State{{ model.initial_leaf | default(model.initial) | to_state_variant }},
+{% else %}
 func New{{ machine_name }}Policy() {{ machine_name }}Policy {
 	return {{ machine_name }}Policy{
 		lastTransitionSourceState: {{ machine_name }}State{{ model.initial_leaf | default(model.initial) | to_state_variant }},
+{% endif %}
 {% if model.has_parallel_states or model.uses_in_predicate %}
 		activeStates: make([]{{ machine_name }}State, 0),
 {% endif %}
 {% for history_id, _ in model.history_states | dictsort %}
 		history{{ history_id | to_pascal_case }}: nil,
 {% endfor %}
-{% if model.variables %}
-{% for var in model.variables %}
-{% if var.type == 'int' %}
-		{{ var.id | to_camel_case | escape_go_keyword }}: {{ var.expr if var.expr else '0' }},
-{% elif var.type == 'string' %}
-{% if var.expr %}
-		{{ var.id | to_camel_case | escape_go_keyword }}: {{ var.expr | to_go_string_expr }},
-{% else %}
-		{{ var.id | to_camel_case | escape_go_keyword }}: "",
-{% endif %}
-{% elif var.type == 'bool' %}
-		{{ var.id | to_camel_case | escape_go_keyword }}: {{ 'true' if var.expr and var.expr.lower() == 'true' else 'false' }},
-{% endif %}
-{% endfor %}
-{% endif %}
-{% if model.invokes | scxml or model.invokes | hybrid %}
+{% if model.invokes | scxml or model.invokes | hybrid or model.invokes | unsupported %}
 		pendingInvokes: make([]sce.PendingInvoke[{{ machine_name }}State], 0),
 		activeInvokes:  make(map[string]*sce.ChildSession),
 {% endif %}
 	}
 }
+{# Looked up rather than spelled as a ternary chain: a chain's last arm is a
+   fallback, so a host type added to the classifier and not to these maps would
+   be emitted as whatever the chain ended in. A missing key renders nothing and
+   the generated file fails to compile, which says the same thing in the place
+   that can act on it. #}
+{% set GO_READ_TYPE = {'int': 'int64', 'string': 'string', 'bool': 'bool', 'json': 'string'} %}
+{% set GO_READ_FN = {'int': 'Int', 'string': 'String', 'bool': 'Bool', 'json': 'JSON'} %}
+{% for var in model.readable_variables %}
+
+// {{ var.id | to_pascal_case }} reports what the `{{ var.id }}` datamodel variable is holding now
+// (W3C SCXML 5.3).
+//
+// The live value, not the authored one: `<assign>` writes into the session, so
+// a reader frozen at generation time would answer the document's literal for
+// the whole run. The second return value is false when the machine cannot
+// answer — no script engine is set, the session is not initialised yet,
+// `{{ var.id }}` was assigned a value of another type, or the engine refused.
+{% if var.type == 'json' %}
+//
+// The value as JSON text, serialised by the engine's own JSON.stringify
+// (§scxml-B-2) so the key order is the document's.
+{% endif %}
+func (p *{{ machine_name }}Policy) {{ var.id | to_pascal_case }}() ({{ GO_READ_TYPE[var.type] }}, bool) {
+	return sce.ReadDatamodel{{ GO_READ_FN[var.type] }}(p.ScriptEngine, p.SessionID, "{{ var.id }}")
+}
+{% endfor %}
 
 {% include 'utility_methods.go.jinja2' %}
 {% include 'scriptengine_helpers.go.jinja2' %}
@@ -381,6 +460,13 @@ func (p *{{ machine_name }}Policy) GetStateName(state {{ machine_name }}State) s
 	return state.String()
 }
 
+// GetStateFromName reads a state id back into the state it names (W3C SCXML 3.3).
+// The reverse of GetStateName, and what turns a host's recorded configuration
+// back into the argument sce.Engine.EnterAt takes.
+func (p *{{ machine_name }}Policy) GetStateFromName(name string) ({{ machine_name }}State, bool) {
+	return {{ machine_name }}StateFromName(name)
+}
+
 // NullEvent returns the sentinel for eventless transition dispatch (W3C SCXML 3.13).
 func (p *{{ machine_name }}Policy) NullEvent() {{ machine_name }}Event {
 	return {{ machine_name }}EventNull
@@ -441,6 +527,15 @@ func (p *{{ machine_name }}Policy) SetLastTransitionSourceState(state {{ machine
 func (p *{{ machine_name }}Policy) GetActiveStates() []{{ machine_name }}State {
 	return p.activeStates
 }
+
+// SetActiveStates hands this machine an active set whole (W3C SCXML 3.4).
+// The write half of GetActiveStates: entry and exit grow the set one state at a
+// time as they walk, and sce.Engine.EnterAt hands back a configuration an
+// earlier run already settled on. Copied rather than aliased so a caller's slice
+// cannot go on changing this machine's configuration behind it.
+func (p *{{ machine_name }}Policy) SetActiveStates(states []{{ machine_name }}State) {
+	p.activeStates = append(p.activeStates[:0:0], states...)
+}
 {% endif %}
 
 {% if model.needs_external_flag %}
@@ -460,18 +555,35 @@ func (p *{{ machine_name }}Policy) NeedsScriptEngine() bool {
 	return {{ 'true' if model.needs_script_engine else 'false' }}
 }
 
+// NeedsEventScheduler reports whether a host must drive this machine with
+// Tick rather than Step alone.
+//
+// W3C SCXML 6.2: Step runs a macrostep and never drains the delayed-send
+// scheduler nor ticks an invoked child, so a host that only ever calls it
+// waits forever with nothing said. Same verdict the generate manifest
+// publishes as needs_event_scheduler.
+func (p *{{ machine_name }}Policy) NeedsEventScheduler() bool {
+	return {{ 'true' if model.needs_tick_driving else 'false' }}
+}
+
 // NeedsDataModelInit returns whether the SM needs datamodel init.
 func (p *{{ machine_name }}Policy) NeedsDataModelInit() bool {
 	return {{ 'true' if model.needs_script_engine else 'false' }}
 }
 
-{% if model.invokes | scxml or model.invokes | hybrid %}
+{# §scxml-6.4.1 unsupported-type invokes need HasInvokeSupport (that call
+   site raises their error.execution) but never HasChildTick — no child
+   engine exists to tick. #}
+{% if model.invokes | scxml or model.invokes | hybrid or model.invokes | unsupported %}
 // HasInvokeSupport returns true for invoke-capable SMs.
 func (p *{{ machine_name }}Policy) HasInvokeSupport() bool { return true }
+{% else %}
+func (p *{{ machine_name }}Policy) HasInvokeSupport() bool { return false }
+{% endif %}
+{% if model.invokes | scxml or model.invokes | hybrid %}
 // HasChildTick returns true for child-ticking SMs.
 func (p *{{ machine_name }}Policy) HasChildTick() bool { return true }
 {% else %}
-func (p *{{ machine_name }}Policy) HasInvokeSupport() bool { return false }
 func (p *{{ machine_name }}Policy) HasChildTick() bool { return false }
 {% endif %}
 {% if model.invokes | scxml | selectattr('finalize_content') | list %}
@@ -487,6 +599,11 @@ func (p *{{ machine_name }}Policy) HasAutoforward() bool { return false }
 {% if not model.has_parallel_states and not model.uses_in_predicate %}
 func (p *{{ machine_name }}Policy) HasActiveStates() bool { return false }
 func (p *{{ machine_name }}Policy) GetActiveStates() []{{ machine_name }}State { return nil }
+// W3C SCXML 3.4: this machine keeps no active set — its configuration is the
+// parent walk from the current state — so there is nothing for a restore to
+// hand back here. sce.Engine.EnterAt reaches this only through HasActiveStates,
+// which is false above; the method exists because the interface is one contract.
+func (p *{{ machine_name }}Policy) SetActiveStates(_ []{{ machine_name }}State) {}
 {% else %}
 func (p *{{ machine_name }}Policy) HasActiveStates() bool { return true }
 {% endif %}
@@ -521,7 +638,7 @@ func (p *{{ machine_name }}Policy) ExecuteFinalizeForChildEvent(_ *sce.EventWith
 {% set autoforward_invokes = model.invokes | scxml | selectattr('autoforward') | list if model.invokes | scxml else [] %}
 {% if not autoforward_invokes %}
 // ForwardToAutoforwardChildren is a no-op (no autoforward invokes).
-func (p *{{ machine_name }}Policy) ForwardToAutoforwardChildren(_ string, _ *sce.Engine[{{ machine_name }}State, {{ machine_name }}Event]) {}
+func (p *{{ machine_name }}Policy) ForwardToAutoforwardChildren(_ string, _ sce.EventMetadata, _ *sce.Engine[{{ machine_name }}State, {{ machine_name }}Event]) {}
 {% endif %}
 
 // PopulateEventMetadata stores pending event metadata (W3C SCXML 5.10).

@@ -1,13 +1,13 @@
 {# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
-{{ sce_map.source_marker(source_location, "rust", module_level=true) }}
+{{ sce_map.source_marker(source_location, "rust", module_level=true, symbol_artifact=sce_artifact.forge_body) }}
 
 // SCE Forge: Auto-generated from Extended SCXML (sce:kind="worker")
 // Runtime: self-contained on (rust, *) — no SCE-side helper crate.
 // Do not edit — regenerate from the source SCXML file.
 //
-// watching-zenoh RFC §synth-5-D worker primitive: an SPSC inbox driven by
+// SCE Protocol-Synthesis RFC §synth-5-D worker primitive: an SPSC inbox driven by
 // a link-rx source (`<sce:link-rx ref="{{ link_rx }}"/>`) feeding a
 // concurrent execution context. Spec line 904: "inbox = heapless::spsc
 // (Rust) or fixed ring buffer (C)". This template emits the fixed
@@ -21,7 +21,7 @@
 // `relaxed` raises `worker/inbox-ordering-relaxed-across-cores` at
 // codegen time when deploy.placement is supplied.
 //
-// Generated from `name="{{ name }}"` with depth `{{ inbox_depth }}`,
+// Generated from document `{{ name }}` with depth `{{ inbox_depth }}`,
 // ordering `{{ inbox_ordering }}`, link-rx `{{ link_rx }}`,
 {%- if has_outbox %}
 // outbox `{{ outbox }}`.

@@ -1,19 +1,19 @@
 {# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
-{{ sce_map.source_marker(source_location, "c", module_level=true) }}
+{{ sce_map.source_marker(source_location, "c", module_level=true, symbol_artifact=sce_artifact.forge_body) }}
 
 /* SCE Forge: Auto-generated from Extended SCXML (sce:kind="worker") */
-/* Runtime: sce-c-runtime atomics (sce_atomic_*_u32 family). */
+/* Runtime: backends/c/runtime atomics (sce_atomic_*_u32 family). */
 /* Do not edit — regenerate from the source SCXML file. */
 /*
- * watching-zenoh RFC §synth-5-D worker primitive impl translation unit.
+ * SCE Protocol-Synthesis RFC §synth-5-D worker primitive impl translation unit.
  * Ring-buffer storage + producer/consumer halves backed by the §synth-5-I
  * baseline `sce_atomic_*_u32` family. Ordering selection from
  * `<sce:inbox ordering="{{ inbox_ordering }}"/>` pins which §synth-5-I
  * variant the head/tail atomic loads + stores resolve to.
  *
- * Generated from `name="{{ name }}"` with depth `{{ inbox_depth }}`,
+ * Generated from document `{{ name }}` with depth `{{ inbox_depth }}`,
  * ordering `{{ inbox_ordering }}`.
  */
 
@@ -28,8 +28,8 @@
  * however, SCE's spec contract is to honor the author's choice
  * verbatim, so we forward-declare both `acquire/release` and
  * `relaxed` variants and let the codegen select the per-op pair
- * below. The sce-c-runtime impl is the implementation source of
- * truth (see `sce-c-runtime/include/sce/atomic.h`). */
+ * below. The backends/c/runtime impl is the implementation source of
+ * truth (see `backends/c/runtime/include/sce/atomic.h`). */
 extern uint32_t sce_atomic_load_acquire_u32(const volatile uint32_t *p);
 extern void sce_atomic_store_release_u32(volatile uint32_t *p, uint32_t v);
 extern uint32_t sce_atomic_load_relaxed_u32(const volatile uint32_t *p);

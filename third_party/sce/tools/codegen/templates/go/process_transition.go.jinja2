@@ -18,14 +18,17 @@
 
 // ProcessTransition evaluates guards and takes a matching transition (W3C SCXML 3.13).
 // Returns true if a transition was taken.
-{# Watching-zenoh RFC §synth-5-O — function-scope SCE-MAP markers
+{# SCE Protocol-Synthesis RFC §synth-5-O — function-scope SCE-MAP markers
    above each Go transition function. #}
-{{ sce_map.source_marker(model.source_location, "go") }}
+{{ sce_map.source_marker(model.source_location, "go", symbol_artifact=sce_artifact.machine) }}
 func (p *{{ machine_name }}Policy) ProcessTransition(currentState *{{ machine_name }}State, event {{ machine_name }}Event, engine *sce.Engine[{{ machine_name }}State, {{ machine_name }}Event]) bool {
 {% if model.needs_script_engine %}
 	// W3C SCXML 5.10: Bind _event system variable for guard evaluation
 	if event != {{ machine_name }}EventNull {
-		p.setCurrentEvent(p.GetEventName(event))
+		// §scxml-B-2-8-1: the rung the payload got, handed to the engine
+		// rather than dropped. This is the only frame that has both the
+		// reading and the event it belongs to.
+		engine.NotePayloadReading(event, p.setCurrentEvent(p.GetEventName(event)))
 	}
 {% endif %}
 
@@ -49,7 +52,7 @@ func (p *{{ machine_name }}Policy) ProcessTransition(currentState *{{ machine_na
 			}
 		}
 
-		// W3C SCXML Appendix D.2: Remove conflicting transitions
+		// Appendix D removeConflictingTransitions: Remove conflicting transitions
 		if len(enabledTransitions) > 0 {
 			enabledTransitions = p.selectOptimalTransitions(enabledTransitions)
 		}
@@ -102,7 +105,7 @@ func (p *{{ machine_name }}Policy) ProcessTransition(currentState *{{ machine_na
 		}
 		enabledTransitions = deduped
 
-		// W3C SCXML Appendix D.2: Remove conflicting transitions
+		// Appendix D removeConflictingTransitions: Remove conflicting transitions
 		if len(enabledTransitions) > 0 {
 			enabledTransitions = p.selectOptimalTransitions(enabledTransitions)
 		}
@@ -145,7 +148,7 @@ func (p *{{ machine_name }}Policy) ProcessTransition(currentState *{{ machine_na
 
 {% if model.has_parallel_states %}
 // tryCollectTransition checks if a state has a matching transition and returns it as transitionInfo.
-{{ sce_map.source_marker(model.source_location, "go") }}
+{{ sce_map.source_marker(model.source_location, "go", symbol_artifact=sce_artifact.machine) }}
 func (p *{{ machine_name }}Policy) tryCollectTransition(checkState {{ machine_name }}State, event {{ machine_name }}Event, engine *sce.Engine[{{ machine_name }}State, {{ machine_name }}Event]) *transitionInfo {
 	switch checkState {
 {% for state_id, state in model.states | dictsort %}
@@ -166,7 +169,8 @@ func (p *{{ machine_name }}Policy) tryCollectTransition(checkState {{ machine_na
 {% elif model.needs_script_engine %}
 			if p.evaluateGuard(`{{ trans.cond | to_lua_guard }}`, engine) {
 {% else %}
-			if {{ trans.cond }} {
+			// W3C SCXML 5.9: cond="{{ trans.cond }}" decided at build time
+			if {{ 'true' if trans.cond_constant else 'false' }} {
 {% endif %}
 {% endif %}
 			return &transitionInfo{
@@ -178,7 +182,7 @@ func (p *{{ machine_name }}Policy) tryCollectTransition(checkState {{ machine_na
 {% endif %}
 				transitionIndex: {{ trans.transition_index | default(loop.index0) }},
 				hasActions:      {{ 'true' if trans.actions else 'false' }},
-				isInternal:      {{ 'true' if trans.transition_type == 'internal' else 'false' }},
+				isInternal:      {{ 'true' if trans.type == 'internal' else 'false' }},
 				isTargetless:    {{ 'true' if not trans.target else 'false' }},
 			}
 {% if trans.cond %}
@@ -210,7 +214,8 @@ func (p *{{ machine_name }}Policy) tryCollectTransition(checkState {{ machine_na
 {% elif model.needs_script_engine %}
 			if p.evaluateGuard(`{{ trans.cond | to_lua_guard }}`, engine) {
 {% else %}
-			if {{ trans.cond }} {
+			// W3C SCXML 5.9: cond="{{ trans.cond }}" decided at build time
+			if {{ 'true' if trans.cond_constant else 'false' }} {
 {% endif %}
 {% endif %}
 			return &transitionInfo{
@@ -222,7 +227,7 @@ func (p *{{ machine_name }}Policy) tryCollectTransition(checkState {{ machine_na
 {% endif %}
 				transitionIndex: {{ trans.transition_index | default(loop.index0) }},
 				hasActions:      {{ 'true' if trans.actions else 'false' }},
-				isInternal:      {{ 'true' if trans.transition_type == 'internal' else 'false' }},
+				isInternal:      {{ 'true' if trans.type == 'internal' else 'false' }},
 				isTargetless:    {{ 'true' if not trans.target else 'false' }},
 			}
 {% if trans.cond %}
@@ -239,7 +244,7 @@ func (p *{{ machine_name }}Policy) tryCollectTransition(checkState {{ machine_na
 {% endif %}
 
 // tryTransitionInState checks transitions for a single state.
-{{ sce_map.source_marker(model.source_location, "go") }}
+{{ sce_map.source_marker(model.source_location, "go", symbol_artifact=sce_artifact.machine) }}
 func (p *{{ machine_name }}Policy) tryTransitionInState(checkState {{ machine_name }}State, event {{ machine_name }}Event, currentState *{{ machine_name }}State, engine *sce.Engine[{{ machine_name }}State, {{ machine_name }}Event]) bool {
 	switch checkState {
 {% for state_id, state in model.states | dictsort %}
@@ -260,7 +265,8 @@ func (p *{{ machine_name }}Policy) tryTransitionInState(checkState {{ machine_na
 {% elif model.needs_script_engine %}
 			if p.evaluateGuard(`{{ trans.cond | to_lua_guard }}`, engine) {
 {% else %}
-			if {{ trans.cond }} {
+			// W3C SCXML 5.9: cond="{{ trans.cond }}" decided at build time
+			if {{ 'true' if trans.cond_constant else 'false' }} {
 {% endif %}
 {% endif %}
 {% if trans.target %}
@@ -271,7 +277,7 @@ func (p *{{ machine_name }}Policy) tryTransitionInState(checkState {{ machine_na
 			*currentState = {{ machine_name }}State{{ trans.target | to_state_variant }}
 {% endif %}
 {% endif %}
-			p.lastTransitionIsInternal = {{ 'true' if trans.transition_type == 'internal' else 'false' }}
+			p.lastTransitionIsInternal = {{ 'true' if trans.type == 'internal' else 'false' }}
 			p.lastTransitionIsTargetless = {{ 'true' if not trans.target else 'false' }}
 			p.lastTransitionSourceState = {{ machine_name }}State{{ state_id | to_state_variant }}
 {% if model.has_transition_actions %}
@@ -308,7 +314,8 @@ func (p *{{ machine_name }}Policy) tryTransitionInState(checkState {{ machine_na
 {% elif model.needs_script_engine %}
 			if p.evaluateGuard(`{{ trans.cond | to_lua_guard }}`, engine) {
 {% else %}
-			if {{ trans.cond }} {
+			// W3C SCXML 5.9: cond="{{ trans.cond }}" decided at build time
+			if {{ 'true' if trans.cond_constant else 'false' }} {
 {% endif %}
 {% endif %}
 {% if trans.target %}
@@ -319,7 +326,7 @@ func (p *{{ machine_name }}Policy) tryTransitionInState(checkState {{ machine_na
 			*currentState = {{ machine_name }}State{{ trans.target | to_state_variant }}
 {% endif %}
 {% endif %}
-			p.lastTransitionIsInternal = {{ 'true' if trans.transition_type == 'internal' else 'false' }}
+			p.lastTransitionIsInternal = {{ 'true' if trans.type == 'internal' else 'false' }}
 			p.lastTransitionIsTargetless = {{ 'true' if not trans.target else 'false' }}
 			p.lastTransitionSourceState = {{ machine_name }}State{{ state_id | to_state_variant }}
 {% if model.has_transition_actions %}
@@ -340,7 +347,7 @@ func (p *{{ machine_name }}Policy) tryTransitionInState(checkState {{ machine_na
 }
 
 // ExecuteTransitionActions executes actions for the last taken transition (W3C SCXML 3.13).
-{{ sce_map.source_marker(model.source_location, "go") }}
+{{ sce_map.source_marker(model.source_location, "go", symbol_artifact=sce_artifact.machine) }}
 func (p *{{ machine_name }}Policy) ExecuteTransitionActions(engine *sce.Engine[{{ machine_name }}State, {{ machine_name }}Event]) {
 {% if model.has_transition_actions %}
 {% if model.needs_script_engine %}
@@ -355,6 +362,9 @@ func (p *{{ machine_name }}Policy) ExecuteTransitionActions(engine *sce.Engine[{
 {% for trans in state.transitions %}
 {% if trans.actions %}
 	if source == {{ machine_name }}State{{ state_id | to_state_variant }} && idx == {{ trans.transition_index | default(loop.index0) }} {  {{- annot.annotation_comment(trans, "go", "		") }}
+{% if trans.source_location %}
+		{{ sce_map.source_marker(trans.source_location, "go", stmt_level=true, symbol_state=trans.symbol_state_path, symbol_artifact=trans.symbol_artifact) | trim }}
+{% endif %}
 {% for action in trans.actions %}
 {%- if action.req or action.unresolved %}
 {{ annot.annotation_block(action, "go", "		") -}}

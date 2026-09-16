@@ -29,7 +29,7 @@ namespace SCE::Core {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Unified Conflict Resolution Algorithms (Single Source of Truth)
-// W3C SCXML Appendix D.2: Shared by AOT engine (enum states) and Interpreter (string states)
+// §scxml-D-removeConflictingTransitions: Shared by AOT engine (enum states) and Interpreter (string states)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
@@ -45,14 +45,12 @@ namespace SCE::Core {
  * - W3C SCXML Perfect Compliance: Full Appendix D.2 algorithm
  */
 struct ConflictResolutionAlgorithms {
-
     /**
-     * @brief Transition descriptor for conflict resolution (W3C SCXML Appendix D.2)
+     * @brief Transition descriptor for conflict resolution (§scxml-D-removeConflictingTransitions)
      *
      * @tparam StateType State identifier type (enum for AOT, std::string for Interpreter)
      */
-    template <typename StateType>
-    struct TransitionDescriptor {
+    template <typename StateType> struct TransitionDescriptor {
         StateType source{};
         StateType target{};
         std::vector<StateType> exitSet;
@@ -71,7 +69,7 @@ struct ConflictResolutionAlgorithms {
     };
 
     /**
-     * @brief Check if two exit sets have non-empty intersection (W3C SCXML Appendix D.2)
+     * @brief Check if two exit sets have non-empty intersection (§scxml-D-removeConflictingTransitions)
      */
     template <typename StateType>
     static bool hasIntersection(const std::vector<StateType> &set1, const std::vector<StateType> &set2) {
@@ -86,81 +84,94 @@ struct ConflictResolutionAlgorithms {
     }
 
     /**
-     * @brief Remove conflicting transitions (W3C SCXML Appendix D.2)
+     * @brief Remove conflicting transitions (§scxml-D-removeConflictingTransitions)
      *
      * @tparam StateType State identifier type
      * @tparam GetParentFn Callable: (const StateType&) -> std::optional<StateType>
-     * @tparam IsParallelFn Callable: (const StateType&) -> bool
      * @param enabledTransitions All enabled transitions (in document order)
      * @param getParent Function to get parent state
-     * @param isParallelState Function to check if state is parallel
      * @return Filtered non-conflicting transition set (optimal transition set)
+     *
+     * @note No `isParallelState` predicate: the procedure asks nothing about
+     *       `<parallel>` states. It once did, to stand in for an exit set that
+     *       could not name a sibling region; Appendix D's computeExitSet names
+     *       them now, so the intersection below is the entire conflict test.
      */
-    template <typename StateType, typename GetParentFn, typename IsParallelFn>
+    template <typename StateType, typename GetParentFn>
     [[nodiscard]] static std::vector<TransitionDescriptor<StateType>>
     removeConflictingTransitions(const std::vector<TransitionDescriptor<StateType>> &enabledTransitions,
-                                 GetParentFn getParent, IsParallelFn isParallelState) {
+                                 GetParentFn getParent) {
         std::vector<TransitionDescriptor<StateType>> filteredTransitions;
 
         SCE_LOG_DEBUG("ConflictResolution::removeConflictingTransitions: Processing {} transitions",
-                  enabledTransitions.size());
+                      enabledTransitions.size());
 
         for (const auto &t1 : enabledTransitions) {
+            // §scxml-D-selectTransitions: the enabled set is an ORDERED SET, and
+            // the same transition reached from two different atomic states is one
+            // element of it, not two. A transition written on a `<parallel>` is
+            // selected once per region by the ancestor walk, so this is the
+            // ordinary case, not an edge one -- W3C test 403b turns on a
+            // `<parallel>`-level `<assign>` running exactly once.
+            //
+            // Selection stops at the first enabled transition of a state, so
+            // within one microstep a source contributes at most one transition
+            // and (source, target) identifies it. `transitionIndex` deliberately
+            // takes no part: each region numbers its own walk, so two regions
+            // reporting the same ancestor transition disagree about it.
+            const bool alreadySelected = std::any_of(filteredTransitions.begin(), filteredTransitions.end(),
+                                                     [&t1](const TransitionDescriptor<StateType> &seen) {
+                                                         return seen.source == t1.source && seen.target == t1.target;
+                                                     });
+            if (alreadySelected) {
+                continue;
+            }
+
             bool t1Preempted = false;
             std::vector<size_t> transitionsToRemove;
 
             for (size_t i = 0; i < filteredTransitions.size(); ++i) {
                 const auto &t2 = filteredTransitions[i];
 
-                bool hasConflict = false;
-
-                // W3C SCXML Appendix D.2: Check if exit sets intersect (conflict)
-                if (hasIntersection(t1.exitSet, t2.exitSet)) {
-                    hasConflict = true;
+                // §scxml-D-removeConflictingTransitions: two transitions conflict
+                // when their EXIT SETS intersect. That is the whole test the
+                // appendix states, and it is now the whole test made here.
+                //
+                // Three rules used to sit beside it -- a target/source equality
+                // check and a `<parallel>`-ancestor check in each direction --
+                // and none is in the appendix. They stood in for an exit set
+                // this engine could not compute: assembled from one region's own
+                // chain, a set could not name the sibling regions a transition
+                // leaving the `<parallel>` exits, so the intersection came back
+                // empty for transitions that plainly conflict and something had
+                // to say so. §scxml-D-computeExitSet now reads the CONFIGURATION
+                // in every engine, so the intersection answers on its own.
+                //
+                // Two consequences worth naming, because the removed rules made
+                // both of them invisible:
+                //  - A transition that exits nothing conflicts with nothing and
+                //    can never be preempted. That is exactly a targetless
+                //    transition -- the appendix guards computeExitSet with `if
+                //    t.target` -- and it is what W3C test 403c means by "this
+                //    transition never gets preempted, should fire twice". The
+                //    old rules each read a targetless transition as a
+                //    self-transition on its own source, which is why they needed
+                //    an empty-exit-set gate ahead of them to keep 403c green.
+                //  - Two transitions in different regions of one `<parallel>`
+                //    have domains in disjoint subtrees, so their exit sets are
+                //    disjoint and both survive. §scxml-3.4 requires exactly that.
+                if (!hasIntersection(t1.exitSet, t2.exitSet)) {
+                    continue;
                 }
 
-                // W3C SCXML Appendix D.2: Target/source conflict detection
-                if (!hasConflict) {
-                    if (t1.target == t2.source || t2.target == t1.source) {
-                        hasConflict = true;
-                    }
-                }
-
-                // §scxml-3.13: Parallel state conflict detection
-                if (!hasConflict && !(t2.isInternal && t2.source == t2.target)) {
-                    for (const auto &exitState : t1.exitSet) {
-                        if (isParallelState(exitState)) {
-                            if (HierarchicalAlgorithms::isDescendantOf(t2.source, exitState, getParent)) {
-                                hasConflict = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                // Check reverse: t2 exits parallel state that is ancestor of t1's source
-                if (!hasConflict && !(t1.isInternal && t1.source == t1.target)) {
-                    for (const auto &exitState : t2.exitSet) {
-                        if (isParallelState(exitState)) {
-                            if (HierarchicalAlgorithms::isDescendantOf(t1.source, exitState, getParent)) {
-                                hasConflict = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                if (hasConflict) {
-                    // W3C SCXML Appendix D.2: Preemption rules
-                    if (t1.target == t2.source) {
-                        transitionsToRemove.push_back(i);
-                    } else if (t2.target == t1.source) {
-                        t1Preempted = true;
-                    } else if (HierarchicalAlgorithms::isDescendantOf(t1.source, t2.source, getParent)) {
-                        transitionsToRemove.push_back(i);
-                    } else {
-                        t1Preempted = true;
-                    }
+                // §scxml-D-removeConflictingTransitions: the descendant source
+                // wins. The appendix leaves the loop here rather than gathering
+                // more removals it would discard.
+                if (HierarchicalAlgorithms::isDescendantOf(t1.source, t2.source, getParent)) {
+                    transitionsToRemove.push_back(i);
+                } else {
+                    t1Preempted = true;
+                    break;
                 }
             }
 
@@ -173,7 +184,7 @@ struct ConflictResolutionAlgorithms {
         }
 
         SCE_LOG_DEBUG("ConflictResolution::removeConflictingTransitions: Filtered to {} transitions",
-                  filteredTransitions.size());
+                      filteredTransitions.size());
 
         return filteredTransitions;
     }
@@ -184,7 +195,7 @@ struct ConflictResolutionAlgorithms {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * @brief W3C SCXML Appendix D.2 Conflict Resolution Helper (AOT wrapper)
+ * @brief §scxml-D-removeConflictingTransitions Conflict Resolution Helper (AOT wrapper)
  *
  * @details
  * Thin wrapper around ConflictResolutionAlgorithms for AOT engine compatibility.
@@ -200,6 +211,7 @@ template <ParallelStatePolicy StatePolicy> class ConflictResolutionHelper {
 #else
 template <typename StatePolicy> class ConflictResolutionHelper {
 #endif
+
 public:
     using State = typename StatePolicy::State;
     using TransitionDescriptor = ConflictResolutionAlgorithms::TransitionDescriptor<State>;
@@ -208,32 +220,37 @@ public:
      * @brief Compute exit set for a single transition
      *
      * @details
-     * W3C SCXML Appendix D.2: Exit set = states from source up to (but not including) LCA
+     * §scxml-D-computeExitSet: the active states that are proper descendants of
+     * the transition's domain. It is read off the CONFIGURATION, which is why
+     * the caller has to hand one over — the same set the microstep exits, and
+     * the set `removeConflictingTransitions` below intersects.
      *
      * ARCHITECTURE.md Zero Duplication: Delegates to ParallelTransitionHelper for exit set computation.
      * Single Source of Truth - same algorithm used by AOT engine microstep execution.
      *
      * @param source Source state of transition
      * @param target Target state of transition
+     * @param configuration The currently active states
      * @return Exit set (states to be exited)
      *
      * @par Thread Safety
      * Thread-safe and reentrant.
      *
      * @par Performance
-     * - Time Complexity: O(depth)
-     * - Space Complexity: O(depth)
+     * - Time Complexity: O(|configuration| * depth)
+     * - Space Complexity: O(|configuration|)
      *
      * @par Example
      * @code
-     * // Given hierarchy: S0 -> { S01 -> S011, S02 }
+     * // Given hierarchy: S0 -> { S01 -> S011, S02 }, configuration [S0, S01, S011]
      * // Transition from S011 to S02
-     * auto exitSet = ConflictResolutionHelper<Policy>::computeExitSet(State::S011, State::S02);
-     * // Returns: [S011, S01] (exit both S011 and S01 to reach LCA S0)
+     * auto exitSet = ConflictResolutionHelper<Policy>::computeExitSet(
+     *     State::S011, State::S02, false, false, {State::S0, State::S01, State::S011});
+     * // Returns: [S01, S011] (the active proper descendants of the domain S0)
      * @endcode
      */
-    static std::vector<State> computeExitSet(State source, State target, bool isInternal = false,
-                                             bool isTargetless = false) {
+    static std::vector<State> computeExitSet(State source, State target, bool isInternal, bool isTargetless,
+                                             const std::vector<State> &configuration) {
         // ARCHITECTURE.MD Zero Duplication: Delegate to ParallelTransitionHelper
         // Construct minimal Transition descriptor for exit set computation
         typename ParallelTransitionHelper::Transition<State> trans;
@@ -242,14 +259,14 @@ public:
         trans.isInternal = isInternal;      // §scxml-3.13: Pass internal transition type
         trans.isTargetless = isTargetless;  // §scxml-3.13: Pass targetless transition flag
 
-        // W3C SCXML Appendix D.2: Use shared Helper for exit set computation
-        auto exitSetUnordered = ParallelTransitionHelper::computeExitSet<State, StatePolicy>(trans);
+        // §scxml-D-computeExitSet: Use shared Helper for exit set computation
+        auto exitSetUnordered = ParallelTransitionHelper::computeExitSet<State, StatePolicy>(trans, configuration);
 
         // Convert unordered_set to vector for conflict resolution algorithm
         std::vector<State> exitSet(exitSetUnordered.begin(), exitSetUnordered.end());
 
         SCE_LOG_DEBUG("ConflictResolutionHelper::computeExitSet: Transition {} -> {} exits {} states",
-                  static_cast<int>(source), static_cast<int>(target), exitSet.size());
+                      static_cast<int>(source), static_cast<int>(target), exitSet.size());
 
         return exitSet;
     }
@@ -258,7 +275,7 @@ public:
      * @brief Check if two exit sets have non-empty intersection
      *
      * @details
-     * W3C SCXML Appendix D.2: Two transitions conflict if their exit sets intersect.
+     * §scxml-D-removeConflictingTransitions: Two transitions conflict if their exit sets intersect.
      * Exit set intersection means both transitions would exit at least one common state.
      *
      * @param set1 First exit set
@@ -285,16 +302,14 @@ public:
     }
 
     /**
-     * @brief Remove conflicting transitions (W3C SCXML Appendix D.2)
+     * @brief Remove conflicting transitions (§scxml-D-removeConflictingTransitions)
      *
      * Delegates to ConflictResolutionAlgorithms with StatePolicy bindings.
      */
     static std::vector<TransitionDescriptor>
     removeConflictingTransitions(const std::vector<TransitionDescriptor> &enabledTransitions) {
         return ConflictResolutionAlgorithms::removeConflictingTransitions(
-            enabledTransitions,
-            [](State s) { return StatePolicy::getParent(s); },
-            [](State s) { return StatePolicy::isParallelState(s); });
+            enabledTransitions, [](State s) { return StatePolicy::getParent(s); });
     }
 };
 

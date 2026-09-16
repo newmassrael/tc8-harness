@@ -16,6 +16,7 @@
 
 #pragma once
 #include "core/LogMacros.h"
+#include "scripting/ScriptDialect.h"
 #include "scripting/ScriptResultUtils.h"
 #include <optional>
 #include <stdexcept>
@@ -62,14 +63,23 @@ public:
      * §scxml-B-2: Legal values for 'item' attribute are legal ECMAScript variable names
      */
     static inline bool isLegalVariableName(const std::string &name) {
-        if (name.empty()) return false;
+        // §scxml-B-2-11: the legal values of 'item' are legal ECMAScript variable names.
+        if (name.empty()) {
+            return false;
+        }
         // Must not be quoted (e.g., 'continue' or "continue")
-        if (name.front() == '\'' || name.front() == '"') return false;
+        if (name.front() == '\'' || name.front() == '"') {
+            return false;
+        }
         // Must start with letter, underscore, or dollar sign
-        if (!std::isalpha(name[0]) && name[0] != '_' && name[0] != '$') return false;
+        if (!std::isalpha(name[0]) && name[0] != '_' && name[0] != '$') {
+            return false;
+        }
         // Must contain only alphanumeric, underscore, or dollar sign
         for (char c : name) {
-            if (!std::isalnum(c) && c != '_' && c != '$') return false;
+            if (!std::isalnum(c) && c != '_' && c != '$') {
+                return false;
+            }
         }
         return true;
     }
@@ -110,7 +120,7 @@ public:
      */
     template <typename JSEngineType>
     static inline bool setLoopVariableFromExpr(JSEngineType &jsEngine, const std::string &sessionId,
-                                               const std::string &varName, const std::string &expr) {
+                                               const std::string &varName, const ScriptSource &expr) {
         try {
             if (!isLegalVariableName(varName)) {
                 SCE_LOG_ERROR("W3C FOREACH: Illegal variable name '{}'", varName);
@@ -121,15 +131,17 @@ public:
             if (evalResult.isSuccess()) {
                 auto setResult = jsEngine.setVariable(sessionId, varName, evalResult.getInternalValue()).get();
                 if (setResult.isSuccess()) {
-                    SCE_LOG_DEBUG("Set foreach variable: {} = {}", varName, expr);
+                    SCE_LOG_DEBUG("Set foreach variable: {} = {}", varName, expr.source());
                     return true;
                 }
             }
 
-            // Fallback: try as string literal
-            auto setStrResult = jsEngine.setVariable(sessionId, varName, ScriptValue(expr)).get();
+            // Fallback: try as string literal. The AUTHOR'S text is the literal
+            // — an expression that would not evaluate becomes the string the
+            // document wrote, not the string a lowering produced from it.
+            auto setStrResult = jsEngine.setVariable(sessionId, varName, ScriptValue(expr.source())).get();
             if (!setStrResult.isSuccess()) {
-                SCE_LOG_ERROR("Failed to set foreach variable {} = {}", varName, expr);
+                SCE_LOG_ERROR("Failed to set foreach variable {} = {}", varName, expr.source());
                 return false;
             }
             return true;
@@ -155,9 +167,9 @@ public:
      */
     template <typename JSEngineType>
     static inline std::optional<std::vector<ScriptValue>>
-    evaluateForeachArray(JSEngineType &jsEngine, const std::string &sessionId, const std::string &arrayExpr) {
+    evaluateForeachArray(JSEngineType &jsEngine, const std::string &sessionId, const ScriptSource &arrayExpr) {
         // §scxml-4.6: Array expression must be non-empty
-        if (arrayExpr.empty()) {
+        if (arrayExpr.text().empty()) {
             SCE_LOG_ERROR("Foreach array attribute is missing or empty");
             return std::nullopt;
         }
@@ -165,11 +177,14 @@ public:
         auto arrayResult = jsEngine.evaluateExpression(sessionId, arrayExpr).get();
 
         if (!arrayResult.isSuccess()) {
-            SCE_LOG_ERROR("Failed to evaluate array expression: {}", arrayExpr);
+            SCE_LOG_ERROR("Failed to evaluate array expression: {}", arrayExpr.source());
             return std::nullopt;
         }
 
         // §scxml-4.6: Validate that the value is an array
+        // §scxml-B-2-11: under the ECMAScript data model iteration is guaranteed only
+        // for objects satisfying instanceof(Array), which is the fallback probe below,
+        // and an array is visited from index 0 to length-1.
         if (!arrayResult.isArray()) {
             // Empty Lua table converts to ScriptObject with no properties — treat as empty array
             const auto &val = arrayResult.getInternalValue();
@@ -180,12 +195,15 @@ public:
                 }
             }
 
-            std::string arrayCheckExpr = "(" + arrayExpr + ") instanceof Array";
-            auto arrayCheckResult = jsEngine.evaluateExpression(sessionId, arrayCheckExpr).get();
-            if (!arrayCheckResult.isSuccess() ||
-                !std::holds_alternative<bool>(arrayCheckResult.getInternalValue()) ||
+            // The probe is composed through the dialect table, not spelled
+            // inline: `instanceof Array` is ECMAScript, and this is one of the
+            // two composition sites the GENERATED path actually reaches, so a
+            // pre-lowered array expression would otherwise be wrapped in a
+            // language it is not written in.
+            auto arrayCheckResult = jsEngine.evaluateExpression(sessionId, ScriptDialect::isArray(arrayExpr)).get();
+            if (!arrayCheckResult.isSuccess() || !std::holds_alternative<bool>(arrayCheckResult.getInternalValue()) ||
                 !std::get<bool>(arrayCheckResult.getInternalValue())) {
-                SCE_LOG_ERROR("Foreach array '{}' is not an iterable collection (W3C SCXML 5.4)", arrayExpr);
+                SCE_LOG_ERROR("Foreach array '{}' is not an iterable collection (W3C SCXML 5.4)", arrayExpr.source());
                 return std::nullopt;
             }
         }
@@ -245,7 +263,7 @@ public:
      */
     template <typename JSEngineType>
     static inline bool executeForeachWithoutBody(JSEngineType &jsEngine, const std::string &sessionId,
-                                                 const std::string &arrayExpr, const std::string &itemVar,
+                                                 const ScriptSource &arrayExpr, const std::string &itemVar,
                                                  const std::string &indexVar) {
         auto arrayValuesOpt = evaluateForeachArray(jsEngine, sessionId, arrayExpr);
         if (!arrayValuesOpt.has_value()) {
@@ -332,7 +350,7 @@ public:
      */
     template <typename JSEngineType, typename BodyFunc>
     static inline bool executeForeachWithActions(JSEngineType &jsEngine, const std::string &sessionId,
-                                                 const std::string &arrayExpr, const std::string &itemVar,
+                                                 const ScriptSource &arrayExpr, const std::string &itemVar,
                                                  const std::string &indexVar, BodyFunc &&executeBody) {
         // Evaluate array expression — returns ScriptValue elements directly (no string round-trip)
         auto arrayValuesOpt = evaluateForeachArray(jsEngine, sessionId, arrayExpr);
@@ -342,6 +360,9 @@ public:
         auto &arrayValues = arrayValuesOpt.value();
 
         // §scxml-4.6: Declare item and index variables BEFORE iteration
+        // §scxml-4.6.3: the processor declares 'item' — and 'index' when present — if
+        // it is not already defined, iterates over a shallow copy of the collection,
+        // and abandons the whole block when a nested action raises an error.
         if (!setLoopVariable(jsEngine, sessionId, itemVar, ScriptValue(ScriptUndefined{}))) {
             SCE_LOG_ERROR("Failed to declare foreach item variable: {}", itemVar);
             return false;

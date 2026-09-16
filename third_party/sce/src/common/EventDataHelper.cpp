@@ -28,10 +28,25 @@ std::string EventDataHelper::buildJsonFromParams(const std::map<std::string, std
     return JsonUtils::toCompactString(eventDataJson);
 }
 
-ScriptValue EventDataHelper::buildScriptValueFromParams(const std::map<std::string, ScriptValue> &typedParams) {
+ScriptValue
+EventDataHelper::buildScriptValueFromParams(const std::map<std::string, std::vector<ScriptValue>> &typedParams) {
     auto obj = std::make_shared<ScriptObject>();
-    for (const auto &[name, value] : typedParams) {
-        obj->properties[name] = value;
+    for (const auto &[name, values] : typedParams) {
+        if (values.empty()) {
+            continue;
+        }
+        // A name that was sent twice is an Array of its values in document
+        // order; one that was sent once is the value itself. Wrapping the
+        // single case would change what every existing document reads.
+        if (values.size() == 1) {
+            obj->properties[name] = values.front();
+            continue;
+        }
+        auto arr = std::make_shared<ScriptArray>();
+        for (const auto &value : values) {
+            arr->elements.push_back(value);
+        }
+        obj->properties[name] = arr;
     }
     return obj;
 }
@@ -74,20 +89,104 @@ static json scriptValueToJson(const ScriptValue &value) {
         value);
 }
 
-std::string EventDataHelper::buildJsonFromTypedParams(const std::map<std::string, ScriptValue> &typedParams) {
+std::string
+EventDataHelper::buildJsonFromTypedParams(const std::map<std::string, std::vector<ScriptValue>> &typedParams) {
     json eventDataJson = json::object();
-    for (const auto &[name, value] : typedParams) {
-        eventDataJson[name] = scriptValueToJson(value);
+    for (const auto &[name, values] : typedParams) {
+        if (values.empty()) {
+            continue;
+        }
+        if (values.size() == 1) {
+            eventDataJson[name] = scriptValueToJson(values.front());
+            continue;
+        }
+        json arr = json::array();
+        for (const auto &value : values) {
+            arr.push_back(scriptValueToJson(value));
+        }
+        eventDataJson[name] = arr;
     }
     return JsonUtils::toCompactString(eventDataJson);
 }
 
+// Merged rather than "typed wins": the two maps do not carry the same shape.
+// Both hold a VECTOR per name now — a document may write `<param name="x">`
+// more than once and W3C test178 requires every value to arrive — but only
+// `stringParams` is filled on the paths that never reach a script engine, so
+// choosing either wholesale loses something: the string map turns `expr="42"`
+// into `"42"`, which an ECMAScript receiver compares against 42 and finds
+// unequal (measured 2026-08-14: the autoforward fixture's
+// `_event.data.value === 42` read false end to end), and the typed map is
+// simply absent for a literal-only send.
+static json mergeParams(const std::map<std::string, std::vector<std::string>> &stringParams,
+                        const std::map<std::string, std::vector<ScriptValue>> &typedParams) {
+    // One occurrence is the value; more than one is an Array of them in
+    // document order. W3C test 178 sends a name twice and requires both pairs
+    // delivered, and an object cannot hold one name twice.
+    const auto publish = [](const std::vector<ScriptValue> &values) {
+        if (values.size() == 1) {
+            return scriptValueToJson(values.front());
+        }
+        json arr = json::array();
+        for (const auto &value : values) {
+            arr.push_back(scriptValueToJson(value));
+        }
+        return arr;
+    };
+
+    json eventDataJson = json::object();
+    for (const auto &[name, values] : stringParams) {
+        if (values.empty()) {
+            continue;
+        }
+        // The typed values are preferred whenever there is one per occurrence.
+        // This arm used to be reachable only for a single param, so a repeated
+        // name published the STRING vector while the typed values sat unused
+        // in the map beside it — `<param expr="1"/>` twice arrived as
+        // `["1","1"]` and `=== 1` read false.
+        auto typed = typedParams.find(name);
+        if (typed != typedParams.end() && typed->second.size() == values.size()) {
+            eventDataJson[name] = publish(typed->second);
+            continue;
+        }
+        if (values.size() > 1) {
+            eventDataJson[name] = values;
+            continue;
+        }
+        eventDataJson[name] = json(values[0]);
+    }
+
+    // A name that produced a typed value without a stringified one still
+    // belongs in the payload; dropping it would make the presence of a sibling
+    // param decide whether this one is delivered.
+    for (const auto &[name, values] : typedParams) {
+        if (stringParams.find(name) == stringParams.end() && !values.empty()) {
+            eventDataJson[name] = publish(values);
+        }
+    }
+    return eventDataJson;
+}
+
 std::string EventDataHelper::buildEventDataJson(const std::map<std::string, std::vector<std::string>> &stringParams,
-                                                const std::map<std::string, ScriptValue> &typedParams) {
-    return !typedParams.empty() ? buildJsonFromTypedParams(typedParams) : buildJsonFromParams(stringParams);
+                                                const std::map<std::string, std::vector<ScriptValue>> &typedParams) {
+    return JsonUtils::toCompactString(mergeParams(stringParams, typedParams));
+}
+
+std::string EventDataHelper::buildEventDataJson(const std::string &data,
+                                                const std::map<std::string, std::vector<std::string>> &stringParams,
+                                                const std::map<std::string, std::vector<ScriptValue>> &typedParams) {
+    // Composed here rather than by re-parsing the params JSON at the call
+    // site: `json::parse` throws, and the send path that needs this runs
+    // inside an event target whose caller does not expect an exception.
+    json eventDataJson = mergeParams(stringParams, typedParams);
+    eventDataJson["data"] = data;
+    return JsonUtils::toCompactString(eventDataJson);
 }
 
 std::string EventDataHelper::scriptValueToJsonString(const ScriptValue &value) {
+    // §scxml-B-2-9: when data has to leave the ECMAScript data model — as it does for
+    // the BasicHTTP Event I/O Processor — it is serialized to JSON, which reconstructs
+    // the value in full rather than falling back to a lossy platform format.
     return JsonUtils::toCompactString(scriptValueToJson(value));
 }
 

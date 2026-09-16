@@ -17,9 +17,9 @@
 {%- import '_macros/sce_annotation_marker.jinja2' as annot %}
 
     // W3C SCXML 3.13: Evaluate guards and take a matching transition
-    {# Watching-zenoh RFC §synth-5-O — function-scope SCE-MAP marker
+    {# SCE Protocol-Synthesis RFC §synth-5-O — function-scope SCE-MAP marker
        above `process_transition` and `execute_transition_actions`. #}
-    {{ sce_map.source_marker(model.source_location, "rust") }}
+    {{ sce_map.source_marker(model.source_location, "rust", symbol_artifact=sce_artifact.machine) }}
     fn process_transition(
         &mut self,
         current_state: &mut Self::State,
@@ -84,9 +84,13 @@
 {% else %}
             let ev_invokeid: &str = "";
 {% endif %}
-            self.set_current_event_in_script_engine(
+            // §scxml-B-2-8-1: the rung the payload got, handed to the engine
+            // rather than dropped. This is the only frame that has both the
+            // reading and the event it belongs to.
+            let payload_reading = self.set_current_event_in_script_engine(
                 event_name, ev_data, event_type, ev_sendid, ev_origin, ev_origintype, ev_invokeid,
             );
+            engine.note_payload_reading(event, payload_reading);
         }
 {% endif %}
 {% if model.has_parallel_states or model.uses_in_predicate %}
@@ -114,9 +118,9 @@
                 self.try_transition_in_state(*active_state, event, current_state, &mut transition_taken, engine, Some(&mut enabled_transitions));
             }
 
-            // W3C SCXML Appendix D.2: Remove conflicting transitions
+            // Appendix D removeConflictingTransitions: Remove conflicting transitions
             if !enabled_transitions.is_empty() {
-                enabled_transitions = Self::remove_conflicting_transitions(&enabled_transitions);
+                enabled_transitions = self.remove_conflicting_transitions(&enabled_transitions);
             }
 
             // W3C SCXML Appendix D Steps 2-5: Execute as atomic microstep
@@ -163,15 +167,15 @@
             // std, a capacity-bounded `heapless::FnvIndexSet` under no_std
             // (`MAX_MICROSTEP_DEDUP_SLOTS`). `dedup_insert` fails loud on no_std
             // overflow rather than silently dropping transitions — that would
-            // violate W3C SCXML Appendix D.2 semantics.
+            // violate Appendix D microstepProcedure semantics.
             let mut seen: ::sce_rust_runtime::SceDedupSet<({{ machine_name }}State, usize)> =
                 ::sce_rust_runtime::SceDedupSet::new();
             enabled_transitions
                 .retain(|t| ::sce_rust_runtime::dedup_insert(&mut seen, (t.source, t.transition_index)));
 
-            // W3C SCXML Appendix D.2: Remove conflicting transitions
+            // Appendix D removeConflictingTransitions: Remove conflicting transitions
             if !enabled_transitions.is_empty() {
-                enabled_transitions = Self::remove_conflicting_transitions(&enabled_transitions);
+                enabled_transitions = self.remove_conflicting_transitions(&enabled_transitions);
             }
 
             // W3C SCXML Appendix D Steps 2-5: Execute as atomic microstep
@@ -210,7 +214,7 @@
     }
 
     // W3C SCXML 3.13: Execute transition actions (called between exit and entry)
-    {{ sce_map.source_marker(model.source_location, "rust") }}
+    {{ sce_map.source_marker(model.source_location, "rust", symbol_artifact=sce_artifact.machine) }}
     fn execute_transition_actions(&mut self, engine: &mut sce_rust_runtime::Engine<Self>) {
 {% if model.has_transition_actions %}
         if !self.has_transition_actions {
@@ -227,6 +231,9 @@
 {% for trans in state.transitions %}
 {% if trans.actions %}
                     {{ loop.index0 }} => {  {{- annot.annotation_comment(trans, "rust", "                        ") }}
+{% if trans.source_location %}
+                        {{ sce_map.source_marker(trans.source_location, "rust", stmt_level=true, symbol_state=trans.symbol_state_path, symbol_artifact=trans.symbol_artifact) | trim }}
+{% endif %}
                         // W3C SCXML 3.13: Transition {{ loop.index0 }} actions
 {% for action in trans.actions %}
 {%- if action.req or action.unresolved %}

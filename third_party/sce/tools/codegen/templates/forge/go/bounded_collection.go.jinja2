@@ -2,13 +2,13 @@
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
-{{ sce_map.source_marker(source_location, "go", module_level=true) }}
+{{ sce_map.source_marker(source_location, "go", module_level=true, symbol_artifact=sce_artifact.forge_body) }}
 
 // SCE Forge: Auto-generated from Extended SCXML (sce:kind="bounded-collection")
 // Runtime: {{ runtime_dep }}
 // Do not edit — regenerate from the source SCXML file.
 //
-// watching-zenoh RFC §synth-5-L bounded-collection — typed fixed-capacity
+// SCE Protocol-Synthesis RFC §synth-5-L bounded-collection — typed fixed-capacity
 // container per spec line 2579 emit shape: `[N]T` fixed array +
 // `[N]bool` occupancy mask + `[N]uint32` generation + `int count`.
 //

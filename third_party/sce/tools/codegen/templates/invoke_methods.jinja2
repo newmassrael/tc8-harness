@@ -12,10 +12,10 @@
     Contains:
     - executePendingInvokes()           — execute deferred invokes at macrostep end
     - tickChildren()                    — tick active child state machines
-    - forwardToAutoforwardChildren()    — W3C SCXML 6.4.6 event forwarding
+    - forwardToAutoforwardChildren()    — W3C SCXML 6.4.1 event forwarding
     - executeFinalizeForChildEvent()    — W3C SCXML 6.5 finalize execution
 #}
-{% if (model.invokes | scxml_family) or (model.invokes | scxml_remote) %}
+{% if (model.invokes | scxml_family) or (model.invokes | scxml_remote) or (model.invokes | unsupported) %}
 
     // W3C SCXML 6.4: Execute pending invokes at macrostep end
     // Uses InvokeHelper defer/cancel/execute pattern (ARCHITECTURE.md Zero Duplication).
@@ -52,6 +52,12 @@
                         {% if invoke_info.namelist %}
                         // W3C SCXML 6.4.1: Namelist handling - validate and pass values to child
                         std::map<std::string, std::vector<std::string>> namelistParams;
+                        // §scxml-6.4.1: "the value stored at the location is
+                        // the value" — so what crosses into the child is the
+                        // ScriptValue, not its rendering. `namelistParams`
+                        // stays for the diagnostic text below, where a string
+                        // is what a log wants.
+                        std::map<std::string, std::vector<::ScriptValue>> namelistTypedParams;
 
                         // Step 1: Validate namelist variables before creating child
                         {
@@ -67,7 +73,8 @@
                                     SCE_LOG_ERROR("Namelist evaluation failed for invoke {{ invoke_info.invoke_id }}: {}", errorMsg);
                                     // W3C SCXML 6.4.1: Raise error.execution on namelist error
                                     engine.raise(typename Engine::EventWithMetadata(Event::Error_execution, errorMsg));
-                                }
+                                },
+                                &namelistTypedParams
                             );
 
                             if (!namelistValid) {
@@ -103,6 +110,16 @@
                         // segment here.
                         child_{{ invoke_info.field_suffix }}_ = std::make_shared<::SCE::Generated::{{ cpp_ns_prefix }}{{ invoke_info.child_name }}::{{ invoke_info.child_name }}<SelfType>>(self_, pending.invokeId, childSessionId);
 
+                        // §scxml-6.4: the child's delayed sends are measured
+                        // against the same clock as ours. A child reading its
+                        // own would start its origin at construction time, so
+                        // `<send delay="100ms">` on either side of the boundary
+                        // would mean two different absolute instants — and on a
+                        // host-owned clock the child would not move at all,
+                        // because the host advances the engine it holds, not
+                        // the ones that engine invoked.
+                        child_{{ invoke_info.field_suffix }}_->setClock(engine.clock());
+
                         // W3C SCXML B.1: Forward the build-configured script engine
                         // to the child BEFORE namelist/params evaluation. The
                         // child's setParamInScriptEngine() and downstream
@@ -116,24 +133,37 @@
                         {% endif %}
 
                         {% if invoke_info.namelist %}
-                        // W3C SCXML 6.4.1: Pass namelist values to child datamodel (Step 2)
+                        // §scxml-6.4.1 + §scxml-6.4.3: pass namelist VALUES to
+                        // the child datamodel (Step 2). Which names are
+                        // eligible is decided here rather than at runtime,
+                        // because both the namelist and the child's top-level
+                        // `<data>` ids are static — the C11 backend has
+                        // filtered this way from the start, and deciding it at
+                        // codegen time keeps a `std::set` per invoke out of
+                        // every machine that has one.
                         {% if invoke_info.child_needs_script_engine %}
-                        // W3C SCXML 6.3.2: Child datamodel variables for validation
-                        // ARCHITECTURE.md Zero Duplication: Matches InvokeExecutor.cpp:322-359 logic
-                        static const std::set<std::string> childDatamodelVars_{{ invoke_info.invoke_id }} = DatamodelValidationHelper::buildChildDatamodelSet({{ '{' }}{% for var in invoke_info.child_datamodel_vars %}"{{ var }}"{{ ", " if not loop.last }}{% endfor %}{{ '}' }});
-
-                        for (const auto& [varName, values] : namelistParams) {
-                            // W3C SCXML 6.3.2: Only set variable if it exists in child's datamodel
-                            if (!DatamodelValidationHelper::isVariableDeclaredInChild(varName, childDatamodelVars_{{ invoke_info.invoke_id }})) {
-                                AOT_DEBUG("Skipping namelist variable '{}' - not defined in child's datamodel", varName);
-                                continue;
-                            }
-
-                            if (!values.empty()) {
-                                AOT_DEBUG("Setting namelist variable '{}' = '{}' in child {{ invoke_info.invoke_id }}", varName, values[0]);
-                                child_{{ invoke_info.field_suffix }}_->setParamInScriptEngine(varName, values[0]);
+                        {% for ns_name in invoke_info.namelist.split() %}
+                        {% if invoke_info.child_datamodel_vars and ns_name in invoke_info.child_datamodel_vars %}
+                        // §scxml-6.4.3: `{{ ns_name }}` matches a top-level `<data>` of
+                        // the child, so the value at that location becomes its
+                        // initial value — and the `<data>`'s own expression is
+                        // ignored.
+                        {
+                            const auto __sce_nl = namelistTypedParams.find("{{ ns_name }}");
+                            if (__sce_nl != namelistTypedParams.end() && !__sce_nl->second.empty()) {
+                                AOT_DEBUG("Seeding namelist location '{{ ns_name }}' in child {{ invoke_info.invoke_id }}");
+                                child_{{ invoke_info.field_suffix }}_->setParamValueInScriptEngine("{{ ns_name }}", __sce_nl->second.front());
                             }
                         }
+                        {% else %}
+                        // §scxml-6.4.3: `{{ ns_name }}` matches no top-level `<data>` of
+                        // the child, so the Processor MUST NOT add it to the
+                        // invoked session's data model. Nothing is emitted for
+                        // it — the parent still evaluates it, because a
+                        // location the parent does not declare is an
+                        // error.execution either way (test553).
+                        {% endif %}
+                        {% endfor %}
                         {% else %}
                         // Child does not use JSEngine - namelist handled via static datamodel
                         AOT_DEBUG("Namelist variables - child uses static datamodel");
@@ -141,18 +171,57 @@
                         {% endif %}
 
                         {% if invoke_info.params %}
-                        // W3C SCXML 6.4.1: Pass params to child datamodel before initialization
+                        // §scxml-6.4.3: pass param VALUES to the child
+                        // datamodel before initialization. The expression is
+                        // evaluated HERE, in the invoking session, because the
+                        // clause says the value of the `<param>` element is
+                        // what becomes the child `<data>`'s initial value.
+                        // Evaluating the author's text in the child instead
+                        // asks what that source means there — the same answer
+                        // for a literal, a different one for anything that
+                        // names a variable, and the whole W3C IRP param
+                        // surface is literals. The Interpreter
+                        // (`InvokeExecutor.cpp`) has always done it this way.
                         {% for param in invoke_info.params %}
                         {% if invoke_info.child_needs_script_engine %}
-                        child_{{ invoke_info.field_suffix }}_->setParamInScriptEngine("{{ param.name }}", "{{ param.expr }}");
+                        {% if invoke_info.child_datamodel_vars and param.name in invoke_info.child_datamodel_vars %}
+                        {
+                            ensureScriptEngine();
+                            auto __sce_param = getScriptEngine().evaluateExpression(sessionId_.value(), {{ param.expr | to_script_source_expr }}).get();
+                            if (::SCE::ScriptResultUtils::isSuccess(__sce_param)) {
+                                child_{{ invoke_info.field_suffix }}_->setParamValueInScriptEngine("{{ param.name | escape_cpp }}", __sce_param.getInternalValue());
+                            } else {
+                                // §scxml-5.7.1: BOTH halves — `error.execution` on
+                                // the internal queue AND the name and value
+                                // ignored. The log line alone kept neither: a log
+                                // is not a queue, so the document that miscomputed
+                                // the `<param>` saw a child come up with a `<data>`
+                                // nothing explained and had no event to act on.
+                                //
+                                // The clause delegates only the SUCCESSFUL name and
+                                // value to the context ("Otherwise the use of the
+                                // name and value depends on the context ... See 5.5
+                                // <donedata>, 6.2 <send> and 6.4 <invoke>"), so
+                                // §scxml-6.4.2's "terminate the processing of the
+                                // element" is not what a failing `<param>` costs:
+                                // the child still starts, one pair short.
+                                SCE_LOG_ERROR("Failed to evaluate <invoke> param expression for {}: {}", "{{ param.name | escape_cpp }}", "{{ param.expr | escape_cpp }}");
+                                engine.raise(typename Engine::EventWithMetadata(Event::Error_execution, "<invoke> <param name='{{ param.name | escape_cpp }}'> expr failed to evaluate"));
+                            }
+                        }
+                        {% else %}
+                        // §scxml-6.4.3: `{{ param.name }}` matches no top-level
+                        // `<data>` of the child, so the Processor MUST NOT add
+                        // it to the invoked session's data model.
+                        {% endif %}
                         {% else %}
                         // Child does not use JSEngine - params handled via static datamodel
-                        AOT_DEBUG("Param {{ param.name }}={{ param.expr }} - child uses static datamodel");
+                        AOT_DEBUG("Param {{ param.name | escape_cpp }}={{ param.expr | escape_cpp }} - child uses static datamodel");
                         {% endif %}
                         {% endfor %}
                         {% endif %}
 
-                        // W3C SCXML 6.4.6: Track active invoke session BEFORE initialize
+                        // W3C SCXML 6.4.1: Track active invoke session BEFORE initialize
                         // Child may send events during initialize() that need autoforward
                         // SCE_MESH.md §16.7 row 5 sub-atomic C — activeInvokes_
                         // is shared with peer-down callback threads; engine-
@@ -163,7 +232,15 @@
                                 childSessionId,  // W3C SCXML 6.5: Child session ID for finalize origin matching
                                 "{{ invoke_info.invoke_id }}",
                                 sessionId_.has_value() ? sessionId_.value() : "",  // Parent session ID
-                                {{ 'true' if invoke_info.autoforward else 'false' }},  // W3C SCXML 6.4.6: autoforward
+                                {{ 'true' if invoke_info.autoforward else 'false' }},  // W3C SCXML 6.4.1: autoforward
+                                {# §scxml-6.5: the finalize body crosses as AUTHOR text here, and
+                                   that is this channel's contract rather than an omission — the
+                                   C++ engine runs `EcmaScriptToLuaTransformer` itself, which is
+                                   why this filter set has `to_author_*` where the Lua-backed
+                                   codegen channels have `to_lua_*`. Rust and Go had no such
+                                   transformer behind them and passed the same JavaScript to a Lua
+                                   engine unlowered, so a `<finalize>` worked there only when its
+                                   JavaScript was valid Lua as well; they now lower at emission. #}
                                 "{{ invoke_info.finalize_content | replace('"', '\"') }}"  // W3C SCXML 6.5: finalize
                             };
                         }
@@ -217,9 +294,9 @@
                         {
                             ensureScriptEngine();
                             auto& scriptEngine = getScriptEngine();
-                            auto pathResult = scriptEngine.evaluateExpression(sessionId_.value(), "{{ invoke_info.srcexpr }}").get();
+                            auto pathResult = scriptEngine.evaluateExpression(sessionId_.value(), {{ invoke_info.srcexpr | to_script_source_expr }}).get();
                             if (!::SCE::ScriptResultUtils::isSuccess(pathResult)) {
-                                SCE_LOG_ERROR("Hybrid invoke: srcexpr '{{ invoke_info.srcexpr }}' evaluation failed");
+                                SCE_LOG_ERROR("Hybrid invoke: srcexpr '{{ invoke_info.srcexpr | escape_cpp_format }}' evaluation failed");
                                 engine.raise(typename Engine::EventWithMetadata(Event::Error_execution, "srcexpr evaluation failed"));
                                 return;
                             }
@@ -237,9 +314,9 @@
                         {
                             ensureScriptEngine();
                             auto& scriptEngine = getScriptEngine();
-                            auto contentResult = scriptEngine.evaluateExpression(sessionId_.value(), "{{ invoke_info.contentexpr }}").get();
+                            auto contentResult = scriptEngine.evaluateExpression(sessionId_.value(), {{ invoke_info.contentexpr | to_script_source_expr }}).get();
                             if (!::SCE::ScriptResultUtils::isSuccess(contentResult)) {
-                                SCE_LOG_ERROR("Hybrid invoke: contentexpr '{{ invoke_info.contentexpr }}' evaluation failed");
+                                SCE_LOG_ERROR("Hybrid invoke: contentexpr '{{ invoke_info.contentexpr | escape_cpp_format }}' evaluation failed");
                                 engine.raise(typename Engine::EventWithMetadata(Event::Error_execution, "contentexpr evaluation failed"));
                                 return;
                             }
@@ -257,6 +334,16 @@
                         // becomes a consumer.
                         child_{{ invoke_info.field_suffix }}_ = std::make_shared<::SCE::Generated::{{ cpp_ns_prefix }}{{ invoke_info.child_name }}::{{ invoke_info.child_name }}<SelfType>>(self_, pending.invokeId, childSessionId);
 
+                        // §scxml-6.4: the child's delayed sends are measured
+                        // against the same clock as ours. A child reading its
+                        // own would start its origin at construction time, so
+                        // `<send delay="100ms">` on either side of the boundary
+                        // would mean two different absolute instants — and on a
+                        // host-owned clock the child would not move at all,
+                        // because the host advances the engine it holds, not
+                        // the ones that engine invoked.
+                        child_{{ invoke_info.field_suffix }}_->setClock(engine.clock());
+
                         // W3C SCXML B.1: Forward the build-configured script
                         // engine to the child before initialize() — generated
                         // Policy::getScriptEngine() throws when unset.
@@ -266,7 +353,7 @@
                             [](::SCE::IScriptEngine*){}));
                         {% endif %}
 
-                        // W3C SCXML 6.4.6: Track active invoke session
+                        // W3C SCXML 6.4.1: Track active invoke session
                         // SCE_MESH.md §16.7 row 5 sub-atomic C — same shared-
                         // access discipline as the scxml-local insert above.
                         {
@@ -306,6 +393,62 @@
                     {% endfor %}
                 }
                 {% endif %}
+                {% if state.invokes | host_invoker %}
+                if (pending.state == State::{{ state_id | capitalize }}) {
+                    {% for invoke_info in state.invokes | host_invoker %}
+                    if (pending.invokeId.find(".{{ invoke_info.invoke_id }}") != std::string::npos) {
+                        // W3C SCXML 6.4.1: the host declared this `type`, so
+                        // START the invocation rather than refusing it. The id
+                        // handed over is the DOCUMENT's, not the per-instance
+                        // one the pending queue carries: `done.invoke.<id>` is
+                        // the name the author wrote a transition for, so it is
+                        // the name the host must answer on.
+                        ::SCE::HostInvokeRequest hostInvoke;
+                        hostInvoke.processorType = "{{ invoke_info.invoke_type | escape_cpp }}";
+                        hostInvoke.invokeId = "{{ invoke_info.invoke_id }}";
+                        hostInvoke.src = "{{ invoke_info.src | default('', true) | escape_cpp }}";
+                        hostInvoke.content = "{{ invoke_info.content | default('', true) | escape_cpp }}";
+                        {% for param in invoke_info.params %}
+                        {% if param.is_static_literal %}
+                        hostInvoke.params["{{ param.name | escape_cpp }}"].push_back("{{ param.static_value | escape_cpp }}");
+                        {% endif %}
+                        {% endfor %}
+                        if (!engine.performHostInvoke(hostInvoke)) {
+                            // W3C SCXML 6.4.1: declared but no invoker
+                            // registered. The document asked for a process to
+                            // be run and none was, which is the same fact as
+                            // an unsupported type — so the same event, rather
+                            // than a silence that reads as started.
+                            engine.raise(typename Engine::EventWithMetadata(
+                                Event::Error_execution,
+                                "<invoke> names an invoker the host declared but never registered"));
+                        }
+                        return;
+                    }
+                    {% endfor %}
+                }
+                {% endif %}
+                {% if state.invokes | unsupported_refused %}
+                if (pending.state == State::{{ state_id | capitalize }}) {
+                    {% for invoke_info in state.invokes | unsupported_refused %}
+                    if (pending.invokeId.find(".{{ invoke_info.invoke_id }}") != std::string::npos) {
+                        // W3C SCXML 6.4.1: the `type` names no processor this
+                        // platform supports. Place error.execution on the
+                        // internal queue and start nothing — no child session
+                        // exists, so no done.invoke can follow and state exit
+                        // has nothing to cancel. Raising here rather than at
+                        // onentry keeps the spec's ordering: invokes run after
+                        // the macrostep settles, so the author sees the error
+                        // on the next iteration exactly as a real processor
+                        // failure would arrive.
+                        engine.raise(typename Engine::EventWithMetadata(
+                            Event::Error_execution,
+                            "<invoke type='{{ invoke_info.invoke_type }}'> names an external service this platform does not support"));
+                        return;
+                    }
+                    {% endfor %}
+                }
+                {% endif %}
                 {% endfor %}
 
                 // No matching static or hybrid invoke found
@@ -338,13 +481,67 @@
         {% endfor %}
     }
 
-    // W3C SCXML 6.4.6: Forward external events to children with autoforward=true
+{% if model.invokes | scxml %}
+    // W3C SCXML C.1: deliver an event addressed to a child's published
+    // location.
+    //
+    // The parent mints `parentSession.invokeId` for each child and that id is
+    // what a child's `_ioprocessors` entry names, so a `<send>` whose target
+    // decodes to one of them is addressed to that child rather than to this
+    // machine. `StaticExecutionEngine::raiseExternal` calls this before
+    // enqueueing; a false return means the address names no live child of
+    // ours and the event takes the normal external path.
+    //
+    // Detected by `HasChildSessionDelivery` rather than required, because a
+    // machine with no local scxml invoke owns no child to route to.
+    bool deliverToChildSession(const std::string& childSessionId,
+                               const ::SCE::Common::ForwardedEvent& addressed) {
+        if (childSessionId.empty()) {
+            return false;
+        }
+        {% for state_id, state in model.states | dictsort %}
+        {% if state.invokes | scxml %}
+        {% for invoke_info in state.invokes | scxml %}
+        {
+            // Snapshot the session id under the mutex and release it before
+            // reaching into the child's queue — the same discipline
+            // `forwardToAutoforwardChildren` follows, and for the same
+            // reason: the peer-down handler also touches activeInvokes_.
+            bool __sce_addressed = false;
+            {
+                std::lock_guard<std::mutex> __sce_active_invokes_lk(activeInvokesMutex_);
+                auto it = activeInvokes_.find("{{ invoke_info.invoke_id }}");
+                __sce_addressed = (it != activeInvokes_.end() && it->second.sessionId == childSessionId);
+            }
+            if (__sce_addressed && child_{{ invoke_info.field_suffix }}_) {
+                AOT_DEBUG("AOT C.1 addressed send: delivering '{}' to child session '{}'",
+                          addressed.name, childSessionId);
+                child_{{ invoke_info.field_suffix }}_->raiseExternal(addressed);
+                return true;
+            }
+        }
+        {% endfor %}
+        {% endif %}
+        {% endfor %}
+        return false;
+    }
+{% endif %}
+
+    // W3C SCXML 6.4.1: Forward external events to children with autoforward=true
     // Called by StaticExecutionEngine::raiseExternal before enqueuing to parent.
     // Local invokes forward via `child_<suffix>_->raiseExternal`; remote
     // scxml invokes (SCE_MESH.md §9.6) forward via wire-17 `ParentEvent`
     // through the engine's registered callback.
+    //
+    // The parameter is the whole source event, not its name: §6.4 requires an
+    // exact copy, so `_event.data` / `origin` / `sendid` / `origintype` /
+    // `invokeid` travel with it (SCE_MESH.md §9.6.5 "the event copied
+    // verbatim"). The remote arm can only carry what wire-17 has fields for —
+    // name, payload and sendid — because §9.6.3 re-derives `_event.origin`
+    // and `_event.invokeid` at the child from the envelope's own identity.
     template <typename Engine>
-    void forwardToAutoforwardChildren([[maybe_unused]] const std::string& eventName, [[maybe_unused]] Engine& engine) {
+    void forwardToAutoforwardChildren([[maybe_unused]] const ::SCE::Common::ForwardedEvent& forwarded,
+                                      [[maybe_unused]] Engine& engine) {
 
         {% for state_id, state in model.states | dictsort %}
         {% if state.invokes | scxml %}
@@ -370,10 +567,11 @@
                           (child_{{ invoke_info.field_suffix }}_ != nullptr));
             }
             if (__sce_autoforward_active && child_{{ invoke_info.field_suffix }}_) {
-                AOT_DEBUG("AOT autoforward: Forwarding event '{}' to child {{ invoke_info.invoke_id }}", eventName);
-                // W3C SCXML 6.4.6: Forward by event name string to child
-                // Child's raiseExternal(string) will convert to its Event enum and handle gracefully if not found
-                child_{{ invoke_info.field_suffix }}_->raiseExternal(eventName);
+                AOT_DEBUG("AOT autoforward: Forwarding event '{}' to child {{ invoke_info.invoke_id }}", forwarded.name);
+                // W3C SCXML 6.4.1: Forward the whole event to the child. The
+                // child resolves the name against its own Event enum and
+                // degrades gracefully when it declares no such event.
+                child_{{ invoke_info.field_suffix }}_->raiseExternal(forwarded);
             }
         }
         {% endfor %}
@@ -404,9 +602,9 @@
                 (void)engine.performScxmlInvokeParentEvent(
                     "{{ invoke_info.remote_mesh_target }}",
                     "{{ invoke_info.invoke_id }}",
-                    eventName,
-                    /*data*/ std::string(),
-                    /*sendId*/ std::string());
+                    forwarded.name,
+                    forwarded.data,
+                    forwarded.sendId);
             }
         }
         {% endfor %}
@@ -480,6 +678,29 @@
 {% endif %}
 
 {% if model.invokes | scxml_remote %}
+    // SCE_MESH.md §9.6.4 step 4 — does a still-active `<invoke>` own this
+    // child session? `MeshDispatch::dispatchEnvelope` asks before enqueueing
+    // a wire-16 ChildEvent, so an event from a session the parent has
+    // already left never reaches transition selection. The entry is stamped
+    // by `onInvokeStarted` (wire-15) and erased by the invoking state's
+    // onexit — the same `sessionId == origin` key `executeFinalizeForChildEvent`
+    // matches on, so finalize and admission cannot disagree about which
+    // invoke an event belongs to.
+    bool hasActiveChildSession(const std::string& childSessionId) {
+        if (childSessionId.empty()) {
+            return false;
+        }
+        std::lock_guard<std::mutex> __sce_active_invokes_lk(activeInvokesMutex_);
+        for (const auto& [invokeId, childSession] : activeInvokes_) {
+            (void)invokeId;
+            if (childSession.sessionId == childSessionId) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+
     // SCE_MESH.md §9.6.2 wire-15 consumer — parent stashes the child's
     // session URI (§9.6.3 L1463 `_event.origin` source). Matched by
     // env.subject against the compile-time invoke_id emitted at wire-14

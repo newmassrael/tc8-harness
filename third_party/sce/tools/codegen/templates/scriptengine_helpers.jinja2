@@ -2,9 +2,23 @@
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
     // Helper: Ensure session ID is initialized
+    //
+    // W3C SCXML C.1: an invoked child adopts the id its parent recorded for
+    // it. The parent mints `parentSession.invokeId` and keys `activeInvokes_`
+    // on it, so an event from this child arrives at the parent carrying that
+    // id as its origin; if the child also minted an address-of-this id for
+    // its own script session, the location it publishes in `_ioprocessors`
+    // and the origin the parent sees would be two names for one session that
+    // can never be compared — which is exactly what C.1 requires of them.
     void ensureSessionId() const {
         if (!sessionId_.has_value()) {
+{% if model.needs_parent_template %}
+            sessionId_ = childSessionId_.empty()
+                             ? "session_" + std::to_string(reinterpret_cast<uintptr_t>(this))
+                             : childSessionId_;
+{% else %}
             sessionId_ = "session_" + std::to_string(reinterpret_cast<uintptr_t>(this));
+{% endif %}
         }
     }
 
@@ -28,6 +42,15 @@
         return *scriptEngine_;
     }
 
+    // §scxml-C-2-3: inbound BasicHTTP endpoint serving this machine, declared
+    // by the deployment before initialize(). Empty means no such endpoint is
+    // deployed, and no BasicHTTP entry is published.
+    mutable ::std::string basicHttpAccessUri_;
+
+    void setBasicHttpAccessUri(::std::string accessUri) const {
+        basicHttpAccessUri_ = ::std::move(accessUri);
+    }
+
     // Helper: Ensure JSEngine is initialized (lazy initialization)
     void ensureScriptEngine() const {
         if (scriptEngineInitialized_) return;
@@ -36,23 +59,25 @@
         auto& scriptEngine = getScriptEngine();
         scriptEngine.createSession(sessionId_.value());
 
-        // W3C SCXML 5.10: Setup system variables (_sessionid, _name, _ioprocessors)
-        std::vector<std::string> ioProcessors = {"scxml"};  // W3C SCXML I/O Processors
-        auto setupResult = scriptEngine.setupSystemVariables(sessionId_.value(), "{{ model.name }}", ioProcessors).get();
+        // §scxml-C-1-1 / §scxml-C-2-3: the `_ioprocessors` entries come from the
+        // same helper the Interpreter uses, so a machine reads the same entry
+        // names and the same addresses whichever engine runs it.
+        auto ioProcessors = ::SCE::IOProcessorHelper::build(sessionId_.value(), basicHttpAccessUri_);
+        auto setupResult = scriptEngine.setupSystemVariables(sessionId_.value(), "{{ model.scxml_name | default('') | w3c_session_name(model.name) | escape_cpp }}", ioProcessors).get();
         if (!setupResult.isSuccess()) {
             SCE_LOG_ERROR("AOT ensureScriptEngine: Failed to setup system variables: {}", setupResult.getErrorMessage());
         }
 
 {% for var in model.variables %}
 {% if var.expr %}
-        auto initExpr_{{ var.id }} = scriptEngine.evaluateExpression(sessionId_.value(), "{{ var.expr | escape_cpp }}").get();
+        auto initExpr_{{ var.id }} = scriptEngine.evaluateExpression(sessionId_.value(), {{ var.expr | to_script_source_expr }}).get();
         if (!::SCE::ScriptResultUtils::isSuccess(initExpr_{{ var.id }})) {
             SCE_LOG_ERROR("Failed to evaluate expression for variable: {{ var.id }}");
         } else {
             scriptEngine.setVariable(sessionId_.value(), "{{ var.id }}", initExpr_{{ var.id }}.getInternalValue());
         }
 {% elif var.content %}
-        auto initExpr_{{ var.id }} = scriptEngine.evaluateExpression(sessionId_.value(), R"({{ var.content | escape_cpp }})").get();
+        auto initExpr_{{ var.id }} = scriptEngine.evaluateExpression(sessionId_.value(), {{ var.content | to_script_source_data_content }}).get();
         if (!::SCE::ScriptResultUtils::isSuccess(initExpr_{{ var.id }})) {
             SCE_LOG_ERROR("Failed to evaluate expression for variable: {{ var.id }}");
         } else {
@@ -94,9 +119,11 @@
         auto& scriptEngine = getScriptEngine();
         scriptEngine.createSession(sessionId_.value());
 
-        // W3C SCXML 5.10: Setup system variables (_sessionid, _name, _ioprocessors)
-        std::vector<std::string> ioProcessors = {"scxml"};  // W3C SCXML I/O Processors
-        auto setupResult = scriptEngine.setupSystemVariables(sessionId_.value(), "{{ model.name }}", ioProcessors).get();
+        // §scxml-C-1-1 / §scxml-C-2-3: the `_ioprocessors` entries come from the
+        // same helper the Interpreter uses, so a machine reads the same entry
+        // names and the same addresses whichever engine runs it.
+        auto ioProcessors = ::SCE::IOProcessorHelper::build(sessionId_.value(), basicHttpAccessUri_);
+        auto setupResult = scriptEngine.setupSystemVariables(sessionId_.value(), "{{ model.scxml_name | default('') | w3c_session_name(model.name) | escape_cpp }}", ioProcessors).get();
         if (!setupResult.isSuccess()) {
             SCE_LOG_ERROR("AOT initializeDataModel: Failed to setup system variables: {}", setupResult.getErrorMessage());
         }
@@ -123,7 +150,7 @@
         // Test 453: ECMAScript function literals must be stored as functions, not converted to C++
         // ARCHITECTURE.md Zero Duplication: Matches Interpreter behavior (StateMachine.cpp:1615-1635)
         {
-            auto scriptResult = scriptEngine.executeScript(sessionId_.value(), "{{ var.id }} = {{ var.expr | escape_cpp }}").get();
+            auto scriptResult = scriptEngine.executeScript(sessionId_.value(), {{ var.expr | to_script_source_assignment(var.id) }}).get();
             if (!::SCE::ScriptResultUtils::isSuccess(scriptResult)) {
                 std::string errorMsg = "Failed to assign function expression for '{{ var.id }}'";
                 SCE_LOG_ERROR("AOT initializeDataModel: {}", errorMsg);
@@ -135,7 +162,7 @@
         // W3C SCXML 5.2/5.3: Use initializeVariableFromExpr for expr attribute
         // Test 277: expr evaluation failure must raise error.execution (no fallback)
         ::SCE::DataModelInitHelper::initializeVariableFromExpr(
-            scriptEngine, sessionId_.value(), "{{ var.id }}", "{{ var.expr | escape_cpp }}",
+            scriptEngine, sessionId_.value(), "{{ var.id }}", {{ var.expr | to_script_source_expr }},
             [&engine](const ::std::string& msg) {
                 engine.raise(typename Engine::EventWithMetadata(Event::Error_execution, msg));
             });
@@ -143,7 +170,7 @@
 {% elif var.content %}
         // W3C SCXML B.2: Initialize with inline XML content (DOM creation)
         ::SCE::DataModelInitHelper::initializeVariable(
-            scriptEngine, sessionId_.value(), "{{ var.id }}", R"({{ var.content }})",
+            scriptEngine, sessionId_.value(), "{{ var.id }}", {{ var.content | to_script_source_data_content }},
             [&engine](const ::std::string& msg) {
                 engine.raise(typename Engine::EventWithMetadata(Event::Error_execution, msg));
             });
@@ -182,7 +209,7 @@
         // Execution order: datamodel init → global scripts → state machine start
 {% for script in model.global_scripts %}
         {
-            auto scriptResult = scriptEngine.executeScript(sessionId_.value(), "{{ script.content | escape_cpp }}").get();
+            auto scriptResult = scriptEngine.executeScript(sessionId_.value(), {{ script.content | to_script_source_script }}).get();
             if (!::SCE::ScriptResultUtils::isSuccess(scriptResult)) {
                 std::string errorMsg = "Global script execution failed";
                 SCE_LOG_ERROR("W3C SCXML 5.8: {}", errorMsg);

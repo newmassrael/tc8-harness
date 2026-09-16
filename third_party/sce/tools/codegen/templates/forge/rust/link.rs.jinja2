@@ -2,20 +2,20 @@
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
-{{ sce_map.source_marker(source_location, "rust", module_level=true) }}
+{{ sce_map.source_marker(source_location, "rust", module_level=true, symbol_artifact=sce_artifact.forge_body) }}
 
 // SCE Forge: Auto-generated from Extended SCXML (sce:kind="link")
 // Runtime: sce_link_runtime
 // Do not edit — regenerate from the source SCXML file.
 //
-// watching-zenoh RFC §synth-5-C byte-stream link endpoint. The struct
+// SCE Protocol-Synthesis RFC §synth-5-C byte-stream link endpoint. The struct
 // owns an `impl Link` driver (downstream `sce_link_runtime_<os>`
 // implementation) and routes RX bytes through the §synth-5-B framer
 // codec's decode + injects the configured SCXML event, while TX
 // pulls bytes from the framer's encode and submits them through
 // the driver's `tx`. The c11 emit mirrors this rust-target slice.
 //
-// Generated from `name="{{ name }}"` with link-class `{{ class }}`,
+// Generated from document `{{ name }}` with link-class `{{ class }}`,
 // framer ref `{{ framer }}`, backpressure policy `{{ backpressure }}`.
 
 #![allow(clippy::all)]

@@ -14,7 +14,7 @@
     - Long-Term Correctness: Complete Interpreter replication, no simplified workarounds
 
     Helper Classes Used (in this template):
-    - ParallelTransitionHelper: W3C SCXML Appendix D.2 (microstep execution) - lines 355-390, 414-416
+    - ParallelTransitionHelper: Appendix D microstepProcedure (microstep execution) - lines 355-390, 414-416
     - EventMatchingHelper: W3C SCXML 5.9.3 (event descriptor matching) - lines 525-531
     - HierarchicalStateHelper: W3C SCXML 3.7/3.8 (hierarchical entry/exit chains) - line 427
     
@@ -118,14 +118,14 @@
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
 {%- import '_macros/sce_annotation_marker.jinja2' as annot %}
 
-{# Watching-zenoh RFC §synth-5-O — function-scope SCE-MAP markers
+{# SCE Protocol-Synthesis RFC §synth-5-O — function-scope SCE-MAP markers
    above the per-function `processTransition`, `executeMicrostep`,
    `tryTransitionInState`, and `executeTransitionActions` headers.
    The `#line` directive remaps subsequent line positions for the
    function body; each successive function gets its own marker so
    per-function attribution stays coherent across the translation
    unit. #}
-    {{ sce_map.source_marker(model.source_location, "cpp") }}
+    {{ sce_map.source_marker(model.source_location, "cpp", symbol_artifact=sce_artifact.machine) }}
     template <typename Engine>
     // W3C SCXML 3.13: Always non-static (uses lastTransitionSourceState_ via tryTransitionInState)
     [[gnu::hot]]
@@ -159,11 +159,15 @@
         if (event != Event() && (!pendingEventName_.empty() || !pendingEventData_.empty() || !pendingEventOrigin_.empty())) {
             AOT_DEBUG("AOT processTransition: Setting _event (name='{}', data='{}', type='{}', sendId='{}', origin='{}', invokeId='{}')",
                       pendingEventName_, pendingEventData_, pendingEventType_, pendingEventSendId_, pendingEventOrigin_, pendingEventInvokeId_);
+            // §scxml-B-2-8-1: the rung the payload got, handed to the engine
+            // rather than dropped. This is the only frame that has both the
+            // reading and the event it belongs to.
 {% if model.needs_event_data %}
-            setCurrentEventInScriptEngine(pendingEventName_, pendingEventData_, pendingEventType_, pendingEventSendId_, pendingEventOrigin_, pendingEventOriginType_, pendingEventInvokeId_, pendingEventTypedData_);
+            const ::SCE::PayloadReading payloadReading = setCurrentEventInScriptEngine(pendingEventName_, pendingEventData_, pendingEventType_, pendingEventSendId_, pendingEventOrigin_, pendingEventOriginType_, pendingEventInvokeId_, pendingEventTypedData_);
 {% else %}
-            setCurrentEventInScriptEngine(pendingEventName_, pendingEventData_, pendingEventType_, pendingEventSendId_, pendingEventOrigin_, pendingEventOriginType_, pendingEventInvokeId_);
+            const ::SCE::PayloadReading payloadReading = setCurrentEventInScriptEngine(pendingEventName_, pendingEventData_, pendingEventType_, pendingEventSendId_, pendingEventOrigin_, pendingEventOriginType_, pendingEventInvokeId_);
 {% endif %}
+            engine.notePayloadReading(event, payloadReading);
         }
 {%- endif %}
 
@@ -175,7 +179,7 @@
         // activeStates_ contains all currently active states (parallel regions have multiple)
         AOT_DEBUG("AOT processTransition: Checking {} active states", activeStates_.size());
 
-        // W3C SCXML Appendix D.2: Different handling for eventless vs external events
+        // Appendix D mainEventLoop: Different handling for eventless vs external events
         if (event == Event()) {
             // ==================== EVENTLESS TRANSITIONS: Collection → Execution ====================
             // W3C SCXML Appendix D: Collect ALL enabled transitions before executing (optimal transition set)
@@ -206,9 +210,9 @@
 
             AOT_DEBUG("AOT processTransition: Collected {} enabled eventless transitions", enabledTransitions.size());
 
-            // W3C SCXML Appendix D.2: Remove conflicting transitions (optimal transition set)
+            // Appendix D removeConflictingTransitions: Remove conflicting transitions (optimal transition set)
             if (!enabledTransitions.empty()) {
-                enabledTransitions = removeConflictingTransitions(enabledTransitions);
+                enabledTransitions = removeConflictingTransitions(enabledTransitions, activeStates_);
                 AOT_DEBUG("AOT processTransition: After conflict resolution: {} transitions", enabledTransitions.size());
             }
 
@@ -240,8 +244,12 @@
                 
                 // W3C SCXML 3.13: Check if this is a done.state event
                 // done.state events are generated when parallel/compound states complete
+                // `std::string_view::starts_with` is C++20. Generated code must
+                // build at C++17, which is the standard the mesh runtime library
+                // publishes to its consumers, so this uses the portable spelling
+                // already used elsewhere in the tree (SendHelper.h).
                 bool isDoneStateEvent = (event != Event::NONE) &&
-                    std::string_view({{ model.name }}Policy::getEventName(event)).starts_with("done.state.");
+                    std::string_view({{ model.name }}Policy::getEventName(event)).rfind("done.state.", 0) == 0;
                 
                 // Skip non-atomic states UNLESS processing done.state event
                 if (isNonAtomic && !isDoneStateEvent) {
@@ -288,9 +296,9 @@
 
             AOT_DEBUG("AOT processTransition: Collected {} enabled external transitions", enabledTransitions.size());
 
-            // W3C SCXML Appendix D.2: Remove conflicting transitions (optimal transition set)
+            // Appendix D removeConflictingTransitions: Remove conflicting transitions (optimal transition set)
             if (!enabledTransitions.empty()) {
-                enabledTransitions = removeConflictingTransitions(enabledTransitions);
+                enabledTransitions = removeConflictingTransitions(enabledTransitions, activeStates_);
                 AOT_DEBUG("AOT processTransition: After conflict resolution: {} transitions", enabledTransitions.size());
             }
 
@@ -335,13 +343,18 @@
 {% endif %}
 
 {% if model.needs_parent_template %}
-        // W3C SCXML 6.4.5: Process ready delayed sends to parent
+        // W3C SCXML 6.4.2: Process ready delayed sends to parent
         // ARCHITECTURE.md Zero Duplication: Uses SendSchedulingHelper (Single Source of Truth)
         // SCE_MESH.md §9.6: Gated on needs_parent_template — remote invoke workers
         // emit `<send target="#_parent">` through performMeshSend (no parentSendScheduler_).
+        //
+        // §scxml-6.2.2: due is judged against the engine's clock, the same one
+        // the deadline was armed from — a queue that read its own would answer
+        // a different question on a host that owns time.
         {
             typename ParentStateMachine::Event readyEvent;
-            while (parentSendScheduler_.popReadyEvent(readyEvent)) {
+            std::string readyEventData;
+            while (parentSendScheduler_.popReadyEvent(engine.nowMs(), readyEvent, readyEventData)) {
                 AOT_DEBUG("Delivering delayed send to parent");
                 parent_->raiseExternal(readyEvent);
             }
@@ -358,10 +371,10 @@ private:
 {% if model.has_parallel_states %}
     {% include 'conflict_resolution.jinja2' %}
 
-    // W3C SCXML Appendix D.2: Execute microstep with proper ordering
+    // Appendix D microstepProcedure: Execute microstep with proper ordering
     // ARCHITECTURE.MD: Zero Duplication Principle - Uses ParallelTransitionHelper (Single Source of Truth)
     // Exit all → Transition content all → Enter all
-    {{ sce_map.source_marker(model.source_location, "cpp") }}
+    {{ sce_map.source_marker(model.source_location, "cpp", symbol_artifact=sce_artifact.machine) }}
     template <typename Engine>
     void executeMicrostep(const ::std::vector<TransitionInfo>& transitions,
                          [[maybe_unused]] State& currentState,
@@ -388,7 +401,7 @@ private:
             );
         }
 
-        // W3C SCXML Appendix D.2 Step 1 & 2: Compute and exit states (Helper)
+        // Appendix D exitStates Step 1 & 2: Compute and exit states (Helper)
         auto statesToExit = ::SCE::Core::ParallelTransitionHelper::computeStatesToExit<State, {{ model.name }}Policy>(
             helperTransitions, activeStates_
         );
@@ -407,7 +420,7 @@ private:
             );
         }
 
-        // W3C SCXML Appendix D.2 Step 3: Execute transition content in document order (Helper)
+        // Appendix D executeTransitionContent Step 3: Execute transition content in document order (Helper)
         auto sortedBySource = ::SCE::Core::ParallelTransitionHelper::sortTransitionsBySource<State, {{ model.name }}Policy>(
             helperTransitions
         );
@@ -433,7 +446,7 @@ private:
             }
         }
 
-        // W3C SCXML Appendix D.2 Step 4-5: Enter target states with hierarchical entry (Helper)
+        // Appendix D enterStates Step 4-5: Enter target states with hierarchical entry (Helper)
         auto sortedByTarget = ::SCE::Core::ParallelTransitionHelper::sortTransitionsByTarget<State, {{ model.name }}Policy>(
             helperTransitions
         );
@@ -457,7 +470,33 @@ private:
                 // This ensures parallel parents are re-entered with all their regions
                 auto entryChain = ::SCE::Core::HierarchicalStateHelper<{{ model.name }}Policy>::buildEntryChain(target);
                 
-                for (State state : entryChain) {
+                // §scxml-D: every link BEFORE the target is an ANCESTOR of it,
+                // and `addAncestorStatesToEnter` adds an ancestor WITHOUT its
+                // default initial child — the entry set already holds the next
+                // link. The target itself, and everything after it, goes
+                // through `addDescendantStatesToEnter`. Passing the next link
+                // as `pathChild` is what expresses that, and it is also what
+                // stops a `<parallel>` ancestor from handing a default to the
+                // very region the chain is descending into.
+                //
+                // `reachedTarget` is load-bearing rather than defensive:
+                // `buildEntryChain` does not stop at the target — it appends
+                // the target's own default initial descendants, and it names
+                // only `getInitialChild`, leaving the intermediate levels of a
+                // DEEP `initial` to `executeEntryActions`. Treating that tail
+                // as an ancestor chain suppresses exactly the descent it was
+                // appended to trigger; measured 2026-08-15, W3C test364 (deep
+                // `initial="s11p112 s11p122"`) failed on the AOT engine.
+                bool reachedTarget = false;
+                for (::std::size_t chainIdx = 0; chainIdx < entryChain.size(); ++chainIdx) {
+                    const State state = entryChain[chainIdx];
+                    if (state == target) {
+                        reachedTarget = true;
+                    }
+                    const ::std::optional<State> pathChild =
+                        (!reachedTarget && chainIdx + 1 < entryChain.size())
+                            ? ::std::optional<State>(entryChain[chainIdx + 1])
+                            : ::std::nullopt;
                     // Skip if already active (parallel states may have entered this via recursive entry)
                     bool alreadyActive = false;
                     for (State s : activeStates_) {
@@ -473,6 +512,12 @@ private:
                             AOT_DEBUG("AOT executeMicrostep: Parallel state {} already active, re-entering regions", static_cast<int>(state));
                             auto regions = getParallelRegions(state);
                             for (const auto& region : regions) {
+                                // §scxml-D: the region the chain descends into
+                                // is entered by the next loop iteration, with
+                                // the target's own path — not with a default.
+                                if (pathChild.has_value() && pathChild.value() == region) {
+                                    continue;
+                                }
                                 // Check if region needs re-entry (may have been exited by transition)
                                 bool regionActive = false;
                                 for (State s : activeStates_) {
@@ -503,7 +548,7 @@ private:
                     }
                     
                     AOT_DEBUG("AOT executeMicrostep: Hierarchical entry for state {}", static_cast<int>(state));
-                    executeEntryActions(state, engine);
+                    executeEntryActions(state, engine, pathChild);
                 }
 
                 // W3C SCXML 3.4: For transitions within parallel states, maintain currentState at parallel level
@@ -534,7 +579,7 @@ private:
     // - collectMode = nullptr: Immediate execution (traditional behavior)
     // - collectMode = vector: Collection only (for optimal transition set)
 {% endif %}
-    {{ sce_map.source_marker(model.source_location, "cpp") }}
+    {{ sce_map.source_marker(model.source_location, "cpp", symbol_artifact=sce_artifact.machine) }}
     template <typename Engine>
     [[gnu::hot]]
     bool tryTransitionInState([[maybe_unused]] State checkState, [[maybe_unused]] Event event,
@@ -590,9 +635,10 @@ private:
                 if ({{ trans.native_payload_guard }}) SCE_LIKELY {
 {% elif model.needs_script_engine %}
                 // W3C SCXML 5.9: ECMAScript expression - JSEngine evaluation
-                if (this->safeEvaluateGuard(scriptEngine, sessionId_.value(), "{{ trans.cond | escape_cpp }}", engine)) SCE_LIKELY {
+                if (this->safeEvaluateGuard(scriptEngine, sessionId_.value(), {{ trans.cond | to_script_source_guard }}, engine)) SCE_LIKELY {
 {% else %}
-                if ({{ trans.cond }}) SCE_LIKELY {
+                // W3C SCXML 5.9: cond="{{ trans.cond }}" decided at build time
+                if ({{ 'true' if trans.cond_constant else 'false' }}) SCE_LIKELY {
 {% endif %}
                     AOT_DEBUG("AOT processTransition: Event matched descriptor '{{ trans.event }}' in state {}", static_cast<int>(checkState));
 // W3C SCXML 3.4: Track transition source for hierarchical exit/entry (ALWAYS needed by checkEventlessTransitions)
@@ -656,9 +702,10 @@ private:
                 if ({{ transition.cond_cpp }}) {
 {% elif model.needs_script_engine %}
                 // W3C SCXML 5.9: ECMAScript expression - JSEngine evaluation
-                if (this->safeEvaluateGuard(scriptEngine, sessionId_.value(), "{{ transition.cond | escape_cpp }}", engine)) {
+                if (this->safeEvaluateGuard(scriptEngine, sessionId_.value(), {{ transition.cond | to_script_source_guard }}, engine)) {
 {% else %}
-            if ({{ transition.cond }}) {
+                // W3C SCXML 5.9: cond="{{ transition.cond }}" decided at build time
+            if ({{ 'true' if transition.cond_constant else 'false' }}) {
 {% endif %}
 {% set first_trans.value = False %}
 {% else %}
@@ -670,9 +717,10 @@ private:
                 } else if ({{ transition.cond_cpp }}) {
 {% elif model.needs_script_engine and first_uses_script_engine %}
                 // W3C SCXML 5.9: ECMAScript expression - JSEngine evaluation
-                } else if (this->safeEvaluateGuard(scriptEngine, sessionId_.value(), "{{ transition.cond | escape_cpp }}", engine)) {
+                } else if (this->safeEvaluateGuard(scriptEngine, sessionId_.value(), {{ transition.cond | to_script_source_guard }}, engine)) {
 {% else %}
-            } else if ({{ transition.cond }}) {
+                // W3C SCXML 5.9: cond="{{ transition.cond }}" decided at build time
+            } else if ({{ 'true' if transition.cond_constant else 'false' }}) {
 {% endif %}
 {% endif %}
 {% else %}
@@ -733,7 +781,7 @@ private:
 
 public:
     // W3C SCXML 3.13: Execute transition actions (called between exit and entry)
-    {{ sce_map.source_marker(model.source_location, "cpp") }}
+    {{ sce_map.source_marker(model.source_location, "cpp", symbol_artifact=sce_artifact.machine) }}
     template <typename Engine>
     void executeTransitionActions([[maybe_unused]] Engine& engine) {
 {% if model.has_transition_actions %}
@@ -753,7 +801,10 @@ public:
             {
                 switch (lastTransitionIndex_) {
 {% for trans in state.transitions %}
-                case {{ loop.index0 }}:  // Transition {{ loop.index0 }}{{ annot.annotation_comment(trans, "cpp", "                    ") }}
+                case {{ loop.index0 }}:  // Transition {{ loop.index0 }}
+{{ annot.annotation_block(trans, "cpp", "                    ") }}{% if trans.source_location %}
+                    {{ sce_map.source_marker(trans.source_location, "cpp", stmt_level=true, symbol_state=trans.symbol_state_path, symbol_artifact=trans.symbol_artifact) | trim }}
+{% endif %}
                     {
                         AOT_DEBUG("AOT executeTransitionActions: Executing transition {{ loop.index0 }} actions");
 {% if model.needs_script_engine %}

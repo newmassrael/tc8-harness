@@ -100,15 +100,18 @@ public:
         }
     }
 
-    static bool evaluateContent(IScriptEngine &jsEngine, const std::string &sessionId, const std::string &contentExpr,
+    static bool evaluateContent(IScriptEngine &jsEngine, const std::string &sessionId, const ScriptSource &contentExpr,
                                 std::string &outEventData, std::function<void(const std::string &)> onError = nullptr,
                                 std::optional<ScriptValue> *outTypedData = nullptr) {
-        if (contentExpr.empty()) {
+        if (contentExpr.text().empty()) {
             outEventData = "";
             return true;
         }
 
         // §scxml-5.5: Evaluate content as expression
+        // §scxml-5.6.2: when 'expr' is present its result is the output of <content>;
+        // if evaluating it errors, error.execution is queued and the value becomes the
+        // empty string.
         auto future = jsEngine.evaluateExpression(sessionId, contentExpr);
         auto result = future.get();
 
@@ -174,8 +177,11 @@ public:
      *     [&engine](const std::string& msg) { engine.raise(Event::Error_execution); });
      * ```
      */
+    /// The pair is (param name, param expression). Only the second half crosses
+    /// the boundary as text to evaluate; the name is a JSON key this helper
+    /// writes itself and never hands to an engine.
     static bool evaluateParams(IScriptEngine &jsEngine, const std::string &sessionId,
-                               const std::vector<std::pair<std::string, std::string>> &params,
+                               const std::vector<std::pair<std::string, ScriptSource>> &params,
                                std::string &outEventData, std::function<void(const std::string &)> onError = nullptr,
                                std::optional<ScriptValue> *outTypedData = nullptr) {
         if (params.empty()) {
@@ -196,11 +202,11 @@ public:
         bool first = true;
         for (const auto &param : params) {
             const std::string &paramName = param.first;
-            const std::string &paramExpr = param.second;
+            const ScriptSource &paramExpr = param.second;
 
             // §scxml-5.7: Empty location is invalid (structural error)
             // Must raise error.execution and prevent done.state event generation
-            if (paramExpr.empty()) {
+            if (paramExpr.text().empty()) {
                 if (onError) {
                     onError("Empty param location or expression: " + paramName);
                 }
@@ -223,8 +229,8 @@ public:
                 // §scxml-5.5 + B.2: Use canonical JSON serializer so nested
                 // ScriptObject/ScriptArray param values round-trip through the
                 // wire / local JSON-fallback paths identically to typedData.
-                jsonBuilder << "\"" << escapeJsonString(paramName) << "\":"
-                            << EventDataHelper::scriptValueToJsonString(value);
+                jsonBuilder << "\"" << escapeJsonString(paramName)
+                            << "\":" << EventDataHelper::scriptValueToJsonString(value);
 
                 // Preserve typed value for engine-agnostic pipeline
                 if (typedObj) {
@@ -234,7 +240,7 @@ public:
                 // §scxml-5.7: Invalid location or expression (runtime error)
                 // Must raise error.execution and ignore this param, but continue with others
                 if (onError) {
-                    onError("Invalid param location or expression: " + paramName + " = " + paramExpr);
+                    onError("Invalid param location or expression: " + paramName + " = " + paramExpr.source());
                 }
                 // Continue to next param without adding this one
             }
@@ -289,7 +295,6 @@ public:
         }
         return escaped.str();
     }
-
 };
 
 }  // namespace SCE

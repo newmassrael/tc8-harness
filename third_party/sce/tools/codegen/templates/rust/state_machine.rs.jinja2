@@ -5,7 +5,7 @@
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
 
 {% if no_std %}
-// Watching-zenoh RFC §synth-5-J-2: no_std variant of the statechart
+// SCE Protocol-Synthesis RFC §synth-5-J-2: no_std variant of the statechart
 // emitter. `sce-rust-runtime` ships a `no_std` feature gate, and
 // the generated crate omits `std::*` paths — Duration comes from
 // `core::time`, the microstep dedup set is `heapless::FnvIndexSet`,
@@ -73,23 +73,23 @@
 #![allow(clippy::style)]
 #![allow(clippy::complexity)]
 
-{# Watching-zenoh RFC §synth-5-O: per-backend SCE-MAP marker
+{# SCE Protocol-Synthesis RFC §synth-5-O: per-backend SCE-MAP marker
    anchoring the generated module to the `<scxml>` root element's
    post-preprocessor source position. Both forms emitted per spec
    lines 3135-3136 — the `#![doc]` form survives in rustdoc, the
    `//` form survives as a stable comment grep target. #}
-{{ sce_map.source_marker(model.source_location, "rust", module_level=true) }}
+{{ sce_map.source_marker(model.source_location, "rust", module_level=true, symbol_artifact=sce_artifact.machine) }}
 
 use core::time::Duration;
 use sce_rust_runtime::{Engine, StatePolicy};
 {% if model.has_parallel_states %}
-// Watching-zenoh RFC §synth-5-J-2: `.push_bounded()` on the microstep conflict-resolution
+// SCE Protocol-Synthesis RFC §synth-5-J-2: `.push_bounded()` on the microstep conflict-resolution
 // buffers (std `Vec` / no_std capacity-bounded `heapless::Vec`).
 use sce_rust_runtime::BoundedPush;
 {% endif %}
 {% if model.event_queue_capacity %}
 
-// Watching-zenoh RFC §synth-5-J-2 + §synth-5-L (item C3): per-document
+// SCE Protocol-Synthesis RFC §synth-5-J-2 + §synth-5-L (item C3): per-document
 // event-queue capacity declared via
 // `<scxml sce:capacity="N">` or sourced from deploy.yaml
 // `machines.<m>.scheduler.default_event_queue_capacity`. Consumed
@@ -111,7 +111,7 @@ struct TransitionInfo {
     is_targetless: bool,
 }
 
-// W3C SCXML Appendix D.2: microstep conflict-resolution buffers. The runtime
+// Appendix D microstepProcedure: microstep conflict-resolution buffers. The runtime
 // owns the std-vs-heapless collection choice through the profile-resolving
 // `SceTransitionBuf` / `SceIndexBuf` aliases (single source of truth, like
 // `SceString` / `StateChain`), so this one emission compiles on both runtime
@@ -125,9 +125,13 @@ type IndexList = ::sce_rust_runtime::SceIndexBuf;
 // State enum (W3C SCXML 3.3)
 // ======================================================================
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+{{ state_derives_attr }}
 pub enum {{ machine_name }}State {
 {% for state_id in model.states | sort %}
+{% if state_id == default_state_id %}
+    // W3C SCXML 3.2: `<scxml initial>` state — the machine's `Default`.
+    #[default]
+{% endif %}
     {{ state_id | to_state_variant }},
 {% endfor %}
 }
@@ -136,7 +140,7 @@ pub enum {{ machine_name }}State {
 // Event enum (W3C SCXML 3.12)
 // ======================================================================
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+{{ event_derives_attr }}
 pub enum {{ machine_name }}Event {
 {% for event_name in model.events | sort %}
 {% if event_name != 'Wildcard' %}
@@ -145,6 +149,29 @@ pub enum {{ machine_name }}Event {
 {% endfor %}
     /// W3C SCXML 3.13: Sentinel for eventless transition dispatch
     Null,
+}
+
+// ======================================================================
+// Externally-drivable event surface (W3C SCXML 3.12 / 5.10)
+// ======================================================================
+
+impl {{ machine_name }}Event {
+    /// Events that can arrive from OUTSIDE the machine — external
+    /// `<send>` / platform ingress — as opposed to internal `<raise>`
+    /// signals and the W3C SCXML 3.13 `Null` sentinel (neither is a
+    /// member). This is the machine's structural external trigger
+    /// surface: every non-reserved `<transition event>` target minus
+    /// every internally-raised event. A consumer that maps event names
+    /// back to variants admits only these as externally injectable,
+    /// without re-deriving the partition. Structural and consumer-
+    /// agnostic; inert when unused. Associated (not a free `const`) so
+    /// several machines glob-re-exported into one module never collide
+    /// on the name.
+    pub const EXTERNALLY_DRIVABLE_EVENTS: &'static [{{ machine_name }}Event] = &[
+{% for event_name in externally_drivable_events %}
+        {{ machine_name }}Event::{{ event_name | to_event_variant }},
+{% endfor %}
+    ];
 }
 
 {% if inline_kind_types %}
@@ -184,7 +211,7 @@ pub struct {{ machine_name }}Policy{{ policy_generics_decl }} {
 {% if model.has_parallel_states or model.uses_in_predicate %}
     // W3C SCXML 3.4: Active state configuration for parallel states / In() predicate
     //
-    // Watching-zenoh RFC §synth-5-J-2: type is the runtime crate's
+    // SCE Protocol-Synthesis RFC §synth-5-J-2: type is the runtime crate's
     // [`StateChain`] alias — `Vec<S>` under std, `heapless::Vec<S, MAX_HIERARCHY_DEPTH>`
     // under no_std. The std alias preserves the existing ABI; the no_std alias keeps
     // the generated code allocator-free.
@@ -197,7 +224,7 @@ pub struct {{ machine_name }}Policy{{ policy_generics_decl }} {
 {% if model.needs_event_name %}
     // W3C SCXML 5.10: Event name for _event.name binding
     //
-    // Watching-zenoh RFC §synth-5-J-2: typed as the runtime crate's [`SceString`]
+    // SCE Protocol-Synthesis RFC §synth-5-J-2: typed as the runtime crate's [`SceString`]
     // alias — `String` under std (unchanged ABI), `heapless::String<MAX_EVENT_STRING_LEN>`
     // under no_std — so the emitted field is allocator-free on MCU targets.
     pending_event_name: ::sce_rust_runtime::SceString,
@@ -236,28 +263,26 @@ pub struct {{ machine_name }}Policy{{ policy_generics_decl }} {
 {% for history_id, history_info in model.history_states | dictsort %}
     // W3C SCXML 3.11: History state {{ history_id }} ({{ history_info.type }})
     //
-    // Watching-zenoh RFC §synth-5-J-2: the recorded configuration is a
+    // SCE Protocol-Synthesis RFC §synth-5-J-2: the recorded configuration is a
     // [`StateChain`] alias (`Vec<S>` under std, `heapless::Vec<S, MAX_HIERARCHY_DEPTH>`
     // under no_std), mirroring `active_states`. Recorded history is always a
     // subset of the active configuration, so it cannot exceed the depth bound.
     history_{{ history_id }}: Option<::sce_rust_runtime::helpers::hierarchy::StateChain<{{ machine_name }}State>>,
 {% endfor %}
-{% if model.variables %}
-    // W3C SCXML 5.3: Datamodel variables
-{% for var in model.variables %}
-{% if var.type == 'int' %}
-    {{ var.id | to_snake_case }}: i64,
-{% elif var.type == 'string' %}
-    {{ var.id | to_snake_case }}: ::sce_rust_runtime::SceString,
-{% elif var.type == 'bool' %}
-    {{ var.id | to_snake_case }}: bool,
-{% endif %}
-{% endfor %}
-{% endif %}
+{# W3C SCXML 5.3: the datamodel has ONE home, and it is not this struct.
+
+   A `<data>` that carries an initializer is owned by the script engine for
+   the life of the session: `<assign>` writes there and every guard reads
+   from there. A field here holding the same variable would be a second
+   representation that stops agreeing with the first `<assign>` and never
+   agrees again — so the machine reads the datamodel back out through
+   `helpers::datamodel_read` (see the accessors below) instead of shadowing
+   it. Kotlin's template already drew this line; the other backends now do
+   too. #}
 {% if not no_std %}
     // W3C SCXML 5.10: Session ID (script engine + invoke tracking).
     //
-    // Watching-zenoh RFC §synth-5-J-2: gated to !no_std. Under `--no-std` both the
+    // SCE Protocol-Synthesis RFC §synth-5-J-2: gated to !no_std. Under `--no-std` both the
     // script engine (`codegen/no-std-script-not-supported`) and `<invoke>`
     // (`codegen/no-std-invoke-not-supported`) are codegen-rejected, so no
     // session identity is ever tracked and the alloc-coupled `String` is omitted.
@@ -269,13 +294,19 @@ pub struct {{ machine_name }}Policy{{ policy_generics_decl }} {
     // is true, mirroring the Kotlin `StateMachineEngine(scriptEngine)` shape.
     pub script_engine: std::sync::Arc<dyn sce_rust_runtime::IScriptEngine>,
     script_engine_initialized: bool,
+    // §scxml-C-2-3: inbound BasicHTTP endpoint serving this machine, declared
+    // by the deployment before initialize(). Empty means no such endpoint is
+    // deployed, and no BasicHTTP entry is published in `_ioprocessors`.
+    basic_http_access_uri: String,
 {% if model.has_parallel_states or model.uses_in_predicate %}
     // W3C SCXML 5.9.2: Shared active state list for In() predicate callback
     in_predicate_states: Option<std::sync::Arc<std::sync::Mutex<Vec<String>>>>,
 {% endif %}
 {% endif %}
-{% if model.invokes | scxml or model.invokes | hybrid %}
-    // W3C SCXML 6.4: Pending invoke queue (deferred until macrostep end)
+{% if model.invokes | scxml or model.invokes | hybrid or model.invokes | unsupported %}
+    // W3C SCXML 6.4: Pending invoke queue (deferred until macrostep end).
+    // §scxml-6.4.1 unsupported-type invokes ride it too — their execute step
+    // raises error.execution instead of starting a session.
     pending_invokes: Vec<sce_rust_runtime::invoke::PendingInvoke<{{ machine_name }}State>>,
     // W3C SCXML 6.4: Active child sessions (invoke_id -> ChildSession)
     active_invokes: std::collections::HashMap<String, sce_rust_runtime::invoke::ChildSession>,
@@ -293,14 +324,14 @@ pub struct {{ machine_name }}Policy{{ policy_generics_decl }} {
 {% if not no_std %}
     // W3C SCXML 6.4: Parent engine external queue for #_parent send routing
     // Always generated under std — any SM can be invoked as a child. Under
-    // `--no-std` (Watching-zenoh RFC §synth-5-J-2) the SCXML `<invoke>` element
+    // `--no-std` (SCE Protocol-Synthesis RFC §synth-5-J-2) the SCXML `<invoke>` element
     // is codegen-rejected, so no parent_external_queue handle is ever
     // wired in, and the Arc<Mutex<...>> (alloc-coupled) is omitted.
     pub parent_external_queue: Option<std::sync::Arc<std::sync::Mutex<Vec<(String, String)>>>>,
 {% endif %}
 {% if not no_std %}
     // W3C SCXML 6.4.1: This child's invoke ID (for _event.invokeid in parent).
-    // Watching-zenoh RFC §synth-5-J-2: gated to !no_std — `<invoke>` is codegen-rejected
+    // SCE Protocol-Synthesis RFC §synth-5-J-2: gated to !no_std — `<invoke>` is codegen-rejected
     // under no_std, so a machine is never instantiated as a child and this
     // identity is dead. Mirrors the `parent_external_queue` / `invoke` module gate.
     pub invoke_id: String,
@@ -311,6 +342,42 @@ pub struct {{ machine_name }}Policy{{ policy_generics_decl }} {
 
 impl{{ policy_generics_decl }} {{ machine_name }}Policy{{ policy_generics_use }} {
 {% if model.needs_script_engine %}
+{# Looked up rather than spelled as a ternary chain: a chain's last arm is a
+   fallback, so a host type added to the classifier and not to this map would
+   be emitted as whatever the chain ended in. A missing key renders nothing
+   and the generated file fails to compile, which says the same thing in the
+   place that can act on it. #}
+{% set RUST_READ_TYPE = {'int': 'i64', 'string': 'String', 'bool': 'bool', 'json': 'String'} %}
+{% for var in model.readable_variables %}
+    /// §scxml-5.3: what the `{{ var.id }}` datamodel variable is holding now.
+    ///
+    /// The live value, not the authored one: `<assign>` writes into the
+    /// session, so a reader frozen at generation time would answer the
+    /// document's literal for the whole run. `None` means the machine cannot
+    /// answer — the session is not initialized yet, `{{ var.id }}` was
+    /// assigned a value of another type, or the engine refused.
+{% if var.type == 'json' %}
+    ///
+    /// The value as JSON text, serialized by the engine's own
+    /// `JSON.stringify` (§scxml-B-2) so the key order is the document's.
+{% endif %}
+    pub fn {{ var.id | to_snake_case }}(&self) -> Option<{{ RUST_READ_TYPE[var.type] }}> {
+        ::sce_rust_runtime::helpers::datamodel_read::read_{{ var.type }}(
+            self.script_engine.as_ref(),
+            self.session_id.as_deref(),
+            "{{ var.id }}",
+        )
+    }
+
+{% endfor %}
+    /// §scxml-C-2-3: declare the inbound BasicHTTP endpoint serving this
+    /// machine, published as the processor's 'location' in `_ioprocessors`.
+    /// Must be called before `initialize()`, since the entries are populated
+    /// once at session setup. Leaving it unset publishes no BasicHTTP entry.
+    pub fn set_basic_http_access_uri(&mut self, access_uri: impl Into<String>) {
+        self.basic_http_access_uri = access_uri.into();
+    }
+
     pub fn new({% if has_native_actions %}actions: A, {% endif %}script_engine: std::sync::Arc<dyn sce_rust_runtime::IScriptEngine>) -> Self {
         Self {
 {% if has_native_actions %}
@@ -365,31 +432,17 @@ impl{{ policy_generics_decl }} {{ machine_name }}Policy{{ policy_generics_use }}
 {% for history_id, _ in model.history_states | dictsort %}
             history_{{ history_id }}: None,
 {% endfor %}
-{% if model.variables %}
-{% for var in model.variables %}
-{% if var.type == 'int' %}
-            {{ var.id | to_snake_case }}: {{ var.expr if var.expr else '0' }},
-{% elif var.type == 'string' %}
-{% if var.expr %}
-            {{ var.id | to_snake_case }}: ::sce_rust_runtime::sce_string_from_str({{ var.expr | to_rust_string_expr }}),
-{% else %}
-            {{ var.id | to_snake_case }}: ::sce_rust_runtime::SceString::new(),
-{% endif %}
-{% elif var.type == 'bool' %}
-            {{ var.id | to_snake_case }}: {{ 'true' if var.expr and var.expr.lower() == 'true' else 'false' }},
-{% endif %}
-{% endfor %}
-{% endif %}
 {% if not no_std %}
             session_id: None,
 {% endif %}
 {% if model.needs_script_engine %}
             script_engine_initialized: false,
+            basic_http_access_uri: String::new(),
 {% if model.has_parallel_states or model.uses_in_predicate %}
             in_predicate_states: None,
 {% endif %}
 {% endif %}
-{% if model.invokes | scxml or model.invokes | hybrid %}
+{% if model.invokes | scxml or model.invokes | hybrid or model.invokes | unsupported %}
             pending_invokes: Vec::new(),
             active_invokes: std::collections::HashMap::new(),
 {% endif %}
@@ -439,7 +492,7 @@ impl{{ policy_generics_decl }} StatePolicy for {{ machine_name }}Policy{{ policy
     // transition guard reads a typed `_event.data.<field>` (NL→IR C1 Path A).
     type Payload = {{ event_payload_type }};
 {% if no_std %}
-    // Watching-zenoh RFC §synth-5-J-2: under no_std the std-backed `StdHal`
+    // SCE Protocol-Synthesis RFC §synth-5-J-2: under no_std the std-backed `StdHal`
     // (`std::time::Instant` / `OnceLock`) does not implement `Hal`. The
     // generated machine defaults to `NoOpHal` so the no_std surface compiles
     // standalone. `NoOpHal` reports zero ticks and panics on `wake`/`irq_save`
@@ -481,14 +534,25 @@ impl{{ policy_generics_decl }} StatePolicy for {{ machine_name }}Policy{{ policy
     const HAS_PARALLEL_STATES: bool = {{ 'true' if model.has_parallel_states else 'false' }};
     const NEEDS_SCRIPT_ENGINE: bool = {{ 'true' if model.needs_script_engine else 'false' }};
     const NEEDS_DATA_MODEL_INIT: bool = {{ 'true' if model.needs_script_engine else 'false' }};
+    // The same fact the generate manifest publishes as `needs_event_scheduler`.
+    // A `build.rs` consumer never sees that manifest — `compile_scxml` returns
+    // `()` — so without this constant a host had no route to the knowledge that
+    // its driving loop must call `tick()` rather than `step()`.
+    const NEEDS_EVENT_SCHEDULER: bool = {{ 'true' if model.needs_tick_driving else 'false' }};
 {% if model.has_parallel_states or model.uses_in_predicate %}
     const HAS_ACTIVE_STATES: bool = true;
 {% endif %}
 {% if model.needs_external_flag %}
     const HAS_EXTERNAL_EVENT_FLAG: bool = true;
 {% endif %}
-{% if model.invokes | scxml or model.invokes | hybrid %}
+{% if model.invokes | scxml or model.invokes | hybrid or model.invokes | unsupported %}
+    // §scxml-6.4: gates the engine's macrostep-end call into
+    // `execute_pending_invokes`. §scxml-6.4.1 unsupported-type invokes need
+    // it too — that call site is where their error.execution is raised.
     const HAS_INVOKE_SUPPORT: bool = true;
+{% endif %}
+{% if model.invokes | scxml or model.invokes | hybrid %}
+    // Only session-bearing invokes have a child engine to tick.
     const HAS_CHILD_TICK: bool = true;
 {% endif %}
 {% if model.invokes | scxml | selectattr('autoforward') | list %}
@@ -503,15 +567,11 @@ impl{{ policy_generics_decl }} StatePolicy for {{ machine_name }}Policy{{ policy
     // ======================================================================
 
     fn initial_state() -> Self::State {
-{% if model.initial %}
-        {{ machine_name }}State::{{ model.initial | to_state_variant }}
-{% else %}
-{% for state_id in model.states | sort %}
-{% if loop.first %}
-        {{ machine_name }}State::{{ state_id | to_state_variant }}
-{% endif %}
-{% endfor %}
-{% endif %}
+        // The runtime entry state and the type's `Default` derive are one
+        // concept, sourced from one computation (`default_state_id`) so
+        // they can never diverge: `<scxml initial>`, or the first sorted
+        // state when the initial attribute is unset.
+        {{ machine_name }}State::{{ default_state_id | to_state_variant }}
     }
 
     fn is_final_state(state: Self::State) -> bool {
@@ -626,13 +686,25 @@ impl{{ policy_generics_decl }} StatePolicy for {{ machine_name }}Policy{{ policy
         }
     }
 
+    // The inverse of the table above, emitted from the same loop over the
+    // document's states so the two age together. It is what lets a host turn a
+    // recorded configuration back into the `StateChain` `enter_at` takes.
+    fn get_state_from_name(name: &str) -> Option<Self::State> {
+        match name {
+{% for state_id in model.states | sort %}
+            "{{ state_id }}" => Some({{ machine_name }}State::{{ state_id | to_state_variant }}),
+{% endfor %}
+            _ => None,
+        }
+    }
+
     fn null_event() -> Self::Event {
         {{ machine_name }}Event::Null
     }
 
     // W3C SCXML 3.6: Get initial children of a compound state
     //
-    // Watching-zenoh RFC §synth-5-J-2: return type is the runtime crate's
+    // SCE Protocol-Synthesis RFC §synth-5-J-2: return type is the runtime crate's
     // [`StateChain`] alias and the body uses `state_chain_from_slice` instead of
     // `vec![...]` so the emitted code compiles under `--no-std` (`vec!` is a
     // std-only macro; heapless has no equivalent).
@@ -714,12 +786,24 @@ impl{{ policy_generics_decl }} StatePolicy for {{ machine_name }}Policy{{ policy
     }
 
 {% if model.has_parallel_states or model.uses_in_predicate %}
-    // Watching-zenoh RFC §synth-5-J-2: trait default in `sce-rust-runtime::policy`
+    // SCE Protocol-Synthesis RFC §synth-5-J-2: trait default in `sce-rust-runtime::policy`
     // returns `StateChain<Self::State>`; this override matches that signature
     // so the std alias-to-`Vec<S>` and no_std alias-to-`heapless::Vec<S, …>`
     // both resolve correctly.
     fn get_active_states(&self) -> ::sce_rust_runtime::helpers::hierarchy::StateChain<Self::State> {
         self.active_states.clone()
+    }
+
+    // §scxml-3.4: the write half of the pair above, for `Engine::enter_at`.
+    // Emitted under the same condition as the read half because the same fact
+    // decides both — this machine keeps its own active set, so this machine is
+    // the one that can be handed one back. The trait default is a tripwire, so
+    // emitting the reader without this one would turn a restore into a panic.
+    fn set_active_states(
+        &mut self,
+        states: ::sce_rust_runtime::helpers::hierarchy::StateChain<Self::State>,
+    ) {
+        self.active_states = states;
     }
 {% endif %}
 
@@ -813,11 +897,13 @@ impl{{ policy_generics_decl }} StatePolicy for {{ machine_name }}Policy{{ policy
     }
 {% endif %}
 
-{% if model.invokes | scxml or model.invokes | hybrid %}
+{% if model.invokes | scxml or model.invokes | hybrid or model.invokes | unsupported %}
     // W3C SCXML 6.4: Execute pending invokes at macrostep end
     fn execute_pending_invokes(&mut self, engine: &mut Engine<Self>) {
         self.do_execute_pending_invokes(engine);
     }
+{% endif %}
+{% if model.invokes | scxml or model.invokes | hybrid %}
 
     // W3C SCXML 6.4: Tick child state machines
     fn tick_children(&mut self, engine: &mut Engine<Self>) {
@@ -825,9 +911,14 @@ impl{{ policy_generics_decl }} StatePolicy for {{ machine_name }}Policy{{ policy
     }
 {% endif %}
 {% if model.invokes | scxml | selectattr('autoforward') | list %}
-    // W3C SCXML 6.4.6: Forward external events to autoforward children
-    fn forward_to_autoforward_children(&mut self, event_name: &str, engine: &mut Engine<Self>) {
-        self.do_forward_to_autoforward_children(event_name, engine);
+    // W3C SCXML 6.4.1: Forward external events to autoforward children
+    fn forward_to_autoforward_children(
+        &mut self,
+        event_name: &str,
+        metadata: &sce_rust_runtime::EventMetadata,
+        engine: &mut Engine<Self>,
+    ) {
+        self.do_forward_to_autoforward_children(event_name, metadata, engine);
     }
 {% endif %}
 {% if model.invokes | scxml | selectattr('finalize_content') | list %}
@@ -904,7 +995,8 @@ impl{{ policy_generics_decl }} {{ machine_name }}Policy{{ policy_generics_use }}
                     // W3C SCXML 5.9: Script engine guard
                     if self.safe_evaluate_guard("{{ trans.cond | to_lua_guard | escape_rust }}", engine) {
 {% else %}
-                    if {{ trans.cond }} {
+                    // W3C SCXML 5.9: cond="{{ trans.cond }}" decided at build time
+                    if {{ 'true' if trans.cond_constant else 'false' }} {
 {% endif %}
 {% endif %}
                         // W3C SCXML 3.4: Track transition metadata
@@ -987,7 +1079,7 @@ impl{{ policy_generics_decl }} {{ machine_name }}Policy{{ policy_generics_use }}
 {% elif model.needs_script_engine %}
                     {% if not loop.first %}} else {% endif %}if self.safe_evaluate_guard("{{ transition.cond | to_lua_guard | escape_rust }}", engine) {
 {% else %}
-                    {% if not loop.first %}} else {% endif %}if {{ transition.cond }} {
+                    {% if not loop.first %}} else {% endif %}if {{ 'true' if transition.cond_constant else 'false' }} { // W3C SCXML 5.9: cond="{{ transition.cond }}" decided at build time
 {% endif %}
 {% else %}
 {# Unconditional fallback in a guarded chain = else branch #}
@@ -1139,7 +1231,7 @@ impl{{ policy_generics_decl }} {{ machine_name }}Policy{{ policy_generics_use }}
 {% if model.on_sample_links %}
 
 // ======================================================================
-// watching-zenoh RFC §synth-5-E sample-callback codegen wire-up
+// SCE Protocol-Synthesis RFC §synth-5-E sample-callback codegen wire-up
 // ======================================================================
 //
 // Per-link Sample delivery surface. The host's link RX task (e.g. a
@@ -1199,11 +1291,14 @@ impl{{ policy_generics_decl }} {{ machine_name }}LinkRx for ::sce_rust_runtime::
 {% for block in state.on_sample_blocks %}
 {% if block.link == link %}
                 {{ machine_name }}State::{{ state_id | to_state_variant }} => {
-{% if block.callback %}
+{% if block.callback and (block.callback | callback_lang) == "rust" %}
                     // Callback dispatch — synchronous extern
                     // call. rustc enforces the user's callback
                     // signature against the borrow contract
-                    // (spec lines 1513-1519).
+                    // (spec lines 1513-1519). A `c:` path names a
+                    // flat C identifier with no Rust lowering and is
+                    // skipped here, mirroring the C11 backend
+                    // skipping a `rust:` one.
                     {{ block.callback | extern_callback_path }}(&sample);
 {% endif %}
                     // Event raise: when a callback was present it

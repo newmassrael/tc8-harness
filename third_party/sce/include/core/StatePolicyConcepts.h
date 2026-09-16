@@ -20,6 +20,8 @@
 #include <concepts>
 #endif
 
+#include "common/ForwardedEvent.h"
+
 #include <optional>
 #include <string>
 #include <type_traits>
@@ -34,40 +36,78 @@ namespace SCE::Core {
 // Used in if constexpr for optional policy feature detection.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-template<typename P, typename E, typename = void>
-struct HasDataModelInitTrait : std::false_type {};
-template<typename P, typename E>
-struct HasDataModelInitTrait<P, E, std::void_t<decltype(std::declval<P>().initializeDataModel(std::declval<E&>()))>> : std::true_type {};
+template <typename P, typename E, typename = void> struct HasDataModelInitTrait : std::false_type {};
 
-template<typename P, typename E, typename = void>
-struct HasInvokeSupportTrait : std::false_type {};
-template<typename P, typename E>
-struct HasInvokeSupportTrait<P, E, std::void_t<decltype(std::declval<P>().executePendingInvokes(std::declval<E&>()))>> : std::true_type {};
+template <typename P, typename E>
+struct HasDataModelInitTrait<P, E, std::void_t<decltype(std::declval<P>().initializeDataModel(std::declval<E &>()))>>
+    : std::true_type {};
 
-template<typename P, typename E, typename = void>
-struct HasChildTickTrait : std::false_type {};
-template<typename P, typename E>
-struct HasChildTickTrait<P, E, std::void_t<decltype(std::declval<P>().tickChildren(std::declval<E&>()))>> : std::true_type {};
+template <typename P, typename E, typename = void> struct HasInvokeSupportTrait : std::false_type {};
 
-template<typename P, typename E, typename = void>
-struct HasAutoforwardTrait : std::false_type {};
-template<typename P, typename E>
-struct HasAutoforwardTrait<P, E, std::void_t<decltype(std::declval<P>().forwardToAutoforwardChildren(std::declval<const std::string&>(), std::declval<E&>()))>> : std::true_type {};
+template <typename P, typename E>
+struct HasInvokeSupportTrait<P, E, std::void_t<decltype(std::declval<P>().executePendingInvokes(std::declval<E &>()))>>
+    : std::true_type {};
 
-template<typename P, typename M, typename E, typename = void>
-struct HasFinalizeTrait : std::false_type {};
-template<typename P, typename M, typename E>
-struct HasFinalizeTrait<P, M, E, std::void_t<decltype(std::declval<P>().executeFinalizeForChildEvent(std::declval<const M&>(), std::declval<E&>()))>> : std::true_type {};
+template <typename P, typename E, typename = void> struct HasChildTickTrait : std::false_type {};
 
-template<typename P, typename = void>
-struct HasActiveStatesTrait : std::false_type {};
-template<typename P>
+template <typename P, typename E>
+struct HasChildTickTrait<P, E, std::void_t<decltype(std::declval<P>().tickChildren(std::declval<E &>()))>>
+    : std::true_type {};
+
+template <typename P, typename E, typename = void> struct HasAutoforwardTrait : std::false_type {};
+
+template <typename P, typename E>
+struct HasAutoforwardTrait<P, E,
+                           std::void_t<decltype(std::declval<P>().forwardToAutoforwardChildren(
+                               std::declval<const ::SCE::Common::ForwardedEvent &>(), std::declval<E &>()))>>
+    : std::true_type {};
+
+template <typename P, typename M, typename E, typename = void> struct HasFinalizeTrait : std::false_type {};
+
+template <typename P, typename M, typename E>
+struct HasFinalizeTrait<P, M, E,
+                        std::void_t<decltype(std::declval<P>().executeFinalizeForChildEvent(
+                            std::declval<const M &>(), std::declval<E &>()))>> : std::true_type {};
+
+template <typename P, typename = void> struct HasActiveStatesTrait : std::false_type {};
+
+template <typename P>
 struct HasActiveStatesTrait<P, std::void_t<decltype(std::declval<P>().getActiveStates())>> : std::true_type {};
 
-template<typename P, typename = void>
-struct HasExternalEventFlagTrait : std::false_type {};
-template<typename P>
+template <typename P, typename = void> struct HasExternalEventFlagTrait : std::false_type {};
+
+template <typename P>
 struct HasExternalEventFlagTrait<P, std::void_t<decltype(std::declval<P>().nextEventIsExternal_)>> : std::true_type {};
+
+/// Policy declares that driving it needs `tick()` rather than `step()` alone.
+///
+/// `step()` runs a macrostep and never drains the delayed-send scheduler or
+/// ticks an invoked child, so a host that only ever calls it gets no delayed
+/// event, no error and no warning. The generator knows which machines are in
+/// that position and now says so on the policy; this detects the answer.
+///
+/// Detected rather than required so a hand-written policy — the mesh worker
+/// harnesses, and any consumer's own — keeps compiling. Absent means `false`,
+/// which is what a policy with no delayed send would have declared anyway.
+template <typename P, typename = void> struct NeedsEventSchedulerTrait : std::false_type {};
+
+template <typename P>
+struct NeedsEventSchedulerTrait<P, std::void_t<decltype(P::NEEDS_EVENT_SCHEDULER)>>
+    : std::bool_constant<P::NEEDS_EVENT_SCHEDULER> {};
+
+/// Policy can hand an event to a live `<invoke>` child named by session id.
+///
+/// A session's published location is a usable `<send>` target,
+/// so an event addressed to a child has to reach that child rather than the
+/// sender's own queue. Only a policy with local scxml invokes owns child
+/// instances to route to, which is why this is detected rather than required.
+template <typename P, typename = void> struct HasChildSessionDeliveryTrait : std::false_type {};
+
+template <typename P>
+struct HasChildSessionDeliveryTrait<
+    P, std::void_t<decltype(std::declval<P &>().deliverToChildSession(
+           std::declval<const std::string &>(), std::declval<const SCE::Common::ForwardedEvent &>()))>>
+    : std::true_type {};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // C++20 concepts + C++17 constexpr bool aliases
@@ -115,9 +155,7 @@ struct HasExternalEventFlagTrait<P, std::void_t<decltype(std::declval<P>().nextE
 /// Minimal state hierarchy navigation capability.
 /// Any policy used with HierarchicalStateHelper must satisfy this.
 template <typename P>
-concept HierarchyPolicy = requires {
-    typename P::State;
-} && requires(typename P::State s) {
+concept HierarchyPolicy = requires { typename P::State; } && requires(typename P::State s) {
     { P::getParent(s) } -> std::same_as<std::optional<typename P::State>>;
     { P::isCompoundState(s) } -> std::convertible_to<bool>;
     { P::getInitialChild(s) } -> std::same_as<typename P::State>;
@@ -221,6 +259,14 @@ concept HasActiveStates = HasActiveStatesTrait<P>::value;
 template <typename P>
 concept HasExternalEventFlag = HasExternalEventFlagTrait<P>::value;
 
+/// Policy can deliver an event to a live invoke child by session id
+template <typename P>
+concept HasChildSessionDelivery = HasChildSessionDeliveryTrait<P>::value;
+
+/// Driving the policy's machine needs `tick()`, not `step()` alone
+template <typename P>
+concept NeedsEventScheduler = NeedsEventSchedulerTrait<P>::value;
+
 #else  // C++17 fallback
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -230,26 +276,24 @@ concept HasExternalEventFlag = HasExternalEventFlagTrait<P>::value;
 // Feature detection works identically: if constexpr (HasDataModelInit<P, E>)
 // ─────────────────────────────────────────────────────────────────────────────
 
-template <typename P, typename Engine>
-inline constexpr bool HasDataModelInit = HasDataModelInitTrait<P, Engine>::value;
+template <typename P, typename Engine> inline constexpr bool HasDataModelInit = HasDataModelInitTrait<P, Engine>::value;
 
-template <typename P, typename Engine>
-inline constexpr bool HasInvokeSupport = HasInvokeSupportTrait<P, Engine>::value;
+template <typename P, typename Engine> inline constexpr bool HasInvokeSupport = HasInvokeSupportTrait<P, Engine>::value;
 
-template <typename P, typename Engine>
-inline constexpr bool HasChildTick = HasChildTickTrait<P, Engine>::value;
+template <typename P, typename Engine> inline constexpr bool HasChildTick = HasChildTickTrait<P, Engine>::value;
 
-template <typename P, typename Engine>
-inline constexpr bool HasAutoforward = HasAutoforwardTrait<P, Engine>::value;
+template <typename P, typename Engine> inline constexpr bool HasAutoforward = HasAutoforwardTrait<P, Engine>::value;
 
 template <typename P, typename M, typename Engine>
 inline constexpr bool HasFinalize = HasFinalizeTrait<P, M, Engine>::value;
 
-template <typename P>
-inline constexpr bool HasActiveStates = HasActiveStatesTrait<P>::value;
+template <typename P> inline constexpr bool HasActiveStates = HasActiveStatesTrait<P>::value;
 
-template <typename P>
-inline constexpr bool HasExternalEventFlag = HasExternalEventFlagTrait<P>::value;
+template <typename P> inline constexpr bool HasExternalEventFlag = HasExternalEventFlagTrait<P>::value;
+
+template <typename P> inline constexpr bool HasChildSessionDelivery = HasChildSessionDeliveryTrait<P>::value;
+
+template <typename P> inline constexpr bool NeedsEventScheduler = NeedsEventSchedulerTrait<P>::value;
 
 #endif  // __cpp_concepts >= 202002L
 

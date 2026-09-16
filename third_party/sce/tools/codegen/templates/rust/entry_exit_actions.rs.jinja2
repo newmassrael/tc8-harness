@@ -7,8 +7,14 @@
     W3C SCXML 3.7/3.8/3.9: Entry and exit action execution.
 
     Generates:
-    - execute_entry_actions(&mut self, state, engine)
+    - execute_entry_actions(&mut self, state, engine, path_child)
     - execute_exit_actions(&mut self, state, engine, pre_transition_active)
+
+    `path_child` carries Appendix D's split between addDescendantStatesToEnter
+    (None — `state` is the target, so it takes its defaults) and
+    addAncestorStatesToEnter (Some(child) — `state` is on the way to a deeper
+    target, so it takes none, except that a `<parallel>` still gives its OTHER
+    regions theirs). See `StatePolicy::execute_entry_actions`.
 
     Ports from C++ entry_exit_actions.jinja2.
     Uses datamodel_macros.rs.jinja2 for Zero Duplication in late binding init.
@@ -18,15 +24,21 @@
 {%- import '_macros/sce_annotation_marker.jinja2' as annot %}
 
     // W3C SCXML 3.7: Execute <onentry> actions for a state
-    {# Watching-zenoh RFC §synth-5-O — function-scope SCE-MAP marker
+    {# SCE Protocol-Synthesis RFC §synth-5-O — function-scope SCE-MAP marker
        above `execute_entry_actions`. `#[doc]` attaches to the function
        item; the `//` comment-form survives stable as a grep target. #}
-    {{ sce_map.source_marker(model.source_location, "rust") }}
-    fn execute_entry_actions(&mut self, state: Self::State, engine: &mut sce_rust_runtime::Engine<Self>) {
+    {{ sce_map.source_marker(model.source_location, "rust", symbol_artifact=sce_artifact.machine) }}
+    fn execute_entry_actions(&mut self, state: Self::State, engine: &mut sce_rust_runtime::Engine<Self>, path_child: Option<Self::State>) {
+{% if not model.has_parallel_states %}
+        // Only a `<parallel>` machine descends into defaults here — see the
+        // blocks at the end of this function — so a machine without one has
+        // nothing to tell an ancestor entry from a target entry.
+        let _ = path_child;
+{% endif %}
 {% if model.has_parallel_states or model.uses_in_predicate %}
         // W3C SCXML 3.4/3.12.1: Add state to active configuration for parallel states and In() predicate
         //
-        // Watching-zenoh RFC §synth-5-J-2: `push_chain` is the runtime crate's
+        // SCE Protocol-Synthesis RFC §synth-5-J-2: `push_chain` is the runtime crate's
         // cfg-branched push wrapper — `Vec::push` under std, `heapless::Vec::push`
         // with the depth-guard `.expect()` under no_std. Lets template-emitted code
         // share the same call shape with `Engine::get_active_states`.
@@ -39,8 +51,11 @@
 {% if model.has_entry_actions %}
         match state {
 {% for state_id, state in model.states | dictsort %}
-{% if state.on_entry_blocks or state.initial_transition_actions or state.initial_history_id or (state.is_final and state.parent) or (state.is_final and state.donedata) or (state.datamodel and model.binding == 'late') or state.invokes | scxml or state.invokes | hybrid %}
+{% if state.on_entry_blocks or state.initial_transition_actions or state.initial_history_id or (state.is_final and state.parent) or (state.is_final and state.donedata) or (state.datamodel and model.binding == 'late') or state.invokes | scxml or state.invokes | hybrid or state.invokes | unsupported %}
             {{ machine_name }}State::{{ state_id | to_state_variant }} => {  {{- annot.annotation_comment(state, "rust", "                ") }}
+{% if state.source_location %}
+                {{ sce_map.source_marker(state.source_location, "rust", stmt_level=true, symbol_state=state_id, symbol_artifact=sce_artifact.state_body) | trim }}
+{% endif %}
 {% if state.datamodel and model.binding == 'late' %}
                 // W3C SCXML 5.9: Late binding - initialize datamodel on state entry
                 {
@@ -83,6 +98,50 @@
 
 {% endfor %}
                 }
+{% endif %}
+{% if state.invokes | unsupported_refused %}
+                // W3C SCXML 6.4.1: `type` names no processor this platform
+                // implements. The whole observable is one error.execution at
+                // invoke time, so the entry chain only defers — the raise
+                // happens in `do_execute_pending_invokes`. Riding the defer
+                // queue keeps §scxml-6.4 ordering (invokes run after the
+                // macrostep settles) and lets `cancel_invokes_for_state` drop
+                // the entry when the state exits first, which is the correct
+                // W3C outcome: an invoke that never ran raises nothing.
+{% for invoke_info in state.invokes | unsupported_refused %}
+                {
+                    let generated_invoke_id = format!("{}.{}.{{ invoke_info.invoke_id }}",
+                        "{{ state_id }}", self as *const _ as usize);
+                    sce_rust_runtime::invoke::defer_invoke(
+                        &mut self.pending_invokes,
+                        sce_rust_runtime::invoke::PendingInvoke {
+                            invoke_id: generated_invoke_id,
+                            state: {{ machine_name }}State::{{ state_id | to_state_variant }},
+                        },
+                    );
+                }
+{% endfor %}
+{% endif %}
+{% if state.invokes | host_invoker %}
+                // §scxml-6.4.1: `type` names an invoker the HOST declared to
+                // this build. Deferred exactly like the refused arm above and
+                // for the same reason — §scxml-6.4 orders invokes after the
+                // macrostep settles, and a state that exits first must never
+                // have started anything. Only the execute step differs: a
+                // dispatch into the host's invoker instead of a raise.
+{% for invoke_info in state.invokes | host_invoker %}
+                {
+                    let generated_invoke_id = format!("{}.{}.{{ invoke_info.invoke_id }}",
+                        "{{ state_id }}", self as *const _ as usize);
+                    sce_rust_runtime::invoke::defer_invoke(
+                        &mut self.pending_invokes,
+                        sce_rust_runtime::invoke::PendingInvoke {
+                            invoke_id: generated_invoke_id,
+                            state: {{ machine_name }}State::{{ state_id | to_state_variant }},
+                        },
+                    );
+                }
+{% endfor %}
 {% endif %}
 {% if state.invokes | scxml or state.invokes | hybrid %}
                 // W3C SCXML 6.4: Defer invoke execution until macrostep end
@@ -151,22 +210,25 @@
 {% set param_expr = param.expr if param.expr else param.location %}
 {% if not param_expr %}
                     // W3C SCXML 5.7: Empty location raises error.execution (structural error)
-                    log::error!("Donedata param '{{ param.name }}': empty location (structural error)");
+                    ::sce_rust_runtime::sce_log_error!("Donedata param '{{ param.name | escape_rust }}': empty location (structural error)");
 {% if 'error.execution' in model.events %}
-                    engine.raise(sce_rust_runtime::EventWithMetadata::new({{ machine_name }}Event::{{ 'error.execution' | to_event_variant }}));
+                    engine.raise(sce_rust_runtime::EventWithMetadata::platform_error({{ machine_name }}Event::{{ 'error.execution' | to_event_variant }}, "<donedata> <param name='{{ param.name | escape_rust }}'> has an empty location"));
 {% endif %}
                     done_data_ok = false;
 {% else %}
                     match se.evaluate_expression(&sid, "{{ param_expr | to_lua_expr | escape_rust }}") {
                         Ok(val) => {
-                            let mut part = String::from("[\"{{ param.name }}\"] = ");
-                            part.push_str(&val.to_lua_literal());
+                            // §scxml-B-2-9: donedata rides an event, so it
+                            // leaves the data model and travels as JSON —
+                            // the same wire `<send>`'s params take.
+                            let mut part = String::from("\"{{ param.name | escape_json_string | escape_rust }}\":");
+                            part.push_str(&::sce_rust_runtime::helpers::event_data::script_value_to_json(&val));
                             json_parts.push(part);
                         }
                         Err(e) => {
-                            log::error!("Donedata param '{{ param.name }}' eval failed: {}", e);
+                            ::sce_rust_runtime::sce_log_error!("Donedata param '{{ param.name | escape_rust }}' eval failed: {}", e);
 {% if 'error.execution' in model.events %}
-                            engine.raise(sce_rust_runtime::EventWithMetadata::new({{ machine_name }}Event::{{ 'error.execution' | to_event_variant }}));
+                            engine.raise(sce_rust_runtime::EventWithMetadata::platform_error({{ machine_name }}Event::{{ 'error.execution' | to_event_variant }}, "<donedata> <param name='{{ param.name | escape_rust }}'> failed to evaluate"));
 {% endif %}
                         }
                     }
@@ -174,23 +236,34 @@
 {% endfor %}
                     if done_data_ok {
                         done_event_data = String::from("{");
-                        done_event_data.push_str(&json_parts.join(", "));
+                        done_event_data.push_str(&json_parts.join(","));
                         done_event_data.push('}');
                     }
                 }
-{% elif state.donedata.content.kind == "expression" %}
+{% elif state.donedata.content.kind == "expression" or state.donedata.content.kind == "inline_text" %}
                 {
+{% if state.donedata.content.kind == "expression" %}
                     // W3C SCXML 5.5: <content expr="..."/> MUST be evaluated against the datamodel.
+{% set donedata_content_lua = state.donedata.content.text | to_lua_expr %}
+{% else %}
+                    // W3C SCXML B.2: inline text takes the ordered readings —
+                    // an expression when it is one, otherwise the string. The
+                    // same filter inline `<data>` text goes through decides
+                    // which, so the two cannot answer it differently.
+{% set donedata_content_lua = state.donedata.content.text | to_lua_data_content %}
+{% endif %}
                     self.ensure_script_engine();
                     let sid = self.session_id.as_ref().unwrap().clone();
                     let se = self.script_engine.clone();
                     let se: &dyn sce_rust_runtime::IScriptEngine = &*se;
-                    match se.evaluate_expression(&sid, "{{ state.donedata.content.text | to_lua_expr | escape_rust }}") {
-                        Ok(val) => { done_event_data = val.to_lua_literal(); }
+                    match se.evaluate_expression(&sid, "{{ donedata_content_lua | escape_rust }}") {
+                        // §scxml-B-2-9: serialized, not spelled as Lua source
+                        // — the reader is the parent's dequeue, which parses.
+                        Ok(val) => { done_event_data = ::sce_rust_runtime::helpers::event_data::script_value_to_json(&val); }
                         Err(e) => {
-                            log::error!("Donedata content expr eval failed: {}", e);
+                            ::sce_rust_runtime::sce_log_error!("Donedata content expr eval failed: {}", e);
 {% if 'error.execution' in model.events %}
-                            engine.raise(sce_rust_runtime::EventWithMetadata::new({{ machine_name }}Event::{{ 'error.execution' | to_event_variant }}));
+                            engine.raise(sce_rust_runtime::EventWithMetadata::platform_error({{ machine_name }}Event::{{ 'error.execution' | to_event_variant }}, "<donedata> <content expr> failed to evaluate"));
 {% endif %}
                         }
                     }
@@ -260,17 +333,25 @@
 {% endif %}
 {% if model.has_parallel_states %}
 
-        // W3C SCXML 3.4: If entering parallel state, enter all child regions
+        // W3C SCXML 3.4 + §scxml-D-addDescendantStatesToEnter: entering a
+        // `<parallel>` enters every region — including when it is only an
+        // ancestor, which is the one case where an ancestor still hands out
+        // defaults. The exception is the region the entry set is already
+        // descending into: `path_child` names it, and giving that one its
+        // default too is what leaves two children of it active at once.
         if Self::is_parallel_state(state) {
             let regions = Self::get_parallel_regions(state);
             for &region in regions {
-                self.execute_entry_actions(region, engine);
+                if path_child == Some(region) {
+                    continue;
+                }
+                self.execute_entry_actions(region, engine, None);
 
                 // W3C SCXML 3.3: If region is compound, enter initial child
                 if Self::is_compound_state(region) {
                     let initial_child = self.get_initial_or_history_child(region);
                     if initial_child != region {
-                        self.execute_entry_actions(initial_child, engine);
+                        self.execute_entry_actions(initial_child, engine, None);
                     }
                 }
             }
@@ -279,7 +360,11 @@
 
 {% if model.has_parallel_states %}
         // W3C SCXML 3.3: If entering compound state (non-parallel), enter initial child
-        if Self::is_compound_state(state) && !Self::is_parallel_state(state) {
+        //
+        // §scxml-D-addAncestorStatesToEnter: not when `state` is merely on the
+        // way to a deeper target. The entry set already holds `path_child`, and
+        // a compound state holds one child at a time.
+        if Self::is_compound_state(state) && !Self::is_parallel_state(state) && path_child.is_none() {
             // W3C SCXML 3.6: Deep initial targets support
             let initial_children = Self::get_initial_children(state);
             if !initial_children.is_empty() {
@@ -296,15 +381,18 @@
                         }
                     }
                     chain.reverse();
-                    // Enter intermediate states (skip state itself, already entered)
-                    for &intermediate in &chain {
-                        self.execute_entry_actions(intermediate, engine);
+                    // Enter intermediate states (skip state itself, already
+                    // entered). Each is an ancestor of the initial target, so
+                    // it takes no default of its own — the chain already names
+                    // the child that is entering.
+                    for (i, &intermediate) in chain.iter().enumerate() {
+                        self.execute_entry_actions(intermediate, engine, chain.get(i + 1).copied());
                     }
                 }
             } else {
                 let initial_child = self.get_initial_or_history_child(state);
                 if initial_child != state {
-                    self.execute_entry_actions(initial_child, engine);
+                    self.execute_entry_actions(initial_child, engine, None);
                 }
             }
         }
@@ -312,7 +400,7 @@
     }
 
     // W3C SCXML 3.8: Execute <onexit> actions for a state
-    {{ sce_map.source_marker(model.source_location, "rust") }}
+    {{ sce_map.source_marker(model.source_location, "rust", symbol_artifact=sce_artifact.machine) }}
     fn execute_exit_actions(
         &mut self,
         state: Self::State,
@@ -347,7 +435,7 @@
         if state == {{ machine_name }}State::{{ history_info.parent | to_state_variant }} {
 {% if history_info.type == 'deep' %}
             // W3C SCXML 3.11: Deep history - record all active descendants.
-            // Watching-zenoh RFC §synth-5-J-2: [`StateChain`] alias (heapless under
+            // SCE Protocol-Synthesis RFC §synth-5-J-2: [`StateChain`] alias (heapless under
             // no_std); recorded history is a subset of the active configuration
             // so it stays within MAX_HIERARCHY_DEPTH.
             let filtered: ::sce_rust_runtime::helpers::hierarchy::StateChain<Self::State> = pre_transition_active.iter()
@@ -357,7 +445,7 @@
                 .collect();
 {% else %}
             // W3C SCXML 3.11: Shallow history - record direct children only.
-            // Watching-zenoh RFC §synth-5-J-2: [`StateChain`] alias (heapless under no_std).
+            // SCE Protocol-Synthesis RFC §synth-5-J-2: [`StateChain`] alias (heapless under no_std).
             let filtered: ::sce_rust_runtime::helpers::hierarchy::StateChain<Self::State> = pre_transition_active.iter()
                 .filter(|&&s| Self::get_parent(s) == Some({{ machine_name }}State::{{ history_info.parent | to_state_variant }}))
                 .copied()
@@ -367,18 +455,34 @@
         }
 {% endfor %}
 {% endif %}
-{% set has_invoke_exits = model.invokes | scxml or model.invokes | hybrid %}
+{# A host-run invocation ends with the state that started it, so its exit
+   chain has to exist. The two kinds above are SCXML child sessions; before
+   this a document whose only `<invoke>` was host-served emitted no exit
+   `match` at all, and the host was never told to stop. #}
+{% set has_invoke_exits = model.invokes | scxml or model.invokes | hybrid or model.invokes | host_invoker %}
 {% if has_invoke_exits %}
         // W3C SCXML 6.4: Cancel pending invokes and cleanup active children on state exit
         match state {
 {% for state_id, state in model.states | dictsort %}
-{% if state.invokes | scxml or state.invokes | hybrid %}
+{% if state.invokes | scxml or state.invokes | hybrid or state.invokes | unsupported %}
             {{ machine_name }}State::{{ state_id | to_state_variant }} => {
-                // W3C SCXML 6.4: Cancel pending invokes for exited state
+                // W3C SCXML 6.4: Cancel pending invokes for exited state.
+                // Covers §scxml-6.4.1 entries: an invoke whose state exits
+                // before the macrostep ends never runs, so it raises nothing.
                 sce_rust_runtime::invoke::cancel_invokes_for_state(
                     &mut self.pending_invokes,
                     {{ machine_name }}State::{{ state_id | to_state_variant }},
                 );
+{% for invoke_info in state.invokes | host_invoker %}
+                // §scxml-6.4: the host's invocation ends with the state that
+                // started it. Unconditional here: the engine knows whether
+                // this one ever started and stays silent when it did not, so
+                // the emitted chain does not need its own bookkeeping.
+                engine.cancel_host_invoke(
+                    "{{ invoke_info.invoke_type | escape_rust }}",
+                    "{{ invoke_info.invoke_id }}",
+                );
+{% endfor %}
 {% for invoke_info in state.invokes | scxml %}
                 // W3C SCXML 6.4: Cleanup running static child '{{ invoke_info.invoke_id }}'
                 if self.child_{{ invoke_info.field_suffix }}.is_some() {
@@ -412,6 +516,9 @@
 {% for state_id, state in model.states | dictsort %}
 {% if state.on_exit_blocks %}
             {{ machine_name }}State::{{ state_id | to_state_variant }} => {  {{- annot.annotation_comment(state, "rust", "                ") }}
+{% if state.source_location %}
+                {{ sce_map.source_marker(state.source_location, "rust", stmt_level=true, symbol_state=state_id, symbol_artifact=sce_artifact.state_body) | trim }}
+{% endif %}
 {% for block in state.on_exit_blocks %}
                 // W3C SCXML 3.9: onexit block {{ loop.index }}/{{ state.on_exit_blocks | length }}
                 // Labeled block allows actions to break out on error (W3C 3.9: error stops block)

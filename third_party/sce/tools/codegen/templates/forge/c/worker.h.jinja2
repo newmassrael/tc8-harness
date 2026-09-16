@@ -1,13 +1,13 @@
 {# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
-{{ sce_map.source_marker(source_location, "c", module_level=true) }}
+{{ sce_map.source_marker(source_location, "c", module_level=true, symbol_artifact=sce_artifact.forge_body) }}
 
 /* SCE Forge: Auto-generated from Extended SCXML (sce:kind="worker") */
-/* Runtime: sce-c-runtime atomics (sce_atomic_*_u32 family). */
+/* Runtime: backends/c/runtime atomics (sce_atomic_*_u32 family). */
 /* Do not edit — regenerate from the source SCXML file. */
 /*
- * watching-zenoh RFC §synth-5-D worker primitive: SPSC inbox driven by a
+ * SCE Protocol-Synthesis RFC §synth-5-D worker primitive: SPSC inbox driven by a
  * link-rx source (`<sce:link-rx ref="{{ link_rx }}"/>`) feeding a
  * concurrent execution context on cooperative-scheduler MCUs. Spec
  * line 904: "inbox = heapless::spsc (Rust) or fixed ring buffer (C)".
@@ -26,7 +26,7 @@
  * code maps SCXML event names ↔ uint32_t tags out-of-band. Future
  * extension widens the payload via a deploy.yaml event-type registry.
  *
- * Generated from `name="{{ name }}"` with depth `{{ inbox_depth }}`,
+ * Generated from document `{{ name }}` with depth `{{ inbox_depth }}`,
  * ordering `{{ inbox_ordering }}`, link-rx `{{ link_rx }}`,
 {%- if has_outbox %}
  * outbox `{{ outbox }}`.

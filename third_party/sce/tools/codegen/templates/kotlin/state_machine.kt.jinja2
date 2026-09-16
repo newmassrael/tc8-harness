@@ -15,9 +15,9 @@
 // Source: {{ model.scxml_source_path }}
 // Generator: SCE Kotlin Code Generator v1.0
 {% import '_macros/sce_map_marker.jinja2' as sce_map %}
-{# Watching-zenoh RFC §synth-5-O: SCE-MAP marker anchoring the
+{# SCE Protocol-Synthesis RFC §synth-5-O: SCE-MAP marker anchoring the
    generated Kotlin file to the `<scxml>` root element's source. #}
-{{ sce_map.source_marker(model.source_location, "kotlin", module_level=true) }}
+{{ sce_map.source_marker(model.source_location, "kotlin", module_level=true, symbol_artifact=sce_artifact.machine) }}
 
 package {{ kotlin_package_prefix | default("com.sce.generated") }}.{{ model.name | lower }}
 
@@ -43,7 +43,25 @@ import com.sce.interpreter.ScxmlRuntimeInterpreter
 {% endif %}
 {% endfor %}
 {% endif %}
+{% if has_native_actions %}
+// ── W3C SCXML G.7: `<sce:action>` host dispatch ───────────────────────
+{{ native_actions_defs }}
+{% endif %}
 class {{ machine_name }}StateMachine(
+{% if has_native_actions %}
+    /**
+     * W3C SCXML G.7: the host implementation every `<sce:action>` in this
+     * document calls directly (`actions.<op>(…)`) instead of the script
+     * engine.
+     *
+     * A constructor parameter rather than a setter, because the initial
+     * state's `<onentry>` can already perform an act — a host installed
+     * afterwards would arrive one act too late. It leads the parameter list
+     * so it stays in the same position whether or not this machine also
+     * takes a script engine.
+     */
+    private val actions: {{ native_actions_interface }},
+{% endif %}
 {% for ctx in model.context_objects %}
     val {{ ctx.id | to_camel_case }}: {{ ctx.kt_type if ctx.kt_type else 'Any' }},
 {% endfor %}
@@ -53,13 +71,46 @@ class {{ machine_name }}StateMachine(
 {% else %}
 ) : StateMachineEngine<{{ machine_name }}State, {{ machine_name }}Event>() {
 {% endif %}
-{% if model.variables %}
+{# W3C SCXML 5.3: the datamodel has ONE home, and it is not this class.
 
-    // Datamodel (W3C SCXML 5.3)
-{% for var in model.variables %}
-{% if var.type != 'runtime' and not model.needs_script_engine %}
-    var {{ var.id | to_camel_case }}: {{ var.type | to_kotlin_type }} = {{ kotlin_default(var) }}
+   A `<data>` that carries an initialiser is owned by the script engine for the
+   life of the session: `<assign>` writes there and every guard reads from
+   there. A property here holding the same variable would be a second
+   representation that stops agreeing with the first `<assign>` and never
+   agrees again. This template drew that line first — by gating the property on
+   `not needs_script_engine` — and the gate turned out to close it entirely: a
+   `<data>` is only typed when it carries an initialiser, and an initialiser is
+   itself what makes a document need a script engine, so the property was
+   unreachable. What a consumer actually wanted is below: a read of the value
+   the session is holding. #}
+{% if model.readable_variables %}
+
+    // ── §scxml-5.3: read the datamodel this machine is holding ──────────
+{# Looked up rather than spelled as a ternary chain: a chain's last arm is a
+   fallback, so a host type added to the classifier and not to these maps would
+   be emitted as whatever the chain ended in. A missing key renders nothing and
+   the generated file fails to compile, which says the same thing in the place
+   that can act on it. #}
+{% set KT_READ_TYPE = {'int': 'Long', 'string': 'String', 'bool': 'Boolean', 'json': 'String'} %}
+{% set KT_READ_FN = {'int': 'Int', 'string': 'String', 'bool': 'Bool', 'json': 'Json'} %}
+{% for var in model.readable_variables %}
+
+    /**
+     * §scxml-5.3: what the `{{ var.id }}` datamodel variable is holding now.
+     *
+     * The live value, not the authored one: `<assign>` writes into the
+     * session, so a reader frozen at generation time would answer the
+     * document's literal for the whole run. `null` means the machine cannot
+     * answer — no script engine is set, the session is not initialised yet,
+     * `{{ var.id }}` was assigned a value of another type, or the engine refused.
+{% if var.type == 'json' %}
+     *
+     * The value as JSON text, serialised by the engine's own `JSON.stringify`
+     * (§scxml-B-2) so the key order is the document's.
 {% endif %}
+     */
+    fun {{ var.id | to_camel_case }}(): {{ KT_READ_TYPE[var.type] }}? =
+        com.sce.runtime.DatamodelRead.read{{ KT_READ_FN[var.type] }}(scriptEngine, scriptSessionId, "{{ var.id }}")
 {% endfor %}
 {% endif %}
 {% if inline_kind_code %}
@@ -85,6 +136,11 @@ class {{ machine_name }}StateMachine(
 {% endif %}
 
     override val initialState: {{ machine_name }}State = {{ machine_name }}State.{{ model.initial_leaf | to_state_class_name if model.initial_leaf else model.initial | to_state_class_name }}
+
+    // W3C SCXML 6.2: which entry point a host must drive this machine with in
+    // the synchronous mode. The same verdict the generate manifest publishes
+    // as `needs_event_scheduler`.
+    override val needsEventScheduler: Boolean = {{ 'true' if model.needs_tick_driving else 'false' }}
 {% if model.needs_script_engine %}
 
     // W3C SCXML B.1: Initialize script engine before entering initial state
@@ -168,7 +224,17 @@ class {{ machine_name }}StateMachine(
 {% endfor %}
     }
 
-{% if model.invokes or model.has_parent_communication or model.needs_script_engine or model.needs_http_send %}
+{# W3C SCXML 6.2.5 is in this list for a reason the others are not: a
+   host-served act answers with event NAMES, chosen while the machine runs, so
+   this map is the only thing that can turn a handler's report into events —
+   and the §scxml-6.2 report for an act nobody performed is resolved the same
+   way. Without it a machine that serves a host processor and has no datamodel
+   drops every reply silently: measured on
+   `statechart_delayed_host_send.scxml`, whose handler ran at its deadline and
+   whose `turn.done` reached nothing, because `needs_script_engine` had been
+   standing in for "this machine resolves events by name" and that fixture is
+   the first host-served one without one. #}
+{% if model.invokes or model.has_parent_communication or model.needs_script_engine or model.needs_http_send or model.host_processor_types %}
     // W3C SCXML 6.4: Resolve event name to Event object (cross-SM routing)
     override fun resolveEventByName(name: String): {{ machine_name }}Event? = when (name) {
 {% for event_name in leaf_events | sort %}
@@ -178,20 +244,22 @@ class {{ machine_name }}StateMachine(
     }
 
     // W3C SCXML 6.4: Resolve Event object to event name string
+{% if leaf_events %}
     override fun eventNameOf(event: {{ machine_name }}Event): String? = when (event) {
 {% for event_name in leaf_events | sort %}
         is {{ machine_name }}Event.{{ event_name | to_event_ref }} -> "{{ event_name }}"
 {% endfor %}
-{% if not leaf_events %}
-        // Empty sealed hierarchy (child SM inheriting the
-        // has_parent_communication override but declaring no events of
-        // its own). `when` with zero branches needs an explicit `else`
-        // for exhaustiveness; the non-empty case below is exhaustive
-        // by sealed-class smart-cast and `else` would trip
-        // -Wexhaustive-when-else-redundant under -Werror.
-        else -> null
-{% endif %}
     }
+{% else %}
+    // A child SM that inherits the has_parent_communication override while
+    // declaring no events of its own leaves the sealed hierarchy with zero
+    // implementors, so `{{ machine_name }}Event` is uninhabited: no caller can
+    // construct an argument and the body is unreachable. A `when` over an
+    // uninhabited sealed subject is vacuously exhaustive, so any branch —
+    // `else` included — is dead code the compiler rejects under -Werror.
+    // Returning the null directly is the honest expression of "unreachable".
+    override fun eventNameOf(event: {{ machine_name }}Event): String? = null
+{% endif %}
 {% endif %}
 
 {% include 'scriptengine_helpers.kt.jinja2' %}

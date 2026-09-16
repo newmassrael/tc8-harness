@@ -4,6 +4,7 @@
 #include "scripting/ScriptResultUtils.h"
 #include "core/LogMacros.h"
 #include "scripting/IScriptEngine.h"
+#include "scripting/ScriptDialect.h"
 #include <cmath>
 #include <sstream>
 
@@ -14,7 +15,7 @@ bool resultToBool(const ScriptResult &result) {
 }
 
 std::string resultToString(const ScriptResult &result, IScriptEngine *engine, const std::string &sessionId,
-                           const std::string &originalExpression) {
+                           const ScriptSource &originalExpression) {
     if (!result.isSuccess()) {
         return "";
     }
@@ -25,7 +26,25 @@ std::string resultToString(const ScriptResult &result, IScriptEngine *engine, co
         return result.getValue<std::string>();
     } else if (std::holds_alternative<double>(value)) {
         double val = result.getValue<double>();
-        if (val == std::floor(val)) {
+        // §scxml-B-1: the data model is ECMAScript, so a number's text is its
+        // `String(value)`. The three non-finite spellings are ECMAScript's, not
+        // iostream's — `oss << nan` writes "nan", which is a C++ fact about a
+        // value the document wrote as `NaN`.
+        //
+        // The magnitude guard is not decoration. `std::floor(inf) == inf`, so
+        // an infinity used to take the integer branch below and reach
+        // `static_cast<int64_t>(inf)`, which is undefined behaviour — measured
+        // as INT64_MIN, i.e. a `<param>` carrying `-9223372036854775808` where
+        // the document sent Infinity. Every finite double above 2^63 casts the
+        // same way. The four ported runtimes (Rust, Go, Python, Kotlin) already
+        // carry this bound; this is the original catching up with its ports.
+        if (std::isnan(val)) {
+            return "NaN";
+        }
+        if (std::isinf(val)) {
+            return val > 0 ? "Infinity" : "-Infinity";
+        }
+        if (val == std::floor(val) && std::fabs(val) < 1e15) {
             return std::to_string(static_cast<int64_t>(val));
         } else {
             // W3C SCXML: Use ECMAScript-compatible number formatting
@@ -51,10 +70,13 @@ std::string resultToString(const ScriptResult &result, IScriptEngine *engine, co
         return "";
     } else if (std::holds_alternative<ScriptNull>(value)) {
         return "";
-    } else if (engine && !sessionId.empty() && !originalExpression.empty()) {
-        // JSON.stringify fallback using provided engine
-        std::string stringifyExpr = "JSON.stringify(" + originalExpression + ")";
-        auto stringifyResult = engine->evaluateExpression(sessionId, stringifyExpr).get();
+    } else if (engine && !sessionId.empty() && !originalExpression.text().empty()) {
+        // JSON.stringify fallback using provided engine. Composed through the
+        // dialect table rather than spelled inline: the wrapper has to be in
+        // the same language as the expression it wraps, and on a pre-lowered
+        // path there is no rewriter left to repair a mismatch.
+        auto stringifyResult =
+            engine->evaluateExpression(sessionId, ScriptDialect::stringify(originalExpression)).get();
         if (stringifyResult.isSuccess()) {
             return stringifyResult.getValue<std::string>();
         }
@@ -64,11 +86,11 @@ std::string resultToString(const ScriptResult &result, IScriptEngine *engine, co
 }
 
 std::vector<std::string> resultToStringArray(const ScriptResult &result, IScriptEngine *engine,
-                                             const std::string &sessionId, const std::string &originalExpression) {
+                                             const std::string &sessionId, const ScriptSource &originalExpression) {
     std::vector<std::string> arrayValues;
 
     SCE_LOG_DEBUG("resultToStringArray: Starting with sessionId='{}', originalExpression='{}'", sessionId,
-                  originalExpression);
+                  originalExpression.source());
 
     if (!result.isSuccess()) {
         SCE_LOG_DEBUG("resultToStringArray: Result not successful, returning empty array");
@@ -86,16 +108,21 @@ std::vector<std::string> resultToStringArray(const ScriptResult &result, IScript
                 arrayValues.push_back(std::visit(
                     [](const auto &v) -> std::string {
                         using T = std::decay_t<decltype(v)>;
-                        if constexpr (std::is_same_v<T, std::string>) return v;
-                        else if constexpr (std::is_same_v<T, int64_t>) return std::to_string(v);
-                        else if constexpr (std::is_same_v<T, double>) {
+                        if constexpr (std::is_same_v<T, std::string>) {
+                            return v;
+                        } else if constexpr (std::is_same_v<T, int64_t>) {
+                            return std::to_string(v);
+                        } else if constexpr (std::is_same_v<T, double>) {
                             std::ostringstream oss;
                             oss << std::noshowpoint << v;
                             return oss.str();
+                        } else if constexpr (std::is_same_v<T, bool>) {
+                            return v ? "true" : "false";
+                        } else {
+                            return "undefined";
                         }
-                        else if constexpr (std::is_same_v<T, bool>) return v ? "true" : "false";
-                        else return "undefined";
-                    }, elem));
+                    },
+                    elem));
             }
             SCE_LOG_DEBUG("resultToStringArray: Extracted {} elements directly from ScriptArray", arrayValues.size());
             return arrayValues;
@@ -107,11 +134,12 @@ std::vector<std::string> resultToStringArray(const ScriptResult &result, IScript
         SCE_LOG_DEBUG("resultToStringArray: Got string result: '{}'", arrayStr);
     } else {
         SCE_LOG_DEBUG("resultToStringArray: Result is not string type, attempting JSON.stringify conversion");
-        if (engine && !sessionId.empty() && !originalExpression.empty()) {
-            std::string stringifyExpr = "JSON.stringify(" + originalExpression + ")";
-            SCE_LOG_DEBUG("resultToStringArray: Evaluating stringify expression: '{}'", stringifyExpr);
+        if (engine && !sessionId.empty() && !originalExpression.text().empty()) {
+            const ScriptSource stringifyExpr = ScriptDialect::stringify(originalExpression);
+            SCE_LOG_DEBUG("resultToStringArray: Evaluating stringify expression: '{}'", stringifyExpr.source());
             auto stringifyResult = engine->evaluateExpression(sessionId, stringifyExpr).get();
-            if (stringifyResult.isSuccess() && std::holds_alternative<std::string>(stringifyResult.getInternalValue())) {
+            if (stringifyResult.isSuccess() &&
+                std::holds_alternative<std::string>(stringifyResult.getInternalValue())) {
                 arrayStr = std::get<std::string>(stringifyResult.getInternalValue());
                 SCE_LOG_DEBUG("resultToStringArray: JSON.stringify succeeded, result: '{}'", arrayStr);
             } else {
@@ -131,22 +159,27 @@ std::vector<std::string> resultToStringArray(const ScriptResult &result, IScript
 
         try {
             // §scxml-B-2 (test 457): Validate that value is actually an array
-            std::string arrayCheckExpr = originalExpression + " instanceof Array";
-            SCE_LOG_DEBUG("resultToStringArray: Validating array type with expression: '{}'", arrayCheckExpr);
+            const ScriptSource arrayCheckExpr = ScriptDialect::isArray(originalExpression);
+            SCE_LOG_DEBUG("resultToStringArray: Validating array type with expression: '{}'", arrayCheckExpr.source());
             auto arrayCheckResult = engine->evaluateExpression(sessionId, arrayCheckExpr).get();
 
-            if (!arrayCheckResult.isSuccess() ||
-                !std::holds_alternative<bool>(arrayCheckResult.getInternalValue()) ||
+            if (!arrayCheckResult.isSuccess() || !std::holds_alternative<bool>(arrayCheckResult.getInternalValue()) ||
                 !std::get<bool>(arrayCheckResult.getInternalValue())) {
                 SCE_LOG_DEBUG(
                     "resultToStringArray: Value is not an array (instanceof Array check failed), returning empty");
                 return arrayValues;
             }
 
-            // W3C SCXML: Use original expression to preserve null/undefined distinction
-            std::string setVarExpr = "var _tempArray = " + originalExpression + "; _tempArray.length";
-            SCE_LOG_DEBUG("resultToStringArray: Evaluating temp variable length expression: '{}'", setVarExpr);
-            auto lengthResult = engine->evaluateExpression(sessionId, setVarExpr).get();
+            // W3C SCXML: Use original expression to preserve null/undefined
+            // distinction. The bind and the read are two statements now rather
+            // than one semicolon-joined string: `var x = e; x.length` is an
+            // ECMAScript-only shape, and the bind is the half whose spelling
+            // differs (Lua has no `var`).
+            const ScriptSource tempName = ScriptDialect::temporary("_tempArray", originalExpression.language());
+            const ScriptSource bindExpr = ScriptDialect::bindTemporary("_tempArray", originalExpression);
+            SCE_LOG_DEBUG("resultToStringArray: Binding temp array with: '{}'", bindExpr.source());
+            (void)engine->executeScript(sessionId, bindExpr).get();
+            auto lengthResult = engine->evaluateExpression(sessionId, ScriptDialect::lengthOf(tempName)).get();
 
             int64_t arrayLength = 0;
             bool lengthValid = false;
@@ -168,11 +201,10 @@ std::vector<std::string> resultToStringArray(const ScriptResult &result, IScript
             if (lengthValid) {
                 for (int64_t i = 0; i < arrayLength; ++i) {
                     // W3C SCXML: Check for undefined first, then use JSON.stringify
-                    std::string typeCheckExpr = "typeof _tempArray[" + std::to_string(i) + "]";
-                    auto typeResult = engine->evaluateExpression(sessionId, typeCheckExpr).get();
+                    const ScriptSource element = ScriptDialect::elementAt(tempName, i);
+                    auto typeResult = engine->evaluateExpression(sessionId, ScriptDialect::typeOf(element)).get();
 
-                    if (typeResult.isSuccess() &&
-                        std::holds_alternative<std::string>(typeResult.getInternalValue())) {
+                    if (typeResult.isSuccess() && std::holds_alternative<std::string>(typeResult.getInternalValue())) {
                         std::string typeStr = std::get<std::string>(typeResult.getInternalValue());
 
                         if (typeStr == "undefined") {
@@ -182,8 +214,8 @@ std::vector<std::string> resultToStringArray(const ScriptResult &result, IScript
                         }
                     }
 
-                    std::string elementExpr = "JSON.stringify(_tempArray[" + std::to_string(i) + "])";
-                    SCE_LOG_DEBUG("resultToStringArray: Element {} expression: '{}'", i, elementExpr);
+                    const ScriptSource elementExpr = ScriptDialect::stringify(element);
+                    SCE_LOG_DEBUG("resultToStringArray: Element {} expression: '{}'", i, elementExpr.source());
                     auto elementResult = engine->evaluateExpression(sessionId, elementExpr).get();
 
                     if (elementResult.isSuccess() &&
@@ -212,8 +244,8 @@ std::vector<std::string> resultToStringArray(const ScriptResult &result, IScript
 }
 
 std::vector<ScriptValue> resultToScriptValueArray(const ScriptResult &result, IScriptEngine *engine,
-                                                    const std::string &sessionId,
-                                                    const std::string &originalExpression) {
+                                                  const std::string &sessionId,
+                                                  const ScriptSource &originalExpression) {
     // §scxml-4.6: <foreach> array element extraction without string round-trip,
     // preserving type information for objects, arrays, and all primitive types.
     std::vector<ScriptValue> values;
@@ -237,21 +269,23 @@ std::vector<ScriptValue> resultToScriptValueArray(const ScriptResult &result, IS
     }
 
     // Fallback: use engine to extract elements by index
-    if (engine && !sessionId.empty() && !originalExpression.empty()) {
+    if (engine && !sessionId.empty() && !originalExpression.text().empty()) {
         // Get array length
-        std::string lengthExpr = "(" + originalExpression + ").length";
-        auto lengthResult = engine->evaluateExpression(sessionId, lengthExpr).get();
+        auto lengthResult = engine->evaluateExpression(sessionId, ScriptDialect::lengthOf(originalExpression)).get();
 
         int64_t arrayLength = 0;
         if (lengthResult.isSuccess()) {
             const auto &lv = lengthResult.getInternalValue();
-            if (std::holds_alternative<int64_t>(lv)) arrayLength = std::get<int64_t>(lv);
-            else if (std::holds_alternative<double>(lv)) arrayLength = static_cast<int64_t>(std::get<double>(lv));
+            if (std::holds_alternative<int64_t>(lv)) {
+                arrayLength = std::get<int64_t>(lv);
+            } else if (std::holds_alternative<double>(lv)) {
+                arrayLength = static_cast<int64_t>(std::get<double>(lv));
+            }
         }
 
         for (int64_t i = 0; i < arrayLength; ++i) {
-            std::string elemExpr = "(" + originalExpression + ")[" + std::to_string(i) + "]";
-            auto elemResult = engine->evaluateExpression(sessionId, elemExpr).get();
+            auto elemResult =
+                engine->evaluateExpression(sessionId, ScriptDialect::elementAt(originalExpression, i)).get();
             if (elemResult.isSuccess()) {
                 values.push_back(elemResult.getInternalValue());
             } else {

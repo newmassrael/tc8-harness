@@ -32,22 +32,26 @@ func (p *{{ machine_name }}Policy) ensureScriptEngine() {
 	if !engine.HasSession(sessionID) {
 		_ = engine.CreateSession(sessionID)
 	}
-	_ = engine.SetupSystemVariables(sessionID)
+	// W3C SCXML C.1.1 / C.2.3: the _ioprocessors entries come from the same
+	// helper every other backend uses, so a machine reads the same entry names
+	// and the same addresses whichever one runs it.
+	_ = engine.SetupSystemVariables(sessionID, "{{ model.scxml_name | default('') | w3c_session_name(model.name) | escape_go }}",
+		sce.BuildIoProcessors(sessionID, p.BasicHTTPAccessURI))
 {% if model.has_parallel_states or model.uses_in_predicate %}
 	// W3C SCXML 5.9.2: Register In() predicate callback
 	engine.SetStateQueryCallback(sessionID, func(stateID string) bool {
 		return p.IsStateActive(stateID)
 	})
 {% endif %}
-{% for var in model.variables %}
-{% if var.type == 'int' %}
-	_ = engine.SetVariable(sessionID, "{{ var.id }}", p.{{ var.id | to_camel_case | escape_go_keyword }})
-{% elif var.type == 'string' %}
-	_ = engine.SetVariable(sessionID, "{{ var.id }}", p.{{ var.id | to_camel_case | escape_go_keyword }})
-{% elif var.type == 'bool' %}
-	_ = engine.SetVariable(sessionID, "{{ var.id }}", p.{{ var.id | to_camel_case | escape_go_keyword }})
-{% endif %}
-{% endfor %}
+{# W3C SCXML 5.3: no pre-seed here. This function used to write each
+   constant-folded `<data>` literal into the fresh session from a struct
+   field, and then `InitializeDataModel` — whose first statement is a call to
+   this one — evaluated the same `<data>`'s `expr` and overwrote it. A typed
+   literal exists only for a `<data>` that carries an initialiser, and such a
+   document always reports `NeedsDataModelInit`, so the seeded value was
+   replaced before any state could be entered. Every other backend
+   initialises a variable in exactly one place; Go now does too, and the
+   field the seed read from is gone with it. #}
 	p.scriptEngineInitialized = true
 }
 
@@ -61,7 +65,7 @@ func (p *{{ machine_name }}Policy) InitializeDataModel(eng *sce.Engine[{{ machin
 	_ = engine.SetVariable(sessionID, "_sessionid", sessionID)
 
 	// W3C SCXML 5.3: Initialize _name
-	_ = engine.SetVariable(sessionID, "_name", "{{ model.name }}")
+	_ = engine.SetVariable(sessionID, "_name", "{{ model.scxml_name | default('') | w3c_session_name(model.name) | escape_go }}")
 
 	// W3C SCXML 5.2.2: Initialize global datamodel variables
 {% for var in model.variables %}
@@ -69,7 +73,7 @@ func (p *{{ machine_name }}Policy) InitializeDataModel(eng *sce.Engine[{{ machin
 {% set src_file = var.src | replace("file:", "") %}
 	// W3C SCXML 5.2.2: Load {{ var.id }} from src="{{ var.src }}"
 	{
-		basePath := filepath.Join("..", "..", "..", "{{ model.scxml_base_path }}")
+		basePath := filepath.Join("..", "..", "..", "..", "..", "{{ model.scxml_base_path }}")
 		if srcData, err := sce.LoadFileContent(filepath.Join(basePath, "{{ src_file }}")); err == nil {
 			sce.InitializeVariableFromContent(engine, sessionID, "{{ var.id }}", srcData)
 		}
@@ -78,9 +82,9 @@ func (p *{{ machine_name }}Policy) InitializeDataModel(eng *sce.Engine[{{ machin
 {% set is_function_expr = (var.expr | trim) is startingwith('function') %}
 {% if is_function_expr %}
 	// W3C SCXML B.2: Function expression for {{ var.id }}
-	if err := engine.ExecuteScript(sessionID, `{{ var.id }} = {{ var.expr | to_lua_script }}`); err != nil {
+	if err := engine.ExecuteScript(sessionID, `{{ var.id }} = {{ var.expr | to_lua_expr }}`); err != nil {
 {% if 'error.execution' in model.events %}
-		eng.Raise(sce.NewPlatformEvent({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}))
+		eng.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<data id='{{ var.id }}'> function expression failed"))
 {% endif %}
 	}
 {% else %}
@@ -91,7 +95,7 @@ func (p *{{ machine_name }}Policy) InitializeDataModel(eng *sce.Engine[{{ machin
 			_ = engine.SetVariable(sessionID, "{{ var.id }}", result)
 		} else {
 {% if 'error.execution' in model.events %}
-			eng.Raise(sce.NewPlatformEvent({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}))
+			eng.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<data id='{{ var.id }}'> expr failed to evaluate"))
 {% endif %}
 			_ = engine.SetVariable(sessionID, "{{ var.id }}", nil)
 		}
@@ -104,7 +108,7 @@ func (p *{{ machine_name }}Policy) InitializeDataModel(eng *sce.Engine[{{ machin
 {% else %}
 	// W3C SCXML B.2: Inline content for {{ var.id }} (eval with string fallback)
 	{
-		result, err := engine.EvaluateExpression(sessionID, `{{ var.content | to_lua_expr }}`)
+		result, err := engine.EvaluateExpression(sessionID, `{{ var.content | to_lua_data_content }}`)
 		if err == nil {
 			_ = engine.SetVariable(sessionID, "{{ var.id }}", result)
 		} else {
@@ -126,9 +130,9 @@ func (p *{{ machine_name }}Policy) InitializeDataModel(eng *sce.Engine[{{ machin
 {% if var.expr %}
 {% set is_function_expr = (var.expr | trim) is startingwith('function') %}
 {% if is_function_expr %}
-	if err := engine.ExecuteScript(sessionID, `{{ var.id }} = {{ var.expr | to_lua_script }}`); err != nil {
+	if err := engine.ExecuteScript(sessionID, `{{ var.id }} = {{ var.expr | to_lua_expr }}`); err != nil {
 {% if 'error.execution' in model.events %}
-		eng.Raise(sce.NewPlatformEvent({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}))
+		eng.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<data id='{{ var.id }}'> function expression failed"))
 {% endif %}
 	}
 {% else %}
@@ -138,7 +142,7 @@ func (p *{{ machine_name }}Policy) InitializeDataModel(eng *sce.Engine[{{ machin
 			_ = engine.SetVariable(sessionID, "{{ var.id }}", result)
 		} else {
 {% if 'error.execution' in model.events %}
-			eng.Raise(sce.NewPlatformEvent({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}))
+			eng.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<data id='{{ var.id }}'> expr failed to evaluate"))
 {% endif %}
 			_ = engine.SetVariable(sessionID, "{{ var.id }}", nil)
 		}
@@ -149,7 +153,7 @@ func (p *{{ machine_name }}Policy) InitializeDataModel(eng *sce.Engine[{{ machin
 	_ = engine.SetVariable(sessionID, "{{ var.id }}", `{{ var.content }}`)
 {% else %}
 	{
-		result, err := engine.EvaluateExpression(sessionID, `{{ var.content | to_lua_expr }}`)
+		result, err := engine.EvaluateExpression(sessionID, `{{ var.content | to_lua_data_content }}`)
 		if err == nil {
 			_ = engine.SetVariable(sessionID, "{{ var.id }}", result)
 		} else {
@@ -170,21 +174,21 @@ func (p *{{ machine_name }}Policy) InitializeDataModel(eng *sce.Engine[{{ machin
 {% for script in model.global_scripts %}
 	if err := engine.ExecuteScript(sessionID, `{{ script.content | to_lua_script }}`); err != nil {
 {% if 'error.execution' in model.events %}
-		eng.Raise(sce.NewPlatformEvent({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}))
+		eng.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "a top-level <script> failed to execute"))
 {% endif %}
 	}
 {% endfor %}
 {% endif %}
 
-	// W3C SCXML 6.4.1: Apply deferred params from parent invoke (override defaults, skip undeclared)
+	// §scxml-6.4.3: apply the invoke params the parent staged — overriding the
+	// `<data>` default this block just seeded, and only for a name the child
+	// declares ("if the names do not match, the Processor MUST NOT add the
+	// value ... to the invoked session's data model"). `HasVariable` is that
+	// filter, and it is this channel's only copy of the rule.
 	if len(p.pendingParams) > 0 {
-		for paramName, paramExpr := range p.pendingParams {
+		for paramName, paramValue := range p.pendingParams {
 			if engine.HasVariable(sessionID, paramName) {
-				if val, err := engine.EvaluateExpression(sessionID, paramExpr); err == nil {
-					_ = engine.SetVariable(sessionID, paramName, val)
-				} else {
-					_ = engine.SetVariable(sessionID, paramName, paramExpr)
-				}
+				_ = engine.SetVariable(sessionID, paramName, paramValue)
 			}
 		}
 		p.pendingParams = nil
@@ -200,7 +204,7 @@ func (p *{{ machine_name }}Policy) evaluateGuard(guard string, eng *sce.Engine[{
 	result, err := engine.EvaluateExpression(p.SessionID, guard)
 	if err != nil {
 {% if 'error.execution' in model.events %}
-		eng.Raise(sce.NewPlatformEvent({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}))
+		eng.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "a <transition> cond failed to evaluate"))
 {% endif %}
 		return false
 	}
@@ -214,8 +218,17 @@ func (p *{{ machine_name }}Policy) executeScript(script string) error {
 	return engine.ExecuteScript(p.SessionID, script)
 }
 
-// setCurrentEvent binds _event system variable (W3C SCXML 5.10).
-func (p *{{ machine_name }}Policy) setCurrentEvent(name string) {
+// setCurrentEvent binds _event system variable (W3C SCXML 5.10) and answers
+// which rung of §scxml-B-2-8-1 the payload got, because the binding is the
+// only place that knows.
+//
+// This used to be `_ = engine.SetCurrentEvent(...)`: the ladder decided
+// between a DOM, a value and a space-normalized string, and the decision was
+// dropped one line later. A payload that announced structure and would not
+// parse therefore reached the document as raw characters, every
+// _event.data.<field> read empty, and nothing anywhere could say so — see
+// sce.PayloadReading.
+func (p *{{ machine_name }}Policy) setCurrentEvent(name string) sce.PayloadReading {
 	p.ensureScriptEngine()
 	engine := p.ScriptEngine
 {% if model.needs_event_data %}
@@ -234,7 +247,17 @@ func (p *{{ machine_name }}Policy) setCurrentEvent(name string) {
 	sendID := ""
 {% endif %}
 {% if model.needs_event_origin %}
-	origin := p.pendingEventOrigin
+	// W3C SCXML C.1: `_event.origin` is the sender's published
+	// `_ioprocessors` location, not its bare session id — and this is the one
+	// place that publishes `_event` to the document, so this is where the id
+	// becomes a location. The engine keeps the bare id in
+	// `EventMetadata.Origin` because its session-keyed lookups (<finalize>
+	// dispatch, cancelled-invoke filtering) match on it; converting at the
+	// raise would make one value serve two consumers that need different
+	// spellings. The conversion itself lives in `sce.PublishedOrigin`, the
+	// port of the `IOProcessorHelper::publishedOrigin` the C++ engines share:
+	// a second spelling of the rule is how the backends would stop agreeing.
+	origin := sce.PublishedOrigin(p.pendingEventOrigin)
 {% else %}
 	origin := ""
 {% endif %}
@@ -248,7 +271,7 @@ func (p *{{ machine_name }}Policy) setCurrentEvent(name string) {
 {% else %}
 	invokeID := ""
 {% endif %}
-	_ = engine.SetCurrentEvent(p.SessionID, sce.SetCurrentEventArgs{
+	reading, err := engine.SetCurrentEvent(p.SessionID, sce.SetCurrentEventArgs{
 		Name:       name,
 		Data:       data,
 		Type:       eventType,
@@ -257,6 +280,13 @@ func (p *{{ machine_name }}Policy) setCurrentEvent(name string) {
 		OriginType: originType,
 		InvokeID:   invokeID,
 	})
+	if err != nil {
+		// An engine that could not bind _event at all has a larger problem
+		// than an unreadable payload, and reporting PayloadUndecodable for it
+		// would point a host at the wrong thing.
+		return sce.PayloadAbsent
+	}
+	return reading
 }
 
 // assignVariable assigns a value to a datamodel variable via script engine.
@@ -278,18 +308,26 @@ func (p *{{ machine_name }}Policy) getVariable(name string) interface{} {
 	return result
 }
 
-// SetParamInScriptEngine stores a parameter for deferred application after datamodel init (W3C SCXML 6.4.1).
-// Params are applied at the end of InitializeDataModel, overriding defaults only for declared vars.
-func (p *{{ machine_name }}Policy) SetParamInScriptEngine(name, expr string) {
+// SetParamValueInScriptEngine stores an invoke param's VALUE for deferred
+// application after datamodel init (§scxml-6.4.3).
+//
+// Params are applied at the end of InitializeDataModel, overriding the
+// `<data>` default only for names the child declares. The value crosses as a
+// value: this took the parent's value rendered as Lua source and
+// re-evaluated it here until 2026-08-21, which survived every value a test
+// had tried and lost the ones Lua cannot spell — `ToScriptLiteral` renders a
+// non-finite number as `+Inf`, which is not a Lua expression, so an
+// `<invoke>` `<param expr="1/0"/>` arrived as nothing at all.
+func (p *{{ machine_name }}Policy) SetParamValueInScriptEngine(name string, value interface{}) {
 	if p.pendingParams == nil {
-		p.pendingParams = make(map[string]string)
+		p.pendingParams = make(map[string]interface{})
 	}
-	p.pendingParams[name] = expr
+	p.pendingParams[name] = value
 }
 {% else %}
 // No script engine needed for this state machine.
 func (p *{{ machine_name }}Policy) InitializeDataModel(eng *sce.Engine[{{ machine_name }}State, {{ machine_name }}Event]) {}
 
-// SetParamInScriptEngine is a no-op for state machines without script engine.
-func (p *{{ machine_name }}Policy) SetParamInScriptEngine(name, expr string) {}
+// SetParamValueInScriptEngine is a no-op for state machines without script engine.
+func (p *{{ machine_name }}Policy) SetParamValueInScriptEngine(name string, value interface{}) {}
 {% endif %}

@@ -9,7 +9,7 @@
 
     Port of Rust invoke_methods.rs.jinja2.
 #}
-{% if model.invokes | scxml or model.invokes | hybrid %}
+{% if model.invokes | scxml or model.invokes | hybrid or model.invokes | unsupported %}
 
 // ExecutePendingInvokes starts deferred child state machines (W3C SCXML 6.4).
 // Port of Rust do_execute_pending_invokes().
@@ -38,7 +38,7 @@ func (p *{{ machine_name }}Policy) ExecutePendingInvokes(engine *sce.Engine[{{ m
 {% for var_name in invoke_info.namelist | split %}
 				if !se.HasVariable(p.SessionID, "{{ var_name }}") {
 {% if 'error.execution' in model.events %}
-					engine.Raise(sce.NewPlatformEvent({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}))
+					engine.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<invoke> namelist names '{{ var_name }}', which the parent does not declare"))
 {% endif %}
 					namelistValid = false
 				}
@@ -62,7 +62,15 @@ func (p *{{ machine_name }}Policy) ExecutePendingInvokes(engine *sce.Engine[{{ m
 			childPolicy.ParentExternalQueue = parentQueue
 			childPolicy.InvokeID = pending.InvokeID
 			childPolicy.ChildSessionID = childSessionID
-			childPolicy.SessionID = sce.GenerateSessionID()
+			// W3C SCXML C.1: the child adopts the id its parent recorded for
+			// it. The parent mints `parentSession.invokeId` and keys
+			// `activeInvokes` on it, so an event from this child reaches the
+			// parent carrying that id as its origin; if the child also minted
+			// an id of its own, the location it publishes in `_ioprocessors`
+			// and the origin the parent sees would be two names for one
+			// session that can never be compared — which is exactly what C.1
+			// requires of them.
+			childPolicy.SessionID = childSessionID
 
 {% if invoke_info.namelist %}
 			// W3C SCXML 6.4.1: Pass validated namelist values to child datamodel
@@ -71,7 +79,9 @@ func (p *{{ machine_name }}Policy) ExecutePendingInvokes(engine *sce.Engine[{{ m
 				se := p.ScriptEngine
 {% for var_name in invoke_info.namelist | split %}
 				if val, err := se.EvaluateExpression(p.SessionID, "{{ var_name }}"); err == nil {
-					childPolicy.SetParamInScriptEngine("{{ var_name }}", sce.ToLuaLiteral(val))
+					// §scxml-6.4.1: "the value stored at the location is the
+					// value" — so the value crosses, not a rendering of it.
+					childPolicy.SetParamValueInScriptEngine("{{ var_name }}", val)
 				}
 {% endfor %}
 			}
@@ -85,15 +95,43 @@ func (p *{{ machine_name }}Policy) ExecutePendingInvokes(engine *sce.Engine[{{ m
 				p.ensureScriptEngine()
 				se := p.ScriptEngine
 {% for param in invoke_info.params %}
-				if val, err := se.EvaluateExpression(p.SessionID, `{{ param.expr | to_lua_expr | escape_go }}`); err == nil {
-					childPolicy.SetParamInScriptEngine("{{ param.name }}", sce.ToLuaLiteral(val))
+				{# Raw string: no escaping. See entry_exit_actions.go.jinja2. #}
+				{# §scxml-6.4.3's "if the names do not match, the Processor MUST
+				   NOT add the value ... to the invoked session's data model" is
+				   NOT decided here. `SetParamValueInScriptEngine` defers to the
+				   child's `InitializeDataModel`, which applies each pending
+				   param only when `HasVariable` says the child declared it.
+				   Measured 2026-08-21: adding a second, codegen-time copy of
+				   that filter here changed no observable — the fixture
+				   `invoke_param_seeds_declared_child_data` is green either way
+				   — and one clause implemented twice is the defect that round
+				   was repaying. #}
+				if val, err := se.EvaluateExpression(p.SessionID, `{{ param.expr | to_lua_expr }}`); err == nil {
+					// §scxml-6.4.3: the VALUE of the param element becomes the
+					// child `<data>`'s initial value.
+					childPolicy.SetParamValueInScriptEngine("{{ param.name | escape_go }}", val)
+				} else {
+					// §scxml-5.7.1: BOTH halves — `error.execution` on the internal
+					// queue AND the name and value ignored. Only the silent half was
+					// here, so a document that miscomputed one `<param>` got a child
+					// with a `<data>` nothing explained and no event to act on.
+					//
+					// The clause delegates only the SUCCESSFUL name and value to the
+					// context ("Otherwise the use of the name and value depends on
+					// the context ... See 5.5 <donedata>, 6.2 <send> and 6.4
+					// <invoke>"), so §scxml-6.4.2's "terminate the processing of the
+					// element" is not what a failing `<param>` costs: the child
+					// still starts, one pair short.
+{% if 'error.execution' in model.events %}
+					engine.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<invoke> <param name='{{ param.name | escape_go }}'> expr failed to evaluate"))
+{% endif %}
 				}
 {% endfor %}
 			}
 {% endif %}
 {% endif %}
 
-			// W3C SCXML 6.4.6: Track active invoke session BEFORE initialize
+			// W3C SCXML 6.4.1: Track active invoke session BEFORE initialize
 			p.activeInvokes["{{ invoke_info.invoke_id }}"] = &sce.ChildSession{
 				SessionID:       childSessionID,
 {% if invoke_info.idlocation %}
@@ -103,10 +141,30 @@ func (p *{{ machine_name }}Policy) ExecutePendingInvokes(engine *sce.Engine[{{ m
 {% endif %}
 				ParentSessionID: p.SessionID,
 				Autoforward:     {{ 'true' if invoke_info.autoforward else 'false' }},
-				FinalizeScript:  `{{ invoke_info.finalize_content | escape_go }}`,
+{# §scxml-6.5: the `<finalize>` body is authored content and reaches the
+   engine through the ECMAScript frontend, like every other authored
+   expression. This line used to hand the parser's JavaScript to a Lua
+   engine unlowered, so a `<finalize>` worked only when its JavaScript was
+   valid Lua as well — which W3C test233's single bare assignment happens
+   to be, and it is the only `<finalize>` document with executable content
+   in the corpus. Python and C11 already applied this filter; Go, Rust,
+   Kotlin and cpp-AOT did not. #}
+{# A quoted literal rather than a raw one, because `escape_go` emits the
+   escape sequences a quoted Go string reads — and a lowered `<finalize>` is
+   the first content here that spans lines. Inside backticks `\n` stays two
+   characters, which reaches Lua as a syntax error rather than a newline. #}
+				FinalizeScript:  "{{ invoke_info.finalize_content | to_lua_script | escape_go }}",
 			}
 
 			childEngine := sce.NewEngine[{{ invoke_info.child_name | to_machine_name }}State, {{ invoke_info.child_name | to_machine_name }}Event](&childPolicy)
+			// §scxml-6.4: the child's delayed sends are measured against the
+			// same clock as ours. A child reading its own would start its
+			// origin at construction time, so <send delay="100ms"> on either
+			// side of the boundary would mean two different absolute instants —
+			// and on a host-owned clock the child would not move at all,
+			// because the host advances the engine it holds, not the ones that
+			// engine invoked.
+			childEngine.SetClock(engine.Clock())
 			childEngine.SetCompletionCallback(func() {})
 			childEngine.Initialize()
 
@@ -131,6 +189,51 @@ func (p *{{ machine_name }}Policy) ExecutePendingInvokes(engine *sce.Engine[{{ m
 {% endif %}
 {% endfor %}
 {% for state_id, state in model.states | dictsort %}
+{% if state.invokes | unsupported_refused %}
+{% for invoke_info in state.invokes | unsupported_refused %}
+		if strings.Contains(pending.InvokeID, ".{{ invoke_info.invoke_id }}") {
+			// W3C SCXML 6.4.1: unsupported `type` — place error.execution on
+			// the internal queue and start nothing.
+			engine.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<invoke type='{{ invoke_info.invoke_type | escape_go }}'> names an external service this platform does not support"))
+			continue
+		}
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% for state_id, state in model.states | dictsort %}
+{% if state.invokes | host_invoker %}
+{% for invoke_info in state.invokes | host_invoker %}
+		if strings.Contains(pending.InvokeID, ".{{ invoke_info.invoke_id }}") {
+			// W3C SCXML 6.4.1: the host declared this `type`, so START the
+			// invocation rather than refusing it. The id handed over is the
+			// DOCUMENT's, not the per-instance one the pending queue carries:
+			// `done.invoke.<id>` is the name the author wrote a transition
+			// for, so it is the name the host must answer on.
+			hostInvokeParams := map[string][]string{}
+{% for param in invoke_info.params %}
+{% if param.is_static_literal %}
+			hostInvokeParams["{{ param.name | escape_go }}"] = append(hostInvokeParams["{{ param.name | escape_go }}"], "{{ param.static_value | escape_go }}")
+{% endif %}
+{% endfor %}
+			if !engine.PerformHostInvoke(sce.HostInvokeRequest{
+				ProcessorType: "{{ invoke_info.invoke_type | escape_go }}",
+				InvokeID:      "{{ invoke_info.invoke_id }}",
+				Src:           "{{ invoke_info.src | default('', true) | escape_go }}",
+				Params:        hostInvokeParams,
+				Content:       "{{ invoke_info.content | default('', true) | escape_go }}",
+			}) {
+				// W3C SCXML 6.4.1: declared but no invoker registered. The
+				// document asked for a process to be run and none was, which
+				// is the same fact as an unsupported type — so the same
+				// event, rather than a silence that reads as started.
+				engine.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<invoke> names an invoker the host declared but never registered"))
+			}
+			continue
+		}
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% for state_id, state in model.states | dictsort %}
 {% if state.invokes | hybrid %}
 {% for invoke_info in state.invokes | hybrid %}
 		if strings.Contains(pending.InvokeID, ".{{ invoke_info.invoke_id }}") {
@@ -139,9 +242,9 @@ func (p *{{ machine_name }}Policy) ExecutePendingInvokes(engine *sce.Engine[{{ m
 			p.ensureScriptEngine()
 			{
 				se := p.ScriptEngine
-				if _, err := se.EvaluateExpression(p.SessionID, `{{ invoke_info.srcexpr | to_lua_expr | escape_go }}`); err != nil {
+				if _, err := se.EvaluateExpression(p.SessionID, `{{ invoke_info.srcexpr | to_lua_expr }}`); err != nil {
 {% if 'error.execution' in model.events %}
-					engine.Raise(sce.NewPlatformEvent({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}))
+					engine.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<invoke> srcexpr '{{ invoke_info.srcexpr }}' failed to evaluate"))
 {% endif %}
 					continue
 				}
@@ -151,9 +254,9 @@ func (p *{{ machine_name }}Policy) ExecutePendingInvokes(engine *sce.Engine[{{ m
 			p.ensureScriptEngine()
 			{
 				se := p.ScriptEngine
-				if _, err := se.EvaluateExpression(p.SessionID, `{{ invoke_info.contentexpr | to_lua_expr | escape_go }}`); err != nil {
+				if _, err := se.EvaluateExpression(p.SessionID, `{{ invoke_info.contentexpr | to_lua_expr }}`); err != nil {
 {% if 'error.execution' in model.events %}
-					engine.Raise(sce.NewPlatformEvent({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}))
+					engine.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<invoke> contentexpr '{{ invoke_info.contentexpr }}' failed to evaluate"))
 {% endif %}
 					continue
 				}
@@ -171,7 +274,15 @@ func (p *{{ machine_name }}Policy) ExecutePendingInvokes(engine *sce.Engine[{{ m
 			childPolicy.ParentExternalQueue = parentQueue
 			childPolicy.InvokeID = pending.InvokeID
 			childPolicy.ChildSessionID = childSessionID
-			childPolicy.SessionID = sce.GenerateSessionID()
+			// W3C SCXML C.1: the child adopts the id its parent recorded for
+			// it. The parent mints `parentSession.invokeId` and keys
+			// `activeInvokes` on it, so an event from this child reaches the
+			// parent carrying that id as its origin; if the child also minted
+			// an id of its own, the location it publishes in `_ioprocessors`
+			// and the origin the parent sees would be two names for one
+			// session that can never be compared — which is exactly what C.1
+			// requires of them.
+			childPolicy.SessionID = childSessionID
 
 			p.activeInvokes["{{ invoke_info.invoke_id }}"] = &sce.ChildSession{
 				SessionID:       childSessionID,
@@ -182,6 +293,14 @@ func (p *{{ machine_name }}Policy) ExecutePendingInvokes(engine *sce.Engine[{{ m
 			}
 
 			childEngine := sce.NewEngine[{{ invoke_info.child_name | to_machine_name }}State, {{ invoke_info.child_name | to_machine_name }}Event](&childPolicy)
+			// §scxml-6.4: the child's delayed sends are measured against the
+			// same clock as ours. A child reading its own would start its
+			// origin at construction time, so <send delay="100ms"> on either
+			// side of the boundary would mean two different absolute instants —
+			// and on a host-owned clock the child would not move at all,
+			// because the host advances the engine it holds, not the ones that
+			// engine invoked.
+			childEngine.SetClock(engine.Clock())
 			childEngine.SetCompletionCallback(func() {})
 			childEngine.Initialize()
 
@@ -239,18 +358,53 @@ func (p *{{ machine_name }}Policy) TickChildren(engine *sce.Engine[{{ machine_na
 
 {% set autoforward_invokes = model.invokes | scxml | selectattr('autoforward') | list %}
 {% if autoforward_invokes %}
-// ForwardToAutoforwardChildren forwards external events to children with autoforward=true (W3C SCXML 6.4.6).
-func (p *{{ machine_name }}Policy) ForwardToAutoforwardChildren(eventName string, engine *sce.Engine[{{ machine_name }}State, {{ machine_name }}Event]) {
-	if sce.IsPlatformEvent(eventName) {
-		return
-	}
+// ForwardToAutoforwardChildren forwards external events to children with autoforward=true (W3C SCXML 6.4.1).
+//
+// W3C 6.4 requires an exact copy, so the source event's metadata is forwarded
+// with the name: the child must observe the same _event.data, _event.origin,
+// _event.sendid, _event.origintype and _event.invokeid the parent observed.
+//
+// The event's name is not consulted. W3C SCXML Appendix D mainEventLoop
+// forwards whatever it dequeued from the external queue, and 6.4.2 has
+// `done.invoke.<id>` returned onto that queue, so a sibling invoke still
+// running must see it. Internal-queue events — `error.*` (3.12.2) and
+// `done.state.<id>` (3.7) — stay out of the forwarded set because this
+// method is reached only from the external drain, not because of how they
+// are spelled.
+func (p *{{ machine_name }}Policy) ForwardToAutoforwardChildren(eventName string, metadata sce.EventMetadata, engine *sce.Engine[{{ machine_name }}State, {{ machine_name }}Event]) {
 {% for invoke_info in autoforward_invokes %}
 	if cs, ok := p.activeInvokes["{{ invoke_info.invoke_id }}"]; ok && cs.Autoforward {
 		if p.child{{ invoke_info.invoke_id | to_pascal_case }} != nil {
-			p.child{{ invoke_info.invoke_id | to_pascal_case }}.RaiseExternalByName(eventName, "")
+			p.child{{ invoke_info.invoke_id | to_pascal_case }}.RaiseExternalByNameWithMeta(eventName, metadata)
 		}
 	}
 {% endfor %}
+}
+{% endif %}
+
+{% if model.invokes | scxml %}
+// DeliverToChildSession delivers an event addressed to a child's published
+// location (W3C SCXML C.1).
+//
+// The parent mints `parentSession.invokeId` for each child and that id is what
+// the child's `_ioprocessors` entry names, so a <send> whose target decodes to
+// one of them is addressed to that child rather than to this machine. A false
+// return means the address names no live child of ours and the event takes the
+// normal external path — the routing half of C.1 is what makes the published
+// location a usable target rather than a string that merely compares equal.
+func (p *{{ machine_name }}Policy) DeliverToChildSession(childSessionID, eventName, eventData string) bool {
+	if childSessionID == "" {
+		return false
+	}
+{% for invoke_info in model.invokes | scxml %}
+	if cs, ok := p.activeInvokes["{{ invoke_info.invoke_id }}"]; ok && cs.SessionID == childSessionID {
+		if p.child{{ invoke_info.invoke_id | to_pascal_case }} != nil {
+			p.child{{ invoke_info.invoke_id | to_pascal_case }}.RaiseExternalByName(eventName, eventData)
+			return true
+		}
+	}
+{% endfor %}
+	return false
 }
 {% endif %}
 
@@ -277,7 +431,14 @@ func (p *{{ machine_name }}Policy) ExecuteFinalizeForChildEvent(eventWithMeta *s
 		se := p.ScriptEngine
 		if se != nil {
 			eventName := p.GetEventName(eventWithMeta.Event)
-			_ = se.SetCurrentEvent(
+			// W3C SCXML 6.4: `<finalize>` binds the child's event so the
+			// handler can read it, and the rung that binding chose is not
+			// this site's to report. The parent's own dequeue already
+			// counted the delivery — see `NotePayloadReading` — and counting
+			// it again here would double every payload that reaches a
+			// document with an `<invoke>`. Discarded deliberately, and named
+			// rather than left to a bare `_`.
+			_, _ = se.SetCurrentEvent(
 				p.SessionID,
 				sce.SetCurrentEventArgs{
 					Name:       eventName,
@@ -307,6 +468,7 @@ func (w *childEngineWrapper{{ invoke_info.invoke_id | to_pascal_case }}) Initial
 func (w *childEngineWrapper{{ invoke_info.invoke_id | to_pascal_case }}) Tick() { w.engine.Tick() }
 func (w *childEngineWrapper{{ invoke_info.invoke_id | to_pascal_case }}) IsInFinalState() bool { return w.engine.IsInFinalState() }
 func (w *childEngineWrapper{{ invoke_info.invoke_id | to_pascal_case }}) RaiseExternalByName(name, data string) { w.engine.RaiseExternalByName(name, data) }
+func (w *childEngineWrapper{{ invoke_info.invoke_id | to_pascal_case }}) RaiseExternalByNameWithMeta(name string, metadata sce.EventMetadata) { w.engine.RaiseExternalByNameWithMeta(name, metadata) }
 func (w *childEngineWrapper{{ invoke_info.invoke_id | to_pascal_case }}) SetCompletionCallback(cb func()) { w.engine.SetCompletionCallback(cb) }
 func (w *childEngineWrapper{{ invoke_info.invoke_id | to_pascal_case }}) GetParentEventQueue() chan sce.ParentEvent { return w.policy.ParentExternalQueue }
 func (w *childEngineWrapper{{ invoke_info.invoke_id | to_pascal_case }}) DonedataAtFinal() string { return w.engine.DonedataAtFinal() }
@@ -320,6 +482,7 @@ func (w *childEngineWrapper{{ invoke_info.invoke_id | to_pascal_case }}) Initial
 func (w *childEngineWrapper{{ invoke_info.invoke_id | to_pascal_case }}) Tick() { w.engine.Tick() }
 func (w *childEngineWrapper{{ invoke_info.invoke_id | to_pascal_case }}) IsInFinalState() bool { return w.engine.IsInFinalState() }
 func (w *childEngineWrapper{{ invoke_info.invoke_id | to_pascal_case }}) RaiseExternalByName(name, data string) { w.engine.RaiseExternalByName(name, data) }
+func (w *childEngineWrapper{{ invoke_info.invoke_id | to_pascal_case }}) RaiseExternalByNameWithMeta(name string, metadata sce.EventMetadata) { w.engine.RaiseExternalByNameWithMeta(name, metadata) }
 func (w *childEngineWrapper{{ invoke_info.invoke_id | to_pascal_case }}) SetCompletionCallback(cb func()) { w.engine.SetCompletionCallback(cb) }
 func (w *childEngineWrapper{{ invoke_info.invoke_id | to_pascal_case }}) GetParentEventQueue() chan sce.ParentEvent { return w.policy.ParentExternalQueue }
 func (w *childEngineWrapper{{ invoke_info.invoke_id | to_pascal_case }}) DonedataAtFinal() string { return w.engine.DonedataAtFinal() }

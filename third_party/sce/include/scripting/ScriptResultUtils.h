@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ScriptResult.h"
+#include "ScriptSource.h"
 #include <optional>
 #include <string>
 #include <vector>
@@ -36,7 +37,7 @@ bool resultToBool(const ScriptResult &result);
  * @return String representation or error message
  */
 std::string resultToString(const ScriptResult &result, IScriptEngine *engine = nullptr,
-                           const std::string &sessionId = "", const std::string &originalExpression = "");
+                           const std::string &sessionId = "", const ScriptSource &originalExpression = "");
 
 /**
  * @brief Convert ScriptResult to string array for SCXML foreach actions
@@ -48,7 +49,7 @@ std::string resultToString(const ScriptResult &result, IScriptEngine *engine = n
  */
 std::vector<std::string> resultToStringArray(const ScriptResult &result, IScriptEngine *engine = nullptr,
                                              const std::string &sessionId = "",
-                                             const std::string &originalExpression = "");
+                                             const ScriptSource &originalExpression = "");
 
 /**
  * @brief Extract ScriptValue array elements directly from ScriptResult
@@ -64,8 +65,8 @@ std::vector<std::string> resultToStringArray(const ScriptResult &result, IScript
  * @return Vector of ScriptValue elements, empty on failure
  */
 std::vector<ScriptValue> resultToScriptValueArray(const ScriptResult &result, IScriptEngine *engine = nullptr,
-                                                   const std::string &sessionId = "",
-                                                   const std::string &originalExpression = "");
+                                                  const std::string &sessionId = "",
+                                                  const ScriptSource &originalExpression = "");
 
 /**
  * @brief Check if result represents successful operation

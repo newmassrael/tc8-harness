@@ -7,17 +7,22 @@
      - enum class State                  →  enum {name}_state_e + UPPER_SNAKE constants
      - template<Policy> + base class     →  flat struct + free functions
      - std::vector / std::optional / std::string  →  static arrays + bool out-params + char[N]
-   Capacity defaults come from sce-c-runtime/include/sce/types.h
+   Capacity defaults come from backends/c/runtime/include/sce/types.h
    (overridable per fixture via -DSCE_MAX_*=N).                              #}
 
 {% include 'license_header.jinja2' %}
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
-{# Watching-zenoh RFC §synth-5-O: SCE-MAP marker anchoring the
+{# W3C SCXML G.7: a machine whose document declares `<sce:action>`s cannot
+   start without a host, so every initialiser returns whether it accepted one.
+   `void` for every other document shape, byte-identical to the pre-feature
+   emit. Kept in step with the same `set` in `state_machine.c.jinja2`. #}
+{%- set init_rc = 'bool' if has_native_actions else 'void' %}
+{# SCE Protocol-Synthesis RFC §synth-5-O: SCE-MAP marker anchoring the
    generated C11 header. Module-level form is a comment, not the
    `#line` directive — `#line` in a header would propagate into
    every including translation unit's diagnostics. #}
 
-{{ sce_map.source_marker(model.source_location, "c", module_level=true) }}
+{{ sce_map.source_marker(model.source_location, "c", module_level=true, symbol_artifact=sce_artifact.machine) }}
 
 #ifndef SCE_GENERATED_{{ csym_prefix | upper }}{{ model.name | upper }}_SM_H
 #define SCE_GENERATED_{{ csym_prefix | upper }}{{ model.name | upper }}_SM_H
@@ -27,17 +32,49 @@
 #include <stddef.h>
 
 #include "sce/types.h"
+{# `SCE_STATIC_ASSERT`, used by the compile-time invariants at the
+   bottom of this header. This header opens `extern "C"`, so a C++
+   application linking the generated machine compiles it as C++ —
+   where `_Static_assert` is not a keyword. See
+   backends/c/runtime/include/sce/portability.h. #}
+#include "sce/portability.h"
+{# §scxml-B-2-8-1: `sce_payload_reading_t`, which the dequeue sites in the
+   generated `.c` read to decide whether a delivery lost its payload. In the
+   HEADER rather than the source because the counters it feeds are part of this
+   machine's published surface, and a host that asks what a count means should
+   find the definition through the same include it already has. #}
+#include "sce/payload_reading.h"
+
+{% if model.needs_event_scheduler %}
+/* §scxml-6.2.2: `sce_clock_t`, the per-instance seam this machine measures its
+   `<send delay>` deadlines from. The link-time `_sce_clock_now_ms()` it falls
+   back to is declared in the same header. */
+#include "sce/clock.h"
+{% endif %}
 
 {% if model.on_sample_links %}
-/* watching-zenoh RFC §synth-5-E sample-callback codegen wire-up. `sce_sample_t`
+/* SCE Protocol-Synthesis RFC §synth-5-E sample-callback codegen wire-up. `sce_sample_t`
    borrow type + `sce_sub_callback_t` typedef live in the runtime
    header; the per-link `_deliver_link_<X>_sample` declarations
    below take a `const sce_sample_t *sample` borrow. */
 #include "sce/sample.h"
 {% endif %}
 
-{% if (model.invokes | scxml_family) %}
-/* W3C SCXML 6.4: invoke types + helpers (sce-c-runtime/include/sce/invoke.h).
+{% if model.host_processor_types or model.host_invoker_types %}
+/* §scxml-6.2.5 + §scxml-6.4.1: host-served Event I/O Processor types and
+   host-run `<invoke>` types + the bounded registries this machine
+   dispatches through
+   (backends/c/runtime/include/sce/host_processor.h). Header-only, the
+   same INTERFACE-only contract `sce/invoke.h` carries; the per-machine
+   dispatch is emitted into the generated `_sm.c`. cpp's
+   `core/HostProcessor.h` plus `StaticExecutionEngine`'s map is the
+   equivalent shape, translated to a fixed-capacity array because the
+   MCU profile has no allocator. */
+#include "sce/host_processor.h"
+{% endif %}
+
+{% if (model.invokes | scxml_family) or (model.invokes | unsupported) %}
+/* W3C SCXML 6.4: invoke types + helpers (backends/c/runtime/include/sce/invoke.h).
    Header-only — types and `static inline` helpers (jinja2-inline
    contract, no shared .c). cpp's `core/InvokeHelper.h` template class is the equivalent
    shape. */
@@ -81,7 +118,7 @@ extern "C" {
    (see SM struct below). The sentinel `_STATE_COUNT` is the first value
    past the last real state and is the array dimension for any future
    per-state codegen-time table; today it gates the 32-state bitmap
-   width via _Static_assert at the bottom of this header.                #}
+   width via SCE_STATIC_ASSERT at the bottom of this header.             #}
 enum {{ csym_prefix }}{{ model.name }}_state_e {
     {% for state_name in model.states | sort %}
     {{ csym_prefix | upper }}{{ model.name | upper }}_STATE_{{ state_name | upper | replace('-', '_') | replace('.', '_') }},
@@ -89,6 +126,50 @@ enum {{ csym_prefix }}{{ model.name }}_state_e {
     {{ csym_prefix | upper }}{{ model.name | upper }}_STATE_COUNT
 };
 typedef enum {{ csym_prefix }}{{ model.name }}_state_e {{ csym_prefix }}{{ model.name }}_state_t;
+
+/* ── W3C SCXML 3.11: why a restored configuration was refused ──────── */
+{# The C twin of `SCE::Core::ConfigurationRejection` (cpp),
+   `ConfigurationRejection` (rust / go / kotlin / python). An enumerated
+   reason rather than a bool: a host handing back a journal it wrote itself
+   needs to know WHICH rule its record broke, and "invalid" sends it looking
+   at the wrong half. #}
+enum {{ csym_prefix }}{{ model.name }}_configuration_rejection_e {
+    /* The accepting answer. */
+    {{ csym_prefix | upper }}{{ model.name | upper }}_CONFIG_NONE = 0,
+    /* No states at all. A machine is never in nothing. */
+    {{ csym_prefix | upper }}{{ model.name | upper }}_CONFIG_EMPTY,
+    /* A state appears twice. Checked before every arity count below, which
+       would otherwise read a duplicate as a second child and blame the
+       wrong rule. */
+    {{ csym_prefix | upper }}{{ model.name | upper }}_CONFIG_DUPLICATE,
+    /* A state is present whose parent is not — the set is not ancestor-closed. */
+    {{ csym_prefix | upper }}{{ model.name | upper }}_CONFIG_ANCESTOR_MISSING,
+    /* W3C SCXML 3.11: a configuration closes on exactly one root. */
+    {{ csym_prefix | upper }}{{ model.name | upper }}_CONFIG_ROOT_COUNT,
+    /* W3C SCXML 3.11: a compound state holds exactly one active child. */
+    {{ csym_prefix | upper }}{{ model.name | upper }}_CONFIG_COMPOUND_CHILD_COUNT,
+    /* W3C SCXML 3.11: a <parallel> holds EVERY region, and one is missing. */
+    {{ csym_prefix | upper }}{{ model.name | upper }}_CONFIG_PARALLEL_REGION_MISSING,
+    /* W3C SCXML 3.11: a <parallel> holds every region and nothing else. */
+    {{ csym_prefix | upper }}{{ model.name | upper }}_CONFIG_PARALLEL_CHILD_COUNT,
+    /* An atomic state has a child in the set, so it is not atomic here. */
+    {{ csym_prefix | upper }}{{ model.name | upper }}_CONFIG_ATOMIC_HAS_CHILDREN,
+    /* A state value outside this document's enumeration. The five other
+       backends need no such member: a member of their configuration is a
+       generated enum or sealed object, so a state this document does not
+       have cannot be constructed. C alone can be handed an out-of-range
+       integer, and answering it with a walk over a bitmap it does not fit
+       is undefined behaviour rather than a refusal. */
+    {{ csym_prefix | upper }}{{ model.name | upper }}_CONFIG_UNKNOWN_STATE{% if has_native_actions %},
+    /* W3C SCXML G.7: the host did not supply every act this document
+       declares. Also not a member the other backends need — an unimplemented
+       interface method does not compile there — and it is here for the same
+       reason `_init_with_actions` already refuses one: C has no such check,
+       so it moves to the call a C host has to make. */
+    {{ csym_prefix | upper }}{{ model.name | upper }}_CONFIG_HOST_ACTIONS_INCOMPLETE{% endif %}
+
+};
+typedef enum {{ csym_prefix }}{{ model.name }}_configuration_rejection_e {{ csym_prefix }}{{ model.name }}_configuration_rejection_t;
 
 {% if model.has_history_states %}
 /* ── W3C SCXML 3.10: History pseudo-state enumeration ─────────────── */
@@ -125,6 +206,10 @@ typedef enum {{ csym_prefix }}{{ model.name }}_event_e {{ csym_prefix }}{{ model
 /* ── NL→IR Item C1 Path A: typed `_event.data` payload channel ─────── */
 {{ event_payload_defs }}
 {% endif %}
+{% if has_native_actions %}
+/* ── W3C SCXML G.7: `<sce:action>` host dispatch ───────────────────── */
+{{ native_actions_defs }}
+{% endif %}
 /* ── W3C SCXML 5.10: Event with metadata ──────────────────────────── */
 {# Mirrors `StaticExecutionEngine<P>::EventWithMetadata` (sce/include/static).
    Strings are bounded char arrays sized via `sce/types.h` so the entire
@@ -132,7 +217,10 @@ typedef enum {{ csym_prefix }}{{ model.name }}_event_e {{ csym_prefix }}{{ model
 typedef struct {{ csym_prefix }}{{ model.name }}_event_with_meta {
     {{ csym_prefix }}{{ model.name }}_event_t event;
     char data[SCE_MAX_DATA_LEN];
-    char origin[SCE_MAX_ID_LEN];
+    /* §scxml-C-1: `_event.origin` is the location the sending session
+       published, so it is sized as a URI rather than as an id — see
+       `sce_copy_bounded_origin` in `sce/types.h`. */
+    char origin[SCE_MAX_URI_LEN];
     char send_id[SCE_MAX_ID_LEN];
     char type[SCE_MAX_EVENT_TYPE_LEN];
     char origin_type[SCE_MAX_ID_LEN];
@@ -148,7 +236,7 @@ typedef struct {{ csym_prefix }}{{ model.name }}_event_with_meta {
 {% endif %}
 } {{ csym_prefix }}{{ model.name }}_event_with_meta_t;
 
-/* ── W3C SCXML Appendix D.2: Optimal enabled transition set ───────── */
+/* ── Appendix D removeConflictingTransitions: Optimal enabled transition set ───────── */
 {# Mirrors the C++ `TransitionInfo` struct defined inside the generated
    namespace (process_transition.jinja2 emits it per fixture). The C11
    layout adds a `exit_set` bitmap field — cpp re-computes the exit set
@@ -229,6 +317,40 @@ typedef struct {{ csym_prefix }}{{ model.name }}_scheduled_entry {
     bool to_parent;
     char to_parent_event[SCE_MAX_ID_LEN];
 {% endif %}
+{% if model.has_delayed_host_send %}
+    /* W3C SCXML 6.2.4 + 6.2.5: a `<send delay>` addressed to a processor
+       the HOST serves. The delay is a property of the SEND, not of the
+       processor it named, so this waits in the same queue as any other
+       delayed send — one deadline order, one `<cancel sendid>` path, one
+       answer from `_time_until_next_scheduled_ms`. The `host_send` flag
+       is what `_tick`'s promote loop reads to perform the act instead of
+       raising `event`, the same shape `to_parent` above uses.
+
+       The strings are OWNED rather than pointed at, and that is the
+       clause rather than a C11 habit: W3C SCXML 6.2 evaluates a `<send>`'s
+       fields at SEND time (tests 176 and 186 pin it), so what is stored
+       here is what the document computed when the block ran. Re-reading
+       any of it at fire time would deliver the values the machine holds
+       then, which is a different document.
+
+       Emitted only for a document that has one: these fields are the
+       bulk of the entry, and `has_delayed_host_send` is what keeps a
+       machine without a delayed host send paying nothing for it. */
+    bool host_send;
+    char host_processor_type[SCE_MAX_ID_LEN];
+    char host_event_name[SCE_MAX_ID_LEN];
+    char host_target[SCE_MAX_URI_LEN];
+    char host_content[SCE_MAX_DATA_LEN];
+{% if model.delayed_host_send_max_params > 0 %}
+    /* Sized by the widest delayed host-served `<send>` in this document
+       ({{ model.delayed_host_send_max_params }}), not by
+       SCE_MAX_HOST_SEND_PARAMS: a bound the document proves is a bound
+       nothing has to be tuned to. */
+    char host_param_names[{{ model.delayed_host_send_max_params }}][SCE_MAX_ID_LEN];
+    char host_param_values[{{ model.delayed_host_send_max_params }}][SCE_MAX_DATA_LEN];
+    uint8_t host_param_count;
+{% endif %}
+{% endif %}
 } {{ csym_prefix }}{{ model.name }}_scheduled_entry_t;
 
 typedef struct {{ csym_prefix }}{{ model.name }}_scheduled_queue {
@@ -301,10 +423,20 @@ typedef struct {{ csym_prefix }}{{ model.name }} {
        leaf bit simultaneously. Mirrors cpp `StaticExecutionEngine::activeStates_`
        (std::set<State>) — single truth source for the configuration,
        no parallel `current_state` shadow that would drift in parallel
-       fixtures. _Static_assert at the bottom of the header pins the
+       fixtures. SCE_STATIC_ASSERT at the bottom of the header pins the
        state count below the bitmap width (32 today, multi-word array
        lands when a fixture forces it). */
     uint32_t active;
+{% if has_native_actions %}
+    /* W3C SCXML G.7: the host implementation every `<sce:action>` in this
+       document calls directly (`sm->actions.<op>(sm->actions.user_data, …)`)
+       instead of the Lua state — which a machine built for this construct may
+       not even have. Installed by `_init_with_actions`, which is the only
+       initialiser this machine has: the initial state's `<onentry>` may
+       already perform an act, so a vtable written after `_init` would arrive
+       one act too late (and `_init` zeroes the struct anyway). */
+    {{ native_actions_interface }} actions;
+{% endif %}
 {% if event_payload_active %}
     /* NL→IR Item C1 Path A: the current event's typed `_event.data`
        payload, copied from the dequeued event by `process_event_queues`
@@ -317,14 +449,93 @@ typedef struct {{ csym_prefix }}{{ model.name }} {
     {{ csym_prefix }}{{ model.name }}_event_queue_t external_queue;   /* W3C 3.12.1: low-priority FIFO  */
 {% if model.needs_event_scheduler %}
     {{ csym_prefix }}{{ model.name }}_scheduled_queue_t scheduled_queue;  /* W3C 6.2: delayed <send> queue, drained by _tick */
+    /* §scxml-6.2.2: where this machine reads "now" from. Zero-initialised by
+       `_init`'s memset, which is the link-time monotonic default; a host that
+       owns time installs its own through `_init_with_clock`. */
+    sce_clock_t clock;
+    /* §scxml-3.13: the reading `clock` gave when the current turn began, valid
+       only while `in_turn`. See `_set_clock` in the .c for what reading the
+       clock per `<send>` instead did to two of them. */
+    uint64_t turn_now_ms;
+    bool in_turn;
 {% endif %}
     {{ csym_prefix }}{{ model.name }}_policy_t policy;
     bool is_running;
     bool transition_taken;
+    /* W3C SCXML 3.1.2: external events no transition matched, and the most
+       recent of them. `has_discarded_event` is separate because the event
+       enum's zero value is a real event and cannot stand in for "none". */
+    uint32_t discarded_external_events;
+    {{ csym_prefix }}{{ model.name }}_event_t last_discarded_event;
+    bool has_discarded_event;
+    /* W3C SCXML B.2.8.1: deliveries whose payload announced structure and that
+       the datamodel could not read as one, and the most recent of them.
+       `has_undecodable_payload` is separate for the same reason as above. */
+    uint32_t undecodable_payloads;
+    {{ csym_prefix }}{{ model.name }}_event_t last_undecodable_payload;
+    bool has_undecodable_payload;
+    /* W3C SCXML 3.13: external events this machine never looked at, because it
+       had already stopped, and the most recent of them. `has_unseen_event` is
+       separate for the same reason as above. */
+    uint32_t unseen_external_events;
+    {{ csym_prefix }}{{ model.name }}_event_t last_unseen_event;
+    bool has_unseen_event;
+    /* W3C SCXML 3.12.2: `error.*` events this engine raised that no transition
+       matched, and the most recent of them. `has_unhandled_error` is separate
+       for the same reason as above: the event enum's zero value is a real
+       event and cannot stand in for "none". */
+    uint32_t unhandled_error_events;
+    {{ csym_prefix }}{{ model.name }}_event_t last_unhandled_error;
+    bool has_unhandled_error;
+    /* W3C SCXML 3.12.2 from the other side: the drain is running a transition
+       an `error.*` event selected, which is the state in which a newly raised
+       error is a link in a chain rather than a first failure; how long that
+       chain is; and what was refused because of it. See
+       `_error_cascade_events` below. */
+    bool handling_error_event;
+    uint32_t error_cascade_depth;
+    uint32_t error_cascade_events;
+    {{ csym_prefix }}{{ model.name }}_event_t last_error_cascade_event;
+    bool has_error_cascade_event;
+    /* W3C SCXML 3.13: macrosteps stopped at SCE_MAX_MACROSTEP_MICROSTEPS with
+       the chain still going, the state the drain was in when that last
+       happened, and whether the macrostep now in progress is already one of
+       them. `has_truncated_macrostep` is separate because the state enum's
+       zero value is a real state; `macrostep_truncated` exists because the
+       drain is reached more than once per macrostep, and without it each
+       caller would get a fresh budget. `macrostep_microsteps_taken` is the
+       budget itself, and it lives here rather than in either drain because
+       Appendix D's inner loop is one loop: the eventless branch and the
+       internal-event branch take turns inside a single macrostep, so a counter
+       local to either bounds only half of it. See `_truncated_macrosteps`
+       below. */
+    uint32_t truncated_macrosteps;
+    {{ csym_prefix }}{{ model.name }}_state_t last_truncated_macrostep_state;
+    bool has_truncated_macrostep;
+    bool macrostep_truncated;
+    uint32_t macrostep_microsteps_taken;
     char current_event_invoke_id[SCE_MAX_ID_LEN];
+    /* W3C SCXML 5.10 / C.1.1: the id the processor generates for THIS
+       session, and the address that reaches it. Issued in `_init` rather
+       than baked at codegen time, because the requirement names the id of
+       the current SESSION and a document-derived value names the document:
+       two instances of one machine are two sessions, and giving them one
+       id makes their published `_ioprocessors` locations equal, so a
+       `<send>` addressed to one is a send addressed to either. Fixed
+       buffers — the profile allocates nothing.
+
+       The id buffer is sized from the machine name it is built out of,
+       not from `SCE_MAX_ID_LEN`: names of synthesised invoke children
+       (`<doc>__sce_synth_invoke__<invokeid>`) already run past 64
+       characters, and a shared cap would silently truncate the tail —
+       which is where the ordinal that distinguishes two sessions lives.
+       20 digits is `unsigned long`'s widest decimal form, and the
+       `sizeof` of the literal carries the terminator. */
+    char session_id[sizeof("{{ model.name | escape_c }}_session_") + 20u];
+    char scxml_location[sizeof("sce://scxml/{{ model.name | escape_c }}_session_") + 20u];
     void (*completion_callback)(void *user_data);
     void *completion_callback_user_data;
-    {% if (model.invokes | scxml_family) %}
+    {% if (model.invokes | scxml_family) or (model.invokes | unsupported) %}
     /* W3C SCXML 6.4: pending invokes deferred to macrostep end + per-site
        child SM instance. cpp uses `std::vector<PendingInvoke>` and
        `std::shared_ptr<ChildSM>`; C11 mirrors with the bounded queue
@@ -356,6 +567,15 @@ typedef struct {{ csym_prefix }}{{ model.name }} {
     {% endif %}
     {% if model.needs_script_engine %}
     lua_State *L;                                    /* W3C 5.10: ECMAScript datamodel */
+    /* W3C SCXML C.2.3: inbound BasicHTTP endpoint serving this machine,
+       declared by the deployment before `_init` through
+       `_set_basic_http_access_uri`. The address belongs to whoever runs the
+       listener, so the machine takes it from there rather than baking one in.
+       Empty means no such endpoint is deployed, and no BasicHTTP entry is
+       published in `_ioprocessors` — a document that reads
+       `_ioprocessors['basichttp'].location` then finds nil rather than an
+       address nothing answers on. */
+    char basic_http_access_uri[SCE_MAX_URI_LEN];
     {% endif %}
     {% if model.has_parent_communication %}
     /* W3C SCXML 6.4: cross-machine event dispatch when this SM is
@@ -382,14 +602,228 @@ typedef struct {{ csym_prefix }}{{ model.name }} {
     void (*parent_dispatch)(void *parent_sm, const char *event_name, const char *invoke_id, const char *event_data);
     char invoke_id[SCE_MAX_ID_LEN];
     {% endif %}
+    {% if model.host_processor_types %}
+    /* §scxml-6.2.5: handlers for the Event I/O Processor types this build
+       was told the host serves. Emitted only when a type was declared, so
+       a machine that serves none pays no bytes for the ceiling — which is
+       why the gate is the DECLARATION and not the per-send flag: the host
+       registers against a type, and a build told about a type it never
+       uses must still offer the registration or the host cannot compile
+       against its own contract. */
+    sce_host_processor_registry_t host_processors;
+{% endif %}
+{% if model.host_invoker_types %}
+    /* W3C SCXML 6.4.1: what RUNS each `<invoke type>` this host declared, and
+       which of those invocations are in flight. Two members rather than one
+       because they answer two questions: "who runs this type" and "did this
+       one start" — the second is what the exit chain has to know before it
+       tells a host to stop something. */
+    sce_host_invoker_registry_t host_invokers;
+    sce_host_invocation_set_t started_host_invokes;
+    {% endif %}
 } {{ csym_prefix }}{{ model.name }}_t;
 
 /* ── Public API ───────────────────────────────────────────────────── */
 
+/* W3C SCXML 5.10: the id this session was issued at `_init`, the value its
+   datamodel reads as `_sessionid`. Valid from `_init` until the storage
+   goes away; NULL for a NULL machine. Public because a session id that
+   only the datamodel can see is one a host cannot correlate its own
+   traces against, and because it is what makes "these are two sessions"
+   checkable from outside the machine. */
+const char *{{ csym_prefix }}{{ model.name }}_session_id(const {{ csym_prefix }}{{ model.name }}_t *sm);
+
+/* W3C SCXML C.1.1: the address that reaches this session through the SCXML
+   event processor — the same string its `_ioprocessors` entry publishes and
+   the one a `<send target>` must carry to be delivered here. */
+const char *{{ csym_prefix }}{{ model.name }}_scxml_location(const {{ csym_prefix }}{{ model.name }}_t *sm);
+
+{% if model.host_processor_types %}
+/* ── §scxml-6.2.5: the host's half of a declared processor ────────── */
+/*
+   This build was told the host serves:
+{% for t in model.host_processor_types %}
+     "{{ t }}"
+{% endfor %}
+   Every `<send>` naming one of those dispatches into the registry below.
+   A send reaching a type with no handler raises `error.execution` — the
+   same outcome the document sees for a type the platform does not
+   implement at all, because from its side nobody performed the act
+   either way.
+
+   Wire the host BEFORE running, with `_init_with_host_processors`:
+
+     sce_host_processor_registry_t wiring = {0};
+     sce_host_registry_register(&wiring, "<type>", my_handler, &my_host);
+     {{ csym_prefix }}{{ model.name }}_init_with_host_processors(&sm, &wiring);
+
+   The registry is passed INTO `_init` rather than written onto the
+   machine first because `_init` zeroes the struct, and the first
+   `<onentry>` body may already perform an act — a handler installed
+   afterwards would arrive one act too late. */
+{{ init_rc }} {{ csym_prefix }}{{ model.name }}_init_with_host_processors({{ csym_prefix }}{{ model.name }}_t *sm,
+                                  const sce_host_processor_registry_t *host_processors{% if has_native_actions %},
+                                  const {{ native_actions_interface }} *actions{% endif %});
+{% if model.needs_event_scheduler %}
+
+/* W3C SCXML 6.2.2 + 6.2.5: both seams at once — the clock this machine
+   measures its `<send delay>` deadlines against AND the handlers that
+   perform its host-served acts.
+
+   Neither single-seam wrapper can stand in for this one. `_init` is
+   construction and initialisation in one call, so both values have to
+   arrive as arguments: `_init_with_clock` installs no registry, and
+   `_init_with_host_processors` installs the monotonic clock. A host that
+   owns time and serves a processor could therefore have one or the other
+   — and a `<send delay>` addressed to a host-served processor is exactly
+   the case that needs both. */
+{{ init_rc }} {{ csym_prefix }}{{ model.name }}_init_with_clock_and_host_processors({{ csym_prefix }}{{ model.name }}_t *sm,
+                                  sce_clock_t clock,
+                                  const sce_host_processor_registry_t *host_processors{% if has_native_actions %},
+                                  const {{ native_actions_interface }} *actions{% endif %});
+{% endif %}
+
+/* Change what serves `processor_type` on a machine that is already
+   initialised. `user_data` is handed back unchanged on each call — C's
+   answer to the closure the other engines capture — and registering twice
+   for one type replaces the handler.
+
+   For the acts a machine performs while entering its initial
+   configuration, this is too late: use `_init_with_host_processors`.
+
+   Returns false when the registry is full or the type does not fit its
+   slot, because a registration that did not happen must not read as one
+   that did. */
+{% if model.host_invoker_types %}
+/* W3C SCXML 6.4.1: register what RUNS `processor_type`, and ask what is
+   registered. Separate from the `<send>` half because they are separate
+   contracts — delivering an event is not the same capability as running a
+   process with a lifetime.
+
+   Unlike the send half these are safe after `_init`: §scxml-6.4 runs an
+   `<invoke>` at the END of the entry macrostep, so a registration made before
+   the first `_step` still arrives in time. */
+bool {{ csym_prefix }}{{ model.name }}_register_invoker({{ csym_prefix }}{{ model.name }}_t *sm, const char *processor_type,
+                                  sce_host_invoke_handler_fn handler, void *user_data);
+bool {{ csym_prefix }}{{ model.name }}_has_invoker(const {{ csym_prefix }}{{ model.name }}_t *sm, const char *processor_type);
+
+/* W3C SCXML 6.4: stop a host-run invocation from outside the exit chain, for a
+   host that tears its own session down. Returns whether a cancel was
+   delivered — false when this invocation never started, which is the question
+   the exit chain also asks. */
+bool {{ csym_prefix }}{{ model.name }}_cancel_host_invoke({{ csym_prefix }}{{ model.name }}_t *sm, const char *processor_type,
+                                  const char *invoke_id);
+{% endif %}
+bool {{ csym_prefix }}{{ model.name }}_register_event_processor({{ csym_prefix }}{{ model.name }}_t *sm, const char *processor_type,
+                                                                sce_host_send_handler_fn handler, void *user_data);
+
+/* Whether a handler is registered for `processor_type`. Two things can go
+   wrong with a host-served send — no handler, or a handler that reported
+   nothing — and only the first is an error; this is how a host tells them
+   apart from outside. */
+bool {{ csym_prefix }}{{ model.name }}_has_event_processor(const {{ csym_prefix }}{{ model.name }}_t *sm, const char *processor_type);
+{% endif %}
+
+{% if model.readable_variables %}
+
+/* ── Datamodel readers (W3C SCXML 5.3) ────────────────────────────── */
+
+/* What a declared `<data>` is holding NOW, in the host's own type.
+   Cpp / Rust / Go / Kotlin / Python answer the same four declarations
+   through their own read helpers; this is the C11 member of that set,
+   shaped to C's conventions rather than to theirs.
+
+   The read goes to the datamodel's one home — the lua_State this machine
+   owns. There is no copy on the struct to read instead, and there could
+   not be a useful one: `<assign>` writes into the session, so anything
+   captured at generation time would answer the authored literal for the
+   whole run.
+
+   `false` means the machine cannot answer, and collapses the three
+   reasons a consumer would act on identically: the machine is not
+   initialised, the variable was assigned a value of another type while
+   the run was going, or the lua_State is gone. A NULL `sm` reads the
+   same way.
+
+   Only a `<data>` whose initializer declares a host type gets a reader.
+   One initialised from an expression whose type the document does not
+   state stays reachable the way it always was — through the datamodel
+   itself — because a reader that guessed would be wrong on the first
+   `<assign>`.
+
+   Strings are copied into the caller's buffer rather than returned as a
+   pointer: the value belongs to the lua_State and may be collected, and
+   this backend targets deployments with no allocator to hand one out
+   from. `len` follows the snprintf convention — it receives the FULL
+   length, so `*len >= cap` says the copy in `out` is a truncated prefix
+   and names the buffer that would hold it. Pass NULL for `len` when the
+   buffer is known to be large enough. `out` is always NUL-terminated
+   when the call returns true.
+
+   A `<data>` declared as an array or an object reads through the same
+   buffer shape, carrying the value as the JSON text the session's own
+   `JSON.stringify` produces (W3C SCXML B.2). That is the encoder the
+   other five backends ask for too, so one document does not describe
+   itself differently depending on which backend was generated. */
+{% for var in model.readable_variables %}
+{% if var.type == 'string' or var.type == 'json' %}
+bool {{ csym_prefix }}{{ model.name }}_{{ var.id | to_snake_case }}(const {{ csym_prefix }}{{ model.name }}_t *sm,
+{{ ' ' * (csym_prefix | length + model.name | length + (var.id | to_snake_case | length) + 11) }}char *out, size_t cap, size_t *len);
+{% elif var.type == 'int' %}
+bool {{ csym_prefix }}{{ model.name }}_{{ var.id | to_snake_case }}(const {{ csym_prefix }}{{ model.name }}_t *sm, int64_t *out);
+{% else %}
+bool {{ csym_prefix }}{{ model.name }}_{{ var.id | to_snake_case }}(const {{ csym_prefix }}{{ model.name }}_t *sm, bool *out);
+{% endif %}
+{% endfor %}
+{% endif %}
+
 {% if not model.has_parent_communication %}
+{% if has_native_actions %}
+/* W3C SCXML G.7: initialize SM to its initial state with the host that serves
+   every `<sce:action>` this document declares.
+
+   The five other backends get "the host supplied it" from their type systems —
+   an unimplemented interface method does not compile. C has no such check, so
+   the guarantee moves here: this refuses a vtable with a NULL member and
+   returns false, leaving the machine UNINITIALISED rather than running it into
+   a null call at the first act. The operations it requires are:
+{% for op in native_action_ops %}
+     {{ op }}
+{% endfor %}
+
+   Usage:
+
+     {{ native_actions_interface }} host = {
+{% for op in native_action_ops %}
+         .{{ op }} = my_{{ op }},
+{% endfor %}
+         .user_data = &my_state,
+     };
+     if (!{{ csym_prefix }}{{ model.name }}_init_with_actions(&sm, &host)) {
+         return;   // a member was NULL: the machine was NOT initialised
+     }
+
+   `actions` is copied into the machine, so the struct itself need not outlive
+   this call; whatever `user_data` points at must. */
+bool {{ csym_prefix }}{{ model.name }}_init_with_actions({{ csym_prefix }}{{ model.name }}_t *sm,
+                                                          const {{ native_actions_interface }} *actions);
+{% else %}
 /* Initialize SM to its initial state (W3C SCXML 3.3 + 3.6 compound descend).
    Must be called once before {{ csym_prefix }}{{ model.name }}_step / {{ csym_prefix }}{{ model.name }}_run. */
 void {{ csym_prefix }}{{ model.name }}_init({{ csym_prefix }}{{ model.name }}_t *sm);
+{% endif %}
+{% if model.needs_script_engine %}
+
+/* W3C SCXML C.2.3: initialize with the deployment's inbound BasicHTTP
+   endpoint, published as that processor's 'location' in `_ioprocessors`.
+   Documents that address their BasicHTTP `<send>` through
+   `_ioprocessors['basichttp'].location` need this instead of `_init`; a
+   machine initialised without it publishes no BasicHTTP entry, because no
+   listener serves it. */
+{{ init_rc }} {{ csym_prefix }}{{ model.name }}_init_with_basic_http({{ csym_prefix }}{{ model.name }}_t *sm,
+                                                            const char *basic_http_access_uri{% if has_native_actions %},
+                                                            const {{ native_actions_interface }} *actions{% endif %});
+{% endif %}
 {% else %}
 /* W3C SCXML 6.4: Initialize an invoked-child SM with parent-routing
    wired BEFORE the configuration entry walk runs. The parent's
@@ -432,11 +866,262 @@ void {{ csym_prefix }}{{ model.name }}_run({{ csym_prefix }}{{ model.name }}_t *
    `scheduler_.popReadyEvent()` in a loop. The caller drives the macrostep
    in its own loop: `while (!_is_in_final) { _tick(sm); _step(sm); }`. */
 void {{ csym_prefix }}{{ model.name }}_tick({{ csym_prefix }}{{ model.name }}_t *sm);
+
+/* W3C SCXML 6.2: How long until the next scheduled entry comes due, in
+   milliseconds; 0 when one is due now and -1 when the queue is empty. A host
+   sleeping on this wakes on the deadline instead of guessing an interval —
+   and an interval cannot straddle two fire times it was never told about. */
+int64_t {{ csym_prefix }}{{ model.name }}_time_until_next_scheduled_ms(const {{ csym_prefix }}{{ model.name }}_t *sm);
+
+/* §scxml-6.2.2: `_init` variant that installs the clock this machine measures
+   its `<send delay>` deadlines from.
+
+   A variant rather than a setter because `_init` zeroes the struct and then
+   runs the entry walk, whose `<onentry>` can already arm delayed sends: a clock
+   installed afterwards would leave the queue holding deadlines from two time
+   bases that do not compare. `sce_clock_monotonic()` is what plain `_init`
+   installs; `sce_clock_manual(0)` hands time to the host, which then drives the
+   machine with `_advance_time_ms` instead of `_tick`. */
+{{ init_rc }} {{ csym_prefix }}{{ model.name }}_init_with_clock({{ csym_prefix }}{{ model.name }}_t *sm, sce_clock_t clock{% if has_native_actions %}, const {{ native_actions_interface }} *actions{% endif %});
+
+/* §scxml-6.2: Move this machine's clock forward by `ms` and run whatever that
+   made due.
+
+   The host-owned twin of `_tick`: `_tick` asks a clock that moves on its own
+   what time it is, this one *sets* what time it is and then ticks. A machine
+   driven exclusively through here has no dependency on the load of the machine
+   it runs on — the same sequence of calls produces the same configuration every
+   time.
+
+   A no-op on a machine whose clock is not `sce_clock_manual`, and it says so on
+   stderr once: the caller believes it owns time and does not, so the events it
+   is waiting for would arrive on a schedule it did not choose. (C11 has no
+   exception to throw and this tier does not abort a host process.) */
+void {{ csym_prefix }}{{ model.name }}_advance_time_ms({{ csym_prefix }}{{ model.name }}_t *sm, uint64_t ms);
+
+/* §scxml-6.2.2: this machine's current reading of its clock, in milliseconds
+   since that clock's origin.
+
+   The absolute counterpart of `_time_until_next_scheduled_ms`'s relative
+   answer. A host owning time uses it to say where in the run it is; a host on
+   the wall clock uses it to correlate the machine's deadlines with its own
+   log. */
+uint64_t {{ csym_prefix }}{{ model.name }}_now_ms(const {{ csym_prefix }}{{ model.name }}_t *sm);
 {% endif %}
+
+/* W3C SCXML 3.1.2: how many events this machine took off the external queue
+   and discarded because no transition in any active state matched them.
+
+   Discarding is what the clause requires. This is the part the clause does not
+   cover: the host that queued the event cannot otherwise tell that outcome from
+   a handled one, because a self transition, a targetless internal transition
+   and a discard all leave the configuration alone. Comparing the count across a
+   drive turns "the machine ignored what I sent" into something the program can
+   see.
+
+   External queue only: an internal `<raise>` that matches nothing is discarded
+   too, but both ends of that are inside the document. */
+uint32_t {{ csym_prefix }}{{ model.name }}_discarded_external_events(const {{ csym_prefix }}{{ model.name }}_t *sm);
+
+/* W3C SCXML 3.1.2: the most recent event the count above recorded. Returns
+   false, leaving `*out` untouched, while that count is zero — a count says
+   something went nowhere; this says which thing did. */
+bool {{ csym_prefix }}{{ model.name }}_last_discarded_event(const {{ csym_prefix }}{{ model.name }}_t *sm,
+                            {{ csym_prefix }}{{ model.name }}_event_t *out);
+
+/* W3C SCXML B.2.8.1: events delivered with a payload that announced itself as
+   structure and that the datamodel could not read as one.
+
+   The clause requires the fallback: content the processor cannot interpret
+   becomes a space-normalized string. What it does not require — and what
+   nothing here used to provide — is any way for the host that SENT that
+   payload to learn its fields have stopped existing. The document reads
+   `_event.data.field`, gets nothing, assigns nothing, and the run continues.
+
+   This backend is where that matters most. An MCU consumer hands a payload in
+   from outside the document and has no console to notice a quiet nil on, and
+   this engine was the last of the six to route a host payload through a
+   decoder at all — measured 2026-08-16, before which a JSON payload was pasted
+   into Lua source and `_event.data` silently kept the PREVIOUS event's value.
+
+   Counts only the reading a host can act on. Prose delivered as text is the
+   ladder working (W3C test 562) and is not counted, because a diagnostic that
+   fires when nothing is wrong is one nobody reads. */
+uint32_t {{ csym_prefix }}{{ model.name }}_undecodable_payloads(const {{ csym_prefix }}{{ model.name }}_t *sm);
+
+/* W3C SCXML B.2.8.1: the most recent event the count above recorded. Returns
+   false, leaving `*out` untouched, while that count is zero — a count says
+   something was lost; this says which delivery lost it. */
+bool {{ csym_prefix }}{{ model.name }}_last_undecodable_payload(const {{ csym_prefix }}{{ model.name }}_t *sm,
+                            {{ csym_prefix }}{{ model.name }}_event_t *out);
+
+/* W3C SCXML 3.13: external events the host sent that this machine never looked
+   at, because it had already stopped.
+
+   Appendix D's main event loop exits when the machine reaches a top-level
+   final state, and the clause is explicit that the interpreter is then done.
+   Refusing the event is correct; being unable to say it happened is what this
+   counts.
+
+   It is the count that separates the third explanation from the other two. A
+   host that sent an event and saw nothing move has three candidates: dequeued
+   and matched nothing (`_discarded_external_events`), dequeued and a
+   transition's guard was false (nothing moves), or never dequeued at all
+   (this). */
+uint32_t {{ csym_prefix }}{{ model.name }}_unseen_external_events(const {{ csym_prefix }}{{ model.name }}_t *sm);
+
+/* W3C SCXML 3.13: the most recent event the count above recorded. Returns
+   false, leaving `*out` untouched, while that count is zero. */
+bool {{ csym_prefix }}{{ model.name }}_last_unseen_event(const {{ csym_prefix }}{{ model.name }}_t *sm,
+                            {{ csym_prefix }}{{ model.name }}_event_t *out);
+
+/* W3C SCXML 3.12.2: `error.*` events this engine raised that no transition in
+   any active state answered.
+
+   The clause requires the processor to signal its own failures as `error.*`
+   events on the internal queue, and says in the same breath that "they are
+   ignored if no transition is found that matches them". Being ignored is the
+   clause. Being unable to say it happened is not, and the difference matters
+   to exactly one party: the host, which did not write the document, cannot see
+   the failure anywhere in the configuration, and is the only one positioned to
+   do something about it.
+
+   The sibling of `_discarded_external_events` above, and deliberately a
+   separate count. That one stops at the external queue because an author's
+   unmatched `<raise>` has both ends inside the document; an error event's
+   sender is this engine, so the same reasoning does not reach it. An author's
+   `<raise>` that matches nothing is still not counted here, and neither is an
+   error the document did answer. */
+uint32_t {{ csym_prefix }}{{ model.name }}_unhandled_error_events(const {{ csym_prefix }}{{ model.name }}_t *sm);
+
+/* W3C SCXML 3.12.2: the most recent error event the count above recorded.
+   Returns false, leaving `*out` untouched, while that count is zero.
+
+   Which error it was narrows a silent failure to a class: `error.execution` is
+   the document's own executable content failing, `error.communication` is a
+   `<send>` or `<invoke>` that could not reach its target — two different
+   repairs, and a count alone separates neither. */
+bool {{ csym_prefix }}{{ model.name }}_last_unhandled_error(const {{ csym_prefix }}{{ model.name }}_t *sm,
+                            {{ csym_prefix }}{{ model.name }}_event_t *out);
+
+/* W3C SCXML 3.12.2 from the other side: `error.*` events this engine refused
+   to queue because the handler that raised them had been failing for
+   SCE_MAX_ERROR_CASCADE_DEPTH links running.
+
+   The clause says an error event nothing matches is ignored, and
+   `_unhandled_error_events` above is that case. This is its opposite and its
+   worse half: the document DOES match the error, and the handler fails the
+   same way every time. The failure raises `error.execution`, the same
+   transition answers it, and the drain never empties. Nothing in the clause
+   covers it — it bounds what happens to an error nobody wants, not an error
+   everybody wants and nobody can handle.
+
+   Left to run, that is not a hang: it is a core at 100% forever. Measured
+   2026-08-19 on a two-line document, the Python engine turned 37,000 links a
+   second while its configuration never moved and the machine still reported
+   itself running — the exact reading an unattended supervisor takes as
+   healthy.
+
+   A document that fails five hundred times cleanly counts zero here: the chain
+   is measured from handler to handler, not from failure to failure, and any
+   other internal event resets it. */
+uint32_t {{ csym_prefix }}{{ model.name }}_error_cascade_events(const {{ csym_prefix }}{{ model.name }}_t *sm);
+
+/* W3C SCXML 3.12.2: the most recent error event the count above refused.
+   Returns false, leaving `*out` untouched, while that count is zero.
+
+   Which error it was names the repair: `error.execution` is a handler whose
+   own executable content fails, `error.communication` one that answers an
+   unreachable target by talking to it again. */
+bool {{ csym_prefix }}{{ model.name }}_last_error_cascade_event(const {{ csym_prefix }}{{ model.name }}_t *sm,
+                            {{ csym_prefix }}{{ model.name }}_event_t *out);
+
+/* W3C SCXML 3.13: how many macrosteps this engine stopped short because their
+   chain was still going after SCE_MAX_MACROSTEP_MICROSTEPS microsteps.
+
+   The clause says a macrostep ends in a configuration where nothing is enabled
+   by NULL and no internal event is left, and the specification's Principles
+   and Constraints add that a macrostep MAY NOT terminate and that this "is
+   currently allowed". A document with a cyclic eventless transition is
+   therefore not malformed, and neither is one whose `<raise>` answers itself;
+   both are documents whose macrostep is infinite, and an engine that runs
+   either to the letter never returns.
+
+   Both are counted here, because they are the same fact to a host: the
+   macrostep it just drove did not reach a stable configuration. Which chain it
+   was is what `_last_truncated_macrostep_state` points at.
+
+   This engine does not run it to the letter. It stops, and this count is how a
+   host learns that it did — because every other reading says the opposite:
+   `_current_state` answers, the machine reports itself running, and the call
+   returned at once. The configuration behind those answers is not the stable
+   one the clause promises; it is wherever the hundredth microstep happened to
+   land, and the document has more to do that this engine will not do.
+
+   A document whose chain is a hundred microsteps long and then settles counts
+   zero: the ceiling is on microsteps TAKEN, and the macrostep is only counted
+   here when the loop still had work after them — a transition enabled by NULL,
+   or an event left on the internal queue. */
+uint32_t {{ csym_prefix }}{{ model.name }}_truncated_macrosteps(const {{ csym_prefix }}{{ model.name }}_t *sm);
+
+/* W3C SCXML 3.13: the state this engine was in when it last stopped a
+   macrostep that way. Returns false, leaving `*out` untouched, while the count
+   above is zero.
+
+   Which state it was is the whole repair: an endless chain is a closed walk
+   through the state graph, and this names one state on it — the source of the
+   transition that was refused, which for the internal-event branch is the
+   source of the one the drain last took. */
+bool {{ csym_prefix }}{{ model.name }}_last_truncated_macrostep_state(const {{ csym_prefix }}{{ model.name }}_t *sm,
+                            {{ csym_prefix }}{{ model.name }}_state_t *out);
 
 /* W3C SCXML 5.3: Enqueue an event onto the internal (high-priority) queue. */
 void {{ csym_prefix }}{{ model.name }}_raise({{ csym_prefix }}{{ model.name }}_t *sm,
                             const {{ csym_prefix }}{{ model.name }}_event_with_meta_t *evt);
+
+/* W3C SCXML 3.12.2: raise an `error.*` event this engine itself produced,
+   carrying what failed.
+
+   The single way generated code raises a platform error, so the two things
+   such an event owes its reader are filled in one place rather than at each
+   site that happens to remember:
+
+     * `_event.type` is "platform". Every raise site here `memset` the carrier
+       and set only `.event`, leaving the type field empty — an event the
+       PROCESSOR raised carried no classification at all.
+     * `_event.data` carries `message`. A document that answers error.execution
+       was handed an empty string, so it could see THAT something failed and
+       never WHAT.
+
+   `message` names the failing construct and is a literal formed at generation
+   time, never the script engine's own error text — this backend has no
+   allocator to build one with.
+
+   `send_id` is for the `<send>` failures W3C SCXML 6.2.4 requires it on
+   (test 332); it is the empty string everywhere else. C has no default
+   arguments, so the plain form below forwards to this one rather than the
+   two spelling the body twice. */
+SCE_C_UNUSED static inline void {{ csym_prefix }}{{ model.name }}_raise_platform_error_with_send_id(
+        {{ csym_prefix }}{{ model.name }}_t *sm,
+        {{ csym_prefix }}{{ model.name }}_event_t event,
+        const char *message,
+        const char *send_id) {
+    {{ csym_prefix }}{{ model.name }}_event_with_meta_t _pe;
+    memset(&_pe, 0, sizeof(_pe));
+    _pe.event = event;
+    sce_copy_bounded_data(_pe.data, message);
+    sce_copy_bounded_n(_pe.type, "platform", (size_t)SCE_MAX_EVENT_TYPE_LEN);
+    sce_copy_bounded_id(_pe.send_id, send_id);
+    {{ csym_prefix }}{{ model.name }}_raise(sm, &_pe);
+}
+
+/* The common form: no sendid to carry. */
+SCE_C_UNUSED static inline void {{ csym_prefix }}{{ model.name }}_raise_platform_error(
+        {{ csym_prefix }}{{ model.name }}_t *sm,
+        {{ csym_prefix }}{{ model.name }}_event_t event,
+        const char *message) {
+    {{ csym_prefix }}{{ model.name }}_raise_platform_error_with_send_id(sm, event, message, "");
+}
 
 /* W3C SCXML 6.2: Enqueue an event onto the external (low-priority) queue. */
 void {{ csym_prefix }}{{ model.name }}_raise_external({{ csym_prefix }}{{ model.name }}_t *sm,
@@ -448,7 +1133,7 @@ void {{ csym_prefix }}{{ model.name }}_raise_external({{ csym_prefix }}{{ model.
    natively — each binds the event name, the payload tag, and the union
    member in a single call so the name↔type pairing cannot be constructed
    inconsistently (the C twin of the Rust per-event `Engine<Policy>`
-   wrappers). The watching-zenoh MCU consumer decodes received bytes into
+   wrappers). The downstream MCU consumer decodes received bytes into
    the per-event payload struct and calls the matching entry; everything
    inside is SCE (zenoh/keyexpr never enters). */
 {{ event_payload_entry_decls }}
@@ -464,6 +1149,14 @@ void {{ csym_prefix }}{{ model.name }}_raise_external({{ csym_prefix }}{{ model.
    matching transition shape — same observable as cpp's SendHelper for
    unknown event targets). */
 void {{ csym_prefix }}{{ model.name }}_raise_external_by_name({{ csym_prefix }}{{ model.name }}_t *sm, const char *event_name);
+
+/* W3C SCXML 6.4: autoforward entry point. §6.4 requires the parent to
+   forward an *exact copy* of the event, so this sibling of
+   `_raise_external_by_name` takes the source event's `_event` fields in a
+   transport-neutral carrier (the child's own event record type is
+   unrelated to the parent's). Names absent from this SM's enum drop
+   silently, same as the by-name form. */
+void {{ csym_prefix }}{{ model.name }}_raise_external_forwarded({{ csym_prefix }}{{ model.name }}_t *sm, const sce_forwarded_event_t *fwd);
 
 /* W3C SCXML 6.4 / 3.4 (test236): natural-termination exit walk.
    Runs `<onexit>` on every active state so a `<final>` state with an
@@ -484,36 +1177,153 @@ uint32_t {{ csym_prefix }}{{ model.name }}_active_states(const {{ csym_prefix }}
 bool {{ csym_prefix }}{{ model.name }}_in_state(const {{ csym_prefix }}{{ model.name }}_t *sm, {{ csym_prefix }}{{ model.name }}_state_t s);
 bool {{ csym_prefix }}{{ model.name }}_is_in_final_state(const {{ csym_prefix }}{{ model.name }}_t *sm);
 
+/* W3C SCXML 3.3: the document's own name for `s`, or "" for a value outside
+   this document's enumeration.
+
+   A host that persists where a machine was has to write it down as TEXT: the
+   enum above is a build artefact of one binary, and the process that resumes
+   is a different one. This publishes the name and `_state_from_name` reads it
+   back, which is what lets a journal survive its own record and reach
+   `_init_at`. The pointer is to a string literal with static storage — the
+   caller neither frees nor outlives it. */
+const char *{{ csym_prefix }}{{ model.name }}_state_name({{ csym_prefix }}{{ model.name }}_state_t s);
+
+/* W3C SCXML 3.3: the read half of the pair above. Writes the state `name`
+   names through `out` and answers true; answers false, leaving `*out`
+   untouched, for a name this document does not declare (and for a NULL
+   argument either way).
+
+   False rather than a guess. A name guessed at is how a restore reaches a
+   configuration nobody recorded — and the refusal is what makes a typo in a
+   journal a reported failure instead of a machine quietly somewhere else. */
+bool {{ csym_prefix }}{{ model.name }}_state_from_name(const char *name, {{ csym_prefix }}{{ model.name }}_state_t *out);
+
+/* W3C SCXML 3.11: a human-readable reason, for the message a refusal carries. */
+const char *{{ csym_prefix }}{{ model.name }}_configuration_rejection_text(
+    {{ csym_prefix }}{{ model.name }}_configuration_rejection_t r);
+
+/* W3C SCXML 3.11: is this set of states a CONFIGURATION of the
+   document?
+
+   Pure — reads the static hierarchy and nothing else, touches no machine, and
+   is public because a host can then ask before it commits. Cost is quadratic
+   in `count`, which is a handful of states, and this runs once per restore:
+   the shape is chosen for being obviously right rather than for being fast,
+   exactly as its five twins are.
+
+   Unlike them it takes no "current state" argument, and there is none to take:
+   this backend keeps no current-state shadow (see `_active_states` above —
+   `_get_current_state` is gone on purpose, because single-leaf semantics break
+   for `<parallel>`). So the two current-state rules the other engines check
+   have nothing here to check them against, and a host journalling from this
+   backend has no leaf to journal. What it does check is every rule about the
+   set itself, which is the whole of what this backend can be in. */
+{{ csym_prefix }}{{ model.name }}_configuration_rejection_t {{ csym_prefix }}{{ model.name }}_validate_configuration(
+    const {{ csym_prefix }}{{ model.name }}_state_t *configuration, size_t count);
+
+/* W3C SCXML 3.2: bring a machine up IN a configuration this document already
+   describes, without running the `<onentry>` actions an earlier run already
+   ran.
+
+   ## What it is for
+
+   A host that persisted where a machine was and is bringing it back in a new
+   process. `_init` replays the document from its initial state, which runs
+   every `<onentry>` on the way in — a resumed session would send its greeting
+   twice, re-arm timers, and re-issue acts whose recipients already received
+   them.
+
+   ## Why it is an `_init` variant rather than a door on a live machine
+
+   On this backend construction and entry are ONE call: `_init` memsets the
+   struct and then walks. There is no moment between them for a host to hand a
+   configuration in, which is why the set arrives as an argument — the same
+   reason the host-processor registry and the clock do. Its siblings have two
+   calls and so have a door.
+
+   ## What it refuses
+
+   Every set that is not a configuration of THIS document — see
+   `_validate_configuration` for the rules and the rejection enum for what each
+   refusal names. Validation runs BEFORE the memset, so a refused call leaves
+   the caller's storage exactly as it was; coming up "near" the requested
+   configuration is the one outcome this must never produce, because a host has
+   no way to detect it afterwards.
+
+   ## What it does not do
+
+   No `<onentry>`, no `<onexit>`, and no macrostep: the configuration handed in
+   was already a settled one, and running the loop here could take an eventless
+   transition the earlier run had no reason to take and fire the `<send>`s on
+   the way. The host drives on with `_step` / `_tick` as it otherwise would.
+   The datamodel is declared with its document defaults, not restored — a host
+   puts its saved values back itself.
+
+   The C twin of `Engine::enter_at` (Rust), `enterAt` (C++ / Kotlin), `EnterAt`
+   (Go) and `enter_at` (Python).
+
+   Takes the full argument set every `_init` variant splits between them: a
+   resume is the one call where a host has all of them to hand, and one
+   function is better than the product of the wrappers. */
+{{ csym_prefix }}{{ model.name }}_configuration_rejection_t {{ csym_prefix }}{{ model.name }}_init_at(
+    {{ csym_prefix }}{{ model.name }}_t *sm,
+    const {{ csym_prefix }}{{ model.name }}_state_t *configuration, size_t count{% if model.needs_event_scheduler %},
+    sce_clock_t clock{% endif %}{% if model.needs_script_engine %},
+    const char *basic_http_access_uri{% endif %}{% if model.host_processor_types %},
+    const sce_host_processor_registry_t *host_processors{% endif %}{% if has_native_actions %},
+    const {{ native_actions_interface }} *actions{% endif %});
+
 /* W3C SCXML 3.3: Compile-time policy queries (mirror C++ `*Policy::*`). */
 {{ csym_prefix }}{{ model.name }}_state_t {{ csym_prefix }}{{ model.name }}_initial_state(void);
 bool {{ csym_prefix }}{{ model.name }}_is_final_state({{ csym_prefix }}{{ model.name }}_state_t s);
 
 {% if model.on_sample_links %}
-/* watching-zenoh RFC §synth-5-E sample-callback codegen wire-up — per-link Sample
+/* SCE Protocol-Synthesis RFC §synth-5-E sample-callback codegen wire-up — per-link Sample
    delivery surface. Host's link RX path (zenoh-pico subscriber,
    custom_tcp dispatch loop, …) calls the matching function for
    every Sample arriving on the named link. The body iterates the
-   active configuration, fires the user-supplied callback (when
-   `<sce:on-sample callback>` is declared with a `c:`-prefix
-   axis, which is consumer-gated — the callback attribute is
-   `rust:`-only and is silently ignored on the C11 backend),
-   then enqueues `event="..."` onto the
-   external queue (the event is always raised). Sample
-   borrow drops at function exit; slot return is the host's
-   responsibility per the `sce_sub_callback_t` contract in
-   `<sce/sample.h>`. */
+   active configuration, fires the user-supplied callback when
+   `<sce:on-sample callback="c:...">` names one, then enqueues
+   `event="..."` onto the external queue (the event is always
+   raised, callback or not). A `rust:`-prefixed callback names a
+   module path with no C lowering and is skipped here, exactly as
+   the Rust backend skips a `c:` one. Sample borrow drops at
+   function exit; slot return is the host's responsibility per the
+   `sce_sub_callback_t` contract in `<sce/sample.h>`. */
 {% for link in model.on_sample_links %}
 void {{ csym_prefix }}{{ model.name }}_deliver_link_{{ link | to_snake_case }}_sample(
     {{ csym_prefix }}{{ model.name }}_t *sm,
     const sce_sample_t *sample);
 {% endfor %}
+{# Host-supplied callback prototypes. Declared here rather than left to
+   the host so the call site below is never an implicit declaration (a
+   hard error since C99) and so a host definition whose signature does
+   not match trips a conflicting-declaration error at its own compile
+   rather than linking into a mismatched call. The shape is
+   `sce_sub_callback_t` verbatim, including the typestate annotation, so
+   the same function can also be registered directly on a link's RX path
+   without an adapter — and so Clang's consumed analysis reaches a
+   callback that lets the borrow escape. Deduplicated: two states may
+   name the same callback on the same link. #}
+{% set seen_c_callbacks = namespace(names=[]) %}
+{% for state_id, state in model.states | dictsort %}
+{% for block in state.on_sample_blocks %}
+{% if block.callback and (block.callback | callback_lang) == "c" %}
+{% set cb = block.callback | extern_callback_path %}
+{% if cb not in seen_c_callbacks.names %}
+{% set seen_c_callbacks.names = seen_c_callbacks.names + [cb] %}
+void {{ cb }}(const sce_sample_t *sample SCE_PARAM_TYPESTATE(unconsumed), void *ctx);
+{% endif %}
+{% endif %}
+{% endfor %}
+{% endfor %}
 
 {% endif %}
 /* ── Compile-time invariants ──────────────────────────────────────── */
-_Static_assert(SCE_MAX_EVENTS >= 1u, "SCE_MAX_EVENTS must be >= 1");
-_Static_assert(SCE_MAX_ID_LEN >= 16u, "SCE_MAX_ID_LEN too small for W3C event names");
-_Static_assert((unsigned){{ csym_prefix | upper }}{{ model.name | upper }}_STATE_COUNT <= 32u,
-               "Configuration bitmap is uint32_t; multi-word array lands when a fixture exceeds 32 states");
+SCE_STATIC_ASSERT(SCE_MAX_EVENTS >= 1u, "SCE_MAX_EVENTS must be >= 1");
+SCE_STATIC_ASSERT(SCE_MAX_ID_LEN >= 16u, "SCE_MAX_ID_LEN too small for W3C event names");
+SCE_STATIC_ASSERT((unsigned){{ csym_prefix | upper }}{{ model.name | upper }}_STATE_COUNT <= 32u,
+                  "Configuration bitmap is uint32_t; multi-word array lands when a fixture exceeds 32 states");
 
 #ifdef __cplusplus
 }

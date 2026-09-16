@@ -15,8 +15,26 @@ namespace SCE {
  * All engine-specific dispatch is consolidated in ScriptEngineProvider.cpp.
  *
  * Build configuration:
- *   cmake -DSCE_SCRIPT_ENGINE=quickjs  (default)
+ *   cmake -DSCE_SCRIPT_ENGINE=quickjs  (default; requires SCE_ENABLE_QUICKJS=ON)
  *   cmake -DSCE_SCRIPT_ENGINE=lua      (requires SCE_ENABLE_LUA=ON)
+ *
+ * The two choices are not interchangeable: they run different languages. A
+ * document declaring `datamodel="ecmascript"` is evaluated by QuickJS as
+ * ECMAScript and by LuaEngine as Lua-after-rewriting, so which engine a build
+ * selects decides what an expression MEANS. That is why the default is
+ * QuickJS: measured against `tests/ecmascript/ecma262_semantics.json`, it
+ * answers every case, and the lua selection does not.
+ *
+ * Selecting lua is still allowed and still builds. What it costs is written
+ * down case by case in `tests/ecmascript/lua_engine_divergences.json`, which
+ * `ecmascript_semantics_test` holds to in both directions — so the cost
+ * cannot quietly grow, and cannot quietly be overstated either. Do not
+ * restate the count here: the sentence that used to had gone stale by 18
+ * cases before anyone noticed.
+ *
+ * Keep this comment and the cache entry in `sce/CMakeLists.txt` in step. They
+ * disagreed once, and a reader then concluded an expression had been checked
+ * against ECMAScript when it had not.
  *
  * Adding a new engine:
  *   1. Implement IScriptEngine + ISessionManager

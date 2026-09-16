@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "core/LogMacros.h"
 #include "core/HierarchicalStateHelper.h"
 #include "core/InvokeHelper.h"  // §scxml-6.4: Shared invoke lifecycle logic (Zero Duplication)
+#include "core/LogMacros.h"
 #include "events/IEventDispatcher.h"
 #include "model/IStateNode.h"
 #include "model/SCXMLModel.h"
@@ -16,10 +16,9 @@
 #include "runtime/IExecutionContext.h"
 #include "runtime/InvokeExecutor.h"
 #include "runtime/StateHierarchyManager.h"
-#include "runtime/StateMachineEventRaiser.h"
 #include "runtime/TransitionDomainCalculator.h"
 #include "scripting/IScriptEngine.h"
-#include "states/ConcurrentStateTypes.h"  // W3C SCXML Appendix D.2: TransitionDescriptorString
+#include "states/ConcurrentStateTypes.h"  // §scxml-D-Datatypes: TransitionDescriptorString
 #include <atomic>
 #include <functional>
 #include <map>
@@ -133,6 +132,23 @@ public:
      */
     void setSessionFilePath(const std::string &filePath);
 
+    /**
+     * @brief Declare the inbound BasicHTTP endpoint serving this session
+     *
+     * §scxml-C-2-3: the Basic HTTP Event I/O Processor entry of
+     * `_ioprocessors` holds the address external components post events to.
+     * That address belongs to the deployment — SCE is embedded, and whoever
+     * runs the HTTP listener chooses where it listens — so the engine takes it
+     * from here rather than guessing one. Leaving it unset means no BasicHTTP
+     * endpoint is serving the session, and no entry is published.
+     *
+     * Must be called before the session starts, since `_ioprocessors` is
+     * populated once during session setup.
+     *
+     * @param accessUri URI external components post events to
+     */
+    void setBasicHttpAccessUri(const std::string &accessUri);
+
     ~StateMachine();
 
     /**
@@ -209,12 +225,40 @@ public:
     void stop();
 
     /**
-     * @brief Process an event
+     * @brief Process an event a host is handing to this machine
+     *
+     * §scxml-3.12 makes this an external event, so W3C SCXML Appendix D's
+     * preliminary step — the `<finalize>` for the invoke it came from, and the
+     * autoforward copy to every child that asked for one — runs before
+     * transitions are selected for it, exactly as it would had the event come
+     * off the external queue. Callers that are themselves the event raiser
+     * dispatching a queued event want `processDispatchedEvent` instead: the
+     * context is already established there, and an internal event that came
+     * through here would be forwarded to children that must never see it.
+     *
      * @param eventName Name of the event to process
      * @param eventData Optional event data (JSON string)
      * @return Transition result
      */
     TransitionResult processEvent(const std::string &eventName, const std::string &eventData = "");
+
+    /**
+     * @brief Process an event the EventRaiser has already dequeued
+     *
+     * The entry point for raiser callbacks: it reads the queue category, the
+     * origin session and the rest of the §scxml-5.10 metadata from the
+     * thread-local context the raiser established around this dispatch,
+     * instead of declaring the event external the way `processEvent` does. An
+     * internal event reaching the machine this way is therefore kept out of
+     * the autoforward set by the queue it was raised onto, which is the
+     * distinction W3C SCXML Appendix D draws and not one the event's name
+     * could express.
+     *
+     * @param eventName Name of the event to process
+     * @param eventData Optional event data (JSON string)
+     * @return Transition result
+     */
+    TransitionResult processDispatchedEvent(const std::string &eventName, const std::string &eventData = "");
 
     /**
      * @brief Process an event with origin tracking for W3C SCXML finalize support
@@ -285,7 +329,7 @@ public:
     /**
      * @brief Get enabled transitions from last event processing
      *
-     * W3C SCXML Appendix D.2: Returns all transitions that were enabled before conflict resolution.
+     * §scxml-D-removeConflictingTransitions: Returns all transitions that were enabled before conflict resolution.
      * For parallel states, this includes transitions from all regions that could fire for the event.
      * Interactive visualizer support for showing transition conflict resolution process.
      *
@@ -296,7 +340,7 @@ public:
     /**
      * @brief Get optimal transition set after conflict resolution
      *
-     * W3C SCXML Appendix D.2: Returns transitions selected after applying conflict resolution algorithm.
+     * §scxml-D-removeConflictingTransitions: Returns transitions selected after applying conflict resolution algorithm.
      * These are the transitions that were actually executed in the last microstep.
      * Interactive visualizer support for showing which transitions were chosen.
      *
@@ -368,6 +412,72 @@ public:
         int failedTransitions = 0;
         std::string currentState;
         bool isRunning = false;
+        /// §scxml-3.12.2: `error.*` events the raiser refused because an error
+        /// handler kept raising them. The clause bounds what happens to an
+        /// error nobody answers; this is the one a handler answers with the
+        /// same failure every time, which nothing in the specification bounds
+        /// and which used to mean `processEvent` never came back.
+        uint32_t errorCascadeEvents = 0;
+        /// The most recent event that count refused, empty while it is zero.
+        std::string lastErrorCascadeEvent;
+        /// Macrosteps this engine stopped short because their chain was still
+        /// going after `MAX_MACROSTEP_MICROSTEPS` microsteps — an eventless
+        /// transition still enabled, or an event still on the internal queue.
+        /// The clause promises a stable configuration at the end of a
+        /// macrostep, and the specification's Principles and Constraints add
+        /// that such an end need not exist ("A macrostep may not [terminate]
+        /// ... This is currently allowed"). When this count moves, the
+        /// configuration `currentState` reports is not a stable one — and
+        /// nothing else in this struct says so.
+        uint32_t truncatedMacrosteps = 0;
+        /// The state the drain was in when that last happened, empty while the
+        /// count is zero. One state on the eventless cycle that could not
+        /// settle, which is where an author looks first.
+        std::string lastTruncatedMacrostepState;
+        /// §scxml-B-2-8-1: events delivered with a payload that announced
+        /// itself as structure and that the datamodel could not read as one.
+        ///
+        /// The clause requires the fallback — content the processor cannot
+        /// interpret becomes a space-normalized string — and says nothing
+        /// about telling anyone. So the document reads `_event.data.field`,
+        /// gets nothing, assigns nothing, and the run carries on. Measured
+        /// 2026-08-22 on three independent Lua implementations: a payload in
+        /// Lua's own table syntax emptied every variable the receiving
+        /// transition assigned, including the one that primed the next
+        /// session, and no gate anywhere went red.
+        ///
+        /// Counts only the reading a host can act on. Prose arriving as text
+        /// is the ladder working (W3C test 562) and is not counted, because a
+        /// diagnostic that fires when nothing is wrong is one nobody reads.
+        uint32_t undecodablePayloads = 0;
+        /// The name of the most recent event that count refused to read,
+        /// empty while it is zero. A count says something was lost; this says
+        /// which delivery lost it.
+        std::string lastUndecodablePayloadEvent;
+        /// §scxml-3.13: external events handed to this machine after it had
+        /// stopped, which it therefore never looked at.
+        ///
+        /// Appendix D's main event loop exits when the machine reaches a
+        /// top-level final state, and the clause is explicit that the
+        /// interpreter is then done. Refusing the event is correct; being
+        /// unable to say it happened is what this counts.
+        ///
+        /// This engine already tells the caller — `processEvent` returns a
+        /// `TransitionResult` whose `success` is false and whose
+        /// `errorMessage` names the reason. The count exists because the six
+        /// generated engines have no return value to carry it, and a host
+        /// polling statistics must read the same fact on every backend.
+        ///
+        /// It is the count that separates the third explanation from the
+        /// other two. A host that sent an event and saw nothing move has
+        /// three candidates: it was dequeued and matched nothing
+        /// (`failedTransitions` / the AOT `discardedExternalEvents`), it was
+        /// dequeued and a transition's guard was false (nothing moves), or it
+        /// was never dequeued at all (this).
+        uint32_t unseenExternalEvents = 0;
+        /// The name of the most recent event that count recorded, empty while
+        /// it is zero.
+        std::string lastUnseenEventName;
     };
 
     Statistics getStatistics() const;
@@ -491,7 +601,9 @@ public:
      * @brief Get the last error from SCXML loading/parsing
      * @return Error detail string, empty if no error
      */
-    const std::string &getLastLoadError() const { return lastLoadError_; }
+    const std::string &getLastLoadError() const {
+        return lastLoadError_;
+    }
 
     /**
      * @brief Restore state machine from snapshot (complete restoration)
@@ -645,7 +757,7 @@ private:
     std::string lastTransitionSource_{};
     std::string lastTransitionTarget_{};
 
-    // W3C SCXML Appendix D.2: Conflict resolution transition tracking (for interactive visualizer)
+    // §scxml-D-removeConflictingTransitions: Conflict resolution transition tracking (for interactive visualizer)
     std::vector<TransitionDescriptorString>
         lastEnabledTransitions_{};  // All enabled transitions before conflict resolution
     std::vector<TransitionDescriptorString> lastOptimalTransitions_{};  // Optimal set after conflict resolution
@@ -653,13 +765,66 @@ private:
     size_t eventlessRecursionDepth_ = 0;  // Track recursion depth for eventless transitions
     size_t lastTransitionDepth_ = 0;      // Track depth where lastTransition was set
 
+    /// How many microsteps one macrostep may take before this engine stops
+    /// taking them. The clause defines a macrostep as a chain ending where
+    /// nothing is enabled by NULL and no internal event is left, and the
+    /// specification's Principles and Constraints say that chain need not
+    /// exist ("A macrostep may not [terminate] ... This is currently
+    /// allowed"), so the ceiling is this engine declining a document the
+    /// specification permits — which is why `Statistics::truncatedMacrosteps`
+    /// publishes the decline instead of a log line carrying it alone. It is
+    /// the AOT engine's `MAX_MACROSTEP_MICROSTEPS`, the same number for the
+    /// same reason.
+    ///
+    /// One budget for the whole inner loop, not one per branch: a document
+    /// that alternates an eventless transition with a `<raise>` is one chain,
+    /// and budgeting the branches separately leaves it unbounded.
+    ///
+    /// Ten times the error-cascade depth, and deliberately not equal to it.
+    /// This is the backstop; the cascade ceiling is a diagnostic that names
+    /// the error a handler keeps failing on, and a backstop that fires first
+    /// makes that diagnostic unreachable — measured 2026-08-20, with both at a
+    /// hundred a handler that raises one event of its own per link was cut at
+    /// fifty links here and the cascade count never moved.
+    static constexpr int MAX_MACROSTEP_MICROSTEPS = 1000;
+
+    /// Macrosteps stopped at that ceiling with the chain still going, and the
+    /// state the drain was in when it last happened. `macrostepTruncated_`
+    /// exists because the drain is reached from more than one place per
+    /// macrostep; it is cleared where the algorithm starts a macrostep, which
+    /// for this engine is the host's call.
+    uint32_t truncatedMacrosteps_ = 0;
+    std::string lastTruncatedMacrostepState_;
+    bool macrostepTruncated_ = false;
+    /// §scxml-B-2-8-1: deliveries whose payload announced structure and could
+    /// not be read as one, and the name of the last such event. Reported
+    /// through `Statistics::undecodablePayloads` — the count lives here
+    /// because the executor binds one event at a time and this is the object a
+    /// host holds.
+    uint32_t undecodablePayloads_ = 0;
+    std::string lastUndecodablePayloadEvent_;
+    /// §scxml-3.13: external events refused because this machine had stopped,
+    /// and the name of the last one. Reported through
+    /// `Statistics::unseenExternalEvents`.
+    uint32_t unseenExternalEvents_ = 0;
+    std::string lastUnseenEventName_;
+    /// Microsteps this macrostep has taken, on eventless transitions and on
+    /// internal events alike. A member rather than a loop counter because this
+    /// engine's chain is recursive — executing one microstep re-enters the
+    /// macrostep loop, so a local counter is per nesting level and never
+    /// reaches any ceiling — and because the two branches share it: the
+    /// internal half is spent through the `MicrostepBudget` this machine lends
+    /// its raiser, which owns the queue those microsteps come off.
+    uint32_t macrostepMicrostepsTaken_ = 0;
+
     // SCXML model
     std::shared_ptr<SCXMLModel> model_;
 
     // Script engine integration
     IScriptEngine &scriptEngine_;
     std::string sessionId_;
-    std::string lastLoadError_;  // Parser error detail from loadSCXMLFromString
+    std::string basicHttpAccessUri_;  // Inbound BasicHTTP endpoint, empty when none is deployed
+    std::string lastLoadError_;       // Parser error detail from loadSCXMLFromString
     std::string currentEventData_;
     std::string currentOriginSessionId_;  // W3C SCXML Test 252: Track origin for cancelled invoke filtering
     bool jsEnvironmentReady_ = false;
@@ -754,7 +919,19 @@ private:
     bool setupAndActivateParallelState(ConcurrentStateNode *parallelState, const std::string &stateId);
 
     bool evaluateCondition(const std::string &condition);
-    bool enterState(const std::string &stateId);
+
+    /**
+     * @brief Enter a state.
+     *
+     * @param stateId State to enter.
+     * @param pathChild The child of @p stateId the entry set already holds,
+     *        when @p stateId is only an ANCESTOR of the entry target. Such a
+     *        state is entered without its default initial child; a `<parallel>`
+     *        still gives its OTHER regions theirs. Empty means @p stateId is
+     *        the target and takes its defaults. The definition carries the
+     *        citation; see `StateHierarchyManager::enterState`.
+     */
+    bool enterState(const std::string &stateId, const std::string &pathChild = "");
     bool exitState(const std::string &stateId);
 
     /**
@@ -762,6 +939,36 @@ private:
      * @return true if an eventless transition was executed, false otherwise
      */
     bool checkEventlessTransitions();
+
+    /// Record that a macrostep was stopped at `MAX_MACROSTEP_MICROSTEPS` with
+    /// its chain still going. Shared by every bounded loop — `start()`'s, the
+    /// one inside a transition's macrostep, and the budget this machine lends
+    /// its event raiser — so all of them report the same fact the same way.
+    void recordTruncatedMacrostep();
+
+    /// §scxml-3.13: may the macrostep now in progress take another microstep?
+    ///
+    /// Publishes the refusal on the way out, because the parties that ask —
+    /// the internal-queue drains and the raiser holding the queue — are not
+    /// the ones that own the ceiling.
+    bool mayTakeMicrostep();
+
+    /// W3C SCXML Appendix D (mainEventLoop): drain the internal queue, bounded
+    /// by the macrostep budget.
+    ///
+    /// One function for every site that completes a macrostep, so all of them
+    /// bound the chain the same way; `reason` is the log line that used to be
+    /// the only difference between them.
+    void drainInternalEvents(const char *reason);
+
+    /// §scxml-3.13: the `MicrostepBudget` this machine lends its raiser.
+    ///
+    /// The raiser owns the internal queue, so it is the only party that can
+    /// decline a dispatch without consuming the event; the budget is here
+    /// because the eventless branch spends the same one. Wired where the event
+    /// callback is, and for the same reason: both are how the raiser reaches
+    /// back into this machine.
+    MicrostepBudget makeMicrostepBudget();
 
     /**
      * @brief Execute a single transition directly without re-evaluating its condition

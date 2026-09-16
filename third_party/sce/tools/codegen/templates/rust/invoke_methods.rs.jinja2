@@ -9,7 +9,7 @@
 
     Ports from C++ entry_exit_actions.jinja2 executePendingInvokes() and tickChildren().
 #}
-{% if model.invokes | scxml or model.invokes | hybrid %}
+{% if model.invokes | scxml or model.invokes | hybrid or model.invokes | unsupported %}
     // W3C SCXML 6.4: Execute pending invokes at macrostep end
     // 1:1 port of C++ executePendingInvokes() in entry_exit_actions.jinja2
     fn do_execute_pending_invokes(&mut self, engine: &mut sce_rust_runtime::Engine<Self>) {
@@ -17,8 +17,14 @@
             return;
         }
 
-        // W3C SCXML 6.4: Copy-and-clear to prevent iterator invalidation
-        let invokes_to_execute: Vec<_> = self.pending_invokes.drain(..).collect();
+        // W3C SCXML 6.4: Copy-and-clear to prevent iterator invalidation.
+        // `mem::take` rather than `drain(..).collect()`: the two are the same
+        // move, but the drain allocates a second vector to put the elements
+        // back into. clippy 1.98's `drain_collect` says so, and the gate syncs
+        // the toolchain to CI's stable — so a lint that arrives with a new
+        // release turns every generated machine red at once (50 of them,
+        // 2026-08-21), which is why this belongs in the template.
+        let invokes_to_execute = std::mem::take(&mut self.pending_invokes);
 
         for pending in &invokes_to_execute {
 {% for state_id, state in model.states | dictsort %}
@@ -37,10 +43,11 @@
                     let mut namelist_valid = true;
 {% for var_name in invoke_info.namelist | split %}
                     if !se.has_variable(&sid, "{{ var_name }}") {
-                        log::error!("Namelist validation failed: '{{ var_name }}' not declared in parent");
+                        ::sce_rust_runtime::sce_log_error!("Namelist validation failed: '{{ var_name }}' not declared in parent");
 {% if 'error.execution' in model.events %}
-                        engine.raise(sce_rust_runtime::EventWithMetadata::new(
-                            {{ machine_name }}Event::{{ 'error.execution' | to_event_variant }}));
+                        engine.raise(sce_rust_runtime::EventWithMetadata::platform_error(
+                            {{ machine_name }}Event::{{ 'error.execution' | to_event_variant }},
+                            "<invoke> namelist names '{{ var_name }}', which the parent does not declare"));
 {% endif %}
                         namelist_valid = false;
                     }
@@ -55,7 +62,7 @@
                 // W3C SCXML 6.5: Generate child session ID for finalize origin matching
                 let child_session_id = format!("{}.{}",
                     self.session_id.as_deref().unwrap_or(""),
-                    &pending.invoke_id);
+                    pending.invoke_id);
 
                 // W3C SCXML 6.4: Create child state machine
                 // Engine DI Parity RFC: forward parent's script engine to child when the
@@ -70,11 +77,16 @@
                 child_policy.invoke_id = pending.invoke_id.clone();
                 child_policy.child_session_id = child_session_id.clone();
 
-                // W3C SCXML 6.4: Ensure child session ID for invoke tracking
+                // W3C SCXML C.1: the child adopts the id its parent recorded
+                // for it. The parent mints `parentSession.invokeId` and keys
+                // `active_invokes` on it, so an event from this child reaches
+                // the parent carrying that id as its origin; if the child also
+                // minted an id of its own, the location it publishes in
+                // `_ioprocessors` and the origin the parent sees would be two
+                // names for one session that can never be compared — which is
+                // exactly what C.1 requires of them.
                 if child_policy.session_id.is_none() {
-                    static CHILD_SESSION_COUNTER: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::new(0);
-                    let cid = CHILD_SESSION_COUNTER.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
-                    child_policy.session_id = Some(format!("child_session_{}", cid));
+                    child_policy.session_id = Some(child_session_id.clone());
                 }
 
 {% if invoke_info.namelist %}
@@ -90,14 +102,17 @@
 {% for var_name in invoke_info.namelist | split %}
                     if child_vars.contains(&"{{ var_name }}") {
                         if let Ok(val) = se.evaluate_expression(&sid, "{{ var_name }}") {
-                            child_policy.set_param_in_script_engine("{{ var_name }}", &val.to_lua_literal());
+                            // §scxml-6.4.1: "the value stored at the location
+                            // is the value" — so the value crosses, not a
+                            // rendering of it.
+                            child_policy.set_param_value_in_script_engine("{{ var_name }}", val);
                         }
                     }
 {% endfor %}
 {% else %}
 {% for var_name in invoke_info.namelist | split %}
                     if let Ok(val) = se.evaluate_expression(&sid, "{{ var_name }}") {
-                        child_policy.set_param_in_script_engine("{{ var_name }}", &val.to_lua_literal());
+                        child_policy.set_param_value_in_script_engine("{{ var_name }}", val);
                     }
 {% endfor %}
 {% endif %}
@@ -114,15 +129,48 @@
                     let se = self.script_engine.clone();
                     let se: &dyn sce_rust_runtime::IScriptEngine = &*se;
 {% for param in invoke_info.params %}
-                    if let Ok(val) = se.evaluate_expression(&sid, "{{ param.expr | to_lua_expr | escape_rust }}") {
-                        child_policy.set_param_in_script_engine("{{ param.name }}", &val.to_lua_literal());
+{% if invoke_info.child_datamodel_vars and param.name in invoke_info.child_datamodel_vars %}
+                    match se.evaluate_expression(&sid, "{{ param.expr | to_lua_expr | escape_rust }}") {
+                        Ok(val) => {
+                            // §scxml-6.4.3: the VALUE of the param element becomes
+                            // the child `<data>`'s initial value.
+                            child_policy.set_param_value_in_script_engine("{{ param.name | escape_rust }}", val);
+                        }
+                        Err(e) => {
+                            // §scxml-5.7.1: BOTH halves — `error.execution` on the
+                            // internal queue AND the name and value ignored. Only
+                            // the silent half was here: an `if let Ok` dropped the
+                            // failure, so a document that miscomputed one `<param>`
+                            // of an `<invoke>` got a child with a `<data>` nothing
+                            // explained and no event to act on.
+                            //
+                            // The clause delegates only the SUCCESSFUL name and
+                            // value to the context — "Otherwise the use of the name
+                            // and value depends on the context in which the <param>
+                            // element occurs. See 5.5 <donedata>, 6.2 <send> and 6.4
+                            // <invoke>" — so §scxml-6.4.2's "terminate the
+                            // processing of the element" is not what a failing
+                            // `<param>` costs: the child still starts, one pair
+                            // short. W3C test343 settles the same clause from the
+                            // `<donedata>` side.
+                            ::sce_rust_runtime::sce_log_error!("invoke param '{{ param.name | escape_rust }}' eval failed: {}", e);
+{% if 'error.execution' in model.events %}
+                            engine.raise(sce_rust_runtime::EventWithMetadata::platform_error({{ machine_name }}Event::{{ 'error.execution' | to_event_variant }}, "<invoke> <param name='{{ param.name | escape_rust }}'> expr failed to evaluate"));
+{% endif %}
+                        }
                     }
+{% else %}
+                    // §scxml-6.4.3: `{{ param.name }}` matches no top-level `<data>` of
+                    // the child, so the Processor MUST NOT add it to the invoked
+                    // session's data model. Decided here because both the param
+                    // names and the child's declarations are static.
+{% endif %}
 {% endfor %}
                 }
 {% endif %}
 {% endif %}
 
-                // W3C SCXML 6.4.6: Track active invoke session BEFORE initialize
+                // W3C SCXML 6.4.1: Track active invoke session BEFORE initialize
                 self.active_invokes.insert("{{ invoke_info.invoke_id }}".to_string(),
                     sce_rust_runtime::invoke::ChildSession {
                         session_id: child_session_id,
@@ -135,11 +183,30 @@
 {% endif %}
                         parent_session_id: self.session_id.clone().unwrap_or_default(),
                         autoforward: {{ 'true' if invoke_info.autoforward else 'false' }},
-                        finalize_script: "{{ invoke_info.finalize_content | escape_rust }}".to_string(),
+{# §scxml-6.5: the `<finalize>` body is AUTHORED content and reaches the
+   engine like every other authored expression — through the ECMAScript
+   frontend. The parser hands it over as JavaScript
+   (`actions_to_javascript`), and this line used to escape that text and
+   pass it to a Lua engine unlowered, so a `<finalize>` worked only when
+   its JavaScript happened to be valid Lua as well. W3C test233's body is
+   one bare assignment (`Var1 = _event.data.aParam`), which is valid in
+   both, and it is the only `<finalize>` document with executable content
+   in the whole corpus — so the surface passed on a coincidence.
+   The C++ Interpreter never had the gap: it keeps the finalize as XML and
+   re-parses it as executable content, which lowers each action normally. #}
+                        finalize_script: "{{ invoke_info.finalize_content | to_lua_script | escape_rust }}".to_string(),
                     },
                 );
 
                 let mut child_engine = sce_rust_runtime::Engine::new(child_policy);
+                // §scxml-6.4: the child's delayed sends are measured against
+                // the same clock as ours. A child reading its own would start
+                // its origin at construction time, so `<send delay="100ms">`
+                // on either side of the boundary would mean two different
+                // absolute instants — and on a host-owned clock the child
+                // would not move at all, because the host advances the engine
+                // it holds, not the ones that engine invoked.
+                child_engine.set_clock(engine.clock());
                 // W3C SCXML 6.4: Set completion callback so child runs final state onexit (test 236)
                 child_engine.set_completion_callback(|| {});
                 child_engine.initialize();
@@ -190,15 +257,16 @@
                 let se: &dyn sce_rust_runtime::IScriptEngine = &*se;
                 match se.evaluate_expression(&sid, "{{ invoke_info.srcexpr | to_lua_expr | escape_rust }}") {
                     Ok(sce_rust_runtime::ScriptValue::Null) | Err(_) => {
-                        log::error!("Hybrid invoke: srcexpr '{{ invoke_info.srcexpr }}' evaluation failed");
+                        ::sce_rust_runtime::sce_log_error!("Hybrid invoke: srcexpr '{}' evaluation failed", "{{ invoke_info.srcexpr | escape_rust }}");
 {% if 'error.execution' in model.events %}
-                        engine.raise(sce_rust_runtime::EventWithMetadata::new(
-                            {{ machine_name }}Event::{{ 'error.execution' | to_event_variant }}));
+                        engine.raise(sce_rust_runtime::EventWithMetadata::platform_error(
+                            {{ machine_name }}Event::{{ 'error.execution' | to_event_variant }},
+                            "<invoke> srcexpr '{{ invoke_info.srcexpr | escape_rust }}' failed to evaluate"));
 {% endif %}
                         continue;
                     }
                     Ok(_path) => {
-                        log::debug!("Hybrid invoke: srcexpr evaluated to {:?}", _path);
+                        ::sce_rust_runtime::sce_log_debug!("Hybrid invoke: srcexpr evaluated to {:?}", _path);
                     }
                 }
 {% elif invoke_info.contentexpr %}
@@ -209,15 +277,16 @@
                 let se: &dyn sce_rust_runtime::IScriptEngine = &*se;
                 match se.evaluate_expression(&sid, "{{ invoke_info.contentexpr | to_lua_expr | escape_rust }}") {
                     Ok(sce_rust_runtime::ScriptValue::Null) | Ok(sce_rust_runtime::ScriptValue::Int(_)) | Err(_) => {
-                        log::error!("Hybrid invoke: contentexpr '{{ invoke_info.contentexpr }}' evaluation failed");
+                        ::sce_rust_runtime::sce_log_error!("Hybrid invoke: contentexpr '{}' evaluation failed", "{{ invoke_info.contentexpr | escape_rust }}");
 {% if 'error.execution' in model.events %}
-                        engine.raise(sce_rust_runtime::EventWithMetadata::new(
-                            {{ machine_name }}Event::{{ 'error.execution' | to_event_variant }}));
+                        engine.raise(sce_rust_runtime::EventWithMetadata::platform_error(
+                            {{ machine_name }}Event::{{ 'error.execution' | to_event_variant }},
+                            "<invoke> contentexpr '{{ invoke_info.contentexpr | escape_rust }}' failed to evaluate"));
 {% endif %}
                         continue;
                     }
                     Ok(_content) => {
-                        log::debug!("Hybrid invoke: contentexpr evaluated to {:?}", _content);
+                        ::sce_rust_runtime::sce_log_debug!("Hybrid invoke: contentexpr evaluated to {:?}", _content);
                     }
                 }
 {% endif %}
@@ -225,7 +294,7 @@
                 // W3C SCXML 6.5: Generate child session ID
                 let child_session_id = format!("{}.{}",
                     self.session_id.as_deref().unwrap_or(""),
-                    &pending.invoke_id);
+                    pending.invoke_id);
 
                 // W3C SCXML 6.4: Create pre-generated child (Rust AOT: child resolved at codegen time)
                 // Engine DI Parity RFC: pass parent's script engine when child needs it.
@@ -244,7 +313,7 @@
                     child_policy.session_id = Some(format!("hybrid_session_{}", cid));
                 }
 
-                // W3C SCXML 6.4.6: Track active invoke session
+                // W3C SCXML 6.4.1: Track active invoke session
                 self.active_invokes.insert("{{ invoke_info.invoke_id }}".to_string(),
                     sce_rust_runtime::invoke::ChildSession {
                         session_id: child_session_id,
@@ -256,6 +325,14 @@
                 );
 
                 let mut child_engine = sce_rust_runtime::Engine::new(child_policy);
+                // §scxml-6.4: the child's delayed sends are measured against
+                // the same clock as ours. A child reading its own would start
+                // its origin at construction time, so `<send delay="100ms">`
+                // on either side of the boundary would mean two different
+                // absolute instants — and on a host-owned clock the child
+                // would not move at all, because the host advances the engine
+                // it holds, not the ones that engine invoked.
+                child_engine.set_clock(engine.clock());
                 child_engine.set_completion_callback(|| {});
                 child_engine.initialize();
 
@@ -283,6 +360,49 @@
                         donedata,
                         engine,
                     );
+                }
+                continue;
+            }
+{% endfor %}
+{% endif %}
+{% if state.invokes | unsupported_refused %}
+{% for invoke_info in state.invokes | unsupported_refused %}
+            if pending.invoke_id.contains(".{{ invoke_info.invoke_id }}") {
+                // W3C SCXML 6.4.1: unsupported `type` — place error.execution
+                // on the internal queue and start nothing. No child session,
+                // so no done.invoke follows and nothing is left to cancel.
+                engine.raise(sce_rust_runtime::EventWithMetadata::platform_error({{ machine_name }}Event::{{ 'error.execution' | to_event_variant }}, "<invoke type='{{ invoke_info.invoke_type | escape_rust }}'> names an external service this platform does not support"));
+                continue;
+            }
+{% endfor %}
+{% endif %}
+{% if state.invokes | host_invoker %}
+{% for invoke_info in state.invokes | host_invoker %}
+            if pending.invoke_id.contains(".{{ invoke_info.invoke_id }}") {
+                // §scxml-6.4.1: the host declared this `type`, so start the
+                // invocation rather than refusing it. The id handed over is
+                // the DOCUMENT's, not the per-instance one the defer queue
+                // carries: `done.invoke.<id>` is the name the author wrote a
+                // transition for, so it is the name the host must answer on.
+                let mut host_invoke_params = std::collections::HashMap::<String, Vec<String>>::new();
+{% for param in invoke_info.params %}
+{% if param.is_static_literal %}
+                host_invoke_params.entry("{{ param.name | escape_rust }}".to_string()).or_default().push("{{ param.static_value | escape_rust }}".to_string());
+{% endif %}
+{% endfor %}
+                let started = engine.perform_host_invoke(sce_rust_runtime::HostInvokeRequest {
+                    processor_type: "{{ invoke_info.invoke_type | escape_rust }}".to_string(),
+                    invoke_id: "{{ invoke_info.invoke_id }}".to_string(),
+                    src: "{{ invoke_info.src | default('', true) | escape_rust }}".to_string(),
+                    params: host_invoke_params,
+                    content: "{{ invoke_info.content | default('', true) | escape_rust }}".to_string(),
+                });
+                if !started {
+                    // §scxml-6.4.1: declared but no invoker registered. The
+                    // document asked for a process to be run and none was,
+                    // which is the same fact as an unsupported type — so the
+                    // same event, rather than a silence that reads as started.
+                    engine.raise(sce_rust_runtime::EventWithMetadata::platform_error({{ machine_name }}Event::{{ 'error.execution' | to_event_variant }}, "<invoke> names an invoker the host declared but never registered"));
                 }
                 continue;
             }
@@ -367,11 +487,48 @@
 {% endfor %}
     }
 
+{% if model.invokes | scxml %}
+    // W3C SCXML C.1: deliver an event addressed to a child's published
+    // location.
+    //
+    // The parent mints `parentSession.invokeId` for each child and that id is
+    // what the child's `_ioprocessors` entry names, so a `<send>` whose target
+    // decodes to one of them is addressed to that child rather than to this
+    // machine. A false return means the address names no live child of ours
+    // and the event takes the normal external path — the routing half of C.1
+    // is what makes the published location a usable target rather than a
+    // string that merely compares equal.
+    fn deliver_to_child_session(&mut self, child_session_id: &str, event_name: &str, event_data: &str) -> bool {
+        if child_session_id.is_empty() {
+            return false;
+        }
+{% for invoke_info in model.invokes | scxml %}
+        {
+            let addressed = self.active_invokes
+                .get("{{ invoke_info.invoke_id }}")
+                .map_or(false, |cs| cs.session_id == child_session_id);
+            if addressed {
+                if let Some(ref mut child) = self.child_{{ invoke_info.field_suffix }} {
+                    child.raise_external_by_name(event_name, event_data);
+                    return true;
+                }
+            }
+        }
+{% endfor %}
+        false
+    }
+{% endif %}
+
 {% set autoforward_invokes = model.invokes | scxml | selectattr('autoforward') | list %}
 {% if autoforward_invokes %}
-    // W3C SCXML 6.4.6: Forward external events to children with autoforward=true
+    // W3C SCXML 6.4.1: Forward external events to children with autoforward=true
     // 1:1 port of C++ forwardToAutoforwardChildren() in entry_exit_actions.jinja2
-    fn do_forward_to_autoforward_children(&mut self, event_name: &str, _engine: &mut sce_rust_runtime::Engine<Self>) {
+    fn do_forward_to_autoforward_children(
+        &mut self,
+        event_name: &str,
+        metadata: &sce_rust_runtime::EventMetadata,
+        _engine: &mut sce_rust_runtime::Engine<Self>,
+    ) {
 {% for invoke_info in autoforward_invokes %}
         // Check if child {{ invoke_info.invoke_id }} has autoforward enabled and is active
         {
@@ -380,8 +537,10 @@
                 .map_or(false, |cs| cs.autoforward);
             if is_autoforward {
                 if let Some(ref mut child) = self.child_{{ invoke_info.field_suffix }} {
-                    // W3C SCXML 6.4.6: Forward by event name string to child
-                    child.raise_external_by_name(event_name, "");
+                    // W3C SCXML 6.4.1: the child resolves the name against its
+                    // own Event enum; §6.4 requires the copy be exact, so the
+                    // source event's metadata goes with it.
+                    child.raise_external_by_name_with_meta(event_name, metadata);
                 }
             }
         }
@@ -422,6 +581,12 @@
             let se: &dyn sce_rust_runtime::IScriptEngine = &*se;
             // W3C SCXML 6.5: Set _event metadata before executing finalize
             let event_name = Self::get_event_name(event_with_meta.event);
+            // The rung this binding chose is not this site's to report. The
+            // parent's own dequeue already counted the delivery — see
+            // `note_payload_reading` — and counting it again here would double
+            // every payload that reaches a document with an `<invoke>`. The Go
+            // twin of this site is where that came up: its `SetCurrentEvent`
+            // returns two values, so the same discard had to be spelled out.
             let _ = se.set_current_event(
                 &sid,
                 sce_rust_runtime::SetCurrentEventArgs {

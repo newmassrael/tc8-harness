@@ -140,6 +140,8 @@ public:
 #endif
     static std::vector<StateType> computeEntryOrder(const std::vector<StateType> &targetStates,
                                                     const std::vector<StateType> &currentStates) {
+        // §scxml-D-computeEntrySet: gather the transition targets, then the ancestors
+        // that must be entered with them, and return the set in entry order.
         std::vector<StateType> entrySet;
         std::unordered_set<StateType> currentSet(currentStates.begin(), currentStates.end());
 
@@ -225,22 +227,23 @@ private:
      * §scxml-3.3: Traverse parent chain of state2 to check if state1 appears
      */
 #if __cpp_concepts >= 202002L
-    template <typename StateType, ParallelStatePolicy PolicyType> static bool isAncestor(StateType state1, StateType state2) {
+    template <typename StateType, ParallelStatePolicy PolicyType>
+    static bool isAncestor(StateType state1, StateType state2){
 #else
     template <typename StateType, typename PolicyType> static bool isAncestor(StateType state1, StateType state2) {
 #endif
         auto current = state2;
-        while (true) {
-            auto parent = PolicyType::getParent(current);
-            if (!parent.has_value()) {
-                return false;  // Reached root without finding state1
-            }
-            if (parent.value() == state1) {
-                return true;  // Found state1 in ancestor chain
-            }
-            current = parent.value();
+    while (true) {
+        auto parent = PolicyType::getParent(current);
+        if (!parent.has_value()) {
+            return false;  // Reached root without finding state1
         }
+        if (parent.value() == state1) {
+            return true;  // Found state1 in ancestor chain
+        }
+        current = parent.value();
     }
-};
+}
+};  // namespace SCE::Core
 
 }  // namespace SCE::Core

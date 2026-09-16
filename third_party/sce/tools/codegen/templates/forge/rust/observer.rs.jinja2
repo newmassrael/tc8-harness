@@ -2,7 +2,7 @@
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
-{{ sce_map.source_marker(source_location, "rust", module_level=true) }}
+{{ sce_map.source_marker(source_location, "rust", module_level=true, symbol_artifact=sce_artifact.forge_body) }}
 
 // SCE Forge: Auto-generated from Extended SCXML (sce:kind="observer")
 // Runtime: {{ runtime_dep }}
@@ -41,7 +41,7 @@ pub struct ForgeDomain;
 // `EMIT_WARNING`, `coolant.high`, etc. cannot be normalised to UpperCamel
 // without breaking SCE_FORGE.md §4.11 cross-file event composition.
 #[allow(non_camel_case_types)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+{{ observer_domain_tag_derives_attr }}
 pub enum ForgeDomainTag {
 {% for ev in events %}
     {{ ev }},

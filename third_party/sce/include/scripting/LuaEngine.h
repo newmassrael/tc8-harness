@@ -5,14 +5,14 @@
 
 #include "IScriptEngine.h"
 #include "ISessionManager.h"
-#include "EcmaScriptToLuaTransformer.h"
-#include "runtime/ISessionObserver.h"
+#include "LoweringScope.h"
 #include <atomic>
+#include <climits>
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
-#include <climits>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -29,8 +29,9 @@ class Event;
  *
  * Drop-in replacement for JSEngine using Lua instead of QuickJS.
  * Each session gets an isolated lua_State for full variable isolation.
- * ECMAScript expressions from W3C SCXML are automatically transformed to Lua
- * via EcmaScriptToLuaTransformer.
+ * ECMAScript expressions from W3C SCXML are lowered to Lua by `sce-build`'s
+ * ECMAScript frontend, reached through the session's `LoweringScope`. Text the
+ * frontend refuses is REFUSED here too — see `loweredTextOf`.
  *
  * Thread safety: All public methods are thread-safe via mutex protection.
  * Lua states are not shared between sessions.
@@ -49,22 +50,52 @@ public:
     LuaEngine &operator=(const LuaEngine &) = delete;
 
     // === IScriptEngine ===
-    std::future<ScriptResult> executeScript(const std::string &sessionId, const std::string &script) override;
-    std::future<ScriptResult> evaluateExpression(const std::string &sessionId, const std::string &expression) override;
-    std::future<ScriptResult> validateExpression(const std::string &sessionId, const std::string &expression) override;
+
+    /// Lua, and — where a frontend is linked — the language that frontend
+    /// lowers into it.
+    ///
+    /// This engine used to own a text-rewriting adapter and so accepted
+    /// ECMAScript unconditionally. It no longer has one: what accepts the
+    /// second language is `sce-build`'s ECMAScript frontend, linked beside
+    /// `lua54` by `sce/CMakeLists.txt`, and Lua is still evaluated as given.
+    ScriptLanguage nativeLanguage() const override {
+        return ScriptLanguage::Lua;
+    }
+
+    /// A build with no frontend is a LUA engine, and says so.
+    ///
+    /// `SCE_HAS_LOWERING_FFI` is set on the same two lines that link the
+    /// frontend, so this cannot claim a lowering route the image does not
+    /// carry. The wasm build is the one that reaches neither line, and
+    /// answering `true` there would accept every ECMAScript expression in
+    /// order to fail it one refusal at a time — a capability announced and
+    /// then withdrawn per call. `IScriptEngine`'s three entry points already
+    /// refuse a language this rejects, with the language named, which is the
+    /// clearer failure and the earlier one.
+    bool acceptsLanguage(ScriptLanguage language) const override {
+        if (language == ScriptLanguage::Lua) {
+            return true;
+        }
+#ifdef SCE_HAS_LOWERING_FFI
+        return language == ScriptLanguage::ECMAScript;
+#else
+        return false;
+#endif
+    }
+
     std::future<ScriptResult> setVariable(const std::string &sessionId, const std::string &name,
                                           const ScriptValue &value) override;
     std::future<ScriptResult> getVariable(const std::string &sessionId, const std::string &name) override;
     std::future<ScriptResult> setVariableAsDOM(const std::string &sessionId, const std::string &name,
-                                                const std::string &xmlContent) override;
+                                               const std::string &xmlContent) override;
     bool hasVariable(const std::string &sessionId, const std::string &variableName) const override;
     bool isVariablePreInitialized(const std::string &sessionId, const std::string &variableName) const override;
     std::future<ScriptResult> setupSystemVariables(const std::string &sessionId, const std::string &sessionName,
-                                                    const std::vector<std::string> &ioProcessors) override;
-    std::future<ScriptResult> setCurrentEvent(const std::string &sessionId,
-                                               const std::shared_ptr<Event> &event) override;
-    std::future<ScriptResult> setCurrentEvent(const std::string &sessionId,
-                                               const SetCurrentEventArgs &args) override;
+                                                   const std::vector<IOProcessorDescriptor> &ioProcessors) override;
+    std::future<SetCurrentEventResult> setCurrentEvent(const std::string &sessionId,
+                                                       const std::shared_ptr<Event> &event) override;
+    std::future<SetCurrentEventResult> setCurrentEvent(const std::string &sessionId,
+                                                       const SetCurrentEventArgs &args) override;
     bool registerGlobalFunction(const std::string &functionName,
                                 std::function<ScriptValue(const std::vector<ScriptValue> &)> callback) override;
     bool bindNativeObject(const std::string &sessionId, const std::string &objectName,
@@ -91,8 +122,6 @@ public:
     bool hasSession(const std::string &sessionId) const override;
 
     // === ISessionManager ===
-    void addObserver(ISessionObserver *observer) override;
-    void removeObserver(ISessionObserver *observer) override;
     std::vector<std::string> getActiveSessions() const override;
     std::string getParentSessionId(const std::string &sessionId) const override;
 
@@ -108,34 +137,171 @@ private:
         bool systemVarsInitialized = false;
         std::unordered_set<std::string> preInitializedVars;
         std::unordered_set<std::string> declaredVars;  // Track all declared variables (Lua nil != undeclared)
+
+        // The global names this session was BORN with — Lua's own standard
+        // library plus everything `registerBuiltins` installs.
+        //
+        // They are the RUNTIME's names, not the author's, and the difference
+        // is what makes a later reading of the global table mean something: a
+        // name absent from here and present in `_G` was introduced by the
+        // document. Without the baseline, telling the frontend what the
+        // session holds would also tell it about `string` and `math`, and SCE's
+        // ECMAScript datamodel would start answering `string.rep('a', 3)` —
+        // Lua's standard library leaking out through the datamodel's door.
+        std::unordered_set<std::string> runtimeGlobals;
+
+        // The names already offered to `loweringScope`.
+        //
+        // Offering each name once keeps a re-reading of the global table free
+        // for a session whose names have stopped changing, which is every
+        // session after its first few macrosteps. The scope itself does not
+        // care — offering a name it holds is a no-op there — so this is a
+        // saved call across the C surface and nothing more.
+        std::unordered_set<std::string> offeredToScope;
+
+        // The same names, asked of sce-build's ECMAScript frontend rather than
+        // of Lua. `declaredVars` answers "may this name be read?"; this
+        // answers "may this expression be PARSED?" — the frontend refuses any
+        // expression naming something it has not been told about, so the
+        // engine's own declarations are what let a lowering happen at all.
+        //
+        // Per session because a datamodel is: two sessions of one document
+        // hold different values under the same names, and a session that
+        // borrowed another's names would lower an expression the borrower
+        // cannot evaluate.
+        LoweringScope loweringScope;
         // Bound native method storage for bindNativeObject lifetime management
         std::vector<std::unique_ptr<NativeMethod>> boundMethods;
+
         // Lua bytecode cache: compiled chunks stored in Lua registry (keyed by source string)
         // Successful compilations store the registry ref; failed compilations store the error message.
         struct ChunkCacheEntry {
-            int ref;              // Lua registry ref (>= 0) or CHUNK_COMPILE_FAILED sentinel
-            std::string error;    // Lua error message (only set on compilation failure)
+            int ref;            // Lua registry ref (>= 0) or CHUNK_COMPILE_FAILED sentinel
+            std::string error;  // Lua error message (only set on compilation failure)
         };
+
         static constexpr int CHUNK_COMPILE_FAILED = INT_MIN;
         std::unordered_map<std::string, ChunkCacheEntry> chunkCache;
 
-        // Expression execution fast path: maps original ECMAScript expression
-        // directly to pre-resolved chunk ref, skipping transformer lookup,
+        // Expression execution fast path: maps the incoming expression text
+        // directly to a pre-resolved chunk ref, skipping transformer lookup,
         // "return" wrapping attempt, and double cache lookup on repeat calls.
+        //
+        // The entry records which language the text arrived in, because the
+        // key is the INPUT and one string can mean two different chunks:
+        // `arr[0]` handed over as ECMAScript is rewritten to `arr[0 + 1]`,
+        // while the same string handed over as already-lowered Lua is not.
+        // A language mismatch is therefore a miss, not a hit.
         struct ExprExecInfo {
             int chunkRef;       // Lua registry ref for compiled chunk
             bool returnsValue;  // true: "return expr" form; false: assignment (ScriptUndefined)
+            ScriptLanguage language = ScriptLanguage::ECMAScript;
+
+            // The scope this text was lowered against is NOT part of the key,
+            // and that is a premise held by a test rather than an assumption.
+            // Only a lowering that SUCCEEDED is cached — a refusal returns
+            // before this map is written — and the frontend answers a success
+            // the same way however many names are declared afterwards, because
+            // the scope reaches lowering at one place (`ecmascript::resolve`'s
+            // `read`) which either continues or refuses. So a session that
+            // declared something since still gets the right chunk from here.
+            // `sce-build/tests/scope_obligation.rs`'s
+            // `a_lowering_that_succeeded_is_unchanged_by_a_larger_scope` is
+            // what holds the frontend to that; if it fails, this map and
+            // `ScriptExecInfo` need a scope generation on their keys again.
+            // While `EcmaScriptToLuaTransformer` stood they did carry one:
+            // a refusal was answered WRONGLY rather than refused, so a first
+            // evaluation could cache a wrong answer that a later declaration
+            // had to displace.
         };
+
         std::unordered_map<std::string, ExprExecInfo> exprExecCache;
 
-        // Script execution fast path: maps original script directly to compiled
-        // chunk ref, skipping transformer cache lookup and string copy.
-        std::unordered_map<std::string, int> scriptExecCache;
+        // Script execution fast path: maps the incoming script text directly to
+        // a compiled chunk ref, skipping transformer cache lookup and string
+        // copy. Language-tagged for the same reason as ExprExecInfo.
+        struct ScriptExecInfo {
+            int chunkRef;
+            ScriptLanguage language = ScriptLanguage::ECMAScript;
+
+            // Keyed without the scope, for the reason `ExprExecInfo` spells
+            // out. A chunk asks the scope about less than an expression does —
+            // it hoists its own `var` bindings, so only the names it READS are
+            // in question — which makes this the easier half of the same
+            // premise, not a separate one.
+        };
+
+        std::unordered_map<std::string, ScriptExecInfo> scriptExecCache;
     };
 
+    // === IScriptEngine hooks ===
+    std::future<ScriptResult> doExecuteScript(const std::string &sessionId, const ScriptSource &script) override;
+    std::future<ScriptResult> doEvaluateExpression(const std::string &sessionId,
+                                                   const ScriptSource &expression) override;
+    std::future<ScriptResult> doValidateExpression(const std::string &sessionId,
+                                                   const ScriptSource &expression) override;
+
+    // The seam itself: the one step a pre-lowered call skips.
+    //
+    // Text that arrives as Lua is already the ECMAScript frontend's output and
+    // is passed through untouched; text that arrives as ECMAScript is offered
+    // to that frontend. Everything the engine does AFTER this — the
+    // undeclared-variable check, the `return` wrapping, the chunk cache, the
+    // assignment fallback — is common to both paths.
+    //
+    // NOTHING is returned when the frontend refuses, and refusal is the
+    // engine's answer rather than a second translator's cue. It used to be the
+    // cue: `EcmaScriptToLuaTransformer` rewrote the text without a parse, and
+    // `-7 % 3` answering 2 and `5 ^ 3` answering 125 are what that cost. A
+    // caller turns nothing into `error.execution` (§scxml-5.9.1), which is the
+    // answer the specification already has for an expression the datamodel
+    // cannot evaluate.
+    //
+    // The scope is an argument rather than engine state because it is the
+    // SESSION'S: it says which names the frontend may resolve, and a caller
+    // holding the wrong session's would lower an expression this one cannot
+    // evaluate.
+    std::optional<std::string> loweredTextOf(const ScriptSource &expression, const LoweringScope &scope);
+    std::optional<std::string> loweredScriptOf(const ScriptSource &script, const LoweringScope &scope);
+
+    // One name, offered to the frontend once.
+    //
+    // Every door that puts a name into a session's global namespace comes
+    // through here, so "which names does this session hold" has one answer
+    // rather than one per door.
+    static void offerToScope(LuaSessionContext &session, const std::string &name);
+
+    // Every name the DOCUMENT has put in the global table, offered to the
+    // frontend.
+    //
+    // The engine's own setters know the names they write and say so directly.
+    // A `<script>` chunk does not: its assignments happen inside Lua. For a
+    // chunk that arrived as ECMAScript the frontend's own parser answers
+    // (`declareChunk`), and for one that arrived as LUA there is no ECMAScript
+    // parse to ask — so the session's global table is asked instead, which is
+    // the authority both doors ultimately write to.
+    //
+    // Reading it is what keeps the two languages ONE session: the engine
+    // accepts both into the same namespace, and a name the Lua door
+    // introduced is a name the ECMAScript door must be able to resolve. It
+    // could not, until this: `arr = {10, 20, 30}` as Lua left `arr[1]` as
+    // ECMAScript unresolvable, and the rewriter hid it by never resolving
+    // names at all.
+    static void offerDocumentGlobalsToScope(LuaSessionContext &session);
+
+    // The refusal above, as the boundary reports it.
+    //
+    // One place, because all three entry points refuse for the same reason and
+    // a message per site is three places for the reason to drift apart. The
+    // GRAMMAR the text was read as is the one thing they do not share, so it
+    // is the one thing passed in: a caller knows whether it asked for an
+    // expression or for a script, and deriving it from the text would be a
+    // guess where the call site holds the fact.
+    static ScriptResult refusedToLower(const ScriptSource &source, const char *role);
+
     // === Internal implementation ===
-    ScriptResult executeScriptInternal(const std::string &sessionId, const std::string &script);
-    ScriptResult evaluateExpressionInternal(const std::string &sessionId, const std::string &expression);
+    ScriptResult executeScriptInternal(const std::string &sessionId, const ScriptSource &script);
+    ScriptResult evaluateExpressionInternal(const std::string &sessionId, const ScriptSource &expression);
     ScriptResult setVariableInternal(const std::string &sessionId, const std::string &name, const ScriptValue &value);
     ScriptResult getVariableInternal(const std::string &sessionId, const std::string &name);
 
@@ -159,16 +325,9 @@ private:
     mutable std::mutex sessionMutex_;
     std::unordered_map<std::string, std::unique_ptr<LuaSessionContext>> sessions_;
 
-    // Observer pattern
-    mutable std::mutex observerMutex_;
-    std::vector<ISessionObserver *> observers_;
-
     // Global functions registered via registerGlobalFunction()
     std::mutex globalFuncMutex_;
     std::unordered_map<std::string, std::function<ScriptValue(const std::vector<ScriptValue> &)>> globalFunctions_;
-
-    // Expression transformer
-    EcmaScriptToLuaTransformer transformer_;
 
     // Engine state
     std::atomic<bool> initialized_{false};

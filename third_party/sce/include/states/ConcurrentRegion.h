@@ -60,9 +60,12 @@ public:
 
     /**
      * @brief Activate region according to SCXML semantics
+     * @param enterDefaultChild See IConcurrentRegion::activate — false leaves
+     *        the default initial child to a caller that is entering a deeper
+     *        descendant of this region.
      * @return Operation result with SCXML compliance validation
      */
-    ConcurrentOperationResult activate() override;
+    ConcurrentOperationResult activate(bool enterDefaultChild = true) override;
 
     /**
      * @brief Deactivate region with proper SCXML cleanup
@@ -306,9 +309,13 @@ private:
 
     /**
      * @brief Enter initial state according to SCXML semantics
+     * @param enterDefaultChild False enters the region's ROOT state only and
+     *        stops: the caller is descending into this region toward a state it
+     *        named, and the root's default child is not on that path. The
+     *        definition carries the citation.
      * @return Operation result for initial state entry
      */
-    ConcurrentOperationResult enterInitialState();
+    ConcurrentOperationResult enterInitialState(bool enterDefaultChild = true);
 
     /**
      * @brief Exit all active states during deactivation
@@ -324,12 +331,24 @@ private:
      * @return true if target is descendant of root (including root itself)
      */
     /**
-     * @brief Compute exit set for transition from source to target state
-     * @param source Source state ID
+     * @brief §scxml-D-getTransitionDomain: the domain of a transition
+     *
+     * @details
+     * The compound state every exited and entered state descends from.
+     * `findLCCA` filters the proper ancestors with
+     * `isCompoundStateOrScxmlElement`, so a `<parallel>` is NEVER a domain —
+     * which is the whole difference for a transition written on a region root.
+     *
+     * @param sourceNode Source state of the transition
      * @param target Target state ID
-     * @return Exit set (state IDs to be exited)
+     * @param isInternal Whether the transition is spelled `type="internal"`
+     * @return The domain, or nullptr when it is the `<scxml>` element itself
      */
-    std::vector<std::string> computeExitSet(const std::string &source, const std::string &target) const;
+    IStateNode *computeTransitionDomain(IStateNode *sourceNode, const std::string &target, bool isInternal) const;
+
+    // Appendix D's computeExitSet is not answerable here: it is defined over the
+    // configuration, and a region sees only its own states. `StateMachine` owns
+    // the configuration and computes it there for every enabled transition.
 
     /**
      * @brief Recursively check if target state is a descendant of root state

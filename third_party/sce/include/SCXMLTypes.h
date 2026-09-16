@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "common/IOProcessorHelper.h"
 #include <memory>
 #include <optional>
 #include <string>
@@ -207,8 +208,8 @@ private:
     std::string originType_;
     std::string invokeId_;
     std::string dataString_;
-    mutable std::optional<std::string> rawJsonData_;   // Raw JSON storage
-    std::optional<ScriptValue> typedData_;              // Typed data (engine-agnostic)
+    mutable std::optional<std::string> rawJsonData_;  // Raw JSON storage
+    std::optional<ScriptValue> typedData_;            // Typed data (engine-agnostic)
 };
 
 /**
@@ -218,7 +219,7 @@ struct SCXML_API SessionInfo {
     std::string sessionId;
     std::string parentSessionId;
     std::string sessionName;
-    std::vector<std::string> ioProcessors;
+    std::vector<IOProcessorDescriptor> ioProcessors;
     bool isActive = false;
 };
 

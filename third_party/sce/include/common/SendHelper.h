@@ -39,6 +39,19 @@ inline bool starts_with(const std::string &s, const char *prefix) {
 }
 }  // namespace detail
 
+/// Name of the BasicHTTP parameter that carries the SCXML event name.
+///
+/// Both halves of the processor key on this one spelling: the sending half
+/// writes it (`SendHelper::buildHttpPostBody`) and the receiving half reads it
+/// to name the raised event (`HttpEventBridge::extractEventName`). Keeping it
+/// here rather than repeating the literal is what stops the two sides from
+/// drifting apart on a rename.
+///
+/// No section citation sits on this constant deliberately: it is the shared
+/// spelling, not an implementation of either side's clause, and a binding here
+/// would claim otherwise. The citations live on the two functions above.
+inline constexpr const char *SCXML_EVENT_NAME_PARAM = "_scxmleventname";
+
 /**
  * @brief Helper functions for W3C SCXML <send> element processing
  *
@@ -91,6 +104,67 @@ public:
     }
 
     /**
+     * @brief Prefix of the SCXML session target URI (§scxml-C-1)
+     *
+     * Single Source of Truth for the `#_scxml_` literal. It appeared in
+     * three places that had to agree — the invoke-target exclusion below,
+     * the mesh-target exclusion, and the Interpreter's target factory —
+     * which is one copy per place that could drift.
+     */
+    static constexpr const char *SCXML_SESSION_PREFIX = "#_scxml_";
+
+    /**
+     * @brief Check if target names an SCXML session (§scxml-C-1)
+     *
+     * Single Source of Truth for session target detection.
+     * ARCHITECTURE.md: Zero Duplication - used by both Interpreter and AOT engines.
+     *
+     * §scxml-C-1 (test 190, 350): `#_scxml_<sessionid>` addresses the
+     * session with that id. Test 350 names its own session; test 190 sends
+     * the bare prefix with no id at all — see extractSessionId for what an
+     * absent id means.
+     *
+     * Examples:
+     * - "#_scxml_session3" → session target (returns true)
+     * - "#_scxml_"         → session target (returns true, id is empty)
+     * - "#_parent"         → parent target  (returns false)
+     *
+     * @param target Target to check
+     * @return true if target is a session URI, false otherwise
+     */
+    static bool isSessionTarget(const std::string &target) {
+        return detail::starts_with(target, SCXML_SESSION_PREFIX);
+    }
+
+    /**
+     * @brief Extract the session id from a session target (§scxml-C-1)
+     *
+     * Single Source of Truth for session id extraction, mirroring
+     * extractInvokeId. ARCHITECTURE.md: Zero Duplication.
+     *
+     * An EMPTY result is meaningful, not a parse failure: W3C test 190
+     * sends the bare prefix (`conf:quoteExpr="#_scxml_"`) to assert that a
+     * session-shaped target lands on the external queue, without naming
+     * any session. An empty id therefore means "the sending session's own
+     * external queue", which is what that test asserts and what a URI with
+     * no session to name can mean.
+     *
+     * Examples:
+     * - "#_scxml_session3" → "session3"
+     * - "#_scxml_"         → ""
+     *
+     * @param target Session target (must start with the session prefix)
+     * @return Session id, empty when the URI names none
+     */
+    static std::string extractSessionId(const std::string &target) {
+        if (!isSessionTarget(target)) {
+            return "";
+        }
+        // Skip the prefix; `sizeof - 1` drops the terminating NUL.
+        return target.substr(sizeof("#_scxml_") - 1);
+    }
+
+    /**
      * @brief Check if target is child invoke session (§scxml-6.4)
      *
      * Single Source of Truth for child invoke target detection logic.
@@ -123,7 +197,7 @@ public:
             return false;
         }
         // Exclude SCXML session targets (#_scxml_<sessionid>)
-        if (detail::starts_with(target, "#_scxml_")) {
+        if (isSessionTarget(target)) {
             return false;
         }
         // All other #_<invokeid> are child invoke targets
@@ -325,6 +399,8 @@ public:
      */
     static bool validateBasicHttpSend(const std::string &sendType, const std::string &target,
                                       const std::string &targetExpr, std::string &errorMsg) {
+        // §scxml-C-2-2: a BasicHTTP send with neither 'target' nor 'targetexpr' adds
+        // error.communication to the sending session's internal event queue.
         if (requiresTargetAttribute(sendType) && target.empty() && targetExpr.empty()) {
             errorMsg = "BasicHTTPEventProcessor requires target attribute";
             return false;
@@ -390,7 +466,7 @@ public:
     template <typename ParentStateMachine, typename EventType>
     static bool sendToParent(ParentStateMachine *parent, EventType event, const std::string &invokeId) {
         SCE_LOG_DEBUG("SendHelper::sendToParent called - parent={}, event={}, invokeId={}", (void *)parent,
-                  static_cast<int>(event), invokeId);
+                      static_cast<int>(event), invokeId);
         if (parent) {
             // §scxml-5.10.1: Create event with invokeid metadata
             typename ParentStateMachine::EventWithMetadata eventWithMetadata(event);
@@ -423,9 +499,10 @@ public:
     template <typename ParentStateMachine, typename EventType>
     static bool sendToParentWithOrigin(ParentStateMachine *parent, EventType event, const std::string &invokeId,
                                        const std::string &childSessionId, const std::string &eventData = "") {
-        SCE_LOG_DEBUG("SendHelper::sendToParentWithOrigin called - parent={}, event={}, invokeId={}, childSessionId={}, "
-                  "eventData='{}'",
-                  (void *)parent, static_cast<int>(event), invokeId, childSessionId, eventData);
+        SCE_LOG_DEBUG(
+            "SendHelper::sendToParentWithOrigin called - parent={}, event={}, invokeId={}, childSessionId={}, "
+            "eventData='{}'",
+            (void *)parent, static_cast<int>(event), invokeId, childSessionId, eventData);
         if (parent) {
             // §scxml-5.10.1: Create event with invokeid metadata
             // §scxml-6.5: Add origin (child session ID) for finalize support
@@ -496,6 +573,9 @@ public:
         bool firstParam = true;
 
         // §scxml-C-2: Add event name as _scxmleventname parameter
+        // §scxml-C-2-2: delivery is an HTTP POST whose parameters are encoded
+        // application/x-www-form-urlencoded, and the <send> 'event' value travels as
+        // the _scxmleventname parameter.
         if (!eventName.empty()) {
             payload = "_scxmleventname=" + UrlEncodingHelper::urlEncode(eventName);
             firstParam = false;
@@ -523,7 +603,7 @@ public:
 
         return payload;
     }
-#endif // SCE_ENABLE_HTTP
+#endif  // SCE_ENABLE_HTTP
 };
 
 }  // namespace SCE

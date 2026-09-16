@@ -5,16 +5,19 @@
 {% if model.needs_script_engine %}
 	// W3C SCXML 4.6: foreach over {{ action.array }}
 	{
-		foreachItemName := "{{ action.item | default("") }}"
+		{# W3C SCXML 4.6: `item` is a location expression, lowered by the
+		   same frontend every other write target goes through. A legal
+		   identifier lowers to itself; anything else fails the guard. #}
+		foreachItemName := "{{ action.item | default("") | to_lua_location | escape_go }}"
 		if foreachItemName == "" || !sce.IsValidIdentifier(foreachItemName) {
 {% if 'error.execution' in model.events %}
-			engine.Raise(sce.NewPlatformEvent({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}))
+			engine.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<foreach item='{{ action.item | default("") }}'> is missing or not a legal variable name"))
 {% endif %}
 		} else {
 			foreachArrVal, foreachErr := p.ScriptEngine.EvaluateExpression(p.SessionID, `{{ action.array | to_lua_expr }}`)
 			if foreachErr != nil {
 {% if 'error.execution' in model.events %}
-				engine.Raise(sce.NewPlatformEvent({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}))
+				engine.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<foreach array='{{ action.array }}'> failed to evaluate"))
 {% endif %}
 			} else if foreachArr, foreachOk := sce.ToSlice(foreachArrVal); foreachOk {
 				foreachSuccess := true
@@ -25,7 +28,15 @@
 						break
 					}
 {% if action.index %}
-					if err := p.ScriptEngine.SetVariable(p.SessionID, "{{ action.index }}", int64(foreachIdx+1)); err != nil {
+					{# W3C SCXML B.2: iteration over an array runs from 0 to
+					   length-1, so the index starts at 0. `foreachIdx` is
+					   already zero-based; the `+1` that used to be here made
+					   the Go backend the only one that answered 1 for the
+					   first item — Rust, Kotlin, Python and C11 all emit the
+					   raw index. W3C test 459 asserts the final index is 2
+					   over a three-element array, and it passed only because
+					   the `cond` reading the index could not be evaluated. #}
+					if err := p.ScriptEngine.SetVariable(p.SessionID, "{{ action.index | to_lua_location | escape_go }}", int64(foreachIdx)); err != nil {
 						foreachSuccess = false
 						break
 					}
@@ -37,13 +48,13 @@
 				}
 				if !foreachSuccess {
 {% if 'error.execution' in model.events %}
-					engine.Raise(sce.NewPlatformEvent({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}))
+					engine.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "an action inside <foreach> failed"))
 {% endif %}
 				}
 			} else {
 				// Not an array — raise error.execution (W3C SCXML 5.6)
 {% if 'error.execution' in model.events %}
-				engine.Raise(sce.NewPlatformEvent({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}))
+				engine.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<foreach array='{{ action.array }}'> is not an array"))
 {% endif %}
 			}
 		}

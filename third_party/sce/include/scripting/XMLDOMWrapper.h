@@ -16,6 +16,21 @@ namespace SCE {
 class XMLElement;
 class XMLDocument;
 
+/// DOM Level 1 Core node types — the numbers `getNodeType()` reports.
+///
+/// Four of the twelve, because four is what these trees hold: comments
+/// and processing instructions never become nodes (pugixml's
+/// `parse_default` omits `parse_comments` and `parse_pi`) and the rest —
+/// attributes as nodes, entities, fragments — belong to interfaces this
+/// surface does not carry. The four are shared with the six mirrors so
+/// `nodeType` means the same number on every backend.
+namespace DomNodeType {
+constexpr int Element = 1;
+constexpr int Text = 3;
+constexpr int CdataSection = 4;
+constexpr int Document = 9;
+}  // namespace DomNodeType
+
 /**
  * §scxml-B-2: XML DOM wrapper for XML integration
  * Provides JavaScript-accessible DOM API for XML content
@@ -30,7 +45,33 @@ public:
     // DOM API methods
     std::vector<std::shared_ptr<XMLElement>> getElementsByTagName(const std::string &tagName);
     std::string getAttribute(const std::string &attrName);
+    /// DOM Level 2 Core: tells an absent attribute from one present and
+    /// empty, which getAttribute's "" cannot.
+    bool hasAttribute(const std::string &attrName) const;
     std::string getTagName() const;
+
+    // The ECMAScript data model appendix obliges the Processor to create
+    // "the corresponding DOM structure", so a handle carries DOM Level 1
+    // Core's Node interface and not only the calls the W3C IRP suite
+    // happens to read (measured 2026-08-18: two of them). One handle type
+    // answers for every node kind, mirroring pugixml's own single
+    // `xml_node`; getNodeType() is how a document tells the kinds apart.
+    int getNodeType() const;
+    std::string getNodeName() const;
+    /// True when this node kind has a nodeValue at all — character data
+    /// does, an element does not (DOM Level 1 Core gives it null).
+    bool hasNodeValue() const;
+    std::string getNodeValue() const;
+    /// Every descendant character-data node's content, concatenated in
+    /// document order (DOM Level 3 Core `textContent`).
+    std::string getTextContent() const;
+    bool hasChildNodes() const;
+    std::vector<std::shared_ptr<XMLElement>> getChildNodes() const;
+    std::shared_ptr<XMLElement> getFirstChild() const;
+    std::shared_ptr<XMLElement> getLastChild() const;
+    std::shared_ptr<XMLElement> getNextSibling() const;
+    std::shared_ptr<XMLElement> getPreviousSibling() const;
+    std::shared_ptr<XMLElement> getParentNode() const;
 
     // Internal access
     pugi::xml_node getNode() const {
@@ -61,8 +102,23 @@ public:
     std::vector<std::shared_ptr<XMLElement>> getElementsByTagName(const std::string &tagName);
     std::shared_ptr<XMLElement> getDocumentElement();
 
+    /// Whether the content parsed AS A DOCUMENT.
+    ///
+    /// It used to be `!doc_.empty()`, which is a different question: pugixml
+    /// leaves whatever it managed to read in the tree, so `<assign>  to detail
+    /// failed` came back non-empty and answered true here while the parse
+    /// result beside it said `Start-end tags mismatch`. The status was recorded
+    /// in `errorMessage_` and then never consulted.
+    ///
+    /// §scxml-B-2-8-1 hangs a MUST on exactly this distinction — "if the
+    /// Processor can interpret the content as a valid XML document, it MUST
+    /// create the corresponding DOM structure... Otherwise, the Processor MUST
+    /// treat the content as a space-normalized string literal" — so a lenient
+    /// answer here does not merely mislead, it selects the wrong reading and
+    /// hands the document a DOM built out of the fragment that happened to
+    /// parse. Measured 2026-08-19: both C++ engines did.
     bool isValid() const {
-        return !doc_.empty();
+        return parsed_ && !doc_.empty();
     }
 
     std::string getErrorMessage() const {
@@ -71,6 +127,8 @@ public:
 
 private:
     pugi::xml_document doc_;
+    /// The parse status, kept rather than only described. See `isValid`.
+    bool parsed_ = false;
     std::string errorMessage_;
 };
 

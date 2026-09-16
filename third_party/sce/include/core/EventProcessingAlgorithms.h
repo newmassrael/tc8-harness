@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "core/LogMacros.h"
 #include "core/EventQueueConcept.h"
+#include "core/LogMacros.h"
 #include <functional>
 
 namespace SCE::Core {
@@ -22,6 +22,19 @@ namespace SCE::Core {
  * @note All methods in this class are static template functions,
  *       inlined at compile time with no runtime overhead.
  */
+/**
+ * @brief The default answer to "may this macrostep take another microstep?".
+ *
+ * A named type rather than a lambda default so the parameter can carry a
+ * default template argument: yes, forever, which is what the queue drain did
+ * before any engine here bounded it.
+ */
+struct AlwaysTakeMicrostep {
+    bool operator()() const {
+        return true;
+    }
+};
+
 class EventProcessingAlgorithms {
 public:
     /**
@@ -37,6 +50,15 @@ public:
      *
      * @param queue Internal event queue (AOTEventQueue or InterpreterEventQueue)
      * @param handler Event processing function (stops processing if returns false)
+     * @param mayTakeMicrostep Asked before each dequeue: may this macrostep
+     *        take another microstep? A drain that stops here leaves the event
+     *        on the queue, which is the difference between a chain this engine
+     *        declined to keep running and one it silently swallowed. The
+     *        default answers yes forever, which is what every caller did
+     *        before a `<raise>` that answers itself was measured to be a
+     *        macrostep that never ends. A caller that says no is expected to
+     *        publish the refusal there — the loop cannot, because it does not
+     *        know whose ceiling it is.
      *
      * @example AOT engine:
      * @code
@@ -55,13 +77,22 @@ public:
      * @endcode
      */
 #if __cpp_concepts >= 202002L
-    template <EventQueueAdapter EventQueue, typename EventHandler>
+    template <EventQueueAdapter EventQueue, typename EventHandler, typename MicrostepBudget = AlwaysTakeMicrostep>
 #else
-    template <typename EventQueue, typename EventHandler>
+    template <typename EventQueue, typename EventHandler, typename MicrostepBudget = AlwaysTakeMicrostep>
 #endif
-    static void processInternalEventQueue(EventQueue &queue, EventHandler &&handler) {
+    static void processInternalEventQueue(EventQueue &queue, EventHandler &&handler,
+                                          MicrostepBudget &&mayTakeMicrostep = MicrostepBudget{}) {
         // §scxml-3.13: Process all internal events in FIFO order
         while (queue.hasEvents()) {
+            if (!mayTakeMicrostep()) {
+                // The macrostep ran out of budget with work still queued. The
+                // event is deliberately left where it is: the next macrostep
+                // starts there, and nothing the document raised is lost.
+                SCE_LOG_DEBUG("EventProcessingAlgorithms: microstep budget spent, leaving the queue for the next "
+                              "macrostep");
+                break;
+            }
             auto event = queue.popNext();
 
             // Stop if event processing fails
@@ -100,6 +131,9 @@ public:
 #endif
     static bool checkEventlessTransitions(StateMachine &sm, EventQueue &queue,
                                           InternalEventProcessor &&processInternalEvent, int maxIterations = 100) {
+        // §scxml-D-selectEventlessTransitions: keep selecting transitions that carry
+        // no 'event' attribute and whose guard holds, taking them until none remain
+        // enabled in the current configuration.
         bool anyTransition = false;
         int iterations = 0;
 
@@ -131,7 +165,7 @@ public:
 
         if (iterations >= maxIterations) {
             SCE_LOG_ERROR("EventProcessingAlgorithms: Eventless transition loop detected after {} iterations",
-                      maxIterations);
+                          maxIterations);
             return false;
         }
 

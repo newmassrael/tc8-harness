@@ -30,19 +30,17 @@ namespace SCE::Core {
 // C++17-compatible trait for ParallelStatePolicy detection
 // Used in if constexpr to check if a policy supports parallel state operations.
 // ═══════════════════════════════════════════════════════════════════════════════
-template<typename P, typename = void>
-struct IsParallelStatePolicyTrait : std::false_type {};
-template<typename P>
-struct IsParallelStatePolicyTrait<P, std::void_t<
-    decltype(P::isParallelState(std::declval<typename P::State>())),
-    decltype(P::getParallelRegions(std::declval<typename P::State>())),
-    decltype(P::isDescendantOf(std::declval<typename P::State>(), std::declval<typename P::State>())),
-    decltype(P::getDocumentOrder(std::declval<typename P::State>())),
-    decltype(P::isFinalState(std::declval<typename P::State>()))
->> : std::true_type {};
+template <typename P, typename = void> struct IsParallelStatePolicyTrait : std::false_type {};
 
-template<typename P>
-inline constexpr bool IsParallelStatePolicy = IsParallelStatePolicyTrait<P>::value;
+template <typename P>
+struct IsParallelStatePolicyTrait<
+    P, std::void_t<decltype(P::isParallelState(std::declval<typename P::State>())),
+                   decltype(P::getParallelRegions(std::declval<typename P::State>())),
+                   decltype(P::isDescendantOf(std::declval<typename P::State>(), std::declval<typename P::State>())),
+                   decltype(P::getDocumentOrder(std::declval<typename P::State>())),
+                   decltype(P::isFinalState(std::declval<typename P::State>()))>> : std::true_type {};
+
+template <typename P> inline constexpr bool IsParallelStatePolicy = IsParallelStatePolicyTrait<P>::value;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Unified Hierarchical Algorithms (Single Source of Truth)
@@ -61,7 +59,6 @@ inline constexpr bool IsParallelStatePolicy = IsParallelStatePolicyTrait<P>::val
  * - Single Source of Truth: All hierarchical algorithms centralized here
  */
 struct HierarchicalAlgorithms {
-
     /**
      * @brief Find Least Common Ancestor of two states (§scxml-3.13)
      *
@@ -71,9 +68,22 @@ struct HierarchicalAlgorithms {
      */
     template <typename StateType, typename GetParentFn>
     [[nodiscard]] static std::optional<StateType> findLCA(const StateType &state1, const StateType &state2,
-                                                           GetParentFn getParent) {
+                                                          GetParentFn getParent) {
+        // §scxml-D-findLCCA: the Least Common Compound Ancestor is the state that
+        // is a proper ancestor of every state in the list and has no descendant
+        // with that property. Both engines reach the procedure through here.
+        //
+        // The candidates come from the proper ancestors, which exclude the
+        // state itself, so the two states being equal — an external
+        // self-transition — resolves to the parent and never to the state.
+        // Answering with the state instead left the exit-set walk, which
+        // climbs from the source to just below this answer, without a stopping
+        // point: it ran to the document root, the exit set then named the
+        // enclosing `<parallel>`, and conflict resolution preempted the
+        // sibling regions' own transitions on that same event — where every
+        // region is required to take its enabled transition in one microstep.
         if (state1 == state2) {
-            return state1;
+            return getParent(state1);
         }
 
         // §scxml-3.13: Build ancestor chain starting from state1's parent (test 504)
@@ -112,14 +122,65 @@ struct HierarchicalAlgorithms {
     }
 
     /**
+     * @brief Least Common COMPOUND Ancestor of a transition
+     *
+     * @details
+     * This is the procedure `getTransitionDomain` calls, and it differs from
+     * findLCA above in the one way the appendix is explicit about: the
+     * candidates are the proper ancestors **filtered by
+     * `isCompoundStateOrScxmlElement`**. A `<parallel>` is neither a compound
+     * `<state>` nor the `<scxml>` element, so it is never a transition domain.
+     *
+     * The difference is invisible until a `<parallel>` sits between the source
+     * and the first compound `<state>` above it — which is exactly a
+     * transition written on a REGION ROOT. findLCA answers the `<parallel>`
+     * there; findLCCA walks past it, and the domain becomes the document root,
+     * so every region exits and re-enters and a sibling region's transition on
+     * the same event is preempted as conflicting.
+     *
+     * The descendant test is STRICT, which settles the other case the two
+     * procedures disagree on: when the target is itself an ancestor of the
+     * source, findLCA collapses the domain onto the target and the target's
+     * `onexit` never runs. A state is not its own descendant, so this walks one
+     * level higher instead.
+     *
+     * @param isDomainCandidate Predicate selecting legal domains (a compound
+     *        `<state>`; `<parallel>` must answer false)
+     * @return The domain, or std::nullopt when it is the `<scxml>` element
+     *         itself — which has no state identifier in either engine, and
+     *         which callers read as "exit the whole configuration"
+     */
+    template <typename StateType, typename GetParentFn, typename IsDomainCandidateFn>
+    [[nodiscard]] static std::optional<StateType> findLCCA(const StateType &source, const StateType &target,
+                                                           GetParentFn getParent,
+                                                           IsDomainCandidateFn isDomainCandidate) {
+        // §scxml-D-findLCCA: walk the source's PROPER ancestors, keep only the
+        // candidates the procedure's filter admits, and answer the first that
+        // contains the target.
+        StateType current = source;
+        while (true) {
+            auto parent = getParent(current);
+            if (!parent.has_value()) {
+                // Ran out of proper ancestors: the domain is the <scxml>
+                // element, and every active state is a descendant of it.
+                return std::nullopt;
+            }
+            current = parent.value();
+
+            if (isDomainCandidate(current) && isDescendantOf(target, current, getParent)) {
+                return current;
+            }
+        }
+    }
+
+    /**
      * @brief Build exit chain from state up to ancestor (§scxml-3.13)
      *
      * @return Exit chain in child → parent order (excluding stopBeforeState)
      */
     template <typename StateType, typename GetParentFn>
-    [[nodiscard]] static std::vector<StateType> buildExitChain(const StateType &fromState,
-                                                                const StateType &stopBeforeState,
-                                                                GetParentFn getParent) {
+    [[nodiscard]] static std::vector<StateType>
+    buildExitChain(const StateType &fromState, const StateType &stopBeforeState, GetParentFn getParent) {
         std::vector<StateType> chain;
         chain.reserve(8);
 
@@ -142,9 +203,8 @@ struct HierarchicalAlgorithms {
      * @return Entry chain in parent → child order (excluding ancestorState)
      */
     template <typename StateType, typename GetParentFn>
-    [[nodiscard]] static std::vector<StateType> buildEntryChainFromAncestor(const StateType &targetState,
-                                                                             const StateType &ancestorState,
-                                                                             GetParentFn getParent) {
+    [[nodiscard]] static std::vector<StateType>
+    buildEntryChainFromAncestor(const StateType &targetState, const StateType &ancestorState, GetParentFn getParent) {
         std::vector<StateType> chain;
         chain.reserve(8);
 
@@ -163,11 +223,11 @@ struct HierarchicalAlgorithms {
     }
 
     /**
-     * @brief Check if descendant is a child/grandchild of ancestor (W3C SCXML Appendix D.2)
+     * @brief Check if descendant is a child/grandchild of ancestor (§scxml-D-isDescendant)
      */
     template <typename StateType, typename GetParentFn>
     [[nodiscard]] static bool isDescendantOf(const StateType &descendant, const StateType &ancestor,
-                                              GetParentFn getParent) {
+                                             GetParentFn getParent) {
         StateType current = descendant;
         while (true) {
             auto parent = getParent(current);
@@ -203,31 +263,36 @@ template <HierarchyPolicy StatePolicy> class HierarchicalStateHelper {
 #else
 template <typename StatePolicy> class HierarchicalStateHelper {
 #endif
+
 public:
     using State = typename StatePolicy::State;
 
 private:
     // §scxml-3.4: Add parallel region children to entry chain if StatePolicy supports parallel states
     static void addParallelRegions(std::vector<State> &chain, State leafState) {
+        // §scxml-D-addDescendantStatesToEnter: when the state being entered is a
+        // parallel state, every one of its regions is entered too, each descending
+        // to its own default initial child.
         if constexpr (IsParallelStatePolicy<StatePolicy>) {
             SCE_LOG_DEBUG("HierarchicalStateHelper::buildEntryChain - Checking if leafState {} is parallel",
-                      static_cast<int>(leafState));
+                          static_cast<int>(leafState));
             if (StatePolicy::isParallelState(leafState)) {
                 SCE_LOG_DEBUG("HierarchicalStateHelper::buildEntryChain - leafState {} IS parallel, adding regions",
-                          static_cast<int>(leafState));
+                              static_cast<int>(leafState));
                 auto regions = StatePolicy::getParallelRegions(leafState);
                 SCE_LOG_DEBUG("HierarchicalStateHelper::buildEntryChain - Found {} regions", regions.size());
                 for (const auto &region : regions) {
-                    SCE_LOG_DEBUG("HierarchicalStateHelper::buildEntryChain - Adding region {}", static_cast<int>(region));
+                    SCE_LOG_DEBUG("HierarchicalStateHelper::buildEntryChain - Adding region {}",
+                                  static_cast<int>(region));
                     chain.push_back(region);
 
                     if (StatePolicy::isCompoundState(region)) {
                         State regionInitialChild = StatePolicy::getInitialChild(region);
                         SCE_LOG_DEBUG("HierarchicalStateHelper::buildEntryChain - Region {} initial child: {}",
-                                  static_cast<int>(region), static_cast<int>(regionInitialChild));
+                                      static_cast<int>(region), static_cast<int>(regionInitialChild));
                         if (regionInitialChild != region) {
                             SCE_LOG_DEBUG("HierarchicalStateHelper::buildEntryChain - Adding initial child {}",
-                                      static_cast<int>(regionInitialChild));
+                                          static_cast<int>(regionInitialChild));
                             chain.push_back(regionInitialChild);
                         }
                     }
@@ -237,7 +302,6 @@ private:
     }
 
 public:
-
     /**
      * @brief Build entry chain from leaf state to root
      *
@@ -311,9 +375,9 @@ public:
         // Safety check: detect cyclic parent relationships
         if (depth >= MAX_DEPTH) {
             SCE_LOG_ERROR("HierarchicalStateHelper::buildEntryChain() - Maximum depth ({}) exceeded for state. "
-                      "Cyclic parent relationship detected in state machine definition. "
-                      "This indicates a bug in the code generator or corrupted SCXML.",
-                      MAX_DEPTH);
+                          "Cyclic parent relationship detected in state machine definition. "
+                          "This indicates a bug in the code generator or corrupted SCXML.",
+                          MAX_DEPTH);
             throw std::runtime_error("Cyclic parent relationship detected in state hierarchy");
         }
 
@@ -322,6 +386,8 @@ public:
 
         // §scxml-3.3: If leaf is compound state, add initial child hierarchy
         // This ensures S01 (compound) automatically enters S011 (initial child)
+        // §scxml-D-addDescendantStatesToEnter: a compound state drags in its default
+        // initial descendants until an atomic state is reached.
         State leafToCheck = leafState;
         depth = 0;
         while (depth < MAX_DEPTH && StatePolicy::isCompoundState(leafToCheck)) {
@@ -497,8 +563,8 @@ public:
      * - Used for external transitions with proper LCA calculation
      */
     static std::vector<State> buildExitChain(State fromState, State stopBeforeState) {
-        return HierarchicalAlgorithms::buildExitChain(
-            fromState, stopBeforeState, [](State s) { return StatePolicy::getParent(s); });
+        return HierarchicalAlgorithms::buildExitChain(fromState, stopBeforeState,
+                                                      [](State s) { return StatePolicy::getParent(s); });
     }
 
     /**
@@ -539,8 +605,8 @@ public:
      * Matches Interpreter's hierarchical entry after LCA calculation.
      */
     static std::vector<State> buildEntryChainFromParent(State targetState, State parentState) {
-        return HierarchicalAlgorithms::buildEntryChainFromAncestor(
-            targetState, parentState, [](State s) { return StatePolicy::getParent(s); });
+        return HierarchicalAlgorithms::buildEntryChainFromAncestor(targetState, parentState,
+                                                                   [](State s) { return StatePolicy::getParent(s); });
     }
 
     /**
@@ -569,17 +635,59 @@ public:
      * auto lca = HierarchicalStateHelper<Policy>::findLCA(State::S011, State::S021);
      * // Returns: State::S0 (common parent of S01 and S02)
      *
-     * // Same state
+     * // Same state — an external self-transition
      * lca = HierarchicalStateHelper<Policy>::findLCA(State::S011, State::S011);
-     * // Returns: State::S011 (state is its own LCA)
+     * // Returns: State::S01 (the parent; §scxml-D-findLCCA chooses among
+     * //          proper ancestors, so a state is never its own domain)
      * @endcode
      *
      * @par §scxml-3.13 Compliance
-     * Matches Interpreter's findLCA() behavior for external transitions.
+     * Both engines resolve a transition's domain through this one procedure.
      */
     static std::optional<State> findLCA(State state1, State state2) {
-        return HierarchicalAlgorithms::findLCA(
-            state1, state2, [](State s) { return StatePolicy::getParent(s); });
+        return HierarchicalAlgorithms::findLCA(state1, state2, [](State s) { return StatePolicy::getParent(s); });
+    }
+
+    /**
+     * @brief §scxml-D-findLCCA: may this state be a domain?
+     *
+     * The `isCompoundStateOrScxmlElement` filter that procedure applies to the
+     * candidate ancestors, spelled over a StatePolicy.
+     *
+     * A `<parallel>` answers false. Every policy reports it as compound —
+     * `isInternalToDescendant` subtracts it the same way — so the two questions
+     * have to be asked together rather than one standing in for the other.
+     *
+     * The `<scxml>` element is the other legal answer in the appendix and has
+     * no State here, which is why findLCCA returns nullopt for it rather than
+     * naming it.
+     */
+    static bool isTransitionDomainCandidate(State state) {
+        if constexpr (IsParallelStatePolicy<StatePolicy>) {
+            if (StatePolicy::isParallelState(state)) {
+                return false;
+            }
+        }
+        return StatePolicy::isCompoundState(state);
+    }
+
+    /**
+     * @brief §scxml-D-findLCCA: the domain of a transition (source → target)
+     *
+     * @details
+     * What `getTransitionDomain` calls for every transition that is not an
+     * internal one to a descendant. Differs from findLCA by filtering the
+     * candidates: a `<parallel>` is not a domain, so an external transition on
+     * a region root resolves past it — to the enclosing compound `<state>` if
+     * there is one, otherwise to the document root.
+     *
+     * @return The domain, or std::nullopt when the domain is the `<scxml>`
+     *         element (exit the whole configuration)
+     */
+    static std::optional<State> findLCCA(State source, State target) {
+        return HierarchicalAlgorithms::findLCCA(
+            source, target, [](State s) { return StatePolicy::getParent(s); },
+            [](State s) { return isTransitionDomainCandidate(s); });
     }
 
     static std::optional<State> getParent(State state) {
@@ -590,7 +698,7 @@ public:
      * @brief Check if one state is a descendant of another
      *
      * @details
-     * W3C SCXML Appendix D.2: Used for transition conflict resolution.
+     * §scxml-D-removeConflictingTransitions: Used for transition conflict resolution.
      * A state is a descendant of ancestor if ancestor appears in the parent chain.
      *
      * @param descendant Potential descendant state
@@ -614,14 +722,14 @@ public:
      * // Returns: false (state is not its own descendant)
      * @endcode
      *
-     * @par W3C SCXML Appendix D.2 Compliance
+     * @par §scxml-D-removeConflictingTransitions Compliance
      * Used for optimal transition set selection:
      * - If t1.source is descendant of t2.source -> t1 preempts t2
      * - Otherwise -> t2 preempts t1 (document order)
      */
     static bool isDescendantOf(State descendant, State ancestor) {
-        return HierarchicalAlgorithms::isDescendantOf(
-            descendant, ancestor, [](State s) { return StatePolicy::getParent(s); });
+        return HierarchicalAlgorithms::isDescendantOf(descendant, ancestor,
+                                                      [](State s) { return StatePolicy::getParent(s); });
     }
 };
 

@@ -28,9 +28,9 @@
 {% if not in_foreach %}bool success = false;
 {% else %}success = false;  // Use foreach-scope variable
 {% endif %}
-if (::SCE::AssignHelper::isValidLocation("{{ action.location }}")) {
+if (::SCE::AssignHelper::isValidLocation("{{ action.location | escape_cpp }}")) {
     // Location is valid, proceed with assignment
-    AOT_DEBUG("AOT assign: Before ensureScriptEngine for {{ action.location }}");
+    AOT_DEBUG("AOT assign: Before ensureScriptEngine for {{ action.location | escape_cpp_format }}");
     this->ensureScriptEngine();
     AOT_DEBUG("AOT assign: After ensureScriptEngine, sessionId={}", sessionId_.value_or("NONE"));
     auto& scriptEngine = getScriptEngine();
@@ -38,14 +38,19 @@ if (::SCE::AssignHelper::isValidLocation("{{ action.location }}")) {
     // ARCHITECTURE.md: Zero Duplication - Use shared AssignmentExecutionHelper
     // W3C SCXML 5.3/5.10: Assignment execution with proper system variable handling
     {% if action.content %}
-    // W3C SCXML 5.4: XML content assignments use string literal expression
-    std::string expr = "'{{ action.content | replace('"', '\\"') | replace("'", "\\'") }}'";
+    // W3C SCXML 5.4.2: the children "provide an in-line specification of the
+    // legal data value ... to be inserted into the data model at the specified
+    // location" — the same reading <data> content gets, made once by
+    // `to_author_assign_content` so this backend and the lowering ones cannot
+    // disagree about whether `21` is a number. Quoting it unconditionally, as
+    // this line did, made it the string "21".
+    ::SCE::ScriptSource expr = {{ action.content | to_script_source_assign_content }};
     {% else %}
-    std::string expr = "{{ action.expr.rstrip(';') }}";
+    ::SCE::ScriptSource expr = {{ action.expr.rstrip(';') | to_script_source_expr }};
     {% endif %}
 
     success = ::SCE::AssignmentExecutionHelper::executeAssignment(
-        scriptEngine, sessionId_.value(), "{{ action.location }}", expr,
+        scriptEngine, sessionId_.value(), {{ action.location | to_script_source_location }}, expr,
         [&engine](const std::string& error) {
             SCE_LOG_ERROR("AOT assign: {}", error);
             engine.raise(typename Engine::EventWithMetadata(Event::Error_execution, error));
@@ -55,20 +60,20 @@ if (::SCE::AssignHelper::isValidLocation("{{ action.location }}")) {
     if (!success) SCE_UNLIKELY {
         // Assignment failed, error.execution already raised by callback
         {% if action.content %}
-        SCE_LOG_ERROR("AOT assign: Failed to assign {{ action.location }} = content");
+        SCE_LOG_ERROR("AOT assign: Failed to assign {{ action.location | escape_cpp_format }} = content");
         {% else %}
-        SCE_LOG_ERROR("AOT assign: Failed to assign {{ action.location }} = {{ action.expr.rstrip(';') }}");
+        SCE_LOG_ERROR("AOT assign: Failed to assign {{ action.location | escape_cpp_format }} = {{ action.expr.rstrip(';') | escape_cpp_format }}");
         {% endif %}
     } else {
         {% if action.content %}
-        AOT_DEBUG("AOT assign: Successfully assigned {{ action.location }} = content");
+        AOT_DEBUG("AOT assign: Successfully assigned {{ action.location | escape_cpp_format }} = content");
         {% else %}
-        AOT_DEBUG("AOT assign: Successfully assigned {{ action.location }} = {{ action.expr.rstrip(';') }}");
+        AOT_DEBUG("AOT assign: Successfully assigned {{ action.location | escape_cpp_format }} = {{ action.expr.rstrip(';') | escape_cpp_format }}");
         {% endif %}
     }
 } else {
     // W3C SCXML 5.3/5.4/B.2: Invalid or read-only location
-    std::string errorMsg = ::SCE::AssignHelper::getInvalidLocationErrorMessage("{{ action.location }}");
+    std::string errorMsg = ::SCE::AssignHelper::getInvalidLocationErrorMessage("{{ action.location | escape_cpp }}");
     SCE_LOG_ERROR("W3C SCXML 5.3: {}", errorMsg);
     engine.raise(typename Engine::EventWithMetadata(Event::Error_execution, errorMsg));
 }

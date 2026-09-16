@@ -6,34 +6,21 @@
 #   2. Installed: When SCE is found via find_package(SCE)
 #
 # Uses sce-codegen (Rust binary) for code generation.
-# Build: cargo build --bin sce-codegen --features cli --release -p sce-build
+# Build: cargo build --bin sce-codegen --features cli -p sce-build
 #
 # Usage:
 #   sce_add_state_machine(TARGET my_app SCXML_FILE state.scxml)
 #   sce_add_state_machines_from_dir(TARGET my_app SCXML_DIR scxml/)
 
-# Find sce-codegen binary
-# Priority: 1) SCE_CODEGEN (already set by parent CMake / installed package)
-#           2) In-tree cargo build output (release, then debug)
-#           3) System PATH
-if(NOT SCE_CODEGEN)
-    get_filename_component(_SCE_CMAKE_ROOT "${CMAKE_CURRENT_LIST_DIR}" DIRECTORY)
-    find_program(SCE_CODEGEN sce-codegen
-        PATHS "${_SCE_CMAKE_ROOT}/target/release" "${_SCE_CMAKE_ROOT}/target/debug"
-        NO_DEFAULT_PATH
-    )
-    if(NOT SCE_CODEGEN)
-        find_program(SCE_CODEGEN sce-codegen)
-    endif()
-endif()
-
-if(NOT SCE_CODEGEN)
-    message(FATAL_ERROR "SCE: sce-codegen not found. Build it with: cargo build --bin sce-codegen --features cli --release -p sce-build")
-endif()
+# Find sce-codegen binary. The search itself lives in SCEFindCodegen so
+# the forge conformance and round-trip harnesses — which need the
+# binary but none of the generation functions below — resolve it the
+# same way rather than each naming a profile.
+include("${CMAKE_CURRENT_LIST_DIR}/SCEFindCodegen.cmake")
 
 message(STATUS "SCE: Using code generator: ${SCE_CODEGEN}")
 
-# Auto-detect SCE_TEMPLATE_DIR so release sce-codegen binaries (which
+# Auto-detect SCE_TEMPLATE_DIR so installed sce-codegen binaries (which
 # refuse silent fallback — see sce-build::find_template_base) find the
 # Jinja2 templates in all three distribution layouts without the
 # consumer having to set SCE_TEMPLATE_DIR manually:
@@ -70,6 +57,18 @@ Arguments:
   OUTPUT_DIR  - Output directory for generated files (optional, defaults to
                 ${CMAKE_CURRENT_BINARY_DIR}/generated)
   LANGUAGE    - Target language: cpp (default), rust, kotlin, or go
+  SCRIPT_ENGINE_LANGUAGE - Which language the generated machine hands its script
+                engine: `lua` (the build-time frontend lowers every expression)
+                or `ecmascript` (the author's text crosses to the engine, which
+                adapts or refuses). Omit it and the backend emits for the engine
+                it already emitted for, so the command stays byte-identical to
+                one from before this argument existed. A backend that cannot
+                honour the request refuses rather than emit an artifact half in
+                each language — see docs/SCE_LUA_TRANSLATION_SEAM.md. This must
+                agree with the SCE_SCRIPT_ENGINE the runtime was configured
+                with: a Lua-shaped artifact can only run on a Lua engine.
+                Spelled with `_LANGUAGE` on purpose — see the collision note in
+                the body — and it is the manifest's own field name.
   CPP_NAMESPACE_PREFIX - Nest the emitted C++ namespace under
                 SCE::Generated::<prefix>::<machine> instead of the default
                 SCE::Generated::<machine>, so a separate catalog can reuse
@@ -86,7 +85,31 @@ Example:
   target_link_libraries(my_app PRIVATE SCE::sce_base)
 #]=============================================================================]
 function(sce_add_state_machine)
-    cmake_parse_arguments(SCE "" "TARGET;SCXML_FILE;OUTPUT_DIR;LANGUAGE;CPP_NAMESPACE_PREFIX" "" ${ARGN})
+    cmake_parse_arguments(SCE "" "TARGET;SCXML_FILE;OUTPUT_DIR;LANGUAGE;SCRIPT_ENGINE_LANGUAGE;CPP_NAMESPACE_PREFIX" "HOST_PROCESSOR;HOST_INVOKER" ${ARGN})
+
+    # ⚠ The parse prefix is `SCE`, so a keyword may not name an SCE CACHE entry.
+    #
+    # The engine-language argument was first spelled `SCRIPT_ENGINE`, which
+    # parses into `SCE_SCRIPT_ENGINE` — this tree's own engine-selection cache
+    # option. `cmake_parse_arguments` UNSETS the variable for a keyword the
+    # caller omitted, and unsetting a normal variable reveals the cache entry
+    # underneath, so an omitted argument silently became "whatever engine this
+    # tree was configured with". Measured 2026-08-29 while building the red
+    # witness for `scripts/gate ecma262-lowered-cpp`: dropping the argument from
+    # the lowered target left its artifact fully lowered anyway — 170
+    # `ScriptSource::lua(...)` pairs — because the tree was configured
+    # `-DSCE_SCRIPT_ENGINE=lua`. A gate cannot be shown to catch a lost flag
+    # while the flag cannot be lost.
+    #
+    # Asserted rather than only written down, because the next keyword added
+    # here is one rename away from the same silence.
+    if(DEFINED CACHE{SCE_SCRIPT_ENGINE_LANGUAGE})
+        message(FATAL_ERROR
+            "sce_add_state_machine: SCE_SCRIPT_ENGINE_LANGUAGE exists as a cache "
+            "entry, so an omitted SCRIPT_ENGINE_LANGUAGE argument would inherit "
+            "it instead of leaving the backend's default. Rename the cache entry "
+            "or the keyword.")
+    endif()
 
     # Validate required arguments
     if(NOT SCE_TARGET)
@@ -105,6 +128,42 @@ function(sce_add_state_machine)
     # Set default language
     if(NOT SCE_LANGUAGE)
         set(SCE_LANGUAGE "cpp")
+    endif()
+
+    # An artifact in this tree can only run on the engine this tree compiled
+    # in, so when the caller does not name a language for the artifact to hand
+    # its engine, take the one that engine SPEAKS.
+    #
+    # `SCE_SCRIPT_ENGINE` is a cache option on the C++ runtime library and the
+    # definition it sets is PUBLIC on `sce_scripting`, so the selection is a
+    # property of the whole C++ tree — and of nothing else. That is why this is
+    # scoped to `cpp`: a Rust, Go, Python or Kotlin artifact generated here runs
+    # against whatever engine ITS host supplies, and this cache entry says
+    # nothing about that host. Deriving for them would also hand
+    # `--script-engine lua` to a backend that may refuse it
+    # (`Language::supports_script_engine_target`), turning an unrelated cache
+    # value into a build failure.
+    #
+    # `quickjs` is deliberately left UNSET rather than spelled `ecmascript`:
+    # omitting the flag is what keeps a run byte-identical to one from before
+    # the flag existed, which is the rule `sce-codegen`'s own flag follows.
+    #
+    # ⚠ This changes what a `-DSCE_SCRIPT_ENGINE=lua` tree emits, and that is
+    # the point — such a tree used to hand its Lua engine the author's
+    # ECMAScript and take the runtime rewriter's answers, which
+    # `tests/ecmascript/lua_engine_divergences.json` enumerates case by case.
+    # It does NOT by itself empty that file. Measured 2026-08-29: the two suites
+    # holding that list reach the engine by routes this default cannot touch —
+    # `ecmascript_semantics_test` calls `LuaEngine::instance()` directly and
+    # carries no generated machine at all, and `LoweredEcma262`'s control names
+    # `SCRIPT_ENGINE_LANGUAGE ecmascript` explicitly so that it stays a control.
+    # The list empties when the rewriter is RETIRED; this is the step that
+    # removes generated C++ as its consumer.
+    if(NOT SCE_SCRIPT_ENGINE_LANGUAGE AND SCE_LANGUAGE STREQUAL "cpp")
+        string(TOLOWER "${SCE_SCRIPT_ENGINE}" _SCE_TREE_ENGINE_ID)
+        if(_SCE_TREE_ENGINE_ID STREQUAL "lua")
+            set(SCE_SCRIPT_ENGINE_LANGUAGE "lua")
+        endif()
     endif()
 
     # Set default output directory
@@ -135,7 +194,7 @@ function(sce_add_state_machine)
     set(_SCE_DEPFILE "${GENERATED_OUTPUT}.d")
 
     # Build codegen command with optional template dir (installed package scenario)
-    set(_SCE_CODEGEN_CMD "${SCE_CODEGEN}" generate
+    set(_SCE_CODEGEN_CMD ${SCE_CODEGEN_ENV} "${SCE_CODEGEN}" generate
         "${SCXML_ABS_PATH}" -o "${SCE_OUTPUT_DIR}"
         -l "${SCE_LANGUAGE}"
         --write-deps "${_SCE_DEPFILE}")
@@ -147,6 +206,28 @@ function(sce_add_state_machine)
     if(SCE_CPP_NAMESPACE_PREFIX AND SCE_LANGUAGE STREQUAL "cpp")
         list(APPEND _SCE_CODEGEN_CMD --cpp-namespace-prefix "${SCE_CPP_NAMESPACE_PREFIX}")
     endif()
+    # Which language the artifact hands its engine. Appended only when asked,
+    # so a call that does not name one produces the same command it did before
+    # this argument existed — the same rule sce-codegen's own flag follows.
+    if(SCE_SCRIPT_ENGINE_LANGUAGE)
+        list(APPEND _SCE_CODEGEN_CMD --script-engine "${SCE_SCRIPT_ENGINE_LANGUAGE}")
+    endif()
+    # §scxml-6.2.5: the Event I/O Processor types this build's HOST serves.
+    # Multi-valued because the identifier set is open and a host may serve
+    # several. Codegen decides at compile time whether a `<send type>` site
+    # dispatches or refuses, so a host that registers a handler without
+    # declaring the type here still meets the refusal — which is the point:
+    # the two halves have to agree, and only one of them is in the build.
+    foreach(_sce_host_processor IN LISTS SCE_HOST_PROCESSOR)
+        list(APPEND _SCE_CODEGEN_CMD --host-processor "${_sce_host_processor}")
+    endforeach()
+    # §scxml-6.4.1: the invoke half, declared separately for the reason the
+    # flags are separate — delivering an event is not the same capability as
+    # running a process with a lifetime, and one list would make declaring
+    # either silently claim both.
+    foreach(_sce_host_invoker IN LISTS SCE_HOST_INVOKER)
+        list(APPEND _SCE_CODEGEN_CMD --host-invoker "${_sce_host_invoker}")
+    endforeach()
     if(SCE_TEMPLATE_DIR)
         set(_SCE_CODEGEN_CMD ${CMAKE_COMMAND} -E env "SCE_TEMPLATE_DIR=${SCE_TEMPLATE_DIR}" ${_SCE_CODEGEN_CMD})
     endif()
@@ -198,6 +279,8 @@ Arguments:
   OUTPUT_DIR  - Output directory for generated files (optional)
   LANGUAGE    - Target language: cpp (default), rust, kotlin, or go
                 (forwarded to each per-file sce_add_state_machine call)
+  SCRIPT_ENGINE_LANGUAGE - Forwarded to each per-file sce_add_state_machine call
+                (optional; see sce_add_state_machine)
   CPP_NAMESPACE_PREFIX - Forwarded to each per-file sce_add_state_machine call
                 (optional, cpp only; see sce_add_state_machine)
 
@@ -211,7 +294,7 @@ Example:
   sce_add_state_machines_from_dir(TARGET my_app SCXML_DIR ${CMAKE_SOURCE_DIR}/scxml)
 #]=============================================================================]
 function(sce_add_state_machines_from_dir)
-    cmake_parse_arguments(SCE "" "TARGET;SCXML_DIR;OUTPUT_DIR;LANGUAGE;CPP_NAMESPACE_PREFIX" "" ${ARGN})
+    cmake_parse_arguments(SCE "" "TARGET;SCXML_DIR;OUTPUT_DIR;LANGUAGE;SCRIPT_ENGINE_LANGUAGE;CPP_NAMESPACE_PREFIX" "" ${ARGN})
 
     # Validate required arguments
     if(NOT SCE_TARGET)
@@ -247,6 +330,7 @@ function(sce_add_state_machines_from_dir)
             SCXML_FILE ${SCXML_FILE}
             OUTPUT_DIR ${SCE_OUTPUT_DIR}
             LANGUAGE ${SCE_LANGUAGE}
+            SCRIPT_ENGINE_LANGUAGE "${SCE_SCRIPT_ENGINE_LANGUAGE}"
             CPP_NAMESPACE_PREFIX "${SCE_CPP_NAMESPACE_PREFIX}"
         )
     endforeach()
@@ -303,7 +387,7 @@ function(sce_create_state_machine_library)
 
     # Build codegen command with optional template dir (installed package scenario)
     set(_SCE_DEPFILE "${GENERATED_HEADER}.d")
-    set(_SCE_CODEGEN_CMD "${SCE_CODEGEN}" generate
+    set(_SCE_CODEGEN_CMD ${SCE_CODEGEN_ENV} "${SCE_CODEGEN}" generate
         "${SCXML_ABS_PATH}" -o "${SCE_OUTPUT_DIR}"
         --write-deps "${_SCE_DEPFILE}")
     if(SCE_TEMPLATE_DIR)

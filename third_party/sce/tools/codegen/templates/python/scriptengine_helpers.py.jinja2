@@ -16,7 +16,7 @@
 
     # ── Script helpers ─────────────────────────────────────────────
 
-    def _raise_error_execution(self, engine) -> None:
+    def _raise_error_execution(self, engine, message: str) -> None:
         """W3C SCXML 3.8 — push `error.execution` onto the internal queue
         when the running document declares the descriptor. The event is
         platform-generated (`<assign>` or `<script>` eval failure), so
@@ -26,10 +26,23 @@
         transition still need block-abort (W3C 3.8 "subsequent siblings
         in the same block are skipped"), so the calling helper raises
         `_ActionAbort` independently of whether this method enqueues
-        anything."""
+        anything.
+
+        `message` names the failing construct and rides in `_event.data`.
+        It was absent until 2026-08-19, so a document that answered
+        `error.execution` got an empty string: it could see THAT
+        something failed and never WHAT. The parameter is required
+        rather than defaulted — a raise site that forgets it should not
+        compile quietly, which is the whole reason the other five
+        backends had drifted apart on this."""
+        # §scxml-3.12.2: the processor signals its own failures as
+        # `error.*`, and "platforms MAY include additional information
+        # about the nature of the error in the 'data' field".
         evt = self.get_event_from_name("error.execution")
         if evt is not None:
-            engine.raise_internal(evt, EventMetadata(event_type="platform"))
+            engine.raise_internal(
+                evt, EventMetadata(data=message, event_type="platform")
+            )
 
     def _exec(self, engine, lua_script: str) -> None:
         """W3C SCXML 5.5 — execute a `<script>` body. The text was
@@ -42,7 +55,7 @@
         try:
             engine._script_engine.execute_script(self._session_id, lua_script)
         except _ScriptError:
-            self._raise_error_execution(engine)
+            self._raise_error_execution(engine, "<script> failed to execute")
             raise _ActionAbort
 
     def _guard(self, engine, lua_expr: str) -> bool:
@@ -58,7 +71,9 @@
                 self._session_id, lua_expr
             )
         except _ScriptError:
-            self._raise_error_execution(engine)
+            self._raise_error_execution(
+                engine, "a <transition> cond failed to evaluate"
+            )
             return False
         return result.to_bool()
 
@@ -77,46 +92,22 @@
         _event` keeps `Var2` and `_event` pointing at the same Lua
         table (W3C SCXML test 329 depends on this)."""
         if not location or location in _READONLY_SYSTEM_VARS:
-            self._raise_error_execution(engine)
+            self._raise_error_execution(
+                engine,
+                f"<assign> has an invalid or read-only location '{location}'",
+            )
             raise _ActionAbort
         if not lua_expr:
-            self._raise_error_execution(engine)
+            self._raise_error_execution(
+                engine, f"<assign> to '{location}' has no expr to evaluate"
+            )
             raise _ActionAbort
         try:
             engine._script_engine.execute_script(
                 self._session_id, f"{location} = {lua_expr}"
             )
         except _ScriptError:
-            self._raise_error_execution(engine)
-            raise _ActionAbort
-
-    def _assign_content(
-        self, engine, location: str, lua_expr: str, fallback: str
-    ) -> None:
-        """W3C SCXML 5.4 — `<assign>` with inline content (XML body or
-        literal text). Mirrors `_init_data_with_content`: try Lua eval
-        first; on failure (XML element / freeform text) bind the
-        whitespace-normalised string. Read-only system vars + empty
-        location still raise `error.execution` like the expr-form
-        `_assign`."""
-        if not location or location in _READONLY_SYSTEM_VARS:
-            self._raise_error_execution(engine)
-            raise _ActionAbort
-        try:
-            engine._script_engine.execute_script(
-                self._session_id, f"{location} = {lua_expr}"
-            )
-            return
-        except _ScriptError:
-            pass
-        # W3C SCXML B.2 — fallback to whitespace-normalised string
-        # (covers XML element content per test530).
-        try:
-            engine._script_engine.set_variable(
-                self._session_id, location, _ScriptValue.of(fallback)
-            )
-        except _ScriptError:
-            self._raise_error_execution(engine)
+            self._raise_error_execution(engine, f"<assign> to '{location}' failed")
             raise _ActionAbort
 
     def _assign_runtime(self, engine, location: str, value) -> None:
@@ -132,7 +123,9 @@
             or location in _READONLY_SYSTEM_VARS
             or not self._is_legal_identifier(location)
         ):
-            self._raise_error_execution(engine)
+            self._raise_error_execution(
+                engine, f"<foreach item='{location}'> is not a legal variable name"
+            )
             raise _ActionAbort
         engine._script_engine.set_variable(
             self._session_id, location, _ScriptValue.of(value)
@@ -232,24 +225,30 @@
         array raises `error.execution` and aborts the surrounding
         executable-content block (the test 152 case)."""
         if not lua_array_expr:
-            self._raise_error_execution(engine)
+            self._raise_error_execution(engine, "<foreach> has no 'array' attribute")
             raise _ActionAbort
         try:
             collection = engine._script_engine.evaluate_expression(
                 self._session_id, lua_array_expr
             ).to_python()
         except _ScriptError:
-            self._raise_error_execution(engine)
+            self._raise_error_execution(
+                engine, f"<foreach array='{lua_array_expr}'> failed to evaluate"
+            )
             raise _ActionAbort
         if collection is None:
-            self._raise_error_execution(engine)
+            self._raise_error_execution(
+                engine, f"<foreach array='{lua_array_expr}'> is not an array"
+            )
             raise _ActionAbort
         if isinstance(collection, dict):
             return enumerate(collection.items())
         try:
             return enumerate(collection)
         except TypeError:
-            self._raise_error_execution(engine)
+            self._raise_error_execution(
+                engine, f"<foreach array='{lua_array_expr}'> is not iterable"
+            )
             raise _ActionAbort
 
     def _foreach_values(self, engine, lua_array_expr: str):
@@ -257,22 +256,28 @@
         each value in turn. Invalid array semantics match `_foreach`
         (raises `error.execution` + block-abort)."""
         if not lua_array_expr:
-            self._raise_error_execution(engine)
+            self._raise_error_execution(engine, "<foreach> has no 'array' attribute")
             raise _ActionAbort
         try:
             collection = engine._script_engine.evaluate_expression(
                 self._session_id, lua_array_expr
             ).to_python()
         except _ScriptError:
-            self._raise_error_execution(engine)
+            self._raise_error_execution(
+                engine, f"<foreach array='{lua_array_expr}'> failed to evaluate"
+            )
             raise _ActionAbort
         if collection is None:
-            self._raise_error_execution(engine)
+            self._raise_error_execution(
+                engine, f"<foreach array='{lua_array_expr}'> is not an array"
+            )
             raise _ActionAbort
         try:
             return iter(collection)
         except TypeError:
-            self._raise_error_execution(engine)
+            self._raise_error_execution(
+                engine, f"<foreach array='{lua_array_expr}'> is not iterable"
+            )
             raise _ActionAbort
 
     def _eval_sendid(self, engine, lua_sendid_expr: str) -> str:
@@ -327,35 +332,50 @@
         return 0
 
     def _build_http_params(self, engine, params_specs, namelist: str):
-        """W3C SCXML C.2 — assemble the form-encoded multi-map handed
-        to `engine.perform_http_send`. `params_specs` is a sequence of
-        `(name, lua_expr)` tuples (one per `<param>`); `namelist` is
-        the whitespace-separated variable list. Eval errors on
-        individual `<param>` skip that param (W3C "best effort"
-        form-encoding contract — the engine does NOT abort the
-        surrounding block for a malformed param)."""
+        """W3C SCXML C.2 — the form-encoded multi-map handed to
+        `engine.perform_http_send`, RENDERED from the one evaluation
+        `_eval_send_payload` performs.
+
+        W3C SCXML 6.2.3 evaluates a `<send>`'s arguments when the element
+        is evaluated, once. This used to read the data model a second
+        time, and the two readings answered differently: the namelist arm
+        here swallowed an unreadable item (`except: continue`) where
+        `_eval_send_payload` reports `error.execution` and abandons the
+        message, and a `<param>` that failed reported the error twice on
+        the arm that ran both. Rendering the payload keeps one answer —
+        and keeps C.2's "MUST map its variable names and values to HTTP
+        POST parameters" true for a namelist without spelling it twice.
+
+        Used by the arm that has no payload yet — the statically-known
+        absolute URL. An arm that already called `_eval_send_payload`,
+        because it also needs the data for a non-HTTP target, renders its
+        result with `_wire_params_from_payload` instead, so neither path
+        evaluates twice."""
+        return self._wire_params_from_payload(
+            self._eval_send_payload(engine, params_specs, "", "", namelist)
+        )
+
+    def _wire_params_from_payload(self, marshalled):
+        """The rendering half of the above: an evaluated `<send>` payload
+        as W3C SCXML C.2 form parameters.
+
+        A repeated name keeps every value, in document order — a form
+        parameter may repeat where a JSON key may not, which is why the
+        payload's list form is unwrapped here rather than stringified. A
+        payload that is not a name/value mapping (a `<content>` body, or
+        the empty string a `<send>` with no arguments returns) carries no
+        form parameters at all."""
+        if not isinstance(marshalled, dict):
+            return {}
         result = {}
-        if namelist:
-            for var in namelist.split():
-                try:
-                    value = engine._script_engine.get_variable(
-                        self._session_id, var
-                    ).to_python()
-                except _ScriptError:
-                    continue
-                result.setdefault(var, []).append(
-                    "" if value is None else str(value)
-                )
-        for name, lua_expr in params_specs:
-            try:
-                value = engine._script_engine.evaluate_expression(
-                    self._session_id, lua_expr
-                ).to_python()
-            except _ScriptError:
-                continue
-            result.setdefault(name, []).append(
-                "" if value is None else str(value)
-            )
+        for name, value in marshalled.items():
+            values = value if isinstance(value, list) else [value]
+            # `str(...)` spelled these in Python — `True` where every other
+            # channel writes `true`, `[1, 2]` where the wire form is `[1,2]`.
+            # The rendering is the value's, not the sender's language's.
+            result[name] = [
+                _ScriptValue.of(item).to_wire_string() for item in values
+            ]
         return result
 
     def _eval_send_payload(
@@ -385,17 +405,50 @@
         does not run. Mirrors the Rust template's `_send_aborted` flag
         in `tools/codegen/templates/rust/actions/send.rs.jinja2`, but
         unified with the W3C 3.8 block-abort contract every other
-        Python-AOT helper already uses (`_assign`, `_exec`, `_guard`)."""
+        Python-AOT helper already uses (`_assign`, `_exec`, `_guard`).
+
+        A `<param>` is not one of those arguments. W3C SCXML 5.7.1 gives
+        the element its own rule — place `error.execution` on the internal
+        queue "and MUST ignore the name and value" — and that clause has
+        no content at all if the message is discarded, because there is
+        then no message left for the name to be absent from. W3C test343
+        is the fixture that settles it: an illegal `<param>` raises
+        `error.execution` AND the `done.state` event still arrives, with
+        empty data. The message goes; the offending pair does not."""
         if lua_content_expr:
             try:
                 return engine._script_engine.evaluate_expression(
                     self._session_id, lua_content_expr
                 ).to_python()
             except _ScriptError:
-                self._raise_error_execution(engine)
+                self._raise_error_execution(
+                    engine, "<send> contentexpr failed to evaluate"
+                )
                 raise _ActionAbort
         if content:
-            return content
+            # W3C SCXML B.2: `content` arrives already read — the caller
+            # ran the same filter inline `<data>` and `<donedata>` text
+            # goes through, so it is a Lua expression for the value the
+            # clause's ordered readings give. Returning the author's text
+            # unread was this backend's answer to
+            # `<content>123</content>`: the string "123", where the four
+            # backends that evaluated something got a number.
+            #
+            # XML is the reading before that one, and the filter hands it
+            # back as source because only whatever binds `_event.data` can
+            # build a DOM node. Evaluating it here made W3C 561's
+            # `<books>` document an error instead.
+            if content.lstrip()[:1] == "<":
+                return content
+            try:
+                return engine._script_engine.evaluate_expression(
+                    self._session_id, content
+                ).to_python()
+            except _ScriptError:
+                self._raise_error_execution(
+                    engine, "<send> <content> failed to evaluate"
+                )
+                raise _ActionAbort
         if not params and not namelist:
             return ""
         marshalled = {}
@@ -404,23 +457,49 @@
                 if not engine._script_engine.has_variable(
                     self._session_id, var
                 ):
-                    self._raise_error_execution(engine)
+                    self._raise_error_execution(
+                        engine,
+                        f"<send> namelist names '{var}', which is not declared",
+                    )
                     raise _ActionAbort
                 try:
                     marshalled[var] = engine._script_engine.get_variable(
                         self._session_id, var
                     ).to_python()
                 except _ScriptError:
-                    self._raise_error_execution(engine)
+                    self._raise_error_execution(
+                        engine, f"<send> namelist entry '{var}' failed to evaluate"
+                    )
                     raise _ActionAbort
+        # W3C SCXML 6.2: a `<param>` name may repeat, and test178 in the IRP
+        # requires both pairs to be delivered. A dict cannot hold one key
+        # twice, so the second occurrence turns the entry into a list in
+        # document order — the same normal form `_scxml_params` gives the
+        # Lua-literal backends. Writing straight into the dict, as this did,
+        # silently dropped every value but the last.
+        _repeats: dict = {}
         for name, lua_expr in params:
             try:
-                marshalled[name] = engine._script_engine.evaluate_expression(
+                _value = engine._script_engine.evaluate_expression(
                     self._session_id, lua_expr
                 ).to_python()
+                _count = _repeats.get(name, 0) + 1
+                _repeats[name] = _count
+                if _count == 1:
+                    marshalled[name] = _value
+                elif _count == 2:
+                    marshalled[name] = [marshalled[name], _value]
+                else:
+                    marshalled[name].append(_value)
             except _ScriptError:
-                self._raise_error_execution(engine)
-                raise _ActionAbort
+                # W3C SCXML 5.7.1: report and drop THIS pair, then carry on
+                # with the rest of the payload. Aborting the block here sent
+                # nothing at all, so a document that miscomputed one param
+                # lost the whole message and stalled with no event to act on.
+                self._raise_error_execution(
+                    engine, f"<send> <param name='{name}'> expr failed to evaluate"
+                )
+                continue
         return marshalled
 
     def set_current_event(self, event, metadata) -> None:
@@ -442,38 +521,79 @@
         engine_ref = getattr(self, "_engine_ref", None)
         if engine_ref is None or not self._session_id:
             return
-        engine_ref._script_engine.set_current_event(
+        # W3C SCXML C.1: `_event.origin` is the sender's published
+        # `_ioprocessors` location, not its bare session id — and this is the
+        # one place that publishes `_event` to the document, so this is where
+        # the id becomes a location. The engine keeps the bare id in
+        # `EventMetadata.origin` because its session-keyed lookups (`<finalize>`
+        # dispatch, cancelled-invoke filtering) match on it; converting at the
+        # raise would make one value serve two consumers that need different
+        # spellings. The conversion itself lives in
+        # `sce_runtime.io_processors.published_origin`, the port of the
+        # `IOProcessorHelper::publishedOrigin` the C++ engines share: a second
+        # spelling of the rule is how the backends would stop agreeing.
+        # §scxml-B-2-8-1: the binding answers which rung the payload got, and
+        # that answer used to end here. The ladder decided between a DOM, a
+        # value and a space-normalized string, and the decision was dropped one
+        # line later — so a payload that announced structure and would not
+        # parse reached the document as raw characters, every
+        # `_event.data.<field>` read empty, and nothing anywhere could say so.
+        #
+        # Handed to the engine on the spot rather than returned up: this frame
+        # already holds `engine_ref` AND the event the reading belongs to,
+        # which is the pairing the count needs.
+        reading = engine_ref._script_engine.set_current_event(
             self._session_id,
             _SetCurrentEventArgs(
                 event_name=_EVENT_NAMES.get(event, ""),
                 event_data=_coerce_event_data_str(metadata.data),
                 event_type=metadata.event_type,
                 send_id=metadata.send_id,
-                origin=metadata.origin,
+                origin=_published_origin(metadata.origin),
                 origin_type=metadata.origin_type,
                 invoke_id=metadata.invoke_id,
             ),
         )
+        engine_ref.note_payload_reading(event, reading)
 
     def _resolve_send_id(self, engine, idlocation: str, explicit_id: str) -> str:
         """W3C SCXML 6.2 — produce the canonical sendid for a `<send>`.
         When `explicit_id` is non-empty it wins; otherwise the engine
         generates a deterministic auto-id. When `idlocation` is set the
         chosen id is written back into the datamodel so user code can
-        `<cancel sendid="..."/>` it later."""
+        `<cancel sendid="..."/>` it later.
+
+        The write goes through `execute_script`, not `set_variable`:
+        `idlocation` arrives lowered by the ECMAScript frontend and may
+        therefore be a member path (`obj.slot`, `arr[1]`), which
+        `set_variable` cannot express — it binds a global under whatever
+        string it is handed. Rust, Go and C11 all assign through a chunk
+        for the same reason."""
         sid = explicit_id if explicit_id else engine._next_auto_sendid()
         if idlocation:
             try:
-                engine._script_engine.set_variable(
-                    self._session_id, idlocation, _ScriptValue.of(sid)
+                engine._script_engine.execute_script(
+                    self._session_id,
+                    f"{idlocation} = {self._lua_string_literal(sid)}",
                 )
             except _ScriptError:
                 pass
         return sid
 
     @staticmethod
+    def _lua_string_literal(text: str) -> str:
+        """`text` as a Lua string literal, escaping what Lua requires."""
+        escaped = (
+            text.replace("\\", "\\\\")
+            .replace('"', '\\"')
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+        )
+        return f'"{escaped}"'
+
+    @staticmethod
     def _event_name_matches(descriptor: str, name: str) -> bool:
-        """W3C SCXML 3.13 — a transition's event descriptor matches an
+        """W3C SCXML 3.12.1 — a transition's event descriptor matches an
         event when, for any space-separated sub-descriptor, the
         descriptor's dot-tokens are a prefix of the event's dot-tokens.
         Trailing `.*` is spec sugar (`foo.*` is identical to `foo`); a
@@ -485,11 +605,19 @@
         for desc in descriptor.split():
             if desc == "*":
                 return True
+            # W3C SCXML 3.12.1: "error", "error." and "error.*" are
+            # "functionally equivalent since they are token prefixes of
+            # exactly the same set of event names", so every spelling
+            # reduces to one token prefix before anything is compared.
             if desc.endswith(".*"):
                 desc = desc[:-2]
-            desc_tokens = desc.split(".") if desc else []
-            if not desc_tokens:
-                continue
+            if desc.endswith("."):
+                desc = desc[:-1]
+            # A descriptor that reduces to nothing — a bare ".*", whose
+            # token prefix is empty — is a prefix of every event name.
+            if not desc:
+                return True
+            desc_tokens = desc.split(".")
             if len(desc_tokens) > len(name_tokens):
                 continue
             if name_tokens[: len(desc_tokens)] == desc_tokens:
@@ -525,7 +653,10 @@
                 {{ (var.id ~ ' = ' ~ var.expr) | to_lua_script | py_string_literal }},
             )
         except _ScriptError:
-            self._raise_error_execution(engine)
+            self._raise_error_execution(
+                engine,
+                "<data id='{{ var.id }}'> function expression failed",
+            )
 {% else %}
         try:
             _init_val = engine._script_engine.evaluate_expression(
@@ -533,7 +664,9 @@
             )
         except _ScriptError:
             _init_val = _ScriptValue.undefined()
-            self._raise_error_execution(engine)
+            self._raise_error_execution(
+                engine, "<data id='{{ var.id }}'> expr failed to evaluate"
+            )
         engine._script_engine.declare_variable(
             self._session_id, {{ var.id | py_string_literal }}, _init_val
         )
@@ -549,14 +682,14 @@
         self._init_data_with_content(
             engine,
             {{ var.id | py_string_literal }},
-            {{ _src_content | to_lua_expr | py_string_literal }},
+            {{ _src_content | to_lua_data_content | py_string_literal }},
             {{ _src_content | normalize_ws | py_string_literal }},
         )
 {% elif var.content %}
         self._init_data_with_content(
             engine,
             {{ var.id | py_string_literal }},
-            {{ var.content | to_lua_expr | py_string_literal }},
+            {{ var.content | to_lua_data_content | py_string_literal }},
             {{ var.content | normalize_ws | py_string_literal }},
         )
 {% else %}
@@ -577,7 +710,9 @@
             )
         except _ScriptError:
             _init_val = _ScriptValue.undefined()
-            self._raise_error_execution(engine)
+            self._raise_error_execution(
+                engine, "<data id='{{ var.id }}'> expr failed to evaluate"
+            )
         engine._script_engine.declare_variable(
             self._session_id, {{ var.id | py_string_literal }}, _init_val
         )
@@ -593,7 +728,7 @@
         self._init_data_with_content(
             engine,
             {{ var.id | py_string_literal }},
-            {{ var.content | to_lua_expr | py_string_literal }},
+            {{ var.content | to_lua_data_content | py_string_literal }},
             {{ var.content | normalize_ws | py_string_literal }},
         )
 {% else %}
@@ -623,7 +758,9 @@
                 {{ script.content | to_lua_script | py_string_literal }},
             )
         except _ScriptError:
-            self._raise_error_execution(engine)
+            self._raise_error_execution(
+                engine, "a top-level <script> failed to execute"
+            )
 {% endfor %}
 {% endif %}
         # W3C SCXML 6.4.1 — invoke `<param>` / `namelist` overlay. The
@@ -653,7 +790,9 @@
                 )
             except _ScriptError:
                 _init_val = _ScriptValue.undefined()
-                self._raise_error_execution(engine)
+                self._raise_error_execution(
+                    engine, "<data id='{{ var.id }}'> expr failed to evaluate"
+                )
             engine._script_engine.declare_variable(
                 self._session_id, {{ var.id | py_string_literal }}, _init_val
             )
@@ -669,7 +808,7 @@
             self._init_data_with_content(
                 engine,
                 {{ var.id | py_string_literal }},
-                {{ var.content | to_lua_expr | py_string_literal }},
+                {{ var.content | to_lua_data_content | py_string_literal }},
                 {{ var.content | normalize_ws | py_string_literal }},
             )
 {% else %}

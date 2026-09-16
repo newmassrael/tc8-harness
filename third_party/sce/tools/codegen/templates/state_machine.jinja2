@@ -3,13 +3,13 @@
 
 {% include 'license_header.jinja2' %}
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
-{# Watching-zenoh RFC §synth-5-O: per-backend SCE-MAP marker
+{# SCE Protocol-Synthesis RFC §synth-5-O: per-backend SCE-MAP marker
    anchoring the generated header to the `<scxml>` root element's
    post-preprocessor source position. Module-level form is a comment
    (not `#line`) because `#line` remapping in a header would
    propagate into every consumer translation unit. #}
 
-{{ sce_map.source_marker(model.source_location, "cpp", module_level=true) }}
+{{ sce_map.source_marker(model.source_location, "cpp", module_level=true, symbol_artifact=sce_artifact.machine) }}
 
 #pragma once
 #include <cstdint>
@@ -30,6 +30,11 @@
 {% endif %}
 {% endfor %}
 #include "static/StaticExecutionEngine.h"
+{# §scxml-3.2: `constexprStrEq` backs the compile-time round trip between
+   `getStateName` and `getStateFromName` in utility_methods.jinja2, and
+   `validateConfiguration` is what `enterAt` refuses with. Unconditional
+   because both halves of the name pair are. #}
+#include "core/ConfigurationHelper.h"
 {% if model.invokes | scxml or model.invokes | hybrid %}
 
 // W3C SCXML 6.4: Child state machine headers (all pure AOT)
@@ -44,11 +49,14 @@
 {% endif %}
 {% endfor %}
 {% endif %}
-{% if model.invokes | scxml or model.invokes | hybrid or model.invokes | scxml_remote %}
+{% if model.invokes | scxml or model.invokes | hybrid or model.invokes | scxml_remote or model.invokes | unsupported %}
 #include "core/InvokeHelper.h"
 {% endif %}
 {% if model.invokes | scxml or model.invokes | scxml_remote or model.invokes | hybrid %}
 #include "common/EventMetadataHelper.h"
+// W3C SCXML 6.4: `forwardToAutoforwardChildren` takes the source event's
+// name plus its `_event` fields so the child receives an exact copy.
+#include "common/ForwardedEvent.h"
 {% endif %}
 {% if model.invokes | scxml_remote %}
 // SCE_MESH.md §9.6 — remote `<invoke type="scxml">` lifecycle hooks
@@ -60,13 +68,32 @@
 // `CommunicationError::toJsonBytes()`.
 #include "mesh/CommunicationError.h"
 {% endif %}
+{% if model.needs_script_engine or model.needs_event_origin %}
+// W3C SCXML C.1: `publishedOrigin` turns the sender's session id into the
+// address it published, at the boundary where `_event.origin` becomes
+// visible to the document.
+#include "common/IOProcessorHelper.h"
+{% endif %}
 {% if model.needs_send_helper %}
 #include "common/SendHelper.h"
+{% endif %}
+{% if model.needs_send_helper or model.needs_namelist_helper %}
+// §scxml-6.4.1: `namelist` reads the invoking session's locations, and
+// `<invoke>` spells that attribute as well as `<send>` does. Gating this
+// on the send flag alone let the include arrive only in documents that
+// also sent something — which every W3C IRP invoke-namelist test happens
+// to do — so a machine whose only namelist is on an `<invoke>` named the
+// helper with nothing declaring it.
 #include "common/NamelistHelper.h"
-#include "common/DatamodelValidationHelper.h"
 {% endif %}
 {% if model.needs_script_engine %}
 #include "common/FinalizeHelper.h"
+{% endif %}
+{% if model.readable_variables %}
+// §scxml-5.3: the typed read accessors below take the datamodel back out of
+// the session the script engine owns, rather than shadowing it in a member.
+#include "common/DataModelReadHelper.h"
+#include <optional>
 {% endif %}
 {% if model.needs_event_scheduler %}
 #include "common/SendSchedulingHelper.h"
@@ -95,7 +122,7 @@
 #include <stdexcept>
 #include <utility>
 {% if model.partition_barrier_timeouts %}
-// SCE_MESH.md §16.5 L3500 — barrier-timeout runtime surfaces
+// SCE_MESH.md §16.5 — barrier-timeout runtime surfaces
 // `error.communication` (reason `PARALLEL_BARRIER_TIMEOUT`) through
 // the PullScheduler-driven external queue.
 #include "mesh/CommunicationError.h"
@@ -281,6 +308,10 @@ struct TransitionInfo {
 // ── NL→IR Item C1 Path A: typed `_event.data` payload channel ─────────
 {{ event_payload_defs }}
 {% endif %}
+{% if has_native_actions %}
+// ── W3C SCXML G.7: `<sce:action>` host dispatch ───────────────────────
+{{ native_actions_defs }}
+{% endif %}
 {# Policy class #}
 // State policy for {{ model.name }}
 {% if _has_tpl %}
@@ -299,6 +330,13 @@ struct {{ model.name }}Policy {
     // W3C SCXML 5.9: Flag indicating JSEngine requirement (ECMAScript expressions)
     static constexpr bool NEEDS_SCRIPT_ENGINE = {{ 'true' if model.needs_script_engine else 'false' }};
 
+    // W3C SCXML 6.2: which entry point a host must drive this machine with.
+    // `step()` runs a macrostep and never drains the delayed-send scheduler
+    // nor ticks an invoked child, so a host that only ever calls it waits
+    // forever with nothing said. The same verdict the generate manifest
+    // publishes as `needs_event_scheduler`.
+    static constexpr bool NEEDS_EVENT_SCHEDULER = {{ 'true' if model.needs_tick_driving else 'false' }};
+
     {% if model.context_objects %}
     // Named Context: individual pointers for dependency injection
     {% for ctx in model.context_objects %}
@@ -306,18 +344,47 @@ struct {{ model.name }}Policy {
     {% endfor %}
     {% endif %}
 
-    {% if model.variables %}
-    // Datamodel variables
-    {% for var in model.variables %}
-    {% if var.type == 'int' %}
-    int {{ var.id }} = {{ var.expr if var.expr else '0' }};
-    {% elif var.type == 'string' %}
-    ::std::string {{ var.id }}{{ ' = ' + var.expr if var.expr else '' }};
-    {% elif var.type == 'bool' %}
-    bool {{ var.id }} = {{ var.expr if var.expr else 'false' }};
-    {% elif var.type == 'runtime' %}
-    // Runtime-evaluated variable (handled by JSEngine): {{ var.id }}
-    {% endif %}
+    {# W3C SCXML 5.3: the datamodel has ONE home, and it is not this class.
+
+       A <data> that carries an initializer is owned by the script engine for
+       the life of the session: <assign> writes there and every guard reads
+       from there. A member here holding the same variable would be a second
+       representation that stops agreeing with the first <assign> and never
+       agrees again — so the machine reads the datamodel back out through
+       DataModelReadHelper (see the accessors below) instead of shadowing it.
+       Kotlin's template already drew this line; the other backends now do
+       too. #}
+    {% if model.readable_variables %}
+    // ── §scxml-5.3: read the datamodel this machine is holding ──────────
+    {# Looked up rather than spelled as a ternary chain: a chain's last arm is
+       a fallback, so a host type added to the classifier and not to these maps
+       would be emitted as whatever the chain ended in. A missing key renders
+       nothing and the generated file fails to compile, which says the same
+       thing in the place that can act on it. #}
+    {% set CPP_READ_TYPE = {'int': 'int64_t', 'string': '::std::string', 'bool': 'bool', 'json': '::std::string'} %}
+    {% set CPP_READ_FN = {'int': 'Int', 'string': 'String', 'bool': 'Bool', 'json': 'Json'} %}
+    {% for var in model.readable_variables %}
+    /**
+     * @brief §scxml-5.3: what the `{{ var.id }}` datamodel variable is holding now.
+     *
+     * The live value, not the authored one: <assign> writes into the session,
+     * so a reader frozen at generation time would answer the document's
+     * literal for the whole run. `nullopt` means the machine cannot answer —
+     * no script engine is set, the session is not initialized yet,
+     * `{{ var.id }}` was assigned a value of another type, or the engine refused.
+{% if var.type == 'json' %}
+     *
+     * The value as JSON text, serialized by the engine's own JSON.stringify
+     * (§scxml-B-2) so the key order is the document's.
+{% endif %}
+     */
+    ::std::optional<{{ CPP_READ_TYPE[var.type] }}> {{ var.id }}() const {
+        if (!scriptEngine_ || !sessionId_.has_value()) {
+            return ::std::nullopt;
+        }
+        return ::SCE::DataModelReadHelper::read{{ CPP_READ_FN[var.type] }}(
+            *scriptEngine_, sessionId_.value(), "{{ var.id }}");
+    }
     {% endfor %}
     {% endif %}
 {% if inline_kind_code %}
@@ -336,7 +403,7 @@ struct {{ model.name }}Policy {
     // W3C SCXML 6.5: Child session ID for finalize origin matching (test233)
     ::std::string childSessionId_;
 
-    // W3C SCXML 6.4.5: Delayed sends to parent scheduler (using SendSchedulingHelper)
+    // W3C SCXML 6.4.2: Delayed sends to parent scheduler (using SendSchedulingHelper)
     // ARCHITECTURE.md Zero Duplication: Reuses SendSchedulingHelper (Single Source of Truth)
     mutable ::SCE::PullScheduler<typename ParentStateMachine::Event> parentSendScheduler_;
     {% endif %}
@@ -402,18 +469,40 @@ struct {{ model.name }}Policy {
     // Mirrors the Rust policy's `pending_payload` / the C11 `sm->pending_payload`.
 {{ event_payload_policy_members }}
     {% endif %}
+    {% if has_native_actions %}
+    // W3C SCXML G.7: the host implementation every `<sce:action>` in this
+    // document calls directly (`actions_-><op>(…)`) instead of a script
+    // engine. A raw pointer to a host-owned object: the machine does not own
+    // the host, and the host outlives it. Set through the machine's
+    // constructor, which is the only way to build one — the initial state's
+    // `<onentry>` can already perform an act, so a setter would let a host
+    // arrive one act too late.
+    //
+    // `mutable` for the same reason the `pendingEvent*_` members are: the
+    // transition matcher reads the policy from a const method.
+    mutable {{ native_actions_interface }} *actions_ = nullptr;
+    {% endif %}
     {% if model.needs_external_flag %}
     // W3C SCXML 6.2: Flag to mark next event as external (from send)
     mutable bool nextEventIsExternal_ = false;
     {% endif %}
+    // W3C SCXML 5.10: the current event's metadata — the payload, origin,
+    // sendid and invokeid a dequeued event carries.
+    //
+    // Unconditional, because the base engine's `processEvent(Event, const
+    // EventMetadata &)` writes it and that overload is PUBLIC: emitting the
+    // field only for machines that host an `<invoke>` did not narrow a feature,
+    // it made an advertised entry point fail to compile for every other machine
+    // — a host with a payload to deliver had no way in. Measured 2026-08-16
+    // while giving the fixture below a C++ AOT channel; five other backends
+    // accept a payload on their equivalent call, and this one type-errored.
+    mutable ::SCE::Core::EventMetadata currentEventMetadata_;
     {% if model.invokes | scxml or model.invokes | hybrid %}
     // W3C SCXML 6.4: Self-pointer for local child state machine creation
     // (defer/cancel/execute pattern). Remote scxml invokes (§9.6) do not
     // use this pointer — the child engine lives in the worker binary.
     mutable SelfType* self_ = nullptr;
 
-    // W3C SCXML 5.10: Current event metadata (originSessionId for finalize)
-    mutable ::SCE::Core::EventMetadata currentEventMetadata_;
     // W3C SCXML 6.4: Invoke child state machines (static and hybrid, all pure AOT)
     {% for invoke_info in model.invokes | scxml %}
     mutable std::shared_ptr<::SCE::Generated::{{ cpp_ns_prefix }}{{ invoke_info.child_name }}::{{ invoke_info.child_name }}<SelfType>> child_{{ invoke_info.field_suffix }}_;
@@ -464,15 +553,21 @@ struct {{ model.name }}Policy {
     {% endfor %}
     {% endif %}
 
-    {% if model.invokes | scxml or model.invokes | hybrid or model.invokes | scxml_remote %}
+    {% if model.invokes | scxml or model.invokes | hybrid or model.invokes | scxml_remote or model.invokes | unsupported %}
 
     // W3C SCXML 6.4: Pending invoke structure for defer/cancel/execute pattern
     // ARCHITECTURE.md Zero Duplication: Used with InvokeHelper (Single Source of Truth)
     // Pattern: defer (onentry) → cancel (onexit) → execute (macrostep end)
+    // Also carries §scxml-6.4.1 unsupported-type invokes, whose execute step
+    // raises error.execution instead of starting a session — they need the
+    // defer queue but none of the child-session machinery below.
     struct PendingInvoke {
         std::string invokeId;  // W3C SCXML 6.4.1: Unique invoke identifier
         State state;           // State containing the invoke element
     };
+
+    {% endif %}
+    {% if model.invokes | scxml or model.invokes | hybrid or model.invokes | scxml_remote %}
 
     // Active child sessions indexed by invokeId (shared across local, hybrid,
     // and SCE_MESH.md §9.6 remote scxml invokes — finalize/autoforward/cancel
@@ -490,6 +585,8 @@ struct {{ model.name }}Policy {
     // wire-15 race on `onInvokeStarted` is also covered — cheap when
     // uncontended, mandatory for correctness when contended.
     mutable std::mutex activeInvokesMutex_;
+    {% endif %}
+    {% if model.invokes | scxml or model.invokes | hybrid or model.invokes | scxml_remote or model.invokes | unsupported %}
     // W3C SCXML 6.4: Pending invokes (deferred until macrostep end)
     mutable std::vector<PendingInvoke> pendingInvokes_;
     {% endif %}
@@ -529,13 +626,27 @@ struct {{ model.name }}Policy {
         std::lock_guard<std::mutex> lock(activeStatesMutex_);
         return activeStates_;
     }
+
+    // §scxml-3.4: the write half of the pair above, for
+    // `StaticExecutionEngine::enterAt`.
+    //
+    // Emitted under the same condition as the read half because the same fact
+    // decides both — this machine keeps its own active set, so this machine is
+    // the one that can be handed one back. A machine without the reader has no
+    // set of its own to restore; the engine rebuilds its hierarchy from
+    // `currentState_` instead, which is why `enterAt` does not need this
+    // method to exist. Same split the Rust policy makes.
+    void setActiveStates(const std::vector<State>& states) const {
+        std::lock_guard<std::mutex> lock(activeStatesMutex_);
+        activeStates_ = states;
+    }
     {% endif %}
 
     {% if model.needs_script_engine or model.needs_parent_template %}
     // Destructor: Clean up resources (RAII pattern)
     ~{{ model.name }}Policy() {
         {% if model.needs_parent_template %}
-        // W3C SCXML 6.4.5: Cancel all pending delayed sends to parent on child termination
+        // W3C SCXML 6.4.2: Cancel all pending delayed sends to parent on child termination
         // SimpleScheduler destructor automatically cleans up pending events
         {% endif %}
         {% if model.needs_script_engine or model.invokes | scxml or model.invokes | hybrid or model.invokes | scxml_remote %}
@@ -635,11 +746,21 @@ public:
     // zenoh MCU consumer is C11/Rust; this is the AP-side C++ parity.
 {{ event_payload_inject_methods }}
 {% endif %}
+{# W3C SCXML G.7: a document that declares `<sce:action>`s cannot run without
+   a host, and the initial state's `<onentry>` may already perform one — so the
+   host leads every constructor this class has rather than arriving through a
+   setter that could be called one act too late. Emitted into each of the three
+   branches below, which is what makes "no host" a compile error instead of a
+   null dereference at the first act. #}
 {% if model.context_objects or model.needs_parent_template %}
     explicit {{ model.name }}(
+        {%- if has_native_actions %}{{ native_actions_interface }}& actions, {% endif -%}
         {%- for ctx in model.context_objects %}{% if ctx.cpp_type %}{{ ctx.cpp_type }}{% else %}{{ ctx.id | capitalize }}T{% endif %}& {{ ctx.id }}{{ ', ' if not loop.last or model.needs_parent_template }}{% endfor %}
         {%- if model.needs_parent_template %}ParentStateMachine* parent, const std::string& invokeId = "", const std::string& childSessionId = ""{% endif -%}
     ) {
+        {% if has_native_actions %}
+        this->policy_.actions_ = &actions;
+        {% endif %}
         {% for ctx in model.context_objects %}
         this->policy_.{{ ctx.id }}_ = &{{ ctx.id }};
         {% endfor %}
@@ -653,7 +774,12 @@ public:
         {% endif %}
     }
 {% elif model.invokes | scxml or model.invokes | hybrid or model.partition_parallel_roles %}
+    {% if has_native_actions %}
+    explicit {{ model.name }}({{ native_actions_interface }}& actions) {
+        this->policy_.actions_ = &actions;
+    {% else %}
     {{ model.name }}() {
+    {% endif %}
         {% if model.invokes | scxml or model.invokes | hybrid %}
         this->policy_.self_ = this;
         {% endif %}
@@ -693,14 +819,21 @@ public:
             });
 {% endif %}
     }
+{% elif has_native_actions %}
+    explicit {{ model.name }}({{ native_actions_interface }}& actions) {
+        this->policy_.actions_ = &actions;
+    }
 {% else %}
     {{ model.name }}() = default;
 {% endif %}
 
 {% if model.needs_script_engine %}
-    // W3C SCXML 6.4.1: Wrapper for setting invoke params (delegates to policy)
-    void setParamInScriptEngine(const std::string& paramName, const std::string& paramExpr) {
-        this->policy_.setParamInScriptEngine(paramName, paramExpr);
+    // §scxml-6.4.3: wrapper for seeding an invoke param's VALUE into this
+    // session's data model (delegates to policy). The parent calls it on the
+    // child instance right after construction, which is why it lives on the
+    // machine rather than only on the policy.
+    void setParamValueInScriptEngine(const std::string& paramName, const ::ScriptValue& paramValue) {
+        this->policy_.setParamValueInScriptEngine(paramName, paramValue);
     }
 {% endif %}
 
@@ -716,6 +849,37 @@ public:
         this->policy_.setScriptEngine(::std::move(engine));
 {% endif %}
     }
+
+    // §scxml-C-2-3: forward the deployment's inbound BasicHTTP endpoint to the
+    // policy, which publishes it as the processor's 'location' in
+    // `_ioprocessors`. Emitted on every machine for the same reason
+    // setScriptEngine() is — callers inject without member-detection traits.
+    // A machine with no script engine has no `_ioprocessors` to publish into,
+    // so the body is a no-op there.
+    void setBasicHttpAccessUri([[maybe_unused]] ::std::string accessUri) const {
+{% if model.needs_script_engine %}
+        this->policy_.setBasicHttpAccessUri(::std::move(accessUri));
+{% endif %}
+    }
+{% if model.readable_variables %}
+
+    {# §scxml-5.3: the read accessors are DEFINED on the policy, beside the
+       session handle they need, and forwarded here because `policy_` is
+       protected on StaticExecutionEngine. Without this block the accessors
+       compile into every machine and are callable by nobody — measured
+       2026-08-29, when the first host that wanted to read a <data> variable
+       back could not. An accessor no caller can reach is not a read surface;
+       it is dead code that reads as one. #}
+    // ── §scxml-5.3: read the datamodel this machine is holding ──────────
+    {% set CPP_READ_TYPE = {'int': 'int64_t', 'string': '::std::string', 'bool': 'bool', 'json': '::std::string'} %}
+    {% for var in model.readable_variables %}
+    /// §scxml-5.3: what `{{ var.id }}` is holding now — see the policy's accessor
+    /// for what `nullopt` means.
+    ::std::optional<{{ CPP_READ_TYPE[var.type] }}> {{ var.id }}() const {
+        return this->policy_.{{ var.id }}();
+    }
+    {% endfor %}
+{% endif %}
 
 {# ── SCE_MESH.md §14 rule 12 / §16.5 per-`<parallel>` role members ── #}
 {% set _role_stats = namespace(has_root=false, has_nonroot=false) %}
@@ -747,7 +911,7 @@ public:
         }
 {% if _pid in model.partition_barrier_timeouts %}
         ,
-        // SCE_MESH.md §16.5 L3500 barrier-timeout runtime for
+        // SCE_MESH.md §16.5 barrier-timeout runtime for
         // <parallel id="{{ _pid }}">. `timeout_ms` and the region
         // roster are baked in from deploy.yaml + SCXML at codegen
         // time. The arm callback schedules a one-shot
@@ -831,6 +995,15 @@ public:
     void onInvokeDone(const ::SCE::Mesh::MeshEnvelope& env) {
         this->policy_.onInvokeDone(env, *this);
     }
+
+    /// SCE_MESH.md §9.6.4 step 4 SM-side entry point. `MeshDispatch::
+    /// dispatchEnvelope` probes this method via SFINAE
+    /// (`HasActiveChildSessionHook`) before enqueueing a wire-16 ChildEvent,
+    /// so an event from a child whose invoke the parent has already left is
+    /// discarded instead of reaching transition selection.
+    bool hasActiveChildSession(const std::string& childSessionId) {
+        return this->policy_.hasActiveChildSession(childSessionId);
+    }
 {% endif %}
 {% if _role_stats.has_nonroot %}
     /// SCE_MESH.md §14 rule 12 / §16.5 wire-21 sender hook. Called from a
@@ -909,6 +1082,22 @@ static_assert(::SCE::Core::ParallelStatePolicy<{{ model.name }}Policy>,
     "Generated {{ model.name }}Policy must satisfy ParallelStatePolicy concept (HAS_PARALLEL_STATES=true)");
 {% endif %}
 #endif
+
+// §scxml-3.3: `getStateName` and `getStateFromName` are a round trip, or they
+// are two independent maps that happen to agree today.
+//
+// Emitting both halves from one list is not enough on its own: an edit that
+// touches one loop and not the other still compiles, and the defect is then a
+// name that does not read back — which only a host attempting a restore would
+// ever meet, in another process, hours later. A per-state assertion moves that
+// to the build.
+//
+// Here rather than inside the policy, because a constexpr member function is
+// not usable in a constant expression until its class is complete.
+{% for state_id in model.states | list | sort %}
+static_assert({{ model.name }}Policy::getStateFromName({{ model.name }}Policy::getStateName({{ model.name }}Policy::State::{{ state_id | capitalize }})) == {{ model.name }}Policy::State::{{ state_id | capitalize }},
+    "getStateName / getStateFromName disagree about `{{ state_id }}`");
+{% endfor %}
 {% endif %}
 
 } // namespace SCE::Generated::{{ cpp_ns_prefix }}{{ model.name }}{% if model.partition_self_name %}::P_{{ model.partition_self_name }}{% endif %}

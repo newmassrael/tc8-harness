@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -11,6 +12,32 @@ namespace SCE {
 
 // Forward declarations
 struct EventSnapshot;
+
+/**
+ * @brief §scxml-3.13: how a state machine lends its macrostep budget to whoever holds the internal queue
+ *
+ * The clause ends a macrostep at a configuration where nothing is enabled by
+ * NULL and the internal queue is empty, and the specification's Principles and
+ * Constraints allow a document where that never happens — a `<raise>` answered
+ * by a transition that raises again. An engine that runs it to the letter never
+ * returns.
+ *
+ * The engine owns the budget because it also spends it on eventless
+ * transitions, and one macrostep has one. The raiser owns the queue, and is
+ * therefore the only party that can decline a dispatch *without consuming the
+ * event*: refusing here leaves it where the next macrostep will find it, which
+ * is the difference between a chain this engine declined to keep running and
+ * one it silently swallowed.
+ */
+struct MicrostepBudget {
+    /// Asked before every internal dispatch. A `false` is expected to have
+    /// published the refusal already — the raiser cannot, because the ceiling
+    /// is not its to report.
+    std::function<bool()> mayTake;
+    /// Told after a dispatch that actually selected a transition. A dispatch
+    /// that matched nothing took no microstep and spends nothing.
+    std::function<void()> spend;
+};
 
 /**
  * @brief Interface for raising events in the SCXML system
@@ -143,6 +170,26 @@ public:
     virtual bool hasQueuedEvents() const = 0;
 
     /**
+     * @brief §scxml-D-mainEventLoop: Process only ONE *internal* event, leaving
+     *        external events queued
+     *
+     * The macrostep completes on eventless transitions and internal events
+     * alone; `invoke(inv)` then runs for the states it entered, and only after
+     * that does the algorithm reach `externalQueue.dequeue()`. A drain that
+     * cannot tell the two classes apart consumes an external event while the
+     * invokes are still pending, and an `autoforward` child never sees it.
+     *
+     * @return true if an internal event was processed, false if none was queued
+     */
+    virtual bool processNextInternalEvent() = 0;
+
+    /**
+     * @brief §scxml-3.13: Check whether an INTERNAL-priority event is queued
+     * @return true if the queue holds an internal event, false otherwise
+     */
+    virtual bool hasQueuedInternalEvents() const = 0;
+
+    /**
      * @brief Get snapshot of current event queues for visualization/debugging
      *
      * Retrieves current contents of internal and external event queues
@@ -203,6 +250,65 @@ public:
      * @return Number of events that were cancelled
      */
     virtual size_t cancelEventsForSession(const std::string &originSessionId) = 0;
+
+    /**
+     * @brief §scxml-3.12.2: `error.*` events refused because an error handler kept raising them
+     *
+     * The clause says an error event nothing matches is ignored. It says nothing
+     * about one that IS matched by a handler that fails the same way every time:
+     * the failure raises the error, the same transition answers it, and the
+     * processing never comes back to its caller. Nothing in the specification
+     * bounds that, so the raiser that owns the queue is the party that has to.
+     *
+     * Defaulted rather than pure: a raiser that never refuses anything — every
+     * test double here is one — answers zero truthfully, and making this pure
+     * would put the same `return 0;` in each of them.
+     *
+     * @return Count of refused error events, zero when none were
+     */
+    virtual uint32_t getErrorCascadeEvents() const {
+        return 0;
+    }
+
+    /**
+     * @brief The most recent event `getErrorCascadeEvents()` refused
+     *
+     * Empty while that count is zero. Which error it was names the repair:
+     * `error.execution` is a handler whose own executable content fails,
+     * `error.communication` one that answers an unreachable target by talking
+     * to it again.
+     *
+     * @return Name of the last refused error event, empty when there is none
+     */
+    virtual std::string getLastErrorCascadeEvent() const {
+        return {};
+    }
+
+    /**
+     * @brief §scxml-3.12.2: a new piece of host work begins, so any error chain is over
+     *
+     * The queue-draining engines reset this as the internal queue empties. A
+     * raiser whose dispatches are serialized through the state machine's own
+     * entry point has no such moment — every dispatch looks like the outermost
+     * one — so the boundary is the host's call. Refusing to reset at all would
+     * make the ceiling a property of the machine's whole life rather than of
+     * one chain.
+     *
+     * Defaulted to nothing: a raiser that never counts a chain has none to
+     * forget.
+     */
+    virtual void resetErrorCascadeDepth() {}
+
+    /**
+     * @brief §scxml-3.13: hand this raiser the macrostep budget its dispatches spend
+     *
+     * See `MicrostepBudget`. Called once, when the state machine wires its
+     * event callback — the same moment and for the same reason.
+     *
+     * Defaulted to nothing: a raiser whose dispatches cannot form a chain has
+     * no budget to spend.
+     */
+    virtual void setMicrostepBudget(MicrostepBudget /*budget*/) {}
 };
 
 }  // namespace SCE

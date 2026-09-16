@@ -9,7 +9,7 @@
    transfer).
 
    Per-SM logic is emitted into `_sm.c`. Cross-SM types
-   (`sce_invoke_pending_queue_t`) live in `sce-c-runtime/include/sce/invoke.h`
+   (`sce_invoke_pending_queue_t`) live in `backends/c/runtime/include/sce/invoke.h`
    as static inline helpers — no .c source.                             #}
 
 {% set _ns = namespace(any_child_parent_send=false) %}
@@ -45,6 +45,27 @@ static void {{ csym_prefix }}{{ model.name }}_dispatch_external_by_name(void *op
     {{ csym_prefix }}{{ model.name }}_event_with_meta_t evt;
     memset(&evt, 0, sizeof(evt));
     sce_copy_bounded_id(evt.invoke_id, invoke_id);
+    /* W3C SCXML C.1 `_event.origin`: an invoked session is an external entity
+       from the parent's point of view, and the clause names exactly which
+       address its parent-bound events carry — the 'location' the SENDING
+       session published in its own `_ioprocessors`. `#_<invokeid>` is the
+       parent's way to address the child (§6.4), not the child's published
+       location, so an origin spelled that way matches nothing the child
+       published and a peer comparing the two never agrees.
+
+       The child's location is the address it published for itself at `_init`
+       (see `scriptengine.jinja2`), read here from the child instance the
+       parent embeds. The invoke id -> child slot mapping is known at codegen
+       time, so the address still needs no runtime session registry — but the
+       address itself is the child's to state, because it names that child's
+       session rather than the document it was generated from. */
+    if (invoke_id != NULL && invoke_id[0] != '\0') {
+{% for invoke_info in model.invokes | scxml %}
+        if (strcmp(invoke_id, "{{ invoke_info.invoke_id }}") == 0) {
+            sce_copy_bounded_origin(evt.origin, sm->child_{{ invoke_info.field_suffix }}.scxml_location);
+        }
+{% endfor %}
+    }
     /* W3C SCXML 6.4 (test233): copy child-supplied `<send><param>` Lua-
        source string into `event_with_meta_t.data`. The dequeue path
        loads it into the parent's L state as `_event.data` before
@@ -101,6 +122,96 @@ static void {{ csym_prefix }}{{ model.name }}_execute_pending_invokes({{ csym_pr
         const sce_invoke_pending_t *p = &snapshot[i];
 
         {% for state_id, state in model.states | dictsort %}
+        {% for invoke_info in state.invokes | unsupported %}
+        if (p->state == (int){{ csym_prefix | upper }}{{ model.name | upper }}_STATE_{{ state_id | upper | replace('-', '_') | replace('.', '_') }}
+            && p->invoke_idx == {{ loop.index0 + (state.invokes | scxml | length) }}) {
+{% if invoke_info.host_served %}
+            /* W3C SCXML 6.4.1: the host declared this `type`, so START the
+               invocation rather than refusing it. The id handed over is the
+               DOCUMENT's, not the per-instance one the pending queue carries:
+               `done.invoke.<id>` is the name the author wrote a transition
+               for, so it is the name the host must answer on.
+
+               Emitted inside the `unsupported` loop rather than in a
+               `host_invoker` one of its own, because `p->invoke_idx` is
+               positional — it counts this state's invokes in order, and a
+               second loop would restart the index and address the wrong
+               entry. The two arms are told apart by the per-entry flag. */
+{% if invoke_info.params %}
+            sce_host_send_param_t _host_inv_params[{{ invoke_info.params | length }}];
+            int _host_inv_param_count = 0;
+{% for param in invoke_info.params %}
+{% if param.is_static_literal %}
+            static const char _host_inv_param_value_{{ loop.index0 }}[] = "{{ param.static_value | escape_c }}";
+            _host_inv_params[_host_inv_param_count].name = "{{ param.name | escape_c }}";
+            _host_inv_params[_host_inv_param_count].value = _host_inv_param_value_{{ loop.index0 }};
+            _host_inv_param_count++;
+{% endif %}
+{% endfor %}
+{% endif %}
+            {
+                sce_host_invoke_event_t _host_inv;
+                sce_host_invoke_response_t _host_inv_out;
+                const sce_host_invoker_entry_t *_host_inv_entry =
+                    sce_host_invoker_find(&sm->host_invokers, "{{ invoke_info.invoke_type | escape_c }}");
+                memset(&_host_inv, 0, sizeof(_host_inv));
+                memset(&_host_inv_out, 0, sizeof(_host_inv_out));
+                _host_inv.phase = SCE_HOST_INVOKE_START;
+                _host_inv.processor_type = "{{ invoke_info.invoke_type | escape_c }}";
+                _host_inv.invoke_id = "{{ invoke_info.invoke_id | escape_c }}";
+                _host_inv.src = "{{ invoke_info.src | default('', true) | escape_c }}";
+                _host_inv.content = "{{ invoke_info.content | default('', true) | escape_c }}";
+{% if invoke_info.params %}
+                _host_inv.params = _host_inv_param_count > 0 ? _host_inv_params : NULL;
+                _host_inv.param_count = _host_inv_param_count;
+{% else %}
+                _host_inv.params = NULL;
+                _host_inv.param_count = 0;
+{% endif %}
+                if (_host_inv_entry == NULL) {
+                    /* W3C SCXML 6.4.1: declared but no invoker registered. The
+                       document asked for a process to be run and none was,
+                       which is the same fact as an unsupported type — so the
+                       same event, rather than a silence that reads as
+                       started. */
+{% if 'error.execution' in model.events %}
+                    {{ csym_prefix }}{{ model.name }}_raise_platform_error(
+                        sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
+                        "<invoke> names an invoker the host declared but never registered");
+{% endif %}
+                } else {
+                    _host_inv_entry->handler(_host_inv_entry->user_data, &_host_inv, &_host_inv_out);
+                    sce_host_invocation_mark(&sm->started_host_invokes,
+                                             "{{ invoke_info.invoke_type | escape_c }}",
+                                             "{{ invoke_info.invoke_id | escape_c }}");
+                    if (_host_inv_out.has_done_data) {
+                        /* W3C SCXML 6.4: a completion the host reported NOW.
+                           One it reports later arrives the same way, by
+                           raising the event itself. */
+                        {{ csym_prefix }}{{ model.name }}_event_with_meta_t _done_evt;
+                        const {{ csym_prefix }}{{ model.name }}_event_t _done_ev =
+                            {{ csym_prefix }}{{ model.name }}_event_from_name(
+                                "done.invoke.{{ invoke_info.invoke_id | escape_c }}",
+                                strlen("done.invoke.{{ invoke_info.invoke_id | escape_c }}"));
+                        if (_done_ev != {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_NONE) {
+                            memset(&_done_evt, 0, sizeof(_done_evt));
+                            _done_evt.event = _done_ev;
+                            sce_copy_bounded_data(_done_evt.data, _host_inv_out.done_data);
+                            {{ csym_prefix }}{{ model.name }}_raise_external(sm, &_done_evt);
+                        }
+                    }
+                }
+            }
+{% else %}
+            /* W3C SCXML 6.4.1: unsupported `type` — place error.execution on
+               the internal queue and start nothing. */
+            {{ csym_prefix }}{{ model.name }}_raise_platform_error(
+                sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
+                "<invoke type='{{ invoke_info.invoke_type | escape_c }}'> names an external service this platform does not support");
+{% endif %}
+            continue;
+        }
+        {% endfor %}
         {% for invoke_info in state.invokes | scxml %}
         if (p->state == (int){{ csym_prefix | upper }}{{ model.name | upper }}_STATE_{{ state_id | upper | replace('-', '_') | replace('.', '_') }}
             && p->invoke_idx == {{ loop.index0 }}) {
@@ -123,12 +234,9 @@ static void {{ csym_prefix }}{{ model.name }}_execute_pending_invokes({{ csym_pr
             /* W3C SCXML 6.4 (test554): namelist references undeclared
                parent var `{{ _ns_name }}` — abort spawn and raise
                error.execution per cpp `InvokeExecutor`. */
-            {
-                {{ csym_prefix }}{{ model.name }}_event_with_meta_t _err_evt;
-                memset(&_err_evt, 0, sizeof(_err_evt));
-                _err_evt.event = {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION;
-                {{ csym_prefix }}{{ model.name }}_raise(sm, &_err_evt);
-            }
+            {{ csym_prefix }}{{ model.name }}_raise_platform_error(
+                sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
+                "<invoke> namelist names '{{ _ns_name }}', which the parent does not declare");
             continue;
             {% endif %}
             {% endfor %}
@@ -170,30 +278,52 @@ static void {{ csym_prefix }}{{ model.name }}_execute_pending_invokes({{ csym_pr
                `sm->L`'s top of stack, then transfer to the child's
                `lua_State` as a global under the param/namelist name —
                overriding the `<data expr=...>` defaults that the
-               child's `_init` already seeded. The cpp backend mirrors
-               this shape via `child->setParamInScriptEngine(name, expr)`
-               (`tools/codegen/templates/invoke_methods.jinja2:118-128`)
-               but transfers the expr STRING for re-evaluation in the
-               child's engine; C11 evaluates parent-side because each
-               generated SM owns its own Lua state and a parent-side
-               variable name is undefined in the child's state. For
-               literal exprs (the entire W3C corpus param/namelist
-               surface) both shapes converge on the same observable.
+               child's `_init` already seeded. C11 evaluates
+               parent-side because each generated SM owns its own Lua
+               state and a parent-side variable name is undefined in
+               the child's state.
+
+               The cpp backend transferred the expr STRING for
+               re-evaluation in the child's engine until the fixture
+               `integration_resources/invoke_param_seeds_declared_child_data/`
+               separated the two: for literal exprs — the entire W3C
+               corpus param/namelist surface — both shapes converge on
+               the same observable, which is why the divergence lived
+               as long as it did. It now passes the value, so this
+               backend's shape and cpp's are the same shape.
 
                Names not declared in the child's `<datamodel>` skip
                the transfer (test245: namelist Var2 with no child
-               <data id="Var2"> stays unbound) — mirrors cpp's
+               <data id="Var2"> stays unbound). §scxml-6.4.3 requires
+               it — "if the names do not match, the Processor MUST NOT
+               add the value ... to the invoked session's data model" —
+               and cpp decides the same question at codegen time now,
+               having reached it through the runtime
                `DatamodelValidationHelper::isVariableDeclaredInChild`
-               filter at `invoke_methods.jinja2:102-104`. */
+               on its namelist arm alone. */
             {% if invoke_info.params %}
             {% for param in invoke_info.params %}
             {% if invoke_info.child_datamodel_vars and param.name in invoke_info.child_datamodel_vars %}
-            /* `<param name="{{ param.name }}" expr="{{ param.expr | escape_c }}"/>` */
+            /* `<param name="{{ param.name }}" expr="{{ param.expr }}"/>` */
             if (luaL_dostring(sm->L,
                 "return ({{ param.expr | to_lua_expr | escape_c }})") == 0) {
 {{ se.lua_xfer_top_to_child("sm->L", "sm->child_" ~ invoke_info.field_suffix ~ ".L", param.name) }}
             } else {
+                /* §scxml-5.7.1: BOTH halves — `error.execution` on the internal
+                   queue AND the name and value ignored. Only the silent half was
+                   here: the error object was popped and the child came up with a
+                   `<data>` nothing explained.
+
+                   The clause delegates only the SUCCESSFUL name and value to the
+                   context ("Otherwise the use of the name and value depends on
+                   the context ... See 5.5 <donedata>, 6.2 <send> and 6.4
+                   <invoke>"), so §scxml-6.4.2's "terminate the processing of the
+                   element" is not what a failing `<param>` costs: the child still
+                   starts, one pair short. */
                 lua_pop(sm->L, 1);
+                {{ csym_prefix }}{{ model.name }}_raise_platform_error(
+                    sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
+                    "<invoke> <param name='{{ param.name | escape_c }}'> expr failed to evaluate");
             }
             {% endif %}
             {% endfor %}
@@ -296,10 +426,9 @@ static void {{ csym_prefix }}{{ model.name }}_execute_pending_invokes({{ csym_pr
             if (luaL_dostring(sm->L,
                 "return ({{ invoke_info.srcexpr | to_lua_expr | escape_c }})") != 0) {
                 lua_pop(sm->L, 1);
-                {{ csym_prefix }}{{ model.name }}_event_with_meta_t _err_evt;
-                memset(&_err_evt, 0, sizeof(_err_evt));
-                _err_evt.event = {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION;
-                {{ csym_prefix }}{{ model.name }}_raise(sm, &_err_evt);
+                {{ csym_prefix }}{{ model.name }}_raise_platform_error(
+                    sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
+                    "<invoke> srcexpr failed to evaluate");
                 continue;
             }
             lua_pop(sm->L, 1);
@@ -308,10 +437,9 @@ static void {{ csym_prefix }}{{ model.name }}_execute_pending_invokes({{ csym_pr
             if (luaL_dostring(sm->L,
                 "return ({{ invoke_info.contentexpr | to_lua_expr | escape_c }})") != 0) {
                 lua_pop(sm->L, 1);
-                {{ csym_prefix }}{{ model.name }}_event_with_meta_t _err_evt;
-                memset(&_err_evt, 0, sizeof(_err_evt));
-                _err_evt.event = {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION;
-                {{ csym_prefix }}{{ model.name }}_raise(sm, &_err_evt);
+                {{ csym_prefix }}{{ model.name }}_raise_platform_error(
+                    sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
+                    "<invoke> contentexpr failed to evaluate");
                 continue;
             }
             lua_pop(sm->L, 1);
@@ -349,7 +477,15 @@ static void {{ csym_prefix }}{{ model.name }}_execute_pending_invokes({{ csym_pr
     }
 }
 
+{% if model.invokes | scxml_family %}
 {# ── drive_active_children ───────────────────────────────────────────
+   Emitted only for machines that can actually hold a child. A
+   §scxml-6.4.1 unsupported `type` rides the same pending queue but
+   starts nothing, so for a machine whose only `<invoke>` is unsupported
+   both walks below would render empty and leave `sm` unread — which the
+   C11 test build rejects under `-Wunused-parameter -Werror`. The two
+   call sites in `state_machine.c.jinja2` carry the same guard.
+
    W3C SCXML 6.4: drive every active child's macrostep so the parent's
    `<send target="#_<invokeid>" event="X">` lower (which enqueued onto
    the child's external queue) gets drained on the next call cycle.
@@ -455,3 +591,4 @@ static void {{ csym_prefix }}{{ model.name }}_destroy_active_children({{ csym_pr
     {% endfor %}
     {% endfor %}
 }
+{% endif %}

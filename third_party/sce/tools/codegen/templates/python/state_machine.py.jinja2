@@ -4,9 +4,9 @@
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
 {%- import '_actions.py.jinja2' as actions %}
 
-{# Watching-zenoh RFC §synth-5-O: SCE-MAP marker anchoring the
+{# SCE Protocol-Synthesis RFC §synth-5-O: SCE-MAP marker anchoring the
    generated Python source to the `<scxml>` root element's position. #}
-{{ sce_map.source_marker(model.source_location, "python", module_level=true) }}
+{{ sce_map.source_marker(model.source_location, "python", module_level=true, symbol_artifact=sce_artifact.machine) }}
 
 """Generated Python state machine for `{{ model.name }}`.
 
@@ -28,7 +28,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 {% endif %}
 from enum import IntEnum
+{% if has_native_actions %}
+from typing import Any, Dict, List, Optional, Protocol, Tuple
+{% else %}
 from typing import Any, Dict, List, Optional, Tuple
+{% endif %}
 
 from sce_runtime import (
     Engine,
@@ -38,14 +42,33 @@ from sce_runtime import (
     StatePolicy,
     TransitionResult,
     create_done_invoke_event_name,
-    is_platform_event,
+    published_origin as _published_origin,
+    session_id_from_scxml_location as _session_id_from_scxml_location,
 )
+{% if model.host_processor_types %}
+# §scxml-6.2.5: imported only when this build was told the host serves a
+# processor type, so a machine that serves none carries no unused name — the
+# same gate the C11 backend puts on its registry, for the smaller reason that
+# an unused import is noise in a generated file a consumer reads.
+from sce_runtime import HostSendRequest as _HostSendRequest
+{% endif %}
+{% if model.host_invoker_types %}
+# §scxml-6.4.1: the invoke half, gated on its own declaration for the same
+# reason — a machine the host serves sends for but runs no invokes for carries
+# no unused name.
+from sce_runtime import HostInvokeRequest as _HostInvokeRequest
+{% endif %}
 from sce_runtime.scripting import (
     LuaScriptEngine as _LuaScriptEngine,
     ScriptError as _ScriptError,
     ScriptValue as _ScriptValue,
     SetCurrentEventArgs as _SetCurrentEventArgs,
 )
+{% if model.readable_variables %}
+# §scxml-5.3: the typed read accessors below take the datamodel back out of the
+# session the script engine owns, rather than shadowing it on the policy.
+from sce_runtime import datamodel_read as _datamodel_read
+{% endif %}
 
 
 # ======================================================================
@@ -64,6 +87,25 @@ class {{ machine_name }}State(IntEnum):
 _STATE_NAMES: Dict[{{ machine_name }}State, str] = {
 {% for state_id in model.states.keys() | sort %}
     {{ machine_name }}State.{{ state_id | to_python_const }}: "{{ state_id }}",
+{% endfor %}
+}
+
+
+# W3C SCXML 3.3: the read half of the table above — a state id back into the
+# state it names.
+#
+# A host that persists where a machine was has to write it down as TEXT: the
+# enum above is a build artefact of one process, and the process that resumes is
+# a different one. `_STATE_NAMES` publishes the name and this reads it back,
+# which is what lets a journal survive its own record and reach
+# `Engine.enter_at`.
+#
+# Emitted from the same loop over the document's states, so the two age
+# together. A name this document does not declare is absent here rather than
+# guessed at — a guess is how a restore reaches a configuration nobody recorded.
+_STATE_BY_NAME: Dict[str, {{ machine_name }}State] = {
+{% for state_id in model.states.keys() | sort %}
+    "{{ state_id }}": {{ machine_name }}State.{{ state_id | to_python_const }},
 {% endfor %}
 }
 
@@ -127,20 +169,25 @@ class _ActionAbort(Exception):
 
 
 def _coerce_event_data_str(data: Any) -> str:
-    """W3C SCXML 5.10 — the script engine's `set_current_event` takes
-    `event_data` as a single string (the Lua-side parser then tries
-    `return <text>` → JSON-to-Lua → string fallback). Generated Python
-    code marshals `<send>` payloads as a dict of named params or a
-    bare scalar; we re-serialise them here so the script engine sees
-    the same wire format every other backend produces.
+    """W3C SCXML 5.10 + B-2-9 — the script engine's `set_current_event`
+    takes `event_data` as a single string, and that string is the WIRE:
+    the reader parses it under §scxml-B-2-8-1's three readings (XML →
+    DOM, JSON → value, otherwise a space-normalized string). Generated
+    Python code marshals `<send>` payloads as a dict of named params or
+    a bare scalar; we serialise them here into that wire.
 
     - dict / list → JSON encode (so `_event.data.foo` becomes a real
-      Lua table member at the engine's parse stage);
-    - str → returned unchanged (the script engine handles the
-      `return <text>` round-trip natively);
-    - int / float / bool → `str(value)` so a numeric payload still
-      parses back to a Lua number;
-    - None → `""` so the Lua side leaves `_event.data` unbound."""
+      table member at the receiving parse);
+    - str → returned unchanged, which the string reading gives back
+      whole;
+    - int / float / bool → the JSON spelling, so a numeric payload
+      arrives as a number rather than as its text;
+    - None → `""` so the Lua side leaves `_event.data` unbound.
+
+    What is deliberately absent is a spelling only the sender's own
+    engine could read back: the receiving side used to RUN this string
+    as Lua before parsing it, so a payload could execute at the far
+    end."""
     if data is None:
         return ""
     if isinstance(data, str):
@@ -191,6 +238,13 @@ def _parse_delay_text(text: str) -> int:
 
 {{ event_payload_defs }}
 {% endif %}
+{% if has_native_actions %}
+# ======================================================================
+# W3C SCXML G.7: `<sce:action>` host dispatch
+# ======================================================================
+
+{{ native_actions_defs }}
+{% endif %}
 # ======================================================================
 # Policy
 # ======================================================================
@@ -209,7 +263,17 @@ class {{ machine_name }}Policy(StatePolicy[{{ machine_name }}State, {{ machine_n
     `self._session_id`.
     """
 
+{% if has_native_actions %}
+    def __init__(self, actions: {{ native_actions_interface }}) -> None:
+        # W3C SCXML G.7: the host implementation every `<sce:action>` in this
+        # document calls directly (`self._actions.<op>(…)`) instead of the
+        # script engine. A constructor parameter rather than a setter, because
+        # the initial state's `<onentry>` can already perform an act — a host
+        # installed afterwards would arrive one act too late.
+        self._actions = actions
+{% else %}
     def __init__(self) -> None:
+{% endif %}
         # W3C SCXML 6.4 — when this policy runs as an invoked child its
         # `<send target="#_parent">` actions push `(event_name, data)`
         # tuples here; the parent's `ScxmlInvoke.drain_events()` lifts
@@ -225,8 +289,49 @@ class {{ machine_name }}Policy(StatePolicy[{{ machine_name }}State, {{ machine_n
         # for untyped events.
 {{ event_payload_init }}
 {% endif %}
+{# Looked up rather than spelled as a ternary chain: a chain's last arm is a
+   fallback, so a host type added to the classifier and not to this map would
+   be emitted as whatever the chain ended in. A missing key renders nothing and
+   the generated file fails to import, which says the same thing in the place
+   that can act on it. #}
+{% set PY_READ_TYPE = {'int': 'int', 'string': 'str', 'bool': 'bool', 'json': 'str'} %}
+{% for var in model.readable_variables %}
+
+    def {{ var.id | to_snake_case }}(self) -> Optional[{{ PY_READ_TYPE[var.type] }}]:
+        """§scxml-5.3 — what the `{{ var.id }}` datamodel variable is holding now.
+
+        The live value, not the authored one: `<assign>` writes into the
+        session, so a reader frozen at generation time would answer the
+        document's literal for the whole run. `None` means the machine
+        cannot answer — the policy is not bound to an engine yet, the
+        session is not initialised, `{{ var.id }}` was assigned a value of
+        another type, or the engine refused.
+{% if var.type == 'json' %}
+
+        The value as JSON text, serialised by the engine's own
+        `JSON.stringify` (§scxml-B-2) so the key order is the document's.
+{% endif %}
+        """
+        engine = getattr(self, "_engine_ref", None)
+        return _datamodel_read.read_{{ var.type }}(
+            None if engine is None else engine._script_engine,
+            getattr(self, "_session_id", None),
+            "{{ var.id }}",
+        )
+{% endfor %}
 
     # ── Structural metadata ────────────────────────────────────────
+
+    def needs_event_scheduler(self) -> bool:
+        """Whether a host must move this machine's clock for it to finish.
+
+        W3C SCXML 6.2 — the delayed sends this document carries (or an
+        `<invoke>`d child's) reach the external queue only through
+        `Engine.advance_time(...)`. A host that never calls it sees no
+        delayed event, no error and no warning. Same verdict the generate
+        manifest publishes as `needs_event_scheduler`.
+        """
+        return {{ 'True' if model.needs_tick_driving else 'False' }}
 
     def initial_state(self) -> {{ machine_name }}State:
 {% if model.initial %}
@@ -400,6 +505,12 @@ class {{ machine_name }}Policy(StatePolicy[{{ machine_name }}State, {{ machine_n
     def get_state_name(self, state: {{ machine_name }}State) -> str:
         return _STATE_NAMES[state]
 
+    def get_state_from_name(self, name: str) -> Optional[{{ machine_name }}State]:
+        # W3C SCXML 3.3 — the reverse of `get_state_name`, and what turns a
+        # host's recorded configuration back into the argument
+        # `Engine.enter_at` takes.
+        return _STATE_BY_NAME.get(name)
+
     def get_event_name(self, event: {{ machine_name }}Event) -> str:
         return _EVENT_NAMES[event]
 
@@ -419,11 +530,8 @@ class {{ machine_name }}Policy(StatePolicy[{{ machine_name }}State, {{ machine_n
     def needs_script_engine(self) -> bool:
         return {{ 'True' if model.needs_script_engine else 'False' }}
 
-    def needs_http_send(self) -> bool:
-        return {{ 'True' if model.needs_http_send else 'False' }}
-
     def machine_name(self) -> str:
-        return {{ model.name | py_string_literal }}
+        return {{ model.scxml_name | default('') | w3c_session_name(model.name) | py_string_literal }}
 
 {% include 'process_transition.py.jinja2' %}
 
@@ -450,15 +558,26 @@ _DOCUMENT_ORDER: Dict[{{ machine_name }}State, int] = {
 # Convenience factory
 # ======================================================================
 
-def create_engine(script_engine=None) -> Engine[{{ machine_name }}State, {{ machine_name }}Event]:
+def create_engine({% if has_native_actions %}actions: {{ native_actions_interface }}, {% endif %}script_engine=None) -> Engine[{{ machine_name }}State, {{ machine_name }}Event]:
     """Construct a runnable engine bound to a fresh policy instance.
 
     Engine DI Parity RFC (Path B+): every Engine instance owns its script
     engine. `create_engine()` instantiates a default `LuaScriptEngine` when
     no engine is supplied; callers swap implementations (QuickJS, test
     stubs) by passing one explicitly.
+{% if has_native_actions %}
+
+    W3C SCXML G.7: `actions` is the host implementation of every
+    `<sce:action>` this document declares. It leads the parameter list and
+    has no default, because the initial state's `<onentry>` may already
+    perform an act — a host arriving later would arrive one act too late.
+{% endif %}
     """
+{% if has_native_actions %}
+    policy = {{ machine_name }}Policy(actions)
+{% else %}
     policy = {{ machine_name }}Policy()
+{% endif %}
     if script_engine is None:
         script_engine = _LuaScriptEngine()
         script_engine.initialize()

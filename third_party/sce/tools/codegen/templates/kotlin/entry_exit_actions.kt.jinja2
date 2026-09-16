@@ -19,11 +19,11 @@
 {%- import '_macros/sce_annotation_marker.jinja2' as annot %}
 
     // Entry Actions (W3C SCXML 3.8)
-    {# Watching-zenoh RFC §synth-5-O — function-scope SCE-MAP marker
+    {# SCE Protocol-Synthesis RFC §synth-5-O — function-scope SCE-MAP marker
        above the `onEntry` / `onExit` overrides. Kotlin's macro form is
        a plain `// SCE-MAP:` comment — non-syntactic, no compile cost. #}
-    {{ sce_map.source_marker(model.source_location, "kotlin") }}
-    override fun onEntry(state: {{ machine_name }}State) {
+    {{ sce_map.source_marker(model.source_location, "kotlin", symbol_artifact=sce_artifact.machine) }}
+    override fun onEntry(state: {{ machine_name }}State, pathChild: {{ machine_name }}State?) {
         when (state) {
 {% for state_id in model.states | sort %}
 {% set state = model.states[state_id] %}
@@ -45,6 +45,9 @@
 {% endif %}
 {% endif %}
             is {{ machine_name }}State.{{ state_id | to_state_class_name }} -> {  {{- annot.annotation_comment(state, "kotlin", "                ") }}
+{% if state.source_location %}
+                {{ sce_map.source_marker(state.source_location, "kotlin", stmt_level=true, symbol_state=state_id, symbol_artifact=sce_artifact.state_body) | trim }}
+{% endif %}
                 // W3C SCXML 3.8: Track active state, skip duplicate entry
                 if (!activeStateIds.add("{{ state_id }}")) return
 {% if has_late_datamodel %}
@@ -56,17 +59,17 @@
 {% for dm_var in state.datamodel %}
 {% if dm_var.expr %}
                     try {
-                        val v = engine.evaluateExpr(sid, "{{ dm_var.expr | escape_kotlin }}")
+                        val v = engine.evaluateExpr(sid, {{ dm_var.expr | to_script_source_expr }})
                         engine.setVariable(sid, "{{ dm_var.id }}", v)
                     } catch (e: Exception) {
-                        raiseInternal({{ machine_name }}Event.Error.Execution)
+                        raisePlatformError({{ machine_name }}Event.Error.Execution, "<data id='{{ dm_var.id }}'> expr failed to evaluate")
                     }
 {% elif dm_var.content %}
                     try {
                         val v = engine.parseDataValue(sid, "{{ dm_var.content | escape_kotlin }}")
                         engine.setVariable(sid, "{{ dm_var.id }}", v)
                     } catch (e: Exception) {
-                        raiseInternal({{ machine_name }}Event.Error.Execution)
+                        raisePlatformError({{ machine_name }}Event.Error.Execution, "<data id='{{ dm_var.id }}'> content failed to initialise")
                     }
 {% else %}
                     engine.setVariable(sid, "{{ dm_var.id }}", null)
@@ -100,7 +103,58 @@
 {% endif %}
 {% if has_invokes %}
 {% for inv in invoke_entries[state_id] %}
-{% if inv.is_hybrid is defined and inv.is_hybrid %}
+{% if inv.is_unsupported is defined and inv.is_unsupported and inv.host_served is defined and inv.host_served %}
+                // W3C SCXML 6.4.1: the host declared this `type`, so the
+                // deferred closure STARTS the invocation rather than refusing
+                // it. Deferred like its sibling so §scxml-6.4 ordering holds —
+                // an invoke runs at macrostep end — and so a state that exits
+                // first never starts it at all.
+                //
+                // The id handed to the host is the DOCUMENT's, not the
+                // per-instance one the pending queue carries:
+                // `done.invoke.<id>` is the name the author wrote a transition
+                // for, so it is the name the host must answer on.
+                run {
+                    val generatedInvokeId = "{{ inv.state_id }}.${System.identityHashCode(this)}.{{ inv.invoke_id }}"
+                    deferInvoke(state, generatedInvokeId) {
+                        val hostInvokeParams = mutableMapOf<String, List<String>>()
+{% for param in inv.params %}
+{% if param.is_static_literal %}
+                        hostInvokeParams["{{ param.name | escape_kotlin }}"] =
+                            (hostInvokeParams["{{ param.name | escape_kotlin }}"] ?: emptyList()) + "{{ param.static_value | escape_kotlin }}"
+{% endif %}
+{% endfor %}
+                        val started = performHostInvoke(
+                            HostInvokeRequest(
+                                processorType = "{{ inv.invoke_type | escape_kotlin }}",
+                                invokeId = "{{ inv.invoke_id | escape_kotlin }}",
+                                src = "{{ inv.src | default('', true) | escape_kotlin }}",
+                                params = hostInvokeParams
+                            )
+                        )
+                        if (!started) {
+                            // W3C SCXML 6.4.1: declared but no invoker
+                            // registered. The document asked for a process to
+                            // be run and none was, which is the same fact as
+                            // an unsupported type — so the same event, rather
+                            // than a silence that reads as started.
+                            raisePlatformError({{ machine_name }}Event.Error.Execution, "<invoke> names an invoker the host declared but never registered")
+                        }
+                    }
+                }
+{% elif inv.is_unsupported is defined and inv.is_unsupported %}
+                // W3C SCXML 6.4.1: `type` names no processor this platform
+                // implements. The deferred closure runs at macrostep end and
+                // raises error.execution — no child is created, so nothing
+                // follows and state exit has nothing to cancel beyond the
+                // pending entry `cancelPendingInvokesForState` already drops.
+                run {
+                    val generatedInvokeId = "{{ inv.state_id }}.${System.identityHashCode(this)}.{{ inv.invoke_id }}"
+                    deferInvoke(state, generatedInvokeId) {
+                        raisePlatformError({{ machine_name }}Event.Error.Execution, "<invoke type='{{ inv.invoke_type | escape_kotlin }}'> names an external service this platform does not support")
+                    }
+                }
+{% elif inv.is_hybrid is defined and inv.is_hybrid %}
                 // W3C SCXML 6.4: Hybrid invoke — runtime expression evaluation + dynamic child
                 // C++ parity: StateMachine::createFromSCXMLString() / FileLoadingHelper::loadScxmlFile()
                 run {
@@ -112,19 +166,19 @@
                         try {
 {% if inv.srcexpr %}
                             // W3C SCXML 6.4.3: Evaluate srcexpr → file path → load SCXML → create child
-                            val pathResult = eng.evaluateExpr(sid, "{{ inv.srcexpr | escape_kotlin }}")
+                            val pathResult = eng.evaluateExpr(sid, {{ inv.srcexpr | to_script_source_expr }})
                             val filePath = pathResult?.toString() ?: return@deferInvoke
                             val childSM = ScxmlRuntimeInterpreter.fromFile(filePath, "{{ model.scxml_base_path | escape_kotlin }}", scriptEngine)
 {% elif inv.contentexpr %}
                             // W3C SCXML 6.4.4: Evaluate contentexpr → SCXML string → create child
-                            val contentResult = eng.evaluateExpr(sid, "{{ inv.contentexpr | escape_kotlin }}")
+                            val contentResult = eng.evaluateExpr(sid, {{ inv.contentexpr | to_script_source_expr }})
                             val scxmlContent = contentResult?.toString() ?: return@deferInvoke
                             val childSM = ScxmlRuntimeInterpreter.fromString(scxmlContent, scriptEngine)
 {% endif %}
                             startInvoke("{{ inv.invoke_id }}", childSM, {{ 'true' if inv.autoforward else 'false' }}, {% if inv.has_done_event %}{{ machine_name }}Event.{{ inv.done_event | to_event_ref }}{% else %}null{% endif %}, "", generatedInvokeId)
                         } catch (_: Exception) {
                             // W3C SCXML 6.4: Expression evaluation or child creation failed (C++ parity)
-                            raiseInternal({{ machine_name }}Event.Error.Execution)
+                            raisePlatformError({{ machine_name }}Event.Error.Execution, "<invoke> could not evaluate its source or start a child")
                         }
                     }
                 }
@@ -150,11 +204,26 @@
                     val invokeParams = mutableMapOf<String, Any?>()
 {% for param in inv.params %}
 {% if param.expr %}
-                    // W3C SCXML 6.4: Param expr evaluation failure cancels invoke
+                    // §scxml-5.7.1: a `<param>` whose expr will not evaluate costs
+                    // `error.execution` on the internal queue AND the name and
+                    // value — and nothing else. The clause delegates only the
+                    // SUCCESSFUL name and value to the context ("Otherwise the use
+                    // of the name and value depends on the context in which the
+                    // <param> element occurs. See 5.5 <donedata>, 6.2 <send> and
+                    // 6.4 <invoke>"), so §scxml-6.4.2's "terminate the processing
+                    // of the element" is not reached by a failing `<param>`.
+                    //
+                    // This arm used to `return@run`, cancelling the whole invoke
+                    // and raising nothing — the strictest reading of 6.4.2 with
+                    // 5.7.1's reporting half dropped, so a document lost the child
+                    // AND the event that would have explained why. The comment
+                    // called that "the C++ pattern"; C++ does not cancel. The map
+                    // insert is inside the `try`, so a failure leaves the name
+                    // absent, which is the clause's other half.
                     try {
-                        invokeParams["{{ param.name }}"] = engineInv.evaluateExpr(sidInv, "{{ param.expr | escape_kotlin }}")
+                        invokeParams["{{ param.name | escape_kotlin }}"] = engineInv.evaluateExpr(sidInv, {{ param.expr | to_script_source_expr }})
                     } catch (_: Exception) {
-                        return@run  // C++ pattern: invoke cancelled on param error
+                        raisePlatformError({{ machine_name }}Event.Error.Execution, "<invoke> <param name='{{ param.name | escape_kotlin }}'> expr failed to evaluate")
                     }
 {% endif %}
 {% endfor %}
@@ -162,7 +231,7 @@
 {% for var_name in inv.namelist.split() %}
                     // W3C SCXML 6.4.1: Namelist variable must exist in parent (C++ NamelistHelper pattern)
                     if (!engineInv.hasVariable(sidInv, "{{ var_name }}")) {
-                        raiseInternal({{ machine_name }}Event.Error.Execution)
+                        raisePlatformError({{ machine_name }}Event.Error.Execution, "<invoke> namelist names '{{ var_name }}', which the parent does not declare")
                         return@run  // C++ pattern: invoke cancelled on namelist error
                     }
                     invokeParams["{{ var_name }}"] = engineInv.getVariable(sidInv, "{{ var_name }}")
@@ -179,6 +248,12 @@
                         setInvokeParams(childSM, invokeParams)
 {% endif %}
                         // W3C SCXML 6.4: Static ID for done.invoke/cancel, generated ID for child events
+{# §scxml-6.5: the `<finalize>` body is authored content, and this channel is
+   the one that needs no lowering for it — Kotlin evaluates through Rhino, a
+   JavaScript engine, so the parser's JavaScript is already the engine's own
+   language. The Lua-backed channels (Rust, Go, cpp-AOT, C11, Python) apply
+   `to_lua_script` at their own emission sites for the same reason: authored
+   content reaches the engine through the frontend that speaks to it. #}
                         startInvoke("{{ inv.invoke_id }}", childSM, {{ 'true' if inv.autoforward else 'false' }}, {% if inv.has_done_event %}{{ machine_name }}Event.{{ inv.done_event | to_event_ref }}{% else %}null{% endif %}, {% if inv.finalize_content %}"{{ inv.finalize_content | escape_kotlin }}"{% else %}""{% endif %}, generatedInvokeId)
                     }
                 }
@@ -206,14 +281,23 @@
                     val engineDD = scriptEngine ?: error("scriptEngine is required (codegen invariant: needs_script_engine == true)")
                     val sidDD = scriptSessionId ?: error("scriptSessionId must be initialized after ensureScriptEngine() (codegen invariant)")
                     var doneEventData = ""
+{% if state.donedata.content.kind == "expression" or state.donedata.content.kind == "inline_text" %}
 {% if state.donedata.content.kind == "expression" %}
                     // W3C SCXML 5.5: Evaluate <content expr="..."/>
+{% set donedata_content = state.donedata.content.text | to_script_source_expr %}
+{% else %}
+                    // W3C SCXML B.2: inline text takes the ordered readings —
+                    // an expression when it is one, otherwise the string. The
+                    // reading is decided from the document, so every backend
+                    // reaches the same one for the same text.
+{% set donedata_content = state.donedata.content.text | to_script_source_data_content %}
+{% endif %}
                     try {
-                        val contentResult = engineDD.evaluateExpr(sidDD, "{{ state.donedata.content.text | escape_kotlin }}")
+                        val contentResult = engineDD.evaluateExpr(sidDD, {{ donedata_content }})
                         // C++ DoneDataHelper::evaluateContent: EventDataHelper::scriptValueToJsonString
                         doneEventData = if (contentResult != null) valueToJson(contentResult) else ""
                     } catch (_: Exception) {
-                        raiseInternal({{ machine_name }}Event.Error.Execution, EventMetadata.platform())
+                        raisePlatformError({{ machine_name }}Event.Error.Execution, "<donedata> <content expr> failed to evaluate")
                     }
 {% elif state.donedata.content.kind == "literal" %}
                     // W3C SCXML 5.5: inline text is the content value (literal path alongside params).
@@ -226,23 +310,23 @@
 {% for param in state.donedata.params %}
 {% if param.expr is not none %}
                     try {
-                        doneParams["{{ param.name }}"] = engineDD.evaluateExpr(sidDD, "{{ param.expr | escape_kotlin }}")
+                        doneParams["{{ param.name | escape_kotlin }}"] = engineDD.evaluateExpr(sidDD, {{ param.expr | to_script_source_expr }})
                     } catch (_: Exception) {
                         // W3C SCXML 5.7: Runtime param error — raise error.execution but continue
-                        raiseInternal({{ machine_name }}Event.Error.Execution, EventMetadata.platform())
+                        raisePlatformError({{ machine_name }}Event.Error.Execution, "<donedata> <param name='{{ param.name | escape_kotlin }}'> failed to evaluate")
                     }
 {% elif param.location is not none %}
 {% if param.location %}
                     try {
-                        val locVal = engineDD.evaluateExpr(sidDD, "{{ param.location }}")
-                        doneParams["{{ param.name }}"] = locVal
+                        val locVal = engineDD.evaluateExpr(sidDD, {{ param.location | to_script_source_expr }})
+                        doneParams["{{ param.name | escape_kotlin }}"] = locVal
                     } catch (_: Exception) {
                         // W3C SCXML 5.7: Runtime location error — raise error.execution but continue
-                        raiseInternal({{ machine_name }}Event.Error.Execution, EventMetadata.platform())
+                        raisePlatformError({{ machine_name }}Event.Error.Execution, "<donedata> <param name='{{ param.name | escape_kotlin }}'> location could not be read")
                     }
 {% else %}
                     // W3C SCXML 5.7: Empty location — structural error (C++ DoneDataHelper returns false)
-                    raiseInternal({{ machine_name }}Event.Error.Execution, EventMetadata.platform())
+                    raisePlatformError({{ machine_name }}Event.Error.Execution, "<donedata> <param name='{{ param.name | escape_kotlin }}'> has an empty location")
                     doneParamStructuralError = true
 {% endif %}
 {% endif %}
@@ -277,18 +361,24 @@
                     raiseInternal({{ machine_name }}Event.{{ ("done.state." ~ parallel_grandparent_id) | to_event_ref }})
                 }
 {% endif %}
-{# C++ executeEntryActions vs buildEntryChain separation:
-   When suppressChildEntry is true, only entry actions execute (no child entry).
-   This matches C++ where ancestors use executeEntryActions() and only
-   the target gets full child entry via buildEntryChain. #}
+{# §scxml-D: `pathChild` tells addDescendantStatesToEnter (null — this state is
+   the entry TARGET and takes its defaults) from addAncestorStatesToEnter (the
+   child the entry set already holds, so this state takes none). See the
+   runtime's `StateMachineEngine.onEntry`. #}
 {% if has_parallel_children %}
-                // W3C SCXML 3.4: Parallel states ALWAYS enter all child regions
-                // (not affected by suppressChildEntry — C++ buildEntryChain includes parallel children)
+                // W3C SCXML 3.4 + §scxml-D-addDescendantStatesToEnter: a
+                // `<parallel>` hands out defaults even when it is only an
+                // ancestor — Appendix D's one exception to the ancestor rule.
+                // The exception has its own exception: not the region the entry
+                // set is already descending into, which `pathChild` names and
+                // which the caller enters with the target's own path.
 {% for region_id in model.parallel_regions[state_id] %}
-                onEntry({{ machine_name }}State.{{ region_id | to_state_class_name }})
+                if (pathChild != {{ machine_name }}State.{{ region_id | to_state_class_name }}) {
+                    onEntry({{ machine_name }}State.{{ region_id | to_state_class_name }})
+                }
 {% endfor %}
 {% elif has_initial_history %}
-                if (!suppressChildEntry) {
+                if (pathChild == null) {
 {% if state.initial_transition_actions %}
                     // W3C SCXML 3.3.2: Execute initial transition content (always, even with stored history)
 {% for action in state.initial_transition_actions %}
@@ -319,7 +409,7 @@
                     }
                 }
 {% elif model.parallel_regions and has_deep_initial %}
-                if (!suppressChildEntry) {
+                if (pathChild == null) {
 {% if state.initial_transition_actions %}
                     // W3C SCXML 3.3.2: Execute initial transition content
 {% for action in state.initial_transition_actions %}
@@ -332,7 +422,7 @@
 {% endfor %}
                 }
 {% elif model.parallel_regions and has_initial_child %}
-                if (!suppressChildEntry) {
+                if (pathChild == null) {
 {% if state.initial_transition_actions %}
                     // W3C SCXML 3.3.2: Execute initial transition content
 {% for action in state.initial_transition_actions %}
@@ -354,7 +444,7 @@
     }
 
     // Exit Actions (W3C SCXML 3.9)
-    {{ sce_map.source_marker(model.source_location, "kotlin") }}
+    {{ sce_map.source_marker(model.source_location, "kotlin", symbol_artifact=sce_artifact.machine) }}
     override fun onExit(state: {{ machine_name }}State) {
         when (state) {
 {% for state_id in model.states | sort %}
@@ -363,12 +453,23 @@
 {% set exit_has_invokes = state_id in invoke_entries %}
 {% set has_history_children = model.history_states.values() | selectattr('parent', 'equalto', state_id) | list %}
             is {{ machine_name }}State.{{ state_id | to_state_class_name }} -> {  {{- annot.annotation_comment(state, "kotlin", "                ") }}
+{% if state.source_location %}
+                {{ sce_map.source_marker(state.source_location, "kotlin", stmt_level=true, symbol_state=state_id, symbol_artifact=sce_artifact.state_body) | trim }}
+{% endif %}
 {% if exit_has_invokes %}
                 // W3C SCXML 6.4: Cancel pending invokes for exited state (deferred but not yet executed)
                 cancelPendingInvokesForState(state)
 {% for inv in invoke_entries[state_id] %}
+{% if inv.is_unsupported is defined and inv.is_unsupported and inv.host_served is defined and inv.host_served %}
+                // W3C SCXML 6.4: the host's invocation ends with the state
+                // that started it. Unconditional here: the engine knows
+                // whether this one ever started and stays silent when it did
+                // not, so the emitted chain needs no bookkeeping of its own.
+                cancelHostInvoke("{{ inv.invoke_type | escape_kotlin }}", "{{ inv.invoke_id | escape_kotlin }}")
+{% elif not (inv.is_unsupported is defined and inv.is_unsupported) %}
                 // W3C SCXML 6.4: Cancel active invoked child on state exit
                 cancelInvoke("{{ inv.invoke_id }}")
+{% endif %}
 {% endfor %}
 {% endif %}
 {% if is_parallel %}

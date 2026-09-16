@@ -1,9 +1,9 @@
 {
-  "clang_version": "Ubuntu clang version 19.1.7 (++20250114103320+cd708029e0b2-1~exp1~20250114103432.75)",
-  "embed_version": "acfbbc7e6",
+  "clang_version": "Ubuntu clang version 19.1.7 (++20250804090312+cd708029e0b2-1~exp1~20250804210325.79)",
+  "embed_version": "341f0e0c44",
   "non_self_contained_headers": [],
   "schema": "sce-embed-manifest.v1",
-  "symbol_count": 239,
+  "symbol_count": 291,
   "symbols": [
     {
       "header": "GuardUtils.h",
@@ -145,6 +145,12 @@
       "name": "SCE::DataModelInitHelper"
     },
     {
+      "header": "common/DataModelReadHelper.h",
+      "kind": "class",
+      "members": [],
+      "name": "SCE::DataModelReadHelper"
+    },
+    {
       "header": "common/DatamodelValidationHelper.h",
       "kind": "class",
       "members": [],
@@ -187,10 +193,49 @@
       "signature": "bool SCE::Validation::validateForeachAttributes(const std::string &, const std::string &, std::string &)"
     },
     {
+      "header": "common/ForwardedEvent.h",
+      "kind": "struct",
+      "members": [
+        "field std::string data",
+        "field std::string invokeId",
+        "field std::string name",
+        "field std::string origin",
+        "field std::string originType",
+        "field std::string sendId",
+        "field std::string type",
+        "method ForwardedEvent &(ForwardedEvent &&) operator=",
+        "method ForwardedEvent &(const ForwardedEvent &) operator=",
+        "method void () noexcept ForwardedEvent",
+        "method void () noexcept ~ForwardedEvent",
+        "method void (ForwardedEvent &&) ForwardedEvent",
+        "method void (const ForwardedEvent &) ForwardedEvent"
+      ],
+      "name": "SCE::Common::ForwardedEvent"
+    },
+    {
+      "header": "common/ForwardedEvent.h",
+      "kind": "struct",
+      "members": [
+        "field std::string data",
+        "field std::string invokeId",
+        "field std::string name",
+        "field std::string origin",
+        "field std::string originType",
+        "field std::string sendId",
+        "field std::string type",
+        "method ForwardedEvent &(ForwardedEvent &&) operator=",
+        "method ForwardedEvent &(const ForwardedEvent &) operator=",
+        "method void () ~ForwardedEvent",
+        "method void (ForwardedEvent &&) ForwardedEvent",
+        "method void (const ForwardedEvent &) ForwardedEvent"
+      ],
+      "name": "SCE::Common::ForwardedEvent"
+    },
+    {
       "header": "common/GuardHelper.h",
       "kind": "function",
       "name": "SCE::GuardHelper::evaluateGuard",
-      "signature": "std::optional<bool> SCE::GuardHelper::evaluateGuard(IScriptEngine &, const std::string &, const std::string &)"
+      "signature": "std::optional<bool> SCE::GuardHelper::evaluateGuard(IScriptEngine &, const std::string &, const ScriptSource &)"
     },
     {
       "header": "common/ILoggerBackend.h",
@@ -211,6 +256,27 @@
         "Critical",
         "Off"
       ]
+    },
+    {
+      "header": "common/IOProcessorHelper.h",
+      "kind": "class",
+      "members": [],
+      "name": "SCE::IOProcessorHelper"
+    },
+    {
+      "header": "common/IOProcessorHelper.h",
+      "kind": "struct",
+      "members": [
+        "field std::string location",
+        "field std::string name",
+        "method IOProcessorDescriptor &(IOProcessorDescriptor &&) operator=",
+        "method IOProcessorDescriptor &(const IOProcessorDescriptor &) operator=",
+        "method void () IOProcessorDescriptor",
+        "method void () noexcept ~IOProcessorDescriptor",
+        "method void (IOProcessorDescriptor &&) noexcept IOProcessorDescriptor",
+        "method void (const IOProcessorDescriptor &) IOProcessorDescriptor"
+      ],
+      "name": "SCE::IOProcessorDescriptor"
     },
     {
       "header": "common/InPredicateHelper.h",
@@ -235,6 +301,24 @@
       "kind": "class",
       "members": [],
       "name": "SCE::NamelistHelper"
+    },
+    {
+      "header": "common/SceClock.h",
+      "kind": "class",
+      "members": [],
+      "name": "SCE::ISceClock"
+    },
+    {
+      "header": "common/SceClock.h",
+      "kind": "class",
+      "members": [],
+      "name": "SCE::ManualClock"
+    },
+    {
+      "header": "common/SceClock.h",
+      "kind": "class",
+      "members": [],
+      "name": "SCE::MonotonicClock"
     },
     {
       "header": "common/SendHelper.h",
@@ -358,6 +442,42 @@
       "name": "SCE::Core::AOTEventQueue<T>"
     },
     {
+      "header": "core/ConfigurationHelper.h",
+      "kind": "enum",
+      "name": "SCE::Core::ConfigurationRejection",
+      "values": [
+        "None",
+        "Empty",
+        "Duplicate",
+        "AncestorMissing",
+        "RootCount",
+        "CompoundChildCount",
+        "ParallelRegionMissing",
+        "ParallelChildCount",
+        "AtomicHasChildren",
+        "CurrentNotActive",
+        "CurrentNotAtomic"
+      ]
+    },
+    {
+      "header": "core/ConfigurationHelper.h",
+      "kind": "function",
+      "name": "SCE::Core::configurationRejectionText",
+      "signature": "const char * SCE::Core::configurationRejectionText(ConfigurationRejection) noexcept"
+    },
+    {
+      "header": "core/ConfigurationHelper.h",
+      "kind": "function",
+      "name": "SCE::Core::constexprStrEq",
+      "signature": "bool SCE::Core::constexprStrEq(const char *, const char *) noexcept"
+    },
+    {
+      "header": "core/ConfigurationHelper.h",
+      "kind": "function",
+      "name": "SCE::Core::validateConfiguration<T>",
+      "signature": "ConfigurationRejection SCE::Core::validateConfiguration<T>(const std::vector<typename Policy::State> &, typename Policy::State)"
+    },
+    {
       "header": "core/ConflictResolutionHelper.h",
       "kind": "class",
       "members": [],
@@ -378,6 +498,12 @@
       "kind": "class",
       "members": [],
       "name": "SCE::Core::EntryExitHelper<T>"
+    },
+    {
+      "header": "core/EventMatchingHelper.h",
+      "kind": "function",
+      "name": "SCE::Core::EventMatchingHelper::isErrorEvent",
+      "signature": "bool SCE::Core::EventMatchingHelper::isErrorEvent(const std::string &)"
     },
     {
       "header": "core/EventMatchingHelper.h",
@@ -414,6 +540,14 @@
       "name": "SCE::Core::EventProcessingAlgorithms"
     },
     {
+      "header": "core/EventProcessingAlgorithms.h",
+      "kind": "struct",
+      "members": [
+        "method bool () const operator()"
+      ],
+      "name": "SCE::Core::AlwaysTakeMicrostep"
+    },
+    {
       "header": "core/EventQueueManager.h",
       "kind": "class",
       "members": [],
@@ -438,6 +572,7 @@
         "template FunctionTemplateDecl buildEntryChainFromAncestor",
         "template FunctionTemplateDecl buildExitChain",
         "template FunctionTemplateDecl findLCA",
+        "template FunctionTemplateDecl findLCCA",
         "template FunctionTemplateDecl isDescendantOf"
       ],
       "name": "SCE::Core::HierarchicalAlgorithms"
@@ -485,6 +620,141 @@
       "signature": "std::vector<StateType> SCE::Core::HistoryHelper::recordHistory<T>(const std::vector<StateType> &, StateType, HistoryType, GetParentFunc)"
     },
     {
+      "header": "core/HostProcessor.h",
+      "kind": "struct",
+      "members": [
+        "field std::map<std::string, std::vector<std::string>> params",
+        "field std::string content",
+        "field std::string eventName",
+        "field std::string processorType",
+        "field std::string sendId",
+        "field std::string target",
+        "method HostSendRequest &(HostSendRequest &&) operator=",
+        "method HostSendRequest &(const HostSendRequest &) operator=",
+        "method void () ~HostSendRequest",
+        "method void (HostSendRequest &&) HostSendRequest",
+        "method void (const HostSendRequest &) HostSendRequest"
+      ],
+      "name": "SCE::HostSendRequest"
+    },
+    {
+      "header": "core/HostProcessor.h",
+      "kind": "struct",
+      "members": [
+        "field std::map<std::string, std::vector<std::string>> params",
+        "field std::string content",
+        "field std::string invokeId",
+        "field std::string processorType",
+        "field std::string src",
+        "method HostInvokeRequest &(HostInvokeRequest &&) noexcept operator=",
+        "method HostInvokeRequest &(const HostInvokeRequest &) noexcept(false) operator=",
+        "method void () noexcept HostInvokeRequest",
+        "method void () noexcept ~HostInvokeRequest",
+        "method void (HostInvokeRequest &&) noexcept HostInvokeRequest",
+        "method void (const HostInvokeRequest &) noexcept(false) HostInvokeRequest"
+      ],
+      "name": "SCE::HostInvokeRequest"
+    },
+    {
+      "header": "core/HostProcessor.h",
+      "kind": "struct",
+      "members": [
+        "field std::optional<HostInvokeCancel> cancel",
+        "field std::optional<HostInvokeRequest> start",
+        "method void () noexcept HostInvokeEvent",
+        "method void () noexcept ~HostInvokeEvent",
+        "method void (HostInvokeEvent &&) HostInvokeEvent",
+        "method void (const HostInvokeEvent &) HostInvokeEvent"
+      ],
+      "name": "SCE::HostInvokeEvent"
+    },
+    {
+      "header": "core/HostProcessor.h",
+      "kind": "struct",
+      "members": [
+        "field std::optional<HostInvokeCancel> cancel",
+        "field std::optional<HostInvokeRequest> start"
+      ],
+      "name": "SCE::HostInvokeEvent"
+    },
+    {
+      "header": "core/HostProcessor.h",
+      "kind": "struct",
+      "members": [
+        "field std::optional<std::string> doneData",
+        "method HostInvokeResponse &(HostInvokeResponse &&) noexcept operator=",
+        "method HostInvokeResponse &(const HostInvokeResponse &) noexcept(false) operator=",
+        "method void () noexcept HostInvokeResponse",
+        "method void () noexcept ~HostInvokeResponse",
+        "method void (HostInvokeResponse &&) noexcept HostInvokeResponse",
+        "method void (const HostInvokeResponse &) noexcept(false) HostInvokeResponse"
+      ],
+      "name": "SCE::HostInvokeResponse"
+    },
+    {
+      "header": "core/HostProcessor.h",
+      "kind": "struct",
+      "members": [
+        "field std::optional<std::string> doneData"
+      ],
+      "name": "SCE::HostInvokeResponse"
+    },
+    {
+      "header": "core/HostProcessor.h",
+      "kind": "struct",
+      "members": [
+        "field std::string eventData",
+        "field std::string eventName",
+        "method HostSendResponse &(HostSendResponse &&) operator=",
+        "method HostSendResponse &(const HostSendResponse &) operator=",
+        "method void () noexcept ~HostSendResponse",
+        "method void (HostSendResponse &&) HostSendResponse",
+        "method void (const HostSendResponse &) HostSendResponse"
+      ],
+      "name": "SCE::HostSendResponse"
+    },
+    {
+      "header": "core/HostProcessor.h",
+      "kind": "struct",
+      "members": [
+        "field std::string eventData",
+        "field std::string eventName",
+        "method HostSendResponse &(HostSendResponse &&) operator=",
+        "method HostSendResponse &(const HostSendResponse &) operator=",
+        "method void () ~HostSendResponse",
+        "method void (HostSendResponse &&) HostSendResponse",
+        "method void (const HostSendResponse &) HostSendResponse"
+      ],
+      "name": "SCE::HostSendResponse"
+    },
+    {
+      "header": "core/HostProcessor.h",
+      "kind": "struct",
+      "members": [
+        "field std::string invokeId",
+        "field std::string processorType",
+        "method HostInvokeCancel &(HostInvokeCancel &&) noexcept operator=",
+        "method HostInvokeCancel &(const HostInvokeCancel &) noexcept(false) operator=",
+        "method void () noexcept HostInvokeCancel",
+        "method void () noexcept ~HostInvokeCancel",
+        "method void (HostInvokeCancel &&) noexcept HostInvokeCancel",
+        "method void (const HostInvokeCancel &) noexcept(false) HostInvokeCancel"
+      ],
+      "name": "SCE::HostInvokeCancel"
+    },
+    {
+      "header": "core/HostProcessor.h",
+      "kind": "typedef",
+      "name": "SCE::HostInvokeHandler",
+      "type": "std::function<std::optional<HostInvokeResponse> (const HostInvokeEvent &)>"
+    },
+    {
+      "header": "core/HostProcessor.h",
+      "kind": "typedef",
+      "name": "SCE::HostSendHandler",
+      "type": "std::function<std::vector<HostSendResponse> (const HostSendRequest &)>"
+    },
+    {
       "header": "core/InvokeHelper.h",
       "kind": "class",
       "members": [],
@@ -527,6 +797,33 @@
       "name": "SCE::Core::ParallelTransitionHelper"
     },
     {
+      "header": "core/ParallelTransitionHelper.h",
+      "kind": "struct",
+      "members": [
+        "template FunctionTemplateDecl computeExitSet",
+        "template FunctionTemplateDecl getTransitionDomain"
+      ],
+      "name": "SCE::Core::ExitSetAlgorithms"
+    },
+    {
+      "header": "core/PayloadReading.h",
+      "kind": "enum",
+      "name": "SCE::PayloadReading",
+      "values": [
+        "Absent",
+        "Dom",
+        "Structured",
+        "Text",
+        "Undecodable"
+      ]
+    },
+    {
+      "header": "core/PayloadReading.h",
+      "kind": "function",
+      "name": "SCE::payloadReadingOfText",
+      "signature": "PayloadReading SCE::payloadReadingOfText(const std::string &)"
+    },
+    {
       "header": "core/StateEntryHelper.h",
       "kind": "class",
       "members": [],
@@ -543,6 +840,12 @@
       "kind": "struct",
       "members": [],
       "name": "SCE::Core::HasAutoforwardTrait<T>"
+    },
+    {
+      "header": "core/StatePolicyConcepts.h",
+      "kind": "struct",
+      "members": [],
+      "name": "SCE::Core::HasChildSessionDeliveryTrait<T>"
     },
     {
       "header": "core/StatePolicyConcepts.h",
@@ -573,6 +876,12 @@
       "kind": "struct",
       "members": [],
       "name": "SCE::Core::HasInvokeSupportTrait<T>"
+    },
+    {
+      "header": "core/StatePolicyConcepts.h",
+      "kind": "struct",
+      "members": [],
+      "name": "SCE::Core::NeedsEventSchedulerTrait<T>"
     },
     {
       "header": "core/TransitionHelper.h",
@@ -626,7 +935,7 @@
       "members": [
         "field std::chrono::milliseconds delay",
         "field std::chrono::milliseconds logicalExecuteTime",
-        "field std::map<std::string, ScriptValue> typedParams",
+        "field std::map<std::string, std::vector<ScriptValue>> typedParams",
         "field std::map<std::string, std::vector<std::string>> params",
         "field std::string content",
         "field std::string data",
@@ -1109,16 +1418,23 @@
       "name": "SCE::IEventRaiser"
     },
     {
+      "header": "runtime/IEventRaiser.h",
+      "kind": "struct",
+      "members": [
+        "field std::function<bool ()> mayTake",
+        "field std::function<void ()> spend",
+        "method MicrostepBudget &(MicrostepBudget &&) operator=",
+        "method MicrostepBudget &(const MicrostepBudget &) operator=",
+        "method void (MicrostepBudget &&) MicrostepBudget",
+        "method void (const MicrostepBudget &) MicrostepBudget"
+      ],
+      "name": "SCE::MicrostepBudget"
+    },
+    {
       "header": "runtime/IExecutionContext.h",
       "kind": "class",
       "members": [],
       "name": "SCE::IExecutionContext"
-    },
-    {
-      "header": "runtime/ISessionObserver.h",
-      "kind": "class",
-      "members": [],
-      "name": "SCE::ISessionObserver"
     },
     {
       "header": "runtime/ImmediateModeGuard.h",
@@ -1131,6 +1447,12 @@
       "kind": "class",
       "members": [],
       "name": "SCE::Core::InterpreterEventQueue"
+    },
+    {
+      "header": "runtime/InterpreterEventQueue.h",
+      "kind": "class",
+      "members": [],
+      "name": "SCE::Core::InterpreterInternalEventQueue"
     },
     {
       "header": "runtime/InvokeExecutor.h",
@@ -1197,12 +1519,6 @@
       "kind": "class",
       "members": [],
       "name": "SCE::StateMachineContext"
-    },
-    {
-      "header": "runtime/StateMachineEventRaiser.h",
-      "kind": "class",
-      "members": [],
-      "name": "SCE::StateMachineEventRaiser"
     },
     {
       "header": "runtime/StateMachineFactory.h",
@@ -1339,12 +1655,6 @@
       "name": "SCE::DOMBinding"
     },
     {
-      "header": "scripting/EcmaScriptToLuaTransformer.h",
-      "kind": "class",
-      "members": [],
-      "name": "SCE::EcmaScriptToLuaTransformer"
-    },
-    {
       "header": "scripting/GenericClassBinder.h",
       "kind": "class",
       "members": [],
@@ -1355,6 +1665,28 @@
       "kind": "class",
       "members": [],
       "name": "SCE::IScriptEngine"
+    },
+    {
+      "header": "scripting/IScriptEngine.h",
+      "kind": "struct",
+      "members": [
+        "field PayloadReading reading",
+        "field ScriptResult status",
+        "method void () SetCurrentEventResult",
+        "method void () noexcept ~SetCurrentEventResult",
+        "method void (SetCurrentEventResult &&) noexcept SetCurrentEventResult",
+        "method void (const SetCurrentEventResult &) SetCurrentEventResult"
+      ],
+      "name": "SCE::SetCurrentEventResult"
+    },
+    {
+      "header": "scripting/IScriptEngine.h",
+      "kind": "struct",
+      "members": [
+        "field PayloadReading reading",
+        "field ScriptResult status"
+      ],
+      "name": "SCE::SetCurrentEventResult"
     },
     {
       "header": "scripting/IScriptEngine.h",
@@ -1425,6 +1757,102 @@
       "signature": "std::unique_ptr<PlatformExecutionHelper> SCE::createPlatformExecutor()"
     },
     {
+      "header": "scripting/SceLowering.h",
+      "kind": "function",
+      "name": "sce_lower_condition",
+      "signature": "char * sce_lower_condition(const char *, const SceLoweringScope *)"
+    },
+    {
+      "header": "scripting/SceLowering.h",
+      "kind": "function",
+      "name": "sce_lower_free",
+      "signature": "void sce_lower_free(char *)"
+    },
+    {
+      "header": "scripting/SceLowering.h",
+      "kind": "function",
+      "name": "sce_lower_location",
+      "signature": "char * sce_lower_location(const char *)"
+    },
+    {
+      "header": "scripting/SceLowering.h",
+      "kind": "function",
+      "name": "sce_lower_script",
+      "signature": "char * sce_lower_script(const char *, const SceLoweringScope *)"
+    },
+    {
+      "header": "scripting/SceLowering.h",
+      "kind": "function",
+      "name": "sce_lower_value",
+      "signature": "char * sce_lower_value(const char *, const SceLoweringScope *)"
+    },
+    {
+      "header": "scripting/SceLowering.h",
+      "kind": "function",
+      "name": "sce_scope_declare",
+      "signature": "void sce_scope_declare(SceLoweringScope *, const char *)"
+    },
+    {
+      "header": "scripting/SceLowering.h",
+      "kind": "function",
+      "name": "sce_scope_declare_chunk",
+      "signature": "void sce_scope_declare_chunk(SceLoweringScope *, const char *)"
+    },
+    {
+      "header": "scripting/SceLowering.h",
+      "kind": "function",
+      "name": "sce_scope_free",
+      "signature": "void sce_scope_free(SceLoweringScope *)"
+    },
+    {
+      "header": "scripting/SceLowering.h",
+      "kind": "function",
+      "name": "sce_scope_new",
+      "signature": "SceLoweringScope * sce_scope_new()"
+    },
+    {
+      "header": "scripting/ScriptDialect.h",
+      "kind": "function",
+      "name": "SCE::ScriptDialect::bindTemporary",
+      "signature": "ScriptSource SCE::ScriptDialect::bindTemporary(const char *, const ScriptSource &)"
+    },
+    {
+      "header": "scripting/ScriptDialect.h",
+      "kind": "function",
+      "name": "SCE::ScriptDialect::elementAt",
+      "signature": "ScriptSource SCE::ScriptDialect::elementAt(const ScriptSource &, int64_t)"
+    },
+    {
+      "header": "scripting/ScriptDialect.h",
+      "kind": "function",
+      "name": "SCE::ScriptDialect::isArray",
+      "signature": "ScriptSource SCE::ScriptDialect::isArray(const ScriptSource &)"
+    },
+    {
+      "header": "scripting/ScriptDialect.h",
+      "kind": "function",
+      "name": "SCE::ScriptDialect::lengthOf",
+      "signature": "ScriptSource SCE::ScriptDialect::lengthOf(const ScriptSource &)"
+    },
+    {
+      "header": "scripting/ScriptDialect.h",
+      "kind": "function",
+      "name": "SCE::ScriptDialect::stringify",
+      "signature": "ScriptSource SCE::ScriptDialect::stringify(const ScriptSource &)"
+    },
+    {
+      "header": "scripting/ScriptDialect.h",
+      "kind": "function",
+      "name": "SCE::ScriptDialect::temporary",
+      "signature": "ScriptSource SCE::ScriptDialect::temporary(const char *, ScriptLanguage)"
+    },
+    {
+      "header": "scripting/ScriptDialect.h",
+      "kind": "function",
+      "name": "SCE::ScriptDialect::typeOf",
+      "signature": "ScriptSource SCE::ScriptDialect::typeOf(const ScriptSource &)"
+    },
+    {
       "header": "scripting/ScriptEngineProvider.h",
       "kind": "class",
       "members": [],
@@ -1483,25 +1911,52 @@
       "header": "scripting/ScriptResultUtils.h",
       "kind": "function",
       "name": "SCE::ScriptResultUtils::resultToScriptValueArray",
-      "signature": "std::vector<ScriptValue> SCE::ScriptResultUtils::resultToScriptValueArray(const ScriptResult &, IScriptEngine *, const std::string &, const std::string &)"
+      "signature": "std::vector<ScriptValue> SCE::ScriptResultUtils::resultToScriptValueArray(const ScriptResult &, IScriptEngine *, const std::string &, const ScriptSource &)"
     },
     {
       "header": "scripting/ScriptResultUtils.h",
       "kind": "function",
       "name": "SCE::ScriptResultUtils::resultToString",
-      "signature": "std::string SCE::ScriptResultUtils::resultToString(const ScriptResult &, IScriptEngine *, const std::string &, const std::string &)"
+      "signature": "std::string SCE::ScriptResultUtils::resultToString(const ScriptResult &, IScriptEngine *, const std::string &, const ScriptSource &)"
     },
     {
       "header": "scripting/ScriptResultUtils.h",
       "kind": "function",
       "name": "SCE::ScriptResultUtils::resultToStringArray",
-      "signature": "std::vector<std::string> SCE::ScriptResultUtils::resultToStringArray(const ScriptResult &, IScriptEngine *, const std::string &, const std::string &)"
+      "signature": "std::vector<std::string> SCE::ScriptResultUtils::resultToStringArray(const ScriptResult &, IScriptEngine *, const std::string &, const ScriptSource &)"
     },
     {
       "header": "scripting/ScriptResultUtils.h",
       "kind": "function",
       "name": "SCE::ScriptResultUtils::resultToValue<T>",
       "signature": "std::optional<T> SCE::ScriptResultUtils::resultToValue<T>(const ScriptResult &)"
+    },
+    {
+      "header": "scripting/ScriptSource.h",
+      "kind": "class",
+      "members": [],
+      "name": "SCE::ScriptSource"
+    },
+    {
+      "header": "scripting/ScriptSource.h",
+      "kind": "class",
+      "members": [],
+      "name": "SCE::ScriptSourceBuilder"
+    },
+    {
+      "header": "scripting/ScriptSource.h",
+      "kind": "enum",
+      "name": "SCE::ScriptLanguage",
+      "values": [
+        "ECMAScript",
+        "Lua"
+      ]
+    },
+    {
+      "header": "scripting/ScriptSource.h",
+      "kind": "function",
+      "name": "SCE::scriptLanguageName",
+      "signature": "const char * SCE::scriptLanguageName(ScriptLanguage)"
     },
     {
       "header": "scripting/SessionRegistry.h",
@@ -1753,6 +2208,7 @@
         "field bool hasActions",
         "field bool isExternal",
         "field bool isInternal",
+        "field bool isTargetless",
         "field int transitionIndex",
         "field std::string event",
         "field std::string source",
@@ -1949,6 +2405,16 @@
       "kind": "class",
       "members": [],
       "name": "SCE::Static::StaticExecutionEngine<T>"
+    },
+    {
+      "header": "static/StaticExecutionEngine.h",
+      "kind": "struct",
+      "members": [
+        "field bool configurationChanged",
+        "field bool selected",
+        "method void () noexcept ~EventOutcome"
+      ],
+      "name": "SCE::Static::EventOutcome"
     },
     {
       "header": "static/StaticExecutionEngine.h",

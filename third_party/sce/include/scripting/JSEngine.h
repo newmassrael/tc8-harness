@@ -9,7 +9,6 @@
 #include "ScriptResult.h"
 #include "events/IEventRaiserRegistry.h"
 #include "quickjs.h"
-#include "runtime/ISessionObserver.h"
 #include <atomic>
 #include <condition_variable>
 #include <future>
@@ -76,7 +75,21 @@ public:
 
     // === Lifecycle Management ===
 
-    bool initialize() override { return true; }
+    /**
+     * @brief Bring the engine to a state where a request will be serviced
+     *
+     * The constructor already initializes, so on a live engine this only
+     * reports that. It is the post-`shutdown()` case that makes the method
+     * load-bearing: `shutdown()` joins the worker thread and drops the
+     * runtime, and a request enqueued after that is never serviced — the
+     * caller's future waits forever. Returning `true` unconditionally, as
+     * this did, reported a usable engine and produced exactly that hang
+     * (measured: `DonedataLocalInvokeAotTest` passed alone and deadlocked
+     * when the interpreter test ran first and shut the singleton down).
+     *
+     * @return true if the engine is initialized when this returns
+     */
+    bool initialize() override;
 
     /**
      * @brief Check if engine is properly initialized
@@ -103,20 +116,6 @@ public:
      */
     bool destroySession(const std::string &sessionId) override;
 
-    // === Observer Pattern Support (ISessionManager extension) ===
-
-    /**
-     * @brief Add observer for session lifecycle events
-     * @param observer Observer to be notified of session events
-     */
-    void addObserver(ISessionObserver *observer) override;
-
-    /**
-     * @brief Remove observer from session lifecycle events
-     * @param observer Observer to be removed
-     */
-    void removeObserver(ISessionObserver *observer) override;
-
     /**
      * @brief Check if a session exists
      * @param sessionId Session to check
@@ -140,20 +139,21 @@ public:
     // === Thread-safe JavaScript Execution ===
 
     /**
-     * @brief Execute JavaScript script in the specified session
-     * @param sessionId Target session
-     * @param script JavaScript code to execute
-     * @return Future with execution result
+     * @brief ECMAScript, and this engine owns no adapter for anything else.
+     *
+     * QuickJS handed lowered Lua is the case the seam exists to refuse: the
+     * text is well-formed, it is simply in the other language, and trying it
+     * would produce a syntax error naming a language the author never wrote.
+     * A machine generated with build-time lowering has to be run on a Lua
+     * engine — see docs/SCE_LUA_TRANSLATION_SEAM.md.
      */
-    std::future<ScriptResult> executeScript(const std::string &sessionId, const std::string &script) override;
+    ScriptLanguage nativeLanguage() const override {
+        return ScriptLanguage::ECMAScript;
+    }
 
-    /**
-     * @brief Evaluate JavaScript expression in the specified session
-     * @param sessionId Target session
-     * @param expression JavaScript expression to evaluate
-     * @return Future with evaluation result
-     */
-    std::future<ScriptResult> evaluateExpression(const std::string &sessionId, const std::string &expression) override;
+    bool acceptsLanguage(ScriptLanguage language) const override {
+        return language == ScriptLanguage::ECMAScript;
+    }
 
     // === Session-specific Variable Management ===
 
@@ -164,7 +164,8 @@ public:
      * @param value Variable value
      * @return Future indicating success/failure
      */
-    std::future<ScriptResult> setVariable(const std::string &sessionId, const std::string &name, const ScriptValue &value) override;
+    std::future<ScriptResult> setVariable(const std::string &sessionId, const std::string &name,
+                                          const ScriptValue &value) override;
 
     /**
      * @brief Set a variable to an XML DOM object (§scxml-B-2)
@@ -174,7 +175,7 @@ public:
      * @return Future indicating success/failure
      */
     std::future<ScriptResult> setVariableAsDOM(const std::string &sessionId, const std::string &name,
-                                           const std::string &xmlContent) override;
+                                               const std::string &xmlContent) override;
 
     /**
      * @brief Get a variable from the specified session
@@ -203,7 +204,8 @@ public:
      * @param event Event object with full metadata (name, type, data, sendid, origin, etc.)
      * @return Future indicating success/failure
      */
-    std::future<ScriptResult> setCurrentEvent(const std::string &sessionId, const std::shared_ptr<Event> &event) override;
+    std::future<SetCurrentEventResult> setCurrentEvent(const std::string &sessionId,
+                                                       const std::shared_ptr<Event> &event) override;
 
     /**
      * @brief Set current event object in JavaScript context (§scxml-5.10)
@@ -214,17 +216,18 @@ public:
      * @param args SetCurrentEventArgs bundling eventName + 6 metadata fields
      * @return Future indicating success/failure
      */
-    std::future<ScriptResult> setCurrentEvent(const std::string &sessionId, const SetCurrentEventArgs &args) override;
+    std::future<SetCurrentEventResult> setCurrentEvent(const std::string &sessionId,
+                                                       const SetCurrentEventArgs &args) override;
 
     /**
      * @brief Setup SCXML system variables for a session
      * @param sessionId Target session
      * @param sessionName Human-readable session name
-     * @param ioProcessors List of available I/O processors
+     * @param ioProcessors Entries to publish in `_ioprocessors`
      * @return Future indicating success/failure
      */
     std::future<ScriptResult> setupSystemVariables(const std::string &sessionId, const std::string &sessionName,
-                                               const std::vector<std::string> &ioProcessors) override;
+                                                   const std::vector<IOProcessorDescriptor> &ioProcessors) override;
 
     /**
      * @brief Register a native function accessible from JavaScript
@@ -279,14 +282,6 @@ public:
      * @brief Trigger garbage collection
      */
     void collectGarbage() override;
-
-    /**
-     * @brief Validate JavaScript expression syntax without executing it
-     * @param sessionId Target session for context
-     * @param expression JavaScript expression to validate
-     * @return Future with validation result (true if syntax is valid)
-     */
-    std::future<ScriptResult> validateExpression(const std::string &sessionId, const std::string &expression) override;
 
     // === INTEGRATED RESULT PROCESSING API ===
 
@@ -403,7 +398,7 @@ private:
         std::string parentSessionId;
         std::shared_ptr<Event> currentEvent;
         std::string sessionName;
-        std::vector<std::string> ioProcessors;
+        std::vector<IOProcessorDescriptor> ioProcessors;
         std::unordered_set<std::string>
             preInitializedVars;  // Variables set before datamodel initialization (e.g., invoke data)
         // SOLID: Single Responsibility - session management includes invoke relationships
@@ -434,14 +429,14 @@ private:
 
         Type type;
         std::string sessionId;
-        std::string code;                       // for EXECUTE_SCRIPT, EVALUATE_EXPRESSION
-        std::string variableName;               // for SET_VARIABLE, GET_VARIABLE
-        ScriptValue variableValue;              // for SET_VARIABLE
-        bool isDOMObject = false;               // for SET_VARIABLE: XML DOM object (§scxml-B-2)
-        std::shared_ptr<Event> event;           // for SET_CURRENT_EVENT
-        std::string sessionName;                // for SETUP_SYSTEM_VARIABLES
-        std::vector<std::string> ioProcessors;  // for SETUP_SYSTEM_VARIABLES
-        std::string parentSessionId;            // for CREATE_SESSION
+        std::string code;                                 // for EXECUTE_SCRIPT, EVALUATE_EXPRESSION
+        std::string variableName;                         // for SET_VARIABLE, GET_VARIABLE
+        ScriptValue variableValue;                        // for SET_VARIABLE
+        bool isDOMObject = false;                         // for SET_VARIABLE: XML DOM object (§scxml-B-2)
+        std::shared_ptr<Event> event;                     // for SET_CURRENT_EVENT
+        std::string sessionName;                          // for SETUP_SYSTEM_VARIABLES
+        std::vector<IOProcessorDescriptor> ioProcessors;  // for SETUP_SYSTEM_VARIABLES
+        std::string parentSessionId;                      // for CREATE_SESSION
         std::promise<ScriptResult> promise;
 
         ExecutionRequest(Type t, const std::string &sid) : type(t), sessionId(sid) {}
@@ -502,15 +497,26 @@ private:
     void initializeInternal();            // Common initialization logic
     void initializeEventRaiserService();  // EventRaiserService initialization
 
+    // === IScriptEngine hooks ===
+    //
+    // Reached only for ECMAScript: `acceptsLanguage` refuses everything else
+    // at the entry point, so `ScriptSource::text()` here is always the
+    // author's own text and equal to `source()`.
+    std::future<ScriptResult> doExecuteScript(const std::string &sessionId, const ScriptSource &script) override;
+    std::future<ScriptResult> doEvaluateExpression(const std::string &sessionId,
+                                                   const ScriptSource &expression) override;
+    std::future<ScriptResult> doValidateExpression(const std::string &sessionId,
+                                                   const ScriptSource &expression) override;
+
     // QuickJS helpers
     ScriptResult executeScriptInternal(const std::string &sessionId, const std::string &script);
     ScriptResult evaluateExpressionInternal(const std::string &sessionId, const std::string &expression);
     ScriptResult validateExpressionInternal(const std::string &sessionId, const std::string &expression);
     ScriptResult setVariableInternal(const std::string &sessionId, const std::string &name, const ScriptValue &value);
     ScriptResult getVariableInternal(const std::string &sessionId, const std::string &name);
-    ScriptResult setCurrentEventInternal(const std::string &sessionId, const std::shared_ptr<Event> &event);
+    SetCurrentEventResult setCurrentEventInternal(const std::string &sessionId, const std::shared_ptr<Event> &event);
     ScriptResult setupSystemVariablesInternal(const std::string &sessionId, const std::string &sessionName,
-                                          const std::vector<std::string> &ioProcessors);
+                                              const std::vector<IOProcessorDescriptor> &ioProcessors);
 
     // Context management
     bool createSessionInternal(const std::string &sessionId, const std::string &parentSessionId);

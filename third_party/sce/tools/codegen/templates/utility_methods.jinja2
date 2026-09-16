@@ -4,33 +4,44 @@
 {% if model.needs_script_engine %}
     // W3C SCXML 5.9: Safe guard evaluation with error.execution on failure
     // ARCHITECTURE.md: Zero Duplication - Wraps shared GuardHelper with AOT-specific error handling
+    // The guard arrives as a ScriptSource, not a string: it carries the
+    // language its text is written in and the author's ECMAScript beside it.
+    // Every log line below names `source()` — the author's own text — because
+    // a lowered guard in a diagnostic points at a line nobody can find.
     template <typename Engine>
     bool safeEvaluateGuard(::SCE::IScriptEngine& jsEngine, const std::string& sessionId,
-                           const std::string& guardExpr, Engine& engine) const {
-        AOT_DEBUG("AOT safeEvaluateGuard: Evaluating guard: '{}'", guardExpr);
+                           const ::SCE::ScriptSource& guardExpr, Engine& engine) const {
+        AOT_DEBUG("AOT safeEvaluateGuard: Evaluating guard: '{}'", guardExpr.source());
         auto result = ::SCE::GuardHelper::evaluateGuard(jsEngine, sessionId, guardExpr);
 
         if (!result.has_value()) {
             // W3C SCXML 5.9: Evaluation failed → raise error.execution AND return false
-            SCE_LOG_ERROR("W3C SCXML 5.9: Guard evaluation failed: '{}'", guardExpr);
+            SCE_LOG_ERROR("W3C SCXML 5.9: Guard evaluation failed: '{}'", guardExpr.source());
             engine.raise(typename Engine::EventWithMetadata(Event::Error_execution, "Guard evaluation failed"));
             return false;
         }
 
-        AOT_DEBUG("AOT safeEvaluateGuard: Guard '{}' evaluated to: {}", guardExpr, *result);
+        AOT_DEBUG("AOT safeEvaluateGuard: Guard '{}' evaluated to: {}", guardExpr.source(), *result);
         return *result;
     }
 
-    // Helper: Set param in JSEngine for static invoke (W3C SCXML 6.4)
-    void setParamInScriptEngine(const std::string& paramName, const std::string& paramExpr) {
+    // §scxml-6.4.3: seed a `<data>` this session declares with the value the
+    // INVOKING session produced for an `<invoke>` `<param>` or namelist
+    // location.
+    //
+    // This side only stores. It used to take the author's expression TEXT and
+    // evaluate it here, which asks a different question — what does this
+    // source mean in the CHILD's data model — and the two questions agree
+    // only while the expression is a literal. The entire W3C IRP param and
+    // namelist surface is literals (226, 240, 241, 243, 244, 245, 276), so
+    // every one of them was green either way; `integration_resources/
+    // invoke_param_seeds_declared_child_data/` is the document where the
+    // answers differ. The Interpreter's `InvokeExecutor` evaluated in the
+    // invoking session all along, so this is the AOT half catching up to a
+    // reference that was already in the tree.
+    void setParamValueInScriptEngine(const std::string& paramName, const ::ScriptValue& paramValue) {
         ensureScriptEngine();
-        auto& scriptEngine = getScriptEngine();
-        auto valueResult = scriptEngine.evaluateExpression(sessionId_.value(), paramExpr).get();
-        if (::SCE::ScriptResultUtils::isSuccess(valueResult)) {
-            scriptEngine.setVariable(sessionId_.value(), paramName, valueResult.getInternalValue());
-        } else {
-            SCE_LOG_ERROR("Failed to evaluate param expression for {}: {}", paramName, paramExpr);
-        }
+        getScriptEngine().setVariable(sessionId_.value(), paramName, paramValue);
     }
 {% endif %}
 
@@ -45,7 +56,7 @@
         }
     }
 
-    // Helper: Convert event name string to Event enum (W3C SCXML 6.4.6 autoforward)
+    // Helper: Convert event name string to Event enum (W3C SCXML 6.4.1 autoforward)
     // Used for forwarding events by name to child state machines
     [[nodiscard]] static std::optional<Event> getEventFromName(const std::string& eventName) noexcept {
         if (eventName.empty()) return std::nullopt;
@@ -80,6 +91,36 @@
             default: return "";
         }
     }
+
+    // §scxml-3.3: the read half of the pair above — a state id back into the
+    // State it names.
+    //
+    // A host that persists where a machine was has to write it down as TEXT:
+    // an enumerator is a build artefact of one binary, and the process that
+    // resumes is a different one. `getStateName` publishes the name and this
+    // reads it back, which is what lets a journal survive its own record and
+    // reach `StaticExecutionEngine::enterAt`.
+    //
+    // `std::nullopt` for a name this document does not declare. A name guessed
+    // at rather than refused is how a restore reaches a configuration nobody
+    // recorded — and the refusal is what makes a typo in a journal a reported
+    // failure instead of a machine quietly somewhere else.
+    [[nodiscard]] static constexpr std::optional<State> getStateFromName(const char* name) noexcept {
+        if (name == nullptr) {
+            return std::nullopt;
+        }
+{% for state_id in model.states | list | sort %}
+        if (::SCE::Core::constexprStrEq(name, "{{ state_id }}")) return State::{{ state_id | capitalize }};
+{% endfor %}
+        return std::nullopt;
+    }
+
+    // The pair is a round trip or it is two independent maps, and that is
+    // asserted per state at COMPILE time — after this class closes, beside the
+    // concept checks in `state_machine.jinja2`. It cannot be here: a constexpr
+    // member function is not usable in a constant expression until its class
+    // is complete, and GCC says exactly that ("called in a constant expression
+    // before its definition is complete").
 
 {% if model.has_parallel_states or model.uses_in_predicate %}
     // W3C SCXML 5.9.2: Check if state is active (for In() predicate)
@@ -116,15 +157,30 @@ private:
 public:
     // Helper: Set _event variable in script engine (W3C SCXML 5.10)
     // Always generated for compile-time compatibility, but no-op if JSEngine not needed
-    void setCurrentEventInScriptEngine([[maybe_unused]] const std::string& eventName, [[maybe_unused]] const std::string& eventData = "",
+    // Returns which rung of §scxml-B-2-8-1 the payload got, because the
+    // binding is the only place that knows. This used to end in `.get()` with
+    // the answer dropped: the ladder decided between a DOM, a value and a
+    // space-normalized string, and one line later the decision was gone. A
+    // payload that announced structure and would not parse therefore reached
+    // the document as raw characters, every `_event.data.<field>` read empty,
+    // and nothing anywhere could say so — see `SCE::PayloadReading`.
+    ::SCE::PayloadReading setCurrentEventInScriptEngine([[maybe_unused]] const std::string& eventName, [[maybe_unused]] const std::string& eventData = "",
                                 [[maybe_unused]] const std::string& eventType = "", [[maybe_unused]] const std::string& sendId = "",
                                 [[maybe_unused]] const std::string& origin = "", [[maybe_unused]] const std::string& originType = "",
                                 [[maybe_unused]] const std::string& invokeId = "",
                                 [[maybe_unused]] const std::optional<ScriptValue>& typedData = std::nullopt) {
 {% if model.needs_script_engine and (model.needs_event_name or model.needs_event_data) %}
-        if (eventName.empty()) return;
+        if (eventName.empty()) return ::SCE::PayloadReading::Absent;
         ensureScriptEngine();
         std::string actualType = eventType.empty() ? this->getEventType(eventName) : eventType;
+        // W3C SCXML C.1: `_event.origin` is the address the sending session
+        // published, not its bare session id. The queue carries the id
+        // because `executeFinalizeForChildEvent` keys on it
+        // (`childSession.sessionId == eventWithMeta.origin`), so this
+        // boundary — where the value becomes visible to the document — is
+        // where it becomes an address. Same helper the Interpreter's
+        // boundary calls, so the two engines cannot answer differently.
+        const std::string publishedOrigin = ::SCE::IOProcessorHelper::publishedOrigin(origin);
         AOT_DEBUG("AOT setCurrentEventInScriptEngine: name='{}', data='{}', type='{}', sendId='{}', origin='{}', originType='{}', invokeId='{}'",
                   eventName, eventData, actualType, sendId, origin, originType, invokeId);
         // W3C SCXML 5.5: Use Event object when typed data available (engine-agnostic ScriptValue pipeline)
@@ -132,21 +188,23 @@ public:
             auto event = std::make_shared<::SCE::Event>(eventName, actualType);
             event->setData(eventData);
             event->setSendId(sendId);
-            event->setOrigin(origin);
+            event->setOrigin(publishedOrigin);
             event->setOriginType(originType);
             event->setInvokeId(invokeId);
             event->setTypedData(typedData.value());
-            getScriptEngine().setCurrentEvent(sessionId_.value(), event).get();
+            return getScriptEngine().setCurrentEvent(sessionId_.value(), event).get().reading;
         } else {
             // W3C SCXML 5.10: String-based path (standard)
-            getScriptEngine()
+            return getScriptEngine()
                 .setCurrentEvent(sessionId_.value(),
-                                 ::SCE::SetCurrentEventArgs{eventName, eventData, actualType, sendId, origin,
+                                 ::SCE::SetCurrentEventArgs{eventName, eventData, actualType, sendId, publishedOrigin,
                                                             originType, invokeId})
-                .get();
+                .get()
+                .reading;
         }
 {% else %}
         // No-op: This state machine doesn't use JSEngine
+        return ::SCE::PayloadReading::Absent;
 {% endif %}
     }
 

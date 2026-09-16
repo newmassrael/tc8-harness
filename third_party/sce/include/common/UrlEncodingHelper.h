@@ -58,6 +58,31 @@ public:
      *   urlEncode("param1") → "param1" (no encoding needed)
      */
     static std::string urlEncode(const std::string &str);
+
+    /**
+     * @brief Inverse of urlEncode
+     *
+     * An encoder without a decoder means whatever it produced can be written
+     * but never read back. The SCXML Event I/O Processor location published
+     * in `_ioprocessors` carries a percent-encoded session id, and that
+     * location has to work as a <send> target — which needs the id read out
+     * of it again. The clause requiring that lives on the routing code; this
+     * is the string operation it needs, not an implementation of it.
+     *
+     * A malformed escape (`%` with fewer than two hex digits after it, or
+     * non-hex digits) is passed through literally rather than dropped: the
+     * input is an address, and silently deleting part of one turns "no such
+     * session" into "a different session".
+     *
+     * @param str Percent-encoded string
+     * @return Decoded string
+     *
+     * Example:
+     *   urlDecode("hello%20world") → "hello world"
+     *   urlDecode("param1") → "param1"
+     *   urlDecode("50%") → "50%" (trailing % is not an escape)
+     */
+    static std::string urlDecode(const std::string &str);
 };
 
 }  // namespace SCE

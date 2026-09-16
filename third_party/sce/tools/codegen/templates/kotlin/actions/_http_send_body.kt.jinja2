@@ -24,13 +24,18 @@
                 val httpParams = mutableMapOf<String, List<String>>()
 {% for param in action.params %}
 {% if param.is_static_literal %}
-                httpParams["{{ param.name }}"] = listOf("{{ param.static_value }}")
+                httpParams["{{ param.name | escape_kotlin }}"] = listOf("{{ param.static_value | escape_kotlin }}")
 {% elif param.expr %}
                 try {
-                    val v = {{ http_engine }}.evaluateExpr({{ http_sid }}, "{{ param.expr | escape_kotlin }}")
-                    httpParams["{{ param.name }}"] = listOf(v?.toString() ?: "")
+                    val v = {{ http_engine }}.evaluateExpr({{ http_sid }}, {{ param.expr | to_script_source_expr }})
+                    // W3C SCXML C.2: the param crosses as text. `toString()` is
+                    // the platform's spelling of the value; this is the document's.
+                    httpParams["{{ param.name | escape_kotlin }}"] = listOf(valueToWireString(v))
                 } catch (_: Exception) {
-                    httpParams["{{ param.name }}"] = listOf("")
+                    // W3C SCXML 5.7.1: report the failure and omit the name and
+                    // value. The clause names no processor, so a document must
+                    // not go quiet just because this send crosses HTTP.
+                    raisePlatformError({{ machine_name }}Event.Error.Execution, "<send> <param name='{{ param.name | escape_kotlin }}'> expr failed to evaluate")
                 }
 {% endif %}
 {% endfor %}
@@ -38,14 +43,14 @@
                 // W3C SCXML C.1: Evaluate namelist — abort send on error (C++ NamelistHelper pattern)
 {% for var_name in action.namelist.split() %}
                 if (!{{ http_engine }}.hasVariable({{ http_sid }}, "{{ var_name }}")) {
-                    raiseInternal({{ machine_name }}Event.Error.Execution)
+                    raisePlatformError({{ machine_name }}Event.Error.Execution, "<send> namelist names '{{ var_name }}', which is not declared")
                     return@run
                 }
                 try {
                     val v = {{ http_engine }}.getVariable({{ http_sid }}, "{{ var_name }}")
-                    httpParams["{{ var_name }}"] = listOf(v?.toString() ?: "")
+                    httpParams["{{ var_name }}"] = listOf(valueToWireString(v))
                 } catch (_: Exception) {
-                    raiseInternal({{ machine_name }}Event.Error.Execution)
+                    raisePlatformError({{ machine_name }}Event.Error.Execution, "<send> namelist entry '{{ var_name }}' failed to evaluate")
                     return@run
                 }
 {% endfor %}
@@ -54,10 +59,10 @@
                 // W3C SCXML C.2: Dynamic content expression
                 val httpContent: String
                 try {
-                    val v = {{ http_engine }}.evaluateExpr({{ http_sid }}, "{{ action.contentexpr | escape_kotlin }}")
+                    val v = {{ http_engine }}.evaluateExpr({{ http_sid }}, {{ action.contentexpr | to_script_source_expr }})
                     httpContent = v?.toString() ?: ""
                 } catch (_: Exception) {
-                    raiseInternal({{ machine_name }}Event.Error.Execution, EventMetadata.platform())
+                    raisePlatformError({{ machine_name }}Event.Error.Execution, "<send> contentexpr failed to evaluate")
                     return@run
                 }
 {% else %}
@@ -67,10 +72,10 @@
                 // W3C SCXML C.2: Dynamic delay for HTTP send
                 val delayStr: String
                 try {
-                    val v = {{ http_engine }}.evaluateExpr({{ http_sid }}, "{{ action.delayexpr | escape_kotlin }}")
+                    val v = {{ http_engine }}.evaluateExpr({{ http_sid }}, {{ action.delayexpr | to_script_source_expr }})
                     delayStr = v?.toString() ?: "0s"
                 } catch (_: Exception) {
-                    raiseInternal({{ machine_name }}Event.Error.Execution, EventMetadata.platform())
+                    raisePlatformError({{ machine_name }}Event.Error.Execution, "<send> delayexpr failed to evaluate")
                     return@run
                 }
                 val delayMs = parseDelay(delayStr)
@@ -90,7 +95,7 @@
 {% endif %}
                 val httpParams = mutableMapOf<String, List<String>>()
 {% for param in action.params %}
-                httpParams["{{ param.name }}"] = listOf("{{ param.static_value }}")
+                httpParams["{{ param.name | escape_kotlin }}"] = listOf("{{ param.static_value | escape_kotlin }}")
 {% endfor %}
 {% if action.delay %}
                 scheduleHttpSend({{ action.delay_ms | default(0) }}L, {{ http_target }}, "{{ action.event }}", "", httpParams, "{{ action.auto_send_id }}")

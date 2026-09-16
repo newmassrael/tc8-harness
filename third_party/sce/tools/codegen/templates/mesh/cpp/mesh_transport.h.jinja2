@@ -2,13 +2,54 @@
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
 
-{# Watching-zenoh RFC §synth-5-O: per-backend SCE-MAP marker
+{# SCE Protocol-Synthesis RFC §synth-5-O: per-backend SCE-MAP marker
    anchoring the transport header to the originating SCXML root's
    post-preprocessor source position. Required for every SCE-emitted
    file carrying a §synth-6.2.6 drift header — otherwise the codegen
    pre-emit walker (`validate_emitted_files_have_markers`) fails the
    build with `traceability/meta-generated-source-line-marker-missing`. #}
-{{ sce_map.source_marker(source_location, "cpp", module_level=true) }}
+{{ sce_map.source_marker(source_location, "cpp", module_level=true, symbol_artifact=sce_artifact.forge_body) }}
+
+{# §mesh-7.4: this template IS the "generated transport code" that section
+   specifies — one dedicated send path per binding, calling the transport's
+   native API with no SCE-side indirection. The citation lives in a Jinja
+   comment, which is not rendered, so no §id reaches the generated files or
+   the committed generated trees that the scan set excludes. Prose cites in
+   the `//` comments below stay bare on purpose: those DO ship into generated
+   code, and rewriting them to §-form is what this channel exists to avoid. #}
+
+{# §mesh-10.6.3: the sequence stamp the section describes is emitted by this
+   template and exists nowhere else. `setMeshSendCallback` carries one
+   `seq_counter_<target>_` member per target selected by `needs_ordering`
+   (`ordering: required` on a transport whose registry entry does not already
+   supply ordering), and stamps `env.sequence_no` from it immediately before
+   `route_send` — the placement the section names. The counter is plain
+   `uint64_t` rather than an atomic because the callback runs only on the
+   engine's step thread, and carries no wrap guard, both as the section
+   allows. The receiving half (`admitOrdered`, MISSING_SEQUENCE) is
+   §mesh-10.6.4 and is bound separately. #}
+
+{# §mesh-15.2: one Zenoh session per device, shared by every zenoh user on
+   it. `TransportRouter` declares a single `std::optional<zenoh::Session>
+   zenoh_session_` and opens it once in `init()`; per-target publishers,
+   subscribers, the queryable, the liveliness tokens, and the §mesh-9.6
+   invoke endpoints all borrow that one session rather than opening their
+   own. That is the resource/discovery-conflict argument the section gives,
+   realized structurally — there is no per-target session field to diverge.
+   The session's config is the device's `transports.zenoh` block, so
+   deploy.yaml remains the only source for it. #}
+
+{# §mesh-9.2: the child session id is assembled in exactly one place — the
+   `WorkerSessionHost::onWire14` line `session_id = env.source + ":" +
+   invoke_id_str` — and every later carrier (wire-15 `child_session_id`, the
+   `ChildSessionAdapter` that stamps it onto every outbound envelope) copies
+   that string rather than rebuilding it, so the two halves cannot disagree
+   about a session's identity. `env.source` on an inbound wire-14 is the
+   PARENT machine name, which is why the format needs no device component:
+   deploy.yaml rejects a machine name hosted by two devices, so the machine
+   name already resolves to one device and naming it again would duplicate
+   the topology inside every id. The suffix is the SCXML invoke id the parent
+   already keys `activeInvokes_` on, not a session-local counter. #}
 
 {# SCE Mesh — unified transport routing (per-target transport dispatch).
 
@@ -55,7 +96,7 @@
         auto request = vsomeip::runtime::get()->create_request(
             {% if target.state.extra.protocol is defined and target.state.extra.protocol == "tcp" %}true{% else %}false{% endif %});
         request->set_service(SOMEIP_SERVICE_{{ target.target_snake | upper }});
-        request->set_instance(SOMEIP_INSTANCE_{{ target.target_snake | upper }});
+        request->set_instance(instance);
         request->set_method({{ method_constant }});
         auto buf = SCE::Mesh::encodeEnvelope(env);
         auto payload = vsomeip::runtime::get()->create_payload(
@@ -66,10 +107,40 @@
         return true;
 {%- endmacro %}
 
+{# The eventgroup leg of `send_to_<target>`, shared by both subscribe paths:
+   an SCXML-driven `<send event="event.subscribe.X">` and a deploy.yaml
+   `subscriptions:` entry produce the same envelope pattern against the same
+   vsomeip.json-resolved ids, so they must produce the same three calls
+   (SCE_MESH.md §13). `request_event` declares which event of the group this
+   client wants; `subscribe` is the SD SubscribeEventgroup. #}
+{% macro someip_eventgroup_dispatch(target, event_const) -%}
+        using PK = SCE::Mesh::PatternKind;
+        if (env.pattern == PK::EventSubscribe) {
+            app.request_event(
+                SOMEIP_SERVICE_{{ target.target_snake | upper }},
+                instance,
+                SOMEIP_EVENT_{{ target.target_snake | upper }}_{{ event_const }},
+                {SOMEIP_EVENT_GROUP_{{ target.target_snake | upper }}_{{ event_const }}});
+            app.subscribe(
+                SOMEIP_SERVICE_{{ target.target_snake | upper }},
+                instance,
+                SOMEIP_EVENT_GROUP_{{ target.target_snake | upper }}_{{ event_const }});
+            return true;
+        }
+        if (env.pattern == PK::EventUnsubscribe) {
+            app.unsubscribe(
+                SOMEIP_SERVICE_{{ target.target_snake | upper }},
+                instance,
+                SOMEIP_EVENT_GROUP_{{ target.target_snake | upper }}_{{ event_const }});
+            return true;
+        }
+        return false;  // EventNotify is inbound-only
+{%- endmacro %}
+
 {% macro someip_receive_handler(target, method_constant, pattern_kind, kind) -%}
         {{ target.target_snake }}_app_->register_message_handler(
             SOMEIP_SERVICE_{{ target.target_snake | upper }},
-{% if target.pool_plan and target.pool_plan.kind == "someip" %}
+{% if target.pool_plan and target.pool_plan.kind == "typed_instance" %}
             // SCE_MESH.md §14.4 SOME/IP pool: register once for every
             // instance in the set. vsomeip application_impl.cpp:683/700/745
             // treats ANY_INSTANCE as a wildcard for handler-side APIs
@@ -83,8 +154,24 @@
             {{ method_constant }},
             [this](const std::shared_ptr<vsomeip::message>& msg) {
 {% if kind == "rpc" %}
-                if (msg->get_return_code() != vsomeip::return_code_e::E_OK
-                    && msg->get_message_type() != vsomeip::message_type_e::MT_RESPONSE) return;
+                // AUTOSAR SOME/IP separates the two outcomes of a
+                // method call: MT_RESPONSE (0x80) carries a result,
+                // MT_ERROR (0x81) carries a return code naming the
+                // failure. Both are answers to a request this router
+                // sent, and both must reach the correlation table —
+                // dropping MT_ERROR would strand the pending entry
+                // until the client-side deadline, converting an
+                // explicit server-authored failure into a silent one.
+                //
+                // A peer's MT_ERROR carries a MeshEnvelope whose
+                // `rpc_status` states the failure (SCE Mesh §9.5.1
+                // response deadline stamps `DeadlineExceeded`), so the
+                // status travels in the envelope and the wire return
+                // code stays advisory. Any other message type is not a
+                // reply to us.
+                const auto someip_reply_type = msg->get_message_type();
+                if (someip_reply_type != vsomeip::message_type_e::MT_RESPONSE
+                    && someip_reply_type != vsomeip::message_type_e::MT_ERROR) return;
 {% elif kind == "field" %}
                 if (msg->get_message_type() != vsomeip::message_type_e::MT_RESPONSE) return;
 {% endif %}
@@ -93,15 +180,65 @@
                 SCE::Mesh::MeshEnvelope env;
                 if (!SCE::Mesh::decodeEnvelope(pl->get_data(), pl->get_length(), env)) {{ raise_envelope_corrupt("someip") }}
 {% if kind == "rpc" %}
-                // Correlation: look up reply-event name for this correlation_id
+                // Correlation: look up reply-event name for this correlation_id.
+                //
+                // SCE_MESH.md §14.6: the entry is retired only if THIS
+                // target is in the request binding's responder set. The
+                // check runs before the erase — a correlation entry is a
+                // one-shot resource, so letting an undeclared peer match
+                // it would let that peer retire another peer's pending
+                // request. `{{ target.target }}` is this handler's own
+                // target, known at codegen time because the handler is
+                // registered per (service, instance, method).
+                bool undeclared_replier = false;
                 if (env.correlation_id) {
                     std::lock_guard<std::mutex> lock(correlation_mutex_);
                     auto it = pending_rpcs_.find(CorrelationKey{*env.correlation_id});
                     if (it != pending_rpcs_.end()) {
-                        env.type = it->second;
-                        env.pattern = SCE::Mesh::PatternKind::RpcReply;
-                        pending_rpcs_.erase(it);
+                        static constexpr const char* kThisMachine = "{{ target.target | replace("#", "") }}";
+                        const auto& allowed = it->second.responders;
+                        if (std::find(allowed.begin(), allowed.end(), kThisMachine) != allowed.end()) {
+                            // A reply that reports failure is still an
+                            // answer, so the one-shot entry retires either
+                            // way — but only a SUCCESSFUL reply may be
+                            // renamed to the declared reply event.
+                            //
+                            // Renaming a failure would hand the author's
+                            // `<transition event="service.response.X">` an
+                            // envelope whose payload is empty because the
+                            // call did not happen, i.e. report a false
+                            // success. The peer named the outcome in
+                            // `env.type` (SCE Mesh §9.5.1 stamps
+                            // `error.rpc.deadline` when a server response
+                            // deadline elapsed); keeping that name is what
+                            // lets the author branch on it. An author who
+                            // declares no matching transition drops the
+                            // event under ordinary W3C semantics — the
+                            // same contract `error.communication` has.
+                            const bool reply_ok =
+                                !env.rpc_status.has_value()
+                                || *env.rpc_status == SCE::Mesh::RpcStatus::Ok;
+                            if (reply_ok) {
+                                env.type = it->second.reply_event;
+                            }
+                            env.pattern = SCE::Mesh::PatternKind::RpcReply;
+                            pending_rpcs_.erase(it);
+                        } else {
+                            undeclared_replier = true;
+                        }
                     }
+                }
+                if (undeclared_replier) {
+                    // SCE_MESH.md §16.7 row 14, raised outside the
+                    // correlation mutex. The entry is still live, so the
+                    // request stays answerable by a declared responder.
+                    SCE::Mesh::CommunicationError err;
+                    err.reason = SCE::Mesh::ReasonCode::RpcReplyFromUndeclaredPeer;
+                    err.source = env.source;
+                    err.transport = "someip";
+                    err.envelope_id = env.id;
+                    raiseCommunicationError(std::move(err));
+                    return;
                 }
 {% else %}
                 env.pattern = {{ pattern_kind }};
@@ -221,6 +358,80 @@ admitInbound({{ env_name }}, {{ session_idx_expr }})
 dispatchToSession({{ env_name }}, {{ session_idx_expr }})
 {%- endif -%}
 {%- endmacro %}
+{#
+  SCE_MESH.md §8.3: server-side correlation establishment.
+
+  An inbound request has to stay answerable after its handler returns —
+  the engine replies later, on its own step thread — so every server
+  role stashes the request under an id the reply will be looked up by.
+  These two macros bracket that stash so each transport establishes the
+  correlation identically; the caller supplies the stash itself, under
+  whatever lock its pending map needs.
+
+  `mint_correlation` picks the id. A request from
+  `<invoke type="sce:mesh-rpc">` already carries one in `invoke_id`, and
+  a SOME/IP client stamps `correlation_id`; a plain `<send>` carries
+  neither, so the server mints its own. That fallback is the normative
+  case, not a degraded one: §8.1 does not require a requester to supply
+  a correlation, so establishing it is the server's job. (DDS-RPC's
+  `related_sample_identity` and MQTT 5's Correlation Data both put that
+  burden on the requester instead.)
+
+  `seed_correlation` writes the id onto BOTH correlation fields.
+  `correlation_id` is what `handleServerResponse` looks up.
+  `invoke_id` has to carry the same value because it is the only
+  envelope field that survives the round trip through the engine:
+  MeshDispatch surfaces it as `_event.invokeid` (§10.7), the engine
+  re-emits it as `currentEventInvokeId` on the reply's injected
+  `<send>`, and the mesh send callback rebuilds `correlation_id` from it
+  (`MeshSendCallback`'s contract in StaticExecutionEngine.h). Leaving it
+  unset strands every reply whose request arrived without an invoke
+  lifecycle — the reply reaches `handleServerResponse` with nothing to
+  match.
+
+  Both expand to one line so the caller keeps its own indentation.
+#}
+{%- macro mint_correlation(env_name) -%}
+{{ env_name }}.invoke_id.value_or({{ env_name }}.correlation_id.value_or(SCE::uuid::v7()))
+{%- endmacro %}
+{%- macro seed_correlation(env_name, cid_expr) -%}
+{{ env_name }}.correlation_id = {{ cid_expr }}; {{ env_name }}.invoke_id = {{ cid_expr }};
+{%- endmacro %}
+{#
+  SCE Mesh §9.5.1 server response deadline — the arming half, shared by
+  every server-side stash on every transport (SOME/IP RPC and
+  FieldAccess, custom_tcp, DDS). Emitted only when the machine declared
+  `server.response_deadline_ms`; the caller places it INSIDE the same
+  `server_pending_mutex_` scope as its pending-map insert, so
+  `handleServerResponse`'s cancel-before-erase can never observe a
+  half-built entry.
+
+  `registerDeadline` returns false on a duplicate cid. A retransmitted
+  request re-stashes under the same key and the earlier timer is still
+  live, so the second arm coalesces into it — the same benign-drop
+  behaviour the zenoh arm relies on. Inbound requests otherwise carry a
+  fresh UUIDv7 cid, so there is no re-arm race.
+
+  `request_event_expr` is a **C++ expression**, not a bare event name,
+  because the two shapes of call site know the name at different times.
+  A SOME/IP method handler is registered per (service, instance, method),
+  so its event is a codegen-time literal; custom_tcp and DDS route every
+  inbound request through one callback, so theirs is `env.type` — known
+  only at run time. Copying it into the closure (rather than referencing
+  the envelope) is what lets the callback name the abandoned call after
+  the envelope has been handed to the engine and the inbound frame is
+  long gone. The copy happens on the inbound thread, so nothing
+  allocates inside the `noexcept` scheduler callback.
+#}
+{%- macro arm_server_deadline(cid_expr, request_event_expr) -%}
+(void)deadline_scheduler_.registerDeadline(
+                            {{ cid_expr }},
+                            std::chrono::milliseconds({{ server.response_deadline_ms }}),
+                            [this, {{ cid_expr }},
+                             sce_request_event = std::string({{ request_event_expr }})]() noexcept {
+                                onServerRequestTimedOut({{ cid_expr }}, sce_request_event);
+                            });
+{%- endmacro %}
 // SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
 //
 // [generated] SCE Mesh transport routing for {{ machine_name }}
@@ -262,6 +473,8 @@ dispatchToSession({{ env_name }}, {{ session_idx_expr }})
 {% set has_server = server is defined and server %}
 {% set has_server_someip = has_server and server.transport_kind == "someip" %}
 {% set has_server_zenoh = has_server and server.transport_kind == "zenoh" %}
+{% set has_server_custom_tcp = has_server and server.transport_kind == "custom_tcp" %}
+{% set has_server_dds = has_server and server.transport_kind == "dds" %}
 
 {# SCE_MESH.md §14.4 (Gap 7): multi-instance server pool.
    `server.instance_pool` carries the Option<Vec<u16>> declared in
@@ -279,7 +492,7 @@ dispatchToSession({{ env_name }}, {{ session_idx_expr }})
 
 {# SCE_MESH.md §14.4 — canonical session count for this router.
    Each SCXML document instance running under the router is a "session"
-   (W3C SCXML §2.4). A pool server hosts N independent sessions, each
+   (W3C SCXML §5.10). A pool server hosts N independent sessions, each
    backing one offered SOME/IP instance; every other router shape hosts
    exactly one session. `n_sessions` is the single source of truth
    consumed by the `sessions_` array, ctor, per-session callback loop,
@@ -291,13 +504,44 @@ dispatchToSession({{ env_name }}, {{ session_idx_expr }})
 {% endif %}
 
 
-{# SCE Mesh §9.5 gap Z2: per-server Zenoh queryable response deadline.
-   Gate requires BOTH a zenoh server AND the deploy.yaml knob being set.
-   Absent knob ⇒ gate false ⇒ zero lines of Z2 code — matches the
-   pre-Z2 behaviour where `pending_server_queries_` leaks entries
-   whose engine never emits the paired response. Zenoh-only today;
-   SOME/IP's server-side lifecycle differs and has no gap memo yet. #}
-{% set has_server_query_timeout = has_server_zenoh and server.query_timeout_ms is defined %}
+{# SCE Mesh §9.5.1: per-server response deadline. Gate requires BOTH a
+   server arm that parks inbound requests AND the deploy.yaml knob being
+   set. Absent knob ⇒ gate false ⇒ zero lines of deadline code, and the
+   pending map keeps entries whose engine never emits the paired
+   response until process exit.
+
+   Every realised arm parks state a deadline can release, so the gate is
+   the union rather than a per-transport special case:
+     - SOME/IP:    `pending_server_requests_` (the inbound
+                   `vsomeip::message`, needed later by `create_response`).
+     - Zenoh:      `pending_server_queries_` (the inbound `zenoh::Query`).
+     - custom_tcp: `pending_server_links_` (the duplex stream that
+                   carries the return leg, §mesh-10.4.4).
+     - DDS:        `pending_server_correlations_` (the admitted
+                   correlation; the reply rides the paired topic).
+
+   What the arms do NOT share is the notice on expiry, which is why the
+   sub-gates below exist rather than one uniform emission. Three arms
+   answer actively — the requester observes an envelope stamped
+   `RpcStatus::DeadlineExceeded` — and zenoh can only drop the stored
+   query, because a `zenoh::Query` exposes `reply` and destruction with
+   no server-authored failure channel in between. The transport registry
+   records that difference (`TransportDescriptor::server_deadline_notice`)
+   and parse-time validation rejects the knob on transports whose arm
+   cannot honour it, so reaching this gate already implies a realised
+   arm.
+
+   `has_server_deadline_active` is the union of the ActiveError arms. It
+   gates everything the three share — the `request_event` parameter, the
+   notice envelope, the try/catch around a `noexcept` scheduler callback
+   — so the only per-transport emission left is the delivery call
+   itself. #}
+{% set has_server_response_deadline = (has_server_zenoh or has_server_someip or has_server_custom_tcp or has_server_dds) and server.response_deadline_ms is defined %}
+{% set has_server_deadline_zenoh = has_server_zenoh and server.response_deadline_ms is defined %}
+{% set has_server_deadline_someip = has_server_someip and server.response_deadline_ms is defined %}
+{% set has_server_deadline_custom_tcp = has_server_custom_tcp and server.response_deadline_ms is defined %}
+{% set has_server_deadline_dds = has_server_dds and server.response_deadline_ms is defined %}
+{% set has_server_deadline_active = has_server_deadline_someip or has_server_deadline_custom_tcp or has_server_deadline_dds %}
 
 {# SCE Mesh §16.7 row 8 (PEER_PARTITIONED): per-machine opt-in liveliness.
    `machine_liveliness` is null when the deploy.yaml author omitted the
@@ -337,27 +581,46 @@ dispatchToSession({{ env_name }}, {{ session_idx_expr }})
    mesh-rpc has the row-5 shutdown emit; any router with §9.6
    shm scxml-invoke inbound or outbound peers has the shm
    drainWith decode-fail emit. #}
-{% set raises_communication_error = has_ordered_binding or has_zenoh_liveliness or machine_outbound_buffer or someip_liveness_service_id_self_hex or someip_machine_liveness_service_id_self_hex or ("someip" in transport_types) or ("zenoh" in transport_types) or ("custom_tcp" in transport_types) or has_mesh_rpc.v or scxml_remote_inbound_peers or scxml_remote_outbound_peers %}
+{% set raises_communication_error = has_ordered_binding or has_zenoh_liveliness or machine_outbound_buffer or someip_liveness_service_id_self_hex or someip_machine_liveness_service_id_self_hex or ("someip" in transport_types) or ("zenoh" in transport_types) or ("custom_tcp" in transport_types) or ("dds" in transport_types) or has_mesh_rpc.v or scxml_remote_inbound_peers or scxml_remote_outbound_peers %}
 
 {# CorrelationKey/Hash are needed by SOME/IP client correlation AND/OR
    server pending-request storage. Emit once if either usage is present. #}
-{% set needs_correlation_key = ("someip" in transport_types) or has_server_someip or has_server_zenoh %}
+{% set needs_correlation_key = ("someip" in transport_types) or ("custom_tcp" in transport_types) or ("dds" in transport_types) or has_server_someip or has_server_zenoh or has_server_custom_tcp or has_server_dds %}
 
 {% if has_mesh_rpc.v or has_server %}
 #include <array>
 {% endif %}
-{% if has_mesh_rpc.v or has_server_query_timeout %}
+{% if has_mesh_rpc.v or has_server_response_deadline %}
 #include <chrono>
 {% endif %}
 {% if has_mesh_rpc.v or has_server %}
 #include <mutex>
 #include <unordered_map>
 {% endif %}
-{% if has_mesh_rpc.v %}
-#include "mesh/InvokeCorrelation.h"
+{% if needs_correlation_key or has_mesh_rpc.v %}
+// SCE_MESH.md §14.6 responder set: `respondersFor` returns a
+// `std::vector<std::string>` and both correlation gates scan it with
+// `std::find`.
+#include <algorithm>
+#include <string>
+#include <vector>
+{% endif %}
+{% if has_mesh_rpc.v or has_server_deadline_active or ("someip" in transport_types) or ("custom_tcp" in transport_types) or ("dds" in transport_types) %}
+{# `RpcStatus` reaches this file transitively through MeshEnvelope.h, but
+   three paths name the enum directly, so the dependency is declared
+   rather than inherited:
+     - mesh-rpc `handleReply` statuses (`has_mesh_rpc.v`);
+     - the `DeadlineExceeded` stamp on an ActiveError server-deadline
+       notice (`has_server_deadline_active`);
+     - the client-side reply rewrite on every correlation-table
+       transport (someip / custom_tcp / dds), which refuses to rename a
+       non-`Ok` reply to the declared success event. #}
 #include "mesh/RpcStatus.h"
 {% endif %}
-{% if has_mesh_rpc.v or has_server_query_timeout %}
+{% if has_mesh_rpc.v %}
+#include "mesh/InvokeCorrelation.h"
+{% endif %}
+{% if has_mesh_rpc.v or has_server_response_deadline %}
 #include "mesh/MeshDeadlineScheduler.h"
 {% endif %}
 
@@ -427,6 +690,9 @@ dispatchToSession({{ env_name }}, {{ session_idx_expr }})
 #include <optional>
 #include <stdexcept>
 #include <string>
+// `send_zenoh` takes its key expression as a view so the §14.4 pool arm
+// can hand it a per-send address alongside the binding's constant.
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <zenoh.hxx>
@@ -464,6 +730,15 @@ dispatchToSession({{ env_name }}, {{ session_idx_expr }})
 #include <vector>
 {% endif %}
 {% endif %}
+{% if "dds" in transport_types or has_server_dds %}
+#include <chrono>
+#include <memory>
+{% if has_server_dds %}
+#include <mutex>
+#include <unordered_set>
+{% endif %}
+#include "mesh/transports/DdsTransport.h"
+{% endif %}
 {% if has_undeduped_transport %}
 // SCE_MESH.md §10.5: runtime per-sender envelope-id dedup for transports
 // that do not inherently suppress duplicates (today: zenoh). The member
@@ -481,7 +756,6 @@ dispatchToSession({{ env_name }}, {{ session_idx_expr }})
 // route rides an inherently-ordered transport (local, shm, custom_tcp,
 // SOME/IP `protocol: tcp`) pay zero overhead.
 #include "mesh/OrderingBuffer.h"
-#include <atomic>
 #include <condition_variable>
 #include <thread>
 {% endif %}
@@ -504,7 +778,6 @@ dispatchToSession({{ env_name }}, {{ session_idx_expr }})
 // the rule is unit-testable in isolation rather than locked inside
 // the codegen template).
 #include "mesh/third_party/AuthClassifier.h"
-#include <atomic>
 {% endif %}
 {% if machine_outbound_buffer %}
 // SCE Mesh §10.10: per-target readiness-gated outbound admit layer for
@@ -522,7 +795,7 @@ dispatchToSession({{ env_name }}, {{ session_idx_expr }})
    `retry:` block. The wrapper drives DELIVERY_EXHAUSTED at exhaustion
    and reuses the existing MeshDeadlineScheduler for backoff timing
    (an already-emitted scheduler instance when has_mesh_rpc.v /
-   has_server_query_timeout is set; otherwise the gate below adds a
+   has_server_response_deadline is set; otherwise the gate below adds a
    dedicated one). #}
 {%- set has_any_retry = namespace(v=false) %}
 {%- for target in targets if target.retry %}
@@ -531,7 +804,7 @@ dispatchToSession({{ env_name }}, {{ session_idx_expr }})
 {% if has_any_retry.v %}
 #include "mesh/RetryingDispatcher.h"
 {% endif %}
-{% if has_zenoh_mesh_rpc or has_server_query_timeout %}
+{% if has_zenoh_mesh_rpc or has_server_response_deadline %}
 // SCE Mesh gap Z3 (`has_zenoh_mesh_rpc`): shared "reply observed" flag
 // coordinates the zenoh `session.get` on_reply and on_drop closures.
 // `<atomic>` pairs with `std::shared_ptr` (from `<memory>`) so both
@@ -539,11 +812,26 @@ dispatchToSession({{ env_name }}, {{ session_idx_expr }})
 // `zenoh_shutdown_in_progress_` uses the same atomic to suppress
 // early-cancel raises during router teardown.
 //
-// SCE Mesh gap Z2 (`has_server_query_timeout`): `server_shutdown_in_progress_`
-// suppresses the server-side timer callback during teardown. Shares
-// the same `<atomic>` include to avoid per-gap duplication.
-#include <atomic>
+// SCE Mesh §9.5.1 (`has_server_response_deadline`): `server_shutdown_in_progress_`
+// suppresses the server-side timer callback during teardown.
 #include <memory>
+{% endif %}
+{# ── `<atomic>`, once, for every feature that owns an atomic member ──
+   Each of these emits at least one `std::atomic` member: §10.6 ordering
+   (`ordering_tick_running_`), §16.7 row 10 auth (`*_auth_unauthorized_fired_`),
+   gap Z3 zenoh RPC (`zenoh_shutdown_in_progress_`), §9.5.1 server deadline
+   (`server_shutdown_in_progress_`), §13 subscriptions
+   (`machine_subscriptions_armed_`).
+
+   Kept as ONE union rather than an include beside each member: those
+   blocks pull in different companions (`<thread>`, `<memory>`,
+   `AuthClassifier.h`), so they cannot merge wholesale — but a per-block
+   `<atomic>` made the last one a negated list of the other four, and
+   adding a fifth atomic member meant editing that negation. Missing it
+   broke exactly one shape (subscriptions-only), which is the shape with
+   the fewest other reasons to include anything. #}
+{% if has_ordered_binding or has_any_auth.v or has_zenoh_mesh_rpc or has_server_response_deadline or machine_subscriptions %}
+#include <atomic>
 {% endif %}
 
 {# SCE_MESH §16.8 arch-debt #4: mirror the per-partition inner namespace
@@ -636,8 +924,102 @@ static constexpr vsomeip::method_t SOMEIP_GETTER_{{ target.target_snake | upper 
 static constexpr vsomeip::method_t SOMEIP_SETTER_{{ target.target_snake | upper }}_{{ ep.event_const }} = {{ ep.setter_id }};
 {% endif %}
 {% endfor %}
+{# Machine-lifetime subscriptions (SCE_MESH.md §13): same constant shape as
+   the event_group arm above, resolved from the same vsomeip.json. The list
+   excludes any event the loop above already emitted, so no name is defined
+   twice. #}
+{% for se in target.subscription_event_ids %}
+static constexpr vsomeip::eventgroup_t SOMEIP_EVENT_GROUP_{{ target.target_snake | upper }}_{{ se.event_const }} = {{ se.event_group_id }};
+static constexpr vsomeip::event_t SOMEIP_EVENT_{{ target.target_snake | upper }}_{{ se.event_const }} = {{ se.event_id }};
+{% endfor %}
 {% endfor %}
 
+{% endif %}
+{% if "custom_tcp" in transport_types or scxml_remote_outbound_peers | selectattr("transport", "equalto", "custom_tcp") | list or scxml_remote_inbound_peers | selectattr("transport", "equalto", "custom_tcp") | list %}
+// Socket layer for every custom_tcp endpoint on this device (deploy.yaml
+// `transports.custom_tcp:`, SCE_MESH.md §16.8.3). Emitted as one object
+// so the listen socket, the accepted connections and the dialed
+// connections cannot drift apart — the two ends of a link disagreeing
+// about Nagle would be a latency asymmetry nothing would name.
+// Zero buffer sizes mean "leave the kernel default"; there is no third
+// state, which is why an absent deploy.yaml field and a zero here are
+// the same value.
+//
+// Built field-by-field rather than with an aggregate initializer:
+// positional aggregate init would silently change meaning if
+// `SocketOptions` ever reorders its members, and designated
+// initializers are C++20 while `sce_mesh_common` declares `cxx_std_17`
+// — a downstream consumer honouring that contract must be able to
+// compile this file.
+constexpr SCE::Mesh::CustomTcp::SocketOptions sceCustomTcpSocketOptions() {
+    SCE::Mesh::CustomTcp::SocketOptions o{};
+    o.backlog = {{ custom_tcp_socket.backlog }};
+    o.reuse_addr = {{ "true" if custom_tcp_socket.reuse_addr else "false" }};
+    o.nodelay = {{ "true" if custom_tcp_socket.nodelay else "false" }};
+    o.connect_max_attempts = {{ custom_tcp_socket.connect_max_attempts }};
+    o.connect_retry_interval_ms = {{ custom_tcp_socket.connect_retry_interval_ms }};
+    o.keepalive = {{ "true" if custom_tcp_socket.keepalive else "false" }};
+    o.keepalive_idle_s = {{ custom_tcp_socket.keepalive_idle_s }};
+    o.keepalive_interval_s = {{ custom_tcp_socket.keepalive_interval_s }};
+    o.keepalive_count = {{ custom_tcp_socket.keepalive_count }};
+    o.recv_buffer_bytes = {{ custom_tcp_socket.recv_buffer_bytes }};
+    o.send_buffer_bytes = {{ custom_tcp_socket.send_buffer_bytes }};
+    return o;
+}
+static constexpr SCE::Mesh::CustomTcp::SocketOptions CUSTOM_TCP_SOCKET = sceCustomTcpSocketOptions();
+{% endif %}
+{% if "dds" in transport_types or has_server_dds %}
+// DDS domain this device's participant joins (deploy.yaml
+// `transports.dds.domain_id:`, default 0). A domain is DDS's isolation
+// unit: participants in different domains never discover each other, so
+// this is what keeps two deployments on one host apart.
+static constexpr std::uint32_t DDS_DOMAIN_ID = {{ dds_transport.domain_id }};
+{% if dds_transport.qos %}
+// Deployment QoS overlay (deploy.yaml `transports.dds.qos:`,
+// SCE_MESH.md §8.2). It sits ALONGSIDE the derived leg policies —
+// RELIABLE/KEEP_ALL on request-reply, KEEP_LAST(1)/TRANSIENT_LOCAL on
+// notifications, IGNORE_LOCAL on every reader — and cannot express any
+// of them: those encode what a leg means, and a deployment able to edit
+// them could break the pattern semantics with no signal.
+//
+// Built field-by-field for the same reason the custom_tcp options are:
+// `sce_mesh_common` declares `cxx_std_17`, so designated initializers are
+// unavailable, and positional aggregate init would change meaning if the
+// struct ever reorders.
+inline SCE::Mesh::Dds::QosOverlay sceDdsQosOverlay() {
+    SCE::Mesh::Dds::QosOverlay q;
+    q.notify_lifespan_ms = {{ dds_transport.qos.notify_lifespan_ms }};
+    q.latency_budget_ms = {{ dds_transport.qos.latency_budget_ms }};
+    q.deadline_ms = {{ dds_transport.qos.deadline_ms }};
+    q.liveliness_lease_ms = {{ dds_transport.qos.liveliness_lease_ms }};
+    q.transport_priority = {{ dds_transport.qos.transport_priority }};
+    q.partition = {{ dds_transport.qos.partition }};
+    return q;
+}
+{% endif %}
+{% if dds_transport.config %}
+// Vendor configuration for this device's participant (deploy.yaml
+// `transports.dds.config:`). Cyclone reads it as a file name, or as XML
+// text when it starts with '<'. Emitted only when declared: an empty
+// string is a file name Cyclone cannot open, so "no config" has to be the
+// absence of the argument, not an empty one.
+static constexpr const char* DDS_CONFIG = {{ dds_transport.config }};
+{% endif %}
+{% for target in targets if target.state.kind == "dds" %}
+{% if target.pool_plan and target.pool_plan.kind == "bounded_string" %}
+// {{ target.target }} is a §14.4 bounded pool: its `topic:` carries a
+// placeholder, so there is no single request-leg topic to name here.
+// The per-member topics are substituted at build time and appear at
+// each endpoint's construction site in init(); a constant holding the
+// unsubstituted form would address nothing and could only be used by
+// mistake.
+{% else %}
+// Request-leg topic for {{ target.target }}. The reply and notification
+// topics are derived from it inside DdsTransport.h rather than declared
+// here, so the three names cannot drift apart.
+static constexpr const char* DDS_TOPIC_{{ target.target_snake | upper }} = {{ target.state.topic }};
+{% endif %}
+{% endfor %}
 {% endif %}
 {% if "zenoh" in transport_types %}
 {% for target in targets if target.state.kind == "zenoh" %}
@@ -750,6 +1132,16 @@ static constexpr vsomeip::event_t SOMEIP_SERVER_EVENT_{{ eg.event_const }} = {{ 
 {% elif server.transport_kind == "zenoh" %}
 // Server-side Zenoh key expression (declare_queryable + optional put subscriber)
 static constexpr const char* ZENOH_SERVER_KEY = "{{ server.state.key }}";
+{% elif server.transport_kind == "dds" %}
+// Server-side DDS request topic. The reply and notification topics are
+// derived from it (SCE_MESH.md §mesh-8.2), so a server answers on the
+// leg paired with the request topic by construction.
+//
+// Emitted without surrounding quotes: `TargetStateView::Dds` already
+// pre-escapes the topic into a complete C++ string literal, the same way
+// the per-target `DDS_TOPIC_*` constants receive it. (Zenoh's `key` is
+// carried raw, which is why the sibling constant above quotes it.)
+static constexpr const char* DDS_SERVER_TOPIC = {{ server.state.topic }};
 {% endif %}
 
 {% endif %}
@@ -790,17 +1182,41 @@ inline void send_to_{{ target.target_snake }}(
 /// numeric IDs at build time, so the function reads `env.type` to pick
 /// the right per-event constants. Unknown event names return false.
 ///
+{% if target.pool_plan and target.pool_plan.kind == "typed_instance" %}
+/// `instance` has no default on this binding: SCE_MESH.md §14.4 makes
+/// the member a per-dispatch decision, and a defaulted parameter is
+/// exactly how a caller that forgot to resolve it would deliver the
+/// message to the wrong member without saying so. Callers resolve it
+/// through `resolvePoolInstance_{{ target.target_snake }}` first.
+{% else %}
+/// `instance` defaults to the binding's declared id; the parameter
+/// exists so a §14.4 pool binding can supply a per-dispatch member
+/// (SOME/IP is the typed-instance carrier). A non-pool binding has one
+/// address and never passes it.
+{% endif %}
+///
 /// @return true if the request was submitted to vsomeip.
 [[nodiscard]] inline bool send_to_{{ target.target_snake }}(
     vsomeip::application& app,
-    const SCE::Mesh::MeshEnvelope& env
+    const SCE::Mesh::MeshEnvelope& env,
+{% if target.pool_plan and target.pool_plan.kind == "typed_instance" %}
+    vsomeip::instance_t instance
+{% else %}
+    vsomeip::instance_t instance = SOMEIP_INSTANCE_{{ target.target_snake | upper }}
+{% endif %}
 ) {
 {% set has_any_event_ids = namespace(v=false) %}
 {% for ep in target.event_patterns if ep.field_kind %}
 {% set has_any_event_ids.v = true %}
 {% endfor %}
+{# A subscriptions-only target has no outbound send vocabulary at all, so
+   the loop above finds nothing while the router still has to dispatch the
+   init-time subscribe. #}
+{% if target.subscription_event_ids %}
+{% set has_any_event_ids.v = true %}
+{% endif %}
 {% if not has_any_event_ids.v %}
-    (void)app; (void)env;
+    (void)app; (void)env; (void)instance;
     return false;  // no per-event SOME/IP IDs configured for this target
 {% else %}
 {% for ep in target.event_patterns %}
@@ -814,27 +1230,7 @@ inline void send_to_{{ target.target_snake }}(
     }
 {% elif ep.field_kind == "event_group" %}
     if (env.type == "{{ ep.event }}") {
-        using PK = SCE::Mesh::PatternKind;
-        if (env.pattern == PK::EventSubscribe) {
-            app.request_event(
-                SOMEIP_SERVICE_{{ target.target_snake | upper }},
-                SOMEIP_INSTANCE_{{ target.target_snake | upper }},
-                SOMEIP_EVENT_{{ target.target_snake | upper }}_{{ ep.event_const }},
-                {SOMEIP_EVENT_GROUP_{{ target.target_snake | upper }}_{{ ep.event_const }}});
-            app.subscribe(
-                SOMEIP_SERVICE_{{ target.target_snake | upper }},
-                SOMEIP_INSTANCE_{{ target.target_snake | upper }},
-                SOMEIP_EVENT_GROUP_{{ target.target_snake | upper }}_{{ ep.event_const }});
-            return true;
-        }
-        if (env.pattern == PK::EventUnsubscribe) {
-            app.unsubscribe(
-                SOMEIP_SERVICE_{{ target.target_snake | upper }},
-                SOMEIP_INSTANCE_{{ target.target_snake | upper }},
-                SOMEIP_EVENT_GROUP_{{ target.target_snake | upper }}_{{ ep.event_const }});
-            return true;
-        }
-        return false;  // EventNotify is inbound-only
+{{ someip_eventgroup_dispatch(target, ep.event_const) }}
     }
 {% elif ep.field_kind == "getter" %}
     if (env.type == "{{ ep.event }}") {
@@ -846,7 +1242,16 @@ inline void send_to_{{ target.target_snake }}(
     }
 {% endif %}
 {% endfor %}
-    (void)app;
+{# SCE_MESH.md §13 machine-lifetime subscriptions: the init()-time envelope
+   arrives here under the event name deploy.yaml declared, so the arm has to
+   exist or the subscribe falls through to the unknown-event return below —
+   which is exactly the silent drop this path is built to avoid. #}
+{% for se in target.subscription_event_ids %}
+    if (env.type == "{{ se.event }}") {
+{{ someip_eventgroup_dispatch(target, se.event_const) }}
+    }
+{% endfor %}
+    (void)app; (void)instance;
     return false;  // unknown event name for this target
 {% endif %}
 }
@@ -859,8 +1264,9 @@ inline void send_to_{{ target.target_snake }}(
 {% elif target.state.kind == "custom_tcp" %}
 /// Send envelope to {{ target.target }} via custom_tcp (length-prefixed CBOR).
 /// Events: {{ target.events | join(", ") }}
-/// FireForget only this session; other patterns rely on the §10.5 dedup
-/// layer + duplex correlation that arrive in subsequent E2 sessions.
+/// Carries every pattern: the duplex connection returns replies and
+/// notifications on the stream the outbound leg left on (SCE_MESH.md
+/// §mesh-10.4.4).
 /// @return true on successful framed send; false if the client could not
 ///         dial or the socket write failed.
 [[nodiscard]] inline bool send_to_{{ target.target_snake }}(
@@ -870,10 +1276,166 @@ inline void send_to_{{ target.target_snake }}(
     return client.send(env);
 }
 
+{% elif target.state.kind == "dds" %}
+/// Send envelope to {{ target.target }} via DDS (CBOR in an opaque
+/// `sce_mesh::Envelope`).
+/// Events: {{ target.events | join(", ") }}
+/// Writes the request leg only. Subscribe / unsubscribe are not sends at
+/// all on DDS — they create and destroy the notification reader, so
+/// route_send handles them directly on the client rather than routing
+/// them through here (SCE_MESH.md §mesh-8.2).
+/// @return true when the sample was handed to the writer; false if the
+///         client failed to build its endpoints or the write threw.
+[[nodiscard]] inline bool send_to_{{ target.target_snake }}(
+    SCE::Mesh::Dds::Client& client,
+    const SCE::Mesh::MeshEnvelope& env
+) {
+    return client.send(env);
+}
+
 {% else %}
 #error "SCE Mesh: unsupported transport '{{ target.state.kind }}' for target '{{ target.target }}'. Update codegen::transport_shape() and mesh_transport.h.jinja2."
 {% endif %}
 {% endfor %}
+{% if targets | selectattr('pool_plan') | list | length > 0 %}
+/// SCE_MESH.md §14.4 — read one pool placeholder value out of an
+/// invoke's JSON payload.
+///
+/// Every pool carrier needs the same two steps before it can do
+/// anything carrier-specific: decode `env.data` as a JSON object, then
+/// read one named `<param>` as a raw string. Emitted once and shared by
+/// all three dispatch arms (Zenoh KeyExpr assembly, DDS member
+/// selection, SOME/IP instance parsing) so the decode contract cannot
+/// drift between them.
+///
+/// @return false when the payload is not a JSON object or the named
+///         property is absent — both of which are pre-envelope setup
+///         faults the caller reports as `INVOKE_SRC_NOT_FOUND`.
+[[nodiscard]] inline bool readPoolParam(const SCE::Mesh::MeshEnvelope& env,
+                                        const char* name,
+                                        std::string& out) {
+    std::string pool_json(env.data.begin(), env.data.end());
+    auto parsed = ::SCE::EventDataHelper::jsonStringToScriptValue(pool_json);
+    if (!parsed) return false;
+    auto* obj_sp = std::get_if<std::shared_ptr<::ScriptObject>>(&*parsed);
+    if (!obj_sp || !*obj_sp) return false;
+    auto& obj = **obj_sp;
+    auto it = obj.properties.find(name);
+    if (it == obj.properties.end()) return false;
+    // scriptValueToJsonString wraps strings in quotes; strip them so
+    // the caller sees the raw token value.
+    std::string value = ::SCE::EventDataHelper::scriptValueToJsonString(it->second);
+    if (value.size() >= 2 && value.front() == '"' && value.back() == '"') {
+        value = value.substr(1, value.size() - 2);
+    }
+    out = std::move(value);
+    return true;
+}
+{% endif %}
+{% if targets | selectattr('pool_plan') | selectattr('pool_plan.kind', 'equalto', 'bounded_string') | list | length > 0 %}
+/// SCE_MESH.md §14.4 — resolve a bounded string pool's runtime
+/// `<param>` value to the index of its declared member.
+///
+/// Shared by both dispatch paths (`route_send` for `<send>`,
+/// `invokeMeshRpc` for `<invoke type="sce:mesh-rpc">`) so a value that
+/// one path accepts cannot be one the other rejects.
+///
+/// @return false when the payload lacks the param or its value is
+///         outside the declared `members:` set — fail-closed, because
+///         the endpoint for an undeclared member was never built and
+///         its first sample would be dropped by a VOLATILE writer with
+///         no error.
+template <std::size_t N>
+[[nodiscard]] inline bool selectPoolMember(const SCE::Mesh::MeshEnvelope& env,
+                                           const char* param,
+                                           const std::array<const char*, N>& members,
+                                           std::size_t& out) {
+    std::string value;
+    if (!readPoolParam(env, param, value)) return false;
+    for (std::size_t i = 0; i < N; ++i) {
+        if (value == members[i]) {
+            out = i;
+            return true;
+        }
+    }
+    return false;
+}
+{% endif %}
+{% for target in targets if target.pool_plan and target.pool_plan.kind == "open_string" %}
+/// SCE_MESH.md §14.4 — assemble {{ target.target }}'s runtime address
+/// from the binding's `key:` template and the envelope's pool params.
+///
+/// An open pool enumerates nothing: the member set is unbounded, so the
+/// address is built per dispatch instead of selected among endpoints
+/// declared up front. Emitted once per binding and called from BOTH
+/// dispatch paths (`route_send` for `<send>`, `invokeMeshRpc` for
+/// `<invoke type="sce:mesh-rpc">`) — §14.4 resolves the placeholder at
+/// either, and a second copy of the substitution is a second thing to
+/// keep in step.
+///
+/// @return false when a placeholder has no `<param>` value or its token
+///         is absent from the key template. Fail-closed on purpose: the
+///         only other address available is one carrying an unresolved
+///         `{name}` chunk, which no peer subscribes to and which Zenoh
+///         accepts and drops without reporting anything.
+[[nodiscard]] inline bool buildPoolKey_{{ target.target_snake }}(const SCE::Mesh::MeshEnvelope& env,
+                                                                std::string& out) {
+    std::string pool_key = "{{ target.state.key }}";
+{% for ph in target.pool_plan.placeholders %}
+    {
+        std::string pv;
+        if (!readPoolParam(env, "{{ ph }}", pv)) return false;
+        const std::string token = "{{ '{' }}{{ ph }}{{ '}' }}";
+        auto pos = pool_key.find(token);
+        if (pos == std::string::npos) return false;
+        pool_key.replace(pos, token.size(), pv);
+    }
+{% endfor %}
+    out = std::move(pool_key);
+    return true;
+}
+{% endfor %}
+{% for target in targets if target.pool_plan and target.pool_plan.kind == "typed_instance" %}
+/// SCE_MESH.md §14.4 — resolve {{ target.target }}'s runtime SOME/IP
+/// instance id from the envelope's `{{ target.pool_plan.instance_from }}` param.
+///
+/// Emitted once per binding and called from BOTH dispatch paths
+/// (`route_send` for `<send>`, `invokeMeshRpc` for
+/// `<invoke type="sce:mesh-rpc">`), so an id one path accepts cannot be
+/// one the other rejects.
+///
+/// @return false when the param is absent, is not a whole number in
+///         range, or names an id outside the declared `instances:` set.
+///         Fail-closed matters more here than on any other pool carrier:
+///         an unresolved id is not missing, it is the binding's default,
+///         so the alternative to refusing is delivering the message in
+///         full to a member the author did not address — and vsomeip
+///         reports nothing either way, having never been asked to
+///         request_service an undeclared id.
+[[nodiscard]] inline bool resolvePoolInstance_{{ target.target_snake }}(
+    const SCE::Mesh::MeshEnvelope& env,
+    vsomeip::instance_t& out) {
+    std::string inst_str;
+    if (!readPoolParam(env, "{{ target.pool_plan.instance_from }}", inst_str)) return false;
+    unsigned long long inst_ul = 0;
+    const char* inst_begin = inst_str.data();
+    const char* inst_end = inst_begin + inst_str.size();
+    auto parse = std::from_chars(inst_begin, inst_end, inst_ul);
+    if (parse.ec != std::errc() || parse.ptr != inst_end || inst_ul > 0xFFFFu) return false;
+    const auto candidate = static_cast<vsomeip::instance_t>(inst_ul);
+    static constexpr vsomeip::instance_t pool_instances[] = {
+{% for i in target.pool_plan.instances %}        {{ i }}{% if not loop.last %},{% endif %}
+{% endfor %}
+    };
+    if (std::find(std::begin(pool_instances), std::end(pool_instances), candidate)
+        == std::end(pool_instances)) {
+        return false;
+    }
+    out = candidate;
+    return true;
+}
+{% endfor %}
+
 /// Build-time resolved routing table from deploy.yaml.
 /// Each <send target="..."> in the SCXML is dispatched to the
 /// corresponding transport function. Supports mixed transports
@@ -924,6 +1486,31 @@ struct TransportRouter {
     std::thread {{ target.target_snake }}_thread_;
 {% elif target.state.kind == "custom_tcp" %}
     SCE::Mesh::CustomTcp::Client {{ target.target_snake }}_;
+{% elif target.state.kind == "dds" %}
+    // Constructed in init(), not here: a DDS endpoint needs the device
+    // participant, and the participant is only known to have joined its
+    // domain once init() runs. `unique_ptr` keeps the field declarable
+    // before that (SCE::Mesh::Dds::Client is non-movable — it owns
+    // reader threads).
+{% if target.pool_plan and target.pool_plan.kind == "bounded_string" %}
+    // SCE_MESH.md §14.4 bounded pool: one endpoint per declared
+    // `members:` entry, all built at init(). A writer created at invoke
+    // time has not finished discovery when the first sample is written,
+    // and a VOLATILE writer drops that sample with no error — building
+    // every member up front is what gives discovery the time it needs.
+    std::array<std::unique_ptr<SCE::Mesh::Dds::Client>,
+               {{ target.pool_plan.members | length }}> {{ target.target_snake }}_pool_;
+    // Member values in the same order as the endpoints above; a runtime
+    // `<param>` value is matched against this to pick a slot.
+    static constexpr std::array<const char*, {{ target.pool_plan.members | length }}>
+        {{ target.target_snake | upper }}_POOL_MEMBERS = {
+{% for m in target.pool_plan.members %}
+            "{{ m.value }}",
+{% endfor %}
+    };
+{% else %}
+    std::unique_ptr<SCE::Mesh::Dds::Client> {{ target.target_snake }}_;
+{% endif %}
 {% endif %}
 {% endfor %}
 
@@ -1072,6 +1659,17 @@ struct TransportRouter {
             const std::array<uint8_t, 16> invoke_uuid = *env.invoke_id;
             std::string session_id = env.source + ":" + invoke_id_str;
 
+            // SCE_MESH.md §9.3 "Child fails during initialization": bringing a
+            // child up is the one step here that runs author-supplied content
+            // (datamodel init, `<onentry>` bodies, script-engine setup), so it
+            // is the one step that can throw. Without this guard the exception
+            // unwinds out of the transport pump: the worker loses every OTHER
+            // child session it hosts, and the parent — which stamped
+            // `activeInvokes_[id]` when it sent wire-14 — waits forever for a
+            // completion that can no longer arrive. The section's remedy is a
+            // reported failure, not a crash, so the whole bring-up runs inside
+            // the guard and the catch reports it over the wire.
+            try {
             auto adapter = std::make_unique<ChildAdapter>(
                 host_machine_name_,
                 session_id,
@@ -1117,14 +1715,48 @@ struct TransportRouter {
                 return;
             }
             sessions_.emplace(invoke_id_str, std::move(adapter));
+            } catch (const std::exception& __sce_child_init_ex) {
+                // §9.3 pins BOTH events at the parent: `error.execution` with
+                // reason INVOKE_CHILD_INIT_FAILED, and `done.invoke.<id>`
+                // "(child never reached a stable state)". They travel as
+                // wire-20 then wire-18, in that order, so the author's error
+                // handler observes the failure before the invoke completes.
+                //
+                // Sending the completion is not cosmetic: `onInvokeDone` is
+                // what raises `done.invoke.<id>`, and the invoking state's
+                // onexit is what erases `activeInvokes_`. Reporting only the
+                // error would leave the parent parked in the invoking state
+                // with a session that no longer exists.
+                //
+                // The ids come from the wire-14 envelope, not from `adapter` —
+                // the throw may have come from its own constructor, and the
+                // parent correlates on the ids it already holds either way.
+                (void)send_ctp(::SCE::Mesh::makeInvokeChildInitFailedEnvelope(
+                    host_machine_name_, invoke_uuid, invoke_id_str, session_id,
+                    __sce_child_init_ex.what()));
+                (void)send_ctp(::SCE::Mesh::makeInvokeDoneEnvelope(
+                    host_machine_name_, invoke_uuid, invoke_id_str, session_id, ""));
+                // The half-built session is deliberately not registered: a
+                // child that never initialized cannot be ticked or cancelled.
+            }
         }
 
         void onWire17(const ::SCE::Mesh::MeshEnvelope& env) {
             if (!env.subject) return;
             auto it = sessions_.find(*env.subject);
             if (it == sessions_.end()) return;
-            std::string data(env.data.begin(), env.data.end());
-            (void)it->second->raiseExternal(env.type, data, std::string());
+            // SCE_MESH.md §9.6.5 — the parent forwards the event copied
+            // verbatim; wire-17 carries the two fields it has slots for.
+            // `_event.origin` / `_event.invokeid` are the child-side
+            // derivation §9.6.3 owns, and the processor identity is
+            // stamped by ChildSessionAdapter.
+            ::SCE::Common::ForwardedEvent forwarded;
+            forwarded.name = env.type;
+            forwarded.data.assign(env.data.begin(), env.data.end());
+            if (env.reply_to) {
+                forwarded.sendId = *env.reply_to;
+            }
+            (void)it->second->raiseExternal(forwarded);
         }
 
         void onWire19(const ::SCE::Mesh::MeshEnvelope& env) {
@@ -1153,20 +1785,12 @@ struct TransportRouter {
     private:
         void emitWire18(::SCE::Mesh::IChildSession& s,
                         ::SCE::Mesh::ChildToParentPublisher& send_ctp) {
-            ::SCE::Mesh::MeshEnvelope done{};
-            done.id = SCE::uuid::v7();
-            done.source = host_machine_name_;
-            done.type = "sce.invoke.done";
-            done.pattern = ::SCE::Mesh::PatternKind::InvokeDone;
-            done.invoke_id = s.invokeUuid();
-            done.subject = s.invokeIdString();
-            done.child_session_id = s.sessionId();
-            std::string donedata = s.getDonedata();
-            done.data.assign(donedata.begin(), donedata.end());
-            done.datacontenttype = donedata.empty()
-                ? ::SCE::Mesh::PayloadCodec::None
-                : ::SCE::Mesh::PayloadCodec::Json;
-            (void)send_ctp(done);
+            // Envelope shape lives in ChildSessionAdapter.h so the §9.3
+            // failure path emits a byte-identical completion without a
+            // session to read it off (ARCHITECTURE.md Zero Duplication).
+            (void)send_ctp(::SCE::Mesh::makeInvokeDoneEnvelope(
+                host_machine_name_, s.invokeUuid(), s.invokeIdString(),
+                s.sessionId(), s.getDonedata()));
         }
 
         std::string host_machine_name_;
@@ -1205,6 +1829,26 @@ struct TransportRouter {
     // constructs a server, mirroring how Zenoh's optional<Session>
     // collapses to a no-op when the device runs no zenoh sessions.
     std::unique_ptr<SCE::Mesh::CustomTcp::Server> custom_tcp_server_;
+{% endif %}
+{% if "dds" in transport_types or has_server_dds %}
+    // DDS device-shared participant. One DomainParticipant per device,
+    // joined in init() and shared by every dds client and the server:
+    // that shared identity is what makes IGNORE_LOCAL(participant) mean
+    // "this device's own traffic" (SCE_MESH.md §mesh-8.2). Held as
+    // `unique_ptr` because DomainParticipant is neither copyable nor
+    // movable and the router is constructed before init() decides the
+    // domain is reachable.
+    std::unique_ptr<SCE::Mesh::Dds::Participant> dds_participant_;
+{% endif %}
+{% if has_server_dds %}
+    // DDS server endpoint: request reader plus the reply and notification
+    // writers. Nothing about a request's arrival path is held beside it —
+    // a DDS reply is addressed by the correlation established in
+    // §mesh-8.3 and travels on the reply topic, so unlike SOME/IP's
+    // stashed message or custom_tcp's stashed link there is no handle to
+    // keep. The admitted-correlation set that replaces them is declared
+    // with the other server pending state, below `CorrelationKey`.
+    std::unique_ptr<SCE::Mesh::Dds::Server> dds_server_;
 {% endif %}
 {% if "zenoh" in transport_types %}
     // Zenoh: one session per device, shared by all zenoh targets.
@@ -1302,7 +1946,15 @@ struct TransportRouter {
     // No eviction: the per-source window count is bounded by the sender
     // roster in deploy.yaml (small, static). Game-scale fan-in would
     // need a TTL-based cleanup, which is explicitly out of scope today.
-    SCE::Mesh::DedupRouter dedup_;
+    // Window size comes from deploy.yaml `machines.<name>.dedup.window_size`
+    // ({{ machine_dedup.window_size }} entries here, §10.5 default 256). It is a
+    // template argument because the ring is a `std::array` member: a
+    // runtime size would put the per-sender window on the heap, and the
+    // window is constructed on the receive path the first time a sender
+    // is seen. There is no fallback constant in the runtime; deploy.yaml
+    // is the only source.
+    using DedupRouter = ::SCE::Mesh::DedupRouterT<{{ machine_dedup.window_size }}>;
+    DedupRouter dedup_;
 {% endif %}
 {% if has_ordered_binding %}
     // SCE_MESH.md §10.6: per-sender sequence-ordered admit layer.
@@ -1342,6 +1994,21 @@ struct TransportRouter {
     std::condition_variable ordering_tick_cv_;
     std::thread ordering_tick_thread_;
 {% endif %}
+{% if machine_subscriptions %}
+    // SCE_MESH.md §13: guards the machine-lifetime unsubscribe against
+    // the dtor-via-shutdown path, the same hazard the ordering tick
+    // answers with `joinable()`, the deadline scheduler with its own
+    // idempotent `shutdown()`, and the SOME/IP applications with a
+    // `shared_ptr` reset. Without it, every router that is shut down
+    // properly puts a second unsubscribe frame on the wire, because
+    // `~TransportRouter` calls `shutdown()` after the explicit call.
+    //
+    // Set at the end of the init()-time subscribe fan-out and consumed
+    // with `exchange(false)`, so an init() that failed earlier never
+    // unsubscribes what it did not subscribe, and an init() → shutdown()
+    // → init() cycle re-arms exactly like the members above.
+    std::atomic<bool> machine_subscriptions_armed_{false};
+{% endif %}
 {# SCE_MESH.md §10.6.3: per-target monotonic sequence counter. One
    counter per binding that has `needs_ordering = true`; counter is
    incremented inside the mesh-send-callback on the engine's single
@@ -1370,7 +2037,10 @@ struct TransportRouter {
    Ordering note: declared after seq_counter_ so the ctor initializer
    list below honours member declaration order (-Wreorder safe). #}
 {% if machine_outbound_buffer %}
-{% for target in targets if target.state.kind in ("someip", "zenoh") %}
+{#- Same registry-derived predicate as the ctor-initializer loop below;
+    the two must select the same targets or -Wreorder fires on a member
+    that was declared but never initialised. #}
+{% for target in targets if target.buffers_outbound %}
 {% if target.retry %}
     // SCE Mesh §16.7 row 3 — per-target retry wrapper. Wraps the
     // transport-send closure with backoff/exhaustion logic; the
@@ -1410,7 +2080,7 @@ struct TransportRouter {
 {% endif %}
 
 {# ── (D2b) Session pool — every SCXML document instance running
-   under this router is a session (W3C SCXML §2.4). Non-pool routers
+   under this router is a session (W3C SCXML §5.10). Non-pool routers
    host exactly one session; `server.instances:` pool routers host
    N independent sessions each backing one offered SOME/IP instance
    (SCE_MESH.md §14.4). `sessions_` is the single source of truth for
@@ -1521,10 +2191,58 @@ struct TransportRouter {
         }
     };
 {% endif %}
-{% if "someip" in transport_types %}
-    // Client SOME/IP RPC correlation: maps correlation_id → reply event name.
-    std::mutex correlation_mutex_;
-    std::unordered_map<CorrelationKey, std::string, CorrelationKeyHash> pending_rpcs_;
+{% if needs_correlation_key or has_mesh_rpc.v %}
+    /// SCE_MESH.md §14.6 — the responder set for a request sent to
+    /// `target`: the machine names whose RpcReply may retire that
+    /// request's correlation entry.
+    ///
+    /// Derived from the binding's `reply_from:`; absent `reply_from:`
+    /// yields the target alone, which is the same-target default. The
+    /// deploy validator rejects an empty or unresolvable set, so every
+    /// declared target returns a non-empty vector; an unknown target
+    /// returns empty, which `InvokeCorrelation::registerInvoke` refuses
+    /// rather than registering an entry nobody may answer.
+    static std::vector<std::string> respondersFor(const std::string& target) {
+{% if targets %}
+{% for t in targets %}
+        if (target == "{{ t.target }}") {
+            return { {% for r in t.responders %}"{{ r }}"{% if not loop.last %}, {% endif %}{% endfor %} };
+        }
+{% endfor %}
+{% else %}
+        // Server-only router: no client bindings, so no request of ours
+        // can be answered and the responder set is never consulted.
+        (void)target;
+{% endif %}
+        return {};
+    }
+
+{% endif %}
+{% if "someip" in transport_types or "custom_tcp" in transport_types or "dds" in transport_types %}
+    // Client RPC correlation: maps correlation_id → reply event name.
+    // `mutable` so the read-only `pending_client_rpc_size` accessor can
+    // hold the mutex inside a const method — same convention the
+    // server-side `server_pending_mutex_` follows.
+    mutable std::mutex correlation_mutex_;
+    /// SCE_MESH.md §14.6: a pending RPC remembers both the reply-event
+    /// name to rewrite `env.type` to AND the responder set allowed to
+    /// retire it. Storing the set here (rather than re-deriving it in the
+    /// response handler) keeps the gate keyed on the REQUEST's binding —
+    /// the handler only knows which target it is, not which target the
+    /// request went to.
+    struct PendingRpc {
+        std::string reply_event;
+        std::vector<std::string> responders;
+        /// SCE_MESH.md §mesh-10.4.4: for a connection-oriented transport,
+        /// the stream the request left on IS the responder's identity.
+        /// `custom_tcp` pins it here and admits a reply only from that
+        /// same stream, so a peer that forges `source` cannot retire this
+        /// entry even knowing its correlation id. 0 on transports that
+        /// route by address rather than by connection (SOME/IP), where
+        /// the `responders` name check is the gate instead.
+        std::uint64_t stream_id = 0;
+    };
+    std::unordered_map<CorrelationKey, PendingRpc, CorrelationKeyHash> pending_rpcs_;
 {% endif %}
 
 {# ── (D2d) sce:mesh-rpc invoke bookkeeping (SCE_MESH.md §9.5) ── #}
@@ -1537,16 +2255,27 @@ struct TransportRouter {
     SCE::Mesh::InvokeCorrelation invoke_correlation_;
 {% endif %}
 
-{% if has_mesh_rpc.v or has_server_query_timeout or has_any_retry.v %}
+{% if has_mesh_rpc.v or has_server_response_deadline or has_any_retry.v %}
     // deadline_scheduler_: callback-based timer shared by three paths:
     //   - Client-side (`has_mesh_rpc.v`, §9.5): fires
     //     `invoke_correlation_.handleDeadline(uuid)` after
     //     `_mesh_deadline_ms`, delivering `error.invoke.<id>` via the
     //     deliver callback registered below.
-    //   - Server-side (`has_server_query_timeout`, gap Z2): fires
-    //     `onServerQueryTimedOut(cid)` after the deploy.yaml
-    //     `server.query_timeout_ms`, erasing the stranded
+    //   - Server-side (`has_server_response_deadline`, §9.5.1): fires
+    //     `onServerRequestTimedOut(cid)` after the deploy.yaml
+    //     `server.response_deadline_ms`, releasing the stranded
+{% if has_server_deadline_someip %}
+    //     `pending_server_requests_` entry and answering the requester
+    //     with the SOME/IP MT_ERROR / E_TIMEOUT notice.
+{% elif has_server_deadline_custom_tcp %}
+    //     `pending_server_links_` entry and answering the requester on
+    //     that same stream with a DeadlineExceeded envelope.
+{% elif has_server_deadline_dds %}
+    //     `pending_server_correlations_` entry and publishing a
+    //     DeadlineExceeded envelope on the paired reply topic.
+{% else %}
     //     `pending_server_queries_` entry.
+{% endif %}
     //   - SCE Mesh §16.7 row 3 (`has_any_retry.v`): fires
     //     `RetryingDispatcher::onRetryFire(envelope_id)` after each
     //     backoff interval, triggering the next retry attempt or the
@@ -1657,6 +2386,19 @@ struct TransportRouter {
     std::unordered_map<CorrelationKey, std::shared_ptr<vsomeip::message>,
                        CorrelationKeyHash> pending_server_requests_;
 {% endif %}
+{% if has_server_response_deadline %}
+    // SCE Mesh §9.5.1: suppress the deadline callback during router
+    // teardown. `shutdown()` sets this BEFORE it drains the scheduler
+    // (release), and `onServerRequestTimedOut` reads with acquire.
+    // Together with the scheduler's own "benign drop" semantics
+    // (MeshDeadlineScheduler::shutdown) this ensures no late callback
+    // races the pending map's destructor.
+    //
+    // Declared once for both realised server arms: the race it closes
+    // is between the scheduler thread and teardown, which is a property
+    // of the deadline rather than of the transport that answers it.
+    std::atomic<bool> server_shutdown_in_progress_{false};
+{% endif %}
 {% if has_server_zenoh %}
     // Server Zenoh queryable + pending query storage.
     // Inbound queries are stashed here keyed by correlation_id; when the
@@ -1668,14 +2410,6 @@ struct TransportRouter {
     mutable std::mutex server_pending_mutex_;
     std::unordered_map<CorrelationKey, zenoh::Query,
                        CorrelationKeyHash> pending_server_queries_;
-{% if has_server_query_timeout %}
-    // SCE Mesh gap Z2: suppress the deadline callback during router
-    // teardown. `shutdown()` sets this BEFORE it drains the scheduler
-    // (release), and `onServerQueryTimedOut` reads with acquire. Together
-    // with the scheduler's own "benign drop" semantics (MeshDeadlineScheduler::shutdown,
-    // §9.5) this ensures no late callback races the map's destructor.
-    std::atomic<bool> server_shutdown_in_progress_{false};
-{% endif %}
 {% if server.has_server_put %}
     // Server inbound-put subscriber on ZENOH_SERVER_KEY (SCE_MESH.md §8.3).
     // `session.put` from clients lands on the same key as `session.get`
@@ -1686,6 +2420,55 @@ struct TransportRouter {
     // dispatchToSession.
     std::optional<zenoh::Subscriber<void>> zenoh_server_put_sub_;
 {% endif %}
+{% elif has_server_custom_tcp %}
+    // Server custom_tcp pending request storage (SCE_MESH.md §mesh-10.4.4).
+    // A request is answered on the stream that carried it, so what has to
+    // survive between receive and reply is the peer link — not a message
+    // handle (SOME/IP) or a query object (Zenoh). Holding the link also
+    // keeps the connection's fd alive, so a reply can never be written to
+    // a descriptor the kernel has recycled; if the peer hangs up first the
+    // stored link simply reports itself closed and the send fails cleanly.
+    // `mutable` matches the sibling arms' convention for const accessors.
+    mutable std::mutex server_pending_mutex_;
+    std::unordered_map<CorrelationKey, SCE::Mesh::CustomTcp::PeerLink,
+                       CorrelationKeyHash> pending_server_links_;
+{% if server.has_eventgroup %}
+    // Brokerless subscription registry (SCE_MESH.md §mesh-8.1).
+    //
+    // There is no broker to hold subscription state and no retained
+    // session to expire, so the registry stores the subscriber's own
+    // connection. Two consequences worth naming:
+    //
+    //   * A subscriber that dies is unsubscribed by that fact alone —
+    //     the stored link reports itself invalid and the next fan-out
+    //     drops it. No expiry timer, no liveness probe, no clean-session
+    //     negotiation.
+    //   * Fan-out is per subscription axis, not per connection: a peer
+    //     subscribed to `status` is not woken by `position`. A key-scoped
+    //     fabric has to publish to every subscriber on the key and let
+    //     each one filter locally.
+    mutable std::mutex subscriber_mutex_;
+    std::unordered_map<std::string,
+                       std::vector<SCE::Mesh::CustomTcp::PeerLink>> subscribers_;
+{% endif %}
+{% elif has_server_dds %}
+    // Server DDS admitted-correlation set (SCE_MESH.md §mesh-8.2).
+    //
+    // The sibling arms stash the request itself because the reply has to
+    // be issued *through* it — `create_response` needs the vsomeip
+    // message, `Query::reply` needs the query, custom_tcp needs the
+    // stream. A DDS reply needs none of them: it is published on the
+    // reply topic and matched by correlation. What remains worth keeping
+    // is the correlation alone, so the router can refuse to publish a
+    // reply for a correlation it never admitted.
+    //
+    // That refusal is the DDS counterpart of custom_tcp's stream gate. It
+    // is weaker — a peer that learns a correlation id could in principle
+    // publish on the reply topic, which a connection-oriented transport
+    // makes structurally impossible — and §mesh-8.2 states that limit
+    // rather than leaving it implied.
+    mutable std::mutex server_pending_mutex_;
+    std::unordered_set<CorrelationKey, CorrelationKeyHash> pending_server_correlations_;
 {% endif %}
 
 {# ── (D3) Constructor ──
@@ -1742,7 +2525,14 @@ struct TransportRouter {
         path the same way SOME/IP and Zenoh do. session_idx is `0`:
         custom_tcp is client-only (no pool support), so N_SESSIONS
         is always 1 when this ctor init fires. #}
-{%-     set ns.parts = ns.parts + [target.target_snake ~ "_(" ~ target.state.connect ~ ", [this](const SCE::Mesh::MeshEnvelope& env){ (void)this->dispatchToSession(env, 0); })"] %}
+{%-     set ns.parts = ns.parts + [target.target_snake ~ "_(" ~ target.state.connect ~ ", [this](const SCE::Mesh::MeshEnvelope& env, const SCE::Mesh::CustomTcp::PeerLink& link){ this->onCustomTcpInbound(env, link); }, CUSTOM_TCP_SOCKET)"] %}
+{%-   elif target.state.kind == "dds" %}
+{#-     No initializer on purpose. A DDS client needs the device
+        participant, which does not exist until init() joins the domain,
+        so the field is a default-null unique_ptr here and is constructed
+        in init() alongside the participant. Listing the arm explicitly
+        (rather than falling off the chain) keeps "dds was considered"
+        visible to the next transport author. #}
 {%-   endif %}
 {%- endfor %}
 {#- SCE Mesh §10.10 per-target OutboundBuffer initializers. Declaration
@@ -1756,7 +2546,14 @@ struct TransportRouter {
     the lifetime contract is identical to every other generated
     runtime primitive. #}
 {%- if machine_outbound_buffer %}
-{%-   for target in targets if target.state.kind in ("someip", "zenoh") %}
+{#- Registry-derived (`TransportDescriptor::buffers_outbound`) rather than
+    a transport-name list: the question is whether the transport exposes a
+    readiness edge for the buffer to gate on, and a name list here is a
+    second place to update when one gains it. Pool bindings never appear
+    in this loop — `deploy::validate_pool_capability` rejects
+    `outbound_buffer:` on a pool binding whose transport buffers, because
+    a buffer gates on one address and a pool has many. #}
+{%-   for target in targets if target.buffers_outbound %}
 {#- SCE_MESH.md §16.7 row 2 SEND_FAILED Stage 2: the dispatcher lambda
     returns a `SendResult` whose `transport_error` (when populated)
     surfaces through `OutboundBuffer` into
@@ -1817,9 +2614,9 @@ struct TransportRouter {
 {%-       set wrapped_dispatch =
             "[this](const SCE::Mesh::MeshEnvelope& env) -> SCE::Mesh::SendResult { return " ~
             target.target_snake ~ "_retry_.send_with_retry(env); }" %}
-{%-       set init = target.target_snake ~ "_outbound_(\"" ~ target.target ~ "\", " ~ machine_outbound_buffer.max_pending_per_target ~ ", " ~ transport_literal ~ ", " ~ wrapped_dispatch ~ ", [this](SCE::Mesh::CommunicationError err) { raiseCommunicationError(std::move(err)); })" %}
+{%-       set init = target.target_snake ~ "_outbound_(\"" ~ target.target ~ "\", " ~ machine_outbound_buffer.max_pending_per_target ~ ", std::chrono::milliseconds(" ~ machine_outbound_buffer.max_age_ms ~ "), " ~ transport_literal ~ ", " ~ wrapped_dispatch ~ ", [this](SCE::Mesh::CommunicationError err) { raiseCommunicationError(std::move(err)); })" %}
 {%-     else %}
-{%-       set init = target.target_snake ~ "_outbound_(\"" ~ target.target ~ "\", " ~ machine_outbound_buffer.max_pending_per_target ~ ", " ~ transport_literal ~ ", " ~ dispatch ~ ", [this](SCE::Mesh::CommunicationError err) { raiseCommunicationError(std::move(err)); })" %}
+{%-       set init = target.target_snake ~ "_outbound_(\"" ~ target.target ~ "\", " ~ machine_outbound_buffer.max_pending_per_target ~ ", std::chrono::milliseconds(" ~ machine_outbound_buffer.max_age_ms ~ "), " ~ transport_literal ~ ", " ~ dispatch ~ ", [this](SCE::Mesh::CommunicationError err) { raiseCommunicationError(std::move(err)); })" %}
 {%-     endif %}
 {%-     set ns.parts = ns.parts + [init] %}
 {%-   endfor %}
@@ -1860,7 +2657,7 @@ struct TransportRouter {
 {%- endif %}
 {%- for peer in scxml_remote_outbound_peers %}
 {%-   if peer.transport == "custom_tcp" %}
-{%-     set ns.parts = ns.parts + ["p2c_to_" ~ peer.name ~ "_(\"" ~ peer.connect_endpoint ~ "\", [](const SCE::Mesh::MeshEnvelope&) {})"] %}
+{%-     set ns.parts = ns.parts + ["p2c_to_" ~ peer.name ~ "_(\"" ~ peer.connect_endpoint ~ "\", [](const SCE::Mesh::MeshEnvelope&, const SCE::Mesh::CustomTcp::PeerLink&) {}, CUSTOM_TCP_SOCKET)"] %}
 {%-   elif peer.transport == "someip" %}
 {%-     set ns.parts = ns.parts + ["scxml_invoke_to_" ~ peer.name ~ "_(" ~ someip_sce_app_field ~ ", SCE_SOMEIP_SERVICE_SELF, SCE_SOMEIP_SERVICE_PEER_" ~ (peer.name | upper) ~ ")"] %}
 {%-   elif peer.transport != "zenoh" %}
@@ -1870,7 +2667,7 @@ struct TransportRouter {
 {%- endfor %}
 {%- for peer in scxml_remote_inbound_peers %}
 {%-   if peer.transport == "custom_tcp" %}
-{%-     set ns.parts = ns.parts + ["c2p_to_" ~ peer.name ~ "_(\"" ~ peer.connect_endpoint ~ "\", [](const SCE::Mesh::MeshEnvelope&) {})"] %}
+{%-     set ns.parts = ns.parts + ["c2p_to_" ~ peer.name ~ "_(\"" ~ peer.connect_endpoint ~ "\", [](const SCE::Mesh::MeshEnvelope&, const SCE::Mesh::CustomTcp::PeerLink&) {}, CUSTOM_TCP_SOCKET)"] %}
 {%-   elif peer.transport == "someip" %}
 {%-     set ns.parts = ns.parts + ["scxml_invoke_to_" ~ peer.name ~ "_(" ~ someip_sce_app_field ~ ", SCE_SOMEIP_SERVICE_SELF, SCE_SOMEIP_SERVICE_PEER_" ~ (peer.name | upper) ~ ")"] %}
 {%-   elif peer.transport != "zenoh" %}
@@ -1957,18 +2754,32 @@ struct TransportRouter {
                             target, eventName, invokeId);
                     }
                 }
-{% if "someip" in transport_types %}
-                // RPC correlation: generate correlation_id and register reply-event
-                // (SOME/IP-only — Zenoh's session.get on_reply closure correlates
-                // natively without a lookup table).
+{% if "someip" in transport_types or "custom_tcp" in transport_types or "dds" in transport_types %}
+                // RPC correlation: generate correlation_id and register reply-event.
+                // Zenoh is absent here — its session.get on_reply closure correlates
+                // natively without a lookup table.
                 if (env.pattern == SCE::Mesh::PatternKind::RpcRequest) {
                     auto cid = SCE::uuid::v7();
                     env.correlation_id = cid;
                     env.reply_to = "{{ machine_name }}";
                     const char* reply = resolveReplyEvent(eventName);
                     if (reply[0] != '\0') {
+                        std::uint64_t bound_stream = 0;
+{% for t in targets if t.state.kind == "custom_tcp" %}
+                        // SCE_MESH.md §mesh-10.4.4: acquire the stream BEFORE
+                        // registering so the entry names the exact connection
+                        // this request leaves on. Acquiring here (rather than
+                        // reading it back after the send) closes the window in
+                        // which a loopback reply could arrive before the entry
+                        // carries its stream — `link()` dials on demand and the
+                        // send below reuses that same stream.
+                        if (target == "{{ t.target }}") {
+                            bound_stream = {{ t.target_snake }}_.link().id();
+                        }
+{% endfor %}
                         std::lock_guard<std::mutex> lock(correlation_mutex_);
-                        pending_rpcs_[CorrelationKey{cid}] = reply;
+                        pending_rpcs_[CorrelationKey{cid}] =
+                            PendingRpc{reply, respondersFor(target), bound_stream};
                     }
                 }
 {% endif %}
@@ -2046,8 +2857,14 @@ struct TransportRouter {
                 // The engine's currentEventInvokeId propagates as invokeId
                 // → env.invoke_id (parsed above). Stamp correlation_id so
                 // handleServerResponse finds the stored request.
+                // EventNotify belongs here for the same reason FieldNotify
+                // does: a server raising `event.notification.X` is
+                // publishing to its eventgroup, not addressing a target.
+                // It has no correlation to match, so it falls straight
+                // through `handleServerResponse` to the publish path.
                 if (env.pattern == SCE::Mesh::PatternKind::RpcReply
-                    || env.pattern == SCE::Mesh::PatternKind::FieldNotify) {
+                    || env.pattern == SCE::Mesh::PatternKind::FieldNotify
+                    || env.pattern == SCE::Mesh::PatternKind::EventNotify) {
                     if (!env.correlation_id && env.invoke_id) {
                         env.correlation_id = env.invoke_id;
                     }
@@ -2181,11 +2998,11 @@ struct TransportRouter {
                     env.data.assign(data.begin(), data.end());
                     env.subject = invokeIdString;
                     if (!sendId.empty()) {
-                        // §9.6.3: sendId on the original event is preserved
-                        // only when present; the current forwarding path in
-                        // `forwardToAutoforwardChildren` passes an empty
-                        // string (parity with local invoke) so this branch
-                        // is typically skipped for now.
+                        // §9.6.5: the forwarded event is copied verbatim, so
+                        // the source event's sendid rides in `reply_to` —
+                        // the only wire-17 slot for it. Left unset when the
+                        // source event carried no sendid, which keeps the
+                        // envelope free of an empty optional.
                         env.reply_to = sendId;
                     }
                     env.routing_id = routing_id_;
@@ -2487,7 +3304,7 @@ struct TransportRouter {
         return total;
     }
 {% endif %}
-{% if "someip" in transport_types or "zenoh" in transport_types or "custom_tcp" in transport_types or has_mesh_rpc.v or has_server %}
+{% if "someip" in transport_types or "zenoh" in transport_types or "custom_tcp" in transport_types or "dds" in transport_types or has_mesh_rpc.v or has_server %}
 
 {# ── (D4) init() / shutdown() — lifecycle for shared transport resources ── #}
     /// Initialize transport connections and open shared sessions.
@@ -2533,7 +3350,7 @@ struct TransportRouter {
             shutdown();
             return false;
         }
-{% if target.pool_plan and target.pool_plan.kind == "someip" %}
+{% if target.pool_plan and target.pool_plan.kind == "typed_instance" %}
         // SCE_MESH.md §14.4 SOME/IP pool: request every member of the
         // instance set at init so vsomeip opens an SD subscription for
         // each. Runtime selection between them happens in invokeMeshRpc
@@ -2574,6 +3391,15 @@ struct TransportRouter {
         // {{ ep.event }} → SOMEIP_SETTER_{{ target.target_snake | upper }}_{{ ep.event_const }}
 {{ someip_receive_handler(target, "SOMEIP_SETTER_" + (target.target_snake | upper) + "_" + ep.event_const, "SCE::Mesh::PatternKind::FieldNotify", "field") }}
 {% endif %}
+{% endfor %}
+{# SCE_MESH.md §13: a machine-lifetime subscription has no outbound event
+   pattern, so the loop above never reaches it — but a notification that
+   arrives with no registered handler is dropped inside vsomeip without a
+   trace. Emitting the handler from the same declaration that emits the
+   subscribe is what keeps the two halves from drifting. #}
+{% for se in target.subscription_event_ids %}
+        // {{ se.event }} → SOMEIP_EVENT_{{ target.target_snake | upper }}_{{ se.event_const }}
+{{ someip_receive_handler(target, "SOMEIP_EVENT_" + (target.target_snake | upper) + "_" + se.event_const, "SCE::Mesh::PatternKind::EventNotify", "notify") }}
 {% endfor %}
 {% if machine_outbound_buffer %}
         // SCE Mesh §10.10: feed the per-target OutboundBuffer's readiness
@@ -2848,38 +3674,11 @@ struct TransportRouter {
 {%- set custom_tcp_outbound_peers = scxml_remote_outbound_peers | selectattr("transport", "equalto", "custom_tcp") | list %}
         custom_tcp_server_ = std::make_unique<SCE::Mesh::CustomTcp::Server>(
             {{ custom_tcp_transport.listen }},
-            [this](const SCE::Mesh::MeshEnvelope& env) {
-{% if custom_tcp_inbound_peers or custom_tcp_outbound_peers %}
-                switch (env.pattern) {
-{% if custom_tcp_inbound_peers %}
-                case SCE::Mesh::PatternKind::InvokeStart:
-                case SCE::Mesh::PatternKind::ParentEvent:
-                case SCE::Mesh::PatternKind::InvokeCancel: {
-{% for peer in custom_tcp_inbound_peers %}
-                    if (env.source == "{{ peer.name }}") {
-                        std::scoped_lock lk(tcp_invoke_inbound_mutex_{{ peer.name }}_);
-                        tcp_invoke_inbound_queue_{{ peer.name }}_.push_back(env);
-                        return;
-                    }
-{% endfor %}
-                    return;  // unknown source — drop (sender bug)
-                }
-{% endif %}
-{% if custom_tcp_outbound_peers %}
-                case SCE::Mesh::PatternKind::InvokeStarted:
-                case SCE::Mesh::PatternKind::ChildEvent:
-                case SCE::Mesh::PatternKind::InvokeDone:
-                case SCE::Mesh::PatternKind::InvokeError:
-                    // Parent-side: dispatchEnvelope handles wires 15/16/18/20
-                    (void)this->dispatchToSession(env, 0);
-                    return;
-{% endif %}
-                default:
-                    break;  // fall through
-                }
-{% endif %}
-                (void)this->dispatchToSession(env, 0);
-            });
+            [this](const SCE::Mesh::MeshEnvelope& env,
+                   const SCE::Mesh::CustomTcp::PeerLink& link) {
+                this->onCustomTcpInbound(env, link);
+            },
+            CUSTOM_TCP_SOCKET);
         if (!custom_tcp_server_->valid()) {
             shutdown();
             return false;
@@ -2894,6 +3693,18 @@ struct TransportRouter {
 {% for target in targets if target.state.kind == "custom_tcp" %}
         {{ target.target_snake }}_.setDecodeErrorHandler(
             [this]() {{ raise_envelope_corrupt_lambda("custom_tcp") }});
+        // §16.7 row 8: the stream to this peer IS the liveness signal, so
+        // its loss is the same condition zenoh reports with a token DELETE,
+        // SOME/IP with `available=false` and DDS with a liveliness lease
+        // expiry. Without `keepalive` the edge fires on a clean FIN or a
+        // reset; with it, on a partition too.
+        {{ target.target_snake }}_.setPeerLossHandler([this]() {
+            SCE::Mesh::CommunicationError err;
+            err.reason = SCE::Mesh::ReasonCode::PeerPartitioned;
+            err.transport = "custom_tcp";
+            err.target = "{{ target.target }}";
+            this->raiseCommunicationError(std::move(err));
+        });
 {% endfor %}
 {% for peer in custom_tcp_outbound_peers %}
         p2c_to_{{ peer.name }}_.setDecodeErrorHandler(
@@ -2930,6 +3741,97 @@ struct TransportRouter {
                 return false;
             }
         }
+{% endfor %}
+{% endif %}
+{% if "dds" in transport_types or has_server_dds %}
+        // ── DDS bring-up (SCE_MESH.md §mesh-8.2) ──
+        //
+        // The participant comes first: every endpoint below borrows it,
+        // and IGNORE_LOCAL(participant) only means "this device's own
+        // traffic" because they all share this one.
+        dds_participant_ = std::make_unique<SCE::Mesh::Dds::Participant>(DDS_DOMAIN_ID{% if dds_transport.config %}, DDS_CONFIG{% elif dds_transport.qos %}, nullptr{% endif %}{% if dds_transport.qos %}, sceDdsQosOverlay(){% endif %});
+        if (!dds_participant_->valid()) {
+            shutdown();
+            return false;
+        }
+{% if has_server_dds %}
+        dds_server_ = std::make_unique<SCE::Mesh::Dds::Server>(
+            *dds_participant_, DDS_SERVER_TOPIC,
+            [this](const SCE::Mesh::MeshEnvelope& env) { this->onDdsInbound(env); });
+        if (!dds_server_->valid()) {
+            shutdown();
+            return false;
+        }
+        // SCE_MESH.md §16.7 row 4: malformed CBOR inside an otherwise
+        // well-formed DDS sample raises with transport="dds". Wired
+        // before the drain thread can deliver anything.
+        dds_server_->setDecodeErrorHandler(
+            [this]() {{ raise_envelope_corrupt_lambda("dds") }});
+{% endif %}
+{% for target in targets if target.state.kind == "dds" %}
+{# One endpoint for a plain binding, one per declared member for a
+   §14.4 bounded pool. Built as a list so the body below — callback,
+   validity gate, decode-error hook, QoS hook — is written once: a pool
+   member's endpoint is an ordinary client that happens to address a
+   substituted topic, and duplicating the body would let the two drift. #}
+{% set ns_dds_eps = namespace(v=[]) %}
+{% if target.pool_plan and target.pool_plan.kind == "bounded_string" %}
+{% for m in target.pool_plan.members %}
+{% set ns_dds_eps.v = ns_dds_eps.v + [{
+     "slot": target.target_snake ~ "_pool_[" ~ loop.index0 ~ "]",
+     "topic": '"' ~ m.address ~ '"'}] %}
+{% endfor %}
+{% else %}
+{% set ns_dds_eps.v = [{
+     "slot": target.target_snake ~ "_",
+     "topic": "DDS_TOPIC_" ~ (target.target_snake | upper)}] %}
+{% endif %}
+{% for ep in ns_dds_eps.v %}
+        // Client endpoints dispatch straight to the engine: a reply is
+        // correlated by the router's own pending table, and a
+        // notification is an ordinary inbound event. session_idx is `0`
+        // — DDS has no server pool, so N_SESSIONS is 1 here.
+        {{ ep.slot }} = std::make_unique<SCE::Mesh::Dds::Client>(
+            *dds_participant_, {{ ep.topic }},
+            [this](const SCE::Mesh::MeshEnvelope& env) {
+                // The machine name is baked in per endpoint: this client
+                // reads only the reply/event topics derived from
+                // `{{ target.target }}`'s own `topic:`, so arrival here IS that
+                // target's identity (§mesh-14.6 responder check). The
+                // `#` is stripped because a responder set holds machine
+                // names, while `respondersFor` is keyed on the send
+                // target — the same split the SOME/IP arm makes.
+                this->onDdsClientInbound(env, "{{ target.target | replace("#", "") }}");
+            });
+        if (!{{ ep.slot }}->valid()) {
+            shutdown();
+            return false;
+        }
+        {{ ep.slot }}->setDecodeErrorHandler(
+            [this]() {{ raise_envelope_corrupt_lambda("dds") }});
+{% if dds_transport.qos and (dds_transport.qos.deadline_ms or dds_transport.qos.liveliness_lease_ms) %}
+        // §8.2: a declared DEADLINE / LIVELINESS is a promise about the
+        // peer's behaviour, so its violation reaches the author as
+        // `error.communication` rather than sitting in a DDS status
+        // nothing reads. Deadline is its own row 16; a liveliness loss is
+        // row 8 PEER_PARTITIONED, the same row zenoh and someip raise for
+        // the same condition through their own mechanisms.
+        {{ ep.slot }}->setQosViolationHandler(
+            [this](SCE::Mesh::Dds::QosViolation violation) {
+                SCE::Mesh::CommunicationError err;
+                err.transport = "dds";
+                err.target = "{{ target.target }}";
+                if (violation.kind == SCE::Mesh::Dds::QosViolationKind::DeadlineMissed) {
+                    err.reason = SCE::Mesh::ReasonCode::NotificationDeadlineMissed;
+                    err.deadline_ms = {{ dds_transport.qos.deadline_ms }};
+                    err.missed_count = violation.count;
+                } else {
+                    err.reason = SCE::Mesh::ReasonCode::PeerPartitioned;
+                }
+                this->raiseCommunicationError(std::move(err));
+            });
+{% endif %}
+{% endfor %}
 {% endfor %}
 {% endif %}
 {% if "zenoh" in transport_types %}
@@ -3431,18 +4333,23 @@ struct TransportRouter {
                     SCE::Mesh::MeshEnvelope env;
                     if (!SCE::Mesh::decodeEnvelope(pl->get_data(), pl->get_length(), env)) {{ raise_envelope_corrupt("someip") }}
                     // Stash original request for create_response() when the
-                    // engine sends service.response.X. Key by invoke_id when
-                    // available (mesh-rpc path) for correlation bridge symmetry
-                    // with the Zenoh queryable handler. env.type / env.pattern
-                    // are trusted from the decoded envelope — the client
-                    // encoded them via resolvePattern before send.
-                    auto cid = env.invoke_id.value_or(
-                        env.correlation_id.value_or(SCE::uuid::v7()));
+                    // engine sends service.response.X. Minting and seeding are
+                    // the shared §8.3 correlation macros, so this handler keys
+                    // identically to the FieldAccess, Zenoh queryable and
+                    // custom_tcp server arms. env.type / env.pattern are
+                    // trusted from the decoded envelope — the client encoded
+                    // them via resolvePattern before send.
+                    auto cid = {{ mint_correlation("env") }};
                     {
                         std::lock_guard<std::mutex> lock(server_pending_mutex_);
                         pending_server_requests_[CorrelationKey{cid}] = msg;
+{% if has_server_deadline_someip %}
+                        // SCE Mesh §9.5.1: arm the response deadline under
+                        // the same lock as the stash.
+                        {{ arm_server_deadline("cid", '"' ~ pair.request_event ~ '"') }}
+{% endif %}
                     }
-                    env.correlation_id = cid;
+                    {{ seed_correlation("env", "cid") }}
                     // SCE_MESH.md §10.5: server-side dedup gate. Today the
                     // deploy schema has no server-side `protocol: tcp` knob,
                     // so SOME/IP server sockets ride the vsomeip.json-defined
@@ -3508,17 +4415,22 @@ struct TransportRouter {
                     if (!pl) return;
                     SCE::Mesh::MeshEnvelope env;
                     if (!SCE::Mesh::decodeEnvelope(pl->get_data(), pl->get_length(), env)) {{ raise_envelope_corrupt("someip") }}
-                    // Stash original request (key symmetry with the RPC
-                    // handler: invoke_id first, correlation_id fallback,
-                    // fresh UUID last). handleServerResponse looks the
-                    // message back up and calls create_response on it.
-                    auto cid = env.invoke_id.value_or(
-                        env.correlation_id.value_or(SCE::uuid::v7()));
+                    // Stash original request under the shared §8.3 correlation
+                    // macros — same keying as the RPC handler above.
+                    // handleServerResponse looks the message back up and calls
+                    // create_response on it when the engine raises
+                    // field.notify.X.
+                    auto cid = {{ mint_correlation("env") }};
                     {
                         std::lock_guard<std::mutex> lock(server_pending_mutex_);
                         pending_server_requests_[CorrelationKey{cid}] = msg;
+{% if has_server_deadline_someip %}
+                        // SCE Mesh §9.5.1: arm the response deadline under
+                        // the same lock as the stash.
+                        {{ arm_server_deadline("cid", '"' ~ fa.request_event ~ '"') }}
+{% endif %}
                     }
-                    env.correlation_id = cid;
+                    {{ seed_correlation("env", "cid") }}
                     // SCE_MESH.md §10.5: same server-side dedup gate as the
                     // RPC / FireForget handlers above.
                     (void)this->{{ dedup_or_dispatch(server_needs_dedup, "env", "session_idx") }};
@@ -3549,34 +4461,32 @@ struct TransportRouter {
                 auto bytes = payload_opt->get().as_vector();
                 SCE::Mesh::MeshEnvelope env;
                 if (!SCE::Mesh::decodeEnvelope(bytes.data(), bytes.size(), env)) {{ raise_envelope_corrupt("zenoh") }}
-                // Key by invoke_id when available (mesh-rpc invoke path) so the
-                // outbound response can be correlated through the engine's
-                // currentEventInvokeId without an extra mapping table. Falls
-                // back to correlation_id (SOME/IP client sets it) or a fresh
-                // UUID (plain <send> path — single outstanding request).
-                auto cid = env.invoke_id.value_or(
-                    env.correlation_id.value_or(SCE::uuid::v7()));
+                // Stash the Query under the shared §8.3 correlation macros so
+                // the outbound response resolves through the engine's
+                // currentEventInvokeId without an extra mapping table — same
+                // keying as the SOME/IP and custom_tcp server arms.
+                auto cid = {{ mint_correlation("env") }};
                 {
                     std::lock_guard<std::mutex> lock(server_pending_mutex_);
                     pending_server_queries_.insert_or_assign(CorrelationKey{cid}, query.clone());
-{% if has_server_query_timeout %}
-                    // SCE Mesh gap Z2: arm the deadline under the same
+{% if has_server_deadline_zenoh %}
+                    // SCE Mesh §9.5: arm the deadline under the same
                     // lock as the insert so `handleServerResponse`'s
                     // cancel-before-erase cannot observe a half-built
                     // entry. `registerDeadline` returns false on a
                     // duplicate cid — the map's `insert_or_assign` just
                     // replaced an entry, so the same cid's timer is still
                     // live and the new one is implicitly coalesced to
-                    // the earlier deadline (§9.5 benign-drop: the next
+                    // the earlier deadline (benign-drop: the next
                     // responder wins). No re-arm race because inbound
                     // queries always carry a fresh UUIDv7 cid.
                     (void)deadline_scheduler_.registerDeadline(
                         cid,
-                        std::chrono::milliseconds({{ server.query_timeout_ms }}),
-                        [this, cid]() noexcept { onServerQueryTimedOut(cid); });
+                        std::chrono::milliseconds({{ server.response_deadline_ms }}),
+                        [this, cid]() noexcept { onServerRequestTimedOut(cid); });
 {% endif %}
                 }
-                env.correlation_id = cid;
+                {{ seed_correlation("env", "cid") }}
                 // SCE_MESH.md §10.5: Zenoh server queryable gate. Uses
                 // the same `server_needs_dedup` flag as the SOME/IP
                 // server handlers above so all server-side inbound
@@ -3663,6 +4573,10 @@ struct TransportRouter {
             (void)route_send("{{ sub.source }}", sub_env);
         }
 {% endfor %}
+        // Arm the paired unsubscribe. Release pairs with the acquire in
+        // `shutdown()`'s `exchange` so a teardown on another thread sees
+        // the sends above as complete.
+        machine_subscriptions_armed_.store(true, std::memory_order_release);
 {% endif %}
 {% if has_ordered_binding %}
         // SCE_MESH.md §10.6.4 periodic tick. Started last so a partial
@@ -3750,18 +4664,53 @@ struct TransportRouter {
 {% endif %}
 {% if machine_subscriptions %}
         // Machine-lifetime unsubscribe (reverse of init subscriptions).
+        // Runs at most once per init(): `~TransportRouter` calls
+        // shutdown() after any explicit call, and a second unsubscribe is
+        // a frame the peer must not have to tolerate — over a transport
+        // where hanging up is itself an unsubscribe (custom_tcp,
+        // SCE_MESH.md §mesh-10.4.4) the duplicate is indistinguishable
+        // from the first in the server's registry, so it would go
+        // unnoticed while still being written.
+        if (machine_subscriptions_armed_.exchange(false, std::memory_order_acquire)) {
 {% for sub in machine_subscriptions %}
-        {
-            SCE::Mesh::MeshEnvelope unsub_env;
-            unsub_env.id = SCE::uuid::v7();
-            unsub_env.source = "{{ machine_name }}";
-            unsub_env.routing_id = routing_id_;
-            unsub_env.type = "{{ sub.event }}";
-            unsub_env.pattern = SCE::Mesh::PatternKind::EventUnsubscribe;
-            unsub_env.datacontenttype = SCE::Mesh::PayloadCodec::None;
-            (void)route_send("{{ sub.source }}", unsub_env);
-        }
+            {
+                SCE::Mesh::MeshEnvelope unsub_env;
+                unsub_env.id = SCE::uuid::v7();
+                unsub_env.source = "{{ machine_name }}";
+                unsub_env.routing_id = routing_id_;
+                unsub_env.type = "{{ sub.event }}";
+                unsub_env.pattern = SCE::Mesh::PatternKind::EventUnsubscribe;
+                unsub_env.datacontenttype = SCE::Mesh::PayloadCodec::None;
+                (void)route_send("{{ sub.source }}", unsub_env);
+            }
 {% endfor %}
+        }
+{% endif %}
+{% if has_server_response_deadline %}
+        // SCE Mesh §9.5.1: arm the server-side shutdown flag BEFORE
+        // tearing down the scheduler so any callback already dispatched
+        // on the scheduler thread observes the teardown and bails out
+        // before touching the pending map. Release pairs with the
+        // acquire load inside `onServerRequestTimedOut`. Then drain the
+        // scheduler — this joins its worker thread and drops any
+        // remaining pending timers per the "benign drop" rule (a router
+        // being destroyed cannot deliver further events). Ordering
+        // matters: the flag-set must precede the scheduler drain so a
+        // callback that has already crossed the scheduler's unlock
+        // boundary short-circuits on the flag. `scheduler.shutdown()`
+        // is idempotent across the dtor-via-shutdown path.
+{% if has_server_deadline_active %}
+        //
+        // This block precedes every transport teardown below, and an
+        // `ActiveError` arm depends on that order: its expiry notice is
+        // an outbound send on transport state the teardown is about to
+        // destroy — a stopped vsomeip application, a shut-down TCP
+        // server, a reset DDS participant. Draining first means the
+        // last callback has already returned by the time any of them
+        // goes down.
+{% endif %}
+        server_shutdown_in_progress_.store(true, std::memory_order_release);
+        deadline_scheduler_.shutdown();
 {% endif %}
 {% for target in targets if target.state.kind == "someip" %}
         if ({{ target.target_snake }}_app_) {{ target.target_snake }}_app_->stop();
@@ -3782,22 +4731,6 @@ struct TransportRouter {
         {{ someip_sce_app_field }}.reset();
 {% endif %}
 {% if has_server_zenoh %}
-{% if has_server_query_timeout %}
-        // SCE Mesh gap Z2: arm the server-side shutdown flag BEFORE
-        // tearing down the scheduler so any callback already dispatched
-        // on the scheduler thread observes the teardown and bails out
-        // before touching `pending_server_queries_`. Release pairs with
-        // the acquire load inside `onServerQueryTimedOut`. Then drain
-        // the scheduler — this joins its worker thread and drops any
-        // remaining pending timers per §9.5 "benign drop" (a router
-        // being destroyed cannot deliver further events). Ordering
-        // matters: the flag-set must precede the scheduler drain so a
-        // callback that has already crossed the scheduler's unlock
-        // boundary short-circuits on the flag. `scheduler.shutdown()`
-        // is idempotent across the dtor-via-shutdown path.
-        server_shutdown_in_progress_.store(true, std::memory_order_release);
-        deadline_scheduler_.shutdown();
-{% endif %}
 {% if server.has_server_put %}
         zenoh_server_put_sub_.reset();
 {% endif %}
@@ -3854,6 +4787,31 @@ struct TransportRouter {
         // shutdown() returns and before any client field destructors run.
         if (custom_tcp_server_) custom_tcp_server_->shutdown();
         custom_tcp_server_.reset();
+{% endif %}
+{% if "dds" in transport_types or has_server_dds %}
+        // Endpoints before the participant: every reader thread borrows
+        // the participant, so tearing it down first would leave a drain
+        // thread waiting on entities that no longer exist. Each endpoint's
+        // shutdown() joins its own threads before returning.
+{% if has_server_dds %}
+        if (dds_server_) dds_server_->shutdown();
+        dds_server_.reset();
+{% endif %}
+{% for target in targets if target.state.kind == "dds" %}
+{% if target.pool_plan and target.pool_plan.kind == "bounded_string" %}
+        // §14.4 bounded pool: every member endpoint is torn down, not
+        // just the first — each owns its own reader threads, and a
+        // participant reset with live readers is a use-after-free.
+        for (auto& pool_endpoint : {{ target.target_snake }}_pool_) {
+            if (pool_endpoint) pool_endpoint->shutdown();
+            pool_endpoint.reset();
+        }
+{% else %}
+        if ({{ target.target_snake }}_) {{ target.target_snake }}_->shutdown();
+        {{ target.target_snake }}_.reset();
+{% endif %}
+{% endfor %}
+        dds_participant_.reset();
 {% endif %}
     }
 
@@ -3929,6 +4887,20 @@ struct TransportRouter {
             // (§16.7 row 9). The buffer owns the app-pointer null check
             // identically to the pre-§10.10 direct path.
             return {{ target.target_snake }}_outbound_.admit(env);
+{% elif target.pool_plan and target.pool_plan.kind == "typed_instance" %}
+            // §14.4 bounded pool: the member is chosen by the runtime
+            // `{{ target.pool_plan.instance_from }}` <param> rather than being the
+            // binding's declared default. Same resolver `invokeMeshRpc`
+            // uses, so a `<send>` and an `<invoke>` on this binding
+            // cannot disagree about which ids are addressable.
+            if ({{ target.target_snake }}_app_) {
+                vsomeip::instance_t pool_instance = 0;
+                if (!resolvePoolInstance_{{ target.target_snake }}(env, pool_instance)) {
+                    return false;
+                }
+                return send_to_{{ target.target_snake }}(*{{ target.target_snake }}_app_, env, pool_instance);
+            }
+            return false;
 {% else %}
             if ({{ target.target_snake }}_app_) {
                 return send_to_{{ target.target_snake }}(*{{ target.target_snake }}_app_, env);
@@ -3955,6 +4927,20 @@ struct TransportRouter {
                                   ZENOH_KEY_{{ target.target_snake | upper }},
                                   "{{ target.target }}");
             }
+{% elif target.pool_plan and target.pool_plan.kind == "open_string" %}
+            // §14.4 open pool: the address is assembled per send from
+            // the binding's `key:` template and the runtime <param>
+            // values, so there is no build-time constant to hand
+            // `send_zenoh`. Same assembler `invokeMeshRpc` uses, so a
+            // `<send>` and an `<invoke>` on this binding cannot resolve
+            // the same placeholder differently.
+            if (zenoh_session_) {
+                std::string pool_key;
+                if (!buildPoolKey_{{ target.target_snake }}(env, pool_key)) {
+                    return false;
+                }
+                return send_zenoh(env, pool_key, "{{ target.target }}");
+            }
 {% else %}
             if (zenoh_session_) {
                 return send_zenoh(env,
@@ -3965,6 +4951,43 @@ struct TransportRouter {
             return false;
 {% elif target.state.kind == "custom_tcp" %}
             return send_to_{{ target.target_snake }}({{ target.target_snake }}_, env);
+{% elif target.state.kind == "dds" %}
+{% if target.pool_plan and target.pool_plan.kind == "bounded_string" %}
+            // §14.4 bounded pool: the endpoint is chosen by the runtime
+            // `{{ target.pool_plan.placeholder }}` <param> rather than being the
+            // binding's single client. Subscribe / unsubscribe select a
+            // member the same way a send does — a subscription on this
+            // binding is a reader on one member's notification topic,
+            // not on all of them.
+            std::size_t pool_idx = 0;
+            if (!selectPoolMember(env, "{{ target.pool_plan.placeholder }}",
+                                  {{ target.target_snake | upper }}_POOL_MEMBERS, pool_idx)) {
+                return false;
+            }
+            auto& dds_endpoint = {{ target.target_snake }}_pool_[pool_idx];
+{% else %}
+            auto& dds_endpoint = {{ target.target_snake }}_;
+{% endif %}
+            if (!dds_endpoint) {
+                return false;  // init() has not joined the domain
+            }
+            {
+                using PK = SCE::Mesh::PatternKind;
+                // Subscribe / unsubscribe are not writes on DDS: the
+                // subscription IS the notification reader, so it is
+                // created and destroyed rather than announced. A
+                // publisher learns of both through DDS discovery, which
+                // is why there is no unsubscribe message that could be
+                // lost in flight (SCE_MESH.md §mesh-8.2).
+                if (env.pattern == PK::EventSubscribe) {
+                    return dds_endpoint->subscribe();
+                }
+                if (env.pattern == PK::EventUnsubscribe) {
+                    dds_endpoint->unsubscribe();
+                    return true;
+                }
+            }
+            return send_to_{{ target.target_snake }}(*dds_endpoint, env);
 {% endif %}
         }
 {% endfor %}
@@ -3998,6 +5021,17 @@ struct TransportRouter {
 {% set ns.has_patterns = true %}
         if (eventName == "{{ resp }}") return PK::FieldNotify;
 {% endfor %}
+{# Declared eventgroup events the server publishes spontaneously. A
+   `field.notify.X` eventgroup event is already resolved above as a paired
+   reply and its arm here is unreachable; an `event.notification.X` one has
+   no other arm, and without this it would fall through to FireForget and
+   never reach the publish path. The kind is resolved in Rust
+   (`ServerEventgroupContext::pattern_kind`) so the pattern vocabulary
+   stays owned by `pattern.rs`. #}
+{% for eg in server.eventgroup_events %}
+{% set ns.has_patterns = true %}
+        if (eventName == "{{ eg.event }}") return static_cast<PK>({{ eg.pattern_kind }});
+{% endfor %}
 {% endif %}
 {% if not ns.has_patterns %}
         (void)eventName;
@@ -4005,7 +5039,7 @@ struct TransportRouter {
         return PK::FireForget;
     }
 
-{% if "someip" in transport_types or "zenoh" in transport_types or "custom_tcp" in transport_types or has_mesh_rpc.v or has_server %}
+{% if "someip" in transport_types or "zenoh" in transport_types or "custom_tcp" in transport_types or "dds" in transport_types or has_mesh_rpc.v or has_server %}
     /// Look up the paired reply event for an RPC request (build-time table).
     /// SCE_MESH.md §13 path B: the pair is inferred by convention —
     /// `service.request.X` ↔ `service.response.X`. Returns empty string
@@ -4021,7 +5055,325 @@ struct TransportRouter {
     }
 {% endif %}
 
-{% if "someip" in transport_types or "zenoh" in transport_types or "local" in transport_types or "custom_tcp" in transport_types or has_mesh_rpc.v or has_server or scxml_remote_inbound_peers or scxml_remote_outbound_peers %}
+{% if "dds" in transport_types %}
+{#- Only a dds target carrying a request/reply PAIR can ever retire a
+    correlation entry. Gating on the target's mere existence would emit a
+    reply-admission path on a FireForget-only binding, where `reply_event`
+    is empty and the branch could never fire. Mirrors the custom_tcp
+    `ns_ctcp_rpc` computation below. #}
+{%- set ns_dds_rpc = namespace(v=false) %}
+{%- for t in targets if t.state.kind == "dds" %}
+{%-   for ep in t.event_patterns if ep.reply_event %}
+{%-     set ns_dds_rpc.v = true %}
+{%-   endfor %}
+{%- endfor %}
+{%- set dds_client_rpc = ns_dds_rpc.v %}
+    /// Inbound entry point for every dds client endpoint on this router:
+    /// replies arriving on `<topic>_Reply` and notifications arriving on
+    /// `<topic>_Event`.
+    ///
+    /// Runs on a reader drain thread. Neither leg needs the per-arrival
+    /// handle a connection-oriented transport carries — a DDS reply is
+    /// published, not written back up the request path.
+    ///
+    /// `target` names the binding whose endpoint received this envelope.
+    /// It is a codegen-time constant because one `Dds::Client` is
+    /// constructed per target and each reads only the reply/event topics
+    /// derived from that target's own `topic:`. That makes it the DDS
+    /// counterpart of the identity the sibling arms get for free — the
+    /// SOME/IP handler registered per (service, instance, method), the
+    /// custom_tcp stream a request left on — and it is what the §mesh-14.6
+    /// responder check below tests, rather than the forgeable
+    /// `env.source`.
+    void onDdsClientInbound(const SCE::Mesh::MeshEnvelope& inbound,
+                            const char* target) {
+        SCE::Mesh::MeshEnvelope env = inbound;
+        (void)target;
+{% if dds_client_rpc %}
+        // ── Reply admission (SCE_MESH.md §mesh-14.6 + §mesh-8.2) ──
+        //
+        // A correlation entry is a one-shot resource: whoever matches it
+        // retires the request. Without this the entry registered by the
+        // outbound `RpcRequest` would never be retired at all — the map
+        // would grow one entry per request for the life of the process,
+        // and a reply carrying a failed `rpc_status` would reach the
+        // engine under whatever name the peer chose with nothing
+        // checking that the peer was entitled to answer.
+        //
+        // The check runs BEFORE the erase, so a rejected reply leaves the
+        // entry live and the request still answerable.
+        if (env.pattern == SCE::Mesh::PatternKind::RpcReply
+            || env.pattern == SCE::Mesh::PatternKind::FieldNotify) {
+            bool undeclared_replier = false;
+            if (env.correlation_id) {
+                std::lock_guard<std::mutex> lock(correlation_mutex_);
+                auto it = pending_rpcs_.find(CorrelationKey{*env.correlation_id});
+                if (it != pending_rpcs_.end()) {
+                    const auto& allowed = it->second.responders;
+                    if (std::find(allowed.begin(), allowed.end(), std::string(target))
+                        != allowed.end()) {
+                        // Only a SUCCESSFUL reply may be renamed to the
+                        // declared reply event. Renaming a failure would
+                        // hand the author's
+                        // `<transition event="service.response.X">` an
+                        // envelope whose payload is empty because the
+                        // call did not happen, i.e. report a false
+                        // success. SCE Mesh §9.5.1 stamps
+                        // `error.rpc.deadline` on a server response
+                        // deadline expiry; keeping that name is what
+                        // lets the author branch on it.
+                        const bool reply_ok =
+                            !env.rpc_status.has_value()
+                            || *env.rpc_status == SCE::Mesh::RpcStatus::Ok;
+                        if (reply_ok) {
+                            env.type = it->second.reply_event;
+                        }
+                        env.pattern = SCE::Mesh::PatternKind::RpcReply;
+                        pending_rpcs_.erase(it);
+                    } else {
+                        undeclared_replier = true;
+                    }
+                }
+            }
+            if (undeclared_replier) {
+                // SCE_MESH.md §mesh-16.7 row 14, raised outside the
+                // correlation mutex.
+                SCE::Mesh::CommunicationError err;
+                err.reason = SCE::Mesh::ReasonCode::RpcReplyFromUndeclaredPeer;
+                err.source = env.source;
+                err.transport = "dds";
+                err.envelope_id = env.id;
+                raiseCommunicationError(std::move(err));
+                return;
+            }
+        }
+{% endif %}
+        // session_idx `0`: DDS declares no server pool, so N_SESSIONS is 1.
+        (void)this->{{ dedup_or_dispatch(has_undeduped_transport, "env", "0") }};
+    }
+{% endif %}
+{% if has_server_dds %}
+    /// Inbound entry point for the dds server's request leg.
+    ///
+    /// Establishes the correlation per §mesh-8.3 through the same shared
+    /// macros the SOME/IP, Zenoh and custom_tcp server arms use, then
+    /// records it as admitted so a later reply can be checked against a
+    /// correlation this router actually handed out. What the sibling arms
+    /// stash alongside it — the vsomeip message, the query, the link —
+    /// has no DDS counterpart: the reply goes out on the reply topic, not
+    /// back through the request.
+    void onDdsInbound(const SCE::Mesh::MeshEnvelope& inbound) {
+        SCE::Mesh::MeshEnvelope env = inbound;
+        if (env.pattern == SCE::Mesh::PatternKind::RpcRequest
+            || env.pattern == SCE::Mesh::PatternKind::FieldRead
+            || env.pattern == SCE::Mesh::PatternKind::FieldWrite) {
+            auto cid = {{ mint_correlation("env") }};
+            {
+                std::lock_guard<std::mutex> lock(server_pending_mutex_);
+                pending_server_correlations_.insert(CorrelationKey{cid});
+{% if has_server_deadline_dds %}
+                // SCE Mesh §9.5.1: armed inside the same lock scope as
+                // the insert, so `handleServerResponse`'s
+                // cancel-before-erase cannot observe a half-built entry.
+                // The event name is captured for the notice's reason
+                // text — `env.type` is about to be handed to the engine
+                // and must not be read from the scheduler thread.
+                {{ arm_server_deadline("cid", "env.type") }}
+{% endif %}
+            }
+            {{ seed_correlation("env", "cid") }}
+        }
+        (void)this->{{ dedup_or_dispatch(has_undeduped_transport, "env", "0") }};
+    }
+{% endif %}
+
+{% if "custom_tcp" in transport_types %}
+{%- set custom_tcp_inbound_peers = scxml_remote_inbound_peers | selectattr("transport", "equalto", "custom_tcp") | list %}
+{%- set custom_tcp_outbound_peers = scxml_remote_outbound_peers | selectattr("transport", "equalto", "custom_tcp") | list %}
+{#- Only a custom_tcp target carrying a request/reply PAIR can ever retire a
+    correlation entry. Gating on the target's mere existence would emit a
+    reply-admission path on a FireForget-only binding, where `reply_event`
+    is empty and the branch could never fire. #}
+{%- set ns_ctcp_rpc = namespace(v=false) %}
+{%- for t in targets if t.state.kind == "custom_tcp" %}
+{%-   for ep in t.event_patterns if ep.reply_event %}
+{%-     set ns_ctcp_rpc.v = true %}
+{%-   endfor %}
+{%- endfor %}
+{%- set custom_tcp_client_rpc = ns_ctcp_rpc.v %}
+    /// Single inbound entry point for every custom_tcp endpoint on this
+    /// router — the device-shared `listen:` server and each per-target
+    /// client's duplex reader alike.
+    ///
+    /// SCE_MESH.md §mesh-10.4.4: custom_tcp is brokerless, so the stream an
+    /// envelope arrived on IS the route back to its sender. `link` carries
+    /// that stream; handlers that owe the peer an answer send on it rather
+    /// than dialing a reversed connection the peer may not be listening for.
+    ///
+    /// Runs on a transport read thread. `dispatchEnvelope` is documented
+    /// thread-safe for callback threads (§mesh-14.4 convention), so the
+    /// patterns that terminate in the engine dispatch inline; only the
+    /// §mesh-9.6 child-session wires stage into a queue, because
+    /// `WorkerSessionHost`'s session map is single-threaded by contract.
+    void onCustomTcpInbound(const SCE::Mesh::MeshEnvelope& inbound,
+                            const SCE::Mesh::CustomTcp::PeerLink& link) {
+        SCE::Mesh::MeshEnvelope env = inbound;
+        (void)link;
+{% if custom_tcp_client_rpc %}
+        // ── Reply admission (SCE_MESH.md §mesh-14.6 + §mesh-10.4.4) ──
+        //
+        // A correlation entry is a one-shot resource: whoever matches it
+        // retires the request. On a connection-oriented transport the
+        // trustworthy responder identity is the stream, not `env.source`,
+        // which the sender writes and can therefore forge. Admitting only
+        // the stream the request left on makes retiring someone else's
+        // pending request structurally impossible rather than
+        // policy-checked — knowing the correlation id is not enough.
+        //
+        // The check runs BEFORE the erase, so a rejected reply leaves the
+        // entry live and the request still answerable.
+        if (env.pattern == SCE::Mesh::PatternKind::RpcReply
+            || env.pattern == SCE::Mesh::PatternKind::FieldNotify) {
+            bool undeclared_replier = false;
+            if (env.correlation_id) {
+                std::lock_guard<std::mutex> lock(correlation_mutex_);
+                auto it = pending_rpcs_.find(CorrelationKey{*env.correlation_id});
+                if (it != pending_rpcs_.end()) {
+                    if (it->second.stream_id != 0 && it->second.stream_id == link.id()) {
+                        // A reply that reports failure is still an
+                        // answer, so the one-shot entry retires either
+                        // way — but only a SUCCESSFUL reply may be
+                        // renamed to the declared reply event. Renaming
+                        // a failure would hand the author's
+                        // `<transition event="service.response.X">` an
+                        // envelope whose payload is empty because the
+                        // call did not happen, i.e. report a false
+                        // success. The server names the outcome in
+                        // `env.type` (SCE Mesh §9.5.1 stamps
+                        // `error.rpc.deadline` when a server response
+                        // deadline elapsed); keeping that name is what
+                        // lets the author branch on it.
+                        const bool reply_ok =
+                            !env.rpc_status.has_value()
+                            || *env.rpc_status == SCE::Mesh::RpcStatus::Ok;
+                        if (reply_ok) {
+                            env.type = it->second.reply_event;
+                        }
+                        env.pattern = SCE::Mesh::PatternKind::RpcReply;
+                        pending_rpcs_.erase(it);
+                    } else {
+                        undeclared_replier = true;
+                    }
+                }
+            }
+            if (undeclared_replier) {
+                // SCE_MESH.md §mesh-16.7 row 14, raised outside the
+                // correlation mutex.
+                SCE::Mesh::CommunicationError err;
+                err.reason = SCE::Mesh::ReasonCode::RpcReplyFromUndeclaredPeer;
+                err.source = env.source;
+                err.transport = "custom_tcp";
+                err.envelope_id = env.id;
+                raiseCommunicationError(std::move(err));
+                return;
+            }
+        }
+{% endif %}
+{% if has_server_custom_tcp %}
+        // ── Server role (SCE_MESH.md §mesh-8.3) ──
+        //
+        // Stash the link under the shared §8.3 correlation macros, mirroring
+        // the SOME/IP message stash and the Zenoh query stash. What is
+        // stashed differs per transport — here the duplex link that carries
+        // the return leg (§10.4.4) — but the key does not, so
+        // `handleServerResponse` resolves one way whichever transport served
+        // the request.
+        if (env.pattern == SCE::Mesh::PatternKind::RpcRequest
+            || env.pattern == SCE::Mesh::PatternKind::FieldRead
+            || env.pattern == SCE::Mesh::PatternKind::FieldWrite) {
+            auto cid = {{ mint_correlation("env") }};
+            {
+                std::lock_guard<std::mutex> lock(server_pending_mutex_);
+                pending_server_links_[CorrelationKey{cid}] = link;
+{% if has_server_deadline_custom_tcp %}
+                // SCE Mesh §9.5.1: armed inside the same lock scope as
+                // the stash, so `handleServerResponse`'s
+                // cancel-before-erase cannot observe a half-built entry.
+                // The event name is copied into the closure because
+                // `env.type` is about to be renamed by the engine's own
+                // dispatch and the inbound frame will be gone by the
+                // time the timer fires.
+                {{ arm_server_deadline("cid", "env.type") }}
+{% endif %}
+            }
+            {{ seed_correlation("env", "cid") }}
+        }
+{% if server.has_eventgroup %}
+        // Subscribe / unsubscribe never reach the engine: they mutate this
+        // router's own subscriber registry and are answered by the
+        // notifications that follow, not by a state transition.
+        if (env.pattern == SCE::Mesh::PatternKind::EventSubscribe) {
+            std::lock_guard<std::mutex> lock(subscriber_mutex_);
+            auto& axis = subscribers_[subscriptionKeyOf(env.type)];
+            // Re-subscribing on a live link is idempotent — otherwise a
+            // peer that resubscribed after a reconnect would receive
+            // every notification twice.
+            for (const auto& existing : axis) {
+                if (existing == link) return;
+            }
+            axis.push_back(link);
+            return;
+        }
+        if (env.pattern == SCE::Mesh::PatternKind::EventUnsubscribe) {
+            std::lock_guard<std::mutex> lock(subscriber_mutex_);
+            auto it = subscribers_.find(subscriptionKeyOf(env.type));
+            if (it != subscribers_.end()) {
+                auto& axis = it->second;
+                axis.erase(std::remove_if(axis.begin(), axis.end(),
+                                          [&link](const SCE::Mesh::CustomTcp::PeerLink& held) {
+                                              return held == link || !held.valid();
+                                          }),
+                           axis.end());
+                if (axis.empty()) subscribers_.erase(it);
+            }
+            return;
+        }
+{% endif %}
+{% endif %}
+{% if custom_tcp_inbound_peers or custom_tcp_outbound_peers %}
+        switch (env.pattern) {
+{% if custom_tcp_inbound_peers %}
+        case SCE::Mesh::PatternKind::InvokeStart:
+        case SCE::Mesh::PatternKind::ParentEvent:
+        case SCE::Mesh::PatternKind::InvokeCancel: {
+{% for peer in custom_tcp_inbound_peers %}
+            if (env.source == "{{ peer.name }}") {
+                std::scoped_lock lk(tcp_invoke_inbound_mutex_{{ peer.name }}_);
+                tcp_invoke_inbound_queue_{{ peer.name }}_.push_back(env);
+                return;
+            }
+{% endfor %}
+            return;  // unknown source — drop (sender bug)
+        }
+{% endif %}
+{% if custom_tcp_outbound_peers %}
+        case SCE::Mesh::PatternKind::InvokeStarted:
+        case SCE::Mesh::PatternKind::ChildEvent:
+        case SCE::Mesh::PatternKind::InvokeDone:
+        case SCE::Mesh::PatternKind::InvokeError:
+            // Parent-side: dispatchEnvelope handles wires 15/16/18/20
+            (void)this->dispatchToSession(env, 0);
+            return;
+{% endif %}
+        default:
+            break;  // fall through
+        }
+{% endif %}
+        (void)this->dispatchToSession(env, 0);
+    }
+
+{% endif %}
+{% if "someip" in transport_types or "zenoh" in transport_types or "local" in transport_types or "custom_tcp" in transport_types or has_mesh_rpc.v or has_server or scxml_remote_inbound_peers or scxml_remote_outbound_peers or "dds" in transport_types %}
     /// Dispatch an incoming envelope to a specific session via MeshDispatch.
     ///
     /// Called on transport callback threads (vsomeip application threads,
@@ -4061,9 +5413,34 @@ struct TransportRouter {
         // session_idx is 0.
         if (env.pattern == SCE::Mesh::PatternKind::RpcReply && env.invoke_id) {
             const auto status = env.rpc_status.value_or(SCE::Mesh::RpcStatus::Ok);
-            if (invoke_correlation_.handleReply(*env.invoke_id, status, env.data)) {
+            using ReplyOutcome = SCE::Mesh::InvokeCorrelation::ReplyOutcome;
+            switch (invoke_correlation_.handleReply(*env.invoke_id, env.source, status, env.data)) {
+            case ReplyOutcome::Delivered:
                 deadline_scheduler_.cancelDeadline(*env.invoke_id);
                 return true;
+            case ReplyOutcome::ReplierNotDeclared: {
+                // SCE_MESH.md §16.7 row 14. The entry is still live —
+                // `handleReply` checks the responder set BEFORE erasing —
+                // so the request stays answerable by a declared peer and
+                // its deadline stays armed. Raise rather than drop: a
+                // reply carrying a live correlation id from an
+                // undeclared peer is either a topology error or an
+                // attempt to retire someone else's request, and both
+                // are things the author must be able to observe.
+                SCE::Mesh::CommunicationError err;
+                err.reason = SCE::Mesh::ReasonCode::RpcReplyFromUndeclaredPeer;
+                err.source = env.source;
+                err.invoke_id = SCE::uuid::to_string(*env.invoke_id);
+                err.envelope_id = env.id;
+                raiseCommunicationError(std::move(err));
+                return true;
+            }
+            case ReplyOutcome::NoSuchInvoke:
+                // Unknown or already-retired id: ordinary traffic. Fall
+                // through to generic dispatch, which may still match a
+                // session-level RPC through the SOME/IP pending_rpcs_
+                // table.
+                break;
             }
         }
 {% endif %}
@@ -4105,10 +5482,10 @@ struct TransportRouter {
     [[nodiscard]] bool admitInbound(const SCE::Mesh::MeshEnvelope& env,
                                     std::size_t session_idx) {
         const auto dedup_result = dedup_.admitWithSignal(env.source, env.id);
-        if (dedup_result == ::SCE::Mesh::DedupWindow::Result::Duplicate) {
+        if (dedup_result == ::SCE::Mesh::DedupResult::Duplicate) {
             return false;
         }
-        if (dedup_result == ::SCE::Mesh::DedupWindow::Result::NovelWithEviction) {
+        if (dedup_result == ::SCE::Mesh::DedupResult::NovelWithEviction) {
             // SCE_MESH.md §16.7 row 7 — DEDUP_WINDOW_OVERFLOW. The
             // sender's sustained novel-id rate exceeded this
             // receiver's 256-slot per-sender ring; the spec calls
@@ -4122,7 +5499,7 @@ struct TransportRouter {
             __sce_dedup_err.reason = ::SCE::Mesh::ReasonCode::DedupWindowOverflow;
             __sce_dedup_err.source = env.source;
             __sce_dedup_err.window_size =
-                static_cast<std::int64_t>(::SCE::Mesh::DedupWindow::kCapacity);
+                static_cast<std::int64_t>(DedupRouter::kCapacity);
             raiseCommunicationError(std::move(__sce_dedup_err));
         }
         return dispatchToSession(env, session_idx);
@@ -4221,15 +5598,15 @@ struct TransportRouter {
             // every registry transport today.
             const auto __sce_dedup_after_ordering =
                 dedup_.admitWithSignal(env.source, env.id);
-            if (__sce_dedup_after_ordering == ::SCE::Mesh::DedupWindow::Result::Duplicate) continue;
-            if (__sce_dedup_after_ordering == ::SCE::Mesh::DedupWindow::Result::NovelWithEviction) {
+            if (__sce_dedup_after_ordering == ::SCE::Mesh::DedupResult::Duplicate) continue;
+            if (__sce_dedup_after_ordering == ::SCE::Mesh::DedupResult::NovelWithEviction) {
                 // §16.7 row 7 — same overflow surface as admitInbound
                 // (separate dispatch entry, identical raise contract).
                 ::SCE::Mesh::CommunicationError __sce_dedup_err;
                 __sce_dedup_err.reason = ::SCE::Mesh::ReasonCode::DedupWindowOverflow;
                 __sce_dedup_err.source = env.source;
                 __sce_dedup_err.window_size =
-                    static_cast<std::int64_t>(::SCE::Mesh::DedupWindow::kCapacity);
+                    static_cast<std::int64_t>(DedupRouter::kCapacity);
                 raiseCommunicationError(std::move(__sce_dedup_err));
             }
 {% endif %}
@@ -4371,6 +5748,23 @@ struct TransportRouter {
             std::lock_guard<std::mutex> lock(server_pending_mutex_);
             auto it = pending_server_requests_.find(ckey);
             if (it == pending_server_requests_.end()) return false;
+{% if has_server_deadline_someip %}
+            // SCE Mesh §9.5.1: cancel the deadline BEFORE erasing so the
+            // timer cannot fire between find() and erase() and answer
+            // MT_ERROR for a request this thread is about to answer
+            // normally. `cancelDeadline` returns false if the timer has
+            // already fired — in that case `onServerRequestTimedOut`
+            // already removed the entry, `find()` missed it, and this
+            // line is unreachable.
+            //
+            // Deadlock analysis matches the zenoh arm: `cancelDeadline`
+            // is "mark-cancelled, don't wait" and takes only the
+            // scheduler's own mutex, and the scheduler unlocks before
+            // invoking a callback, so an in-flight
+            // `onServerRequestTimedOut` blocks on `server_pending_mutex_`
+            // — held here — and then erases an already-gone entry.
+            (void)deadline_scheduler_.cancelDeadline(ckey.id);
+{% endif %}
             original = it->second;
             pending_server_requests_.erase(it);
         }
@@ -4386,11 +5780,11 @@ struct TransportRouter {
         std::lock_guard<std::mutex> lock(server_pending_mutex_);
         auto it = pending_server_queries_.find(ckey);
         if (it == pending_server_queries_.end()) return false;
-{% if has_server_query_timeout %}
-        // SCE Mesh gap Z2: cancel the deadline BEFORE erasing so the
+{% if has_server_deadline_zenoh %}
+        // SCE Mesh §9.5.1: cancel the deadline BEFORE erasing so the
         // timer cannot fire between find() and erase() and race the
         // reply. `cancelDeadline` returns false if the timer has
-        // already fired — in that case `onServerQueryTimedOut`
+        // already fired — in that case `onServerRequestTimedOut`
         // already removed the entry, `find()` missed it, and this
         // line is unreachable.
         //
@@ -4399,7 +5793,7 @@ struct TransportRouter {
         // internal mutex, never blocks on in-flight callback
         // completion. When the scheduler fires a callback it
         // unlocks BEFORE invoking it (MeshDeadlineScheduler.h
-        // `run()` loop), so an in-flight `onServerQueryTimedOut`
+        // `run()` loop), so an in-flight `onServerRequestTimedOut`
         // runs outside the scheduler mutex and blocks on
         // `server_pending_mutex_` — which this thread holds — until
         // handleServerResponse releases it, then executes
@@ -4415,8 +5809,96 @@ struct TransportRouter {
         stored_query.reply(zenoh::KeyExpr(ZENOH_SERVER_KEY),
                            zenoh::Bytes(std::move(buf)));
         return true;
+{% elif has_server_custom_tcp %}
+        // SCE_MESH.md §mesh-10.4.4: answer on the stream that carried the
+        // request. Move the link out and erase before sending, so a reply
+        // is one-shot exactly as the SOME/IP and Zenoh arms are — a second
+        // response to the same correlation id finds nothing and returns
+        // false rather than writing twice to the peer.
+        //
+        // The send happens outside `server_pending_mutex_`: it performs a
+        // blocking socket write, and holding the map lock across it would
+        // let one slow peer stall every other reply on this router.
+        SCE::Mesh::CustomTcp::PeerLink reply_link;
+        {
+            std::lock_guard<std::mutex> lock(server_pending_mutex_);
+            auto it = pending_server_links_.find(ckey);
+            if (it == pending_server_links_.end()) return false;
+{% if has_server_deadline_custom_tcp %}
+            // SCE Mesh §9.5.1: cancel the deadline BEFORE erasing so the
+            // timer cannot fire between find() and erase() and write a
+            // timeout notice onto a stream this thread is about to
+            // answer normally. `cancelDeadline` returns false if the
+            // timer has already fired — in that case
+            // `onServerRequestTimedOut` already removed the entry,
+            // `find()` missed it, and this line is unreachable.
+            //
+            // Deadlock analysis matches the sibling arms: `cancelDeadline`
+            // is "mark-cancelled, don't wait" and takes only the
+            // scheduler's own mutex, and the scheduler unlocks before
+            // invoking a callback, so an in-flight
+            // `onServerRequestTimedOut` blocks on `server_pending_mutex_`
+            // — held here — and then erases an already-gone entry.
+            (void)deadline_scheduler_.cancelDeadline(ckey.id);
+{% endif %}
+            reply_link = std::move(it->second);
+            pending_server_links_.erase(it);
+        }
+        return reply_link.send(env);
+{% elif has_server_dds %}
+        // SCE_MESH.md §mesh-8.2: publish on the reply topic paired with
+        // the request topic. Erase before publishing so a reply is
+        // one-shot exactly as the sibling arms are — a second response to
+        // the same correlation finds nothing admitted and returns false
+        // rather than publishing twice.
+        //
+        // Refusing an unadmitted correlation is what stands in for the
+        // stream identity a connection-oriented transport gets for free.
+        // It is a weaker guarantee and §mesh-8.2 says so: this router
+        // cannot publish a reply it never accepted a request for, but the
+        // reply topic itself is not private to one peer.
+        {
+            std::lock_guard<std::mutex> lock(server_pending_mutex_);
+            auto it = pending_server_correlations_.find(ckey);
+            if (it == pending_server_correlations_.end()) return false;
+{% if has_server_deadline_dds %}
+            // SCE Mesh §9.5.1: cancel the deadline BEFORE erasing so the
+            // timer cannot fire between find() and erase() and publish a
+            // timeout notice for a request this thread is about to
+            // answer normally. Same lock-ordering argument as the
+            // sibling arms: `cancelDeadline` only takes the scheduler's
+            // own mutex and never waits on an in-flight callback, which
+            // is meanwhile blocked on `server_pending_mutex_`.
+            (void)deadline_scheduler_.cancelDeadline(ckey.id);
+{% endif %}
+            pending_server_correlations_.erase(it);
+        }
+        return dds_server_ && dds_server_->reply(env);
 {% endif %}
     }
+{% if has_server_custom_tcp and server.has_eventgroup %}
+
+    /// The subscription axis an event name addresses — everything after
+    /// the pattern prefix. `event.subscribe.status`,
+    /// `event.unsubscribe.status` and `event.notification.status` all key
+    /// on `status`, which is what makes a subscribe and the notifications
+    /// it asked for meet without a codegen-emitted pairing table.
+    static std::string subscriptionKeyOf(const std::string& eventName) {
+        static constexpr const char* kPrefixes[] = {
+            "event.subscribe.",
+            "event.unsubscribe.",
+            "event.notification.",
+            "field.notify.",
+        };
+        for (const char* prefix : kPrefixes) {
+            const std::size_t n = std::char_traits<char>::length(prefix);
+            if (eventName.size() > n && eventName.compare(0, n, prefix) == 0) {
+                return eventName.substr(n);
+            }
+        }
+        return eventName;
+    }
+{% endif %}
 {% if server.has_eventgroup %}
 
     /// Publish an eventgroup notification to all subscribed clients.
@@ -4472,6 +5954,63 @@ struct TransportRouter {
             zenoh_session_->put(zenoh::KeyExpr(ZENOH_SERVER_KEY),
                                 zenoh::Bytes(std::move(buf)));
             return true;
+        }
+{% endfor %}
+        return false;
+{% elif has_server_custom_tcp %}
+        // Brokerless fan-out (SCE_MESH.md §mesh-8.1). session_idx is
+        // unused: the pool shape is SOME/IP-only (§mesh-14.4), so
+        // N_SESSIONS is 1 and there is one server-side instance axis.
+        (void)session_idx;
+{% for eg in server.eventgroup_events %}
+        if (env.type == "{{ eg.event }}") {
+            std::vector<SCE::Mesh::CustomTcp::PeerLink> recipients;
+            {
+                std::lock_guard<std::mutex> lock(subscriber_mutex_);
+                auto it = subscribers_.find(subscriptionKeyOf(env.type));
+                if (it == subscribers_.end()) return false;
+                // Purge peers that have hung up while holding the lock —
+                // the stored link is self-reporting, so a dead subscriber
+                // costs one predicate rather than an expiry mechanism.
+                auto& axis = it->second;
+                axis.erase(std::remove_if(axis.begin(), axis.end(),
+                                          [](const SCE::Mesh::CustomTcp::PeerLink& held) {
+                                              return !held.valid();
+                                          }),
+                           axis.end());
+                if (axis.empty()) {
+                    subscribers_.erase(it);
+                    return false;
+                }
+                recipients = axis;
+            }
+            // Send outside the registry lock: each send is a blocking
+            // socket write, and one slow subscriber must not stall the
+            // others or block a concurrent subscribe.
+            bool delivered = false;
+            for (const auto& peer : recipients) {
+                delivered = peer.send(env) || delivered;
+            }
+            return delivered;
+        }
+{% endfor %}
+        return false;
+{% elif has_server_dds %}
+        // DDS fan-out (SCE_MESH.md §mesh-8.1) holds no subscriber
+        // registry at all: publishing on the notification topic reaches
+        // exactly the peers whose readers DDS discovery has matched, and
+        // a subscriber that dies is removed by discovery rather than by a
+        // purge this router performs. Transient-local depth 1 additionally
+        // hands the value to a peer that subscribes after the publish, so
+        // a late subscriber sees the current value instead of waiting for
+        // the next change.
+        //
+        // session_idx is unused: the pool shape is SOME/IP-only
+        // (§mesh-14.4), so N_SESSIONS is 1 here.
+        (void)session_idx;
+{% for eg in server.eventgroup_events %}
+        if (env.type == "{{ eg.event }}") {
+            return dds_server_ && dds_server_->publish(env);
         }
 {% endfor %}
         return false;
@@ -4628,7 +6167,7 @@ struct TransportRouter {
         // codegen, so `sessions_[0]` is the sole session here.
         SenderEngine* sender_ptr = sessions_[0];
         std::string captured_invoke_id = invokeId;
-        invoke_correlation_.registerInvoke(invoke_uuid, target,
+        invoke_correlation_.registerInvoke(invoke_uuid, target, respondersFor(target),
             [sender_ptr, captured_invoke_id](
                 SCE::Mesh::RpcStatus status,
                 std::vector<std::uint8_t> payload) {
@@ -4652,7 +6191,7 @@ struct TransportRouter {
                 ActiveInvokeRecord{invoke_uuid, envelope_uuid};
         }
 
-{% for target in targets if target.pool_plan and target.pool_plan.kind == "someip" %}
+{% for target in targets if target.pool_plan and target.pool_plan.kind == "typed_instance" %}
         // SCE_MESH.md §14.4: SOME/IP bounded pool — runtime instance selection.
         // The instance id is read from the `{{ target.pool_plan.instance_from }}`
         // <param> value on the invoking <invoke>, validated against the
@@ -4662,47 +6201,8 @@ struct TransportRouter {
         // RpcStatus::Unavailable — vsomeip would silently drop them
         // otherwise because no request_service was ever issued for the id.
         if (target == "{{ target.target }}") {
-            std::string pool_json(env.data.begin(), env.data.end());
-            auto pool_parsed = ::SCE::EventDataHelper::jsonStringToScriptValue(pool_json);
-            if (!pool_parsed) {
-                cleanupAbandonedMeshInvoke(invoke_uuid,
-{%- if has_any_retry.v %} envelope_uuid,{% endif %} target, fieldSuffix);
-                return false;
-            }
-            auto* pool_obj_sp = std::get_if<std::shared_ptr<::ScriptObject>>(&*pool_parsed);
-            if (!pool_obj_sp || !*pool_obj_sp) {
-                cleanupAbandonedMeshInvoke(invoke_uuid,
-{%- if has_any_retry.v %} envelope_uuid,{% endif %} target, fieldSuffix);
-                return false;
-            }
-            auto& pool_obj = **pool_obj_sp;
-            auto inst_it = pool_obj.properties.find("{{ target.pool_plan.instance_from }}");
-            if (inst_it == pool_obj.properties.end()) {
-                cleanupAbandonedMeshInvoke(invoke_uuid,
-{%- if has_any_retry.v %} envelope_uuid,{% endif %} target, fieldSuffix);
-                return false;
-            }
-            std::string inst_str = ::SCE::EventDataHelper::scriptValueToJsonString(inst_it->second);
-            if (inst_str.size() >= 2 && inst_str.front() == '"' && inst_str.back() == '"') {
-                inst_str = inst_str.substr(1, inst_str.size() - 2);
-            }
-            unsigned long long inst_ul = 0;
-            const char* inst_begin = inst_str.data();
-            const char* inst_end = inst_begin + inst_str.size();
-            auto parse = std::from_chars(inst_begin, inst_end, inst_ul);
-            if (parse.ec != std::errc() || parse.ptr != inst_end || inst_ul > 0xFFFFu) {
-                cleanupAbandonedMeshInvoke(invoke_uuid,
-{%- if has_any_retry.v %} envelope_uuid,{% endif %} target, fieldSuffix);
-                return false;
-            }
-            vsomeip::instance_t runtime_instance = static_cast<vsomeip::instance_t>(inst_ul);
-            static constexpr vsomeip::instance_t pool_instances_{{ target.target_snake }}[] = {
-{% for i in target.pool_plan.instances %}                {{ i }}{% if not loop.last %},{% endif %}
-{% endfor %}
-            };
-            if (std::find(std::begin(pool_instances_{{ target.target_snake }}),
-                          std::end(pool_instances_{{ target.target_snake }}),
-                          runtime_instance) == std::end(pool_instances_{{ target.target_snake }})) {
+            vsomeip::instance_t runtime_instance = 0;
+            if (!resolvePoolInstance_{{ target.target_snake }}(env, runtime_instance)) {
                 cleanupAbandonedMeshInvoke(invoke_uuid,
 {%- if has_any_retry.v %} envelope_uuid,{% endif %} target, fieldSuffix);
                 return false;
@@ -4734,61 +6234,29 @@ struct TransportRouter {
             return true;
         }
 {% endfor %}
-{% for target in targets if target.pool_plan and target.pool_plan.kind == "zenoh" %}
+{% for target in targets if target.pool_plan and target.pool_plan.kind == "open_string" %}
         // SCE_MESH.md §14.4: Zenoh open pool — bind-time `key:` carries
         // `{name}` placeholders. Substituted at invoke time from the
         // JSON envelope payload (populated by the generator from the
         // author's `<param>` entries), yielding a per-invoke KeyExpr.
-        // route_send cannot see placeholder values (it only accepts
-        // `env`), so the pool path bypasses it and dispatches directly
-        // via `zenoh_session_->get` with the same reply / on_drop
-        // closures as the literal-key path (see `send_zenoh` RpcRequest
-        // branch — semantics must stay in sync).
+        // The address comes from the same `buildPoolKey_*` the
+        // `route_send` arm uses; what this arm adds is the mesh-rpc
+        // machinery `send_zenoh` has no place for — the invoke-scoped
+        // on_drop early-cancel (gap Z3) keyed on `env.invoke_id`. The
+        // reply handling below mirrors `send_zenoh`'s RpcRequest branch
+        // and the two must stay in sync.
         if (target == "{{ target.target }}") {
             if (!zenoh_session_) {
                 cleanupAbandonedMeshInvoke(invoke_uuid,
 {%- if has_any_retry.v %} envelope_uuid,{% endif %} target, fieldSuffix);
                 return false;
             }
-            std::string pool_json(env.data.begin(), env.data.end());
-            auto pool_parsed = ::SCE::EventDataHelper::jsonStringToScriptValue(pool_json);
-            if (!pool_parsed) {
+            std::string pool_key;
+            if (!buildPoolKey_{{ target.target_snake }}(env, pool_key)) {
                 cleanupAbandonedMeshInvoke(invoke_uuid,
 {%- if has_any_retry.v %} envelope_uuid,{% endif %} target, fieldSuffix);
                 return false;
             }
-            auto* pool_obj_sp = std::get_if<std::shared_ptr<::ScriptObject>>(&*pool_parsed);
-            if (!pool_obj_sp || !*pool_obj_sp) {
-                cleanupAbandonedMeshInvoke(invoke_uuid,
-{%- if has_any_retry.v %} envelope_uuid,{% endif %} target, fieldSuffix);
-                return false;
-            }
-            auto& pool_obj = **pool_obj_sp;
-            std::string pool_key = "{{ target.state.key }}";
-{% for ph in target.pool_plan.placeholders %}
-            {
-                auto it = pool_obj.properties.find("{{ ph }}");
-                if (it == pool_obj.properties.end()) {
-                    cleanupAbandonedMeshInvoke(invoke_uuid,
-{%- if has_any_retry.v %} envelope_uuid,{% endif %} target, fieldSuffix);
-                    return false;
-                }
-                // scriptValueToJsonString wraps strings in quotes; strip
-                // them so the substitution yields the raw token value.
-                std::string pv = ::SCE::EventDataHelper::scriptValueToJsonString(it->second);
-                if (pv.size() >= 2 && pv.front() == '"' && pv.back() == '"') {
-                    pv = pv.substr(1, pv.size() - 2);
-                }
-                const std::string token = "{{ '{' }}{{ ph }}{{ '}' }}";
-                auto pos = pool_key.find(token);
-                if (pos == std::string::npos) {
-                    cleanupAbandonedMeshInvoke(invoke_uuid,
-{%- if has_any_retry.v %} envelope_uuid,{% endif %} target, fieldSuffix);
-                    return false;
-                }
-                pool_key.replace(pos, token.size(), pv);
-            }
-{% endfor %}
             try {
                 zenoh::KeyExpr pool_kexpr(pool_key);
                 auto encoded = SCE::Mesh::encodeEnvelope(env);
@@ -4831,6 +6299,29 @@ struct TransportRouter {
 {%- if has_any_retry.v %} envelope_uuid,{% endif %} target, fieldSuffix);
                 return false;
             }
+        }
+{% endfor %}
+{% for target in targets if target.pool_plan and target.pool_plan.kind == "bounded_string" %}
+        // SCE_MESH.md §14.4: DDS bounded pool — runtime member selection.
+        // Unlike the Zenoh arm, nothing is assembled here: every member's
+        // endpoints were built at init() so DDS discovery had time to
+        // match them, and this path only picks the slot whose declared
+        // `members:` value equals the runtime `{{ target.pool_plan.placeholder }}`
+        // <param>. A value outside the declared set fails closed rather
+        // than creating an endpoint whose first sample a VOLATILE writer
+        // would drop with no error.
+        if (target == "{{ target.target }}") {
+            std::size_t member_idx = 0;
+            if (!selectPoolMember(env, "{{ target.pool_plan.placeholder }}",
+                                  {{ target.target_snake | upper }}_POOL_MEMBERS, member_idx)
+                || !{{ target.target_snake }}_pool_[member_idx]) {
+                cleanupAbandonedMeshInvoke(invoke_uuid,
+{%- if has_any_retry.v %} envelope_uuid,{% endif %} target, fieldSuffix);
+                return false;
+            }
+            // Same call the non-pool DDS route takes; the only difference
+            // is which endpoint it lands on.
+            return send_to_{{ target.target_snake }}(*{{ target.target_snake }}_pool_[member_idx], env);
         }
 {% endfor %}
         return route_send(target, env);
@@ -4917,14 +6408,33 @@ struct TransportRouter {
         // invoke uuid above).
         cancelEnvelopeRetryById(envelope_uuid);
 {% endif %}
-        (void)invoke_correlation_.handleReply(
-            invoke_uuid, SCE::Mesh::RpcStatus::Unavailable, {});
+        // Locally-observed failure (the query terminated without a
+        // reply), so it goes through `failLocally` — there is no
+        // replier and therefore no §14.6 responder set to check.
+        (void)invoke_correlation_.failLocally(
+            invoke_uuid, SCE::Mesh::RpcStatus::Unavailable);
     }
 {% endif %}
 {% endif %}
 {% endif %}
 
-{% if has_mesh_rpc.v or has_server_query_timeout %}
+{% if "someip" in transport_types or "custom_tcp" in transport_types or "dds" in transport_types %}
+    /// Test-only accessor: number of outbound RPC requests still
+    /// awaiting a reply in the client-side correlation table.
+    ///
+    /// Verification role: a correlation entry is a one-shot resource,
+    /// and the failure mode this exposes is silent — a reply that is
+    /// dispatched to the engine without retiring its entry looks
+    /// completely healthy from the outside while the table grows once
+    /// per request for the life of the process. Only a direct read
+    /// distinguishes "the reply was correlated" from "the reply merely
+    /// arrived".
+    [[nodiscard]] std::size_t pending_client_rpc_size() const {
+        std::lock_guard<std::mutex> lock(correlation_mutex_);
+        return pending_rpcs_.size();
+    }
+{% endif %}
+{% if has_mesh_rpc.v or has_server_response_deadline %}
     /// Test-only accessor: number of currently-armed deadlines in
     /// `deadline_scheduler_`. Reads `active_.size()` through the
     /// scheduler's own const-correct accessor (`MeshDeadlineScheduler.h`).
@@ -4943,60 +6453,267 @@ struct TransportRouter {
         return deadline_scheduler_.size();
     }
 {% endif %}
-{% if has_server_query_timeout %}
-    /// SCE Mesh gap Z2: fire when a stranded server queryable entry
-    /// outlives `server.query_timeout_ms` because the engine never
+{% if has_server_response_deadline %}
+    /// SCE Mesh §9.5.1: fire when a stranded inbound server request
+    /// outlives `server.response_deadline_ms` because the engine never
     /// emitted the paired response envelope (e.g. the handling state
     /// was left before `<send event="service.response.X">` ran).
     ///
-    /// Erasing the stored `zenoh::Query` destructs it; zenoh signals
-    /// "query done" to the client peer, whose `session.get` `on_drop`
-    /// closure fires. With gap Z3 wired client-side, the client raises
-    /// `error.invoke.<id>` via `RpcStatus::Unavailable` — no new
-    /// `error.communication` row is needed here (§9.5 + §16.7: all
-    /// existing rows are client-centric, a server row would be
+    /// The release is common to every realised server arm; the notice
+    /// the requesting peer gets is not, and that split is recorded in
+    /// the transport registry as
+    /// `TransportDescriptor::server_deadline_notice`.
+    ///
+{% if has_server_deadline_active %}
+    /// This arm is `ServerDeadlineNotice::ActiveError`: expiry answers
+    /// the requester with a `MeshEnvelope` stamped
+    /// `rpc_status = RpcStatus::DeadlineExceeded`, so its reply path
+    /// raises `error.invoke.<id>` with a status that says *the server
+    /// gave up* rather than the `RpcStatus::Unavailable` that a
+    /// vanished peer produces. The envelope is built once below and the
+    /// transports differ only in how it is handed to the peer.
+    ///
+{% endif %}
+{% if has_server_deadline_someip %}
+    /// SOME/IP carries a first-class timeout notice — message type
+    /// `MT_ERROR` (0x81) with return code `E_TIMEOUT` (0x06), per the
+    /// AUTOSAR SOME/IP Protocol Specification's message-type and
+    /// return-code tables. `create_response(original)` copies the
+    /// request's client id, session id, service, instance and method,
+    /// so the error reply correlates on the wire exactly as a normal
+    /// response would; only the type and return code differ.
+    ///
+    /// This is the axis on which SCE leads its reference: neither
+    /// vsomeip nor `ara::com` arms a server-side deadline at all —
+    /// they expose only a client-side future timeout, which cannot
+    /// distinguish a server that gave up from a dropped datagram, and
+    /// leaves the server's own request handle parked indefinitely.
+    ///
+{% endif %}
+{% if has_server_deadline_custom_tcp %}
+    /// custom_tcp defines its own framing (§mesh-10.4.4), so there is
+    /// no foreign error slot to fill — the notice is the same framed
+    /// envelope a normal reply is, written back on the stream the
+    /// request arrived on. That stream is the stashed
+    /// `pending_server_links_` entry, which is by construction the
+    /// connection that asked, so the notice cannot reach a peer that
+    /// did not make the call. If the requester has already hung up the
+    /// stored link reports itself closed and the send fails cleanly —
+    /// the leak the deadline exists to close is shut either way.
+    ///
+{% endif %}
+{% if has_server_deadline_dds %}
+    /// DDS publishes the notice on the reply topic derived from the
+    /// request topic (§mesh-8.2) — the leg a normal reply already
+    /// travels, so the requester needs no second reader to observe it.
+    /// The admitted correlation is erased first, which is what keeps
+    /// the answer one-shot: a late engine response for the same
+    /// correlation finds nothing admitted and publishes nothing.
+    ///
+{% endif %}
+{% if has_server_deadline_zenoh %}
+    /// Zenoh (`ServerDeadlineNotice::DropSilently`): erasing the
+    /// stored `zenoh::Query` destructs it; zenoh signals "query done"
+    /// to the client peer, whose `session.get` `on_drop` closure
+    /// fires and raises `error.invoke.<id>` via
+    /// `RpcStatus::Unavailable`. The query model has no
+    /// server-authored failure channel, so this is the whole notice
+    /// available — no new `error.communication` row is introduced
+    /// (§16.7's rows are client-centric; a server row would be
     /// speculative operator telemetry).
     ///
+{% endif %}
     /// Thread-safety: runs on the MeshDeadlineScheduler worker thread.
-    /// `server_pending_mutex_` serializes with the queryable callback
-    /// and `handleServerResponse`; lock order matches the insert /
-    /// cancel sites (router mutex first, scheduler internal second).
+    /// `server_pending_mutex_` serializes with the inbound handler and
+    /// `handleServerResponse`; lock order matches the insert / cancel
+    /// sites (router mutex first, scheduler internal second).
     ///
     /// Shutdown semantics: `shutdown()` sets
     /// `server_shutdown_in_progress_` and drains the scheduler before
-    /// tearing down the queryable — the flag is a belt-and-braces
+    /// tearing down any transport state — the flag is a belt-and-braces
     /// guard in case a callback is already dispatched when shutdown
     /// begins.
-    void onServerQueryTimedOut(
-        const std::array<std::uint8_t, 16>& cid) noexcept {
+    void onServerRequestTimedOut(
+        const std::array<std::uint8_t, 16>& cid{% if has_server_deadline_active %},
+        const std::string& request_event{% endif %}) noexcept {
         if (server_shutdown_in_progress_.load(std::memory_order_acquire)) {
             return;
         }
+{# ── Release: take the parked handle out of the pending map ──
+   Every arm does the same thing with a different stash, and every arm
+   does it under `server_pending_mutex_` so `cancelDeadline` and this
+   callback can only race in the direction where the entry is already
+   gone, never where it is half-built. What is extracted (or, for DDS,
+   merely confirmed) is what the notice below needs in order to reach
+   the peer. #}
+{% if has_server_deadline_someip %}
+        std::shared_ptr<vsomeip::message> original;
+        {
+            std::lock_guard<std::mutex> lock(server_pending_mutex_);
+            auto it = pending_server_requests_.find(CorrelationKey{cid});
+            // Already answered (or already timed out): `cancelDeadline`
+            // and this callback can only race in the direction where
+            // the entry is gone, never where it is half-built — both
+            // sides hold `server_pending_mutex_` across find + erase.
+            if (it == pending_server_requests_.end()) return;
+            original = it->second;
+            pending_server_requests_.erase(it);
+        }
+{% elif has_server_deadline_custom_tcp %}
+        SCE::Mesh::CustomTcp::PeerLink reply_link;
+        {
+            std::lock_guard<std::mutex> lock(server_pending_mutex_);
+            auto it = pending_server_links_.find(CorrelationKey{cid});
+            if (it == pending_server_links_.end()) return;
+            // Moved out, not copied: the stored link is the router's
+            // only handle on that stream for this correlation, and the
+            // erase below must not leave a second owner behind whose
+            // send could double-answer.
+            reply_link = std::move(it->second);
+            pending_server_links_.erase(it);
+        }
+{% elif has_server_deadline_dds %}
+        {
+            std::lock_guard<std::mutex> lock(server_pending_mutex_);
+            auto it = pending_server_correlations_.find(CorrelationKey{cid});
+            if (it == pending_server_correlations_.end()) return;
+            // Erased BEFORE publishing, so a late engine response for
+            // the same correlation finds nothing admitted and
+            // `handleServerResponse` returns false rather than putting
+            // a second answer on the reply topic.
+            pending_server_correlations_.erase(it);
+        }
+{% elif has_server_deadline_zenoh %}
+        // Zenoh (`ServerDeadlineNotice::DropSilently`): the erase IS the
+        // notice — destructing the stored `zenoh::Query` signals "query
+        // done" to the peer, whose `on_drop` closure raises
+        // `error.invoke.<id>` with `RpcStatus::Unavailable`. Nothing is
+        // built or sent, so the whole arm is this one statement and the
+        // mutex can be held across it.
         std::lock_guard<std::mutex> lock(server_pending_mutex_);
         pending_server_queries_.erase(CorrelationKey{cid});
+{% endif %}
+{% if has_server_deadline_active %}
+        // ── Notice (`ServerDeadlineNotice::ActiveError`) ──
+        //
+        // Built and sent OUTSIDE the pending mutex: delivery reaches a
+        // transport (a vsomeip routing manager, a blocking socket write,
+        // a DDS writer) and must not stall a concurrent inbound handler
+        // or reply on this router.
+        //
+        // Wrapped because this runs on the scheduler thread under
+        // `noexcept`: the notice allocates (envelope, payload buffer)
+        // and calls into the transport, so an escaping exception would
+        // `std::terminate` the process over a diagnostic message. The
+        // pending entry is already released above, so the leak the
+        // deadline exists to close stays closed either way — what a
+        // failure costs is the notice, and the requester falls back to
+        // its own timeout exactly as it would against a server with no
+        // deadline configured.
+        try {
+        SCE::Mesh::MeshEnvelope timeout_env;
+        timeout_env.id = SCE::uuid::v7();
+        timeout_env.source = "{{ machine_name }}";
+        timeout_env.type = "error.rpc.deadline";
+        timeout_env.pattern = SCE::Mesh::PatternKind::RpcReply;
+        timeout_env.correlation_id = cid;
+        // Both correlation fields carry the id for the same reason the
+        // §8.3 seed macro sets both: `invoke_id` is what survives into
+        // the requester's `invoke_correlation_` lookup, `correlation_id`
+        // is what its `pending_rpcs_` table keys on. A timeout notice
+        // that resolved through only one of them would strand the other
+        // kind of caller.
+        timeout_env.invoke_id = cid;
+        timeout_env.rpc_status = SCE::Mesh::RpcStatus::DeadlineExceeded;
+        // Names the call, not just the condition: a client with several
+        // outstanding requests to this server reads which one was
+        // abandoned without decoding correlation ids by hand. Surfaces
+        // as `_event.data` on the requester (MeshDispatch RpcReply arm).
+        timeout_env.rpc_error_message =
+            std::string("'") + request_event +
+            "' was not answered within the server response deadline of "
+            "{{ server.response_deadline_ms }} ms";
+{% if has_server_deadline_someip %}
+        auto response = vsomeip::runtime::get()->create_response(original);
+        // AUTOSAR SOME/IP: MT_ERROR (0x81) is the error counterpart of
+        // MT_RESPONSE (0x80) and E_TIMEOUT (0x06) is the return code
+        // reserved for exactly this condition. `create_response` seeds
+        // MT_RESPONSE / E_OK, so both are overwritten here.
+        response->set_message_type(vsomeip::message_type_e::MT_ERROR);
+        response->set_return_code(vsomeip::return_code_e::E_TIMEOUT);
+        auto buf = SCE::Mesh::encodeEnvelope(timeout_env);
+        auto payload = vsomeip::runtime::get()->create_payload(
+            reinterpret_cast<const vsomeip::byte_t*>(buf.data()),
+            static_cast<uint32_t>(buf.size()));
+        response->set_payload(payload);
+        if (server_app_) server_app_->send(response);
+{% elif has_server_deadline_custom_tcp %}
+        // §mesh-10.4.4: the return leg is the request's own stream, so
+        // the notice needs no addressing at all. A `false` here means
+        // the peer hung up first — nothing to report, since the party
+        // the notice was for is gone.
+        (void)reply_link.send(timeout_env);
+{% elif has_server_deadline_dds %}
+        // §mesh-8.2: published on the reply topic paired with the
+        // request topic — the same writer a normal reply uses, so a
+        // requester already reading replies observes the notice without
+        // a second reader. `dds_server_` is null only after shutdown,
+        // which the flag above has already short-circuited.
+        if (dds_server_) (void)dds_server_->reply(timeout_env);
+{% endif %}
+        } catch (const std::exception& e) {
+            SCE_LOG_ERROR(
+                "SCE Mesh server response deadline: releasing '{}' succeeded but "
+                "the timeout notice could not be sent ({}); the requester will "
+                "fall back to its own timeout",
+                request_event, e.what());
+        }
+{% endif %}
     }
 
-    /// Test-only accessor: number of inbound server queries still
+    /// Test-only accessor: number of inbound server requests still
     /// awaiting an engine response. A verification test asserts this
-    /// drops to zero within `query_timeout_ms + slack` after the
+    /// drops to zero within `response_deadline_ms + slack` after the
     /// engine fails to emit the paired response.
     [[nodiscard]] std::size_t pending_server_size() const {
         std::lock_guard<std::mutex> lock(server_pending_mutex_);
+{% if has_server_deadline_someip %}
+        return pending_server_requests_.size();
+{% elif has_server_deadline_custom_tcp %}
+        return pending_server_links_.size();
+{% elif has_server_deadline_dds %}
+        return pending_server_correlations_.size();
+{% elif has_server_deadline_zenoh %}
         return pending_server_queries_.size();
+{% endif %}
     }
 
     /// Test-only accessor: the `CorrelationKey.id` (16-byte UUIDv7)
-    /// of the first inbound server query still awaiting a response,
+    /// of the first inbound server request still awaiting a response,
     /// or `std::nullopt` if none. A verification test uses this to
     /// hand-craft the matching response envelope without reaching
-    /// into `pending_server_queries_` or `server_pending_mutex_`
-    /// directly — preserves encapsulation of the pending map's
-    /// internal layout, mirroring the `pending_server_size` shape.
+    /// into the pending map or `server_pending_mutex_` directly —
+    /// preserves encapsulation of the map's internal layout,
+    /// mirroring the `pending_server_size` shape.
     [[nodiscard]] std::optional<std::array<std::uint8_t, 16>>
     server_first_cid() const {
         std::lock_guard<std::mutex> lock(server_pending_mutex_);
+{% if has_server_deadline_someip %}
+        if (pending_server_requests_.empty()) return std::nullopt;
+        return pending_server_requests_.begin()->first.id;
+{% elif has_server_deadline_custom_tcp %}
+        if (pending_server_links_.empty()) return std::nullopt;
+        return pending_server_links_.begin()->first.id;
+{% elif has_server_deadline_dds %}
+        // A set, not a map: the correlation IS the entry, so the
+        // dereference reaches the key directly rather than through
+        // `->first`.
+        if (pending_server_correlations_.empty()) return std::nullopt;
+        return pending_server_correlations_.begin()->id;
+{% elif has_server_deadline_zenoh %}
         if (pending_server_queries_.empty()) return std::nullopt;
         return pending_server_queries_.begin()->first.id;
+{% endif %}
     }
 {% endif %}
 
@@ -5030,7 +6747,11 @@ struct TransportRouter {
     /// native API. Called by route_send() with the target's key expression.
     ///
     /// @param env           outbound envelope (pattern-discriminated)
-    /// @param key_expr_str  Zenoh key expression for the target (null-terminated)
+    /// @param key_expr_str  Zenoh key expression for the target. A view
+    ///                      rather than a `const char*` because a §14.4
+    ///                      open pool assembles its address per send —
+    ///                      the binding constant is one of two callers,
+    ///                      not the only one.
     /// @param target_name   SCXML target string — key into zenoh_subscribers_
     /// @return true if the zenoh primitive accepted the operation; false if
     ///         the pattern is not outbound on this transport (inbound-only
@@ -5064,7 +6785,7 @@ struct TransportRouter {
     }
 
     [[nodiscard]] bool send_zenoh(const SCE::Mesh::MeshEnvelope& env,
-                                  const char* key_expr_str,
+                                  std::string_view key_expr_str,
                                   const std::string& target_name) {
         using PK = SCE::Mesh::PatternKind;
         if (!zenoh_session_) return false;

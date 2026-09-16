@@ -18,6 +18,14 @@
 
     // --- Script Engine Helpers (W3C SCXML B.1) ---
 
+    // W3C SCXML 5.3: the declaration hook `enterAt` reaches. Every other caller
+    // arrives through a guard, an assign or a script block, all of which run
+    // `ensureScriptEngine()` on their own way in; a resume runs none of them,
+    // and a host putting saved values back needs the variables to exist first.
+    override fun declareDatamodel() {
+        ensureScriptEngine()
+    }
+
     // W3C SCXML B.1: Lazy script engine initialization
     private fun ensureScriptEngine() {
         if (scriptEngineInitialized) return
@@ -25,17 +33,23 @@
         val sid = allocateScriptSession()
         engine.createSession(sid)
 
-        // W3C SCXML 5.10: Setup system variables (_sessionid, _name, _ioprocessors)
-        engine.setupSystemVariables(sid, "{{ model.name }}")
+        // §scxml-C-1-1 / §scxml-C-2-3: the `_ioprocessors` entries come from the
+        // same helper every other backend uses, so a machine reads the same
+        // entry names and the same addresses whichever one runs it.
+        engine.setupSystemVariables(
+            sid,
+            "{{ model.scxml_name | default('') | w3c_session_name(model.name) | escape_kotlin }}",
+            com.sce.runtime.IoProcessors.build(sid, basicHttpAccessUri),
+        )
 
 {% for var in model.variables %}
 {% if var.expr %}
         // W3C SCXML 5.3: Initialize variable '{{ var.id }}' with expr
         try {
-            val initResult_{{ var.id | to_camel_case }} = engine.evaluateExpr(sid, "{{ var.expr | escape_kotlin }}")
+            val initResult_{{ var.id | to_camel_case }} = engine.evaluateExpr(sid, {{ var.expr | to_script_source_expr }})
             engine.setVariable(sid, "{{ var.id }}", initResult_{{ var.id | to_camel_case }})
         } catch (e: Exception) {
-            raiseInternal({{ machine_name }}Event.Error.Execution)
+            raisePlatformError({{ machine_name }}Event.Error.Execution, "<data id='{{ var.id }}'> expr failed to evaluate")
         }
 {% elif var.src %}
         // W3C SCXML 5.2.2: Load variable '{{ var.id }}' from external source (C++ DataModelInitHelper pattern)
@@ -46,7 +60,7 @@
                 engine.setVariable(sid, "{{ var.id }}", srcValue_{{ var.id | to_camel_case }})
             }
         } catch (e: Exception) {
-            raiseInternal({{ machine_name }}Event.Error.Execution)
+            raisePlatformError({{ machine_name }}Event.Error.Execution, "<data id='{{ var.id }}' src='{{ var.src }}'> could not be loaded")
         }
 {% elif var.content %}
         // W3C SCXML B.2: Initialize variable '{{ var.id }}' with inline content (C++ parseEventData pattern)
@@ -54,7 +68,7 @@
             val initResult_{{ var.id | to_camel_case }} = engine.parseDataValue(sid, "{{ var.content | escape_kotlin }}")
             engine.setVariable(sid, "{{ var.id }}", initResult_{{ var.id | to_camel_case }})
         } catch (e: Exception) {
-            raiseInternal({{ machine_name }}Event.Error.Execution)
+            raisePlatformError({{ machine_name }}Event.Error.Execution, "<data id='{{ var.id }}'> content failed to initialise")
         }
 {% elif var.type == 'runtime' %}
         // W3C SCXML 5.2: Runtime variable '{{ var.id }}' (late binding, undefined)
@@ -74,10 +88,10 @@
 {% if dm_var.expr %}
         // State '{{ state_id }}' variable '{{ dm_var.id }}'
         try {
-            val initResult_{{ dm_var.id | to_camel_case }} = engine.evaluateExpr(sid, "{{ dm_var.expr | escape_kotlin }}")
+            val initResult_{{ dm_var.id | to_camel_case }} = engine.evaluateExpr(sid, {{ dm_var.expr | to_script_source_expr }})
             engine.setVariable(sid, "{{ dm_var.id }}", initResult_{{ dm_var.id | to_camel_case }})
         } catch (e: Exception) {
-            raiseInternal({{ machine_name }}Event.Error.Execution)
+            raisePlatformError({{ machine_name }}Event.Error.Execution, "<data id='{{ dm_var.id }}'> expr failed to evaluate")
         }
 {% elif dm_var.content %}
         // State '{{ state_id }}' variable '{{ dm_var.id }}' (inline content, C++ parseEventData pattern)
@@ -85,7 +99,7 @@
             val initResult_{{ dm_var.id | to_camel_case }} = engine.parseDataValue(sid, "{{ dm_var.content | escape_kotlin }}")
             engine.setVariable(sid, "{{ dm_var.id }}", initResult_{{ dm_var.id | to_camel_case }})
         } catch (e: Exception) {
-            raiseInternal({{ machine_name }}Event.Error.Execution)
+            raisePlatformError({{ machine_name }}Event.Error.Execution, "<data id='{{ dm_var.id }}'> content failed to initialise")
         }
 {% else %}
         engine.setVariable(sid, "{{ dm_var.id }}", null)
@@ -100,9 +114,9 @@
         // W3C SCXML 5.8: Execute global scripts at document load time
 {% for script in model.global_scripts %}
         try {
-            engine.executeScript(sid, "{{ script.content | escape_kotlin }}")
+            engine.executeScript(sid, {{ script.content | to_script_source_script }})
         } catch (e: Exception) {
-            raiseInternal({{ machine_name }}Event.Error.Execution)
+            raisePlatformError({{ machine_name }}Event.Error.Execution, "a top-level <script> failed to execute")
         }
 {% endfor %}
 {% endif %}
@@ -127,39 +141,93 @@
     }
 
     // W3C SCXML 5.9: Guard evaluation with error.execution on failure
-    private fun safeEvaluateGuard(guardExpr: String): Boolean {
+    //
+    // The guard arrives as a `ScriptSource`, not a `String`: it carries the
+    // language its text is in, so a machine generated for a Lua engine hands
+    // over Lua the build-time frontend produced and one generated for an
+    // ECMAScript engine hands over the author's own text — and the engine is
+    // never left to guess which it got. The C++ sibling
+    // (`process_transition.jinja2`) takes the same argument for the same
+    // reason.
+    private fun safeEvaluateGuard(guardExpr: com.sce.runtime.ScriptSource): Boolean {
         ensureScriptEngine()
         val engine = scriptEngine ?: error("scriptEngine is required (codegen invariant: needs_script_engine == true)")
         val sid = scriptSessionId ?: error("scriptSessionId must be initialized after ensureScriptEngine() (codegen invariant)")
         return try {
             engine.evaluateCondition(sid, guardExpr)
         } catch (e: Exception) {
-            raiseInternal({{ machine_name }}Event.Error.Execution)
+            raisePlatformError({{ machine_name }}Event.Error.Execution, "a <transition> cond failed to evaluate")
             false
         }
     }
 
+    // W3C SCXML B.2: the value of an inline `<content>` body, serialized
+    // for transport.
+    //
+    // The reading is decided at build time — `source` is already the
+    // expression or string literal the clause's ordered readings give —
+    // and this evaluates it *here*, at send time, rather than handing the
+    // expression to whatever reads `_event.data` later. That distinction
+    // is not academic: the two engines this backend runs on disagree
+    // about what a data string is. QuickJS tries a JS evaluation before
+    // falling back; Rhino goes straight from JSON to the normalized
+    // string, so an expression handed to it arrives as its own source
+    // text. `JSON.stringify` is what both of them can read back, and it
+    // is the same shape the C++ backend transports.
+    //
+    // The serialization wraps BOTH halves, in each half's own language. A
+    // wrapper composed around one of them only would build a `ScriptSource`
+    // whose two strings no longer say the same thing, and the diagnostic that
+    // reads `source` would name an expression the engine never ran. `JSON` is
+    // a §scxml-B-2-9 name both engines carry, so the wrapper is the same eight
+    // characters on either arm — what differs is what it wraps.
+    private fun evaluateSendContent(source: com.sce.runtime.ScriptSource): String {
+        ensureScriptEngine()
+        val engine = scriptEngine ?: error("scriptEngine is required (codegen invariant: needs_script_engine == true)")
+        val sid = scriptSessionId ?: error("scriptSessionId must be initialized after ensureScriptEngine() (codegen invariant)")
+        val serialized = when (source.language) {
+            com.sce.runtime.ScriptLanguage.ECMAScript ->
+                com.sce.runtime.ScriptSource.ecmascript("JSON.stringify((" + source.source + "))")
+            com.sce.runtime.ScriptLanguage.Lua ->
+                com.sce.runtime.ScriptSource.lua(
+                    "JSON.stringify((" + source.text + "))",
+                    "JSON.stringify((" + source.source + "))",
+                )
+        }
+        return try {
+            engine.evaluateExpr(sid, serialized)?.toString() ?: ""
+        } catch (e: Exception) {
+            raisePlatformError({{ machine_name }}Event.Error.Execution, "an expression could not be serialised to JSON")
+            ""
+        }
+    }
+
     // W3C SCXML 5.3: Assignment via script engine
-    private fun executeAssign(location: String, expr: String) {
+    //
+    // Both halves carry a language: this engine's Lua arm splices the location
+    // in front of `=` and runs the result, so a write target written in
+    // ECMAScript has to have been lowered too. Same split as
+    // `ScxmlScriptEngine.assign`.
+    private fun executeAssign(location: com.sce.runtime.ScriptSource, expr: com.sce.runtime.ScriptSource) {
         ensureScriptEngine()
         val engine = scriptEngine ?: error("scriptEngine is required (codegen invariant: needs_script_engine == true)")
         val sid = scriptSessionId ?: error("scriptSessionId must be initialized after ensureScriptEngine() (codegen invariant)")
         try {
             engine.assign(sid, location, expr)
         } catch (e: Exception) {
-            raiseInternal({{ machine_name }}Event.Error.Execution)
+            raisePlatformError({{ machine_name }}Event.Error.Execution, "<assign> failed")
         }
     }
 
-    // W3C SCXML 3.8.6: Script block execution
-    private fun executeScriptBlock(script: String) {
+    // W3C SCXML 5.8: Script block execution
+    private fun executeScriptBlock(script: com.sce.runtime.ScriptSource) {
         ensureScriptEngine()
         val engine = scriptEngine ?: error("scriptEngine is required (codegen invariant: needs_script_engine == true)")
         val sid = scriptSessionId ?: error("scriptSessionId must be initialized after ensureScriptEngine() (codegen invariant)")
         try {
             engine.executeScript(sid, script)
         } catch (e: Exception) {
-            raiseInternal({{ machine_name }}Event.Error.Execution)
+            raisePlatformError({{ machine_name }}Event.Error.Execution, "<script> failed to execute")
         }
     }
 
@@ -177,9 +245,33 @@
         }
         // W3C SCXML 5.10.1: C++ pattern — origin/origintype only for external events
         // Internal events (<raise>) have empty origin; external events (<send>) have session ID
-        val effectiveOrigin = if (meta.type == "external") meta.origin.ifEmpty { scriptSessionId ?: "" } else meta.origin
+        // W3C SCXML C.1: `_event.origin` is the sender's published
+        // `_ioprocessors` location, not its bare session id — and this is the
+        // one place that publishes `_event` to the document, so this is where
+        // the id becomes a location. The engine keeps the bare id in
+        // `EventMetadata.origin` because its session-keyed lookups (`<finalize>`
+        // dispatch, cancelled-invoke filtering) match on it; converting at the
+        // raise would make one value serve two consumers that need different
+        // spellings. The conversion itself lives in
+        // `com.sce.runtime.IoProcessors.publishedOrigin`, the port of the
+        // `IOProcessorHelper::publishedOrigin` the C++ engines share: a second
+        // spelling of the rule is how the backends would stop agreeing.
+        val effectiveOrigin = com.sce.runtime.IoProcessors.publishedOrigin(
+            if (meta.type == "external") meta.origin.ifEmpty { scriptSessionId ?: "" } else meta.origin
+        )
         val effectiveOriginType = if (meta.type == "external") meta.originType.ifEmpty { "http://www.w3.org/TR/scxml/#SCXMLEventProcessor" } else meta.originType
-        engine.setCurrentEvent(
+        // §scxml-B-2-8-1: the binding answers which rung the payload got, and
+        // that answer used to end here. The ladder decided between a DOM, a
+        // value and a space-normalized string, and the decision was dropped —
+        // so a payload that announced structure and would not parse reached
+        // the document as raw characters, every `_event.data.<field>` read
+        // empty, and nothing anywhere could say so.
+        //
+        // Recorded on the spot rather than returned up: this class extends
+        // `StateMachineEngine`, so the frame that binds already holds both the
+        // reading and the event it belongs to — which is the pairing the count
+        // needs.
+        val payloadReading = engine.setCurrentEvent(
             sid,
             com.sce.runtime.SetCurrentEventArgs(
                 name = eventName,
@@ -191,5 +283,6 @@
                 invokeId = meta.invokeId
             )
         )
+        notePayloadReading(event, payloadReading)
     }
 {% endif %}

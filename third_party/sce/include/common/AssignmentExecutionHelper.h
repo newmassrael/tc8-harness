@@ -73,62 +73,93 @@ public:
      * @param errorCallback Called on error with error message
      * @return true if assignment succeeded, false otherwise
      */
-    static bool executeAssignment(IScriptEngine &jsEngine, const std::string &sessionId, const std::string &location,
-                                  const std::string &expr, std::function<void(const std::string &)> errorCallback) {
+    static bool executeAssignment(IScriptEngine &jsEngine, const std::string &sessionId, const ScriptSource &location,
+                                  const ScriptSource &expr, std::function<void(const std::string &)> errorCallback) {
+        // Both parameters are ScriptSource because BOTH cross the boundary as
+        // executable text: the location is not merely a name here, it is glued
+        // in front of `=` and run as a script. The shape questions below —
+        // is this a system variable, is this a simple name — are asked of
+        // `source()`, because they are questions about what the AUTHOR wrote:
+        // §scxml-5.10 names `_event`, not whatever a lowering spells it.
+        //
         // §scxml-5.10: System variable references require direct script execution
         // This preserves JavaScript object references (critical for test 329: Var2 = _event)
-        if (isSystemVariableReference(expr)) {
-            std::string assignScript = location + " = " + expr + ";";
-            SCE_LOG_DEBUG("AssignmentExecutionHelper: System variable reference - executing script: {}", assignScript);
+        if (isSystemVariableReference(expr.source())) {
+            const ScriptSource assignScript =
+                ScriptSourceBuilder(expr.language()).add(location).add(" = ").add(expr).add(";").build();
+            SCE_LOG_DEBUG("AssignmentExecutionHelper: System variable reference - executing script: {}",
+                          assignScript.source());
             auto scriptResult = jsEngine.executeScript(sessionId, assignScript).get();
             if (!scriptResult.isSuccess()) {
-                std::string errorMsg = "System variable assignment failed: " + location + " = " + expr;
+                std::string errorMsg =
+                    "System variable assignment failed: " + location.source() + " = " + expr.source();
                 SCE_LOG_ERROR("AssignmentExecutionHelper: {}", errorMsg);
                 errorCallback(errorMsg);
                 return false;
             }
-            SCE_LOG_DEBUG("AssignmentExecutionHelper: Successfully assigned {} = {} (system variable reference)", location,
-                      expr);
+            SCE_LOG_DEBUG("AssignmentExecutionHelper: Successfully assigned {} = {} (system variable reference)",
+                          location.source(), expr.source());
             return true;
         }
 
-        // §scxml-5.4: Standard evaluation + assignment strategy
-        // Step 1: Evaluate expression
-        SCE_LOG_DEBUG("AssignmentExecutionHelper: Evaluating expression: {}", expr);
-        auto evalResult = jsEngine.evaluateExpression(sessionId, expr).get();
-        if (!evalResult.isSuccess()) {
-            std::string errorMsg = "Expression evaluation failed: " + expr;
-            SCE_LOG_ERROR("AssignmentExecutionHelper: {}", errorMsg);
-            errorCallback(errorMsg);
-            return false;
-        }
-
-        // Step 2: Assign to location
-        // Simple variable names use setVariable, complex paths use executeScript
-        if (std::regex_match(location, std::regex("^[a-zA-Z_][a-zA-Z0-9_]*$"))) {
+        // §scxml-5.4: Standard evaluation + assignment strategy.
+        //
+        // The expression is evaluated exactly ONCE, on whichever of the two
+        // paths below is taken. It used to be evaluated here, before the
+        // branch, and then evaluated a SECOND time inside the complex path as
+        // part of `<location> = (<expr>);` — the first result being discarded.
+        // For any expression with a side effect that is a wrong answer, not
+        // merely a wasted round trip: measured 2026-08-29 on
+        // `<assign location="answers.d15" expr="++v"/>` with `v` at `'1'`, the
+        // recorded value was 3 where §scxml-5.4 and ECMA-262 13.4.4 say 2.
+        // The shared ECMA-262 table has a `side-effecting` group precisely
+        // because this is observable, and no fixture had asked it through an
+        // <assign> to a non-bare location until one did.
+        //
+        // It affected both engines: this helper is the Single Source of Truth
+        // the Interpreter (`ActionExecutorImpl.cpp`) and every generated
+        // machine share, which is why one fix answers for both.
+        if (std::regex_match(location.source(), std::regex("^[a-zA-Z_][a-zA-Z0-9_]*$"))) {
             // Simple variable name - use setVariable (matches Interpreter ActionExecutorImpl.cpp:160-169)
-            SCE_LOG_DEBUG("AssignmentExecutionHelper: Simple variable - using setVariable for {}", location);
-            auto setResult = jsEngine.setVariable(sessionId, location, evalResult.getInternalValue()).get();
-            if (!setResult.isSuccess()) {
-                std::string errorMsg = "Variable assignment failed: " + location;
+            // The engine is handed a NAME here, not text to evaluate, and a
+            // bare identifier is the same name in either language.
+            SCE_LOG_DEBUG("AssignmentExecutionHelper: Evaluating expression: {}", expr.source());
+            auto evalResult = jsEngine.evaluateExpression(sessionId, expr).get();
+            if (!evalResult.isSuccess()) {
+                std::string errorMsg = "Expression evaluation failed: " + expr.source();
                 SCE_LOG_ERROR("AssignmentExecutionHelper: {}", errorMsg);
                 errorCallback(errorMsg);
                 return false;
             }
-            SCE_LOG_DEBUG("AssignmentExecutionHelper: Successfully assigned {} = {}", location, expr);
+            SCE_LOG_DEBUG("AssignmentExecutionHelper: Simple variable - using setVariable for {}", location.source());
+            auto setResult = jsEngine.setVariable(sessionId, location.source(), evalResult.getInternalValue()).get();
+            if (!setResult.isSuccess()) {
+                std::string errorMsg = "Variable assignment failed: " + location.source();
+                SCE_LOG_ERROR("AssignmentExecutionHelper: {}", errorMsg);
+                errorCallback(errorMsg);
+                return false;
+            }
+            SCE_LOG_DEBUG("AssignmentExecutionHelper: Successfully assigned {} = {}", location.source(), expr.source());
             return true;
         } else {
             // Complex path (e.g., "data.field") - use executeScript (matches Interpreter ActionExecutorImpl.cpp:174)
-            std::string assignScript = location + " = (" + expr + ");";
-            SCE_LOG_DEBUG("AssignmentExecutionHelper: Complex path - executing script: {}", assignScript);
+            const ScriptSource assignScript =
+                ScriptSourceBuilder(expr.language()).add(location).add(" = (").add(expr).add(");").build();
+            SCE_LOG_DEBUG("AssignmentExecutionHelper: Complex path - executing script: {}", assignScript.source());
             auto scriptResult = jsEngine.executeScript(sessionId, assignScript).get();
             if (!scriptResult.isSuccess()) {
-                std::string errorMsg = "Complex path assignment failed: " + location;
+                // Names the expression as well as the location. With the
+                // pre-evaluation gone this is the ONLY diagnostic a failing
+                // complex-path assignment produces, and §scxml-5.4's error is
+                // about evaluating the expression at least as often as it is
+                // about the location.
+                std::string errorMsg = "Complex path assignment failed: " + location.source() + " = " + expr.source();
                 SCE_LOG_ERROR("AssignmentExecutionHelper: {}", errorMsg);
                 errorCallback(errorMsg);
                 return false;
             }
-            SCE_LOG_DEBUG("AssignmentExecutionHelper: Successfully assigned {} = {} (complex path)", location, expr);
+            SCE_LOG_DEBUG("AssignmentExecutionHelper: Successfully assigned {} = {} (complex path)", location.source(),
+                          expr.source());
             return true;
         }
     }

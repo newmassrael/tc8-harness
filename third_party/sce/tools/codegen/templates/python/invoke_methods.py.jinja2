@@ -18,7 +18,7 @@
         haven't started yet.
       - `forward_to_autoforward_children`: deliver external events
         into every active child whose `<invoke>` declared
-        `autoforward="true"` (W3C 6.4.6).
+        `autoforward="true"` (W3C 6.4.1).
 
     `<finalize>` blocks (W3C 6.5) are not yet emitted — the W3C tests
     in γ-4a's scope (test187 etc.) don't exercise finalize. Adding
@@ -64,6 +64,20 @@
             ))
 {% endfor %}
 {% endif %}
+{% set unsup_list = state.invokes | unsupported | list %}
+{% if unsup_list %}
+        if state == {{ machine_name }}State.{{ state_id | to_python_const }}:
+{% for inv in unsup_list %}
+            # W3C SCXML 6.4.1: `type` names no processor this platform
+            # implements. Defer only — the error.execution raise happens in
+            # `execute_pending_invokes`, so §scxml-6.4 ordering holds and the
+            # exit prune drops the entry when the state leaves first.
+            engine._pending_invokes.append(PendingInvoke(
+                invoke_id=f"{{ state_id }}.{id(self)}.{{ inv.invoke_id }}",
+                owner_state_name={{ state_id | py_string_literal }},
+            ))
+{% endfor %}
+{% endif %}
 {% endfor %}
         return
 
@@ -71,6 +85,9 @@
 {% set ns_any = namespace(any=false) %}
 {% for state_id, state in model.states | dictsort %}
 {% for inv in state.invokes | scxml_family %}
+{% set ns_any.any = true %}
+{% endfor %}
+{% for inv in state.invokes | unsupported %}
 {% set ns_any.any = true %}
 {% endfor %}
 {% endfor %}
@@ -97,7 +114,10 @@
                 if not engine._script_engine.has_variable(
                     self._session_id, {{ vname | py_string_literal }}
                 ):
-                    self._raise_error_execution(engine)
+                    self._raise_error_execution(
+                        engine,
+                        "<invoke> namelist names '{{ vname }}', which the parent does not declare",
+                    )
                     _namelist_ok = False
 {% endfor %}
                 if not _namelist_ok:
@@ -149,6 +169,7 @@
 {% endif %}
 {% if inv.params %}
 {% for param in inv.params %}
+{% if inv.child_datamodel_vars is defined and param.name in inv.child_datamodel_vars %}
                 try:
                     _pre_init[{{ param.name | py_string_literal }}] = (
                         engine._script_engine.evaluate_expression(
@@ -157,7 +178,31 @@
                         )
                     )
                 except _ScriptError:
-                    pass
+                    # §scxml-5.7.1: BOTH halves — `error.execution` on the
+                    # internal queue AND the name and value ignored. Only the
+                    # silent half was here (`pass`), so a document that
+                    # miscomputed one `<param>` got a child with a `<data>`
+                    # nothing explained and no event to act on.
+                    #
+                    # The clause delegates only the SUCCESSFUL name and value to
+                    # the context — "Otherwise the use of the name and value
+                    # depends on the context in which the <param> element occurs.
+                    # See 5.5 <donedata>, 6.2 <send> and 6.4 <invoke>" — so
+                    # §scxml-6.4.2's "terminate the processing of the element" is
+                    # not what a failing `<param>` costs: the child still starts,
+                    # one pair short, and no `_ActionAbort` is raised here.
+                    self._raise_error_execution(
+                        engine,
+                        {{ ("<invoke> <param name='" ~ param.name ~ "'> expr failed to evaluate") | py_string_literal }},
+                    )
+{% else %}
+                # §scxml-6.4.3: {{ param.name }} matches no top-level `<data>`
+                # of the child, so the Processor MUST NOT add it to the
+                # invoked session's data model. The namelist arm above
+                # already read the child's declarations for the same reason;
+                # this arm did not, and a param that named nothing there
+                # became a variable in the child anyway.
+{% endif %}
 {% endfor %}
 {% endif %}
                 _child_policy._pre_init_vars = _pre_init
@@ -192,6 +237,7 @@
                         _name,
                         data=_data,
                         invoke_id=_invoke_id_field,
+                        origin=_invoke.origin(),
                         origin_type="http://www.w3.org/TR/scxml/#SCXMLEventProcessor",
                     )
                 # W3C SCXML 6.4 — children that reach final during their
@@ -211,12 +257,79 @@
                     engine._done_invoke_emitted[{{ inv.invoke_id | py_string_literal }}] = True
                 continue
 {% endfor %}
+{% for inv in state.invokes | unsupported_refused %}
+            if entry.invoke_id.endswith({{ ('.' + inv.invoke_id) | py_string_literal }}):
+                # W3C SCXML 6.4.1: unsupported `type` — place error.execution
+                # on the internal queue and start nothing.
+                self._raise_error_execution(
+                    engine,
+                    {{ ("<invoke type='" ~ inv.invoke_type ~ "'> names an external service this platform does not support") | py_string_literal }},
+                )
+                continue
+{% endfor %}
+{% for inv in state.invokes | host_invoker %}
+            if entry.invoke_id.endswith({{ ('.' + inv.invoke_id) | py_string_literal }}):
+                # W3C SCXML 6.4.1: the host declared this `type`, so START the
+                # invocation rather than refusing it. The id handed over is the
+                # DOCUMENT's, not the per-instance one the pending queue
+                # carries: `done.invoke.<id>` is the name the author wrote a
+                # transition for, so it is the name the host must answer on.
+                if not engine.perform_host_invoke(_HostInvokeRequest(
+                    processor_type={{ inv.invoke_type | py_string_literal }},
+                    invoke_id={{ inv.invoke_id | py_string_literal }},
+                    src={{ inv.src | default('', true) | py_string_literal }},
+                    params={
+{% for param in inv.params %}
+{% if param.is_static_literal %}
+                        {{ param.name | py_string_literal }}: [{{ param.static_value | py_string_literal }}],
+{% endif %}
+{% endfor %}
+                    },
+                    content={{ inv.content | default('', true) | py_string_literal }},
+                )):
+                    # W3C SCXML 6.4.1: declared but no invoker registered. The
+                    # document asked for a process to be run and none was,
+                    # which is the same fact as an unsupported type — so the
+                    # same event, rather than a silence that reads as started.
+                    self._raise_error_execution(
+                        engine,
+                        "<invoke> names an invoker the host declared but never registered",
+                    )
+                continue
+{% endfor %}
 {% endfor %}
 {% endif %}
         return
 
     def cancel_invokes_for_state(self, state, engine) -> None:
 {% for state_id, state in model.states | dictsort %}
+{% set unsup_list = state.invokes | unsupported | list %}
+{% if unsup_list %}
+        if state == {{ machine_name }}State.{{ state_id | to_python_const }}:
+{% for inv in unsup_list %}
+            # §scxml-6.4.1: an unsupported-type entry that never ran must
+            # raise nothing, so drop it from the pending queue on exit.
+            _suffix = {{ ('.' + inv.invoke_id) | py_string_literal }}
+            engine._pending_invokes = [
+                p for p in engine._pending_invokes
+                if not p.invoke_id.endswith(_suffix)
+            ]
+{% endfor %}
+{% endif %}
+{% set host_list = state.invokes | host_invoker | list %}
+{% if host_list %}
+        if state == {{ machine_name }}State.{{ state_id | to_python_const }}:
+{% for inv in host_list %}
+            # W3C SCXML 6.4: the host's invocation ends with the state that
+            # started it. Unconditional here: the engine knows whether this
+            # one ever started and stays silent when it did not, so the
+            # emitted chain needs no bookkeeping of its own.
+            engine.cancel_host_invoke(
+                {{ inv.invoke_type | py_string_literal }},
+                {{ inv.invoke_id | py_string_literal }},
+            )
+{% endfor %}
+{% endif %}
 {% set scxml_list = state.invokes | scxml_family | list %}
 {% if scxml_list %}
         if state == {{ machine_name }}State.{{ state_id | to_python_const }}:
@@ -239,16 +352,25 @@
 {% endfor %}
         return
 
-    def forward_to_autoforward_children(self, event_name: str, data, engine) -> None:
+    def forward_to_autoforward_children(self, event_name: str, metadata, engine) -> None:
+        """W3C SCXML 6.4.1 — forward an external event into every active
+        ``autoforward`` child.
+
+        The event's name is not consulted. Appendix D ``mainEventLoop``
+        forwards whatever it dequeued from the external queue, and 6.4.2 has
+        ``done.invoke.<id>`` returned onto that queue, so a sibling invoke
+        still running must see it. Internal-queue events — ``error.*``
+        (3.12.2) and ``done.state.<id>`` (3.7) — stay out of the forwarded
+        set because this method is reached only from the external drain, not
+        because of how they are spelled.
+        """
 {% if ns_any.any %}
-        if is_platform_event(event_name):
-            return
 {% for state_id, state in model.states | dictsort %}
 {% for inv in state.invokes | scxml_family %}
 {% if inv.autoforward %}
         _inv = engine._active_invokes.get({{ inv.invoke_id | py_string_literal }})
         if _inv is not None and not _inv.is_done():
-            _inv.forward_event(event_name, data)
+            _inv.forward_event(event_name, metadata)
 {% endif %}
 {% endfor %}
 {% endfor %}
@@ -287,7 +409,9 @@
                     {{ inv.finalize_content | to_lua_script | py_string_literal }},
                 )
             except _ScriptError:
-                self._raise_error_execution(engine)
+                self._raise_error_execution(
+                    engine, "<finalize> failed to execute"
+                )
             return
 {% endif %}
 {% endfor %}
