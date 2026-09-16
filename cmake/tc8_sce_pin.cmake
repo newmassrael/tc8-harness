@@ -8,14 +8,17 @@
 # is expressible against the revision this repository vendors, and the reason is
 # worth writing down rather than faking:
 #
-#   * The generator does not report its own revision. At the pinned revision
-#     (third_party/sce/VERSION) the CLI carries no commit: `--version` prints a
-#     static `sce-codegen 0.1.0`, there is no `GENERATOR_COMMIT` in the crate,
-#     and the `generate` stdout manifest has no `generator` field. So there is no
-#     second revision to compare the pin against. Upstream grew that field later;
-#     until the pin moves past it, a true revision comparison cannot be written
-#     here, and writing one that compares the pin to itself would be worse than
-#     writing none.
+#   * The generator may or may not report its own revision, and which it does is
+#     a property of the BUILD, not of this repository. Upstream stamps the commit
+#     into the CLI version string
+#     (`concat!(CARGO_PKG_VERSION, " (", SCE_GIT_COMMIT, ")")`), so a new enough
+#     `sce-codegen --version` prints `0.1.0 (<commit>)` and a revision comparison
+#     becomes possible. A generator built before that stamp prints a bare
+#     `0.1.0` and has no second revision to compare against.
+#     So the comparison below is written once and arms itself: when the binary
+#     answers, a mismatch against the pin is FATAL; when it stays silent, that
+#     silence is reported rather than passed over, because a check that cannot
+#     run is not the same as a check that passed.
 #   * `template-hash` cannot stand in for it. The generator derives that hash
 #     from a workspace root holding both the template tree and `Cargo.lock`, and
 #     the vendored snapshot ships no `Cargo.lock` — so pointed at
@@ -83,6 +86,56 @@ function(tc8_check_sce_pin)
     if(NOT SCE_CODEGEN)
         message(STATUS "TC8: SCE pin ${_pin} (no sce-codegen resolved; render probe skipped)")
         return()
+    endif()
+
+    # Revision comparison, armed but only firing when the generator can answer.
+    execute_process(COMMAND "${SCE_CODEGEN}" --version
+        RESULT_VARIABLE _ver_rc
+        OUTPUT_VARIABLE _ver_out
+        ERROR_VARIABLE _ver_err
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
+    set(_reported "")
+    if(_ver_rc EQUAL 0)
+        string(REGEX MATCH "\\(([0-9a-fA-F]+)\\)" _ver_matched "${_ver_out}")
+        if(_ver_matched)
+            set(_reported "${CMAKE_MATCH_1}")
+        endif()
+    endif()
+
+    if(_reported)
+        # The two sides are abbreviated to different widths — the vendored pin is
+        # 9 hex, upstream stamps 12 — so compare on the shorter prefix instead of
+        # demanding equal length, which would reject a correct pair.
+        string(LENGTH "${_pin}" _pin_len)
+        string(LENGTH "${_reported}" _rep_len)
+        set(_n ${_pin_len})
+        if(_rep_len LESS _n)
+            set(_n ${_rep_len})
+        endif()
+        string(SUBSTRING "${_pin}" 0 ${_n} _pin_prefix)
+        string(SUBSTRING "${_reported}" 0 ${_n} _rep_prefix)
+        if(NOT _pin_prefix STREQUAL _rep_prefix)
+            message(FATAL_ERROR
+                "TC8: the resolved sce-codegen was built from a different SCE "
+                "revision than this repository vendors:\n"
+                "  vendored pin (third_party/sce/VERSION) = ${_pin}\n"
+                "  generator reports (--version)          = ${_reported}\n"
+                "  generator                              = ${SCE_CODEGEN}\n"
+                "Rebuild sce-codegen from the pinned revision, or re-vendor the "
+                "snapshot to the generator's revision. The templates and the "
+                "renderer move together; a mismatched pair fails at render time "
+                "with a message that names neither side.")
+        endif()
+        message(STATUS
+            "TC8: SCE pin ${_pin} — generator reports ${_reported}, revisions agree")
+    else()
+        # Not a pass. The check could not run, and saying so is the point: a
+        # silent skip here reads exactly like a green check to whoever scans the
+        # configure log.
+        message(STATUS
+            "TC8: SCE pin ${_pin} — generator reports no revision (a build made "
+            "before upstream stamped the commit into --version), so the revision "
+            "comparison could not run; only the render probe below covers this")
     endif()
 
     set(_probe_dir "${CMAKE_BINARY_DIR}/sce_pin_probe")
