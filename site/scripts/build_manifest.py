@@ -473,8 +473,59 @@ def extract_messages(case: dict, ctx: dict) -> dict:
     return {}
 
 
+def strip_head_documentation(text: str) -> str:
+    """Drop an SCXML file's leading authoring comments before publication.
+
+    A case's head comment records how its machine was derived, and in the
+    TC8-derived cases that derivation is written as the spec's own numbered
+    test procedure — quoted, with a page pin. Publishing the file verbatim
+    therefore breaks the rule this module states at the top: user-facing
+    content is authored in this repo, never the upstream spec body. The
+    machine itself is authored here and stays; only the preamble goes.
+
+    Little is lost. The prose a reader wants — description, approach,
+    verdicts — is extracted from the trait header, and that path is far
+    cleaner: measured against the spec body, 333 of 749 SCXML files carried
+    a quoted run and 17 trait headers did. The 17 are being re-expressed at
+    the source rather than filtered here, because stripping trait comments
+    would drop this repo's own authoring notes for every case to reach them.
+
+    Interim by intent: once the head comments are re-expressed in this
+    repo's own words they can be published again, and what remains here is
+    the guard that keeps a re-quoted one off the site.
+    """
+    prologue: list[str] = []
+    pos, dropped = 0, False
+    while pos < len(text):
+        rest = text[pos:]
+        lead = len(rest) - len(rest.lstrip())
+        head = rest.lstrip()
+        if head.startswith("<?"):
+            end = head.find("?>")
+            if end < 0:
+                break
+            prologue.append(head[: end + 2])
+            pos += lead + end + 2
+            continue
+        if head.startswith("<!--"):
+            end = head.find("-->")
+            if end < 0:
+                break
+            pos += lead + end + 3
+            dropped = True
+            continue
+        pos += lead
+        break
+    if not dropped:
+        return text
+    return "\n".join(prologue + [text[pos:]]) if prologue else text[pos:]
+
+
 def extract_scxml(case: dict, ctx: dict) -> dict:
-    """Inline the raw SCXML so the case page is self-contained.
+    """Inline the case's SCXML machine so the case page is self-contained.
+
+    The file's authoring preamble is stripped first — see
+    ``strip_head_documentation`` for why.
 
     The ScxmlSection component renders this with build-time syntax
     highlighting via Astro's ``<Code>`` (shiki). Phase 7 will optionally
@@ -483,7 +534,8 @@ def extract_scxml(case: dict, ctx: dict) -> dict:
     scxml_path = scxml_path_for(case)
     if not scxml_path.exists():
         return {}
-    return {"scxml": {"content": scxml_path.read_text(encoding="utf-8")}}
+    content = strip_head_documentation(scxml_path.read_text(encoding="utf-8"))
+    return {"scxml": {"content": content}}
 
 
 EXTRACTORS: list[Callable[[dict, dict], dict]] = [
