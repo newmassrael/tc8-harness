@@ -4,11 +4,10 @@
   TCP MUST enter CLOSED state. Derived from RFC 793 §3.9 p62 Event
   Processing (MUST).
 
-  v3.0 Test Procedure (p324):
-    1. TESTER: Cause the DUT to move on to ESTABLISHED state
-    2. TESTER: Cause the application to issue an ABORT call
-    3. DUT:    Send a RST control message
-    4. TESTER: Verify that the DUT moves on to CLOSED state
+  Case shape:
+    the tester parks the DUT in ESTABLISHED and has the DUT-side
+    application abort. The DUT has to put an RST on the wire — not a
+    FIN — and end up CLOSED.
 
   Mechanism (active-OPEN handshake → DUT application ABORT → DUT RST
   → verify-probe ACK on killed 4-tuple → DUT closed-port RST as

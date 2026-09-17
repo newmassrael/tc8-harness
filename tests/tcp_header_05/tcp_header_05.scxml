@@ -3,10 +3,10 @@
   TC8 §4.8.6.16 TCP_HEADER_05: DUT accepts a TCP packet whose Reserved
   field is zero. Derived from RFC 793 §3.1, RFC 4413 §4.2.3.
 
-  v3.0 Test Procedure (p389):
-    1. TESTER: Bring DUT to 'ESTABLISHED' state.
-    2. TESTER: Send a TCP packet with Reserved field set to zero.
-    3. DUT:    Send an ACK with the expected Ack Number.
+  Case shape:
+    the tester parks the DUT in ESTABLISHED and sends a packet whose
+    reserved field is zero — the canonical shape. The DUT has to accept
+    it and acknowledge with the sequence number it next expects.
 
   Mechanism: drive the DUT through an active OPEN to ESTABLISHED;
   snapshot tester snd_nxt / rcv_nxt; raw-inject in-window data with

@@ -4,7 +4,7 @@
   i.e. buffer all user data (regardless of PSH) until the outstanding
   data has been acknowledged. Derived from RFC 1122 §4.2.3.4 p98.
 
-  Case shape (TC8 v3.0 p379):
+  Case shape:
     the tester parks the DUT in ESTABLISHED, takes one DUT-side send
     and leaves it unacknowledged. A second DUT-side send, this one
     asking for PSH where the API allows it, must stay off the wire

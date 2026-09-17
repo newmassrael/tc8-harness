@@ -4,10 +4,10 @@
   Offset field carries a value greater than the actual segment
   length. Derived from RFC 793 §3.1.
 
-  v3.0 Test Procedure (p392):
-    1. TESTER: Bring DUT to 'ESTABLISHED' state.
-    2. TESTER: Send a TCP packet with Data Offset value greater than 5.
-    3. DUT:    Discards the TCP packet.
+  Case shape:
+    the tester parks the DUT in ESTABLISHED and sends a packet whose
+    data offset claims more header than the packet actually carries.
+    The DUT has to drop it.
 
   Mechanism: drive the DUT through an active OPEN to ESTABLISHED;
   snapshot tester snd_nxt / rcv_nxt; raw-inject in-window data with

@@ -4,10 +4,10 @@
   valid header field values. Derived from RFC 793 §3.9 Event
   Processing.
 
-  v3.0 Test Procedure (p387):
-    1. TESTER: Bring DUT to 'ESTABLISHED' state.
-    2. TESTER: Send a data packet.
-    3. DUT:    Sends an ACK packet with the expected Ack Number.
+  Case shape:
+    the tester parks the DUT in ESTABLISHED and sends one data packet;
+    the DUT's acknowledgement has to name the sequence number that
+    packet's bytes leave it expecting.
 
   Mechanism (active-OPEN handshake + injected in-window data):
     1. Drive the DUT through an active OPEN to ESTABLISHED on

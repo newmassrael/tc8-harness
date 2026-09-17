@@ -35,7 +35,7 @@ struct TestCaseTraits<cases::TcpChecksum02SM>
         "Receiver TCP MUST check the checksum and MUST NOT acknowledge "
         "in case of an error (RFC 1122 §4.2.2.7 p86 TCP Checksum)";
 
-    // Case shape (TC8 v3.0 p301-p320.txt:161):
+    // Case shape:
     //   a seam active open parks the DUT in ESTABLISHED, the tester
     //   injects one data segment whose checksum is corrupt, and the
     //   absence of a DUT ACK is the verdict (absence-pass).

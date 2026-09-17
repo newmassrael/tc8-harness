@@ -5,13 +5,11 @@
   Derived from RFC 1122 §4.2.2.5 p85 TCP Options "RFC-793 Section
   3.1" (MUST).
 
-  v3.0 Test Procedure (p356):
-    1. TESTER: Cause DUT to move on to LISTEN state at <wnp>.
-    2. TESTER: Send a SYN with three No Operation options followed
-               by an End of Options list option.
-    3. DUT:    Send SYN,ACK.
-    4. TESTER: Send ACK.
-    5. TESTER: Verify DUT in ESTABLISHED state.
+  Case shape:
+    a passive open parks the DUT in LISTEN at <wnp> and the tester's
+    SYN carries three padding options ahead of the end-of-list marker.
+    Padding must not disturb anything: the DUT answers SYN,ACK, the
+    tester completes, and the connection reaches ESTABLISHED.
 
   Mechanism (passive LISTEN+ACCEPT):
     - Bring the DUT to LISTEN on kTcpMssOptionsListenPort02.

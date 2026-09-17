@@ -5,12 +5,11 @@
   unacceptable ACK number. Derived from RFC 793 §3.9 p66 Event
   Processing (MUST).
 
-  v3.0 Test Procedure (p328):
-    1. TESTER: Cause DUT to move on to SYN-SENT state
-    2. TESTER: Send a segment having both ACK and RST flags with
-       unacceptable ACK number
-    3. DUT:    Do not send any response
-    4. TESTER: Verify that the DUT remains in SYN-SENT state
+  Case shape:
+    the tester brings the DUT to SYN-SENT, then injects a segment
+    carrying RST together with an ACK whose number cannot be accepted.
+    An RST is only credible when its ACK is: the DUT must answer
+    nothing and stay in SYN-SENT.
 
   Observable protocol exchange (active OPEN to an unbound tester
   port + ISN_d learn + spec-asserted ACK+RST + 3 s absence window):

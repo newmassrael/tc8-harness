@@ -4,7 +4,7 @@
   / TIME-WAIT state, TCP MUST respond with "ok" and enter CLOSED state.
   Derived from RFC 793 §3.9 p62 Event Processing (MUST).
 
-  Case shape (TC8 v3.0 p325):
+  Case shape:
     the tester walks the DUT into the <wst> state and has the DUT-side
     application abort. Two things must follow: the abort call reports
     success back to that application, and the connection ends up

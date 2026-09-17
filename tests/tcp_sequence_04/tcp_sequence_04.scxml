@@ -4,10 +4,10 @@
   carrying Sequence Number = 2^32 - 1 (SeqMaxVal) and emit SYN,ACK
   whose ack_num wraps to 0 per RFC 793 §3.1 modulo-32 arithmetic.
 
-  v3.0 Test Procedure (p381-p400.txt:655-657):
-    1. TESTER: Send a SYN to DUT at <wnp> with Initial Sequence Number
-               equal to <SeqMaxVal>.
-    2. DUT:    Send SYN,ACK with Ack Number equal to 0.
+  Case shape:
+    the wraparound variant. The tester's SYN at <wnp> carries the
+    largest sequence number there is, so adding one takes it round to
+    zero — and zero is what the DUT's SYN,ACK has to acknowledge.
 
   Mechanism: same shape as SEQUENCE_01 with `tester_isn = 0xFFFFFFFFU`.
   The SYN consumes 1 sequence number (SeqMaxVal+1 == 0 modulo 2^32),

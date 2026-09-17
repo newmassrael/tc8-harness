@@ -30,7 +30,7 @@ struct TestCaseTraits<cases::TcpChecksum03SM>
         "Sender TCP MUST generate a correct RFC 793 §3.1 pseudo-header "
         "checksum (RFC 1122 §4.2.2.7 p86 TCP Checksum)";
 
-    // Case shape (TC8 v3.0 p301-p320.txt:194):
+    // Case shape:
     //   a seam active open parks the DUT in ESTABLISHED, a DUT-side
     //   send puts one segment on the wire, and the checksum the DUT
     //   wrote on it is the observable (the SCXML pass guard reads

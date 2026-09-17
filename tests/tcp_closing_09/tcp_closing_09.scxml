@@ -5,14 +5,11 @@
   remaining data. Derived from RFC 793 §3.5 p38 Closing a Connection
   (MUST).
 
-  v3.0 Test Procedure (p353):
-    1. TESTER: Take DUT to ESTABLISHED state
-    2. TESTER: Send a FIN
-    3. DUT:    Send ACK for the received FIN
-    4. TESTER: Cause the DUT side application to send some data
-    5. DUT:    Send data
-    6. TESTER: Check that DUT sent proper data
-    7. TESTER: Check that DUT remains in CLOSE_WAIT state
+  Case shape:
+    the tester parks the DUT in ESTABLISHED and sends FIN; the DUT
+    acknowledges it and sits in CLOSE-WAIT. The half-close runs the
+    other way here: the DUT may still write, so a DUT-side send has to
+    put its bytes on the wire intact while CLOSE-WAIT holds.
 
   Observable interactions (active OPEN to ESTABLISHED → tester FIN →
   DUT pure ACK / CW entry → DUT data segment → 3 s remain-in-CW

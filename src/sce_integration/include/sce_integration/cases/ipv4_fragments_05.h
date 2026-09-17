@@ -40,7 +40,7 @@ struct TestCaseTraits<cases::Ipv4Fragments05SM> {
     using Captured = typename SM::CapturedType;
     using Expected = typename SM::ExpectedType;
 
-    // Case shape (TC8 v3.0 p121-p140.txt:425):
+    // Case shape:
     //   the tester triggers one DUT-side UDP egress on DIface-0
     //   (DIface-0-IP:20001 to HOST-1-IP:20000, UDPDefaultData body),
     //   watches the link for <ListenTime> s, and asserts the captured

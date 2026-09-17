@@ -4,11 +4,11 @@
   field is zero. Derived from RFC 793 §3.1 (TCP checksum is
   mandatory, no zero-sentinel as in UDP/RFC 768).
 
-  v3.0 Test Procedure (p393):
-    1. TESTER: Bring DUT to 'ESTABLISHED' state.
-    2. TESTER: Send a TCP packet with Checksum = 0 and Sequence
-               Number = <SEQ>.
-    3. DUT:    Discards the TCP packet and sends no ACK back.
+  Case shape:
+    the tester parks the DUT in ESTABLISHED and sends a packet at
+    <SEQ> whose checksum field is left at zero. TCP has no
+    checksum-optional mode, so the DUT has to drop it and stay
+    silent — no acknowledgement comes back.
 
   Mechanism: drive the DUT through an active OPEN to ESTABLISHED;
   snapshot tester snd_nxt / rcv_nxt; raw-inject in-window data with

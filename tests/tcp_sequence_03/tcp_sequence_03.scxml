@@ -4,10 +4,10 @@
   carrying Sequence Number = 0 and emit SYN,ACK with ack_num == 1
   (RFC 793 §3.1 p13: ISN may be any 32-bit value; zero is legal).
 
-  v3.0 Test Procedure (p381-p400.txt:614-617):
-    1. TESTER: Bring DUT to state LISTEN.
-    2. TESTER: Send a SYN with the Sequence Number equal to 0.
-    3. DUT:    Sends an SYN,ACK with an ACK Number equal to 1.
+  Case shape:
+    the boundary variant of SEQUENCE_01. A passive open parks the DUT
+    in LISTEN and the tester's SYN carries sequence number zero; the
+    DUT's SYN,ACK still has to acknowledge one.
 
   Mechanism: same shape as SEQUENCE_01 — a passive LISTEN + raw-
   injected SYN handshake — but the injected SYN carries

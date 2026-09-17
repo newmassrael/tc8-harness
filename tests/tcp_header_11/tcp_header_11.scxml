@@ -5,11 +5,10 @@
   RFC 1122 §4.2.3.10 p104 (TCP MUST silently discard a SYN
   addressed to broadcast or multicast).
 
-  v3.0 Test Procedure (p394):
-    1. TESTER: Bring DUT to 'ESTABLISHED' state.
-    2. TESTER: Send a SYN with IP Destination Address =
-               <multicastAddress>.
-    3. DUT:    Discards the TCP packet silently.
+  Case shape:
+    the tester parks the DUT in ESTABLISHED and sends a SYN addressed
+    to <multicastAddress>. TCP is point to point, so the DUT has to
+    drop it without a word — not even an RST.
 
   Mechanism: Active-OPEN to ESTABLISHED on
   (kBasicsActiveLocalPort+38, kBasicsActiveRemotePort+38) — this

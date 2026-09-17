@@ -5,12 +5,11 @@
   ack_num covers the bytes received so far (RFC 793 §3.4 p27 ACK
   generation, RFC 793 §3.7 p41 Receiving a Segment).
 
-  v3.0 Test Procedure (p381-p400.txt:689-692):
-    1. TESTER: Bring DUT to ESTABLISHED state.
-    2. TESTER: Send several TCP packets with Sequence Number
-               correctly incremented.
-    3. DUT:    Sends an ACK for every received packet with the
-               expected Ack Numbers.
+  Case shape:
+    the tester parks the DUT in ESTABLISHED and sends a run of packets
+    whose sequence numbers advance as they should. Each one has to draw
+    an acknowledgement, and each acknowledgement has to name the
+    sequence number that packet leaves the DUT expecting.
 
   Mechanism:
     A passive LISTEN + raw-injected SYN handshake on listen 13165 /

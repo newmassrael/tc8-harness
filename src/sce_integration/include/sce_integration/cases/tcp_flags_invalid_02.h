@@ -31,7 +31,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid02SM>
         "ACK and remain in LISTEN; RST.SEQ taken from SEG.ACK "
         "(RFC 793 §3.9 p65 Event Processing)";
 
-    // Case shape (TC8 v3.0 p321-p340.txt:234):
+    // Case shape:
     //   a passive open parks the DUT in LISTEN, the tester injects one
     //   segment carrying SYN together with ACK, and the DUT answers
     //   with an RST whose SEQ equals the injected ACK value; LISTEN

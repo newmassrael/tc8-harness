@@ -5,7 +5,7 @@
   retransmitted segment (RFC 1122 §4.2.3.1 p95 — RFC 6298 §3 / RFC 1122 §5
   step 5.3).
 
-  Case shape (TC8 v3.0 p368):
+  Case shape:
     the tester parks the DUT in ESTABLISHED and takes one DUT-side
     send, then withholds the acknowledgement so the DUT's timer fires
     and the segment comes again — that interval is the RTO to beat.

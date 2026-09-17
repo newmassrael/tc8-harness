@@ -5,7 +5,7 @@
   state is reached through FINWAIT-2 state. Derived from NEGATIVE
   "RFC 793 §3.2 p23 Terminology" (MUST).
 
-  Case shape (TC8 v3.0 p301-p320.txt:4):
+  Case shape:
     the tester walks the DUT to FIN-WAIT-2 and sends FIN; the DUT
     acknowledges it and enters TIME-WAIT. A second FIN arriving inside
     2*MSL has to draw another acknowledgement — TIME-WAIT keeps

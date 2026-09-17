@@ -4,14 +4,11 @@
   attempts. Derived from RFC 1122 §4.2.2.10 p87 Simultaneous Open
   Attempts (MUST).
 
-  v3.0 Test Procedure (p303):
-    1. TESTER: Cause DUT to issue active OPEN.
-    2. DUT:    Send a SYN.
-    3. TESTER: Send a SYN simultaneously.
-    4. DUT:    Send SYN,ACK in reply.
-    5. TESTER: Send SYN,ACK in reply to the SYN received from the DUT.
-    6. DUT:    Send ACK.
-    7. TESTER: Verify DUT moves on to ESTABLISHED state.
+  Case shape:
+    a simultaneous open. The tester drives a DUT-side active open and
+    answers the DUT's SYN with a SYN of its own rather than a SYN,ACK,
+    so both ends are opening at once. Each side then acknowledges the
+    other's SYN, and the DUT has to come out of it in ESTABLISHED.
 
   Mechanism (single iteration):
     - The tester has no socket bound on the 4-tuple, so any inbound

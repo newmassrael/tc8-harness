@@ -5,7 +5,7 @@
   state is reached through CLOSING state. Derived from NEGATIVE
   "RFC 793 §3.2 p23 Terminology" (MUST).
 
-  Case shape (TC8 v3.0 p301-p320.txt:50):
+  Case shape:
     the tester walks the DUT into CLOSING, then acknowledges the DUT's
     FIN so the DUT enters TIME-WAIT — the simultaneous-close route into
     that state. A FIN arriving inside 2*MSL has to draw another

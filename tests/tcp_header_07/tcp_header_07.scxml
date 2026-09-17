@@ -4,10 +4,10 @@
   Offset field carries an invalid non-zero value < 5. Derived from
   RFC 793 §3.1 (minimum header is 20 B = 5 words).
 
-  v3.0 Test Procedure (p391):
-    1. TESTER: Bring DUT to 'ESTABLISHED' state.
-    2. TESTER: Send a TCP packet with Data Offset value less than 5.
-    3. DUT:    Discards the TCP packet.
+  Case shape:
+    the tester parks the DUT in ESTABLISHED and sends a packet whose
+    data offset is below 5, which is shorter than a TCP header can be.
+    The DUT has to drop it.
 
   Mechanism: drive the DUT through an active OPEN to ESTABLISHED;
   snapshot tester snd_nxt / rcv_nxt; raw-inject in-window data with

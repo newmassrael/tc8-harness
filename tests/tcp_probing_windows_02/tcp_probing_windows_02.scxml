@@ -4,12 +4,11 @@
   treated as an unsigned number (RFC 1122 §4.2.2.3 p83 Window Size —
   RFC 793 §3.1 MUST).
 
-  v3.0 Test Procedure (p374):
-    1. TESTER: Cause the DUT to move on to SYN-RCVD state.
-    2. TESTER: Send ACK segment with a window size having the MSB set.
-    3. TESTER: Cause the application on the DUT-side to issue a SEND
-               request for a data segment.
-    4. DUT:    Send the data segment.
+  Case shape:
+    the tester brings the DUT to SYN-RCVD, then completes the handshake
+    with an acknowledgement advertising a window whose top bit is set.
+    A DUT-side send must go out normally: a large window is a large
+    window, not a negative one.
 
   Pass criterion: DUT emits a data segment after receiving an
   advertised window with the MSB set — i.e. the DUT honours

@@ -30,7 +30,7 @@ struct TestCaseTraits<cases::TcpUnacceptable07SM>
         "TCP in LISTEN state MUST send a RST after receiving a spurious "
         "SYN,ACK (RFC 793 §3.4 p35 Establishing a Connection)";
 
-    // Case shape (TC8 v3.0 p301-p320.txt:473):
+    // Case shape:
     //   a passive open parks the DUT in LISTEN, the tester injects one
     //   SYN+ACK, and the DUT's RST is the observable.
     //

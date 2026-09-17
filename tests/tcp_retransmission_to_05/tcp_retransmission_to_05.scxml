@@ -4,7 +4,7 @@
   backoff" (check that it increases) for successive RTO values for
   sending SYN segments (RFC 1122 §4.2.3.1 MUST — RFC 6298 §5).
 
-  Case shape (TC8 v3.0 p370):
+  Case shape:
     the tester drives a DUT-side active open and then answers nothing,
     so the DUT's SYN goes unanswered and it retries on its own timer.
     This case watches the gaps between those SYN retries: they have to

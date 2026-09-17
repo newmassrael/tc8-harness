@@ -4,10 +4,11 @@
   the tester's ISN by emitting an ACK with ack_num == tester_seq+1
   (RFC 793 §3.4 p27 Three-Way Handshake step 3).
 
-  v3.0 Test Procedure (p381-p400.txt:580-583):
-    1. TESTER: Bring DUT to state SYN-SENT.
-    2. TESTER: Send a SYN,ACK with the Sequence Number equal to <ISN>.
-    3. DUT:    Sends an ACK with an ACK Number equal to <ISN>+1.
+  Case shape:
+    the tester brings the DUT to SYN-SENT and answers with a SYN,ACK
+    bearing <ISN>. The DUT's third-leg ACK has to acknowledge <ISN>+1 —
+    the same rule as SEQUENCE_01, measured on the other side of the
+    handshake.
 
   Mechanism:
     Active OPEN on the +161 quad. The DUT enters SYN-SENT and emits

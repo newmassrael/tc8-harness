@@ -4,10 +4,10 @@
   the tester's ISN by emitting SYN+ACK with ack_num == tester_seq+1
   (RFC 793 §3.1 p13 Sequence Numbers, RFC 793 §3.4 p27 Three-Way Handshake).
 
-  v3.0 Test Procedure (p381-p400.txt:545-548):
-    1. TESTER: Bring DUT to state LISTEN.
-    2. TESTER: Send a SYN with the Sequence Number equal to <ISN>.
-    3. DUT:    Sends an SYN,ACK with an ACK Number equal to <ISN>+1.
+  Case shape:
+    a passive open parks the DUT in LISTEN and the tester sends a SYN
+    bearing <ISN>. The DUT's SYN,ACK has to acknowledge <ISN>+1 — the
+    SYN consumes one sequence number.
 
   Mechanism:
     Passive LISTEN on kTcpSequence01ListenPort brings the DUT to LISTEN.

@@ -4,13 +4,11 @@
   acknowledged within 0.5 sec (RFC 1122 §4.2.3.2 p96 — When to Send
   an ACK Segment, MUST).
 
-  v3.0 Test Procedure (p365):
-    1. TESTER: Cause the DUT to move on to ESTABLISHED state at <wnp>.
-    2. TESTER: Send a full-sized segment.
-    3. DUT:    Send an ACK after some time.
-    4. TESTER: Verify that the delay in receiving the ACK
-               (subtracting the average round-trip-time) is less than
-               0.5 sec.
+  Case shape:
+    the tester parks the DUT in ESTABLISHED at <wnp> and sends one
+    full-sized segment. The DUT may delay its acknowledgement, but this
+    case times it: net of the average round trip, it has to arrive
+    within half a second.
 
   Mechanism (active OPEN to ESTABLISHED + one MSS-sized PSH+ACK):
     1. Active OPEN handshake on (kBasicsActiveLocalPort+145,

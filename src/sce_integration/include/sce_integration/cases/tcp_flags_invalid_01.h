@@ -31,7 +31,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid01SM>
         "TCP MUST ignore an incoming segment with RST flag in LISTEN "
         "state (RFC 793 §3.9 p65 Event Processing)";
 
-    // Case shape (TC8 v3.0 p321-p340.txt:202):
+    // Case shape:
     //   a passive open parks the DUT in LISTEN, the tester injects one
     //   segment carrying SYN together with RST, and the verdict is that
     //   nothing comes back and LISTEN survives.

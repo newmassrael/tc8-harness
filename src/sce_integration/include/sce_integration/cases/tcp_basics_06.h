@@ -29,7 +29,7 @@ struct TestCaseTraits<cases::TcpBasics06SM>
         "TCP in CLOSED state MUST send a SYN on an active OPEN call "
         "(RFC 793 §3.2 p23 Terminology)";
 
-    // Case shape (TC8 v3.0 p281-p300.txt:558):
+    // Case shape:
     //   the tester drives a DUT-side active open; the SYN the DUT puts
     //   on the wire is the observable.
     //

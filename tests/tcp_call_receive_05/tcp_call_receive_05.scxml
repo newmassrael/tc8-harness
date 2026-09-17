@@ -4,7 +4,7 @@
   state with data awaiting delivery, TCP MUST return the data to the
   application. Derived from RFC 793 §3.9 p59 Event Processing (MUST).
 
-  Case shape (TC8 v3.0 p323):
+  Case shape:
     the tester parks the DUT in ESTABLISHED and sends one segment that
     carries both data and FIN. A DUT-side receive issued afterwards has
     to come back with that data — the FIN riding along must not cost

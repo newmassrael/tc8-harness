@@ -4,11 +4,10 @@
   ignore a RST control message. Derived from RFC 793 §3.9 p67 Event
   Processing (MUST).
 
-  v3.0 Test Procedure (p329):
-    1. TESTER: Cause DUT to move on to SYN-SENT state
-    2. TESTER: Send a RST control message
-    3. DUT:    Do not send any response
-    4. TESTER: Verify that the DUT remains in SYN-SENT state
+  Case shape:
+    the tester brings the DUT to SYN-SENT and injects a bare RST — no
+    ACK to validate it against. The DUT must answer nothing and stay in
+    SYN-SENT.
 
   Observable protocol exchange (active OPEN to an unbound tester
   port + ISN_d learn + spec-asserted bare RST + 3 s absence window):

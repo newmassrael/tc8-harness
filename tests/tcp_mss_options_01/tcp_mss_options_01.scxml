@@ -5,10 +5,10 @@
   Derived from RFC 1122 §4.2.2.5 p85 TCP Options "RFC-793 Section
   3.1" (MUST).
 
-  v3.0 Test Procedure (p355):
-    1. TESTER: Cause DUT to move on to LISTEN state at <wnp>.
-    2. TESTER: Send a SYN with MSS option having illegal length, ilen.
-    3. TESTER: Verify that the DUT has not crashed.
+  Case shape:
+    a passive open parks the DUT in LISTEN at <wnp> and the tester
+    sends a SYN whose MSS option declares an illegal length, ilen. What
+    is checked is survival: the DUT must still be running afterwards.
 
     Test Iterations:
       1. CASE: ilen = 0 (less than actual)

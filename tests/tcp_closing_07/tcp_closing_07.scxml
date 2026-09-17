@@ -5,7 +5,7 @@
   until the peer ACKs the DUT's FIN. Derived from RFC 793 §3.5 p38
   Closing a Connection (MUST).
 
-  Case shape (TC8 v3.0 p351):
+  Case shape:
     the tester parks the DUT in ESTABLISHED and has the DUT close, so
     the DUT emits FIN and sits in FIN-WAIT-1. A DUT-side receive is
     then armed and the tester sends data. Half-closed means the DUT

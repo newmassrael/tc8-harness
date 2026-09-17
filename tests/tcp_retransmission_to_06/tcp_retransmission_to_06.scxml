@@ -3,7 +3,7 @@
   TC8 §4.8.6.11 TCP_RETRANSMISSION_TO_06: TCP SHOULD use RTO = 1 sec
   initially (RFC 6298 §2.1 SHOULD).
 
-  Case shape (TC8 v3.0 p371):
+  Case shape:
     the tester drives a DUT-side active open and answers nothing, so
     the DUT's SYN goes unanswered and it retries. Unlike the backoff
     cases, what is measured here is the first interval itself: it has

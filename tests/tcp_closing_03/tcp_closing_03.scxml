@@ -4,11 +4,10 @@
   to include data. Derived from RFC 1122 §4.2.2.12 p87 RST Segment
   ("RFC-793 Section 3.4") (MUST per spec wording, SHOULD per RFC 1122).
 
-  v3.0 Test Procedure (p349):
-    1. TESTER: Cause the DUT to move on to ESTABLISHED state
-    2. TESTER: Send a RST segment containing some data
-    3. DUT:    Do not send any response
-    4. TESTER: Verify that the DUT is in CLOSED state
+  Case shape:
+    the tester parks the DUT in ESTABLISHED and injects an RST that
+    carries a payload. The payload changes nothing: the DUT answers
+    nothing and the connection ends up CLOSED.
 
   Observable interactions (active OPEN to ESTABLISHED → in-window RST
   with payload → verify-probe ACK on killed 4-tuple → DUT RST as

@@ -4,7 +4,7 @@
   ACK, but the delay MUST be less than 0.5 sec (RFC 1122 §4.2.3.2 p96
   — When to Send an ACK Segment, SHOULD/MUST).
 
-  Case shape (TC8 v3.0 p365):
+  Case shape:
     the tester drives the DUT to full-window operation in ESTABLISHED
     at <wnp>, then sends two segments back to back. The DUT is allowed
     to answer both with one acknowledgement, but this case times it:

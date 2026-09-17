@@ -7,7 +7,7 @@
   usable window is negative (RFC 1122 §4.2.2.16 p91 Managing the
   Window — RFC 793 §3.7 page 41 MUST).
 
-  Case shape (TC8 v3.0 p375):
+  Case shape:
     the tester parks the DUT in ESTABLISHED, lets one DUT-side send
     through and acknowledges it, then takes two further segments and
     acknowledges only the first — shutting its window to zero as it

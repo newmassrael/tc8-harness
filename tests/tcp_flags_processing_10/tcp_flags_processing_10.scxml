@@ -5,7 +5,7 @@
   possible) without incurring undue delay. Derived from RFC 793 §3.9 p74
   Event Processing (SHOULD).
 
-  Case shape (TC8 v3.0 p347):
+  Case shape:
     the tester parks the DUT in ESTABLISHED and takes a DUT-side send
     exactly the size of its own receive window, which leaves no room.
     A second DUT-side send therefore has to wait. The tester then sends

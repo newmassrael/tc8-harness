@@ -4,11 +4,11 @@
   Port differs from the established peer's port (PORT2 != PORT1).
   Derived from RFC 793 §3.1 / RFC 793 §3.9 (4-tuple demultiplexing).
 
-  v3.0 Test Procedure (p388):
-    1. TESTER: Bring DUT to 'ESTABLISHED' state on <PORT1>.
-    2. TESTER: Send a TCP packet on <PORT2> with Sequence Number set
-               to <SEQ1>.
-    3. DUT:    Discards the TCP packet (and optionally sends a RST).
+  Case shape:
+    the tester parks the DUT in ESTABLISHED on <PORT1>, then sends a
+    packet at <PORT2> carrying <SEQ1>. That port has no connection
+    behind it, so the DUT has to drop the packet; an RST in reply is
+    allowed but not required.
 
   Mechanism: drive the DUT through an active OPEN to ESTABLISHED on
   (kBasicsActiveLocalPort+32, kBasicsActiveRemotePort+32); snapshot

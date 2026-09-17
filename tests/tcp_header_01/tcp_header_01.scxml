@@ -3,10 +3,10 @@
   TC8 §4.8.6.16 TCP_HEADER_01: DUT generates a TCP packet containing
   valid header field values. Derived from RFC 793 §3.1 Header Format.
 
-  v3.0 Test Procedure (p385):
-    1. TESTER: Bring DUT to 'ESTABLISHED' state.
-    2. TESTER: Send <generateTCPSegment> request.
-    3. DUT:    Sends a data segment containing valid header values.
+  Case shape:
+    the tester parks the DUT in ESTABLISHED and asks it for a segment
+    via <generateTCPSegment>; every header field on what comes back has
+    to hold a legal value.
 
   Mechanism (active-OPEN handshake + DUT data send):
     1. Tester opens auxiliary listener on kBasicsActiveRemotePort+30

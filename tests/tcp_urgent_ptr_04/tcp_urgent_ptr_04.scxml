@@ -4,7 +4,7 @@
   (non-urgent data) MUST NOT be delivered to the user in the same
   buffer with preceding urgent data (RFC 793 §3.7 Interfaces, p48).
 
-  Case shape (TC8 v3.0 p381):
+  Case shape:
     the tester parks the DUT in ESTABLISHED, then injects one data
     segment carrying URG with its urgent pointer aimed at a byte short
     of the segment's end. The DUT has to tell its application that

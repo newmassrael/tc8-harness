@@ -3,7 +3,7 @@
   TC8 §4.8.6.10 TCP_OUT_OF_ORDER_03: TCP SHOULD be capable of queuing
   out-of-order segments (RFC 1122 §4.2.2.20 p93 — RFC-793 RFC 1122 §3.9).
 
-  Case shape (TC8 v3.0 p366):
+  Case shape:
     the tester parks the DUT in ESTABLISHED at <wnp> and gets one
     segment acknowledged normally. It then sends <nss> segments that
     begin past a hole in the sequence space, which the DUT must queue

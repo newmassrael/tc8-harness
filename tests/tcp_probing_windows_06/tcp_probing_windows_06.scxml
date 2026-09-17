@@ -4,7 +4,7 @@
   the interval between successive zero-window probes (RFC 1122
   §4.2.2.17 p92 — RFC 793 §3.7 page 42 SHOULD).
 
-  Case shape (TC8 v3.0 p378):
+  Case shape:
     the tester parks the DUT in ESTABLISHED, lets one DUT-side send
     through, then shuts its window to zero in the acknowledgement. A
     second DUT-side send is stuck, so the DUT probes repeatedly — and

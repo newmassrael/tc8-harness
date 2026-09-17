@@ -55,7 +55,7 @@ struct TestCaseTraits<cases::TcpChecksum04SM> {
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
         ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpSynSentOpen;
 
-    // Case shape (TC8 v3.0 p301-p320.txt:216) — two connect cycles on
+    // Case shape — two connect cycles on
     // one 4-tuple, comparing the ISN the DUT picks each time:
     //   cycle 1 — a DUT-side connect through the seam; the DUT emits
     //      SYN. Returning it to CLOSED needs no raw inject: that SYN

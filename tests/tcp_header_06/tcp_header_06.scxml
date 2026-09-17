@@ -4,10 +4,11 @@
   field carries a non-zero value (DUT MUST ignore the Reserved field).
   Derived from RFC 4413 §4.2.3.
 
-  v3.0 Test Procedure (p390):
-    1. TESTER: Bring DUT to 'ESTABLISHED' state.
-    2. TESTER: Send a TCP packet with Reserved field different from zero.
-    3. DUT:    Send an ACK with the expected Ack Number.
+  Case shape:
+    the tester parks the DUT in ESTABLISHED and sends a packet whose
+    reserved field is not zero. The DUT has to ignore those bits rather
+    than reject the packet: the acknowledgement still comes, naming the
+    sequence number it next expects.
 
   Mechanism: drive the DUT through an active OPEN to ESTABLISHED;
   snapshot tester snd_nxt / rcv_nxt; raw-inject in-window data with

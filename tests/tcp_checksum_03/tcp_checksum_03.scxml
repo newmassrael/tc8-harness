@@ -5,13 +5,10 @@
   from RFC 1122 s4.2.2.7 p86 TCP Checksum (MUST), RFC 793 §3.1 p16
   Header.
 
-  v3.0 Test Procedure (p301-p320.txt:194):
-    1. TESTER: Cause DUT to move on to ESTABLISHED state.
-    2. TESTER: Cause the application on the DUT-side to issue a SEND
-               request for a data segment.
-    3. DUT:    Send the data segment.
-    4. TESTER: Verify that correct checksum is present in the
-               incoming segment.
+  Case shape:
+    the tester parks the DUT in ESTABLISHED and takes one DUT-side
+    send; the checksum the DUT wrote on that segment is the observable,
+    and it has to compute out correctly over the captured bytes.
 
   Mechanism (active-OPEN handshake + DUT data send):
     1. Tester opens auxiliary listener on kBasicsActiveRemotePort and
