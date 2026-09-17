@@ -4,17 +4,12 @@
   the interval between successive zero-window probes (RFC 1122
   §4.2.2.17 p92 — RFC 793 §3.7 page 42 SHOULD).
 
-  v3.0 Test Procedure (p378):
-    1. TESTER: Cause the DUT to move on to ESTABLISHED state.
-    2. TESTER: Cause the application on the DUT-side to issue a SEND
-               request for data segments.
-    3. DUT:    Send the data segment.
-    4. TESTER: Send ACK declaring a zero window.
-    5. TESTER: Cause the application on the DUT-side to issue another
-               SEND request for data segment.
-    6. DUT:    Keep sending zero window probes after some delays.
-    7. TESTER: Verify that the delays between successive probes
-               increases continually.
+  Case shape (TC8 v3.0 p378):
+    the tester parks the DUT in ESTABLISHED, lets one DUT-side send
+    through, then shuts its window to zero in the acknowledgement. A
+    second DUT-side send is stuck, so the DUT probes repeatedly — and
+    what this case measures is the spacing between those probes, which
+    has to keep growing rather than settle at a fixed interval.
 
   Mechanism (active OPEN to ESTABLISHED + small SEND + zero-window
   ACK + second SEND + observe 3 successive probes — no per-probe ACK):

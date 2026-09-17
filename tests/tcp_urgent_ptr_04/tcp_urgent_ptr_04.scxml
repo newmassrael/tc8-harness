@@ -4,17 +4,12 @@
   (non-urgent data) MUST NOT be delivered to the user in the same
   buffer with preceding urgent data (RFC 793 §3.7 Interfaces, p48).
 
-  v3.0 Test Procedure (p381):
-    1. TESTER: Cause DUT to move on to ESTABLISHED state.
-    2. TESTER: Send a data segment with URG flag set and urgent
-               pointer containing the offset for the SEQ number of
-               a byte that is not the last byte of this data segment.
-    3. DUT:    Receive the data segment and issue a signal to the
-               application that urgent data has arrived.
-    4. TESTER: Cause the application on the DUT-side to issue a
-               RECEIVE call with a data buffer having size equal to
-               the size of the incoming data segment.
-    5. DUT:    Return the RECEIVE call putting only the urgent data.
+  Case shape (TC8 v3.0 p381):
+    the tester parks the DUT in ESTABLISHED, then injects one data
+    segment carrying URG with its urgent pointer aimed at a byte short
+    of the segment's end. The DUT has to tell its application that
+    urgent data is waiting, and a DUT-side receive sized to the whole
+    segment has to come back holding the urgent portion alone.
 
   Mechanism (active-OPEN handshake + raw-inject URG segment +
   out-of-band RECEIVE):

@@ -4,16 +4,12 @@
   backoff" (check that it increases) for successive RTO values for
   sending data segments (RFC 1122 §4.2.3.1 MUST — RFC 6298 §5).
 
-  v3.0 Test Procedure (p369):
-    1. TESTER: Cause the DUT to move on to ESTABLISHED state.
-    2. TESTER: Cause an application on the DUT-side to issue a data
-               SEND request.
-    3. DUT:    Send the data segment.
-    4. TESTER: Do not send ACK.
-    5. DUT:    Retransmit the data segment after a timeout.
-    6. TESTER: Do not send ACK and verify that RTO retransmission
-               interval is increasing at a fast (at least more than
-               linear) rate.
+  Case shape (TC8 v3.0 p369):
+    the tester parks the DUT in ESTABLISHED, takes one DUT-side send
+    and then never acknowledges anything. The DUT retransmits on its
+    own timer, and this case watches the gaps between those retries:
+    they have to grow faster than linearly, which is what exponential
+    backoff looks like from the wire.
 
   Mechanism (kernel-state TCP_INFO observation, three snapshots):
     The earlier pcap-timing chain (observe seg1, retx1, retx2, retx3

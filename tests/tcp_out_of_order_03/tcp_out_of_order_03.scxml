@@ -3,16 +3,12 @@
   TC8 §4.8.6.10 TCP_OUT_OF_ORDER_03: TCP SHOULD be capable of queuing
   out-of-order segments (RFC 1122 §4.2.2.20 p93 — RFC-793 RFC 1122 §3.9).
 
-  v3.0 Test Procedure (p366):
-    1. TESTER: Cause the DUT to move to ESTABLISHED state at <wnp>.
-    2. TESTER: Send a data segment.
-    3. DUT:    Send the ACK for the data segment.
-    4. TESTER: Send <nss> data segments leaving a gap in SEQ numbers
-               (as if a segment is skipped) at the beginning.
-    5. DUT:    Do not send ACKs for these segments.
-    6. TESTER: Send a segment having data for the missing SEQ numbers.
-    7. DUT:    Send ACK for all queued data seg(s) including the
-               latest one.
+  Case shape (TC8 v3.0 p366):
+    the tester parks the DUT in ESTABLISHED at <wnp> and gets one
+    segment acknowledged normally. It then sends <nss> segments that
+    begin past a hole in the sequence space, which the DUT must queue
+    without acknowledging. Filling the hole releases everything: the
+    DUT acknowledges the queued segments and the filler together.
 
   Linux 6.5 deviation note (cumulative-ACK reading):
     Spec step 5 says "Do not send ACKs". Linux 6.5 has SACK enabled

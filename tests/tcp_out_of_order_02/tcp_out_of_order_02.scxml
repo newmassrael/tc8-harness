@@ -4,13 +4,12 @@
   ACK, but the delay MUST be less than 0.5 sec (RFC 1122 §4.2.3.2 p96
   — When to Send an ACK Segment, SHOULD/MUST).
 
-  v3.0 Test Procedure (p365):
-    1. TESTER: Cause the DUT to move on to full-window operation in
-               ESTABLISHED state at <wnp>.
-    2. TESTER: Send two data segments consecutively without any delay.
-    3. DUT:    Send a single ACK for the data segments after a delay.
-    4. TESTER: Verify that the delay (subtracting the average round
-               trip time) is less than 0.5 sec.
+  Case shape (TC8 v3.0 p365):
+    the tester drives the DUT to full-window operation in ESTABLISHED
+    at <wnp>, then sends two segments back to back. The DUT is allowed
+    to answer both with one acknowledgement, but this case times it:
+    net of the average round trip, that acknowledgement has to arrive
+    within half a second.
 
   Linux 6.5 deviation note (cumulative-ACK reading):
     Spec step 3 says "Send a single ACK". Linux's quickack mode is on

@@ -5,12 +5,11 @@
   state is reached through CLOSING state. Derived from NEGATIVE
   "RFC 793 §3.2 p23 Terminology" (MUST).
 
-  v3.0 Test Procedure (p301-p320.txt:50):
-    1. TESTER: Cause the DUT to move on to CLOSING state
-    2. TESTER: Send ACK for the FIN just received from the DUT
-       (DUT moves to TIME-WAIT state)
-    3. TESTER: Send a FIN within 2*MSL time
-    4. DUT:    Send ACK
+  Case shape (TC8 v3.0 p301-p320.txt:50):
+    the tester walks the DUT into CLOSING, then acknowledges the DUT's
+    FIN so the DUT enters TIME-WAIT — the simultaneous-close route into
+    that state. A FIN arriving inside 2*MSL has to draw another
+    acknowledgement, exactly as it does on the FIN-WAIT-2 route.
   Pass criterion: step 4 (DUT ACKs the within-2*MSL FIN replay,
   proving TIME-WAIT survived).
 

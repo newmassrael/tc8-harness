@@ -4,17 +4,12 @@
   i.e. buffer all user data (regardless of PSH) until the outstanding
   data has been acknowledged. Derived from RFC 1122 §4.2.3.4 p98.
 
-  v3.0 Test Procedure (p379):
-    1. TESTER: Cause DUT to move on to ESTABLISHED state.
-    2. TESTER: Cause the application on the DUT-side to issue a SEND
-               request for a segment.
-    3. DUT:    Send the data segment.
-    4. TESTER: Do not acknowledge the data.
-    5. TESTER: Cause the application to issue another SEND request
-               with the PSH bit (if possible to specify).
-    6. DUT:    Do not send the data segment.
-    7. TESTER: Acknowledge the previous data.
-    8. DUT:    Send the latter data segment.
+  Case shape (TC8 v3.0 p379):
+    the tester parks the DUT in ESTABLISHED, takes one DUT-side send
+    and leaves it unacknowledged. A second DUT-side send, this one
+    asking for PSH where the API allows it, must stay off the wire
+    while data is still outstanding — PSH does not override Nagle. Once
+    the tester acknowledges the first segment, the second may go.
 
   Mechanism:
     1. Drive the DUT through an active OPEN to ESTABLISHED on

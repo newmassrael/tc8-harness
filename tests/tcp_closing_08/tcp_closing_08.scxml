@@ -5,14 +5,11 @@
   Derived from RFC 793 §3.5 p38 Closing a Connection (MUST). Spec
   prerequisite: "Support of ETM Service Primitive SHUTDOWN" (p352).
 
-  v3.0 Test Procedure (p352):
-    1. TESTER: Take DUT to FIN-WAIT-2 state
-    2. TESTER: Cause DUT side application to issue a RECEIVE call
-    3. DUT:    Issue a RECEIVE call
-    4. TESTER: Send some data to DUT
-    5. DUT:    Send ACK of the received data
-    6. TESTER: Check that DUT receives proper data
-    7. TESTER: Check that DUT remains in FIN-WAIT-2 state
+  Case shape (TC8 v3.0 p352):
+    the tester walks the DUT to FIN-WAIT-2, arms a DUT-side receive,
+    and sends data. Half-closed means the DUT still reads: it has to
+    acknowledge that data, hand it to the application intact, and stay
+    in FIN-WAIT-2 throughout.
 
   Observable interactions (active OPEN to ESTABLISHED → DUT close-WR
   → tester ACK drives DUT to FW2 → raw inject 16 B data → DUT data

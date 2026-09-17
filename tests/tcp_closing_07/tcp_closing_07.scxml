@@ -5,16 +5,12 @@
   until the peer ACKs the DUT's FIN. Derived from RFC 793 §3.5 p38
   Closing a Connection (MUST).
 
-  v3.0 Test Procedure (p351):
-    1. TESTER: Take DUT to ESTABLISHED state
-    2. TESTER: Cause DUT side application to issue a CLOSE call
-    3. DUT:    DUT sends a FIN and Reaches FIN-WAIT-1 State
-    4. TESTER: Cause DUT side application to issue a RECEIVE call
-    5. DUT:    Issue a RECEIVE call
-    6. TESTER: Send some data to DUT
-    7. DUT:    Send ACK of the received data
-    8. TESTER: Check that DUT receives proper data
-    9. TESTER: Check that DUT remains in FIN-WAIT-1 state
+  Case shape (TC8 v3.0 p351):
+    the tester parks the DUT in ESTABLISHED and has the DUT close, so
+    the DUT emits FIN and sits in FIN-WAIT-1. A DUT-side receive is
+    then armed and the tester sends data. Half-closed means the DUT
+    still reads: it has to acknowledge that data, hand it to the
+    application intact, and stay in FIN-WAIT-1 throughout.
 
   Mechanism (active OPEN to ESTABLISHED → withheld peer FIN-ACK → DUT
   FIN with no peer-ACK → raw-injected non-acking data → DUT data ACK →

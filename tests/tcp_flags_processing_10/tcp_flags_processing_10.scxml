@@ -5,19 +5,13 @@
   possible) without incurring undue delay. Derived from RFC 793 §3.9 p74
   Event Processing (SHOULD).
 
-  v3.0 Test Procedure (p347):
-    1. TESTER: Cause the DUT to move on to ESTABLISHED state.
-    2. TESTER: Cause the application on the DUT-side to issue a SEND
-               call for data of size equal to the receive window of
-               TESTER.
-    3. DUT:    Send the data segment.
-    4. TESTER: Cause the application to issue one more SEND call for
-               data.
-    5. DUT:    Do not send this data segment.
-    6. TESTER: Send a data segment with ACK for the previous received
-               segment.
-    7. DUT:    Send the pending data segment piggybacking the
-               acknowledgement within 0.5 sec.
+  Case shape (TC8 v3.0 p347):
+    the tester parks the DUT in ESTABLISHED and takes a DUT-side send
+    exactly the size of its own receive window, which leaves no room.
+    A second DUT-side send therefore has to wait. The tester then sends
+    data of its own carrying the acknowledgement that reopens the
+    window, and the DUT has half a second to release the waiting
+    segment with its own acknowledgement riding along.
 
   Mechanism (Nagle hold + injected piggyback ACK+payload):
     1. Drive the DUT through an active OPEN to ESTABLISHED on

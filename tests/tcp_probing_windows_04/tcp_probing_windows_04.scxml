@@ -5,19 +5,13 @@
   stay open as long as probes are acknowledged (RFC 1122 §4.2.2.17
   p92 — RFC 793 §3.7 page 42 MUST).
 
-  v3.0 Test Procedure (p376):
-    1. TESTER: Cause DUT to move on to ESTABLISHED state.
-    2. TESTER: Cause the application on the DUT-side to issue a SEND
-               request for data segment.
-    3. DUT:    Send the data segment.
-    4. TESTER: Send ACK declaring a zero receive window.
-    5. TESTER: Cause the application on the DUT-side to issue another
-               SEND request for data segment.
-    6. DUT:    Send a zero window probe.
-    7. TESTER: Acknowledge the probe maintaining zero window.
-    8. DUT:    Keep on sending the zero window probes, staying in the
-               ESTABLISHED state, as long as the tester acknowledges
-               each of them at every reception.
+  Case shape (TC8 v3.0 p376):
+    the tester parks the DUT in ESTABLISHED and lets one DUT-side send
+    through, then shuts its receive window to zero in the acknowledgement.
+    A second DUT-side send now has nowhere to go, so the DUT falls to
+    window probing. The tester answers each probe with the window still
+    shut, and the DUT has to go on probing from ESTABLISHED rather than
+    giving up on the connection.
 
   Mechanism (active OPEN to ESTABLISHED + small SEND + zero-window
   ACK + second SEND + 3-probe consume chain with per-probe ACK):

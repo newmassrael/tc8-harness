@@ -4,15 +4,12 @@
   segments there SHOULD be an ACK for at least every second segment
   (RFC 1122 §4.2.3.2 p96 — When to Send an ACK Segment, SHOULD).
 
-  v3.0 Test Procedure (p367):
-    1. TESTER: Cause the DUT to move on to full-window operation in
-               ESTABLISHED state.
-    2. TESTER: Send some number of full-sized segments to fill the
-               DUTs receive window buffer.
-    3. DUT:    Send ACKs for all the data segments.
-    4. TESTER: Verify that for every even number of data segments
-               sent the number of ACKs received is at least half of
-               that number.
+  Case shape (TC8 v3.0 p367):
+    the tester drives the DUT to full-window operation in ESTABLISHED,
+    then fills the DUT's receive buffer with full-sized segments. Every
+    segment has to be acknowledged, and the count is what this case
+    checks: across an even number of segments the DUT must return at
+    least one acknowledgement per two — no thinner than that.
 
   Mechanism (active OPEN to ESTABLISHED + 10 MSS-sized PSH+ACKs +
   5-ACK consume chain):

@@ -3,14 +3,11 @@
   TC8 §4.8.6.11 TCP_RETRANSMISSION_TO_06: TCP SHOULD use RTO = 1 sec
   initially (RFC 6298 §2.1 SHOULD).
 
-  v3.0 Test Procedure (p371):
-    1. TESTER: Cause the application on the DUT-side to issue an
-               active OPEN call.
-    2. DUT:    Send a SYN.
-    3. TESTER: Do not send SYN,ACK.
-    4. DUT:    Retransmit the SYN segment after a timeout.
-    5. TESTER: Verify that the DUT used a timeout according to the
-               referenced RFC.
+  Case shape (TC8 v3.0 p371):
+    the tester drives a DUT-side active open and answers nothing, so
+    the DUT's SYN goes unanswered and it retries. Unlike the backoff
+    cases, what is measured here is the first interval itself: it has
+    to match the initial RTO the referenced RFC fixes.
 
   Mechanism (kernel-state observation, single snapshot before retx
   fires):

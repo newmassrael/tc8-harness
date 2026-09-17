@@ -5,17 +5,12 @@
   retransmission timeout period (RFC 1122 §4.2.2.17 p92 — RFC 793 §3.7
   page 42 SHOULD).
 
-  v3.0 Test Procedure (p377):
-    1. TESTER: Cause the DUT to move on to ESTABLISHED state.
-    2. TESTER: Cause the application on the DUT-side to issue a SEND
-               request for data segments.
-    3. DUT:    Send the data segment.
-    4. TESTER: Send ACK declaring a zero window.
-    5. TESTER: Cause the application on the DUT-side to issue another
-               SEND request for data segment.
-    6. DUT:    Send a zero window probe after some delay.
-    7. TESTER: Verify that the probe has been sent by the DUT after
-               waiting for at least the retransmission timeout.
+  Case shape (TC8 v3.0 p377):
+    the tester parks the DUT in ESTABLISHED, lets one DUT-side send
+    through, then shuts its window to zero in the acknowledgement. A
+    second DUT-side send is stuck, so the DUT eventually probes — and
+    what this case measures is the wait before that first probe, which
+    must be no shorter than the retransmission timeout.
 
   Mechanism (active OPEN to ESTABLISHED + small SEND + zero-window
   ACK + second SEND + probe observation):

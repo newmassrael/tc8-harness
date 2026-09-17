@@ -5,24 +5,14 @@
   retransmitted segment (RFC 1122 §4.2.3.1 p95 — RFC 6298 §3 / RFC 1122 §5
   step 5.3).
 
-  v3.0 Test Procedure (p368):
-    1. TESTER: Cause the DUT to move on to ESTABLISHED state.
-    2. TESTER: Cause an application on the DUT-side to issue a data
-               SEND request.
-    3. DUT:    Send the data segment.
-    4. TESTER: Do not send the ACK and cause the retransmission timer
-               on the DUT side to expire.
-    5. DUT:    Send the data segment once more.
-    6. TESTER: Note the retransmission time (RTO).
-    7. TESTER: Send an ACK just before the RTO occurs on DUT.
-    8. TESTER: Cause the application to issue SEND request for one
-               more data segment.
-    9. DUT:    Send the data segment.
-    10. TESTER: Do not send ACK.
-    11. DUT:    Retransmit the data segment.
-    12. TESTER: Verify that the retransmission timer value is twice
-                the value of RTO noted earlier (exponential backoff
-                only).
+  Case shape (TC8 v3.0 p368):
+    the tester parks the DUT in ESTABLISHED and takes one DUT-side
+    send, then withholds the acknowledgement so the DUT's timer fires
+    and the segment comes again — that interval is the RTO to beat.
+    The tester acknowledges just before the next expiry, takes a second
+    DUT-side send, and again withholds. The retransmission that follows
+    has to arrive on a doubled timer: backoff must survive the ACK that
+    landed in between, rather than resetting on it.
 
   Mechanism (kernel-side TCP_INFO observation, two snapshots):
     The earlier pcap-timing approach (observe retx1's wall delta vs.

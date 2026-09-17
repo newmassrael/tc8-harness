@@ -4,14 +4,11 @@
   state with data awaiting delivery, TCP MUST return the data to the
   application. Derived from RFC 793 §3.9 p59 Event Processing (MUST).
 
-  v3.0 Test Procedure (p323):
-    1. TESTER: Cause the DUT to move on to ESTABLISHED state
-    2. TESTER: Send a data segment with FIN flag set
-    3. TESTER: Cause the application on the DUT-side to issue a
-               RECEIVE call
-    4. DUT:    Issues a RECEIVE call
-    5. TESTER: Verify that the DUT returns the data to the receiving
-               application
+  Case shape (TC8 v3.0 p323):
+    the tester parks the DUT in ESTABLISHED and sends one segment that
+    carries both data and FIN. A DUT-side receive issued afterwards has
+    to come back with that data — the FIN riding along must not cost
+    the application the bytes that arrived with it.
 
   Mechanism (active-OPEN handshake → injected PSH+FIN+ACK with
   payload → DUT enters CW + acks data+FIN → RECEIVE drains the bytes

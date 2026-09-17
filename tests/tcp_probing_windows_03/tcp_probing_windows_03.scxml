@@ -7,21 +7,12 @@
   usable window is negative (RFC 1122 §4.2.2.16 p91 Managing the
   Window — RFC 793 §3.7 page 41 MUST).
 
-  v3.0 Test Procedure (p375):
-    1. TESTER: Cause the DUT to move on to ESTABLISHED state.
-    2. TESTER: Cause the application on the DUT-side to issue one
-               data SEND request.
-    3. DUT:    Send the data segment.
-    4. TESTER: Send the ACK.
-    5. TESTER: Cause the application on the DUT-side to issue two
-               more SEND calls for data segments.
-    6. DUT:    Send the data segments.
-    7. TESTER: Send ACK for the first segment with an updated window
-               value of zero.
-    8. TESTER: Cause the application on the DUT-side to issue a SEND
-               request for a data segment.
-    9. DUT:    Do not send the segment as the "useable window" is
-               negative.
+  Case shape (TC8 v3.0 p375):
+    the tester parks the DUT in ESTABLISHED, lets one DUT-side send
+    through and acknowledges it, then takes two further segments and
+    acknowledges only the first — shutting its window to zero as it
+    does. One more DUT-side send has to stay off the wire, because the
+    usable window has gone negative.
 
   Mechanism (active-OPEN handshake + 3 MSS-fill SENDs + window-shrink
   ACK + 4th SEND absence guard):

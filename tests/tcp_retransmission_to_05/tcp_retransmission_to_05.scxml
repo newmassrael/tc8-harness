@@ -4,15 +4,12 @@
   backoff" (check that it increases) for successive RTO values for
   sending SYN segments (RFC 1122 §4.2.3.1 MUST — RFC 6298 §5).
 
-  v3.0 Test Procedure (p370):
-    1. TESTER: Cause the application on the DUT-side to issue an
-               active OPEN call.
-    2. DUT:    Send a SYN.
-    3. TESTER: Do not send SYN, ACK.
-    4. DUT:    Retransmit the SYN segment after a timeout.
-    5. TESTER: Do not send SYN,ACK and verify that RTO retransmission
-               interval is increasing at a fast (at least more than
-               linear) rate.
+  Case shape (TC8 v3.0 p370):
+    the tester drives a DUT-side active open and then answers nothing,
+    so the DUT's SYN goes unanswered and it retries on its own timer.
+    This case watches the gaps between those SYN retries: they have to
+    grow faster than linearly — the same backoff as for data, measured
+    on the handshake instead.
 
   Mechanism (kernel-state TCP_INFO observation, three snapshots):
     The earlier pcap-timing chain (observe SYN, retx1, retx2, retx3

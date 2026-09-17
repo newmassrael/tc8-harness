@@ -4,14 +4,11 @@
   / TIME-WAIT state, TCP MUST respond with "ok" and enter CLOSED state.
   Derived from RFC 793 §3.9 p62 Event Processing (MUST).
 
-  v3.0 Test Procedure (p325):
-    1. TESTER: Cause the DUT to move on to the <wst> state
-    2. TESTER: Cause the application on the DUT-side to issue an
-               ABORT call
-    3. DUT:    Issues an ABORT call
-    4. TESTER: Verify that the DUT responds with "ok" to the
-               application
-    5. TESTER: Verify that the DUT moves on to CLOSED state
+  Case shape (TC8 v3.0 p325):
+    the tester walks the DUT into the <wst> state and has the DUT-side
+    application abort. Two things must follow: the abort call reports
+    success back to that application, and the connection ends up
+    CLOSED.
 
   Iterations: <wst> ∈ {CLOSING, LAST-ACK, TIME-WAIT}.
 
