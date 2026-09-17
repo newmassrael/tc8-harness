@@ -29,9 +29,9 @@ struct TestCaseTraits<cases::TcpBasics06SM>
         "TCP in CLOSED state MUST send a SYN on an active OPEN call "
         "(RFC 793 §3.2 p23 Terminology)";
 
-    // Spec Test Procedure (v3.0 p281-p300.txt:558):
-    //   1. TESTER: Cause DUT app to issue an active OPEN call.
-    //   2. DUT:    Send a SYN — observed on pcap.
+    // Case shape (TC8 v3.0 p281-p300.txt:558):
+    //   the tester drives a DUT-side active open; the SYN the DUT puts
+    //   on the wire is the observable.
     //
     // Mechanism: the tester first arms an auxiliary kernel listener on
     // `kBasicsActiveRemotePort` so the DUT's outbound SYN reaches a

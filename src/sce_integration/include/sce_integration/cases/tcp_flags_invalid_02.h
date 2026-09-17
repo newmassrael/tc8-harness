@@ -31,11 +31,11 @@ struct TestCaseTraits<cases::TcpFlagsInvalid02SM>
         "ACK and remain in LISTEN; RST.SEQ taken from SEG.ACK "
         "(RFC 793 §3.9 p65 Event Processing)";
 
-    // Spec Test Procedure (v3.0 p321-p340.txt:234):
-    //   1. TESTER: Cause DUT to LISTEN.
-    //   2. TESTER: Send a segment with SYN and ACK.
-    //   3. DUT:    Send RST with SEQ == incoming SEG.ACK.
-    //   4. TESTER: Verify DUT remains in LISTEN.
+    // Case shape (TC8 v3.0 p321-p340.txt:234):
+    //   a passive open parks the DUT in LISTEN, the tester injects one
+    //   segment carrying SYN together with ACK, and the DUT answers
+    //   with an RST whose SEQ equals the injected ACK value; LISTEN
+    //   survives.
     //
     // Two synchronous raw-injects bracketed by a seam passive open /
     // close (driveSeamListen, listen-only, backend-agnostic):

@@ -40,14 +40,11 @@ struct TestCaseTraits<cases::Ipv4Fragments05SM> {
     using Captured = typename SM::CapturedType;
     using Expected = typename SM::ExpectedType;
 
-    // Spec Test Procedure (v3.0 p121-p140.txt:425):
-    //   1. TESTER: Cause DUT to send UDP from DIface-0 with
-    //      src_ip=DIface-0-IP, dst_ip=HOST-1-IP, src_port=20001,
-    //      dst_port=20000, payload=<UDPDefaultData>.
-    //   2. TESTER: Listen <ListenTime> s on DIface-0.
-    //   3. DUT: Send UDP message.
-    //   4. TESTER: Verify received packet has IP Flags MF=0 +
-    //      Fragment Offset=0.
+    // Case shape (TC8 v3.0 p121-p140.txt:425):
+    //   the tester triggers one DUT-side UDP egress on DIface-0
+    //   (DIface-0-IP:20001 to HOST-1-IP:20000, UDPDefaultData body),
+    //   watches the link for <ListenTime> s, and asserts the captured
+    //   datagram carries MF=0 with a zero fragment offset.
     //
     // Step 1 is emitted as §4.8.5 Upper Tester TriggerSendUdp RPC.
     // The 8 B UDPDefaultData body is well below the 1500 B MTU, so

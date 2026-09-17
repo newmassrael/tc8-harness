@@ -43,8 +43,8 @@ struct TestCaseTraits<cases::TcpUnacceptable13SM>
     // raw-injected OTW / unacceptable-ACK probes stay case-owned.
     //
     // Two iterations:
-    //   * Phase 1 — data segment with out-of-window SEQ.
-    //   * Phase 2 — data segment with unacceptable ACK number.
+    //   * Phase 1 — a data segment whose SEQ falls outside the window.
+    //   * Phase 2 — a data segment whose ACK number cannot be accepted.
     //
     // Per phase: driveSeamTimeWaitFw2 walks DUT through ESTABLISHED
     // → FIN-WAIT-1 → FIN-WAIT-2 → TIME-WAIT (handshake / DUT close via

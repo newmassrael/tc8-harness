@@ -42,10 +42,9 @@ struct TestCaseTraits<cases::TcpProbingWindows02SM>
     // kernel-default.
     static constexpr std::array<std::uint8_t, 1> kWindowSettlerByte = {'W'};
 
-    // 4-byte SEND payload — small enough to fit one segment; spec
-    // step 3 says "issue a SEND request for a data segment" without
-    // a size constraint. Distinct ASCII for pcap visibility; not
-    // load-bearing.
+    // 4-byte SEND payload — small enough to fit one segment; the spec's
+    // step 3 asks for a data send and fixes no size. Distinct ASCII for
+    // pcap visibility; not load-bearing.
     static constexpr std::array<std::uint8_t, 4> kSendPayload = {
         'P', 'R', 'B', 'E'};
 

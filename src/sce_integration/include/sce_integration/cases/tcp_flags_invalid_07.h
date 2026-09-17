@@ -65,9 +65,8 @@ struct TestCaseTraits<cases::TcpFlagsInvalid07SM>
     // FIN-with-ACK shape carries a valid ack=ISN_d+1, identical to the
     // CASE 2/3/5 envelope.
     //
-    // Spec literal (TC8 v3.0 p429 Pass Criteria step 3):
-    //   "DUT: Send an ACK with ACK number indicating the correct
-    //    expected next SEQ number."
+    // What the pass criterion asks for (TC8 v3.0 p429 step 3): the DUT
+    // acknowledges with the sequence number it next expects.
     // The DUT in SYN-RCVD has rcv_nxt = kTesterInitialSeq + 1 after
     // absorbing the tester SYN. The OTW probe is discarded so DUT's
     // rcv_nxt is unchanged; its challenge ACK carries

@@ -35,10 +35,10 @@ struct TestCaseTraits<cases::TcpChecksum02SM>
         "Receiver TCP MUST check the checksum and MUST NOT acknowledge "
         "in case of an error (RFC 1122 §4.2.2.7 p86 TCP Checksum)";
 
-    // Spec Test Procedure (v3.0 p301-p320.txt:161):
-    //   1. TESTER: Cause DUT ESTABLISHED — active OPEN.
-    //   2. TESTER: Send a data segment with incorrect checksum.
-    //   3. DUT:    Do not send ACK (absence-pass).
+    // Case shape (TC8 v3.0 p301-p320.txt:161):
+    //   a seam active open parks the DUT in ESTABLISHED, the tester
+    //   injects one data segment whose checksum is corrupt, and the
+    //   absence of a DUT ACK is the verdict (absence-pass).
     //
     // Migrated onto the Tier-2 DUT-control seam: the active OPEN runs
     // through `driveSeamActiveOpen` (ITcpControl), so the case runs unchanged

@@ -44,8 +44,8 @@ struct TestCaseTraits<cases::TcpUnacceptable06SM>
     // RFC 793 §3.9 p70 and emits a duplicate ACK as the unacceptable-segment
     // response.
     //
-    // Spec literal (TC8 v3.0 p442 Pass Criteria step 3):
-    //   "DUT: Send an ACK indicating next expected SEQ number."
+    // What the pass criterion asks for (TC8 v3.0 p442 step 3): the DUT
+    // acknowledges with the sequence number it next expects.
     // The "next expected SEQ number" the DUT acks back equals the
     // tester's snd_nxt at corrupt-segment receipt time — the OTW
     // segment was discarded, so DUT's rcv_nxt is unchanged from

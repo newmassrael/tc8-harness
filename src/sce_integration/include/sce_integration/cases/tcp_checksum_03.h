@@ -30,12 +30,11 @@ struct TestCaseTraits<cases::TcpChecksum03SM>
         "Sender TCP MUST generate a correct RFC 793 §3.1 pseudo-header "
         "checksum (RFC 1122 §4.2.2.7 p86 TCP Checksum)";
 
-    // Spec Test Procedure (v3.0 p301-p320.txt:194):
-    //   1. TESTER: Cause DUT ESTABLISHED — active OPEN.
-    //   2. TESTER: Cause DUT-side application SEND.
-    //   3. DUT:    Send the data segment.
-    //   4. TESTER: Verify checksum is correct (SCXML pass guard reads
-    //              captured.tcp_checksum_valid()).
+    // Case shape (TC8 v3.0 p301-p320.txt:194):
+    //   a seam active open parks the DUT in ESTABLISHED, a DUT-side
+    //   send puts one segment on the wire, and the checksum the DUT
+    //   wrote on it is the observable (the SCXML pass guard reads
+    //   captured.tcp_checksum_valid()).
     //
     // Same active-OPEN scaffold as BASICS_06+ via the Tier-2 seam
     // (driveSeamActiveOpen): the tester arms an auxiliary listener so the

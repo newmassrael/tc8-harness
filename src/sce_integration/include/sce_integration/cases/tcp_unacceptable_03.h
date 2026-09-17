@@ -30,11 +30,10 @@ struct TestCaseTraits<cases::TcpUnacceptable03SM>
         "TCP MUST send a RST after receiving an unacceptable ACK in "
         "SYN-RCVD state (RFC 793 §3.4 p35 Establishing a Connection)";
 
-    // Spec Test Procedure (v3.0 p301-p320.txt:328):
-    //   1. TESTER: Cause DUT to move to SYN-RCVD via passive open +
-    //              tester SYN.
-    //   2. TESTER: Send a segment with an unacceptable ACK number.
-    //   3. DUT:    Send a RST.
+    // Case shape (TC8 v3.0 p301-p320.txt:328):
+    //   a passive open plus a tester SYN parks the DUT in SYN-RCVD, the
+    //   tester then injects a segment whose ACK number cannot be
+    //   accepted, and the DUT's RST is the observable.
     //
     // The "unacceptable ACK" requires the tester to know ISN_d (the
     // DUT's chosen initial sequence number, randomised per

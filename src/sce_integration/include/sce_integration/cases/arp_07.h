@@ -24,10 +24,9 @@ struct TestCaseTraits<cases::Arp07SM>
         "ARP request sending — DUT broadcasts an ARP Request when its cache "
         "lacks the destination's entry";
     // Provoke a unicast UDP egress from the DUT — UT 0x02
-    // OpTriggerSendUdp is the literal rendering of the spec's "DUT
-    // CONFIGURE: Configure DUT to send a UDP Message from <DIface-0>
-    // (src=<DIface-0-IP>, dst=<HOST-1-IP>)" step shared by every
-    // §4.2.4 egress bucket. (Until 2026-06 this was a SubscribeEventgroup
+    // OpTriggerSendUdp is how this case realises the DUT-configure step
+    // every §4.2.4 egress bucket shares: the DUT puts a UDP datagram on
+    // <DIface-0>, sourced at <DIface-0-IP> and addressed to <HOST-1-IP>. (Until 2026-06 this was a SubscribeEventgroup
     // → Nack substitute that predated the UT UDP opcodes.) With
     // setup-netns.sh having flushed the DUT's neigh table, the UT
     // response + triggered datagram's unicast reply path forces an ARP
