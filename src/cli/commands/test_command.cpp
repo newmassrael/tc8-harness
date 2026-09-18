@@ -924,8 +924,19 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // may probe the DUT (OpQueryCapabilities) to resolve DUT-derived fault caps,
     // so a case needing nothing pays no extra I/O and is never gated.
     if (entry->required_capabilities != 0U) {
-        if (const std::uint32_t missing =
-                entry->required_capabilities & ~dut_control->capabilities();
+        // Only a DUT-DERIVED requirement is worth the OpQueryCapabilities round
+        // trip. Its reply makes the DUT ARP-resolve the probe's source, and that
+        // ARP lands inside the case's capture window — which an ARP-observing
+        // §4.5 link-local case reads as the DUT's own Probe. Measured: declaring
+        // a backend-static capability on those cases turned 11 of them from pass
+        // into a false fail, with the probe's ARP as the only new frame on the
+        // wire. A backend-static requirement is answerable without touching the
+        // DUT, so answer it that way.
+        const std::uint32_t caps =
+            (entry->required_capabilities & sce::kDutDerivedCaps) != 0U
+                ? dut_control->capabilities()
+                : dut_control->staticCapabilities();
+        if (const std::uint32_t missing = entry->required_capabilities & ~caps;
             missing != 0U) {
             // A missing DUT-derived fault cap has two causes that must NOT be
             // conflated: the DUT answered OpQueryCapabilities and genuinely lacks

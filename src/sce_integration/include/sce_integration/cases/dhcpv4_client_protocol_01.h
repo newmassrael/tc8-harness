@@ -24,7 +24,8 @@ struct TestCaseTraits<cases::Dhcpv4ClientProtocol01SM>
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_PROTOCOL_01";
     // Drives LINK-LOCAL autoconf, not a DHCP client — see ALLOCATING_01.
-    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities = 0;
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapLinkLocalControl;
     static constexpr std::string_view kDescription =
         "DHCPDISCOVER carries the RFC 1497 magic cookie 99,130,83,99 in "
         "the first four octets of the 'options' field (RFC 2131 §3, MUST)";
@@ -36,10 +37,10 @@ struct TestCaseTraits<cases::Dhcpv4ClientProtocol01SM>
     // filter excludes it, so this SCXML's listening state only sees
     // the one DISCOVER.
     static void stimulus(Captured& /*c*/,
-                         const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::sce::linklocal::emitStartLLAutoconfFast(
-            cfg, iface, cfg.dut.mac);
+                         const ::tc8::TestConfig& /*cfg*/,
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
+        ::tc8::sce::linklocal::emitStartLLAutoconfFast(dut);
     }
 };
 

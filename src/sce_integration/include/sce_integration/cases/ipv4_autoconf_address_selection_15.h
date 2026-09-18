@@ -32,10 +32,10 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection15SM>
         "back into RATE_LIMIT_INTERVAL silence (RFC 3927 §2.2.1, MUST)";
 
     static void stimulus(Captured& /*c*/,
-                         const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::sce::linklocal::emitStartLLAutoconfFastConflict(
-            cfg, iface, cfg.dut.mac);
+                         const ::tc8::TestConfig& /*cfg*/,
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
+        ::tc8::sce::linklocal::emitStartLLAutoconfFastConflict(dut);
     }
 
     // Override the base's cycle-only dispatch with the post-silence

@@ -31,10 +31,11 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection07NegSM>
         "(RFC 3927 §2.2.1 SHOULD=0)";
 
     static void stimulus(Captured& /*c*/,
-                         const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         const ::tc8::TestConfig& /*cfg*/,
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
         ::tc8::sce::linklocal::emitStartLLAutoconfBuggy(
-            cfg, iface, cfg.dut.mac,
+            dut,
             ::tc8::ut::kFlavorTargetHwNonzero);
     }
 };

@@ -28,10 +28,10 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection01SM>
         "169.254.[1-254].* (RFC 3927 §2.1, MUST: first/last 256 reserved)";
 
     static void stimulus(Captured& /*c*/,
-                         const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::sce::linklocal::emitStartLLAutoconfFast(
-            cfg, iface, cfg.dut.mac);
+                         const ::tc8::TestConfig& /*cfg*/,
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
+        ::tc8::sce::linklocal::emitStartLLAutoconfFast(dut);
     }
 };
 

@@ -36,9 +36,10 @@ struct TestCaseTraits<cases::Ipv4AutoconfLinklocalPackets04NegSM>
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
         ::tc8::sce::linklocal::emitStartLLAutoconfBuggy(
-            cfg, iface, cfg.dut.mac,
+            dut,
             ::tc8::ut::kFlavorReplyToArbitraryTarget);
         ::tc8::sce::linklocal::scheduleArbitraryTargetTesterRequest(
             scheduler, static_cast<int>(State::Listening_post_claim),

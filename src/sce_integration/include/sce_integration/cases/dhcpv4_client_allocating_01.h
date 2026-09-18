@@ -23,19 +23,19 @@ struct TestCaseTraits<cases::Dhcpv4ClientAllocating01SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientAllocating01SM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_ALLOCATING_01";
-    // Drives LINK-LOCAL autoconf, never a DHCP client, so it does not inherit
-    // the family base's kCapDhcpClientControl. It will declare the link-local
-    // capability once a backend advertises one; until then it states no
-    // requirement rather than a wrong one.
-    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities = 0;
+    // Drives LINK-LOCAL autoconf, never a DHCP client — a DHCPv4-numbered case
+    // measuring what the DUT does when DHCP does NOT answer. So it replaces the
+    // family base's kCapDhcpClientControl with the capability it actually needs.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapLinkLocalControl;
     static constexpr std::string_view kDescription =
         "DHCPDISCOVER carries IPv4 destination = 255.255.255.255 limited "
         "broadcast (RFC 2131 §3.1, MUST)";
     static void stimulus(Captured& /*c*/,
-                         const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::sce::linklocal::emitStartLLAutoconfFast(
-            cfg, iface, cfg.dut.mac);
+                         const ::tc8::TestConfig& /*cfg*/,
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
+        ::tc8::sce::linklocal::emitStartLLAutoconfFast(dut);
     }
 };
 

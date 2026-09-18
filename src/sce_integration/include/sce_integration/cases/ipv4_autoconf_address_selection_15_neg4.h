@@ -36,10 +36,11 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection15Neg4SM>
         "the second rate-limit silence window (RFC 3927 §2.2.1)";
 
     static void stimulus(Captured& /*c*/,
-                         const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         const ::tc8::TestConfig& /*cfg*/,
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
         ::tc8::sce::linklocal::emitStartLLAutoconfBuggyConflict(
-            cfg, iface, cfg.dut.mac,
+            dut,
             ::tc8::ut::kFlavorSkipSecondRateLimitSilence);
     }
 

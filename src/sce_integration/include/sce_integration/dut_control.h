@@ -10,6 +10,7 @@
 
 #include "sce_integration/dut_capabilities.h"
 #include "sce_integration/dut_dhcp_control.h"
+#include "sce_integration/dut_linklocal_control.h"
 #include "sce_integration/dut_socket_control.h"
 #include "tc8/testability_client.h"
 #include "stimulus/upper_tester_client.h"
@@ -63,6 +64,21 @@ public:
     // DUT-derived fault caps from OpQueryCapabilities); the result is cached.
     virtual DutCapabilities capabilities() const = 0;
 
+    // The BACKEND-STATIC half of capabilities() — the sub-interfaces this
+    // backend provides, answerable without touching the DUT.
+    //
+    // It exists because `capabilities()` is not free: resolving the DUT-derived
+    // fault caps sends OpQueryCapabilities, and the DUT's reply makes it
+    // ARP-resolve the probe's source address. That ARP lands on the wire inside
+    // the case's capture window, which an ARP-observing §4.5 link-local case
+    // reads as the DUT's own Probe — a measured false verdict, not a theory.
+    // A case whose requirement is entirely backend-static therefore must be able
+    // to be gated without provoking it.
+    //
+    // Defaults to capabilities() for a backend with nothing DUT-derived to
+    // resolve, where the two answers are the same and neither costs I/O.
+    virtual DutCapabilities staticCapabilities() const { return capabilities(); }
+
     // Whether the DUT-derived (kDutDerivedCaps) portion of capabilities() was
     // RESOLVED — i.e. the DUT answered OpQueryCapabilities with a usable bitmap.
     // True for backends that expose only backend-static caps (nothing to
@@ -93,6 +109,11 @@ public:
     // tree has not mined its service primitives, and inventing wire primitives
     // with no spec behind them is the mistake TD-16 declined to make.
     virtual IDhcpClientControl *dhcpClientControl() { return nullptr; }
+
+    // IPv4 link-local autoconf, or nullptr when the backend cannot start one.
+    // Testability returns nullptr: PRS_TPSP names no link-local autoconf
+    // primitive, and this tree does not invent wire primitives (TD-16).
+    virtual ILinkLocalControl *linkLocalControl() { return nullptr; }
 };
 
 // Seam-case convenience: fetch the DUT's TCP control sub-interface as a
@@ -530,6 +551,51 @@ private:
     OpcodeRawTransport raw_;
 };
 
+// Opcode-UT backend of ILinkLocalControl. Two opcodes share one operation: the
+// plain 16-byte OpStartLLAutoconf, and the fault-injecting variant that repeats
+// the timing knobs and appends a flavor byte. `spec.flavor` being ENGAGED — not
+// non-zero — selects the second, so flavor 0 still reaches the fault opcode and
+// a negative case can prove its compliant branch.
+//
+// Awaited rather than fire-and-forget. The fault variant carries a flavor the
+// DUT must have applied before the phase under test begins, and a flavor-set
+// that raced its own stimulus is a false pass this tree has already paid for.
+class OpcodeLinkLocalControl final : public ILinkLocalControl {
+public:
+    OpcodeLinkLocalControl(std::uint32_t dut_ip_be, std::uint16_t port, std::uint32_t src_ip_be,
+                           int timeout_ms, OpcodeRawTransport raw = {})
+        : dut_ip_be_(dut_ip_be), port_(port), src_ip_be_(src_ip_be), timeout_ms_(timeout_ms),
+          raw_(std::move(raw)) {}
+
+    bool startAutoconf(const linklocal::LinkLocalStartConfig &spec) override {
+        const auto req =
+            spec.flavor.has_value()
+                ? stimulus::buildStartLLAutoconfBuggyRequest(
+                      /*req_id=*/1, spec.dhcp_timeout_ms, spec.probe_wait_ms, spec.probe_min_ms,
+                      spec.probe_max_ms, spec.announce_wait_ms, spec.announce_interval_ms,
+                      spec.rate_limit_interval_ms, *spec.flavor)
+                : stimulus::buildStartLLAutoconfRequest(
+                      /*req_id=*/1, spec.dhcp_timeout_ms, spec.probe_wait_ms, spec.probe_min_ms,
+                      spec.probe_max_ms, spec.announce_wait_ms, spec.announce_interval_ms,
+                      spec.rate_limit_interval_ms);
+        if (raw_.iface.empty()) {
+            const auto r =
+                stimulus::upperTesterRoundTrip(dut_ip_be_, req, port_, timeout_ms_, src_ip_be_);
+            return r && r->status == ut::kStatusOk;
+        }
+        return stimulus::sendUpperTesterRequestAwaited(raw_.iface, raw_.tester_ip_be, dut_ip_be_,
+                                                       raw_.dut_mac, raw_.tester_src_port, req,
+                                                       timeout_ms_, "StartLLAutoconf") == 0;
+    }
+
+private:
+    std::uint32_t dut_ip_be_;
+    std::uint16_t port_;
+    std::uint32_t src_ip_be_;
+    int timeout_ms_;
+    OpcodeRawTransport raw_;
+};
+
 // Adapter over the in-house opcode Upper Tester (upper_tester_client.h). Wraps
 // the existing builders/transport with no behaviour change. Kernel-routed
 // SOCK_DGRAM probe (matching `ut-ping`); the TCP data plane is exposed through
@@ -553,7 +619,8 @@ public:
                        timeout_ms < kStateProbeTimeoutMs ? timeout_ms : kStateProbeTimeoutMs),
           recv_oob_(dut_ip_be, port, src_ip_be, timeout_ms),
           udp_ctrl_(dut_ip_be, port, src_ip_be, timeout_ms, raw),
-          dhcp_ctrl_(dut_ip_be, port, src_ip_be, timeout_ms, std::move(raw)) {}
+          dhcp_ctrl_(dut_ip_be, port, src_ip_be, timeout_ms, raw),
+          ll_ctrl_(dut_ip_be, port, src_ip_be, timeout_ms, std::move(raw)) {}
 
     bool probe() override {
         return stimulus::pingUpperTester(dut_ip_be_, port_, timeout_ms_, src_ip_be_)
@@ -565,16 +632,22 @@ public:
     bool endTest() override { return true; }
     const char *backendName() const override { return "opcode-ut"; }
 
-    DutCapabilities capabilities() const override {
-        // (1) Backend interface surface — the opcode UT backend always provides
-        // these IDutControl sub-interfaces, independent of the DUT firmware.
-        constexpr std::uint32_t kBackendBase =
+    // (1) Backend interface surface — the opcode UT backend always provides
+    // these IDutControl sub-interfaces, independent of the DUT firmware. No DUT
+    // I/O, so a case requiring only these is gated in silence.
+    DutCapabilities staticCapabilities() const override {
+        return static_cast<DutCapabilities>(
             kCapTcpControl | kCapUdpControl | kCapTcpStateProbe | kCapTcpSynSentOpen |
-            kCapTcpRecvOob | kCapDhcpClientControl;
+            kCapTcpRecvOob | kCapDhcpClientControl | kCapLinkLocalControl);
+    }
+
+    DutCapabilities capabilities() const override {
         // (2) DUT-firmware fault caps — the DUT is the SSOT for what it can
         // fault: OpQueryCapabilities (0x16) reports its implemented opcodes.
+        // This PROBES, and the DUT's reply makes it ARP-resolve the probe source;
+        // see staticCapabilities() for why that matters.
         resolveCaps16();
-        return static_cast<DutCapabilities>(kBackendBase | fault_caps_);
+        return static_cast<DutCapabilities>(staticCapabilities() | fault_caps_);
     }
     // True iff the DUT answered 0x16 with a usable bitmap (see the base class):
     // distinguishes "DUT lacks the seam" (a real N/A skip) from "could not reach
@@ -588,6 +661,7 @@ public:
     ITcpStateProbe *tcpStateProbe() override { return &state_probe_; }
     ITcpRecvOob *tcpRecvOob() override { return &recv_oob_; }
     IDhcpClientControl *dhcpClientControl() override { return &dhcp_ctrl_; }
+    ILinkLocalControl *linkLocalControl() override { return &ll_ctrl_; }
 
 private:
     // Fail-fast ceiling for the kernel-state probe, independent of the
@@ -669,6 +743,7 @@ private:
     OpcodeTcpRecvOob recv_oob_;
     OpcodeUdpControl udp_ctrl_;
     OpcodeDhcpClientControl dhcp_ctrl_;
+    OpcodeLinkLocalControl ll_ctrl_;
 };
 
 // Adapter over the AUTOSAR Testability Protocol client (testability_client.h).

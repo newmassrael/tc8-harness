@@ -1738,6 +1738,14 @@
         {
           "file": "src/sce_integration/include/sce_integration/cases/_fault_flavor_arm.h",
           "kind": "references"
+        },
+        {
+          "file": "src/cli/commands/test_command.cpp",
+          "kind": "references"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/dut_control.h",
+          "kind": "references"
         }
       ]
     },

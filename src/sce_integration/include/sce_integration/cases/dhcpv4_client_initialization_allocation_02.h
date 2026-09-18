@@ -24,15 +24,16 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation02SM>
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_02";
     // Drives LINK-LOCAL autoconf, not a DHCP client — see ALLOCATING_01.
-    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities = 0;
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapLinkLocalControl;
     static constexpr std::string_view kDescription =
         "DHCPDISCOVER 'ciaddr' field is 0 in INIT state — the client has "
         "no bound address to advertise (RFC 2131 §4.4.1, MUST)";
     static void stimulus(Captured& /*c*/,
-                         const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::sce::linklocal::emitStartLLAutoconfFast(
-            cfg, iface, cfg.dut.mac);
+                         const ::tc8::TestConfig& /*cfg*/,
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
+        ::tc8::sce::linklocal::emitStartLLAutoconfFast(dut);
     }
 };
 

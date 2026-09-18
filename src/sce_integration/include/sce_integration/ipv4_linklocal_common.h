@@ -21,6 +21,8 @@
 #include "tc8/upper_tester_protocol.h"
 
 #include "sce_integration/arp_captured.h"
+#include "sce_integration/dut_control.h"
+#include "sce_integration/dut_linklocal_control.h"
 #include "sce_integration/test_case_traits.h"  // IStimulusScheduler
 #include "sce_integration/test_config.h"
 #include "stimulus/arp_builder.h"
@@ -101,84 +103,73 @@ inline constexpr auto kLLPilotInitialWait =
     std::chrono::milliseconds(1500);
 
 
-// Issue an OpStartLLAutoconf RPC to the tc8-dut. The RPC itself is
-// fire-and-forget for the SCXML's purposes — the verdict comes from
-// observing the DUT's own DHCPDISCOVER + ARP traffic. `tester_src_port`
-// names the source port the UT request carries; tc8-dut's
-// Confirmation reply returns to that port (default 20100).
-inline void emitStartLLAutoconf(const ::tc8::TestConfig& cfg,
-                                 std::string_view iface,
-                                 std::uint16_t dhcp_timeout_ms,
-                                 std::uint16_t probe_wait_ms,
-                                 std::uint16_t probe_min_ms,
-                                 std::uint16_t probe_max_ms,
-                                 std::uint16_t announce_wait_ms,
-                                 std::uint16_t announce_interval_ms,
-                                 std::uint16_t rate_limit_interval_ms = ::tc8::rfc3927::kRateLimitIntervalMs,
-                                 std::uint16_t tester_src_port = ::tc8::ut::kTesterSrcPort,
-                                 const std::array<std::uint8_t, 6>& dut_mac = {},
-                                 std::chrono::milliseconds initial_wait =
-                                     kLLPilotInitialWait) {
-    if (initial_wait.count() > 0) {
-        std::this_thread::sleep_for(initial_wait);
+// Ask the DUT to run IPv4 link-local autoconfiguration, over the Tier-2 seam.
+//
+// The verdict still comes from observing the DUT's own DHCPDISCOVER + ARP
+// traffic — this call only starts the machine. It is nonetheless AWAITED rather
+// than fire-and-forget: the fault-injecting form carries a flavor the DUT must
+// have applied before the phase under test begins, and a flavor-set racing its
+// own stimulus is a false pass this tree has already paid for once.
+//
+// Returns false when the backend cannot start autoconf, or when the DUT
+// declined — the stimulus did not happen, which is a non-conclusion rather than
+// a DUT verdict.
+inline bool emitStartLLAutoconf(::tc8::sce::IDutControl& dut,
+                                 const linklocal::LinkLocalStartConfig& c) {
+    if (c.apply_initial_wait) {
+        std::this_thread::sleep_for(kLLPilotInitialWait);
     }
-    const auto req = ::tc8::stimulus::buildStartLLAutoconfRequest(
-        /*req_id=*/1,
-        dhcp_timeout_ms, probe_wait_ms,
-        probe_min_ms,    probe_max_ms,
-        announce_wait_ms, announce_interval_ms,
-        rate_limit_interval_ms);
-    ::tc8::stimulus::sendUpperTesterRequest(
-        iface, cfg.ipv4.tester_ip, cfg.ipv4.dut_iface_ip, dut_mac,
-        tester_src_port, req);
+    auto *ll = dut.linkLocalControl();
+    if (ll == nullptr) {
+        return false;
+    }
+    return ll->startAutoconf(c);
 }
 
 // Convenience wrapper: kick LL with the fast envelope. Used by every
 // observation-only §4.5 case. Cadence cases call
 // emitStartLLAutoconfRfcDefaults instead.
-inline void emitStartLLAutoconfFast(const ::tc8::TestConfig& cfg,
-                                     std::string_view iface,
-                                     const std::array<std::uint8_t, 6>& dut_mac) {
-    emitStartLLAutoconf(
-        cfg, iface,
-        kFastDhcpTimeoutMs, kFastProbeWaitMs,
-        kFastProbeMinMs,    kFastProbeMaxMs,
-        kFastAnnounceWaitMs, kFastAnnounceIntervalMs,
-        ::tc8::rfc3927::kRateLimitIntervalMs,
-        /*tester_src_port=*/::tc8::ut::kTesterSrcPort, dut_mac);
+// The fast envelope, shared by every wrapper below so a knob cannot drift
+// between them.
+inline linklocal::LinkLocalStartConfig fastEnvelope() {
+    linklocal::LinkLocalStartConfig c;
+    c.dhcp_timeout_ms        = kFastDhcpTimeoutMs;
+    c.probe_wait_ms          = kFastProbeWaitMs;
+    c.probe_min_ms           = kFastProbeMinMs;
+    c.probe_max_ms           = kFastProbeMaxMs;
+    c.announce_wait_ms       = kFastAnnounceWaitMs;
+    c.announce_interval_ms   = kFastAnnounceIntervalMs;
+    c.rate_limit_interval_ms = ::tc8::rfc3927::kRateLimitIntervalMs;
+    return c;
+}
+
+inline bool emitStartLLAutoconfFast(::tc8::sce::IDutControl& dut) {
+    return emitStartLLAutoconf(dut, fastEnvelope());
 }
 
 // Convenience wrapper: kick LL with RFC 3927 cadence defaults. Used
 // by ADDRESS_SELECTION_09/_10. Wall envelope ~7 s for Probe3, ~9 s
 // for first Announce. Pair with a 12 s SCXML deadline.
-inline void emitStartLLAutoconfRfcDefaults(
-        const ::tc8::TestConfig& cfg,
-        std::string_view iface,
-        const std::array<std::uint8_t, 6>& dut_mac) {
-    emitStartLLAutoconf(
-        cfg, iface,
-        kRfcDhcpTimeoutMs, kRfcProbeWaitMs,
-        kRfcProbeMinMs,    kRfcProbeMaxMs,
-        kRfcAnnounceWaitMs, kRfcAnnounceIntervalMs,
-        ::tc8::rfc3927::kRateLimitIntervalMs,
-        /*tester_src_port=*/::tc8::ut::kTesterSrcPort, dut_mac);
+inline bool emitStartLLAutoconfRfcDefaults(::tc8::sce::IDutControl& dut) {
+    linklocal::LinkLocalStartConfig c;
+    c.dhcp_timeout_ms        = kRfcDhcpTimeoutMs;
+    c.probe_wait_ms          = kRfcProbeWaitMs;
+    c.probe_min_ms           = kRfcProbeMinMs;
+    c.probe_max_ms           = kRfcProbeMaxMs;
+    c.announce_wait_ms       = kRfcAnnounceWaitMs;
+    c.announce_interval_ms   = kRfcAnnounceIntervalMs;
+    c.rate_limit_interval_ms = ::tc8::rfc3927::kRateLimitIntervalMs;
+    return emitStartLLAutoconf(dut, c);
 }
 
 // §4.5.6.2 _14 fast envelope: standard fast cadence + 3 s
 // rate_limit_interval. Wall budget for one case: 10 conflicts ~3 s
 // + 3 s silence + ~1 s harness overhead = ~7 s, comfortably under
 // the 12 s SCXML deadline.
-inline void emitStartLLAutoconfFastConflict(
-        const ::tc8::TestConfig& cfg,
-        std::string_view iface,
-        const std::array<std::uint8_t, 6>& dut_mac) {
-    emitStartLLAutoconf(
-        cfg, iface,
-        kFastDhcpTimeoutMs, kFastProbeWaitMs,
-        kFastProbeMinMs,    kFastProbeMaxMs,
-        kFastAnnounceWaitMs, kFastAnnounceIntervalMs,
-        kFastRateLimitMs,
-        /*tester_src_port=*/::tc8::ut::kTesterSrcPort, dut_mac);
+inline bool emitStartLLAutoconfFastConflict(::tc8::sce::IDutControl& dut) {
+    auto c = fastEnvelope();
+    c.rate_limit_interval_ms = kFastRateLimitMs;
+    return emitStartLLAutoconf(dut, c);
 }
 
 // §4.5.6.2 fault-injection variant. Issue OpStartLLAutoconfBuggy with
@@ -186,25 +177,12 @@ inline void emitStartLLAutoconfFastConflict(
 // per-flavor Probe-field mutation. Used by the cluster A negative
 // cases (`*_neg`) so each fail_state branch in the SCXML is reached
 // by a deterministic stimulus, closing the self-reference trap.
-inline void emitStartLLAutoconfBuggy(
-        const ::tc8::TestConfig& cfg,
-        std::string_view iface,
-        const std::array<std::uint8_t, 6>& dut_mac,
-        std::uint8_t flavor,
-        std::chrono::milliseconds initial_wait = kLLPilotInitialWait) {
-    if (initial_wait.count() > 0) {
-        std::this_thread::sleep_for(initial_wait);
-    }
-    const auto req = ::tc8::stimulus::buildStartLLAutoconfBuggyRequest(
-        /*req_id=*/1,
-        kFastDhcpTimeoutMs, kFastProbeWaitMs,
-        kFastProbeMinMs,    kFastProbeMaxMs,
-        kFastAnnounceWaitMs, kFastAnnounceIntervalMs,
-        ::tc8::rfc3927::kRateLimitIntervalMs,
-        flavor);
-    ::tc8::stimulus::sendUpperTesterRequest(
-        iface, cfg.ipv4.tester_ip, cfg.ipv4.dut_iface_ip, dut_mac,
-        /*tester_src_port=*/::tc8::ut::kTesterSrcPort, req);
+inline bool emitStartLLAutoconfBuggy(::tc8::sce::IDutControl& dut, std::uint8_t flavor,
+                                     bool apply_initial_wait = true) {
+    auto c = fastEnvelope();
+    c.flavor             = flavor;
+    c.apply_initial_wait = apply_initial_wait;
+    return emitStartLLAutoconf(dut, c);
 }
 
 // §4.5.6.2 _14/_15 fault-injection variant: OpStartLLAutoconfBuggy with
@@ -213,25 +191,13 @@ inline void emitStartLLAutoconfBuggy(
 // byte that drives tc8-dut's rate-limit conflict mutation. The 3 s
 // silence window fits the _14/_15 SCXML 12-15 s deadline; the 60 s
 // default would overrun it.
-inline void emitStartLLAutoconfBuggyConflict(
-        const ::tc8::TestConfig& cfg,
-        std::string_view iface,
-        const std::array<std::uint8_t, 6>& dut_mac,
-        std::uint8_t flavor,
-        std::chrono::milliseconds initial_wait = kLLPilotInitialWait) {
-    if (initial_wait.count() > 0) {
-        std::this_thread::sleep_for(initial_wait);
-    }
-    const auto req = ::tc8::stimulus::buildStartLLAutoconfBuggyRequest(
-        /*req_id=*/1,
-        kFastDhcpTimeoutMs, kFastProbeWaitMs,
-        kFastProbeMinMs,    kFastProbeMaxMs,
-        kFastAnnounceWaitMs, kFastAnnounceIntervalMs,
-        kFastRateLimitMs,
-        flavor);
-    ::tc8::stimulus::sendUpperTesterRequest(
-        iface, cfg.ipv4.tester_ip, cfg.ipv4.dut_iface_ip, dut_mac,
-        /*tester_src_port=*/::tc8::ut::kTesterSrcPort, req);
+inline bool emitStartLLAutoconfBuggyConflict(::tc8::sce::IDutControl& dut, std::uint8_t flavor,
+                                             bool apply_initial_wait = true) {
+    auto c = fastEnvelope();
+    c.rate_limit_interval_ms = kFastRateLimitMs;
+    c.flavor                 = flavor;
+    c.apply_initial_wait     = apply_initial_wait;
+    return emitStartLLAutoconf(dut, c);
 }
 
 // §4.5.6.2 cadence-violation helper for IPv4_AUTOCONF_ADDRESS_SELECTION_10_NEG.
@@ -243,17 +209,11 @@ inline void emitStartLLAutoconfBuggyConflict(
 inline constexpr std::uint16_t kCadenceViolationProbeMinMs = 100;
 inline constexpr std::uint16_t kCadenceViolationProbeMaxMs = 100;
 
-inline void emitStartLLAutoconfFastCadence(
-        const ::tc8::TestConfig& cfg,
-        std::string_view iface,
-        const std::array<std::uint8_t, 6>& dut_mac) {
-    emitStartLLAutoconf(
-        cfg, iface,
-        kFastDhcpTimeoutMs, kFastProbeWaitMs,
-        kCadenceViolationProbeMinMs, kCadenceViolationProbeMaxMs,
-        kFastAnnounceWaitMs, kFastAnnounceIntervalMs,
-        ::tc8::rfc3927::kRateLimitIntervalMs,
-        /*tester_src_port=*/::tc8::ut::kTesterSrcPort, dut_mac);
+inline bool emitStartLLAutoconfFastCadence(::tc8::sce::IDutControl& dut) {
+    auto c = fastEnvelope();
+    c.probe_min_ms = kCadenceViolationProbeMinMs;
+    c.probe_max_ms = kCadenceViolationProbeMaxMs;
+    return emitStartLLAutoconf(dut, c);
 }
 
 // Dispatch helper: ARP-only variant. Mirror of

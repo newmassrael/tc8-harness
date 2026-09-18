@@ -28,11 +28,11 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection12SM>
         "conflict (RFC 3927 §2.2.1, MUST)";
 
     static void stimulus(Captured& c,
-                         const ::tc8::TestConfig& cfg,
+                         const ::tc8::TestConfig& /*cfg*/,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          linklocal::IStimulusScheduler& scheduler) {
-        ::tc8::sce::linklocal::emitStartLLAutoconfFast(
-            cfg, iface, cfg.dut.mac);
+        ::tc8::sce::linklocal::emitStartLLAutoconfFast(dut);
         ::tc8::sce::linklocal::scheduleConflictArpOnStateEntry(
             scheduler, static_cast<int>(State::Await_repick),
             iface, ::tc8::sce::linklocal::ConflictArpVariant::Reply, c);

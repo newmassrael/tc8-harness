@@ -24,16 +24,17 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation03SM>
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_INITIALIZATION_ALLOCATION_03";
     // Drives LINK-LOCAL autoconf, not a DHCP client — see ALLOCATING_01.
-    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities = 0;
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapLinkLocalControl;
     static constexpr std::string_view kDescription =
         "DHCPDISCOVER 'chaddr' field carries the DUT iface MAC — the "
         "DUT-side hardware address identifying the client (RFC 2131 "
         "§4.4.1, MUST)";
     static void stimulus(Captured& /*c*/,
-                         const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::sce::linklocal::emitStartLLAutoconfFast(
-            cfg, iface, cfg.dut.mac);
+                         const ::tc8::TestConfig& /*cfg*/,
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
+        ::tc8::sce::linklocal::emitStartLLAutoconfFast(dut);
     }
 };
 

@@ -31,10 +31,10 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection14SM>
     // Fast-conflict envelope (rate_limit_interval = 3 s); the
     // repeated-conflict dispatch is inherited from the base.
     static void stimulus(Captured& /*c*/,
-                         const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::sce::linklocal::emitStartLLAutoconfFastConflict(
-            cfg, iface, cfg.dut.mac);
+                         const ::tc8::TestConfig& /*cfg*/,
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
+        ::tc8::sce::linklocal::emitStartLLAutoconfFastConflict(dut);
     }
 };
 

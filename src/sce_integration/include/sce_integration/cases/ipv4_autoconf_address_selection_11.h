@@ -34,11 +34,11 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection11SM>
     // `c.first_probe_target_proto_ip` at fire time so the conflict
     // frame claims exactly the DUT's tentative LL.
     static void stimulus(Captured& c,
-                         const ::tc8::TestConfig& cfg,
+                         const ::tc8::TestConfig& /*cfg*/,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          linklocal::IStimulusScheduler& scheduler) {
-        ::tc8::sce::linklocal::emitStartLLAutoconfFast(
-            cfg, iface, cfg.dut.mac);
+        ::tc8::sce::linklocal::emitStartLLAutoconfFast(dut);
         ::tc8::sce::linklocal::scheduleConflictArpOnStateEntry(
             scheduler, static_cast<int>(State::Await_repick),
             iface, ::tc8::sce::linklocal::ConflictArpVariant::Request, c);

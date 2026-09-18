@@ -33,10 +33,11 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection14NegSM>
     // Same fast-conflict envelope + repeated-conflict dispatch (inherited
     // from the base); only the buggy flavor differs.
     static void stimulus(Captured& /*c*/,
-                         const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         const ::tc8::TestConfig& /*cfg*/,
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
         ::tc8::sce::linklocal::emitStartLLAutoconfBuggyConflict(
-            cfg, iface, cfg.dut.mac,
+            dut,
             ::tc8::ut::kFlavorReprobeStaleCycle);
     }
 };

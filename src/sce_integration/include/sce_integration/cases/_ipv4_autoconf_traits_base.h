@@ -64,6 +64,14 @@ struct LinklocalAutoconfBase {
     static constexpr int              kTopology   = 1;
     static constexpr ::tc8::BpfGroup  kBpfGroup   = ::tc8::BpfGroup::Arp;
 
+    // Every case on this base starts the DUT's link-local autoconf state
+    // machine, and nothing on the wire can provoke that — the DUT probes because
+    // it was told to. Declared on the base so the next case here cannot forget
+    // it and sit out its listen window reporting a non-conclusion that reads
+    // like a DUT fault.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapLinkLocalControl;
+
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {
         ::tc8::sce::linklocal::dispatchArpFrame<SM>(c, sm, ev);
     }
@@ -97,6 +105,11 @@ struct LinklocalRepeatedConflictBase {
     static constexpr bool             kDeprecated = false;
     static constexpr int              kTopology   = 1;
     static constexpr ::tc8::BpfGroup  kBpfGroup   = ::tc8::BpfGroup::Arp;
+
+    // As LinklocalAutoconfBase: these cases start the autoconf machine too, so
+    // they are only measurable on a backend that can.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapLinkLocalControl;
 
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev,
                          std::string_view iface) {

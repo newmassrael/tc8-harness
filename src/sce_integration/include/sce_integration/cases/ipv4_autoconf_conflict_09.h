@@ -30,9 +30,9 @@ struct TestCaseTraits<cases::Ipv4AutoconfConflict09SM>
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
-        ::tc8::sce::linklocal::emitStartLLAutoconfFast(
-            cfg, iface, cfg.dut.mac);
+        ::tc8::sce::linklocal::emitStartLLAutoconfFast(dut);
         ::tc8::sce::linklocal::scheduleDefenderCeaseConflicts(
             scheduler,
             static_cast<int>(State::Listening_post_claim),

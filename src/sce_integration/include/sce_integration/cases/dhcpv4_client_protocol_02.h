@@ -24,15 +24,16 @@ struct TestCaseTraits<cases::Dhcpv4ClientProtocol02SM>
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_PROTOCOL_02";
     // Drives LINK-LOCAL autoconf, not a DHCP client — see ALLOCATING_01.
-    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities = 0;
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapLinkLocalControl;
     static constexpr std::string_view kDescription =
         "DHCPDISCOVER carries Option 53 (DHCP message type) — every DHCP "
         "message MUST include this option (RFC 2131 §3, MUST)";
     static void stimulus(Captured& /*c*/,
-                         const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::sce::linklocal::emitStartLLAutoconfFast(
-            cfg, iface, cfg.dut.mac);
+                         const ::tc8::TestConfig& /*cfg*/,
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
+        ::tc8::sce::linklocal::emitStartLLAutoconfFast(dut);
     }
 };
 
