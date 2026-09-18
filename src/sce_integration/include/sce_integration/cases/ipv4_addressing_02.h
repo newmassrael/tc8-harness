@@ -49,6 +49,10 @@ struct TestCaseTraits<cases::Ipv4Addressing02SM> {
     // As ipv4_addressing_01: the verdict rests on the DUT's receipt answer.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
         ::tc8::sce::kCapUdpReceiveControl;
+    // As ipv4_addressing_01: the Confirmation is the graded frame, so the control
+    // channel stays visible to this case.
+    static constexpr ::tc8::sce::ControlPlaneRole kControlPlaneRole =
+        ::tc8::sce::ControlPlaneRole::kEvidence;
 
     using Captured = typename SM::CapturedType;
     using Expected = typename SM::ExpectedType;

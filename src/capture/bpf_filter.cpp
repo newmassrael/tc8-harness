@@ -51,6 +51,13 @@ std::string tcp() {
     // status). Widening the kernel BPF here is verdict-neutral
     // because dispatchTcpFrame() pattern-matches on TcpFrame via
     // std::get_if and silently ignores UdpFrame events.
+    //
+    // Since the control-plane exclusion landed, these frames no longer reach
+    // dispatch at all: `PacketPipeline::setControlPlanePort` drops them one step
+    // earlier, for every group rather than only where a type check happens to
+    // cover it. The observability this widening exists for is untouched — the
+    // CLI's pcap_dump runs before processFrame, so the UT envelope is still in
+    // the saved pcap for `decode-pcap` to render.
     return "tcp or (udp and port " + std::to_string(tc8::ut::kPort) + ")";
 }
 

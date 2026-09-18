@@ -78,6 +78,14 @@ struct CaseEntry {
     // The CLI capability-skip gate skips a case whose bits are not all present
     // in the selected --dut-control backend's capabilities() (Tier 2 2b#4).
     std::uint32_t required_capabilities = 0;
+    // What the DUT-control channel is for this case (from
+    // TestCaseTraits<>::kControlPlaneRole). kScaffolding — the default and the
+    // overwhelming majority — means the CLI keeps it out of the state machine's
+    // view so a control response cannot be graded in place of the datagram under
+    // test. See `ControlPlaneRole` for why this is an enum and not a bool, and
+    // `controlPlaneRoleOf` for why the SCXML's own `has_ut_response` gates are
+    // not a substitute.
+    ControlPlaneRole control_plane_role = ControlPlaneRole::kScaffolding;
     std::function<std::unique_ptr<ITestRunner>(const ::tc8::TestConfig &)> factory;
     // Catalog this case belongs to. Defaults to kDefaultSuite so every existing
     // construction (which omits it) stays in the in-tree suite; the OEM-suite
@@ -140,7 +148,7 @@ template <typename StateMachine> struct CaseRegistrar {
             CaseEntry{T::kCaseId, deriveCategory(T::kCaseId), T::kDescription, T::kDeprecated,
                       T::kTopology, T::kBpfGroup, bpfExpressionOf<T>(),
                       extraCaptureUdpPortsData<T>(), extraCaptureUdpPortsCount<T>(),
-                      requiredCapabilitiesOf<T>(),
+                      requiredCapabilitiesOf<T>(), controlPlaneRoleOf<T>(),
                       [](const ::tc8::TestConfig &cfg) {
                           return std::unique_ptr<ITestRunner>(new TestRunner<StateMachine>(cfg));
                       },

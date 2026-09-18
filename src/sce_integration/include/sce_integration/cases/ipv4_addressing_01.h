@@ -45,6 +45,12 @@ struct TestCaseTraits<cases::Ipv4Addressing01SM> {
     // rather than inherited from UdpReceiveDrivenBase.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
         ::tc8::sce::kCapUdpReceiveControl;
+    // That answer arrives as an Upper Tester Confirmation on the wire and the
+    // SCXML grades it, so the capture path must let the control channel through
+    // for this case. Declared alongside the capability for the same reason it is:
+    // standalone traits inherit neither.
+    static constexpr ::tc8::sce::ControlPlaneRole kControlPlaneRole =
+        ::tc8::sce::ControlPlaneRole::kEvidence;
 
     using Captured = typename SM::CapturedType;
     using Expected = typename SM::ExpectedType;

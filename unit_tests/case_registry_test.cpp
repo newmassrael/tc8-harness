@@ -56,6 +56,7 @@ CaseEntry makeEntry(std::string_view id, bool deprecated = false) {
         id, deriveCategory(id), "desc", deprecated, 1, ::tc8::BpfGroup::SomeIp,
         /*bpf_expression=*/{}, /*extra_capture_udp_ports=*/nullptr,
         /*extra_capture_udp_port_count=*/0U, /*required_capabilities=*/0U,
+        ControlPlaneRole::kScaffolding,
         [](const ::tc8::TestConfig &) {
             return std::unique_ptr<ITestRunner>(new DummyRunner());
         }};

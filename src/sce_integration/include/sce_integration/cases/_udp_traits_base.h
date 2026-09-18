@@ -72,6 +72,18 @@ template <typename StateMachine>
 struct UdpReceiveDrivenBase : UdpAnyBase<StateMachine> {
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
         ::tc8::sce::kCapUdpReceiveControl;
+
+    // The answer comes back as an Upper Tester Confirmation on the wire, and the
+    // SCXML grades that frame (`captured.has_ut_response and ut_opcode == 0x81`).
+    // So for this family the DUT-control channel is the evidence, and the capture
+    // path must not withhold it — the one place where that is true by
+    // construction rather than per case. Declared here and not derived from
+    // `kRequiredCapabilities`: the two sets are ALMOST the same and not quite,
+    // which is exactly the kind of near-coincidence that silently breaks the odd
+    // case out (IPv4_ADDRESSING_01/02 grade the same Confirmation from verbatim
+    // traits and would have been missed).
+    static constexpr ::tc8::sce::ControlPlaneRole kControlPlaneRole =
+        ::tc8::sce::ControlPlaneRole::kEvidence;
 };
 
 // Base for the §4.6.5.4 UDP EGRESS field-fault `_NEG` cases (UDP_FIELDS_01/02/06/
@@ -104,6 +116,13 @@ struct UdpIngressFaultNegBase : UdpAnyBase<StateMachine> {
     // the gate must skip on either absence.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
         ::tc8::sce::kCapIngressFault | ::tc8::sce::kCapUdpReceiveControl;
+    // And it grades the Confirmation that answers it, so the control channel is
+    // this family's evidence — as for UdpReceiveDrivenBase. Stated here rather
+    // than left to the gate: these cases capability-skip on the reference DUT, so
+    // a missing declaration would not show up as a regression on a run that does
+    // not reach the fault fixture.
+    static constexpr ::tc8::sce::ControlPlaneRole kControlPlaneRole =
+        ::tc8::sce::ControlPlaneRole::kEvidence;
 };
 
 // Base for the §4.6.5.6 UDP APP-LAYER reception-fault `_NEG` cases (INTRODUCTION_02).
@@ -119,6 +138,10 @@ struct UdpAppFaultNegBase : UdpAnyBase<StateMachine> {
     // As UdpIngressFaultNegBase: the receipt question is part of every case here.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
         ::tc8::sce::kCapAppFault | ::tc8::sce::kCapUdpReceiveControl;
+    // As UdpIngressFaultNegBase, and skipped on the reference DUT for the same
+    // reason, so the declaration cannot wait for a run to demand it.
+    static constexpr ::tc8::sce::ControlPlaneRole kControlPlaneRole =
+        ::tc8::sce::ControlPlaneRole::kEvidence;
 };
 
 }  // namespace tc8::sce

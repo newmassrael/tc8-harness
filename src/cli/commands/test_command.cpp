@@ -962,6 +962,22 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // TcpFrame.observed_ts_us stays in microseconds for both live
     // (default MICRO) and offline-replay (NANO) capture sources.
     pipeline.setTstampPrecision(src->tstampPrecision());
+    // Keep the harness's own DUT-control traffic out of the verdict. The seam's
+    // request/response frames ride the same wire as the protocol under test, and
+    // a case that grades the first datagram in its listen window would otherwise
+    // grade a control response in place of its own. The backend reports the port
+    // it actually speaks on; the frames stay in the saved pcap either way,
+    // because pcap_dump runs before processFrame in the loop below.
+    //
+    // Unless the case's verdict IS the control response — the Upper Tester
+    // Confirmation family asks the DUT what it received and reads the answer off
+    // the wire (`captured.has_ut_response`). For those the control channel is the
+    // evidence, not noise, and withholding it would turn a measured pass into a
+    // timeout. Declared per case rather than inferred: see
+    // `TestCaseTraits<>::kControlPlaneRole`.
+    if (entry->control_plane_role == ::tc8::sce::ControlPlaneRole::kScaffolding) {
+        pipeline.setControlPlanePort(dut_control->controlPort());
+    }
 
     // When pcap_dump is enabled, wrap the frame callback to also write to
     // disk. Done as a separate callback inside dispatch(), below.
@@ -1286,6 +1302,16 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
                     "segmentation offload is likely on; this capture does not represent "
                     "the wire\n",
                     static_cast<unsigned long long>(pipeline.truncatedFrames()));
+    }
+    // Informational, and deliberately NOT a verdict qualifier: these frames were
+    // captured and saved, they were simply not offered to the state machine. It
+    // is printed because "which frames reached the verdict" was the question that
+    // cost the most to answer when a control response was being graded in place
+    // of a case's own datagram — a line here answers it without a pcap.
+    if (pipeline.controlPlaneFrames() != 0) {
+        std::printf("capture  : %llu frame(s) on the DUT-control port withheld from grading "
+                    "(still in the saved pcap)\n",
+                    static_cast<unsigned long long>(pipeline.controlPlaneFrames()));
     }
     for (const auto &cs : capture_stats) {
         if (!cs.available) {

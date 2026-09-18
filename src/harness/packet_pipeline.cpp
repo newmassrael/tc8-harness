@@ -48,6 +48,27 @@ namespace {
     return tag;
 }
 
+// Does this packet belong to the harness's own DUT-control channel?
+//
+// Identity is the transport port on either end: a control exchange is a request
+// TO the DUT's control port and a response FROM it, so one comparison per
+// direction covers both halves without needing to know which side the tester is.
+// Both transports are asked because the seam's two backends are free to differ
+// (`TestabilityConfig::use_tcp`), and a backend that switches transport must not
+// silently reopen the grading hole.
+//
+// See `PacketPipeline::setControlPlanePort` for why the answer is taken once per
+// packet rather than per emitted event.
+bool isControlPlanePacket(const EthernetII &eth, std::uint16_t port) {
+    if (const UDP *udp = eth.find_pdu<UDP>()) {
+        return udp->sport() == port || udp->dport() == port;
+    }
+    if (const TCP *tcp = eth.find_pdu<TCP>()) {
+        return tcp->sport() == port || tcp->dport() == port;
+    }
+    return false;
+}
+
 }  // namespace
 
 PacketPipeline::PacketPipeline(Listener listener) : listener_(std::move(listener)) {
@@ -154,6 +175,17 @@ void PacketPipeline::processFrame(const pcap_pkthdr &hdr, const std::uint8_t *by
             af.observed_ts_us = observed_ts_us;
             af.vlan = vlan;
             listener_(::tc8::CapturedEvent{af});
+            return;
+        }
+
+        // The harness's own control channel is not traffic under test. Decided
+        // once, here, so that EVERY alternative this packet would fan out into
+        // (Ipv4Frame, UdpFrame, TcpFrame, ...) is withheld together — see
+        // `setControlPlanePort`. Sits after the ARP branch because ARP carries no
+        // transport port and so can never be classified by this rule; the comment
+        // on the setter states what that leaves uncovered.
+        if (control_plane_port_ != 0 && isControlPlanePacket(eth, control_plane_port_)) {
+            ++control_plane_frames_;
             return;
         }
 

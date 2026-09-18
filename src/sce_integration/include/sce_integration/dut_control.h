@@ -60,6 +60,23 @@ public:
     // Human-readable backend tag for diagnostics / probe output.
     virtual const char *backendName() const = 0;
 
+    // The DUT-side transport port this backend's control channel occupies.
+    //
+    // Exists so the capture pipeline can keep the harness's own control traffic
+    // out of every case's verdict (`PacketPipeline::setControlPlanePort`): the
+    // seam's request/response frames ride the same wire as the protocol under
+    // test, and a state machine that grades the first datagram in its listen
+    // window will otherwise grade a control response in place of the datagram
+    // the case exists to observe.
+    //
+    // Answered by the backend rather than derived from `cfg.dut_control_backend`
+    // at the call site so there is exactly one place per backend that knows its
+    // own port — a backend whose port is configurable (the testability client's
+    // `TestabilityConfig::dut_port`) reports what it will actually use, not a
+    // default a second switch statement assumed. Pure so a backend added later
+    // cannot open a control channel the capture path does not know to exclude.
+    virtual std::uint16_t controlPort() const = 0;
+
     // Which semantic sub-interfaces this backend exposes (DutCapability bits).
     // MAY block on a DUT round-trip the first call (a backend that resolves
     // DUT-derived fault caps from OpQueryCapabilities); the result is cached.
@@ -712,6 +729,11 @@ public:
     bool endTest() override { return true; }
     const char *backendName() const override { return "opcode-ut"; }
 
+    // The port every sub-interface above was constructed with — reported from
+    // the same member they use, so the capture exclusion cannot be told about a
+    // port this backend is not actually speaking on.
+    std::uint16_t controlPort() const override { return port_; }
+
     // (1) Backend interface surface — the opcode UT backend always provides
     // these IDutControl sub-interfaces, independent of the DUT firmware. No DUT
     // I/O, so a case requiring only these is gated in silence.
@@ -852,6 +874,11 @@ public:
             .eok();
     }
     const char *backendName() const override { return "autosar-testability"; }
+
+    // `cfg_.dut_port` rather than `testability::kDefaultPort`: the client's
+    // deployment port is configurable, and the capture exclusion has to follow
+    // the port this backend will actually use.
+    std::uint16_t controlPort() const override { return cfg_.dut_port; }
 
     // The standard socket SPs (CREATE_AND_BIND/CONNECT/LISTEN_AND_ACCEPT/
     // SEND_DATA/CLOSE_SOCKET) are all implemented, so both data-plane

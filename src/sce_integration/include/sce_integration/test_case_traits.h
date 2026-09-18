@@ -420,4 +420,73 @@ constexpr std::uint32_t requiredCapabilitiesOf() {
     }
 }
 
+// What the DUT-control channel IS, for a given case.
+//
+// A scoped enum rather than a plain bool, and not for taste: `CaseEntry` is
+// built by POSITIONAL aggregate initialisation, and a captureless lambda
+// converts to a function pointer and then to `bool`. A bool field sitting ahead
+// of the factory slot therefore lets a misaligned initialiser COMPILE, swallow
+// the factory into the flag, and fail at run time with an empty std::function.
+// Measured on the commit that introduced this field: `case_registry_test`
+// compiled clean and died inside `e->factory(cfg)`. A scoped enum admits no such
+// conversion, so the same mistake is a compile error.
+enum class ControlPlaneRole : bool {
+    // Scaffolding: the channel drives or interrogates the DUT, and its frames
+    // must not reach the state machine. The default, and the common case.
+    kScaffolding = false,
+    // Evidence: the Upper Tester Confirmation IS the frame the SCXML grades, so
+    // the capture path must let it through.
+    kEvidence = true,
+};
+
+// Detects whether TestCaseTraits<SM> declares the optional
+// `static constexpr ControlPlaneRole kControlPlaneRole` member — kEvidence for a
+// case whose verdict is read OFF the DUT-control channel rather than off the
+// data plane.
+//
+// The distinction is not new; the SCXML has always drawn it, one backend's
+// framing at a time. A case grading the DUT's own emission gates the control
+// channel OUT (`!captured.has_ut_response`, `_templates/udp_field_check`),
+// while a case asking the DUT what it received gates it IN
+// (`captured.has_ut_response and captured.ut_opcode == 0x81`,
+// `_templates/ipv4_udp_ut_presence`). Both guards spell "control channel" as
+// "decodes as an opcode Upper Tester response", which is a property of one
+// backend's wire format — a testability response is SOME/IP-framed and matches
+// neither.
+//
+// That is the shape worth remembering, because it will recur the next time a
+// channel moves: an exclusion keyed on one backend's framing does not fail
+// loudly when the backend changes. It stops excluding, and the case goes on to
+// grade the wrong frame and report a confident verdict about it.
+//
+// The CLI therefore keeps control traffic away from the state machine by
+// PORT, which is backend-agnostic (`PacketPipeline::setControlPlanePort`), and
+// a case that reads the control response as evidence declares that here to opt
+// back in.
+//
+// Default false is the safe direction: a case that forgets the declaration
+// reports a non-conclusion (its confirmation never arrives) rather than a
+// verdict about traffic it never observed. Measured — the 20 cases that needed
+// it were found by running the set and diffing verdicts, not by grep: two of
+// them (IPv4_ADDRESSING_01/02) declare verbatim traits and a base-class sweep
+// missed both.
+template <typename Traits, typename = void>
+struct has_control_plane_role : std::false_type {};
+
+template <typename Traits>
+struct has_control_plane_role<Traits, std::void_t<decltype(Traits::kControlPlaneRole)>>
+    : std::true_type {};
+
+template <typename Traits>
+inline constexpr bool has_control_plane_role_v = has_control_plane_role<Traits>::value;
+
+template <typename Traits>
+constexpr ControlPlaneRole controlPlaneRoleOf() {
+    if constexpr (has_control_plane_role_v<Traits>) {
+        return Traits::kControlPlaneRole;
+    } else {
+        return ControlPlaneRole::kScaffolding;
+    }
+}
+
 }  // namespace tc8::sce
