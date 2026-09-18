@@ -6,11 +6,10 @@
 
 // TC8 §4.8.5 Upper Tester wire protocol.
 //
-// The spec defines the Upper Tester as "another type of communication
-// with the IUT that enables the tester to trigger some wished behaviors
-// on the IUT; promting it to send certain types of messages, or to
-// check its state and the received messages. This communication is
-// carried out through a separate UDP port." (§4.8.5 p288).
+// §4.8.5 asks for a second channel into the IUT, separate from the one
+// under test and reached over its own UDP port, through which the
+// tester can make the IUT act — emit a chosen kind of message — or
+// report what it holds and what it has received.
 //
 // The spec leaves the wire format unspecified and points at AUTOSAR's
 // Testability Protocol as an example. This header defines the minimal
@@ -129,14 +128,14 @@ enum Opcode : std::uint8_t {
     //                     <payload_len:u16> <payload[]>]
     OpGetReceivedUdp = 0x01,
 
-    // Request / Response: "Cause the DUT to emit a UDP datagram
-    // from <src_port> to <dst_ip>:<dst_port> carrying <payload>,
-    // optionally binding the transient socket to a caller-specified
-    // source IP." The tc8-dut binds a transient UDP socket to
+    // Request / Response: make the DUT emit a UDP datagram from
+    // <src_port> to <dst_ip>:<dst_port> carrying <payload>, optionally
+    // binding the transient socket to a caller-specified source IP.
+    // The tc8-dut binds a transient UDP socket to
     // (src_ip_override OR iface_ip, src_port) and calls sendto; the
     // tester observes the emitted datagram via pcap. Used by
-    // FRAGMENTS_05 (no src_ip override) so the "TESTER: Cause DUT to
-    // send" procedure step is an explicit RPC rather than an inferred
+    // FRAGMENTS_05 (no src_ip override) so the step that has the DUT
+    // send is an explicit RPC rather than an inferred
     // side-effect, and by §4.6.5.5 UDP_USER_INTERFACE_07 (src_ip
     // override = `<DIface-0-IP>` alias) so the spec's caller-specified
     // Source IP axis is observably distinct from the primary-iface
@@ -218,9 +217,8 @@ enum Opcode : std::uint8_t {
     //   Response params: <established:u8>  (0 = no, 1 = yes)
     OpQueryTcpEstablished = 0x05,
 
-    // §4.8.6.2 TCP_CHECKSUM_03 spec procedure step 2: "Cause the
-    // application on the DUT-side to issue a SEND request for a data
-    // segment". The tc8-dut writes `payload` bytes to the connected
+    // §4.8.6.2 TCP_CHECKSUM_03 needs a DUT-side application send.
+    // The tc8-dut writes `payload` bytes to the connected
     // fd via `::send()`; Linux's TCP stack frames the bytes into one
     // or more outbound segments whose checksum the tester then
     // verifies against the RFC 793 §3.1 pseudo-header rule. Used only
@@ -235,8 +233,8 @@ enum Opcode : std::uint8_t {
     // kMaxPayload, parser rejects short frames as kStatusMalformed.
     OpSendTcpData = 0x06,
 
-    // §4.8.6.8 TCP_CLOSING_07/_08 spec procedure step "Cause DUT side
-    // application to issue a RECEIVE call". The tc8-dut blocks in
+    // §4.8.6.8 TCP_CLOSING_07/_08 need a DUT-side application read.
+    // The tc8-dut blocks in
     // ::recv() on the socket's connected fd, accumulating bytes into a
     // buffer until either `expected_len` bytes have been read or
     // `timeout_ms` has elapsed. The collected bytes are returned in
@@ -265,10 +263,9 @@ enum Opcode : std::uint8_t {
     // unknown socket_id; kStatusMalformed for a short request.
     OpReceiveTcpData = 0x07,
 
-    // §4.8.6.8 TCP_CLOSING_07/_08 spec procedure step "Cause DUT side
-    // application to issue a CLOSE call" combined with the explicit
-    // "Support of ETM Service Primitive SHUTDOWN" prerequisite (p351
-    // / p352). The tc8-dut calls ::shutdown(fd, SHUT_WR) on the
+    // §4.8.6.8 TCP_CLOSING_07/_08 need a DUT-side application close,
+    // and both list a shutdown service primitive among their
+    // prerequisites. The tc8-dut calls ::shutdown(fd, SHUT_WR) on the
     // accepted_fd: kernel emits FIN, socket transitions EST→FW1, but
     // the read direction remains open so a subsequent
     // OpReceiveTcpData can drain bytes that arrived in FW1/FW2.
@@ -282,8 +279,8 @@ enum Opcode : std::uint8_t {
     //   Response params: (none beyond the status byte)
     OpShutdownTcpSocketWr = 0x08,
 
-    // §4.8.6.5 TCP_CALL_ABORT_02/_03 spec procedure step "Cause the
-    // application to issue an ABORT call". Linux exposes ABORT
+    // §4.8.6.5 TCP_CALL_ABORT_02/_03 need a DUT-side application
+    // abort. Linux exposes ABORT
     // semantics as `setsockopt(SO_LINGER, {l_onoff=1, l_linger=0})`
     // immediately followed by `::close()` — the kernel emits an RST
     // (instead of FIN) on the connection and disposes the socket
@@ -304,9 +301,9 @@ enum Opcode : std::uint8_t {
     // CLOSED transition from EST / CLOSING / LAST-ACK / TIME-WAIT.
     OpAbortTcpSocket = 0x09,
 
-    // §4.8.6.9 TCP_MSS_OPTIONS_06/_09/_10 spec procedure step "Cause
-    // application to issue a SEND request for data with size at least
-    // max(MSS)". The tc8-dut allocates a `total_len`-byte buffer
+    // §4.8.6.9 TCP_MSS_OPTIONS_06/_09/_10 need a DUT-side application
+    // send of at least the larger announced MSS, so that segmentation
+    // is forced. The tc8-dut allocates a `total_len`-byte buffer
     // filled with `pattern` and writes it via ::send() — Linux
     // segments the payload according to the connection's negotiated
     // send MSS, and the tester observes the first DUT-emitted data
@@ -329,17 +326,15 @@ enum Opcode : std::uint8_t {
     // EPIPE, etc.); kStatusMalformed for a short request.
     OpSendTcpDataPattern = 0x0A,
 
-    // §4.8.6.14 TCP_URGENT_PTR_04 spec procedure step "Cause the
-    // application on the DUT-side to issue a RECEIVE call". The
-    // tc8-dut blocks in `::recv(fd, buf, expected_len, MSG_OOB)`
+    // §4.8.6.14 TCP_URGENT_PTR_04 needs a DUT-side application read.
+    // The tc8-dut blocks in `::recv(fd, buf, expected_len, MSG_OOB)`
     // up to `timeout_ms`, returning whatever urgent bytes Linux
     // delivered through the out-of-band path. Default Linux
     // behaviour (SO_OOBINLINE off, sysctl_tcp_stdurg=0) places one
     // urgent byte at `urg_seq` in the OOB queue; recv(MSG_OOB)
-    // returns exactly that single byte. The spec assertion "DUT
-    // returns the RECEIVE call putting only the urgent data" is
-    // satisfied iff the response carries one byte equal to the
-    // expected urgent byte.
+    // returns exactly that single byte. The case asks that the read
+    // hand back the urgent data alone, which holds iff the response
+    // carries one byte equal to the expected urgent byte.
     //
     //   Request params:  <socket_id:u8> <expected_len:u16> <timeout_ms:u16>
     //   Response params: <received_len:u16> <bytes[]>
@@ -618,13 +613,13 @@ enum Opcode : std::uint8_t {
     // unknown / malformed) for caller-side parsing.
     OpQueryTcpInfo = 0x13,
 
-    // §4.6.5.5 UDP_USER_INTERFACE_01 spec procedure step "DUT: Create
-    // 10 receive ports on <DIface-0>". The tc8-dut binds `count` UDP
+    // §4.6.5.5 UDP_USER_INTERFACE_01 has the DUT open ten receive
+    // ports on <DIface-0>. The tc8-dut binds `count` UDP
     // SOCK_DGRAM sockets to (INADDR_ANY, ephemeral port=0); the kernel
     // assigns each a distinct ephemeral port. The created fds are held
-    // open for the rest of the tc8-dut process lifetime so the spec's
-    // "Verify using Upper Tester that DUT has created N receive ports"
-    // is observable as `actual_count == count`. Closed in `stop()`.
+    // open for the rest of the tc8-dut process lifetime, so the count
+    // the case has to confirm is observable as
+    // `actual_count == count`. Closed in `stop()`.
     //
     //   Request params:  <count:u8>
     //   Response params: <actual_count:u8>
@@ -700,11 +695,10 @@ enum Opcode : std::uint8_t {
     // TC8 §4.2.4.2 ARP_48/49 "DUT CONFIGURE" cache-conditioning steps,
     // rendered as a UT RPC for DUT stacks whose ARP-cache lifecycle
     // the tester cannot reach from outside the wire. The spec's own
-    // procedure conditions the DUT cache explicitly — ARP_48 step 1
-    // "clear the dynamic entries in the ARP Cache", step 2 "set a
-    // timeout of <DYNAMIC-ARP-CACHE-TIMEOUT> seconds", step 8 "wait
-    // <DYNAMIC-ARP-CACHE-TIMEOUT> + <ARP-TOLERANCE-TIME> for the ARP
-    // cache to get refreshed". The Linux reference DUT renders those
+    // procedure conditions the DUT cache explicitly — ARP_48 empties
+    // the dynamic entries, fixes the cache timeout at
+    // <DYNAMIC-ARP-CACHE-TIMEOUT>, and later waits out that timeout
+    // plus <ARP-TOLERANCE-TIME> for a refresh. The Linux reference DUT renders those
     // steps externally (smoke-test.sh per-case netns sysctls compress
     // base_reachable_time_ms / delay_first_probe_time) and therefore
     // does NOT implement this opcode; the lwIP DUT ages its table at
@@ -1122,13 +1116,13 @@ inline constexpr DhcpFlavorDomain dhcpFlavorDomain(std::uint8_t fb) {
 // §4.2.4.2 ARP_48/49 "DUT CONFIGURE" / "TESTER waits" procedure step
 // against the DUT's own ARP-table lifecycle:
 //
-//   * FlushAll — step 1 "clear the dynamic entries in the ARP Cache
-//     of <DIface-0>". `param` is ignored. Per-case DUT respawn
+//   * FlushAll — the step that empties the dynamic entries on
+//     <DIface-0>. `param` is ignored. Per-case DUT respawn
 //     fixtures get this for free; a persistent external DUT renders
 //     the step through this action.
-//   * AgeBySeconds — compresses step 8/12's "TESTER waits up to
-//     <DYNAMIC-ARP-CACHE-TIMEOUT> (+ tolerance) for the ARP cache to
-//     get refreshed": the DUT advances its table aging by `param`
+//   * AgeBySeconds — compresses the later wait for the cache to
+//     refresh, <DYNAMIC-ARP-CACHE-TIMEOUT> plus tolerance: the DUT
+//     advances its table aging by `param`
 //     seconds of virtual time (the lwIP backend drives its 1 Hz
 //     etharp timer `param` times under the core lock). Entries whose
 //     accumulated age crosses the stack's timeout are expired exactly

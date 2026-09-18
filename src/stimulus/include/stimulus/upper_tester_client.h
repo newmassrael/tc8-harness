@@ -648,9 +648,9 @@ int sendUpperTesterRequestAwaited(std::string_view iface,
 inline constexpr std::uint16_t kEgressBootDutSrcPort = 20010;
 
 // High-level TESTER boot-time DUT-egress provocation used by the §4.2.4
-// entry-learning / cache-use cases. Renders the spec step "DUT
-// CONFIGURE: Configure DUT to send a UDP Message from <DIface-0>
-// (src=<DIface-0-IP>, dst=<HOST-1-IP>)" literally as a UT 0x02
+// entry-learning / cache-use cases. Renders the DUT-configure step —
+// the DUT emits a UDP datagram out <DIface-0>, sourced at
+// <DIface-0-IP> and addressed to <HOST-1-IP> — as a UT 0x02
 // OpTriggerSendUdp request (replacing the historical SubscribeEventgroup
 // → Nack substitute that predated the UT UDP opcodes).
 //

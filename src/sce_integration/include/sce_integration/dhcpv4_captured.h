@@ -201,8 +201,8 @@ struct Dhcpv4Captured : CapturedFrameTiming, CapturedL3Endpoints,
     // §4.7.6.9 INITIALIZATION_ALLOCATION_06 / RFC 2131 §4.3.2: in
     // REQUESTING state the client MUST echo the originating DISCOVER's
     // 'xid' (which the OFFER also carries — same xid identifies the
-    // exchange). Spec body wording: "Verify that received DHCPREQUEST
-    // Message contains 'xid' field is set to extractedXID". The harness
+    // exchange). The case checks the REQUEST's xid against the value
+    // extracted earlier. The harness
     // emul OFFER faithfully echoes the captured DISCOVER xid, so this
     // predicate is equivalent to "REQUEST xid == OFFER xid". False
     // until the snapshot observer has fired.
