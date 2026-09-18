@@ -5,11 +5,10 @@
   MUST appear in any subsequent DHCPREQUEST (RFC 2131 §4.3.6, MUST).
 
   Case shape:
-    1-4. DUT bring-up + DHCP client + DISCOVER.
-    5.   TESTER: Extracts Option 55 from DISCOVER → <extractedParamReq>.
-    6-7. TESTER: Sends DHCPOFFER + listens for REQUEST.
-    8.   DUT: Sends DHCPREQUEST.
-    9.   TESTER: Verify REQUEST contains Option 55 == extractedParamReq.
+    the tester notes the parameter list the DUT asked for in Option 55
+    of its DISCOVER, offers, and compares it with the REQUEST. The two
+    lists must be the same — the client asks for the same parameters
+    throughout one exchange.
 
   Cross-message snapshot is taken on the listening_for_discover →
   listening_for_request transition by `scheduleDiscoverSnapshotOnStateEntry`

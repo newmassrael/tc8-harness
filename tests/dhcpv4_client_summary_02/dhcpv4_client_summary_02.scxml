@@ -5,15 +5,10 @@
   §4.3.1, MUST).
 
   Case shape:
-    1-4. DUT bring-up + DUT emits DHCPDISCOVER with xid = extractedXID.
-    6.   TESTER:DHCP Server <SERVER-1> Sends DHCPOFFER with
-         xid = extractedXID + 1 (mismatched).
-    7.   TESTER:DHCP Server <SERVER-2> Sends DHCPOFFER with
-         xid = extractedXID (matched).
-    9.   DUT: Sends DHCPREQUEST.
-    10.  TESTER: Verify received DHCPREQUEST contains Option 54 =
-         <SERVER2-IP-ADDRESS> (not SERVER-1).
-  Pass: 4 + 9 + 10.
+    two servers answer the DUT's DISCOVER — <SERVER-1> with an xid one
+    off the DUT's, <SERVER-2> with the matching one. The REQUEST has to
+    name <SERVER-2> in Option 54: the client takes the offer that
+    belongs to its own exchange and ignores the other.
 
   Two server emuls fire on Listening_for_request entry: SERVER-1 with
   `xid_offset=+1` (mismatched), SERVER-2 with `xid_offset=0` and

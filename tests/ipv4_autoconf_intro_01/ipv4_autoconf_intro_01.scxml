@@ -6,17 +6,12 @@
   host SHOULD NOT also assign an IPv4 Link-Local address on that interface."
 
   Case shape:
-    1-2.  DUT bring-up + DHCP client configure.
-    3.    TESTER:DHCP Server <SERVER-1> Listens on <DIface-0>
-    4.    DUT: Sends DHCPDISCOVER Message
-    5.    TESTER:DHCP Server <SERVER-1> Sends DHCPOFFER (lease=<ParamListenTime>*3)
-    6.    TESTER:DHCP Server <SERVER-1> Listens on <DIface-0>
-    7.    DUT: Sends DHCPREQUEST Message
-    8.    TESTER:DHCP Server <SERVER-1> Sends DHCPACK   (lease=<ParamListenTime>*3)
-    9.    TESTER: Listens up to <ParamListenTime> for ARP Request with target
-                   in <LINK-LOCAL-NET-ADDR> (= 169.254/16)
-    10.   DUT: Does not send ARP Request Message
-  Pass criteria: 4 + 7 + (NO ARP Probe target in 169.254/16) within window.
+    <SERVER-1> runs the whole allocation through — the DUT discovers,
+    the server offers, the DUT requests, the server acknowledges — so
+    the interface ends up holding a routable address. The tester then
+    watches for up to <ParamListenTime> for any ARP probe aimed inside
+    169.254/16. None may appear: a host that already has a usable
+    routable address has no business claiming a link-local one too.
 
   Stimulus (ipv4_autoconf_intro_01.h trait):
     OpStartDhcpClient kicks the DUT lifecycle. State-entry observers fire

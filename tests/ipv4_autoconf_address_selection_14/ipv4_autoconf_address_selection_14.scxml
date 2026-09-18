@@ -7,15 +7,12 @@
   address per RATE_LIMIT_INTERVAL.
 
   Case shape:
-    1-6.  DUT brings up iface, sends DHCPDISCOVER, then 3 ARP Probes
-          for tentative LL-1.
-    7-8.  Tester reads target_ip and injects conflict ARP Request:
-          sender_proto_ip = LL-1, dst_ip = 255.255.255.255.
-    10-11. DUT MUST emit fresh Probe with target_proto_ip != LL-1.
-          Tester re-reads, injects conflict on LL-2.
-    ...   Repeat for 10 conflict cycles total (up to step 53).
-    54.   Tester listens up to RATE_LIMIT_INTERVAL.
-    55.   DUT MUST NOT send any ARP Request during this window.
+    the DUT falls back to probing a link-local address, and the tester
+    takes each candidate away from it by claiming that address itself.
+    Ten times over, the DUT has to give up the candidate and probe for
+    a different one. After the tenth the rate limit applies: for a
+    whole RATE_LIMIT_INTERVAL the DUT must send no ARP at all, rather
+    than cycling through candidates without pause.
 
   Pass criterion: 10 distinct DUT-emitted Probes, each met with a
   tester conflict ARP, then full silence for the configured

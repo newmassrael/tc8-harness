@@ -6,8 +6,9 @@
   T1 ± ParamToleranceTime.
 
   Case shape:
-    8. TESTER: Verify time interval(last ACK → DHCPREQUEST) ∈
-       [T1 − ParamToleranceTime, T1 + ParamToleranceTime].
+    the DUT is bound and then left alone. What is measured is when it
+    first tries to renew: the gap from the last ACK to its REQUEST has
+    to land on T1, within ParamToleranceTime either way.
 
   Numeric bounds under fast envelope (kFastEnvelopeLeaseSeconds = 6 s):
     * T1 = lease / 2 = 3 s exact (DUT phase machine integer-div on a

@@ -5,8 +5,10 @@
   Message" to the REBINDING REQUEST is within T2 ± ParamToleranceTime.
 
   Case shape:
-    8. TESTER: Verify time interval(last ACK → DHCPREQUEST) ∈
-       [T2 − ParamToleranceTime, T2 + ParamToleranceTime].
+    the DUT is bound and its renewal attempts go unanswered. What is
+    measured is when it moves on to rebinding: the gap from the last
+    ACK to that REQUEST has to land on T2, within ParamToleranceTime
+    either way.
 
   Numeric bounds under fast envelope (kFastEnvelopeLeaseSeconds = 6 s):
     * T2 = lease × 7/8 = 5 s (DUT phase machine integer-floor on a 6 s

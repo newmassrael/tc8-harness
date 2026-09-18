@@ -5,9 +5,10 @@
   after the 3-Probe phase (RFC 3927 §2.4 MUST).
 
   Case shape:
-    6. DUT: Sends 3 ARP Request Messages (Probes)
-    8. TESTER: Wait <ANNOUNCE_WAIT - 0.05>
-    10. DUT: Sends 2 ARP Request Messages (Announces)
+    nobody contests the address, so the DUT's three probes go
+    unanswered. Just short of ANNOUNCE_WAIT later it has to switch from
+    asking to telling: two announcements for the address it has
+    claimed.
 
   Pass criterion: TWO Announces (sender_ip != 0) observed after the
   Probe phase. Probes (sender_ip == 0) flow through with cond=false

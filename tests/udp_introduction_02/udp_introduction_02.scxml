@@ -6,9 +6,9 @@
   the automotive security profile.
 
   Case shape:
-    1. DUT CONFIGURE: Listen on <unusedUDPDstPort1> on <DIface-0>.
-    3. TESTER: Send UDP to <allSystemMCastAddr>:<unusedUDPDstPort1>.
-    4. TESTER: Verify via UT that the application layer did not receive.
+    the DUT listens on <unusedUDPDstPort1> and the tester sends to the
+    all-systems multicast address. The UT channel confirms nothing
+    reached the application: the socket never joined that group.
 
   Mechanism: tc8-dut binds INADDR_ANY without IP_ADD_MEMBERSHIP for any
   multicast group, so Linux's IP layer never delivers a 224.0.0.1

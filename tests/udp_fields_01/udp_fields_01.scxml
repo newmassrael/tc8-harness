@@ -4,9 +4,9 @@
   caller-specified Source Port (RFC 768 'Fields' SHOULD).
 
   Case shape:
-    1. TESTER: Cause DUT to send UDP with src_port=<unusedUDPDstPort1>.
-    2..3. TESTER listens, DUT sends.
-    4. TESTER: Verify Source UDP Port field == <unusedUDPDstPort1>.
+    the tester has the DUT send a datagram sourced from
+    <unusedUDPDstPort1>, and the source port on the wire has to be
+    exactly that — the caller's choice reaches the header unaltered.
 
   Mapping: <unusedUDPDstPort1> = 20001 (kDataPeerPort) for harness.
   TriggerSendUdp(src_port=20001, dst=tester_ip:kDataPort, payload=8 B).

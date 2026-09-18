@@ -7,13 +7,9 @@
     answering and is therefore an out-of-order message).
 
   Case shape:
-    1-2. DUT bring-up + DHCP client configure.
-    3.   TESTER:DHCP Server Listens.
-    4.   DUT: Sends DHCPDISCOVER.
-    5.   TESTER: Sends DHCPACK (no preceding OFFER).
-    6.   TESTER: Listens.
-    7.   DUT: Does NOT send DHCPREQUEST.
-  Pass: 4 + 7 (DUT silently discards stray ACK, no REQUEST).
+    the DUT discovers, and the tester answers with an ACK that no OFFER
+    preceded. Nothing in the exchange asked for it, so the DUT has to
+    drop it without a word — no REQUEST may follow.
 
   Same lifecycle as INIT_ALLOC_04 (DISCOVER → absence window) — the
   divergence is purely in the stimulus message_type (5 = ACK instead

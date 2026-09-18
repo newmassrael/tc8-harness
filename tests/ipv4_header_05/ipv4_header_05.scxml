@@ -7,11 +7,10 @@
   echoed data).
 
   Case shape:
-    1. TESTER: Send ICMP Echo Request, IP Total Length=576, 556 B
-       payload after IP header (8 B ICMP header + 548 B data).
-    3. DUT: Send ICMP Echo Reply.
-    4. TESTER: Verify Identifier, Sequence Number, and Data of Reply
-       match Request.
+    the tester sends an echo request sized to a 576-byte total length —
+    556 bytes past the IP header, of which 8 are the ICMP header and
+    548 the payload. The DUT has to take the whole thing and echo it
+    back with matching identifier, sequence number and data.
 
   payload_len = 548 (libtins-side post-ICMP-header wire size). echo_id
   + echo_seq match the harness's stimulus literals via

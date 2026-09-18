@@ -5,8 +5,9 @@
   lease time before retransmitting the DHCPREQUEST (RFC 2131 §4.4.5).
 
   Case shape:
-    8. TESTER: Verify time interval between two DHCPREQUEST messages
-       ∈ [(LEASE-TIME - T2)/2 ± ParamToleranceTime].
+    the DUT reaches REBINDING and its REQUEST goes unanswered. What is
+    measured is the wait before it tries again: half the time left
+    from T2 to lease expiry, within ParamToleranceTime.
 
   Numeric bounds under retx envelope (kRetransmissionLeaseSeconds = 12 s):
     * LEASE-TIME = 12 s, T2 = lease*7/8 = 10 s.

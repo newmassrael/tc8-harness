@@ -5,12 +5,10 @@
   per RFC 2131 §4.4.5.
 
   Case shape:
-    1-2. DUT bring-up + DHCP client configure.
-    3-4. TESTER causes DUT to BOUND, then to REBINDING (T2).
-    5.   TESTER: DHCP Server <SERVER-1> Listens (upto <ParamListenTime>).
-    6.   DUT: Sends DHCPREQUEST Message (REBINDING).
-    7.   TESTER: Verify dst IP = 0xFFFFFFFF.
-  Pass: 4 + 6 + 7.
+    the tester walks the DUT to BOUND and on to REBINDING at T2. The
+    REQUEST it sends from there has to go to the broadcast address —
+    renewal with the original server has failed, so the client asks
+    whoever is listening.
 
   RFC 2131 §4.4.5: REBINDING REQUEST is broadcast (the client has lost
   contact with its server and is reaching for any server willing to

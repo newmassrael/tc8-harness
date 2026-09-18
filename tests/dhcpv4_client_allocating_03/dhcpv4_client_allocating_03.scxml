@@ -5,11 +5,9 @@
   (RFC 2131 §3.1, §4.3.2).
 
   Case shape:
-    1-4. DUT bring-up + DHCP client + tester listens.
-    5.   TESTER:DHCP Server <SERVER-1> Sends DHCPOFFER.
-    7.   DUT: Sends DHCPREQUEST.
-    8.   TESTER: Verify received DHCPREQUEST contains Option 54 = SERVER1-IP.
-  Pass: 4 + 7 + 8.
+    the DUT discovers and <SERVER-1> offers. The REQUEST that follows
+    has to carry Option 54 naming that server — with several servers
+    possibly offering, the client must say whose offer it is taking.
 
   RFC 2131 §3.1: in REQUESTING state the REQUEST broadcast MUST carry
   the chosen server's identifier (Option 54). The OFFER's server-id is

@@ -5,11 +5,9 @@
   §4.3.2).
 
   Case shape:
-    1-4. DUT bring-up + DHCP client + DISCOVER.
-    5.   TESTER:DHCP Server <SERVER-1> Sends DHCPOFFER (yiaddr = offered IP).
-    7.   DUT: Sends DHCPREQUEST.
-    8.   TESTER: Verify received DHCPREQUEST contains Option 50 = OFFER yiaddr.
-  Pass: 4 + 7 + 8.
+    the DUT discovers and <SERVER-1> offers an address in 'yiaddr'. The
+    REQUEST that follows has to name that same address in Option 50 —
+    the client asks for what it was offered, not something else.
 
   RFC 2131 §4.3.2: in REQUESTING state the REQUEST MUST advertise the
   address being requested in Option 50 (Requested IP Address). The

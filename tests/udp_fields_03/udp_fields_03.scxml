@@ -5,9 +5,10 @@
   zero is inserted").
 
   Case shape:
-    1. DUT CONFIGURE: Listen on <unusedUDPDstPort1> on <DIface-0>.
-    3. TESTER: Send UDP with Source Port=0 to DUT:<unusedUDPDstPort1>.
-    4. TESTER: Verify via UT that DUT received with Source Port==0.
+    the DUT listens on <unusedUDPDstPort1> and the tester sends it a
+    datagram whose source port is zero — legal, and meaning no reply is
+    expected. The UT channel confirms the DUT took it and saw the zero
+    rather than rejecting the datagram.
 
   Mapping: <unusedUDPDstPort1>=kDataPort (20000). Stimulus injects UDP
   with src_port=0; DUT data listener accepts (Linux's UDP layer treats

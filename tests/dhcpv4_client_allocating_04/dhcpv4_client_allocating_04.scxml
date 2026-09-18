@@ -5,10 +5,10 @@
   originating DHCPDISCOVER (RFC 2131 §4.3.2, MUST).
 
   Case shape:
-    1-4. DUT bring-up + DHCP client + DISCOVER.
-    5.   TESTER: Extracts 'secs' field from DISCOVER → <extractedSeconds>.
-    6-8. TESTER: Sends DHCPOFFER + listens for REQUEST.
-    9.   TESTER: Verify REQUEST 'secs' == extractedSeconds.
+    the tester notes the 'secs' the DUT put in its DISCOVER, offers,
+    and compares it against the REQUEST that follows. The two must
+    match: 'secs' counts from the start of the exchange, not from each
+    message.
 
   Cross-message snapshot mechanics: see PARAMETERS_04 — same
   state-entry observer captures `secs` into Captured's persistent

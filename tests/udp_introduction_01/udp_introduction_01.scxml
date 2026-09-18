@@ -7,10 +7,10 @@
   the RFC requirement due to security negotiations").
 
   Case shape:
-    1. DUT CONFIGURE: Listen on <unusedUDPDstPort1> on <DIface-0>.
-    2. DUT: Listen ...
-    3. TESTER: Send UDP to <AIface-0-BcastIP>:<unusedUDPDstPort1>.
-    4. TESTER: Verify via UT that the application layer did not receive.
+    the DUT listens on <unusedUDPDstPort1> and the tester sends to a
+    broadcast address on a network the DUT is not part of. The UT
+    channel confirms nothing reached the application: a broadcast is
+    only for the network it belongs to.
 
   Mechanism: identical wire shape to IPv4_ADDRESSING_02 (directed
   broadcast → DUT data listener silent-drops via `ipi_addr ==

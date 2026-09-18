@@ -4,12 +4,11 @@
   the same IP broadcast address as the DHCPDISCOVER (RFC 2131 §3.1).
 
   Case shape:
-    1-2. DUT bring-up + DHCP client configure.
-    3-5. DUT emits DISCOVER; tester verifies dst IP = broadcast.
-    6.   TESTER:DHCP Server <SERVER-1> Sends DHCPOFFER.
-    7-8. DUT emits REQUEST.
-    9.   TESTER: Verify received DHCPREQUEST destination IP = 255.255.255.255.
-  Pass: 4 + 5 + 8 + 9.
+    both DUT-side messages of the initial exchange have to go to the
+    broadcast address: the DISCOVER, because the client knows no
+    server yet, and the REQUEST that answers <SERVER-1>'s offer,
+    because the other servers need to hear it was not their offer that
+    was taken.
 
   Reuses the §4.7 lifecycle pattern; the DISCOVER-side dst-broadcast
   invariant is already covered by ALLOCATING_01 so this case scopes

@@ -8,12 +8,11 @@
   the interface the host is attempting to configure".
 
   Case shape:
-    1-6. DUT brings up iface, sends DHCPDISCOVER, then 3 ARP Probes.
-    7.   Tester reads target_ip from DUT's ARP Probe and stores it.
-    8.   Tester sends conflict ARP Probe: sender_ip = 0.0.0.0,
-         dst_ip = stored LL.
-    10-11. DUT MUST emit a fresh ARP Request with target_ip != the
-           stored value.
+    the DUT brings up its interface, fails to find a DHCP server and
+    falls back to probing a link-local address. The tester notes the
+    address it is probing for and then probes for the same one itself,
+    from 0.0.0.0 — a competing claim mid-probe. The DUT has to give up
+    that candidate and start probing for a different address.
 
   See `_11/ipv4_autoconf_address_selection_11.scxml` for the full
   trait/SCXML mechanism description; this shell binds

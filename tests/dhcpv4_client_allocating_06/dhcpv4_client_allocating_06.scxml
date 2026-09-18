@@ -4,12 +4,9 @@
   retransmits DHCPDISCOVER if no DHCPOFFER arrives (RFC 2131 §3.1, MUST).
 
   Case shape:
-    1-2. DUT bring-up + DHCP client.
-    3.   TESTER:DHCP Server <SERVER-1> Listens (upto <ParamListenTime>).
-    4.   DUT: Sends DHCPDISCOVER Message.   ← 1st DISCOVER
-    5.   TESTER:DHCP Server <SERVER-1> Listens (upto <ParamListenTime>).
-    6.   DUT: Sends DHCPDISCOVER Message.   ← retransmission
-  Pass: 4 + 6 (two DUT DISCOVERs observed).
+    the tester listens twice over and never offers anything. With no
+    answer coming, the DUT has to discover a second time — a client
+    that hears nothing retries rather than stopping.
 
   No OFFER injection — the absence of a server reply forces the DUT's
   retransmission path. Pilot uses retry_count=2 + retry_interval_ms=1000
