@@ -35,12 +35,13 @@ struct TestCaseTraits<cases::Arp40SM>
     //   * `target_hw = BROADCAST` per spec (Linux still updates the
     //     cache from a non-gratuitous Response when arp_accept=1, the
     //     setup-netns.sh default for §4.2 cases).
-    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
+    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface,
+                         ::tc8::sce::IDutControl &dut) {
         ::tc8::stimulus::BootTiming ut_timing;
         ut_timing.initial_wait = std::chrono::milliseconds(1500);
         ut_timing.retry_interval = std::chrono::milliseconds(0);
         ut_timing.total_emits = 1;
-        emitArpEgressProvocation(cfg, iface, ut_timing);
+        emitArpEgressProvocation(dut, ut_timing);
 
         ::tc8::stimulus::ArpFrameSpec spec;
         spec.opcode = 0x0002;  // Response — spec ARP_40 inject form

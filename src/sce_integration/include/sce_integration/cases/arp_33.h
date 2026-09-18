@@ -39,7 +39,8 @@ struct TestCaseTraits<cases::Arp33SM>
     // green via grep filter in .github/workflows/smoke-test.yml. A
     // spec-compliant DUT that honours RFC 826 merge regardless of
     // target_hw lands pass without filter.
-    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
+    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface,
+                         ::tc8::sce::IDutControl &dut) {
         ::tc8::stimulus::ArpFrameSpec spec1;
         spec1.opcode = 0x0002;  // gratuitous Response
         spec1.sender_hw = ::tc8::stimulus::kTesterInjectedMac;
@@ -58,7 +59,7 @@ struct TestCaseTraits<cases::Arp33SM>
         spec2.target_ip_be = cfg.arp.tester_ip;
         ::tc8::stimulus::emitArpFromTester(iface, spec2);
 
-        emitArpEgressProvocation(cfg, iface, cfg.stimulus_timing);
+        emitArpEgressProvocation(dut, cfg.stimulus_timing);
     }
 };
 

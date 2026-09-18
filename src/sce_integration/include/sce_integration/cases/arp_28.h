@@ -26,7 +26,8 @@ struct TestCaseTraits<cases::Arp28SM>
         "and emit its own ARP Request on subsequent UDP egress";
     // Variant of ARP_22: RFC 826 §2.3 step 2 ("Do I speak the protocol in
     // ar$pro?") drops the frame when proto_type is 0xFFFF.
-    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
+    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface,
+                         ::tc8::sce::IDutControl &dut) {
         ::tc8::stimulus::ArpFrameSpec spec;
         spec.proto_type = 0xFFFF;  // ARP_PROTOCOL_UNKNOWN
         spec.opcode = 0x0002;      // Response
@@ -34,7 +35,7 @@ struct TestCaseTraits<cases::Arp28SM>
         spec.sender_ip_be = cfg.arp.tester_ip;
         spec.target_ip_be = cfg.arp.tester_ip;
         ::tc8::stimulus::emitArpFromTester(iface, spec);
-        emitArpEgressProvocation(cfg, iface, cfg.stimulus_timing);
+        emitArpEgressProvocation(dut, cfg.stimulus_timing);
     }
 };
 

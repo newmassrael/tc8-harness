@@ -27,10 +27,11 @@ struct TestCaseTraits<cases::Arp04SM>
     // Same two-phase stimulus as ARP_03 — the only difference is the pass
     // criterion: ARP_03 checks absence of DUT ARP Request, ARP_04 also
     // verifies the subsequent UDP's Ethernet destination.
-    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
+    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface,
+                         ::tc8::sce::IDutControl &dut) {
         ::tc8::stimulus::emitArpLearningBoot(iface, cfg.arp.tester_ip, cfg.dut.ip,
                                              ::tc8::stimulus::ArpLearningVariant::Request);
-        emitArpEgressProvocation(cfg, iface, cfg.stimulus_timing);
+        emitArpEgressProvocation(dut, cfg.stimulus_timing);
     }
 };
 

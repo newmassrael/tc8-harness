@@ -35,7 +35,8 @@ struct TestCaseTraits<cases::Arp38SM>
     // has no comparison against it. 172.16.0.99 is well clear of the
     // .1 / .2 topology endpoints and chosen to survive netns /24 changes
     // by staying in the same subnet.
-    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
+    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface,
+                         ::tc8::sce::IDutControl &dut) {
         constexpr std::uint32_t kUnusedTargetIpBe =
             (static_cast<std::uint32_t>(99) << 24) |
             (static_cast<std::uint32_t>(0) << 16) |
@@ -50,7 +51,7 @@ struct TestCaseTraits<cases::Arp38SM>
         // sender — matches the spec's silence on target_hw content for
         // this specific case).
         ::tc8::stimulus::emitArpFromTester(iface, spec);
-        emitArpEgressProvocation(cfg, iface, cfg.stimulus_timing);
+        emitArpEgressProvocation(dut, cfg.stimulus_timing);
     }
 };
 

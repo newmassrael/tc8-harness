@@ -57,7 +57,8 @@ struct TestCaseTraits<cases::Arp49SM>
     //
     // SCXML walks wait_udp1 → wait_udp2 → wait_arp_request → pass on
     // the {UDP1, UDP2, ARP} wire order under both strategies.
-    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
+    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface,
+                         ::tc8::sce::IDutControl &dut) {
         ::tc8::stimulus::emitArpLearningBoot(iface, cfg.arp.tester_ip, cfg.dut.ip,
                                              ::tc8::stimulus::ArpLearningVariant::Request);
 
@@ -65,7 +66,7 @@ struct TestCaseTraits<cases::Arp49SM>
         ut1.initial_wait = std::chrono::milliseconds(1500);
         ut1.retry_interval = std::chrono::milliseconds(0);
         ut1.total_emits = 1;
-        emitArpEgressProvocation(cfg, iface, ut1);
+        emitArpEgressProvocation(dut, ut1);
 
         const std::uint16_t timeout_s = cfg.arp_stimulus.ut_cache_conditioning_s;
         const auto half = static_cast<std::uint16_t>(timeout_s / 2);
@@ -74,27 +75,27 @@ struct TestCaseTraits<cases::Arp49SM>
             // Step 8: half the timeout elapses — entry survives.
             std::this_thread::sleep_for(std::chrono::milliseconds(300));
             emitArpCacheConditioning(
-                cfg, iface, ::tc8::ut::kArpConditionAgeBySeconds, half);
+                dut, ::tc8::ut::kArpConditionAgeBySeconds, half);
         }
 
         ::tc8::stimulus::BootTiming ut2;
         ut2.initial_wait = std::chrono::milliseconds(500);
         ut2.retry_interval = std::chrono::milliseconds(0);
         ut2.total_emits = 1;
-        emitArpEgressProvocation(cfg, iface, ut2);
+        emitArpEgressProvocation(dut, ut2);
 
         if (timeout_s > 0) {
             // Step 12: the remaining half elapses — entry freed.
             std::this_thread::sleep_for(std::chrono::milliseconds(300));
             emitArpCacheConditioning(
-                cfg, iface, ::tc8::ut::kArpConditionAgeBySeconds, rest);
+                dut, ::tc8::ut::kArpConditionAgeBySeconds, rest);
 
             // Step 13: post-timeout egress → step-15 ARP Request.
             ::tc8::stimulus::BootTiming ut3;
             ut3.initial_wait = std::chrono::milliseconds(500);
             ut3.retry_interval = std::chrono::milliseconds(0);
             ut3.total_emits = 1;
-            emitArpEgressProvocation(cfg, iface, ut3);
+            emitArpEgressProvocation(dut, ut3);
 
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
         } else {

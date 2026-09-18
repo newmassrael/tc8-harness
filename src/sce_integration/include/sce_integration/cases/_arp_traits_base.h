@@ -11,6 +11,7 @@
 #include "sce_integration/arp_captured.h"
 #include "sce_integration/cases/_fault_flavor_arm.h"
 #include "sce_integration/dut_capabilities.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_case_traits.h"
 #include "sce_integration/test_config.h"
 #include "stimulus/upper_tester_client.h"
@@ -58,11 +59,16 @@ namespace tc8::sce {
 // `--negative` override must shift only the SCXML comparison, not
 // silence the DUT (see `emitTriggerSendUdpBoot` in
 // stimulus/upper_tester_client.h for the full rationale).
-inline int emitArpEgressProvocation(const ::tc8::TestConfig &cfg, std::string_view iface,
+// Routed over the Tier-2 seam. The UT-envelope identity rules above now hold in
+// ONE place — the backend was built with them — instead of being restated at
+// every call. Returns the send's status, 0 on success, as before.
+inline int emitArpEgressProvocation(::tc8::sce::IDutControl &dut,
                                     const ::tc8::stimulus::BootTiming &timing) {
-    return ::tc8::stimulus::emitTriggerSendUdpBoot(iface, cfg.ipv4.tester_ip,
-                                                   cfg.dut.ip,
-                                                   cfg.dut.mac, timing);
+    auto *arp = dut.arpControl();
+    if (arp == nullptr) {
+        return -1;
+    }
+    return arp->provokeEgress(timing);
 }
 
 // §4.2.4.2 ARP_48/49 mid-stimulus cache-conditioning step (UT 0x17)
@@ -70,12 +76,13 @@ inline int emitArpEgressProvocation(const ::tc8::TestConfig &cfg, std::string_vi
 // `cfg.arp_stimulus.ut_cache_conditioning_s > 0` is the caller-side gate. Same
 // UT-envelope identity rules as `emitArpEgressProvocation` above:
 // TOPOLOGY values, never the SCXML-expectation knobs.
-inline int emitArpCacheConditioning(const ::tc8::TestConfig &cfg, std::string_view iface,
+inline int emitArpCacheConditioning(::tc8::sce::IDutControl &dut,
                                     std::uint8_t action, std::uint16_t param) {
-    return ::tc8::stimulus::emitConditionArpCache(iface, cfg.ipv4.tester_ip,
-                                                  cfg.dut.ip,
-                                                  cfg.dut.mac,
-                                                  action, param);
+    auto *arp = dut.arpControl();
+    if (arp == nullptr) {
+        return -1;
+    }
+    return arp->conditionCache(action, param);
 }
 
 // emitEgressFlavorArm / emitIngressFlavorArm (the generic UT 0x18 / 0x19 arming)
@@ -91,11 +98,12 @@ inline int emitArpCacheConditioning(const ::tc8::TestConfig &cfg, std::string_vi
 // listen window opens and the corrupted Request is captured either way.
 inline void emitEgressFlavorRequestProvocation(const ::tc8::TestConfig &cfg,
                                                std::string_view iface,
+                                               ::tc8::sce::IDutControl &dut,
                                                std::uint8_t flavor) {
     emitEgressFlavorArm(cfg, iface, flavor);
     ::tc8::stimulus::BootTiming timing = cfg.stimulus_timing;
     timing.initial_wait = std::chrono::milliseconds{0};
-    emitArpEgressProvocation(cfg, iface, timing);
+    emitArpEgressProvocation(dut, timing);
 }
 
 template <typename StateMachine>

@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "sce_integration/dut_capabilities.h"
+#include "sce_integration/dut_arp_control.h"
 #include "sce_integration/dut_dhcp_control.h"
 #include "sce_integration/dut_linklocal_control.h"
 #include "sce_integration/dut_socket_control.h"
@@ -118,6 +119,9 @@ public:
     // DUT UDP receive ports + receipt query, or nullptr when the backend has no
     // settled mapping for the question (see IUdpReceiveControl).
     virtual IUdpReceiveControl *udpReceiveControl() { return nullptr; }
+
+    // DUT ARP-plane actions, or nullptr when the backend cannot drive them.
+    virtual IArpControl *arpControl() { return nullptr; }
 };
 
 // Seam-case convenience: fetch the DUT's TCP control sub-interface as a
@@ -507,6 +511,35 @@ private:
     std::uint8_t req_id_ = 1;
 };
 
+// Opcode-UT backend of IArpControl. Both operations keep the RAW inject path the
+// §4.2 cases have always used, and deliberately so: these run inside cases whose
+// verdict is the DUT's own ARP behaviour, and a kernel-routed control request
+// would put the tester's ARP resolution on the wire in the middle of it.
+//
+// Cache conditioning is DUT-derived in spirit — only a DUT implementing the
+// conditioning opcode can act on it — but it is gated as backend-static here
+// because the opcode UT is the only backend that carries the request at all; a
+// DUT that ignores it answers non-zero, which the caller already branches on.
+class OpcodeArpControl final : public IArpControl {
+public:
+    OpcodeArpControl(std::uint32_t dut_ip_be, OpcodeRawTransport raw = {})
+        : dut_ip_be_(dut_ip_be), raw_(std::move(raw)) {}
+
+    int provokeEgress(const ::tc8::stimulus::BootTiming &timing) override {
+        return stimulus::emitTriggerSendUdpBoot(raw_.iface, raw_.tester_ip_be, dut_ip_be_,
+                                                raw_.dut_mac, timing);
+    }
+
+    int conditionCache(std::uint8_t action, std::uint16_t param) override {
+        return stimulus::emitConditionArpCache(raw_.iface, raw_.tester_ip_be, dut_ip_be_,
+                                               raw_.dut_mac, action, param);
+    }
+
+private:
+    std::uint32_t dut_ip_be_;
+    OpcodeRawTransport raw_;
+};
+
 // Opcode-UT backend of IUdpReceiveControl. Raw + awaited for the same reason the
 // send side is: these run inside cases that assert on captured wire content, and
 // a kernel-routed control request would put the tester's own ARP in that window.
@@ -666,7 +699,8 @@ public:
           udp_ctrl_(dut_ip_be, port, src_ip_be, timeout_ms, raw),
           dhcp_ctrl_(dut_ip_be, port, src_ip_be, timeout_ms, raw),
           ll_ctrl_(dut_ip_be, port, src_ip_be, timeout_ms, raw),
-          udp_recv_(dut_ip_be, port, src_ip_be, timeout_ms, std::move(raw)) {}
+          udp_recv_(dut_ip_be, port, src_ip_be, timeout_ms, raw),
+          arp_ctrl_(dut_ip_be, std::move(raw)) {}
 
     bool probe() override {
         return stimulus::pingUpperTester(dut_ip_be_, port_, timeout_ms_, src_ip_be_)
@@ -685,7 +719,7 @@ public:
         return static_cast<DutCapabilities>(
             kCapTcpControl | kCapUdpControl | kCapTcpStateProbe | kCapTcpSynSentOpen |
             kCapTcpRecvOob | kCapDhcpClientControl | kCapLinkLocalControl |
-            kCapUdpReceiveControl);
+            kCapUdpReceiveControl | kCapArpConditioning);
     }
 
     DutCapabilities capabilities() const override {
@@ -710,6 +744,7 @@ public:
     IDhcpClientControl *dhcpClientControl() override { return &dhcp_ctrl_; }
     ILinkLocalControl *linkLocalControl() override { return &ll_ctrl_; }
     IUdpReceiveControl *udpReceiveControl() override { return &udp_recv_; }
+    IArpControl *arpControl() override { return &arp_ctrl_; }
 
 private:
     // Fail-fast ceiling for the kernel-state probe, independent of the
@@ -793,6 +828,7 @@ private:
     OpcodeDhcpClientControl dhcp_ctrl_;
     OpcodeLinkLocalControl ll_ctrl_;
     OpcodeUdpReceiveControl udp_recv_;
+    OpcodeArpControl arp_ctrl_;
 };
 
 // Adapter over the AUTOSAR Testability Protocol client (testability_client.h).

@@ -30,8 +30,9 @@ struct TestCaseTraits<cases::Arp11NegSM>
     // positive uses so the lwIP DUT emits a (corrupted) cache-miss Request.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        emitEgressFlavorRequestProvocation(cfg, iface, ::tc8::ut::kArpFaultProtoLenWrong);
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
+        emitEgressFlavorRequestProvocation(cfg, iface, dut, ::tc8::ut::kArpFaultProtoLenWrong);
     }
 };
 

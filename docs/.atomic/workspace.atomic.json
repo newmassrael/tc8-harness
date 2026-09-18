@@ -180,6 +180,10 @@
         {
           "file": "src/harness/packet_pipeline.cpp",
           "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/dut_arp_control.h",
+          "kind": "references"
         }
       ]
     },
@@ -639,6 +643,10 @@
         },
         {
           "file": "src/sce_integration/include/sce_integration/cases/_fault_flavor_arm.h",
+          "kind": "references"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/dut_arp_control.h",
           "kind": "references"
         }
       ]

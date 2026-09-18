@@ -25,8 +25,9 @@ struct TestCaseTraits<cases::Arp10SM>
     // UT 0x02 egress-provocation stimulus — see arp_07.h.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        emitArpEgressProvocation(cfg, iface, cfg.stimulus_timing);
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
+        emitArpEgressProvocation(dut, cfg.stimulus_timing);
     }
 };
 

@@ -33,7 +33,8 @@ struct TestCaseTraits<cases::Arp22SM>
     //      egress. With no cache entry for `tester_ip`, a conformant DUT
     //      must emit its own ARP Request to resolve the tester MAC before
     //      the UDP.
-    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
+    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface,
+                         ::tc8::sce::IDutControl &dut) {
         ::tc8::stimulus::ArpFrameSpec spec;
         spec.hw_type = 0xFFFF;  // ARP_HARDWARE_TYPE_UNKNOWN
         spec.opcode = 0x0002;   // Response
@@ -41,7 +42,7 @@ struct TestCaseTraits<cases::Arp22SM>
         spec.sender_ip_be = cfg.arp.tester_ip;
         spec.target_ip_be = cfg.arp.tester_ip;  // gratuitous: target_ip == sender_ip
         ::tc8::stimulus::emitArpFromTester(iface, spec);
-        emitArpEgressProvocation(cfg, iface, cfg.stimulus_timing);
+        emitArpEgressProvocation(dut, cfg.stimulus_timing);
     }
 };
 

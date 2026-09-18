@@ -31,7 +31,8 @@ struct TestCaseTraits<cases::Arp22NegSM>
     // positive uses (the frame the DUT must drop), then provoke UDP egress.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         emitIngressFlavorArm(cfg, iface, ::tc8::ut::kArpFaultLearnFromDropFrame);
         ::tc8::stimulus::ArpFrameSpec spec;
         spec.hw_type = 0xFFFF;  // ARP_HARDWARE_TYPE_UNKNOWN
@@ -42,7 +43,7 @@ struct TestCaseTraits<cases::Arp22NegSM>
         ::tc8::stimulus::emitArpFromTester(iface, spec);
         // Full provocation wait (mirrors the positive ARP_22): the gap lets the
         // ingress hook land the static entry before the UT-provoked UDP egress.
-        emitArpEgressProvocation(cfg, iface, cfg.stimulus_timing);
+        emitArpEgressProvocation(dut, cfg.stimulus_timing);
     }
 };
 

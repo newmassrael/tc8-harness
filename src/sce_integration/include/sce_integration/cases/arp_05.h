@@ -30,10 +30,11 @@ struct TestCaseTraits<cases::Arp05SM>
     // (opcode 2, sender==target==<tester_ip, kTesterInjectedMac>). Requires
     // `net.ipv4.conf.<dut_iface>.arp_accept=1` on DUT for the kernel to
     // learn from the gratuitous announcement — setup-netns.sh enables it.
-    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
+    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface,
+                         ::tc8::sce::IDutControl &dut) {
         ::tc8::stimulus::emitArpLearningBoot(iface, cfg.arp.tester_ip, cfg.dut.ip,
                                              ::tc8::stimulus::ArpLearningVariant::GratuitousResponse);
-        emitArpEgressProvocation(cfg, iface, cfg.stimulus_timing);
+        emitArpEgressProvocation(dut, cfg.stimulus_timing);
     }
 };
 
