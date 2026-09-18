@@ -25,6 +25,10 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::TcpUnacceptable01SM>
     : TcpAnyBase<cases::TcpUnacceptable01SM> {
+    // Drives the DUT's TCP data plane over the Tier-2 seam (driveSeamListen /
+    // closeTcp), so it is not measurable on a backend without ITcpControl.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapTcpControl;
     static constexpr std::string_view kCaseId       = "TCP_UNACCEPTABLE_01";
     static constexpr std::string_view kDescription  =
         "TCP MUST return to LISTEN state on receiving an acceptable RST "

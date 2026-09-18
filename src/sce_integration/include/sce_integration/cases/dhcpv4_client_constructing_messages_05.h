@@ -25,9 +25,15 @@ struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages05SM>
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_05";
     // Step 9 asks the DUT to originate a UDP datagram to the unused routed
-    // address, over the Tier-2 seam — not measurable without UDP control.
+    // address, over the Tier-2 seam — not measurable without UDP control. The
+    // DHCP bit is restated because this declaration SHADOWS the one inherited
+    // from Dhcpv4AnyBase rather than extending it, and the shared stimulus
+    // (`wireRouterOverloadStimulus`) starts the DUT's DHCP client before it ever
+    // reaches step 9. Naming only the UDP half made the gate look satisfied on a
+    // backend with UDP control and no DHCP client control, which is worse than
+    // declaring nothing: the case ran and could never get a Discover.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
-        ::tc8::sce::kCapUdpControl;
+        ::tc8::sce::kCapUdpControl | ::tc8::sce::kCapDhcpClientControl;
     static constexpr std::string_view kDescription =
         "DUT parses Option Overload value=2 (sname holds options) and "
         "applies Option 3 (Router) so post-BOUND UDP egress to "

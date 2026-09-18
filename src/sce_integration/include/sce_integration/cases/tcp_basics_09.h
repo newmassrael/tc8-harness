@@ -28,6 +28,10 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::TcpBasics09SM>
     : TcpAnyBase<cases::TcpBasics09SM> {
+    // Drives the DUT's TCP data plane over the Tier-2 seam (driveSeamListen /
+    // closeTcp), so it is not measurable on a backend without ITcpControl.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapTcpControl;
     static constexpr std::string_view kCaseId       = "TCP_BASICS_09";
     static constexpr std::string_view kDescription  =
         "TCP MUST move to CLOSED state after receiving an ACK of the "

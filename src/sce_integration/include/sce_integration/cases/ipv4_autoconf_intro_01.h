@@ -39,6 +39,14 @@ struct TestCaseTraits<cases::Ipv4AutoconfIntro01SM> {
     static constexpr bool             kDeprecated = false;
     static constexpr int              kTopology   = 1;
     static constexpr ::tc8::BpfGroup  kBpfGroup   = ::tc8::BpfGroup::ArpAndDhcpv4;
+    // The premise is a DHCP-BOUND DUT, brought about over the Tier-2 seam, so
+    // the case is not measurable on a backend without DHCP client control.
+    // Declared here because these are standalone traits that inherit nothing —
+    // which is also why a base-class sweep walked past it: the case calls the
+    // DHCP seam from the link-local autoconf family rather than the DHCP one,
+    // and it carries no base clause for a sweep to group it under.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapDhcpClientControl;
 
     using Captured = typename SM::CapturedType;
     using Expected = typename SM::ExpectedType;

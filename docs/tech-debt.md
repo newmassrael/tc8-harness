@@ -1055,3 +1055,67 @@ on beside it. Shipping the netns-only half first would be worse than shipping no
 three topologies would report the same clean verdicts they do now, and their silence would become
 indistinguishable from a verified premise — which is the precise failure this entry exists to
 describe.
+
+---
+
+## TD-19 — 53 TCP cases drive the DUT over the seam without declaring kCapTcpControl
+
+**Status:** OPEN (accepted; latent, no wrong verdict on either shipped backend). **Logged:**
+2026-09-19, from a seam-capability audit run after the ARP instance of the same gap was fixed.
+
+**What it is.** A case that drives the DUT through an `IDutControl` sub-interface is only
+measurable on a backend that provides it, and says so with `kRequiredCapabilities` so the gate
+can decline a backend that does not. An audit over all 749 case headers — resolving seam
+helpers to accessors transitively, walking base chains on the declared side, and reading
+COMMENT-STRIPPED source — found 53 cases declaring less than they call. All 53 omit
+`kCapTcpControl`, which BOTH shipped backends advertise, so the gate is satisfied, the cases
+run, and nothing is misreported today.
+
+⚠ The instrument had to be corrected twice before that number meant anything, and the earlier
+figures are in this file's history, not its text. Scanning `dut_control.h` made every interface
+method look like a seam helper, which put `kCapTcpRecvOob` on nearly every TCP case; scanning
+comments then credited `tcpStateProbe()` — mentioned once, in prose, in `tcp_pilot_common.h` —
+to ten cases that never call it. Both times the tell was the same: the answer was too uniform to
+be true. Four cases the audit could not see at all (no base clause, no declaration) were found
+by a reviewer, not by the sweep, and fixed alongside it.
+
+The `tcpStateProbe` half of that is worth stating as a RESULT rather than only as a
+mis-measurement, because it is the one part of this model that has been confirmed end to end on
+a backend that declines: on an AUTOSAR-testability run of 494 cases, the cases that skipped for
+the state-probe bit were exactly the ten that call `tcpStateProbe()` — `TCP_BASICS_02/07/17`,
+`TCP_FLAGS_PROCESSING_11`, `TCP_RETRANSMISSION_TO_03/04/05/06/08/09` — and the ten that do not
+call it ran and passed. Both halves right, with no change needed. That is the standard the 53
+below should be held to, and it is also why the near-miss mattered: adding the bit to the wrong
+ten would have turned ten sound passes into skips.
+
+**Why it exists.** The TCP cases predate the Tier-2 seam and reach `dut.tcpControl()` directly
+from their stimulus bodies. The seam adoption work declared capabilities on the domains it
+migrated; TCP was already calling the accessor and so never looked like a migration.
+
+**Risk if left.** Latent and bounded, but "latent" is a property of today's backends rather than
+of the code: it holds only while every backend in play advertises the bit. The moment one
+without `ITcpControl` is added, all 53 stop being declined, and how they then fail is NOT
+uniform. Where the un-taken seam call is the stimulus, the case reports
+`no_dut_*_within_listen_window` — loud, and investigated; that is what 33 ARP cases did on the
+testability backend. Where the un-taken call only sets up or tears down, the case is graded on
+wire evidence alone and reports a clean PASS whose premise was never established. A
+non-conclusion gets looked at; a green does not. Neither was visible in CI, which runs
+`--dut-control=opcode`, the backend that has everything.
+
+**Textbook fix.** The same axis split the ARP fix used, not a base-wide declaration. Driving the
+DUT is INDEPENDENT of dispatch shape: `TcpAnyBase` carries 109 cases and only 74 reach
+`tcpControl()`, so declaring on the base would capability-skip 35 observation-only cases for a
+sub-interface they never touch — trading one wrong non-conclusion for another. A
+`TcpDutDrivenBase` sibling carrying the declaration, with the drivers repointed onto it, mirrors
+`ArpDutProvokedBase` exactly.
+
+**Deferred because.** It changes no verdict on either backend today, and it is a 53-header
+change whose whole value is that it must not change one. Proving that needs its own before/after
+over the TCP set at `--workers 1` — a long run the ARP and control-plane passes had already
+spent — and a zero-diff claim is worth nothing if it rides along unverified at the end of
+another change. ⚠ Deferred is not the same as safe: see the risk section for why "no verdict
+change today" is the weakest of the reasons to wait. The runtime guard added alongside the ARP
+fix limits the damage meanwhile: the
+seam-absence branches now record a named unperformed stimulus
+(`dut_arp_control_absent` and siblings), so a case reaching a missing sub-interface reports that
+name rather than inventing a DUT fault.

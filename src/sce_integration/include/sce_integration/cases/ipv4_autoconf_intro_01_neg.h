@@ -40,6 +40,12 @@ struct TestCaseTraits<cases::Ipv4AutoconfIntro01NegSM> {
     static constexpr bool             kDeprecated = false;
     static constexpr int              kTopology   = 1;
     static constexpr ::tc8::BpfGroup  kBpfGroup   = ::tc8::BpfGroup::ArpAndDhcpv4;
+    // As ipv4_autoconf_intro_01: the DHCP-bound premise rides the seam. This
+    // `_NEG` needs no separate fault bit — its flavor byte travels INSIDE the
+    // start request (`emitStartDhcpClientBuggy` delegates to
+    // `emitStartDhcpClient`), so the DHCP seam is the only sub-interface used.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapDhcpClientControl;
 
     using Captured = typename SM::CapturedType;
     using Expected = typename SM::ExpectedType;

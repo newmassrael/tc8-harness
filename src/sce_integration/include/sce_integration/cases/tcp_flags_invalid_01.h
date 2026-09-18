@@ -26,6 +26,10 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::TcpFlagsInvalid01SM>
     : TcpAnyBase<cases::TcpFlagsInvalid01SM> {
+    // Drives the DUT's TCP data plane over the Tier-2 seam (driveSeamListen /
+    // closeTcp), so it is not measurable on a backend without ITcpControl.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapTcpControl;
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_INVALID_01";
     static constexpr std::string_view kDescription  =
         "TCP MUST ignore an incoming segment with RST flag in LISTEN "
