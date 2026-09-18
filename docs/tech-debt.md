@@ -946,3 +946,59 @@ UTM's responses non-conformant for the sake of a distinction ranked below the E_
 split that was actually asked for. See also the `Unsupported` → E_NTF reading documented at
 `ridFromOpStatus`: that is a spec reading rather than a spec quotation, and it carries the
 same "change it here, once" property should a narrower reading of PRS_TPSP §6.8 later prevail.
+
+---
+
+## TD-17 — a suite-qualified case id silently loses its per-case DUT vsomeip flavor
+
+**Status:** OPEN (accepted; not reachable in a shipped build). **Logged:** 2026-09-18, from a
+consumer report of a build registering an injected suite alongside the in-tree one; verified
+in-tree at `8fb3c671`.
+
+**What it is.** The orchestrator's per-case DUT flavor table
+(`dut/env/orchestrator/src/dut_variant.rs`) is built from the harness's
+`--list-vsomeip-variants`, whose rows carry BARE case ids — all fifteen of them, none with a
+suite separator. `parse` keys the map on that bare id, uppercased. `resolve` is then called from
+`dispatch.rs` with the SCHEDULED TOKEN, which may be suite-qualified. A qualified token uppercases
+to `TC8:<ID>` and misses a map keyed `<ID>`. On a miss the dispatch falls back to the base vsomeip
+config with no `TC8_DUT_*` env, and emits no log line and no error.
+
+So a qualified run of a flavor-needing case executes against a DUT that was never given the second
+service, shared port, or second instance the case requires, and nothing in the verdict, the JUnit
+row, or the console says so.
+
+**Why it exists.** The harness has three list surfaces and only one of them qualifies.
+`--list-cases` prints a non-default suite's prefix verbatim — `dut/env/list-cases-ids.awk`
+documents that it captures a bare and a qualified id alike, so qualified ids are first-class,
+documented input. `--list-vsomeip-variants` and `--list-neg-rows` emit bare first fields. The
+orchestrator keys all three tables on a token that may or may not be qualified, and nothing
+reconciles the two spellings. A single-suite build never needs qualification (an unqualified id is
+unambiguous), so CI has never reached the mismatch.
+
+**Risk if left.** Bounded today, sharp the moment a second suite is registered. Of the three
+tables the orchestrator builds this way, only one degrades silently:
+
+- `list_secondary_iface_cases` — safe by construction; both sides come from `--list-cases`.
+- `list_negative_rows` — would panic rather than degrade; `worker.rs` expects the schedule to
+  carry every scheduled case, and main builds that schedule from the same bare list.
+- `dut_variant` — silent, and it is the PROVISIONING axis. An expectation override changes what
+  the tester expects; this changes what the DUT is running.
+
+**Textbook fix.** Discriminate on whether STRIPPING the suite would have hit the table.
+"Qualified and missed, therefore error" is the wrong rule — once suites are scoped, every injected
+case legitimately misses:
+
+- suite is the default — strip and look up. Correct resolution, not a workaround: the table IS the
+  default suite's table.
+- suite is not the default and the bare part WOULD hit — refuse loudly. A flavor must never travel
+  to another catalog by id coincidence.
+- suite is not the default and the bare part misses — legitimately no flavor.
+
+**Deferred because.** No build the project ships can reach it: the in-tree suite is the only one
+registered, and an unqualified id resolves unambiguously. The third branch above only acquires
+meaning once injected suites exist, and the shape of suite scoping is still being decided (see
+`claudedocs/case-alias-across-suites-request.md`, DRAFT). Implementing against a scoping model that
+has not landed would most likely be redone. One adjacent gap belongs with it when that work starts:
+the orchestrator has no `--inventory-overrides` passthrough at all — the flag exists on the harness
+CLI, but the orchestrator's only mentions of it are comments, so a consumer driving runs through
+`tc8-orchestrator` always gets the in-tree overrides file.

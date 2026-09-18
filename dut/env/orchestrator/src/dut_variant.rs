@@ -51,6 +51,12 @@ pub fn init(cfg: &Config) -> Result<()> {
 
 /// Look up a case's DUT flavor (case-insensitive). `None` for the common
 /// non-variant case, or if `init` was never called (no flavor is then applied).
+///
+/// The map is keyed by the BARE ids `--list-vsomeip-variants` emits, but the
+/// caller passes the SCHEDULED token, which a multi-suite build may qualify as
+/// `suite:id` — that spelling misses here and the miss reads as "no flavor",
+/// silently. Unreachable while the in-tree suite is the only one registered.
+/// See docs/tech-debt.md TD-17 before adding a second suite or changing the key.
 pub fn resolve(case_id: &str) -> Option<&'static DutVariant> {
     CACHE.get()?.get(&case_id.to_ascii_uppercase())
 }
