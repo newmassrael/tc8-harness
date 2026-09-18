@@ -662,10 +662,6 @@
       "platform_known_fail": true,
       "platform_known_fail_ref": "memory/reference_linux_syn_data_rto_deviations.md"
     },
-    "TCP_UNACCEPTABLE_04": {
-      "platform_known_fail": true,
-      "platform_known_fail_ref": "memory/reference_unacc_ack_dispatch.md"
-    },
     "TCP_UNACCEPTABLE_10": {
       "platform_known_fail": true,
       "platform_known_fail_ref": "memory/reference_linux_tw_substate_oow.md"
