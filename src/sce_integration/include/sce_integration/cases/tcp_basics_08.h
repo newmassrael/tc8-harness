@@ -32,7 +32,7 @@ struct TestCaseTraits<cases::TcpBasics08SM>
         "TCP MUST send a FIN on a CLOSE call in ESTABLISHED or "
         "CLOSE-WAIT state (RFC 793 §3.2 p23 Terminology)";
 
-    // Spec Test Procedure (v3.0 p281-p300.txt:623), two iterations:
+    // Case shape — two iterations:
     //   * Phase 1 — <wst>=ESTABLISHED:
     //       handshake → UT close → DUT FIN.
     //   * Phase 2 — <wst>=CLOSE-WAIT:

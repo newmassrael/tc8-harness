@@ -50,10 +50,9 @@ inline constexpr std::uint32_t kDefaultSubnetMaskBe =   // 255.255.255.0
     (static_cast<std::uint32_t>(0U)   << 24);
 inline constexpr std::uint32_t kDefaultLeaseTimeSeconds = 300U;
 
-// §4.7.6.7 CM_05/_06 / TC8 spec parameter `<IP-UNUSED-ADDRESS>`:
-// "IP Address which is of a different subnet than all the emulated
-// servers and all other objects within the simulated topologies"
-// (tc8_p221-p240.txt:372). The harness uses 192.168.99.42 — a
+// §4.7.6.7 CM_05/_06 / TC8 spec parameter `<IP-UNUSED-ADDRESS>`, which
+// the spec defines as an address outside every subnet the simulated
+// topology uses. The harness uses 192.168.99.42 — a
 // different RFC 1918 subnet from the dev-netns 172.16.0.0/24, so the
 // DUT cannot egress directly without applying the Router Option
 // (Option 3) from the OFFER/ACK.

@@ -4,7 +4,7 @@
   RENEWING state — 'requested IP address' (Option 50) MUST NOT be
   filled (RFC 2131 §4.3.6 table 5).
 
-  Spec Test Procedure (tc8_p261-p280.txt: REQUEST_07):
+  Case shape:
     1-2. DUT bring-up + DHCP client configure.
     3.   TESTER: DHCP Server <SERVER-1> Cause DUT to transit its state
          to DHCPCLIENT_STATE_RENEWING.

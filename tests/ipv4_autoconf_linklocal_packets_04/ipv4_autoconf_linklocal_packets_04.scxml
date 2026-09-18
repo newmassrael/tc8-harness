@@ -10,7 +10,7 @@
   ARBITRARY-IP-LINKLOCAL-ADDR (one the DUT has not claimed); the DUT
   MUST NOT emit an ARP Reply.
 
-  Spec Test Procedure (tc8_p181-p200.txt:289..335):
+  Case shape:
     1-7.   DUT brings up iface, sends DHCPDISCOVER, then 3 ARP Probes
            for tentative LL_DUT.
     8.     Tester waits (PROBE_MAX*2)+ANNOUNCE_WAIT+ANNOUNCE_INTERVAL

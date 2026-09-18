@@ -4,7 +4,7 @@
   retransmits the DHCPREQUEST message if the client receives neither a
   DHCPACK or a DHCPNAK message (RFC 2131 §3.1).
 
-  Spec Test Procedure (tc8_p241-p260.txt: ALLOCATING_10):
+  Case shape:
     3.   TESTER: Initialize server1 to offer IP Address Lease Time of
          <HIGH-LEASE-TIME> seconds to the DUT.
     4.   TESTER: DHCP Server <SERVER-1> Cause DUT to transit to

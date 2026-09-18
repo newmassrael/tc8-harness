@@ -30,7 +30,7 @@ struct TestCaseTraits<cases::TcpBasics01SM>
         "TCP in LISTEN state MUST send a SYN,ACK in response to a "
         "received SYN (RFC 793 §3.2 p23 Terminology)";
 
-    // Spec Test Procedure (v3.0 p281-p300.txt:399):
+    // Case shape:
     //   1. TESTER: Cause DUT to LISTEN — a passive open on the well-known
     //      port (kBasicsListenPort = 12345).
     //   2. TESTER: Send a SYN — a kernel connect() from the tester netns. The

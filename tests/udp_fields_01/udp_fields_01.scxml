@@ -3,7 +3,7 @@
   TC8 §4.6.5.4 UDP_FIELDS_01: DUT-emitted UDP datagram carries the
   caller-specified Source Port (RFC 768 'Fields' SHOULD).
 
-  Test Procedure (p181-p200.txt:574):
+  Case shape:
     1. TESTER: Cause DUT to send UDP with src_port=<unusedUDPDstPort1>.
     2..3. TESTER listens, DUT sends.
     4. TESTER: Verify Source UDP Port field == <unusedUDPDstPort1>.

@@ -5,7 +5,7 @@
      each interface independently to obtain configuration information
      parameters for those separate interfaces" (RFC 2131 §3.6, MUST).
 
-  Spec Test Procedure (tc8_p241-p260.txt: USAGE_01):
+  Case shape:
     1.  DUT CONFIGURE DHCP Client on <DIface-0>
     2.  DUT CONFIGURE DHCP Client on <DIface-1>
     3.  TESTER bring up <DIface-0>
@@ -18,7 +18,7 @@
     10. TESTER verify chaddr field is not set to extractedChaddr.
   Pass: 5 + 9 + (chaddr#2 != extractedChaddr).
 
-  Topology 2 (tc8_p221-p240.txt:162-183) — distinct broadcast domains
+  Topology 2 — distinct broadcast domains
   N0 (DIface-0) and N1 (DIface-1). The harness opens TWO `PcapSource`
   instances (one per tester veth) and merges them into a single
   pipeline; SCXML sees a time-ordered stream where DISCOVER#1 arrives

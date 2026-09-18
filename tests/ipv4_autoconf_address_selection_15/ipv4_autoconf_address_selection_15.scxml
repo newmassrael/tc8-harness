@@ -7,7 +7,7 @@
   per RATE_LIMIT_INTERVAL — and the rate-limit MUST persist across
   multiple windows, not just the first one.
 
-  Spec Test Procedure (tc8_p161-p180.txt:166..409):
+  Case shape:
     1-53. Same as _14: 10 conflict cycles for tentative LL_1..LL_10.
     54-55. Tester listens for RATE_LIMIT_INTERVAL — DUT MUST be silent.
     56-57. Tester listens; DUT emits ARP Probe with a NEW LL_11 (the

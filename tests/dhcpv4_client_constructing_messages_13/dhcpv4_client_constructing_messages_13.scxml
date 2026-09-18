@@ -4,7 +4,7 @@
     "Retransmission strategy using a randomized exponential backoff
      algorithm" (RFC 2131 §4.1, SHOULD).
 
-  Spec body (tc8_p241-p260.txt: CONSTRUCTING_MESSAGES_13):
+  Case shape:
     1-2. DUT bring-up + DHCP client configure.
     3.   TESTER: DHCP Server Listens for 3*(FirstRetx+Tol) s WITHOUT
          replying.

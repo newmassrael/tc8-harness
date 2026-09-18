@@ -4,7 +4,7 @@
   MUST use the same value in the BOOTP header's 'secs' field as the
   originating DHCPDISCOVER (RFC 2131 §4.3.2, MUST).
 
-  Spec Test Procedure (tc8_p221-p240.txt: ALLOCATING_04):
+  Case shape:
     1-4. DUT bring-up + DHCP client + DISCOVER.
     5.   TESTER: Extracts 'secs' field from DISCOVER → <extractedSeconds>.
     6-8. TESTER: Sends DHCPOFFER + listens for REQUEST.

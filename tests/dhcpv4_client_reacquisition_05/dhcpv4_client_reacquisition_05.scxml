@@ -4,7 +4,7 @@
   ACK response, the client SHOULD wait one-half of the remaining time
   until T2 before retransmitting the DHCPREQUEST (RFC 2131 §4.4.5).
 
-  Spec Test Procedure (tc8_p281-p300.txt: REACQUISITION_05):
+  Case shape:
     8. TESTER: Verify time interval between two DHCPREQUEST messages
        ∈ [(T2 - T1)/2 ± ParamToleranceTime].
 

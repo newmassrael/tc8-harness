@@ -4,7 +4,7 @@
   address. DUT emits exactly ANNOUNCE_NUM (= 2) ARP Announcements
   after the 3-Probe phase (RFC 3927 §2.4 MUST).
 
-  Spec Test Procedure (tc8_p161-p180.txt:695..731):
+  Case shape:
     6. DUT: Sends 3 ARP Request Messages (Probes)
     8. TESTER: Wait <ANNOUNCE_WAIT - 0.05>
     10. DUT: Sends 2 ARP Request Messages (Announces)

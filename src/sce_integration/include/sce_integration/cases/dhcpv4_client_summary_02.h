@@ -30,7 +30,7 @@ struct TestCaseTraits<cases::Dhcpv4ClientSummary02SM>
     // Topology 3 in TC8 §4.7.3 is "1 DUT iface + 2 tester server
     // emuls on the same iface" — NOT multi-iface (USAGE_01's
     // Topology 2 is the only multi-iface §4.7 case). SUMMARY_02's
-    // spec procedure (tc8_p221-p240.txt:482..501) routes both server
+    // spec procedure routes both server
     // emuls through DIface-0; the harness mirrors this by scheduling
     // two state-entry observers on the single tester veth, each with
     // a distinct `server_id_be` (Option 54 echo = the spec's SERVER-1

@@ -4,7 +4,7 @@
   2131 §4.4.5). Verify the interval from "sending of last DHCPACK
   Message" to the REBINDING REQUEST is within T2 ± ParamToleranceTime.
 
-  Spec Test Procedure (tc8_p281-p300.txt: REACQUISITION_04):
+  Case shape:
     8. TESTER: Verify time interval(last ACK → DHCPREQUEST) ∈
        [T2 − ParamToleranceTime, T2 + ParamToleranceTime].
 

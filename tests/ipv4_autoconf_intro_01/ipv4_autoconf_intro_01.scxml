@@ -5,7 +5,7 @@
   "When an operable routable address is available on an interface, the
   host SHOULD NOT also assign an IPv4 Link-Local address on that interface."
 
-  Spec Test Procedure (tc8_p141-p160.txt: INTRO_01):
+  Case shape:
     1-2.  DUT bring-up + DHCP client configure.
     3.    TESTER:DHCP Server <SERVER-1> Listens on <DIface-0>
     4.    DUT: Sends DHCPDISCOVER Message

@@ -6,7 +6,7 @@
   automotive security profile (note in spec body: "this test inverts
   the RFC requirement due to security negotiations").
 
-  Test Procedure (p201-p220.txt:626):
+  Case shape:
     1. DUT CONFIGURE: Listen on <unusedUDPDstPort1> on <DIface-0>.
     2. DUT: Listen ...
     3. TESTER: Send UDP to <AIface-0-BcastIP>:<unusedUDPDstPort1>.

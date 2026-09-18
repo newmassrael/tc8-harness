@@ -5,7 +5,7 @@
   SHOULD). The target hardware address field of an ARP Probe is
   ignored by receivers and conventionally zeroed.
 
-  Spec Test Procedure (tc8_p141-p160.txt:440..455):
+  Case shape:
     1-4. DUT brings up iface and sends DHCPDISCOVER.
     5-7. TESTER listens; verify Target HW Address == NULL-MAC-ADDRESS.
 

@@ -10,7 +10,7 @@
   exchange, the DUT remains silent and does not emit any
   gratuitous-shape ARP Request.
 
-  Spec Test Procedure (tc8_p181-p200.txt:343..389):
+  Case shape:
     1-7.   DUT brings up iface, sends DHCPDISCOVER, then 3 ARP Probes
            for tentative LL_DUT.
     8.     Tester waits ANNOUNCE_WAIT+ANNOUNCE_INTERVAL — i.e. through

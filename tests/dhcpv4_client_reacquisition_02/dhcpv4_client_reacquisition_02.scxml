@@ -4,7 +4,7 @@
   client moves to REBINDING state and sends DHCPREQUEST via IP
   broadcast (RFC 2131 §4.4.5).
 
-  Spec Test Procedure (tc8_p261-p280.txt: REACQUISITION_02):
+  Case shape:
     1-2. DUT bring-up + DHCP client configure.
     3.   TESTER: DHCP Server <SERVER-1> Cause DUT to transit its state
          to DHCPCLIENT_STATE_BOUND.

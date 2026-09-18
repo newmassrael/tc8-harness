@@ -41,7 +41,7 @@ struct TestCaseTraits<cases::TcpBasics02SM>
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
         ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpStateProbe;
 
-    // Spec Test Procedure (v3.0 p281-p300.txt:428):
+    // Case shape:
     //   1. TESTER: Send a SYN   — passive open on the DUT, then a kernel
     //              connect() emits the SYN.
     //   2. DUT:    Send SYN,ACK — observed on pcap.

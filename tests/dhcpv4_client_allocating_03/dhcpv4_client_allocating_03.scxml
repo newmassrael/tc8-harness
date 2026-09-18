@@ -4,7 +4,7 @@
   Option 54 (Server Identifier) with value = the OFFER's server-id
   (RFC 2131 §3.1, §4.3.2).
 
-  Spec Test Procedure (tc8_p221-p240.txt: ALLOCATING_03):
+  Case shape:
     1-4. DUT bring-up + DHCP client + tester listens.
     5.   TESTER:DHCP Server <SERVER-1> Sends DHCPOFFER.
     7.   DUT: Sends DHCPREQUEST.

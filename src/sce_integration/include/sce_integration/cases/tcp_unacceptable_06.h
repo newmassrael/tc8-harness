@@ -33,7 +33,7 @@ struct TestCaseTraits<cases::TcpUnacceptable06SM>
         "SEQ number out of window (RFC 793 §3.4 p34 Establishing a "
         "Connection)";
 
-    // Spec Test Procedure (v3.0 p301-p320.txt:440):
+    // Case shape:
     //   1. TESTER: Cause DUT to ESTABLISHED.
     //   2. TESTER: Send SYN with SEQ outside the receive window.
     //   3. DUT:    Send ACK indicating expected SEQ.

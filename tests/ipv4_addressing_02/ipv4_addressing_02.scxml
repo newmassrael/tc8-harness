@@ -5,7 +5,7 @@
   (<subnet-broadcast>, e.g. 172.16.0.255 for 172.16.0.0/24). Derived
   from RFC 791 §3.2, RFC 1122 §3.2.1.3 ("SHOULD silently discard").
 
-  v3.0 Test Procedure (p001-p020.txt:485): TESTER sends a UDP Message
+  Case shape: TESTER sends a UDP Message
   to <directedBroadcastAddress>, then verifies via Upper Tester that
   the DUT's application layer did NOT receive it.
 

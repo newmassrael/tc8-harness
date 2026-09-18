@@ -4,7 +4,7 @@
   DHCPNAK message, the client restarts the configuration process
   (RFC 2131 §3.1).
 
-  Spec Test Procedure (tc8_p241-p260.txt: ALLOCATING_09):
+  Case shape:
     1-2. DUT bring-up + DHCP client configure.
     3.   TESTER: DHCP Server <SERVER-1> Cause DUT to transit its state
          to DHCPCLIENT_STATE_RENEWING.

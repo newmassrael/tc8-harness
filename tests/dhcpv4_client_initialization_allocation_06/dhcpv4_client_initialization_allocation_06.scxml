@@ -4,7 +4,7 @@
     "The DHCPREQUEST message contains the same 'xid' as the DHCPOFFER
      message" (RFC 2131 §4.4.1, MUST).
 
-  Spec Test Procedure (tc8_p261-p280.txt: INIT_ALLOC_06):
+  Case shape:
     1-2. DUT bring-up + DHCP client configure.
     3.   TESTER:DHCP Server Listens on <DIface-0>.
     4.   DUT: Sends DHCPDISCOVER.

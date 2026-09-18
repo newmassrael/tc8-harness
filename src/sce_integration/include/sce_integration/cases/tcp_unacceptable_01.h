@@ -51,7 +51,7 @@ struct TestCaseTraits<cases::TcpUnacceptable01SM>
     static constexpr std::uint32_t kAcceptableRstSeq =
         ::tc8::sce::tcp::kTesterInitialSeq + 1U;
 
-    // Spec Test Procedure (v3.0 p301-p320.txt:261):
+    // Case shape:
     //   1. TESTER: Cause DUT to move to SYN-RCVD via passive open +
     //              tester SYN.
     //   2. TESTER: Send acceptable RST.

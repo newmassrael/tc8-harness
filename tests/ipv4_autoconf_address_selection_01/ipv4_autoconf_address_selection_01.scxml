@@ -5,7 +5,7 @@
   [1, 254] — the first 256 (169.254.0.0/24) and last 256
   (169.254.255.0/24) addresses are reserved (RFC 3927 §2.1, MUST).
 
-  Spec Test Procedure (tc8_p141-p160.txt:271..286):
+  Case shape:
     1-4. DUT brings up iface and sends DHCPDISCOVER.
     5-7. TESTER listens; verify Target IP > 169.254.0.255 AND
                           Target IP <= 169.254.254.255.

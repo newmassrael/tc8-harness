@@ -37,7 +37,7 @@ struct TestCaseTraits<cases::TcpUnacceptable10SM>
     static constexpr std::array<std::uint8_t, 4> kCorruptPayload = {
         0xCAU, 0xFEU, 0xBAU, 0xBEU};
 
-    // Spec Test Procedure (v3.0 p301-p320.txt:609), two iterations,
+    // Case shape — two iterations,
     // both exercised:
     //   * Phase 1 — fired synchronously: data segment with OTW SEQ
     //     (snd_nxt + kOutOfWindowSeqOffset).

@@ -4,7 +4,7 @@
   whose xid does not match the most recent DHCPDISCOVER (RFC 2131
   §4.3.1, MUST).
 
-  Spec Test Procedure (tc8_p221-p240.txt: SUMMARY_02):
+  Case shape:
     1-4. DUT bring-up + DUT emits DHCPDISCOVER with xid = extractedXID.
     6.   TESTER:DHCP Server <SERVER-1> Sends DHCPOFFER with
          xid = extractedXID + 1 (mismatched).

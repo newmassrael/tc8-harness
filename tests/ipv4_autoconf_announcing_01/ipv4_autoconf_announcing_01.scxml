@@ -5,7 +5,7 @@
   destination = broadcast (RFC 3927 §2.4 MUST: identical to the Probe
   shape, broadcast on the local link).
 
-  Spec Test Procedure (tc8_p161-p180.txt:466..512), step 11:
+  Case shape, step 11:
     Verify Ethernet Destination Hardware Address = ETHERNET_BROADCAST_ADDR.
 
   `ArpCaptured::is_eth_broadcast()` evaluates the encapsulating

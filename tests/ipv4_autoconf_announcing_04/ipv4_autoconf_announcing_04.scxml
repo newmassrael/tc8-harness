@@ -5,7 +5,7 @@
   SHOULD: the Announcement is identical to the Probe shape, whose
   target_hw is set to all zeroes per RFC 826 ARP Request convention).
 
-  Spec Test Procedure (tc8_p161-p180.txt:643..683), step 11:
+  Case shape, step 11:
     Verify Target Hardware Address = <NULL-MAC-ADDRESS>.
 
   `ArpCaptured::target_hw_is_zero()` encapsulates the byte-wise check

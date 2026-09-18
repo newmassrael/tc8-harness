@@ -29,7 +29,7 @@ struct TestCaseTraits<cases::TcpBasics05SM>
         "segment's ACK in response to an ACK-bearing non-RST segment "
         "(RFC 793 §3.9 p65 Event Processing)";
 
-    // Spec Test Procedure (v3.0 p281-p300.txt:535), two iterations:
+    // Case shape — two iterations:
     //   1. TESTER: Send a TCP segment with `flag=SYN,ACK` (ACK=phase1
     //      literal) to a closed port.
     //   2. TESTER: Send a TCP segment with `flag=ACK`     (ACK=phase2

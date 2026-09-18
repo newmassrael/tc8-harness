@@ -34,7 +34,7 @@ struct TestCaseTraits<cases::TcpUnacceptable05SM>
     static constexpr std::uint16_t kPhase1ListenPort    = 12345U;
     static constexpr std::uint16_t kPhase2ListenPort    = 12346U;
 
-    // Spec Test Procedure (v3.0 p301-p320.txt:401), two iterations:
+    // Case shape — two iterations:
     //   * Phase 1 — flag set = SYN,ACK with arbitrary ACK number.
     //   * Phase 2 — flag set = ACK only with arbitrary ACK number.
     //

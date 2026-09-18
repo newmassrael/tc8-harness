@@ -5,7 +5,7 @@
   receive messages of up to 576 octets total (RFC 2131 §2 / RFC 791
   minimum reassembly).
 
-  Spec Test Procedure (tc8_p221-p240.txt: SUMMARY_03):
+  Case shape:
     1-2. DUT bring-up + DHCP client configure.
     3.   TESTER:DHCP Server <SERVER-1> Listens on <DIface-0>.
     4.   DUT: Sends DHCPDISCOVER Message.

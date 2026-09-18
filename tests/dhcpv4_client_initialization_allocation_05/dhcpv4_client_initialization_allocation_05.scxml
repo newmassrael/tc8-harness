@@ -6,7 +6,7 @@
     OFFER has been accepted; an early ACK has no DISCOVER it could be
     answering and is therefore an out-of-order message).
 
-  Spec Test Procedure (tc8_p261-p280.txt: INIT_ALLOC_05):
+  Case shape:
     1-2. DUT bring-up + DHCP client configure.
     3.   TESTER:DHCP Server Listens.
     4.   DUT: Sends DHCPDISCOVER.

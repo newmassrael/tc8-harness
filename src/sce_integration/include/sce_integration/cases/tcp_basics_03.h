@@ -32,7 +32,7 @@ struct TestCaseTraits<cases::TcpBasics03SM>
         "TCP MUST send an ACK in response to a FIN received in "
         "ESTABLISHED state (RFC 793 §3.2 p23 Terminology)";
 
-    // Spec Test Procedure (v3.0 p281-p300.txt:460):
+    // Case shape:
     //   1. TESTER: Cause DUT ESTABLISHED — passive open + connect().
     //   2. TESTER: Send FIN,ACK — shutdown(SHUT_WR) on the client fd.
     //   3. DUT:    Send ACK      — observed on pcap.

@@ -3,7 +3,7 @@
   TC8 §4.7.6.3 DHCPv4_CLIENT_ALLOCATING_07: ARP-detected address-in-use
   → DHCPDECLINE → restart configuration process (RFC 2131 §3.1, MUST).
 
-  Spec body: tc8_p241-p260.txt:95..145, Topology 4. Pass criteria
+  Spec body: Topology 4. Pass criteria
   4 + 6 + 7 + 10 + 12 (timing-free DISCOVER #2). The ALLOCATING_08
   sibling adds the SHOULD second-sentence timing assert; this case
   verifies the first-sentence MUST only.

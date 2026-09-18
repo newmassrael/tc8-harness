@@ -4,7 +4,7 @@
   Port field is 0 (RFC 768 'Fields' MUST — "If not used, a value of
   zero is inserted").
 
-  Test Procedure (p181-p200.txt:647):
+  Case shape:
     1. DUT CONFIGURE: Listen on <unusedUDPDstPort1> on <DIface-0>.
     3. TESTER: Send UDP with Source Port=0 to DUT:<unusedUDPDstPort1>.
     4. TESTER: Verify via UT that DUT received with Source Port==0.

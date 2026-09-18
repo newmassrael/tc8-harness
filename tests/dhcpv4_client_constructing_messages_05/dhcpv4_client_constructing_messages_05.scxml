@@ -4,7 +4,7 @@
     "Parse 'sname' field when Option Overload is present"
     (RFC 2132 §9.3 Option Overload + RFC 2131 §4.1, MUST).
 
-  Spec body (tc8_p241-p260.txt: CONSTRUCTING_MESSAGES_05) gates pass
+  The spec body gates pass
   on steps 4 (DUT DISCOVER) + 7 (DUT REQUEST) + 11 (DUT UDP egress
   to IP-UNUSED-ADDRESS via the Option 3 gateway).
 

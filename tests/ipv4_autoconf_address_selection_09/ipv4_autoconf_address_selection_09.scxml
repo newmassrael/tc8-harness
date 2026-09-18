@@ -4,7 +4,7 @@
   PROBE_NUM = 3 ARP Probes during the link-local probing phase
   (RFC 3927 §2.2.1).
 
-  Spec Test Procedure (tc8_p141-p160.txt:520..532):
+  Case shape:
     1-4. DUT brings up iface and sends DHCPDISCOVER.
     5-6. TESTER listens; verify 3 ARP Request Messages received.
 

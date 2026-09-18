@@ -4,7 +4,7 @@
     "The client SHOULD wait a random time between one and ten seconds
      to desynchronize the use of DHCP at startup" (RFC 2131 §4.4.1).
 
-  Spec Test Procedure (tc8_p261-p280.txt: INIT_ALLOC_01):
+  Case shape:
     1-2. DUT bring-up + DHCP client configure.
     3-4. TESTER: cause DUT to transit to DHCPCLIENT_STATE_RENEWING.
     5.   TESTER: Listens.

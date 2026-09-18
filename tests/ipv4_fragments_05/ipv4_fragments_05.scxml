@@ -4,7 +4,7 @@
   MF=0 and Fragment Offset=0 (unfragmented). Derived from RFC 791 §3.2
   p25 "unfragmented datagram has all zero fragmentation information."
 
-  v3.0 Test Procedure (p121-p140.txt:425): TESTER causes DUT to send a
+  Case shape: TESTER causes DUT to send a
   UDP Message from DIface-0 with specified src/dst IP and src/dst UDP
   ports. Tester listens for up to <ListenTime> s on DIface-0 and
   verifies the received packet's IP flags (MF=0) and Fragment Offset

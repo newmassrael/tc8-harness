@@ -4,7 +4,7 @@
   REBINDING state — 'server identifier' (Option 54) MUST NOT be filled
   (RFC 2131 §4.3.6 table 5).
 
-  Spec Test Procedure (tc8_p261-p280.txt: REQUEST_09):
+  Case shape:
     1-2. DUT bring-up + DHCP client configure.
     3-4. TESTER causes DUT to BOUND (OFFER+ACK), then to RENEWING (T1)
          then to REBINDING (T2 — RENEWING REQUEST gets no ACK).

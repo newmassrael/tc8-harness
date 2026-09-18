@@ -5,7 +5,7 @@
      retransmissions, up to a maximum of 64 seconds"
     (RFC 2131 §4.1, MUST).
 
-  Spec body (tc8_p241-p260.txt: CONSTRUCTING_MESSAGES_12):
+  Case shape:
     1-2. DUT bring-up + DHCP client configure.
     3.   TESTER: DHCP Server Listens for (64+32+16+8+4+2+1+Tol) s on
          <DIface-0> WITHOUT replying.

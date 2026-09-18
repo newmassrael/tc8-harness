@@ -38,7 +38,7 @@ struct TestCaseTraits<cases::TcpUnacceptable02SM>
     static constexpr std::uint32_t kOutOfWindowRstSeq =
         ::tc8::sce::tcp::kTesterInitialSeq + 1U + 0x100000U;
 
-    // Spec Test Procedure (v3.0 p301-p320.txt:294):
+    // Case shape:
     //   1. TESTER: Cause DUT to move to SYN-RCVD via passive open +
     //              tester SYN.
     //   2. TESTER: Send a RST with a SEQ outside the receive window.

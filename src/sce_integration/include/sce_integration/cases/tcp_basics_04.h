@@ -31,7 +31,7 @@ struct TestCaseTraits<cases::TcpBasics04SM>
         "number in response to an incoming segment not containing RST "
         "and ACK flags (RFC 793 §3.9 p65 Event Processing)";
 
-    // Spec Test Procedure (v3.0 p281-p300.txt:501), three iterations:
+    // Case shape — three iterations:
     //   1. TESTER: Send a TCP segment with `flag=SYN`            to a closed port.
     //   2. TESTER: Send a TCP segment with `flag=FIN`            to the same port.
     //   3. TESTER: Send a TCP `Data segment` (no ACK, no RST) to the same port.

@@ -6,7 +6,7 @@
   asserts the reply's payload_len == 548 (the DUT didn't truncate the
   echoed data).
 
-  Test Procedure (p101-p120.txt:484):
+  Case shape:
     1. TESTER: Send ICMP Echo Request, IP Total Length=576, 556 B
        payload after IP header (8 B ICMP header + 548 B data).
     3. DUT: Send ICMP Echo Reply.

@@ -5,7 +5,7 @@
   and MUST immediately stop any other network processing (RFC 2131
   §4.4.5).
 
-  Spec Test Procedure (tc8_p281-p300.txt: REACQUISITION_07):
+  Case shape:
     1-2. DUT bring-up + DHCP client configure.
     3-4. DUT BOUND.
     5.   TESTER: Wait until lease expires (ParamLeaseTime + tol).

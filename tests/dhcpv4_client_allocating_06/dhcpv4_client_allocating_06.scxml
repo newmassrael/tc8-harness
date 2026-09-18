@@ -3,7 +3,7 @@
   TC8 §4.7.6.3 DHCPv4_CLIENT_ALLOCATING_06: the client times out and
   retransmits DHCPDISCOVER if no DHCPOFFER arrives (RFC 2131 §3.1, MUST).
 
-  Spec Test Procedure (tc8_p241-p260.txt: ALLOCATING_06):
+  Case shape:
     1-2. DUT bring-up + DHCP client.
     3.   TESTER:DHCP Server <SERVER-1> Listens (upto <ParamListenTime>).
     4.   DUT: Sends DHCPDISCOVER Message.   ← 1st DISCOVER

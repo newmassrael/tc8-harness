@@ -5,7 +5,7 @@
      The client MUST include its hardware address in the 'chaddr' field"
     (RFC 2131 §4.4.1, MUST).
 
-  Spec Test Procedure (tc8_p261-p280.txt: INIT_ALLOC_03):
+  Case shape:
     1-2. DUT bring-up + DHCP client configure.
     3.   TESTER listens (no server reply).
     4.   DUT: Sends DHCPDISCOVER Message.

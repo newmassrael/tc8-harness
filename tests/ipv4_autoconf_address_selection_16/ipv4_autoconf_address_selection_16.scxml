@@ -7,7 +7,7 @@
   Link-Local address, it must respond to ARP Requests targeting that
   address with an ARP Reply identifying its hardware address.
 
-  Spec Test Procedure (tc8_p161-p180.txt:413..456):
+  Case shape:
     1-7.  DUT brings up iface, sends DHCPDISCOVER, then 3 ARP Probes
           for tentative LL_DUT.
     8.    Tester waits ANNOUNCE_WAIT for the DUT to assign LL_DUT to

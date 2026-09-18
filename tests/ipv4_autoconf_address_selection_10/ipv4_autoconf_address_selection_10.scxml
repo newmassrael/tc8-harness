@@ -4,7 +4,7 @@
   between consecutive ARP Probes is in [PROBE_MIN, PROBE_MAX] with
   ±50 ms tolerance per spec note (RFC 3927 §2.2.1).
 
-  Spec Test Procedure (tc8_p141-p160.txt:560..594):
+  Case shape:
     1-4. DUT brings up iface and sends DHCPDISCOVER.
     5-6. TESTER listens; DUT emits 3 ARP Request Messages.
     7-10. Verify Probe2-Probe1 and Probe3-Probe2 deltas are in

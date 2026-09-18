@@ -4,7 +4,7 @@
   REBINDING state — 'ciaddr' MUST be filled in with client's IP
   address (RFC 2131 §4.4.5).
 
-  Spec Test Procedure (tc8_p261-p280.txt: REQUEST_11):
+  Case shape:
     1-2. DUT bring-up + DHCP client configure.
     3-4. TESTER causes DUT to BOUND, then to REBINDING (T2).
     5.   TESTER: DHCP Server <SERVER-1> Listens (upto <ParamListenTime>).

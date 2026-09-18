@@ -8,7 +8,7 @@
   sender_proto_ip is the DUT's own LL (∈ 169.254/16), it MUST be
   sent via link-layer broadcast — not the RFC 826 default unicast.
 
-  Spec Test Procedure (tc8_p181-p200.txt:222..280):
+  Case shape:
     1-6.  DUT brings up iface, sends DHCPDISCOVER, then 3 ARP Probes.
     7-8.  Tester reads target_ip from observed Probes, waits
           ANNOUNCE_WAIT+ANNOUNCE_INTERVAL for DUT to claim.

@@ -33,7 +33,7 @@ struct TestCaseTraits<cases::TcpBasics09SM>
         "TCP MUST move to CLOSED state after receiving an ACK of the "
         "sent FIN in LAST-ACK state (RFC 793 §3.2 p23 Terminology)";
 
-    // Spec Test Procedure (v3.0 p281-p300.txt:654):
+    // Case shape:
     //   1. TESTER: Cause DUT LAST-ACK — passive close path.
     //   2. DUT:    Send FIN entering LAST-ACK.
     //   3. TESTER: Send ACK for DUT's FIN — tester kernel auto-ACK.

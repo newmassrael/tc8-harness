@@ -3,7 +3,7 @@
   TC8 §4.7.6.8 DHCPv4_CLIENT_REQUEST_01: DHCPREQUEST 'ciaddr' field
   is 0 in REQUESTING state (RFC 2131 §4.3.2).
 
-  Spec Test Procedure (tc8_p241-p260.txt: REQUEST_01):
+  Case shape:
     1-2. DUT bring-up + DHCP client configure.
     3.   TESTER causes DUT to transit to DHCPCLIENT_STATE_REQUESTING
          (= reply OFFER on observed DISCOVER so the DUT issues REQUEST).

@@ -4,7 +4,7 @@
   SHOULD wait a minimum of ten seconds before restarting the
   configuration process (RFC 2131 §3.1 second sentence, SHOULD).
 
-  Spec body: tc8_p241-p260.txt:147..207, Topology 4. Pass criteria
+  Spec body: Topology 4. Pass criteria
   ALLOCATING_07 + step 13 (`interval > (10 - ParamToleranceTime) sec`).
   Window `[9_000_000, 12_000_000]` us = `[9 s, 12 s]` (ToleranceTime
   default = 1 s; upper bound covers the trait's [10000, 11000] ms

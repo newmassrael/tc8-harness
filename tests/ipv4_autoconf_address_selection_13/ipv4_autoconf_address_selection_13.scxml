@@ -7,7 +7,7 @@
   packet's sender hardware address is not the hardware address of
   the interface the host is attempting to configure".
 
-  Spec Test Procedure (tc8_p141-p160.txt:735..781):
+  Case shape:
     1-6. DUT brings up iface, sends DHCPDISCOVER, then 3 ARP Probes.
     7.   Tester reads target_ip from DUT's ARP Probe and stores it.
     8.   Tester sends conflict ARP Probe: sender_ip = 0.0.0.0,

@@ -89,8 +89,8 @@ struct Dhcpv4Captured : CapturedFrameTiming, CapturedL3Endpoints,
     // intact) still records the ts. §4.7.6.8 REACQUISITION_03 (T1
     // timing) / _04 (T2 timing) read this slot via
     // `ack_to_request_within_us` to verify the interval from "sending
-    // of last DHCPACK Message" (RFC 2131 §4.4.5; spec body wording at
-    // tc8_p281-p300.txt:29-34, 82-87) to the DUT's RENEWING /
+    // of last DHCPACK Message" (RFC 2131 §4.4.5, which the spec body
+    // restates) to the DUT's RENEWING /
     // REBINDING REQUEST is within `T1 ± tol` / `T2 ± tol`.
     std::int64_t last_ack_observed_ts_us = 0;
 

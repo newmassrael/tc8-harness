@@ -38,7 +38,7 @@ struct TestCaseTraits<cases::TcpUnacceptable14SM>
     static constexpr std::array<std::uint8_t, 4> kCorruptPayload = {
         0xCAU, 0xFEU, 0xBAU, 0xBEU};
 
-    // Spec Test Procedure (v3.0 p321-p340.txt:23), two iterations:
+    // Case shape — two iterations:
     //   * Phase 1 — data segment with OTW SEQ.
     //   * Phase 2 — data segment with unacceptable ACK number.
     //

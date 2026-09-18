@@ -4,7 +4,7 @@
   before the client receives a DHCPACK, the client moves to INIT state
   and requests network initialization parameters (RFC 2131 §4.4.5).
 
-  Spec Test Procedure (tc8_p281-p300.txt: REACQUISITION_08):
+  Case shape:
     1-2. DUT bring-up + DHCP client configure.
     3.   TESTER: DHCP Server <SERVER-1> Cause DUT to transit its state
          to DHCPCLIENT_STATE_BOUND.

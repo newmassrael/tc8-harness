@@ -4,7 +4,7 @@
   REBINDING state — destination IP MUST be 0xFFFFFFFF (broadcast)
   per RFC 2131 §4.4.5.
 
-  Spec Test Procedure (tc8_p261-p280.txt: REQUEST_12):
+  Case shape:
     1-2. DUT bring-up + DHCP client configure.
     3-4. TESTER causes DUT to BOUND, then to REBINDING (T2).
     5.   TESTER: DHCP Server <SERVER-1> Listens (upto <ParamListenTime>).

@@ -42,7 +42,7 @@ struct TestCaseTraits<cases::TcpUnacceptable08SM>
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
         ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpSynSentOpen;
 
-    // Spec Test Procedure (v3.0 p301-p320.txt:506), two iterations,
+    // Case shape — two iterations,
     // both exercised:
     //   * Phase 1 — CASE 1, flag set = SYN,ACK + unacceptable ACK.
     //   * Phase 2 — CASE 2, flag set = ACK + unacceptable ACK.

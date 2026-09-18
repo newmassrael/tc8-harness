@@ -32,7 +32,7 @@ struct TestCaseTraits<cases::TcpBasics10SM>
         "TCP MUST send an ACK in response to a FIN received in "
         "FINWAIT-1 or FINWAIT-2 state (RFC 793 §3.2 p23 Terminology)";
 
-    // Spec Test Procedure (v3.0 p281-p300.txt:692), two iterations:
+    // Case shape — two iterations:
     //   * Phase 1 — <wst>=FINWAIT-1:
     //       handshake → UT close → tester FIN → DUT ACK.
     //   * Phase 2 — <wst>=FINWAIT-2:

@@ -4,7 +4,7 @@
   moves to RENEWING state and sends a DHCPREQUEST to the server via IP
   unicast (RFC 2131 §4.4.5).
 
-  Spec Test Procedure (tc8_p261-p280.txt: REACQUISITION_01):
+  Case shape:
     1-2. DUT bring-up + DHCP client configure.
     3.   TESTER: DHCP Server <SERVER-1> Cause DUT to transit its state
          to DHCPCLIENT_STATE_RENEWING (= reply OFFER+ACK with short

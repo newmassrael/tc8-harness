@@ -44,7 +44,7 @@ struct TestCaseTraits<cases::Ipv4Addressing01SM> {
     using Captured = typename SM::CapturedType;
     using Expected = typename SM::ExpectedType;
 
-    // Spec Test Procedure (v3.0 p001-p020.txt:478):
+    // Case shape:
     //   1. TESTER sends a UDP Message to <limitedBroadcastAddress>.
     //   2. TESTER verifies via Upper Tester that the DUT received it.
     //

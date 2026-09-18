@@ -5,7 +5,7 @@
   1 and Announce 2 is in [ANNOUNCE_INTERVAL - 50 ms, ANNOUNCE_INTERVAL
   + 50 ms] (RFC 3927 §2.4 MUST).
 
-  Spec Test Procedure (tc8_p161-p180.txt:745..808):
+  Case shape:
     6. DUT: Sends 3 ARP Request Messages (Probes)
     8. TESTER: Wait <ANNOUNCE_WAIT - 0.05>
     10. DUT: Sends 2 ARP Request Messages (Announces)

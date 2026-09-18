@@ -4,7 +4,7 @@
   address' option (Option 50) carries the OFFER's yiaddr (RFC 2131
   §4.3.2).
 
-  Spec Test Procedure (tc8_p261-p280.txt: REQUEST_02):
+  Case shape:
     1-4. DUT bring-up + DHCP client + DISCOVER.
     5.   TESTER:DHCP Server <SERVER-1> Sends DHCPOFFER (yiaddr = offered IP).
     7.   DUT: Sends DHCPREQUEST.

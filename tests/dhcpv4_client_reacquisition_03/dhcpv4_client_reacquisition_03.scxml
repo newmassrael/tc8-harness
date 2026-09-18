@@ -5,7 +5,7 @@
   Message" to "reception of last DHCPREQUEST Message" lies within
   T1 ± ParamToleranceTime.
 
-  Spec Test Procedure (tc8_p281-p300.txt: REACQUISITION_03):
+  Case shape:
     8. TESTER: Verify time interval(last ACK → DHCPREQUEST) ∈
        [T1 − ParamToleranceTime, T1 + ParamToleranceTime].
 

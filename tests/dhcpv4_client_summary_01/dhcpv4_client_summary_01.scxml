@@ -3,7 +3,7 @@
   TC8 §4.7.6.1 DHCPv4_CLIENT_SUMMARY_01: A DHCP Client Listens on
   UDP port 68 (RFC 2131 §4.1).
 
-  Spec Test Procedure (tc8_p221-p240.txt: SUMMARY_01):
+  Case shape:
     1-2. DUT bring-up + DHCP client configure.
     3.   TESTER:DHCP Server <SERVER-1> Listens on <DIface-0>
     4.   DUT: Sends DHCPDISCOVER Message
