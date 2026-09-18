@@ -133,6 +133,10 @@ pub fn plan(case_id: &str, tester_ip4: &str, tester_mac: &str) -> Vec<CondStep> 
     // Unconditional prefix (smoke-test.sh): cold the DUT neigh cache so a
     // cold-cache ARP_07..15 run as a non-first case in the bucket re-emits its
     // Request. neigh flush skips PERMANENT, so bring-up pins survive.
+    //
+    // This ARRANGES the premise; nothing verifies it still holds when the case's
+    // listen window opens, and harness traffic between the two moments can
+    // re-warm the entry. See docs/tech-debt.md TD-18.
     let mut steps = vec![NeighFlush { side: Dut }];
 
     // ARP_38 — RFC 826 §2.3 step-4 target-ip check (ARP): Linux `arp_accept=1`

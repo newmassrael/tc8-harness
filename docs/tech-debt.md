@@ -1002,3 +1002,56 @@ has not landed would most likely be redone. One adjacent gap belongs with it whe
 the orchestrator has no `--inventory-overrides` passthrough at all — the flag exists on the harness
 CLI, but the orchestrator's only mentions of it are comments, so a consumer driving runs through
 `tc8-orchestrator` always gets the in-tree overrides file.
+
+---
+
+## TD-18 — a cold neighbour-cache premise is arranged but never verified at window open
+
+**Status:** OPEN (accepted). **Logged:** 2026-09-19, from a §4.5 false-observation caught this
+session while adopting the Tier-2 seam.
+
+**What it is.** Several §4.2 and §4.5 cases are written against a DUT whose neighbour cache does
+NOT hold an entry for the tester: the behaviour they grade is the resolution the DUT is forced to
+perform. The orchestrator arranges that premise — every case's conditioning list begins with a
+`NeighFlush { side: Dut }`, which applies as `ip -n <ns> neigh flush dev <iface>` and has no
+restore step. Nothing then verifies it. There is no read-back of the DUT's neighbour table at any
+point, and specifically none at the moment the listen window opens; the orchestrator's only
+`neigh show` resolves the DUT MAC on the TESTER side during bring-up and is unrelated.
+
+So the premise holds at conditioning time and is assumed to still hold some seconds later. Between
+those two moments the harness does its own work — a readiness probe, a control-channel round trip,
+a capability query — and any of it can make the DUT resolve the tester and re-warm the entry the
+case needs absent.
+
+**Why it exists.** The flush is a bring-up step, written when conditioning was the only thing that
+touched the DUT between cases. The Tier-2 DUT-control seam added a second population of traffic in
+that same gap, and it grew case by case rather than arriving as one change that would have prompted
+the question.
+
+**Risk if left.** Both verdict directions, silently. A re-warmed entry means the DUT emits no ARP,
+so a case asserting the request FAILS a conforming DUT; and a case asserting an ABSENCE passes
+without its premise ever having been true. Measured this session: declaring a capability on eleven
+§4.5 link-local cases opened the capability gate, whose `OpQueryCapabilities` probe made the DUT
+ARP for the probe's source, and that ARP landed inside the §4.5 capture window where the SCXML read
+it as the DUT's own link-local Probe. The fix shipped for that — answering backend-static
+capabilities without touching the DUT (`IDutControl::staticCapabilities`) — removes ONE source of
+re-warming traffic. It is not a guard on the premise, and the next source added will not announce
+itself either.
+
+**Textbook fix.** Read the DUT's neighbour entry for the tester back at window open and treat a
+violated premise as a non-conclusion, not a verdict. The disposition channel already exists and is
+exactly the right one: `tc8::UnperformedStimulus` forces `inconclusive` for a stimulus that could
+not be performed, over both pass and fail, and leaves `Error` alone (see TD-notes in
+`src/cli/commands/test_command.cpp` and the unperformed-stimulus guard). "The premise was not in
+force" is the same class of statement as "the stimulus did not happen": neither is a claim about
+the DUT.
+
+**Deferred because.** The read-back is topology-dependent and only one topology can do it today.
+`single-pc` netns can query the DUT namespace directly; `external` and `ssh-remote` need DUT-side
+access the harness does not have in general; `lwip-tap` has no shell at all, and its embedded stack
+would have to answer over the control seam — which means a new Tier-2 primitive (query a neighbour
+entry) rather than a shell command, and that belongs with the seam's own design rather than bolted
+on beside it. Shipping the netns-only half first would be worse than shipping nothing: the other
+three topologies would report the same clean verdicts they do now, and their silence would become
+indistinguishable from a verified premise — which is the precise failure this entry exists to
+describe.
