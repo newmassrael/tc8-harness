@@ -5,7 +5,7 @@
   RST and ACK flags. Derived from RFC 793 §3.9 p65 Event Processing
   (CLOSED-state segment arrival).
 
-  v3.0 Test Procedure (p281-p300.txt:501) — three iterations:
+  Case shape — three iterations:
     1. CASE: flag set = SYN
     2. CASE: flag set = FIN
     3. CASE: flag set = Data segment (no ACK, no RST; payload bytes)

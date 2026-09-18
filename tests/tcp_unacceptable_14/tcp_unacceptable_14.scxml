@@ -6,7 +6,7 @@
   ACK, and remain in CLOSE-WAIT. Derived from RFC 793 §3.4 p37
   Establishing a Connection (MUST).
 
-  v3.0 Test Procedure (p321-p340.txt:23), two iterations:
+  Case shape — two iterations:
     * CASE 1: data segment with out-of-window SEQ.
     * CASE 2: data segment with unacceptable ACK number.
 

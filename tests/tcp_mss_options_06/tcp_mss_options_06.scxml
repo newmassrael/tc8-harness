@@ -4,14 +4,11 @@
   option in a SYN segment and calculate the effective send segment
   size appropriately. Derived from RFC 1122 §4.2.2.6 p85 (MUST).
 
-  v3.0 Test Procedure (p359):
-    1. TESTER: Cause DUT to move on to LISTEN.
-    2. TESTER: Send SYN with MSS option Mv.
-    3. DUT:    Send SYN,ACK.
-    4. TESTER: Send ACK.
-    5. TESTER: Cause DUT to issue SEND with size >= max(MSS).
-    6. DUT:    Send data segment(s).
-    7. TESTER: Verify the first received segment has size = min(MSS).
+  Case shape:
+    a passive open parks the DUT in LISTEN and the tester's SYN carries
+    its MSS, Mv. Once established, a DUT-side send at least as large as
+    the larger announced value has to come out segmented at the smaller
+    one — the same rule as MSS_OPTIONS_09, reached by a passive open.
 
   Iterations:
     1. Mv smaller than DUT MSS — first segment size = Mv.

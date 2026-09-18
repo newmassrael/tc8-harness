@@ -4,10 +4,9 @@
   the DUT's TCP MUST emit a SYN. Derived from RFC 793 §3.2 p23
   Terminology.
 
-  v3.0 Test Procedure (p281-p300.txt:558):
-    1. TESTER: Cause the application on the DUT-side to issue an
-               active OPEN call.
-    2. DUT:    Send a SYN.
+  Case shape:
+    the tester drives a DUT-side active open; the SYN the DUT puts on
+    the wire is the observable.
 
   Mechanism (DUT active OPEN + tester auxiliary listener, per TC8
   §4.8.5 Upper Tester):

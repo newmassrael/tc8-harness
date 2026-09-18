@@ -5,10 +5,10 @@
   to each tester SYN (from a distinct source port) with a SYN+ACK
   (RFC 793 §3.4 listener serving parallel half-open transitions).
 
-  v3.0 Test Procedure (p381-p400.txt:71-77):
-    1. TESTER: <OpenTCPSocket(passive)> on a single PORT1.
-    2. TESTER: Send 3 TCP segments with SYN from 3 different ports.
-    3. DUT:    Sends 3 SYN,ACK responses to each sending port.
+  Case shape:
+    one passive socket on PORT1 takes SYNs from three different tester
+    ports. Each has to get its own SYN,ACK back — one listener, three
+    connections.
 
   Observable interactions:
     A passive LISTEN is opened on 13170, bringing the DUT to LISTEN.

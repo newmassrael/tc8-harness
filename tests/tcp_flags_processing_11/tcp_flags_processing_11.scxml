@@ -4,11 +4,11 @@
   MUST ignore a duplicate ACK. Derived from RFC 793 §3.9 p72 Event
   Processing (MUST).
 
-  v3.0 Test Procedure (p347):
-    1. TESTER: Cause DUT to move to ESTABLISHED state
-    2. TESTER: Send the last ACK once more
-    3. DUT:    Do not send any response
-    4. TESTER: Verify that the DUT remains in ESTABLISHED state
+  Case shape:
+    the tester parks the DUT in ESTABLISHED and then repeats the
+    handshake's final acknowledgement. A duplicate that carries nothing
+    new must draw no reply at all, and the connection stays in
+    ESTABLISHED.
 
   Stimulus drives DUT to ESTABLISHED via active-OPEN on a unique
   port quad (kBasicsActiveLocalPort + 50, kBasicsActiveRemotePort

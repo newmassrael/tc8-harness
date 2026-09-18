@@ -6,7 +6,7 @@
   Derived from RFC 793 §3.9 p65 Event Processing (CLOSED-state arrival,
   ACK-bearing branch).
 
-  v3.0 Test Procedure (p281-p300.txt:535) — two iterations:
+  Case shape — two iterations:
     1. CASE: flag set = SYN,ACK
     2. CASE: flag set = ACK (bare)
 

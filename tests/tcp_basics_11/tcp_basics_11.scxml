@@ -5,12 +5,11 @@
   reached through FINWAIT-2 state. Derived from RFC 793 §3.2 p23
   Terminology (MUST).
 
-  v3.0 Test Procedure (p281-p300.txt:737):
-    1. TESTER: Cause the DUT to move on to FINWAIT-2 state
-    2. TESTER: Send a FIN
-    3. DUT:    Send ACK
-    4. TESTER: Send a FIN after 2*MSL + 20%
-    5. DUT:    Send a RST segment (DUT in CLOSED state)
+  Case shape:
+    the tester walks the DUT to FIN-WAIT-2 and sends FIN; the DUT
+    acknowledges and enters TIME-WAIT. This case then waits past
+    2*MSL with 20% margin before sending another FIN: by then TIME-WAIT
+    must have expired, so the answer is an RST rather than an ACK.
 
   Mechanism (drive DUT to TIME-WAIT via FIN-WAIT-2, then replay a
   FIN after 2*MSL):

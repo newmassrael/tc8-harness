@@ -5,11 +5,11 @@
   Derived from RFC 1122 §4.2.2.5 p85 TCP Options "RFC-793 Section 3.1"
   (MUST).
 
-  v3.0 Test Procedure (p358):
-    1. TESTER: Cause DUT-side application to issue an active OPEN call.
-    2. DUT:    Send a SYN.
-    3. TESTER: Send SYN,ACK with MSS option of illegal length ilen.
-    4. TESTER: Verify DUT has not crashed.
+  Case shape:
+    a DUT-side active open emits SYN, and the tester answers SYN,ACK
+    whose MSS option declares an illegal length, ilen. What is checked
+    is survival: the DUT must still be running afterwards — the
+    handshake-reply counterpart of MSS_OPTIONS_01.
 
   Iterations: ilen=0 (less than RFC 793 §3.1 MSS opsize=4) and ilen=5
   (more than). Both encoded as a 2-phase compound on distinct port

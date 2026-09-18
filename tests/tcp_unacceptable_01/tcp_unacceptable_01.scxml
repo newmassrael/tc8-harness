@@ -4,12 +4,12 @@
   receiving an acceptable RST in SYN-RCVD state. Derived from
   RFC 793 §3.4 p33 Establishing a connection (MUST).
 
-  v3.0 Test Procedure (p301-p320.txt:261):
-    1. TESTER: Cause DUT SYN-RCVD via passive open + tester SYN.
-    2. TESTER: Send acceptable RST (in-window SEQ).
-    3. DUT:    Do not respond to the RST.
-    4. TESTER: Verify DUT is in LISTEN — send a fresh SYN on the same
-               listener port, expect a new DUT SYN+ACK.
+  Case shape:
+    a passive open plus a tester SYN parks the DUT in SYN-RCVD, and the
+    tester then injects an RST whose SEQ is in window. An RST draws no
+    reply, so the proof is indirect: a fresh SYN on the same listener
+    port has to draw a new SYN,ACK, showing the DUT fell back to LISTEN
+    rather than keeping the half-open connection.
 
   Mechanism (raw-inject SYN/RST/SYN sequence on a passive listener):
     a. Passive LISTEN on dut_port=12345 arms the listener.

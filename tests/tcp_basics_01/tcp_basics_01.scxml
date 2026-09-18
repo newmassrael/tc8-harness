@@ -4,10 +4,9 @@
   send a SYN,ACK in response to a SYN. Derived from RFC 793 §3.2 p23
   Terminology (LISTEN-state acceptance).
 
-  v3.0 Test Procedure (p281-p300.txt:399):
-    1. TESTER: Cause DUT to move on to LISTEN state at a <wnp>.
-    2. TESTER: Send a SYN to DUT at <wnp>.
-    3. DUT: Send SYN,ACK.
+  Case shape:
+    a passive open parks the DUT in LISTEN at <wnp>, the tester sends a
+    SYN there, and the DUT's SYN,ACK is the observable.
 
   Mechanism (DUT passive LISTEN + tester active connect, per TC8
   §4.8.5 Upper Tester):

@@ -5,11 +5,11 @@
   Derived from RFC 1122 §4.2.2.6 p85 Maximum Segment Size Option
   "RFC-793 Section 3.1" (SHOULD).
 
-  v3.0 Test Procedure (p363):
-    Prerequisite: DUT has a receive MSS differing from the default 536.
-    1. TESTER: Cause the application on the DUT-side to issue an active
-               OPEN call.
-    2. DUT:    Send a SYN with an MSS different from the default 536.
+  Case shape:
+    the DUT is configured with a receive MSS other than the 536 default
+    before the run. A DUT-side active open then has to advertise that
+    configured value in its SYN — the MSS option must reflect what the
+    DUT can actually take, not the fallback.
 
   Observable interaction: the tester causes the DUT to issue an
   active OPEN and observes the DUT's pure SYN, asserting its MSS

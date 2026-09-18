@@ -4,12 +4,11 @@
   MUST acknowledge a retransmitted FIN and restart the 2*MSL
   time-out. Derived from RFC 793 §3.9 p73 Event Processing (MUST).
 
-  v3.0 Test Procedure (p342):
-    1. TESTER: Cause DUT to TIME-WAIT
-    2. TESTER: Send the last FIN once more
-    3. DUT:    Send ACK for the retransmitted FIN
-    4. TESTER: Wait 1.5*MSL time
-    5. TESTER: Verify DUT remains in TIME-WAIT state
+  Case shape:
+    the tester walks the DUT into TIME-WAIT, then repeats the closing
+    FIN. The DUT has to acknowledge the repeat, and that acknowledgement
+    restarts the clock: 1.5*MSL later the DUT must still be in
+    TIME-WAIT rather than gone.
 
   Observable protocol exchange:
     * Prelude: drive the DUT to TIME-WAIT via FW2 (active OPEN

@@ -5,11 +5,11 @@
   reached through CLOSING state. Derived from RFC 793 §3.2 p23
   Terminology (MUST).
 
-  v3.0 Test Procedure (p281-p300.txt:775):
-    1. TESTER: Cause the DUT to move on to CLOSING state
-    2. TESTER: Send ACK for the FIN just received from the DUT
-    3. TESTER: Send a FIN after 2*MSL + 20%
-    4. DUT:    Send a RST segment (DUT in CLOSED state)
+  Case shape:
+    the tester walks the DUT into CLOSING and acknowledges its FIN, so
+    the DUT enters TIME-WAIT by the simultaneous-close route. Waiting
+    past 2*MSL with 20% margin, a further FIN has to draw an RST —
+    TIME-WAIT has expired and the connection is gone.
 
   Prelude mechanism — see tcp_basics_14 SCXML preamble for the
   full CLOSING-path walkthrough: with the tester withholding its

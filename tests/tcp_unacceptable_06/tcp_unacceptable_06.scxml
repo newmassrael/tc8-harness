@@ -5,10 +5,11 @@
   a SYN with a SEQ number that is out of window. Derived from
   RFC 793 §3.4 p34 Establishing a Connection (MUST).
 
-  v3.0 Test Procedure (p301-p320.txt:440):
-    1. TESTER: Cause DUT ESTABLISHED via active OPEN.
-    2. TESTER: Send SYN with SEQ outside the receive window.
-    3. DUT:    Send ACK indicating next expected SEQ number.
+  Case shape:
+    an active open parks the DUT in ESTABLISHED, and the tester injects
+    a SYN whose SEQ falls outside the receive window. The DUT must not
+    tear the connection down: it answers with an acknowledgement naming
+    the sequence number it still expects.
 
   Mechanism: active-OPEN handshake → DUT in ESTABLISHED → tester
   raw-injects an OTW-SEQ SYN. RFC 793 §3.9 p70 specifies that

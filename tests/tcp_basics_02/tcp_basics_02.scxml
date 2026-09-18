@@ -4,11 +4,10 @@
   transition to ESTABLISHED on receipt of the tester's ACK. Derived
   from RFC 793 §3.2 p23 Terminology.
 
-  v3.0 Test Procedure (p281-p300.txt:428):
-    1. TESTER: Send a SYN to DUT.
-    2. DUT:    Send a SYN,ACK (SYN-RCVD).
-    3. TESTER: Send an ACK.
-    4. TESTER: Verify DUT moves to ESTABLISHED.
+  Case shape:
+    the tester's SYN takes the DUT to SYN-RCVD, where it answers
+    SYN,ACK; the tester's third-leg ACK then has to carry the DUT
+    through to ESTABLISHED.
 
   Mechanism (DUT passive LISTEN + tester active connect + DUT
   ESTABLISHED-state read, per TC8 §4.8.5 Upper Tester):

@@ -5,11 +5,10 @@
   them — DUT emits SYN, receives SYN+ACK, replies with ACK
   (RFC 793 §3.4 active OPEN, multiple in parallel).
 
-  v3.0 Test Procedure (p381-p400.txt:162-167):
-    1. TESTER: <OpenMultipleTCPSocket(active,3)>.
-    2. DUT:    Opens 3 TCP active sockets and emits 3 SYNs.
-    3. TESTER: Sends 3 TCP segments with SYN+ACK to each socket.
-    4. DUT:    Sends 3 TCP segments with ACK from each socket.
+  Case shape:
+    the DUT opens three active sockets and emits a SYN from each. The
+    tester answers all three with SYN,ACK, and each socket has to
+    complete its own handshake with an ACK.
 
   Observable interactions:
     Three independent active OPENs on

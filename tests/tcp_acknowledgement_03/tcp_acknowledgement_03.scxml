@@ -4,10 +4,10 @@
   send and receives a TCP packet, DUT sends an ACK with the expected
   Ack Number. Derived from RFC 793 p74.
 
-  v3.0 Test Procedure (p401):
-    1. TESTER: Bring DUT to ESTABLISHED via a passive socket call.
-    2. TESTER: Send a TCP packet (with payload).
-    3. DUT:    Sends an ACK with the expected Ack Number.
+  Case shape:
+    a passive open parks the DUT in ESTABLISHED, the tester sends one
+    packet carrying data, and the DUT's acknowledgement has to name the
+    sequence number those bytes leave it expecting.
 
   Mechanism (passive LISTEN + injected handshake + injected in-window
   data):

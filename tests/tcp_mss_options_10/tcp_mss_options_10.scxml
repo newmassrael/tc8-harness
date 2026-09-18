@@ -5,14 +5,11 @@
   from RFC 1122 §4.2.2.6 p85 Maximum Segment Size Option "RFC-793
   Section 3.1" (MUST).
 
-  v3.0 Test Procedure (p361):
-    1. TESTER: Send a SYN without MSS option.
-    2. DUT:    Send SYN,ACK.
-    3. TESTER: Send ACK.
-    4. TESTER: Cause DUT-side application to issue a SEND request with
-               size > 536 bytes.
-    5. DUT:    Send data segment(s).
-    6. TESTER: Verify the first received data segment has 536 bytes.
+  Case shape:
+    the tester's SYN carries no MSS option, so the DUT has nothing to
+    go on but the default. After the handshake, a DUT-side send larger
+    than 536 bytes has to come out segmented at exactly 536 — the
+    assumed MSS when the peer never states one.
 
   Mechanism:
     - Bring the DUT to LISTEN on port 13020.

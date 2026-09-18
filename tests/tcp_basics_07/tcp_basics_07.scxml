@@ -4,15 +4,12 @@
   emit an ACK and transition to ESTABLISHED on receipt of SYN,ACK.
   Derived from RFC 793 §3.2 p23 Terminology.
 
-  v3.0 Test Procedure (p281-p300.txt:587):
-    1. TESTER: Cause DUT to move on to SYN-SENT — the DUT application
-               issues an active OPEN, emitting the first-leg SYN.
-    2. TESTER: Send a SYN,ACK — the tester kernel listener's
-               accept-path answers the DUT SYN automatically.
-    3. DUT:    Send ACK — observed on the wire.
-    4. TESTER: Verify DUT ESTABLISHED — a kernel-state read of the
-               DUT's connection (state-probe capability) confirms it
-               has reached ESTABLISHED.
+  Case shape:
+    a DUT-side active open puts the DUT in SYN-SENT and its SYN on the
+    wire; the tester kernel's listener answers SYN,ACK from its accept
+    path. The DUT's third-leg ACK is the wire observable, and a
+    kernel-state read of the DUT's connection (state-probe capability)
+    confirms it settled in ESTABLISHED.
 
   Pass guard (one tcp_observed edge — the third-leg ACK):
     * src/dst/ports — DUT-origin segment to tester listener

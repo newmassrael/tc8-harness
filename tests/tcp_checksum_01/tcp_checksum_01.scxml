@@ -5,10 +5,10 @@
   Derived from RFC 1122 §4.2.2.7 p86 TCP Checksum (MUST),
   RFC 793 §3.1 p16 Header.
 
-  v3.0 Test Procedure (p301-p320.txt:128):
-    1. TESTER: Cause DUT to move on to ESTABLISHED state at <wnp>.
-    2. TESTER: Send a data segment with correct checksum.
-    3. DUT:    Send ACK.
+  Case shape:
+    the tester parks the DUT in ESTABLISHED at <wnp> and injects one
+    data segment whose checksum is valid; the DUT's ACK is the
+    observable.
 
   Mechanism (active-OPEN handshake + tester-sent correct-checksum
   DATA):

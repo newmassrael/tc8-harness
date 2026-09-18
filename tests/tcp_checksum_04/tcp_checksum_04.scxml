@@ -9,13 +9,11 @@
   ISN distinctness, not checksum correctness. The placement is a TC8
   v3.0 spec quirk; the substantive RFC mapping is RFC 1122 §4.2.2.9.
 
-  v3.0 Test Procedure (p301-p320.txt:216):
-    1. TESTER: Cause DUT-side application to issue CONNECT (cycle 1).
-    2. DUT:    Send SYN.
-    3. TESTER: Send RST,ACK to take DUT to CLOSED state.
-    4. TESTER: Cause DUT-side CONNECT again (cycle 2).
-    5. DUT:    Send SYN.
-    6. TESTER: Verify SYN2.seq != SYN1.seq.
+  Case shape — two connect cycles on one 4-tuple:
+    a DUT-side connect emits SYN; an RST with ACK returns the DUT to
+    CLOSED; a second connect on the same 4-tuple emits another SYN.
+    The two SYNs must not carry the same sequence number — the DUT
+    picks a fresh ISN per connection.
 
   Mechanism (verdict computed from captured ISN snapshots):
     The DUT is driven through two consecutive active OPENs on the

@@ -4,11 +4,11 @@
   receiving an unacceptable RST in SYN-RCVD state. Derived from
   RFC 793 §3.4 p33 Establishing a connection (MUST).
 
-  v3.0 Test Procedure (p301-p320.txt:294):
-    1. TESTER: Cause DUT SYN-RCVD via passive open + tester SYN.
-    2. TESTER: Send a RST with a SEQ outside the receive window.
-    3. DUT:    Ignore the unacceptable RST.
-    4. TESTER: Verify DUT remains in SYN-RCVD state.
+  Case shape:
+    a passive open plus a tester SYN parks the DUT in SYN-RCVD, and the
+    tester then injects an RST whose SEQ falls outside the window. That
+    RST cannot be trusted, so the DUT has to ignore it and stay in
+    SYN-RCVD — the counterpart to UNACCEPTABLE_01.
 
   Mechanism (raw-inject SYN + out-of-window RST + absence-of-DUT-RST
   observation):

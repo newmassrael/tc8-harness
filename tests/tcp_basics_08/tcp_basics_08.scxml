@@ -4,7 +4,7 @@
   CLOSE call MUST cause the DUT's TCP to emit a FIN. Derived from
   RFC 793 §3.2 p23 Terminology.
 
-  v3.0 Test Procedure (p281-p300.txt:623) — two iterations:
+  Case shape — two iterations:
     1. CASE: <wst> = ESTABLISHED
     3. CASE: <wst> = CLOSE-WAIT
 

@@ -4,11 +4,10 @@
   option. Derived from RFC 1122 §4.2.2.6 p85 Maximum Segment Size
   Option "RFC-793 Section 3.1" (MUST).
 
-  v3.0 Test Procedure (p362):
-    1. TESTER: Cause an application on the DUT-side to issue an OPEN
-               call.
-    2. DUT:    Send a SYN.
-    3. TESTER: Verify that received SYN contains MSS option.
+  Case shape:
+    a DUT-side open puts a SYN on the wire, and that SYN has to carry
+    an MSS option at all — the value is MSS_OPTIONS_12's concern, its
+    presence is this one's.
 
   Mechanism: same active-OPEN scaffold as TCP_BASICS_06 — an active
   OPEN is requested on the DUT side so the DUT emits a pure SYN on

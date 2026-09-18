@@ -4,11 +4,10 @@
   MUST acknowledge a tester FIN, then on user Close request emit its
   own FIN and reach CLOSED (RFC 793 §3.5 p39 Closing a Connection).
 
-  v3.0 Test Procedure (p381-p400.txt:196-203):
-    1. TESTER: Bring DUT to ESTABLISHED.
-    2. TESTER: Send a FIN packet.
-    3. DUT:    Sends an ACK packet.
-    4. DUT:    Sends a FIN packet and moves to CLOSED state.
+  Case shape:
+    the tester parks the DUT in ESTABLISHED and sends FIN. The DUT has
+    to acknowledge it and then close its own side with a FIN of its
+    own, ending up CLOSED.
 
   Observable interactions:
     A passive LISTEN is opened on 13179, bringing the DUT to LISTEN.

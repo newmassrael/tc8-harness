@@ -4,10 +4,10 @@
   receiving an unacceptable ACK in SYN-RCVD state. Derived from
   RFC 793 §3.4 p35 Establishing a Connection (MUST).
 
-  v3.0 Test Procedure (p301-p320.txt:328):
-    1. TESTER: Cause DUT SYN-RCVD via passive open + tester SYN.
-    2. TESTER: Send a segment with an unacceptable ACK number.
-    3. DUT:    Send a RST.
+  Case shape:
+    a passive open plus a tester SYN parks the DUT in SYN-RCVD, the
+    tester then injects a segment whose ACK number cannot be accepted,
+    and the DUT's RST is the observable.
 
   Mechanism (raw-inject SYN + observe DUT ISN (ISN_d) + ACK with bad
   ack number):

@@ -7,12 +7,11 @@
   CLOSED-state response, identical to BASICS_04. Derived from
   RFC 793 §3.2 p23 Terminology.
 
-  v3.0 Test Procedure (p281-p300.txt:654):
-    1. TESTER: Cause DUT to LAST-ACK — passive close from CLOSE-WAIT.
-    2. DUT:    Send FIN when entering LAST-ACK.
-    3. TESTER: Send ACK for the DUT's FIN — tester kernel auto-ACK.
-    4. TESTER: Send a non-RST segment to the (now-CLOSED) port.
-    5. DUT:    Send a RST — verifies CLOSED.
+  Case shape:
+    a passive close from CLOSE-WAIT walks the DUT to LAST-ACK, where it
+    emits FIN; the tester kernel auto-acknowledges, which should end
+    the connection. A further non-RST segment sent to that port has to
+    draw an RST — the proof that the DUT really reached CLOSED.
 
   Pass criteria fold into a 2-state SCXML chain:
     listening_fin: wait for DUT FIN+ACK on phase ports

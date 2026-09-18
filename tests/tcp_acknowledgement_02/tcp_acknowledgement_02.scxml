@@ -5,13 +5,12 @@
   DUT receives a TCP packet containing the ACK flag and a payload,
   it replies with a pure ACK acknowledging the payload.
 
-  v3.0 Test Procedure (p400):
-    1. TESTER: Bring DUT to ESTABLISHED state.
-    2. TESTER: Send sendTCPPacket on udpPort to request a TCP packet
-               from the DUT.
-    3. DUT:    Sends a TCP packet with the expected Sequence Number.
-    4. TESTER: Send an ACK with a payload (piggybacked).
-    5. DUT:    Sends an ACK with the expected Ack Number.
+  Case shape:
+    the tester parks the DUT in ESTABLISHED and asks it for a segment,
+    which has to carry the sequence number the connection is at. The
+    tester then answers with an acknowledgement that also carries data
+    of its own, and the DUT has to acknowledge those bytes with the
+    number they leave it expecting.
 
   Mechanism (active OPEN to ESTABLISHED + DUT data send + injected
   piggyback ACK+data):

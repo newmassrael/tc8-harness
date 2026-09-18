@@ -4,10 +4,9 @@
   MUST send an ACK in response to a FIN. Derived from RFC 793 §3.2
   p23 Terminology (ESTABLISHED → CLOSE-WAIT via FIN reception).
 
-  v3.0 Test Procedure (p281-p300.txt:460):
-    1. TESTER: Cause DUT to move on to ESTABLISHED state at <wnp>.
-    2. TESTER: Send a FIN,ACK.
-    3. DUT:    Send ACK.
+  Case shape:
+    the tester parks the DUT in ESTABLISHED at <wnp> and sends FIN with
+    ACK; the DUT's acknowledgement of that FIN is the observable.
 
   Mechanism (DUT passive LISTEN + tester active connect + tester
   half-close, per TC8 §4.8.5 Upper Tester):

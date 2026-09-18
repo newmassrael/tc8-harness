@@ -4,10 +4,10 @@
   RST control message. Derived from RFC 793 §3.9 p65 Event Processing
   (MUST).
 
-  v3.0 Test Procedure (p354):
-    1. TESTER: Send a RST control message
-    2. DUT:    Do not send any response
-    3. TESTER: Verify that the DUT remains in CLOSED state
+  Case shape:
+    the tester injects an RST at a DUT with no connection there at all.
+    An RST never answers an RST, so nothing may come back and the DUT
+    stays closed.
 
   Observable interaction (no DUT-side socket on the 4-tuple):
     * The 4-tuple is (kBasicsTesterPort + 80, kBasicsClosedPort) —

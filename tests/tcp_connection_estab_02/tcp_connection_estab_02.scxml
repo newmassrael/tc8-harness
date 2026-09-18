@@ -4,11 +4,10 @@
   multiple passive sockets and respond to a SYN on each of them with
   a SYN,ACK (RFC 793 §3.4 multiple half-open transitions in parallel).
 
-  v3.0 Test Procedure (p381-p400.txt:115-121):
-    1. TESTER: <OpenMultipleTCPSocket(passive,3)>.
-    2. TESTER: Send 3 TCP segments with SYN to the 3 opened sockets.
-    3. DUT:    Opens 3 TCP passive sockets and sends 3 SYN,ACK
-               corresponding to the received SYNs.
+  Case shape:
+    the DUT opens three passive sockets, and the tester sends a SYN to
+    each. Every one has to answer with its own SYN,ACK — three
+    independent listeners rather than one.
 
   Observable interactions:
     Three independent passive LISTENs are opened on

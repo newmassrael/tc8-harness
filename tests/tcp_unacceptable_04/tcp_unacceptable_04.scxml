@@ -6,7 +6,7 @@
   ACK, and remain in ESTABLISHED. Derived from RFC 793 §3.4 p37
   Establishing a Connection (MUST).
 
-  v3.0 Test Procedure (p301-p320.txt:357), two iterations — both
+  Case shape — two iterations, both
   exercised here:
     * CASE 1 (phase 1): data segment with out-of-window SEQ.
     * CASE 2 (phase 2): data segment with unacceptable ACK number

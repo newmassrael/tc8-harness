@@ -6,7 +6,7 @@
   ACK, and remain in FIN-WAIT-2. Derived from RFC 793 §3.4 p37
   Establishing a Connection (MUST).
 
-  v3.0 Test Procedure (p301-p320.txt:609), two iterations — both
+  Case shape — two iterations, both
   exercised:
     * Phase 1 (CASE 1): data segment with OTW SEQ — empty ACK
       expected.

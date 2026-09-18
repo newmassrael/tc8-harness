@@ -5,11 +5,11 @@
   the same state, where the RST's SEQ number is taken from SEG.ACK.
   Derived from RFC 793 §3.9 p65 Event Processing (MUST).
 
-  v3.0 Test Procedure (p321-p340.txt:234):
-    1. TESTER: Cause DUT to LISTEN on a well-known port.
-    2. TESTER: Send a segment with SYN and ACK.
-    3. DUT:    Send a RST whose SEQ equals incoming SEG.ACK.
-    4. TESTER: Verify DUT remains in LISTEN.
+  Case shape:
+    a passive open parks the DUT in LISTEN on a well-known port, the
+    tester injects one segment carrying SYN together with ACK, and the
+    DUT answers with an RST whose SEQ equals the injected ACK value;
+    LISTEN survives.
 
   Observable protocol exchange (passive LISTEN + injected SYN+ACK +
   DUT-RST seq observation + LISTEN-survival post-probe):

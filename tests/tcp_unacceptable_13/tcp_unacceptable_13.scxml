@@ -5,7 +5,7 @@
   segment with out-of-window SEQ or unacceptable ACK number, and
   remain in same state. Derived from RFC 793 §3.4 p37 (MUST).
 
-  v3.0 Test Procedure (p301-p320.txt:737), two iterations:
+  Case shape — two iterations:
     * CASE 1: data segment with out-of-window SEQ number.
     * CASE 2: data segment with unacceptable ACK number.
 

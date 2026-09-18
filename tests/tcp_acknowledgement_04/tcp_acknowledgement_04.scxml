@@ -4,13 +4,12 @@
   piggybacking, Length=0) and MUST NOT RST; the connection ends
   cleanly when requested. Derived from RFC 793 §3.9.
 
-  v3.0 Test Procedure (p402):
-    1. TESTER: Bring DUT to ESTABLISHED state.
-    2. TESTER: Send sendTCPPacket to request a TCP packet from DUT.
-    3. DUT:    Sends a TCP packet.
-    4. TESTER: Send an ACK with the expected Ack Number, Length=0.
-    5. DUT:    Sends no RST and ends the connection correctly when
-               requested.
+  Case shape:
+    the tester parks the DUT in ESTABLISHED and asks it for a segment,
+    then acknowledges that segment with a payload-free ACK carrying the
+    expected number. A bare ACK is ordinary traffic, so the DUT must
+    not answer with an RST, and the connection has to close cleanly
+    when the close is asked for.
 
   Mechanism (active OPEN to ESTABLISHED + DUT data send + pure ACK +
   clean CLOSE):

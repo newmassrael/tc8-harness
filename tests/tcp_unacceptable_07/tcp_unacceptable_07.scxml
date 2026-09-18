@@ -4,10 +4,10 @@
   RST after receiving a spurious SYN,ACK. Derived from RFC 793 §3.4
   p35 Establishing a Connection (MUST).
 
-  v3.0 Test Procedure (p301-p320.txt:473):
-    1. TESTER: Cause DUT LISTEN via passive LISTEN.
-    2. TESTER: Send a SYN,ACK.
-    3. DUT:    Send a RST.
+  Case shape:
+    a passive open parks the DUT in LISTEN, the tester injects one
+    SYN,ACK, and the DUT's RST is the observable — nothing in LISTEN
+    ever sent a SYN for that ACK to answer.
 
   Mechanism: a passive-listener DUT receives a SYN,ACK that
   potentially corresponds to an old SYN it never sent. RFC 793 §3.4

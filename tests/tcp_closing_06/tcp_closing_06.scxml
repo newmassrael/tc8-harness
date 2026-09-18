@@ -4,10 +4,10 @@
   FIN segment when the local user issues a CLOSE call. Derived from
   RFC 793 §3.5 p38 Closing a Connection (MUST).
 
-  v3.0 Test Procedure (p350):
-    1. TESTER: Take DUT to ESTABLISHED state
-    2. TESTER: Cause DUT side application to issue a CLOSE call
-    3. DUT:    Send a FIN
+  Case shape:
+    the tester parks the DUT in ESTABLISHED and has the DUT-side
+    application close; the FIN the DUT puts on the wire is the
+    observable.
 
   Observable interactions (active OPEN to ESTABLISHED → application
   CLOSE → observe DUT FIN):

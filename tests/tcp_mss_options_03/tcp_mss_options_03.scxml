@@ -4,12 +4,11 @@
   TCP option it does not implement. Derived from RFC 1122 §4.2.2.5
   p85 TCP Options "RFC-793 Section 3.1" (MUST).
 
-  v3.0 Test Procedure (p357):
-    1. TESTER: Cause DUT to move on to LISTEN state on a <wnp>.
-    2. TESTER: Send a SYN with an unimplemented TCP option <uopt>.
-    3. DUT:    Send SYN,ACK.
-    4. TESTER: Send ACK.
-    5. TESTER: Verify DUT in ESTABLISHED state.
+  Case shape:
+    a passive open parks the DUT in LISTEN at <wnp> and the tester's
+    SYN carries an option the DUT does not implement, <uopt>. An
+    unknown option must be skipped rather than rejected: the DUT
+    answers SYN,ACK and the handshake completes to ESTABLISHED.
 
   Mechanism (passive LISTEN + raw-injected SYN handshake): same shape
   as MSS_OPTIONS_02 with the SYN's options region carrying

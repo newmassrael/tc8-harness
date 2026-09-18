@@ -5,7 +5,7 @@
   remain in the same state. Derived from RFC 793 §3.4 p36
   Establishing a Connection (MUST).
 
-  v3.0 Test Procedure (p301-p320.txt:401), two iterations:
+  Case shape — two iterations:
     * CASE 1: flag set = SYN,ACK   (unacceptable ACK)
     * CASE 2: flag set = ACK only  (unacceptable ACK)
 

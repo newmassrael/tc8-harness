@@ -5,12 +5,12 @@
   segments and return them to the application. Derived from
   RFC 793 §3.9 p58 Event Processing (MUST).
 
-  v3.0 Test Procedure (p322):
-    1. TESTER: Cause the DUT to move on to the <wst> state
-    2. TESTER: Send <nss> small <ssz> data segments
-    3. TESTER: Cause RECEIVE call with buffer > <nss>*<ssz>
-    4. DUT:    Issues a RECEIVE call
-    5. TESTER: Verify reassembled data is returned
+  Case shape:
+    the tester walks the DUT into the <wst> state and sends <nss> small
+    segments of <ssz> bytes each. A DUT-side receive with a buffer
+    larger than the whole run then has to come back with the bytes
+    joined in order — segment boundaries are the network's business,
+    not the application's.
 
   Iterations: <wst> ∈ {ESTABLISHED, FIN-WAIT-1, FIN-WAIT-2}.
 

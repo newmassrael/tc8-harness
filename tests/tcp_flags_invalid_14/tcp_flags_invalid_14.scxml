@@ -5,7 +5,7 @@
   segment with OTW SEQ number and remain in the same state. Derived
   from RFC 793 §3.9 p69 Event Processing (MUST).
 
-  v3.0 Test Procedure (p321-p340.txt:707), two iterations:
+  Case shape — two iterations:
     * CASE 1: flag set = FIN.
     * CASE 2: flag set = Data segment.
 

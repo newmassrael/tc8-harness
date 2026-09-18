@@ -5,7 +5,7 @@
   segment with ACK flag set. Derived from RFC 793 §3.9 p75 Event
   Processing (MUST).
 
-  v3.0 Test Procedure (p345) lists 3 iterations:
+  Case shape — three iterations:
     * CASE 1: <wst> = CLOSE-WAIT;  <Ack number> = valid Ack no
     * CASE 2: <wst> = CLOSING;     <Ack number> = invalid (not
                                                   acking DUT FIN)

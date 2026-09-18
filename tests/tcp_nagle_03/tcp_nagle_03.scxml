@@ -4,16 +4,13 @@
   user data (regardless of PSH) until the TCP can send a full-sized
   segment. Derived from RFC 1122 §4.2.3.4 p98.
 
-  v3.0 Test Procedure (p380):
-    1. TESTER: Bring DUT to ESTABLISHED.
-    2. TESTER: Cause SEND for a data segment.
-    3. DUT:    Send the data segment.
-    4. TESTER: Do not acknowledge the data.
-    5. TESTER: Cause SEND with small size <ssz> with PSH bit.
-    6. DUT:    Do not send the data segment.
-    7. TESTER: Cause one more SEND with aggregate size = effective
-               send MSS.
-    8. DUT:    Send the aggregate data segment.
+  Case shape:
+    the tester parks the DUT in ESTABLISHED, takes one DUT-side send
+    and leaves it unacknowledged. A small follow-up send of <ssz>, PSH
+    and all, has to stay queued while data is outstanding. A further
+    send then brings the queued bytes up to a full send MSS, and at
+    that point the DUT may transmit — Nagle releases on a full segment
+    as well as on an acknowledgement.
 
   Mechanism (active-OPEN +133 quad + Nagle MSS-aggregate release):
     1. Drive the DUT through an active OPEN to ESTABLISHED. Snapshot
