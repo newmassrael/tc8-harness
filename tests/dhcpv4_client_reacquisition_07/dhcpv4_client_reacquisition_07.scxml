@@ -6,14 +6,10 @@
   §4.4.5).
 
   Case shape:
-    1-2. DUT bring-up + DHCP client configure.
-    3-4. DUT BOUND.
-    5.   TESTER: Wait until lease expires (ParamLeaseTime + tol).
-    6.   TESTER: DHCP Server <SERVER-1> Sends UDP Request to DUT
-         (dst_ip = SERVER1-IP-POOL-0-0).
-    7.   TESTER: Listens (upto ParamListenTime).
-    8.   DUT: Does not send UDP Message.
-  Pass: 4 + 8.
+    the DUT is brought to BOUND and then left past its lease with no
+    server answering. The tester addresses a UDP request to the
+    now-expired address; the DUT must not answer it. An expired lease
+    means the address is no longer the DUT's to use.
 
   Pragmatic interpretation under tc8-dut: the spec's pass criterion
   ("DUT does not send UDP") is operationalised on the DHCPv4 BPF

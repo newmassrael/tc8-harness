@@ -5,8 +5,9 @@
   until T2 before retransmitting the DHCPREQUEST (RFC 2131 §4.4.5).
 
   Case shape:
-    8. TESTER: Verify time interval between two DHCPREQUEST messages
-       ∈ [(T2 - T1)/2 ± ParamToleranceTime].
+    the DUT reaches RENEWING and its REQUEST goes unanswered. What is
+    measured is the wait before it tries again: half the time left to
+    T2, within ParamToleranceTime.
 
   Numeric bounds under retx envelope (kRetransmissionLeaseSeconds = 12 s):
     * T1 = lease/2 = 6 s, T2 = lease*7/8 = 10 s.

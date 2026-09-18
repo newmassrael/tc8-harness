@@ -5,15 +5,11 @@
   broadcast (RFC 2131 §4.4.5).
 
   Case shape:
-    1-2. DUT bring-up + DHCP client configure.
-    3.   TESTER: DHCP Server <SERVER-1> Cause DUT to transit its state
-         to DHCPCLIENT_STATE_BOUND.
-    4.   DUT: Transit finite state to DHCPCLIENT_STATE_BOUND.
-    5.   TESTER: Wait until just before T2 expires.
-    6.   TESTER: DHCP Server <SERVER-1> Listens.
-    7.   DUT: Sends DHCPREQUEST Message.
-    8.   TESTER: Verify Destination IP Address field is set to 0xffffffff.
-  Pass: 4 + 7 + 8.
+    the DUT is brought to BOUND and then left without an answer until
+    just short of T2. By then renewal to the named server has failed,
+    so the REQUEST the DUT sends has to go to the broadcast address
+    rather than the unicast one — the client is looking for any server
+    that will have it.
 
   Wire shape identical to §4.7.6.8 REQUEST_12 (REBINDING dst=broadcast).
   Two case IDs share one observation pattern; the §4.7.6.8 chapter ties

@@ -6,12 +6,11 @@
     (RFC 2131 §4.1, MUST).
 
   Case shape:
-    1-2. DUT bring-up + DHCP client configure.
-    3.   TESTER: DHCP Server Listens for (64+32+16+8+4+2+1+Tol) s on
-         <DIface-0> WITHOUT replying.
-    4.   DUT: Sends multiple DHCPDISCOVER Messages.
-    5.   TESTER: Verify time interval between last two DHCPDISCOVERs
-         < (64 + ToleranceTime) s.
+    the tester listens on <DIface-0> and never answers, long enough to
+    cover a full backoff run of 1, 2, 4, 8, 16, 32 and 64 seconds plus
+    tolerance. The DUT keeps discovering, and the gap between its last
+    two attempts has to stay within 64 seconds plus tolerance — the
+    retry interval backs off but is capped.
 
   Fast-envelope compression: real-spec wall (~127 s) blows the smoke-
   test budget. The trait drives DUT firmware with retx_first_ms=200,

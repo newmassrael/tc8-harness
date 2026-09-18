@@ -4,13 +4,10 @@
   address field of DHCPREQUEST Message is 0 (RFC 2131 §4.1).
 
   Case shape:
-    1-2. DUT bring-up + DHCP client configure.
-    3.   TESTER causes DUT to transit to DHCPCLIENT_STATE_REQUESTING
-         (= reply OFFER on observed DISCOVER so the DUT issues REQUEST).
-    4.   DUT: Transit finite state to DHCPCLIENT_STATE_REQUESTING
-         (= emit DHCPREQUEST).
-    5.   TESTER: Verify received DHCPREQUEST contains source IP = 0.
-  Pass: 4 + 5.
+    the tester answers the DUT's DISCOVER with an OFFER, moving it into
+    REQUESTING. The REQUEST that follows has to go out with a zero
+    source address — the client has not been granted the address yet,
+    so it cannot source from it.
 
   Sibling of CONSTRUCTING_MESSAGES_03 (DISCOVER source IP = 0). Both
   are RFC 2131 §4.1 invariants for messages broadcast prior to the

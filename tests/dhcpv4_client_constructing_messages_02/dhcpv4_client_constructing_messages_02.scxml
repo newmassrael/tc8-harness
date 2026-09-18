@@ -5,22 +5,17 @@
   unicast requests to the DHCP server (RFC 2131 §4.1).
 
   Case shape:
-    1-2. DUT bring-up + DHCP client configure.
-    3.   TESTER: DHCP Server <SERVER-1> Cause DUT to transit its state
-         to DHCPCLIENT_STATE_RENEWING.
-    4.   DUT: Transit finite state to DHCPCLIENT_STATE_RENEWING.
-    5.   TESTER: DHCP Server <SERVER-1> Listens.
-    6.   DUT: Sends DHCPREQUEST Message.
-    7.   TESTER: Verify Destination IP Address field is set to
-         <SERVER1-IP-ADDRESS>.
-  Pass: 4 + 6 + 7.
+    the DUT is brought up and its DHCP client configured, then driven
+    into RENEWING by <SERVER-1>. Once there it has to send a REQUEST,
+    and that REQUEST's destination address is the observable: it must
+    be <SERVER1-IP-ADDRESS>, the unicast the earlier ACK named.
 
   Wire predicate identical to REACQUISITION_01 — both cases verify the
   RENEWING REQUEST's IP unicast destination matches the Option 54
-  server identifier from the prior ACK. The §4.7.6.7 chapter framing
-  positions the same observation under "constructing messages"
-  (RFC 2131 §4.1) while §4.7.6.8 positions it under "reacquisition"
-  (RFC 2131 §4.4.5); spec body is verbatim.
+  server identifier from the prior ACK. The two chapters frame the
+  same observation differently: §4.7.6.7 files it under constructing
+  messages (RFC 2131 §4.1), §4.7.6.8 under reacquisition
+  (RFC 2131 §4.4.5), and the steps they prescribe coincide.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"

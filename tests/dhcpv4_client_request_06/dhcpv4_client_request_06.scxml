@@ -5,15 +5,10 @@
   (RFC 2131 §4.3.6 table 5).
 
   Case shape:
-    1-2. DUT bring-up + DHCP client configure.
-    3.   TESTER: DHCP Server <SERVER-1> Cause DUT to transit its state
-         to DHCPCLIENT_STATE_RENEWING (= reply OFFER+ACK with short lease,
-         DUT arms T1, emits RENEWING REQUEST at lease/2).
-    4.   DUT: Transit finite state to DHCPCLIENT_STATE_RENEWING.
-    5.   TESTER: DHCP Server <SERVER-1> Listens (upto <ParamListenTime>).
-    6.   DUT: Sends DHCPREQUEST Message (RENEWING).
-    7.   TESTER: Verify received DHCPREQUEST does NOT carry Option 54.
-  Pass: 4 + 6 + 7.
+    <SERVER-1> answers OFFER and ACK with a short lease, so the DUT
+    arms T1 and enters RENEWING at half the lease. The REQUEST it sends
+    from there must not carry Option 54 — the destination address
+    already identifies the server, so naming it again is wrong.
 
   RFC 2131 §4.3.6 table 5: 'server identifier' option is MUST NOT for
   DHCPREQUEST in RENEWING / REBINDING. The server identification is

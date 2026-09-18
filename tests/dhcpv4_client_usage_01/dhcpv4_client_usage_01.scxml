@@ -6,17 +6,11 @@
      parameters for those separate interfaces" (RFC 2131 §3.6, MUST).
 
   Case shape:
-    1.  DUT CONFIGURE DHCP Client on <DIface-0>
-    2.  DUT CONFIGURE DHCP Client on <DIface-1>
-    3.  TESTER bring up <DIface-0>
-    4.  TESTER:DHCP Server <SERVER-1> Listens on <DIface-0>
-    5.  DUT: Sends DHCPDISCOVER (#1)        — chaddr captured to <extractedChaddr>
-    6.  TESTER extract chaddr.
-    7.  TESTER bring up <DIface-1>
-    8.  TESTER:DHCP Server <SERVER-1> Listens on <DIface-1>
-    9.  DUT: Sends DHCPDISCOVER (#2)        — chaddr#2 != chaddr#1
-    10. TESTER verify chaddr field is not set to extractedChaddr.
-  Pass: 5 + 9 + (chaddr#2 != extractedChaddr).
+    a DHCP client runs on both <DIface-0> and <DIface-1>. The tester
+    brings up one interface at a time, taking the DISCOVER each client
+    emits, and compares the two chaddr values. They must differ: each
+    interface identifies itself by its own hardware address, not by a
+    single per-device one.
 
   Topology 2 — distinct broadcast domains
   N0 (DIface-0) and N1 (DIface-1). The harness opens TWO `PcapSource`

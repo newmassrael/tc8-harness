@@ -5,14 +5,10 @@
   and requests network initialization parameters (RFC 2131 §4.4.5).
 
   Case shape:
-    1-2. DUT bring-up + DHCP client configure.
-    3.   TESTER: DHCP Server <SERVER-1> Cause DUT to transit its state
-         to DHCPCLIENT_STATE_BOUND.
-    4.   DUT: Transit finite state to DHCPCLIENT_STATE_BOUND.
-    5.   TESTER: Wait until (ParamLeaseTime + ParamToleranceTime).
-    6.   TESTER: DHCP Server <SERVER-1> Listens.
-    7.   DUT: Sends DHCPDISCOVER Message.
-  Pass: 4 + 7.
+    the DUT is brought to BOUND and then left alone past its lease
+    plus tolerance, with no server answering anything. Once the lease
+    is gone the DUT cannot keep the address: it has to start over with
+    a DISCOVER.
 
   Trait registers OFFER + ACK on the first two listening states; state
   4 (`Listening_for_second_discover`) is intentionally left without a

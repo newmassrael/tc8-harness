@@ -6,15 +6,10 @@
   minimum reassembly).
 
   Case shape:
-    1-2. DUT bring-up + DHCP client configure.
-    3.   TESTER:DHCP Server <SERVER-1> Listens on <DIface-0>.
-    4.   DUT: Sends DHCPDISCOVER Message.
-    5.   TESTER:DHCP Server <SERVER-1> Sends DHCPOFFER Message containing
-         additional PAD Options to make packet length set to 576.
-    6.   TESTER:DHCP Server <SERVER-1> Listens on <DIface-0>.
-    7.   DUT: Sends DHCPREQUEST Message.
-  Pass: 4 + 7. The pass criterion is that the DUT successfully ingests
-  the 576-octet OFFER and emits the resulting REQUEST.
+    the DUT discovers, and <SERVER-1> answers with an OFFER padded out
+    to 576 octets — the largest a client must accept. The DUT has to
+    take that OFFER whole and answer it with a REQUEST; the REQUEST
+    arriving is the proof it ingested the padded message.
 
   SCXML envelope identical to SUMMARY_01 — only the trait differs by
   configuring `ip_datagram_total_bytes = 576` on the server emul so

@@ -4,13 +4,10 @@
   UDP port 68 (RFC 2131 §4.1).
 
   Case shape:
-    1-2. DUT bring-up + DHCP client configure.
-    3.   TESTER:DHCP Server <SERVER-1> Listens on <DIface-0>
-    4.   DUT: Sends DHCPDISCOVER Message
-    5.   TESTER:DHCP Server <SERVER-1> Sends DHCPOFFER Message
-    6.   TESTER:DHCP Server <SERVER-1> Listens on <DIface-0>
-    7.   DUT: Sends DHCPREQUEST Message
-  Pass criteria: 4 (DUT sends DISCOVER) AND 7 (DUT sends REQUEST).
+    the plain allocation exchange. The DUT discovers, <SERVER-1>
+    offers, and the DUT answers with a REQUEST. Both DUT-side messages
+    have to appear — this is the baseline every other DHCPv4 case
+    builds on.
 
   Stimulus: OpStartDhcpClient (0x10) kicks the tc8-dut full lifecycle
   state machine; the tester state-entry observer fires DHCPOFFER on

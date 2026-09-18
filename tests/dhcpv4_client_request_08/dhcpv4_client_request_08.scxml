@@ -5,12 +5,10 @@
   (RFC 2131 §4.4.5).
 
   Case shape:
-    1-2. DUT bring-up + DHCP client configure.
-    3-4. TESTER causes DUT to BOUND (OFFER+ACK), then to RENEWING (T1).
-    5.   TESTER: DHCP Server <SERVER-1> Listens (upto <ParamListenTime>).
-    6.   DUT: Sends DHCPREQUEST Message (RENEWING).
-    7.   TESTER: Verify ciaddr = <SERVER1-IP-POOL-0-0>.
-  Pass: 4 + 6 + 7.
+    an OFFER and ACK take the DUT to BOUND, and T1 takes it on to
+    RENEWING. The REQUEST it sends from there has to carry its current
+    address in 'ciaddr' — the same rule as REQUEST_11, one state
+    earlier.
 
   RFC 2131 §4.4.5: in RENEWING/REBINDING the client's bound IP is
   carried in the BOOTP 'ciaddr' field — Option 50 (Requested IP) is

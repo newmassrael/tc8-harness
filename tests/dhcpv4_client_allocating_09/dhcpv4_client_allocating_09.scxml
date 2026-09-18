@@ -5,16 +5,10 @@
   (RFC 2131 §3.1).
 
   Case shape:
-    1-2. DUT bring-up + DHCP client configure.
-    3.   TESTER: DHCP Server <SERVER-1> Cause DUT to transit its state
-         to DHCPCLIENT_STATE_RENEWING.
-    4.   DUT: Transit finite state to DHCPCLIENT_STATE_RENEWING.
-    5.   TESTER: DHCP Server <SERVER-1> Listens.
-    6.   DUT: Sends DHCPREQUEST Message.
-    7.   TESTER: DHCP Server <SERVER-1> Sends DHCPNAK.
-    8.   TESTER: Listens (upto (10 + ParamToleranceTime) seconds).
-    9.   DUT: Sends DHCPDISCOVER Message.
-  Pass: 4 + 6 + 9.
+    <SERVER-1> drives the DUT into RENEWING, takes the REQUEST it
+    sends from there, and answers NAK. A NAK sends the client back to
+    the beginning, so within ten seconds plus tolerance the DUT has to
+    start over with a DISCOVER.
 
   Trait registers OFFER + ACK on the first two listening states, plus
   DHCPNAK (msg_type=6) on `Listening_for_second_discover` entry —

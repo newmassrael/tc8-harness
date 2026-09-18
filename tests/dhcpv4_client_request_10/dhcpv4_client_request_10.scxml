@@ -5,12 +5,10 @@
   filled (RFC 2131 §4.3.6 table 5).
 
   Case shape:
-    1-2. DUT bring-up + DHCP client configure.
-    3-4. TESTER causes DUT to BOUND, then to REBINDING (T2).
-    5.   TESTER: DHCP Server <SERVER-1> Listens (upto <ParamListenTime>).
-    6.   DUT: Sends DHCPREQUEST Message (REBINDING).
-    7.   TESTER: Verify received DHCPREQUEST does NOT carry Option 50.
-  Pass: 4 + 6 + 7.
+    the tester walks the DUT to BOUND and on to REBINDING at T2. The
+    REQUEST it sends from there must not carry Option 50 — a client
+    that already holds an address names it in 'ciaddr' instead of
+    asking for one.
 
   Same invariant as REQUEST_07 but observed on the REBINDING REQUEST
   after T2 fires.

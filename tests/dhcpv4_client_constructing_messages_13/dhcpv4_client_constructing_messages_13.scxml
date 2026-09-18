@@ -5,14 +5,11 @@
      algorithm" (RFC 2131 §4.1, SHOULD).
 
   Case shape:
-    1-2. DUT bring-up + DHCP client configure.
-    3.   TESTER: DHCP Server Listens for 3*(FirstRetx+Tol) s WITHOUT
-         replying.
-    4.   DUT: Sends multiple DHCPDISCOVER Messages.
-    5.   TESTER: Verify time interval between 3rd-last and 2nd-last
-         DHCPDISCOVERs is in [FirstRetx-1, FirstRetx+1] s = [3, 5] s.
-    6.   TESTER: Verify time interval between last two DHCPDISCOVERs
-         is in [2*FirstRetx-1, 2*FirstRetx+1] s = [7, 9] s.
+    the tester listens without ever answering, long enough for three
+    retry intervals. The DUT keeps discovering, and the two gaps it
+    leaves have to show the interval doubling: the earlier one within a
+    second of FirstRetx (3 to 5 s), the later one within a second of
+    twice that (7 to 9 s).
 
   Spec defaults (firmware retx_first_ms=4000, retx_cap_ms=64000,
   retx_jitter_ms=1000) — no fast-envelope compression because the

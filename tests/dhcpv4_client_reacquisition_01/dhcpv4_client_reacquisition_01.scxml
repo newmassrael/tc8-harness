@@ -5,16 +5,10 @@
   unicast (RFC 2131 §4.4.5).
 
   Case shape:
-    1-2. DUT bring-up + DHCP client configure.
-    3.   TESTER: DHCP Server <SERVER-1> Cause DUT to transit its state
-         to DHCPCLIENT_STATE_RENEWING (= reply OFFER+ACK with short
-         lease, DUT arms T1 = lease/2, emits RENEWING REQUEST).
-    4.   DUT: Transit finite state to DHCPCLIENT_STATE_RENEWING.
-    5.   TESTER: DHCP Server <SERVER-1> Listens (upto <ParamListenTime>).
-    6.   DUT: Sends DHCPREQUEST Message.
-    7.   TESTER: Verify Destination IP Address field is set to
-         <SERVER1-IP-ADDRESS>.
-  Pass: 4 + 6 + 7.
+    <SERVER-1> answers OFFER and ACK with a short lease, so the DUT
+    arms T1 at half of it and enters RENEWING on expiry. The REQUEST it
+    then sends has to be addressed to <SERVER1-IP-ADDRESS> — renewal
+    goes unicast to the server that granted the lease.
 
   Wire predicate: `captured.dst_ip_equals(expected.server_id_be)`. The
   RENEWING phase machine (RFC 2131 §4.4.5) sets the IPv4 dst to the

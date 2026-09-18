@@ -6,11 +6,9 @@
     (RFC 2131 §4.4.1, MUST).
 
   Case shape:
-    1-2. DUT bring-up + DHCP client configure.
-    3.   TESTER listens (no server reply).
-    4.   DUT: Sends DHCPDISCOVER Message.
-    5.   TESTER: Extracts the content of Source Hardware Address field.
-    6.   TESTER: Verify received DISCOVER 'chaddr' equals extractedSrcHwAddr.
+    the tester only listens — no server answers. The DISCOVER the DUT
+    emits has to name itself consistently: the 'chaddr' it carries must
+    equal the source hardware address of the frame it rode in on.
 
   Pass criteria differs from PROTOCOL_01/02 / SUMMARY_04 by relaxing the
   chaddr predicate from a transition GATE to a transition BRANCH — a

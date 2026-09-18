@@ -4,16 +4,10 @@
   present in DHCPREQUEST Message (RFC 2131 §3).
 
   Case shape:
-    1-2. DUT bring-up + DHCP client configure.
-    3.   TESTER: DHCP Server Cause DUT to transit its state to
-         DHCPCLIENT_STATE_REQUESTING (= reply OFFER on observed
-         DISCOVER so the DUT issues REQUEST).
-    4.   DUT: Transit finite state to DHCPCLIENT_STATE_REQUESTING
-         (= emit DHCPREQUEST).
-    5.   TESTER: Verify received DHCPREQUEST contains:
-           - Message Option containing:
-             - Type field set to 53 (Message Type Option).
-  Pass: 4 + 5.
+    the tester answers the DUT's DISCOVER with an OFFER, which moves
+    the DUT into REQUESTING and puts a REQUEST on the wire. That
+    REQUEST has to carry the message-type option, number 53 — the
+    field that says which DHCP message this is.
 
   Same lifecycle stimulus as SUMMARY_01 — tester observes the DUT's
   DISCOVER, replies with OFFER, then verifies the resulting REQUEST

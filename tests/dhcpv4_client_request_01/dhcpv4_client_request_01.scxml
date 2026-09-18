@@ -4,12 +4,9 @@
   is 0 in REQUESTING state (RFC 2131 §4.3.2).
 
   Case shape:
-    1-2. DUT bring-up + DHCP client configure.
-    3.   TESTER causes DUT to transit to DHCPCLIENT_STATE_REQUESTING
-         (= reply OFFER on observed DISCOVER so the DUT issues REQUEST).
-    4.   DUT: Transit finite state to DHCPCLIENT_STATE_REQUESTING.
-    5.   TESTER: Verify received DHCPREQUEST contains 'ciaddr' = 0.
-  Pass: 4 + 5.
+    the tester answers the DUT's DISCOVER with an OFFER, moving it into
+    REQUESTING. The REQUEST that follows has to carry a zero 'ciaddr' —
+    the address is still only being asked for.
 
   RFC 2131 §4.3.2: in REQUESTING state the address being requested
   is carried in Option 50 (Requested IP Address), not in the BOOTP

@@ -5,15 +5,11 @@
      to desynchronize the use of DHCP at startup" (RFC 2131 §4.4.1).
 
   Case shape:
-    1-2. DUT bring-up + DHCP client configure.
-    3-4. TESTER: cause DUT to transit to DHCPCLIENT_STATE_RENEWING.
-    5.   TESTER: Listens.
-    6.   DUT: Sends DHCPREQUEST.
-    7.   TESTER: Sends DHCPNAK.
-    8.   TESTER: Listens (upto (10 + ParamToleranceTime) seconds).
-    9.   DUT: Sends DHCPDISCOVER.
-    10/11. TESTER: Verify NAK→DISCOVER interval ∈
-           [1 - ParamToleranceTime, 10 + ParamToleranceTime] s.
+    the tester drives the DUT into RENEWING, takes its REQUEST and
+    answers NAK. What is measured is the pause before the DUT starts
+    over: the DISCOVER has to follow the NAK no sooner than a second
+    and no later than ten, tolerance aside — a rejected client waits
+    before retrying, but not forever.
 
   Spec authors interpret the RFC 2131 §4.4.1 SHOULD random wait as
   applying to the client-restart pivot (NAK in RENEWING → fresh

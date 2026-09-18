@@ -6,14 +6,10 @@
      message must be silently discarded" (RFC 2131 §4.4.1, MUST).
 
   Case shape:
-    1-2. DUT bring-up + DHCP client configure.
-    3.   TESTER:DHCP Server Listens.
-    4.   DUT: Sends DHCPDISCOVER.
-    5.   TESTER: Extracts xid → <extractedXID>.
-    6.   TESTER: Sends DHCPOFFER with xid = (extractedXID + 1) (mismatched).
-    7.   TESTER: Listens.
-    8.   DUT: Does NOT send DHCPREQUEST.
-  Pass: 4 + 8 (DUT silently discards mismatched OFFER, no REQUEST).
+    the DUT discovers, and the tester answers with an OFFER whose xid
+    is one off the one the DUT chose. That OFFER belongs to no exchange
+    the DUT started, so it has to be dropped without a word — no
+    REQUEST may follow.
 
   Reuses SUMMARY_02's `xid_offset` pattern — single mismatched-xid OFFER
   injected on listening_for_no_request entry; SCXML waits a 4 s absence

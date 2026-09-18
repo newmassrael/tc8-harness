@@ -5,14 +5,10 @@
      message" (RFC 2131 §4.4.1, MUST).
 
   Case shape:
-    1-2. DUT bring-up + DHCP client configure.
-    3.   TESTER:DHCP Server Listens on <DIface-0>.
-    4.   DUT: Sends DHCPDISCOVER.
-    5.   TESTER: Extracts the content of 'xid' field to <extractedXID>.
-    6.   TESTER: Sends DHCPOFFER with 'xid' = extractedXID.
-    7.   TESTER: Listens.
-    8.   DUT: Sends DHCPREQUEST.
-    9.   TESTER: Verify REQUEST 'xid' equals extractedXID.
+    the DUT discovers, the tester notes the xid it chose and answers
+    with an OFFER echoing it. The REQUEST that follows has to carry
+    that same xid — one transaction identifier holds the whole
+    exchange together.
 
   Same SUMMARY_01 lifecycle (DISCOVER → OFFER → REQUEST). The harness
   emul OFFER faithfully echoes the captured DISCOVER's xid, so REQUEST.xid

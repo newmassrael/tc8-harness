@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   TC8 §4.7.6.6 DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_05:
-    "Parse 'sname' field when Option Overload is present"
+    the client MUST read options out of the 'sname' field when Option
+    Overload says they are there
     (RFC 2132 §9.3 Option Overload + RFC 2131 §4.1, MUST).
 
-  The spec body gates pass
-  on steps 4 (DUT DISCOVER) + 7 (DUT REQUEST) + 11 (DUT UDP egress
-  to IP-UNUSED-ADDRESS via the Option 3 gateway).
+  Three DUT-side observables carry the verdict: the DISCOVER, the
+  REQUEST, and a UDP egress to IP-UNUSED-ADDRESS that can only happen
+  if the DUT read the Option 3 gateway out of the overloaded field.
 
   Wire envelope shared with CM_06 — only divergence is the Option 52
   byte value (CM_05 = 2 → sname holds options) and which BOOTP

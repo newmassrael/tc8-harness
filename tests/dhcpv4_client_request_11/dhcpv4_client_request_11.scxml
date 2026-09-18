@@ -5,12 +5,10 @@
   address (RFC 2131 §4.4.5).
 
   Case shape:
-    1-2. DUT bring-up + DHCP client configure.
-    3-4. TESTER causes DUT to BOUND, then to REBINDING (T2).
-    5.   TESTER: DHCP Server <SERVER-1> Listens (upto <ParamListenTime>).
-    6.   DUT: Sends DHCPREQUEST Message (REBINDING).
-    7.   TESTER: Verify ciaddr = <SERVER1-IP-POOL-0-0>.
-  Pass: 4 + 6 + 7.
+    the tester walks the DUT to BOUND and then, by answering nothing,
+    on to REBINDING at T2. The REQUEST it sends from there has to carry
+    its current address in 'ciaddr' — the field a client already
+    holding an address uses to name it.
 
   Same invariant as REQUEST_08 but observed on the REBINDING REQUEST.
 -->
