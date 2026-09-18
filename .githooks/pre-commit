@@ -65,3 +65,13 @@ if ! python3 "$HERE/../tools/workflow_runner_audit.py" --check >/dev/null; then
     python3 "$HERE/../tools/workflow_runner_audit.py" --check >&2
     exit 1
 fi
+
+# Spec-quotation ratchet: a staged hunk may not add eight consecutive words of
+# the TC8 spec body unless it cites the public standard the sentence states.
+# This repository is public and that document is not. Lives only here, not in
+# CI: the corpus it compares against (docs/spec/split/*.txt) is gitignored, so
+# the check skips itself where the spec is absent — see the module docstring.
+if ! python3 "$HERE/../tools/spec_quotation_audit.py" --check; then
+    echo "pre-commit: spec-quotation ratchet FAILED — see above." >&2
+    exit 1
+fi
