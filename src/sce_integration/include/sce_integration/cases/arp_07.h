@@ -18,7 +18,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::Arp07SM>
-    : ArpAnyBase<cases::Arp07SM> {
+    : ArpDutProvokedBase<cases::Arp07SM> {
     static constexpr std::string_view kCaseId       = "ARP_07";
     static constexpr std::string_view kDescription  =
         "ARP request sending — DUT broadcasts an ARP Request when its cache "

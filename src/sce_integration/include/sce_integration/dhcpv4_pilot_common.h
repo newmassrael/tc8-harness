@@ -7,6 +7,7 @@
 #include "tc8/captured_event.h"
 #include "sce_integration/dhcpv4_captured.h"
 #include "sce_integration/dut_control.h"
+#include "tc8/unperformed_stimulus.h"
 #include "sce_integration/dut_dhcp_control.h"
 #include "sce_integration/dhcpv4_server_stimulus.h"
 #include "sce_integration/test_config.h"
@@ -70,6 +71,9 @@ inline bool emitStartDhcpClient(::tc8::sce::IDutControl& dut,
     }
     auto *dhcp = dut.dhcpClientControl();
     if (dhcp == nullptr) {
+        // See the same branch in udp_pilot_common: a stimulus the selected
+        // backend cannot deliver is a non-conclusion, never a DUT verdict.
+        ::tc8::UnperformedStimulus::record("dut_dhcp_client_control_absent");
         return false;
     }
     return dhcp->startClient(c);

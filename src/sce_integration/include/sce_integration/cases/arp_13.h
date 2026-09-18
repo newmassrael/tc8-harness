@@ -18,7 +18,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::Arp13SM>
-    : ArpAnyBase<cases::Arp13SM> {
+    : ArpDutProvokedBase<cases::Arp13SM> {
     static constexpr std::string_view kCaseId       = "ARP_13";
     static constexpr std::string_view kDescription  =
         "ARP request Sender Hardware Address shall carry the configured DIface-0 MAC";

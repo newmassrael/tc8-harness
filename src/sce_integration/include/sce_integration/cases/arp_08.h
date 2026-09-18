@@ -18,7 +18,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::Arp08SM>
-    : ArpAnyBase<cases::Arp08SM> {
+    : ArpDutProvokedBase<cases::Arp08SM> {
     static constexpr std::string_view kCaseId       = "ARP_08";
     static constexpr std::string_view kDescription  =
         "ARP request Hardware Type field shall carry ARP_HARDWARE_ETHERNET (0x0001)";

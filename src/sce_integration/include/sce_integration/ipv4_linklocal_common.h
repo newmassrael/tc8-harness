@@ -23,6 +23,7 @@
 #include "sce_integration/arp_captured.h"
 #include "sce_integration/dut_control.h"
 #include "sce_integration/dut_linklocal_control.h"
+#include "tc8/unperformed_stimulus.h"
 #include "sce_integration/test_case_traits.h"  // IStimulusScheduler
 #include "sce_integration/test_config.h"
 #include "stimulus/arp_builder.h"
@@ -121,6 +122,9 @@ inline bool emitStartLLAutoconf(::tc8::sce::IDutControl& dut,
     }
     auto *ll = dut.linkLocalControl();
     if (ll == nullptr) {
+        // See the same branch in udp_pilot_common: a stimulus the selected
+        // backend cannot deliver is a non-conclusion, never a DUT verdict.
+        ::tc8::UnperformedStimulus::record("dut_linklocal_control_absent");
         return false;
     }
     return ll->startAutoconf(c);

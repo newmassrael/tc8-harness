@@ -18,7 +18,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::Arp12SM>
-    : ArpAnyBase<cases::Arp12SM> {
+    : ArpDutProvokedBase<cases::Arp12SM> {
     static constexpr std::string_view kCaseId       = "ARP_12";
     static constexpr std::string_view kDescription  =
         "ARP request Operation Code field shall carry OPERATION_REQUEST (1)";

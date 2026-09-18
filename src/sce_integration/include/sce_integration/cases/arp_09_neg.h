@@ -20,7 +20,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::Arp09NegSM>
-    : ArpEgressFaultNegBase<cases::Arp09NegSM> {
+    : ArpEgressFaultNegProvokedBase<cases::Arp09NegSM> {
     static constexpr std::string_view kCaseId      = "ARP_09_NEG";
     static constexpr std::string_view kDescription =
         "Self-validation of ARP_09: the lwIP ArpFaultProtoTypeWrong egress "

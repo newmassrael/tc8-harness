@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "tc8/captured_event.h"
+#include "tc8/unperformed_stimulus.h"
 #include "sce_integration/dut_control.h"
 #include "sce_integration/test_config.h"
 #include "sce_integration/udp_captured.h"
@@ -235,6 +236,12 @@ inline bool emitGetReceivedUdp(::tc8::sce::IDutControl& dut,
     }
     auto *rx = dut.udpReceiveControl();
     if (rx == nullptr) {
+        // The selected backend has no receive-answer sub-interface, so the DUT is
+        // never asked. Naming it keeps the case from reporting a verdict about a
+        // question that was not put: the gate should have skipped this case (see
+        // kCapUdpReceiveControl), and if it did not, the case must not pass or
+        // fail silently on a stimulus that never happened.
+        ::tc8::UnperformedStimulus::record("dut_udp_receive_control_absent");
         return false;
     }
     return rx->queryReceived(::tc8::sce::Endpoint{expected_dst_ip_be, listen_port});
@@ -252,6 +259,7 @@ inline bool emitCreateUdpReceivePorts(::tc8::sce::IDutControl& dut,
     }
     auto *rx = dut.udpReceiveControl();
     if (rx == nullptr) {
+        ::tc8::UnperformedStimulus::record("dut_udp_receive_control_absent");
         return false;
     }
     return rx->createReceivePorts(count);
@@ -285,6 +293,7 @@ inline bool emitTriggerSendUdp(::tc8::sce::IDutControl& dut,
     }
     auto *udp = dut.udpControl();
     if (udp == nullptr) {
+        ::tc8::UnperformedStimulus::record("dut_udp_control_absent");
         return false;
     }
     return udp->sendDatagram(

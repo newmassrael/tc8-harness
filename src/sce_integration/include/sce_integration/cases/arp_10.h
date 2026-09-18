@@ -18,7 +18,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::Arp10SM>
-    : ArpAnyBase<cases::Arp10SM> {
+    : ArpDutProvokedBase<cases::Arp10SM> {
     static constexpr std::string_view kCaseId       = "ARP_10";
     static constexpr std::string_view kDescription  =
         "ARP request Hardware Address Length field shall carry ETHERNET_ADDR_LEN (6)";

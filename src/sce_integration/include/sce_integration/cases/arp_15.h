@@ -18,7 +18,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::Arp15SM>
-    : ArpAnyBase<cases::Arp15SM> {
+    : ArpDutProvokedBase<cases::Arp15SM> {
     static constexpr std::string_view kCaseId       = "ARP_15";
     static constexpr std::string_view kDescription  =
         "ARP request Destination IP Address shall carry the resolution target IPv4";

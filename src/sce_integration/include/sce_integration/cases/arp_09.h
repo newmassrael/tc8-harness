@@ -18,7 +18,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::Arp09SM>
-    : ArpAnyBase<cases::Arp09SM> {
+    : ArpDutProvokedBase<cases::Arp09SM> {
     static constexpr std::string_view kCaseId       = "ARP_09";
     static constexpr std::string_view kDescription  =
         "ARP request Protocol Type field shall carry ARP_PROTOCOL_IP (0x0800)";

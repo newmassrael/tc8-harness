@@ -11,6 +11,7 @@
 #include "sce_integration/arp_captured.h"
 #include "sce_integration/cases/_fault_flavor_arm.h"
 #include "sce_integration/dut_capabilities.h"
+#include "tc8/unperformed_stimulus.h"
 #include "sce_integration/dut_control.h"
 #include "sce_integration/test_case_traits.h"
 #include "sce_integration/test_config.h"
@@ -40,6 +41,14 @@
 // ARP resolution (see the base below). Stated by shape, not a frozen case count, so
 // the claim survives the `_neg` track and future §4.2 additions.
 //
+// A SECOND axis crosses those dispatch shapes: whether the case DRIVES the DUT
+// over the Tier-2 seam or only observes what the tester provokes from the wire.
+// Driving needs `IArpControl`, so those cases declare kCapArpConditioning and the
+// gate can decline a backend that has none — ArpDutProvokedBase (ArpFrame-only)
+// and ArpEgressFaultNegProvokedBase (its fault-armed sibling) carry it, and
+// ArpAndUdpBase carries it for all of its cases. The axis is separate because
+// the two are independent: ArpAnyBase has 28 cases and only 11 drive the DUT.
+//
 // Stimulus is intentionally NOT provided here — every §4.2 case has its
 // own per-case stimulus (ARP-learning probe, UT egress provocation, ...)
 // and `has_stimulus_v` SFINAE in test_case_traits.h would pick up an
@@ -66,6 +75,13 @@ inline int emitArpEgressProvocation(::tc8::sce::IDutControl &dut,
                                     const ::tc8::stimulus::BootTiming &timing) {
     auto *arp = dut.arpControl();
     if (arp == nullptr) {
+        // The backend cannot provoke the DUT, so no ARP Request is coming. Left
+        // unnamed this produced `no_arp_request_within_listen_window` — a
+        // non-conclusion that reads like a DUT fault. Naming it points at the
+        // step that did not happen instead. The gate should have skipped the case
+        // first (kCapArpConditioning); this is what keeps a case that forgot the
+        // declaration honest rather than silent.
+        ::tc8::UnperformedStimulus::record("dut_arp_control_absent");
         return -1;
     }
     return arp->provokeEgress(timing);
@@ -80,6 +96,7 @@ inline int emitArpCacheConditioning(::tc8::sce::IDutControl &dut,
                                     std::uint8_t action, std::uint16_t param) {
     auto *arp = dut.arpControl();
     if (arp == nullptr) {
+        ::tc8::UnperformedStimulus::record("dut_arp_control_absent");
         return -1;
     }
     return arp->conditionCache(action, param);
@@ -137,6 +154,19 @@ struct ArpAndUdpBase : ArpAnyBase<StateMachine> {
 
     static constexpr ::tc8::BpfGroup kBpfGroup = ::tc8::BpfGroup::ArpAndUdp;
 
+    // Every case on this base drives the DUT through IArpControl (the UT 0x02
+    // egress provocation, and for ARP_48/49 the 0x17 cache conditioning), so it
+    // is only measurable on a backend that provides that sub-interface.
+    //
+    // Without the declaration the gate cannot fire, and on a backend without it
+    // `emitArpEgressProvocation` returns -1, the DUT is never provoked, and the
+    // case sits out its listen window and reports `no_arp_request_within_...` —
+    // a non-conclusion that reads like a DUT fault when the truth is that the
+    // stimulus never happened. Measured on the AUTOSAR testability backend,
+    // whose capabilities() is kCapTcpControl|kCapUdpControl alone.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapArpConditioning;
+
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {
         if (const auto* f = std::get_if<::tc8::ArpFrame>(&ev)) {
             ::tc8::fillArpCapturedFromFrame(c, *f);
@@ -153,6 +183,22 @@ struct ArpAndUdpBase : ArpAnyBase<StateMachine> {
     }
 };
 
+// Base for the §4.2 cases that DRIVE the DUT over the seam while observing ARP
+// alone — the UT 0x02 egress provocation, and ARP_48/49's 0x17 cache
+// conditioning. Same ArpFrame dispatch as ArpAnyBase, plus the declaration that
+// makes the capability gate able to fire.
+//
+// Separate from ArpAnyBase rather than folded into it because only 11 of that
+// base's 28 cases drive the DUT at all; the rest observe traffic the tester
+// provokes from the wire and are measurable on any backend. Declaring the
+// requirement on ArpAnyBase would capability-skip those 17 for a sub-interface
+// they never touch, which trades one wrong non-conclusion for another.
+template <typename StateMachine>
+struct ArpDutProvokedBase : ArpAnyBase<StateMachine> {
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapArpConditioning;
+};
+
 // Base for the §4.2 ARP EGRESS field-fault `_NEG` cases (ARP_07..12 / 46/47). Adds
 // the one declaration every such case shares: it requires the DUT to implement
 // OpSetEgressFlavor (kCapEgressFault). The DUT is the SSOT for that —
@@ -164,6 +210,18 @@ template <typename StateMachine>
 struct ArpEgressFaultNegBase : ArpAnyBase<StateMachine> {
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
         ::tc8::sce::kCapEgressFault;
+};
+
+// The Request-shape half of that family (ARP_07..12): after arming the fault it
+// drives the SAME UT 0x02 provocation the positive cases use, so it needs the
+// seam as well as the fault opcode. Its two siblings (ARP_46/47_NEG) arm the
+// fault and then inject the stimulus ARP from the TESTER, touching no
+// sub-interface — which is why this is a separate base and not an amendment to
+// ArpEgressFaultNegBase.
+template <typename StateMachine>
+struct ArpEgressFaultNegProvokedBase : ArpAnyBase<StateMachine> {
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapEgressFault | ::tc8::sce::kCapArpConditioning;
 };
 
 // Base for the §4.2.4.2 reply-absence INGRESS `_NEG` cases (ARP_21/27/37/42). Same
@@ -192,8 +250,11 @@ struct ArpIngressFaultNegUdpBase : ArpAndUdpBase<StateMachine> {
     using typename Base::Event;
     using typename Base::Captured;
 
+    // Shadows ArpAndUdpBase's declaration rather than extending it, so the seam
+    // bit has to be restated here — dropping it would silently un-gate the very
+    // provocation these cases depend on.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
-        ::tc8::sce::kCapIngressFault;
+        ::tc8::sce::kCapIngressFault | ::tc8::sce::kCapArpConditioning;
 
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {
         if (const auto* u = std::get_if<::tc8::UdpFrame>(&ev)) {

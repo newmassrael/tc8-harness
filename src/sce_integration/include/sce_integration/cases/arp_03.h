@@ -19,7 +19,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::Arp03SM>
-    : ArpAnyBase<cases::Arp03SM> {
+    : ArpDutProvokedBase<cases::Arp03SM> {
     static constexpr ::tc8::BpfGroup kBpfGroup = ::tc8::BpfGroup::ArpAndUdp;
 
     // UDP is in the capture filter (ArpAndUdp BPF group) but ARP_03's
