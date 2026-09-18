@@ -58,6 +58,13 @@ enum DutCapability : std::uint32_t {
     // that implements the opcode yet ignores a flavor — the shared-opcode
     // residual already stated for kDutDerivedCaps below.
     kCapDhcpClientControl = 1u << 11,
+    // IUdpReceiveControl — open DUT UDP receive ports and ask what arrived.
+    // Backend-STATIC, and separate from kCapUdpControl because the two
+    // directions are independently implementable: the opcode UT carries both,
+    // while the testability mapping for the receive question is not settled (see
+    // IUdpReceiveControl), so a case needing it skips there rather than sitting
+    // out its listen window.
+    kCapUdpReceiveControl = 1u << 12,
 };
 using DutCapabilities = std::uint32_t;
 

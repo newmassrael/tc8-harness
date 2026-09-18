@@ -40,10 +40,11 @@ struct TestCaseTraits<cases::UdpUserInterface04NegSM>
     // reported value), so the Confirmation surfaces a src IP != tester_ip.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         emitAppFlavorArm(cfg, iface, ::tc8::ut::kAppFaultReportWrongSrcIp);
         ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, iface, cfg.dut.mac,
+            cfg, iface, dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size());
     }

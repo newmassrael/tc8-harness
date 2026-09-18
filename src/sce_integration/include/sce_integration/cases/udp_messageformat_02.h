@@ -20,7 +20,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::UdpMessageFormat02SM>
-    : UdpAnyBase<cases::UdpMessageFormat02SM> {
+    : UdpReceiveDrivenBase<cases::UdpMessageFormat02SM> {
     static constexpr std::string_view kCaseId      = "UDP_MessageFormat_02";
     static constexpr std::string_view kDescription =
         "DUT accepts a UDP packet with a well-formed Header (RFC 768 "
@@ -28,9 +28,10 @@ struct TestCaseTraits<cases::UdpMessageFormat02SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, iface, cfg.dut.mac,
+            cfg, iface, dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size());
     }

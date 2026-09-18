@@ -22,7 +22,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::UdpFields05SM>
-    : UdpAnyBase<cases::UdpFields05SM> {
+    : UdpReceiveDrivenBase<cases::UdpFields05SM> {
     static constexpr std::string_view kCaseId      = "UDP_FIELDS_05";
     static constexpr std::string_view kDescription =
         "DUT can receive UDP at the same destination port from two "
@@ -39,9 +39,10 @@ struct TestCaseTraits<cases::UdpFields05SM>
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
         ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, iface, cfg.dut.mac,
+            cfg, iface, dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size(),
             ::tc8::sce::udp::kDataPeerPort,
@@ -49,20 +50,18 @@ struct TestCaseTraits<cases::UdpFields05SM>
 
         std::string iface_copy(iface);
         ::tc8::TestConfig cfg_copy = cfg;
-        const auto dut_mac = cfg.dut.mac;
         scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_phase2),
-            [iface_copy, cfg_copy, dut_mac]() {
+            [iface_copy, cfg_copy, dut = &dut]() {
                 ::tc8::sce::udp::UdpStimulusOverrides ov{};
                 ov.src_ip_override = ::tc8::sce::udp::kUdpHost2IpBe;
                 ::tc8::sce::udp::emitIngressProbeAndQuery(
-                    cfg_copy, iface_copy, dut_mac,
+                    cfg_copy, iface_copy, *dut,
                     ::tc8::sce::udp::kUdpDefaultData.data(),
                     ::tc8::sce::udp::kUdpDefaultData.size(),
                     ::tc8::sce::udp::kDataPeerPort,
                     ov,
-                    /*initial_wait=*/std::chrono::milliseconds(0),
-                    /*req_id=*/2);
+                    /*initial_wait=*/std::chrono::milliseconds(0));
             });
     }
 };

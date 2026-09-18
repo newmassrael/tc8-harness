@@ -114,6 +114,10 @@ public:
     // Testability returns nullptr: PRS_TPSP names no link-local autoconf
     // primitive, and this tree does not invent wire primitives (TD-16).
     virtual ILinkLocalControl *linkLocalControl() { return nullptr; }
+
+    // DUT UDP receive ports + receipt query, or nullptr when the backend has no
+    // settled mapping for the question (see IUdpReceiveControl).
+    virtual IUdpReceiveControl *udpReceiveControl() { return nullptr; }
 };
 
 // Seam-case convenience: fetch the DUT's TCP control sub-interface as a
@@ -503,6 +507,47 @@ private:
     std::uint8_t req_id_ = 1;
 };
 
+// Opcode-UT backend of IUdpReceiveControl. Raw + awaited for the same reason the
+// send side is: these run inside cases that assert on captured wire content, and
+// a kernel-routed control request would put the tester's own ARP in that window.
+class OpcodeUdpReceiveControl final : public IUdpReceiveControl {
+public:
+    OpcodeUdpReceiveControl(std::uint32_t dut_ip_be, std::uint16_t port, std::uint32_t src_ip_be,
+                            int timeout_ms, OpcodeRawTransport raw = {})
+        : dut_ip_be_(dut_ip_be), port_(port), src_ip_be_(src_ip_be), timeout_ms_(timeout_ms),
+          raw_(std::move(raw)) {}
+
+    bool createReceivePorts(std::uint8_t count) override {
+        return send(stimulus::buildCreateUdpReceivePortsRequest(nextReqId(), count),
+                    "CreateUdpReceivePorts");
+    }
+
+    bool queryReceived(const Endpoint &listen) override {
+        return send(stimulus::buildGetReceivedUdpRequest(nextReqId(), listen.port, listen.addr_be),
+                    "GetReceivedUdp");
+    }
+
+private:
+    bool send(const std::vector<std::uint8_t> &req, const char *name) {
+        if (raw_.iface.empty()) {
+            const auto r =
+                stimulus::upperTesterRoundTrip(dut_ip_be_, req, port_, timeout_ms_, src_ip_be_);
+            return r && r->status == ut::kStatusOk;
+        }
+        return stimulus::sendUpperTesterRequestAwaited(raw_.iface, raw_.tester_ip_be, dut_ip_be_,
+                                                       raw_.dut_mac, raw_.tester_src_port, req,
+                                                       timeout_ms_, name) == 0;
+    }
+    std::uint8_t nextReqId() { return req_id_++; }
+
+    std::uint32_t dut_ip_be_;
+    std::uint16_t port_;
+    std::uint32_t src_ip_be_;
+    int timeout_ms_;
+    OpcodeRawTransport raw_;
+    std::uint8_t req_id_ = 1;
+};
+
 // Opcode-UT backend of IDhcpClientControl — one OpStartDhcpClient carrying the
 // whole lifecycle envelope. The `_neg` flavors ride the same opcode and the same
 // 27-byte wire shape, differing only in the trailing flavor byte, so one
@@ -620,7 +665,8 @@ public:
           recv_oob_(dut_ip_be, port, src_ip_be, timeout_ms),
           udp_ctrl_(dut_ip_be, port, src_ip_be, timeout_ms, raw),
           dhcp_ctrl_(dut_ip_be, port, src_ip_be, timeout_ms, raw),
-          ll_ctrl_(dut_ip_be, port, src_ip_be, timeout_ms, std::move(raw)) {}
+          ll_ctrl_(dut_ip_be, port, src_ip_be, timeout_ms, raw),
+          udp_recv_(dut_ip_be, port, src_ip_be, timeout_ms, std::move(raw)) {}
 
     bool probe() override {
         return stimulus::pingUpperTester(dut_ip_be_, port_, timeout_ms_, src_ip_be_)
@@ -638,7 +684,8 @@ public:
     DutCapabilities staticCapabilities() const override {
         return static_cast<DutCapabilities>(
             kCapTcpControl | kCapUdpControl | kCapTcpStateProbe | kCapTcpSynSentOpen |
-            kCapTcpRecvOob | kCapDhcpClientControl | kCapLinkLocalControl);
+            kCapTcpRecvOob | kCapDhcpClientControl | kCapLinkLocalControl |
+            kCapUdpReceiveControl);
     }
 
     DutCapabilities capabilities() const override {
@@ -662,6 +709,7 @@ public:
     ITcpRecvOob *tcpRecvOob() override { return &recv_oob_; }
     IDhcpClientControl *dhcpClientControl() override { return &dhcp_ctrl_; }
     ILinkLocalControl *linkLocalControl() override { return &ll_ctrl_; }
+    IUdpReceiveControl *udpReceiveControl() override { return &udp_recv_; }
 
 private:
     // Fail-fast ceiling for the kernel-state probe, independent of the
@@ -744,6 +792,7 @@ private:
     OpcodeUdpControl udp_ctrl_;
     OpcodeDhcpClientControl dhcp_ctrl_;
     OpcodeLinkLocalControl ll_ctrl_;
+    OpcodeUdpReceiveControl udp_recv_;
 };
 
 // Adapter over the AUTOSAR Testability Protocol client (testability_client.h).

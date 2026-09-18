@@ -40,10 +40,11 @@ struct TestCaseTraits<cases::UdpUserInterface02NegSM>
     // reported octet), so the Confirmation surfaces ut_recv_payload_first16[0] != 0x10.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         emitAppFlavorArm(cfg, iface, ::tc8::ut::kAppFaultReportWrongPayload);
         ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, iface, cfg.dut.mac,
+            cfg, iface, dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size());
     }

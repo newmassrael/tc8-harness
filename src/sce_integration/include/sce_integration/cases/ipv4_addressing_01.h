@@ -40,6 +40,11 @@ struct TestCaseTraits<cases::Ipv4Addressing01SM> {
     static constexpr bool             kDeprecated   = false;
     static constexpr int              kTopology     = 1;
     static constexpr ::tc8::BpfGroup  kBpfGroup     = ::tc8::BpfGroup::Udp;
+    // The verdict rests on the DUT's answer to "did you receive this", asked
+    // over the Tier-2 seam. Standalone traits (no UDP base), hence declared here
+    // rather than inherited from UdpReceiveDrivenBase.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapUdpReceiveControl;
 
     using Captured = typename SM::CapturedType;
     using Expected = typename SM::ExpectedType;
@@ -54,9 +59,10 @@ struct TestCaseTraits<cases::Ipv4Addressing01SM> {
     // `{$expected_received}` polarity.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         ::tc8::sce::udp::emitAddressingProbeAndQuery(
-            cfg, iface, cases::kLimitedBroadcastBe, cfg.dut.mac);
+            cfg, iface, dut, cases::kLimitedBroadcastBe);
     }
 
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {

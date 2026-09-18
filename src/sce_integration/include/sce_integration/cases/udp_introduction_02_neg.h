@@ -44,10 +44,11 @@ struct TestCaseTraits<cases::UdpIntroduction02NegSM>
     // multicast deny so ut_received == 1.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         emitAppFlavorArm(cfg, iface, ::tc8::ut::kAppFaultAcceptMulticast);
         ::tc8::sce::udp::emitAddressingProbeAndQuery(
-            cfg, iface, cases::kAllSystemsMcastBe, cfg.dut.mac);
+            cfg, iface, dut, cases::kAllSystemsMcastBe);
     }
 };
 

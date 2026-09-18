@@ -33,12 +33,13 @@ struct TestCaseTraits<cases::UdpFields09NegSM>
     // zeroes the checksum so lwIP delivers the datagram (ut_received == 1).
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         emitIngressFlavorArm(cfg, iface, ::tc8::ut::kUdpFaultAcceptBadChecksum);
         ::tc8::sce::udp::UdpStimulusOverrides ov{};
         ov.udp.length_field = std::uint16_t{0x0000};
         ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, iface, cfg.dut.mac,
+            cfg, iface, dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size(),
             ::tc8::sce::udp::kDataPeerPort, ov);

@@ -20,7 +20,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::UdpUserInterface01SM>
-    : UdpAnyBase<cases::UdpUserInterface01SM> {
+    : UdpReceiveDrivenBase<cases::UdpUserInterface01SM> {
     static constexpr std::string_view kCaseId      = "UDP_USER_INTERFACE_01";
     static constexpr std::string_view kDescription =
         "User interface allows creation of N new receive ports "
@@ -28,14 +28,10 @@ struct TestCaseTraits<cases::UdpUserInterface01SM>
         "10 receive ports on demand via OpCreateUdpReceivePorts.";
 
     static void stimulus(Captured& /*c*/,
-                         const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::sce::udp::emitCreateUdpReceivePorts(
-            cfg, iface,
-            /*req_id=*/1,
-            /*count=*/10,
-            ::tc8::ut::kTesterSrcPort,
-            cfg.dut.mac);
+                         const ::tc8::TestConfig& /*cfg*/,
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
+        ::tc8::sce::udp::emitCreateUdpReceivePorts(dut, /*count=*/10);
     }
 };
 

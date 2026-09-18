@@ -63,6 +63,17 @@ struct UdpDutOriginatedBase : UdpAnyBase<StateMachine> {
         ::tc8::sce::kCapUdpControl;
 };
 
+// Base for every UDP case that asks the DUT what it RECEIVED — the probe goes out
+// on the wire, but the answer comes from the DUT over the seam, so the case is
+// only measurable on a backend providing IUdpReceiveControl. Declared here rather
+// than per case for the same reason as UdpDutOriginatedBase: so the next case
+// that asks the question cannot forget to say it needs an answerer.
+template <typename StateMachine>
+struct UdpReceiveDrivenBase : UdpAnyBase<StateMachine> {
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapUdpReceiveControl;
+};
+
 // Base for the §4.6.5.4 UDP EGRESS field-fault `_NEG` cases (UDP_FIELDS_01/02/06/
 // 07/13/14). Same UDP dispatch as UdpAnyBase, plus the one declaration every such
 // case shares: it requires the DUT to implement OpSetEgressFlavor (kCapEgressFault).
@@ -89,8 +100,10 @@ struct UdpEgressFaultNegBase : UdpAnyBase<StateMachine> {
 // still drops it, landing the template's fault_injection_inert fail branch.
 template <typename StateMachine>
 struct UdpIngressFaultNegBase : UdpAnyBase<StateMachine> {
+    // Every case here also asks the DUT what it received, so it carries both —
+    // the gate must skip on either absence.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
-        ::tc8::sce::kCapIngressFault;
+        ::tc8::sce::kCapIngressFault | ::tc8::sce::kCapUdpReceiveControl;
 };
 
 // Base for the §4.6.5.6 UDP APP-LAYER reception-fault `_NEG` cases (INTRODUCTION_02).
@@ -103,8 +116,9 @@ struct UdpIngressFaultNegBase : UdpAnyBase<StateMachine> {
 // ipv4_addressing_02_neg app-fault case on the UDP dispatch.
 template <typename StateMachine>
 struct UdpAppFaultNegBase : UdpAnyBase<StateMachine> {
+    // As UdpIngressFaultNegBase: the receipt question is part of every case here.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
-        ::tc8::sce::kCapAppFault;
+        ::tc8::sce::kCapAppFault | ::tc8::sce::kCapUdpReceiveControl;
 };
 
 }  // namespace tc8::sce

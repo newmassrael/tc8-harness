@@ -30,7 +30,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::UdpFields12SM>
-    : UdpAnyBase<cases::UdpFields12SM> {
+    : UdpReceiveDrivenBase<cases::UdpFields12SM> {
     static constexpr std::string_view kCaseId      = "UDP_FIELDS_12";
     static constexpr std::string_view kDescription =
         "DUT accepts a UDP datagram with maximum supported Length "
@@ -44,7 +44,8 @@ struct TestCaseTraits<cases::UdpFields12SM>
     // `payload_first16` capture readable in pcap.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         std::vector<std::uint8_t> payload(cases::kUdpMaxPayloadBytes);
         for (std::size_t i = 0; i < payload.size(); ++i) {
             payload[i] = static_cast<std::uint8_t>(i & 0xFFU);
@@ -66,12 +67,9 @@ struct TestCaseTraits<cases::UdpFields12SM>
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         ::tc8::sce::udp::emitGetReceivedUdp(
-            cfg, iface,
-            /*req_id=*/1,
+            dut,
             /*listen_port=*/::tc8::sce::udp::kDataPort,
-            /*expected_dst_ip_be=*/cfg.ipv4.dut_iface_ip,
-            /*tester_src_port=*/::tc8::ut::kTesterSrcPort,
-            /*dut_mac=*/cfg.dut.mac);
+            /*expected_dst_ip_be=*/cfg.ipv4.dut_iface_ip);
     }
 };
 

@@ -20,7 +20,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::UdpDatagramLength01SM>
-    : UdpAnyBase<cases::UdpDatagramLength01SM> {
+    : UdpReceiveDrivenBase<cases::UdpDatagramLength01SM> {
     static constexpr std::string_view kCaseId      = "UDP_DatagramLength_01";
     static constexpr std::string_view kDescription =
         "DUT discards a truncated UDP datagram (Length field smaller "
@@ -28,7 +28,8 @@ struct TestCaseTraits<cases::UdpDatagramLength01SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         // Wire region carries 8 B header + 8 B payload (16 B total) but
         // Length field reports 8 — Linux's UDP receive path drops on
         // `length < wire_remaining` mismatch before the per-port
@@ -36,7 +37,7 @@ struct TestCaseTraits<cases::UdpDatagramLength01SM>
         ::tc8::sce::udp::UdpStimulusOverrides ov{};
         ov.udp.length_field = std::uint16_t{8U};
         ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, iface, cfg.dut.mac,
+            cfg, iface, dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size(),
             ::tc8::sce::udp::kDataPeerPort, ov);

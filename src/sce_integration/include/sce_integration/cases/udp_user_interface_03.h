@@ -22,7 +22,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::UdpUserInterface03SM>
-    : UdpAnyBase<cases::UdpUserInterface03SM> {
+    : UdpReceiveDrivenBase<cases::UdpUserInterface03SM> {
     static constexpr std::string_view kCaseId      = "UDP_USER_INTERFACE_03";
     static constexpr std::string_view kDescription =
         "Receive operations return the source UDP port correctly (RFC "
@@ -30,9 +30,10 @@ struct TestCaseTraits<cases::UdpUserInterface03SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, iface, cfg.dut.mac,
+            cfg, iface, dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size(),
             cases::kUserInterface03SrcPort);

@@ -20,7 +20,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::UdpFields03SM>
-    : UdpAnyBase<cases::UdpFields03SM> {
+    : UdpReceiveDrivenBase<cases::UdpFields03SM> {
     static constexpr std::string_view kCaseId      = "UDP_FIELDS_03";
     static constexpr std::string_view kDescription =
         "DUT accepts a UDP datagram with Source Port=0 (RFC 768 'Fields' "
@@ -28,11 +28,12 @@ struct TestCaseTraits<cases::UdpFields03SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         // Inject UDP src_port=0; conformant otherwise. UT confirms
         // received=1.
         ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, iface, cfg.dut.mac,
+            cfg, iface, dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size(),
             /*src_port=*/0);

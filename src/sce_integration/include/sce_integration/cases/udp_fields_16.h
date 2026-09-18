@@ -20,7 +20,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::UdpFields16SM>
-    : UdpAnyBase<cases::UdpFields16SM> {
+    : UdpReceiveDrivenBase<cases::UdpFields16SM> {
     static constexpr std::string_view kCaseId      = "UDP_FIELDS_16";
     static constexpr std::string_view kDescription =
         "DUT accepts a UDP datagram with Checksum field == 0 (RFC 768 "
@@ -29,7 +29,8 @@ struct TestCaseTraits<cases::UdpFields16SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         ::tc8::sce::udp::UdpStimulusOverrides ov{};
         // Override the conformantly-computed sum with the literal 0x0000
         // sentinel after compute. RFC 768 declares this signals "no
@@ -37,7 +38,7 @@ struct TestCaseTraits<cases::UdpFields16SM>
         // (default sysctl) does.
         ov.udp.checksum_field = std::uint16_t{0x0000};
         ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, iface, cfg.dut.mac,
+            cfg, iface, dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size(),
             ::tc8::sce::udp::kDataPeerPort, ov);

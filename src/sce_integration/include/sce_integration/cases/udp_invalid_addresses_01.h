@@ -21,7 +21,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::UdpInvalidAddresses01SM>
-    : UdpAnyBase<cases::UdpInvalidAddresses01SM> {
+    : UdpReceiveDrivenBase<cases::UdpInvalidAddresses01SM> {
     static constexpr std::string_view kCaseId      = "UDP_INVALID_ADDRESSES_01";
     static constexpr std::string_view kDescription =
         "DUT discards a UDP datagram whose Source IP Address is "
@@ -29,11 +29,12 @@ struct TestCaseTraits<cases::UdpInvalidAddresses01SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         ::tc8::sce::udp::UdpStimulusOverrides ov{};
         ov.src_ip_override = cases::kAllSystemsMcastBe;
         ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, iface, cfg.dut.mac,
+            cfg, iface, dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size(),
             ::tc8::sce::udp::kDataPeerPort, ov);

@@ -164,6 +164,31 @@ public:
                               const std::vector<std::uint8_t> &data) = 0;
 };
 
+// The RECEIVE direction of the DUT's UDP data plane: open listening ports, and
+// ask afterwards what arrived on one.
+//
+// A separate sub-interface rather than two more methods on IUdpControl, because
+// a backend can provide one direction and not the other and the gate has to be
+// able to say so. PRS_TPSP does define RECEIVE_AND_FORWARD, so a testability
+// implementation is possible — but its "forward what you get" shape is not the
+// same question as the opcode's "did you receive THIS, scoped to this
+// destination", and mapping one onto the other on a guess would answer a
+// different question than the case asked. Until that mapping is worked out from
+// the spec, testability provides no implementation and the cases skip honestly.
+class IUdpReceiveControl {
+public:
+    virtual ~IUdpReceiveControl() = default;
+
+    // Have the DUT open `count` UDP receive ports. true on success.
+    virtual bool createReceivePorts(std::uint8_t count) = 0;
+
+    // Ask the DUT what it received on `listen.port`, scoped to datagrams whose
+    // destination address was `listen.addr_be` (0 = any). The ANSWER reaches the
+    // case through its own capture/verdict path, not through this return value —
+    // true here means only that the DUT accepted the question.
+    virtual bool queryReceived(const Endpoint &listen) = 0;
+};
+
 // Live kernel TCP_INFO snapshot of a DUT socket. Mirrors the four fields the
 // TCP retransmission-timeout cluster verdicts on (getsockopt(SOL_TCP,
 // TCP_INFO)).

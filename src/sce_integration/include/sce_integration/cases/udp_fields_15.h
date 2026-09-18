@@ -20,7 +20,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::UdpFields15SM>
-    : UdpAnyBase<cases::UdpFields15SM> {
+    : UdpReceiveDrivenBase<cases::UdpFields15SM> {
     static constexpr std::string_view kCaseId      = "UDP_FIELDS_15";
     static constexpr std::string_view kDescription =
         "DUT silently discards a UDP datagram with non-zero invalid "
@@ -28,14 +28,15 @@ struct TestCaseTraits<cases::UdpFields15SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         ::tc8::sce::udp::UdpStimulusOverrides ov{};
         // Deliberately-wrong checksum value disjoint from any plausible
         // RFC 1071 sum over the (tester, DUT) pseudo-header / 8 B
         // payload region.
         ov.udp.checksum_field = std::uint16_t{0xDEAD};
         ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, iface, cfg.dut.mac,
+            cfg, iface, dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size(),
             ::tc8::sce::udp::kDataPeerPort, ov);

@@ -46,6 +46,9 @@ struct TestCaseTraits<cases::Ipv4Addressing02SM> {
     static constexpr bool             kDeprecated   = false;
     static constexpr int              kTopology     = 1;
     static constexpr ::tc8::BpfGroup  kBpfGroup     = ::tc8::BpfGroup::Udp;
+    // As ipv4_addressing_01: the verdict rests on the DUT's receipt answer.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapUdpReceiveControl;
 
     using Captured = typename SM::CapturedType;
     using Expected = typename SM::ExpectedType;
@@ -57,9 +60,10 @@ struct TestCaseTraits<cases::Ipv4Addressing02SM> {
     // wire-level difference from ADDRESSING_01.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         ::tc8::sce::udp::emitAddressingProbeAndQuery(
-            cfg, iface, cases::kDirectedBroadcastBe, cfg.dut.mac);
+            cfg, iface, dut, cases::kDirectedBroadcastBe);
     }
 
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {

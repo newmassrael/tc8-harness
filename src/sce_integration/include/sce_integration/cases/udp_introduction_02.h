@@ -24,7 +24,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::UdpIntroduction02SM>
-    : UdpAnyBase<cases::UdpIntroduction02SM> {
+    : UdpReceiveDrivenBase<cases::UdpIntroduction02SM> {
     static constexpr std::string_view kCaseId      = "UDP_INTRODUCTION_02";
     static constexpr std::string_view kDescription =
         "DUT denies a UDP datagram with all-systems multicast (224.0.0.1) "
@@ -33,9 +33,10 @@ struct TestCaseTraits<cases::UdpIntroduction02SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IDutControl& dut) {
         ::tc8::sce::udp::emitAddressingProbeAndQuery(
-            cfg, iface, cases::kAllSystemsMcastBe, cfg.dut.mac);
+            cfg, iface, dut, cases::kAllSystemsMcastBe);
     }
 };
 
