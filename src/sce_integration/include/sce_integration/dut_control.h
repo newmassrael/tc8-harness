@@ -415,13 +415,17 @@ public:
                      int timeout_ms)
         : dut_ip_be_(dut_ip_be), port_(port), src_ip_be_(src_ip_be), timeout_ms_(timeout_ms) {}
 
-    bool sendDatagram(std::uint16_t src_port, const Endpoint &dest,
+    bool sendDatagram(const Endpoint &src, const Endpoint &dest,
                       const std::vector<std::uint8_t> &data) override {
+        // `src.addr_be` feeds the envelope's source-IP override field; 0 is the
+        // envelope's own "use the DUT's default" encoding, so the zero case is
+        // byte-identical to the pre-seam request.
         const auto r = stimulus::upperTesterRoundTrip(
             dut_ip_be_,
-            stimulus::buildTriggerSendUdpRequest(nextReqId(), src_port, dest.addr_be, dest.port,
+            stimulus::buildTriggerSendUdpRequest(nextReqId(), src.port, dest.addr_be, dest.port,
                                                  data.empty() ? nullptr : data.data(),
-                                                 static_cast<std::uint16_t>(data.size())),
+                                                 static_cast<std::uint16_t>(data.size()),
+                                                 src.addr_be),
             port_, timeout_ms_, src_ip_be_);
         return r && r->status == ut::kStatusOk;
     }

@@ -793,7 +793,7 @@ TEST_F(TestabilityServerTest, UdpControlSeamOneShotSend) {
     ::setsockopt(rfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
     const std::vector<std::uint8_t> body = {'U', 'D', 'P'};
-    EXPECT_TRUE(udp->sendDatagram(/*src_port=*/0xFFFF,
+    EXPECT_TRUE(udp->sendDatagram(sce::Endpoint{/*addr_be=*/0, /*port=*/0xFFFF},
                                   sce::Endpoint{::htonl(INADDR_LOOPBACK), ntohs(ra.sin_port)},
                                   body));
     std::uint8_t buf[16];

@@ -146,9 +146,21 @@ class IUdpControl {
 public:
     virtual ~IUdpControl() = default;
 
-    // Make the DUT emit one UDP datagram from `src_port` to `dest` carrying
-    // `data`. true on success.
-    virtual bool sendDatagram(std::uint16_t src_port, const Endpoint &dest,
+    // Make the DUT emit one UDP datagram from `src` to `dest` carrying `data`.
+    // true on success.
+    //
+    // The source is an Endpoint rather than a bare port so the local ADDRESS is
+    // expressible: `src.addr_be == 0` means "the DUT's default address for the
+    // egress interface" (the only shape the opcode UT's TriggerSendUdp used
+    // before this seam existed), and a non-zero value requests that specific
+    // source address — the caller-specified Source IP axis a UDP user-interface
+    // case drives when it must observe which address the DUT originates from.
+    // Both backends can honour it: the opcode envelope carries a source-IP
+    // override field, and the testability path binds the address at
+    // CREATE_AND_BIND. A backend that could not would return false rather than
+    // silently send from the default, because a datagram from the wrong source
+    // address answers a different question than the one that was asked.
+    virtual bool sendDatagram(const Endpoint &src, const Endpoint &dest,
                               const std::vector<std::uint8_t> &data) = 0;
 };
 
@@ -340,10 +352,13 @@ public:
                           std::uint32_t src_ip_be)
         : cfg_(cfg), timeout_ms_(timeout_ms), src_ip_be_(src_ip_be) {}
 
-    bool sendDatagram(std::uint16_t src_port, const Endpoint &dest,
+    bool sendDatagram(const Endpoint &src, const Endpoint &dest,
                       const std::vector<std::uint8_t> &data) override {
+        // `src.addr_be` IS the bind address: 0 keeps INADDR_ANY (the DUT's own
+        // choice of egress address), non-zero pins the source the case asked for.
         const auto id = testability::testabilityCreateAndBind(cfg_, testability::kGidUdp,
-                                                           /*do_bind=*/true, src_port, 0,
+                                                           /*do_bind=*/true, src.port,
+                                                           src.addr_be,
                                                            timeout_ms_, src_ip_be_);
         if (!id) {
             return false;

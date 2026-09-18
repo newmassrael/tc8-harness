@@ -190,7 +190,7 @@ TEST(OpcodeUdpControl, SendDatagramUsesTriggerSendUdpOpcode) {
     sce::OpcodeUdpControl udp(::htonl(INADDR_LOOPBACK), server.port(), /*src_ip_be=*/0,
                               /*timeout_ms=*/1000);
     const std::vector<std::uint8_t> body = {'U', 'D', 'P'};
-    EXPECT_TRUE(udp.sendDatagram(/*src_port=*/30000,
+    EXPECT_TRUE(udp.sendDatagram(sce::Endpoint{/*addr_be=*/0, /*port=*/30000},
                                  sce::Endpoint{::htonl(0xAC100001), 8000}, body));
     EXPECT_EQ(server.lastOpcode(), static_cast<std::uint8_t>(ut::OpTriggerSendUdp));
 }
