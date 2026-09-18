@@ -27,11 +27,11 @@ struct TestCaseTraits<cases::Dhcpv4ClientRequest12SM>
         "DHCPREQUEST generated during REBINDING state: destination IP "
         "MUST be 0xFFFFFFFF (broadcast) per RFC 2131 §4.4.5";
     static void stimulus(Captured& c,
-                         const ::tc8::TestConfig& cfg,
+                         const ::tc8::TestConfig& /*cfg*/,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(
-            cfg, iface, cfg.dut.mac);
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(dut);
         ::tc8::sce::dhcpv4::scheduleRebindingFastEnvelopeReplies<SM>(
             scheduler, iface, c);
     }

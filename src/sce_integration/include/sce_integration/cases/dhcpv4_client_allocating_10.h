@@ -27,11 +27,11 @@ struct TestCaseTraits<cases::Dhcpv4ClientAllocating10SM>
         "Client retransmits DHCPREQUEST in RENEWING when no DHCPACK or "
         "DHCPNAK is received (RFC 2131 §3.1)";
     static void stimulus(Captured& c,
-                         const ::tc8::TestConfig& cfg,
+                         const ::tc8::TestConfig& /*cfg*/,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(
-            cfg, iface, cfg.dut.mac);
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(dut);
         ::tc8::sce::dhcpv4::scheduleRetxLeaseEnvelopeReplies<SM>(
             scheduler, iface, c);
     }

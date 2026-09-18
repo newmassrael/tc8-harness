@@ -27,11 +27,11 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation04SM>
         "DUT silently discards DHCPOFFER with mismatched xid; does not "
         "emit DHCPREQUEST in response (RFC 2131 §4.4.1, MUST)";
     static void stimulus(Captured& c,
-                         const ::tc8::TestConfig& cfg,
+                         const ::tc8::TestConfig& /*cfg*/,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(
-            cfg, iface, cfg.dut.mac);
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(dut);
         ::tc8::sce::dhcpv4::ServerEmulParams mismatched{};
         mismatched.xid_offset = 1;
         ::tc8::sce::dhcpv4::scheduleDhcpReplyOnStateEntry(

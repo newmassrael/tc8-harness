@@ -23,6 +23,8 @@ struct TestCaseTraits<cases::Dhcpv4ClientProtocol01SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientProtocol01SM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_PROTOCOL_01";
+    // Drives LINK-LOCAL autoconf, not a DHCP client — see ALLOCATING_01.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities = 0;
     static constexpr std::string_view kDescription =
         "DHCPDISCOVER carries the RFC 1497 magic cookie 99,130,83,99 in "
         "the first four octets of the 'options' field (RFC 2131 §3, MUST)";

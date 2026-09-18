@@ -27,11 +27,11 @@ struct TestCaseTraits<cases::Dhcpv4ClientRequest08SM>
         "DHCPREQUEST generated during RENEWING state: 'ciaddr' MUST be "
         "filled in with client's IP address (RFC 2131 §4.4.5)";
     static void stimulus(Captured& c,
-                         const ::tc8::TestConfig& cfg,
+                         const ::tc8::TestConfig& /*cfg*/,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(
-            cfg, iface, cfg.dut.mac);
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(dut);
         ::tc8::sce::dhcpv4::scheduleRenewingFastEnvelopeReplies<SM>(
             scheduler, iface, c);
     }

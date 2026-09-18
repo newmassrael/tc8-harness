@@ -28,11 +28,11 @@ struct TestCaseTraits<cases::Dhcpv4ClientRequest01SM>
         "being requested is carried in Option 50, not the BOOTP fixed "
         "header (RFC 2131 §4.3.2, MUST)";
     static void stimulus(Captured& c,
-                         const ::tc8::TestConfig& cfg,
+                         const ::tc8::TestConfig& /*cfg*/,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(
-            cfg, iface, cfg.dut.mac);
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(dut);
         ::tc8::sce::dhcpv4::scheduleDhcpReplyOnStateEntry(
             scheduler, static_cast<int>(State::Listening_for_request),
             iface, c, /*message_type=*/2);

@@ -27,8 +27,9 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation01SM>
         "After NAK in RENEWING the DUT waits a random [1, 10] s before "
         "the restart DHCPDISCOVER (RFC 2131 §4.4.1, SHOULD)";
     static void stimulus(Captured& c,
-                         const ::tc8::TestConfig& cfg,
+                         const ::tc8::TestConfig& /*cfg*/,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
         // §4.7.6.9 INIT_ALLOC_01: only this case opts into the
         // [1000, 10000] ms desync window so the DUT firmware applies
@@ -38,7 +39,7 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation01SM>
         ::tc8::sce::dhcpv4::Dhcpv4StartConfig sc;
         sc.nak_to_discover_min_ms = 1000;
         sc.nak_to_discover_max_ms = 10000;
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(cfg, iface, cfg.dut.mac, sc);
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(dut, sc);
         // OFFER + ACK on the SELECTING-phase listening states (drives
         // DUT to BOUND) plus DHCPNAK on listening_for_second_discover
         // entry — the runBoundPhaseMachine NAK ingest path returns

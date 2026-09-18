@@ -37,11 +37,12 @@ struct TestCaseTraits<cases::Dhcpv4ClientParameters04NegSM>
     // DISCOVER snapshot on Listening_for_request entry, tester OFFER, then
     // the DUT emits the Option-55-corrupted REQUEST the guard catches.
     static void stimulus(Captured& c,
-                         const ::tc8::TestConfig& cfg,
+                         const ::tc8::TestConfig& /*cfg*/,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
         ::tc8::sce::dhcpv4::emitStartDhcpClientBuggy(
-            cfg, iface, cfg.dut.mac,
+            dut,
             ::tc8::ut::kDhcpFlavorRequestParamListMismatch);
         ::tc8::sce::dhcpv4::scheduleDiscoverSnapshotOnStateEntry(
             scheduler, static_cast<int>(State::Listening_for_request), c);

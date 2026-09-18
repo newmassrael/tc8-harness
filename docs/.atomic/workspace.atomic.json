@@ -3150,10 +3150,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/sce_integration/include/sce_integration/dhcpv4_pilot_common.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/cli/commands/test_command.cpp",
           "kind": "implements"
         }
@@ -3319,10 +3315,6 @@
         },
         {
           "file": "src/sce_integration/include/sce_integration/udp_captured.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/sce_integration/include/sce_integration/dhcpv4_pilot_common.h",
           "kind": "implements"
         }
       ]
@@ -12457,5 +12449,5 @@
   "parameter_deltas": {},
   "parameter_gates": {},
   "fact_counts": {},
-  "schema_version": 39
+  "schema_version": 44
 }

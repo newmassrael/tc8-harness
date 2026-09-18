@@ -37,8 +37,9 @@ struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages13Neg2SM>
         "client backs off.";
 
     static void stimulus(Captured& /*c*/,
-                         const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         const ::tc8::TestConfig& /*cfg*/,
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
         ::tc8::sce::dhcpv4::Dhcpv4StartConfig sc;
         sc.retry_count = cases::kCm13RetryCount;
         sc.retry_interval_ms = 0U;
@@ -46,7 +47,7 @@ struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages13Neg2SM>
         sc.retx_cap_ms = cases::kCm13RetxCapMs;
         sc.retx_jitter_ms = cases::kCm13RetxJitterMs;
         sc.flavor = ::tc8::ut::kDhcpFlavorRetxNoBackoff;
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(cfg, iface, cfg.dut.mac, sc);
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(dut, sc);
     }
 };
 

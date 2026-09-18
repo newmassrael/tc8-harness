@@ -23,6 +23,8 @@ struct TestCaseTraits<cases::Dhcpv4ClientSummary04SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientSummary04SM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_SUMMARY_04";
+    // Drives LINK-LOCAL autoconf, not a DHCP client — see ALLOCATING_01.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities = 0;
     static constexpr std::string_view kDescription =
         "DHCPDISCOVER 'flags' field has reserved bits (1..15) set to 0 — "
         "RFC 2131 §2 Protocol Summary (MUST)";

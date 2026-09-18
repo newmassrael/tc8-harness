@@ -47,6 +47,19 @@ struct Dhcpv4AnyBase {
     static constexpr int              kTopology   = 1;
     static constexpr ::tc8::BpfGroup  kBpfGroup   = ::tc8::BpfGroup::Dhcpv4;
 
+    // A DHCPv4 case's procedure starts by telling the DUT to run a DHCP client;
+    // the harness cannot provoke that from the wire. Declared on the family base
+    // rather than 75 times, so the next case added here cannot forget it and sit
+    // out its listen window reporting a non-conclusion that reads like a DUT
+    // fault.
+    //
+    // A handful of DHCPv4-numbered cases drive LINK-LOCAL autoconf instead and
+    // never start a client — those override this with the capability they
+    // actually need. Overriding is the exception, which is the right way round:
+    // the norm is stated once and a divergence has to say so.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapDhcpClientControl;
+
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {
         ::tc8::sce::dhcpv4::dispatchDhcpv4Frame<SM>(c, sm, ev);
     }

@@ -38,11 +38,12 @@ struct TestCaseTraits<cases::Dhcpv4ClientSummary02NegSM>
     // accept SERVER-1's mismatched OFFER (the first one read off the socket) so its
     // REQUEST carries SERVER-1's Option 54 instead of SERVER-2's.
     static void stimulus(Captured& c,
-                         const ::tc8::TestConfig& cfg,
+                         const ::tc8::TestConfig& /*cfg*/,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
         ::tc8::sce::dhcpv4::emitStartDhcpClientBuggy(
-            cfg, iface, cfg.dut.mac,
+            dut,
             ::tc8::ut::kDhcpFlavorAcceptMismatchedXidOffer);
 
         ::tc8::sce::dhcpv4::ServerEmulParams server1{};

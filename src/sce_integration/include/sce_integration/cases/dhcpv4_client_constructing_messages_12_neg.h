@@ -41,8 +41,9 @@ struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages12NegSM>
         "past the RFC 2131 cap; a conformant client clamps at the cap.";
 
     static void stimulus(Captured& /*c*/,
-                         const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         const ::tc8::TestConfig& /*cfg*/,
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
         // Same fast-envelope as the positive (cases::kCm12* SSOT) plus the
         // RetxExceedCap flavor byte: only the cap enforcement is faulted.
         ::tc8::sce::dhcpv4::Dhcpv4StartConfig sc;
@@ -52,7 +53,7 @@ struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages12NegSM>
         sc.retx_cap_ms = cases::kCm12RetxCapMs;
         sc.retx_jitter_ms = cases::kCm12RetxJitterMs;
         sc.flavor = ::tc8::ut::kDhcpFlavorRetxExceedCap;
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(cfg, iface, cfg.dut.mac, sc);
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(dut, sc);
     }
 };
 

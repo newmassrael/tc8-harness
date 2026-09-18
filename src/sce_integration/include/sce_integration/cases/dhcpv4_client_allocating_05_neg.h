@@ -33,11 +33,12 @@ struct TestCaseTraits<cases::Dhcpv4ClientAllocating05NegSM>
         "live conformant-DUT outcome.";
 
     static void stimulus(Captured& c,
-                         const ::tc8::TestConfig& cfg,
+                         const ::tc8::TestConfig& /*cfg*/,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
         ::tc8::sce::dhcpv4::emitStartDhcpClientBuggy(
-            cfg, iface, cfg.dut.mac,
+            dut,
             ::tc8::ut::kDhcpFlavorRequestDstUnicast);
         ::tc8::sce::dhcpv4::scheduleDhcpReplyOnStateEntry(
             scheduler, static_cast<int>(State::Listening_for_request),

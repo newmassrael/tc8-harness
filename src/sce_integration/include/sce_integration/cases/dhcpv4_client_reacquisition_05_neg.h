@@ -33,11 +33,12 @@ struct TestCaseTraits<cases::Dhcpv4ClientReacquisition05NegSM>
         "2131 §4.4.5).";
 
     static void stimulus(Captured& c,
-                         const ::tc8::TestConfig& cfg,
+                         const ::tc8::TestConfig& /*cfg*/,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
         ::tc8::sce::dhcpv4::emitStartDhcpClientBuggy(
-            cfg, iface, cfg.dut.mac,
+            dut,
             ::tc8::ut::kDhcpFlavorRenewingRetxNoDelay);
         ::tc8::sce::dhcpv4::scheduleRetxLeaseEnvelopeReplies<SM>(
             scheduler, iface, c);

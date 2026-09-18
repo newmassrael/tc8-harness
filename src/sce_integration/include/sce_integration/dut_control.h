@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "sce_integration/dut_capabilities.h"
+#include "sce_integration/dut_dhcp_control.h"
 #include "sce_integration/dut_socket_control.h"
 #include "tc8/testability_client.h"
 #include "stimulus/upper_tester_client.h"
@@ -86,6 +87,12 @@ public:
     // reads urgent data). nullptr on a backend without it; a case declaring
     // kCapTcpRecvOob is capability-skipped there (Tier 2 2b#4).
     virtual ITcpRecvOob *tcpRecvOob() { return nullptr; }
+
+    // DHCP client lifecycle, or nullptr when the backend cannot drive one. The
+    // testability backend returns nullptr: PRS_TPSP has a DHCP group but this
+    // tree has not mined its service primitives, and inventing wire primitives
+    // with no spec behind them is the mistake TD-16 declined to make.
+    virtual IDhcpClientControl *dhcpClientControl() { return nullptr; }
 };
 
 // Seam-case convenience: fetch the DUT's TCP control sub-interface as a
@@ -475,6 +482,54 @@ private:
     std::uint8_t req_id_ = 1;
 };
 
+// Opcode-UT backend of IDhcpClientControl — one OpStartDhcpClient carrying the
+// whole lifecycle envelope. The `_neg` flavors ride the same opcode and the same
+// 27-byte wire shape, differing only in the trailing flavor byte, so one
+// operation serves both the positive and the fault-injecting call.
+//
+// Sent raw + awaited for the same reason the UDP send is: a DHCP case asserts on
+// ARP state (the post-BOUND Probe / Announce / DECLINE sequence), and a
+// kernel-routed control request would make the tester's own stack ARP for the DUT
+// in the middle of it.
+class OpcodeDhcpClientControl final : public IDhcpClientControl {
+public:
+    OpcodeDhcpClientControl(std::uint32_t dut_ip_be, std::uint16_t port, std::uint32_t src_ip_be,
+                            int timeout_ms, OpcodeRawTransport raw = {})
+        : dut_ip_be_(dut_ip_be), port_(port), src_ip_be_(src_ip_be), timeout_ms_(timeout_ms),
+          raw_(std::move(raw)) {}
+
+    bool startClient(const dhcpv4::Dhcpv4StartConfig &spec) override {
+        const auto req = stimulus::buildStartDhcpClientRequest(
+            /*req_id=*/1,
+            /*offer_wait_ms=*/kDhcpOfferWaitMs,
+            /*ack_wait_ms=*/kDhcpAckWaitMs, spec.retry_count, spec.retry_interval_ms,
+            spec.nak_to_discover_min_ms, spec.nak_to_discover_max_ms, spec.arp_probe_listen_ms,
+            spec.decline_to_discover_min_ms, spec.decline_to_discover_max_ms, spec.retx_first_ms,
+            spec.retx_cap_ms, spec.retx_jitter_ms, spec.iface_index, spec.flavor);
+        if (raw_.iface.empty()) {
+            const auto r =
+                stimulus::upperTesterRoundTrip(dut_ip_be_, req, port_, timeout_ms_, src_ip_be_);
+            return r && r->status == ut::kStatusOk;
+        }
+        return stimulus::sendUpperTesterRequestAwaited(raw_.iface, raw_.tester_ip_be, dut_ip_be_,
+                                                       raw_.dut_mac, raw_.tester_src_port, req,
+                                                       timeout_ms_, "StartDhcpClient") == 0;
+    }
+
+private:
+    // The fast envelope every in-tree DHCP case has always used. Not a
+    // Dhcpv4StartConfig field because no case overrides it; promoting it would
+    // widen the ask without a caller.
+    static constexpr std::uint16_t kDhcpOfferWaitMs = 2000;
+    static constexpr std::uint16_t kDhcpAckWaitMs   = 2000;
+
+    std::uint32_t dut_ip_be_;
+    std::uint16_t port_;
+    std::uint32_t src_ip_be_;
+    int timeout_ms_;
+    OpcodeRawTransport raw_;
+};
+
 // Adapter over the in-house opcode Upper Tester (upper_tester_client.h). Wraps
 // the existing builders/transport with no behaviour change. Kernel-routed
 // SOCK_DGRAM probe (matching `ut-ping`); the TCP data plane is exposed through
@@ -497,7 +552,8 @@ public:
           state_probe_(dut_ip_be, port, src_ip_be,
                        timeout_ms < kStateProbeTimeoutMs ? timeout_ms : kStateProbeTimeoutMs),
           recv_oob_(dut_ip_be, port, src_ip_be, timeout_ms),
-          udp_ctrl_(dut_ip_be, port, src_ip_be, timeout_ms, std::move(raw)) {}
+          udp_ctrl_(dut_ip_be, port, src_ip_be, timeout_ms, raw),
+          dhcp_ctrl_(dut_ip_be, port, src_ip_be, timeout_ms, std::move(raw)) {}
 
     bool probe() override {
         return stimulus::pingUpperTester(dut_ip_be_, port_, timeout_ms_, src_ip_be_)
@@ -514,7 +570,7 @@ public:
         // these IDutControl sub-interfaces, independent of the DUT firmware.
         constexpr std::uint32_t kBackendBase =
             kCapTcpControl | kCapUdpControl | kCapTcpStateProbe | kCapTcpSynSentOpen |
-            kCapTcpRecvOob;
+            kCapTcpRecvOob | kCapDhcpClientControl;
         // (2) DUT-firmware fault caps — the DUT is the SSOT for what it can
         // fault: OpQueryCapabilities (0x16) reports its implemented opcodes.
         resolveCaps16();
@@ -531,6 +587,7 @@ public:
     IUdpControl *udpControl() override { return &udp_ctrl_; }
     ITcpStateProbe *tcpStateProbe() override { return &state_probe_; }
     ITcpRecvOob *tcpRecvOob() override { return &recv_oob_; }
+    IDhcpClientControl *dhcpClientControl() override { return &dhcp_ctrl_; }
 
 private:
     // Fail-fast ceiling for the kernel-state probe, independent of the
@@ -611,6 +668,7 @@ private:
     OpcodeTcpStateProbe state_probe_;
     OpcodeTcpRecvOob recv_oob_;
     OpcodeUdpControl udp_ctrl_;
+    OpcodeDhcpClientControl dhcp_ctrl_;
 };
 
 // Adapter over the AUTOSAR Testability Protocol client (testability_client.h).

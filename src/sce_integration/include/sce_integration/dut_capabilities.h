@@ -46,6 +46,18 @@ enum DutCapability : std::uint32_t {
     kCapIngressFault = 1u << 8,      // ingress reaction fault — ARP/ICMP/TCP prohibited emission + UDP acceptance/rejection (OpSetIngressFlavor) — DUT-derived
     kCapAppFault = 1u << 9,          // app-layer reception fault — data-listener discard skip + UI-report corruption (OpSetAppFlavor) — DUT-derived
     kCapEtsFault = 1u << 10,         // SOME/IP application fault — EtsImpl field-getter value corruption (OpSetEtsFlavor) — tc8-dut-only (no lwIP SOME/IP service)
+    // DHCP client lifecycle control (IDhcpClientControl) — make the DUT run a
+    // DHCP client with a given timing envelope. Backend-STATIC (axis 1): the
+    // opcode UT carries OpStartDhcpClient, while PRS_TPSP defines a DHCP group
+    // (GID 0x07) whose service primitives this tree has not mined, so the
+    // testability backend provides no implementation and a case needing it
+    // capability-skips there rather than sitting out its listen window.
+    //
+    // The `_neg` DHCP flavors ride the SAME opcode with a trailing flavor byte,
+    // so this bit maps to host-opcode presence and does not distinguish a DUT
+    // that implements the opcode yet ignores a flavor — the shared-opcode
+    // residual already stated for kDutDerivedCaps below.
+    kCapDhcpClientControl = 1u << 11,
 };
 using DutCapabilities = std::uint32_t;
 

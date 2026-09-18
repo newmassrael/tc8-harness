@@ -39,10 +39,11 @@ struct TestCaseTraits<cases::Dhcpv4ClientProtocol01NegSM>
     // DISCOVER). The corruption is a real firmware code path gated by the
     // flavor byte, so a conformant tc8-dut stays compliant.
     static void stimulus(Captured& /*c*/,
-                         const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         const ::tc8::TestConfig& /*cfg*/,
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
         ::tc8::sce::dhcpv4::emitStartDhcpClientBuggy(
-            cfg, iface, cfg.dut.mac,
+            dut,
             ::tc8::ut::kDhcpFlavorDiscoverMagicCookieCorrupt);
     }
 };

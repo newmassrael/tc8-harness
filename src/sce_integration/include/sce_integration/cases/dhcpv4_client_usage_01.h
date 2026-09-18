@@ -48,10 +48,11 @@ struct TestCaseTraits<cases::Dhcpv4ClientUsage01SM>
     // dispatches to instance 1 by the trailing `iface_index` byte
     // regardless of which iface the request arrived on.
     static void stimulus(Captured& c,
-                         const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
+                         const ::tc8::TestConfig& /*cfg*/,
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(cfg, iface, cfg.dut.mac);
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(dut);
 
         scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_for_d1_discover),
@@ -59,12 +60,11 @@ struct TestCaseTraits<cases::Dhcpv4ClientUsage01SM>
 
         scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_for_d1_discover),
-            [&cfg, iface_copy = std::string(iface)]() {
+            [dut = &dut]() {
                 ::tc8::sce::dhcpv4::Dhcpv4StartConfig sc;
                 sc.iface_index = 1;
                 sc.apply_initial_wait = false;
-                ::tc8::sce::dhcpv4::emitStartDhcpClient(
-                    cfg, iface_copy, cfg.dut.mac, sc);
+                ::tc8::sce::dhcpv4::emitStartDhcpClient(*dut, sc);
             });
     }
 };

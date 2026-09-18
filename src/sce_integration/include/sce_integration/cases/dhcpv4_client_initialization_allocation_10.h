@@ -27,12 +27,13 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation10SM>
         "After Probe listen window expires without conflict, DUT broadcasts "
         "Gratuitous ARP Reply announcing the bound IP (RFC 2131 §4.4.1, SHOULD)";
     static void stimulus(Captured& c,
-                         const ::tc8::TestConfig& cfg,
+                         const ::tc8::TestConfig& /*cfg*/,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
         ::tc8::sce::dhcpv4::Dhcpv4StartConfig sc;
         sc.arp_probe_listen_ms = 1500;
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(cfg, iface, cfg.dut.mac, sc);
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(dut, sc);
         ::tc8::sce::dhcpv4::scheduleDhcpReplyOnStateEntry(
             scheduler, static_cast<int>(State::Listening_for_first_request),
             iface, c.dhcpv4, /*message_type=*/2);

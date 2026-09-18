@@ -27,15 +27,16 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation08SM>
         "Post-BOUND DUT emits ARP Probe with sender_ip=0, target_ip=offered "
         "yiaddr to verify the offered address is not in use (RFC 2131 §4.4.1)";
     static void stimulus(Captured& c,
-                         const ::tc8::TestConfig& cfg,
+                         const ::tc8::TestConfig& /*cfg*/,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
         // Opt into the post-BOUND ARP Probe firmware path with a 1500 ms
         // listen window — fast envelope shrink of the 10 s spec
         // ParamListenTime (Q4 decision).
         ::tc8::sce::dhcpv4::Dhcpv4StartConfig sc;
         sc.arp_probe_listen_ms = 1500;
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(cfg, iface, cfg.dut.mac, sc);
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(dut, sc);
         ::tc8::sce::dhcpv4::scheduleDhcpReplyOnStateEntry(
             scheduler, static_cast<int>(State::Listening_for_first_request),
             iface, c.dhcpv4, /*message_type=*/2);

@@ -31,11 +31,11 @@ struct TestCaseTraits<cases::Dhcpv4ClientProtocol03SM>
     // Listening_for_request entry. PROTOCOL_03 only differs in the
     // pass guard (REQUEST also asserts Option 53 presence).
     static void stimulus(Captured& c,
-                         const ::tc8::TestConfig& cfg,
+                         const ::tc8::TestConfig& /*cfg*/,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(
-            cfg, iface, cfg.dut.mac);
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(dut);
         ::tc8::sce::dhcpv4::scheduleDhcpReplyOnStateEntry(
             scheduler, static_cast<int>(State::Listening_for_request),
             iface, c, /*message_type=*/2);

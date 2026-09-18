@@ -64,11 +64,12 @@ struct TestCaseTraits<cases::Ipv4AutoconfIntro01NegSM> {
     // (flavor None) stays silent — the negative's fail_compliant_silence
     // branch is the live conformant-DUT outcome, not a harness artifact.
     static void stimulus(Captured& c,
-                         const ::tc8::TestConfig& cfg,
+                         const ::tc8::TestConfig& /*cfg*/,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
         ::tc8::sce::dhcpv4::emitStartDhcpClientBuggy(
-            cfg, iface, cfg.dut.mac,
+            dut,
             ::tc8::ut::kDhcpFlavorLeakLinkLocalAfterBind);
 
         ::tc8::sce::dhcpv4::scheduleDhcpReplyOnStateEntry(

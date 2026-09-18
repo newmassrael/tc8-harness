@@ -59,7 +59,7 @@ inline std::vector<std::uint8_t> buildOption3RouterPayload() {
 template <typename SM>
 inline void wireRouterOverloadStimulus(
     typename SM::CapturedType&                c,
-    const ::tc8::TestConfig&                  cfg,
+    const ::tc8::TestConfig&                  /*cfg*/,
     std::string_view                          iface,
     ::tc8::sce::IDutControl&                  dut,
     ::tc8::sce::IStimulusScheduler&           scheduler,
@@ -68,8 +68,7 @@ inline void wireRouterOverloadStimulus(
     std::vector<std::uint8_t>                 file_payload) {
     using State = typename SM::PolicyType::State;
 
-    ::tc8::sce::dhcpv4::emitStartDhcpClient(
-        cfg, iface, cfg.dut.mac);
+    ::tc8::sce::dhcpv4::emitStartDhcpClient(dut);
 
     ::tc8::sce::dhcpv4::ServerEmulParams params{};
     params.option_52_overload      = option_52_overload;

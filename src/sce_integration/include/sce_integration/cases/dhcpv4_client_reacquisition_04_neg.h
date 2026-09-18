@@ -32,11 +32,12 @@ struct TestCaseTraits<cases::Dhcpv4ClientReacquisition04NegSM>
         "conformant client emits at T2 = lease*7/8 (RFC 2131 §4.4.5).";
 
     static void stimulus(Captured& c,
-                         const ::tc8::TestConfig& cfg,
+                         const ::tc8::TestConfig& /*cfg*/,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
         ::tc8::sce::dhcpv4::emitStartDhcpClientBuggy(
-            cfg, iface, cfg.dut.mac,
+            dut,
             ::tc8::ut::kDhcpFlavorRebindingEntryEarly);
         ::tc8::sce::dhcpv4::scheduleRebindingFastEnvelopeReplies<SM>(
             scheduler, iface, c);

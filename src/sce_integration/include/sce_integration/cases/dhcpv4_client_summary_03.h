@@ -28,11 +28,11 @@ struct TestCaseTraits<cases::Dhcpv4ClientSummary03SM>
         "RFC 2131 §2 maximum DHCP message size, MUST) and emits the "
         "resulting DHCPREQUEST";
     static void stimulus(Captured& c,
-                         const ::tc8::TestConfig& cfg,
+                         const ::tc8::TestConfig& /*cfg*/,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(
-            cfg, iface, cfg.dut.mac);
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(dut);
         ::tc8::sce::dhcpv4::ServerEmulParams params{};
         params.ip_datagram_total_bytes = 576;
         ::tc8::sce::dhcpv4::scheduleDhcpReplyOnStateEntry(

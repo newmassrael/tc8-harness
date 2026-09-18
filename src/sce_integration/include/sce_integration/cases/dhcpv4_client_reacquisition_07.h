@@ -27,11 +27,11 @@ struct TestCaseTraits<cases::Dhcpv4ClientReacquisition07SM>
         "Lease expiration: DUT immediately stops network processing — "
         "no further DHCPREQUEST with the released ciaddr (RFC 2131 §4.4.5)";
     static void stimulus(Captured& c,
-                         const ::tc8::TestConfig& cfg,
+                         const ::tc8::TestConfig& /*cfg*/,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(
-            cfg, iface, cfg.dut.mac);
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(dut);
         // OFFER + ACK only — no T1/T2 reply, so RFC 2131 §4.4.5 lease
         // expiry trips the DUT runBoundPhaseMachine's lease_end branch
         // and INIT-restarts the lifecycle. The absence window in

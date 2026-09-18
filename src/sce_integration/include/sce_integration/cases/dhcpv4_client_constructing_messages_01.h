@@ -23,6 +23,8 @@ struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages01SM>
     : Dhcpv4AnyBase<cases::Dhcpv4ClientConstructingMessages01SM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_01";
+    // Drives LINK-LOCAL autoconf, not a DHCP client — see ALLOCATING_01.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities = 0;
     static constexpr std::string_view kDescription =
         "DHCPDISCOVER options blob terminates on 0xFF (End Option) at "
         "position Last (RFC 2131 §4.1, MUST)";

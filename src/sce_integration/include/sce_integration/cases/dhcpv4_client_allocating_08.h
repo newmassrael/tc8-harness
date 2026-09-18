@@ -32,6 +32,7 @@ struct TestCaseTraits<cases::Dhcpv4ClientAllocating08SM>
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
         // Opt into the [10000, 11000] ms post-DECLINE wait window so
         // the SCXML s5 cond's `decline_to_discover_within_us` lower
@@ -42,7 +43,7 @@ struct TestCaseTraits<cases::Dhcpv4ClientAllocating08SM>
         sc.arp_probe_listen_ms = 1500;
         sc.decline_to_discover_min_ms = 10000;
         sc.decline_to_discover_max_ms = 11000;
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(cfg, iface, cfg.dut.mac, sc);
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(dut, sc);
         ::tc8::sce::dhcpv4::scheduleDhcpReplyOnStateEntry(
             scheduler, static_cast<int>(State::Listening_for_first_request),
             iface, c.dhcpv4, /*message_type=*/2);

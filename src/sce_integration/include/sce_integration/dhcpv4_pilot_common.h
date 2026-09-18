@@ -6,6 +6,8 @@
 
 #include "tc8/captured_event.h"
 #include "sce_integration/dhcpv4_captured.h"
+#include "sce_integration/dut_control.h"
+#include "sce_integration/dut_dhcp_control.h"
 #include "sce_integration/dhcpv4_server_stimulus.h"
 #include "sce_integration/test_config.h"
 #include "stimulus/upper_tester_client.h"
@@ -45,63 +47,32 @@ inline constexpr std::uint32_t kFastEnvelopeLeaseSeconds = 6U;
 // case_timeout budget.
 inline constexpr std::uint32_t kRetransmissionLeaseSeconds = 12U;
 
-// OpStartDhcpClient envelope. A config struct (not a 16-positional-param
-// signature) so a call site sets only the fields it overrides — the common
-// `emitStartDhcpClient(cfg, iface, mac)` keeps the fast-envelope defaults, and
-// adding a knob never re-orders an existing call. Field names match the wire
-// slots. (C++17: named-field assignment, not C++20 designated init.)
-struct Dhcpv4StartConfig {
-    std::uint8_t  retry_count                = 1;
-    std::uint16_t retry_interval_ms          = 1000;
-    // §4.7.6.9 INIT_ALLOC_01 NAK->DISCOVER desync window (RFC 2131 §4.4.1).
-    std::uint16_t nak_to_discover_min_ms     = 0;
-    std::uint16_t nak_to_discover_max_ms     = 0;
-    // §4.7.6.9 INIT_ALLOC_08/_09/_10 post-BOUND ARP Probe listen window.
-    std::uint16_t arp_probe_listen_ms        = 0;
-    // §4.7.6.3 ALLOCATING_08 post-DECLINE restart window (RFC 2131 §3.1).
-    std::uint16_t decline_to_discover_min_ms = 0;
-    std::uint16_t decline_to_discover_max_ms = 0;
-    // §4.7.6.7 CM_12/_13 exponential-backoff retransmission envelope.
-    std::uint16_t retx_first_ms              = 0;
-    std::uint16_t retx_cap_ms                = 0;
-    std::uint16_t retx_jitter_ms             = 0;
-    // §4.7.6.5 USAGE_01 Topology-2 secondary client.
-    std::uint8_t  iface_index                = 0;
-    // False when the 1.5 s pilot wait was already paid by an earlier call.
-    bool          apply_initial_wait         = true;
-    // §4.5.6.1 / §4.7 Phase F fault-injection flavor byte (kDhcpFlavor*).
-    std::uint8_t  flavor                     = 0;
-};
+// `Dhcpv4StartConfig` now lives at the seam (dut_dhcp_control.h) because it is
+// the vocabulary both this helper and every backend speak. The name and
+// namespace are unchanged, so call sites are unaffected by the move.
 
-// Issue an OpStartDhcpClient RPC to the tc8-dut. Default fast envelope (2 s
-// OFFER wait + 2 s ACK wait + retry_count=1). Override via the config struct,
-// e.g. ALLOCATING_06's retransmission (retry_count=2 + retry_interval_ms=1000).
-inline void emitStartDhcpClient(const ::tc8::TestConfig& cfg,
-                                 std::string_view iface,
-                                 const std::array<std::uint8_t, 6>& dut_mac,
+// Ask the DUT to run a DHCP client. Default fast envelope (2 s OFFER wait + 2 s
+// ACK wait + retry_count=1); override via the config struct, e.g. ALLOCATING_06's
+// retransmission (retry_count=2 + retry_interval_ms=1000).
+//
+// Routed over the Tier-2 seam, so the ask reaches whichever backend
+// `--dut-control` selected and the transport is the backend's business. The
+// 1.5 s pilot wait stays here: it is a TESTER-side settle before the ask, not
+// part of what the DUT is being told to do.
+//
+// Returns false when the backend cannot drive a DHCP client, or when the DUT
+// declined — the stimulus did not happen, which is a non-conclusion rather than
+// a DUT verdict.
+inline bool emitStartDhcpClient(::tc8::sce::IDutControl& dut,
                                  const Dhcpv4StartConfig& c = {}) {
     if (c.apply_initial_wait) {
         std::this_thread::sleep_for(kDhcpv4PilotInitialWait);
     }
-    const auto req = ::tc8::stimulus::buildStartDhcpClientRequest(
-        /*req_id=*/1,
-        /*offer_wait_ms=*/2000,
-        /*ack_wait_ms=*/2000,
-        c.retry_count,
-        c.retry_interval_ms,
-        c.nak_to_discover_min_ms,
-        c.nak_to_discover_max_ms,
-        c.arp_probe_listen_ms,
-        c.decline_to_discover_min_ms,
-        c.decline_to_discover_max_ms,
-        c.retx_first_ms,
-        c.retx_cap_ms,
-        c.retx_jitter_ms,
-        c.iface_index,
-        c.flavor);
-    ::tc8::stimulus::sendUpperTesterRequest(
-        iface, cfg.ipv4.tester_ip, cfg.ipv4.dut_iface_ip, dut_mac,
-        /*tester_src_port=*/::tc8::ut::kTesterSrcPort, req);
+    auto *dhcp = dut.dhcpClientControl();
+    if (dhcp == nullptr) {
+        return false;
+    }
+    return dhcp->startClient(c);
 }
 
 // §4.5.6.1 / §4.7 Phase F fault-injection variant: issue OpStartDhcpClient
@@ -111,26 +82,22 @@ inline void emitStartDhcpClient(const ::tc8::TestConfig& cfg,
 // flavor differs. Used by the §4.5.6.1 INTRO_01_NEG case so its
 // fail_dut_emitted_ll_probe branch is reached by a real firmware mutant
 // (the leak) rather than a harness-composed frame.
-inline void emitStartDhcpClientBuggy(const ::tc8::TestConfig& cfg,
-                                     std::string_view iface,
-                                     const std::array<std::uint8_t, 6>& dut_mac,
+// Kept as a distinct name because it states INTENT — this call is arming a
+// firmware mutant, not running a positive lifecycle. It is one seam operation
+// underneath: the wire shape is uniformly 27 bytes for positives and `_neg`
+// alike and only the flavor VALUE distinguishes them, which
+// `buildStartDhcpClientBuggyRequest` said of itself before the seam took over.
+// That builder now has no caller in this tree; removing it is a separate
+// cleanup, since a consumer vendoring this tree may still reference it.
+inline bool emitStartDhcpClientBuggy(::tc8::sce::IDutControl& dut,
                                      std::uint8_t flavor,
                                      bool apply_initial_wait = true,
                                      std::uint16_t arp_probe_listen_ms = 0) {
-    if (apply_initial_wait) {
-        std::this_thread::sleep_for(kDhcpv4PilotInitialWait);
-    }
-    const auto req = ::tc8::stimulus::buildStartDhcpClientBuggyRequest(
-        /*req_id=*/1,
-        /*offer_wait_ms=*/2000,
-        /*ack_wait_ms=*/2000,
-        /*retry_count=*/1,
-        /*retry_interval_ms=*/1000,
-        flavor,
-        arp_probe_listen_ms);
-    ::tc8::stimulus::sendUpperTesterRequest(
-        iface, cfg.ipv4.tester_ip, cfg.ipv4.dut_iface_ip, dut_mac,
-        /*tester_src_port=*/::tc8::ut::kTesterSrcPort, req);
+    Dhcpv4StartConfig c;
+    c.flavor              = flavor;
+    c.apply_initial_wait  = apply_initial_wait;
+    c.arp_probe_listen_ms = arp_probe_listen_ms;
+    return emitStartDhcpClient(dut, c);
 }
 
 // §4.7.6.8 RENEWING REQUEST cluster trait helper. Schedules:

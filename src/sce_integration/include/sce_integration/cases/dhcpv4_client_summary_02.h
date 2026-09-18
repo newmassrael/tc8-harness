@@ -45,11 +45,11 @@ struct TestCaseTraits<cases::Dhcpv4ClientSummary02SM>
     // selects this server and the resulting REQUEST carries Option 54
     // = SERVER-2's identifier.
     static void stimulus(Captured& c,
-                         const ::tc8::TestConfig& cfg,
+                         const ::tc8::TestConfig& /*cfg*/,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(
-            cfg, iface, cfg.dut.mac);
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(dut);
 
         ::tc8::sce::dhcpv4::ServerEmulParams server1{};
         server1.xid_offset = 1;
