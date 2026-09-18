@@ -73,7 +73,8 @@ struct TestCaseTraits<cases::TcpUnacceptable14SM>
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 const auto seq_range = queryTcpSeqRange(tester_fd);
                 if (seq_range.has_value()) {
-                    // Spec literal "ACK with proper SEQ and ACK numbers" —
+                    // The criterion asks for an acknowledgement carrying
+                    // the right sequence and ack numbers — the
                     // tester FIN already advanced rcv.nxt before
                     // injection, so DUT.rcv.nxt == tester.snd_nxt ==
                     // seq_range->snd_nxt. Empirically confirmed via

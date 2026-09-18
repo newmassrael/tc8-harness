@@ -29,7 +29,7 @@ struct TestCaseTraits<cases::TcpMssOptions12SM>
         "DUT SHOULD advertise an MSS != 536 in active-OPEN SYN when its "
         "receive MSS differs from the RFC 1122 §4.2.2.6 default";
 
-    // Spec Test Procedure (v3.0 p363):
+    // Case shape:
     //   Prerequisite: DUT receive MSS != 536 (Ethernet MTU 1500 → 1460
     //   on the veth pair satisfies this without setup-netns mods).
     //   1. Tester triggers the DUT active OPEN through the Tier-2 seam.

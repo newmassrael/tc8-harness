@@ -68,7 +68,7 @@ struct TestCaseTraits<cases::TcpHeader07SM>
         data.flags                = ::tc8::stimulus::kTcpFlagPsh
                                   | ::tc8::stimulus::kTcpFlagAck;
         data.payload.assign(kDataPayload.begin(), kDataPayload.end());
-        // Spec literal "Data Offset value less than 5". RFC 793 §3.1
+        // The case asks for a data offset below 5. RFC 793 §3.1
         // mandates >= 5; Linux gates this in tcp_v4_rcv before any
         // socket lookup, so the EST socket never sees the segment.
         data.data_offset_override = 0x04U;

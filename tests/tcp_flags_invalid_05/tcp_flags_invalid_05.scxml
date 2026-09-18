@@ -5,7 +5,7 @@
   and acceptable ACK number. Derived from RFC 793 §3.9 p67 Event
   Processing (MUST).
 
-  v3.0 Test Procedure (p330) lists 2 iterations:
+  Case shape — two iterations:
     * CASE 1: flag set = SYN, ACK (with RST + acceptable ACK)
     * CASE 2: flag set = ACK         (with RST + acceptable ACK)
 

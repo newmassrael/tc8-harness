@@ -79,8 +79,9 @@ struct TestCaseTraits<cases::TcpFlagsInvalid13SM>
                 continue;
             }
 
-            // Spec literal "ACK with next expected SEQ number" — DUT
-            // challenge ACK in LAST-ACK carries ack_num == DUT.rcv.nxt
+            // The criterion asks for an acknowledgement naming the
+            // sequence number the DUT next expects — its challenge
+            // ACK in LAST-ACK carries ack_num == DUT.rcv.nxt
             // == post-tester-FIN tester.snd_nxt == seq_range->snd_nxt.
             // Per-phase slot for kernel-chosen ISN_t.
             switch (phase) {

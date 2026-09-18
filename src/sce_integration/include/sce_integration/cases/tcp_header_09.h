@@ -68,7 +68,7 @@ struct TestCaseTraits<cases::TcpHeader09SM>
         data.flags                   = ::tc8::stimulus::kTcpFlagPsh
                                      | ::tc8::stimulus::kTcpFlagAck;
         data.payload.assign(kDataPayload.begin(), kDataPayload.end());
-        // Spec literal "Checksum = 0". Distinct from corrupt_tcp_
+        // The case asks for a zero checksum. Distinct from corrupt_tcp_
         // checksum (XOR perturbation): force_zero pins absolute
         // 0x0000, which Linux's tcp_checksum_complete rejects against
         // the actual non-zero pseudo-header sum.

@@ -5,7 +5,7 @@
   window or SYN+ACK in window). Derived from RFC 1122 §4.2.2.20(e)
   p94 (MUST).
 
-  v3.0 Test Procedure (p341) lists 2 iterations:
+  Case shape — two iterations:
     * CASE 1: <stp> = SYN in window
     * CASE 2: <stp> = SYN+ACK in window
 

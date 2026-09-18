@@ -5,7 +5,7 @@
   return to CLOSED state on RESET. Derived from RFC 793 §3.9 p70
   Event Processing (MUST).
 
-  v3.0 Test Procedure (p340) lists 5 iterations:
+  Case shape — five iterations:
     * CASE 1: <wst> = SYN-RCVD
     * CASE 2: <wst> = ESTABLISHED
     * CASE 3: <wst> = FIN-WAIT-1

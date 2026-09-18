@@ -29,7 +29,7 @@ struct TestCaseTraits<cases::TcpMssOptions11SM>
         "DUT MUST implement sending the MSS option in its active-OPEN "
         "SYN (RFC 1122 §4.2.2.6 p85)";
 
-    // Spec Test Procedure (v3.0 p362):
+    // Case shape:
     //   1. Tester triggers the DUT active OPEN through the Tier-2 seam.
     //   2. DUT emits a SYN; SCXML asserts the segment carries an MSS
     //      option (captured.mss > 0).

@@ -4,7 +4,7 @@
   LAST-ACK or TIME-WAIT state, MUST ignore any segment with only
   URG flag set. Derived from RFC 793 §3.9 p74 Event Processing (MUST).
 
-  v3.0 Test Procedure (p343) lists 4 iterations:
+  Case shape — four iterations:
     * CASE 1: <wst> = CLOSE-WAIT
     * CASE 2: <wst> = CLOSING
     * CASE 3: <wst> = LAST-ACK

@@ -30,7 +30,7 @@ struct TestCaseTraits<cases::TcpMssOptions03SM>
         "DUT MUST ignore an unimplemented TCP option in a SYN segment "
         "and complete the handshake (RFC 1122 §4.2.2.5 p85)";
 
-    // Spec Test Procedure (v3.0 p357):
+    // Case shape:
     //   1. UT OpOpenTcpSocket(passive) → DUT LISTEN.
     //   2. Tester raw-injects SYN with kind=253 option (RFC 4727 §7.1
     //      reserved for experimentation — no production stack

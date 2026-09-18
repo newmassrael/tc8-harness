@@ -8,7 +8,7 @@
   RST and returns to LISTEN. A subsequent fresh SYN with a new ISN
   triggers a second SYN,ACK exchange.
 
-  v3.0 Test Procedure (p404):
+  Case shape:
     1. TESTER: Bring DUT to LISTEN.
     2. TESTER: Send SYN with seq=SEQ1.
     3. DUT:    Sends SYN,ACK with ack=SEQ1+1, moves to SYN-RECEIVED.

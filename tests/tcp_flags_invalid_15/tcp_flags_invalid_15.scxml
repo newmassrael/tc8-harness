@@ -5,7 +5,7 @@
   out-of-window SEQ number. Derived from RFC 793 §3.9 p69 Event
   Processing (MUST).
 
-  v3.0 Test Procedure (p340) lists 8 iterations:
+  Case shape — eight iterations:
     * CASE 1: <wst> = SYN-RECEIVED
     * CASE 2: <wst> = ESTABLISHED
     * CASE 3: <wst> = FINWAIT-1

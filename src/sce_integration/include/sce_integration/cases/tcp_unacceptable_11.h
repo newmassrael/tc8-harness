@@ -107,7 +107,8 @@ struct TestCaseTraits<cases::TcpUnacceptable11SM>
                 continue;
             }
 
-            // Spec literal "ACK with proper SEQ and ACK numbers" — DUT
+            // The criterion asks for an acknowledgement carrying the
+            // right sequence and ack numbers — the DUT
             // emits a pure ACK on the data path with ack_num == DUT.rcv.
             // nxt at injection. CLOSING reached this point via tester
             // FIN consuming a virtual byte, so DUT.rcv.nxt == tester.

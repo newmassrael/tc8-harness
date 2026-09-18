@@ -33,7 +33,7 @@ struct TestCaseTraits<cases::TcpHeader01SM>
     static constexpr std::array<std::uint8_t, 4> kHeaderPayload = {
         0xCAU, 0xFEU, 0xBAU, 0xBEU};
 
-    // Spec Test Procedure (v3.0 p385):
+    // Case shape:
     //   1. Tester brings DUT to ESTABLISHED — active OPEN.
     //   2. Tester triggers a DUT-side application SEND.
     //   3. DUT emits the data segment; SCXML asserts header validity.

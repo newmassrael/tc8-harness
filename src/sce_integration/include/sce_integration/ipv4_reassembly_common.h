@@ -46,7 +46,7 @@ inline constexpr std::array<std::uint8_t, 27> kReassembly13EchoPayload{
 // offset=2 (8-octet units → byte 16 of reassembled body, covering
 // bytes 16..39 of the bucket). frag 2 (step 7) is meant to overwrite
 // bytes 16..23 with the correct data per RFC 791's most-recent-wins.
-// Spec literal "DUPLICATE FRAGMENTS TEST" pads to 24 chars exactly.
+// The payload the case names, "DUPLICATE FRAGMENTS TEST", is 24 chars.
 inline constexpr std::array<std::uint8_t, 24> kReassembly13WrongFragPayload{
     'D','U','P','L','I','C','A','T','E',' ',
     'F','R','A','G','M','E','N','T','S',' ','T','E','S','T'};

@@ -5,7 +5,7 @@
   same state (even if the ACK number is acceptable). Derived from
   RFC 793 §3.9 p68 Event Processing (MUST).
 
-  v3.0 Test Procedure (p331) lists 2 iterations:
+  Case shape — two iterations:
     * CASE 1: <stp> = no data  (bare ACK, no payload)
     * CASE 2: <stp> = data     (ACK with payload)
   Both carry an acceptable ACK (= ISN_d + 1 in SYN-SENT) and have

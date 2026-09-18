@@ -67,7 +67,8 @@ struct TestCaseTraits<cases::TcpFlagsInvalid08SM>
                 continue;
             }
 
-            // Spec literal "ACK with next expected SEQ number" — the
+            // The criterion asks for an acknowledgement naming the
+            // sequence number the DUT next expects — the
             // OTW SEQ probe (any flag set) elicits a DUT challenge
             // ACK with ack_num == DUT.rcv.nxt == tester.snd_nxt at
             // injection. Empirically confirmed via pcap 2026-05-07

@@ -5,7 +5,7 @@
   segment with OTW SEQ number and remain in the same state. Derived
   from RFC 793 §3.9 p69 Event Processing (MUST).
 
-  v3.0 Test Procedure (p333) lists 5 iterations (RST=0 across all):
+  Case shape — five iterations, RST clear throughout:
     * CASE 1: flag set = SYN
     * CASE 2: flag set = SYN, ACK
     * CASE 3: flag set = ACK

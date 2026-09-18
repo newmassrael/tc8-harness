@@ -4,7 +4,7 @@
   SYN-SENT state, MUST not process a FIN. Derived from RFC 793 §3.9
   p75 Event Processing (MUST).
 
-  v3.0 Test Procedure (p344) lists 3 iterations:
+  Case shape — three iterations:
     * CASE 1: <wst> = CLOSED   → DUT MUST send RST
     * CASE 2: <wst> = LISTEN   → DUT MUST NOT respond
     * CASE 3: <wst> = SYN-SENT → DUT MUST NOT respond / retransmit SYN

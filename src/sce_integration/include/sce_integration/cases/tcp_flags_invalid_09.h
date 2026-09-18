@@ -81,8 +81,9 @@ struct TestCaseTraits<cases::TcpFlagsInvalid09SM>
                 continue;
             }
 
-            // Spec literal "ACK with next expected SEQ number" — DUT
-            // challenge ACK to the OTW SEQ probe carries ack_num ==
+            // The criterion asks for an acknowledgement naming the
+            // sequence number the DUT next expects — its challenge
+            // ACK to the OTW SEQ probe carries ack_num ==
             // DUT.rcv.nxt == tester.snd_nxt at injection. Per-phase
             // slot because each phase opens a fresh active-OPEN with
             // kernel-chosen ISN_t (harness model freezes captured

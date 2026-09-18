@@ -70,8 +70,8 @@ struct TestCaseTraits<cases::TcpHeader08SM>
         data.flags                = ::tc8::stimulus::kTcpFlagPsh
                                   | ::tc8::stimulus::kTcpFlagAck;
         data.payload.assign(kDataPayload.begin(), kDataPayload.end());
-        // Spec literal "Data Offset value greater than the actual
-        // value". 0xF announces a 60 B header against a 24 B
+        // The case asks for a data offset larger than the header
+        // really is. 0xF announces a 60 B header against a 24 B
         // segment; pskb_may_pull fails and the segment never
         // reaches the EST socket.
         data.data_offset_override = 0x0FU;

@@ -95,7 +95,8 @@ struct TestCaseTraits<cases::TcpUnacceptable09SM>
             if (tester_fd >= 0) {
                 const auto seq_range = queryTcpSeqRange(tester_fd);
                 if (seq_range.has_value()) {
-                    // Spec literal "ACK with proper SEQ and ACK numbers" —
+                    // The criterion asks for an acknowledgement carrying
+                    // the right sequence and ack numbers — the
                     // DUT challenge ACK in FW-1 (OTW SEQ → tcp_send_dupack
                     // before tcp_ack) carries ack_num == DUT.rcv.nxt ==
                     // tester.snd_nxt at injection time. Empirically

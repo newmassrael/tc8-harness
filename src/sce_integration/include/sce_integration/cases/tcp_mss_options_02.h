@@ -31,7 +31,7 @@ struct TestCaseTraits<cases::TcpMssOptions02SM>
         "in a SYN segment and complete the handshake (RFC 1122 "
         "§4.2.2.5 p85)";
 
-    // Spec Test Procedure (v3.0 p356):
+    // Case shape:
     //   1. UT OpOpenTcpSocket(passive) → DUT LISTEN.
     //   2. Tester raw-injects SYN with options bytes [01 01 01 00]
     //      (three NOPs followed by EOL — RFC 793 §3.1 kinds 1 and 0).

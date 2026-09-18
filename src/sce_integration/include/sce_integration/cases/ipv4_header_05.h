@@ -20,8 +20,8 @@ namespace tc8::sce::cases {
 
 using Ipv4Header05SM = ::SCE::Generated::ipv4_header_05::ipv4_header_05;
 
-// Spec literal: "IP Total Length field set to 576" + "556 bytes data
-// in IP Payload" (== 8 B ICMP header + 548 B Echo Data). RFC 791 §3.1
+// The case fixes a 576-byte total length with 556 bytes past the IP
+// header (8 B ICMP header + 548 B echo data). RFC 791 §3.1
 // MUST: every host accepts at least 576-octet datagrams.
 inline constexpr std::size_t kHeader05IcmpDataLen = 548;
 

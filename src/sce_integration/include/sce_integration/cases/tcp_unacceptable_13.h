@@ -81,7 +81,8 @@ struct TestCaseTraits<cases::TcpUnacceptable13SM>
                 kBasicsActiveLocalPort  + kTcpUnacceptable13Phase1LocalOffset,
                 kBasicsActiveRemotePort + kTcpUnacceptable13Phase1LocalOffset);
             if (info.ok) {
-                // Spec literal "ACK with proper SEQ and ACK numbers" —
+                // The criterion asks for an acknowledgement carrying the
+                // right sequence and ack numbers —
                 // tcp_timewait_state_process emits a pure ACK with
                 // ack_num == tw->tw_rcv_nxt == tester.snd_nxt at TW
                 // entry == info.tester_seq_post_fin. Empirically

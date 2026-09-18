@@ -102,8 +102,9 @@ struct TestCaseTraits<cases::TcpFlagsInvalid12SM>
                 continue;
             }
 
-            // Spec literal "ACK with next expected SEQ number" — DUT
-            // challenge ACK in CLOSING carries ack_num == DUT.rcv.nxt
+            // The criterion asks for an acknowledgement naming the
+            // sequence number the DUT next expects — its challenge
+            // ACK in CLOSING carries ack_num == DUT.rcv.nxt
             // == info.tester_seq_post_fin (tester FIN already
             // consumed when entering CLOSING). Per-phase slot because
             // each phase opens a fresh active-OPEN with kernel-chosen
