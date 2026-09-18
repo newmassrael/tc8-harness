@@ -11,7 +11,8 @@
 
 namespace tc8::sce {
 
-std::unique_ptr<IDutControl> makeDutControl(const ::tc8::TestConfig &cfg, int timeout_ms) {
+std::unique_ptr<IDutControl> makeDutControl(const ::tc8::TestConfig &cfg, std::string_view iface,
+                                            int timeout_ms) {
     // Both backends reach the DUT at its capture-iface IPv4 — the same address
     // the opcode UT inject path targets (cfg.ipv4.dut_iface_ip). Source IP is
     // left kernel-chosen (0), matching `ut-ping` / `testability-probe`.
@@ -36,8 +37,18 @@ std::unique_ptr<IDutControl> makeDutControl(const ::tc8::TestConfig &cfg, int ti
     // from the alias lets the DUT answer from a cached entry, emitting no ARP and
     // leaving the cold-cache premise intact. 0 (no alias configured) falls back to
     // kernel-chosen, harmless on backends/DUTs where no `_NEG` runs.
+    // Raw-injection transport for the sub-interfaces that must not provoke a
+    // tester-side ARP (see OpcodeRawTransport). The DUT MAC and tester IP are the
+    // same identities the direct opcode-builder stimulus paths already inject
+    // with, so a case routed over the seam puts the SAME frame on the wire as the
+    // legacy path it replaces.
+    OpcodeRawTransport raw;
+    raw.iface = std::string(iface);
+    raw.tester_ip_be = cfg.ipv4.tester_ip;
+    raw.dut_mac = cfg.dut.mac;
     return std::make_unique<OpcodeUtControl>(dut_ip_be, ut::kPort, /*src_ip_be=*/0, timeout_ms,
-                                             /*cap_probe_src_ip_be=*/cfg.ipv4.tester_alias_ip);
+                                             /*cap_probe_src_ip_be=*/cfg.ipv4.tester_alias_ip,
+                                             std::move(raw));
 }
 
 }  // namespace tc8::sce

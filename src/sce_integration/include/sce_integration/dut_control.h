@@ -404,30 +404,64 @@ private:
     std::uint8_t req_id_ = 1;
 };
 
-// Opcode-UT backend of IUdpControl — a one-shot OpTriggerSendUdp round-trip. The
-// opcode UDP model is port-based (no socket handle): each send is a
-// self-contained TriggerSendUdp, which matches IUdpControl's connectionless
-// sendDatagram one-to-one (the testability backend reaches the same shape via
-// CREATE_AND_BIND + SEND_DATA + CLOSE_SOCKET).
+// Raw-injection transport for an opcode sub-interface: what it needs to put a UT
+// request on the wire WITHOUT the tester's kernel resolving the DUT first.
+//
+// This is not a micro-optimisation, it is a correctness requirement the tree
+// already records in two places. `sendUpperTesterRequestAwaited` documents that a
+// kernel-routed UT send makes the tester's stack ARP for the DUT, overwriting the
+// MAC the ARP cases inject and breaking their eth_dst assertions; and
+// `makeDutControl` sources the 0x16 capability probe from the tester ALIAS for the
+// same family of reason — a UT round trip perturbs ARP state that §4.2 cases
+// assert on. A control-plane request must therefore be deliverable without
+// touching the data plane under test.
+//
+// An empty `iface` means no wire is configured (a unit test driving the backend
+// over loopback). The kernel-routed round trip is then the only option and is used
+// instead, which is sound there precisely because a loopback test asserts nothing
+// about ARP.
+struct OpcodeRawTransport {
+    std::string                 iface;                 // empty = no wire (loopback tests)
+    std::uint32_t               tester_ip_be = 0;
+    std::array<std::uint8_t, 6> dut_mac{};
+    std::uint16_t               tester_src_port = ut::kTesterSrcPort;
+};
+
+// Opcode-UT backend of IUdpControl — one self-contained OpTriggerSendUdp per send.
+// The opcode UDP model is port-based (no socket handle), which matches
+// IUdpControl's connectionless sendDatagram one-to-one (the testability backend
+// reaches the same shape via CREATE_AND_BIND + SEND_DATA + CLOSE_SOCKET).
+//
+// The send AWAITS the DUT's UT reply. A fire-and-forget send only puts the request
+// on the wire and says nothing about the DUT having acted on it — the race that
+// let a `_NEG` mutant meet its fault still unconfigured. Awaiting also routes a
+// non-OK status into the unperformed-stimulus record, so a control request the DUT
+// refused becomes a non-conclusion rather than a DUT verdict.
 class OpcodeUdpControl final : public IUdpControl {
 public:
     OpcodeUdpControl(std::uint32_t dut_ip_be, std::uint16_t port, std::uint32_t src_ip_be,
-                     int timeout_ms)
-        : dut_ip_be_(dut_ip_be), port_(port), src_ip_be_(src_ip_be), timeout_ms_(timeout_ms) {}
+                     int timeout_ms, OpcodeRawTransport raw = {})
+        : dut_ip_be_(dut_ip_be), port_(port), src_ip_be_(src_ip_be), timeout_ms_(timeout_ms),
+          raw_(std::move(raw)) {}
 
     bool sendDatagram(const Endpoint &src, const Endpoint &dest,
                       const std::vector<std::uint8_t> &data) override {
         // `src.addr_be` feeds the envelope's source-IP override field; 0 is the
         // envelope's own "use the DUT's default" encoding, so the zero case is
         // byte-identical to the pre-seam request.
-        const auto r = stimulus::upperTesterRoundTrip(
-            dut_ip_be_,
+        const auto req =
             stimulus::buildTriggerSendUdpRequest(nextReqId(), src.port, dest.addr_be, dest.port,
                                                  data.empty() ? nullptr : data.data(),
                                                  static_cast<std::uint16_t>(data.size()),
-                                                 src.addr_be),
-            port_, timeout_ms_, src_ip_be_);
-        return r && r->status == ut::kStatusOk;
+                                                 src.addr_be);
+        if (raw_.iface.empty()) {
+            const auto r =
+                stimulus::upperTesterRoundTrip(dut_ip_be_, req, port_, timeout_ms_, src_ip_be_);
+            return r && r->status == ut::kStatusOk;
+        }
+        return stimulus::sendUpperTesterRequestAwaited(raw_.iface, raw_.tester_ip_be, dut_ip_be_,
+                                                       raw_.dut_mac, raw_.tester_src_port, req,
+                                                       timeout_ms_, "TriggerSendUdp") == 0;
     }
 
 private:
@@ -437,6 +471,7 @@ private:
     std::uint16_t port_;
     std::uint32_t src_ip_be_;
     int timeout_ms_;
+    OpcodeRawTransport raw_;
     std::uint8_t req_id_ = 1;
 };
 
@@ -454,14 +489,15 @@ public:
     // (see makeDutControl). 0 = kernel-chosen, like the data-plane src.
     explicit OpcodeUtControl(std::uint32_t dut_ip_be, std::uint16_t port = ut::kPort,
                              std::uint32_t src_ip_be = 0, int timeout_ms = 1000,
-                             std::uint32_t cap_probe_src_ip_be = 0)
+                             std::uint32_t cap_probe_src_ip_be = 0,
+                             OpcodeRawTransport raw = {})
         : dut_ip_be_(dut_ip_be), port_(port), src_ip_be_(src_ip_be), timeout_ms_(timeout_ms),
           cap_probe_src_ip_be_(cap_probe_src_ip_be),
           tcp_ctrl_(dut_ip_be, port, src_ip_be, timeout_ms),
           state_probe_(dut_ip_be, port, src_ip_be,
                        timeout_ms < kStateProbeTimeoutMs ? timeout_ms : kStateProbeTimeoutMs),
           recv_oob_(dut_ip_be, port, src_ip_be, timeout_ms),
-          udp_ctrl_(dut_ip_be, port, src_ip_be, timeout_ms) {}
+          udp_ctrl_(dut_ip_be, port, src_ip_be, timeout_ms, std::move(raw)) {}
 
     bool probe() override {
         return stimulus::pingUpperTester(dut_ip_be_, port_, timeout_ms_, src_ip_be_)

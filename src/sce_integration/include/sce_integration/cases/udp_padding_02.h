@@ -26,7 +26,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::UdpPadding02SM>
-    : UdpAnyBase<cases::UdpPadding02SM> {
+    : UdpDutOriginatedBase<cases::UdpPadding02SM> {
     static constexpr std::string_view kCaseId      = "UDP_Padding_02";
     static constexpr std::string_view kDescription =
         "DUT-emit UDP datagram with even payload size carries no "
@@ -34,16 +34,15 @@ struct TestCaseTraits<cases::UdpPadding02SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
         ::tc8::sce::udp::emitTriggerSendUdp(
-            cfg, iface, /*req_id=*/1,
+            dut,
             /*dut_src_port=*/cases::kUdpPadding02DutSrcPort,
             /*target_ip_be=*/cfg.ipv4.tester_ip,
             /*target_port=*/::tc8::sce::udp::kDataPort,
             ::tc8::sce::udp::kUdpDefaultData.data(),
-            static_cast<std::uint16_t>(::tc8::sce::udp::kUdpDefaultData.size()),
-            ::tc8::ut::kTesterSrcPort,
-            cfg.dut.mac);
+            static_cast<std::uint16_t>(::tc8::sce::udp::kUdpDefaultData.size()));
     }
 };
 

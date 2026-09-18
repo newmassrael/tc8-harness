@@ -36,6 +36,12 @@ struct TestCaseTraits<cases::Ipv4Fragments05SM> {
     static constexpr bool             kDeprecated   = false;
     static constexpr int              kTopology     = 1;
     static constexpr ::tc8::BpfGroup  kBpfGroup     = ::tc8::BpfGroup::Udp;
+    // The datagram under test is one the DUT must ORIGINATE, asked for over the
+    // Tier-2 seam — so the case is only measurable on a backend providing UDP
+    // control. Standalone traits (no UDP base), hence the declaration here
+    // rather than inherited from UdpDutOriginatedBase.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapUdpControl;
 
     using Captured = typename SM::CapturedType;
     using Expected = typename SM::ExpectedType;
@@ -55,17 +61,15 @@ struct TestCaseTraits<cases::Ipv4Fragments05SM> {
     // multicast).
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
         ::tc8::sce::udp::emitTriggerSendUdp(
-            cfg, iface,
-            /*req_id=*/1,
+            dut,
             /*dut_src_port=*/::tc8::sce::udp::kDataPeerPort,  // 20001
             /*target_ip_be=*/cfg.ipv4.tester_ip,
             /*target_port=*/::tc8::sce::udp::kDataPort,        // 20000
             ::tc8::sce::udp::kUdpDefaultData.data(),
-            static_cast<std::uint16_t>(::tc8::sce::udp::kUdpDefaultData.size()),
-            /*tester_src_port=*/::tc8::ut::kTesterSrcPort,
-            /*dut_mac=*/cfg.dut.mac);
+            static_cast<std::uint16_t>(::tc8::sce::udp::kUdpDefaultData.size()));
     }
 
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {

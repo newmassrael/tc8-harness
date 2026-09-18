@@ -20,7 +20,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::UdpFields02SM>
-    : UdpAnyBase<cases::UdpFields02SM> {
+    : UdpDutOriginatedBase<cases::UdpFields02SM> {
     static constexpr std::string_view kCaseId      = "UDP_FIELDS_02";
     static constexpr std::string_view kDescription =
         "DUT-emitted UDP datagram carries the caller-specified "
@@ -28,19 +28,18 @@ struct TestCaseTraits<cases::UdpFields02SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
         // Per-case unique src_port (20002) keeps observation distinct
         // from sibling FIELDS_01 (src_port=20001) under back-to-back
         // smoke-test runs sharing a netns.
         ::tc8::sce::udp::emitTriggerSendUdp(
-            cfg, iface, /*req_id=*/1,
+            dut,
             /*dut_src_port=*/20002,
             /*target_ip_be=*/cfg.ipv4.tester_ip,
             /*target_port=*/20001,
             ::tc8::sce::udp::kUdpDefaultData.data(),
-            static_cast<std::uint16_t>(::tc8::sce::udp::kUdpDefaultData.size()),
-            ::tc8::ut::kTesterSrcPort,
-            cfg.dut.mac);
+            static_cast<std::uint16_t>(::tc8::sce::udp::kUdpDefaultData.size()));
     }
 };
 

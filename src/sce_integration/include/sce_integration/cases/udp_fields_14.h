@@ -33,7 +33,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::UdpFields14SM>
-    : UdpAnyBase<cases::UdpFields14SM> {
+    : UdpDutOriginatedBase<cases::UdpFields14SM> {
     static constexpr std::string_view kCaseId      = "UDP_FIELDS_14";
     static constexpr std::string_view kDescription =
         "DUT-emitted UDP with even payload size carries a valid checksum "
@@ -41,16 +41,15 @@ struct TestCaseTraits<cases::UdpFields14SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
         const auto p = cases::makeFields14Payload();
         ::tc8::sce::udp::emitTriggerSendUdp(
-            cfg, iface, /*req_id=*/1,
+            dut,
             /*dut_src_port=*/20014,
             /*target_ip_be=*/cfg.ipv4.tester_ip,
             /*target_port=*/::tc8::sce::udp::kDataPort,
-            p.data(), static_cast<std::uint16_t>(p.size()),
-            ::tc8::ut::kTesterSrcPort,
-            cfg.dut.mac);
+            p.data(), static_cast<std::uint16_t>(p.size()));
     }
 };
 

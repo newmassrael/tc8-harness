@@ -20,7 +20,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::UdpUserInterface07SM>
-    : UdpAnyBase<cases::UdpUserInterface07SM> {
+    : UdpDutOriginatedBase<cases::UdpUserInterface07SM> {
     static constexpr std::string_view kCaseId      = "UDP_USER_INTERFACE_07";
     static constexpr std::string_view kDescription =
         "DUT-emit UDP datagram carries caller-specified Source IP "
@@ -38,16 +38,15 @@ struct TestCaseTraits<cases::UdpUserInterface07SM>
     // iface IP lands on `fail_wrong_src_ip_or_port`.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
         ::tc8::sce::udp::emitTriggerSendUdp(
-            cfg, iface, /*req_id=*/1,
+            dut,
             /*dut_src_port=*/20027,
             /*target_ip_be=*/cfg.ipv4.tester_ip,
             /*target_port=*/::tc8::sce::udp::kDataPort,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             static_cast<std::uint16_t>(::tc8::sce::udp::kUdpDefaultData.size()),
-            ::tc8::ut::kTesterSrcPort,
-            cfg.dut.mac,
             ::tc8::sce::udp::kUdpPilotInitialWait,
             /*dut_src_ip_override_be=*/::tc8::sce::udp::kDutAliasIp4Be);
     }

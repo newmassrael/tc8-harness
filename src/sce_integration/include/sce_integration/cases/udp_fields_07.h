@@ -20,7 +20,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::UdpFields07SM>
-    : UdpAnyBase<cases::UdpFields07SM> {
+    : UdpDutOriginatedBase<cases::UdpFields07SM> {
     static constexpr std::string_view kCaseId      = "UDP_FIELDS_07";
     static constexpr std::string_view kDescription =
         "DUT-emitted UDP datagram with no payload carries Length field "
@@ -28,19 +28,18 @@ struct TestCaseTraits<cases::UdpFields07SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
         // Empty payload — DUT kernel emits an 8 B UDP datagram. The
         // packet pipeline tolerates RawPDU absence (post-S15 fix), so
         // the SCXML observes the wire shape via UdpFrame.
         ::tc8::sce::udp::emitTriggerSendUdp(
-            cfg, iface, /*req_id=*/1,
+            dut,
             /*dut_src_port=*/20003,
             /*target_ip_be=*/cfg.ipv4.tester_ip,
             /*target_port=*/::tc8::sce::udp::kDataPort,
             /*payload=*/nullptr,
-            /*payload_len=*/0,
-            ::tc8::ut::kTesterSrcPort,
-            cfg.dut.mac);
+            /*payload_len=*/0);
     }
 };
 

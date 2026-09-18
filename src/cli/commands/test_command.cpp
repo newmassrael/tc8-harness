@@ -908,7 +908,7 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // Tier-2 DUT-control backend (--dut-control). Owned here for the run's
     // lifetime and forwarded to seam-routed stimulus; cases that drive the
     // opcode builders directly never touch it. Built once, not per-case.
-    std::unique_ptr<sce::IDutControl> dut_control = sce::makeDutControl(config);
+    std::unique_ptr<sce::IDutControl> dut_control = sce::makeDutControl(config, iface_);
 
     // Tier-2 2b#4 capability-skip gate. A case may declare the DUT-control
     // capabilities it needs (TestCaseTraits<>::kRequiredCapabilities, mirrored

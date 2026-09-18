@@ -22,7 +22,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::UdpFields04SM>
-    : UdpAnyBase<cases::UdpFields04SM> {
+    : UdpDutOriginatedBase<cases::UdpFields04SM> {
     static constexpr std::string_view kCaseId      = "UDP_FIELDS_04";
     static constexpr std::string_view kDescription =
         "DUT can send UDP to the same destination port at two distinct "
@@ -41,35 +41,30 @@ struct TestCaseTraits<cases::UdpFields04SM>
     // observes the wire frame regardless.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
         ::tc8::sce::udp::emitTriggerSendUdp(
-            cfg, iface,
-            /*req_id=*/1,
+            dut,
             /*dut_src_port=*/20040,
             /*target_ip_be=*/cfg.ipv4.tester_ip,
             /*target_port=*/::tc8::sce::udp::kDataPort,
             ::tc8::sce::udp::kUdpDefaultData.data(),
-            static_cast<std::uint16_t>(::tc8::sce::udp::kUdpDefaultData.size()),
-            ::tc8::ut::kTesterSrcPort,
-            cfg.dut.mac);
+            static_cast<std::uint16_t>(::tc8::sce::udp::kUdpDefaultData.size()));
 
-        std::string iface_copy(iface);
-        ::tc8::TestConfig cfg_copy = cfg;
-        const auto dut_mac = cfg.dut.mac;
+        // The backend outlives the run (the CLI owns it for the whole case), so
+        // the deferred phase-2 send captures it by pointer rather than copying
+        // the transport identities the legacy path had to carry into the lambda.
         scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_phase2),
-            [iface_copy, cfg_copy, dut_mac]() {
+            [dut = &dut]() {
                 ::tc8::sce::udp::emitTriggerSendUdp(
-                    cfg_copy, iface_copy,
-                    /*req_id=*/2,
+                    *dut,
                     /*dut_src_port=*/20040,
                     /*target_ip_be=*/::tc8::sce::udp::kUdpHost2IpBe,
                     /*target_port=*/::tc8::sce::udp::kDataPort,
                     ::tc8::sce::udp::kUdpDefaultData.data(),
                     static_cast<std::uint16_t>(::tc8::sce::udp::kUdpDefaultData.size()),
-                    ::tc8::ut::kTesterSrcPort,
-                    dut_mac,
                     /*initial_wait=*/std::chrono::milliseconds(0));
             });
     }

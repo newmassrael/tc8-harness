@@ -20,7 +20,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::UdpUserInterface05SM>
-    : UdpAnyBase<cases::UdpUserInterface05SM> {
+    : UdpDutOriginatedBase<cases::UdpUserInterface05SM> {
     static constexpr std::string_view kCaseId      = "UDP_USER_INTERFACE_05";
     static constexpr std::string_view kDescription =
         "DUT-emit UDP datagram carries caller-specified Source Port "
@@ -29,16 +29,15 @@ struct TestCaseTraits<cases::UdpUserInterface05SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view /*iface*/,
+                         ::tc8::sce::IDutControl& dut) {
         ::tc8::sce::udp::emitTriggerSendUdp(
-            cfg, iface, /*req_id=*/1,
+            dut,
             /*dut_src_port=*/20025,
             /*target_ip_be=*/cfg.ipv4.tester_ip,
             /*target_port=*/::tc8::sce::udp::kDataPort,
             ::tc8::sce::udp::kUdpDefaultData.data(),
-            static_cast<std::uint16_t>(::tc8::sce::udp::kUdpDefaultData.size()),
-            ::tc8::ut::kTesterSrcPort,
-            cfg.dut.mac);
+            static_cast<std::uint16_t>(::tc8::sce::udp::kUdpDefaultData.size()));
     }
 };
 

@@ -8,6 +8,8 @@
 // pulls the concrete backends (dut_control.h, with its testability/upper-tester
 // client includes); the 543 case headers and test_runner.h never see them.
 
+#include <string_view>
+
 namespace tc8 {
 struct TestConfig;
 }
@@ -21,6 +23,17 @@ class IDutControl;
 //   kOpcode      -> OpcodeUtControl on the opcode UT port (30600).
 //   kTestability -> TestabilityControl on the testability port (30700).
 // `timeout_ms` bounds each control round trip. Never returns null.
-std::unique_ptr<IDutControl> makeDutControl(const ::tc8::TestConfig &cfg, int timeout_ms = 1000);
+//
+// `iface` is the tester NIC the opcode backend injects its UT requests on. It is
+// a construction parameter rather than a `TestConfig` field because it names the
+// tester's own deployment, not the DUT the case is written against — and because
+// only the opcode backend needs it (the testability backend is kernel-routed by
+// design). Passing it is what lets that backend deliver a control request without
+// the tester's stack ARP-resolving the DUT; see `OpcodeRawTransport`. Empty is
+// accepted and selects the kernel-routed path, which is what a loopback unit test
+// wants.
+std::unique_ptr<IDutControl> makeDutControl(const ::tc8::TestConfig &cfg,
+                                            std::string_view iface = {},
+                                            int timeout_ms = 1000);
 
 }  // namespace tc8::sce

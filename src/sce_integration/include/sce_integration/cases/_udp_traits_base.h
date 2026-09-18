@@ -46,16 +46,36 @@ struct UdpAnyBase {
     }
 };
 
+// Base for every UDP case whose procedure needs the DUT to ORIGINATE a datagram
+// (the `emitTriggerSendUdp` step). Same UDP dispatch as UdpAnyBase, plus the one
+// declaration they all share: the harness cannot make a DUT send anything from
+// the wire, so the ask goes over the Tier-2 seam and the case needs the selected
+// backend to provide IUdpControl.
+//
+// Declaring it here rather than in each case is what keeps the requirement from
+// being forgotten by the next case that needs it — and without the declaration
+// the gate cannot fire at all, so the case would sit out its listen window and
+// report a non-conclusion that reads like a DUT fault rather than "not
+// measurable on this backend".
+template <typename StateMachine>
+struct UdpDutOriginatedBase : UdpAnyBase<StateMachine> {
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapUdpControl;
+};
+
 // Base for the §4.6.5.4 UDP EGRESS field-fault `_NEG` cases (UDP_FIELDS_01/02/06/
 // 07/13/14). Same UDP dispatch as UdpAnyBase, plus the one declaration every such
 // case shares: it requires the DUT to implement OpSetEgressFlavor (kCapEgressFault).
 // The DUT is the SSOT for that (OpQueryCapabilities 0x16), so the Tier-2 gate runs
 // these only on the lwIP fixture and capability-skips them (N/A) on the kernel-stack
 // reference DUT — the sibling of ArpEgressFaultNegBase on the UDP dispatch.
+// Every case on this base also drives the faulty datagram out of the DUT itself,
+// so it carries the DUT-originated requirement alongside the fault one — both
+// bits, because the gate needs either absence to skip honestly.
 template <typename StateMachine>
 struct UdpEgressFaultNegBase : UdpAnyBase<StateMachine> {
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
-        ::tc8::sce::kCapEgressFault;
+        ::tc8::sce::kCapEgressFault | ::tc8::sce::kCapUdpControl;
 };
 
 // Base for the §4.6.5.4 UDP INGRESS acceptance-fault `_NEG` cases (UDP_FIELDS_09/10/

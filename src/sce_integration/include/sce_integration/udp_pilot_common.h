@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "tc8/captured_event.h"
+#include "sce_integration/dut_control.h"
 #include "sce_integration/test_config.h"
 #include "sce_integration/udp_captured.h"
 #include "stimulus/ipv4_frame_builder.h"
@@ -260,31 +261,40 @@ inline void emitCreateUdpReceivePorts(const ::tc8::TestConfig& cfg,
         tester_src_port, req);
 }
 
-// Emit an Upper Tester TriggerSendUdp request — §4.4.4.6 FRAGMENTS_05
-// procedure step 1, plus §4.6.5.5 UI_07's caller-specified Source IP
-// axis when `dut_src_ip_override_be` is non-zero.
-inline void emitTriggerSendUdp(const ::tc8::TestConfig& cfg,
-                                std::string_view iface,
-                                std::uint8_t  req_id,
+// Ask the DUT to originate one UDP datagram — §4.4.4.6 FRAGMENTS_05 procedure
+// step 1, plus §4.6.5.5 UI_07's caller-specified Source IP axis when
+// `dut_src_ip_override_be` is non-zero.
+//
+// Routed over the Tier-2 seam rather than building an opcode envelope here, so
+// the request reaches whichever DUT-control backend `--dut-control` selected.
+// The transport, the request id and the tester's own source port are the
+// backend's business and no longer appear in this signature: a case states WHAT
+// the DUT should do, never how the ask is delivered.
+//
+// Returns false when the selected backend has no UDP control, or when the DUT
+// declined the request. A false return means the stimulus did not happen, which
+// is a non-conclusion rather than a DUT verdict — the awaited opcode path
+// already records it as an unperformed stimulus.
+inline bool emitTriggerSendUdp(::tc8::sce::IDutControl& dut,
                                 std::uint16_t dut_src_port,
                                 std::uint32_t target_ip_be,
                                 std::uint16_t target_port,
                                 const std::uint8_t *payload,
                                 std::uint16_t payload_len,
-                                std::uint16_t tester_src_port = ::tc8::ut::kTesterSrcPort,
-                                const std::array<std::uint8_t, 6>& dut_mac = {},
                                 std::chrono::milliseconds initial_wait =
                                     kUdpPilotInitialWait,
                                 std::uint32_t dut_src_ip_override_be = 0) {
     if (initial_wait.count() > 0) {
         std::this_thread::sleep_for(initial_wait);
     }
-    const auto req = ::tc8::stimulus::buildTriggerSendUdpRequest(
-        req_id, dut_src_port, target_ip_be, target_port, payload, payload_len,
-        dut_src_ip_override_be);
-    ::tc8::stimulus::sendUpperTesterRequest(
-        iface, cfg.ipv4.tester_ip, cfg.ipv4.dut_iface_ip, dut_mac,
-        tester_src_port, req);
+    auto *udp = dut.udpControl();
+    if (udp == nullptr) {
+        return false;
+    }
+    return udp->sendDatagram(
+        ::tc8::sce::Endpoint{dut_src_ip_override_be, dut_src_port},
+        ::tc8::sce::Endpoint{target_ip_be, target_port},
+        std::vector<std::uint8_t>(payload, payload + payload_len));
 }
 
 // ADDRESSING_01/02 shared stimulus: send a UDP probe carrying

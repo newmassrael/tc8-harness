@@ -61,6 +61,7 @@ inline void wireRouterOverloadStimulus(
     typename SM::CapturedType&                c,
     const ::tc8::TestConfig&                  cfg,
     std::string_view                          iface,
+    ::tc8::sce::IDutControl&                  dut,
     ::tc8::sce::IStimulusScheduler&           scheduler,
     std::uint8_t                              option_52_overload,
     std::vector<std::uint8_t>                 sname_payload,
@@ -95,25 +96,21 @@ inline void wireRouterOverloadStimulus(
     // `reference_pipeline_empty_udp_gate.md`). A single sentinel
     // byte is enough for udp_observed to fire — pass criteria are
     // L2/L3 shape, not data content.
-    const auto iface_copy = std::string(iface);
     scheduler.scheduleAfterStateEntry(
         static_cast<int>(State::Listening_for_dut_udp),
-        [&scheduler, iface_copy, &cfg]() {
+        [&scheduler, dut = &dut]() {
             scheduler.schedule(
                 std::chrono::milliseconds(400),
-                [iface_copy, &cfg]() {
+                [dut]() {
                     static constexpr std::uint8_t kProbePayload = 0xA5U;
                     ::tc8::sce::udp::emitTriggerSendUdp(
-                        cfg, iface_copy,
-                        /*req_id=*/2U,
+                        *dut,
                         /*dut_src_port=*/::tc8::ut::kDataPeerPort,
                         /*target_ip_be=*/
                         ::tc8::sce::dhcpv4::kUnusedRoutedIpBe,
                         /*target_port=*/::tc8::ut::kDataPort,
                         /*payload=*/&kProbePayload,
                         /*payload_len=*/1U,
-                        /*tester_src_port=*/20101U,
-                        cfg.dut.mac,
                         /*initial_wait=*/std::chrono::milliseconds(0));
                 });
         });

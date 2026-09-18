@@ -24,6 +24,10 @@ struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages05SM>
     : Dhcpv4UdpBase<cases::Dhcpv4ClientConstructingMessages05SM> {
     static constexpr std::string_view kCaseId =
         "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_05";
+    // Step 9 asks the DUT to originate a UDP datagram to the unused routed
+    // address, over the Tier-2 seam — not measurable without UDP control.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapUdpControl;
     static constexpr std::string_view kDescription =
         "DUT parses Option Overload value=2 (sname holds options) and "
         "applies Option 3 (Router) so post-BOUND UDP egress to "
@@ -32,13 +36,14 @@ struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages05SM>
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,
+                         ::tc8::sce::IDutControl& dut,
                          IStimulusScheduler& scheduler) {
         // CM_05: Option 52 = 2 → sname holds options. The same
         // Option 3 (Router) TLV mirrors onto OFFER and ACK so the
         // DUT extracts Router from whichever lifecycle reply it
         // sees first.
         cases::router_option_egress::wireRouterOverloadStimulus<SM>(
-            c, cfg, iface, scheduler,
+            c, cfg, iface, dut, scheduler,
             /*option_52_overload=*/2U,
             /*sname_payload=*/cases::router_option_egress::buildOption3RouterPayload(),
             /*file_payload=*/{});
