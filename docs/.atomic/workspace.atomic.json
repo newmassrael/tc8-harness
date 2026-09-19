@@ -1798,10 +1798,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/stimulus/include/stimulus/upper_tester_client.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/include/sce_integration/arp_and_dhcpv4_captured.h",
           "kind": "implements"
         },
@@ -3563,10 +3559,6 @@
         },
         {
           "file": "tests/dhcpv4_client_initialization_allocation_10/dhcpv4_client_initialization_allocation_10.scxml",
-          "kind": "implements"
-        },
-        {
-          "file": "src/stimulus/upper_tester_client.cpp",
           "kind": "implements"
         },
         {

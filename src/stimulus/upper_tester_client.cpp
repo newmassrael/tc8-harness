@@ -316,31 +316,6 @@ std::vector<std::uint8_t> buildStartDhcpClientRequest(
     return req;
 }
 
-std::vector<std::uint8_t> buildStartDhcpClientBuggyRequest(
-    std::uint8_t  req_id,
-    std::uint16_t offer_wait_ms,
-    std::uint16_t ack_wait_ms,
-    std::uint8_t  retry_count,
-    std::uint16_t retry_interval_ms,
-    std::uint8_t  flavor,
-    std::uint16_t arp_probe_listen_ms) {
-    // Reuse the canonical builder for the 25-byte param block (single source
-    // of the tester-side wire layout — a future slot is added in one place;
-    // the DUT-side reader in posix_ut_extensions.cpp keeps its own offset map)
-    // and append
-    // the trailing `flavor` byte at param offset 24, the handler's n >= 25
-    // gate. `arp_probe_listen_ms` (slot p+11) is the only advanced slot a
-    // _neg drives today (§4.7.6.9 INIT_ALLOC ARP-shape mutants); the rest
-    // stay 0 — the SELECTING-only _neg cases leave it 0 too.
-    return buildStartDhcpClientRequest(
-        req_id, offer_wait_ms, ack_wait_ms, retry_count, retry_interval_ms,
-        /*nak_to_discover_min_ms=*/0, /*nak_to_discover_max_ms=*/0,
-        arp_probe_listen_ms,
-        /*decline_to_discover_min_ms=*/0, /*decline_to_discover_max_ms=*/0,
-        /*retx_first_ms=*/0, /*retx_cap_ms=*/0, /*retx_jitter_ms=*/0,
-        /*iface_index=*/0, flavor);
-}
-
 std::vector<std::uint8_t> buildQueryDhcpLeaseRequest(std::uint8_t req_id) {
     std::vector<std::uint8_t> req;
     req.reserve(2);

@@ -373,29 +373,6 @@ std::vector<std::uint8_t> buildStartDhcpClientRequest(
     std::uint8_t  iface_index                = 0,
     std::uint8_t  flavor                     = 0);
 
-// §4.5.6.1 / §4.7 Phase F fault-injection convenience wrapper for the 0x10
-// OpStartDhcpClient request: a narrowed-arity forwarder to
-// buildStartDhcpClientRequest (the single source of the wire layout) that
-// defaults the advanced timing slots to 0 and threads the trailing `flavor`
-// byte at param offset 24 (the handler's >= 25 gate). The basic
-// SELECTING-timing _neg cases (INTRO_01_NEG, DISCOVER / SELECTING
-// clusters) leave `arp_probe_listen_ms` at 0; the §4.7.6.9 INIT_ALLOC
-// _neg cases pass 1500 so the firmware runs the post-BOUND ARP Probe ->
-// conflict-listen -> Announce | DECLINE sequence the ARP-shape mutants
-// target. The wire shape is uniformly 27 bytes for both positives and _neg
-// cases (buildStartDhcpClientRequest always appends the flavor byte,
-// defaulting to 0); only the flavor *value* distinguishes a _neg.
-// kDhcpFlavorNone makes the firmware run the fully compliant lifecycle
-// (used to prove the negative's compliant branch is live).
-std::vector<std::uint8_t> buildStartDhcpClientBuggyRequest(
-    std::uint8_t  req_id,
-    std::uint16_t offer_wait_ms,
-    std::uint16_t ack_wait_ms,
-    std::uint8_t  retry_count,
-    std::uint16_t retry_interval_ms,
-    std::uint8_t  flavor,
-    std::uint16_t arp_probe_listen_ms = 0);
-
 // Build a 0x11 QueryDhcpLease request. tc8-dut replies with the bound
 // IPv4 address (yiaddr from the matched ACK) or 0 if not yet bound.
 //

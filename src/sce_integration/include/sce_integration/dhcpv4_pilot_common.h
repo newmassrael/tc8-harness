@@ -89,10 +89,10 @@ inline bool emitStartDhcpClient(::tc8::sce::IDutControl& dut,
 // Kept as a distinct name because it states INTENT — this call is arming a
 // firmware mutant, not running a positive lifecycle. It is one seam operation
 // underneath: the wire shape is uniformly 27 bytes for positives and `_neg`
-// alike and only the flavor VALUE distinguishes them, which
-// `buildStartDhcpClientBuggyRequest` said of itself before the seam took over.
-// That builder now has no caller in this tree; removing it is a separate
-// cleanup, since a consumer vendoring this tree may still reference it.
+// alike, and only the flavor VALUE distinguishes them. The pre-seam builder
+// that used to say the same thing of itself was deleted once the vendoring
+// consumer confirmed it had no reference either; `buildStartDhcpClientRequest`
+// remains the single source of that wire layout.
 inline bool emitStartDhcpClientBuggy(::tc8::sce::IDutControl& dut,
                                      std::uint8_t flavor,
                                      bool apply_initial_wait = true,
