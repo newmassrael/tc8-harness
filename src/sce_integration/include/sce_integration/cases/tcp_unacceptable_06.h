@@ -25,7 +25,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpUnacceptable06SM>
-    : TcpAnyBase<cases::TcpUnacceptable06SM> {
+    : TcpDutDrivenBase<cases::TcpUnacceptable06SM> {
     static constexpr std::string_view kCaseId       = "TCP_UNACCEPTABLE_06";
     static constexpr std::string_view kDescription  =
         "TCP in ESTABLISHED state MUST send an ACK indicating the "

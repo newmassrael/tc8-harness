@@ -27,7 +27,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpOutOfOrder01SM>
-    : TcpAnyBase<cases::TcpOutOfOrder01SM> {
+    : TcpDutDrivenBase<cases::TcpOutOfOrder01SM> {
     static constexpr std::string_view kCaseId       = "TCP_OUT_OF_ORDER_01";
     static constexpr std::string_view kDescription  =
         "DUT TCP MUST acknowledge a full-sized segment within 0.5 sec "

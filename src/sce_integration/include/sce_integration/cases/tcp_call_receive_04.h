@@ -28,7 +28,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpCallReceive04SM>
-    : TcpAnyBase<cases::TcpCallReceive04SM> {
+    : TcpDutDrivenBase<cases::TcpCallReceive04SM> {
     static constexpr std::string_view kCaseId       = "TCP_CALL_RECEIVE_04";
     static constexpr std::string_view kDescription  =
         "TCP MUST reassemble queued incoming segments and return the "

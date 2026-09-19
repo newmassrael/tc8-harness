@@ -27,7 +27,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpOutOfOrder02SM>
-    : TcpAnyBase<cases::TcpOutOfOrder02SM> {
+    : TcpDutDrivenBase<cases::TcpOutOfOrder02SM> {
     static constexpr std::string_view kCaseId       = "TCP_OUT_OF_ORDER_02";
     static constexpr std::string_view kDescription  =
         "DUT TCP delayed-ACK MUST fire within 0.5 sec — cumulative "

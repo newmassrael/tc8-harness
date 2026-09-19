@@ -27,7 +27,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpControlFlags05SM>
-    : TcpAnyBase<cases::TcpControlFlags05SM> {
+    : TcpDutDrivenBase<cases::TcpControlFlags05SM> {
     static constexpr std::string_view kCaseId       = "TCP_CONTROL_FLAGS_05";
     static constexpr std::string_view kDescription  =
         "DUT receives a TCP packet with the URG flag set and replies "

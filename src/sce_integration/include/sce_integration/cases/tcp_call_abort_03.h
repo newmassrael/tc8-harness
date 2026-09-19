@@ -31,7 +31,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpCallAbort03SM>
-    : TcpAnyBase<cases::TcpCallAbort03SM> {
+    : TcpDutDrivenBase<cases::TcpCallAbort03SM> {
     static constexpr std::string_view kCaseId       = "TCP_CALL_ABORT_03";
     static constexpr std::string_view kDescription  =
         "TCP in CLOSING / LAST-ACK / TIME-WAIT MUST respond with ok "

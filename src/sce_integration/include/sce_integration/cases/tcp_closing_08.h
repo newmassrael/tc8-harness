@@ -25,7 +25,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpClosing08SM>
-    : TcpAnyBase<cases::TcpClosing08SM> {
+    : TcpDutDrivenBase<cases::TcpClosing08SM> {
     static constexpr std::string_view kCaseId       = "TCP_CLOSING_08";
     static constexpr std::string_view kDescription  =
         "TCP in FIN-WAIT-2 state MUST honour RECEIVE calls and ACK "

@@ -37,7 +37,7 @@ namespace tc8::sce {
 // so this _neg is a faithful self-validation. Single fail-final, so no coverage.json entry.
 template <>
 struct TestCaseTraits<cases::TcpUnacceptable10NegSM>
-    : TcpIngressFaultNegBase<cases::TcpUnacceptable10NegSM> {
+    : TcpIngressFaultNegDrivenBase<cases::TcpUnacceptable10NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_UNACCEPTABLE_10_NEG";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_UNACCEPTABLE_10: the lwIP kTcpSynthRstOnDisruptive ingress flavor "

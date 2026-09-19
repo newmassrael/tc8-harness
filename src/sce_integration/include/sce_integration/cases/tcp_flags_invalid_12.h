@@ -26,7 +26,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpFlagsInvalid12SM>
-    : TcpAnyBase<cases::TcpFlagsInvalid12SM> {
+    : TcpDutDrivenBase<cases::TcpFlagsInvalid12SM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_INVALID_12";
     static constexpr std::string_view kDescription  =
         "TCP in CLOSING state MUST send an ACK with next expected "

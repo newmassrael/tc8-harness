@@ -24,7 +24,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpMssOptions01SM>
-    : TcpAnyBase<cases::TcpMssOptions01SM> {
+    : TcpDutDrivenBase<cases::TcpMssOptions01SM> {
     static constexpr std::string_view kCaseId       = "TCP_MSS_OPTIONS_01";
     static constexpr std::string_view kDescription  =
         "DUT MUST handle an illegal MSS option length in a SYN segment "

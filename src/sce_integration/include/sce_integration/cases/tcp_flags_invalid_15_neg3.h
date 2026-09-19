@@ -32,7 +32,7 @@ namespace tc8::sce {
 // eight per-fail-final variants graduating the multi-guard positive.
 template <>
 struct TestCaseTraits<cases::TcpFlagsInvalid15Neg3SM>
-    : TcpIngressFaultNegBase<cases::TcpFlagsInvalid15Neg3SM> {
+    : TcpIngressFaultNegDrivenBase<cases::TcpFlagsInvalid15Neg3SM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_INVALID_15_NEG3";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_FLAGS_INVALID_15 (FIN-WAIT-1): the lwIP "

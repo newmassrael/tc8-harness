@@ -26,7 +26,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpHeader06SM>
-    : TcpAnyBase<cases::TcpHeader06SM> {
+    : TcpDutDrivenBase<cases::TcpHeader06SM> {
     static constexpr std::string_view kCaseId       = "TCP_HEADER_06";
     static constexpr std::string_view kDescription  =
         "DUT ignores Reserved field non-zero value and accepts the TCP "

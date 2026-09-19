@@ -24,7 +24,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpMssOptions03SM>
-    : TcpAnyBase<cases::TcpMssOptions03SM> {
+    : TcpDutDrivenBase<cases::TcpMssOptions03SM> {
     static constexpr std::string_view kCaseId       = "TCP_MSS_OPTIONS_03";
     static constexpr std::string_view kDescription  =
         "DUT MUST ignore an unimplemented TCP option in a SYN segment "

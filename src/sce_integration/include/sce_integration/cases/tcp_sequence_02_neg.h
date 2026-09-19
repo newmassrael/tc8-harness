@@ -33,7 +33,7 @@ namespace tc8::sce {
 // (kCapEgressFault). Mirrors tcp_sequence_02's SYN-SENT drive.
 template <>
 struct TestCaseTraits<cases::TcpSequence02NegSM>
-    : TcpEgressFaultNegBase<cases::TcpSequence02NegSM> {
+    : TcpEgressFaultNegDrivenBase<cases::TcpSequence02NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_SEQUENCE_02_NEG";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_SEQUENCE_02: the lwIP kTcpFaultPureAckNumWrong egress "

@@ -27,7 +27,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpClosing03SM>
-    : TcpAnyBase<cases::TcpClosing03SM> {
+    : TcpDutDrivenBase<cases::TcpClosing03SM> {
     static constexpr std::string_view kCaseId       = "TCP_CLOSING_03";
     static constexpr std::string_view kDescription  =
         "TCP SHOULD allow a received RST segment to include data and "

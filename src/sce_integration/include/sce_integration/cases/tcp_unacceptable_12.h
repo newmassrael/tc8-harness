@@ -28,7 +28,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpUnacceptable12SM>
-    : TcpAnyBase<cases::TcpUnacceptable12SM> {
+    : TcpDutDrivenBase<cases::TcpUnacceptable12SM> {
     static constexpr std::string_view kCaseId       = "TCP_UNACCEPTABLE_12";
     static constexpr std::string_view kDescription  =
         "TCP in LAST-ACK state MUST return ACK with proper SEQ and "

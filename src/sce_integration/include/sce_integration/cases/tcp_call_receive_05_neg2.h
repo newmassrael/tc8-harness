@@ -32,7 +32,7 @@ namespace tc8::sce {
 // DUT->tester frame), so the DUT's real CLOSE-WAIT behaviour is unchanged.
 template <>
 struct TestCaseTraits<cases::TcpCallReceive05Neg2SM>
-    : TcpIngressFaultNegBase<cases::TcpCallReceive05Neg2SM> {
+    : TcpIngressFaultNegDrivenBase<cases::TcpCallReceive05Neg2SM> {
     static constexpr std::string_view kCaseId       = "TCP_CALL_RECEIVE_05_NEG2";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_CALL_RECEIVE_05: the lwIP kTcpSynthFinOnDisruptive ingress "

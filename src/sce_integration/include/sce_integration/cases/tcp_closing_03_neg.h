@@ -35,7 +35,7 @@ namespace tc8::sce {
 // seam reaches but the egress field-fault cannot — the conformant DUT emits no segment to corrupt.
 template <>
 struct TestCaseTraits<cases::TcpClosing03NegSM>
-    : TcpIngressFaultNegBase<cases::TcpClosing03NegSM> {
+    : TcpIngressFaultNegDrivenBase<cases::TcpClosing03NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_CLOSING_03_NEG";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_CLOSING_03: the lwIP kTcpSynthRstOnDisruptive ingress flavor "

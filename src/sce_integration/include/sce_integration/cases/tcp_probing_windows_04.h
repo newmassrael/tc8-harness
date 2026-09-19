@@ -29,7 +29,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpProbingWindows04SM>
-    : TcpAnyBase<cases::TcpProbingWindows04SM> {
+    : TcpDutDrivenBase<cases::TcpProbingWindows04SM> {
     static constexpr std::string_view kCaseId       = "TCP_PROBING_WINDOWS_04";
     static constexpr std::string_view kDescription  =
         "DUT TCP MUST keep the connection open and emit zero-window "

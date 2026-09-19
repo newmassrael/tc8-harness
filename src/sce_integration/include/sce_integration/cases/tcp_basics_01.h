@@ -24,7 +24,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpBasics01SM>
-    : TcpAnyBase<cases::TcpBasics01SM> {
+    : TcpDutDrivenBase<cases::TcpBasics01SM> {
     static constexpr std::string_view kCaseId       = "TCP_BASICS_01";
     static constexpr std::string_view kDescription  =
         "TCP in LISTEN state MUST send a SYN,ACK in response to a "

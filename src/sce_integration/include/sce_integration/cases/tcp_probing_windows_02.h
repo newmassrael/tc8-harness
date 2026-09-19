@@ -27,7 +27,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpProbingWindows02SM>
-    : TcpAnyBase<cases::TcpProbingWindows02SM> {
+    : TcpDutDrivenBase<cases::TcpProbingWindows02SM> {
     static constexpr std::string_view kCaseId       = "TCP_PROBING_WINDOWS_02";
     static constexpr std::string_view kDescription  =
         "DUT TCP MUST treat the receive window as an unsigned 16-bit "

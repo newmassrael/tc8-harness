@@ -1058,18 +1058,44 @@ describe.
 
 ---
 
-## TD-19 — 53 TCP cases drive the DUT over the seam without declaring kCapTcpControl
+## TD-19 — TCP cases drove the DUT over the seam without declaring kCapTcpControl
 
-**Status:** OPEN (accepted; latent, no wrong verdict on either shipped backend). **Logged:**
-2026-09-19, from a seam-capability audit run after the ARP instance of the same gap was fixed.
+**Status:** RESOLVED (2026-09-19, same day). **Logged:** 2026-09-19, from a seam-capability audit
+run after the ARP instance of the same gap was fixed.
+
+**Resolution.** 166 of 181 `tcp_*.h` cases reach `ITcpControl`; all 166 now declare
+`kCapTcpControl`, via three new sibling bases in `_tcp_traits_base.h` — `TcpDutDrivenBase`,
+`TcpEgressFaultNegDrivenBase`, `TcpIngressFaultNegDrivenBase` — with 135 case headers repointed
+onto them. The 15 that do not reach the seam are unchanged and still declare nothing, so no case
+is skipped for a sub-interface it never touches. Verified both directions by audit (166/166
+declare, 0 non-driver over-declares) and on the wire: 168 runnable TCP cases, 112 PASS / 56 SKIP
+before and after, ZERO verdict diff.
+
+⚠ One half is NOT proven and should not be claimed: no shipped backend LACKS `kCapTcpControl`
+(opcode and AUTOSAR-testability both advertise it), so nobody has observed these declarations
+actually producing a skip. The gate mechanism itself was proven end to end the same day on the
+ARP set — `skip:requires_capability_0x8_unavailable_on_autosar-testability` for the declaring
+cases and normal runs for the rest — so what is unproven here is these particular declarations
+firing, not the machinery.
+
+★ **The registered count was wrong twice, and the corrections are the useful part.** It was filed
+as 53. The instrument missed `seamTcpControl(dut)`, the canonical accessor wrapper, because the
+sweep excluded `dut_control.h` where it is defined (53 -> 91); then it missed helpers that reach
+the seam TRANSITIVELY, such as `driveSeamSynSentOpen` -> `seamConnectTcp` (91 -> 166). The second
+correction surfaced only because the over-declaration check flagged seven cases as declaring
+without using — files the fix had never touched. They were using it; the detector could not see
+how. A sweep that checks only the direction it expects to find would have shipped 91 and called
+it complete.
 
 **What it is.** A case that drives the DUT through an `IDutControl` sub-interface is only
 measurable on a backend that provides it, and says so with `kRequiredCapabilities` so the gate
 can decline a backend that does not. An audit over all 749 case headers — resolving seam
 helpers to accessors transitively, walking base chains on the declared side, and reading
-COMMENT-STRIPPED source — found 53 cases declaring less than they call. All 53 omit
+COMMENT-STRIPPED source — found cases declaring less than they call. All of them omit
 `kCapTcpControl`, which BOTH shipped backends advertise, so the gate is satisfied, the cases
-run, and nothing is misreported today.
+run, and nothing is misreported today. (The count went 53 -> 91 -> 166 as the instrument was
+corrected; see the Resolution note above. Figures below that say 53 are the as-filed numbers and
+are left as written rather than back-edited — the count moving is part of the record.)
 
 ⚠ The instrument had to be corrected twice before that number meant anything, and the earlier
 figures are in this file's history, not its text. Scanning `dut_control.h` made every interface
@@ -1130,20 +1156,27 @@ therefore a latency problem and not a live false-PASS one — but that is a fact
 and any new case that can reach `pass` on a timeout must declare what establishes its premise
 before it is written.
 
-**Textbook fix.** The same axis split the ARP fix used, not a base-wide declaration. Driving the
-DUT is INDEPENDENT of dispatch shape: `TcpAnyBase` carries 109 cases and only 74 reach
-`tcpControl()`, so declaring on the base would capability-skip 35 observation-only cases for a
-sub-interface they never touch — trading one wrong non-conclusion for another. A
-`TcpDutDrivenBase` sibling carrying the declaration, with the drivers repointed onto it, mirrors
-`ArpDutProvokedBase` exactly.
+**Fix as applied.** The same axis split the ARP fix used, not a base-wide declaration. Driving the
+DUT is INDEPENDENT of dispatch shape: `TcpAnyBase` carries 109 cases and 81 reach the seam, so
+declaring on the base would capability-skip 28 observation-only cases for a sub-interface they
+never touch — trading one wrong non-conclusion for another. The `TcpDutDrivenBase` sibling and its
+two fault-flavoured variants carry the declaration instead, mirroring `ArpDutProvokedBase`.
 
-**Deferred because.** It changes no verdict on either backend today, and it is a 53-header
-change whose whole value is that it must not change one. Proving that needs its own before/after
-over the TCP set at `--workers 1` — a long run the ARP and control-plane passes had already
-spent — and a zero-diff claim is worth nothing if it rides along unverified at the end of
-another change. ⚠ Deferred is not the same as safe: see the risk section for why "no verdict
-change today" is the weakest of the reasons to wait. The runtime guard added alongside the ARP
-fix limits the damage meanwhile: the
-seam-absence branches now record a named unperformed stimulus
-(`dut_arp_control_absent` and siblings), so a case reaching a missing sub-interface reports that
-name rather than inventing a DUT fault.
+⚠ A mid-course measurement briefly said 106 of 109 drive, which would have argued for declaring on
+the shared base and marking exceptions. That figure came from an ad-hoc regex matching any
+`driveSeam*`, including seams that are not TCP. Re-measured with the same detector as the rest of
+the audit it is 81, and the axis split stands. Two instruments, two answers, and the design
+decision hung on which one was believed.
+
+**Why it was not deferred after all.** It was filed as deferred on the grounds that it changes no
+verdict on either backend today — and that is exactly the reasoning the risk section above calls
+the weakest available. The work is a header-only change whose whole value is that it must not
+change a verdict, which is cheap to prove and worth nothing unproven, so it got its own
+before/after over the full runnable TCP set rather than riding along with something else.
+
+The runtime guard from the ARP pass stays as the backstop for whatever this audit could not see:
+the seam-absence branches record a named unperformed stimulus (`dut_arp_control_absent` and
+siblings), so a case reaching a missing sub-interface reports that name instead of inventing a
+DUT fault. TCP is the exception worth knowing about — `seamTcpControl` ASSERTS rather than
+recording, so there the backstop is an abort in a debug build and undefined behaviour under
+NDEBUG. That is the strongest argument for the declaration and the reason this did not stay open.

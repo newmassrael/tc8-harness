@@ -27,7 +27,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpAcknowledgement02SM>
-    : TcpAnyBase<cases::TcpAcknowledgement02SM> {
+    : TcpDutDrivenBase<cases::TcpAcknowledgement02SM> {
     static constexpr std::string_view kCaseId       = "TCP_ACKNOWLEDGEMENT_02";
     static constexpr std::string_view kDescription  =
         "DUT accepts an ACK piggybacked with the next transmit packet "

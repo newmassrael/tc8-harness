@@ -24,7 +24,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpClosing06SM>
-    : TcpAnyBase<cases::TcpClosing06SM> {
+    : TcpDutDrivenBase<cases::TcpClosing06SM> {
     static constexpr std::string_view kCaseId       = "TCP_CLOSING_06";
     static constexpr std::string_view kDescription  =
         "TCP in ESTABLISHED state MUST send a FIN segment when the "

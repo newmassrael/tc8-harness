@@ -37,7 +37,7 @@ namespace tc8::sce {
 // field-fault cannot — the conformant DUT emits no segment to corrupt.
 template <>
 struct TestCaseTraits<cases::TcpHeader04NegSM>
-    : TcpIngressFaultNegBase<cases::TcpHeader04NegSM> {
+    : TcpIngressFaultNegDrivenBase<cases::TcpHeader04NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_HEADER_04_NEG";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_HEADER_04: the lwIP kTcpSynthAckSrcPortBlind ingress flavor makes "

@@ -34,7 +34,7 @@ namespace tc8::sce {
 // (kCapEgressFault).
 template <>
 struct TestCaseTraits<cases::TcpFlagsInvalid02NegSM>
-    : TcpEgressFaultNegBase<cases::TcpFlagsInvalid02NegSM> {
+    : TcpEgressFaultNegDrivenBase<cases::TcpFlagsInvalid02NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_INVALID_02_NEG";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_FLAGS_INVALID_02: the lwIP kTcpFaultRstSeqWrong egress "

@@ -24,7 +24,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpFlagsInvalid02SM>
-    : TcpAnyBase<cases::TcpFlagsInvalid02SM> {
+    : TcpDutDrivenBase<cases::TcpFlagsInvalid02SM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_INVALID_02";
     static constexpr std::string_view kDescription  =
         "TCP in LISTEN state MUST send RST in response to incoming "

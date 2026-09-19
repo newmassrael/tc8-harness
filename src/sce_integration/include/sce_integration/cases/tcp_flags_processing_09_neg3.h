@@ -37,7 +37,7 @@ namespace tc8::sce {
 // field-fault cannot — the conformant DUT emits no RST to corrupt.
 template <>
 struct TestCaseTraits<cases::TcpFlagsProcessing09Neg3SM>
-    : TcpIngressFaultNegBase<cases::TcpFlagsProcessing09Neg3SM> {
+    : TcpIngressFaultNegDrivenBase<cases::TcpFlagsProcessing09Neg3SM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_PROCESSING_09_NEG3";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_FLAGS_PROCESSING_09 (CLOSE-WAIT): the lwIP "

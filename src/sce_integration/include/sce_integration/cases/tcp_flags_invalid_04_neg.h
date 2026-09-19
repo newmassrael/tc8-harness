@@ -35,7 +35,7 @@ namespace tc8::sce {
 // nothing, so there is no DUT segment whose field a corruption could flip.
 template <>
 struct TestCaseTraits<cases::TcpFlagsInvalid04NegSM>
-    : TcpIngressFaultNegBase<cases::TcpFlagsInvalid04NegSM> {
+    : TcpIngressFaultNegDrivenBase<cases::TcpFlagsInvalid04NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_INVALID_04_NEG";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_FLAGS_INVALID_04: the lwIP kTcpSynthRstOnDisruptive ingress "

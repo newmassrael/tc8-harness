@@ -35,7 +35,7 @@ namespace tc8::sce {
 // multi-guard positive.
 template <>
 struct TestCaseTraits<cases::TcpFlagsProcessing07Neg4SM>
-    : TcpIngressFaultNegBase<cases::TcpFlagsProcessing07Neg4SM> {
+    : TcpIngressFaultNegDrivenBase<cases::TcpFlagsProcessing07Neg4SM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_PROCESSING_07_NEG4";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_FLAGS_PROCESSING_07 (TIME-WAIT): the lwIP "

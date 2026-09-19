@@ -37,7 +37,7 @@ namespace tc8::sce {
 // (the conformant DUT emits nothing).
 template <>
 struct TestCaseTraits<cases::TcpChecksum02NegSM>
-    : TcpIngressFaultNegBase<cases::TcpChecksum02NegSM> {
+    : TcpIngressFaultNegDrivenBase<cases::TcpChecksum02NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_CHECKSUM_02_NEG";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_CHECKSUM_02: the lwIP kTcpSynthAck ingress flavor makes the DUT "

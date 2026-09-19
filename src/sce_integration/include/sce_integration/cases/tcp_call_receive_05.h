@@ -35,7 +35,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpCallReceive05SM>
-    : TcpAnyBase<cases::TcpCallReceive05SM> {
+    : TcpDutDrivenBase<cases::TcpCallReceive05SM> {
     static constexpr std::string_view kCaseId       = "TCP_CALL_RECEIVE_05";
     static constexpr std::string_view kDescription  =
         "TCP in CLOSE-WAIT state MUST return queued data to the "

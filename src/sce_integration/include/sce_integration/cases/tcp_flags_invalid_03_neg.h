@@ -35,7 +35,7 @@ namespace tc8::sce {
 // DUT emits nothing.
 template <>
 struct TestCaseTraits<cases::TcpFlagsInvalid03NegSM>
-    : TcpIngressFaultNegBase<cases::TcpFlagsInvalid03NegSM> {
+    : TcpIngressFaultNegDrivenBase<cases::TcpFlagsInvalid03NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_INVALID_03_NEG";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_FLAGS_INVALID_03: the lwIP kTcpSynthRstOnDisruptive ingress "

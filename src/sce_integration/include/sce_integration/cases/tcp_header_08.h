@@ -26,7 +26,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpHeader08SM>
-    : TcpAnyBase<cases::TcpHeader08SM> {
+    : TcpDutDrivenBase<cases::TcpHeader08SM> {
     static constexpr std::string_view kCaseId       = "TCP_HEADER_08";
     static constexpr std::string_view kDescription  =
         "DUT discards TCP packet with Data Offset greater than the "

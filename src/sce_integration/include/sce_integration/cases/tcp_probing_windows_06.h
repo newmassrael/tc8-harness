@@ -28,7 +28,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpProbingWindows06SM>
-    : TcpAnyBase<cases::TcpProbingWindows06SM> {
+    : TcpDutDrivenBase<cases::TcpProbingWindows06SM> {
     static constexpr std::string_view kCaseId       = "TCP_PROBING_WINDOWS_06";
     static constexpr std::string_view kDescription  =
         "DUT TCP SHOULD increase exponentially the interval between "

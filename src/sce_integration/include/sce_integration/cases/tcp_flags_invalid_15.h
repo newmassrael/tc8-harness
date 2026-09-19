@@ -31,7 +31,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpFlagsInvalid15SM>
-    : TcpAnyBase<cases::TcpFlagsInvalid15SM> {
+    : TcpDutDrivenBase<cases::TcpFlagsInvalid15SM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_INVALID_15";
     static constexpr std::string_view kDescription  =
         "TCP in any state other than CLOSED, SYN-SENT and LISTEN MUST "

@@ -23,7 +23,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpMssOptions11SM>
-    : TcpAnyBase<cases::TcpMssOptions11SM> {
+    : TcpDutDrivenBase<cases::TcpMssOptions11SM> {
     static constexpr std::string_view kCaseId       = "TCP_MSS_OPTIONS_11";
     static constexpr std::string_view kDescription  =
         "DUT MUST implement sending the MSS option in its active-OPEN "

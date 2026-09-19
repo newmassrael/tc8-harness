@@ -31,7 +31,7 @@ namespace tc8::sce {
 // (ACK+RST, no SYN bit) and active-OPEN port offset.
 template <>
 struct TestCaseTraits<cases::TcpFlagsInvalid05Neg2SM>
-    : TcpIngressFaultNegBase<cases::TcpFlagsInvalid05Neg2SM> {
+    : TcpIngressFaultNegDrivenBase<cases::TcpFlagsInvalid05Neg2SM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_INVALID_05_NEG2";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_FLAGS_INVALID_05 phase 2: the lwIP kTcpDropDisruptiveRst "

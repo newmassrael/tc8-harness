@@ -34,7 +34,7 @@ namespace tc8::sce {
 // the three per-fail-final variants graduating the multi-guard positive.
 template <>
 struct TestCaseTraits<cases::TcpFlagsProcessing08Neg2SM>
-    : TcpIngressFaultNegBase<cases::TcpFlagsProcessing08Neg2SM> {
+    : TcpIngressFaultNegDrivenBase<cases::TcpFlagsProcessing08Neg2SM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_PROCESSING_08_NEG2";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_FLAGS_PROCESSING_08 (LISTEN): the lwIP kTcpSynthRstOnDisruptive "

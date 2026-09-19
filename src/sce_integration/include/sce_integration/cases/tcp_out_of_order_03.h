@@ -27,7 +27,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpOutOfOrder03SM>
-    : TcpAnyBase<cases::TcpOutOfOrder03SM> {
+    : TcpDutDrivenBase<cases::TcpOutOfOrder03SM> {
     static constexpr std::string_view kCaseId       = "TCP_OUT_OF_ORDER_03";
     static constexpr std::string_view kDescription  =
         "DUT TCP queues out-of-order segments and emits a cumulative ACK "

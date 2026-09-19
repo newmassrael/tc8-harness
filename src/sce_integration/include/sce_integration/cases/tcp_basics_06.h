@@ -23,7 +23,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpBasics06SM>
-    : TcpAnyBase<cases::TcpBasics06SM> {
+    : TcpDutDrivenBase<cases::TcpBasics06SM> {
     static constexpr std::string_view kCaseId       = "TCP_BASICS_06";
     static constexpr std::string_view kDescription  =
         "TCP in CLOSED state MUST send a SYN on an active OPEN call "

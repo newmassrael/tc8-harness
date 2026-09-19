@@ -26,7 +26,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpHeader04SM>
-    : TcpAnyBase<cases::TcpHeader04SM> {
+    : TcpDutDrivenBase<cases::TcpHeader04SM> {
     static constexpr std::string_view kCaseId       = "TCP_HEADER_04";
     static constexpr std::string_view kDescription  =
         "DUT discards TCP packet whose source port differs from the "

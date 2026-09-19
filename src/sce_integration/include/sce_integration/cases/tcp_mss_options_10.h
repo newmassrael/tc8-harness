@@ -25,7 +25,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpMssOptions10SM>
-    : TcpAnyBase<cases::TcpMssOptions10SM> {
+    : TcpDutDrivenBase<cases::TcpMssOptions10SM> {
     static constexpr std::string_view kCaseId       = "TCP_MSS_OPTIONS_10";
     static constexpr std::string_view kDescription  =
         "If an MSS option is not received at connection setup, DUT "

@@ -29,7 +29,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpChecksum02SM>
-    : TcpAnyBase<cases::TcpChecksum02SM> {
+    : TcpDutDrivenBase<cases::TcpChecksum02SM> {
     static constexpr std::string_view kCaseId       = "TCP_CHECKSUM_02";
     static constexpr std::string_view kDescription  =
         "Receiver TCP MUST check the checksum and MUST NOT acknowledge "

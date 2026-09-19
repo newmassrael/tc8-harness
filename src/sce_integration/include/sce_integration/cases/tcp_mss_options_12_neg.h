@@ -27,7 +27,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpMssOptions12NegSM>
-    : TcpEgressFaultNegBase<cases::TcpMssOptions12NegSM> {
+    : TcpEgressFaultNegDrivenBase<cases::TcpMssOptions12NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_MSS_OPTIONS_12_NEG";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_MSS_OPTIONS_12: the lwIP kTcpFaultSynMssDefault egress "

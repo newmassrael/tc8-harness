@@ -27,7 +27,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpCallAbort02SM>
-    : TcpAnyBase<cases::TcpCallAbort02SM> {
+    : TcpDutDrivenBase<cases::TcpCallAbort02SM> {
     static constexpr std::string_view kCaseId       = "TCP_CALL_ABORT_02";
     static constexpr std::string_view kDescription  =
         "TCP in ESTABLISHED state MUST enter CLOSED on application "

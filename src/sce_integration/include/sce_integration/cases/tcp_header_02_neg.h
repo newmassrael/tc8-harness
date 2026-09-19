@@ -36,7 +36,7 @@ namespace tc8::sce {
 // (kCapEgressFault via TcpEgressFaultNegBase). Mirrors tcp_header_02's stimulus.
 template <>
 struct TestCaseTraits<cases::TcpHeader02NegSM>
-    : TcpEgressFaultNegBase<cases::TcpHeader02NegSM> {
+    : TcpEgressFaultNegDrivenBase<cases::TcpHeader02NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_HEADER_02_NEG";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_HEADER_02: the lwIP kTcpFaultPureAckNumWrong egress "

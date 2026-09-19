@@ -37,7 +37,7 @@ namespace tc8::sce {
 // handshake SYN,ACK is not mistaken for the trigger. lwIP-only (kCapIngressFault).
 template <>
 struct TestCaseTraits<cases::TcpHeader11NegSM>
-    : TcpIngressFaultNegBase<cases::TcpHeader11NegSM> {
+    : TcpIngressFaultNegDrivenBase<cases::TcpHeader11NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_HEADER_11_NEG";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_HEADER_11: the lwIP kTcpSynthAck ingress flavor makes the DUT "

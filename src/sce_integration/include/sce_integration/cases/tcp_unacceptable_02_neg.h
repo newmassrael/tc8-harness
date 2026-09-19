@@ -36,7 +36,7 @@ namespace tc8::sce {
 // but the egress field-fault cannot — the conformant DUT emits no segment to corrupt.
 template <>
 struct TestCaseTraits<cases::TcpUnacceptable02NegSM>
-    : TcpIngressFaultNegBase<cases::TcpUnacceptable02NegSM> {
+    : TcpIngressFaultNegDrivenBase<cases::TcpUnacceptable02NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_UNACCEPTABLE_02_NEG";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_UNACCEPTABLE_02 (SYN-RECEIVED): the lwIP "

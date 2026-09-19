@@ -30,7 +30,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpFlagsProcessing02SM>
-    : TcpAnyBase<cases::TcpFlagsProcessing02SM> {
+    : TcpDutDrivenBase<cases::TcpFlagsProcessing02SM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_PROCESSING_02";
     static constexpr std::string_view kDescription  =
         "TCP in SYN-RCVD / EST / FW1 / FW2 / CW MUST return to "

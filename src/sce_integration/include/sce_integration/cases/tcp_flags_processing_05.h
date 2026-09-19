@@ -26,7 +26,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpFlagsProcessing05SM>
-    : TcpAnyBase<cases::TcpFlagsProcessing05SM> {
+    : TcpDutDrivenBase<cases::TcpFlagsProcessing05SM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_PROCESSING_05";
     static constexpr std::string_view kDescription  =
         "TCP in SYN-RCVD MUST go to LISTEN state on receiving SYN "

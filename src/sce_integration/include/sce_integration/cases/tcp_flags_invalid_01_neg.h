@@ -34,7 +34,7 @@ namespace tc8::sce {
 // seam reaches but the egress field-fault cannot — the conformant DUT emits no segment to corrupt.
 template <>
 struct TestCaseTraits<cases::TcpFlagsInvalid01NegSM>
-    : TcpIngressFaultNegBase<cases::TcpFlagsInvalid01NegSM> {
+    : TcpIngressFaultNegDrivenBase<cases::TcpFlagsInvalid01NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_INVALID_01_NEG";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_FLAGS_INVALID_01 (LISTEN): the lwIP kTcpSynthRstOnDisruptive "

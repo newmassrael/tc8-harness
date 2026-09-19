@@ -24,7 +24,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpMssOptions02SM>
-    : TcpAnyBase<cases::TcpMssOptions02SM> {
+    : TcpDutDrivenBase<cases::TcpMssOptions02SM> {
     static constexpr std::string_view kCaseId       = "TCP_MSS_OPTIONS_02";
     static constexpr std::string_view kDescription  =
         "DUT MUST accept No Operation and End of Options List options "

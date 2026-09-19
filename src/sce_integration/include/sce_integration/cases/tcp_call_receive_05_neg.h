@@ -32,7 +32,7 @@ namespace tc8::sce {
 // CLOSE-WAIT behaviour is unchanged. A case the egress field-fault cannot reach.
 template <>
 struct TestCaseTraits<cases::TcpCallReceive05NegSM>
-    : TcpIngressFaultNegBase<cases::TcpCallReceive05NegSM> {
+    : TcpIngressFaultNegDrivenBase<cases::TcpCallReceive05NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_CALL_RECEIVE_05_NEG";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_CALL_RECEIVE_05: the lwIP kTcpSynthRstOnDisruptive ingress "

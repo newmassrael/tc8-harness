@@ -24,7 +24,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpHeader01SM>
-    : TcpAnyBase<cases::TcpHeader01SM> {
+    : TcpDutDrivenBase<cases::TcpHeader01SM> {
     static constexpr std::string_view kCaseId       = "TCP_HEADER_01";
     static constexpr std::string_view kDescription  =
         "DUT generates a TCP packet containing valid header field values "

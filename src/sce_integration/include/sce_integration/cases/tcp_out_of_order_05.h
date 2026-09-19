@@ -26,7 +26,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpOutOfOrder05SM>
-    : TcpAnyBase<cases::TcpOutOfOrder05SM> {
+    : TcpDutDrivenBase<cases::TcpOutOfOrder05SM> {
     static constexpr std::string_view kCaseId       = "TCP_OUT_OF_ORDER_05";
     static constexpr std::string_view kDescription  =
         "DUT TCP MUST emit at least one ACK per two full-sized "

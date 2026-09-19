@@ -42,6 +42,29 @@ struct TcpAnyBase {
     }
 };
 
+// Base for the §4.8 cases that DRIVE the DUT's TCP data plane over the Tier-2
+// seam — connectTcp / listenTcp / sendTcp / receiveTcp / closeTcp, reached
+// through `seamTcpControl` or one of the `_tcp_seam*.h` helpers. Same dispatch
+// as TcpAnyBase, plus the declaration that lets the capability gate decline a
+// backend with no ITcpControl.
+//
+// The declaration is not hygiene here, it is the CONTRACT `seamTcpControl`
+// names: it asserts the pointer is non-null "because the gate already skipped
+// this case", so a case that reaches the seam without declaring is relying on
+// an invariant it never established. Under NDEBUG that assert compiles out and
+// the deref is undefined rather than an honest skip.
+//
+// Separate from TcpAnyBase and not folded into it because only 81 of that
+// base's 109 cases reach the seam; the other 28 drive the DUT entirely from the
+// tester side (`emitTcpFrame`) and are measurable on any backend. Declaring on
+// the shared base would capability-skip those 28 for a sub-interface they never
+// touch — the same axis split ArpDutProvokedBase exists for.
+template <typename StateMachine>
+struct TcpDutDrivenBase : TcpAnyBase<StateMachine> {
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapTcpControl;
+};
+
 // Base for the §4.8 TCP EGRESS field-fault `_NEG` cases. Same TCP dispatch as
 // TcpAnyBase, plus the one declaration every such case shares: it requires the DUT to
 // implement OpSetEgressFlavor (kCapEgressFault). The Tier-2 gate runs these only on
@@ -52,6 +75,17 @@ template <typename StateMachine>
 struct TcpEgressFaultNegBase : TcpAnyBase<StateMachine> {
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
         ::tc8::sce::kCapEgressFault;
+};
+
+// The half of that family whose procedure also DRIVES the DUT over the seam
+// (11 of 26 — the rest arm the flavor and then inject every segment from the
+// tester). Both bits are restated because this declaration SHADOWS the one
+// above rather than extending it; dropping either silently removes a
+// requirement, which is how DHCPv4 CM_05/06 lost their DHCP bit.
+template <typename StateMachine>
+struct TcpEgressFaultNegDrivenBase : TcpAnyBase<StateMachine> {
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapEgressFault | ::tc8::sce::kCapTcpControl;
 };
 
 // Base for the §4.8 TCP behavioral INGRESS `_NEG` cases (ACKNOWLEDGEMENT_04). The positive
@@ -66,6 +100,14 @@ template <typename StateMachine>
 struct TcpIngressFaultNegBase : TcpAnyBase<StateMachine> {
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
         ::tc8::sce::kCapIngressFault;
+};
+
+// As TcpEgressFaultNegDrivenBase, for the ingress family: the 18 of 39 whose
+// procedure drives the DUT over the seam as well as arming the fault.
+template <typename StateMachine>
+struct TcpIngressFaultNegDrivenBase : TcpAnyBase<StateMachine> {
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapIngressFault | ::tc8::sce::kCapTcpControl;
 };
 
 }  // namespace tc8::sce

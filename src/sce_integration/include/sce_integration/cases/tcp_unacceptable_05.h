@@ -24,7 +24,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpUnacceptable05SM>
-    : TcpAnyBase<cases::TcpUnacceptable05SM> {
+    : TcpDutDrivenBase<cases::TcpUnacceptable05SM> {
     static constexpr std::string_view kCaseId       = "TCP_UNACCEPTABLE_05";
     static constexpr std::string_view kDescription  =
         "TCP in LISTEN state MUST send a RST after receiving a segment "

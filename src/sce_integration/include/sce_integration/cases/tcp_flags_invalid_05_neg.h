@@ -31,7 +31,7 @@ namespace tc8::sce {
 // (a conformant DUT emits nothing here, so there is no DUT field to corrupt).
 template <>
 struct TestCaseTraits<cases::TcpFlagsInvalid05NegSM>
-    : TcpIngressFaultNegBase<cases::TcpFlagsInvalid05NegSM> {
+    : TcpIngressFaultNegDrivenBase<cases::TcpFlagsInvalid05NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_INVALID_05_NEG";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_FLAGS_INVALID_05 phase 1: the lwIP kTcpDropDisruptiveRst "

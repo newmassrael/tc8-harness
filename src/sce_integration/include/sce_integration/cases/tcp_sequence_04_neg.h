@@ -33,7 +33,7 @@ namespace tc8::sce {
 // flavor + raw passive accept as tcp_sequence_01_neg, with the wrap-around tester ISN.
 template <>
 struct TestCaseTraits<cases::TcpSequence04NegSM>
-    : TcpEgressFaultNegBase<cases::TcpSequence04NegSM> {
+    : TcpEgressFaultNegDrivenBase<cases::TcpSequence04NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_SEQUENCE_04_NEG";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_SEQUENCE_04: the lwIP kTcpFaultSynAckAckWrong egress "

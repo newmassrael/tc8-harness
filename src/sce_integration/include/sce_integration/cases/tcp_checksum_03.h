@@ -24,7 +24,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpChecksum03SM>
-    : TcpAnyBase<cases::TcpChecksum03SM> {
+    : TcpDutDrivenBase<cases::TcpChecksum03SM> {
     static constexpr std::string_view kCaseId       = "TCP_CHECKSUM_03";
     static constexpr std::string_view kDescription  =
         "Sender TCP MUST generate a correct RFC 793 §3.1 pseudo-header "

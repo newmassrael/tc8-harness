@@ -36,7 +36,7 @@ namespace tc8::sce {
 // field-fault cannot synthesise an emission a conformant DUT never makes).
 template <>
 struct TestCaseTraits<cases::TcpAcknowledgement04NegSM>
-    : TcpIngressFaultNegBase<cases::TcpAcknowledgement04NegSM> {
+    : TcpIngressFaultNegDrivenBase<cases::TcpAcknowledgement04NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_ACKNOWLEDGEMENT_04_NEG";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_ACKNOWLEDGEMENT_04: the lwIP kTcpSynthRst ingress flavor "

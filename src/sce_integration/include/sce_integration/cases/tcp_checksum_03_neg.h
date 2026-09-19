@@ -27,7 +27,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpChecksum03NegSM>
-    : TcpEgressFaultNegBase<cases::TcpChecksum03NegSM> {
+    : TcpEgressFaultNegDrivenBase<cases::TcpChecksum03NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_CHECKSUM_03_NEG";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_CHECKSUM_03: the lwIP kTcpFaultDataChecksumWrong egress "

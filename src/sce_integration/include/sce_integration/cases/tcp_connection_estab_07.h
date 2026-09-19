@@ -27,7 +27,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpConnectionEstab07SM>
-    : TcpAnyBase<cases::TcpConnectionEstab07SM> {
+    : TcpDutDrivenBase<cases::TcpConnectionEstab07SM> {
     static constexpr std::string_view kCaseId       = "TCP_CONNECTION_ESTAB_07";
     static constexpr std::string_view kDescription  =
         "DUT acks tester FIN and on user Close emits its own FIN to "

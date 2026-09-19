@@ -28,7 +28,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpFlagsProcessing10SM>
-    : TcpAnyBase<cases::TcpFlagsProcessing10SM> {
+    : TcpDutDrivenBase<cases::TcpFlagsProcessing10SM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_PROCESSING_10";
     static constexpr std::string_view kDescription  =
         "DUT in ESTABLISHED MUST piggyback the acknowledgement onto a "

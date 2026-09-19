@@ -35,7 +35,7 @@ namespace tc8::sce {
 // is armed before the tester data injection. lwIP-only (kCapEgressFault).
 template <>
 struct TestCaseTraits<cases::TcpAcknowledgement02NegSM>
-    : TcpEgressFaultNegBase<cases::TcpAcknowledgement02NegSM> {
+    : TcpEgressFaultNegDrivenBase<cases::TcpAcknowledgement02NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_ACKNOWLEDGEMENT_02_NEG";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_ACKNOWLEDGEMENT_02: the lwIP kTcpFaultPureAckNumWrong "

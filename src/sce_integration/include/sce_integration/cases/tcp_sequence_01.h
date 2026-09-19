@@ -25,7 +25,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpSequence01SM>
-    : TcpAnyBase<cases::TcpSequence01SM> {
+    : TcpDutDrivenBase<cases::TcpSequence01SM> {
     static constexpr std::string_view kCaseId       = "TCP_SEQUENCE_01";
     static constexpr std::string_view kDescription  =
         "DUT acknowledges tester ISN by emitting SYN,ACK with "

@@ -28,7 +28,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpUnacceptable14SM>
-    : TcpAnyBase<cases::TcpUnacceptable14SM> {
+    : TcpDutDrivenBase<cases::TcpUnacceptable14SM> {
     static constexpr std::string_view kCaseId       = "TCP_UNACCEPTABLE_14";
     static constexpr std::string_view kDescription  =
         "TCP in CLOSE-WAIT state MUST return ACK with proper SEQ and "

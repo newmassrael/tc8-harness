@@ -27,7 +27,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpNagle02SM>
-    : TcpAnyBase<cases::TcpNagle02SM> {
+    : TcpDutDrivenBase<cases::TcpNagle02SM> {
     static constexpr std::string_view kCaseId       = "TCP_NAGLE_02";
     static constexpr std::string_view kDescription  =
         "DUT MUST implement Nagle: with outstanding unacknowledged data "

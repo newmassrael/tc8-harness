@@ -28,7 +28,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpSequence01NegSM>
-    : TcpEgressFaultNegBase<cases::TcpSequence01NegSM> {
+    : TcpEgressFaultNegDrivenBase<cases::TcpSequence01NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_SEQUENCE_01_NEG";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_SEQUENCE_01: the lwIP kTcpFaultSynAckAckWrong egress "

@@ -36,7 +36,7 @@ namespace tc8::sce {
 // conformant DUT emits nothing).
 template <>
 struct TestCaseTraits<cases::TcpFlagsProcessing11NegSM>
-    : TcpIngressFaultNegBase<cases::TcpFlagsProcessing11NegSM> {
+    : TcpIngressFaultNegDrivenBase<cases::TcpFlagsProcessing11NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_PROCESSING_11_NEG";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_FLAGS_PROCESSING_11: the lwIP kTcpSynthRst ingress flavor makes "

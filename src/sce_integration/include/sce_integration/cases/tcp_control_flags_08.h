@@ -26,7 +26,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpControlFlags08SM>
-    : TcpAnyBase<cases::TcpControlFlags08SM> {
+    : TcpDutDrivenBase<cases::TcpControlFlags08SM> {
     static constexpr std::string_view kCaseId       = "TCP_CONTROL_FLAGS_08";
     static constexpr std::string_view kDescription  =
         "Recovery from old duplicate SYN: DUT in LISTEN replies SYN,ACK "

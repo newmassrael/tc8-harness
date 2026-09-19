@@ -30,7 +30,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpFlagsProcessing09SM>
-    : TcpAnyBase<cases::TcpFlagsProcessing09SM> {
+    : TcpDutDrivenBase<cases::TcpFlagsProcessing09SM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_PROCESSING_09";
     static constexpr std::string_view kDescription  =
         "TCP in CLOSE-WAIT / CLOSING / LAST-ACK MUST not change "

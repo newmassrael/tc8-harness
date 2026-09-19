@@ -26,7 +26,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpBasics11SM>
-    : TcpAnyBase<cases::TcpBasics11SM> {
+    : TcpDutDrivenBase<cases::TcpBasics11SM> {
     static constexpr std::string_view kCaseId       = "TCP_BASICS_11";
     static constexpr std::string_view kDescription  =
         "TCP MUST move on to CLOSED state from TIME-WAIT state after "

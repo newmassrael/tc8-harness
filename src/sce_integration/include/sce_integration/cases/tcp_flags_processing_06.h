@@ -28,7 +28,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpFlagsProcessing06SM>
-    : TcpAnyBase<cases::TcpFlagsProcessing06SM> {
+    : TcpDutDrivenBase<cases::TcpFlagsProcessing06SM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_PROCESSING_06";
     static constexpr std::string_view kDescription  =
         "TCP in TIME-WAIT state MUST acknowledge a retransmitted FIN "

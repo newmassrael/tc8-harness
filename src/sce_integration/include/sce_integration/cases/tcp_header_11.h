@@ -29,7 +29,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpHeader11SM>
-    : TcpAnyBase<cases::TcpHeader11SM> {
+    : TcpDutDrivenBase<cases::TcpHeader11SM> {
     static constexpr std::string_view kCaseId       = "TCP_HEADER_11";
     static constexpr std::string_view kDescription  =
         "DUT silently discards SYN with multicast IP destination address "

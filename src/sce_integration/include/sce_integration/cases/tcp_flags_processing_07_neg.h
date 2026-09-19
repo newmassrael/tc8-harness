@@ -36,7 +36,7 @@ namespace tc8::sce {
 // per-fail-final variants graduating the multi-guard positive (CW / CLOSING / LA / TW).
 template <>
 struct TestCaseTraits<cases::TcpFlagsProcessing07NegSM>
-    : TcpIngressFaultNegBase<cases::TcpFlagsProcessing07NegSM> {
+    : TcpIngressFaultNegDrivenBase<cases::TcpFlagsProcessing07NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_PROCESSING_07_NEG";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_FLAGS_PROCESSING_07 (CLOSE-WAIT): the lwIP "

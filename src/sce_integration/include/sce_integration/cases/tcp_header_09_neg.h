@@ -33,7 +33,7 @@ namespace tc8::sce {
 // per-phase (after ESTABLISHED). lwIP-only (kCapIngressFault).
 template <>
 struct TestCaseTraits<cases::TcpHeader09NegSM>
-    : TcpIngressFaultNegBase<cases::TcpHeader09NegSM> {
+    : TcpIngressFaultNegDrivenBase<cases::TcpHeader09NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_HEADER_09_NEG";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_HEADER_09: the lwIP kTcpSynthAck ingress flavor makes the DUT "

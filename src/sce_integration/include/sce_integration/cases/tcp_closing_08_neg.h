@@ -35,7 +35,7 @@ namespace tc8::sce {
 // FW2 absence guard — a case the egress field-fault cannot reach.
 template <>
 struct TestCaseTraits<cases::TcpClosing08NegSM>
-    : TcpIngressFaultNegBase<cases::TcpClosing08NegSM> {
+    : TcpIngressFaultNegDrivenBase<cases::TcpClosing08NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_CLOSING_08_NEG";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_CLOSING_08: the lwIP kTcpSynthRstOnDisruptive ingress flavor "

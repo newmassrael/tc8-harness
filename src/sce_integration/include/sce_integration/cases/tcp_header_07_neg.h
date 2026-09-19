@@ -35,7 +35,7 @@ namespace tc8::sce {
 // seam reaches but the egress field-fault cannot (the conformant DUT emits nothing).
 template <>
 struct TestCaseTraits<cases::TcpHeader07NegSM>
-    : TcpIngressFaultNegBase<cases::TcpHeader07NegSM> {
+    : TcpIngressFaultNegDrivenBase<cases::TcpHeader07NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_HEADER_07_NEG";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_HEADER_07: the lwIP kTcpSynthAck ingress flavor makes the DUT "

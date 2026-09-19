@@ -27,7 +27,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpSequence05SM>
-    : TcpAnyBase<cases::TcpSequence05SM> {
+    : TcpDutDrivenBase<cases::TcpSequence05SM> {
     static constexpr std::string_view kCaseId       = "TCP_SEQUENCE_05";
     static constexpr std::string_view kDescription  =
         "From ESTABLISHED, DUT acknowledges each tester data segment "

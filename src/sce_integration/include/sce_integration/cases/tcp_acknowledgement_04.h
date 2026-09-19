@@ -25,7 +25,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpAcknowledgement04SM>
-    : TcpAnyBase<cases::TcpAcknowledgement04SM> {
+    : TcpDutDrivenBase<cases::TcpAcknowledgement04SM> {
     static constexpr std::string_view kCaseId       = "TCP_ACKNOWLEDGEMENT_04";
     static constexpr std::string_view kDescription  =
         "DUT receives a pure ACK (Length=0, no piggybacking) and MUST "

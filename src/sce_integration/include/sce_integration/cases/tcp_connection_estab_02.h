@@ -27,7 +27,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::TcpConnectionEstab02SM>
-    : TcpAnyBase<cases::TcpConnectionEstab02SM> {
+    : TcpDutDrivenBase<cases::TcpConnectionEstab02SM> {
     static constexpr std::string_view kCaseId       = "TCP_CONNECTION_ESTAB_02";
     static constexpr std::string_view kDescription  =
         "DUT opens 3 passive sockets and emits SYN,ACK on each "

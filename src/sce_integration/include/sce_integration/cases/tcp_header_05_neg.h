@@ -34,7 +34,7 @@ namespace tc8::sce {
 // lwIP-only (kCapEgressFault). Mirrors tcp_header_05's stimulus on the +33 port quad.
 template <>
 struct TestCaseTraits<cases::TcpHeader05NegSM>
-    : TcpEgressFaultNegBase<cases::TcpHeader05NegSM> {
+    : TcpEgressFaultNegDrivenBase<cases::TcpHeader05NegSM> {
     static constexpr std::string_view kCaseId       = "TCP_HEADER_05_NEG";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_HEADER_05: the lwIP kTcpFaultPureAckNumWrong egress "
