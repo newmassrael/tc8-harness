@@ -1102,6 +1102,34 @@ wire evidence alone and reports a clean PASS whose premise was never established
 non-conclusion gets looked at; a green does not. Neither was visible in CI, which runs
 `--dut-control=opcode`, the backend that has everything.
 
+The silent form has a worst case, and it is not hypothetical. Where the seam call is what
+ESTABLISHES a case's premise and the case can reach a `pass` final without observing anything,
+an unprovoked listen window IS the pass condition: nothing happens, the deadline expires, and
+the case reports PASS on a premise nobody established. MEASURED on an AUTOSAR-testability run:
+ARP_03 and ARP_05 were passing that way, and declaring `kCapArpConditioning` converted both into
+honest skips. Two vacuous greens, invisible from any lane where the provocation works, because
+there the premise is real and the pass is sound.
+
+**The checkable predicate is narrower than "the case grades an absence", and narrower than "the
+SCXML has a `deadline_exceeded` transition targeting `pass`".** It is: *a `pass` final is
+reachable from the INITIAL state by timeout transitions alone.* The middle formulation is
+necessary but not sufficient and would mislead — IPv4_AUTOCONF_INTRO_01 has such a transition,
+but it sits in the THIRD state, behind an observed DISCOVER and an observed REQUEST. Its
+initial-state deadline lands on `inconclusive_no_discover`, so an unprovoked run there is a
+non-conclusion someone investigates. Confirmed on the same testability run: INTRO_01 reported
+inconclusive, not pass, while ARP_03/_05 reported pass. An absence case that routes its first
+deadline to an inconclusive final protects itself however broken the provocation is.
+
+Swept on that predicate, the population is 24 cases: ARP_03, ARP_05, ARP_21/27/37/42 and
+TCP_CLOSING_13 directly, plus the 17 that reach it through
+`_templates/icmpv4_negative_absence` or `_templates/ipv4_negative_absence`. Of the 24, exactly
+two establish their premise over the seam — ARP_03 and ARP_05 — and both now declare. The other
+22 are tester-provoked (`emitArpFromTester`, `emitTcpFrame`) and touch no sub-interface, so no
+backend can take their premise away. None of the 53 below is in the population at all. TD-19 is
+therefore a latency problem and not a live false-PASS one — but that is a fact about today's 53,
+and any new case that can reach `pass` on a timeout must declare what establishes its premise
+before it is written.
+
 **Textbook fix.** The same axis split the ARP fix used, not a base-wide declaration. Driving the
 DUT is INDEPENDENT of dispatch shape: `TcpAnyBase` carries 109 cases and only 74 reach
 `tcpControl()`, so declaring on the base would capability-skip 35 observation-only cases for a

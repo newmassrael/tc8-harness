@@ -1,3 +1,13 @@
+# ⚠ THIS EXPORT SURFACE DOES NOT BOUND WHAT CONSUMERS REACH, so it must not be
+# used as a deletion argument. It bounds what a consumer gets from
+# `find_package(tc8-utm)`. A consumer that VENDORS this tree wholesale — which at
+# least one does — includes whatever headers it likes, and in practice that
+# includes several under `stimulus/`, which nothing here exports. So "not on the
+# export surface" and "zero in-tree callers" together still do not make a symbol
+# dead: they only mean this repository cannot see who uses it. Confirm with the
+# consumer before pruning anything they could include, and prefer deprecating in
+# place over deleting when the answer is not available.
+#
 # ── Out-of-tree UTM SDK install/export (PRS_TPSP §6.6 stateful extension) ─────
 # include()'d from the top-level CMakeLists AFTER add_subdirectory(dut) so
 # tc8_testability_server (and the rest of the exported closure) already exist.
