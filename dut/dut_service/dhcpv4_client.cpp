@@ -789,13 +789,16 @@ void Dhcpv4Client::emitArpAnnounce(std::uint32_t committed_ip_be) {
     sendRaw(f, sizeof(f));
 }
 
-bool Dhcpv4Client::runArpProbeListener(std::uint32_t              probed_ip_be,
-                                        std::chrono::milliseconds  listen) {
+bool Dhcpv4Client::probeAndAwaitConflict(std::uint32_t              probed_ip_be,
+                                          std::chrono::milliseconds  listen) {
     // §4.7.6.9 INIT_ALLOC_09 conflict detector. Open AF_PACKET
-    // SOCK_RAW(ETH_P_ARP) on the bound iface, poll for `listen` ms,
-    // and treat any ARP frame whose `sender_proto_ip` equals
-    // `probed_ip_be` from a non-DUT hardware address as the RFC 2131
-    // §4.4.1 "address appears to be in use" signal.
+    // SOCK_RAW(ETH_P_ARP) on the bound iface, EMIT THE PROBE, then poll
+    // for `listen` ms, and treat any ARP frame whose `sender_proto_ip`
+    // equals `probed_ip_be` from a non-DUT hardware address as the
+    // RFC 2131 §4.4.1 "address appears to be in use" signal.
+    //
+    // The ordering is the fix: socket first, probe second. See the header
+    // for the measurement that forced it.
     int sk = ::socket(AF_PACKET, SOCK_RAW, htons(kEthTypeArp));
     if (sk < 0) return false;
 
@@ -809,6 +812,11 @@ bool Dhcpv4Client::runArpProbeListener(std::uint32_t              probed_ip_be,
     bind_addr.sll_ifindex  = ifr.ifr_ifindex;
     if (::bind(sk, reinterpret_cast<sockaddr*>(&bind_addr),
                sizeof(bind_addr)) < 0) { ::close(sk); return false; }
+
+    // Armed. Only now does the Probe go out, so the listen window covers
+    // every reply it can provoke — including one sent within microseconds
+    // of it, which is what a conformance tester does.
+    emitArpProbe(probed_ip_be);
 
     using clock = std::chrono::steady_clock;
     const auto deadline = clock::now() + listen;
@@ -1248,8 +1256,7 @@ void Dhcpv4Client::runLoop(Params params) {
         // the same post-ACK behaviour they did pre-S9.
         if (bound && params.arp_probe_listen_ms.count() > 0 &&
             !stop_requested_.load()) {
-            emitArpProbe(ack_yiaddr_be);
-            const bool conflict = runArpProbeListener(
+            const bool conflict = probeAndAwaitConflict(
                 ack_yiaddr_be, params.arp_probe_listen_ms);
             if (conflict) {
                 // RFC 2131 §4.4.4: DECLINE the offered address and

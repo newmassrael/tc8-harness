@@ -326,14 +326,23 @@ private:
     // `committed_ip_be`, eth_dst = broadcast.
     void emitArpAnnounce(std::uint32_t committed_ip_be);
 
-    // §4.7.6.9 INIT_ALLOC_08/_09 post-Probe listener. Open an AF_PACKET
-    // SOCK_RAW(ETH_P_ARP) socket, poll for `listen` ms, and inspect
-    // every ARP frame whose sender_proto_ip equals `probed_ip_be` from
-    // a non-DUT hardware address — that is the RFC 2131 §4.4.1 "address
-    // appears to be in use" signal. Returns true on conflict, false on
-    // timeout (no other host claims the address).
-    bool runArpProbeListener(std::uint32_t              probed_ip_be,
-                             std::chrono::milliseconds  listen);
+    // §4.7.6.9 INIT_ALLOC_08/_09 Probe + conflict listen, as ONE call.
+    // Opens and binds an AF_PACKET SOCK_RAW(ETH_P_ARP) socket, THEN emits
+    // the Probe, then polls for `listen` ms, inspecting every ARP frame
+    // whose sender_proto_ip equals `probed_ip_be` from a non-DUT hardware
+    // address — the RFC 2131 §4.4.1 "address appears to be in use" signal.
+    // Returns true on conflict, false on timeout.
+    //
+    // The emit lives INSIDE this call, and that is the whole point: as two
+    // separate steps the Probe went out before the socket was bound, so a
+    // reply arriving in the setup window was never delivered. MEASURED — a
+    // conflict Reply unicast to the DUT 99 US after the Probe was missed
+    // every time, and the client announced the address it should have
+    // declined. Same rule the UDP listener below already states for
+    // emitDhcpDiscover; binding first is not an optimisation, it is what
+    // makes the listen window mean what it says.
+    bool probeAndAwaitConflict(std::uint32_t              probed_ip_be,
+                               std::chrono::milliseconds  listen);
 
     // Open + bind a UDP SOCK_DGRAM listener on INADDR_ANY:68 for the
     // DUT's iface. Returns the fd, or -1 on failure. The socket is
