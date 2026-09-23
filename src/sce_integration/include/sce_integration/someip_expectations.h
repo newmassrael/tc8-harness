@@ -9,15 +9,10 @@
 #include <string>
 #include <vector>
 
+#include "expected_payload.h"
 #include "tc8/bpf_group.h"  // BpfGroup — which protocol scope the case observes
 
 namespace tc8 {
-
-// Ceiling for an expected L7 payload supplied via `--expect payload=HH:..`
-// and asserted by a SOME/IP ETS Method-Response echo cond. Echo payloads are
-// small (primitives / short structs / short arrays); a token that exceeds this
-// makes the parser reject it (fail-loud) rather than silently truncate.
-inline constexpr std::size_t kMaxExpectedPayload = 256;
 
 // Flat DTO for the expected values a TC8 §5.1 SOMEIPSRV case compares
 // captured SD-entry fields against — carries configured SERVICE-ID-1
@@ -33,7 +28,11 @@ inline constexpr std::size_t kMaxExpectedPayload = 256;
 // and the Named Context cannot drift. Add a new `--expect` field to THIS
 // struct (plus the `expect_parser.cpp` key table); `applyTestConfig` copies
 // the whole base in one assignment, so there is no per-field copy to forget.
-struct SomeIpExpectations {
+//
+// The expected L7 payload a SOME/IP ETS Method-Response echo cond compares
+// (`captured.payload_equals(expected.payload_view())`, supplied via
+// `--expect payload=HH:HH:..`) is the shared ExpectedPayload base.
+struct SomeIpExpectations : ExpectedPayload {
     std::uint16_t service_id = 0;
     std::uint16_t instance_id = 0;
     std::uint8_t major_version = 0;
@@ -172,14 +171,6 @@ struct SomeIpExpectations {
     std::uint32_t can_delay_time_ms = 0;
     std::uint32_t can_start_offset_ms = 0;
     std::uint32_t can_timing_tolerance_ms = 0;
-
-    // Expected L7 payload bytes for a Method-Response echo assertion,
-    // supplied via `--expect payload=HH:HH:..`. `payload_len` is the count
-    // of valid leading bytes (0 = unset). ETS echo conds compare it via
-    // `captured.payload_equals(expected.payload_view())`; the negative
-    // harness flips one byte to drive the observed_violation final.
-    std::array<std::uint8_t, kMaxExpectedPayload> payload{};
-    std::uint32_t payload_len = 0;
 };
 
 // The IPv4 multicast groups a run must be able to HEAR for its observation of

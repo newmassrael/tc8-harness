@@ -163,8 +163,9 @@ bool applyField(std::string_view v, M &member) {
 }
 
 // The colon-separated hex byte list — fills two members, so it is handled
-// outside the single-member applyField setter.
-bool applyPayload(std::string_view val, ::tc8::SomeIpExpectations &e) {
+// outside the single-member applyField setter. Targets the shared
+// ExpectedPayload base, so every group that carries one parses it alike.
+bool applyPayload(std::string_view val, ::tc8::ExpectedPayload &e) {
     if (val.empty()) {
         return false;
     }
