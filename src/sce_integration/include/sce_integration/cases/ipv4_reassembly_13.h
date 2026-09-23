@@ -62,33 +62,18 @@ struct TestCaseTraits<cases::Ipv4Reassembly13SM>
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
-        const auto body = ::tc8::wire::buildIcmpEchoRequestBody(
-            ::tc8::stimulus::kIcmpEchoId,
-            ::tc8::stimulus::kIcmpEchoSeq,
-            ::tc8::sce::ipv4::reassembly::kReassembly13EchoPayload.data(),
-            static_cast<std::uint32_t>(::tc8::sce::ipv4::reassembly::kReassembly13EchoPayload.size()));
+        namespace r = ::tc8::sce::ipv4::reassembly;
+        const auto f     = r::buildReassembly13Fragments();
+        const auto ip_id = r::kReassembly13IpId;
 
-        const std::vector<std::uint8_t> frag0_payload(body.begin(),       body.begin() + 16);
-        const std::vector<std::uint8_t> frag1_payload(
-            ::tc8::sce::ipv4::reassembly::kReassembly13WrongFragPayload.begin(),
-            ::tc8::sce::ipv4::reassembly::kReassembly13WrongFragPayload.end());
-        const std::vector<std::uint8_t> frag2_payload(body.begin() + 16, body.begin() + 24);
-        const std::vector<std::uint8_t> frag3_payload(body.begin() + 24, body.end());
-
-        const auto ip_id = ::tc8::sce::ipv4::reassembly::kReassembly13IpId;
-
-        ::tc8::sce::ipv4::reassembly::emitIpv4Fragment(
-            iface, cfg, cfg.arp.dut_iface_mac, ip_id,
-            /*offset=*/0, /*MF=*/true, /*ttl=*/64, frag0_payload);
-        ::tc8::sce::ipv4::reassembly::emitIpv4Fragment(
-            iface, cfg, cfg.arp.dut_iface_mac, ip_id,
-            /*offset=*/2, /*MF=*/true, /*ttl=*/64, frag1_payload);
-        ::tc8::sce::ipv4::reassembly::emitIpv4Fragment(
-            iface, cfg, cfg.arp.dut_iface_mac, ip_id,
-            /*offset=*/2, /*MF=*/true, /*ttl=*/64, frag2_payload);
-        ::tc8::sce::ipv4::reassembly::emitIpv4Fragment(
-            iface, cfg, cfg.arp.dut_iface_mac, ip_id,
-            /*offset=*/3, /*MF=*/false, /*ttl=*/64, frag3_payload);
+        r::emitIpv4Fragment(iface, cfg, cfg.arp.dut_iface_mac, ip_id,
+                            r::kReassembly13HeadOffset, /*MF=*/true, /*ttl=*/64, f.head);
+        r::emitIpv4Fragment(iface, cfg, cfg.arp.dut_iface_mac, ip_id,
+                            r::kReassembly13OverlapOffset, /*MF=*/true, /*ttl=*/64, f.wrong_overlap);
+        r::emitIpv4Fragment(iface, cfg, cfg.arp.dut_iface_mac, ip_id,
+                            r::kReassembly13OverlapOffset, /*MF=*/true, /*ttl=*/64, f.right_overlap);
+        r::emitIpv4Fragment(iface, cfg, cfg.arp.dut_iface_mac, ip_id,
+                            r::kReassembly13TailOffset, /*MF=*/false, /*ttl=*/64, f.tail);
     }
 };
 

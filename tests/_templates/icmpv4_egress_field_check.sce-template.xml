@@ -19,8 +19,10 @@
   not a DUT violation). Single `{$pass_expr}` per the ipv4_field_check precedent: an
   XML attribute can't carry a raw `<`, so `!({$pass_expr})` is the robust negation.
 
-  5 s deadline matches the §4.3 positive cluster: the tester-provoked Echo Reply lands
-  well within the window.
+  5 s deadline (the `deadline` default) matches the §4.3 positive cluster: the
+  tester-provoked Echo Reply lands well within the window. A consumer whose observed
+  frame comes later binds a longer one — the §4.4.4.7 reassembly drop negatives wait
+  for the DUT's own reassembly timer to expire and report it.
 -->
 <sce:template xmlns:sce="http://sce.dev/ext"
               xmlns="http://www.w3.org/2005/07/scxml"
@@ -33,6 +35,7 @@
   <sce:param name="fail_reason"         required="true"/>
   <sce:param name="fail_role"           required="true"/>
   <sce:param name="inconclusive_reason" required="true"/>
+  <sce:param name="deadline"            default="5s"/>
 
   <sce:context id="captured"
                cpp:type="tc8::Icmpv4Captured"
@@ -44,7 +47,7 @@
 
   <state id="listening">
     <onentry>
-      <send event="deadline_exceeded" delay="5s"/>
+      <send event="deadline_exceeded" delay="{$deadline}"/>
     </onentry>
     <transition event="icmp_observed"
                 cond="cpp:({$filter}) and ({$pass_expr})"

@@ -141,4 +141,97 @@ inline std::vector<std::uint8_t> buildReassembly32BEchoBody() {
         static_cast<std::uint32_t>(kReassembly04EchoPayload.size()));
 }
 
+// The Echo data a reassembled reply must carry, as the view
+// `Icmpv4Captured::payload_equals` takes. One name per case for its pass guard
+// and its `_NEG` data variant, so neither spells the cast in SCXML.
+inline std::string_view reassembly11EchoData() {
+    const auto& d = ::tc8::sce::ipv4::fragments::kFragmentsEchoPayload;
+    return {reinterpret_cast<const char*>(d.data()), d.size()};
+}
+
+inline std::string_view reassembly13EchoData() {
+    return {reinterpret_cast<const char*>(kReassembly13EchoPayload.data()),
+            kReassembly13EchoPayload.size()};
+}
+
+// REASSEMBLY_11's two fragments: kReassembly11IpId and kReassemblyLargeTtl
+// on both halves, the FRAGMENTS_01 16 B body split 8/8. The one builder for
+// the positive (which sends frag 0 and schedules frag 1 past the reassembly
+// timeout) and its `_NEG` siblings (which send both back to back, so a
+// conformant DUT reassembles before any timer can expire). Sharing it keeps
+// the frames a sibling faults identical to the positive's.
+inline ::tc8::sce::ipv4::fragments::FragmentPair buildReassembly11FragmentPair(
+    const ::tc8::TestConfig& cfg) {
+    ::tc8::sce::ipv4::fragments::FragmentPairParams params{};
+    params.ip_id_frag0 = kReassembly11IpId;
+    params.ip_id_frag1 = kReassembly11IpId;
+    params.ttl_frag0   = kReassemblyLargeTtl;
+    params.ttl_frag1   = kReassemblyLargeTtl;
+    return ::tc8::sce::ipv4::fragments::buildFragmentPair(cfg, cfg.arp.dut_iface_mac, params);
+}
+
+// Send REASSEMBLY_11's pair back to back (no timer-extension premise). The
+// `_NEG` siblings' stimulus: a conformant DUT reassembles it and replies, which
+// is the frame their egress faults corrupt and their drop fault prevents.
+inline void emitReassembly11PairBackToBack(const ::tc8::TestConfig& cfg, std::string_view iface) {
+    const auto pair = buildReassembly11FragmentPair(cfg);
+    ::tc8::stimulus::IpBootTiming t0{};
+    t0.initial_wait = std::chrono::milliseconds{200};
+    ::tc8::stimulus::emitIpv4Frame(iface, pair.frag0_spec, pair.frag0_payload, t0);
+    ::tc8::stimulus::IpBootTiming t1{};
+    t1.initial_wait = std::chrono::milliseconds{0};
+    ::tc8::stimulus::emitIpv4Frame(iface, pair.frag1_spec, pair.frag1_payload, t1);
+}
+
+// REASSEMBLY_13's fragments, in 8-octet offsets over a 35 B Echo Request body
+// (8 B ICMP header + 27 B kReassembly13EchoPayload, checksum computed once
+// over the post-resolution region):
+//   head          offset 0, MF, body[0..15]
+//   wrong_overlap offset 2, MF, 24 B kReassembly13WrongFragPayload
+//   right_overlap offset 2, MF, body[16..23] (the most recent data)
+//   tail          offset 3,     body[24..34]
+// head + right_overlap + tail alone is the same datagram with no overlap.
+struct Reassembly13Fragments {
+    std::vector<std::uint8_t> head;
+    std::vector<std::uint8_t> wrong_overlap;
+    std::vector<std::uint8_t> right_overlap;
+    std::vector<std::uint8_t> tail;
+};
+
+inline constexpr std::uint16_t kReassembly13HeadOffset    = 0;
+inline constexpr std::uint16_t kReassembly13OverlapOffset = 2;
+inline constexpr std::uint16_t kReassembly13TailOffset    = 3;
+
+inline Reassembly13Fragments buildReassembly13Fragments() {
+    const auto body = ::tc8::wire::buildIcmpEchoRequestBody(
+        ::tc8::stimulus::kIcmpEchoId,
+        ::tc8::stimulus::kIcmpEchoSeq,
+        kReassembly13EchoPayload.data(),
+        static_cast<std::uint32_t>(kReassembly13EchoPayload.size()));
+    Reassembly13Fragments f;
+    f.head.assign(body.begin(), body.begin() + 16);
+    f.wrong_overlap.assign(kReassembly13WrongFragPayload.begin(),
+                           kReassembly13WrongFragPayload.end());
+    f.right_overlap.assign(body.begin() + 16, body.begin() + 24);
+    f.tail.assign(body.begin() + 24, body.end());
+    return f;
+}
+
+// Send REASSEMBLY_13's datagram WITHOUT the overlapping wrong fragment: head,
+// right_overlap, tail. The `_NEG` siblings' stimulus — neither reference DUT
+// resolves an overlap (docs/tech-debt.md TD-33; lwIP's chain check needs exact
+// contiguity), so only this contiguous form gives a conformant DUT a reply
+// for the faults to act on. The guards read the reply frame alone, and its
+// id, seq and 27 B data are the ones the positive's reply would carry. Same
+// pacing as the positive: each fragment after the default 200 ms wait.
+inline void emitReassembly13WithoutOverlap(const ::tc8::TestConfig& cfg, std::string_view iface) {
+    const auto f = buildReassembly13Fragments();
+    emitIpv4Fragment(iface, cfg, cfg.arp.dut_iface_mac, kReassembly13IpId,
+                     kReassembly13HeadOffset, /*more_fragments=*/true, /*ttl=*/64, f.head);
+    emitIpv4Fragment(iface, cfg, cfg.arp.dut_iface_mac, kReassembly13IpId,
+                     kReassembly13OverlapOffset, /*more_fragments=*/true, /*ttl=*/64, f.right_overlap);
+    emitIpv4Fragment(iface, cfg, cfg.arp.dut_iface_mac, kReassembly13IpId,
+                     kReassembly13TailOffset, /*more_fragments=*/false, /*ttl=*/64, f.tail);
+}
+
 }  // namespace tc8::sce::ipv4::reassembly

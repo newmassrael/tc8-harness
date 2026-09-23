@@ -27,6 +27,18 @@
       "dut_echoed_576_byte_data_with_wrong_bytes": "IPv4_HEADER_05_NEG",
       "dut_truncated_576_byte_datagram_data": "IPv4_HEADER_05_NEG2"
     },
+    "IPv4_REASSEMBLY_11": {
+      "reassembly_timer_not_extended_by_large_ttl": "IPv4_REASSEMBLY_11_NEG",
+      "echo_id_mismatch_after_large_ttl_reassembly": "IPv4_REASSEMBLY_11_NEG2",
+      "echo_seq_mismatch_after_large_ttl_reassembly": "IPv4_REASSEMBLY_11_NEG3",
+      "reassembled_echo_data_mismatch_large_ttl": "IPv4_REASSEMBLY_11_NEG4"
+    },
+    "IPv4_REASSEMBLY_13": {
+      "overlapping_datagram_discarded_by_reassembly_timeout": "IPv4_REASSEMBLY_13_NEG",
+      "echo_id_mismatch_after_overlap_reassembly": "IPv4_REASSEMBLY_13_NEG2",
+      "echo_seq_mismatch_after_overlap_reassembly": "IPv4_REASSEMBLY_13_NEG3",
+      "reassembled_echo_data_mismatch_overlap": "IPv4_REASSEMBLY_13_NEG4"
+    },
     "TCP_BASICS_04": {
       "dut_rst_seq_not_zero_after_syn": "TCP_BASICS_04_NEG",
       "dut_rst_seq_not_zero_after_fin": "TCP_BASICS_04_NEG2",

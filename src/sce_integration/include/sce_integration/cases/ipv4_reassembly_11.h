@@ -60,14 +60,7 @@ struct TestCaseTraits<cases::Ipv4Reassembly11SM>
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,
                          IStimulusScheduler& scheduler) {
-        ::tc8::sce::ipv4::fragments::FragmentPairParams params{};
-        params.ip_id_frag0 = ::tc8::sce::ipv4::reassembly::kReassembly11IpId;
-        params.ip_id_frag1 = ::tc8::sce::ipv4::reassembly::kReassembly11IpId;
-        params.ttl_frag0   = ::tc8::sce::ipv4::reassembly::kReassemblyLargeTtl;
-        params.ttl_frag1   = ::tc8::sce::ipv4::reassembly::kReassemblyLargeTtl;
-
-        const auto pair = ::tc8::sce::ipv4::fragments::buildFragmentPair(
-            cfg, cfg.arp.dut_iface_mac, params);
+        const auto pair = ::tc8::sce::ipv4::reassembly::buildReassembly11FragmentPair(cfg);
 
         ::tc8::stimulus::IpBootTiming t0{};
         t0.initial_wait = std::chrono::milliseconds{200};

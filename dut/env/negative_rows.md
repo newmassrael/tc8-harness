@@ -328,7 +328,17 @@ inter-fragment wait = the DUT reports Time Exceeded code 1 before frag 1, no Ech
 Reply). An echo_id flip reaches no conjunct, because no Echo Reply lands, and a
 `dut_iface_ip` flip only moves the case from that fail to the inconclusive
 timeout. Neither is a fail the positive does not already reach. Same precedent as
-_13 (overlap drop): no flippable conjunct can be observed when no reply lands.
+_13 (overlap drop): no flippable conjunct can be observed when no reply lands. The
+lwIP fixture shares both deviations (docs/tech-debt.md TD-28, TD-33), so no DUT
+reaches either positive's reply, and a row there would be vacuous too.
+
+Their negatives are FAULT_INJECTION instead: four lwIP `_NEG` siblings each, one
+per fail final (`tools/fault_injection_coverage.json`). Each sends the positive's
+datagram in a form a conformant DUT reassembles (_11 back to back, _13 without the
+overlapping fragment). `_NEG2`/`_NEG3`/`_NEG4` corrupt the reassembled reply's
+identifier, sequence or data on egress. `_NEG` drops the last fragment on ingress,
+so lwIP's own reassembly timer expires and it sends the Time Exceeded report the
+timer / discard guard grades.
 
 ## §4.8 TCP — why none have a row
 

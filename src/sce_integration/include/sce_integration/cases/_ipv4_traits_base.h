@@ -98,4 +98,29 @@ struct Ipv4EgressFaultNegBase : Ipv4ObservationBase<StateMachine> {
         ::tc8::sce::kCapEgressFault;
 };
 
+// Base for the §4.4.4.7 reassembly `_NEG` cases (REASSEMBLY_11 / _13). They
+// observe what their positive observes — the DUT's Echo Reply AND its Time
+// Exceeded code 1 reassembly-expiry report — so each negative's guard sees the
+// same frames the positive's fail finals read. `Capability` is the fixture seam
+// the variant's fault rides on: kCapEgressFault corrupts the reassembled reply
+// (echo id / seq / data), kCapIngressFault drops the last fragment so the
+// bucket expires. Either way the Tier-2 gate runs them only on the lwIP fixture.
+template <typename StateMachine, ::tc8::sce::DutCapabilities Capability>
+struct Ipv4ReassemblyFaultNegBase {
+    using SM       = StateMachine;
+    using State    = typename StateMachine::PolicyType::State;
+    using Event    = typename StateMachine::PolicyType::Event;
+    using Captured = typename StateMachine::CapturedType;
+    using Expected = typename StateMachine::ExpectedType;
+
+    static constexpr bool             kDeprecated = false;
+    static constexpr int              kTopology   = 1;
+    static constexpr ::tc8::BpfGroup  kBpfGroup   = ::tc8::BpfGroup::Icmpv4;
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities = Capability;
+
+    static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {
+        ::tc8::sce::ipv4::fragments::dispatchEchoReplyOrReassemblyExpiry<SM>(c, sm, ev);
+    }
+};
+
 }  // namespace tc8::sce
