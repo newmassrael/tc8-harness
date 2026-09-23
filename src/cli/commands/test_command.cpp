@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
@@ -294,19 +295,33 @@ TestCommand::TestCommand(CLI::App &app) {
                    "inconclusive rather than a pass it cannot support.");
 }
 
+std::optional<sce::SpecInventory> TestCommand::loadInventory(std::string *err,
+                                                            bool *stripped) const {
+    static constexpr const char *kDefaultInventory = "docs/spec/case_inventory.json";
+    static constexpr const char *kDefaultOverrides = "docs/spec/inventory_overrides.json";
+    std::error_code ec;
+    const bool inventory_given = !inventory_path_.empty();
+    const std::string inv_path = inventory_given ? inventory_path_ : kDefaultInventory;
+    *stripped = !inventory_given && !std::filesystem::exists(inv_path, ec);
+    // A GIVEN overrides path goes to the loader as is, which refuses one it cannot
+    // open. The DEFAULT one is passed only when it exists: its absence means "this
+    // platform has no overrides", the one absence that is not a mistake.
+    std::string ov_path = overrides_path_;
+    if (ov_path.empty() && std::filesystem::exists(kDefaultOverrides, ec)) {
+        ov_path = kDefaultOverrides;
+    }
+    return sce::SpecInventory::load(inv_path, inventory_extra_paths_, ov_path, err);
+}
+
 // Emits the authored negative rows in the historical NEG_ROWS grammar
 // (`CASE|wrong_token|fail:reason`), sorted by case id so a driver's iteration
 // order — and any diff of this output — is stable. This is the surface that
 // replaces the bash array for BOTH drivers and for
 // tools/negative_coverage_audit.py's SOUND_ROW disposition.
 int TestCommand::runListNegRows() const {
-    const std::string inv_path =
-        inventory_path_.empty() ? std::string("docs/spec/case_inventory.json") : inventory_path_;
-    const std::string ov_path = overrides_path_.empty()
-        ? std::string("docs/spec/inventory_overrides.json")
-        : overrides_path_;
     std::string err;
-    const auto inv = sce::SpecInventory::load(inv_path, inventory_extra_paths_, ov_path, &err);
+    bool stripped = false;
+    const auto inv = loadInventory(&err, &stripped);
     if (!inv.has_value()) {
         std::fprintf(stderr, "error: %s\n", err.c_str());
         return 1;
@@ -338,13 +353,9 @@ int TestCommand::runListNegRows() const {
 // Both smoke-test.sh and the orchestrator read this ONE source, so the flavor
 // table cannot drift across the two drivers.
 int TestCommand::runListVsomeipVariants() const {
-    const std::string inv_path =
-        inventory_path_.empty() ? std::string("docs/spec/case_inventory.json") : inventory_path_;
-    const std::string ov_path = overrides_path_.empty()
-        ? std::string("docs/spec/inventory_overrides.json")
-        : overrides_path_;
     std::string err;
-    const auto inv = sce::SpecInventory::load(inv_path, inventory_extra_paths_, ov_path, &err);
+    bool stripped = false;
+    const auto inv = loadInventory(&err, &stripped);
     if (!inv.has_value()) {
         std::fprintf(stderr, "error: %s\n", err.c_str());
         return 1;
@@ -414,24 +425,20 @@ int TestCommand::runListCases() const {
     const bool need_filter =
         exclude_deferred_ || exclude_platform_known_fail_ || exclude_serial_ ||
         only_serial_ || only_secondary_iface_;
-    const std::string inv_path = inventory_path_.empty()
-        ? std::string("docs/spec/case_inventory.json")
-        : inventory_path_;
-    const std::string ov_path = overrides_path_.empty()
-        ? std::string("docs/spec/inventory_overrides.json")
-        : overrides_path_;
     std::string err;
-    std::optional<sce::SpecInventory> inv =
-        sce::SpecInventory::load(inv_path, inventory_extra_paths_, ov_path, &err);
+    bool stripped = false;
+    std::optional<sce::SpecInventory> inv = loadInventory(&err, &stripped);
     if (!inv.has_value()) {
         // The filter flags REQUIRE the inventory — fail loudly so smoke/CI
-        // invocations never silently fall back to an unfiltered list.
-        if (need_filter) {
+        // invocations never silently fall back to an unfiltered list. So does
+        // any failure other than a missing DEFAULT inventory: a file the caller
+        // named, or one that exists and does not parse, is a mistake to report.
+        if (need_filter || !stripped) {
             std::fprintf(stderr, "error: %s\n", err.c_str());
             return 2;
         }
-        // No filters requested: the section column degrades to "-" but the
-        // registered list stays useful in a stripped environment.
+        // No filters requested and no inventory in this tree: the section column
+        // degrades to "-" but the registered list stays useful.
         std::fprintf(stderr, "warning: %s (spec sections shown as '-')\n", err.c_str());
     }
 
@@ -548,16 +555,9 @@ int TestCommand::runListCases() const {
 }
 
 int TestCommand::runVsSpecReport() const {
-    const std::string inv_path = inventory_path_.empty()
-        ? std::string("docs/spec/case_inventory.json")
-        : inventory_path_;
-    const std::string ov_path = overrides_path_.empty()
-        ? std::string("docs/spec/inventory_overrides.json")
-        : overrides_path_;
-
     std::string err;
-    auto inv_opt =
-        sce::SpecInventory::load(inv_path, inventory_extra_paths_, ov_path, &err);
+    bool stripped = false;
+    const auto inv_opt = loadInventory(&err, &stripped);
     if (!inv_opt.has_value()) {
         std::fprintf(stderr, "error: %s\n", err.c_str());
         return 2;
@@ -702,15 +702,17 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // Spec section is derived from the inventory (the SSOT), not stored on
     // the case — see runListCases() / case_registry.h. Best-effort here: a
     // missing inventory just renders the section as "-".
-    const std::string inv_path = inventory_path_.empty()
-        ? std::string("docs/spec/case_inventory.json")
-        : inventory_path_;
-    const std::string ov_path = overrides_path_.empty()
-        ? std::string("docs/spec/inventory_overrides.json")
-        : overrides_path_;
     std::string inv_err;
-    const auto inv =
-        sce::SpecInventory::load(inv_path, inventory_extra_paths_, ov_path, &inv_err);
+    bool stripped = false;
+    const auto inv = loadInventory(&inv_err, &stripped);
+    // A run with no inventory in the tree still runs (its section shows "-"),
+    // since there are no per-case axes to lose. Any other failure — a file the
+    // caller named, or one that does not parse — would silently run the case
+    // without its stimulus overrides, negative row and routing, so it stops here.
+    if (!inv.has_value() && !stripped) {
+        std::fprintf(stderr, "error: %s\n", inv_err.c_str());
+        return 2;
+    }
     // Resolved once, by the case's (suite, id): the section below and every
     // override axis further down come from the same catalog entry.
     const sce::SpecCase *sc = specCaseFor(inv, *entry);

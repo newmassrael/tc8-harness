@@ -7,6 +7,8 @@
 
 #include <CLI/CLI.hpp>
 
+#include "sce_integration/spec_inventory.h"
+
 namespace tc8::cli {
 
 class TestCommand {
@@ -29,6 +31,15 @@ private:
     int runCase(std::optional<std::string> bpf_override);
     // Whether a case of `suite` falls inside `--suite` (always, when unset).
     bool inSuiteScope(std::string_view suite) const;
+
+    // The ONE place the inventory is resolved and loaded, for every mode. A path
+    // the user GAVE (--inventory, --inventory-overrides, --inventory-extra) must
+    // load or it is an error; only the DEFAULT files may be absent. On failure
+    // `*stripped` says whether the only problem is that the default inventory
+    // does not exist (a stripped environment), the sole case a best-effort mode
+    // may degrade on (docs/tech-debt.md TD-40).
+    std::optional<::tc8::sce::SpecInventory> loadInventory(std::string *err,
+                                                         bool *stripped) const;
 
     // The catalog a list or report is about. Empty = unset: `--list-cases` and the
     // two `--list-*` exposers then span every suite (non-default ones printed as

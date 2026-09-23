@@ -92,6 +92,23 @@ TEST_F(SpecInventoryMergeTest, MissingExtraIsError) {
     EXPECT_NE(err.find("extra spec inventory"), std::string::npos) << err;
 }
 
+// TD-40: a named overrides file that cannot be opened is an error, never "no
+// overrides" — reading it as absent would drop every per-case axis it carries.
+// An EMPTY path is how a caller says there is no overrides file.
+TEST_F(SpecInventoryMergeTest, NamedOverridesThatCannotOpenIsError) {
+    const auto primary = writeTemp("primary.json", kPrimary);
+
+    std::string err;
+    auto inv = SpecInventory::load(primary.string(), {}, "/nonexistent/tc8/overrides.json", &err);
+    EXPECT_FALSE(inv.has_value());
+    EXPECT_NE(err.find("/nonexistent/tc8/overrides.json"), std::string::npos) << err;
+
+    err.clear();
+    auto none = SpecInventory::load(primary.string(), {}, "", &err);
+    ASSERT_TRUE(none.has_value()) << err;
+    EXPECT_EQ(none->cases().size(), 2u);
+}
+
 TEST_F(SpecInventoryMergeTest, BackCompatThreeArgLoad) {
     const auto primary = writeTemp("primary.json", kPrimary);
 

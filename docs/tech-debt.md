@@ -2174,7 +2174,9 @@ refused.
 
 ## TD-40 — an explicit `--inventory-overrides` path that does not exist is read as "no overrides"
 
-**Status:** OPEN. **Logged:** 2026-09-24, while adding the orchestrator's passthrough for TD-17.
+**Status:** RESOLVED (2026-09-24). **Logged:** 2026-09-24, while adding the orchestrator's
+passthrough for TD-17. The entry below is the debt as logged; **Resolution** at its end records what
+closed it.
 
 **What it is.** `SpecInventory::load` (`src/sce_integration/spec_inventory.cpp`) treats a missing
 overrides file as none at all ("Missing file is OK"). `TestCommand` passes the default path
@@ -2202,6 +2204,27 @@ leaving the default path's tolerance where it is.
 **Done when:** `test --inventory-overrides <missing>` exits non-zero with an error naming the path
 on every mode that loads the inventory, the default-path fallback is unchanged, and the five load
 sites share one loader.
+
+**Resolution.** The two halves of the decision now live where each is known:
+
+- `SpecInventory::load` is strict. A non-empty overrides path must open, and an empty one means "no
+  overrides file".
+- `TestCommand::loadInventory` is the one loader the five sites call, and the only code that knows
+  a path was a default. It passes the default overrides file only if it exists. It reports
+  "stripped" only when the default inventory itself is absent.
+
+That stripped case is the only one where a best-effort mode degrades: `--list-cases` with no filter,
+and a case run, which in a stripped tree has no per-case axes to lose. Anything else fails, including
+a named file and a file that exists but does not parse. Before this, both modes ran on silently when
+the overrides file did not parse, and a case run then dropped the stimulus overrides and negative row
+it asked for.
+
+**Runs (2026-09-24).** With `--inventory-overrides <missing>`, all six modes (`--list-cases`,
+`--list-cases --exclude-platform-known-fail`, `--vs-spec`, `--list-neg-rows`,
+`--list-vsomeip-variants`, `--case`) exit non-zero with an error naming the path. Six listings are
+byte-identical to the TD-37/38 binary, the lwIP overrides file among them. In a tree with no
+`docs/spec`, `--list-cases` still warns and lists 761 cases, while `--exclude-deferred` fails.
+`spec_inventory_test` (15) passes, including `NamedOverridesThatCannotOpenIsError`.
 
 ---
 

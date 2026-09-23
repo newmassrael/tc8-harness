@@ -159,7 +159,9 @@ public:
     // policy of TC8_EXTRA_CASE_DIRS — silent override would mask drift);
     // across suites the same id is legal, which is what a suite is for.
     //
-    // The single `overrides_path` is applied AFTER the merge. A bare key
+    // `overrides_path` empty = no overrides file; non-empty = it MUST open (an
+    // unopenable path is an error, never "no overrides" — docs/tech-debt.md
+    // TD-40). The single `overrides_path` is applied AFTER the merge. A bare key
     // (`"ARP_03"`) addresses kDefaultSuite's case; a qualified key
     // (`"vendorx:ARP_03"`, the same token `--case` accepts) addresses that
     // suite's. Extra files are loaded in argument order; the first error

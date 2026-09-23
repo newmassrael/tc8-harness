@@ -564,12 +564,26 @@ std::optional<SpecInventory> SpecInventory::load(
         }
     }
 
-    // Apply overrides (optional file) over the MERGED case set. A key
-    // addresses ONE suite's case: bare for kDefaultSuite, `suite:ID` for any
-    // other — never every suite that happens to hold the id.
-    // Missing file is OK; parse-failure is fatal so a malformed overrides
-    // file can't silently be ignored.
-    if (auto ov_text = slurp(overrides_path); ov_text.has_value()) {
+    // Apply overrides over the MERGED case set. A key addresses ONE suite's
+    // case: bare for kDefaultSuite, `suite:ID` for any other — never every
+    // suite that happens to hold the id.
+    //
+    // An empty `overrides_path` means "no overrides file". A NON-empty one must
+    // open: reading an unopenable path as "no overrides" silently drops every
+    // per-case axis the file carries (platform known-fails, cadence routing,
+    // stimulus overrides, negative rows), so a typo in a platform file's path
+    // would change what runs with nothing on the console (docs/tech-debt.md
+    // TD-40). Whether a path that is merely a DEFAULT may be absent is the
+    // caller's to decide — it is the one that knows the path was not asked
+    // for — and it says so by passing an empty path.
+    std::optional<std::string> ov_text;
+    if (!overrides_path.empty()) {
+        ov_text = slurp(overrides_path);
+        if (!ov_text.has_value()) {
+            return fail("cannot open inventory overrides: " + overrides_path);
+        }
+    }
+    if (ov_text.has_value()) {
         for (const auto &[id, body] : splitJsonObjectMap(*ov_text, "overrides")) {
             const QualifiedCaseId qid = splitQualifiedCaseId(id);
             if (!qid.suite.empty() && !isWellFormedSuite(qid.suite)) {
