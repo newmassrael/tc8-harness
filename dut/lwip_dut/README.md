@@ -122,7 +122,11 @@ Non-TCP:
 - **`IPv4_REASSEMBLY_13` — overlap reassembly structurally
   unsupported.** Chain validation requires exact
   `prev->end == next->start` contiguity, so an overlapped bucket never
-  completes regardless of `IP_REASS_CHECK_OVERLAP`.
+  completes regardless of `IP_REASS_CHECK_OVERLAP`. It expires instead,
+  and lwIP reports that with a Time Exceeded code 1 quoting frag 0
+  (+2.5 s on the wire):
+  `fail:overlapping_datagram_discarded_by_reassembly_timeout`
+  (2026-09-24).
 - **`ARP_05/_06` — no entry creation from unsolicited gratuitous
   Responses.** `etharp_input` (`src/core/ipv4/etharp.c`) updates an
   EXISTING table entry from any incoming ARP frame but creates one only

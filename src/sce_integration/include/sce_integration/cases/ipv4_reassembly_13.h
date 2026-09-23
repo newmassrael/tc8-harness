@@ -48,19 +48,16 @@ struct TestCaseTraits<cases::Ipv4Reassembly13SM>
     //   frag 3: offset=3, MF=0, payload=body[24..34] (final 11 B
     //           — sets total length = 24 B + 11 B = 35 B)
     //
-    // Linux known-fail (verified 2026-04-27, kernel 6.5): post-
-    // CVE-2018-5391 the kernel drops fragment buckets on overlap
-    // detection (commit 7969e5c40dfd, kernel 4.18, 2018-08). When
-    // frag 2 arrives while the bucket already holds frag 1 at the
-    // same starting offset, ip_frag_queue triggers
-    // IPSTATS_MIB_REASMFAILS + inet_frag_kill(qp) — no reassembly,
-    // no Echo Reply → fail_timeout. See
-    // `reference_linux_ip_reassembly_deviations.md`.
-    //
-    // The case stays in tree (not in default smoke regression — the
-    // smoke harness only runs CLI-positional cases) so a non-Linux
-    // DUT (AUTOSAR, vendor IP stack) that follows RFC 791 verbatim
-    // can be exercised without re-implementing from spec text.
+    // A DUT that cannot resolve the overlap and lets the bucket expire
+    // says so with a Time Exceeded code 1 quoting frag 0; the SCXML
+    // grades that report as an observed violation. lwIP does this.
+    // Linux (post-CVE-2018-5391, kernel 4.18+) instead discards the
+    // whole queue, frag 0 included, the moment frag 2 overlaps, so it
+    // sends nothing and the case can only time out (inconclusive).
+    static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {
+        ::tc8::sce::ipv4::fragments::dispatchEchoReplyOrReassemblyExpiry<SM>(c, sm, ev);
+    }
+
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {

@@ -9,24 +9,20 @@
   16..23 and emits an Echo Reply mirroring the spec's 27 B data
   "ECU NETWORK VALIDATION TEST".
 
-  Linux known-fail (verified 2026-04-27, kernel 6.5):
-    Linux post-CVE-2018-5391 hardening (commit 7969e5c40dfd, kernel
-    4.18, 2018-08) discards the entire fragment bucket on overlap
-    detection. When frag 2 (offset=16, length=8) arrives while the
-    bucket already has frag 1 (offset=16, length=24), ip_frag_queue
-    increments IPSTATS_MIB_REASMFAILS and calls inet_frag_kill(qp).
-    No reassembly, no Echo Reply → inconclusive_timeout
-    (no_echo_reply_after_overlap_reassembly).
-    See `reference_linux_ip_reassembly_deviations.md` for the kernel
-    trace.
-
-    This case is intentionally NOT included in default smoke
-    regression (smoke-test.sh only runs CLI-positional cases). It is
-    runnable on demand against a non-Linux DUT (AUTOSAR / vendor IP
-    stack) that follows RFC 791 verbatim.
-
   Pass criterion = type=0 Echo Reply with matching echo_id +
   echo_seq + 27 B payload (kReassembly13EchoPayload).
+
+  A DUT that does not resolve the overlap and lets the bucket expire
+  reports it with a Time Exceeded code 1 quoting frag 0's
+  Identification: an observed violation (fail). Without that report
+  the only evidence is a missing Echo Reply, which is an absence
+  (inconclusive).
+
+  Linux post-CVE-2018-5391 hardening (kernel 4.18+) discards the
+  whole queue, frag 0 included, when frag 2 overlaps frag 1
+  (ip_frag_queue → inet_frag_kill). No queue holding frag 0 is left
+  to expire, so Linux reports nothing and the case lands
+  inconclusive_timeout.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -60,6 +56,9 @@
     <transition event="icmp_observed"
                 cond="cpp:captured.type == 0"
                 target="fail_data_mismatch"/>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 11 and captured.code == 1 and captured.src_ip == expected.dut_iface_ip and captured.quotes_ip_id(::tc8::sce::ipv4::reassembly::kReassembly13IpId)"
+                target="fail_datagram_discarded"/>
     <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
@@ -84,6 +83,12 @@
   <final id="fail_data_mismatch">
     <donedata>
       <content>{"verdict":"fail","reason":"reassembled_echo_data_mismatch_overlap","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_datagram_discarded">
+    <donedata>
+      <content>{"verdict":"fail","reason":"overlapping_datagram_discarded_by_reassembly_timeout","role":"observed_violation"}</content>
     </donedata>
   </final>
 
