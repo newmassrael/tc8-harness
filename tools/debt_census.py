@@ -13,8 +13,10 @@ The four registers it unions:
   tools/deferred_negatives.json         positive cases whose verdict guard is
                                         expect-flippable but has no sound negative
                                         yet (vacuity unproven).
-  tools/negative_coverage_undisposed.txt  positive cases with NO disposition at all
-                                        (negative_coverage_audit.py owns it).
+  tools/negative_coverage_undisposed.txt  fail finals that nothing proves checkable,
+                                        one `case:final` per line (a bare case when
+                                        it has no fail final and no disposition;
+                                        negative_coverage_audit.py owns it).
   */inventory_overrides.json            `platform_known_fail` -- cases withheld from
                                         grading because a specific DUT is known to
                                         fail them.
@@ -243,7 +245,9 @@ def collect(files):
         for line in UNDISPOSED.read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if line and not line.startswith("#"):
-                repayable.append(("undisposed", line.split()[0], "no disposition"))
+                unit = line.split()[0]
+                repayable.append(("undisposed", unit,
+                                  "no proof" if ":" in unit else "no disposition"))
 
     for cid, src, ref, reason in load_overrides():
         if not (ref or "").strip() and not (reason or "").strip():

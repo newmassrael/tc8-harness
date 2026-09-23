@@ -32,6 +32,13 @@ This is one of four **dispositions** every registered positive case must carry
 | `DEFERRED` | `tools/deferred_negatives.json` |
 
 A case in none of them is UNDISPOSED: its non-vacuity is unproven and untracked.
+
+A row lands on ONE `fail` final. In a case with several, the row proves that final
+only; each other final needs its own proof: a mapped `_neg`, a guard in the
+registry's partial entry for the case, or a `CASE:final` deferral. The audit counts
+per final, and `tools/negative_coverage_undisposed.txt` lists the finals no
+mechanism proves as `case:final`.
+
 So the absences below are not gaps — each one is a case whose disposition is a
 *different* one of the four, and the audit is what keeps that honest.
 

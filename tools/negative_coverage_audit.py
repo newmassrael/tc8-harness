@@ -23,12 +23,31 @@ never fire is vacuous and validates nothing. The four terminal dispositions are:
                    sound negative yet, each carrying an explicit reason (Linux
                    deviation, needs-parameterise) until fixed.
 
-A positive case in none of these is UNDISPOSED: its guard's non-vacuity is unproven
-and untracked. The exhaustiveness ledger (negative_coverage_undisposed.txt)
-grandfathers today's UNDISPOSED set so the backlog is retired incrementally; --check
-rejects any NEW undisposed case and forces the ledger to shrink as cases are
-disposed. When the ledger empties, every positive case is *covered* — accounted for
-by a disposition.
+A positive case in none of these is UNDISPOSED. A disposition names what the case
+IS; it does not prove every guard in it. Exhaustiveness is therefore accounted per
+`fail` final, the unit one negative run reaches (docs/tech-debt.md TD-42). A final
+is PROVEN by any of:
+
+  row       the case's sound row lands on it;
+  neg       a `_neg` proves it -- mapped in fault_injection_coverage.json, or the
+            lone `_neg` of a case with one `fail` final;
+  registry  a conformant_absence_registry.json guard names it;
+  deferred  deferred_negatives.json holds the case (every final), or holds
+            `CASE:final` for that final of a SOUND_ROW case.
+
+`registry` and `deferred` each claim to be the ONLY account of a final (a guard no
+--expect can fault / a flippable guard with no negative yet), so either one beside
+another mechanism on the same final is a contradiction. A row and a `_neg` may prove
+the same final. A SOUND_ROW case may carry a PARTIAL registry entry or per-final
+deferrals for the finals its row cannot reach; any other disposition keeps its own
+completeness rule, because its label promises every final.
+
+The exhaustiveness ledger (negative_coverage_undisposed.txt) holds the UNPROVEN
+units: `case:final` for each fail final nothing proves, and a bare `case` for an
+undisposed case with no fail final. It grandfathers today's set so the backlog is
+retired incrementally; --check rejects any NEW unit and forces the ledger to shrink
+as units are proven. When the ledger empties, every guard of every positive case is
+*covered*.
 
 Coverage is not correctness. This audit proves every case has a disposition; it does
 NOT prove each disposition is genuine. The correctness of a disposition is a separate
@@ -45,13 +64,14 @@ SOUND_ROW disposition.
 universe. Each must pair with a real base case and carry a `fail` final (a negative
 that cannot fail catches nothing).
 
-Also enforced: registry structural validity (every `fail` final covered by a guard;
-declared classes; non-empty property; a registry case carries no row and no _neg
-sibling) and NEG_ROW integrity (no STALE row whose reason is not a final).
+Also enforced: registry structural validity (every `fail` final covered by a guard
+unless the case is SOUND_ROW; declared classes; non-empty property), no final
+proven by a contradicting pair (PROOF_CONFLICT), and NEG_ROW integrity (no STALE
+row whose reason is not a final).
 
 Default (no args): print the census. --check: enforce the invariants (gates
 build-test.yml + pre-commit). --write-ledger: regenerate the exhaustiveness ledger
-from the current UNDISPOSED set (bootstrap / after a batch of dispositions).
+from the current unproven units (bootstrap / after a batch of dispositions).
 --write-floor: record the current FAULT_INJECTION counts as the Phase F high-water
 marks, one per fault DUT-layer (raise-only; run after a _neg lands).
 """
@@ -63,7 +83,7 @@ import json
 import re
 import sys
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -259,9 +279,18 @@ def load_registry() -> tuple[dict[str, dict], dict[str, str]]:
     return data.get("cases", {}), data.get("classes", {})
 
 
+def split_unit(key: str) -> tuple[str, str | None]:
+    """An accounting unit, as the ledger and deferred_negatives.json spell it:
+    `CASE` -> (CASE, None), `CASE:final` -> (CASE, final)."""
+    case, sep, final = key.partition(":")
+    return case, (final if sep else None)
+
+
 def load_deferred() -> dict[str, str]:
-    """deferred_negatives.json: case_id -> reason. An expect-flippable guard with no
-    sound negative yet (Linux deviation, needs-parameterise). Empty if absent."""
+    """deferred_negatives.json: unit -> reason, where a unit is a case_id (every
+    final of the case) or `CASE:final` (one final of a SOUND_ROW case). An
+    expect-flippable guard with no sound negative yet (Linux deviation,
+    needs-parameterise). Empty if absent."""
     if not DEFERRED.is_file():
         return {}
     data = json.loads(DEFERRED.read_text(encoding="utf-8"))
@@ -322,14 +351,16 @@ def fault_by_dut(m: Model) -> dict[str, int]:
     return out
 
 
-def validate_registry(cases: dict[str, dict], classes: dict[str, str]) -> list[str]:
+def validate_registry(cases: dict[str, dict], classes: dict[str, str],
+                      partial_ok: set[str] = frozenset()) -> list[str]:
     """Structural validation of each registry entry (docs/verdict_policy.md Section
     6). Each case carries a `guards` list — one guard per `fail` final (the exact
     unit a DUT-mutation mutant must trip), or a single `liveness` guard for a case
     with no `fail` final. Per guard: the class is declared; a non-`liveness` guard
     names a real `fail` final; a `liveness` guard names none and the case has no
     `fail` final; the `property` is non-empty. Completeness: every `fail` final is
-    covered by a guard."""
+    covered by a guard, except for a case in `partial_ok` (lower-case) -- a
+    SOUND_ROW case, whose row already proves a final the registry must not name."""
     findings: list[str] = []
     for case_id, entry in cases.items():
         guards = entry.get("guards")
@@ -363,7 +394,7 @@ def validate_registry(cases: dict[str, dict], classes: dict[str, str]) -> list[s
             else:
                 covered.add(reason)
         missing = case_fail_reasons - covered
-        if missing:
+        if missing and case_id.lower() not in partial_ok:
             findings.append(f"REGISTRY_INCOMPLETE: {case_id} fail finals not covered by a guard: {sorted(missing)}")
     return findings
 
@@ -488,19 +519,19 @@ def load_ledger() -> set[str]:
     return out
 
 
-def ledger_text(cases: set[str]) -> str:
+def ledger_text(units: set[str]) -> str:
     header = (
         "# negative-coverage exhaustiveness ledger (debt D7 -- docs/verdict_policy.md\n"
-        "# Section 6). Each line is a positive case_id whose verdict guard has NO\n"
-        "# non-vacuity disposition yet (not SOUND_ROW / FAULT_INJECTION / REGISTRY /\n"
-        "# DEFERRED). Generated by tools/negative_coverage_audit.py --write-ledger.\n"
-        "# Disposing a case (add a sound NEG_ROW, register it, add a _neg case, or\n"
-        "# track it in deferred_negatives.json) MUST delete its line here too;\n"
-        "# --check fails on a new undisposed case or a stale (now-disposed) entry.\n"
-        "# When this file is empty every positive case is disposed -- the SSOT is\n"
-        "# proven complete.\n"
+        "# Section 6). Each line is one UNPROVEN unit: `case:final` for a `fail` final\n"
+        "# of a positive case that no sound row, _neg, registry guard or deferral\n"
+        "# proves, or a bare `case` for an undisposed case with no `fail` final.\n"
+        "# Generated by tools/negative_coverage_audit.py --write-ledger.\n"
+        "# Proving a unit (a sound row, a mapped _neg, a registry guard, or a\n"
+        "# deferred_negatives.json entry) MUST delete its line here too; --check\n"
+        "# fails on a new unproven unit or a stale (now-proven) entry. When this file\n"
+        "# is empty every guard of every positive case is proven checkable.\n"
     )
-    return header + "".join(f"{c}\n" for c in sorted(cases))
+    return header + "".join(f"{u}\n" for u in sorted(units))
 
 
 @dataclass
@@ -517,6 +548,73 @@ class Model:
     vacuous_cases: set[str]           # lower-case cases whose only row(s) are VACUOUS
     spurious_rows: list[NegRow]       # SOUND-shaped rows that flip an L3 src-IP filter
     disposition: dict[str, str]       # case -> SOUND_ROW/FAULT_INJECTION/REGISTRY/DEFERRED/UNDISPOSED
+    # case -> {fail_reason: [mechanisms proving it]}; only cases with a fail final
+    final_proofs: dict[str, dict[str, list[str]]] = field(default_factory=dict)
+
+
+# The mechanisms that prove one fail final (module docstring). EXCLUSIVE ones claim
+# to be the only account of their final, so they may not share it with another.
+PROOF_ROW, PROOF_NEG, PROOF_REGISTRY, PROOF_DEFERRED = "row", "neg", "registry", "deferred"
+EXCLUSIVE_PROOFS = (PROOF_REGISTRY, PROOF_DEFERRED)
+
+
+def compute_final_proofs(m: Model) -> dict[str, dict[str, list[str]]]:
+    """For every positive case with a `fail` final, which mechanisms prove each
+    final. A mechanism counts only where its link is real: a row only if SOUND
+    (not spurious), a coverage mapping only to a registered `_neg` sibling of the
+    case. Malformed links are reported by their own checks and prove nothing."""
+    neg_set = set(m.neg_names)
+    coverage = {b.lower(): mp for b, mp in m.fault_coverage.items()}
+    registry = {k.lower(): e for k, e in m.registry.items()}
+    spurious = {id(r) for r in m.spurious_rows}
+    deferred_cases: set[str] = set()
+    deferred_finals: dict[str, set[str]] = {}
+    for key in m.deferred:
+        case, final = split_unit(key)
+        if final is None:
+            deferred_cases.add(case.lower())
+        else:
+            deferred_finals.setdefault(case.lower(), set()).add(final)
+
+    proofs: dict[str, dict[str, list[str]]] = {}
+    for c in m.positives:
+        finals = fail_reasons_of(c)
+        if not finals:
+            continue
+        p: dict[str, list[str]] = {f: [] for f in sorted(finals)}
+        for r in m.rows:
+            if r.case_id.lower() == c and id(r) not in spurious and row_kind(r) == "SOUND":
+                p[r.exp_reason].append(PROOF_ROW)
+        if c in coverage:
+            for reason, neg in coverage[c].items():
+                neg_l = neg.lower()
+                if reason in p and neg_l in neg_set and _NEG_RE.sub("", neg_l) == c:
+                    p[reason].append(PROOF_NEG)
+        elif c in m.fault_bases and len(finals) == 1:
+            p[next(iter(finals))].append(PROOF_NEG)
+        for g in registry.get(c, {}).get("guards", []):
+            if g.get("fail_reason") in p:
+                p[g["fail_reason"]].append(PROOF_REGISTRY)
+        for f in p:
+            if c in deferred_cases or f in deferred_finals.get(c, ()):
+                p[f].append(PROOF_DEFERRED)
+        proofs[c] = p
+    return proofs
+
+
+def unproven_units(m: Model) -> set[str]:
+    """The exhaustiveness ledger's units: `case:final` for each fail final no
+    mechanism proves, and a bare `case` for an undisposed case with no fail final
+    (its unit is the case itself)."""
+    units: set[str] = set()
+    for c in m.positives:
+        finals = m.final_proofs.get(c)
+        if finals is None:
+            if m.disposition[c] == "UNDISPOSED":
+                units.add(c)
+            continue
+        units.update(f"{c}:{f}" for f, mechs in finals.items() if not mechs)
+    return units
 
 
 def build_model() -> Model:
@@ -529,7 +627,8 @@ def build_model() -> Model:
     deferred = load_deferred()
     fault_coverage = load_fault_coverage()
     reg_lower = {k.lower() for k in registry}
-    def_lower = {k.lower() for k in deferred}
+    # Only a case-level key disposes a case; a `CASE:final` key proves one final.
+    def_lower = {k.lower() for k in deferred if split_unit(k)[1] is None}
 
     sound_cases: set[str] = set()
     spurious_rows: list[NegRow] = []
@@ -556,9 +655,11 @@ def build_model() -> Model:
             disposition[c] = "DEFERRED"
         else:
             disposition[c] = "UNDISPOSED"
-    return Model(rows, positives, neg_names, fault_bases, registry, reg_classes,
-                 deferred, fault_coverage, sound_cases, vacuous_cases, spurious_rows,
-                 disposition)
+    m = Model(rows, positives, neg_names, fault_bases, registry, reg_classes,
+              deferred, fault_coverage, sound_cases, vacuous_cases, spurious_rows,
+              disposition)
+    m.final_proofs = compute_final_proofs(m)
+    return m
 
 
 def validate_fault_coverage(m: Model) -> list[str]:
@@ -579,8 +680,8 @@ def validate_fault_coverage(m: Model) -> list[str]:
     entry there records which of its finals a `_neg` proves because the row cannot
     -- a behaviour guard no --expect flip reaches (docs/tech-debt.md TD-41). Its
     keys must still be real fail finals and its values real `_neg` siblings, so the
-    link is checked, not asserted. What a SOUND_ROW case's REMAINING finals are
-    proven by is not checked by anything yet (docs/tech-debt.md TD-42).
+    link is checked, not asserted. What proves a SOUND_ROW case's REMAINING finals
+    is the per-final exhaustiveness rule's question (unproven_units), not this one.
     """
     findings: list[str] = []
     pos = set(m.positives)
@@ -660,7 +761,6 @@ def cross_findings(m: Model) -> list[str]:
     """Invariants that must always hold (independent of the ratchet)."""
     findings: list[str] = []
     reg_lower = {k.lower() for k in m.registry}
-    def_lower = {k.lower() for k in m.deferred}
     pos = set(m.positives)
 
     # STALE rows: a row whose reason is not a final in the case.
@@ -670,22 +770,44 @@ def cross_findings(m: Model) -> list[str]:
         if row_kind(r) == "UNKNOWN":
             findings.append(f"UNKNOWN: {r.case_id} has no registered .scxml")
 
-    # A registry case must carry no NEG_ROW and no _neg sibling, and be a positive.
-    row_cases = {r.case_id.lower() for r in m.rows}
+    # A registry case must be a positive. A FAULT_INJECTION case promises every
+    # final is empirically proven, so a registry entry beside it contradicts the
+    # label even where no fail final is shared (a liveness entry). Whether a guard
+    # contradicts a row or a _neg on the SAME final is PROOF_CONFLICT's question.
     for c in reg_lower:
-        if c in row_cases:
-            findings.append(f"REGISTERED_WITH_ROW: {c} is conformant-absence (registry); remove its NEG_ROW")
-        if c in m.fault_bases:
-            findings.append(f"REGISTRY_AND_FAULT: {c} has a _neg case (FAULT_INJECTION); drop the registry entry")
         if c not in pos:
             findings.append(f"REGISTRY_NOT_POSITIVE: {c} is not a registered positive case")
+        elif m.disposition.get(c) == "FAULT_INJECTION":
+            findings.append(f"REGISTRY_AND_FAULT: {c} has a _neg case (FAULT_INJECTION); drop the registry entry")
 
-    # A deferred case must not also be disposed elsewhere, and must be a positive.
-    for c in def_lower:
+    # A case-level deferral must not also be disposed elsewhere; a per-final one
+    # names a real fail final of a SOUND_ROW case (any other disposition either
+    # proves every final or takes a case-level deferral).
+    for key in m.deferred:
+        case, final = split_unit(key)
+        c = case.lower()
         if c not in pos:
-            findings.append(f"DEFERRED_NOT_POSITIVE: {c} is not a registered positive case")
-        elif m.disposition.get(c) != "DEFERRED":
-            findings.append(f"DEFERRED_REDUNDANT: {c} is already {m.disposition.get(c)}; drop the deferred entry")
+            findings.append(f"DEFERRED_NOT_POSITIVE: {key} is not a registered positive case")
+        elif final is None:
+            if m.disposition.get(c) != "DEFERRED":
+                findings.append(f"DEFERRED_REDUNDANT: {c} is already {m.disposition.get(c)}; drop the deferred entry")
+        elif m.disposition.get(c) != "SOUND_ROW":
+            findings.append(
+                f"DEFERRED_INVALID: {key} defers one final of a {m.disposition.get(c)} case; "
+                f"only a SOUND_ROW case takes a per-final deferral"
+            )
+        elif final not in fail_reasons_of(c):
+            findings.append(f"DEFERRED_INVALID: {key} names a final that is not a fail final of the case")
+
+    # An exclusive mechanism claims to be the only account of its final; beside any
+    # other proof of the same final one of the two is wrong.
+    for c, finals in sorted(m.final_proofs.items()):
+        for f, mechs in finals.items():
+            if len(mechs) > 1 and any(x in mechs for x in EXCLUSIVE_PROOFS):
+                findings.append(
+                    f"PROOF_CONFLICT: {c}:{f} is proven by {sorted(mechs)}; a "
+                    f"registry guard or deferral must be the final's only account"
+                )
 
     # A SPURIOUS row flips the L3 src-IP filter and lands on absence/timeout: it
     # proves nothing and must not masquerade as a SOUND_ROW disposition.
@@ -715,7 +837,8 @@ def cross_findings(m: Model) -> list[str]:
                     f"(a _neg fail is fault-injection-inert, not a DUT violation)"
                 )
 
-    findings.extend(validate_registry(m.registry, m.reg_classes))
+    sound_row = {c for c, d in m.disposition.items() if d == "SOUND_ROW"}
+    findings.extend(validate_registry(m.registry, m.reg_classes, sound_row))
     findings.extend(check_class_structure(m.registry))
     findings.extend(validate_fault_coverage(m))
 
@@ -794,6 +917,99 @@ def phase_f_report(m: Model) -> int:
     return 0
 
 
+def _self_test() -> int:
+    """Prove the per-final rule fires. Mutates copies of the live model in memory
+    (the .scxml finals are real; the registers are edited), so no fixture tree can
+    drift from what --check reads."""
+    import copy
+
+    base = build_model()
+    checks: list[tuple[str, bool]] = []
+
+    def variant(mutate) -> tuple[set[str], list[str]]:
+        m = copy.deepcopy(base)
+        mutate(m)
+        m.final_proofs = compute_final_proofs(m)
+        return unproven_units(m), cross_findings(m)
+
+    # A SOUND_ROW case with a final its row does not land on.
+    row_of = {r.case_id.lower(): r for r in base.rows}
+    case = next((c for c in sorted(base.sound_cases) if len(fail_reasons_of(c)) > 1), None)
+    if case is None:
+        print("self-test FAIL: no SOUND_ROW case with two fail finals to test on", file=sys.stderr)
+        return 1
+    row = row_of[case]
+    other = sorted(fail_reasons_of(case) - {row.exp_reason})[0]
+    unit = f"{case}:{other}"
+    upper = row.case_id
+    other_fi = next(c for c, d in sorted(base.disposition.items())
+                    if d == "FAULT_INJECTION" and fail_reasons_of(c))
+
+    def strip(m: Model) -> None:
+        """Remove every non-row account of `other`, so only the row remains."""
+        m.registry.pop(upper, None)
+        m.deferred = {k: v for k, v in m.deferred.items() if split_unit(k)[0].lower() != case}
+        m.fault_coverage = {b: mp for b, mp in m.fault_coverage.items() if b.lower() != case}
+
+    def with_guard(reason: str):
+        def mutate(m: Model) -> None:
+            strip(m)
+            m.registry[upper] = {"guards": [{"class": "prohibited_emission",
+                                             "fail_reason": reason, "property": "p"}]}
+        return mutate
+
+    def with_deferral(key: str):
+        def mutate(m: Model) -> None:
+            strip(m)
+            m.deferred[key] = "expect-flippable: self-test"
+        return mutate
+
+    u, _ = variant(strip)
+    checks.append(("a final only the row misses is an unproven unit", unit in u))
+    checks.append(("the row's own final is proven", f"{case}:{row.exp_reason}" not in u))
+
+    u, f = variant(with_guard(other))
+    checks.append(("a registry guard proves a SOUND_ROW final", unit not in u))
+    checks.append(("a partial registry entry on a SOUND_ROW case is accepted",
+                   not any(x.startswith("REGISTRY_INCOMPLETE") and upper in x for x in f)))
+
+    _, f = variant(with_guard(row.exp_reason))
+    checks.append(("a registry guard on the row's final conflicts",
+                   any(x.startswith(f"PROOF_CONFLICT: {case}:{row.exp_reason}") for x in f)))
+
+    u, _ = variant(with_deferral(f"{upper}:{other}"))
+    checks.append(("a per-final deferral proves a SOUND_ROW final", unit not in u))
+
+    _, f = variant(with_deferral(f"{upper}:{row.exp_reason}"))
+    checks.append(("a deferral of the row's final conflicts",
+                   any(x.startswith(f"PROOF_CONFLICT: {case}:{row.exp_reason}") for x in f)))
+
+    _, f = variant(with_deferral(f"{upper}:no_such_final"))
+    checks.append(("a deferral of a missing final is rejected",
+                   any(x.startswith("DEFERRED_INVALID") for x in f)))
+
+    fi_key = f"{other_fi.upper()}:{sorted(fail_reasons_of(other_fi))[0]}"
+    _, f = variant(lambda m: m.deferred.__setitem__(fi_key, "x"))
+    checks.append(("a per-final deferral outside SOUND_ROW is rejected",
+                   any(x.startswith(f"DEFERRED_INVALID: {fi_key}") for x in f)))
+
+    live = next(c for c, e in sorted(base.registry.items()) if is_liveness_only(e))
+
+    def undispose(m: Model) -> None:
+        m.registry.pop(live)
+        m.disposition[live.lower()] = "UNDISPOSED"
+    u, _ = variant(undispose)
+    checks.append(("an undisposed case with no fail final is a bare unit", live.lower() in u))
+
+    failures = [label for label, ok in checks if not ok]
+    for label in failures:
+        print(f"self-test FAIL: {label}", file=sys.stderr)
+    if failures:
+        return 1
+    print(f"negative_coverage_audit self-test: all {len(checks)} checks passed ({case})")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -802,17 +1018,23 @@ def main() -> int:
     ap.add_argument("--write-ledger", action="store_true", help="regenerate the exhaustiveness ledger from the current UNDISPOSED set")
     ap.add_argument("--write-floor", action="store_true", help="record the current FAULT_INJECTION count as the Phase F high-water mark (raise-only)")
     ap.add_argument("--phase-f", action="store_true", help="print the empirical-verification (fault-injection) work-list")
+    ap.add_argument("--self-test", action="store_true", help="prove the per-final exhaustiveness rule fires")
     args = ap.parse_args()
 
+    if args.self_test:
+        return _self_test()
+
     m = build_model()
-    undisposed = {c for c, d in m.disposition.items() if d == "UNDISPOSED"}
+    unproven = unproven_units(m)
+    n_finals = sum(len(f) for f in m.final_proofs.values())
+    n_unproven_finals = sum(1 for u in unproven if split_unit(u)[1] is not None)
 
     if args.phase_f:
         return phase_f_report(m)
 
     if args.write_ledger:
-        LEDGER.write_text(ledger_text(undisposed), encoding="utf-8")
-        print(f"wrote {LEDGER.relative_to(REPO)} ({len(undisposed)} undisposed)")
+        LEDGER.write_text(ledger_text(unproven), encoding="utf-8")
+        print(f"wrote {LEDGER.relative_to(REPO)} ({len(unproven)} unproven)")
         return 0
 
     if args.write_floor:
@@ -846,27 +1068,33 @@ def main() -> int:
               f"{len(m.vacuous_cases)} cases with only vacuous rows)")
         print(f"  registry: {len(m.registry)} | deferred: {len(m.deferred)} | "
               f"_neg mechanisms: {len(m.neg_names)} over {len(m.fault_bases)} bases")
+        print(f"  fail finals: {n_finals} ({n_finals - n_unproven_finals} proven, "
+              f"{n_unproven_finals} unproven)")
         print(f"  exhaustiveness ledger: {len(ledger)} entries  ({LEDGER.relative_to(REPO)})")
         for f in cross_findings(m):
             print(f"  {f}")
-        new_debt = undisposed - ledger
-        gone = ledger - undisposed
+        new_debt = unproven - ledger
+        gone = ledger - unproven
         if new_debt:
-            print(f"  NEW undisposed (not in ledger): {len(new_debt)} -> {sorted(new_debt)[:20]}")
+            print(f"  NEW unproven (not in ledger): {len(new_debt)} -> {sorted(new_debt)[:20]}")
         if gone:
-            print(f"  ledger entries now disposed (remove them): {len(gone)} -> {sorted(gone)[:20]}")
+            print(f"  ledger entries now proven (remove them): {len(gone)} -> {sorted(gone)[:20]}")
         return 0
 
     findings = cross_findings(m)
-    for c in sorted(undisposed - ledger):
-        findings.append(f"NEW_UNDISPOSED: {c} has no non-vacuity disposition; add a sound row, register, _neg, or defer")
-    for c in sorted(ledger - undisposed):
-        findings.append(f"STALE_LEDGER: {c} is now disposed; remove it from {LEDGER.name}")
+    for u in sorted(unproven - ledger):
+        if split_unit(u)[1] is None:
+            findings.append(f"NEW_UNDISPOSED: {u} has no non-vacuity disposition; add a sound row, register, _neg, or defer")
+        else:
+            findings.append(f"NEW_UNPROVEN_FINAL: {u} is proven by no row, _neg, registry guard or deferral")
+    for u in sorted(ledger - unproven):
+        findings.append(f"STALE_LEDGER: {u} is now proven; remove it from {LEDGER.name}")
 
     print(
         f"exhaustiveness: {counts.get('SOUND_ROW',0)} sound / {counts.get('FAULT_INJECTION',0)} fault-inj / "
         f"{counts.get('REGISTRY',0)} registry / {counts.get('DEFERRED',0)} deferred / "
-        f"{len(undisposed)} undisposed (ledger {len(ledger)}) / {len(m.positives)} positive"
+        f"{counts.get('UNDISPOSED',0)} undisposed / {len(m.positives)} positive; "
+        f"{n_unproven_finals}/{n_finals} fail finals unproven (ledger {len(ledger)})"
     )
     for f in findings:
         print(f"  {f}")

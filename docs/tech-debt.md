@@ -2319,7 +2319,8 @@ The four `_NEG` join the smoke workflow's lwip-tap list, so CI runs them.
 
 ## TD-42 — a negative row proves one fail final, and the audit counts its whole case as disposed
 
-**Status:** OPEN. **Logged:** 2026-09-24, while resolving TD-41. TD-41 was one instance of it.
+**Status:** RESOLVED (2026-09-24). **Logged:** 2026-09-24, while resolving TD-41. TD-41 was one
+instance of it. The entry below is the register as logged; the resolution follows it.
 
 **What it is.** `tools/negative_coverage_audit.py` gives each positive case ONE disposition, and a
 case with a negative row is SOUND_ROW (rows take precedence). A row flips one expectation and lands
@@ -2360,3 +2361,33 @@ That makes the 33 visible open work, not a green audit.
 **Done when:** `negative_coverage_audit.py --check` rejects a multi-final case with a final no
 mechanism proves, unless the final stands in the ledger. The ledger holds exactly the unproven
 finals. `debt_census.py` counts each of them.
+
+**Resolution.** The audit now records, for every positive case with a `fail` final, which
+mechanisms prove each final. The case disposition is unchanged: a row still outranks a `_neg`, so
+a case with a row stays SOUND_ROW. The ledger's unit is now `case:final`. A bare `case` is used
+only for an undisposed case with no fail final. `--check` rejects a new unproven final as
+NEW_UNPROVEN_FINAL.
+
+Two of the four mechanisms the fix lists could not reach a SOUND_ROW case's other finals.
+REGISTERED_WITH_ROW rejected any registry entry on a case with a row. DEFERRED_REDUNDANT rejected
+any deferral of a case already disposed. Both rules were case-level. They are now per final:
+
+- A SOUND_ROW case may carry a partial registry entry, and a `CASE:final` deferral in
+  `deferred_negatives.json`, as TD-41 already allowed a partial coverage entry.
+- A registry guard or a deferral must be the only account of its final. Beside a row or a `_neg`
+  on the same final, PROOF_CONFLICT rejects it.
+- Any other disposition keeps its own completeness rule, because its label promises every final.
+  REGISTRY_AND_FAULT now binds FAULT_INJECTION cases only.
+
+`--self-test` proves the rule fires, on copies of the live model. CI runs it before `--check`.
+
+**Runs (2026-09-24).**
+
+- `--check` before the ledger was written: 33 NEW_UNPROVEN_FINAL, over 518 fail finals. These are
+  the 33 finals this entry lists, case for case.
+- After `--write-ledger`, the ledger holds those 33 lines and `--check` is OK.
+  `debt_census.py --check` lists each of them as `undisposed ... no proof`.
+- `--self-test` passes 10 checks. With `unproven_units` stubbed to return nothing it fails 2. With
+  the exclusive-mechanism rule removed it fails 2 more.
+
+Repaying the 33 is not part of this entry. The ledger holds them, and the census counts them.

@@ -233,14 +233,17 @@ jobs:
           python3 tools/verdict_drift_audit.py
 
       - name: Negative-coverage exhaustiveness ratchet
-        # Every positive case must carry a non-vacuity DISPOSITION proving its
-        # guard is checkable: a sound expect-flip row, a fault-injection _neg
-        # case, a conformant-absence registry entry, or a tracked deferral. The
-        # ratchet enforces: registry structurally valid; no STALE row; no NEW
-        # undisposed case beyond the shrinking ledger
+        # Every fail final of every positive case must be proven checkable: by
+        # a sound expect-flip row, a fault-injection _neg case, a
+        # conformant-absence registry guard, or a tracked deferral. The ratchet
+        # enforces: registry structurally valid; no STALE row; no NEW unproven
+        # final beyond the shrinking ledger
         # (tools/negative_coverage_undisposed.txt, D7); no stale ledger entry.
-        # Pure-Python. See docs/verdict_policy.md Section 6.
-        run: python3 tools/negative_coverage_audit.py --check
+        # The self-test runs first so a broken rule cannot pass by finding
+        # nothing. Pure-Python. See docs/verdict_policy.md Section 6.
+        run: |
+          python3 tools/negative_coverage_audit.py --self-test
+          python3 tools/negative_coverage_audit.py --check
 
       - name: Debt-register well-formedness
         # Unions the four registers that hold this repository's open work

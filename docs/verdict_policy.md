@@ -212,16 +212,24 @@ fire validates nothing):
 - **`FAULT_INJECTION`** — a `<case>_neg` registered case drives a faulty DUT flavour
   to `fail` (the empirical DUT-mutation track, realised).
 - **`REGISTRY`** — a `conformant_absence_registry.json` entry (a dut-behaviour
-  guard, structurally non-vacuous, awaiting fault injection). Such a case carries
-  **no** `NEG_ROWS` entry and no `_neg` sibling.
+  guard, structurally non-vacuous, awaiting fault injection). Such a case has no
+  `_neg` sibling.
 - **`DEFERRED`** — a `deferred_negatives.json` entry: an expect-flippable guard
   with no sound negative yet, each with an explicit reason (prefer fixing).
 
-A positive case in none of these is **undisposed**; the exhaustiveness ledger
-(`negative_coverage_undisposed.txt`) grandfathers today's backlog and `--check`
-rejects any new undisposed case or stale ledger entry, forcing it to shrink to
-zero — at which point every positive case is **covered** (accounted for by a
-disposition). Coverage is not correctness: the gate proves every case *has* a
+A positive case in none of these is **undisposed**. A disposition labels the case;
+it does not prove every guard in it, because one negative run reaches one `fail`
+final. So exhaustiveness is counted **per `fail` final**. A final is proven by the
+case's sound row landing on it, by a `_neg` mapped to it in
+`fault_injection_coverage.json` (or the lone `_neg` of a one-final case), by a
+registry guard naming it, or by a deferral. A `SOUND_ROW` case whose row cannot
+reach some finals may take a partial registry entry or `CASE:final` deferrals for
+them. A registry guard or deferral must be the only account of its final: beside a
+row or a `_neg` on the same final it contradicts them. The exhaustiveness ledger
+(`negative_coverage_undisposed.txt`) holds each unproven final as `case:final` (a
+bare `case` for an undisposed case with no `fail` final). `--check` rejects any
+new unit or stale ledger entry, forcing the ledger to shrink to zero — at which
+point every guard of every positive case is **covered**. Coverage is not correctness: the gate proves every case *has* a
 disposition, not that each disposition is genuine. It does close one correctness
 hole mechanically — a `SOUND_ROW` must be a real value-flip, so a row that flips
 an L3 source-IP filter (`ipv4`/`icmpv4` `dut_iface_ip`) and lands on an
@@ -241,8 +249,10 @@ claimed by the `--expect` harness. Listing behavioural guards as `--expect`
 
 ### 6.1 Phase F — empirical verification (the standard, and its honest reach)
 
-The exhaustiveness ledger is empty: every positive case carries a disposition, so
-the suite is **covered**. The remaining frontier is **correctness** — proving each
+Every positive case carries a disposition. Counted per `fail` final, coverage is
+not complete: the exhaustiveness ledger lists the finals of `SOUND_ROW` cases that
+their row does not reach and nothing else proves. `negative_coverage_audit.py`
+prints the live count. The other frontier is **correctness** — proving each
 *structural* (`REGISTRY`) guard actually fires by driving a faulty DUT onto its
 `fail` final. This is mutation analysis / ISO 9646 suite validation, and it is the
 **single** verification standard the suite converges to. The disposition taxonomy
@@ -277,8 +287,8 @@ counted under those families. Both exclusions are honest boundaries, not
 gaps to paper over — `--phase-f` reports the live faultable target, its backlog, and
 the excluded `liveness` and kernel buckets.
 
-**Ratchet.** The primary metric flips from coverage (`undisposed → 0`, reached) to
-empirical proof: the `FAULT_INJECTION` count is floored by
+**Ratchet.** Beside per-final coverage (the ledger shrinking to zero), the metric
+is empirical proof: the `FAULT_INJECTION` count is floored by
 `negative_coverage_audit.py --check` and only ever rises as `_neg` cases land; the
 current **faultable** `REGISTRY` set (`prohibited`/`incorrect`; `liveness` excluded)
 is the work-list (`--phase-f`). Each `_neg` promotes a case `REGISTRY →
