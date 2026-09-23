@@ -52,23 +52,9 @@ struct TestCaseTraits<cases::Ipv4Reassembly10SM>
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
-        ::tc8::sce::ipv4::fragments::FragmentPairParams phase_a{};
-        phase_a.ip_id_frag0 = ::tc8::sce::ipv4::reassembly::kReassembly10IpIdPhaseA;
-        phase_a.ip_id_frag1 = ::tc8::sce::ipv4::reassembly::kReassembly10IpIdPhaseA;
-        ::tc8::sce::ipv4::fragments::emitFragmentPair(
-            iface, cfg, cfg.arp.dut_iface_mac, phase_a,
-            /*initial_wait=*/std::chrono::milliseconds{200},
-            /*inter_frag_wait=*/std::chrono::milliseconds{1000},
-            /*post_send_wait=*/std::chrono::milliseconds{200});
-
-        ::tc8::sce::ipv4::fragments::FragmentPairParams phase_b{};
-        phase_b.ip_id_frag0 = ::tc8::sce::ipv4::reassembly::kReassembly10IpIdPhaseB;
-        phase_b.ip_id_frag1 = ::tc8::sce::ipv4::reassembly::kReassembly10IpIdPhaseB;
-        ::tc8::sce::ipv4::fragments::emitFragmentPair(
-            iface, cfg, cfg.arp.dut_iface_mac, phase_b,
-            /*initial_wait=*/std::chrono::milliseconds{0},
-            /*inter_frag_wait=*/std::chrono::milliseconds{3000},
-            /*post_send_wait=*/std::chrono::milliseconds{200});
+        // Phase A is shared with the _NEG, which sends it alone.
+        ::tc8::sce::ipv4::reassembly::emitReassembly10PhaseA(cfg, iface);
+        ::tc8::sce::ipv4::reassembly::emitReassembly10PhaseB(cfg, iface);
     }
 };
 

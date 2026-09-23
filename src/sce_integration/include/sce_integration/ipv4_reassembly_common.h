@@ -183,6 +183,65 @@ inline void emitReassembly11PairBackToBack(const ::tc8::TestConfig& cfg, std::st
     ::tc8::stimulus::emitIpv4Frame(iface, pair.frag1_spec, pair.frag1_payload, t1);
 }
 
+// The stimuli of REASSEMBLY_04 / _10 / _12 below are each the ONE emitter for a
+// positive and its `_NEG`, so the frames a sibling faults are the positive's own
+// (the reason buildReassembly11FragmentPair is shared above).
+
+// REASSEMBLY_04: the 32 B Echo Request body in four 8 B fragments, sent in the
+// spec's wire order frag 0 -> 2 -> 1 -> 3 (out of order, none missing).
+inline void emitReassembly04Fragments(const ::tc8::TestConfig& cfg, std::string_view iface) {
+    const auto body = buildReassembly32BEchoBody();
+    const std::vector<std::uint8_t> frag0_payload(body.begin() +  0, body.begin() +  8);
+    const std::vector<std::uint8_t> frag1_payload(body.begin() +  8, body.begin() + 16);
+    const std::vector<std::uint8_t> frag2_payload(body.begin() + 16, body.begin() + 24);
+    const std::vector<std::uint8_t> frag3_payload(body.begin() + 24, body.begin() + 32);
+    const auto mac = cfg.arp.dut_iface_mac;
+    emitIpv4Fragment(iface, cfg, mac, kReassembly04IpId, /*offset=*/0, /*MF=*/true,  /*ttl=*/64, frag0_payload);
+    emitIpv4Fragment(iface, cfg, mac, kReassembly04IpId, /*offset=*/2, /*MF=*/true,  /*ttl=*/64, frag2_payload);
+    emitIpv4Fragment(iface, cfg, mac, kReassembly04IpId, /*offset=*/1, /*MF=*/true,  /*ttl=*/64, frag1_payload);
+    emitIpv4Fragment(iface, cfg, mac, kReassembly04IpId, /*offset=*/3, /*MF=*/false, /*ttl=*/64, frag3_payload);
+}
+
+// REASSEMBLY_10 phase A: a pair on kReassembly10IpIdPhaseA with a 1 s wait,
+// inside the (toggled 2 s) reassembly timer.
+inline void emitReassembly10PhaseA(const ::tc8::TestConfig& cfg, std::string_view iface) {
+    ::tc8::sce::ipv4::fragments::FragmentPairParams phase_a{};
+    phase_a.ip_id_frag0 = kReassembly10IpIdPhaseA;
+    phase_a.ip_id_frag1 = kReassembly10IpIdPhaseA;
+    ::tc8::sce::ipv4::fragments::emitFragmentPair(
+        iface, cfg, cfg.arp.dut_iface_mac, phase_a,
+        /*initial_wait=*/std::chrono::milliseconds{200},
+        /*inter_frag_wait=*/std::chrono::milliseconds{1000},
+        /*post_send_wait=*/std::chrono::milliseconds{200});
+}
+
+// REASSEMBLY_10 phase B: a pair on kReassembly10IpIdPhaseB with a 3 s wait,
+// past the timer, so frag 1' arrives after the bucket was freed.
+inline void emitReassembly10PhaseB(const ::tc8::TestConfig& cfg, std::string_view iface) {
+    ::tc8::sce::ipv4::fragments::FragmentPairParams phase_b{};
+    phase_b.ip_id_frag0 = kReassembly10IpIdPhaseB;
+    phase_b.ip_id_frag1 = kReassembly10IpIdPhaseB;
+    ::tc8::sce::ipv4::fragments::emitFragmentPair(
+        iface, cfg, cfg.arp.dut_iface_mac, phase_b,
+        /*initial_wait=*/std::chrono::milliseconds{0},
+        /*inter_frag_wait=*/std::chrono::milliseconds{3000},
+        /*post_send_wait=*/std::chrono::milliseconds{200});
+}
+
+// REASSEMBLY_12: a Low-TTL pair on kReassembly12IpId with a 1 s wait.
+inline void emitReassembly12Pair(const ::tc8::TestConfig& cfg, std::string_view iface) {
+    ::tc8::sce::ipv4::fragments::FragmentPairParams params{};
+    params.ip_id_frag0 = kReassembly12IpId;
+    params.ip_id_frag1 = kReassembly12IpId;
+    params.ttl_frag0   = kReassemblyLowTtl;
+    params.ttl_frag1   = kReassemblyLowTtl;
+    ::tc8::sce::ipv4::fragments::emitFragmentPair(
+        iface, cfg, cfg.arp.dut_iface_mac, params,
+        /*initial_wait=*/std::chrono::milliseconds{200},
+        /*inter_frag_wait=*/std::chrono::milliseconds{1000},
+        /*post_send_wait=*/std::chrono::milliseconds{0});
+}
+
 // REASSEMBLY_13's fragments, in 8-octet offsets over a 35 B Echo Request body
 // (8 B ICMP header + 27 B kReassembly13EchoPayload, checksum computed once
 // over the post-resolution region):

@@ -573,6 +573,14 @@ def validate_fault_coverage(m: Model) -> list[str]:
       * every declared neg_case_id is a real `_neg<n>` sibling of that base.
 
     A single-fail-final case needs no entry: its lone `_neg` covers its lone guard.
+
+    A SOUND_ROW case may carry a PARTIAL entry. Its disposition is its row, so no
+    `_neg` promotes it and the completeness rule above has nothing to protect; an
+    entry there records which of its finals a `_neg` proves because the row cannot
+    -- a behaviour guard no --expect flip reaches (docs/tech-debt.md TD-41). Its
+    keys must still be real fail finals and its values real `_neg` siblings, so the
+    link is checked, not asserted. What a SOUND_ROW case's REMAINING finals are
+    proven by is not checked by anything yet (docs/tech-debt.md TD-42).
     """
     findings: list[str] = []
     pos = set(m.positives)
@@ -586,7 +594,14 @@ def validate_fault_coverage(m: Model) -> list[str]:
             continue
         declared = set(mapping.keys())
         actual = fail_reasons_of(base_l)
-        if declared != actual:
+        if m.disposition.get(base_l) == "SOUND_ROW":
+            if not declared or not declared <= actual:
+                findings.append(
+                    f"FAULT_COVERAGE_INVALID: {base} (SOUND_ROW) coverage keys "
+                    f"{sorted(declared - actual) or '[]'} are not .scxml fail-finals "
+                    f"of the case (a partial entry names real finals only)"
+                )
+        elif declared != actual:
             findings.append(
                 f"FAULT_COVERAGE_INCOMPLETE: {base} coverage keys {sorted(declared)} "
                 f"!= .scxml fail-finals {sorted(actual)} (cover every guard, drop stale)"

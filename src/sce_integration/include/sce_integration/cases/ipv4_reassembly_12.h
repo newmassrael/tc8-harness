@@ -60,17 +60,8 @@ struct TestCaseTraits<cases::Ipv4Reassembly12SM>
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
-        ::tc8::sce::ipv4::fragments::FragmentPairParams params{};
-        params.ip_id_frag0 = ::tc8::sce::ipv4::reassembly::kReassembly12IpId;
-        params.ip_id_frag1 = ::tc8::sce::ipv4::reassembly::kReassembly12IpId;
-        params.ttl_frag0   = ::tc8::sce::ipv4::reassembly::kReassemblyLowTtl;
-        params.ttl_frag1   = ::tc8::sce::ipv4::reassembly::kReassemblyLowTtl;
-
-        ::tc8::sce::ipv4::fragments::emitFragmentPair(
-            iface, cfg, cfg.arp.dut_iface_mac, params,
-            /*initial_wait=*/std::chrono::milliseconds{200},
-            /*inter_frag_wait=*/std::chrono::milliseconds{1000},
-            /*post_send_wait=*/std::chrono::milliseconds{0});
+        // Shared with the _NEG.
+        ::tc8::sce::ipv4::reassembly::emitReassembly12Pair(cfg, iface);
     }
 };
 

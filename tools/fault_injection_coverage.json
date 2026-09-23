@@ -1,5 +1,5 @@
 {
-  "_doc": "Phase F per-fail-final coverage SSOT (docs/verdict_policy.md Section 6.1). A multi-guard positive case whose guards are mutually exclusive in a single run cannot be promoted to FAULT_INJECTION by one _neg (one run reaches one final). Each entry maps every fail-final reason of the base case to the _neg<n> variant that proves it reachable. negative_coverage_audit.py cross-checks the keys against the base .scxml fail-finals (completeness) and that each variant is a real _neg sibling. Single-guard cases need no entry.",
+  "_doc": "Phase F per-fail-final coverage SSOT (docs/verdict_policy.md Section 6.1). A multi-guard positive case whose guards are mutually exclusive in a single run cannot be promoted to FAULT_INJECTION by one _neg (one run reaches one final). Each entry maps every fail-final reason of the base case to the _neg<n> variant that proves it reachable. negative_coverage_audit.py cross-checks the keys against the base .scxml fail-finals (completeness) and that each variant is a real _neg sibling. Single-guard cases need no entry. A SOUND_ROW case (disposed by its negative row, which a _neg never promotes) may carry a PARTIAL entry naming only the finals a _neg proves because no --expect flip reaches them; its keys must be real fail finals (docs/tech-debt.md TD-41).",
   "cases": {
     "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_13": {
       "dut_first_retx_interval_out_of_range": "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_13_NEG",
@@ -26,6 +26,18 @@
     "IPv4_HEADER_05": {
       "dut_echoed_576_byte_data_with_wrong_bytes": "IPv4_HEADER_05_NEG",
       "dut_truncated_576_byte_datagram_data": "IPv4_HEADER_05_NEG2"
+    },
+    "IPv4_FRAGMENTS_01": {
+      "complete_fragment_pair_discarded_by_reassembly_timeout": "IPv4_FRAGMENTS_01_NEG"
+    },
+    "IPv4_REASSEMBLY_04": {
+      "unordered_fragments_discarded_by_reassembly_timeout": "IPv4_REASSEMBLY_04_NEG"
+    },
+    "IPv4_REASSEMBLY_10": {
+      "phase_a_datagram_discarded_within_timer": "IPv4_REASSEMBLY_10_NEG"
+    },
+    "IPv4_REASSEMBLY_12": {
+      "reassembly_timer_shrunk_by_low_ttl": "IPv4_REASSEMBLY_12_NEG"
     },
     "IPv4_REASSEMBLY_11": {
       "reassembly_timer_not_extended_by_large_ttl": "IPv4_REASSEMBLY_11_NEG",

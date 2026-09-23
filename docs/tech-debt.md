@@ -2255,7 +2255,8 @@ byte-identical to the TD-37/38 binary, the lwIP overrides file among them. In a 
 
 ## TD-41 — the four reassembly-discard fail finals are reached by no run
 
-**Status:** OPEN. **Logged:** 2026-09-24, while resolving TD-35.
+**Status:** RESOLVED (2026-09-24). **Logged:** 2026-09-24, while resolving TD-35. The entry below
+is the debt as logged; **Resolution** at its end records what closed it.
 
 **What it is.** TD-35 gave four positive cases a fail final for the DUT's own Time Exceeded code 1
 quoting their fragment 0:
@@ -2286,3 +2287,76 @@ id/seq/data finals need egress-fault mutants too, as `_11_NEG2`..`_NEG4` are.
 
 **Done when:** each of the four finals is the verdict of a `_NEG` mutant that passes on lwip-tap,
 and `negative_coverage_audit.py --check` accepts the four cases' coverage entries.
+
+**Resolution.** Each case now has a lwIP `_NEG` in the register's FAULT_INJECTION shape:
+`IPv4_FRAGMENTS_01_NEG` and `IPv4_REASSEMBLY_04_NEG`, `_10_NEG` and `_12_NEG`. Each arms
+`kIpv4FaultDropLastFragment`, sends the positive's own fragments and passes on the report the
+positive grades. `_10_NEG` sends phase A alone. The stimuli the positives sent inline moved into
+shared emitters in `ipv4_reassembly_common.h`, so each positive and its `_NEG` send one set of
+frames.
+
+The textbook fix above was wrong on one point. A `_NEG` does not make these cases FAULT_INJECTION:
+a case with a negative row stays SOUND_ROW, so the audit never asked for their coverage entries.
+It also rejected any entry that did not cover every final, which these four could not do: their
+Echo Reply finals other than the row's are unproven, and were before TD-35. So the audit now
+accepts a PARTIAL entry for a SOUND_ROW case. Its keys must be real fail finals and its values
+real `_neg` siblings, and completeness stays required for FAULT_INJECTION. The four entries record
+exactly the link TD-41 is about. The finals no mechanism proves are TD-42.
+
+**Runs (2026-09-24).**
+
+- **lwip-tap:** the four `_NEG` pass, each on a type 11 code 1 frame from the DUT, per its trace.
+  Of the twelve fragment positives, nine pass and three are the fixture's `platform_known_fail`
+  (`IPv4_FRAGMENTS_04`, `_11`, `_13`), unchanged.
+- **single-pc:** the four positives pass after the stimulus refactor. The four `_NEG` skip for want
+  of `kCapIngressFault`, like every other lwIP-only mutant.
+- `negative_coverage_audit.py --check` is OK. Fed an entry naming a final the case lacks, or a
+  `_neg` of another case, it rejects both.
+
+The four `_NEG` join the smoke workflow's lwip-tap list, so CI runs them.
+
+---
+
+## TD-42 — a negative row proves one fail final, and the audit counts its whole case as disposed
+
+**Status:** OPEN. **Logged:** 2026-09-24, while resolving TD-41. TD-41 was one instance of it.
+
+**What it is.** `tools/negative_coverage_audit.py` gives each positive case ONE disposition, and a
+case with a negative row is SOUND_ROW (rows take precedence). A row flips one expectation and lands
+on one fail final. For a single-final case that proves the guard. For a multi-final case it proves
+only the final the row lands on, and the audit still counts the case as disposed. The audit's own
+rule that one mechanism proves one final (`validate_fault_coverage`, PARTIAL_FAULT_INJECTION)
+binds FAULT_INJECTION cases only.
+
+Measured 2026-09-24, after TD-41: 18 SOUND_ROW cases carry more than one fail final. 33 of their
+finals are proven by neither a row nor a mapped `_neg`. The cases are `ARP_04`, `ARP_06`,
+`ARP_32`, `ARP_33`, `ARP_34`, `ARP_35`, `ARP_39`, `ARP_40`, `ARP_45`, `ARP_49`, `ICMPv4_TYPE_12`,
+`IPv4_FRAGMENTS_01` to `_04`, and `IPv4_REASSEMBLY_04`, `_10` and `_12`. For example,
+`IPv4_FRAGMENTS_01`'s row proves `fail_echo_id`, but nothing proves `fail_echo_seq` or
+`fail_data_mismatch` can fire.
+
+**Why it exists.** The disposition model was written per case, back when most cases had one
+guard. Per-final accounting arrived later and was scoped to the one disposition whose promotion it
+guards.
+
+**Risk if left.** A wrong expected value or a broken conjunct in any of the 33 guards turns a real
+violation into a pass or a timeout, with every audit green. This is the vacuity the register
+exists to catch, and it is invisible there. The census does not count it either, because nothing
+records it.
+
+**Textbook fix.** Account per fail final for every case, not per case. Each final must be proven
+by one of the register's existing mechanisms:
+
+- a sound row landing on that final;
+- a `_neg` mapped to it in `tools/fault_injection_coverage.json`;
+- a registry guard naming it;
+- a deferred-negatives reason.
+
+A final proven by none is UNDISPOSED. It belongs in the exhaustiveness ledger
+(`tools/negative_coverage_undisposed.txt`, which `tools/debt_census.py` already unions) at
+`CASE:final` granularity, grandfathered and forced to shrink the way the case-level ledger was.
+That makes the 33 visible open work, not a green audit.
+
+**Done when:** `negative_coverage_audit.py --check` rejects a multi-final case with a final no
+mechanism proves, unless the final stands in the ledger. The ledger holds exactly the unproven
+finals. `debt_census.py` counts each of them.

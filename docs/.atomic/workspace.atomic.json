@@ -1536,6 +1536,14 @@
         {
           "file": "src/sce_integration/include/sce_integration/udp_pilot_common.h",
           "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/cases/ipv4_fragments_01_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_fragments_01_neg/ipv4_fragments_01_neg.scxml",
+          "kind": "implements"
         }
       ]
     },
@@ -1701,6 +1709,30 @@
         },
         {
           "file": "tests/ipv4_reassembly_13_neg4/ipv4_reassembly_13_neg4.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/cases/ipv4_reassembly_04_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_reassembly_04_neg/ipv4_reassembly_04_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/cases/ipv4_reassembly_10_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_reassembly_10_neg/ipv4_reassembly_10_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/cases/ipv4_reassembly_12_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_reassembly_12_neg/ipv4_reassembly_12_neg.scxml",
           "kind": "implements"
         }
       ]

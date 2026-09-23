@@ -286,6 +286,16 @@ the SCXML lands on `fail_echo_id` (the explicit mismatch branch fires before
 `fail_data_mismatch` since it has higher specificity). Proves the echo_id match
 is load-bearing in the reassembly path — not just "any DUT reply".
 
+**The discard guards a row cannot reach.** FRAGMENTS_01, REASSEMBLY_04,
+REASSEMBLY_10 (phase A) and REASSEMBLY_12 each also grade the DUT's own Time
+Exceeded code 1 quoting their fragment 0 (docs/tech-debt.md TD-35). No `--expect`
+flip produces that report, and neither reference DUT discards these datagrams, so
+the row above cannot prove it. Each has a lwIP `_NEG` sibling that can:
+kIpv4FaultDropLastFragment swallows the tail fragment, lwIP's own reassembly timer
+expires, and lwIP sends the report the guard reads (the REASSEMBLY_11_NEG
+mechanism). The row stays the case's disposition; the `_NEG` proves the final the
+row cannot.
+
 ## §4.4.4.6 IPv4_FRAGMENTS_02 / _03 / _04
 
 Cases: IPv4_FRAGMENTS_02, IPv4_FRAGMENTS_03, IPv4_FRAGMENTS_04.

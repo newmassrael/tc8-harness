@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.4.4.7 IPv4_REASSEMBLY_12 negative (timer variant) — lwIP ingress-fault
+  self-validation of the positive's `reassembly_timer_shrunk_by_low_ttl` guard: a
+  Time Exceeded code 1 from the DUT quoting the case's own IP Identification.
+  The trait arms kIpv4FaultDropLastFragment and sends the positive's own Low-TTL
+  pair; the flavor swallows frag 1, lwIP's bucket expires and lwIP itself sends
+  the discard report — the same report a DUT that shrank its timer on the low
+  TTL would send. Pass = that report observed (the positive's guard, verbatim);
+  fail_compliant = an Echo Reply (fault inert).
+
+  Neither reference DUT shrinks its timer, so no positive run reaches the guard
+  (docs/tech-debt.md TD-41); the guard reads only the report frame, which this
+  stimulus produces identically. lwIP-only (kCapIngressFault). Envelope:
+  icmpv4_egress_field_check.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_reassembly_12_neg"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/icmpv4_egress_field_check.sce-template.xml"
+           filter="captured.type == 0 or (captured.type == 11 and captured.code == 1 and captured.src_ip == expected.dut_iface_ip and captured.quotes_ip_id(::tc8::sce::ipv4::reassembly::kReassembly12IpId))"
+           pass_expr="captured.type == 11"
+           fail_state="fail_compliant"
+           fail_reason="dut_reassembled_despite_dropped_last_fragment"
+           fail_role="fault_injection_inert"
+           inconclusive_reason="no_echo_reply_or_reassembly_expiry_within_listen_window"
+           deadline="8s"/>
+</scxml>

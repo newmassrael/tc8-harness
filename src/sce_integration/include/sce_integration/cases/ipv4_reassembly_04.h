@@ -47,27 +47,8 @@ struct TestCaseTraits<cases::Ipv4Reassembly04SM>
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
-        const auto body = ::tc8::sce::ipv4::reassembly::buildReassembly32BEchoBody();
-        const std::vector<std::uint8_t> frag0_payload(body.begin() +  0, body.begin() +  8);
-        const std::vector<std::uint8_t> frag1_payload(body.begin() +  8, body.begin() + 16);
-        const std::vector<std::uint8_t> frag2_payload(body.begin() + 16, body.begin() + 24);
-        const std::vector<std::uint8_t> frag3_payload(body.begin() + 24, body.begin() + 32);
-
-        const auto ip_id = ::tc8::sce::ipv4::reassembly::kReassembly04IpId;
-
-        // Spec wire order: frag 0 → frag 2 → frag 1 → frag 3.
-        ::tc8::sce::ipv4::reassembly::emitIpv4Fragment(
-            iface, cfg, cfg.arp.dut_iface_mac, ip_id,
-            /*offset=*/0, /*MF=*/true, /*ttl=*/64, frag0_payload);
-        ::tc8::sce::ipv4::reassembly::emitIpv4Fragment(
-            iface, cfg, cfg.arp.dut_iface_mac, ip_id,
-            /*offset=*/2, /*MF=*/true, /*ttl=*/64, frag2_payload);
-        ::tc8::sce::ipv4::reassembly::emitIpv4Fragment(
-            iface, cfg, cfg.arp.dut_iface_mac, ip_id,
-            /*offset=*/1, /*MF=*/true, /*ttl=*/64, frag1_payload);
-        ::tc8::sce::ipv4::reassembly::emitIpv4Fragment(
-            iface, cfg, cfg.arp.dut_iface_mac, ip_id,
-            /*offset=*/3, /*MF=*/false, /*ttl=*/64, frag3_payload);
+        // Spec wire order frag 0 -> 2 -> 1 -> 3, shared with the _NEG.
+        ::tc8::sce::ipv4::reassembly::emitReassembly04Fragments(cfg, iface);
     }
 };
 
