@@ -410,6 +410,24 @@ err_t ingressFaultInput(struct pbuf *p, struct netif *nif) {
                 pbuf_free(p);  // swallow — the DUT wrongly ignores a RST it must act on
                 return ERR_OK;
             }
+        } else if (flavor == ut::kIpv4FaultDropLastFragment &&
+                   p->len >= kEthHdrLen + kIpHdrLenMin && isIpv4(f)) {
+            // §4.4.4.7 REASSEMBLY_11 / _13: a buggy DUT that loses the last fragment of a
+            // datagram it must reassemble. The conformant DUT completes the bucket and
+            // answers the Echo Request; this hook swallows the tail (MF clear, offset
+            // non-zero) before ip4_reass sees it, so lwIP's bucket expires and lwIP itself
+            // sends the Time Exceeded code 1 that quotes the head fragment — the discard
+            // report the positive grades as a fail. Drop seam (pbuf_free, never forwarded
+            // — the kTcpDropDisruptiveRst sibling), not an ip4_frag.c patch. The head and
+            // any middle fragment carry MF, and an unfragmented frame (the UT arm
+            // included) has offset 0, so neither is touched.
+            const bool more_fragments = (f[kEthHdrLen + 6] & 0x20U) != 0U;
+            const std::uint16_t frag_offset = static_cast<std::uint16_t>(
+                (static_cast<std::uint16_t>(f[kEthHdrLen + 6] & 0x1FU) << 8) | f[kEthHdrLen + 7]);
+            if (!more_fragments && frag_offset != 0U) {
+                pbuf_free(p);  // swallow — the DUT wrongly loses a fragment it must keep
+                return ERR_OK;
+            }
         } else if (flavor == ut::kTcpSynthAckSrcPortBlind &&
                    p->len >= kEthHdrLen + kIpHdrLenMin && isIpv4(f) &&
                    f[kIpProtoOff] == kIpProtoTcp &&

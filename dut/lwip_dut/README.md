@@ -279,6 +279,12 @@ a post-delivery application decision, below the netif glue's reach:
       SYN-SENT retransmitting its SYN at the fixed 1 s cadence, so each `_neg` passes only when
       that continued SYN is observed. The violation is the *absence* of the required CLOSED
       transition, not a forbidden emission.
+    - `kIpv4FaultDropLastFragment` — a second **drop** seam: swallow the inbound last fragment
+      of a datagram (MF clear, offset non-zero), so lwIP's reassembly bucket never completes and
+      lwIP itself reports the expiry with a Time Exceeded code 1 quoting the head fragment. For
+      the `§4.4.4.7` REASSEMBLY_11 timer and REASSEMBLY_13 discard guards (`_NEG` of each),
+      whose premises no reference DUT reaches (docs/tech-debt.md TD-28, TD-33): the `_NEG`
+      sends the datagram so a conformant DUT reassembles it, and passes only on the report.
 
     These behavioural flavors are the seam the egress field-fault cannot reach — the conformant
     DUT emits nothing to corrupt, so the hook either synthesizes the whole forbidden frame or

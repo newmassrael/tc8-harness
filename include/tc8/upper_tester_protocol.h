@@ -902,8 +902,8 @@ inline constexpr std::uint8_t kTcpFaultSynMssDefault    = 0x0E;  // RFC 1122 §4
 // ICMPv4 (§4.3) + IPv4 header (§4.4) on a DUT ICMP message, gated per ICMP type so only
 // the observed frame is touched: the Echo Reply (type 0) for echo id/seq + IPv4 ttl /
 // header checksum (0x0F-0x12); the Destination Unreachable (type 3) for code (0x13):
-inline constexpr std::uint8_t kIcmpFaultEchoIdWrong    = 0x0F;  // RFC 792 echo id:  §4.3 ICMPv4_TYPE_09 (reply echoes the request identifier)
-inline constexpr std::uint8_t kIcmpFaultEchoSeqWrong   = 0x10;  // RFC 792 echo seq: §4.3 ICMPv4_TYPE_09 (reply echoes the request sequence)
+inline constexpr std::uint8_t kIcmpFaultEchoIdWrong    = 0x0F;  // RFC 792 echo id:  §4.3 ICMPv4_TYPE_09 (reply echoes the request identifier); also §4.4.4.7 REASSEMBLY_11/_13 on the reassembled reply
+inline constexpr std::uint8_t kIcmpFaultEchoSeqWrong   = 0x10;  // RFC 792 echo seq: §4.3 ICMPv4_TYPE_09 (reply echoes the request sequence); also §4.4.4.7 REASSEMBLY_11/_13 on the reassembled reply
 inline constexpr std::uint8_t kIpv4FaultTtlZero        = 0x11;  // RFC 1122 §3.2.1.7 TTL:  §4.4 IPv4_TTL_01 (emitted TTL MUST be non-zero)
 inline constexpr std::uint8_t kIpv4FaultHdrChecksumWrong = 0x12; // RFC 791 §3.1 header checksum: §4.4 IPv4_CHECKSUM_05
 inline constexpr std::uint8_t kIcmpFaultDestUnreachCodeWrong = 0x13; // RFC 1122 §3.2.2.1 code: §4.3 ICMPv4_TYPE_18 (Protocol Unreachable code 2)
@@ -923,7 +923,7 @@ inline constexpr std::uint8_t kIpv4FaultVersionWrong  = 0x16;  // RFC 791 §3.1 
 // Corrupt the first byte of a DUT Echo Reply's Data region (payload length unchanged) so
 // the echoed bytes no longer match the index pattern — the "wrong bytes" half of the
 // 576-octet echo guard, distinct from the truncation half.
-inline constexpr std::uint8_t kIcmpFaultEchoPayloadByteWrong = 0x17;  // RFC 792 echo data: §4.4 IPv4_HEADER_05 (548 B Data echoed verbatim — wrong-bytes half)
+inline constexpr std::uint8_t kIcmpFaultEchoPayloadByteWrong = 0x17;  // RFC 792 echo data: §4.4 IPv4_HEADER_05 (548 B Data echoed verbatim — wrong-bytes half); also §4.4.4.7 REASSEMBLY_11/_13 (reassembled data)
 // Shrink the Echo Reply's IP total_length so the dissected payload carries fewer than the 548
 // echoed Data bytes (libtins slices the inner PDU by total_length) — the truncation half of
 // the same 576-octet echo guard, distinct from the wrong-bytes half above.
@@ -1019,7 +1019,15 @@ inline constexpr std::uint8_t kTcpDropDisruptiveRst      = 0x0D;  // §4.8.6.6 F
 // connection's remote port, so the pcb walk is the only way to recover the real one —
 // the kTcpSynth* swap would reply to the wrong port, missing the EST-4-tuple guard:
 inline constexpr std::uint8_t kTcpSynthAckSrcPortBlind   = 0x0E;  // §4.8.6.16 HEADER_04 (must drop a segment from the wrong source port): synthesize the prohibited pure ACK on the EST 4-tuple recovered from the active-pcb walk
-inline constexpr std::uint8_t kIngressFaultMax           = kTcpSynthAckSrcPortBlind;
+// §4.4.4.7 IPv4 reassembly — a DROP seam, the kTcpDropDisruptiveRst sibling: swallow
+// the inbound LAST fragment of a datagram (MF clear, fragment offset non-zero) at the
+// netif input, so lwIP's reassembly never completes the bucket. Models a DUT that loses
+// a fragment it received and must keep: the bucket expires and the DUT reports the
+// discard with an ICMP Time Exceeded code 1 quoting the head fragment (RFC 792), through
+// its own reporting path. An unfragmented frame (offset 0, MF clear) — the UT control
+// channel included — and every earlier fragment pass untouched:
+inline constexpr std::uint8_t kIpv4FaultDropLastFragment = 0x0F;  // §4.4.4.7 REASSEMBLY_11 (timer) / _13 (overlap): the DUT discards the datagram and reports the expiry
+inline constexpr std::uint8_t kIngressFaultMax           = kIpv4FaultDropLastFragment;
 
 // `OpSetAppFlavor` (0x1A) APP-LAYER reception-fault flavor byte. Distinct from the
 // egress/ingress catalogs: those mutate or synthesize wire frames at the netif hook,
