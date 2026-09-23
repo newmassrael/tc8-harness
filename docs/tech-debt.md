@@ -1216,8 +1216,9 @@ NDEBUG. That is the strongest argument for the declaration and the reason this d
 
 ## TD-20 — the UT-Confirmation field check cannot tell "the DUT reported no receipt" from "no Confirmation arrived"
 
-**Status:** OPEN. **Logged:** 2026-09-23, reading
+**Status:** RESOLVED (2026-09-23). **Logged:** 2026-09-23, reading
 `tests/_templates/udp_ut_received_check.sce-template.xml` while auditing negative controls.
+The entry below is the debt as logged; **Resolution** at its end records what closed it.
 
 **What it is.** The template's `listening` state has exactly two `udp_observed` transitions and
 both conjunct `captured.ut_received == 1`:
@@ -1264,6 +1265,42 @@ the real cause. That fixture defect is now fixed, so the ordering constraint is 
 final with its own reason, the `_NEG` variants' flavour of it is settled the same way, and a
 full run of the nine consuming cases on both DUT backends shows no verdict change on a
 conforming DUT.
+
+**Resolution.** The template now carries a transition for a Confirmation with
+`ut_received == 0`, placed ahead of the deadline. It lands on a final whose reason is
+`dut_reported_no_receipt`. The deadline keeps its guard-free form, so it still means only
+"no Confirmation arrived". The new final's state, verdict and role are bound per consumer,
+and only two bindings are coherent:
+
+- **Positives** (UDP_FIELDS_12, UDP_USER_INTERFACE_02/03/04) bind `fail_no_receipt` /
+  `fail` / `observed_violation`. The sibling `ipv4_udp_ut_presence` template already treated
+  a wrong receipt report as `fail`, so this is not a new policy.
+- **Report-fault `_NEG`s** bind `inconclusive_no_receipt` / `inconclusive` /
+  `precondition_unmet`. Their fault corrupts a field of a datagram that was *received*, so a
+  report of no receipt means the fault had nothing to act on. That is neither the fault
+  demonstrated nor the fault inert. `negative_coverage_audit.py` also allows a `_neg` exactly
+  one fail final (its `fail_compliant` branch).
+
+The positives now have two fail finals each, so Phase F needs a `_neg` proving the new one
+can be reached. A new app-fault flavour, `kAppFaultReportNoReceipt`, makes the data listener
+lose a datagram it received. The new cases UDP_FIELDS_12_NEG2 and UDP_USER_INTERFACE_02/03/04_NEG2
+arm it and pass only on `received=0`. They are registered in `tools/fault_injection_coverage.json`
+and in the lwIP smoke list.
+
+The consumer count in this entry was wrong. `git grep -l udp_ut_received_check -- tests` lists
+nine paths, but one is the template itself and `udp_user_interface_01` only names the template
+in a comment. The real count is **eight**: four positives and four `_NEG`s.
+
+Measured on 2026-09-23 with the built harness and lwIP DUT:
+
+- **lwip-tap:** all 12 cases (the 8 consumers plus the 4 new `_NEG2`s) PASS, with 0 failures,
+  0 skips and 0 non-conclusions. Each `_NEG2` pass was a 12-byte Confirmation (`received=0`);
+  each positive and `_NEG` pass was a 28-byte one (`received=1`).
+- **single-pc** reference DUT: the 4 positives PASS. The 8 `_NEG`/`_NEG2` cases skip on
+  `kCapAppFault` (`0x200`), which the reference DUT does not advertise.
+
+No verdict changed on a conforming DUT. `negative_coverage_audit.py --check` and
+`verdict_drift_audit.py` are green, and FAULT_INJECTION stays at 177.
 
 ---
 
