@@ -1,5 +1,7 @@
-# SCE pin integrity, checked at CONFIGURE time (requirement R5 of
-# claudedocs/utm-module-from-scxml-requirements.md).
+# SCE pin integrity, checked at CONFIGURE time. The requirement (R5 of the
+# UTM-module-from-SCXML requirements): every consumer of a generated SCXML
+# pins the same SCE revision, and a mismatch fails at configure time with the
+# two revisions named.
 #
 # What this checks and what it deliberately does not
 # --------------------------------------------------

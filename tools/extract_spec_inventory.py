@@ -5,9 +5,7 @@ Scans the pdftotext-extracted spec splits in pagination order, tracks the
 current §-section heading, and emits one record per headed test case body.
 The headed-cases set is the canonical *active* TC8 set: deprecated cases
 appear only in the spec-change deletion table (not in the body), so the
-mine equals the active set without parsing the table. See
-``claudedocs/infra_session14_prompt.md`` and the S14 Step-0 audit for the
-rationale.
+mine equals the active set without parsing the table.
 
 Usage:
     tools/extract_spec_inventory.py [--repo-root PATH] [--out PATH]

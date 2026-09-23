@@ -2,8 +2,12 @@
 <!--
   The sequencing body of an Upper-Tester middleware module (PRS_TPSP §6.6),
   authored once here and emitted to C++ by SCE. This is the "prove it on one
-  machine" exercise from claudedocs/utm-module-from-scxml-requirements.md: one
-  START_TEST boundary, one service primitive, one END_TEST boundary.
+  machine" exercise of the UTM-module-from-SCXML requirements: one START_TEST
+  boundary, one service primitive, one END_TEST boundary, small enough that a
+  red answer (the emission allocates where it must not, or the adapter does
+  not become thin) is cheap to get before any second machine is written.
+  Requirement R1 is: the module's sequencing lives in exactly one SCXML
+  document, and the adapter only translates and forwards.
 
   Every sequencing decision lives in this document. The adapter that implements
   MiddlewareModule may only translate: it raises an event per callback and

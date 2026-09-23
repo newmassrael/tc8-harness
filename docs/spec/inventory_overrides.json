@@ -94,59 +94,59 @@
     },
     "DHCPV4_CLIENT_ALLOCATING_08": {
       "timing_serial": true,
-      "timing_serial_ref": "memory/reference_timing_serial_cadence.md"
+      "timing_serial_ref": "tools/timing_serial_audit.py"
     },
     "DHCPV4_CLIENT_CONSTRUCTING_MESSAGES_12": {
       "timing_serial": true,
-      "timing_serial_ref": "memory/reference_timing_serial_cadence.md"
+      "timing_serial_ref": "tools/timing_serial_audit.py"
     },
     "DHCPV4_CLIENT_CONSTRUCTING_MESSAGES_12_NEG": {
       "timing_serial": true,
-      "timing_serial_ref": "memory/reference_timing_serial_cadence.md"
+      "timing_serial_ref": "tools/timing_serial_audit.py"
     },
     "DHCPV4_CLIENT_CONSTRUCTING_MESSAGES_13": {
       "timing_serial": true,
-      "timing_serial_ref": "memory/reference_timing_serial_cadence.md"
+      "timing_serial_ref": "tools/timing_serial_audit.py"
     },
     "DHCPV4_CLIENT_CONSTRUCTING_MESSAGES_13_NEG": {
       "timing_serial": true,
-      "timing_serial_ref": "memory/reference_timing_serial_cadence.md"
+      "timing_serial_ref": "tools/timing_serial_audit.py"
     },
     "DHCPV4_CLIENT_CONSTRUCTING_MESSAGES_13_NEG2": {
       "timing_serial": true,
-      "timing_serial_ref": "memory/reference_timing_serial_cadence.md"
+      "timing_serial_ref": "tools/timing_serial_audit.py"
     },
     "DHCPV4_CLIENT_INITIALIZATION_ALLOCATION_01_NEG": {
       "timing_serial": true,
-      "timing_serial_ref": "memory/reference_timing_serial_cadence.md"
+      "timing_serial_ref": "tools/timing_serial_audit.py"
     },
     "DHCPV4_CLIENT_REACQUISITION_03": {
       "timing_serial": true,
-      "timing_serial_ref": "memory/reference_timing_serial_cadence.md"
+      "timing_serial_ref": "tools/timing_serial_audit.py"
     },
     "DHCPV4_CLIENT_REACQUISITION_03_NEG": {
       "timing_serial": true,
-      "timing_serial_ref": "memory/reference_timing_serial_cadence.md"
+      "timing_serial_ref": "tools/timing_serial_audit.py"
     },
     "DHCPV4_CLIENT_REACQUISITION_04": {
       "timing_serial": true,
-      "timing_serial_ref": "memory/reference_timing_serial_cadence.md"
+      "timing_serial_ref": "tools/timing_serial_audit.py"
     },
     "DHCPV4_CLIENT_REACQUISITION_04_NEG": {
       "timing_serial": true,
-      "timing_serial_ref": "memory/reference_timing_serial_cadence.md"
+      "timing_serial_ref": "tools/timing_serial_audit.py"
     },
     "DHCPV4_CLIENT_REACQUISITION_05": {
       "timing_serial": true,
-      "timing_serial_ref": "memory/reference_timing_serial_cadence.md"
+      "timing_serial_ref": "tools/timing_serial_audit.py"
     },
     "DHCPV4_CLIENT_REACQUISITION_05_NEG": {
       "timing_serial": true,
-      "timing_serial_ref": "memory/reference_timing_serial_cadence.md"
+      "timing_serial_ref": "tools/timing_serial_audit.py"
     },
     "DHCPV4_CLIENT_REACQUISITION_06": {
       "timing_serial": true,
-      "timing_serial_ref": "memory/reference_timing_serial_cadence.md"
+      "timing_serial_ref": "tools/timing_serial_audit.py"
     },
     "DHCPV4_CLIENT_USAGE_01": {
       "requires_secondary_iface": true

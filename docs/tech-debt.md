@@ -1015,8 +1015,11 @@ case legitimately misses:
 
 **Deferred because.** No build the project ships can reach it: the in-tree suite is the only one
 registered, and an unqualified id resolves unambiguously. The third branch above only acquires
-meaning once injected suites exist, and the shape of suite scoping is still being decided (see
-`claudedocs/case-alias-across-suites-request.md`, DRAFT). Implementing against a scoping model that
+meaning once injected suites exist, and the shape of suite scoping is still being decided. A
+consumer's request to let an injected suite alias an in-tree case is settled in shape and mechanism
+(a pointer file in the injected case directory, resolved at run time) but stays a DRAFT marked "do
+not implement": its deciding number, how many catalog entries an alias would save, needs a spec
+volume the consumer holds and this repository does not. Implementing against a scoping model that
 has not landed would most likely be redone. One adjacent gap belongs with it when that work starts:
 the orchestrator has no `--inventory-overrides` passthrough at all — the flag exists on the harness
 CLI, but the orchestrator's only mentions of it are comments, so a consumer driving runs through

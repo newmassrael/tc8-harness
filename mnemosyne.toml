@@ -1,6 +1,6 @@
 # tc8-harness — Mnemosyne workspace config (adoption 2026-05-12, Round 273-278 substrate)
 #
-# 평가 사슬: project_mnemosyne_adoption_deferred.md → adopt-ready
+# 평가 사슬: 도입 보류 → adopt-ready. 보류를 푼 세 조건:
 # - P0 (multi-prefix TC ID extractor) → inventory_prefixes 8 카테고리
 # - P1 (RFC §X.Y skip) → external_section_prefixes = ["RFC"]
 # - P2 (TestCase 엔티티) → InventoryEntry (5번째 closed-form, Round 273)
