@@ -1247,6 +1247,14 @@
         }
       ]
     },
+    "DHCPv4_CLIENT_ALLOCATING_10": {
+      "guards": [
+        {
+          "class": "liveness",
+          "property": "DUT must retransmit its RENEWING DHCPREQUEST when neither a DHCPACK nor a DHCPNAK arrives (RFC 2131 §3.1); binary present/absent"
+        }
+      ]
+    },
     "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_05": {
       "guards": [
         {

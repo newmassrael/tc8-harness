@@ -1,12 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  §4.7.6.3 ALLOCATING_10 / §4.7.6.8 REACQUISITION_05 retransmission
-  cluster — DUT-emitted RENEWING DHCPREQUEST retransmission per RFC
-  2131 §4.4.5 ("the client SHOULD wait one-half of the remaining time
-  until T2"). Pass criterion is observing TWO RENEWING REQUESTs from
-  the DUT, both IP-unicast to the server identifier; per-case
-  `pass_expr` adds the inter-request interval bound (REACQUISITION_05)
-  or is `true` for the simple count-only case (ALLOCATING_10).
+  §4.7.6.8 REACQUISITION_05 retransmission field check — DUT-emitted
+  RENEWING DHCPREQUEST retransmission per RFC 2131 §4.4.5 ("the client
+  SHOULD wait one-half of the remaining time until T2"). Pass criterion
+  is observing TWO RENEWING REQUESTs from the DUT, both IP-unicast to
+  the server identifier, where the second satisfies the per-case
+  `pass_expr` (the inter-request interval bound).
+
+  A consumer must bind a `pass_expr` a DUT can violate: bound to `true`
+  the fail final is unreachable. The count-only §4.7.6.3 ALLOCATING_10
+  therefore does not use this template; it is the same lifecycle with
+  no fail final (a liveness guard), authored standalone.
 
   Lifecycle (4 states):
     listening_for_discover (s1_deadline 4 s)

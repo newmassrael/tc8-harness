@@ -1638,10 +1638,6 @@
           "kind": "implements"
         },
         {
-          "file": "tests/_templates/dhcpv4_renewing_retx_field.sce-template.xml",
-          "kind": "implements"
-        },
-        {
           "file": "tests/dhcpv4_client_reacquisition_03/dhcpv4_client_reacquisition_03.scxml",
           "kind": "implements"
         },

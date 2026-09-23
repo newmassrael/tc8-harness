@@ -11,17 +11,24 @@
     the DUT has to send its REQUEST twice in that window — a client
     hearing neither ACK nor NAK retries rather than giving up.
 
-  Pass criterion is the COUNT of two RENEWING REQUESTs (no interval
-  predicate). Wire shape predicate `captured.is_dhcp_request() and
-  captured.dst_ip_equals(expected.server_id_be)` (filter to RENEWING)
-  is enforced by the template; per-case `pass_expr="true"` defers the
-  pass to the second observation alone.
+  The spec's pass criterion is the COUNT alone ("DUT: Sends 2 DHCPREQUEST
+  Messages"): the second RENEWING REQUEST has no wrong-value variant, so
+  its absence is inconclusive and there is no fail final. This is the
+  liveness shape of ALLOCATING_06 (DISCOVER retransmission), registered
+  as `liveness` in tools/conformant_absence_registry.json.
 
-  Reuses `dhcpv4_renewing_retx_field` template + the same retx envelope
-  as REACQUISITION_05 (kRetransmissionLeaseSeconds = 12 s, T1=6 s,
-  T2=10 s). Second RENEWING REQUEST emitted at T1 + (T2-T1)/2 = 8 s
-  post-BOUND, well within the (T2-T1) + tol = 5 s spec listening
-  window.
+  Same lifecycle and retx envelope as REACQUISITION_05's
+  `dhcpv4_renewing_retx_field` template (kRetransmissionLeaseSeconds =
+  12 s, T1 = 6 s, T2 = 10 s), authored standalone because that template's
+  last state carries an interval predicate and its fail final; bound to
+  `true` here it left a fail no DUT could reach. Second RENEWING REQUEST
+  at T1 + (T2-T1)/2 = 8 s post-BOUND, inside the s4 window.
+
+  The state-3 → state-4 cond scopes to RENEWING with
+  `dst_ip_equals(expected.server_id_be)` (IP-unicast); the SELECTING
+  REQUEST (dst 255.255.255.255) is consumed by state 2 before state 3
+  is entered. Per-state deadline names s1..s4 prevent leftover-deadline
+  leakage (S6a precedent).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -30,9 +37,82 @@
        name="dhcpv4_client_allocating_10"
        datamodel="null"
        initial="listening_for_discover">
-  <sce:use template="../_templates/dhcpv4_renewing_retx_field.sce-template.xml"
-           pass_expr="true"
-           fail_state="fail_unreachable"
-           fail_reason="unreachable_pass_expr_always_true"
-           fail_role="observed_violation"/>
+
+  <sce:context id="captured"
+               cpp:type="tc8::Dhcpv4Captured"
+               cpp:include="sce_integration/dhcpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Dhcpv4Expected"
+               cpp:include="sce_integration/dhcpv4_expected.h"/>
+
+  <state id="listening_for_discover">
+    <onentry>
+      <send event="s1_deadline" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_discover() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_first_request"/>
+    <transition event="s1_deadline" target="inconclusive_no_discover"/>
+  </state>
+
+  <state id="listening_for_first_request">
+    <onentry>
+      <send event="s2_deadline" delay="4s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
+                target="listening_for_renewing_request"/>
+    <transition event="s2_deadline" target="inconclusive_no_first_request"/>
+  </state>
+
+  <state id="listening_for_renewing_request">
+    <onentry>
+      <send event="s3_deadline" delay="10s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac) and captured.dst_ip_equals(expected.server_id_be)"
+                target="listening_for_second_renewing_request"/>
+    <transition event="s3_deadline" target="inconclusive_no_renewing_request"/>
+  </state>
+
+  <state id="listening_for_second_renewing_request">
+    <onentry>
+      <send event="s4_deadline" delay="6s"/>
+    </onentry>
+    <transition event="dhcp_observed"
+                cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac) and captured.dst_ip_equals(expected.server_id_be)"
+                target="pass"/>
+    <transition event="s4_deadline" target="inconclusive_no_second_renewing_request"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_discover">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_within_listen_window","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_first_request">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_request_after_offer","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_renewing_request">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_renewing_request_within_listen_window","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_second_renewing_request">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_second_renewing_request_within_retx_window","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
 </scxml>
