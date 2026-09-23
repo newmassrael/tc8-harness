@@ -6,7 +6,7 @@
 # extend the service WITHOUT forking tc8-harness. The `if(NOT DEFINED)` guard
 # mirrors the TC8_*_CASE_DIRS hardening (commit 46981678): under CMP0126 OLD
 # (cmake 3.16) an unconditional set() would wipe a superproject's plain set().
-# See claudedocs/ets-dut-public-completion-and-oem-seam-design.md.
+# See docs/ets_dut_extension_seams.md.
 if(NOT DEFINED TC8_ETS_FIDL)
     set(TC8_ETS_FIDL  "${CMAKE_CURRENT_SOURCE_DIR}/ets.fidl")
 endif()

@@ -19,7 +19,7 @@ namespace tc8::dut {
 // includes only this header; the concrete sink wraps the real
 // vsomeip::application (ets_event_sink.cpp), obtained by the CommonAPI connection
 // id. The public default extension never uses it.
-// See claudedocs/ets-dut-public-completion-and-oem-seam-design.md.
+// See docs/ets_dut_extension_seams.md.
 class IEtsEventSink {
 public:
     virtual ~IEtsEventSink() = default;

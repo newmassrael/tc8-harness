@@ -30,7 +30,7 @@ namespace tc8::dut {
 // vsomeip::application (ets_control_channel.cpp), obtained — like makeEtsEventSink
 // — by the CommonAPI connection id, so it shares the one routing client (no second
 // application). The public default extension never uses it.
-// See claudedocs/ets-dut-public-completion-and-oem-seam-design.md.
+// See docs/ets_dut_extension_seams.md.
 class IEtsControlChannel {
 public:
     virtual ~IEtsControlChannel() = default;

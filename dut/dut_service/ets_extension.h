@@ -51,7 +51,7 @@ struct EtsExtensionContext {
 // unchanged. The complementary O1 path is the TC8_ETS_FIDL superset-fidl override
 // (CommonAPI-typed). The OEM selects its implementation at configure time via
 // TC8_ETS_EXTENSION_SRC — the same source-selection idiom as the factory and
-// TC8_ETS_FIDL. See claudedocs/ets-dut-public-completion-and-oem-seam-design.md.
+// TC8_ETS_FIDL. See docs/ets_dut_extension_seams.md.
 //
 // Only hooks with a real call site exist (no speculative methods): onRegister
 // (after the service is offered — offer events + register method/request handlers

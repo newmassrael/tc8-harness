@@ -15,7 +15,7 @@ package org.tc8.ets
   instead be emitted raw through the IEtsExtension seam (TC8_ETS_EXTENSION_SRC).
   Keeping vendor-confidential IDs out of this public file is the ETS half of the
   repo's no-NDA invariant. See
-  claudedocs/ets-dut-public-completion-and-oem-seam-design.md. **>
+  docs/ets_dut_extension_seams.md. **>
 interface EnhancedTestability {
     version { major 1 minor 0 }
 

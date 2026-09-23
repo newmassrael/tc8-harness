@@ -30,7 +30,7 @@ namespace tc8::dut {
 // client surface. The complement on the SERVER seam is IEtsEventSink::onRequest
 // (the DUT REPLIES to a tester Request — e.g. an OEM last-error / last-value
 // readback), which a client-role extension pairs with onResponse here.
-// See claudedocs/ets-dut-public-completion-and-oem-seam-design.md.
+// See docs/ets_dut_extension_seams.md.
 class IEtsClientControl {
 public:
     virtual ~IEtsClientControl() = default;
