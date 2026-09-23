@@ -954,6 +954,10 @@
         {
           "file": "src/sce_integration/include/sce_integration/icmpv4_pilot_common.h",
           "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/icmpv4_expectations.h",
+          "kind": "implements"
         }
       ]
     },

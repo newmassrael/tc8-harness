@@ -104,8 +104,8 @@ struct Icmpv4Captured : CapturedPayloadSnapshot, CapturedFrameTiming,
 
 // §4.3.3.2 ICMPv4_TYPE_08 Echo Request/Reply data field — the spec
 // literal the tester sends and the DUT must echo back verbatim. Exposed
-// as a constexpr so both the stimulus builder and the SCXML guard
-// reference one source of truth. Size is `sizeof - 1` because the
+// as a constexpr so the stimulus builder and the case's expected default
+// (`expected.payload`, which the SCXML guard reads) share one source. Size is `sizeof - 1` because the
 // trailing NUL is not part of the wire payload.
 inline constexpr std::string_view kIcmpv4EchoPayloadType08{
     "ECU NETWORK VALIDATION TEST"};

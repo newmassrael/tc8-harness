@@ -22,7 +22,7 @@ namespace tc8 {
 // missing configuration without another layer of validation plumbing.
 //
 // ICMPv4_TYPE_08 / _10 don't read `echo_id` / `echo_seq` from expected
-// (TYPE_08 compares payload bytes against a fixed spec literal, TYPE_10
+// (TYPE_08 compares payload bytes against `expected.payload_view()`, TYPE_10
 // asserts absence), but still declare this context so the SCE codegen
 // emits a uniform two-arg state-machine constructor. The trade-off
 // matches the §5.1 SOMEIPSRV split (FORMAT_01..13 also declare the
@@ -35,7 +35,9 @@ namespace tc8 {
 struct Icmpv4Expected : Icmpv4Expectations {};
 
 inline void applyTestConfig(Icmpv4Expected &e, const TestConfig &cfg) {
-    static_cast<Icmpv4Expectations &>(e) = cfg.icmpv4;
+    Icmpv4Expectations effective = cfg.icmpv4;
+    keepCaseDefaultPayloadUnlessSet(effective, e);
+    static_cast<Icmpv4Expectations &>(e) = effective;
 }
 
 }  // namespace tc8

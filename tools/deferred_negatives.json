@@ -3,7 +3,6 @@
   "cases": {
     "IPv4_REASSEMBLY_11": "needs-sound-negative: the Linux static reassembly timer makes the positive itself land on fail:reassembly_timer_not_extended_by_large_ttl (Time Exceeded code 1, no Echo Reply), so an echo_id flip reaches no conjunct and a dut_iface_ip flip only reaches the inconclusive timeout",
     "IPv4_REASSEMBLY_13": "needs-sound-negative: overlapping-fragment reassembly is dropped post-CVE-2018-5391 on Linux, so the positive does not reassemble; deferred with REASSEMBLY_11",
-    "ICMPv4_TYPE_08": "needs-parameterise: echo payload is checked against a compiled constant (kIcmpv4EchoPayloadType08); lift to applyExpectedDefaults + expected.payload like the ETS echoes, then add a sound payload-flip row",
     "SOMEIPSRV_FORMAT_23": "expect-flippable: SubscribeAck entry service_id checked vs --expect service_id (gate is entry type 0x07 literal); add a service_id-flip sound row and verify on CI smoke (precedent SOMEIPSRV_SD_MESSAGE_11)",
     "SOMEIPSRV_FORMAT_24": "expect-flippable: SubscribeAck entry instance_id checked vs --expect instance_id (gate is entry type 0x07 literal); add an instance_id-flip sound row and verify on CI smoke (precedent SOMEIPSRV_FORMAT_16)",
     "SOMEIPSRV_FORMAT_25": "expect-flippable: SubscribeAck entry major_version checked vs --expect major_version (gate is entry type 0x07 literal); add a major_version-flip sound row and verify on CI smoke (precedent SOMEIPSRV_SD_MESSAGE_03)",

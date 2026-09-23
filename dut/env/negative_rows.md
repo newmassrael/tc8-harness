@@ -265,6 +265,13 @@ The §4.3 conformant-absence cases live in `tools/conformant_absence_registry.js
   ICMPv4_TYPE_04, ICMPv4_TYPE_05, ICMPv4_TYPE_10, ICMPv4_TYPE_16.
 - **liveness**: ICMPv4_TYPE_22.
 
+**ICMPv4_TYPE_08 keeps a sound row**: its Echo Reply data is compared against
+`expected.payload`, whose conformant default is the spec literal "ECU NETWORK
+VALIDATION TEST" the case itself sends (`applyExpectedDefaults`). The row's
+`icmpv4.payload` token is that literal with only the last octet changed ('T' 0x54
+→ 0x55), so the DUT's verbatim echo lands `fail_payload_mismatch`, proving the
+guard compares every byte rather than the length alone.
+
 **ICMPv4_TYPE_12 keeps a sound row**: its `echo_id` is an operator-supplied
 expected value, so flipping `icmpv4.echo_id` drives the SCXML into the
 id-mismatch branch (higher specificity than the seq branch), proving the

@@ -74,6 +74,10 @@
 #define TC8_EK_icmpv4(kind, name)
 #define TC8_EK_icmpv4_DEFAULTED
 #endif
+#ifndef TC8_EKP_icmpv4
+#define TC8_EKP_icmpv4(name)
+#define TC8_EKP_icmpv4_DEFAULTED
+#endif
 #ifndef TC8_EK_ipv4
 #define TC8_EK_ipv4(kind, name)
 #define TC8_EK_ipv4_DEFAULTED
@@ -160,6 +164,8 @@ TC8_EXPECT_KEY(icmpv4, IPV4, tester_ip)
 TC8_EXPECT_KEY(icmpv4, IPV4, dut_iface_ip)
 TC8_EXPECT_KEY(icmpv4, U16,  echo_id)
 TC8_EXPECT_KEY(icmpv4, U16,  echo_seq)
+// Expected Echo Reply data field (fills payload + payload_len).
+TC8_EXPECT_PAYLOAD(icmpv4, payload)
 
 // --- IPv4 (Ipv4Expectations, "ipv4." prefix) --------------------------------
 TC8_EXPECT_KEY(ipv4, IPV4, tester_ip)
@@ -199,6 +205,10 @@ TC8_EXPECT_KEY(dhcpv4, MAC, dut_iface_mac)
 #ifdef TC8_EK_icmpv4_DEFAULTED
 #undef TC8_EK_icmpv4_DEFAULTED
 #undef TC8_EK_icmpv4
+#endif
+#ifdef TC8_EKP_icmpv4_DEFAULTED
+#undef TC8_EKP_icmpv4_DEFAULTED
+#undef TC8_EKP_icmpv4
 #endif
 #ifdef TC8_EK_ipv4_DEFAULTED
 #undef TC8_EK_ipv4_DEFAULTED

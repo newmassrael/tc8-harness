@@ -290,8 +290,10 @@ bool applyExpectToken(std::string_view token, ::tc8::ArpStimulusConfig &e) {
 bool applyExpectToken(std::string_view token, ::tc8::Icmpv4Expectations &e) {
     static constexpr EKey<::tc8::Icmpv4Expectations> kKeys[] = {
 #define TC8_EK_icmpv4(kind, name) TC8_EK_ROW(Icmpv4Expectations, kind, name)
+#define TC8_EKP_icmpv4(name)      TC8_EKP_ROW(Icmpv4Expectations, name)
 #include "tc8_expect_keys.def"
 #undef TC8_EK_icmpv4
+#undef TC8_EKP_icmpv4
     };
     return matchExpect(token, ekPrefix_icmpv4, e, kKeys, std::size(kKeys));
 }

@@ -9,6 +9,7 @@
 #include "cli/expect_parser.h"
 #include "sce_integration/arp_expectations.h"
 #include "sce_integration/dhcpv4_expectations.h"
+#include "sce_integration/icmpv4_expected.h"
 #include "sce_integration/someip_expectations.h"
 #include "sce_integration/someip_expected.h"
 
@@ -263,6 +264,32 @@ TEST(ExpectedPayloadDefault, ExpectOverridesCaseDefault) {
     ::tc8::applyTestConfig(e, cfg);
     ASSERT_EQ(e.payload_len, 4u);
     EXPECT_EQ(e.payload[3], 0x69);  // override wins over the case default
+}
+
+// The ICMPv4 group carries the same shared ExpectedPayload base under its own
+// `icmpv4.` prefix (§4.3.3.2 ICMPv4_TYPE_08's Echo Reply data field). The
+// unprefixed SOME/IP key must not reach it.
+TEST(ApplyExpectToken, Icmpv4PayloadIsPrefixed) {
+    ::tc8::Icmpv4Expectations e{};
+    ASSERT_TRUE(applyExpectToken("icmpv4.payload=45:43:55", e));
+    ASSERT_EQ(e.payload_len, 3u);
+    EXPECT_EQ(e.payload_view(), "ECU");
+    ::tc8::Icmpv4Expectations bare{};
+    EXPECT_FALSE(applyExpectToken("payload=45", bare));
+}
+
+TEST(ExpectedPayloadDefault, Icmpv4CaseDefaultSurvivesAndExpectOverrides) {
+    ::tc8::Icmpv4Expected e{};
+    ::tc8::setExpectedPayload(e, std::string_view{"ECU"});
+    ::tc8::TestConfig cfg{};
+    ASSERT_TRUE(applyExpectToken("icmpv4.echo_id=0x1234", cfg.icmpv4));  // unrelated key
+    ::tc8::applyTestConfig(e, cfg);
+    EXPECT_EQ(e.payload_view(), "ECU");  // case default survives
+    EXPECT_EQ(e.echo_id, 0x1234);
+
+    ASSERT_TRUE(applyExpectToken("icmpv4.payload=45:43:56", cfg.icmpv4));  // negative override
+    ::tc8::applyTestConfig(e, cfg);
+    EXPECT_EQ(e.payload_view(), "ECV");
 }
 
 TEST(ApplyExpectToken, RejectsEmptyValue) {

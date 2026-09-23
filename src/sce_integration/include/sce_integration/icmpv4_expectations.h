@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+#include "expected_payload.h"
+
 namespace tc8 {
 
 // Flat DTO for the expected values a TC8 §4.3 ICMPv4 case compares
@@ -23,7 +25,12 @@ namespace tc8 {
 // must pass a literal matching the builder constant under `--expect
 // icmpv4.echo_id=...`; any drift silently turns a positive test into a
 // false pass, so edit both together.
-struct Icmpv4Expectations {
+//
+// The expected Echo Reply data field (§4.3.3.2 ICMPv4_TYPE_08, `--expect
+// icmpv4.payload=HH:..`) is the shared ExpectedPayload base. Unlike echo_id, it
+// is a test-intrinsic value: the case installs it from its own stimulus
+// literal in applyExpectedDefaults, and only the negative row overrides it.
+struct Icmpv4Expectations : ExpectedPayload {
     std::uint32_t tester_ip    = 0;  // network byte order
     std::uint32_t dut_iface_ip = 0;  // network byte order
     std::uint16_t echo_id  = 0;      // TYPE_09 identifier expectation

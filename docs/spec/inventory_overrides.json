@@ -158,6 +158,11 @@
       "platform_known_fail": true,
       "platform_known_fail_ref": "docs/tech-debt.md TD-29"
     },
+    "ICMPv4_TYPE_08": {
+      "neg_wrong_token": "icmpv4.payload=45:43:55:20:4E:45:54:57:4F:52:4B:20:56:41:4C:49:44:41:54:49:4F:4E:20:54:45:53:55",
+      "neg_expect_fail": "fail:echo_payload_not_returned_verbatim",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
     "ICMPv4_TYPE_12": {
       "neg_wrong_token": "icmpv4.echo_id=0xFFFE",
       "neg_expect_fail": "fail:timestamp_reply_identifier_not_echoed",

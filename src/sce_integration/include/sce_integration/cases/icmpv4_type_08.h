@@ -27,9 +27,9 @@ struct TestCaseTraits<cases::Icmpv4Type08SM>
         "Echo Request payload sent by the tester";
 
     // Send an Echo Request carrying the spec literal "ECU NETWORK
-    // VALIDATION TEST" (27 bytes). Both the stimulus and the SCXML
-    // guard reference `kIcmpv4EchoPayloadType08` so the two sides
-    // cannot drift.
+    // VALIDATION TEST" (27 bytes). The stimulus and the expected
+    // default below both read `kIcmpv4EchoPayloadType08`, so the two
+    // sides cannot drift.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
@@ -38,7 +38,20 @@ struct TestCaseTraits<cases::Icmpv4Type08SM>
         ov.payload_len  = static_cast<std::uint32_t>(::tc8::kIcmpv4EchoPayloadType08.size());
         ::tc8::sce::icmpv4::emitStimulus(cfg, iface, ov);
     }
+
+    // Conformant echo: the case-local SSOT the guard compares against
+    // (`expected.payload_view()`). `--expect icmpv4.payload=` overrides
+    // it only for the negative row.
+    static void applyExpectedDefaults(::tc8::Icmpv4Expected& e) {
+        ::tc8::setExpectedPayload(e, ::tc8::kIcmpv4EchoPayloadType08);
+    }
 };
+
+// Compile-time guard: the SFINAE detector must see this case's
+// applyExpectedDefaults hook. A name/type drift would silently skip the
+// case-local default at runtime and false-FAIL a conformant positive run.
+static_assert(has_expected_defaults_v<TestCaseTraits<cases::Icmpv4Type08SM>>,
+              "ICMPv4_TYPE_08: applyExpectedDefaults must be detected");
 
 }  // namespace tc8::sce
 
