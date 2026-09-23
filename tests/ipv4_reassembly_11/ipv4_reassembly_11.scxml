@@ -10,18 +10,18 @@
   so the bucket is still alive when frag 1 arrives — DUT reassembles
   and emits an Echo Reply mirroring id/seq/data.
 
-  Linux known-fail note: Linux uses a single static
-  `net.ipv4.ipfrag_time` for every reassembly bucket and ignores
-  per-fragment TTL — the RFC 791 §3.2 MAX(TLB, TTL) timer-extension
-  rule is unimplemented. The smoke-test.sh dut_ns toggle drops
-  `ipfrag_time` to 2 s (collapsing the spec's 15 s recommendation to
-  test-friendly seconds) and the case's 3 s inter-fragment wait
-  exceeds it. On Linux the bucket is purged (ip_expire) before frag 1
-  arrives, no Echo Reply lands, and the SCXML deadline fires →
-  fail:no_echo_reply_after_large_ttl_reassembly. The case stays in
-  tree (default smoke runs only CLI-positional cases, so this is not
-  a regression) for non-Linux DUTs whose stack honours the timer
-  extension — those will reassemble and pass on the same wire shape.
+  The listen window spans the inter-fragment wait (frag 1 is
+  scheduled), so a DUT that expires the bucket early is SEEN doing
+  it: a Time Exceeded code 1 quoting frag 0's Identification is an
+  observed violation (fail). Without that report the only evidence
+  is a missing Echo Reply, which is an absence (inconclusive).
+
+  Linux uses a single static `net.ipv4.ipfrag_time` for every
+  reassembly bucket and ignores per-fragment TTL — the RFC 791 §3.2
+  MAX(TLB, TTL) timer-extension rule is unimplemented. The
+  orchestrator's dut_ns toggle drops `ipfrag_time` to 2 s, the case
+  waits 3 s, and Linux reports the expiry 2 s after frag 0 →
+  fail:reassembly_timer_not_extended_by_large_ttl.
 
   Pass criterion (strict-RFC 791 DUT) = type=0 Echo Reply with
   matching echo_id + echo_seq + 8 B payload (kFragmentsEchoPayload
@@ -59,6 +59,9 @@
     <transition event="icmp_observed"
                 cond="cpp:captured.type == 0"
                 target="fail_data_mismatch"/>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 11 and captured.code == 1 and captured.src_ip == expected.dut_iface_ip and captured.quotes_ip_id(::tc8::sce::ipv4::reassembly::kReassembly11IpId)"
+                target="fail_timer_not_extended"/>
     <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
@@ -83,6 +86,12 @@
   <final id="fail_data_mismatch">
     <donedata>
       <content>{"verdict":"fail","reason":"reassembled_echo_data_mismatch_large_ttl","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timer_not_extended">
+    <donedata>
+      <content>{"verdict":"fail","reason":"reassembly_timer_not_extended_by_large_ttl","role":"observed_violation"}</content>
     </donedata>
   </final>
 

@@ -30,42 +30,55 @@ struct TestCaseTraits<cases::Ipv4Reassembly11SM>
         "still emits Echo Reply (RFC 791 §3.2)";
 
     // Two-fragment Echo Request with kReassemblyLargeTtl (=255) on
-    // both halves and a 3 s inter-fragment wait. The smoke-test.sh
+    // both halves and a 3 s inter-fragment wait. The orchestrator's
     // dut_ns toggle drops `net.ipv4.ipfrag_time` to 2 s so the spec's
     // "wait > ipIniReassembleTimeout + tolerance" condition is
     // exercised in seconds rather than tens of seconds. Same shape as
     // REASSEMBLY_12 (opposite TTL axis); FragmentPair helper builds
     // the 16 B ICMP body once and slices 8/8.
     //
-    // Linux known-fail (verified 2026-04-27, kernel 6.5): Linux's
-    // ip_frag_queue calls mod_timer(qp->q.timer, jiffies +
-    // ip4_frags.timeout) regardless of arriving TTL — there is no
-    // RFC 791 §3.2 MAX(TLB, TTL) extension. With the per-netns
-    // ipfrag_time=2 s toggle and the 3 s inter-fragment wait, the
-    // bucket expires (inet_frag_kill via ip_expire) before frag 1
-    // arrives — orphan frag, no Echo Reply, SCXML 6 s listen window
-    // times out → fail:no_echo_reply_after_large_ttl_reassembly.
+    // Frag 0 is sent here and frag 1 is SCHEDULED, so the SCXML listens
+    // across the wait. A DUT whose timer ignores TTL expires the bucket
+    // inside the wait and reports it with a Time Exceeded code 1 that
+    // quotes frag 0; that report is the observed violation. Blocking
+    // through the wait instead would leave the report before the listen
+    // window, and the case could only time out (inconclusive). The
+    // SCXML's 6 s deadline must stay above kInterFragmentWait.
     //
-    // The case stays in tree (excluded from default smoke regression
-    // — the smoke harness only runs CLI-positional cases) so a non-
-    // Linux DUT (AUTOSAR, vendor IP stack) that follows RFC 791 §3.2
-    // verbatim — extending the timer when arriving TTL exceeds the
-    // current TLB — passes without re-implementation. See
-    // `reference_linux_ip_reassembly_deviations.md`.
+    // Linux (verified 2026-09-23, kernel 7.0): ip_frag_queue arms the
+    // bucket timer from ip4_frags.timeout regardless of arriving TTL —
+    // no RFC 791 §3.2 MAX(TLB, TTL) extension — and sends the Time
+    // Exceeded 2 s after frag 0. A DUT that follows
+    // RFC 791 §3.2 verbatim passes on the same wire shape.
+    static constexpr std::chrono::milliseconds kInterFragmentWait{3000};
+
+    static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {
+        ::tc8::sce::ipv4::fragments::dispatchEchoReplyOrReassemblyExpiry<SM>(c, sm, ev);
+    }
+
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         IStimulusScheduler& scheduler) {
         ::tc8::sce::ipv4::fragments::FragmentPairParams params{};
         params.ip_id_frag0 = ::tc8::sce::ipv4::reassembly::kReassembly11IpId;
         params.ip_id_frag1 = ::tc8::sce::ipv4::reassembly::kReassembly11IpId;
         params.ttl_frag0   = ::tc8::sce::ipv4::reassembly::kReassemblyLargeTtl;
         params.ttl_frag1   = ::tc8::sce::ipv4::reassembly::kReassemblyLargeTtl;
 
-        ::tc8::sce::ipv4::fragments::emitFragmentPair(
-            iface, cfg, cfg.arp.dut_iface_mac, params,
-            /*initial_wait=*/std::chrono::milliseconds{200},
-            /*inter_frag_wait=*/std::chrono::milliseconds{3000},
-            /*post_send_wait=*/std::chrono::milliseconds{0});
+        const auto pair = ::tc8::sce::ipv4::fragments::buildFragmentPair(
+            cfg, cfg.arp.dut_iface_mac, params);
+
+        ::tc8::stimulus::IpBootTiming t0{};
+        t0.initial_wait = std::chrono::milliseconds{200};
+        ::tc8::stimulus::emitIpv4Frame(iface, pair.frag0_spec, pair.frag0_payload, t0);
+
+        std::string iface_copy(iface);
+        scheduler.schedule(kInterFragmentWait, [iface_copy, pair]() {
+            ::tc8::stimulus::IpBootTiming t1{};
+            t1.initial_wait = std::chrono::milliseconds{0};
+            ::tc8::stimulus::emitIpv4Frame(iface_copy, pair.frag1_spec, pair.frag1_payload, t1);
+        });
     }
 };
 

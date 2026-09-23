@@ -313,10 +313,12 @@ since phase_a's terminal final state already ended the case. Proves the phase_a
 echo_id match is load-bearing on the within-timer reassembly path.
 
 **IPv4_REASSEMBLY_11 carries no row**: the case's positive path already lands on
-`fail_timeout` on Linux (`ipfrag_time=2` dut_ns toggle + 3 s inter-fragment wait
-= bucket expired before frag 1, no Echo Reply). An echo_id flip would land on the
-same `fail_timeout`, providing zero diagnostic variance. Same precedent as _13
-(overlap drop): no flippable conjunct can be observed when no reply lands.
+`fail_timer_not_extended` on Linux (`ipfrag_time=2` dut_ns toggle + 3 s
+inter-fragment wait = the DUT reports Time Exceeded code 1 before frag 1, no Echo
+Reply). An echo_id flip reaches no conjunct, because no Echo Reply lands, and a
+`dut_iface_ip` flip only moves the case from that fail to the inconclusive
+timeout. Neither is a fail the positive does not already reach. Same precedent as
+_13 (overlap drop): no flippable conjunct can be observed when no reply lands.
 
 ## §4.8 TCP — why none have a row
 

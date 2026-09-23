@@ -86,6 +86,20 @@ struct Icmpv4Captured : CapturedPayloadSnapshot, CapturedFrameTiming,
     // §4.3.3.2 TYPE_08 verbatim Echo-Reply check, and
     // `payload_matches_index_pattern(len)` for the §4.4.4.1
     // IPv4_HEADER_05 `byte[i] = i & 0xFF` cycling-pattern echo.
+
+    // An ICMP error (Destination Unreachable, Time Exceeded, Parameter
+    // Problem) carries the offending datagram's IP header as its payload
+    // (RFC 792). True when that quoted header is IPv4 and its
+    // Identification equals `ip_id`, which ties the error to the
+    // datagram the tester sent. False for a payload too short to hold
+    // an IP header.
+    bool quotes_ip_id(std::uint16_t ip_id) const {
+        if (payload_snapshot_len < 20) return false;
+        if ((payload_snapshot[0] >> 4) != 4) return false;
+        const auto quoted = static_cast<std::uint16_t>(
+            (static_cast<std::uint16_t>(payload_snapshot[4]) << 8) | payload_snapshot[5]);
+        return quoted == ip_id;
+    }
 };
 
 // §4.3.3.2 ICMPv4_TYPE_08 Echo Request/Reply data field — the spec

@@ -97,13 +97,20 @@ struct FragmentPairParams {
 // blocks after the second fragment before returning — unused by
 // FRAGMENTS_01, consumed by FRAGMENTS_02/03/04 as the phase-gap
 // before the phase-2 retry.
-inline int emitFragmentPair(std::string_view iface,
-                            const ::tc8::TestConfig& cfg,
-                            const std::array<std::uint8_t, 6>& dst_mac,
-                            const FragmentPairParams& params,
-                            std::chrono::milliseconds initial_wait = std::chrono::milliseconds{200},
-                            std::chrono::milliseconds inter_frag_wait = std::chrono::milliseconds{0},
-                            std::chrono::milliseconds post_send_wait = std::chrono::milliseconds{0}) {
+//
+// The two frames are built by `buildFragmentPair`, which a case that must
+// keep its SCXML listening between the halves uses directly: it sends
+// `frag0` from `stimulus()` and schedules `frag1` (REASSEMBLY_11).
+struct FragmentPair {
+    ::tc8::stimulus::Ipv4FrameSpec frag0_spec{};
+    std::vector<std::uint8_t>      frag0_payload;
+    ::tc8::stimulus::Ipv4FrameSpec frag1_spec{};
+    std::vector<std::uint8_t>      frag1_payload;
+};
+
+inline FragmentPair buildFragmentPair(const ::tc8::TestConfig& cfg,
+                                      const std::array<std::uint8_t, 6>& dst_mac,
+                                      const FragmentPairParams& params) {
     const std::uint32_t tester_ip = cfg.icmpv4.tester_ip;
     const std::uint32_t dut_ip    = cfg.icmpv4.dut_iface_ip;
 
@@ -116,10 +123,11 @@ inline int emitFragmentPair(std::string_view iface,
         kFragmentsEchoPayload.data(),
         static_cast<std::uint32_t>(kFragmentsEchoPayload.size()));
 
-    std::vector<std::uint8_t> frag0_payload(body.begin(), body.begin() + 8);
-    std::vector<std::uint8_t> frag1_payload(body.begin() + 8, body.end());
+    FragmentPair pair;
+    pair.frag0_payload.assign(body.begin(), body.begin() + 8);
+    pair.frag1_payload.assign(body.begin() + 8, body.end());
 
-    ::tc8::stimulus::Ipv4FrameSpec frag0_spec{};
+    auto& frag0_spec = pair.frag0_spec;
     frag0_spec.dst_mac        = dst_mac;
     frag0_spec.src_ip         = params.src_ip_frag0.value_or(tester_ip);
     frag0_spec.dst_ip         = dut_ip;
@@ -129,7 +137,7 @@ inline int emitFragmentPair(std::string_view iface,
     frag0_spec.more_fragments = true;
     frag0_spec.fragment_offset = 0;
 
-    ::tc8::stimulus::Ipv4FrameSpec frag1_spec{};
+    auto& frag1_spec = pair.frag1_spec;
     frag1_spec.dst_mac        = dst_mac;
     frag1_spec.src_ip         = params.src_ip_frag1.value_or(tester_ip);
     frag1_spec.dst_ip         = dut_ip;
@@ -139,16 +147,28 @@ inline int emitFragmentPair(std::string_view iface,
     frag1_spec.more_fragments = false;
     frag1_spec.fragment_offset = 1;  // 8 octets / 8 = 1
 
+    return pair;
+}
+
+inline int emitFragmentPair(std::string_view iface,
+                            const ::tc8::TestConfig& cfg,
+                            const std::array<std::uint8_t, 6>& dst_mac,
+                            const FragmentPairParams& params,
+                            std::chrono::milliseconds initial_wait = std::chrono::milliseconds{200},
+                            std::chrono::milliseconds inter_frag_wait = std::chrono::milliseconds{0},
+                            std::chrono::milliseconds post_send_wait = std::chrono::milliseconds{0}) {
+    const FragmentPair pair = buildFragmentPair(cfg, dst_mac, params);
+
     ::tc8::stimulus::IpBootTiming t0{};
     t0.initial_wait   = initial_wait;
     t0.post_send_wait = inter_frag_wait;
-    const int rc0 = ::tc8::stimulus::emitIpv4Frame(iface, frag0_spec, frag0_payload, t0);
+    const int rc0 = ::tc8::stimulus::emitIpv4Frame(iface, pair.frag0_spec, pair.frag0_payload, t0);
     if (rc0 != 0) return rc0;
 
     ::tc8::stimulus::IpBootTiming t1{};
     t1.initial_wait   = std::chrono::milliseconds{0};
     t1.post_send_wait = post_send_wait;
-    return ::tc8::stimulus::emitIpv4Frame(iface, frag1_spec, frag1_payload, t1);
+    return ::tc8::stimulus::emitIpv4Frame(iface, pair.frag1_spec, pair.frag1_payload, t1);
 }
 
 // Builds and emits ONLY the second fragment of the reassembled Echo
@@ -230,6 +250,23 @@ inline void dispatchEchoReply(typename SM::CapturedType& c, SM& sm,
     const auto* f = std::get_if<::tc8::Icmpv4Frame>(&ev);
     if (f == nullptr) return;
     if (f->type != 0) return;  // Echo Reply only
+    ::tc8::fillIcmpv4CapturedFromFrame(c, *f);
+    sm.raiseExternal(SM::PolicyType::Event::Icmp_observed);
+    sm.step();
+}
+
+// Echo Reply, plus Time Exceeded code 1 (fragment reassembly time
+// exceeded, RFC 792 p6). A reassembly-timer case needs the second: a DUT
+// that reports its bucket expired has SAID it discarded the datagram,
+// which is an observation, where a missing Echo Reply is only an absence.
+template <typename SM>
+inline void dispatchEchoReplyOrReassemblyExpiry(typename SM::CapturedType& c, SM& sm,
+                                                const ::tc8::CapturedEvent& ev) {
+    const auto* f = std::get_if<::tc8::Icmpv4Frame>(&ev);
+    if (f == nullptr) return;
+    const bool echo_reply        = f->type == 0;
+    const bool reassembly_expiry = f->type == 11 && f->code == 1;
+    if (!echo_reply && !reassembly_expiry) return;
     ::tc8::fillIcmpv4CapturedFromFrame(c, *f);
     sm.raiseExternal(SM::PolicyType::Event::Icmp_observed);
     sm.step();
