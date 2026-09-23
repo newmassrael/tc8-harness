@@ -15,6 +15,16 @@
 
 namespace tc8 {
 
+// How an RTO-ceiling observation (sce_integration/tcp_rto_ceiling.h)
+// ended. §4.8.6.11 TCP_RETRANSMISSION_TO_08/_09 grade on it.
+enum class RtoCeilingOutcome : std::uint8_t {
+    NotObserved,         // no probe answered
+    CeilingReached,      // a timeout set an RTO below twice the last one
+    UpperBoundExceeded,  // the RTO passed the grading upper bound
+    SocketLost,          // the probe stopped answering: the DUT dropped the connection
+    BudgetExhausted,     // still doubling when the budget ran out
+};
+
 // SCE Named Context carrying fields parsed from an observed RFC 793
 // TCP segment. Paired with `tc8::Ipv4Expected` in the SCXML expected
 // context — §4.8.6.1 TCP_BASICS only need DUT + tester identity, no
@@ -184,6 +194,10 @@ struct TcpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     std::uint32_t ut_tcpi_p3_rto_us      = 0U;
     std::uint8_t  ut_tcpi_p3_retransmits = 0U;
     std::uint32_t ut_tcpi_p3_unacked     = 0U;
+
+    // §4.8.6.11 TCP_RETRANSMISSION_TO_08/_09: how the RTO-ceiling
+    // observation ended. `ut_tcpi_p1_*` holds the last snapshot it took.
+    RtoCeilingOutcome ut_rto_ceiling = RtoCeilingOutcome::NotObserved;
 
     // Stimulus-populated field: number of bytes the UT
     // OpReceiveTcpData call returned that ALSO matched the expected

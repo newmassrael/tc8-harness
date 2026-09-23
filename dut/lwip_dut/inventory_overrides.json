@@ -231,12 +231,12 @@
     "TCP_RETRANSMISSION_TO_08": {
       "platform_known_fail": true,
       "platform_known_fail_ref": "dut/lwip_dut/README.md",
-      "reason": "spec expects the data-retransmission RTO to plateau at 2*MSL (60 s); lwIP doubles RTO per retransmit with no 2*MSL clamp (tcp.c tcp_backoff shift, cap at <<7) and aborts at TCP_MAXRTX=12 — within the 35 s observation budget the RTO never repeats, deterministic fail:rto_below_2_msl_did_not_plateau_within_observation_budget (verified x2 2026-06-11)"
+      "reason": "spec expects the data-retransmission RTO to plateau at 2*MSL (60 s); lwIP doubles RTO per retransmit with no 2*MSL clamp (tcp.c tcp_backoff shift, cap at <<7), so the RTO passes 63 s at the retransmit ~63 s in (wire 2/4/8/16/32 s gaps) — fail:rto_exceeded_2_msl (verified 2026-09-24)"
     },
     "TCP_RETRANSMISSION_TO_09": {
       "platform_known_fail": true,
       "platform_known_fail_ref": "dut/lwip_dut/README.md",
-      "reason": "spec expects the SYN-retransmission RTO to plateau at 2*MSL (60 s); lwIP never backs off the SYN RTO (tcp.c excludes SYN_SENT from RTO doubling, fixed 1 s cadence) and aborts the pcb at TCP_SYNMAXRTX=6 (~7 s) — the freed pcb makes OpQueryTcpInfo answer kStatusUnknownSocket, deterministic fail:tcp_info_query_failed (verified x2 2026-06-11)"
+      "reason": "spec expects the SYN-retransmission RTO to plateau at 2*MSL (60 s); lwIP never backs off the SYN RTO (tcp.c excludes SYN_SENT from RTO doubling, fixed 1 s cadence) and aborts the pcb at TCP_SYNMAXRTX=6 (~7 s), before any ceiling exists to grade — inconclusive:dut_dropped_connection_before_rto_ceiling (verified 2026-09-24). The mark withholds a non-conclusion, not a fail: its cause is the missing SYN backoff that RETRANSMISSION_TO_05 grades as a fail"
     }
   }
 }

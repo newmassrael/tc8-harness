@@ -168,18 +168,18 @@ TCP:
 - **`TCP_RETRANSMISSION_TO_08` — no 2*MSL RTO ceiling.** The spec
   expects the data-retransmission RTO to plateau at 2*MSL (60 s).
   lwIP keeps doubling per retransmit (`tcp.c` `tcp_backoff` shift,
-  capped at `<<7`) with no 2*MSL clamp and aborts the connection at
-  `TCP_MAXRTX` 12; within the 35 s observation budget the RTO never
-  repeats. Deterministic
-  `fail:rto_below_2_msl_did_not_plateau_within_observation_budget`
-  (x2 2026-06-11).
+  capped at `<<7`) with no 2*MSL clamp: on the wire the gaps run
+  2 / 4 / 8 / 16 / 32 s, and the retransmit about 63 s in sets an RTO
+  above 63 s. `fail:rto_exceeded_2_msl` (2026-09-24).
 - **`TCP_RETRANSMISSION_TO_09` — SYN RTO never backs off, pcb aborts.**
   lwIP excludes SYN_SENT from RTO doubling (`tcp.c`: "unless we are
   trying to connect") — fixed 1 s SYN cadence — and frees the pcb at
   `TCP_SYNMAXRTX` 6 (~7 s in), at which point `OpQueryTcpInfo` answers
-  `kStatusUnknownSocket`. Deterministic `fail:tcp_info_query_failed`
-  (x2 2026-06-11). A 2*MSL SYN-RTO plateau is structurally
-  unobservable on this stack.
+  `kStatusUnknownSocket`. The case reports
+  `inconclusive:dut_dropped_connection_before_rto_ceiling` (2026-09-24):
+  a 2*MSL SYN-RTO ceiling is structurally unobservable on this stack,
+  so the mark withholds a non-conclusion. The deviation behind it is the
+  missing SYN backoff, which `_05` grades as a fail.
 - **Latent (passes today): `TCP_RETRANSMISSION_TO_03` Karn check.**
   lwIP resets `pcb->rto` to the smoothed `(sa>>3)+sv` on EVERY new
   ACK (`tcp_in.c` "Reset the retransmission time-out"), discarding

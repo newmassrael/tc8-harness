@@ -4,36 +4,29 @@
   upper bound of 2*MSL of RTO for data segments. Derived from
   RFC 1122 §4.2.3.1 p96 Retransmission Timeout Calculation (SHOULD).
 
-  Linux 6.5 caps RTO at 120 s (TCP_RTO_MAX), twice the spec's
-  2*MSL = 60 s (Linux MSL = 30 s). The DUT's RTO doubles past 60 s
-  before plateauing at 120 s; on a Linux DUT this case is expected
-  to fail.
-  A strict-RFC DUT honouring the 2*MSL ceiling would pass.
+  The stimulus watches the DUT socket's RTO with observeRtoCeiling
+  (tcp_rto_ceiling.h), which ends at the first retransmission timeout
+  whose new RTO is below twice the previous one. RFC 6298 §5.5 lets
+  only the upper bound stop the doubling, so that timeout IS the
+  ceiling, seen directly.
 
-  Verdict ladder (single kernel-state (TCP_INFO) snapshot off the DUT
-  socket, evaluate-pattern SCXML):
+  Verdict ladder (evaluate-pattern over the observation):
     1. `not ut_handshake_completed`        → inconclusive_handshake_did_not_complete
     2. `not ut_tcpi_p1_valid`              → error_query_failed
     3. `ut_tcpi_p1_retransmits == 0`       → fail_no_retx
-    4. `rto_us > 63_000_000`               → fail_rto_above_2msl_cap
-       (Linux RTO_MAX path, 120 s — exceeds spec's 60 s)
-    5. `rto_us < 57_000_000`               → inconclusive_rto_below_2msl_cap
-       (Linux mid-doubling at observation budget cap, or any DUT
-        plateauing too low)
-    6. fall-through                        → pass (rto_us within
-       60 s ± 5%, the 2*MSL band)
-
-  Wall-time budget: 35 s. Linux's RTO doubling at this budget is
-  in the 25-50 s cumulative range with `tcpi_rto` in mid-doubling
-  (typically 6.4-25.6 s). The verdict at 35 s ladder cap will fall
-  on `inconclusive_rto_below_2msl_cap` because Linux hasn't plateaued yet.
-  Reaching the 120 s plateau requires ~200 s wall-time and would
-  hit the case envelope cap before observing it.
+    4. `rto_us > kTwoMslRtoUpperUs`        → fail_rto_above_2msl_cap
+    5. ceiling reached, `rto_us < kTwoMslRtoLowerUs`
+                                           → fail_rto_ceiling_below_2msl
+    6. ceiling reached                     → pass (60 s ± 5 %, the 2*MSL band)
+    7. the DUT dropped the connection before a ceiling
+                                           → inconclusive_connection_dropped
+    8. otherwise (still doubling at the budget)
+                                           → inconclusive_rto_below_2msl_cap
 
   Negative IP-flip: the active OPEN to ESTABLISHED fails when
   dut_iface_ip is mis-pointed; stimulus returns early without
   setting `ut_handshake_completed`, so the SCXML's first cond fires
-  and verdicts as `fail:dut_handshake_did_not_complete`.
+  and verdicts as `inconclusive:dut_handshake_did_not_complete`.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -65,12 +58,18 @@
                 cond="cpp:captured.ut_tcpi_p1_retransmits == 0"
                 target="fail_no_retx"/>
     <transition event="evaluate"
-                cond="cpp:captured.ut_tcpi_p1_rto_us &gt; 63000000"
+                cond="cpp:captured.ut_tcpi_p1_rto_us &gt; ::tc8::sce::tcp::kTwoMslRtoUpperUs"
                 target="fail_rto_above_2msl_cap"/>
     <transition event="evaluate"
-                cond="cpp:captured.ut_tcpi_p1_rto_us &lt; 57000000"
-                target="inconclusive_rto_below_2msl_cap"/>
-    <transition event="evaluate" target="pass"/>
+                cond="cpp:captured.ut_rto_ceiling == ::tc8::RtoCeilingOutcome::CeilingReached and captured.ut_tcpi_p1_rto_us &lt; ::tc8::sce::tcp::kTwoMslRtoLowerUs"
+                target="fail_rto_ceiling_below_2msl"/>
+    <transition event="evaluate"
+                cond="cpp:captured.ut_rto_ceiling == ::tc8::RtoCeilingOutcome::CeilingReached"
+                target="pass"/>
+    <transition event="evaluate"
+                cond="cpp:captured.ut_rto_ceiling == ::tc8::RtoCeilingOutcome::SocketLost"
+                target="inconclusive_connection_dropped"/>
+    <transition event="evaluate" target="inconclusive_rto_below_2msl_cap"/>
   </state>
 
   <final id="pass">
@@ -99,7 +98,19 @@
 
   <final id="fail_rto_above_2msl_cap">
     <donedata>
-      <content>{"verdict":"fail","reason":"rto_plateau_above_2_msl_linux_rto_max_120s_exceeds_spec_2_msl_60s","role":"observed_violation"}</content>
+      <content>{"verdict":"fail","reason":"rto_exceeded_2_msl","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_rto_ceiling_below_2msl">
+    <donedata>
+      <content>{"verdict":"fail","reason":"rto_ceiling_below_2_msl","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_connection_dropped">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"dut_dropped_connection_before_rto_ceiling","role":"property_unobserved"}</content>
     </donedata>
   </final>
 

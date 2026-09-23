@@ -14,6 +14,7 @@
 #include "sce_integration/ipv4_expected.h"
 #include "sce_integration/tcp_captured.h"
 #include "sce_integration/tcp_pilot_common.h"
+#include "sce_integration/tcp_rto_ceiling.h"
 #include "sce_integration/test_case_traits.h"
 #include "sce_integration/test_runner.h"
 
@@ -31,13 +32,6 @@ namespace tc8::sce {
 // TC8 v3.0 §4.8.6.11 TCP_RETRANSMISSION_TO_09: TCP SHOULD use an upper
 // bound of 2*MSL of RTO for SYN segments (RFC 1122 §4.2.3.1 p96).
 //
-// Linux 6.5 has a SYN-specific cadence (sibling to _08's data path):
-// `tcp_syn_linear_timeouts = 4` runs the first 4 SYN retransmits at a
-// constant ~1 s interval, then exponential doubling kicks in. The
-// terminal RTO for SYN-SENT also caps at TCP_RTO_MAX = 120 s, twice
-// the spec's 2*MSL = 60 s expectation. On a Linux DUT this case is
-// expected to fail; a strict-RFC DUT honouring 2*MSL=60s would pass.
-//
 // Verdict mechanism (kernel-side state probe through the seam,
 // dispatch=no-op):
 //   1. TesterAutoRstDrop suppresses tester-kernel auto-RST against
@@ -47,27 +41,17 @@ namespace tc8::sce {
 //   2. Active OPEN on +182 port quad — DUT issues SYN, enters
 //      SYN-SENT, kernel arms retransmit timer. No tester listener, so
 //      the SYN goes unanswered and the socket stays in SYN-SENT.
-//   3. Poll TCP_INFO every 2 s on the SYN-SENT socket. Track the
-//      same plateau detection as _08 (3 consecutive identical
-//      `tcpi_rto` snapshots ⇒ plateaued). Budget cap: 35 s
-//      wall-time.
-//   4. SCXML verdict mirrors _08: pass if rto_us == 60 s ± 5%, else
-//      classified as above-cap or below-cap.
+//   3. observeRtoCeiling (tcp_rto_ceiling.h) polls TCP_INFO on the
+//      SYN-SENT socket, exactly as _08 does on its data segment.
+//   4. SCXML verdict mirrors _08, plus one outcome of its own: a DUT
+//      that gives up the connection before its RTO reaches a ceiling
+//      leaves nothing to grade (inconclusive).
 //
-// Wall-time profile under Linux 6.5:
-//   t=0:    SYN1  (rto seed = 1 s)
-//   t=1:    SYN2 (linear retx 1)
-//   t=2:    SYN3 (linear retx 2)
-//   t=3:    SYN4 (linear retx 3)
-//   t=4:    SYN5 (linear retx 4 — last linear)
-//   t=5:    SYN6 (rto = 1 s)
-//   t=7:    SYN7 (rto = 2 s)
-//   t=11:   SYN8 (rto = 4 s)
-//   t=19:   SYN9 (rto = 8 s)
-//   t=35:  → budget cap, RTO ~16 s, mid-doubling
-// Spec's 2*MSL = 60 s plateau is unreachable inside the 35 s budget,
-// so verdict consistently lands on `inconclusive_rto_below_2msl_cap` for the
-// Linux DUT.
+// Budget. From the RFC 6298 §2.1 initial RTO of 1 s, doubling reaches
+// the step that clamps to 60 s or overshoots to 64 s about 63 s after
+// the SYN (1 + 2 + ... + 32). A stack that first holds its SYN
+// timeouts flat (Linux's tcp_syn_linear_timeouts) needs a few seconds
+// more; the budget covers both.
 template <>
 struct TestCaseTraits<cases::TcpRetransmissionTo09SM> {
     using SM    = cases::TcpRetransmissionTo09SM;
@@ -99,8 +83,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo09SM> {
     using Expected = typename SM::ExpectedType;
 
     static constexpr auto kPollInterval  = std::chrono::milliseconds(2000);
-    static constexpr auto kBudget        = std::chrono::milliseconds(35000);
-    static constexpr std::uint8_t kPlateauSnapshots = 3;
+    static constexpr auto kBudget        = std::chrono::milliseconds(90000);
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
@@ -119,8 +102,8 @@ struct TestCaseTraits<cases::TcpRetransmissionTo09SM> {
         // and without the iptables drop the tester kernel would auto-
         // RST every retransmit and tear the DUT's SYN-SENT TCB before
         // the RTO has a chance to plateau. Body-scoped is sufficient
-        // here: the poll loop always runs to the 35 s budget (or a
-        // plateau break) inside this function, so a deferred hold is
+        // here: the observation always runs to its budget (or an
+        // earlier outcome) inside this function, so a deferred hold is
         // unnecessary (unlike _05/_06 which break early on a retx
         // threshold). Installed BEFORE the active open so the first SYN
         // never draws a closed-port RST.
@@ -138,30 +121,15 @@ struct TestCaseTraits<cases::TcpRetransmissionTo09SM> {
         const ::tc8::sce::DutSocket dut_sock = open_conn->socket;
         c.ut_handshake_completed = true;
 
-        const auto start = std::chrono::steady_clock::now();
-        ::tc8::sce::DutTcpInfo last{};
-        bool last_valid = false;
-        std::uint32_t prev_rto = 0;
-        std::uint8_t  plateau_count = 0;
-        while (std::chrono::steady_clock::now() - start < kBudget) {
-            std::this_thread::sleep_for(kPollInterval);
-            const auto probe = dut.tcpStateProbe()->queryInfo(dut_sock);
-            if (!probe) continue;
-            last = *probe;
-            last_valid = true;
-            if (last.rto_us == prev_rto && prev_rto != 0) {
-                if (++plateau_count >= kPlateauSnapshots) break;
-            } else {
-                plateau_count = 0;
-                prev_rto = last.rto_us;
-            }
-        }
+        const auto obs = observeRtoCeiling(dut, dut_sock, kBudget, kPollInterval,
+                                           kTwoMslRtoUpperUs);
 
-        c.ut_tcpi_p1_valid       = last_valid;
-        c.ut_tcpi_p1_state       = last.state;
-        c.ut_tcpi_p1_rto_us      = last.rto_us;
-        c.ut_tcpi_p1_retransmits = last.retransmits;
-        c.ut_tcpi_p1_unacked     = last.unacked;
+        c.ut_rto_ceiling         = obs.outcome;
+        c.ut_tcpi_p1_valid       = obs.valid;
+        c.ut_tcpi_p1_state       = obs.last.state;
+        c.ut_tcpi_p1_rto_us      = obs.last.rto_us;
+        c.ut_tcpi_p1_retransmits = obs.last.retransmits;
+        c.ut_tcpi_p1_unacked     = obs.last.unacked;
 
         dut.tcpControl()->closeTcp(dut_sock);
     }

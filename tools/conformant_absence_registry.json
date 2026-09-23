@@ -2552,8 +2552,13 @@
         },
         {
           "class": "incorrect_emission",
-          "fail_reason": "rto_plateau_above_2_msl_linux_rto_max_120s_exceeds_spec_2_msl_60s",
-          "property": "DUT's retransmit RTO must plateau at or below 2*MSL (60 s); fail iff it exceeds 2*MSL (the Linux RTO_MAX of 120 s does)"
+          "fail_reason": "rto_exceeded_2_msl",
+          "property": "DUT's retransmit RTO must stay at or below 2*MSL (60 s); fail iff it is observed above 2*MSL + 5 %"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "rto_ceiling_below_2_msl",
+          "property": "DUT's retransmit RTO must stop doubling at 2*MSL (60 s); fail iff it stops more than 5 % below"
         }
       ]
     },
@@ -2566,8 +2571,13 @@
         },
         {
           "class": "incorrect_emission",
-          "fail_reason": "rto_plateau_above_2_msl_linux_rto_max_120s_exceeds_spec_2_msl_60s",
-          "property": "DUT's retransmit RTO must plateau at or below 2*MSL (60 s); fail iff it exceeds 2*MSL (the Linux RTO_MAX of 120 s does)"
+          "fail_reason": "rto_exceeded_2_msl",
+          "property": "DUT's SYN RTO must stay at or below 2*MSL (60 s); fail iff it is observed above 2*MSL + 5 %"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "rto_ceiling_below_2_msl",
+          "property": "DUT's SYN RTO must stop doubling at 2*MSL (60 s); fail iff it stops more than 5 % below"
         }
       ]
     }

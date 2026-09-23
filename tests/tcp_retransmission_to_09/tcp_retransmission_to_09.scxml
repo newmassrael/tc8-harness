@@ -4,15 +4,13 @@
   upper bound of 2*MSL of RTO for SYN segments. Derived from
   RFC 1122 §4.2.3.1 p96 Retransmission Timeout Calculation (SHOULD).
 
-  SYN sibling of _08 (data path). Linux 6.5 has a SYN-specific
-  `tcp_syn_linear_timeouts = 4` cadence (first 4 retxs at constant
-  ~1 s, then exponential doubling) on top of the same TCP_RTO_MAX
-  120 s cap. Spec's 2*MSL = 60 s plateau is unreachable on Linux
-  inside any reasonable budget because the kernel's RTO_MAX exceeds
-  the spec's 2*MSL.
+  SYN sibling of _08 (data path). The stimulus watches the SYN-SENT
+  socket's RTO with observeRtoCeiling (tcp_rto_ceiling.h), which ends
+  at the first retransmission timeout whose new RTO is below twice
+  the previous one. RFC 6298 §5.5 lets only the upper bound stop the
+  doubling, so that timeout IS the ceiling, seen directly.
 
-  Verdict ladder (single kernel-state (TCP_INFO) snapshot,
-  evaluate-pattern):
+  Verdict ladder (evaluate-pattern over the observation):
     1. `not ut_handshake_completed`        → inconclusive_handshake_did_not_complete
        (the DUT never initiated the active OPEN; on the negative
         IP-flip path the harness never reaches the DUT.)
@@ -20,18 +18,14 @@
     3. `ut_tcpi_p1_retransmits == 0`       → fail_no_retx
        (SYN retransmits never fired — the tester's auto-RST suppression
         probably leaked or the DUT exited SYN-SENT for another reason.)
-    4. `rto_us > 63_000_000`               → fail_rto_above_2msl_cap
-       (Linux RTO_MAX path, 120 s — exceeds spec's 60 s)
-    5. `rto_us < 57_000_000`               → inconclusive_rto_below_2msl_cap
-       (Linux mid-doubling at observation budget cap, or any DUT
-        plateauing too low)
-    6. fall-through                        → pass (rto_us within
-       60 s ± 5%, the 2*MSL band)
-
-  Wall-time budget: 35 s. Linux's SYN RTO timeline at 35 s mark
-  is in mid-exponential phase (rto ≈ 16-25 s); plateau detection
-  never fires within the budget on this kernel. The verdict
-  consistently lands on `inconclusive_rto_below_2msl_cap`.
+    4. `rto_us > kTwoMslRtoUpperUs`        → fail_rto_above_2msl_cap
+    5. ceiling reached, `rto_us < kTwoMslRtoLowerUs`
+                                           → fail_rto_ceiling_below_2msl
+    6. ceiling reached                     → pass (60 s ± 5 %, the 2*MSL band)
+    7. the DUT dropped the connection before a ceiling
+                                           → inconclusive_connection_dropped
+    8. otherwise (still doubling at the budget)
+                                           → inconclusive_rto_below_2msl_cap
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -63,12 +57,18 @@
                 cond="cpp:captured.ut_tcpi_p1_retransmits == 0"
                 target="fail_no_retx"/>
     <transition event="evaluate"
-                cond="cpp:captured.ut_tcpi_p1_rto_us &gt; 63000000"
+                cond="cpp:captured.ut_tcpi_p1_rto_us &gt; ::tc8::sce::tcp::kTwoMslRtoUpperUs"
                 target="fail_rto_above_2msl_cap"/>
     <transition event="evaluate"
-                cond="cpp:captured.ut_tcpi_p1_rto_us &lt; 57000000"
-                target="inconclusive_rto_below_2msl_cap"/>
-    <transition event="evaluate" target="pass"/>
+                cond="cpp:captured.ut_rto_ceiling == ::tc8::RtoCeilingOutcome::CeilingReached and captured.ut_tcpi_p1_rto_us &lt; ::tc8::sce::tcp::kTwoMslRtoLowerUs"
+                target="fail_rto_ceiling_below_2msl"/>
+    <transition event="evaluate"
+                cond="cpp:captured.ut_rto_ceiling == ::tc8::RtoCeilingOutcome::CeilingReached"
+                target="pass"/>
+    <transition event="evaluate"
+                cond="cpp:captured.ut_rto_ceiling == ::tc8::RtoCeilingOutcome::SocketLost"
+                target="inconclusive_connection_dropped"/>
+    <transition event="evaluate" target="inconclusive_rto_below_2msl_cap"/>
   </state>
 
   <final id="pass">
@@ -97,7 +97,19 @@
 
   <final id="fail_rto_above_2msl_cap">
     <donedata>
-      <content>{"verdict":"fail","reason":"rto_plateau_above_2_msl_linux_rto_max_120s_exceeds_spec_2_msl_60s","role":"observed_violation"}</content>
+      <content>{"verdict":"fail","reason":"rto_exceeded_2_msl","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_rto_ceiling_below_2msl">
+    <donedata>
+      <content>{"verdict":"fail","reason":"rto_ceiling_below_2_msl","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_connection_dropped">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"dut_dropped_connection_before_rto_ceiling","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
