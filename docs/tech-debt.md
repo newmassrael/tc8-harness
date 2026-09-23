@@ -1872,3 +1872,40 @@ does not hold, the comment-side equivalent of `ref_resolves`.
 **Done when:** the search above returns no site outside the two test fixtures, the three
 grep-filter sentences are gone, and a pre-commit check rejects a new out-of-tree note
 pointer.
+
+---
+
+## TD-35 — the positive reassembly cases throw away the DUT's own report that it discarded the datagram
+
+**Status:** OPEN. **Logged:** 2026-09-24, while making `IPv4_REASSEMBLY_11` and `_13`
+conclude.
+
+**What it is.** The IPv4 fragment cases share `Ipv4FragmentEchoBase`, whose dispatch forwards
+only Echo Replies to the SCXML. A DUT that fails to reassemble and lets the bucket expire
+sends an ICMP Time Exceeded code 1 quoting fragment 0 (RFC 792). That report is the DUT
+saying it discarded the datagram, which is an observation. The base drops it, so the case sees
+only a missing Echo Reply and times out to inconclusive. `IPv4_REASSEMBLY_11` and `_13` now
+forward the report (`dispatchEchoReplyOrReassemblyExpiry`,
+`src/sce_integration/include/sce_integration/ipv4_fragments_common.h`) and grade it as a
+fail. Four cases that grade successful reassembly do not: `IPv4_FRAGMENTS_01`,
+`IPv4_REASSEMBLY_04`, `IPv4_REASSEMBLY_10` (phase A) and `IPv4_REASSEMBLY_12`. `_12` is
+the sharpest. It exists to catch a DUT that SHRINKS the timer on a low-TTL fragment, and
+that DUT would report the early expiry on the wire and still be graded inconclusive.
+
+**Why it exists.** Forwarding the report from the base is unsafe. The absence cases built on
+`tests/_templates/icmpv4_negative_absence.sce-template.xml` (`IPv4_REASSEMBLY_06/07/09`
+among them) send ANY DUT-origin ICMP to `fail_dut_replied`. For them a Time Exceeded can be
+the conforming outcome. So each case has to opt in with a guard that gives the report its
+meaning, and only two have been done.
+
+**Risk if left.** Each of the four reports a discard as a non-conclusion, which renders as
+JUnit `<skipped>` and is green. Neither reference DUT hits this today, because both pass the
+four, so the loss is on the DUTs the suite exists to grade.
+
+**Textbook fix.** Give each of the four the REASSEMBLY_11 shape: override `dispatch` with
+`dispatchEchoReplyOrReassemblyExpiry`, and add a fail transition for Time Exceeded code 1
+from the DUT that quotes the case's own IP Identification (`Icmpv4Captured::quotes_ip_id`).
+`_10` needs it on phase A only, since phase B expects the bucket to expire.
+
+**Done when:** the four cases grade a DUT-origin Time Exceeded code 1 that quotes their own
+fragment as a fail, and each still passes on single-pc and lwip-tap.
