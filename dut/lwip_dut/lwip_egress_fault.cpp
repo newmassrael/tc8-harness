@@ -215,8 +215,15 @@ void mutateTcp(std::uint8_t *f, std::uint8_t flavor, std::uint16_t tcp) {
 // ttl/checksum mutate the IPv4 header (the resulting IPv4 checksum mismatch is
 // immaterial: libtins does not validate the IPv4 header checksum on parse, so the guard
 // still reads the field; the checksum fault invalidates that field directly).
-void mutateIcmpFrame(std::uint8_t *f, std::uint8_t flavor, std::uint16_t icmp,
-                     std::uint16_t avail) {
+//
+// `f` is the head segment of `p`, which the caller has checked holds the ICMP header.
+// A field past the header — the Echo Data — is addressed by PACKET offset through the
+// pbuf chain, not through `f`: lwIP answers a reassembled Echo Request by reusing the
+// reassembled chain, so the Data can sit wholly in `p->next` (IPv4_REASSEMBLY_11's
+// head fragment ends at the ICMP header). Indexing the head segment alone would leave
+// such a reply untouched and the fault silently inert.
+void mutateIcmpFrame(struct pbuf *p, std::uint8_t flavor, std::uint16_t icmp) {
+    auto *f = static_cast<std::uint8_t *>(p->payload);
     const std::uint8_t type = f[icmp + kIcmpTypeOff];
     switch (flavor) {
         case ut::kIcmpFaultEchoIdWrong:
@@ -249,16 +256,19 @@ void mutateIcmpFrame(std::uint8_t *f, std::uint8_t flavor, std::uint16_t icmp,
         case ut::kIcmpFaultDestUnreachCodeWrong:
             if (type == kIcmpTypeDestUnreach) f[icmp + kIcmpCodeOff] ^= kIcmpCodeFlip;
             break;
-        // HEADER_05: corrupt the first Echo Data byte so the echoed 548 B no longer match
-        // the index pattern, with the payload length untouched (the "wrong bytes" half).
-        // Gated on a data byte being present in this pbuf segment (avail past the header).
-        case ut::kIcmpFaultEchoPayloadByteWrong:
-            if (type == kIcmpTypeEchoReply && avail > icmp + kIcmpMinHdrLen)
-                f[icmp + kIcmpMinHdrLen] ^= kIcmpEchoDataFlip;
+        // HEADER_05 / REASSEMBLY_11 / _13: corrupt the first Echo Data byte so the echoed
+        // data no longer matches, with the payload length untouched (for HEADER_05 the
+        // "wrong bytes" half). Gated on a data byte being present anywhere in the packet,
+        // and written through the chain (see above).
+        case ut::kIcmpFaultEchoPayloadByteWrong: {
+            const auto data = static_cast<u16_t>(icmp + kIcmpMinHdrLen);
+            if (type == kIcmpTypeEchoReply && p->tot_len > data)
+                pbuf_put_at(p, data, static_cast<u8_t>(pbuf_get_at(p, data) ^ kIcmpEchoDataFlip));
             break;
+        }
         // HEADER_05: shrink the Echo Reply's IP total_length so the dissected payload carries
         // only 64 of the 548 Data bytes (the "truncated data" half). The IP-header field at
-        // kIpTotalLenOff is always present; no avail gate needed.
+        // kIpTotalLenOff is always present in the head segment; no data gate needed.
         case ut::kIcmpFaultEchoPayloadTruncate:
             if (type == kIcmpTypeEchoReply) put16(f, kIpTotalLenOff, kIpv4FaultTruncTotalLen);
             break;
@@ -285,7 +295,7 @@ err_t egressFaultLinkoutput(struct netif *nif, struct pbuf *p) {
         } else if (p->len >= kIpProtoOff + 1 && isIpv4(f) && f[kIpProtoOff] == kIpProtoIcmp) {
             const std::uint16_t icmp = l4RegionOffset(f);
             if (p->len >= icmp + kIcmpMinHdrLen) {
-                mutateIcmpFrame(f, flavor, icmp, p->len);
+                mutateIcmpFrame(p, flavor, icmp);
             }
         }
     }
