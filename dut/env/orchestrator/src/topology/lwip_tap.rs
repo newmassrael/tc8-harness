@@ -103,12 +103,25 @@ struct LwipState {
     /// flock held for the run; releases when this `File` drops. `O_CLOEXEC`, so the
     /// spawned DUT never inherits it.
     _lock: fs::File,
-    /// The current DUT child — held so it is reaped (waited) after the kill rather
+    /// The current DUT spawn — held so it is reaped (waited) after the kill rather
     /// than left a zombie (bash setsid+disowns to reparent to init; Rust waits).
-    dut: Option<Child>,
+    dut: Option<DutSpawn>,
     /// Pre-existing (frozen) tester sockets toward the DUT IP, snapshotted once at
     /// bring-up; the per-case drain subtracts these so it only waits on this run's.
     baseline_socks: BTreeSet<String>,
+}
+
+/// One DUT process and the case it serves. The DUT is respawned BETWEEN cases, so
+/// it starts before the path of the case it will serve is known: `start_dut` hands
+/// that path over later, and `retire_dut` — once the process has exited and its
+/// output is complete — copies this spawn's share of the run log into it.
+struct DutSpawn {
+    child: Child,
+    /// Byte offset in `<FIX_DIR>/dut.log` where this spawn's output begins.
+    log_from: u64,
+    /// The per-case DUT log of the case this spawn served; `None` until
+    /// `start_dut` names it (and for the spare DUT spawned after the last case).
+    case_log: Option<PathBuf>,
 }
 
 /// lwIP-on-a-tap topology: the shared `HostTester` tester side + a topology-owned,
@@ -188,16 +201,21 @@ impl<'a> LwipTap<'a> {
     }
 
     /// Spawn one lwIP DUT attached to the tap; stdout+stderr APPENDED to dut.log
-    /// (a run accumulates the per-case respawns). The lock fd is not passed (Rust
-    /// `File` is `O_CLOEXEC`), so the DUT cannot hold the fixture lock.
-    fn spawn_dut(&self) -> Result<Child> {
+    /// (a run accumulates the per-case respawns), with the offset this spawn's output
+    /// starts at recorded for `retire_dut`. The lock fd is not passed (Rust `File` is
+    /// `O_CLOEXEC`), so the DUT cannot hold the fixture lock.
+    fn spawn_dut(&self) -> Result<DutSpawn> {
         let log = fs::OpenOptions::new()
             .create(true)
             .append(true)
-            .open(format!("{FIX_DIR}/dut.log"))
-            .with_context(|| format!("opening {FIX_DIR}/dut.log"))?;
+            .open(run_dut_log())
+            .with_context(|| format!("opening {}", run_dut_log()))?;
+        // Nothing else writes the run log while no DUT is alive (the previous spawn
+        // was reaped before this one), so its current length is exactly where this
+        // spawn's output begins.
+        let log_from = log.metadata().with_context(|| format!("stat {}", run_dut_log()))?.len();
         let err = log.try_clone()?;
-        Command::new(&self.app)
+        let child = Command::new(&self.app)
             .env("PRECONFIGURED_TAPIF", TAP)
             .env("TC8_LWIP_DUT_IP", DUT_IP)
             .env("TC8_LWIP_DUT_MASK", DUT_MASK)
@@ -206,7 +224,27 @@ impl<'a> LwipTap<'a> {
             .stdout(Stdio::from(log))
             .stderr(Stdio::from(err))
             .spawn()
-            .with_context(|| format!("spawning lwIP DUT {}", self.app.display()))
+            .with_context(|| format!("spawning lwIP DUT {}", self.app.display()))?;
+        Ok(DutSpawn { child, log_from, case_log: None })
+    }
+
+    /// End a spawn: kill and reap it, then hand its output to the case it served.
+    /// The copy runs only after the reap, when the DUT can write nothing more — so
+    /// the case log ends with the DUT's own teardown lines.
+    fn retire_dut(&self, held: &mut Option<DutSpawn>) {
+        let Some(DutSpawn { child, log_from, case_log }) = held.take() else {
+            self.kill_dut(None);
+            return;
+        };
+        self.kill_dut(Some(child));
+        if let Some(case_log) = case_log {
+            if let Err(e) = append_log_range(Path::new(&run_dut_log()), log_from, &case_log) {
+                eprintln!(
+                    "orchestrator[lwip-tap]: WARNING — could not copy the DUT's output into {}: {e:#}",
+                    case_log.display()
+                );
+            }
+        }
     }
 
     /// Poll the DUT to readiness (an OpPing / GET_VERSION round trip proves the tap
@@ -281,7 +319,7 @@ impl<'a> LwipTap<'a> {
     /// reap-selector matrix in `topology` mod docs): safe ONLY because `acquire_lock`
     /// gives this fixture a host-wide flock, so at most one such DUT runs host-wide
     /// and the name match cannot hit a concurrent fixture's DUT.
-    fn kill_dut(&self, held: &mut Option<Child>) {
+    fn kill_dut(&self, held: Option<Child>) {
         pkill(&["-TERM", "-f", &self.kill_name]);
         let mut gone = false;
         for _ in 0..KILL_ATTEMPTS {
@@ -298,7 +336,7 @@ impl<'a> LwipTap<'a> {
             );
             pkill(&["-KILL", "-f", &self.kill_name]);
         }
-        if let Some(mut c) = held.take() {
+        if let Some(mut c) = held {
             // Bounded like dispatch::CaseProcs::reap: the pkill above reaps the DUT
             // (its argv carries kill_name), so wait() returns promptly; the bound
             // guards the pathological missed-match (a decoupled kill_name) from
@@ -328,7 +366,7 @@ impl<'a> LwipTap<'a> {
         }
         let mut guard = self.state.lock().unwrap_or_else(|p| p.into_inner());
         if let Some(st) = guard.as_mut() {
-            self.kill_dut(&mut st.dut);
+            self.retire_dut(&mut st.dut);
         } else {
             // No tracked state (already torn down, or bring-up failed before storing
             // it). Best-effort reap by the SAME selector the live kill uses
@@ -337,7 +375,7 @@ impl<'a> LwipTap<'a> {
         }
         netns::ip_quiet(&["link", "del", TAP]);
         // Preserve the DUT log for postmortems; the run dir goes away.
-        let _ = fs::rename(format!("{FIX_DIR}/dut.log"), LAST_DUT_LOG);
+        let _ = fs::rename(run_dut_log(), LAST_DUT_LOG);
         let _ = fs::remove_dir_all(FIX_DIR);
         *guard = None; // drop LwipState → release the flock
     }
@@ -484,6 +522,12 @@ impl Topology for LwipTap<'_> {
         if let Err(e) = fs::write(dlog, format!("[lwip-tap] persistent lwIP DUT on {TAP} at {DUT_IP}\n")) {
             eprintln!("orchestrator[lwip-tap]: WARNING — could not write DUT provenance to {}: {e}", dlog.display());
         }
+        // The DUT that is up now is the one serving this case; `retire_dut` appends
+        // its output here once it has exited.
+        let mut guard = self.state.lock().unwrap_or_else(|p| p.into_inner());
+        if let Some(spawn) = guard.as_mut().and_then(|st| st.dut.as_mut()) {
+            spawn.case_log = Some(dlog.to_path_buf());
+        }
         Ok(None)
     }
 
@@ -498,9 +542,9 @@ impl Topology for LwipTap<'_> {
             None => return Ok(()), // bring-up never ran; nothing to respawn
         };
         self.drain_tester_sockets(&st.baseline_socks);
-        self.kill_dut(&mut st.dut);
+        self.retire_dut(&mut st.dut);
         match self.spawn_dut() {
-            Ok(child) => st.dut = Some(child),
+            Ok(spawn) => st.dut = Some(spawn),
             Err(e) => {
                 eprintln!("lwip-tap: WARNING — DUT respawn failed: {e:#} (the next case will fail readiness)");
                 return Ok(());
@@ -538,11 +582,32 @@ pub(crate) fn resolve_kill_name(lwip: &LwipSpec) -> String {
 pub(crate) fn signal_teardown(kill_name: &str) {
     pkill(&["-KILL", "-f", kill_name]);
     netns::ip_quiet(&["link", "del", TAP]);
-    let _ = fs::rename(format!("{FIX_DIR}/dut.log"), LAST_DUT_LOG);
+    let _ = fs::rename(run_dut_log(), LAST_DUT_LOG);
     let _ = fs::remove_dir_all(FIX_DIR);
 }
 
 // --- free helpers -----------------------------------------------------------
+
+/// The run-wide DUT log every spawn appends to; preserved as `LAST_DUT_LOG` at
+/// teardown.
+fn run_dut_log() -> String {
+    format!("{FIX_DIR}/dut.log")
+}
+
+/// Append `src[from..]` to `dst` — one spawn's share of the run log, copied into
+/// the case log it belongs to.
+fn append_log_range(src: &Path, from: u64, dst: &Path) -> Result<()> {
+    use std::io::{Seek, SeekFrom};
+    let mut s = fs::File::open(src).with_context(|| format!("opening {}", src.display()))?;
+    s.seek(SeekFrom::Start(from)).with_context(|| format!("seeking {}", src.display()))?;
+    let mut d = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(dst)
+        .with_context(|| format!("opening {}", dst.display()))?;
+    std::io::copy(&mut s, &mut d).with_context(|| format!("copying into {}", dst.display()))?;
+    Ok(())
+}
 
 /// Acquire the host-global fixture lock (LOCK_EX|LOCK_NB). Held by the returned
 /// `File`; releases when it drops. See the module docs for why bash's
@@ -606,4 +671,32 @@ fn pkill(args: &[&str]) {
 /// `pgrep -f PATTERN` — true if any process matches (pgrep excludes its own pid).
 fn pgrep_alive(pattern: &str) -> bool {
     crate::proc::run_ok(Command::new("pgrep").args(["-f", pattern]))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A case's DUT log is the banner `start_dut` wrote, then exactly the output of
+    /// the spawn that served it — not the earlier spawns that share the run log.
+    #[test]
+    fn a_case_log_gets_only_its_own_spawns_output() {
+        let dir = std::env::temp_dir().join(format!("tc8-lwip-case-log-{}", std::process::id()));
+        let _ = fs::create_dir_all(&dir);
+        let run = dir.join("dut.log");
+        let case = dir.join("CASE.dut.log");
+
+        fs::write(&run, "spawn 1: up\nspawn 1: SIGTERM, exiting\n").expect("earlier spawn");
+        let from = fs::metadata(&run).expect("stat").len();
+        let mut app = fs::OpenOptions::new().append(true).open(&run).expect("append");
+        std::io::Write::write_all(&mut app, b"spawn 2: up\nspawn 2: SIGTERM, exiting\n").expect("write");
+        fs::write(&case, "[lwip-tap] banner\n").expect("banner");
+
+        append_log_range(&run, from, &case).expect("copy");
+        assert_eq!(
+            fs::read_to_string(&case).expect("read"),
+            "[lwip-tap] banner\nspawn 2: up\nspawn 2: SIGTERM, exiting\n"
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
 }
