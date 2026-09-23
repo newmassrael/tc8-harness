@@ -1544,7 +1544,8 @@ still produces the warning and the SIGKILL.
 
 ## TD-27 — a lwip-tap case's DUT log holds only the fixture banner, never the DUT's own output
 
-**Status:** OPEN. **Logged:** 2026-09-23, while working on TD-26.
+**Status:** RESOLVED (2026-09-23). **Logged:** 2026-09-23, while working on TD-26.
+The entry below is the debt as logged; **Resolution** at its end records what closed it.
 
 **What it is.** On every other topology the per-case `<case>.dut.log` (in `--log-dir`, or in
 the scratch work root) is the DUT's own stdout and stderr for that case. On lwip-tap,
@@ -1569,3 +1570,16 @@ stays as the postmortem of the whole run.
 
 **Done when:** a lwip-tap run with `--log-dir` leaves each case's `.dut.log` holding the
 banner, then the lwIP DUT's own lines for that case, ending in its SIGTERM `exiting` line.
+
+**Resolution.** Each spawn is now a `DutSpawn` that carries the run-log offset where its
+output starts. `start_dut` records the case log path on the spawn that is up. `retire_dut`
+kills and reaps the spawn, then appends its range of the run log to that case log. The copy
+runs only after the reap, so the DUT cannot write anything more to it. The spare DUT spawned
+after the last case serves no case and is left only in the run log.
+
+Measured on 2026-09-23 with `--log-dir` on ICMPv4_TYPE_08, UDP_INTRODUCTION_03 and
+TCP_BASICS_01 (all PASS). Each `.dut.log` holds the banner, `stack up`, that spawn's own
+`rx_frames` count (37, 13 and 19, so no two spawns were mixed), and
+`SIGTERM — UT slots aborted, exiting`. One correction to the Done-when: the `exiting` line is
+not the last line. The DUT prints its lwIP stats dump after it, and that dump belongs to the
+same spawn. The run log holds four `exiting` lines: three cases plus the spare.
