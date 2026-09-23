@@ -6,11 +6,9 @@
 #include <cstring>
 #include <memory>
 #include <optional>
-#include <set>
 #include <string>
 #include <string_view>
 #include <thread>
-#include <unordered_map>
 #include <vector>
 
 #include <poll.h>
@@ -34,6 +32,7 @@
 #include "sce_integration/case_registry.h"
 #include "sce_integration/dut_control.h"
 #include "sce_integration/dut_control_factory.h"
+#include "sce_integration/spec_coverage.h"
 #include "sce_integration/spec_inventory.h"
 #include "sce_integration/test_config.h"
 #include "sce_integration/verdict.h"
@@ -123,25 +122,24 @@ bool waitForDutReady(const std::string &go_file) {
 // Returns "-" when the inventory is unavailable or the id is out-of-spec
 // (e.g. an OEM case shipped without an extra inventory JSON).
 // The single "section or '-'" fallback policy, shared by both display paths
-// (specSectionFor below, which looks up by id, and the runListCases loop, which
-// already holds the SpecCase from its filter pass).
+// (runCase and the runListCases loop, each of which already holds the SpecCase
+// specCaseFor resolved for it).
 std::string sectionOf(const sce::SpecCase *sc) {
     return (sc != nullptr && !sc->section.empty()) ? sc->section : std::string{"-"};
 }
 
-// The inventory's SpecCase for `id`, or nullptr when the inventory is
-// unavailable or the id is out-of-spec — the same best-effort contract
-// sectionOf's "-" fallback encodes, so both consumers share one lookup.
+// The inventory's SpecCase for a registered case, or nullptr when the
+// inventory is unavailable or the case's own suite's catalog does not hold it —
+// the same best-effort contract sectionOf's "-" fallback encodes, so every
+// consumer shares one lookup. Keyed on the entry's (suite, id): every axis the
+// SpecCase carries belongs to one catalog's case, never to an id shared by
+// several (spec_inventory.h, "ONE CATALOG PER SUITE").
 const sce::SpecCase *specCaseFor(const std::optional<sce::SpecInventory> &inv,
-                                 std::string_view id) {
+                                 const sce::CaseEntry &entry) {
     if (!inv.has_value()) {
         return nullptr;
     }
-    return inv->find(sce::SpecInventory::canonicalise(std::string{id}));
-}
-
-std::string specSectionFor(const std::optional<sce::SpecInventory> &inv, std::string_view id) {
-    return sectionOf(specCaseFor(inv, id));
+    return inv->find(entry.suite, entry.id);
 }
 
 }  // namespace
@@ -150,6 +148,13 @@ TestCommand::TestCommand(CLI::App &app) {
     sub_ = app.add_subcommand("test", "Run a registered TC8 test case against a live NIC");
 
     sub_->add_option("-c,--case", case_id_, "Case ID to run (see --list-cases)");
+    sub_->add_option("--suite", suite_,
+                     "Case catalog to scope to. With --list-cases, --list-neg-rows "
+                     "or --list-vsomeip-variants: only that suite (default: every "
+                     "suite, non-default ones printed as suite:ID). With --vs-spec: "
+                     "the one suite whose registered cases are measured against "
+                     "its own inventory (default: the in-tree suite). With --case: "
+                     "resolve an unqualified id within that suite.");
     sub_->add_option("-i,--interface", iface_, "NIC name, e.g. veth-tester");
     sub_->add_option("--interface-secondary", iface_secondary_,
                      "Secondary NIC for §4.7.6.5 USAGE_01 multi-iface "
@@ -306,10 +311,19 @@ int TestCommand::runListNegRows() const {
         std::fprintf(stderr, "error: %s\n", err.c_str());
         return 1;
     }
+    if (!suite_.empty() && !inv->hasSuite(suite_)) {
+        std::fprintf(stderr, "error: --suite %s: no inventory declares that suite\n",
+                     suite_.c_str());
+        return 1;
+    }
     std::vector<std::string> rows;
     for (const auto &sc : inv->cases()) {
+        if (!inSuiteScope(sc.suite)) {
+            continue;
+        }
         if (!sc.neg_wrong_token.empty()) {
-            rows.push_back(sc.id + "|" + sc.neg_wrong_token + "|" + sc.neg_expect_fail);
+            rows.push_back(sce::qualifiedCaseId(sc.suite, sc.id) + "|" + sc.neg_wrong_token +
+                           "|" + sc.neg_expect_fail);
         }
     }
     std::sort(rows.begin(), rows.end());
@@ -335,8 +349,16 @@ int TestCommand::runListVsomeipVariants() const {
         std::fprintf(stderr, "error: %s\n", err.c_str());
         return 1;
     }
+    if (!suite_.empty() && !inv->hasSuite(suite_)) {
+        std::fprintf(stderr, "error: --suite %s: no inventory declares that suite\n",
+                     suite_.c_str());
+        return 1;
+    }
     std::vector<std::string> rows;
     for (const auto &sc : inv->cases()) {
+        if (!inSuiteScope(sc.suite)) {
+            continue;
+        }
         if (sc.vsomeip_cfg.empty() && sc.vsomeip_env.empty()) {
             continue;
         }
@@ -347,7 +369,7 @@ int TestCommand::runListVsomeipVariants() const {
             }
             env += sc.vsomeip_env[i];
         }
-        rows.push_back(sc.id + "|" + sc.vsomeip_cfg + "|" + env);
+        rows.push_back(sce::qualifiedCaseId(sc.suite, sc.id) + "|" + sc.vsomeip_cfg + "|" + env);
     }
     std::sort(rows.begin(), rows.end());
     for (const auto &r : rows) {
@@ -356,7 +378,17 @@ int TestCommand::runListVsomeipVariants() const {
     return 0;
 }
 
+bool TestCommand::inSuiteScope(std::string_view suite) const {
+    return suite_.empty() || sce::canonicalSuite(suite) == sce::canonicalSuite(suite_);
+}
+
 int TestCommand::run(std::optional<std::string> bpf_override) {
+    if (!suite_.empty() && !sce::isWellFormedSuite(suite_)) {
+        std::fprintf(stderr,
+                     "error: --suite '%s' is not a valid suite name ([A-Za-z_][A-Za-z0-9_]*)\n",
+                     suite_.c_str());
+        return 2;
+    }
     if (list_vsomeip_variants_) {
         return runListVsomeipVariants();
     }
@@ -404,12 +436,24 @@ int TestCommand::runListCases() const {
     }
 
     const auto entries = sce::CaseRegistry::instance().listSorted(list_all_);
+    // A scope that matches nothing would print an empty list, and a CI lane
+    // built from that runs ZERO cases green — the same vacuity --only-serial's
+    // exclusion guards against. Refuse it.
+    if (!suite_.empty() &&
+        std::none_of(entries.begin(), entries.end(),
+                     [this](const sce::CaseEntry *e) { return inSuiteScope(e->suite); })) {
+        std::fprintf(stderr, "error: --suite %s: no registered case belongs to that suite\n",
+                     suite_.c_str());
+        return 2;
+    }
     std::string_view current_suite;
     std::string_view current_category;
     std::size_t emitted = 0;
     for (const auto *e : entries) {
-        const auto canon = sce::SpecInventory::canonicalise(std::string{e->id});
-        const sce::SpecCase *sc = inv.has_value() ? inv->find(canon) : nullptr;
+        if (!inSuiteScope(e->suite)) {
+            continue;
+        }
+        const sce::SpecCase *sc = specCaseFor(inv, *e);
         if (need_filter) {
             // timing_serial defaults false, so a case with no override entry is
             // non-serial — --only-serial drops it, --exclude-serial keeps it.
@@ -465,12 +509,7 @@ int TestCommand::runListCases() const {
         // Non-default suites print the qualified "suite:id" so the listed token
         // is the exact `--case` arg to run it; the in-tree suite stays bare
         // (output byte-identical to before any suite injection).
-        std::string display_id;
-        if (e->suite != sce::kDefaultSuite) {
-            display_id.assign(e->suite);
-            display_id.append(":");
-        }
-        display_id.append(e->id);
+        const std::string display_id = sce::qualifiedCaseId(e->suite, e->id);
         std::printf("  %-28.*s  §%-10.*s %.*s%s\n",
                     static_cast<int>(display_id.size()), display_id.data(),
                     static_cast<int>(section.size()), section.data(),
@@ -493,6 +532,15 @@ int TestCommand::runListCases() const {
             note += "timing_serial";
         }
         std::printf("\n%zu case(s) listed (%s excluded).\n", emitted, note.c_str());
+    } else if (!suite_.empty()) {
+        // Counted like the unscoped total below: every registered case of the
+        // suite, deprecated ones included.
+        const auto all = sce::CaseRegistry::instance().listSorted(/*include_deprecated=*/true);
+        const auto n = std::count_if(all.begin(), all.end(), [this](const sce::CaseEntry *e) {
+            return inSuiteScope(e->suite);
+        });
+        std::printf("\n%zu case(s) registered in suite %s.\n", static_cast<std::size_t>(n),
+                    sce::canonicalSuite(suite_).c_str());
     } else {
         std::printf("\n%zu case(s) registered.\n", sce::CaseRegistry::instance().size());
     }
@@ -514,53 +562,35 @@ int TestCommand::runVsSpecReport() const {
         std::fprintf(stderr, "error: %s\n", err.c_str());
         return 2;
     }
-    const auto &inv = *inv_opt;
-
-    // Build canonical-ID set of registered cases (strip _NEG /
-    // _PLATFORM_KNOWN_FAIL so harness variant tags don't masquerade as
-    // distinct spec entries).
-    std::set<std::string> registered_canon;
-    for (const auto *e : sce::CaseRegistry::instance().listSorted(/*include_deprecated=*/true)) {
-        registered_canon.insert(sce::SpecInventory::canonicalise(std::string{e->id}));
+    // One catalog per report. Counting every suite's registered ids against the
+    // TC8 inventory let an injected suite's same-id case mark the TC8 spec case
+    // registered, so the CI gate (--vs-spec --strict) could pass on a case the
+    // TC8 catalog does not register. Unscoped means the in-tree suite: that is
+    // the catalog the gate exists for.
+    const std::string_view scope = suite_.empty() ? sce::kDefaultSuite : std::string_view{suite_};
+    const auto coverage_opt =
+        sce::computeSpecCoverage(sce::CaseRegistry::instance(), *inv_opt, scope);
+    if (!coverage_opt.has_value()) {
+        std::fprintf(stderr,
+                     "error: --vs-spec --suite %.*s: no inventory declares that suite "
+                     "(pass its catalog with --inventory-extra; the file's root \"suite\" "
+                     "names it)\n",
+                     static_cast<int>(scope.size()), scope.data());
+        return 2;
     }
-
-    // Group spec cases by category for the per-category breakdown.
-    struct CategoryRow {
-        std::vector<const sce::SpecCase *> registered;
-        std::vector<const sce::SpecCase *> missing;
-        std::vector<const sce::SpecCase *> deferred;
-        std::vector<const sce::SpecCase *> unregistered_deferred;
-    };
-    std::unordered_map<std::string, CategoryRow> rows;
-    std::vector<std::string> category_order;
-    for (const auto &sc : inv.cases()) {
-        const std::string canon = sce::SpecInventory::canonicalise(sc.id);
-        auto it = rows.find(sc.category);
-        if (it == rows.end()) {
-            category_order.push_back(sc.category);
-            it = rows.emplace(sc.category, CategoryRow{}).first;
-        }
-        const bool is_registered = registered_canon.count(canon) > 0;
-        const bool is_deferred = !sc.expected;
-        if (is_registered) {
-            it->second.registered.push_back(&sc);
-            if (is_deferred) {
-                it->second.deferred.push_back(&sc);
-            }
-        } else if (is_deferred) {
-            it->second.unregistered_deferred.push_back(&sc);
-        } else {
-            it->second.missing.push_back(&sc);
-        }
+    const auto &coverage = *coverage_opt;
+    // The in-tree report stays byte-identical; any other suite's is labelled,
+    // as --list-cases labels it.
+    if (!sce::isDefaultSuite(scope)) {
+        std::printf("== suite: %s ==\n", sce::canonicalSuite(scope).c_str());
     }
-    std::sort(category_order.begin(), category_order.end());
 
     int total_expected = 0;
     int total_registered = 0;
     int total_missing = 0;
     int total_deferred = 0;
-    for (const auto &cat : category_order) {
-        const auto &row = rows.at(cat);
+    for (const auto &row : coverage.categories) {
+        const std::string &cat = row.name;
         const int expected_n = static_cast<int>(row.registered.size() + row.missing.size());
         const int registered_n = static_cast<int>(row.registered.size());
         const int missing_n = static_cast<int>(row.missing.size());
@@ -604,29 +634,19 @@ int TestCommand::runVsSpecReport() const {
     // Surface registered-but-not-in-spec entries (typically harness
     // variant tags with no parent in the spec body — should be 0 once
     // canonicalise() does its job).
-    std::set<std::string> spec_canon;
-    for (const auto &sc : inv.cases()) {
-        spec_canon.insert(sce::SpecInventory::canonicalise(sc.id));
-    }
-    std::vector<std::string> registered_only;
-    for (const auto *e : sce::CaseRegistry::instance().listSorted(true)) {
-        std::string canon = sce::SpecInventory::canonicalise(std::string{e->id});
-        if (spec_canon.count(canon) == 0) {
-            registered_only.push_back(std::string{e->id});
-        }
-    }
-    if (!registered_only.empty()) {
-        std::printf("\nregistered-but-not-in-spec (harness-only) : %zu\n", registered_only.size());
-        for (const auto &id : registered_only) {
+    if (!coverage.registered_only.empty()) {
+        std::printf("\nregistered-but-not-in-spec (harness-only) : %zu\n",
+                    coverage.registered_only.size());
+        for (const auto &id : coverage.registered_only) {
             std::printf("  - %s\n", id.c_str());
         }
     }
 
-    const double coverage = total_expected == 0
+    const double coverage_pct = total_expected == 0
         ? 0.0
         : 100.0 * static_cast<double>(total_registered) / static_cast<double>(total_expected);
     std::printf("\nSummary: %d / %d expected (%.1f%% coverage); missing=%d, deferred=%d\n",
-                total_registered, total_expected, coverage, total_missing, total_deferred);
+                total_registered, total_expected, coverage_pct, total_missing, total_deferred);
 
     if (vs_spec_strict_ && total_missing > 0) {
         return 1;
@@ -648,12 +668,18 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // unqualified id resolves only if it is unique across suites; a cross-suite
     // id (same id in tc8 + an injected catalog) is ambiguous and must be
     // qualified. The in-tree single-suite case is unaffected (unique id).
+    // --suite supplies the qualifier instead; the two must not disagree.
     const sce::CaseEntry *entry = nullptr;
-    const auto suite_sep = case_id_.find(':');
-    if (suite_sep != std::string::npos) {
-        const std::string_view qualified{case_id_};
-        entry = sce::CaseRegistry::instance().find(qualified.substr(0, suite_sep),
-                                                   qualified.substr(suite_sep + 1));
+    const sce::QualifiedCaseId qid = sce::splitQualifiedCaseId(case_id_);
+    if (!qid.suite.empty() && !suite_.empty() && !inSuiteScope(qid.suite)) {
+        std::fprintf(stderr, "error: --case %s names a different suite than --suite %s\n",
+                     case_id_.c_str(), suite_.c_str());
+        return 2;
+    }
+    if (!qid.suite.empty()) {
+        entry = sce::CaseRegistry::instance().find(qid.suite, qid.id);
+    } else if (!suite_.empty()) {
+        entry = sce::CaseRegistry::instance().find(suite_, qid.id);
     } else {
         entry = sce::CaseRegistry::instance().find(case_id_);
     }
@@ -685,7 +711,10 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     std::string inv_err;
     const auto inv =
         sce::SpecInventory::load(inv_path, inventory_extra_paths_, ov_path, &inv_err);
-    const std::string section = specSectionFor(inv, entry->id);
+    // Resolved once, by the case's (suite, id): the section below and every
+    // override axis further down come from the same catalog entry.
+    const sce::SpecCase *sc = specCaseFor(inv, *entry);
+    const std::string section = sectionOf(sc);
 
     std::printf("case     : %.*s  (§%s)\n", static_cast<int>(entry->id.size()), entry->id.data(),
                 section.c_str());
@@ -760,7 +789,6 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // mechanism, and `load()` has already rejected a neg_expect_overrides that
     // would collide with — and so overwrite — the flip.
     std::vector<std::string> effective_expect = expect_tokens_;
-    const sce::SpecCase *sc = specCaseFor(inv, entry->id);
     if (negative_row_) {
         // Fail loud rather than fall through to the positive surface: a negative
         // run that silently ran POSITIVE would report a pass and be read as "the

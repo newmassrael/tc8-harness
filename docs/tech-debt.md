@@ -1988,9 +1988,10 @@ each checked against the TC8 table of contents.
 
 ## TD-37 — `--vs-spec` counts a case as covering the TC8 spec whatever suite registered it
 
-**Status:** OPEN. **Logged:** 2026-09-24. Found 2026-09-18 while judging a consumer's cross-suite
-case-alias request, recorded then only outside this repository, and re-verified in-tree at
-`b324d50f`.
+**Status:** RESOLVED (2026-09-24, with TD-38). **Logged:** 2026-09-24. Found 2026-09-18 while
+judging a consumer's cross-suite case-alias request, recorded then only outside this repository,
+and re-verified in-tree at `b324d50f`. The entry below is the debt as logged; **Resolution** at its
+end records what closed it.
 
 **What it is.** Case identity is `(suite, id)` in `CaseRegistry`, but the coverage report drops the
 suite. `--list-cases --vs-spec` builds its registered set in
@@ -2013,11 +2014,23 @@ the scoped suite's entries (default: the in-tree suite).
 **Done when:** `--vs-spec` counts only the scoped suite, and a unit test with two registered suites
 proves an injected suite's same-id case does not mark the TC8 spec case registered.
 
+**Resolution.** Closed at the base TD-38 names rather than in the report: the report could not be
+scoped while the inventory it measures against had no suite to scope by. `SpecInventory` now
+attributes every case to a suite (an extra file's root `"suite"`, default the in-tree one) and
+resolves by `(suite, id)` only. The report's computation moved out of `runVsSpecReport` into
+`computeSpecCoverage` (`src/sce_integration/spec_coverage.cpp`), which takes the suite and counts
+only that suite's registered cases against that suite's catalog. It refuses a suite the inventory
+holds no catalog for, because an empty report would read as full coverage. `test` gained `--suite`.
+`--vs-spec` defaults to the in-tree suite, so the CI gate still reads `543 / 543` and its output is
+unchanged. `unit_tests/spec_coverage_test.cpp` registers two suites and shows that `demo:ARP_03`
+leaves the TC8 spec's ARP_03 missing, and that the demo suite is measured against its own catalog.
+
 ---
 
 ## TD-38 — the inventory axes resolve by case id alone, so a same-id case in another suite inherits them
 
-**Status:** OPEN. **Logged:** 2026-09-24, found and re-verified as TD-37.
+**Status:** RESOLVED (2026-09-24, with TD-37). **Logged:** 2026-09-24, found and re-verified as
+TD-37. The entry below is the debt as logged; **Resolution** at its end records what closed it.
 
 **What it is.** Every axis in `docs/spec/inventory_overrides.json` (expect overrides, negative rows,
 `vsomeip_cfg`/`vsomeip_env`, `timing_serial`, `platform_known_fail`, `expected:false`) is looked up
@@ -2042,3 +2055,20 @@ negative row).
 
 **Done when:** a case in a non-default suite resolves no in-tree axis unless its own inventory
 supplies it, and a unit test with two suites sharing an id proves it.
+
+**Resolution.** The inventory itself had no suite. Extra files were merged into one id map and
+had to be disjoint from the TC8 ids, so an injected suite could not even ship a catalog for a
+reused id. Lookups by id alone were the only kind that could exist. Now a case's key in
+`SpecInventory` is `(suite, canonical id)`, `find` takes both, and the id-only `find` is gone, so
+no caller can resolve the old way. Within one suite, ids must still be disjoint. Across suites the
+same id is legal. An overrides key is bare for the in-tree suite and `suite:ID` for any other (the
+token `--case` already accepts), and it applies to that one suite's case. `runCase`,
+`--list-cases` and both `--list-*` exposers resolve through the registered entry's own suite. The
+exposers print a non-default suite's rows as `suite:ID`, as `--list-cases` does. The in-tree
+output is unchanged. The per-axis decision is written down in `spec_inventory.h`: every axis is
+either the case's own stimulus and verdict or how one DUT behaves under that stimulus, so none
+crosses a suite boundary. The suite name's SSOT moved to `case_suite.h`, a dependency-free header,
+so the inventory can share it without the registry's runner dependencies. The CMake derivation of
+`TC8_DEFAULT_SUITE` now reads it there. `unit_tests/spec_inventory_test.cpp` gives two suites the
+same id and one in-tree override that sets every axis. The demo case resolves none of the axes.
+Without its own catalog it resolves to nothing. A qualified override reaches only its own suite.

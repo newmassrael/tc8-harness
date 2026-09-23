@@ -2,8 +2,11 @@
 
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
+
+#include "case_suite.h"
 
 namespace tc8::sce {
 
@@ -28,6 +31,12 @@ namespace tc8::sce {
 // case-folding to upper case for comparison against harness-registered
 // IDs is the consumer's job (see SpecInventory::canonicalise).
 struct SpecCase {
+    // The catalog this case belongs to, in canonicalSuite() form. The primary
+    // inventory is kDefaultSuite's; an extra inventory declares its own with a
+    // top-level `"suite"` (absent = kDefaultSuite, as an empty
+    // TC8_EXTRA_CASE_SUITES entry is). Every axis below is a property of the
+    // pair (suite, id), never of the id alone — see SpecInventory::find.
+    std::string suite;
     std::string id;
     std::string category;
     std::string section;
@@ -116,25 +125,45 @@ struct SpecCase {
 };
 
 // Loads docs/spec/case_inventory.json + docs/spec/inventory_overrides.json
-// and exposes them indexed by canonical (UPPER) case_id. Failure cases:
-// missing/malformed files surface as std::nullopt with the error written
-// to *err.
+// and exposes them indexed by (suite, canonical UPPER case_id). Failure
+// cases: missing/malformed files surface as std::nullopt with the error
+// written to *err.
+//
+// ONE CATALOG PER SUITE. A case's identity is (suite, id) in the registry, and
+// it is (suite, id) here too: the in-tree catalog's axes describe the in-tree
+// cases, and an injected suite that reuses a literal spec id is a different test
+// that must not inherit them. Resolving by id alone would change that case's
+// stimulus, provision its DUT for another test and excuse its failure, with
+// nothing in the verdict to show it — which is why there is no id-only find().
+//
+// The resolution was decided per axis, not per entry, and every axis lands on
+// the same answer: section, expected, platform_known_fail, timing_serial,
+// requires_secondary_iface, expect_overrides, the negative row and the vsomeip
+// flavor each describe either the case's own stimulus and verdict, or how one
+// DUT behaves under that case's stimulus. None is a property of the id's
+// spelling, so none crosses a suite boundary.
 class SpecInventory {
 public:
     // Load the primary TC8 inventory plus zero or more EXTRA inventory
-    // JSONs, merging every case into one canonical (UPPER) id map. This
-    // is the out-of-tree injection hook (D5): an OEM that adds cases via
-    // CMake `TC8_EXTRA_CASE_DIRS` ships a matching inventory JSON here so
-    // its cases cross-check as in-spec instead of surfacing as
+    // JSONs. This is the out-of-tree injection hook (D5): an OEM that adds
+    // cases via CMake `TC8_EXTRA_CASE_DIRS` ships a matching inventory JSON
+    // here so its cases cross-check as in-spec instead of surfacing as
     // `registered-but-not-in-spec` noise in the `--vs-spec` gap report.
     //
-    // Every extra file is parsed with the SAME `cases` schema as the
-    // primary; its case_ids must be DISJOINT from the already-loaded set
-    // (collision = loud error, mirroring the FATAL_ERROR collision policy
-    // of TC8_EXTRA_CASE_DIRS — silent override would mask drift). The
-    // single `overrides_path` is applied AFTER the merge, so it can defer
-    // or platform-flag any case from any source. Extra files are loaded
-    // in argument order; the first collision aborts with *err set.
+    // Every file is parsed with the SAME `cases` schema, plus an optional
+    // top-level `"suite"`. The primary file IS kDefaultSuite's catalog, so a
+    // suite it declares must be that one. An extra file names the suite its
+    // cases belong to (absent = kDefaultSuite, as an empty
+    // TC8_EXTRA_CASE_SUITES entry is). Within one suite the case_ids must be
+    // DISJOINT (collision = loud error, mirroring the FATAL_ERROR collision
+    // policy of TC8_EXTRA_CASE_DIRS — silent override would mask drift);
+    // across suites the same id is legal, which is what a suite is for.
+    //
+    // The single `overrides_path` is applied AFTER the merge. A bare key
+    // (`"ARP_03"`) addresses kDefaultSuite's case; a qualified key
+    // (`"vendorx:ARP_03"`, the same token `--case` accepts) addresses that
+    // suite's. Extra files are loaded in argument order; the first error
+    // aborts with *err set.
     static std::optional<SpecInventory> load(const std::string &inventory_path,
                                              const std::vector<std::string> &extra_inventory_paths,
                                              const std::string &overrides_path,
@@ -155,12 +184,22 @@ public:
         return cases_;
     }
 
-    // Lookup by canonical key (UPPER). nullptr if absent.
-    const SpecCase *find(const std::string &canonical_id) const;
+    // Lookup by (suite, id). `suite` is compared case-insensitively and `id` is
+    // canonicalise()d here, so a registered id (variant tag and all) may be
+    // passed as is. nullptr when that suite's catalog does not hold the case —
+    // including when another suite's does.
+    const SpecCase *find(std::string_view suite, std::string_view id) const;
+
+    // Whether any loaded inventory file belongs to `suite` — i.e. whether there
+    // is a catalog to measure that suite against at all.
+    bool hasSuite(std::string_view suite) const;
 
 private:
+    static std::string key(std::string_view suite, std::string_view id);
+
     std::vector<SpecCase> cases_;
-    std::unordered_map<std::string, std::size_t> by_canonical_;
+    std::vector<std::string> suites_;
+    std::unordered_map<std::string, std::size_t> by_key_;
 };
 
 }  // namespace tc8::sce

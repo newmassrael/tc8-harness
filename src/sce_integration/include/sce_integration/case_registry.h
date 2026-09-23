@@ -10,18 +10,10 @@
 #include "tc8/bpf_group.h"
 
 #include "case_id_shape.h"
+#include "case_suite.h"  // kDefaultSuite — the in-tree catalog name's SSOT
 #include "test_case_traits.h"
 #include "test_config.h"
 #include "test_runner.h"
-
-namespace tc8::sce {
-
-// SSOT for the in-tree catalog name. The TC8_CASE_SUITE macro defaults to this,
-// the CaseEntry.suite field defaults to this, and the CLI's default-suite gate
-// compares against this — so the literal "tc8" lives in exactly one place.
-inline constexpr std::string_view kDefaultSuite = "tc8";
-
-}  // namespace tc8::sce
 
 // A case's catalog ("suite"). The in-tree catalog is kDefaultSuite ("tc8"); an
 // injected OEM catalog defines this macro (via its CMake-generated register stub)

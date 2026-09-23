@@ -849,8 +849,9 @@ assert) 디렉토리 이름은 소문자입니다 — `OEMX_LINK_01` 같은 OEM
 카테고리는 `--list-cases` 출력에서 자연스럽게 그룹핑됩니다.
 
 스펙 커버리지 집계도 같은 방식으로 통합됩니다. 기본적으로 `--vs-spec`은
-레지스트리를 `docs/spec/case_inventory.json`하고만 비교하므로 OEM 확장
-케이스는 `registered-but-not-in-spec`에 표시됩니다. OEM이 관리하는
+in-tree 스위트에 등록된 케이스를 `docs/spec/case_inventory.json`하고만
+비교하므로 그 스위트의 OEM 확장 케이스는 `registered-but-not-in-spec`에
+표시됩니다. OEM이 관리하는
 인벤토리 JSON(주 파일과 동일한 `cases` 스키마)을 `--inventory-extra PATH`
 (반복 가능)로 넘기면 해당 케이스들이 갭 리포트에 병합되어 in-spec으로
 교차검증됩니다:
@@ -860,10 +861,21 @@ assert) 디렉토리 이름은 소문자입니다 — `OEMX_LINK_01` 같은 OEM
     --inventory-extra oem_cases/case_inventory.json
 ```
 
-추가 인벤토리의 case_id는 주 인벤토리와 겹치지 않아야 합니다(충돌 시
-하드 에러 — `TC8_EXTRA_CASE_DIRS` 충돌 정책과 동일). OEM별 스킵/known-fail
-정책은 여전히 OEM이 관리하는 overrides JSON을 `--inventory-overrides`
-플래그로 태우면 되고, 병합된 집합 전체에 적용됩니다.
+인벤토리 파일 하나는 스위트 하나의 카탈로그입니다. 최상위 `"suite"`가
+없는 파일은 in-tree 스위트 소속이고(`TC8_EXTRA_CASE_SUITES`의 빈 항목과
+같음), 주입한 스위트의 파일은 `{"suite": "vendorx", "cases": [...]}`처럼
+이름을 적습니다. 한 스위트 안에서는 case_id가 겹치면 안 되고(충돌 시
+하드 에러 — `TC8_EXTRA_CASE_DIRS` 충돌 정책과 동일), 스위트가 다르면 같은
+id를 써도 됩니다. 리포트는 늘 스위트 하나에 대한 것입니다:
+`--suite vendorx`는 그 스위트에 등록된 케이스를 그 스위트의 카탈로그와
+비교하고, 다른 스위트에 등록된 케이스는 id가 같아도 집계되지 않습니다.
+
+override 축도 같은 식으로 풀립니다. OEM별 스킵/known-fail 정책은 여전히
+OEM이 관리하는 overrides JSON을 `--inventory-overrides` 플래그로 태우면
+되는데, 한정자 없는 키(`"ARP_03"`)는 in-tree 스위트의 케이스를, 한정된
+키(`"vendorx:ARP_03"`, `--case`가 받는 형식)는 주입한 스위트의 케이스를
+가리킵니다. 주입한 스위트의 같은 id 케이스는 in-tree 축을 하나도 물려받지
+않습니다 — 스티뮬러스 override도, DUT flavor도, known-fail 면제도.
 
 ### IEEE 802.1Q VLAN 태깅
 

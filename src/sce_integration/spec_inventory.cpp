@@ -329,14 +329,109 @@ splitJsonObjectMap(const std::string &doc, const std::string &key) {
     return out;
 }
 
+// A string-valued field of the document's ROOT object only. The flat readers
+// above match anywhere, which is right inside one case block and wrong for a
+// file-level field: a `"suite"` inside some nested block must not be read as the
+// file's. Tracks object/array depth (strings opt out, as elsewhere here) and
+// accepts `"<key>": "<value>"` only at depth 1. nullopt when the root has none.
+std::optional<std::string> findRootStringField(const std::string &doc, std::string_view key) {
+    int depth = 0;
+    std::size_t i = 0;
+    // Reads the quoted string starting at doc[i] == '"'; leaves i past its close.
+    auto read_string = [&doc, &i]() {
+        std::string s;
+        bool escaped = false;
+        for (++i; i < doc.size(); ++i) {
+            const char c = doc[i];
+            if (escaped) {
+                s.push_back(c);
+                escaped = false;
+            } else if (c == '\\') {
+                escaped = true;
+            } else if (c == '"') {
+                ++i;
+                break;
+            } else {
+                s.push_back(c);
+            }
+        }
+        return s;
+    };
+    auto skip_ws = [&doc, &i]() {
+        while (i < doc.size() && std::isspace(static_cast<unsigned char>(doc[i])) != 0) {
+            ++i;
+        }
+    };
+    while (i < doc.size()) {
+        const char c = doc[i];
+        if (c == '"') {
+            const std::string token = read_string();
+            if (depth != 1 || token != key) {
+                continue;
+            }
+            skip_ws();
+            if (i >= doc.size() || doc[i] != ':') {
+                continue;  // a string VALUE that happens to spell the key
+            }
+            ++i;
+            skip_ws();
+            if (i < doc.size() && doc[i] == '"') {
+                return read_string();
+            }
+            return std::nullopt;  // the key exists but its value is not a string
+        }
+        if (c == '{' || c == '[') {
+            ++depth;
+        } else if (c == '}' || c == ']') {
+            --depth;
+        }
+        ++i;
+    }
+    return std::nullopt;
+}
+
+// The suite one inventory file belongs to. The file may name it with a root
+// `"suite"`; an unnamed file belongs to kDefaultSuite. A named suite must
+// have the shape CMake enforces on a suite (tc8_add_case), so a typo fails here
+// instead of silently naming a catalog nothing registers. The primary file
+// passes `must_be` = kDefaultSuite: it IS the in-tree catalog, and a primary
+// that claimed another suite would leave the in-tree cases with none.
+std::optional<std::string> resolveFileSuite(const std::string &text, const std::string &path,
+                                            std::string_view must_be, std::string *err) {
+    const auto declared = findRootStringField(text, "suite");
+    if (!declared.has_value()) {
+        return std::string{kDefaultSuite};
+    }
+    if (!isWellFormedSuite(*declared)) {
+        if (err != nullptr) {
+            *err = "inventory " + path + " declares suite '" + *declared +
+                   "', which is not a valid suite name ([A-Za-z_][A-Za-z0-9_]*)";
+        }
+        return std::nullopt;
+    }
+    std::string suite = canonicalSuite(*declared);
+    if (!must_be.empty() && suite != must_be) {
+        if (err != nullptr) {
+            *err = "primary inventory " + path + " declares suite '" + *declared +
+                   "', but the primary inventory is the in-tree suite '" +
+                   std::string{must_be} + "'s catalog; pass another suite's "
+                   "inventory with --inventory-extra";
+        }
+        return std::nullopt;
+    }
+    return suite;
+}
+
 // Parse the `cases` array from one inventory JSON document, appending a
-// SpecCase per entry to `out`. Single source of the inventory-row schema
-// — both the primary TC8 inventory and every `--inventory-extra` file go
-// through here, so a schema change touches exactly one place. Returns
-// false with *err set when the `cases` array is absent (a malformed file
-// must fail loudly, never silently contribute zero cases).
+// SpecCase per entry to `out`, each attributed to `suite`. Single source of
+// the inventory-row schema — both the primary TC8 inventory and every
+// `--inventory-extra` file go through here, so a schema change touches
+// exactly one place. Returns false with *err set when the `cases` array is
+// absent (a malformed file must fail loudly, never silently contribute zero
+// cases).
 bool parseInventoryCases(const std::string &text, const std::string &path,
-                         std::vector<SpecCase> &out, std::string *err) {
+                         const std::string &suite, std::vector<SpecCase> &out,
+                         std::string *err) {
     const std::string cases_body = extractArrayBody(text, "cases");
     if (cases_body.empty()) {
         if (err != nullptr) {
@@ -346,6 +441,7 @@ bool parseInventoryCases(const std::string &text, const std::string &path,
     }
     for (const auto &block : splitJsonObjectArray(cases_body)) {
         SpecCase sc;
+        sc.suite = suite;
         sc.id = findStringField(block, "case_id");
         if (sc.id.empty()) {
             continue;
@@ -377,12 +473,22 @@ std::string SpecInventory::canonicalise(std::string id) {
     return id;
 }
 
-const SpecCase *SpecInventory::find(const std::string &canonical_id) const {
-    auto it = by_canonical_.find(canonical_id);
-    if (it == by_canonical_.end()) {
+std::string SpecInventory::key(std::string_view suite, std::string_view id) {
+    // ':' cannot occur in a well-formed suite or case id, so the join is
+    // unambiguous.
+    return canonicalSuite(suite) + ":" + canonicalise(std::string{id});
+}
+
+const SpecCase *SpecInventory::find(std::string_view suite, std::string_view id) const {
+    auto it = by_key_.find(key(suite, id));
+    if (it == by_key_.end()) {
         return nullptr;
     }
     return &cases_[it->second];
+}
+
+bool SpecInventory::hasSuite(std::string_view suite) const {
+    return std::find(suites_.begin(), suites_.end(), canonicalSuite(suite)) != suites_.end();
 }
 
 std::optional<SpecInventory> SpecInventory::load(const std::string &inventory_path,
@@ -409,47 +515,69 @@ std::optional<SpecInventory> SpecInventory::load(
     }
 
     SpecInventory result;
-    if (!parseInventoryCases(*inv_text, inventory_path, result.cases_, err)) {
+    const auto primary_suite =
+        resolveFileSuite(*inv_text, inventory_path, kDefaultSuite, err);
+    if (!primary_suite.has_value()) {
+        return std::nullopt;  // *err set by resolveFileSuite
+    }
+    if (!parseInventoryCases(*inv_text, inventory_path, *primary_suite, result.cases_, err)) {
         return std::nullopt;  // *err set by parseInventoryCases
     }
+    result.suites_.push_back(*primary_suite);
 
-    // Merge extra inventories (D5 out-of-tree injection hook). Each
-    // case_id must be DISJOINT from the already-loaded canonical set;
-    // a collision is a loud error rather than a silent override so an
-    // OEM inventory cannot mask drift against the primary TC8 set. The
-    // `seen` set is seeded from the primary inventory and grows as each
-    // extra file contributes, so collisions BETWEEN two extra files are
-    // caught as well.
+    // Merge extra inventories (D5 out-of-tree injection hook). Within one
+    // suite each case_id must be DISJOINT from the already-loaded set; a
+    // collision is a loud error rather than a silent override so an OEM
+    // inventory cannot mask drift against the primary TC8 set. The `seen`
+    // set is keyed on (suite, id) — the identity the registry uses — so a
+    // same-id case in ANOTHER suite is legal, and collisions BETWEEN two
+    // extra files of one suite are caught as well.
     std::unordered_set<std::string> seen;
     seen.reserve(result.cases_.size());
     for (const auto &sc : result.cases_) {
-        seen.insert(canonicalise(sc.id));
+        seen.insert(key(sc.suite, sc.id));
     }
     for (const auto &extra_path : extra_inventory_paths) {
         auto extra_text = slurp(extra_path);
         if (!extra_text.has_value()) {
             return fail("cannot open extra spec inventory: " + extra_path);
         }
+        const auto extra_suite =
+            resolveFileSuite(*extra_text, extra_path, /*must_be=*/{}, err);
+        if (!extra_suite.has_value()) {
+            return std::nullopt;  // *err set by resolveFileSuite
+        }
         std::vector<SpecCase> extra_cases;
-        if (!parseInventoryCases(*extra_text, extra_path, extra_cases, err)) {
+        if (!parseInventoryCases(*extra_text, extra_path, *extra_suite, extra_cases, err)) {
             return std::nullopt;  // *err set by parseInventoryCases
         }
         for (auto &sc : extra_cases) {
-            if (!seen.insert(canonicalise(sc.id)).second) {
+            if (!seen.insert(key(sc.suite, sc.id)).second) {
                 return fail("extra spec inventory " + extra_path + " case '" +
-                            sc.id + "' collides with an already-loaded case id");
+                            qualifiedCaseId(sc.suite, sc.id) +
+                            "' collides with an already-loaded case of the same suite");
             }
             result.cases_.push_back(std::move(sc));
         }
+        if (!result.hasSuite(*extra_suite)) {
+            result.suites_.push_back(*extra_suite);
+        }
     }
 
-    // Apply overrides (optional file) over the MERGED case set, so the
-    // overrides JSON can defer or platform-flag a case from any source.
+    // Apply overrides (optional file) over the MERGED case set. A key
+    // addresses ONE suite's case: bare for kDefaultSuite, `suite:ID` for any
+    // other — never every suite that happens to hold the id.
     // Missing file is OK; parse-failure is fatal so a malformed overrides
     // file can't silently be ignored.
     if (auto ov_text = slurp(overrides_path); ov_text.has_value()) {
         for (const auto &[id, body] : splitJsonObjectMap(*ov_text, "overrides")) {
-            const std::string canon = canonicalise(id);
+            const QualifiedCaseId qid = splitQualifiedCaseId(id);
+            if (!qid.suite.empty() && !isWellFormedSuite(qid.suite)) {
+                return fail("overrides: key '" + id + "' qualifies an invalid suite name '" +
+                            std::string{qid.suite} + "'");
+            }
+            const std::string target =
+                key(qid.suite.empty() ? kDefaultSuite : qid.suite, qid.id);
             const bool expected = findBoolField(body, "expected", true);
             std::string reason = findStringField(body, "reason");
             const bool platform_known_fail =
@@ -529,7 +657,7 @@ std::optional<SpecInventory> SpecInventory::load(
                 }
             }
             for (auto &sc : result.cases_) {
-                if (canonicalise(sc.id) == canon) {
+                if (key(sc.suite, sc.id) == target) {
                     sc.expected = expected;
                     sc.defer_reason = std::move(reason);
                     sc.platform_known_fail = platform_known_fail;
@@ -552,9 +680,9 @@ std::optional<SpecInventory> SpecInventory::load(
         }
     }
 
-    result.by_canonical_.reserve(result.cases_.size());
+    result.by_key_.reserve(result.cases_.size());
     for (std::size_t i = 0; i < result.cases_.size(); ++i) {
-        result.by_canonical_.emplace(canonicalise(result.cases_[i].id), i);
+        result.by_key_.emplace(key(result.cases_[i].suite, result.cases_[i].id), i);
     }
     return result;
 }

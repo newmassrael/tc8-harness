@@ -113,15 +113,15 @@ if(NOT DEFINED TC8_EXTRA_CASE_LIBS)
 endif()
 
 # The in-tree default suite name has its single source of truth in the C++
-# constant kDefaultSuite (src/sce_integration/include/sce_integration/case_registry.h). Derive it here
+# constant kDefaultSuite (src/sce_integration/include/sce_integration/case_suite.h). Derive it here
 # rather than restating the literal, so the configure-time suite logic and the
 # runtime registry can never disagree on the default suite's name.
-file(STRINGS ${PROJECT_SOURCE_DIR}/src/sce_integration/include/sce_integration/case_registry.h _tc8_kdefault_line
+file(STRINGS ${PROJECT_SOURCE_DIR}/src/sce_integration/include/sce_integration/case_suite.h _tc8_kdefault_line
      REGEX "kDefaultSuite[ \t]*=[ \t]*\"[^\"]+\"")
 if(NOT _tc8_kdefault_line)
     message(FATAL_ERROR
         "TC8: could not derive the default suite name from kDefaultSuite in "
-        "src/sce_integration/include/sce_integration/case_registry.h — update the SSOT-extraction regex")
+        "src/sce_integration/include/sce_integration/case_suite.h — update the SSOT-extraction regex")
 endif()
 string(REGEX REPLACE ".*\"([^\"]+)\".*" "\\1" TC8_DEFAULT_SUITE "${_tc8_kdefault_line}")
 

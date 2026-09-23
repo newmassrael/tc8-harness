@@ -1083,8 +1083,9 @@ asserted), with directory names lowercased — OEM categories such as
 `OEMX_LINK_01` group naturally in `--list-cases` output.
 
 Spec coverage accounting integrates the same way. By default `--vs-spec`
-compares the registry against `docs/spec/case_inventory.json` only, so
-OEM extension cases surface under `registered-but-not-in-spec`. Pass
+compares the in-tree suite's registered cases against
+`docs/spec/case_inventory.json` only, so OEM extension cases in that
+suite surface under `registered-but-not-in-spec`. Pass
 `--inventory-extra PATH` (repeatable) with an OEM-maintained inventory
 JSON — same `cases` schema as the primary file — to merge those cases
 into the gap report so they cross-check as in-spec instead:
@@ -1094,11 +1095,23 @@ into the gap report so they cross-check as in-spec instead:
     --inventory-extra oem_cases/case_inventory.json
 ```
 
-case_ids in an extra inventory must be disjoint from the primary set (a
-collision is a hard error, mirroring the `TC8_EXTRA_CASE_DIRS` collision
-policy). OEM-specific skip/known-fail policy can still ride the
-`--inventory-overrides` flag with an OEM-maintained overrides JSON, which
-is applied across the merged set.
+Every inventory file is ONE suite's catalog. A file with no root
+`"suite"` belongs to the in-tree suite (as an empty
+`TC8_EXTRA_CASE_SUITES` entry does); a file for an injected suite names
+it, e.g. `{"suite": "vendorx", "cases": [...]}`. Within one suite the
+case_ids must be disjoint (a collision is a hard error, mirroring the
+`TC8_EXTRA_CASE_DIRS` collision policy); across suites the same id is
+legal. A report is always about one suite: `--suite vendorx` measures
+that suite's registered cases against its own catalog, and a case
+registered in any other suite counts for nothing in it, whatever its id.
+
+The override axes resolve the same way. OEM-specific skip/known-fail
+policy can still ride the `--inventory-overrides` flag with an
+OEM-maintained overrides JSON: a bare key (`"ARP_03"`) addresses the
+in-tree suite's case and a qualified key (`"vendorx:ARP_03"`, the token
+`--case` accepts) addresses the injected suite's. A same-id case in an
+injected suite inherits no in-tree axis — not its stimulus overrides,
+not its DUT flavor, not its known-fail excuse.
 
 ### Case-documentation site (`SITE_EXTRA_CASE_ROOTS`)
 

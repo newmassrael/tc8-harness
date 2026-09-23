@@ -2,6 +2,7 @@
 
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <CLI/CLI.hpp>
@@ -26,6 +27,14 @@ private:
     int runListVsomeipVariants() const;
     int runVsSpecReport() const;
     int runCase(std::optional<std::string> bpf_override);
+    // Whether a case of `suite` falls inside `--suite` (always, when unset).
+    bool inSuiteScope(std::string_view suite) const;
+
+    // The catalog a list or report is about. Empty = unset: `--list-cases` and the
+    // two `--list-*` exposers then span every suite (non-default ones printed as
+    // `suite:ID`), while `--vs-spec` — whose answer is only meaningful about ONE
+    // catalog — measures the in-tree suite. See runVsSpecReport.
+    std::string suite_;
 
     CLI::App *sub_ = nullptr;
     std::string case_id_;
@@ -92,12 +101,13 @@ private:
     std::string inventory_path_;
     std::string overrides_path_;
     // `--inventory-extra` (repeatable) — D5 out-of-tree injection hook.
-    // Additional inventory JSONs whose cases merge into the `--vs-spec`
-    // gap report alongside the primary TC8 inventory. Mirrors the
-    // CMake `TC8_EXTRA_CASE_DIRS` consumer idiom: an OEM that injects
-    // cases out-of-tree ships a matching inventory here so its cases
-    // cross-check as in-spec instead of polluting the
-    // `registered-but-not-in-spec` list. Empty = primary inventory only.
+    // Additional inventory JSONs, each one suite's catalog (its root
+    // `"suite"`, default the in-tree suite). Mirrors the CMake
+    // `TC8_EXTRA_CASE_DIRS` / `TC8_EXTRA_CASE_SUITES` consumer idiom: an OEM
+    // that injects cases out-of-tree ships a matching inventory here so its
+    // cases cross-check as in-spec — against their OWN suite's catalog —
+    // instead of polluting the `registered-but-not-in-spec` list. Empty =
+    // primary inventory only.
     std::vector<std::string> inventory_extra_paths_;
     // Raw `KEY=VALUE` tokens collected from `--expect`. Parsed and pushed
     // into ITestRunner::seedExpectations() inside runCase().
