@@ -5,6 +5,11 @@
   carrying the same Int8 value. Test value -42 (= 0xD6 two's
   complement) verifies sign preservation across CommonAPI's
   Int8 ↔ uint8_t wire round-trip.
+
+  The echo is compared against `expected.payload_view()`, whose
+  conformant default is the case-local applyExpectedDefaults
+  (someip_ets_021.h); an expect `payload=` token overrides it only for
+  the negative row, which flips the byte to prove the guard reacts.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -37,10 +42,10 @@
       <send event="phase2_deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x000E and captured.return_code == 0x00 and captured.payload_len == 1 and captured.payload_snapshot[0] == 0xD6"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x000E and captured.return_code == 0x00 and captured.payload_equals(expected.payload_view())"
                 target="pass"/>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x000E and (captured.payload_len != 1 or captured.payload_snapshot[0] != 0xD6)"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.method_id == 0x000E and !captured.payload_equals(expected.payload_view())"
                 target="fail_phase2_payload_mismatch"/>
     <transition event="phase2_deadline_exceeded" target="inconclusive_phase2_no_response"/>
   </state>

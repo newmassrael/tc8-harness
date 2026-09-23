@@ -374,6 +374,11 @@
       "neg_expect_fail": "fail:echo_float64_response_did_not_match_request",
       "neg_row_ref": "dut/env/negative_rows.md"
     },
+    "SOMEIP_ETS_021": {
+      "neg_wrong_token": "payload=2A",
+      "neg_expect_fail": "fail:echo_int8_response_payload_did_not_match_request",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
     "SOMEIP_ETS_022": {
       "neg_wrong_token": "payload=10:11:12:13:15",
       "neg_expect_fail": "fail:echo_static_array_response_did_not_match_request",

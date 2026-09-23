@@ -37,7 +37,19 @@ struct TestCaseTraits<cases::SomeipEts021SM> : SomeIpAnyBase<cases::SomeipEts021
         target.payload = {0xD6};  // -42 as Int8 two's complement.
         ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
+
+    // Conformant echo: case-local SSOT for the positive assertion;
+    // --expect payload= overrides only for the negative harness.
+    static void applyExpectedDefaults(::tc8::SomeIpExpected& e) {
+        ::tc8::setExpectedPayload(e, {0xD6});
+    }
 };
+
+// Compile-time guard: the SFINAE detector must see this case's
+// applyExpectedDefaults hook. A name/type drift would silently skip the
+// case-local default at runtime and false-FAIL a conformant positive run.
+static_assert(has_expected_defaults_v<TestCaseTraits<cases::SomeipEts021SM>>,
+              "SOMEIP_ETS_021: applyExpectedDefaults must be detected");
 
 }  // namespace tc8::sce
 

@@ -135,15 +135,18 @@ Section 6.
 ## §5.1.6 SOMEIP_ETS sound expect-flip negatives
 
 Cases: SOMEIP_ETS_005, SOMEIP_ETS_007, SOMEIP_ETS_008, SOMEIP_ETS_009,
-SOMEIP_ETS_019, SOMEIP_ETS_022, SOMEIP_ETS_027, SOMEIP_ETS_028, SOMEIP_ETS_029,
-SOMEIP_ETS_030, SOMEIP_ETS_031, SOMEIP_ETS_032, SOMEIP_ETS_034, SOMEIP_ETS_035,
-SOMEIP_ETS_038, SOMEIP_ETS_039, SOMEIP_ETS_044, SOMEIP_ETS_046, SOMEIP_ETS_047,
-SOMEIP_ETS_048, SOMEIP_ETS_053.
+SOMEIP_ETS_019, SOMEIP_ETS_021, SOMEIP_ETS_022, SOMEIP_ETS_027, SOMEIP_ETS_028,
+SOMEIP_ETS_029, SOMEIP_ETS_030, SOMEIP_ETS_031, SOMEIP_ETS_032, SOMEIP_ETS_034,
+SOMEIP_ETS_035, SOMEIP_ETS_038, SOMEIP_ETS_039, SOMEIP_ETS_044, SOMEIP_ETS_046,
+SOMEIP_ETS_047, SOMEIP_ETS_048, SOMEIP_ETS_053.
 
 Each is a stateless echo whose conformant payload is the case-local
 `applyExpectedDefaults` SSOT; the `payload=` (or `tcp_port=`) token flips it so a
 conformant DUT's correct echo lands `fail_phase2_*_mismatch`
 (`observed_violation`), proving the byte-equality guard non-vacuous.
+SOMEIP_ETS_021's flip is `payload=2A` (+42) against the echoed 0xD6 (−42): the
+case exists to check the Int8 sign survives the round trip, so the row proves
+the guard tells the two apart.
 
 The §5.1.6 dut-mutation and liveness guards (the former `service_id=0x0000`
 precondition-break rows) are in `tools/conformant_absence_registry.json`
