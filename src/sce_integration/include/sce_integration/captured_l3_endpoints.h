@@ -20,7 +20,7 @@ namespace tc8 {
 // Inherited (not composed as a nested member) so SCXML conditions keep
 // the single-dot `cpp:captured.dst_ip == ...` form that SCE's expression
 // rewriter requires — it rewrites `captured.X` into `this->captured_->X`
-// but not `captured.X.Y` (see reference_sce_captured_arg.md). Through a
+// but not `captured.X.Y` (see docs/scxml_guard_expressions.md). Through a
 // derived pointer, inherited member access stays single-dot, so the
 // rewrite applies uniformly.
 //

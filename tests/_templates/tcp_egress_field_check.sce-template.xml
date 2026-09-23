@@ -21,7 +21,7 @@
   not a DUT violation). Single `{$pass_expr}` per the ipv4_field_check precedent: XML
   attribute values can't carry a raw `<`, so dual pass/fail exprs would re-parse-fail;
   `!({$pass_expr})` is robust because `!`, `(`, `)` survive the lexical paste, and
-  compound predicates ride TcpCaptured member methods (reference_sce_captured_arg.md).
+  compound predicates ride TcpCaptured member methods (docs/scxml_guard_expressions.md).
 
   5 s deadline matches the §4.8.6 positive cluster: the DUT-emitted segment (provoked by
   the case's raw inject / active OPEN) lands well within the window.

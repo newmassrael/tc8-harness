@@ -28,7 +28,7 @@
   precedent: XML attribute values can't carry a raw `<`, so dual pass/fail
   exprs would re-parse-fail; `!({$pass_expr})` is robust because `!`, `(`,
   `)` survive the lexical paste, and compound predicates ride ArpCaptured
-  member methods (reference_sce_captured_arg.md).
+  member methods (docs/scxml_guard_expressions.md).
 
   5 s deadline matches the §4.2 positive cluster: the UT-provoked egress
   (or tester ARP Request for the reply cases) lands well within the window.

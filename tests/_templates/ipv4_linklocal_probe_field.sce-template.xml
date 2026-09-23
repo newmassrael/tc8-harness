@@ -21,7 +21,7 @@
   is structurally robust because `!`, `(`, `)` survive the lexical
   paste. Compound expressions are exposed as `ArpCaptured` member
   methods so SCE codegen's `captured.X` rewrite covers them
-  identically to field access (`reference_sce_captured_arg.md`).
+  identically to field access (`docs/scxml_guard_expressions.md`).
 
   4 s deadline matches ADDRESS_SELECTION_03: first Probe lands ~1.9 s
   after stimulus call (1.5 s initial wait + 200 ms dhcp_timeout +

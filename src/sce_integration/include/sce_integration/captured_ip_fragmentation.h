@@ -26,7 +26,7 @@ namespace tc8 {
 // the single-dot `cpp:captured.ip_flags == ...` form that SCE's
 // expression rewriter requires — it rewrites `captured.X` into
 // `this->captured_->X` but not `captured.X.Y` (see
-// reference_sce_captured_arg.md).
+// docs/scxml_guard_expressions.md).
 //
 // Data only, no user-declared constructors: a derived Captured struct
 // stays a C++17 aggregate, and shares no common ancestor with the other

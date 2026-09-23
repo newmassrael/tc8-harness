@@ -243,7 +243,7 @@ struct TcpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     // call this through the const-method form rather than reading the
     // member directly because SCE's expression rewriter only handles
     // `captured.method()` on the structured-binding side — see
-    // `reference_sce_captured_arg.md`. §4.8.6.2 TCP_CHECKSUM_03 reads
+    // `docs/scxml_guard_expressions.md`. §4.8.6.2 TCP_CHECKSUM_03 reads
     // this in its single pass guard to verify the DUT-emitted segment
     // checksum is correct per RFC 793 §3.1.
     bool          checksum_valid = false;
@@ -277,7 +277,7 @@ struct TcpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     // `cpp:captured.is_pure_dut_ack(...)` call and removes the
     // verbatim-duplication drift surface. SCE's expression
     // rewriter only handles `captured.method()` form (see
-    // `reference_sce_captured_arg.md`), so a free function
+    // `docs/scxml_guard_expressions.md`), so a free function
     // taking captured by ref would not work here.
     bool is_pure_dut_ack(std::uint32_t expected_dut_iface_ip,
                           std::uint32_t expected_tester_ip,

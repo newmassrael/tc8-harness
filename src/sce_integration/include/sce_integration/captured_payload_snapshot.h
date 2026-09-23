@@ -30,7 +30,7 @@ namespace tc8 {
 // the single-dot `cpp:captured.payload_bytes_eq(...)` /
 // `captured.payload_snapshot[N]` form that SCE's expression rewriter
 // requires — it rewrites `captured.X` into `this->captured_->X` but not
-// `captured.X.Y` (see reference_sce_captured_arg.md). Through a derived
+// `captured.X.Y` (see docs/scxml_guard_expressions.md). Through a derived
 // pointer, inherited member and method access stays single-dot, so the
 // rewrite applies uniformly.
 //

@@ -22,7 +22,7 @@ namespace tc8 {
 // the single-dot `cpp:captured.src_port == ...` form that SCE's
 // expression rewriter requires — it rewrites `captured.X` into
 // `this->captured_->X` but not `captured.X.Y` (see
-// reference_sce_captured_arg.md). Through a derived pointer, inherited
+// docs/scxml_guard_expressions.md). Through a derived pointer, inherited
 // member access stays single-dot, so the rewrite applies uniformly.
 //
 // The type has only data and no user-declared constructors, so a Captured

@@ -16,7 +16,7 @@
   mirrors TYPE_09 but adds the Data axis via payload_equals —
   that member-function form is the SCE-compatible path (SCE rewrites
   `captured.method(...)` through the captured pointer, but not bare
-  `captured` as a free argument). See reference_sce_captured_arg.md.
+  `captured` as a free argument). See docs/scxml_guard_expressions.md.
 
   Stimulus at the traits layer (ipv4_fragments_01.h) builds the
   16 B ICMP body ONCE via buildIcmpEchoRequestBody — a single
