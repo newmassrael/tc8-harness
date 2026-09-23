@@ -43,17 +43,13 @@
       "neg_row_ref": "dut/env/negative_rows.md"
     },
     "ARP_33": {
-      "platform_known_fail": true,
-      "platform_known_fail_ref": "memory/reference_linux_arp_garp.md",
       "neg_wrong_token": "arp.tester_mac2=de:ad:be:ef:00:00",
-      "neg_expect_fail": "fail:udp_eth_dst_is_mac1_not_mac2",
+      "neg_expect_fail": "fail:udp_eth_dst_neither_mac1_nor_mac2",
       "neg_row_ref": "dut/env/negative_rows.md"
     },
     "ARP_34": {
-      "platform_known_fail": true,
-      "platform_known_fail_ref": "memory/reference_linux_arp_garp.md",
       "neg_wrong_token": "arp.tester_mac2=de:ad:be:ef:00:00",
-      "neg_expect_fail": "fail:udp_eth_dst_is_mac1_not_mac2",
+      "neg_expect_fail": "fail:udp_eth_dst_neither_mac1_nor_mac2",
       "neg_row_ref": "dut/env/negative_rows.md"
     },
     "ARP_35": {

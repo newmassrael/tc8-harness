@@ -30,13 +30,12 @@ struct TestCaseTraits<cases::Arp34SM>
     //
     // spec2.target_hw = broadcast per the TC8 v3.0 spec literal. Linux's
     // `arp_is_garp()` rejects this shape (recognises only target_hw ==
-    // sender_hw), so a Linux DUT does NOT apply the RFC 826 merge and
-    // the second-MAC dominance does not materialise on its UDP egress
-    // (cache stays at MAC1 from the spec1 Request). Linux DUT therefore
-    // lands fail_used_mac1 and is excluded from CI green via grep
-    // filter in .github/workflows/smoke-test.yml. A spec-compliant
-    // DUT that honours RFC 826 merge regardless of target_hw lands
-    // pass without filter.
+    // sender_hw), and any other override inside the neighbour entry's
+    // 1 s `locktime` is dropped, so an unconditioned Linux DUT keeps
+    // MAC1 from the spec1 Request (fail:udp_eth_dst_is_mac1_not_mac2).
+    // The orchestrator sets `locktime=0` for this case (conditioning.rs),
+    // which leaves the RFC 826 merge in force. A DUT without the hold
+    // passes as-is.
     static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface,
                          ::tc8::sce::IDutControl &dut) {
         ::tc8::stimulus::ArpFrameSpec spec1;

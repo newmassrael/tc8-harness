@@ -137,8 +137,9 @@ Non-TCP:
   form.** Both injections are gratuitous Responses, so no entry ever
   exists for the merge clause to act on
   (`fail:dut_arp_request_after_double_injection`). Distinct mechanism
-  from the Linux reference's known-fail on the same case
-  (`arp_is_garp()` target_hw-shape check + 1 s LOCKTIME). `ARP_34`
+  from the Linux reference's hold on the same case (`arp_is_garp()`
+  target_hw-shape check + 1 s `locktime`), which the orchestrator
+  conditions away per case (`conditioning.rs`, `locktime=0`). `ARP_34`
   passes here because its first injection is a Request addressed to
   the DUT (entry created), after which lwIP's update-on-any-ARP merge
   honours the second MAC with no locktime — one of the few cases that

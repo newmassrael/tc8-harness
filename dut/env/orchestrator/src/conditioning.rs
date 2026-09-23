@@ -146,6 +146,14 @@ pub fn plan(case_id: &str, tester_ip4: &str, tester_mac: &str) -> Vec<CondStep> 
         steps.push(SysctlIface { side: Dut, table: Conf, leaf: "arp_accept", on: "0", off: "1" });
         steps.push(SysctlConfAll { side: Dut, leaf: "arp_accept", on: "0", off: "1" });
     }
+    // ARP_33/34 — RFC 826 merge (ARP): a later Response for a known sender
+    // overwrites its entry. Linux holds an entry for `locktime` (1 s) against any
+    // override its `arp_is_garp` does not exempt, and the spec-literal gratuitous
+    // Response (target hw = broadcast) is not exempt, so the second injection
+    // 200 ms later is dropped. Disable the anti-flap hold for the case.
+    else if id == "ARP_33" || id == "ARP_34" {
+        steps.push(SysctlIface { side: Dut, table: Neigh, leaf: "locktime", on: "0", off: "100" });
+    }
     // ARP_39/40 — suppress the TESTER kernel's own ARP Reply so the DUT learns
     // from the tester-injected frame, not the tester veth MAC. Tester-side.
     else if id == "ARP_39" || id == "ARP_40" {
@@ -322,6 +330,20 @@ mod tests {
             CondStep::SysctlIface { side: Side::Dut, table: SysctlTable::Conf, leaf: "arp_accept", on: "0", off: "1" }
         );
         assert_eq!(p[2], CondStep::SysctlConfAll { side: Side::Dut, leaf: "arp_accept", on: "0", off: "1" });
+    }
+
+    #[test]
+    fn arp_33_34_disable_dut_neigh_locktime() {
+        for id in ["ARP_33", "ARP_34"] {
+            let p = plan(id, TIP, TMAC);
+            assert_flush_prefix(&p);
+            assert_eq!(p.len(), 2, "{id}");
+            assert_eq!(
+                p[1],
+                CondStep::SysctlIface { side: Side::Dut, table: SysctlTable::Neigh, leaf: "locktime", on: "0", off: "100" },
+                "{id}"
+            );
+        }
     }
 
     #[test]
