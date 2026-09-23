@@ -5,7 +5,7 @@
 //   TC8_VERDICT_CLASS(EnumName, "wire-name", exit_code)
 //   TC8_VERDICT_ROLE("role-name", ClassEnumName)
 //
-// Consumed directly (zero-cost, no parsing) by src/sce_integration/verdict.h
+// Consumed directly (zero-cost, no parsing) by src/sce_integration/include/sce_integration/verdict.h
 // for the C++ enum + name/exit mappings (roles are a no-op there — the runtime
 // reads the class from donedata; roles are an audit-time concern). Also parsed
 // by tools/gen_verdict_taxonomy.py, which GENERATES the Python (audit), Bash

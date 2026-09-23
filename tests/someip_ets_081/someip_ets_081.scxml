@@ -17,7 +17,7 @@
   the tester's detached-thread fd holder accepts the second connect on
   the same listener and bumps `tcp_handshake_count` to 2.
 
-  Stimulus chain (see src/sce_integration/cases/someip_ets_081.h):
+  Stimulus chain (see src/sce_integration/include/sce_integration/cases/someip_ets_081.h):
     1. emitFindServiceBoot — SERVICE-ID-1 server warm-up.
     2. emitMethodRequestAfter(clientServiceActivate, 0x2F).
     3. Sleep 800 ms (proxy buildProxy() registration delay).

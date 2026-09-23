@@ -700,7 +700,7 @@ landed (virtual-time table aging, above).
 ## Running the sweep
 
 ```sh
-sudo -n dut/env/smoke-test.sh \
+sudo -n dut/env/orchestrator/target/debug/tc8-orchestrator \
   --topology lwip-tap \
   $(dut/lwip_dut/sweep-cases.sh)
 ```

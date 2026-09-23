@@ -10,9 +10,10 @@
 
 // Authoritative C++ consumer of the DHCPv4 BOOTP fixed-header wire-layout
 // SSOT in dhcpv4_wire.def. The byte offsets are owned by the .def and
-// expanded here, so this decoder cannot drift from it; the Python site
-// mirror (site/scripts/dhcpv4_wire_generated.py) is generated from the same
-// .def. See docs/tech-debt.md TD-02.
+// expanded here, so this decoder cannot drift from it. The .def once also
+// generated a Python mirror for the documentation site's decoder; both were
+// retired when the site switched to `tc8-harness decode-pcap` (ab64d985), so
+// this is now the only consumer. See docs/tech-debt.md TD-02.
 namespace tc8::dhcpv4_wire {
 
 // Named offsets/constants owned by the .def (TC8_DHCP_CONST rows).

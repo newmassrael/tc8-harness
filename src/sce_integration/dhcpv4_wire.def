@@ -3,7 +3,7 @@
 // authoritative decoder src/sce_integration/dhcpv4_wire.h, which #defines the
 // TC8_DHCP_* macros so each row expands into a read against the shared
 // ::tc8::wire::readBe primitive (or a memcpy/copy for address/byte fields).
-// src/dissect/packet_pipeline.cpp calls the resulting
+// src/harness/packet_pipeline.cpp calls the resulting
 // decodeBootpFixedHeader(); it cannot drift from this file because it
 // literally expands it.
 //

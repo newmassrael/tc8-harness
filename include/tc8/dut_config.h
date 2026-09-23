@@ -24,7 +24,7 @@
 // tools/check_dut_identity.py cross-checks the PRIMARY identity here against all
 // four dut/dut_service/vsomeip*.json + dut/ets/ets.fdepl, AND the SECONDARY
 // identity (SERVICE-ID-1 instance 0x0002 / SERVICE-ID-2) in
-// src/sce_integration/someip_method_dest.h against the variant deployments. The CI
+// src/sce_integration/include/sce_integration/someip_method_dest.h against the variant deployments. The CI
 // `DUT identity cross-check gate` and the CMake configure step both fail on any
 // mismatch (run it locally with `python3 tools/check_dut_identity.py`).
 

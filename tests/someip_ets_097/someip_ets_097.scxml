@@ -7,7 +7,7 @@
   vsomeip must re-attempt the connect when it receives another OfferService
   Message for the same service.
 
-  Stimulus chain (see src/sce_integration/cases/someip_ets_097.h):
+  Stimulus chain (see src/sce_integration/include/sce_integration/cases/someip_ets_097.h):
     1. emitFindServiceBoot — SERVICE-ID-1 server warm-up.
     2. emitMethodRequestAfter(clientServiceActivate) — DUT spawns
        ets3 ClientTarget Proxy (gated by TC8_DUT_CLIENT_MODE).

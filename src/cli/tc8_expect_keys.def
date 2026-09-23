@@ -10,8 +10,8 @@
 //     present here. (key == member name for every row; the setter dereferences
 //     the member by its real type, so a wrong `kind` is a compile error.)
 //   * Python (validation): parsed by tools/check_expect_keys.py, which
-//     validates that every key the producers emit (tools/dut_identity.py, the
-//     Rust orchestrator, dut/env/smoke-test.sh) is present here. CI runs
+//     validates that every key the producers emit (tools/dut_identity.py and
+//     the Rust orchestrator's generated expect surface) is present here. CI runs
 //     `python3 tools/check_expect_keys.py` as the gate. (It validates, not
 //     generates — the producers map keys to deployment values, so only their
 //     key NAMES are checked against this schema.)

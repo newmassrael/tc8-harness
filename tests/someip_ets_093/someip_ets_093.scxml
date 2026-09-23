@@ -15,7 +15,7 @@
   than its predecessor (vsomeip's per-channel reboot tracker correctly
   expires + re-processes instead of Nack-ing).
 
-  Stimulus chain (see src/sce_integration/cases/someip_ets_093.h):
+  Stimulus chain (see src/sce_integration/include/sce_integration/cases/someip_ets_093.h):
     1. emitFindServiceBoot — SERVICE-ID-1 cyclic OfferService warm-up.
     2. Phase 2 onentry: emit FindService(mcast, sid=0x4, rb=1) +
        Subscribe(eg 0x5, sid=0x4, rb=1) — first Subscribe, normal cadence.

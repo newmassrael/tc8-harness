@@ -14,11 +14,13 @@ namespace tc8::stimulus {
 // the DUT's subsequent UDP egress must carry this MAC as Eth-dst to pass.
 //
 // The value is intentionally hardcoded (not read from `TestConfig::arp`)
-// so `smoke-test.sh --negative` can override the *expected* MAC to prove
-// the SCXML mismatch path without also changing what the stimulus injects.
-// `dut/env/smoke-test.sh`'s `ARP_DUT_EXPECT_STATIC` must carry the
-// same value under `--expect arp.tester_mac=...`; any drift silently turns
-// the positive tests into false passes, so edit both together.
+// so a negative row can override the *expected* MAC to prove the SCXML
+// mismatch path without also changing what the stimulus injects. The
+// expected value the orchestrator passes (`--expect arp.tester_mac=...`) is
+// `ARP_TESTER_MAC` in tools/wire.def, which names this constant
+// (`cpp=...:kTesterInjectedMac`); tools/gen_wire_manifest.py cross-checks
+// the two, so a drift that would turn the positive tests into false passes
+// fails the generator instead.
 //
 // RFC 7042 §2.1: the `02:` prefix marks this as a locally-administered
 // unicast address, so it cannot collide with a real OUI.

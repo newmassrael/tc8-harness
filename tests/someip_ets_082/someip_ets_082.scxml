@@ -14,7 +14,7 @@
   endpoint state and re-subscribes against the new tester endpoint per
   PRS_SOMEIPSD_00385. The verdict observes a second wire Subscribe.
 
-  Stimulus chain (see src/sce_integration/cases/someip_ets_082.h):
+  Stimulus chain (see src/sce_integration/include/sce_integration/cases/someip_ets_082.h):
     1. emitFindServiceBoot — SERVICE-ID-1 server warm-up.
     2. emitMethodRequestAfter(clientServiceActivate, 0x2F).
     3. Sleep 800 ms (proxy buildProxy() registration delay).

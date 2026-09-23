@@ -31,9 +31,10 @@
   Cadence case (_06) carries its own SCXML at RFC defaults with a 12 s
   deadline.
 
-  Smoke-test prerequisite: `dut/env/smoke-test.sh` pins the
-  <DUT_MAC, tester_ip> neigh entry NUD_PERMANENT for
-  IPV4_AUTOCONF_ANNOUNCING_* so the kernel-side ARP Request that
+  Run prerequisite: the orchestrator's per-case conditioning
+  (dut/env/orchestrator/src/conditioning.rs) pins the tester_ip neigh
+  entry NUD_PERMANENT on the DUT for the IPV4_AUTOCONF_* cluster,
+  ANNOUNCING included, so the kernel-side ARP Request that
   resolves tester_ip during UT-Confirmation reply doesn't satisfy the
   loose filter (sender_ip != 0) and pollute the listening state.
 -->

@@ -9,9 +9,10 @@
   3 for ARP_40 Response-form inject). The param expands into the
   ArpExpected field name (tester_mac{N}) and the fail-reason suffix
   (udp_eth_dst_not_injected_mac{N}) — both sites keep the numeric
-  suffix the ArpExpected struct and the smoke-test negative rows
-  expect (src/sce_integration/arp_expected.h:42,46 and
-  dut/env/smoke-test.sh:833-834).
+  suffix the ArpExpected struct and the negative rows expect (the
+  `tester_mac2` / `tester_mac3` fields of ArpExpectations in
+  src/sce_integration/include/sce_integration/arp_expectations.h, and
+  the ARP negative rows in docs/spec/inventory_overrides.json).
 
   Call sites:
     tests/arp_39/arp_39.scxml  (mac_idx=2, Request-form inject)

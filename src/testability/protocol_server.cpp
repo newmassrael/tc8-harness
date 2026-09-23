@@ -46,7 +46,7 @@ Endpoint endpointFromWire(const std::uint8_t *addr_be4, std::uint16_t host_port)
 // Hosts one MiddlewareModule (PRS_TPSP §6.6 stateful extension): it is the
 // MiddlewareContext the module sees. It holds no loop of its own — every callback
 // and every timer/watch it schedules runs on the ProtocolServer's single shared
-// Reactor (src/testability/reactor.h), so a module callback, the module's timers,
+// Reactor (include/tc8/testability/reactor.h), so a module callback, the module's timers,
 // and the control dispatch are all serialized run-to-completion on one thread and
 // the module needs no internal locking. Because dispatch is already on that loop,
 // a primitive is invoked directly (no cross-thread marshaling).

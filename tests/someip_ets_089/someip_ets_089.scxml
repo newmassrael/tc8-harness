@@ -20,7 +20,7 @@
   impl, which preserves the port binding. A future tightening could
   add a post-resume echo step to the verdict.
 
-  Stimulus chain (see src/sce_integration/cases/someip_ets_089.h):
+  Stimulus chain (see src/sce_integration/include/sce_integration/cases/someip_ets_089.h):
     1. emitFindServiceBoot — SERVICE-ID-1 cyclic OfferService warm-up.
     2. emitMethodRequestAfter(suspendInterface, start=0, duration=2000).
 

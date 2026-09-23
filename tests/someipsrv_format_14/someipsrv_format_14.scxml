@@ -3,8 +3,9 @@
   TC8 §5.1.5.1.14 SOMEIPSRV_FORMAT_14: The Service ID field of the Type 1
   Entry shall carry the configured SERVICE-ID-1. The configured identity
   is injected at runtime via CLI option expect service_id=<hex> and lands
-  in expected.service_id; for the smoke-test against tc8-dut
-  that value is 0xF4E7 (see mock_dut/env/smoke-test.sh).
+  in expected.service_id; against tc8-dut the orchestrator supplies
+  0xF4E7 (dut/env/orchestrator/src/config.rs), the service
+  dut/dut_service/vsomeip.json offers.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"

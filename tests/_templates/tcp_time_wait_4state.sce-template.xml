@@ -24,7 +24,7 @@
                          `78s` (post-2*MSL replay; covers the 72 s
                           wall-time wait plus 6 s observation margin —
                           paired with `kTimeWaitFullWait` in
-                          `src/sce_integration/tcp_pilot_common.h`)
+                          `src/sce_integration/include/sce_integration/tcp_pilot_common.h`)
 
   COUPLING NOTE: the `78s` deadline above is paired with
   `kTimeWaitFullWait` (currently 72 s) in tcp_pilot_common.h.
@@ -45,7 +45,7 @@
   <sce:param name="replay_deadline" required="true"/>
   <sce:param name="replay_fail_reason" required="true"/>
   <!-- Per-case unique 4-tuple offset (one of `kTcpBasicsNNLocalOffset`
-       in `src/sce_integration/tcp_pilot_common.h`). The driveTcpToTimeWaitFw2
+       in `src/sce_integration/include/sce_integration/tcp_pilot_common.h`). The driveTcpToTimeWaitFw2
        prelude binds (kBasicsActiveLocalPort+offset, kBasicsActiveRemotePort
        +offset); the template's pure-ACK / FIN / RST guards must match the
        same 4-tuple so cross-case TIME-WAIT residue cannot alias.  -->

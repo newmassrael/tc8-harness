@@ -14,8 +14,11 @@ namespace tc8::sce {
 // bring-up without knowing any rule shape. The hook->chain jump itself is idempotent
 // permanent residue, inert while the chain is empty.
 //
-// This is the single home of the chain name and its create-and-jump helper — the
-// name is ALSO mirrored (irreducibly) in dut/env/smoke-test.sh's bring-up flush.
+// This is the single home of the chain name and its create-and-jump helper. The
+// retired bash driver also flushed the chain by name at worker bring-up; the
+// orchestrator needs no flush, because it recreates the netns pair (and with it
+// any leftover chain) on every bring-up (dut/env/orchestrator/src/topology/
+// netns_pair.rs `bring_up_worker`).
 inline constexpr const char *kTesterStimulusChain = "tc8-stimulus";
 
 // Ensure the chain exists and is reached from `builtin_hook` (idempotent). A caller

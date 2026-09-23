@@ -238,7 +238,7 @@ fn signal_dut_ready(go: &Path, outcome: &DutReady) {
 }
 
 // --- Verdict line parsing ---------------------------------------------------
-/// Harness verdict line prefix — SSOT is the printf at src/cli/test_command.cpp
+/// Harness verdict line prefix — SSOT is the printf at src/cli/commands/test_command.cpp
 /// (`printf("verdict  : %s\n", ...)`). Not a taxonomy class, so it is pinned
 /// here (with a unit test) rather than generated from the .def.
 const VERDICT_LINE_PREFIX: &str = "verdict  : ";

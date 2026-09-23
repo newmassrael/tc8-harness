@@ -3,8 +3,9 @@
   TC8 §5.1.5.1.16 SOMEIPSRV_FORMAT_16: Major Version field of the Type 1
   entry shall carry the configured SERVICE-ID-1-MAJ-VER. Injected at
   runtime via CLI option expect major_version=<n> into
-  expected.major_version; smoke-test.sh supplies the tc8-dut
-  default (1; see mock_dut/ets/ets.fidl version { major 1 minor 0 }).
+  expected.major_version; the orchestrator supplies the tc8-dut
+  default (1, SD_MAJOR_VERSION in tools/wire.def; dut/ets/ets.fidl
+  declares version { major 1 minor 0 }).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"

@@ -3,7 +3,7 @@
 #
 # In that listing, case lines are the ONLY indented lines — suite banners
 # (`== suite: demo ==`), category headers, blank separators and the trailing
-# summary are all flush-left (see src/cli/test_command.cpp runListCases). So an
+# summary are all flush-left (see src/cli/commands/test_command.cpp runListCases). So an
 # INDENT anchor is the robust, suite-name-agnostic class test: it captures a
 # bare `ARP_01` and a qualified `demo:ARP_01` alike, and `$1` is the id token
 # (the id/`suite:id` display id never contains an intra-token space).

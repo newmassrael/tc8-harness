@@ -27,7 +27,7 @@
   See tests/_templates/tcp_time_wait_4state.sce-template.xml for
   the shared 4-state observation chain (incl. the COUPLING NOTE
   pairing the 78s replay deadline below to kTimeWaitFullWait in
-  src/sce_integration/tcp_pilot_common.h).
+  src/sce_integration/include/sce_integration/tcp_pilot_common.h).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"

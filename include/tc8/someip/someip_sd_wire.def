@@ -1,7 +1,7 @@
 // Single source of truth (SSOT) for the SOME/IP-SD wire field layout
 // (TR_SOMEIP / PRS_SOMEIPSD Section 7 message format). X-macro form,
 // #included directly by the C++ authoritative decoder
-// src/sce_integration/someip_captured.h, which #defines the relevant
+// src/sce_integration/include/sce_integration/someip_captured.h, which #defines the relevant
 // TC8_SD_* macros so each row expands into a field read against the shared
 // ::tc8::wire::readBe primitive. Zero parsing, cannot drift from this file
 // because it literally expands it.

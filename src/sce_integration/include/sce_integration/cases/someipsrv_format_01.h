@@ -6,7 +6,7 @@
 #include "sce_integration/cases/_someipsrv_traits_base.h"
 #include "sce_integration/test_runner.h"
 
-// Generated from tests/someipsrv_format_01.scxml by sce_add_state_machine().
+// Generated from tests/someipsrv_format_01/someipsrv_format_01.scxml by sce_add_state_machine().
 #include "someipsrv_format_01_sm.h"
 
 namespace tc8::sce::cases {

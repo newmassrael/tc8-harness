@@ -15,15 +15,15 @@ namespace tc8::sce {
 //   - the runner builds a `Verdict` from a case's donedata (verdictFromDonedata);
 //   - the CLI prints `Verdict::str()` and exits with `Verdict::exitCode()`.
 //
-// Two cross-language consumers necessarily mirror the class *names*; both are
-// annotated in-place to point back here as the canonical definition:
-//   - dut/env/smoke-test.sh   (Bash: matches "pass" / "inconclusive|error")
-//   - tools/verdict_drift_audit.py  (Python: VALID_CLASSES)
+// Two cross-language consumers need the class *names*; neither keeps a hand
+// copy. Both are generated from the same source:
+//   - the Rust orchestrator (dut/env/orchestrator/src/verdict_taxonomy.gen.rs)
+//   - tools/verdict_drift_audit.py, via tools/verdict_taxonomy_gen.py
 // ============================================================================
 // The taxonomy lives in verdict_taxonomy.def — the single source, also parsed
-// by tools/gen_verdict_taxonomy.py to generate the Python (audit) and Bash
-// (smoke gate) mirrors. Roles are a no-op in C++: the runtime reads the class
-// from donedata; role->class is an audit-time concern (docs/verdict_policy.md).
+// by tools/gen_verdict_taxonomy.py to generate those two mirrors. Roles are a
+// no-op in C++: the runtime reads the class from donedata; role->class is an
+// audit-time concern (docs/verdict_policy.md).
 #define TC8_VERDICT_ROLE(name, cls)
 
 enum class VerdictClass {

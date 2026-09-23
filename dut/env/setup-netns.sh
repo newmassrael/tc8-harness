@@ -111,7 +111,7 @@ ip -n "$DUT_NS"    addr add "$DUT_IP"    dev "$DUT_L3IF"
 #
 # Both addresses single-homed in wire.def (`DUT_ALIAS_IP` / `TESTER_ALIAS_IP`),
 # which the generator cross-checks against the `kDutAliasIp4Be` / `kTesterAliasIp4Be`
-# compile-time constants in `src/sce_integration/udp_pilot_common.h` (stimulus /
+# compile-time constants in `src/sce_integration/include/sce_integration/udp_pilot_common.h` (stimulus /
 # SCXML cond). Picked outside `HOST2_IP`=172.16.0.3 (already pinned by
 # FIELDS_04/_05) so the three secondary literals stay disjoint.
 ip -n "$DUT_NS"    addr add "$TC8_WIRE_DUT_ALIAS_IP/24" dev "$DUT_L3IF"

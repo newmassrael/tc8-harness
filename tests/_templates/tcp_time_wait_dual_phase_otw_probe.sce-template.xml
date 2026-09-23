@@ -35,7 +35,7 @@
   <sce:param name="p1_probe_fail_reason" required="true"/>
   <sce:param name="p2_probe_fail_reason" required="true"/>
   <!-- Per-case unique 4-tuple offsets (kTcp{Case}Phase{1,2}LocalOffset
-       in `src/sce_integration/tcp_pilot_common.h`). Each phase's
+       in `src/sce_integration/include/sce_integration/tcp_pilot_common.h`). Each phase's
        driveTcpToTimeWaitFw2 prelude binds (kBasicsActiveLocalPort+
        offset, kBasicsActiveRemotePort+offset); the template's
        handshake / FIN / probe-ACK guards must match the same 4-tuple
