@@ -103,6 +103,16 @@ private:
         std::uint32_t remote_ip_be = 0;  // active only
         std::uint16_t remote_port = 0;   // active only
         std::atomic<bool> stop{false};
+        // Active only: the connector has left connectBoundedV4, so nothing is
+        // blocked and the unblocking shutdown in teardown must be skipped. That
+        // shutdown is SHUT_RDWR, which on an ESTABLISHED connection is a graceful
+        // close — it FINs, and on lwIP it also nulls conn->pcb.tcp, after which
+        // closeWithAbort's own null guard silently declines to tcp_abort. The
+        // ABORT primitive then emits FIN instead of RST, which is what
+        // TCP_CALL_ABORT_02 / TCP_CALL_ABORT_03 measure on the lwIP fixture;
+        // the Linux DUT hid it because SO_LINGER{1,0} + close RSTs regardless
+        // of a prior shutdown.
+        std::atomic<bool> connect_done{false};
         std::thread worker;  // acceptor (passive) / connector (active)
     };
 

@@ -181,7 +181,8 @@ void UpperTesterServer::stop(bool abort) {
     for (auto &kv : slots) {
         TcpSlot *s = kv.second.get();
         s->stop.store(true);
-        if (s->kind == TcpKind::Active && s->accepted_fd >= 0) {
+        if (s->kind == TcpKind::Active && s->accepted_fd >= 0 &&
+            !s->connect_done.load(std::memory_order_acquire)) {
             backend_->shutdown(s->accepted_fd, 2);  // unblock a connector mid-connect
         }
         if (s->worker.joinable()) s->worker.join();
@@ -640,8 +641,18 @@ std::optional<std::uint8_t> UpperTesterServer::openTcpPassive(std::uint16_t loca
         backend_->closeFd(fd);
         return std::nullopt;
     }
-    // backlog 1: §4.8.6.1 BASICS need a single connection per listener.
-    if (!backend_->listen(fd, 1)) {
+    // §4.8.6.1 BASICS need only ONE connection per listener, but a backlog is a
+    // ceiling rather than a requirement and some cases deliberately offer several
+    // at once: TCP_CONNECTION_ESTAB_01 sends three SYNs from three source ports to
+    // a single listener and expects a SYN+ACK for each.
+    //
+    // MEASURED: backlog 1 passed on the Linux DUT, whose accept queue is lenient
+    // about the value, and silently lost legs 2 and 3 on the lwIP fixture, which
+    // enforces it exactly (tcp_listen_with_backlog). The case then reported
+    // `no_dut_synack_for_leg2` — a DUT-shaped reason for a listener the harness
+    // itself had under-provisioned. 8 covers the widest simultaneous offer in the
+    // suite (3) with headroom; no case asserts a backlog refusal.
+    if (!backend_->listen(fd, 8)) {
         backend_->closeFd(fd);
         return std::nullopt;
     }
@@ -701,9 +712,13 @@ bool UpperTesterServer::tearDownSlot(std::uint8_t socket_id, bool abort) {
         tcp_slots_.erase(it);
     }
     // Outside tcp_mu_: an acceptor finishing under the lock cannot deadlock the
-    // join. Active connectors block in connect(); shutdown(RDWR) unblocks them.
+    // join. Active connectors block in connect(); shutdown(RDWR) unblocks them —
+    // but ONLY while one is still blocked. On a connection that already reached
+    // ESTABLISHED the same call is a graceful close, and an ABORT that FINs is
+    // not an abort (see TcpSlot::connect_done).
     owned->stop.store(true);
-    if (owned->kind == TcpKind::Active && owned->accepted_fd >= 0) {
+    if (owned->kind == TcpKind::Active && owned->accepted_fd >= 0 &&
+        !owned->connect_done.load(std::memory_order_acquire)) {
         backend_->shutdown(owned->accepted_fd, 2);  // SHUT_RDWR
     }
     if (owned->worker.joinable()) owned->worker.join();
@@ -758,6 +773,9 @@ void UpperTesterServer::tcpConnectorLoop(TcpSlot *slot, std::uint32_t remote_ip_
     dst.addr_be = remote_ip_be;
     dst.port = remote_port;
     backend_->connectBoundedV4(slot->accepted_fd, dst, kConnectTimeoutMs);
+    // Nothing is blocked from here on, so teardown must not "unblock" us with a
+    // SHUT_RDWR it would otherwise send — see TcpSlot::connect_done.
+    slot->connect_done.store(true, std::memory_order_release);
 }
 
 // ---- UDP backend ------------------------------------------------------------
