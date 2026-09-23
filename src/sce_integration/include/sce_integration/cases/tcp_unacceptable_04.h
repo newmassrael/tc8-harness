@@ -49,14 +49,15 @@ struct TestCaseTraits<cases::TcpUnacceptable04SM>
     //     at the OTW path before tcp_ack examines the ACK. Same
     //     stimulus shape as UNACCEPTABLE_09 CASE 2.
     //
-    // Linux 6.5 ESTABLISHED silent-drops phase 2's unacc-ACK
-    // (tcp_rcv_established slow_path step5 → tcp_ack returns -1
-    // -SKB_DROP_REASON_TCP_ACK_UNSENT_DATA → goto discard, no
-    // challenge ACK). Linux DUT therefore lands
-    // `fail_no_dut_ack_to_unacc_ack`; case is excluded from CI green
-    // via grep filter in .github/workflows/smoke-test.yml. A
-    // strict-RFC DUT lands pass without filter. See SCXML preamble +
-    // reference_unacc_ack_dispatch memory for the source trace.
+    // Phase 2 is the one a Linux DUT has answered differently across
+    // kernels. Linux 6.5 silently discarded it in ESTABLISHED
+    // (tcp_rcv_established slow path, step 5: tcp_ack returns
+    // -SKB_DROP_REASON_TCP_ACK_UNSENT_DATA and the segment is
+    // discarded with no challenge ACK), so the case could only time
+    // out to inconclusive_no_dut_ack_to_unacc_ack. Kernel 7.0.0-31
+    // answers it with a pure ACK (ack = the tester's rcv_nxt, measured
+    // single-pc 2026-09-24), and the case passes; it carries no
+    // known-fail mark. See the SCXML preamble for the per-state table.
     //
     // Active-OPEN handshake → ESTABLISHED → query tester's
     // snd_nxt / rcv_nxt → raw-inject phase 1 → on Listening_unacc_ack

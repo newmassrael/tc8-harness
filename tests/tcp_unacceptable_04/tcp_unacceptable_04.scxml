@@ -12,22 +12,21 @@
     * CASE 2 (phase 2): data segment with unacceptable ACK number
       (after snd_nxt).
 
-  Linux DUT deviation — CASE 2 is silent-dropped:
-    * CASE 1 OTW SEQ → Linux's out-of-window SEQ check schedules an
-      empty ACK; observable on the wire as the spec mandates.
-    * CASE 2 bad ACK in ESTABLISHED → Linux 6.5 rejects the
-      unsent-data ACK (ack after SND.NXT) and silently discards the
-      segment WITHOUT emitting a challenge-ACK. ESTABLISHED is the
-      only state on Linux that genuinely silent-drops CASE 2 — the
-      FW2 path emits an RST (UNACCEPTABLE_10's mini-socket substate)
-      and every other non-EST state (FW1, CLOSING, LA, CW) emits a
-      challenge-ACK as the spec mandates. See
-      reference_unacc_ack_dispatch memory for the full dispatch
-      table.
-      A Linux DUT therefore lands `inconclusive_no_dut_ack_to_unacc_ack`
-      and is excluded from CI green via grep filter in
-      .github/workflows/smoke-test.yml. A strict-RFC DUT lands
-      pass without filter.
+  How a Linux DUT answers CASE 2 (unacceptable ACK) depends on which
+  kernel function the segment reaches, so it differs by state:
+    * ESTABLISHED (this case) → tcp_rcv_established. Linux 6.5
+      discarded the unsent-data ACK (ack after SND.NXT) silently,
+      so this case timed out to inconclusive_no_dut_ack_to_unacc_ack.
+      Kernel 7.0.0-31 answers with a pure ACK and the case passes
+      (measured single-pc 2026-09-24); it carries no known-fail mark.
+    * FIN-WAIT-2 after the application closed → the socket is an
+      orphaned time-wait mini-socket, and tcp_timewait_state_process
+      resets new data (UNACCEPTABLE_10, docs/tech-debt.md TD-31).
+    * FIN-WAIT-1, CLOSING, LAST-ACK, CLOSE-WAIT → tcp_rcv_state_process
+      sends a challenge ACK for any unacceptable ACK outside
+      SYN-RECEIVED, as the spec requires (UNACCEPTABLE_09, _11, _12,
+      _14).
+  CASE 1 (out-of-window SEQ) gets an empty ACK here in ESTABLISHED.
 
   Pass guard structure — three listening states walked in sequence:
     listening_handshake_ack  — consume the handshake third-leg ACK

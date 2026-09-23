@@ -32,9 +32,9 @@
   Each phase uses a distinct local/remote port pair and connection
   identity (mirror of FLAGS_INVALID_05). If the DUT's close path
   races the lingering SYN-SENT retransmit on phase 2 (audit-flagged
-  TEST-DESIGN concern), the case lands inconclusive_p2_no_dut_rst on a Linux
-  DUT and is excluded from CI green via grep filter in
-  .github/workflows/smoke-test.yml.
+  TEST-DESIGN concern), the case lands inconclusive_p2_no_dut_rst. That
+  race does not show on kernel 7.0.0-31: the case passes there (single-pc
+  2026-09-24) and carries no known-fail mark.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"

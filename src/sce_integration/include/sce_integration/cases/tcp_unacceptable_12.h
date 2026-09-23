@@ -62,9 +62,10 @@ struct TestCaseTraits<cases::TcpUnacceptable12SM>
     // when tcp_ack returns !acceptable, the caller explicitly invokes
     // tcp_send_challenge_ack(sk) → DUT empty ACK observed. LAST-ACK
     // joins FIN-WAIT-1 (UNACCEPTABLE_09), CLOSING (UNACCEPTABLE_11),
-    // and CLOSE-WAIT (UNACCEPTABLE_14) in honouring CASE 2; only EST
-    // (_04) and FW2 orphan (_10) deviate (silent-drop and RST
-    // respectively, see reference_unacc_ack_dispatch).
+    // and CLOSE-WAIT (UNACCEPTABLE_14) in honouring CASE 2. The FW2
+    // orphan (_10) resets instead (docs/tech-debt.md TD-31); EST (_04)
+    // silently dropped on Linux 6.5 but acks on kernel 7.0 (see the
+    // UNACCEPTABLE_04 SCXML preamble).
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,
