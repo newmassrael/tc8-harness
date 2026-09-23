@@ -1054,7 +1054,12 @@ inline constexpr std::uint8_t kAppFaultReportWrongSrcIp       = 0x04;  // §4.6.
 inline constexpr std::uint8_t kAppFaultReportWrongPayload     = 0x05;  // §4.6.5.5 UI_02: GetReceivedUdp payload bytes (RFC 768 receive returns data octets)
 inline constexpr std::uint8_t kAppFaultMiscountPorts          = 0x06;  // §4.6.5.5 UI_01: CreateUdpReceivePorts actual_count (RFC 768 create N receive ports)
 inline constexpr std::uint8_t kAppFaultReportWrongLength      = 0x07;  // §4.6.5.4 UDP_FIELDS_12: GetReceivedUdp payload length (RFC 768 receive returns datagram length)
-inline constexpr std::uint8_t kAppFaultMax                    = kAppFaultReportWrongLength;
+// The receipt report itself rather than one of its fields: the listener received the
+// datagram but its receive operation never surfaces it, so GetReceivedUdp answers
+// received=0. One flavor serves every positive that asserts a required receipt (UI_02/03/04,
+// FIELDS_12) -- the defect is the same whichever field the positive then checks.
+inline constexpr std::uint8_t kAppFaultReportNoReceipt        = 0x08;  // §4.6.5.5 / §4.6.5.4: GetReceivedUdp received flag (RFC 768 receive returns the datagram)
+inline constexpr std::uint8_t kAppFaultMax                    = kAppFaultReportNoReceipt;
 
 // `OpSetEtsFlavor` (0x1B) SOME/IP application-layer fault flavor byte. The harness-owned
 // EtsImpl (the EnhancedTestability service methods) reads it: a non-None flavor makes an

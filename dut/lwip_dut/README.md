@@ -297,8 +297,9 @@ a post-delivery application decision, below the netif glue's reach:
   surfaces a wrong field — `kAppFaultReportWrongSrcPort` (UI_03),
   `kAppFaultReportWrongSrcIp` (UI_04), `kAppFaultReportWrongPayload` (UI_02),
   `kAppFaultMiscountPorts` (UI_01), `kAppFaultReportWrongLength` (FIELDS_12 — over-reports
-  the reassembled 65507-byte length by one). This is the only faithful site for those
-  guards:
+  the reassembled 65507-byte length by one), and `kAppFaultReportNoReceipt` (UI_02/03/04 +
+  FIELDS_12 — the listener drops the datagram it received, so the Confirmation reports
+  `received=0`). This is the only faithful site for those guards:
   the stack delivered the right metadata, so a wrong report is the receive operation's
   defect, and an ingress rewrite would make the DUT faithfully report the rewritten
   value (no fault). The conformant path reports correctly (the `_neg`'s fault-inert

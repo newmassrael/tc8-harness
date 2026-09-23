@@ -275,6 +275,13 @@ void UpperTesterServer::dataListenerLoop() {
         if (app_flavor != kAppFaultAcceptMulticast && isMulticastV4(orig_dst_be)) {
             continue;
         }
+        // §4.6.5.5 / §4.6.5.4 receipt-report fault: the datagram passed every discard
+        // above, so a conformant DUT records it; a buggy one's receive operation loses it
+        // and GetReceivedUdp answers received=0. Faulted here, after the stack delivered
+        // it, for the same reason as the field corruptions below.
+        if (app_flavor == kAppFaultReportNoReceipt) {
+            continue;
+        }
         ReceiveRecord rec;
         rec.src_ip = src.addr_be;
         rec.dst_ip = orig_dst_be;
