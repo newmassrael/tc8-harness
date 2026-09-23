@@ -19,3 +19,4 @@ TD-16   PRS_TPSP §6.8 defines no privilege result code; nothing in-tree can min
 TD-17   waits on the suite-scoping model (claudedocs/case-alias-across-suites-request.md, DRAFT)
 TD-18   needs a Tier-2 neighbour-query primitive plus DUT-side access on three topologies
 TD-28   the Linux kernel arms the reassembly timer from ipfrag_time alone, whatever the TTL
+TD-29   the Linux kernel points a Parameter Problem at the option start; no knob selects 22

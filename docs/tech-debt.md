@@ -1656,3 +1656,36 @@ timer to arriving TTL.
 
 **Done when:** the Linux kernel implements the RFC 791 §3.2 timer extension, so the
 reference DUT passes `IPv4_REASSEMBLY_11` and the mark is removed.
+
+---
+
+## TD-29 — the Linux reference DUT points a Parameter Problem at the option's first octet, so ICMPv4_ERROR_02 fails there
+
+**Status:** OPEN (accepted). **Logged:** 2026-09-24, from a run of the Linux known-fail set.
+
+**What it is.** `ICMPv4_ERROR_02` sends an Echo Request carrying a malformed Timestamp option
+(declared length 10, 8 octets on the wire) and grades the Parameter Problem's Pointer. TC8
+names the value literally: the 20-octet base header plus the option's third octet, its
+pointer field, which is 22. The Linux kernel reports the option's first octet instead
+(`net/ipv4/ip_options.c`, `ip_options_compile`, which sets the error offset to the option's
+start). Measured on 2026-09-24 on kernel 7.0.0-31-generic, single-pc: the DUT answered
+within 150 µs with `ICMP parameter problem - octet 20`, and the case landed
+`fail:parameter_problem_pointer_not_22`.
+
+RFC 792 says only that the pointer "identifies the octet where an error was detected", so
+both readings fit the RFC. TC8 fixes one of them, and the case grades the TC8 value. An
+earlier version accepted either 20 or 22, which would also have passed a DUT that follows
+Linux where TC8 asks for 22.
+
+**Why it exists.** No sysctl selects the pointer convention, so conditioning cannot bring the
+reference DUT onto the TC8 value. The mark in `docs/spec/inventory_overrides.json` keeps the
+case out of the Linux regression lane. It still runs, and passes, on a DUT that reports 22.
+
+**Risk if left.** Contained. The case concludes on an observed value, so a kernel that
+changes its convention would show up as a pass.
+
+**Textbook fix.** None inside this repository. Widening the pass condition back to {20, 22}
+is not a fix; it is the defect the strict comparison was written to remove.
+
+**Done when:** the Linux kernel reports the offending pointer octet (22 here), so the
+reference DUT passes `ICMPv4_ERROR_02` and the mark is removed.

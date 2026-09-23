@@ -156,7 +156,7 @@
     },
     "ICMPV4_ERROR_02": {
       "platform_known_fail": true,
-      "platform_known_fail_ref": "memory/reference_icmp_parameter_problem_pointer.md"
+      "platform_known_fail_ref": "docs/tech-debt.md TD-29"
     },
     "ICMPv4_TYPE_12": {
       "neg_wrong_token": "icmpv4.echo_id=0xFFFE",

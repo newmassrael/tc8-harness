@@ -14,8 +14,8 @@
   type byte. Linux's choice of pointer=20 (option-start convention)
   is a kernel-deviation: it produces a defensible RFC 792 reading
   but does not match the spec literal, so Linux DUT lands fail and
-  is excluded from CI green via grep filter in
-  .github/workflows/smoke-test.yml.
+  carries a platform_known_fail mark in docs/spec/inventory_overrides.json
+  (see docs/tech-debt.md TD-29).
 
   Shape: positive field-check (not absence), so we do not reuse
   icmpv4_negative_absence. Two field observations (type=12, pointer
