@@ -24,6 +24,12 @@ struct TestCaseTraits<cases::Ipv4Fragments02SM>
     static constexpr std::string_view kDescription =
         "DUT must not reassemble fragments whose Identification "
         "fields differ (RFC 791 §3.2 reassembly-bucket tuple)";
+    // Compound case (ipv4_fragments_compound): the property is that mismatched
+    // fragments do not join. An expiry report here says a phase-1 bucket died,
+    // which is either conforming (the orphan) or a precondition lost before
+    // phase 2 — never a verdict on the property. Withheld.
+    static constexpr ipv4::fragments::ReassemblyExpiryRole kReassemblyExpiry =
+        ipv4::fragments::ReassemblyExpiryRole::kNotGraded;
 
     // Phase 1 (synchronous within kickStimulus): frag 0 carries id1,
     // frag 1 carries id2 — different tuples. DUT stores each in its

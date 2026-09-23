@@ -6,6 +6,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <variant>
 #include <vector>
 
@@ -255,10 +256,42 @@ inline void dispatchEchoReply(typename SM::CapturedType& c, SM& sm,
     sm.step();
 }
 
+// What a DUT's Time Exceeded code 1 (fragment reassembly time exceeded,
+// RFC 792 p6) means to ONE fragment case. That report is the DUT saying it
+// discarded a datagram — an observation, where a missing Echo Reply is only an
+// absence. Whether it is a verdict depends on the case, so every case on the
+// fragment trait bases DECLARES it (TestCaseTraits<>::kReassemblyExpiry, no
+// default) and the base's dispatch forwards the report only to a case that
+// grades it. Declared rather than defaulted because a default either way is
+// wrong for some case: forwarding it to an absence case built on
+// icmpv4_negative_absence turns a conforming discard into fail_dut_replied, and
+// withholding it from a reassembly case turns an observed discard into a
+// timeout — which is how four positive cases came to grade an absence where the
+// DUT had reported the discard (docs/tech-debt.md TD-35).
+enum class ReassemblyExpiryRole {
+    // The case's SCXML has a transition that reads the report (type 11, code 1,
+    // quoting the case's own IP Identification) and grades it.
+    kGraded,
+    // The report is not evidence about the property under test: for an absence
+    // case it may be the conforming outcome, and for a compound case it only
+    // says a precondition bucket died. Withheld from the SCXML.
+    kNotGraded,
+};
+
+// Whether a trait declares kReassemblyExpiry — detected so a missing declaration
+// fails with a message that says what to declare, not a bare lookup error.
+template <typename Traits, typename = void>
+struct HasReassemblyExpiryRole : std::false_type {};
+template <typename Traits>
+struct HasReassemblyExpiryRole<Traits, std::void_t<decltype(Traits::kReassemblyExpiry)>>
+    : std::true_type {};
+template <typename Traits>
+constexpr bool declaresReassemblyExpiryRole() {
+    return HasReassemblyExpiryRole<Traits>::value;
+}
+
 // Echo Reply, plus Time Exceeded code 1 (fragment reassembly time
-// exceeded, RFC 792 p6). A reassembly-timer case needs the second: a DUT
-// that reports its bucket expired has SAID it discarded the datagram,
-// which is an observation, where a missing Echo Reply is only an absence.
+// exceeded, RFC 792 p6) — the dispatch a kGraded case receives.
 template <typename SM>
 inline void dispatchEchoReplyOrReassemblyExpiry(typename SM::CapturedType& c, SM& sm,
                                                 const ::tc8::CapturedEvent& ev) {

@@ -27,6 +27,11 @@ struct TestCaseTraits<cases::Ipv4Reassembly04SM>
         "DUT reassembles a 4-fragment Echo Request received out of "
         "order (frag 0, frag 2, frag 1, frag 3) and emits an Echo "
         "Reply with matching id/seq/data (RFC 791 §3.2)";
+    // All four fragments arrive at once; out of order is not missing. A DUT
+    // that reports the bucket expired discarded a complete datagram:
+    // fail_datagram_discarded.
+    static constexpr ipv4::fragments::ReassemblyExpiryRole kReassemblyExpiry =
+        ipv4::fragments::ReassemblyExpiryRole::kGraded;
 
     // Build the full 32 B Echo Request body once (8 B ICMP header +
     // 24 B kReassembly04EchoPayload) so the ICMP checksum covers

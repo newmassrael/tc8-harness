@@ -55,9 +55,9 @@ struct TestCaseTraits<cases::Ipv4Reassembly13SM>
     // whole queue, frag 0 included, the moment frag 2 overlaps, so it
     // sends nothing and the case can only time out (inconclusive;
     // see docs/tech-debt.md TD-33).
-    static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {
-        ::tc8::sce::ipv4::fragments::dispatchEchoReplyOrReassemblyExpiry<SM>(c, sm, ev);
-    }
+    // The expiry report above is this case's fail_datagram_discarded.
+    static constexpr ipv4::fragments::ReassemblyExpiryRole kReassemblyExpiry =
+        ipv4::fragments::ReassemblyExpiryRole::kGraded;
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,

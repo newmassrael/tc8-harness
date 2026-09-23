@@ -59,6 +59,9 @@
     <transition event="icmp_observed"
                 cond="cpp:captured.type == 0 and captured.src_ip == expected.dut_iface_ip"
                 target="fail_phase_a_data_mismatch"/>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 11 and captured.code == 1 and captured.src_ip == expected.dut_iface_ip and captured.quotes_ip_id(::tc8::sce::ipv4::reassembly::kReassembly10IpIdPhaseA)"
+                target="fail_phase_a_datagram_discarded"/>
     <transition event="phase_a_deadline" target="inconclusive_phase_a_no_reply"/>
   </state>
 
@@ -93,6 +96,17 @@
   <final id="fail_phase_a_data_mismatch">
     <donedata>
       <content>{"verdict":"fail","reason":"reassembled_echo_data_mismatch_phase_a","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
+  <!-- Phase A only: its frag 1 arrives inside the timer, so the DUT's own Time
+       Exceeded code 1 quoting phase A's fragment 0 is a discard it should not
+       have made. Phase B's bucket is MEANT to expire, and listening_phase_b has
+       no transition for that report, so a conforming phase-B report is
+       dropped. -->
+  <final id="fail_phase_a_datagram_discarded">
+    <donedata>
+      <content>{"verdict":"fail","reason":"phase_a_datagram_discarded_within_timer","role":"observed_violation"}</content>
     </donedata>
   </final>
 

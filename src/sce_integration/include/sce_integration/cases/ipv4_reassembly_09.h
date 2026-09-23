@@ -26,6 +26,11 @@ struct TestCaseTraits<cases::Ipv4Reassembly09SM>
         "DUT discards an IPv4 Packet whose MF=1 with no following "
         "fragment — reassembly bucket times out, no Echo Reply "
         "(RFC 791 §3.2)";
+    // The conforming outcome IS the bucket expiring with fragment 0 held, and
+    // RFC 792 lets the DUT report it. The absence template would read that
+    // report as fail_dut_replied, so it is withheld.
+    static constexpr ipv4::fragments::ReassemblyExpiryRole kReassemblyExpiry =
+        ipv4::fragments::ReassemblyExpiryRole::kNotGraded;
 
     // Single IPv4 fragment with MF=1 carrying the full 16 B Echo
     // Request body (8 B ICMP header + 8 B kFragmentsEchoPayload) at

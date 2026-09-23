@@ -60,6 +60,9 @@
     <transition event="icmp_observed"
                 cond="cpp:captured.type == 0"
                 target="fail_data_mismatch"/>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 11 and captured.code == 1 and captured.src_ip == expected.dut_iface_ip and captured.quotes_ip_id(::tc8::sce::ipv4::reassembly::kReassembly12IpId)"
+                target="fail_timer_shrunk"/>
     <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
@@ -84,6 +87,15 @@
   <final id="fail_data_mismatch">
     <donedata>
       <content>{"verdict":"fail","reason":"reassembled_echo_data_mismatch_low_ttl","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
+  <!-- The DUT this case exists to catch: one that SHRINKS the timer on a
+       low-TTL fragment expires the bucket inside the 1 s wait, and its own
+       Time Exceeded code 1 quoting fragment 0 says so. -->
+  <final id="fail_timer_shrunk">
+    <donedata>
+      <content>{"verdict":"fail","reason":"reassembly_timer_shrunk_by_low_ttl","role":"observed_violation"}</content>
     </donedata>
   </final>
 

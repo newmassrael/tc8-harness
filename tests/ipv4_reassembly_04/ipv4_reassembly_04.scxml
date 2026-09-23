@@ -45,6 +45,9 @@
     <transition event="icmp_observed"
                 cond="cpp:captured.type == 0 and captured.src_ip == expected.dut_iface_ip"
                 target="fail_data_mismatch"/>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 11 and captured.code == 1 and captured.src_ip == expected.dut_iface_ip and captured.quotes_ip_id(::tc8::sce::ipv4::reassembly::kReassembly04IpId)"
+                target="fail_datagram_discarded"/>
     <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
 
@@ -69,6 +72,15 @@
   <final id="fail_data_mismatch">
     <donedata>
       <content>{"verdict":"fail","reason":"reassembled_echo_data_mismatch_unordered","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
+  <!-- The DUT's own Time Exceeded code 1 quoting this case's fragment 0: it
+       discarded a datagram whose four fragments all arrived, only out of
+       order. An observation, not the absence the timeout below reports. -->
+  <final id="fail_datagram_discarded">
+    <donedata>
+      <content>{"verdict":"fail","reason":"unordered_fragments_discarded_by_reassembly_timeout","role":"observed_violation"}</content>
     </donedata>
   </final>
 

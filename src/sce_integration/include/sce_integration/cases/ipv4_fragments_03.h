@@ -24,6 +24,9 @@ struct TestCaseTraits<cases::Ipv4Fragments03SM>
     static constexpr std::string_view kDescription =
         "DUT must not reassemble fragments whose Source Address "
         "fields differ (RFC 791 §3.2 reassembly-bucket tuple)";
+    // Compound case: withheld for the reason ipv4_fragments_02.h gives.
+    static constexpr ipv4::fragments::ReassemblyExpiryRole kReassemblyExpiry =
+        ipv4::fragments::ReassemblyExpiryRole::kNotGraded;
 
     // Phase 1: frag 0 (src=tester_ip), frag 1 (src=host2_ip). The
     // DUT stores each in its own bucket; no reassembly.

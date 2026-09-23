@@ -27,6 +27,11 @@ struct TestCaseTraits<cases::Ipv4Reassembly07SM>
         "DUT does not reassemble when an internal fragment is "
         "missing — frag (offset=0, MF=1) + frag (offset=2, MF=0) "
         "leave a hole at octets 8..15 (RFC 791 §3.2)";
+    // The conforming outcome IS the bucket expiring with fragment 0 held, and
+    // RFC 792 lets the DUT report it. The absence template would read that
+    // report as fail_dut_replied, so it is withheld.
+    static constexpr ipv4::fragments::ReassemblyExpiryRole kReassemblyExpiry =
+        ipv4::fragments::ReassemblyExpiryRole::kNotGraded;
 
     // Two IPv4 fragments at offsets 0 and 2 (8-octet units → bytes
     // 0..7 and 16..23 of the reassembled body). The middle 8 bytes

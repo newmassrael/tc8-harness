@@ -27,6 +27,13 @@ struct TestCaseTraits<cases::Ipv4Reassembly10SM>
         "DUT reassembles 2-fragment Echo Request when frag 1 arrives "
         "within ipIniReassembleTimeout, drops bucket when frag 1 "
         "arrives after the timer expires (RFC 791 §3.2)";
+    // Graded in phase A only: there frag 1 arrives inside the timer, so an
+    // expiry report quoting phase A's Identification is a discarded datagram
+    // (fail_phase_a_datagram_discarded). In phase B the bucket is MEANT to
+    // expire, so listening_phase_b has no transition for the report and the
+    // SCXML drops it.
+    static constexpr ipv4::fragments::ReassemblyExpiryRole kReassemblyExpiry =
+        ipv4::fragments::ReassemblyExpiryRole::kGraded;
 
     // Two synchronous phases on distinct IP IDs:
     //   Phase A: emitFragmentPair(id=PhaseA, inter_frag_wait=1 s) —

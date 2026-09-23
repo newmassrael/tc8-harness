@@ -24,6 +24,9 @@ struct TestCaseTraits<cases::Ipv4Fragments04SM>
     static constexpr std::string_view kDescription =
         "DUT must not reassemble fragments whose Protocol fields "
         "differ (RFC 791 §3.2 reassembly-bucket tuple)";
+    // Compound case: withheld for the reason ipv4_fragments_02.h gives.
+    static constexpr ipv4::fragments::ReassemblyExpiryRole kReassemblyExpiry =
+        ipv4::fragments::ReassemblyExpiryRole::kNotGraded;
 
     // Phase 1: frag 0 (proto=ICMP), frag 1 (proto=TCP). Linux's IP
     // layer stores frag 1 in a TCP reassembly bucket (or drops it —

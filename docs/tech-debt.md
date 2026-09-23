@@ -1932,8 +1932,9 @@ whole, fails closed, and allows exemptions only as (file, token) pairs with a re
 
 ## TD-35 — the positive reassembly cases throw away the DUT's own report that it discarded the datagram
 
-**Status:** OPEN. **Logged:** 2026-09-24, while making `IPv4_REASSEMBLY_11` and `_13`
-conclude.
+**Status:** RESOLVED (2026-09-24). **Logged:** 2026-09-24, while making `IPv4_REASSEMBLY_11`
+and `_13` conclude. The entry below is the debt as logged; **Resolution** at its end records what
+closed it.
 
 **What it is.** The IPv4 fragment cases share `Ipv4FragmentEchoBase`, whose dispatch forwards
 only Echo Replies to the SCXML. A DUT that fails to reassemble and lets the bucket expire
@@ -1964,6 +1965,36 @@ from the DUT that quotes the case's own IP Identification (`Icmpv4Captured::quot
 
 **Done when:** the four cases grade a DUT-origin Time Exceeded code 1 that quotes their own
 fragment as a fail, and each still passes on single-pc and lwip-tap.
+
+**Resolution.** Closed at what produced the four gaps rather than case by case. The report was
+dropped by default because the base had no way to know what it meant, and a default either way is
+wrong for some case. Every case on `Ipv4FragmentEchoBase` must now DECLARE
+`kReassemblyExpiry` (`ReassemblyExpiryRole`, `ipv4_fragments_common.h`). There is no default, and a
+missing declaration fails to compile with a message naming what to declare. The base's `dispatch`
+forwards the report only to a `kGraded` case, and the per-case `dispatch` overrides of `_11` and
+`_13` are gone. So the next fragment case cannot be written without deciding. The twelve cases
+declare:
+
+- `kGraded`: the four above (each with a new fail final keyed on its own IP Identification;
+  `_10` on phase A only) plus `_11` and `_13`.
+- `kNotGraded`: `IPv4_REASSEMBLY_06/07/09`, where the report may be the conforming outcome, and
+  the compound `IPv4_FRAGMENTS_02/03/04`, where it only says a precondition bucket died.
+
+`Ipv4ReassemblyFaultNegBase` declares `kGraded` for the eight `_11`/`_13` mutants.
+
+**Runs (2026-09-24).**
+
+- **single-pc:** the twelve positives give 10 pass. `_11` fails and `_13` is inconclusive, both
+  unchanged (TD-28, TD-33). The seven fragment negative rows all land.
+- **lwip-tap:** the twelve positives and the eight mutants give 17 pass. The three failures,
+  `IPv4_FRAGMENTS_04`, `_11` and `_13`, are the fixture's `platform_known_fail` entries.
+
+A timing question the entry did not ask was settled by `IPv4_REASSEMBLY_10`'s trace. A report sent
+during a BLOCKING stimulus is still dispatched once the listen window opens: its phase-B expiry
+report reached the SCXML, was dropped for want of a transition, and the case passed. So `_10`
+phase A and `_12` see their reports without being rescheduled, and `_11`'s comment claiming
+otherwise was corrected. The four new fail finals are reached by no run yet, because both reference
+DUTs reassemble correctly; that is TD-41.
 
 ---
 
@@ -2171,3 +2202,39 @@ leaving the default path's tolerance where it is.
 **Done when:** `test --inventory-overrides <missing>` exits non-zero with an error naming the path
 on every mode that loads the inventory, the default-path fallback is unchanged, and the five load
 sites share one loader.
+
+---
+
+## TD-41 — the four reassembly-discard fail finals are reached by no run
+
+**Status:** OPEN. **Logged:** 2026-09-24, while resolving TD-35.
+
+**What it is.** TD-35 gave four positive cases a fail final for the DUT's own Time Exceeded code 1
+quoting their fragment 0:
+
+- `IPv4_FRAGMENTS_01` `fail_datagram_discarded`
+- `IPv4_REASSEMBLY_04` `fail_datagram_discarded`
+- `IPv4_REASSEMBLY_10` `fail_phase_a_datagram_discarded`
+- `IPv4_REASSEMBLY_12` `fail_timer_shrunk`
+
+Both reference DUTs reassemble these cases correctly, so no run reaches the finals. The four cases
+are dispositioned by negative rows that flip `icmpv4.echo_id`, and those rows prove only the Echo
+Reply guards. So nothing proves the discard guard fires: its IP Identification constant, its
+`src_ip` conjunct and its forwarding by the `kGraded` declaration. `IPv4_REASSEMBLY_11`/`_13` had the
+same gap until `_11_NEG`/`_13_NEG` reached theirs on lwIP.
+
+**Why it exists.** The guard asserts DUT behaviour a conforming DUT never shows. Only a fault seam
+can produce it, and TD-35's Done-when asked for grading, not reachability.
+
+**Risk if left.** A wrong constant or a broken conjunct would leave a real discard graded as a
+timeout again, silently: the TD-35 defect, back in a form no run can see. The dispatch half is
+shown working (the `IPv4_REASSEMBLY_10` trace, TD-35); each guard is not.
+
+**Textbook fix.** Add the `_11_NEG` shape per case: arm `kIpv4FaultDropLastFragment` on the lwIP
+fixture so the bucket expires and lwIP reports it, and pass on that report. Adding a `_NEG` makes a
+multi-final case FAULT_INJECTION. `negative_coverage_audit.py` then requires a
+`tools/fault_injection_coverage.json` entry mapping EVERY fail final to a mutant, so the echo
+id/seq/data finals need egress-fault mutants too, as `_11_NEG2`..`_NEG4` are.
+
+**Done when:** each of the four finals is the verdict of a `_NEG` mutant that passes on lwip-tap,
+and `negative_coverage_audit.py --check` accepts the four cases' coverage entries.

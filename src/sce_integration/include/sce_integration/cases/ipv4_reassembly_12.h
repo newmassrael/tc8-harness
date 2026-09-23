@@ -27,6 +27,11 @@ struct TestCaseTraits<cases::Ipv4Reassembly12SM>
         "DUT reassembles a 2-fragment Echo Request whose first "
         "fragment carries Low TTL (timer must not shrink) and emits "
         "an Echo Reply with matching id/seq/data (RFC 791 §3.2)";
+    // The DUT this case exists to catch SHRINKS the timer on a low-TTL
+    // fragment, expires the bucket inside the inter-fragment wait and says so:
+    // that report is fail_timer_shrunk.
+    static constexpr ipv4::fragments::ReassemblyExpiryRole kReassemblyExpiry =
+        ipv4::fragments::ReassemblyExpiryRole::kGraded;
 
     // Two-fragment Echo Request with kReassemblyLowTtl (=2) on both
     // halves and a 1 s inter-fragment wait. The smoke-test.sh dut_ns

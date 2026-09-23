@@ -25,6 +25,10 @@ struct TestCaseTraits<cases::Ipv4Fragments01SM>
         "DUT reassembles a 2-fragment Echo Request and emits an Echo "
         "Reply whose Identifier, Sequence Number, and Data match the "
         "reassembled Echo Request (RFC 791 §3.2, RFC 1122 §3.3.2)";
+    // Both fragments arrive at once, so a DUT that reports the bucket expired
+    // discarded a datagram it had every piece of: fail_datagram_discarded.
+    static constexpr ipv4::fragments::ReassemblyExpiryRole kReassemblyExpiry =
+        ipv4::fragments::ReassemblyExpiryRole::kGraded;
 
     // Send two IP fragments carrying the 16 B reassembled Echo
     // Request (8 B ICMP header + 8 B payload). `emitFragmentPair`

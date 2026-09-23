@@ -19,8 +19,10 @@
 //                                      (HEADER_01..04/08/09, TTL_01/05,
 //                                      VERSION_01/03/04, CHECKSUM_02/05,
 //                                      ADDRESSING_03).
-//   - Ipv4FragmentEchoBase<SM>         fragments::dispatchEchoReply
-//                                      helper (type=0 narrowing), used
+//   - Ipv4FragmentEchoBase<SM>         Echo Reply dispatch, plus the DUT's
+//                                      reassembly-expiry report for a case
+//                                      that declares it graded
+//                                      (kReassemblyExpiry, required), used
 //                                      by 12 cases observing the DUT's
 //                                      Echo Reply after IP reassembly
 //                                      (FRAGMENTS_01..04,
@@ -82,8 +84,20 @@ struct Ipv4FragmentEchoBase {
     static constexpr int              kTopology   = 1;
     static constexpr ::tc8::BpfGroup  kBpfGroup   = ::tc8::BpfGroup::Icmpv4;
 
+    // What the DUT's reassembly-expiry report means is the case's to declare
+    // (ipv4_fragments_common.h, ReassemblyExpiryRole); the forwarding follows it.
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {
-        ::tc8::sce::ipv4::fragments::dispatchEchoReply<SM>(c, sm, ev);
+        using Traits = ::tc8::sce::TestCaseTraits<SM>;
+        static_assert(ipv4::fragments::declaresReassemblyExpiryRole<Traits>(),
+                      "a case on Ipv4FragmentEchoBase must declare "
+                      "`static constexpr ipv4::fragments::ReassemblyExpiryRole "
+                      "kReassemblyExpiry` — whether the DUT's Time Exceeded code 1 "
+                      "is graded by its SCXML (see ReassemblyExpiryRole)");
+        if constexpr (Traits::kReassemblyExpiry == ipv4::fragments::ReassemblyExpiryRole::kGraded) {
+            ::tc8::sce::ipv4::fragments::dispatchEchoReplyOrReassemblyExpiry<SM>(c, sm, ev);
+        } else {
+            ::tc8::sce::ipv4::fragments::dispatchEchoReply<SM>(c, sm, ev);
+        }
     }
 };
 
@@ -117,6 +131,9 @@ struct Ipv4ReassemblyFaultNegBase {
     static constexpr int              kTopology   = 1;
     static constexpr ::tc8::BpfGroup  kBpfGroup   = ::tc8::BpfGroup::Icmpv4;
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities = Capability;
+    // A negative observes what its positive grades, so it sees the report too.
+    static constexpr ipv4::fragments::ReassemblyExpiryRole kReassemblyExpiry =
+        ipv4::fragments::ReassemblyExpiryRole::kGraded;
 
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {
         ::tc8::sce::ipv4::fragments::dispatchEchoReplyOrReassemblyExpiry<SM>(c, sm, ev);

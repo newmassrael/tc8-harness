@@ -40,10 +40,13 @@ struct TestCaseTraits<cases::Ipv4Reassembly11SM>
     // Frag 0 is sent here and frag 1 is SCHEDULED, so the SCXML listens
     // across the wait. A DUT whose timer ignores TTL expires the bucket
     // inside the wait and reports it with a Time Exceeded code 1 that
-    // quotes frag 0; that report is the observed violation. Blocking
-    // through the wait instead would leave the report before the listen
-    // window, and the case could only time out (inconclusive). The
-    // SCXML's 6 s deadline must stay above kInterFragmentWait.
+    // quotes frag 0; that report is the observed violation. Scheduling
+    // frag 1 is NOT what makes the report visible: a frame captured
+    // during a blocking stimulus waits in the capture ring and is
+    // dispatched once the listen window opens (measured 2026-09-24:
+    // REASSEMBLY_10's phase-B report, sent inside its blocking wait,
+    // reached the SCXML). The SCXML's 6 s deadline must stay above
+    // kInterFragmentWait.
     //
     // Linux (verified 2026-09-23, kernel 7.0): ip_frag_queue arms the
     // bucket timer from ip4_frags.timeout regardless of arriving TTL —
@@ -52,9 +55,9 @@ struct TestCaseTraits<cases::Ipv4Reassembly11SM>
     // RFC 791 §3.2 verbatim passes on the same wire shape.
     static constexpr std::chrono::milliseconds kInterFragmentWait{3000};
 
-    static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {
-        ::tc8::sce::ipv4::fragments::dispatchEchoReplyOrReassemblyExpiry<SM>(c, sm, ev);
-    }
+    // The early-expiry report above is this case's fail_timer_not_extended.
+    static constexpr ipv4::fragments::ReassemblyExpiryRole kReassemblyExpiry =
+        ipv4::fragments::ReassemblyExpiryRole::kGraded;
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
