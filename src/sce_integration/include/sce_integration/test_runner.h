@@ -28,9 +28,13 @@ namespace tc8::sce {
 
 // Stimulus scheduler — opt-in handle that compound-phase traits use to
 // emit additional packets AFTER `kickStimulus` returns and the SCXML
-// has had time to reach a target state. Replaces the prior
-// detached-`std::thread` workaround documented in
-// `reference_fragments_compound_stimulus.md`:
+// has had time to reach a target state. A compound shape (an absence
+// phase, then a stimulus that must land after the SCXML opens its next
+// listen window — FRAGMENTS_02/03/04) cannot be one synchronous
+// stimulus: frames captured while `stimulus()` runs are buffered and
+// reach the state machine only after `kickStimulus` returns, so their
+// ordering against SCXML state is lost. This replaces the prior
+// detached-`std::thread` workaround:
 //
 //   - Old pattern: `std::thread([]{ sleep_for(N); emit(); }).detach()`
 //     spawned inside `Traits::stimulus`. Risk surface: SIGKILL race

@@ -13,7 +13,8 @@
   the prefix mask check (LE-host assumption documented on the
   helper) so the SCXML guard stays a single member-method call —
   also avoids putting a literal `&` in a template-substituted
-  attribute (`reference_sce_template_adoption.md` gotcha 3).
+  attribute, which does not survive substitution
+  (docs/scxml_guard_expressions.md).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"

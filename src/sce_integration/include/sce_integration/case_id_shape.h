@@ -27,7 +27,7 @@ namespace tc8::sce {
 //                      a positive case under the same category. Drives a
 //                      negative-path SCXML branch that conformant DUT
 //                      emit can never reach
-//                      (`reference_dut_fault_injection_pattern.md`).
+//                      (docs/verdict_policy.md Section 6.1).
 //   _NEG2 / 3 / 4    — additional fault-injection variants of the SAME
 //                      positive case, one per fail-final, for a
 //                      multi-guard case whose guards are mutually

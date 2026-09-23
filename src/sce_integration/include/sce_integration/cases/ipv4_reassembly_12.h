@@ -49,7 +49,9 @@ struct TestCaseTraits<cases::Ipv4Reassembly12SM>
     // since MAX(2, 2) = 2 s. The 30 s/1 s margin in the prior
     // revision was so wide the spec invariant was not actively
     // exercised; tightening to 2 s/1 s narrows the diagnostic gap.
-    // See `reference_linux_ip_reassembly_deviations.md`.
+    // The 2 s is the per-case `ipfrag_time` conditioning in
+    // dut/env/orchestrator/src/conditioning.rs; Linux's static timer
+    // is docs/tech-debt.md TD-28.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {

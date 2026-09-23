@@ -89,12 +89,13 @@ inline void wireRouterOverloadStimulus(
     // default route, and ARP-resolve the gateway via the smoke-test
     // pre-pinned permanent neigh entry.
     //
-    // 1-byte payload (0xA5) — the harness pcap pipeline silently
-    // drops empty UDP datagrams (libtins find_pdu<RawPDU> returns
-    // null when payload_len == 0; see
-    // `reference_pipeline_empty_udp_gate.md`). A single sentinel
-    // byte is enough for udp_observed to fire — pass criteria are
-    // L2/L3 shape, not data content.
+    // 1-byte payload (0xA5). It was added when the harness pipeline
+    // dropped an empty UDP datagram (libtins attaches no RawPDU to a
+    // header-only datagram). The pipeline now emits a UdpFrame with a
+    // null body for that case (packet_pipeline.cpp, for
+    // UDP_FIELDS_07), so the byte is no longer required; it stays as a
+    // recognisable sentinel. Pass criteria are L2/L3 shape, not data
+    // content.
     scheduler.scheduleAfterStateEntry(
         static_cast<int>(State::Listening_for_dut_udp),
         [&scheduler, dut = &dut]() {

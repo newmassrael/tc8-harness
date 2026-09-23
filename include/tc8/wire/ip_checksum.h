@@ -29,7 +29,10 @@ std::uint16_t inetChecksum(const std::uint8_t* data, std::size_t len);
 // happens to be correct only when the address is palindromic (0 or
 // all-FF), which is the latent bug the §4.7 S2 server-emulation OFFER
 // exercised end-to-end (server IP 172.16.0.10 → bogus checksum →
-// kernel UDP silent drop). See reference_dhcpv4_client_ingest.md.
+// kernel UDP silent drop). Linux's UDP layer discards a bad-checksum
+// datagram before any SOCK_DGRAM socket sees it, counting it in
+// /proc/net/snmp InCsumErrors; an AF_PACKET listener still sees the
+// frame. The tell is tcpdump's `bad udp cksum 0xXXXX -> 0xYYYY!`.
 std::uint16_t udpChecksum(std::uint32_t       src_be,
                           std::uint32_t       dst_be,
                           const std::uint8_t* udp,

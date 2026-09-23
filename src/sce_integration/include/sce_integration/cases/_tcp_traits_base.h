@@ -15,7 +15,9 @@
 // The 113th case — TCP_RETRANSMISSION_TO_03 — stays verbatim because
 // its dispatch is a deliberate no-op: verdict is computed from
 // kernel-side TCP_INFO snapshots inside stimulus(), so frame ingress
-// is not consulted (see `reference_op_query_tcp_info.md`).
+// is not consulted. Under parallel load the kernel's retransmission
+// timer fires late and the wire alone could not show it; the case
+// polls TCP_INFO instead (see tcp_retransmission_to_03.h).
 //
 // Stimulus is intentionally NOT provided here — every §4.8 case has its
 // own per-case stimulus shape (active-OPEN / passive-listen handshake

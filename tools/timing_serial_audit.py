@@ -14,7 +14,18 @@ is classified, but the original 4-case set was picked by the predicate NAME
 (`frame_delta_within_us`) and silently missed siblings using other cadence
 predicates (`ack_to_request_within_us`). This audit makes CLASSIFICATION
 mandatory for the whole `*_within_us` family, by the timing PROPERTY not the
-predicate name. See memory/reference_timing_serial_cadence.md.
+predicate name.
+
+Why the lane exists: the measured interval is the DUT's timer PLUS its emit
+latency, and the reference firmware randomises the timer to the edge of the
+spec window (DHCP's second retransmission is 8000 ms +- 1000 ms against a
+[7 s, 9 s] window). With four DUTs and four testers contending, the DUT emits
+hundreds of ms late and the interval leaves the window -- a test-environment
+artifact, not a DUT fault (first seen as a CI flake of
+DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_13). Running the case uncontended mirrors a
+conformance lab's dedicated DUT without widening the spec window. The two lanes
+are the `--exclude-serial` / `--only-serial` smoke steps in
+.github/workflows/smoke-test.yml.
 
 Run with no args (or --check); prints offenders and exits non-zero on failure.
 """

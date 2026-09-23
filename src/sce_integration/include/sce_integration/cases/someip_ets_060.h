@@ -30,7 +30,7 @@ namespace tc8::sce {
 // options (type 0x04) — one with l4 == UDP (0x11), one with l4 ==
 // TCP (0x06). `emitFindServiceBoot` already binds source port 30490
 // per the vsomeip "SD source port equals SD port" rule (see
-// `reference_subscribe_sd_port`). Single-phase verdict — phase 1
+// `sendSdUnicast` in stimulus/someip_sd_builder.h). Single-phase verdict — phase 1
 // terminal IS the pass terminal because a compliant OfferService
 // is the only payload we need to observe.
 template <>

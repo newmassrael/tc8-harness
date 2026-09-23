@@ -123,7 +123,7 @@ int sendFindServiceOnce(const std::vector<std::uint8_t> &wire) {
     }
 
     // Bind source port to SD port — vsomeip silently drops SD frames from
-    // ephemeral source ports, see reference_subscribe_sd_port memory. The
+    // ephemeral source ports (no reply, for every SD message type). The
     // tester's vsomeip routing manager would log "Ignored SD message from
     // unknown port" for any other source port.
     sockaddr_in src{};
