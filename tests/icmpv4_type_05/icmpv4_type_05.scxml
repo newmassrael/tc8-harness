@@ -16,7 +16,8 @@
 
   Stimulus is L2-unicast to `cfg.arp.dut_iface_mac` so the drop reason
   is unambiguously IP-options malformation, not an Eth-broadcast
-  artefact. See `reference_icmp_packet_host_gate.md` — Linux's
+  artefact. See the PACKET_HOST gate at `Ipv4FrameSpec::dst_mac`
+  (stimulus/ipv4_frame_builder.h) — Linux's
   Echo-Reply path does not gate on pkt_type, but unicast keeps the
   test-semantic isolated to the invariant under test.
 

@@ -73,7 +73,8 @@ struct StimulusOverrides {
     // error reply to emerge at all; §4.3.3.2 TYPE_05 and the
     // absence-shape §4.3.3.1 ERROR_03 + §4.3.3.2 TYPE_04 set it
     // defensively so L2-dispatch skew isn't a confounder for the
-    // observed behaviour. See `reference_icmp_packet_host_gate.md`.
+    // observed behaviour. See the PACKET_HOST gate at
+    // `Ipv4FrameSpec::dst_mac` (stimulus/ipv4_frame_builder.h).
     std::optional<std::array<std::uint8_t, 6>> dst_mac;
     // §4.3.3.2 TYPE_05 / §4.3.3.1 ERROR_04 — IPv4 options bytes the
     // builder inserts between the fixed IPv4 header and the ICMP body.

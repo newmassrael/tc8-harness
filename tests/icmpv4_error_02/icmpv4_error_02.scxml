@@ -38,7 +38,8 @@
   Kernel-side note: Linux's `icmp_send` gates error-class ICMP on
   `skb->pkt_type == PACKET_HOST`, so the stimulus must L2-unicast to
   the DUT — traits pass `cfg.arp.dut_iface_mac` via
-  `StimulusOverrides::dst_mac`. See `reference_icmp_packet_host_gate.md`.
+  `StimulusOverrides::dst_mac`. See the PACKET_HOST gate at
+  `Ipv4FrameSpec::dst_mac` (stimulus/ipv4_frame_builder.h).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"

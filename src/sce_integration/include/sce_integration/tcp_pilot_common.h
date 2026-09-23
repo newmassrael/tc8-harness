@@ -371,7 +371,7 @@ static_assert(offsetRegistryUnique(),
 // anything received on broadcast or multicast Ethernet destination.
 // BASICS_04/05's closed-port RST response never fires unless the L2
 // dst is the DUT's real MAC — the same gate §4.3 ICMP error replies
-// hit (see `reference_icmp_packet_host_gate.md`). The Ipv4FrameSpec
+// hit (see `Ipv4FrameSpec::dst_mac` in stimulus/ipv4_frame_builder.h). The Ipv4FrameSpec
 // default of `kEthBroadcast` is wrong for TCP; forcing the caller to
 // pass `dut_mac` explicitly prevents silent regressions.
 //

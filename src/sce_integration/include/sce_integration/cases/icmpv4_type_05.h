@@ -43,8 +43,8 @@ struct TestCaseTraits<cases::Icmpv4Type05SM>
     //
     // L2 destination is the DUT's real MAC (cfg.arp.dut_iface_mac)
     // rather than the builder's Ethernet-broadcast default. Linux's
-    // Echo Reply path does not gate on pkt_type (see
-    // `reference_icmp_packet_host_gate.md`), so broadcast would still
+    // Echo Reply path does not gate on pkt_type (see the PACKET_HOST
+    // gate at `Ipv4FrameSpec::dst_mac`), so broadcast would still
     // elicit a reply on a conformant DUT — but unicast keeps the
     // observable behaviour attributable to the option malformation
     // alone. Cross-protocol reach on `arp.*` is consistent with

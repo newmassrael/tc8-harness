@@ -844,6 +844,10 @@
         {
           "file": "src/sce_integration/include/sce_integration/icmpv4_pilot_common.h",
           "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/ipv4_frame_builder.h",
+          "kind": "references"
         }
       ]
     },
@@ -2304,6 +2308,10 @@
         {
           "file": "src/sce_integration/include/sce_integration/cases/_icmpv4_traits_base.h",
           "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/ipv4_frame_builder.h",
+          "kind": "references"
         }
       ]
     },

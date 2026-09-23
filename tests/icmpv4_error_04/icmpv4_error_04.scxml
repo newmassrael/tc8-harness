@@ -16,8 +16,8 @@
   `skb->pkt_type == PACKET_HOST`, so the Eth-broadcast default for
   the stimulus naturally suppresses Parameter Problem emission — the
   test still exercises the DUT's behavioural invariant (spec-level
-  MUST-NOT), just via the kernel's broadcast-suppression path. See
-  `reference_icmp_packet_host_gate.md`.
+  MUST-NOT), just via the kernel's broadcast-suppression path. See the
+  PACKET_HOST gate at `Ipv4FrameSpec::dst_mac` (stimulus/ipv4_frame_builder.h).
 
   No negative smoke row: absence-shape; any expectation flip also
   lands on timeout → fake-positive verdict. Shared limitation with

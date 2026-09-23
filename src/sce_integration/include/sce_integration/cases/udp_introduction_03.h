@@ -52,7 +52,7 @@ struct TestCaseTraits<cases::UdpIntroduction03SM> {
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface) {
         // Linux's ICMP error-emit path requires PACKET_HOST L2 dst — see
-        // `reference_icmp_packet_host_gate.md`. Default Eth-broadcast
+        // `Ipv4FrameSpec::dst_mac` (stimulus/ipv4_frame_builder.h). Default Eth-broadcast
         // sets PACKET_BROADCAST and the kernel suppresses the error.
         ::tc8::sce::udp::UdpStimulusOverrides ov{};
         ov.eth_dst_override = cfg.dut.mac;

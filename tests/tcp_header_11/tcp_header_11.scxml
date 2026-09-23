@@ -23,8 +23,9 @@
   is classified as non-host-addressed and the DUT silently drops
   the SYN before it reaches the connected EST socket; the segment
   elicits no DUT egress. On a Linux DUT this is the same
-  non-host-address gate that suppresses ICMP error replies. See
-  reference_icmp_packet_host_gate.md TCP section.
+  non-host-address gate that suppresses ICMP error replies. See the
+  TCP half of the PACKET_HOST gate at `Ipv4FrameSpec::dst_mac`
+  (stimulus/ipv4_frame_builder.h).
 
   Two-state SCXML chain:
     * listening_handshake_ack — DUT pure ACK from active-OPEN

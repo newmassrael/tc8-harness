@@ -57,11 +57,33 @@ struct IpBootTiming {
 //
 // `dst_mac` defaults to Ethernet broadcast so the pilot cases don't
 // have to thread the DUT MAC through TestConfig just to send an IPv4
-// frame. Linux dispatches ICMP / IP by dst_ip regardless of the
-// frame-level Ethernet destination on veth pairs. Error-class ICMP
-// replies (Parameter Problem, Time Exceeded, Destination Unreachable)
-// require PACKET_HOST dispatch so callers emitting those stimuli must
-// set this to the DUT MAC — see `reference_icmp_packet_host_gate.md`.
+// frame. Linux dispatches IP by dst_ip regardless of the frame-level
+// Ethernet destination, BUT it classifies the frame by that destination
+// first (`eth_type_trans`): broadcast or multicast Ethernet makes the
+// skb PACKET_BROADCAST / PACKET_MULTICAST, even when the IP destination
+// is the DUT's unicast address. Two kernel paths then drop silently
+// unless the frame is PACKET_HOST — the PACKET_HOST gate:
+//
+//   * ICMP error replies. `icmp_send` (net/ipv4/icmp.c) emits no
+//     Destination Unreachable, Time Exceeded, Parameter Problem,
+//     Redirect or Source Quench for a non-PACKET_HOST trigger. A case
+//     that elicits one (§4.3 TYPE_18, ERROR_02; §4.6 UDP Port
+//     Unreachable) must set this to the DUT MAC, or the DUT answers
+//     nothing and the pcap holds only the tester's frame.
+//   * TCP receive. `tcp_v4_rcv` (net/ipv4/tcp_ipv4.c) discards any
+//     non-PACKET_HOST segment before the port lookup, so no SYN,ACK and
+//     no RST ever comes back. tcp_pilot_common.h's `emitTcpStimulus`
+//     therefore takes the DUT MAC as a required argument.
+//
+// Not gated: the Echo Request path (`icmp_echo`), and the silent
+// discard of an Information Request or an unknown ICMP type (neither
+// reaches `icmp_send`), which is why the §4.3 TYPE_08/09/10/16/22 and
+// ERROR_05 stimuli keep this broadcast default. Some absence cases set the DUT MAC anyway (TYPE_05,
+// ERROR_03, TYPE_04), so that a missing reply is attributable to the
+// property under test and not to the L2 envelope. §4.3.3.1 ERROR_04
+// deliberately keeps broadcast: its IP destination is 255.255.255.255,
+// and the gate suppressing the reply IS the RFC 1122 §3.2.2 rule the
+// case checks.
 struct Ipv4FrameSpec {
     std::array<std::uint8_t, 6> src_mac{};            // zero by default
     std::array<std::uint8_t, 6> dst_mac = kEthBroadcast;

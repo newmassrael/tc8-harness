@@ -18,8 +18,8 @@
   of Parameter Problem here would be attributable solely to the
   fragment-zero-vs-fragment-nonzero distinction under test, not to
   a PACKET_HOST kernel-gate difference that would otherwise confound
-  both-cases-pass readings. See
-  `reference_icmp_packet_host_gate.md`.
+  both-cases-pass readings. See the PACKET_HOST gate at
+  `Ipv4FrameSpec::dst_mac` (stimulus/ipv4_frame_builder.h).
 
   No negative smoke row: absence-shape; any expectation flip also
   lands on timeout → fake-positive verdict. Shared limitation with

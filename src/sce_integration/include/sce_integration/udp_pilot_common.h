@@ -103,7 +103,8 @@ struct UdpStimulusOverrides {
     // real MAC so the kernel's `PACKET_HOST` gate fires and the ICMP
     // Port Unreachable error path runs (Eth-broadcast would set
     // `PACKET_BROADCAST`, suppressing the error per
-    // `reference_icmp_packet_host_gate.md`). Default unset → kEthBroadcast.
+    // `Ipv4FrameSpec::dst_mac` in stimulus/ipv4_frame_builder.h). Default
+    // unset → kEthBroadcast.
     std::optional<std::array<std::uint8_t, 6>>         eth_dst_override;
     ::tc8::stimulus::UdpDatagramOverrides              udp;
 };

@@ -43,7 +43,8 @@ struct TestCaseTraits<cases::Icmpv4Error04SM>
     // TESTER sending to 255.255.255.255 uses Eth broadcast too, and
     // Linux's `icmp_send` gate on PACKET_HOST suppresses the
     // Parameter Problem reply as a kernel-side enforcement of the
-    // RFC 1122 rule. See `reference_icmp_packet_host_gate.md`.
+    // RFC 1122 rule. See the PACKET_HOST gate at `Ipv4FrameSpec::dst_mac`
+    // (stimulus/ipv4_frame_builder.h).
     //
     // Option bytes single-sourced as `kIcmpv4TimestampOptionMalformed`
     // — shared with TYPE_05. Duplicating the literal here would split
