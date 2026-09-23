@@ -7,11 +7,11 @@
 //! source so bash `smoke-test.sh` and the orchestrator can never drift.
 
 use std::collections::HashMap;
-use std::process::Command;
 use std::sync::OnceLock;
 
 use anyhow::{bail, Context, Result};
 
+use crate::case_token;
 use crate::config::Config;
 
 /// A case's DUT flavor: an alternate vsomeip config basename (a sibling of the base
@@ -29,8 +29,9 @@ static CACHE: OnceLock<HashMap<String, DutVariant>> = OnceLock::new();
 /// stay harness-free (build-test's identity job does not build the harness).
 /// Idempotent: a second call is a no-op.
 pub fn init(cfg: &Config) -> Result<()> {
-    let out = Command::new(&cfg.harness)
-        .args(["test", "--list-vsomeip-variants"])
+    let out = cfg
+        .harness_test()
+        .arg("--list-vsomeip-variants")
         .output()
         .with_context(|| {
             format!("running {} test --list-vsomeip-variants", cfg.harness.display())
@@ -49,16 +50,55 @@ pub fn init(cfg: &Config) -> Result<()> {
     Ok(())
 }
 
-/// Look up a case's DUT flavor (case-insensitive). `None` for the common
-/// non-variant case, or if `init` was never called (no flavor is then applied).
+/// Look up the DUT flavor of a SCHEDULED token (case-insensitive). `Ok(None)` for
+/// the common non-variant case, or if `init` was never called (no flavor is then
+/// applied). See `lookup` for the rule, and docs/tech-debt.md TD-17 for why a
+/// refusal is an error rather than "no flavor".
+pub fn resolve(token: &str) -> Result<Option<&'static DutVariant>> {
+    match CACHE.get() {
+        Some(table) => lookup(table, token),
+        None => Ok(None),
+    }
+}
+
+/// The table is keyed the way `--list-vsomeip-variants` prints it: bare for the
+/// in-tree suite, `suite:ID` for any other, each row resolved by the harness from
+/// that suite's OWN catalog (spec_inventory.h, "ONE CATALOG PER SUITE"). A token
+/// resolves on the same pair:
 ///
-/// The map is keyed by the BARE ids `--list-vsomeip-variants` emits, but the
-/// caller passes the SCHEDULED token, which a multi-suite build may qualify as
-/// `suite:id` — that spelling misses here and the miss reads as "no flavor",
-/// silently. Unreachable while the in-tree suite is the only one registered.
-/// See docs/tech-debt.md TD-17 before adding a second suite or changing the key.
-pub fn resolve(case_id: &str) -> Option<&'static DutVariant> {
-    CACHE.get()?.get(&case_id.to_ascii_uppercase())
+/// - bare, or qualified with the default suite: the in-tree row. A bare token IS an
+///   in-tree case — the listing prints every other suite's qualified — so stripping
+///   the default qualifier is resolution, not a workaround.
+/// - another suite, and that suite's own catalog declares a flavor: that row.
+/// - another suite with no row of its own, but the bare id holds an in-tree flavor:
+///   REFUSED. The case may be a copy of the in-tree test that needs the second
+///   service, shared port or second instance, or a different test that needs none;
+///   nothing here can tell which, and guessing either way runs it against a DUT
+///   that may not be the one it asserts about. A flavor must never travel to
+///   another catalog by id coincidence, and silence must never stand in for one.
+/// - another suite, nothing either way: legitimately no flavor.
+fn lookup<'t>(table: &'t HashMap<String, DutVariant>, token: &str) -> Result<Option<&'t DutVariant>> {
+    let upper = token.to_ascii_uppercase();
+    let (suite, id) = case_token::split(&upper);
+    match suite {
+        None => Ok(table.get(id)),
+        Some(s) if case_token::is_default_suite(s) => Ok(table.get(id)),
+        Some(s) => {
+            if let Some(own) = table.get(&upper) {
+                return Ok(Some(own));
+            }
+            if table.contains_key(id) {
+                bail!(
+                    "{token}: the in-tree case {id} needs a DUT vsomeip flavor and suite \
+                     '{s}' declares none of its own, so the DUT this case needs cannot be \
+                     known; declare its flavor in the overrides as \"{token}\" \
+                     (vsomeip_cfg / vsomeip_env) rather than inherit the in-tree one \
+                     by id coincidence"
+                );
+            }
+            Ok(None)
+        }
+    }
 }
 
 /// Parse `CASE|cfg|env1,env2` lines (the harness `--list-vsomeip-variants` grammar).
@@ -116,5 +156,49 @@ mod tests {
     #[test]
     fn empty_input_is_empty_map() {
         assert!(parse("\n  \n").unwrap().is_empty());
+    }
+
+    // TD-17: the table as a two-suite build prints it. SOMEIPSRV_RPC_14 carries an
+    // in-tree flavor; demo declares its own for SOMEIPSRV_RPC_17 only.
+    fn two_suite_table() -> HashMap<String, DutVariant> {
+        parse(
+            "SOMEIPSRV_RPC_14|vsomeip-multi-instance.json|TC8_DUT_INSTANCE_2=1\n\
+             SOMEIPSRV_RPC_17|vsomeip-multi-instance.json|\n\
+             demo:SOMEIPSRV_RPC_17||TC8_DUT_DEMO=1\n",
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn default_suite_qualifier_resolves_the_in_tree_row() {
+        let t = two_suite_table();
+        let bare = lookup(&t, "SOMEIPSRV_RPC_14").unwrap().expect("bare hits");
+        let qualified = lookup(&t, "tc8:someipsrv_rpc_14").unwrap().expect("tc8: strips");
+        assert_eq!(bare, qualified);
+        assert_eq!(bare.env, ["TC8_DUT_INSTANCE_2=1"]);
+    }
+
+    #[test]
+    fn another_suite_refuses_rather_than_inherit_the_in_tree_flavor() {
+        let t = two_suite_table();
+        let err = lookup(&t, "demo:SOMEIPSRV_RPC_14").expect_err("must refuse, not fall back");
+        let msg = format!("{err:#}");
+        assert!(msg.contains("demo:SOMEIPSRV_RPC_14"), "{msg}");
+        assert!(msg.contains("declares none of its own"), "{msg}");
+    }
+
+    #[test]
+    fn another_suite_uses_its_own_row_never_the_in_tree_one() {
+        let t = two_suite_table();
+        let own = lookup(&t, "Demo:someipsrv_rpc_17").unwrap().expect("own row");
+        assert_eq!(own.cfg_basename, None);
+        assert_eq!(own.env, ["TC8_DUT_DEMO=1"]);
+    }
+
+    #[test]
+    fn another_suite_with_no_flavor_either_way_gets_none() {
+        let t = two_suite_table();
+        assert_eq!(lookup(&t, "demo:ARP_03").unwrap(), None);
+        assert_eq!(lookup(&t, "ARP_03").unwrap(), None);
     }
 }

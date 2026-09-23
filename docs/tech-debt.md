@@ -970,9 +970,11 @@ in `tools/debt_accepted.txt`.
 
 ## TD-17 — a suite-qualified case id silently loses its per-case DUT vsomeip flavor
 
-**Status:** OPEN (accepted; not reachable in a shipped build). **Logged:** 2026-09-18, from a
-consumer report of a build registering an injected suite alongside the in-tree one; verified
-in-tree at `8fb3c671`.
+**Status:** RESOLVED (2026-09-24). **Logged:** 2026-09-18, from a consumer report of a build
+registering an injected suite alongside the in-tree one; verified in-tree at `8fb3c671`. Accepted
+until 2026-09-24, when TD-37/TD-38 landed the suite scoping it waited on. The body up to
+**Update** is the debt as logged; **Update** and **Resolution** record what changed and what
+closed it.
 
 **What it is.** The orchestrator's per-case DUT flavor table
 (`dut/env/orchestrator/src/dut_variant.rs`) is built from the harness's
@@ -1029,6 +1031,37 @@ CLI, but the orchestrator's only mentions of it are comments, so a consumer driv
 middle one refuses rather than falling back, and the orchestrator gains an `--inventory-overrides`
 passthrough. Both halves wait on the suite-scoping model leaving DRAFT, which is a decision this
 repository does not own — hence the entry's place in `tools/debt_accepted.txt`.
+
+**Update (2026-09-24).** The harness side of suite scoping landed with TD-37/TD-38. So the
+acceptance argument, that implementing now would most likely be redone, no longer holds, and
+the id has left `tools/debt_accepted.txt`. The consumer's alias DRAFT is not needed to close this:
+if it lands, it adds a resolution (an explicit pointer to another catalog's case). It does not redo
+one. One fact above changed. `--list-vsomeip-variants` and `--list-neg-rows` now print a non-default
+suite's rows as `suite:ID`, each resolved from that suite's own catalog. So an injected suite CAN
+now carry a flavor of its own, and the rule gains one case ahead of the middle branch: an
+exact own-suite row wins.
+
+**Resolution.** `dut_variant::lookup` (`dut/env/orchestrator/src/dut_variant.rs`) implements the
+rule in this order:
+
+- A bare token, or one qualified with the default suite, resolves the in-tree row. A bare token IS
+  an in-tree case, since the listing qualifies every other suite's.
+- A non-default token resolves that suite's own row when there is one.
+- A non-default token with no row of its own whose bare id holds an in-tree flavor is REFUSED.
+  `resolve` returns an error, which the worker reports as `error:dispatch_fault`. It is resolved
+  before any conditioning or spawn, so a refused case leaves nothing behind.
+- Otherwise the token gets no flavor.
+
+The orchestrator's reading of the `suite:ID` grammar lives in one module,
+`dut/env/orchestrator/src/case_token.rs`. Its `DEFAULT_SUITE` is pinned by a test to `kDefaultSuite`
+in `case_suite.h`, as `src/harness/CMakeLists.txt` derives its own copy. The `--inventory-overrides`
+passthrough exists. The flag is checked for a real file and made absolute in `main.rs`, and
+`Config::inventory_args` is the one place its arguments are built. `Config::harness_test` starts all
+three listing calls, and the per-case run takes the same arguments, so the flavor table, the
+negative rows, the secondary-iface set and each case's own axes all read one file. Proven by
+`cargo test` in `dut/env/orchestrator`: 85 passed. Among them,
+`another_suite_refuses_rather_than_inherit_the_in_tree_flavor` shows the middle branch refuses
+rather than falling back. The refusal has one gap that no row can close yet, registered as TD-39.
 
 ---
 
@@ -2072,3 +2105,36 @@ so the inventory can share it without the registry's runner dependencies. The CM
 `TC8_DEFAULT_SUITE` now reads it there. `unit_tests/spec_inventory_test.cpp` gives two suites the
 same id and one in-tree override that sets every axis. The demo case resolves none of the axes.
 Without its own catalog it resolves to nothing. A qualified override reaches only its own suite.
+
+---
+
+## TD-39 — an injected case that reuses a flavored in-tree id cannot declare that it needs the base DUT
+
+**Status:** OPEN. **Logged:** 2026-09-24, while resolving TD-17.
+
+**What it is.** TD-17's rule refuses a non-default token such as `demo:SOMEIPSRV_RPC_14` whose suite
+declares no flavor of its own when the in-tree id carries one. The refusal message says how to
+clear it: declare the case's own flavor under the key `demo:SOMEIPSRV_RPC_14`. That works for a
+case that needs a flavor. A case that needs the plain base DUT (base vsomeip config, no
+`TC8_DUT_*` env) cannot say so. `runListVsomeipVariants` (`src/cli/commands/test_command.cpp`)
+skips every case whose `vsomeip_cfg` and `vsomeip_env` are both empty, and the loader reads an
+absent field and an empty one alike (`findStringField` returns empty for both). So "this case
+declares the base flavor" and "this case declares nothing" produce the same listing.
+
+**Why it exists.** Before suites, "no row" could only mean the base config. With the refusal,
+"no row" now also means "unknown", and the listing has no third state.
+
+**Risk if left.** Latent: no shipped build registers a second suite. Once a consumer does, a
+same-id case that needs the base DUT is refused on every run, with no remedy except renaming the
+case. The failure is loud, not silent, so no verdict is wrong. The case simply cannot run.
+
+**Textbook fix.** Make the axis's presence visible, not just its value. The loader records whether
+an overrides entry names `vsomeip_cfg` or `vsomeip_env` at all. The exposer emits a row for every
+case that names the axis, so `demo:ID||` becomes a declared base flavor, and the orchestrator's
+own-row branch then resolves it to the base config. Both drivers already parse an empty cfg and
+empty env as "keep the base".
+
+**Done when:** an overrides entry that names the vsomeip axis with empty values produces a
+`--list-vsomeip-variants` row, a harness unit test proves absent and empty differ, and an
+orchestrator test proves `demo:ID` with such a row resolves to the base flavor instead of being
+refused.

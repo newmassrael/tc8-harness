@@ -26,6 +26,7 @@
 //! tap + a per-case-respawning lwIP embedded-stack DUT, mirroring the bash
 //! `topology.d/lwip-tap.conf` profile so both drivers share one dispatch axis.
 
+mod case_token;
 mod cleanup;
 mod conditioning;
 mod config;
@@ -113,6 +114,12 @@ struct Cli {
     #[arg(long, value_parser = ["opcode", "testability"])]
     dut_control: Option<String>,
 
+    /// The harness's inventory overrides file (default: the harness's own,
+    /// docs/spec/inventory_overrides.json). Passed to every harness call that
+    /// reads the inventory, so a consumer's DUT platform file reaches them all.
+    #[arg(long)]
+    inventory_overrides: Option<String>,
+
     /// Print the resolved static `--expect` identity (sorted key=value) and exit,
     /// without standing up any fixture. Used by parity-check.sh to diff value-level
     /// identity against bash smoke-test.sh's `--print-expect`.
@@ -153,6 +160,17 @@ fn main() -> Result<()> {
     // resolve, parallel to extra_expect (which main also populates post-resolve).
     cfg.log_dir = cli.log_dir.as_deref().map(std::path::PathBuf::from);
     cfg.dut_control = cli.dut_control.clone();
+    // Checked and absolutised here, before any harness call: a missing file would
+    // otherwise be read by the harness as "no overrides" and every axis would
+    // silently fall back to none.
+    if let Some(p) = &cli.inventory_overrides {
+        let abs = std::path::absolute(p)
+            .with_context(|| format!("resolving --inventory-overrides {p}"))?;
+        if !abs.is_file() {
+            bail!("--inventory-overrides {}: no such file", abs.display());
+        }
+        cfg.inventory_overrides = Some(abs);
+    }
     if let Some(dir) = &cfg.log_dir {
         fs::create_dir_all(dir)
             .with_context(|| format!("creating --log-dir {}", dir.display()))?;
@@ -407,8 +425,9 @@ fn main() -> Result<()> {
 /// "pass --interface-secondary for THIS case" (per-case membership), matching
 /// bash's `case_needs_secondary_iface`.
 fn list_secondary_iface_cases(cfg: &Config) -> Result<HashSet<String>> {
-    let out = std::process::Command::new(&cfg.harness)
-        .args(["test", "--list-cases", "--only-secondary-iface"])
+    let out = cfg
+        .harness_test()
+        .args(["--list-cases", "--only-secondary-iface"])
         .output()
         .with_context(|| format!("running {} --list-cases", cfg.harness.display()))?;
     if !out.status.success() {

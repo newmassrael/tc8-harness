@@ -114,6 +114,14 @@ pub struct Config {
     /// in-house opcode UT). None = the harness default (opcode); cases that call the
     /// opcode builders directly ignore it. Populated by main() from the CLI.
     pub dut_control: Option<String>,
+    /// `--inventory-overrides FILE`: the harness's per-DUT-platform overrides file
+    /// (default docs/spec/inventory_overrides.json, the Linux reference DUT). None =
+    /// the harness default. Every harness call that reads the inventory takes it
+    /// through `inventory_args`, so the flavor table, the negative rows, the
+    /// secondary-iface set and each case's own axes all come from ONE file — a
+    /// consumer's overrides can no longer reach some of them and not others.
+    /// Populated by main() from the CLI, absolutised so the harness's cwd is moot.
+    pub inventory_overrides: Option<PathBuf>,
     /// Case ids (UPPER-cased) that need the Topology-2 second tester interface —
     /// the harness's `requires_secondary_iface` axis (`--list-cases
     /// --only-secondary-iface`). run_case passes `--interface-secondary` for a
@@ -245,9 +253,27 @@ impl Config {
             // Populated by main() from the CLI flags, parallel to extra_expect.
             log_dir: None,
             dut_control: None,
+            inventory_overrides: None,
             secondary_iface_cases: HashSet::new(),
             root,
         })
+    }
+
+    /// The inventory-selecting arguments every harness `test` call that reads the
+    /// spec inventory must carry. The ONE place they are built.
+    pub fn inventory_args(&self) -> Vec<String> {
+        match &self.inventory_overrides {
+            Some(p) => vec!["--inventory-overrides".to_string(), p.to_string_lossy().into_owned()],
+            None => Vec::new(),
+        }
+    }
+
+    /// `<harness> test <inventory args>` — the start of every harness listing call,
+    /// so none can be written without the inventory selection.
+    pub fn harness_test(&self) -> std::process::Command {
+        let mut cmd = std::process::Command::new(&self.harness);
+        cmd.arg("test").args(self.inventory_args());
+        cmd
     }
 }
 
@@ -291,6 +317,7 @@ pub(crate) fn fake_cfg() -> Config {
         no_multicast_membership: false,
         log_dir: None,
         dut_control: None,
+        inventory_overrides: None,
         secondary_iface_cases: std::collections::HashSet::new(),
     }
 }

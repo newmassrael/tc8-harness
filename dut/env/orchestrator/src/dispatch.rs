@@ -384,8 +384,9 @@ fn map_negative_verdict(raw: Verdict, expected_fail: &str) -> Verdict {
 /// empty list is a hard error: an empty negative run would pass by vacuity.
 pub fn list_negative_rows(cfg: &Config) -> Result<Vec<(String, String)>> {
     use anyhow::{bail, Context};
-    let out = std::process::Command::new(&cfg.harness)
-        .args(["test", "--list-neg-rows"])
+    let out = cfg
+        .harness_test()
+        .arg("--list-neg-rows")
         .output()
         .with_context(|| format!("running {} test --list-neg-rows", cfg.harness.display()))?;
     if !out.status.success() {
@@ -478,6 +479,18 @@ fn run_case_impl(
         }
     }
 
+    // Per-case DUT vsomeip flavor (CASE_VSOMEIP_VARIANT), POSITIVE runs only — a
+    // negative run keeps the base cfg (bash run_negative_case). The flavor (an
+    // alternate config sibling + TC8_DUT_* env) comes from the harness's
+    // --list-vsomeip-variants (the SSOT), loaded once in main. Resolved BEFORE any
+    // conditioning or spawn: a token whose flavor cannot be known is refused
+    // (dut_variant::lookup, TD-17) and must leave nothing behind.
+    let variant = if negative_row {
+        None
+    } else {
+        crate::dut_variant::resolve(case_id)?
+    };
+
     // Per-case DUT/tester kernel conditioning (smoke-test.sh run_case prefix neigh
     // flush + the case-keyed sysctl/neigh toggles). Declared BEFORE CaseProcs so on
     // any early-return `?` the procs guard drops first (reap), then this restores —
@@ -485,15 +498,18 @@ fn run_case_impl(
     // restore() below and as a Drop backstop on the error/panic paths.
     let mut cond = topo.condition_case(w, case_id, ctx)?;
 
-    let mut args = vec![
-        "test".to_string(),
+    // The case's own axes (expect_overrides, the negative row) come from the same
+    // overrides file as the tables main loaded (Config::inventory_args).
+    let mut args = vec!["test".to_string()];
+    args.extend(cfg.inventory_args());
+    args.extend([
         "--case".to_string(),
         case_id.to_string(),
         "-i".to_string(),
         iface,
         "-t".to_string(),
         cfg.backstop_sec.to_string(),
-    ];
+    ]);
     args.extend(expect_args(cfg, &ctx.dut_mac));
     args.extend(extra_args);
     // Topology-level UT ARP-cache conditioning (lwIP DUT — bash smoke-test.sh):
@@ -539,15 +555,6 @@ fn run_case_impl(
     // Spawn order: harness first so its pcap is open before the DUT's first
     // OfferService (FORMAT_02 session_id==0x0001); --dut-first inverts it. On any
     // spawn error the `?` returns and CaseProcs::drop reaps whatever started.
-    // Per-case DUT vsomeip flavor (CASE_VSOMEIP_VARIANT), POSITIVE runs only — a
-    // negative run keeps the base cfg (bash run_negative_case). The flavor (an
-    // alternate config sibling + TC8_DUT_* env) comes from the harness's
-    // --list-vsomeip-variants (the SSOT), loaded once in main.
-    let variant = if negative_row {
-        None
-    } else {
-        crate::dut_variant::resolve(case_id)
-    };
     let vcfg = match variant.and_then(|v| v.cfg_basename.as_deref()) {
         Some(name) => cfg
             .vsomeip_cfg
