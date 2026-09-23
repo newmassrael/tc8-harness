@@ -326,6 +326,41 @@ TEST_F(SpecInventoryMergeTest, UnnamedExtraBelongsToTheInTreeSuite) {
     EXPECT_FALSE(inv->hasSuite("demo"));
 }
 
+// TD-39: naming the vsomeip axis with empty values is a DECLARATION (the base
+// DUT), and must be distinguishable from not naming it at all.
+TEST_F(SpecInventoryMergeTest, EmptyVsomeipAxisIsADeclarationNotAnAbsence) {
+    const auto primary = writeTemp("primary.json", kTc8WithOptions11);
+    const auto demo = writeTemp("demo.json", R"({
+      "suite": "demo",
+      "cases": [ {"case_id": "SOMEIPSRV_OPTIONS_11"}, {"case_id": "SOMEIPSRV_OPTIONS_12"} ]
+    })");
+    const auto ov = writeTemp("ov.json", R"({
+      "overrides": {
+        "SOMEIPSRV_OPTIONS_11": { "vsomeip_cfg": "alt.json", "vsomeip_env": ["TC8_DUT_X=1"] },
+        "demo:SOMEIPSRV_OPTIONS_11": { "vsomeip_cfg": "", "vsomeip_env": [] },
+        "demo:SOMEIPSRV_OPTIONS_12": { "timing_serial": true }
+      }
+    })");
+
+    std::string err;
+    auto inv = SpecInventory::load(primary.string(), {demo.string()}, ov.string(), &err);
+    ASSERT_TRUE(inv.has_value()) << err;
+
+    const auto *tc8 = inv->find(kDefaultSuite, "SOMEIPSRV_OPTIONS_11");
+    ASSERT_NE(tc8, nullptr);
+    EXPECT_TRUE(tc8->vsomeip_declared);
+
+    const auto *base = inv->find("demo", "SOMEIPSRV_OPTIONS_11");
+    ASSERT_NE(base, nullptr);
+    EXPECT_TRUE(base->vsomeip_declared);  // declared, with empty values: the base DUT
+    EXPECT_TRUE(base->vsomeip_cfg.empty());
+    EXPECT_TRUE(base->vsomeip_env.empty());
+
+    const auto *silent = inv->find("demo", "SOMEIPSRV_OPTIONS_12");
+    ASSERT_NE(silent, nullptr);
+    EXPECT_FALSE(silent->vsomeip_declared);  // an entry, but not for this axis
+}
+
 TEST_F(SpecInventoryMergeTest, CollisionWithinOneInjectedSuiteIsLoudError) {
     const auto primary = writeTemp("primary.json", kPrimary);
     const auto a = writeTemp("a.json", R"({"suite":"demo","cases":[{"case_id":"ARP_07"}]})");

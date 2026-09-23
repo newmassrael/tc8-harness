@@ -2141,7 +2141,8 @@ Without its own catalog it resolves to nothing. A qualified override reaches onl
 
 ## TD-39 — an injected case that reuses a flavored in-tree id cannot declare that it needs the base DUT
 
-**Status:** OPEN. **Logged:** 2026-09-24, while resolving TD-17.
+**Status:** RESOLVED (2026-09-24). **Logged:** 2026-09-24, while resolving TD-17. The entry below
+is the debt as logged; **Resolution** at its end records what closed it.
 
 **What it is.** TD-17's rule refuses a non-default token such as `demo:SOMEIPSRV_RPC_14` whose suite
 declares no flavor of its own when the in-tree id carries one. The refusal message says how to
@@ -2169,6 +2170,30 @@ empty env as "keep the base".
 `--list-vsomeip-variants` row, a harness unit test proves absent and empty differ, and an
 orchestrator test proves `demo:ID` with such a row resolves to the base flavor instead of being
 refused.
+
+**Resolution.** The axis now records its presence as well as its values. `SpecCase::vsomeip_declared`
+is set when an overrides entry names `vsomeip_cfg` or `vsomeip_env` at all, and
+`--list-vsomeip-variants` prints a row per declaration, so `demo:ID||` is a declared base DUT.
+
+An injected case that reuses a flavored in-tree id now has a way to declare every choice, under its
+own `suite:ID` key:
+
+- the in-tree case's values, to want that flavor;
+- other values, for a flavor of its own;
+- both empty, for the base DUT.
+
+The orchestrator's own-row branch resolves all three, and its refusal message names them. Nothing
+travels between catalogs by id, and pointing at another catalog's entry stays the consumer's alias
+DRAFT (TD-17).
+
+**Runs (2026-09-24).**
+
+- `spec_inventory_test` (16) passes, including `EmptyVsomeipAxisIsADeclarationNotAnAbsence`.
+- `cargo test` in `dut/env/orchestrator` passes 86, including
+  `another_suite_declaring_the_base_dut_is_not_refused`.
+- With a demo inventory and an overrides file declaring `demo:SOMEIPSRV_RPC_14` empty, the
+  harness prints `demo:SOMEIPSRV_RPC_14||`, and no row for a demo case with no declaration.
+- The in-tree `--list-vsomeip-variants` is byte-identical at 15 rows.
 
 ---
 

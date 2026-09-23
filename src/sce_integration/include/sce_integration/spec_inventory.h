@@ -122,6 +122,14 @@ struct SpecCase {
     std::string vsomeip_cfg;
     std::vector<std::string> vsomeip_env;
     std::string vsomeip_variant_ref;
+    // Whether the overrides entry NAMES the seventh axis at all (either key
+    // present), whatever its values. Empty values are then a declaration — "this
+    // case runs against the base DUT" — not an absence. The distinction exists
+    // for a same-id case in an injected suite: without its own declaration the
+    // orchestrator refuses to guess whether it needs the in-tree case's flavor,
+    // and this is how it says which DUT it wants, the base one included
+    // (docs/tech-debt.md TD-39).
+    bool vsomeip_declared = false;
 };
 
 // Loads docs/spec/case_inventory.json + docs/spec/inventory_overrides.json

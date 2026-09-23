@@ -93,6 +93,13 @@ std::vector<std::string> findStringArrayField(const std::string &block,
     return out;
 }
 
+// Whether `block` names `key` at all, whatever its value. The value readers
+// above return an empty result both for an absent key and for an empty value;
+// an axis whose empty value is itself a declaration needs to tell them apart.
+bool hasField(const std::string &block, const std::string &key) {
+    return std::regex_search(block, std::regex("\"" + key + "\"\\s*:"));
+}
+
 // Walk a JSON-array body and yield each top-level `{...}` block as a string.
 // Tracks brace depth to handle nested objects safely; quoted strings opt
 // out of the brace counter so a `}` inside a string doesn't terminate
@@ -618,6 +625,8 @@ std::optional<SpecInventory> SpecInventory::load(
                 findStringArrayField(body, "vsomeip_env");
             std::string vsomeip_variant_ref =
                 findStringField(body, "vsomeip_variant_ref");
+            const bool vsomeip_declared =
+                hasField(body, "vsomeip_cfg") || hasField(body, "vsomeip_env");
 
             // A negative row is the (flip, expected-verdict) PAIR — half a row
             // cannot be executed, so refuse it rather than silently skipping the
@@ -688,6 +697,7 @@ std::optional<SpecInventory> SpecInventory::load(
                     sc.vsomeip_cfg = std::move(vsomeip_cfg);
                     sc.vsomeip_env = std::move(vsomeip_env);
                     sc.vsomeip_variant_ref = std::move(vsomeip_variant_ref);
+                    sc.vsomeip_declared = vsomeip_declared;
                     break;
                 }
             }

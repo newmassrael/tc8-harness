@@ -69,7 +69,10 @@ pub fn resolve(token: &str) -> Result<Option<&'static DutVariant>> {
 /// - bare, or qualified with the default suite: the in-tree row. A bare token IS an
 ///   in-tree case — the listing prints every other suite's qualified — so stripping
 ///   the default qualifier is resolution, not a workaround.
-/// - another suite, and that suite's own catalog declares a flavor: that row.
+/// - another suite, and that suite's own catalog declares a flavor: that row. A
+///   row with empty cfg and env is a declared BASE DUT (the harness prints a row
+///   per declaration, not per non-empty value), and resolves to no alternate
+///   config and no extra env — the same DUT a non-variant case gets, but chosen.
 /// - another suite with no row of its own, but the bare id holds an in-tree flavor:
 ///   REFUSED. The case may be a copy of the in-tree test that needs the second
 ///   service, shared port or second instance, or a different test that needs none;
@@ -91,9 +94,10 @@ fn lookup<'t>(table: &'t HashMap<String, DutVariant>, token: &str) -> Result<Opt
                 bail!(
                     "{token}: the in-tree case {id} needs a DUT vsomeip flavor and suite \
                      '{s}' declares none of its own, so the DUT this case needs cannot be \
-                     known; declare its flavor in the overrides as \"{token}\" \
-                     (vsomeip_cfg / vsomeip_env) rather than inherit the in-tree one \
-                     by id coincidence"
+                     known; declare which DUT it needs under the overrides key \
+                     \"{token}\" rather than inherit the in-tree one by id coincidence: \
+                     the in-tree case's vsomeip_cfg / vsomeip_env to want that flavor, or \
+                     both empty (\"vsomeip_cfg\": \"\", \"vsomeip_env\": []) for the base DUT"
                 );
             }
             Ok(None)
@@ -193,6 +197,18 @@ mod tests {
         let own = lookup(&t, "Demo:someipsrv_rpc_17").unwrap().expect("own row");
         assert_eq!(own.cfg_basename, None);
         assert_eq!(own.env, ["TC8_DUT_DEMO=1"]);
+    }
+
+    // TD-39: the same-id case that WANTS the base DUT declares it with an empty row
+    // and runs, where without the declaration it is refused.
+    #[test]
+    fn another_suite_declaring_the_base_dut_is_not_refused() {
+        let mut t = two_suite_table();
+        assert!(lookup(&t, "demo:SOMEIPSRV_RPC_14").is_err(), "undeclared: refused");
+        t.extend(parse("demo:SOMEIPSRV_RPC_14||\n").unwrap());
+        let base = lookup(&t, "demo:SOMEIPSRV_RPC_14").unwrap().expect("declared row");
+        assert_eq!(base.cfg_basename, None);
+        assert!(base.env.is_empty());
     }
 
     #[test]

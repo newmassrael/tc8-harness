@@ -210,10 +210,11 @@ TestCommand::TestCommand(CLI::App &app) {
                    "verdict to assert; --negative-row injects the token itself, "
                    "so the driver never re-emits it.");
     sub_->add_flag("--list-vsomeip-variants", list_vsomeip_variants_,
-                   "Print every case carrying a DUT vsomeip flavor (the seventh "
-                   "inventory-overrides axis) as CASE|cfg|env1,env2 and exit — cfg "
-                   "is an alternate vsomeip config basename (empty = keep the base) "
-                   "and env are TC8_DUT_* the DUT app reads. The harness never "
+                   "Print every case whose overrides declare a DUT vsomeip flavor "
+                   "(the seventh inventory-overrides axis) as CASE|cfg|env1,env2 and "
+                   "exit — cfg is an alternate vsomeip config basename (empty = keep "
+                   "the base) and env are TC8_DUT_* the DUT app reads; a declaration "
+                   "with both empty prints CASE|| (the base DUT, declared). The harness never "
                    "launches the DUT; a driver iterates this to spawn it with the "
                    "right flavor.");
     sub_->add_flag("--negative-row", negative_row_,
@@ -370,7 +371,10 @@ int TestCommand::runListVsomeipVariants() const {
         if (!inSuiteScope(sc.suite)) {
             continue;
         }
-        if (sc.vsomeip_cfg.empty() && sc.vsomeip_env.empty()) {
+        // A row per DECLARATION, not per non-empty value: `ID||` is a case that
+        // declared the base DUT, which the orchestrator must be able to tell from a
+        // case that declared nothing (spec_inventory.h, vsomeip_declared).
+        if (!sc.vsomeip_declared) {
             continue;
         }
         std::string env;
