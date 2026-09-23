@@ -319,11 +319,15 @@ impl<'a> LwipTap<'a> {
     /// reap-selector matrix in `topology` mod docs): safe ONLY because `acquire_lock`
     /// gives this fixture a host-wide flock, so at most one such DUT runs host-wide
     /// and the name match cannot hit a concurrent fixture's DUT.
+    ///
+    /// Death is decided by `dut_running`, not by the name: the held child is judged
+    /// by its own handle, which is what keeps the warning for a DUT that really hung.
     fn kill_dut(&self, held: Option<Child>) {
+        let mut held = held;
         pkill(&["-TERM", "-f", &self.kill_name]);
         let mut gone = false;
         for _ in 0..KILL_ATTEMPTS {
-            if !pgrep_alive(&self.kill_name) {
+            if !dut_running(held.as_mut(), &self.kill_name) {
                 gone = true;
                 break;
             }
@@ -335,12 +339,17 @@ impl<'a> LwipTap<'a> {
                 KILL_ATTEMPTS as u64 * KILL_TICK.as_millis() as u64
             );
             pkill(&["-KILL", "-f", &self.kill_name]);
+            if let Some(c) = held.as_mut() {
+                // The held child by its own pid too, should its name not carry
+                // kill_name (a decoupled `[lwip] kill_name`).
+                let _ = c.kill();
+            }
         }
         if let Some(mut c) = held {
-            // Bounded like dispatch::CaseProcs::reap: the pkill above reaps the DUT
-            // (its argv carries kill_name), so wait() returns promptly; the bound
-            // guards the pathological missed-match (a decoupled kill_name) from
-            // hanging the run under the held state lock.
+            // Bounded like dispatch::CaseProcs::reap. On the happy path the poll
+            // above has already reaped the child and this returns at once; the bound
+            // guards a child that survived even SIGKILL from hanging the run under the
+            // held state lock.
             if !crate::dispatch::wait_bounded(&mut c, crate::dispatch::REAP_WAIT_TICKS) {
                 let _ = c.kill();
                 let _ = c.wait();
@@ -668,9 +677,14 @@ fn pkill(args: &[&str]) {
     crate::proc::run_quiet(Command::new("pkill").args(args));
 }
 
-/// `pgrep -f PATTERN` — true if any process matches (pgrep excludes its own pid).
-fn pgrep_alive(pattern: &str) -> bool {
-    crate::proc::run_ok(Command::new("pgrep").args(["-f", pattern]))
+/// Is the DUT still running? The held child answers for itself through
+/// `try_wait` — which also reaps it, since the fixture is its parent and nothing in
+/// the process table can show its death before that. The name poll answers only for
+/// what no handle covers (nothing held, or a process the held one started), and
+/// counts no zombie (reap-selector matrix in `topology` mod docs; TD-26).
+fn dut_running(held: Option<&mut Child>, kill_name: &str) -> bool {
+    let held_running = held.is_some_and(|c| matches!(c.try_wait(), Ok(None)));
+    held_running || crate::proc::running_match(kill_name.as_ref())
 }
 
 #[cfg(test)]
@@ -698,5 +712,28 @@ mod tests {
             "[lwip-tap] banner\nspawn 2: up\nspawn 2: SIGTERM, exiting\n"
         );
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// A held DUT that obeys SIGTERM is seen gone within the kill budget — the
+    /// TD-26 false alarm was this poll staying true on the exited, unreaped child —
+    /// and one that has not been signalled is still running.
+    #[test]
+    fn a_held_dut_that_exits_is_not_running() {
+        // A name nothing on the host carries, so only the held handle can answer.
+        let name = format!("tc8-no-such-dut-{}", std::process::id());
+        let mut child = Command::new("sleep").arg("30").spawn().expect("spawn");
+        assert!(dut_running(Some(&mut child), &name), "an unsignalled DUT is running");
+
+        // SAFETY: a pid we hold unreaped, so it cannot have been recycled.
+        unsafe { libc::kill(child.id() as libc::pid_t, libc::SIGTERM) };
+        let gone = (0..KILL_ATTEMPTS).any(|_| {
+            let running = dut_running(Some(&mut child), &name);
+            if running {
+                sleep(KILL_TICK);
+            }
+            !running
+        });
+        assert!(gone, "a DUT that obeyed SIGTERM must read as gone within the budget");
+        assert!(matches!(child.try_wait(), Ok(Some(_))), "the poll itself reaped it");
     }
 }

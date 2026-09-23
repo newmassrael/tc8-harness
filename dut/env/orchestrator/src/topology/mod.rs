@@ -19,6 +19,15 @@
 //! | `-f <kill_name>`    | `lwip_tap` (DUT app name)     | a process NAME, not a unique path — safe ONLY because the lwIP-tap fixture holds a host-wide flock (single-instance), so at most one such DUT exists host-wide and a name match cannot stomp a concurrent fixture. Relaxing that flock invariant would force this back to a path scope. |
 //! | exact PID (pidfile) | `fixtures::kill_pidfile`      | sshd: even a `-x sshd` would hit the host's own system sshd, so kill only the recorded PID. |
 //!
+//! The selector says whom to SIGNAL. Whether they have DIED is a separate question
+//! with its own rule: a process the orchestrator spawned and still holds as a
+//! `Child` is judged by `Child::try_wait`, because only its parent can make it
+//! vanish from the process table; a process-table poll (`proc::running_match`)
+//! answers only for what no handle covers, and never counts a zombie. A name
+//! selector breaks the naive poll where a path selector hides it: a zombie's
+//! cmdline is empty, so `pgrep -f` falls back to its comm, which a NAME matches
+//! and a symlink PATH never does (docs/tech-debt.md TD-26).
+//!
 //! PGID-based kill was deliberately rejected (bash smoke-test.sh, the SSOT
 //! baseline): under `set -m`, `ip netns exec` forks internally and the real binary
 //! is reparented to init, so its PGID is unreliable across iproute2 versions —
@@ -339,9 +348,10 @@ pub(crate) fn kill_by_marker(marker: &Path) {
         return;
     }
     for _ in 0..5 {
-        // pgrep exits non-zero when nothing matches → the processes are gone.
-        let gone = !crate::proc::run_ok(Command::new("pgrep").args(["-f"]).arg(m));
-        if gone {
+        // A process killed here may be one the dispatcher still holds unreaped (the
+        // single-pc case DUT is reaped only after stop_dut), so it is gone once it is
+        // a zombie — running_match does not count one.
+        if !crate::proc::running_match(m) {
             return;
         }
         sleep(Duration::from_millis(100));
