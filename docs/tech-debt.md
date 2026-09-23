@@ -1953,3 +1953,62 @@ cannot be deleted here: `mnemosyne-cli` has no remove-section verb.
 
 **Done when:** no binding to §4.4.5 remains, `validate-code-refs` reports no
 binding-class violation, and `mnemosyne.toml` names §4.4.5 among the phantom sections.
+
+---
+
+## TD-37 — `--vs-spec` counts a case as covering the TC8 spec whatever suite registered it
+
+**Status:** OPEN. **Logged:** 2026-09-24. Found 2026-09-18 while judging a consumer's cross-suite
+case-alias request, recorded then only outside this repository, and re-verified in-tree at
+`b324d50f`.
+
+**What it is.** Case identity is `(suite, id)` in `CaseRegistry`, but the coverage report drops the
+suite. `--list-cases --vs-spec` builds its registered set in
+`src/cli/commands/test_command.cpp` from `listSorted(/*include_deprecated=*/true)` as
+`canonicalise(e->id)`, with no suite, and the `test` subcommand has no `--suite` flag to scope it.
+So an injected suite's `ARP_03` marks the TC8 spec's ARP_03 as registered from a catalog that is not
+TC8's, and a consumer's own ids land among registered-but-not-in-spec unless `--inventory-extra`
+supplies a matching inventory.
+
+**Why it exists.** Only one suite has ever been registered in a shipped build, so an id was an
+identity. The registry learned the suite; the report did not.
+
+**Risk if left.** Latent while one suite is registered (today `543 / 543`, missing 0). With a second
+suite, the CI spec-coverage gate (`--vs-spec --strict`) can pass on a case the TC8 catalog does not
+register.
+
+**Textbook fix.** One catalog per report: give `test` a suite scope, and have `--vs-spec` count only
+the scoped suite's entries (default: the in-tree suite).
+
+**Done when:** `--vs-spec` counts only the scoped suite, and a unit test with two registered suites
+proves an injected suite's same-id case does not mark the TC8 spec case registered.
+
+---
+
+## TD-38 — the inventory axes resolve by case id alone, so a same-id case in another suite inherits them
+
+**Status:** OPEN. **Logged:** 2026-09-24, found and re-verified as TD-37.
+
+**What it is.** Every axis in `docs/spec/inventory_overrides.json` (expect overrides, negative rows,
+`vsomeip_cfg`/`vsomeip_env`, `timing_serial`, `platform_known_fail`, `expected:false`) is looked up
+through `specCaseFor` (`src/cli/commands/test_command.cpp`), which calls
+`SpecInventory::find(canonicalise(id))` with the case id alone. A case in an injected suite whose id
+matches an in-tree one inherits the TC8 entry: its stimulus changes, its DUT is provisioned for the
+TC8 case, and a `platform_known_fail` excuses its failure. A case whose id does not match inherits
+nothing. Measured on 2026-09-18 over what were then 144 override entries, 136 carried an axis that
+changes execution or lane routing, and 15 of them provision the DUT.
+
+**Why it exists.** Same as TD-37: the overrides file was written when the in-tree suite was the only
+one. TD-17 is this defect's orchestrator-side sibling for the vsomeip flavor table.
+
+**Risk if left.** Latent while one suite is registered. With a second, a consumer's row can be
+silently excused, or run a different stimulus than its name says. Nothing in the verdict shows it.
+
+**Textbook fix.** Key the lookup on `(suite, id)`: the in-tree overrides apply to the in-tree
+suite, and an injected suite carries its own (`--inventory-extra`). The axes differ in effect, so
+decide the resolution per axis, not per entry: one entry can carry several
+(`SOMEIPSRV_OPTIONS_11` and `SOMEIPSRV_SD_MESSAGE_13` each hold a stimulus override and a
+negative row).
+
+**Done when:** a case in a non-default suite resolves no in-tree axis unless its own inventory
+supplies it, and a unit test with two suites sharing an id proves it.
