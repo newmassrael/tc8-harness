@@ -327,7 +327,10 @@ jobs:
       # surfaces a wrong field (port count / payload / src port / src IP / reassembled length) in
       # the UT Confirmation — the report-corruption sibling of the app-layer discard faults, faulted
       # at the only faithful site (the stack delivered it correctly), and the _neg passes only
-      # when the corrupted field is observed. Finally the §4.8 TCP behavioral-synthesis pilot
+      # when the corrupted field is observed. Its _NEG2 siblings (UDP_USER_INTERFACE_02/03/04_NEG2
+      # + UDP_FIELDS_12_NEG2, kAppFaultReportNoReceipt) fault the receipt report itself: the
+      # listener loses the delivered datagram, and each passes only on received=0.
+      # Finally the §4.8 TCP behavioral-synthesis pilot
       # (TCP_ACKNOWLEDGEMENT_04_NEG, kTcpSynthRst): the DUT must stay silent for a pure ACK in
       # ESTABLISHED, so the netif INPUT hook synthesizes the prohibited RST on the connection's
       # 4-tuple (swapped from the inbound trigger; the guard checks only 4-tuple + RST flag, no
@@ -431,6 +434,8 @@ jobs:
             UDP_USER_INTERFACE_01_NEG UDP_USER_INTERFACE_02_NEG \
             UDP_USER_INTERFACE_03_NEG UDP_USER_INTERFACE_04_NEG \
             UDP_FIELDS_12_NEG \
+            UDP_USER_INTERFACE_02_NEG2 UDP_USER_INTERFACE_03_NEG2 \
+            UDP_USER_INTERFACE_04_NEG2 UDP_FIELDS_12_NEG2 \
             TCP_ACKNOWLEDGEMENT_04_NEG \
             TCP_HEADER_07_NEG TCP_HEADER_08_NEG TCP_HEADER_09_NEG TCP_HEADER_11_NEG \
             TCP_CHECKSUM_02_NEG \

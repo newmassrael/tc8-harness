@@ -19,5 +19,8 @@
            pass_expr="captured.ut_recv_payload_first16[0] != 0x10"
            fail_reason_field="dut_reported_correct_payload_despite_flavor"
            fail_state="fail_compliant"
-           fail_role="fault_injection_inert"/>
+           fail_role="fault_injection_inert"
+           no_receipt_state="inconclusive_no_receipt"
+           no_receipt_verdict="inconclusive"
+           no_receipt_role="precondition_unmet"/>
 </scxml>

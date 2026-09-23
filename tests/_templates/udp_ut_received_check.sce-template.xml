@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  §4.6.5.5 UDP_USER_INTERFACE 3-state UT-Confirmation field-check shape:
+  §4.6.5.5 UDP_USER_INTERFACE 4-state UT-Confirmation field-check shape:
   TESTER injects one UDP probe at the DUT's data port, then queries the
   Upper Tester's GetReceivedUdp opcode whose response carries the DUT's
   observed src_ip / src_port / payload bytes back to the harness.
@@ -15,11 +15,26 @@
     * fail_field_mismatch (fail) — Confirmation arrives correctly but
       {$pass_expr} evaluates false: the DUT received the datagram but the
       harness's view of an asserted field disagrees — an observed violation.
-    * deadline -> inconclusive (inconclusive_no_ut_confirmation): no UT GetReceivedUdp
-      Confirmation with ut_received == 1 arrived within the 5 s window, so
+    * no_receipt_state — Confirmation arrives correctly but carries
+      ut_received == 0: the DUT ANSWERED, and its answer is that it did not
+      receive the datagram. That is a DUT report, not a failed observation
+      vehicle, so it never shares the deadline's reason. What it means is
+      the consumer's to bind, and there are exactly two coherent bindings:
+        - a positive injects a datagram the DUT is REQUIRED to receive, so
+          the report is an observed violation: fail_no_receipt / fail /
+          observed_violation.
+        - a report-fault `_neg` corrupts a field of a RECEIVED datagram, so
+          a report of no receipt means the fault never had anything to act
+          on: the testable state was not reached, and the fault is neither
+          demonstrated nor shown inert: inconclusive_no_receipt /
+          inconclusive / precondition_unmet. A `_neg` carries exactly one
+          fail final (negative_coverage_audit.py), and it is fail_compliant.
+    * deadline -> inconclusive (inconclusive_no_ut_confirmation): no UT
+      GetReceivedUdp Confirmation arrived within the 5 s window at all, so
       the DUT's reception report — the sole observation vehicle — never
       materialised. A precondition fault (DUT/UT path produced no result),
-      not a field defect. Does not red the conformance gate.
+      not a field defect. Does not red the conformance gate. It means only
+      that: no Confirmation, whatever it would have said, lands here.
 
   Distinct from `ipv4_udp_ut_presence` whose single hinge is
   `ut_received == {$expected_received}`. UDP_USER_INTERFACE_02/_03/_04
@@ -46,6 +61,13 @@
        fail_role="fault_injection_inert" (the DUT reported correctly despite the flavor). -->
   <sce:param name="fail_state"              required="true"/>
   <sce:param name="fail_role"               required="true"/>
+  <!-- The ut_received == 0 answer (see the header): a positive binds
+       fail_no_receipt / fail / observed_violation, a report-fault `_neg` binds
+       inconclusive_no_receipt / inconclusive / precondition_unmet.
+       verdict_drift_audit.py holds the verdict to the role. -->
+  <sce:param name="no_receipt_state"        required="true"/>
+  <sce:param name="no_receipt_verdict"      required="true"/>
+  <sce:param name="no_receipt_role"         required="true"/>
 
   <sce:context id="captured"
                cpp:type="tc8::UdpCaptured"
@@ -65,6 +87,9 @@
     <transition event="udp_observed"
                 cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x81 and captured.ut_status == 0 and captured.ut_received == 1 and !({$pass_expr})"
                 target="{$fail_state}"/>
+    <transition event="udp_observed"
+                cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x81 and captured.ut_status == 0 and captured.ut_received == 0"
+                target="{$no_receipt_state}"/>
     <transition event="deadline_exceeded" target="inconclusive_no_ut_confirmation"/>
   </state>
 
@@ -77,6 +102,12 @@
   <final id="{$fail_state}">
     <donedata>
       <content>{"verdict":"fail","reason":"{$fail_reason_field}","role":"{$fail_role}"}</content>
+    </donedata>
+  </final>
+
+  <final id="{$no_receipt_state}">
+    <donedata>
+      <content>{"verdict":"{$no_receipt_verdict}","reason":"dut_reported_no_receipt","role":"{$no_receipt_role}"}</content>
     </donedata>
   </final>
 

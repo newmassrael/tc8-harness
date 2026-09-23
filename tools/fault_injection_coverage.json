@@ -77,6 +77,22 @@
     "TCP_MSS_OPTIONS_09": {
       "phase1_segment_size_not_advertised_mss_200": "TCP_MSS_OPTIONS_09_NEG",
       "phase2_segment_size_not_dut_mss_1460": "TCP_MSS_OPTIONS_09_NEG2"
+    },
+    "UDP_FIELDS_12": {
+      "dut_received_udp_with_unexpected_payload_length": "UDP_FIELDS_12_NEG",
+      "dut_reported_no_receipt": "UDP_FIELDS_12_NEG2"
+    },
+    "UDP_USER_INTERFACE_02": {
+      "dut_received_udp_with_wrong_payload_bytes": "UDP_USER_INTERFACE_02_NEG",
+      "dut_reported_no_receipt": "UDP_USER_INTERFACE_02_NEG2"
+    },
+    "UDP_USER_INTERFACE_03": {
+      "dut_received_udp_with_wrong_src_port_in_confirmation": "UDP_USER_INTERFACE_03_NEG",
+      "dut_reported_no_receipt": "UDP_USER_INTERFACE_03_NEG2"
+    },
+    "UDP_USER_INTERFACE_04": {
+      "dut_received_udp_with_wrong_src_ip_in_confirmation": "UDP_USER_INTERFACE_04_NEG",
+      "dut_reported_no_receipt": "UDP_USER_INTERFACE_04_NEG2"
     }
   }
 }
