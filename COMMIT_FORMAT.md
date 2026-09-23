@@ -57,7 +57,7 @@ TC8 / SOME/IP 컨포먼스 하네스 프로젝트의 커밋 메시지 규칙.
 | `feat` | 새 기능 / 케이퍼빌리티 | Add BPF filter builder, Implement SOME/IP-SD Subscribe verdict |
 | `refactor` | 동작 변경 없는 구조 개선 | Extract pcap thread manager, Unify dissect error paths |
 | `fix` | 버그 수정 | Fix TLV alignment on 32-bit, Correct SD entry length parse |
-| `docs` | 문서 변경 | Update tc8-harness-plan.md, Revise README scope |
+| `docs` | 문서 변경 | Update verdict_policy.md, Revise README scope |
 | `test` | 테스트 추가 / 수정 | Add ETS_42 happy path SCXML, Cover TCP FLAGS_INVALID |
 | `chore` | 빌드/툴링/의존성 | Update vsomeip submodule, Bump CommonAPI-SomeIP to 3.2.x |
 | `build` | CMake / 링크 / 패키징 | Wire find_package(PCAP), Fix libtins include path |

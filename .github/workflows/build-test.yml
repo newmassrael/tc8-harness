@@ -256,6 +256,17 @@ jobs:
           python3 tools/debt_census.py --self-test
           python3 tools/debt_census.py --check
 
+      - name: In-tree pointer gate
+        # Every "see X" in a tracked file must name something this public
+        # repository holds: no private-note name, no memory/ path, no .md that
+        # resolves to no tracked file (docs/tech-debt.md TD-34). Whole-tree and
+        # fail-closed; exemptions are (file, token) pairs with a reason.
+        # Pure-Python; the self-test runs first so a broken detector cannot
+        # pass by finding nothing.
+        run: |
+          python3 tools/intree_pointer_audit.py --self-test
+          python3 tools/intree_pointer_audit.py --check
+
       - name: Wire-constant manifest SSOT gate
         # The wire/fixture constants (IPs, MACs, tap/lock names, backstop) are
         # generated from tools/wire.def into wire.gen.{rs,sh}, and

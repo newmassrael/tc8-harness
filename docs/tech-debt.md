@@ -1839,8 +1839,9 @@ removed or re-argued on the verdict it then reaches.
 
 ## TD-34 — case comments cite rationale notes that live outside the repository
 
-**Status:** OPEN. **Logged:** 2026-09-24, while moving the known-fail justifications in-tree
-(TD-28 to TD-33).
+**Status:** RESOLVED (2026-09-24). **Logged:** 2026-09-24, while moving the known-fail
+justifications in-tree (TD-28 to TD-33). The entry below is the debt as logged; **Resolution** at
+its end records what closed it.
 
 **What it is.** Comments in the case sources point a reader at notes this repository does not
 hold: `reference_<topic>.md` files, or "`<topic>` memory", from a private note store. On
@@ -1875,6 +1876,24 @@ does not hold, the comment-side equivalent of `ref_resolves`.
 **Done when:** the search above returns no site outside the two test fixtures, the three
 grep-filter sentences are gone, and a pre-commit check rejects a new out-of-tree note
 pointer.
+
+**Resolution.** Each note's substance now sits where the code it explains lives, and every site
+points there. The notes cited from many places got an owner: the SCE guard-rewrite rules in
+`docs/scxml_guard_expressions.md` (checked against generated `.inl`), the Linux PACKET_HOST gate
+at `Ipv4FrameSpec::dst_mac`, the TCP port-quad history in `tcp_active_open_offsets.def`, the ETS
+extension seams in `docs/ets_dut_extension_seams.md`, and the DUT control seam in
+`docs/dut_control_seam.md`. A single-site note became a sentence at its site. Bringing the facts
+in exposed stale claims, which were corrected against a run, not transcribed:
+`TCP_UNACCEPTABLE_04` passes on kernel 7.0 (ESTABLISHED now acknowledges the unacceptable ACK), the
+harness no longer drops an empty UDP datagram, and `kBasicsActiveLocalPort` was not fixed per case.
+The grep-filter sentences were four, not three (`tcp_unacceptable_08.h` held the fourth).
+
+The search above measured one shape. The class was wider: 103 findings at `ae908462` once measured
+with `tools/intree_pointer_audit.py`, including `project_`/`feedback_` notes, 14
+`timing_serial_ref` values in `docs/spec/inventory_overrides.json`, ignored `claudedocs/` design
+notes cited from 16 sites, TD-17's own justification, and published site text. All resolve now.
+That audit is the check: it runs in pre-commit and in `build-test.yml`, scans every tracked file
+whole, fails closed, and allows exemptions only as (file, token) pairs with a reason.
 
 ---
 

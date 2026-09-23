@@ -55,6 +55,15 @@ if ! python3 "$HERE/../tools/negative_coverage_audit.py" --check >/dev/null; the
     exit 1
 fi
 
+# In-tree pointers: no tracked file may name a private note, a memory/ path, or
+# a .md this repository does not hold (docs/tech-debt.md TD-34). The reader of
+# this public repo must be able to follow every "see X".
+if ! python3 "$HERE/../tools/intree_pointer_audit.py" --check >/dev/null; then
+    echo "pre-commit: in-tree pointer gate FAILED — details:" >&2
+    python3 "$HERE/../tools/intree_pointer_audit.py" --check >&2 || true
+    exit 1
+fi
+
 # Self-hosted runner exposure: a workflow job that is not provably on a
 # GitHub-hosted runner may only be triggered by events needing repo WRITE access
 # (push / workflow_dispatch / schedule). Stops a `pull_request` or issue_comment

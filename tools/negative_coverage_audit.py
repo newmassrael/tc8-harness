@@ -379,8 +379,8 @@ _DEADLINE_EVENTS = ("deadline", "timeout", "window", "silence")
 # forbidden frame is conformant) sits in a case that nonetheless requires a
 # POSITIVE observation to PASS, so its deadline transition reaches `inconclusive`
 # rather than `pass`. The heuristic would read that as incorrect_emission; the
-# authored class is correct. Each entry records why (reviewed, docs/verdict_
-# policy.md Section 6).
+# authored class is correct. Each entry records why (reviewed,
+# docs/verdict_policy.md Section 6).
 CLASS_STRUCTURE_EXCEPTIONS = {
     "SOMEIP_ETS_096": "prohibited: forbidden SubscribeAck; PASS requires observing a NACK, so silence reaches inconclusive (not pass)",
 }
