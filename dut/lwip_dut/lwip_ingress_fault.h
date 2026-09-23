@@ -36,4 +36,10 @@ void setIngressFaultFlavor(std::uint8_t flavor);
 // Idempotent; call after the netif is up.
 void installIngressFaultHook(struct netif *nif);
 
+// Print what the input hook saw: total frames, IPv4 fragments, and frames
+// tcpip_input refused. The hook is the only probe point on the tap-read to
+// ip4_reass path, which is where fragments go missing with no lwIP statistic
+// recording it. Called once on teardown alongside stats_display().
+void reportIngressRxCounters();
+
 }  // namespace tc8::lwip_dut

@@ -48,6 +48,44 @@
 #define IP_REASS_MAX_PBUFS         64
 #define MEMP_NUM_REASSDATA         8
 
+/* In-flight frames between the tap reader thread and the tcpip thread. lwIP's
+ * default is 8, and `tcpip_input` allocates one of these PER FRAME and posts
+ * NON-BLOCKING: when the pool is empty it returns ERR_MEM and the frame is freed
+ * without a single IP-layer statistic recording it.
+ *
+ * MEASURED, and the reason this is here: UDP_FIELDS_12 injects a 65 507 B
+ * datagram as 45 fragments in ~1 ms. The tap delivered all 45 (hook count) and
+ * the kernel dropped none (tap tx_dropped flat across the burst), but
+ * TCPIP_MSG_INPKT peaked at 8/8 with err=27, so only 18 fragments ever reached
+ * ip4_reass — which then timed out holding an incomplete datagram and the case
+ * reported "the DUT never received it". 128 leaves ~3x headroom over the largest
+ * fragment train the suite emits (45). */
+#define MEMP_NUM_TCPIP_MSG_INPKT   128
+
+/* Stack counters, dumped once on SIGTERM teardown (tc8_lwip_dut.cpp). A case
+ * that reports "the DUT never received it" cannot say WHY from the wire alone —
+ * the fragments are all there and the UT answers — so the discard has to be read
+ * off the stack itself. ip.reasm / ip.fragfailed / memp err tell drop-on-arrival
+ * apart from lost-in-reassembly apart from pool exhaustion, which is the
+ * distinction UDP_FIELDS_12's first-datagram loss turns on. */
+#define LWIP_STATS                 1
+#define LWIP_STATS_DISPLAY         1
+/* Reassembly decision trace. Narrow on purpose: the counters say fragments are
+ * lost between the tap read and ip4_reass but no counter names the drop, and
+ * every layer in between has been cleared (pbuf pool max 33/120 err 0, tcpip
+ * mbox 128 > 45, tap tx_dropped 0 across the burst). IP_REASS_DEBUG makes lwIP
+ * state its own verdict per fragment. IP_DEBUG stays off — it prints per packet
+ * and would bury the reassembly lines. */
+/* #define LWIP_DEBUG 1 / IP_REASS_DEBUG LWIP_DBG_ON — leave OFF by default.
+ * MEASURED: the per-fragment printf is slow enough to CHANGE the result it is
+ * measuring (fragments reaching ip4_reass fell from ~38 to 19 with it on), so it
+ * is a diagnostic to switch on deliberately, never to leave enabled. */
+#define IP_STATS                   1
+#define MEM_STATS                  1
+#define MEMP_STATS                 1
+#define UDP_STATS                  1
+#define LINK_STATS                 1
+
 /* OpAbortTcpSocket (0x09) implements the spec ABORT primitive as
  * SO_LINGER{on, 0} + close => RST, same recipe as the Linux tc8-dut. (The UTM's
  * lwIP backend aborts via tcp_abort instead, so this is DUT-only.) */

@@ -15,6 +15,7 @@
 
 #include "lwip/ip4_addr.h"
 #include "lwip/netif.h"
+#include "lwip/stats.h"
 
 #include "lwip_egress_fault.h"
 #include "lwip_ingress_fault.h"
@@ -117,6 +118,13 @@ int main() {
     upper_tester.stop(/*abort=*/true);
     // Join the testability server + its async workers and close its sockets.
     testability.stop();
+    // Stack counters for the whole DUT lifetime, on the way out. A case that
+    // reports "the DUT never received it" while the wire shows every fragment and
+    // the UT answers cannot say WHERE the datagram went; these counters can.
+    // Cumulative, so compare two runs rather than reading one in isolation.
+    std::fprintf(stderr, "tc8-lwip-dut: lwIP stats follow\n");
+    tc8::lwip_dut::reportIngressRxCounters();
+    stats_display();
     std::fprintf(stderr, "tc8-lwip-dut: SIGTERM — UT slots aborted, exiting\n");
     return 0;
 }

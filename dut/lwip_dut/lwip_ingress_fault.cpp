@@ -29,6 +29,8 @@
 // lwIP itself is untouched — fixture glue only.
 #include "lwip_ingress_fault.h"
 
+#include <cstdio>
+
 #include <atomic>
 #include <cstdint>
 #include <cstring>
@@ -62,6 +64,17 @@ std::atomic<std::uint8_t> g_ingress_flavor{ut::kIngressFaultNone};
 // is forwarded to it after (optionally) producing the prohibited emission, so
 // lwIP's own reception (which drops the malformed/foreign frame) is unchanged.
 netif_input_fn g_orig_input = nullptr;
+
+// Frames seen by this hook, and how many of them tcpip_input REFUSED. The hook
+// sits on the only boundary lwIP does not count: tapif's read() is above it and
+// ip4_reass() is below, and a fragment lost between the two is invisible to every
+// lwIP statistic (pbuf pool, heap, ip_frag, tcpip mbox are all clean while
+// fragments go missing). `tcpip_input` posts NON-BLOCKING and silently frees the
+// pbuf on a full mailbox, so this counter is what tells "the tap never delivered
+// it" apart from "lwIP refused it after delivery".
+std::atomic<std::uint32_t> g_rx_frames{0};
+std::atomic<std::uint32_t> g_rx_ipv4_frags{0};
+std::atomic<std::uint32_t> g_input_refused{0};
 
 // kArpFaultReplyToDropFrame: a buggy DUT answering an ARP frame it should have
 // dropped (§4.2.4.2 ARP_21/27/37/42 reply-absence). `rx` points at the inbound
@@ -257,6 +270,20 @@ void learnDropFrameAddress(const std::uint8_t *rx) {
 //     the (valid) datagram — never forward it to lwIP — so the receive-counting app
 //     never sees one the DUT must accept.
 err_t ingressFaultInput(struct pbuf *p, struct netif *nif) {
+    g_rx_frames.fetch_add(1, std::memory_order_relaxed);
+    if (p != nullptr && p->payload != nullptr && p->len >= kIpProtoOff + 1) {
+        const auto *hdr = static_cast<const std::uint8_t *>(p->payload);
+        // An IPv4 fragment: MF set, or a non-zero fragment offset. Counted here so
+        // "the tap delivered every fragment" can be stated as a number rather than
+        // inferred from the tester's capture, which only proves what was SENT.
+        if (isIpv4(hdr) && (hdr[kEthHdrLen + 6] & 0x20U) != 0U) {
+            g_rx_ipv4_frags.fetch_add(1, std::memory_order_relaxed);
+        } else if (isIpv4(hdr) &&
+                   ((static_cast<std::uint16_t>(hdr[kEthHdrLen + 6] & 0x1FU) << 8) |
+                    hdr[kEthHdrLen + 7]) != 0U) {
+            g_rx_ipv4_frags.fetch_add(1, std::memory_order_relaxed);
+        }
+    }
     const std::uint8_t flavor = g_ingress_flavor.load(std::memory_order_relaxed);
     if (flavor != ut::kIngressFaultNone && p != nullptr && p->payload != nullptr) {
         auto *f = static_cast<std::uint8_t *>(p->payload);
@@ -400,13 +427,27 @@ err_t ingressFaultInput(struct pbuf *p, struct netif *nif) {
             }
         }
     }
-    return g_orig_input(p, nif);
+    const err_t rc = g_orig_input(p, nif);
+    if (rc != ERR_OK) {
+        // tcpip_input refused it (full mailbox — it posts non-blocking and frees
+        // the pbuf itself). lwIP counts this nowhere, so it is counted here.
+        g_input_refused.fetch_add(1, std::memory_order_relaxed);
+    }
+    return rc;
 }
 
 }  // namespace
 
 void setIngressFaultFlavor(std::uint8_t flavor) {
     g_ingress_flavor.store(flavor, std::memory_order_relaxed);
+}
+
+void reportIngressRxCounters() {
+    std::fprintf(stderr,
+                 "tc8-lwip-dut: rx_frames=%u rx_ipv4_frags=%u input_refused=%u\n",
+                 g_rx_frames.load(std::memory_order_relaxed),
+                 g_rx_ipv4_frags.load(std::memory_order_relaxed),
+                 g_input_refused.load(std::memory_order_relaxed));
 }
 
 void installIngressFaultHook(struct netif *nif) {
