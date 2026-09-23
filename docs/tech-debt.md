@@ -1909,3 +1909,44 @@ from the DUT that quotes the case's own IP Identification (`Icmpv4Captured::quot
 
 **Done when:** the four cases grade a DUT-origin Time Exceeded code 1 that quotes their own
 fragment as a fail, and each still passes on single-pc and lwip-tap.
+
+---
+
+## TD-36 — seven DHCP files are bound to a TC8 §4.4.5 that does not exist
+
+**Status:** OPEN. **Logged:** 2026-09-24, when rewrapping a comment in
+`tests/_templates/dhcpv4_renewing_retx_field.sce-template.xml` left its §4.4.5 binding
+unbacked.
+
+**What it is.** TC8's §4.4 (IPv4) has four subsections, 4.4.1 to 4.4.4
+(`docs/spec/split/tc8_p001-p020.txt`, the table of contents). The only "4.4.5" in the spec
+text is a row of the RFC 2131 cross-reference table. The atomic store
+(`docs/.atomic/workspace.atomic.json`) nevertheless holds a section `4.4.5`, "auto-seeded
+TC8-internal sub-section", with 7 `implements` bindings. Every one of the 7 files cites
+RFC 2131 §4.4.5 (RENEWING / REBINDING, T1 and T2), not TC8. The citation is either wrapped
+across a line (`(RFC` / `2131 §4.4.5)`) or bare after an earlier RFC section
+(`§4.3.2 (...) / §4.4.5`), so `validate-code-refs` does not see the `RFC` prefix and reads it
+as a TC8 section. The 7 files: `dut/dut_service/dhcpv4_client.cpp`,
+`dut/dut_service/dhcpv4_client.h`, `src/sce_integration/include/sce_integration/dhcpv4_captured.h`,
+`tests/_templates/dhcpv4_post_bound_discover.sce-template.xml`,
+`tests/_templates/dhcpv4_rebinding_retx_field.sce-template.xml`, and the
+`dhcpv4_client_reacquisition_03` / `_04` SCXMLs. An eighth, the renewing retx template, lost
+its binding on 2026-09-24 (commit `6724bceb`) once its citation was rewrapped onto one line.
+
+**Why it exists.** Same origin as the 7 unbound phantom sections `mnemosyne.toml` records next
+to `severity_coverage`: RFC citations split across lines were seeded as TC8 sections at
+adoption. That record covers only the phantoms left UNBOUND. A phantom that keeps its
+misread bindings raises no warning at all, so it was never counted.
+
+**Risk if left.** The store claims seven files implement a TC8 section that has no text,
+and the coverage view counts §4.4.5 as implemented. Any other section kept alive this way is
+equally invisible. Only §4.4.5 was measured; the TOC is three levels deep in most chapters,
+so it cannot by itself say which deeper store sections are phantoms.
+
+**Textbook fix.** Rewrite each of the 7 citations so `RFC 2131` stands on the same line as
+the section number, then `remove-section-binding` each pair. §4.4.5 then joins the unbound
+phantoms, and `mnemosyne.toml`'s count of them must be raised to 8. The section itself
+cannot be deleted here: `mnemosyne-cli` has no remove-section verb.
+
+**Done when:** no binding to §4.4.5 remains, `validate-code-refs` reports no
+binding-class violation, and `mnemosyne.toml` names §4.4.5 among the phantom sections.
