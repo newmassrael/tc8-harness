@@ -352,8 +352,8 @@ struct Dhcpv4Captured : CapturedFrameTiming, CapturedL3Endpoints,
         return dst_ip == 0xFFFFFFFFU;
     }
 
-    // §4.7.6.8 REACQUISITION_01 / §4.7.6.7 CONSTRUCTING_MESSAGES_02 / RFC
-    // 2131 §4.4.5: the RENEWING REQUEST MUST be IP-unicast to the server
+    // §4.7.6.8 REACQUISITION_01 / §4.7.6.7 CONSTRUCTING_MESSAGES_02 /
+    // RFC 2131 §4.4.5: the RENEWING REQUEST MUST be IP-unicast to the server
     // identified by Option 54 of the prior ACK. NBO equality against the
     // server identifier the harness emul advertised.
     bool dst_ip_equals(std::uint32_t expected_be) const noexcept {

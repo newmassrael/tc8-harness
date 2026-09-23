@@ -22,7 +22,7 @@
                         (= first REBINDING REQUEST, T2 fired)
                         → listening_for_second_rebinding_request
       Note: the DUT's RENEWING-state retransmission (second RENEWING
-      REQUEST under §4.4.5) lands during this state. Its dst is the
+      REQUEST under RFC 2131 §4.4.5) lands during this state. Its dst is the
       server identifier (unicast), not broadcast — cond does not
       satisfy → state stays. Only the eventual REBINDING REQUEST
       (broadcast at T2) advances.

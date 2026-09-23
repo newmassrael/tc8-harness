@@ -391,7 +391,7 @@ private:
     // the lease_seconds value from the matched ACK's Option 51:
     //   T1 = bound_at + lease/2     → emit RENEWING REQUEST (unicast)
     //   T2 = bound_at + lease * 7/8 → emit REBINDING REQUEST (broadcast)
-    //   lease expires at bound_at + lease (return-to-INIT per §4.4.5).
+    //   lease expires at bound_at + lease (return-to-INIT per RFC 2131 §4.4.5).
     // When lease_seconds == 0 (server emul didn't advertise Option 51),
     // skip the phase machine and idle until abort — preserves pre-S6a
     // behaviour for SELECTING-only test cases.

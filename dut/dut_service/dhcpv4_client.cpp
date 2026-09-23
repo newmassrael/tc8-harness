@@ -1310,8 +1310,8 @@ void Dhcpv4Client::runLoop(Params params) {
         // Option 51 the machine schedules T1/T2 transitions and polls
         // `sk` for ACK/NAK responses; otherwise it idles in steady
         // BOUND until abort. Returns true if the lifecycle should
-        // restart from DISCOVER (NAK in RENEWING/REBINDING per RFC
-        // 2131 RFC 2131 §3.1, or lease expiry per §4.4.5).
+        // restart from DISCOVER (NAK in RENEWING/REBINDING per
+        // RFC 2131 §3.1, or lease expiry per RFC 2131 §4.4.5).
         const bool init_restart =
             runBoundPhaseMachine(sk, xid_be, ack_server_be, ack_lease_seconds);
         ::close(sk);

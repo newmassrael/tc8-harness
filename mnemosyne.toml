@@ -112,9 +112,14 @@ severity_inventory = "reject"
 # TC8 spec mirror — auto-seeded prose sections without code bindings are
 # legitimate (the R427 schema split severity_coverage out of
 # severity_binding for exactly this adoption shape). Current warn
-# surface: 7 phantom sections left over from the 2026-06-10
-# mis-seeded-binding cleanup (RFC-multiline citations seeded as TC8
-# sections at adoption).
+# surface, 8 sections, checked against the TC8 table of contents
+# (docs/tech-debt.md TD-36):
+#   - 5 phantoms, RFC section numbers seeded as TC8 sections at adoption
+#     because a line-wrapped "RFC nnnn §x" lost its prefix: §4.2.2.6,
+#     §4.2.2.16, §4.2.2.17, §4.2.3.1 (RFC 1122) and §4.4.5 (RFC 2131).
+#     TC8 has none of them. mnemosyne-cli has no verb to delete a section.
+#   - 3 real TC8 prose sections that no code implements: §4.2.2 (ARP
+#     parameters), §4.2.3 (ARP terminology), §4.4.1 (IPv4 general).
 severity_coverage = "warn"
 comment_only = true
 

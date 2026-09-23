@@ -4,7 +4,7 @@
   DUT enters BOUND, then is forced back to INIT via either DHCPNAK
   injection (ALLOC_09) or lease expiration (REACQ_08). Pass criterion is
   the DUT-emitted second DHCPDISCOVER per RFC 2131 §3.1 (NAK path) and
-  §4.4.5 (lease-expiration path).
+  RFC 2131 §4.4.5 (lease-expiration path).
 
   Lifecycle (state count = 4):
     listening_for_discover (s1_deadline 6 s)

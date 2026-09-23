@@ -1707,37 +1707,7 @@
     },
     "4.4.5": {
       "parent_doc": "tc8-spec",
-      "intent": "TC8 §4.4.5 — auto-seeded TC8-internal sub-section (26 code citations at baseline).",
-      "bindings": [
-        {
-          "file": "dut/dut_service/dhcpv4_client.cpp",
-          "kind": "implements"
-        },
-        {
-          "file": "dut/dut_service/dhcpv4_client.h",
-          "kind": "implements"
-        },
-        {
-          "file": "tests/_templates/dhcpv4_post_bound_discover.sce-template.xml",
-          "kind": "implements"
-        },
-        {
-          "file": "tests/_templates/dhcpv4_rebinding_retx_field.sce-template.xml",
-          "kind": "implements"
-        },
-        {
-          "file": "tests/dhcpv4_client_reacquisition_03/dhcpv4_client_reacquisition_03.scxml",
-          "kind": "implements"
-        },
-        {
-          "file": "tests/dhcpv4_client_reacquisition_04/dhcpv4_client_reacquisition_04.scxml",
-          "kind": "implements"
-        },
-        {
-          "file": "src/sce_integration/include/sce_integration/dhcpv4_captured.h",
-          "kind": "implements"
-        }
-      ]
+      "intent": "TC8 §4.4.5 — auto-seeded TC8-internal sub-section (26 code citations at baseline)."
     },
     "4.5": {
       "parent_doc": "tc8-spec",

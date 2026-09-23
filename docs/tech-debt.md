@@ -1936,9 +1936,9 @@ fragment as a fail, and each still passes on single-pc and lwip-tap.
 
 ## TD-36 — seven DHCP files are bound to a TC8 §4.4.5 that does not exist
 
-**Status:** OPEN. **Logged:** 2026-09-24, when rewrapping a comment in
+**Status:** RESOLVED (2026-09-24). **Logged:** 2026-09-24, when rewrapping a comment in
 `tests/_templates/dhcpv4_renewing_retx_field.sce-template.xml` left its §4.4.5 binding
-unbacked.
+unbacked. The entry below is the debt as logged; **Resolution** at its end records what closed it.
 
 **What it is.** TC8's §4.4 (IPv4) has four subsections, 4.4.1 to 4.4.4
 (`docs/spec/split/tc8_p001-p020.txt`, the table of contents). The only "4.4.5" in the spec
@@ -1972,6 +1972,17 @@ cannot be deleted here: `mnemosyne-cli` has no remove-section verb.
 
 **Done when:** no binding to §4.4.5 remains, `validate-code-refs` reports no
 binding-class violation, and `mnemosyne.toml` names §4.4.5 among the phantom sections.
+
+**Resolution.** All seven files meant RFC 2131 §4.4.5, so none could be repointed to a TC8
+section; each binding was removed with `remove-section-binding` and its reason. Removing them let
+the gate name the exact misread line in each file, one per file. Five had "RFC" and "2131 §4.4.5"
+split across a line break, two named a bare "§4.4.5" after an earlier RFC citation. Each now reads
+"RFC 2131 §4.4.5" on one line, and one of them lost a doubled "RFC 2131 RFC 2131". Lines that
+already carried the prefix on the same line were never misread and are unchanged. §4.4.5 now has
+no binding and joins the unbound warn surface. `mnemosyne.toml`'s record of that surface was
+itself wrong: of its "7 phantom sections", three (§4.2.2, §4.2.3, §4.4.1) are real TC8 prose
+sections that no code implements. It now lists 5 phantoms and 3 unimplemented prose sections,
+each checked against the TC8 table of contents.
 
 ---
 
