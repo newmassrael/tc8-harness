@@ -1500,3 +1500,42 @@ cheapest honest answer. The capability is the one that answers for DUTs not yet 
 **Done when:** a run of the lwIP sweep reports zero non-conclusions for this case — because it
 passes, because the gate skipped it on a declared capability, or because the ledger no longer
 offers it — and `dut/lwip_dut/sweep-cases.sh` again emits only what the fixture can pass.
+
+---
+
+## TD-26 — the lwip-tap teardown reports "DUT ignored SIGTERM" for every DUT that obeyed it
+
+**Status:** OPEN. **Logged:** 2026-09-23, while closing TD-20 on lwip-tap.
+
+**What it is.** `LwipTap::kill_dut` (`dut/env/orchestrator/src/topology/lwip_tap.rs`) sends
+SIGTERM and then polls `pgrep -f <kill_name>` for 500 ms. It reaps the held `Child` only
+after that loop. A DUT that exits promptly becomes an unreaped zombie, and `pgrep -f`
+matches zombies. So the poll never sees the exit: the warning fires, and SIGKILL goes to a
+process that has already exited.
+
+Measured on 2026-09-23:
+
+- A 12-case lwip-tap run printed the warning after all 12 cases.
+- `/tmp/tc8-lwipfix-last-dut.log` holds 13 `SIGTERM — UT slots aborted, exiting` lines for
+  13 DUT spawns, so every DUT ran its orderly teardown and exited.
+- A standalone probe showed a child in state `Z` matched by `pgrep -f`, and no longer
+  matched once it was reaped.
+
+The earlier sweep's 349 warnings across 348 cases are the same artifact.
+
+**Why it exists.** The name-based poll was written for the case where the DUT is not our
+own child (the reap-selector matrix in the `topology` module docs). Here the fixture holds
+the `Child`, so the process table cannot show a death the fixture has not reaped yet.
+
+**Risk if left.** The warning is the only signal that a DUT's teardown really hung, which
+would leave UT slots un-RST and tester halves in FIN-WAIT-2 on reused quads. Firing on every
+case makes it noise, so a real hang would read like every other case. It also costs 500 ms
+per case: about three minutes over a full lwIP sweep.
+
+**Textbook fix.** Decide liveness from the handle the fixture already holds: poll
+`Child::try_wait` on the held child, and fall back to the name-based poll only when nothing
+is held. That also makes the SIGKILL fallback reachable only by a DUT that is really alive.
+
+**Done when:** a lwip-tap run of any cases prints no "DUT ignored SIGTERM" warning while the
+DUT log still shows one orderly `exiting` line per spawn, and a DUT made to ignore SIGTERM
+still produces the warning and the SIGKILL.
