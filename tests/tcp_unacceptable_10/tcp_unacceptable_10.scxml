@@ -28,11 +28,10 @@
       on the segment's 4-tuple. This is a third dispatch behaviour
       distinct from EST (silent-drop — the ACK path short-circuits)
       and FW1 / CW / CLOSING / LA (challenge-ACK via the receive
-      state machine); see reference_unacc_ack_dispatch memory.
-      A Linux DUT therefore lands `fail_dut_rst_to_unacc_ack` and is
-      excluded from CI green via grep filter in
-      .github/workflows/smoke-test.yml. A spec-compliant DUT
-      emitting an empty ACK lands pass without filter.
+      state machine). A Linux DUT therefore lands
+      `fail_dut_rst_to_unacc_ack` and carries a platform_known_fail
+      mark (see docs/tech-debt.md TD-31). A spec-compliant DUT
+      emitting an empty ACK lands pass.
 
   Observable protocol interaction: active-OPEN handshake →
   ESTABLISHED → the DUT issues a CLOSE, driving it into FIN-WAIT-1 →

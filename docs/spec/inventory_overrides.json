@@ -660,7 +660,7 @@
     },
     "TCP_UNACCEPTABLE_10": {
       "platform_known_fail": true,
-      "platform_known_fail_ref": "memory/reference_linux_tw_substate_oow.md"
+      "platform_known_fail_ref": "docs/tech-debt.md TD-31"
     },
     "UDP_USER_INTERFACE_07": {
       "neg_wrong_token": "ipv4.dut_alias_ip=10.99.99.99",

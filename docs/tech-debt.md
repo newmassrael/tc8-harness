@@ -1723,3 +1723,36 @@ deviation on every DUT.
 
 **Done when:** the Linux kernel drops an out-of-window RST on a timewait socket without
 answering it, so the reference DUT passes `TCP_FLAGS_INVALID_15` and the mark is removed.
+
+---
+
+## TD-31 — the Linux reference DUT resets new data on an orphaned FIN-WAIT-2, so TCP_UNACCEPTABLE_10 fails there
+
+**Status:** OPEN (accepted). **Logged:** 2026-09-24, from a run of the Linux known-fail set.
+
+**What it is.** `TCP_UNACCEPTABLE_10` closes the DUT's side, lets the tester acknowledge the
+FIN so the DUT reaches FIN-WAIT-2, and then sends two segments. The first has an
+out-of-window SEQ. The second has an in-window SEQ, four bytes of data and an unacceptable
+ACK. RFC 793 §3.9 answers both with an empty ACK, and TC8 grades that. Linux has already
+replaced the closed connection with a timewait socket in its FIN-WAIT-2 substate, and
+`tcp_timewait_state_process` (`net/ipv4/tcp_minisocks.c`) resets any segment that brings new
+data after a half-duplex close. It checks for new data before it looks at the ACK, so the
+second segment gets a RST. Measured on 2026-09-24 on kernel 7.0.0-31-generic, single-pc: the
+first segment drew an ACK 80 µs later, the second drew `Flags [R]` 74 µs later, and the case
+landed `fail:dut_rst_to_unacc_ack_finwait2`.
+
+RFC 1122 §4.2.2.13 says a TCP SHOULD send a RST when data arrives after the application has
+closed, so the kernel is following one RFC's rule where TC8 grades another's. The conflict
+comes from the stimulus: the spec's segment carries data.
+
+**Why it exists.** No sysctl changes this branch, so conditioning cannot bring the reference
+DUT onto the TC8 expectation. Sending the segment with no payload would avoid the branch, but
+it would no longer be the stimulus the spec describes.
+
+**Risk if left.** Contained. The case concludes on an observed segment.
+
+**Textbook fix.** None inside this repository.
+
+**Done when:** the Linux kernel answers an unacceptable ACK on an orphaned FIN-WAIT-2 with an
+empty ACK before it applies the new-data reset, so the reference DUT passes
+`TCP_UNACCEPTABLE_10` and the mark is removed.

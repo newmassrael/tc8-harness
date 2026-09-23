@@ -21,3 +21,4 @@ TD-18   needs a Tier-2 neighbour-query primitive plus DUT-side access on three t
 TD-28   the Linux kernel arms the reassembly timer from ipfrag_time alone, whatever the TTL
 TD-29   the Linux kernel points a Parameter Problem at the option start; no knob selects 22
 TD-30   the Linux timewait socket ACKs any out-of-window segment; no knob turns it off
+TD-31   the Linux timewait socket resets new data after close before it checks the ACK

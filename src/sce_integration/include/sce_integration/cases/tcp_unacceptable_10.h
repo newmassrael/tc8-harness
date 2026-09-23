@@ -48,11 +48,9 @@ struct TestCaseTraits<cases::TcpUnacceptable10SM>
     // Linux 6.5 FW2 substate emits RST not ACK on phase 2's unacc-ACK
     // (`tcp_minisocks.c::tcp_timewait_state_process` line 130-135 →
     // `tcp_v4_send_reset`). Linux DUT therefore lands
-    // `fail_dut_rst_to_unacc_ack`; case is excluded from CI green via
-    // grep filter in .github/workflows/smoke-test.yml. A spec-compliant
-    // DUT emitting an empty ACK lands pass without filter. See SCXML
-    // preamble + reference_unacc_ack_dispatch memory for the source
-    // trace.
+    // `fail_dut_rst_to_unacc_ack` and carries a platform_known_fail
+    // mark (see docs/tech-debt.md TD-31). A spec-compliant DUT emitting
+    // an empty ACK lands pass. The SCXML preamble has the source trace.
     //
     // Mechanism:
     //   1. Active-OPEN handshake → ESTABLISHED.
