@@ -169,7 +169,7 @@
     },
     "IPV4_REASSEMBLY_13": {
       "platform_known_fail": true,
-      "platform_known_fail_ref": "memory/reference_linux_ip_reassembly_deviations.md"
+      "platform_known_fail_ref": "docs/tech-debt.md TD-33"
     },
     "IPv4_FRAGMENTS_01": {
       "neg_wrong_token": "icmpv4.echo_id=0xFFFE",

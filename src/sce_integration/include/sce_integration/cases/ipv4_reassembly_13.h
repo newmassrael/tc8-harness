@@ -53,7 +53,8 @@ struct TestCaseTraits<cases::Ipv4Reassembly13SM>
     // grades that report as an observed violation. lwIP does this.
     // Linux (post-CVE-2018-5391, kernel 4.18+) instead discards the
     // whole queue, frag 0 included, the moment frag 2 overlaps, so it
-    // sends nothing and the case can only time out (inconclusive).
+    // sends nothing and the case can only time out (inconclusive;
+    // see docs/tech-debt.md TD-33).
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {
         ::tc8::sce::ipv4::fragments::dispatchEchoReplyOrReassemblyExpiry<SM>(c, sm, ev);
     }

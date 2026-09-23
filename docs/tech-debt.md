@@ -1792,3 +1792,42 @@ cases out of the lwIP sweep.
 **Done when:** lwIP gains a configuration that creates a cache entry from a gratuitous ARP
 Response, the fixture enables it, and `ARP_05`, `ARP_06` and `ARP_33` pass on lwip-tap with
 their marks removed.
+
+---
+
+## TD-33 — the Linux reference DUT silently discards an overlapping reassembly queue, so IPv4_REASSEMBLY_13 cannot conclude there
+
+**Status:** OPEN (accepted). **Logged:** 2026-09-24, from a run of the Linux known-fail set.
+
+**What it is.** `IPv4_REASSEMBLY_13` sends four fragments of one Echo Request: offset 0, a
+24-octet fragment at offset 2 with wrong data, an 8-octet fragment at offset 2 with the right
+data, and the last fragment at offset 3. RFC 791 §3.2's example procedure resolves the
+overlap in favour of the most recent data and reassembles, so the grade is an Echo Reply
+carrying the right 27 octets. Since the CVE-2018-5391 hardening (kernel 4.18) Linux instead
+discards the whole queue, fragment 0 included, as soon as the third fragment overlaps
+(`net/ipv4/ip_fragment.c`, `ip_frag_queue` → `inet_frag_kill`). The last fragment starts a
+new queue that never holds fragment 0, so when it expires the kernel sends no Time Exceeded
+either. The DUT says nothing at all.
+
+Measured on 2026-09-24 on kernel 7.0.0-31-generic, single-pc: the four fragments at +0.000,
++0.200, +0.401 and +0.601 s, then no frame from the DUT for the rest of the 5 s window.
+The case lands `inconclusive:no_echo_reply_after_overlap_reassembly`.
+
+**Why it exists.** The case grades a DUT's own report where one exists. lwIP lets the
+overlapped bucket expire and reports it, and reaches
+`fail:overlapping_datagram_discarded_by_reassembly_timeout`. Linux leaves only an absence,
+and an absence is not a fail. So the Linux mark in `docs/spec/inventory_overrides.json`
+holds back a NON-CONCLUSION, not a fail: the category TD-23 names. It is kept because
+the reason for the non-conclusion is a verified property of the DUT, not a gap in the
+harness. No sysctl makes the kernel keep an overlapped queue, and the only wire-visible
+alternative would be a different stimulus than the one the spec describes.
+
+**Risk if left.** Contained, with one caveat. If the kernel changed its overlap policy, the
+case would start passing unseen while the mark is in place. That is the staleness TD-23
+exists to catch.
+
+**Textbook fix.** None inside this repository.
+
+**Done when:** the Linux kernel reassembles an overlapped IPv4 datagram (or reports
+discarding it), so the reference DUT concludes on `IPv4_REASSEMBLY_13` and the mark is
+removed or re-argued on the verdict it then reaches.
