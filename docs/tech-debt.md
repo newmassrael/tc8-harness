@@ -2138,3 +2138,36 @@ empty env as "keep the base".
 `--list-vsomeip-variants` row, a harness unit test proves absent and empty differ, and an
 orchestrator test proves `demo:ID` with such a row resolves to the base flavor instead of being
 refused.
+
+---
+
+## TD-40 — an explicit `--inventory-overrides` path that does not exist is read as "no overrides"
+
+**Status:** OPEN. **Logged:** 2026-09-24, while adding the orchestrator's passthrough for TD-17.
+
+**What it is.** `SpecInventory::load` (`src/sce_integration/spec_inventory.cpp`) treats a missing
+overrides file as none at all ("Missing file is OK"). `TestCommand` passes the default path
+`docs/spec/inventory_overrides.json` when the flag is absent, and the flag's own value when it is
+given, and all five of its load sites repeat that choice. Nothing tells the two apart. So
+`tc8-harness test --inventory-overrides lwip_typo.json --list-cases --exclude-platform-known-fail`
+lists every case as if no platform were known to fail anything. A per-case run likewise drops its
+expect overrides and its negative row, and nothing on the console says why. The orchestrator's
+new passthrough checks its own flag before calling the harness. A direct harness caller (CI's bash
+drivers, a consumer's script) gets no such check.
+
+**Why it exists.** The tolerance serves the unflagged case, which falls back for a stripped
+environment in which `--list-cases` still works with `-` sections. It was never narrowed to that
+case. The five copies of the default-path choice are why nobody could.
+
+**Risk if left.** A typo in a platform overrides path silently drops every axis that file
+carries: platform known-fails, cadence routing, stimulus overrides and negative rows. It turns
+excluded failures into apparent new failures, or makes a negative run fail loudly for the wrong
+reason.
+
+**Textbook fix.** One place in `TestCommand` resolves the inventory paths and loads the inventory.
+It is used by all five sites, and it refuses an EXPLICIT overrides path that does not name a file,
+leaving the default path's tolerance where it is.
+
+**Done when:** `test --inventory-overrides <missing>` exits non-zero with an error naming the path
+on every mode that loads the inventory, the default-path fallback is unchanged, and the five load
+sites share one loader.
