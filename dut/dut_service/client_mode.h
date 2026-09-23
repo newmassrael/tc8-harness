@@ -22,8 +22,10 @@ namespace tc8::dut {
 // §5.1.6 SOMEIP_ETS_098/099/100 verdicts only depend on observing the DUT's
 // FindService emit pattern, so a one-shot Repetition-Phase burst is the
 // minimum infrastructure that satisfies the spec's "Start-Up only" assertion.
-// _101 (StopOfferService → DUT stops) and _097 (TCP retry) build on this
-// baseline; see project_someip_ets_seed_coverage.md for the forward outline.
+// _101 (StopOfferService → DUT stops FindService) builds on this runner.
+// _097 (TCP retry after a refused connect) takes a different path, the
+// CommonAPI client proxy methods behind TC8_DUT_CLIENT_MODE=1 (see its case
+// header, someip_ets_097.h).
 class ClientModeRunner {
 public:
     ClientModeRunner();

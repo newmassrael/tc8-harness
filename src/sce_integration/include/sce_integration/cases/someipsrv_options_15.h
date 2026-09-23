@@ -24,8 +24,9 @@ namespace tc8::sce {
 // therefore carries a TCP IPv4 Endpoint Option on the same service
 // — verifying L4-Proto=0x06 + port=30501 on that option satisfies
 // the spec invariant ("when port is TCP, L4-Proto = 0x06") without
-// requiring a separate SERVICE-ID-2 vsomeip configuration. See
-// project_someipsrv_options_coverage.md for the deviation log.
+// requiring a separate SERVICE-ID-2 vsomeip configuration. A check of
+// the SERVICE-ID-2 axis literally would need a second service entry in
+// dut/dut_service/vsomeip.json and a second case id.
 template <>
 struct TestCaseTraits<cases::Options15SM>
     : SomeIpAnyBase<cases::Options15SM> {

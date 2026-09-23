@@ -830,8 +830,9 @@ inline constexpr std::uint8_t kSocketTypeActive  = 0x01;
 // (0x0E, RFC 3927 §4 SHOULD NOT periodic gratuitous), or conflict-
 // resolution rate-limit (0x0F..0x12, RFC 3927 §2.2.1).
 // Spec invariant ↔ flavor is one-to-one — adding a new
-// flavor without a backing spec invariant is a category violation
-// (`feedback_frozen_spec_is_evidence.md`). The cadence cluster B
+// flavor without a backing spec invariant is a category violation:
+// a flavor exists to prove one stated guard can fire, and a fault no
+// guard checks validates nothing. The cadence cluster B
 // (_09/_10 / _05/_06) does NOT need a flavor: the existing six timing
 // knobs of `OpStartLLAutoconf` already parameterise interval / count,
 // so cadence-violation negatives pass 100 ms timing knobs through the

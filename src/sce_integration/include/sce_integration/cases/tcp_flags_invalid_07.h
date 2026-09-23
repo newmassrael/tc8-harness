@@ -64,8 +64,8 @@ struct TestCaseTraits<cases::TcpFlagsInvalid07SM>
     //
     // CASE 4 = FIN+ACK (not bare FIN): Linux's `tcp_v4_rcv` drops bare
     // FIN at PACKET_HOST → kernel-state lookup before reaching
-    // `tcp_check_req`'s OTW-SEQ branch, mirroring the 08~13 cluster
-    // convention (see project_tcp_flags_invalid_coverage memory). The
+    // `tcp_check_req`'s OTW-SEQ branch, the convention every case of
+    // the 07~13 cluster follows for CASE 4 (FIN+ACK, never bare FIN). The
     // FIN-with-ACK shape carries a valid ack=ISN_d+1, identical to the
     // CASE 2/3/5 envelope.
     //
