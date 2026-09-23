@@ -1383,3 +1383,83 @@ marked known-fail at all.
 **Done when:** `tools/debt_census.py` reports zero known-fail entries whose justification does
 not resolve in-tree, a scheduled run re-measures the excluded set and has been seen to red on a
 case that started passing, and a case without a `fail` final is rejected as a known-fail mark.
+
+---
+
+## TD-24 — a multi-phase TCP case answers the DUT once, and a conforming retry starves the later phases
+
+**Status:** OPEN. **Logged:** 2026-09-23, from the pcap of the one TCP non-conclusion left in
+the lwIP sweep (346 of 348 pass, zero failures).
+
+**What it is.** `TCP_UNACCEPTABLE_08` runs two phases against two port quads. Phase 1 works:
+the DUT opens, the harness answers with a SYN+ACK carrying an unacceptable ack, and the DUT
+sends the RST the case grades. What happens next is the problem. RFC 793 says a SYN-SENT
+connection receiving an unacceptable ack forms a reset AND STAYS IN SYN-SENT, so the DUT
+retransmits its SYN — same source port, same sequence number. On the wire, five times over
+about 2.85 s. The harness answers none of them: its crafted SYN+ACK is a one-shot. The 2.4 s
+listen window therefore expires inside phase 1, and phase 2 emits its SYN a few hundred
+microseconds after the window closed, into a tester with nothing listening, so the kernel RSTs
+it. The verdict is `inconclusive:no_dut_rst_phase2_ack_with_unacceptable_ack` — which names
+the DUT for a window the harness spent.
+
+**Why it exists.** The Linux reference DUT does not retransmit here, so phase 1 finishes in
+milliseconds and phase 2 has the whole window. The single-shot answer was sufficient for every
+backend the case had ever run against, and the shape only becomes visible on a stack that
+implements the SYN-SENT rule literally.
+
+**Risk if left.** It is a non-conclusion, which renders as JUnit `<skipped>` and is green, and
+it sits on the one case in the family that grades the phase-2 path at all. More broadly the
+shape is not specific to this case: any multi-phase case whose earlier phase leaves the DUT
+retrying will squeeze the later ones, and the reason string will keep naming the DUT. Nothing
+currently detects "the window closed inside an earlier phase".
+
+**Textbook fix.** Two independent halves. Answer the retransmission: the crafted SYN+ACK
+should be re-sent for each matching SYN on that quad for as long as the phase is live, which
+is what a real peer does and what makes phase 1 terminate promptly. And make the starvation
+observable rather than inferred — a phase that never opened its own window should say so, in
+the `tc8::UnperformedStimulus` vocabulary that already exists for "this did not happen", not
+report an absence as if the DUT had been asked.
+
+**Done when:** the harness answers a repeated SYN on a live phase quad, `TCP_UNACCEPTABLE_08`
+passes on both the lwIP fixture and the Linux reference, and a phase whose window never opened
+reports that fact instead of a DUT-shaped absence reason.
+
+---
+
+## TD-25 — the lwIP fixture has one address, and the case that needs a second one reports as a non-conclusion
+
+**Status:** OPEN. **Logged:** 2026-09-23, the other non-conclusion in the same sweep.
+
+**What it is.** `UDP_USER_INTERFACE_07` proves the DUT honours a caller-specified source
+address, which needs the DUT to HAVE a second one: the netns topology supplies the alias
+172.16.0.5 via `dut/env/setup-netns.sh`, and the stimulus passes it as the `OpTriggerSendUdp`
+source override. The lwIP fixture runs one netif with one address, so the opcode answers
+status 0x03 and the unperformed-stimulus guard correctly downgrades the case to
+`inconclusive:stimulus_TriggerSendUdp_not_performed`. The guard is doing its job. What is
+wrong is upstream of it: `dut/lwip_dut/sweep-cases.sh` says in its own header that it emits
+"every case the fixture can meaningfully pass", and this one cannot, so the list and its
+contract disagree.
+
+**Why it exists.** The list is derived rather than hand-written — it is `--list-cases` minus
+the entries the per-platform overrides ledger drops — which is the right design and is why it
+has stayed correct through every other change. This case simply has no ledger entry, and the
+premise it needs is one no existing axis names: `requires_secondary_iface` exists in
+`docs/spec/inventory_overrides.json` but means a second INTERFACE on the tester side, not a
+second address on the DUT.
+
+**Risk if left.** Small but of a kind worth not accumulating: a standing non-conclusion trains
+a reader to expect one, and the next non-conclusion to appear beside it gets the same shrug.
+The sweep table in `dut/lwip_dut/README.md` also carries it as a permanent footnote for a
+condition that is not a stack deviation at all.
+
+**Textbook fix.** Decide which of three it is, and say so in the tree rather than in a habit.
+Give the fixture a second address — lwIP can carry a second netif on the same tap, at the cost
+of routing complexity the fixture has so far avoided; or declare the premise as a capability,
+so the gate skips the case honestly on any DUT lacking it, which generalises past this fixture;
+or record it in `dut/lwip_dut/inventory_overrides.json` as an `expected: false` fixture gap
+with an in-tree justification, which is the category the sweep list already drops and the
+cheapest honest answer. The capability is the one that answers for DUTs not yet written.
+
+**Done when:** a run of the lwIP sweep reports zero non-conclusions for this case — because it
+passes, because the gate skipped it on a declared capability, or because the ledger no longer
+offers it — and `dut/lwip_dut/sweep-cases.sh` again emits only what the fixture can pass.
