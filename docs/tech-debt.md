@@ -1368,8 +1368,14 @@ Linux-side entries additionally justify themselves by pointing at paths outside 
 (`tools/debt_census.py` lists them), so a reader here cannot check the reason either.
 
 **Textbook fix.** Three parts, independent. Make the exclusion OBSERVABLE: run the known-fail
-set on a cadence that is not the gate — its own workflow, reporting "these are still failing"
-and reddening only when one has started passing, which is the signal the ledger exists to catch.
+set — the complement of what `dut/lwip_dut/sweep-cases.sh` emits, since that script passes
+`--exclude-platform-known-fail` — and report "these are still failing", reddening only when one
+has started passing, which is the signal the ledger exists to catch. Note what NOT to do: a
+weekly cron over the whole sweep already existed and was retired on 2026-06-11 because the
+serialized self-hosted runner paid about thirty minutes a week for axes already covered
+per-push (`.github/workflows/lwip-sweep.yml` records the reasoning). Re-adding that cron would
+undo a decision already taken. The excluded set is small and disjoint from the sweep, which is
+what makes measuring it affordable where measuring everything was not.
 Move every justification in-tree, so `platform_known_fail_ref` resolves to a tracked path or a
 TD id. And require a mark to name what it suppresses, so a case with no `fail` final cannot be
 marked known-fail at all.
