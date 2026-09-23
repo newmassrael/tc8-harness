@@ -1689,3 +1689,37 @@ is not a fix; it is the defect the strict comparison was written to remove.
 
 **Done when:** the Linux kernel reports the offending pointer octet (22 here), so the
 reference DUT passes `ICMPv4_ERROR_02` and the mark is removed.
+
+---
+
+## TD-30 — the Linux reference DUT acknowledges an out-of-window RST in FIN-WAIT-2, so TCP_FLAGS_INVALID_15 fails there
+
+**Status:** OPEN (accepted). **Logged:** 2026-09-24, from a run of the Linux known-fail set.
+
+**What it is.** `TCP_FLAGS_INVALID_15` drives the DUT through eight connection states and, in
+each one, sends a RST whose sequence number is 16 MiB past the window. RFC 793 §3.9 says an
+unacceptable RST is dropped, so the case grades an absence: no RST and no pure ACK from the
+DUT. The full-socket states pass. Once the DUT's application has closed and its FIN has been
+acknowledged, Linux moves the connection to a timewait socket (FIN-WAIT-2 orphan, later
+TIME-WAIT). There `tcp_timewait_state_process` (`net/ipv4/tcp_minisocks.c`) answers ANY
+out-of-window segment, RST included, with a rate-limited duplicate ACK. Measured on 2026-09-24
+on kernel 7.0.0-31-generic, single-pc: phase 4's RST at 00:12:39.576653 drew a DUT ACK 111 µs
+later, and the case landed `fail:dut_emitted_response_to_otw_rst_in_fw2`. Phase 8 (TIME-WAIT)
+takes the same kernel branch but is not reached once phase 4 has failed.
+
+This fits the broader RFC 5961 reading ("challenge anything out of window") and conflicts with
+RFC 793 §3.9, which is what TC8 grades.
+
+**Why it exists.** No sysctl disables the timewait duplicate ACK
+(`tcp_invalid_ratelimit` only spaces them), so conditioning cannot bring the reference DUT
+onto RFC 793 here. An earlier version of the case graded only "no DUT RST" in these two
+phases so that Linux would pass. That hid the deviation from every DUT, so it was reverted.
+
+**Risk if left.** Contained. The case concludes on an observed segment, and phases 1-3 still
+grade the full-socket path on Linux in any run that includes the case.
+
+**Textbook fix.** None inside this repository. Narrowing the guard again would pass the
+deviation on every DUT.
+
+**Done when:** the Linux kernel drops an out-of-window RST on a timewait socket without
+answering it, so the reference DUT passes `TCP_FLAGS_INVALID_15` and the mark is removed.

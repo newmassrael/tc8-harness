@@ -648,7 +648,7 @@
     },
     "TCP_FLAGS_INVALID_15": {
       "platform_known_fail": true,
-      "platform_known_fail_ref": "memory/reference_linux_tw_substate_oow.md"
+      "platform_known_fail_ref": "docs/tech-debt.md TD-30"
     },
     "TCP_RETRANSMISSION_TO_08": {
       "platform_known_fail": true,

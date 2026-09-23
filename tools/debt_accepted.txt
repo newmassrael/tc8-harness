@@ -20,3 +20,4 @@ TD-17   waits on the suite-scoping model (claudedocs/case-alias-across-suites-re
 TD-18   needs a Tier-2 neighbour-query primitive plus DUT-side access on three topologies
 TD-28   the Linux kernel arms the reassembly timer from ipfrag_time alone, whatever the TTL
 TD-29   the Linux kernel points a Parameter Problem at the option start; no knob selects 22
+TD-30   the Linux timewait socket ACKs any out-of-window segment; no knob turns it off
