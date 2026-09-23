@@ -1831,3 +1831,44 @@ exists to catch.
 **Done when:** the Linux kernel reassembles an overlapped IPv4 datagram (or reports
 discarding it), so the reference DUT concludes on `IPv4_REASSEMBLY_13` and the mark is
 removed or re-argued on the verdict it then reaches.
+
+---
+
+## TD-34 — case comments cite rationale notes that live outside the repository
+
+**Status:** OPEN. **Logged:** 2026-09-24, while moving the known-fail justifications in-tree
+(TD-28 to TD-33).
+
+**What it is.** Comments in the case sources point a reader at notes this repository does not
+hold: `reference_<topic>.md` files, or "`<topic>` memory", from a private note store. On
+2026-09-24 a search over `src/`, `tests/`, `dut/`, `include/`, `tools/` and `unit_tests/`
+found 42 such sites in 41 files, citing 13 distinct notes. The most-cited are
+`reference_icmp_packet_host_gate.md` (12 sites), `reference_sce_captured_arg.md` (11) and
+`reference_active_open_port_quad_collision.md` (8). The search was
+`git grep -nE 'reference_[a-z0-9_]+(\.md| memory)|[a-z_]+ memory for|memory/[a-z_]+\.md'`. The
+`memory/…` strings in `tools/debt_census.py` and `unit_tests/spec_inventory_test.cpp` are
+test fixtures, not pointers, and are not counted.
+
+A related, smaller defect sits beside some of them: `tcp_unacceptable_04.h`,
+`tests/tcp_unacceptable_04/tcp_unacceptable_04.scxml` and
+`tests/tcp_unacceptable_08/tcp_unacceptable_08.scxml` still say the case "is excluded from CI
+green via grep filter in .github/workflows/smoke-test.yml". Neither case carries a mark any
+longer, and no such filter exists.
+
+**Why it exists.** The notes were written during investigations and cited from the code they
+explained. `platform_known_fail_ref` gained a resolution check (`tools/debt_census.py`
+`ref_resolves`), but a comment has no such check, so nothing ever asked whether the pointer
+could be followed.
+
+**Risk if left.** A reader of this repository, or anyone it is published to, meets a
+justification they cannot read. The claims next to the pointers go stale unseen, as the
+three grep-filter sentences already have.
+
+**Textbook fix.** Bring each note's substance in-tree, next to the design it explains (a
+`docs/` page or the owning header), and repoint every site. Then make the class checkable:
+a pre-commit audit that rejects a comment citing a `reference_*.md` or "memory" note the tree
+does not hold, the comment-side equivalent of `ref_resolves`.
+
+**Done when:** the search above returns no site outside the two test fixtures, the three
+grep-filter sentences are gone, and a pre-commit check rejects a new out-of-tree note
+pointer.
