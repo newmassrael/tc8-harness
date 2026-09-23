@@ -1539,3 +1539,33 @@ is held. That also makes the SIGKILL fallback reachable only by a DUT that is re
 **Done when:** a lwip-tap run of any cases prints no "DUT ignored SIGTERM" warning while the
 DUT log still shows one orderly `exiting` line per spawn, and a DUT made to ignore SIGTERM
 still produces the warning and the SIGKILL.
+
+---
+
+## TD-27 — a lwip-tap case's DUT log holds only the fixture banner, never the DUT's own output
+
+**Status:** OPEN. **Logged:** 2026-09-23, while working on TD-26.
+
+**What it is.** On every other topology the per-case `<case>.dut.log` (in `--log-dir`, or in
+the scratch work root) is the DUT's own stdout and stderr for that case. On lwip-tap,
+`LwipTap::start_dut` (`dut/env/orchestrator/src/topology/lwip_tap.rs`) writes one provenance
+line to it and nothing else. The DUT that served the case was spawned earlier, at bring-up or
+in the previous case's `stop_dut`, with its output appended to the run-wide
+`<FIX_DIR>/dut.log`. Teardown renames that file to `/tmp/tc8-lwipfix-last-dut.log`, and the
+next run overwrites it.
+
+**Why it exists.** The DUT is respawned between cases, so it starts before the path of the case
+it will serve is known. The fixture never connected the spawn to that path afterwards.
+
+**Risk if left.** The DUT's side of a case cannot be read next to that case's harness log and
+pcap. A run's DUT output lives in one host-global file with every case mixed together, and the
+next run loses it. TD-26's own Done-when ("one orderly `exiting` line per spawn") can only be
+checked by counting lines in that shared file, not per case.
+
+**Textbook fix.** Record where each spawn's output starts in the run log. When `start_dut` is
+given the case's DUT log path, keep it with that spawn. Once `stop_dut` has killed and reaped
+the spawn, its output is complete, so append that range to the case's DUT log. The run log
+stays as the postmortem of the whole run.
+
+**Done when:** a lwip-tap run with `--log-dir` leaves each case's `.dut.log` holding the
+banner, then the lwIP DUT's own lines for that case, ending in its SIGTERM `exiting` line.
