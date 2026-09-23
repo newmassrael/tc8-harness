@@ -81,12 +81,12 @@ inline constexpr std::uint16_t kBasicsTesterPort = 49152U;
 inline constexpr std::uint16_t kBasicsActiveRemotePort = 23456U;
 
 // **active-open path** local DUT port. tc8-dut binds (iface_ip,
-// kBasicsActiveLocalPort) before connect() so the DUT-side source
-// endpoint is deterministic for tester filtering. Chosen above the
-// passive listen port and outside the raw-inject pair so each path's
-// port quad is visually distinct in pcap. Kept fixed across cases — a
-// per-case override would buy nothing because the active fd's lifetime
-// is bounded by OpCloseTcpSocket within the same case.
+// kBasicsActiveLocalPort + offset) before connect() so the DUT-side
+// source endpoint is deterministic for tester filtering. Chosen above
+// the passive listen port and outside the raw-inject pair so each
+// path's port quad is visually distinct in pcap. The per-case offset,
+// and why every case and phase gets its own, is
+// tcp_active_open_offsets.def.
 inline constexpr std::uint16_t kBasicsActiveLocalPort = 49500U;
 
 // Listen backlog for the tester's auxiliary listener. backlog=1 covers

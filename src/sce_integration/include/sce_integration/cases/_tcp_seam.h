@@ -52,10 +52,9 @@ namespace tc8::sce::tcp {
 // handshake grace remains.
 //
 // `local_port` / `remote_port` are intentionally non-default — every caller
-// must pick a unique 4-tuple from the +200.. reservation block so a
-// TIME-WAIT / LAST_ACK residue from a sibling on the same worker netns does
-// not collide with the next case's bind (see
-// reference_active_open_port_quad_collision.md).
+// must pick a unique 4-tuple from the offset registry so a TIME-WAIT /
+// LAST_ACK residue from a sibling on the same worker netns cannot collide
+// with the next case's bind (see tcp_active_open_offsets.def).
 struct SeamActiveOpen {
     TesterTcpListener                       listener;  // tester-side receiver (RAII, move-only)
     std::optional<::tc8::sce::DutConnection> conn;     // DUT's connected socket, or nullopt

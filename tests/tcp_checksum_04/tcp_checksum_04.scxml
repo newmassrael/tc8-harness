@@ -64,7 +64,7 @@
   NAGLE_02/03 at +132/+133, OUT_OF_ORDER + PROBING_WINDOWS +
   RETRANSMISSION_TO at +143..+156, CONNECTION_ESTAB_03 at +176..+178)
   per the active-open port-quad collision rules
-  (reference_active_open_port_quad_collision.md).
+  (tcp_active_open_offsets.def).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"

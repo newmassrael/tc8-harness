@@ -66,8 +66,8 @@
   leftover state, which the SYN-SENT DUT answers with RFC 793 §3.4
   RST(seq=incoming.ack), false-firing the absence guard. Choosing
   +20 (well clear of 15's +0..+6 range) eliminates the cross-case
-  contamination — see reference_active_open_port_quad_collision.md
-  for the BASICS_11 incident the pattern was first documented in.
+  contamination — see tcp_active_open_offsets.def for this tester-side
+  leak and the BASICS_11 incident the pattern was first documented in.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"

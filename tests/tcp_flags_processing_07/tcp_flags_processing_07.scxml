@@ -21,7 +21,7 @@
   TIME-WAIT substate (FLAGS_INVALID_15 phases 4 / 8).
 
   Per-phase port quads (cluster collision dodge — see
-  reference_active_open_port_quad_collision.md):
+  tcp_active_open_offsets.def):
     * Phase 1 CW:      (kBasicsActiveLocalPort + 53, +53)
     * Phase 2 CLOSING: (+54)
     * Phase 3 LA:      (+55)

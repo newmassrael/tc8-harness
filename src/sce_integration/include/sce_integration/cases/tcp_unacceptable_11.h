@@ -80,7 +80,7 @@ struct TestCaseTraits<cases::TcpUnacceptable11SM>
         // leaving a ~60 s LAST_ACK residue, so the two phase offsets must
         // differ from each other AND from sibling UNACCEPTABLE_12 — otherwise
         // a same-worker bind hits EADDRNOTAVAIL (the BASICS_11 collision
-        // class, reference_active_open_port_quad_collision.md).
+        // class, tcp_active_open_offsets.def).
         constexpr std::array<std::uint16_t, 2> kPhaseOffsets = {
             kTcpUnacceptable11Phase1LocalOffset,
             kTcpUnacceptable11Phase2LocalOffset};

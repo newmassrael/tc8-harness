@@ -10,7 +10,7 @@
     * CASE 3: <wst> = SYN-SENT → DUT MUST NOT respond / retransmit SYN
 
   Per-phase port quads (cluster collision dodge — see
-  reference_active_open_port_quad_collision.md):
+  tcp_active_open_offsets.def):
     * Phase 1: (kBasicsClosedPort, kBasicsTesterPort) — bare FIN
       injected to an unbound DUT port → the DUT finds no socket →
       emits RST(seq=0) per RFC 793 §3.9. Same wire shape as

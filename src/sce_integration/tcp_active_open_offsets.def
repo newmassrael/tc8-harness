@@ -20,6 +20,25 @@
 // runtime TIME-WAIT/EADDRNOTAVAIL residue collision between cases; the invariant
 // is the cheap compile-time guarantee that the values never alias regardless.
 //
+// Why the offsets exist at all — the two collisions they were introduced for,
+// measured when cases on one worker still shared a DUT netns. A case leaves TCP
+// state on its 4-tuple for up to 60 s, and a later case reusing the tuple
+// inherited it:
+//   * DUT side: a closed or killed tc8-dut leaves sockets in LAST_ACK /
+//     TIME-WAIT, so the next bind+connect on the tuple is refused by
+//     `__inet_check_established` (EADDRNOTAVAIL, "tcp active connect ...
+//     Cannot assign requested address" in the DUT log) and the case times out
+//     on no_dut_handshake_ack. First seen as TCP_BASICS_11 failing only in a
+//     4-worker regression, never alone.
+//   * Tester side: a tester socket closed silently (TCP_REPAIR + close, no FIN)
+//     still answers on its old tuple. A later SYN-SENT case got a stray ACK and
+//     the DUT answered it with RST(seq=incoming.ack) per RFC 793 §3.4,
+//     false-firing an absence guard (FLAGS_INVALID_03..06 after 15).
+// Draining the residue instead is not an option on the DUT side: SO_LINGER{0}
+// turns the DUT's FIN into a RST and breaks every case that walks the FIN
+// states. The seam helpers take the port quad with no default, so a new
+// active-OPEN caller must pick an offset here.
+//
 // A positive and its mirror `_NEG` deliberately SHARE one constant (identical
 // 4-tuple; the _NEG only arms a fault flavor) — that aliasing is one entry here,
 // referenced by both. Passive-listener absolute ports (kTcp*ListenPort /
