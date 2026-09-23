@@ -25,7 +25,7 @@ namespace tc8::sce::tcp {
 // (_tcp_seam_passive_open.h, _tcp_seam_time_wait_prelude.h). A case built on
 // these runs unchanged on whichever backend `--dut-control` selected (opcode UT
 // or AUTOSAR testability) — the Tier-2 North Star
-// (claudedocs/testability_seam_tier2_design.md).
+// (docs/dut_control_seam.md).
 //
 // Lives in its own header (not tcp_pilot_common.h) on purpose: it pulls in
 // dut_control.h, and tcp_pilot_common.h is shared by ~113 TCP case TUs that

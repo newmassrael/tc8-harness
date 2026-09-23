@@ -16,7 +16,7 @@ namespace tc8::sce::tcp {
 // SAME cores the opcode wrappers use, so there is one source of truth for the
 // wire mechanics and only the DUT-close verb differs by backend. A case built on
 // these runs unchanged on whichever backend `--dut-control` selected — the
-// Tier-2 North Star (claudedocs/testability_seam_tier2_design.md).
+// Tier-2 North Star (docs/dut_control_seam.md).
 //
 // Lives in its own header (not tcp_pilot_common.h, which ~113 TCP TUs share and
 // must not take on dut_control.h): only the DUT-close binding needs the seam,

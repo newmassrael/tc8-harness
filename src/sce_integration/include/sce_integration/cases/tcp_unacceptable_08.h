@@ -54,13 +54,12 @@ struct TestCaseTraits<cases::TcpUnacceptable08SM>
     // so its DUT SYN does not contend with phase 1's wall-clock
     // absence.
     //
-    // Audit (claudedocs/false_positive_audit_2026_05_07.md) flagged
-    // the historical CASE-2 omission as a TEST-DESIGN race against
-    // tc8-dut's close-path connector-thread join. If the race
-    // re-surfaces against a stock Linux DUT here, the case lands
-    // fail_p2_no_dut_rst and is excluded from CI green via grep
-    // filter in .github/workflows/smoke-test.yml. A spec-compliant
-    // DUT without that race lands pass without filter.
+    // Phase 2 (CASE 2) was once omitted, which a 2026-05-07 audit of
+    // false-positive passes flagged; it was added here. It can race
+    // tc8-dut's close-path connector-thread join, and if that race
+    // shows, phase 2 ends inconclusive_p2_no_dut_rst. It did not on
+    // kernel 7.0.0-31: the case passes there (single-pc 2026-09-24)
+    // and carries no known-fail mark.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,

@@ -10,7 +10,7 @@
 
 namespace tc8::sce {
 
-// Tier 2 data-plane seam (see claudedocs/testability_seam_tier2_design.md).
+// Tier 2 data-plane seam (see docs/dut_control_seam.md).
 //
 // The backend-agnostic vocabulary cases use to drive the DUT's socket data
 // plane. Split by protocol (ISP): the TCP side is handle-based (open returns a
@@ -206,7 +206,7 @@ struct DutTcpInfo {
 // nullptr from IDutControl::tcpStateProbe(), and a case that declares
 // kCapTcpStateProbe is capability-skipped on that backend rather than failed
 // (Tier 2 2b#4) — the honest expression of the standard's limit. See
-// claudedocs/testability_seam_tier2_design.md.
+// docs/dut_control_seam.md.
 class ITcpStateProbe {
 public:
     virtual ~ITcpStateProbe() = default;

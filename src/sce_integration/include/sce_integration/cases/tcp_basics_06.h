@@ -43,7 +43,7 @@ struct TestCaseTraits<cases::TcpBasics06SM>
     // testability). This is the first pilot case migrated onto the seam:
     // the same case runs against a standard testability DUT with config
     // only, the Tier-2 North Star (see
-    // claudedocs/testability_seam_tier2_design.md).
+    // docs/dut_control_seam.md).
     //
     // The connect carries an explicit local BindSpec so the DUT's source
     // port is the spec-pinned kBasicsActiveLocalPort+offset the SCXML

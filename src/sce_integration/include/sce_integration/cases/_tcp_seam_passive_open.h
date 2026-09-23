@@ -20,7 +20,7 @@ namespace tc8::sce::tcp {
 // Tester's OpOpenTcpSocket(Passive) builder directly. A case built on this
 // helper runs unchanged on whichever backend `--dut-control` selected (opcode
 // UT or AUTOSAR testability) — the Tier-2 North Star
-// (claudedocs/testability_seam_tier2_design.md).
+// (docs/dut_control_seam.md).
 //
 // Lives in its own header (not tcp_pilot_common.h) for the same reason as the
 // active-open helper: it pulls in dut_control.h, and tcp_pilot_common.h is
