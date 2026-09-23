@@ -1,0 +1,20 @@
+# Debts argued to be IMMOVABLE from inside this repository.
+#
+# One `TD-NN` per line, optionally followed by a one-line reminder of what is
+# holding it. tools/debt_census.py counts every OPEN entry in
+# docs/tech-debt.md as repayable EXCEPT the ids listed here, so this file is
+# the only way an open debt stops being counted.
+#
+# That is deliberate. Rewording an entry's prose is invisible in a census;
+# adding a line here is a diff a reviewer sees. Put an id here only when the
+# entry's **Done when:** line names something OUTSIDE this repository's reach
+# -- a spec revision, a design that has not landed, a platform that cannot
+# answer. "Hard" and "not today" are not reasons; those stay repayable.
+#
+# The census rejects a line whose entry is RESOLVED (a settled debt needs no
+# acceptance) and an entry that says OPEN (accepted) without a line here, so
+# the two cannot drift apart silently.
+
+TD-16   PRS_TPSP §6.8 defines no privilege result code; nothing in-tree can mint one
+TD-17   waits on the suite-scoping model (claudedocs/case-alias-across-suites-request.md, DRAFT)
+TD-18   needs a Tier-2 neighbour-query primitive plus DUT-side access on three topologies

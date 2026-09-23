@@ -66,6 +66,19 @@ if ! python3 "$HERE/../tools/workflow_runner_audit.py" --check >/dev/null; then
     exit 1
 fi
 
+# Debt-register well-formedness. Not the debt COUNT — a commit is free to leave
+# open work — but the register that counts it must stay readable: every entry
+# classified, every open one carrying a closing condition, the accepted-debt
+# ratchet and the entries' own status agreeing, and no pointer naming an entry
+# that does not exist. tools/debt_census.py is also the ending condition a
+# debt-repayment run is judged against, which is exactly why its rc must mean
+# "this register can be trusted" and nothing else.
+# The census prints its problems on stderr, so one run both judges and reports.
+if ! python3 "$HERE/../tools/debt_census.py" --check >/dev/null; then
+    echo "pre-commit: debt register is MALFORMED — see above." >&2
+    exit 1
+fi
+
 # Spec-quotation ratchet: a staged hunk may not add eight consecutive words of
 # the TC8 spec body unless it cites the public standard the sentence states.
 # This repository is public and that document is not. Lives only here, not in

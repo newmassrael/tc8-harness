@@ -10,6 +10,20 @@ do not renumber. Reference an entry from code with a one-line pointer comment
 (`see docs/tech-debt.md TD-NN`) at each coupled site so an editor of one site
 discovers the others.
 
+An entry whose **Status:** is OPEN must also carry a **Done when:** line naming
+what would close it, in terms someone could check. An open debt with no closing
+condition cannot be closed, only re-argued.
+
+`tools/debt_census.py` reads this file and enforces that much. It also counts
+the open work here together with the three other registers that hold some
+(`tools/deferred_negatives.json`, `tools/negative_coverage_undisposed.txt`, and
+`platform_known_fail` in the `inventory_overrides.json` files), because the
+honest answer to "is there debt left?" is their union and no one file gives it.
+An OPEN entry counts as repayable unless its id stands in
+`tools/debt_accepted.txt` — the ratchet for debts argued to be immovable from
+inside this repository. Put an id there only when the **Done when:** line names
+something outside this repository's reach.
+
 ---
 
 ## TD-01 — SOME/IP-SD wire decode duplicated across C++ harness and Python site tooling
@@ -947,6 +961,11 @@ split that was actually asked for. See also the `Unsupported` → E_NTF reading 
 `ridFromOpStatus`: that is a spec reading rather than a spec quotation, and it carries the
 same "change it here, once" property should a narrower reading of PRS_TPSP §6.8 later prevail.
 
+**Done when:** the `NotPermitted` arm of `ridFromOpStatus` answers a Result ID other than
+E_NOK. That requires a PRS_TPSP release or an owning OEM profile to define a privilege code
+first, so no change confined to this repository can close this entry — which is why it stands
+in `tools/debt_accepted.txt`.
+
 ---
 
 ## TD-17 — a suite-qualified case id silently loses its per-case DUT vsomeip flavor
@@ -1003,6 +1022,11 @@ the orchestrator has no `--inventory-overrides` passthrough at all — the flag 
 CLI, but the orchestrator's only mentions of it are comments, so a consumer driving runs through
 `tc8-orchestrator` always gets the in-tree overrides file.
 
+**Done when:** `dut_variant::resolve` discriminates the three branches above, a test proves the
+middle one refuses rather than falling back, and the orchestrator gains an `--inventory-overrides`
+passthrough. Both halves wait on the suite-scoping model leaving DRAFT, which is a decision this
+repository does not own — hence the entry's place in `tools/debt_accepted.txt`.
+
 ---
 
 ## TD-18 — a cold neighbour-cache premise is arranged but never verified at window open
@@ -1055,6 +1079,13 @@ on beside it. Shipping the netns-only half first would be worse than shipping no
 three topologies would report the same clean verdicts they do now, and their silence would become
 indistinguishable from a verified premise — which is the precise failure this entry exists to
 describe.
+
+**Done when:** every topology the harness ships can read the DUT's neighbour entry for the tester
+back at window open, and a violated premise routes through `tc8::UnperformedStimulus`. Partial
+coverage does not close it, per the paragraph above. `lwip-tap` needs a Tier-2 neighbour-query
+primitive designed with the seam, and `external` / `ssh-remote` need DUT-side access the harness
+does not have in general — neither is reachable from this repository alone, which is why the
+entry stands in `tools/debt_accepted.txt`.
 
 ---
 
@@ -1180,3 +1211,169 @@ siblings), so a case reaching a missing sub-interface reports that name instead 
 DUT fault. TCP is the exception worth knowing about — `seamTcpControl` ASSERTS rather than
 recording, so there the backstop is an abort in a debug build and undefined behaviour under
 NDEBUG. That is the strongest argument for the declaration and the reason this did not stay open.
+
+---
+
+## TD-20 — the UT-Confirmation field check cannot tell "the DUT reported no receipt" from "no Confirmation arrived"
+
+**Status:** OPEN. **Logged:** 2026-09-23, reading
+`tests/_templates/udp_ut_received_check.sce-template.xml` while auditing negative controls.
+
+**What it is.** The template's `listening` state has exactly two `udp_observed` transitions and
+both conjunct `captured.ut_received == 1`:
+
+| Confirmation | what it means | where it lands today |
+|---|---|---|
+| arrives, `ut_received == 1`, predicate true | the DUT received it, fields agree | `pass` |
+| arrives, `ut_received == 1`, predicate false | the DUT received it, a field disagrees | `fail_field_mismatch` |
+| arrives, `ut_received == 0` | the DUT says it did NOT receive it | no transition matches |
+| never arrives | the observation vehicle failed | no transition matches |
+
+The last two rows share one outcome: the deadline fires and the run reports
+`inconclusive_no_ut_confirmation`. For the third row that reason is not merely coarse, it is
+FALSE — a Confirmation did arrive, and it carried the DUT's answer.
+
+**Why it exists.** The template's own header documents a three-state model (pass /
+field-mismatch / no-confirmation) and the `ut_received == 1` conjunct is what makes the
+middle state mean "received but wrong". It reads as a soundness guard, and against the
+observation-vehicle failure it is one. The fourth state — "received nothing, and said so" —
+is a DUT answer rather than a vehicle failure, and it was never given a state of its own.
+
+**Risk if left.** A conforming-DUT regression is downgraded to a non-conclusion, and
+non-conclusions render as JUnit `<skipped>`, which is green. Nine case directories consume
+the template (`git grep -l udp_ut_received_check -- tests`), five positive and four `_NEG`.
+The positive direction is the sharp one: these cases inject a datagram the DUT is REQUIRED to
+receive, so `ut_received == 0` is an observed violation and belongs on `fail`. For the `_NEG`
+direction the same collapse costs less but still misreports — a fault that made the DUT drop
+the datagram outright is indistinguishable from an lwIP fixture that never answered.
+
+**Textbook fix.** A fourth transition, ahead of the deadline: `has_ut_response and ut_opcode
+== 0x81 and ut_status == 0 and ut_received == 0` to a `fail` final whose reason names the
+report (`dut_reported_no_receipt`), leaving the deadline to mean only what it says. The
+verdict-model vocabulary already has the shape — this is the same pass/fail/inconclusive split
+the template's header argues for, with the missing fourth row filled in rather than a new
+concept introduced.
+
+**Why it was not fixed with the sighting.** It was found while the lwIP fixture was dropping
+fragments before the IP layer (see `dut/lwip_dut/lwipopts.h`, `MEMP_NUM_TCPIP_MSG_INPKT`),
+which made the DUT genuinely fail to receive datagrams it should have received. Landing the
+fourth transition then would have turned a fixture defect into a batch of DUT FAILs and buried
+the real cause. That fixture defect is now fixed, so the ordering constraint is discharged.
+
+**Done when:** the template carries a transition for `ut_received == 0` landing on a `fail`
+final with its own reason, the `_NEG` variants' flavour of it is settled the same way, and a
+full run of the nine consuming cases on both DUT backends shows no verdict change on a
+conforming DUT.
+
+---
+
+## TD-21 — the link-local helper reads the DUT's address by raw opcode, with no seam operation behind it
+
+**Status:** OPEN. **Logged:** 2026-09-23, re-measuring Tier-2 seam adoption at HEAD.
+
+**What it is.** `src/sce_integration/include/sce_integration/ipv4_linklocal_common.h` reaches
+the Upper Tester through `IDutControl` everywhere but one call: it builds a
+`buildQueryLLAddressRequest` frame itself and sends it. No case header still constructs a UT
+request directly — `git grep -lE 'build[A-Z][A-Za-z]*Request\(' -- src/sce_integration/include/sce_integration/cases`
+answers zero — so this single site is what is left of the opcode-hardwired path, and sixty
+case headers include the helper that holds it.
+
+**Why it exists.** The seam's link-local sub-interface was designed around the operations that
+CHANGE the DUT (start, abort, arm a buggy autoconf). Reading a value back is a different shape,
+and the one call that needed it was already written against the opcode client, so it stayed.
+
+**Risk if left.** Two things, both quiet. A backend that is not the opcode DUT cannot answer
+this call at all, and because it bypasses `IDutControl` it also bypasses the capability gate:
+a case reaching it on such a backend gets a timeout rather than an honest capability skip.
+And it is the counter-example that weakens the seam's invariant — "every DUT interaction goes
+through `IDutControl`" is either true or it is a convention, and one exception makes it the
+latter.
+
+**Textbook fix.** Give `ILinkLocalControl` a read operation that answers the DUT's current
+link-local address (an `OpStatus` plus the address, matching the vocabulary
+`include/tc8/net/op_status.h` established for the capability operations), implement it on the
+opcode backend over the existing 0x0E query, and leave a backend that cannot answer to decline
+so the gate can skip.
+
+**Done when:** `git grep -E 'build[A-Z][A-Za-z]*Request\(' -- src/sce_integration/include/sce_integration`
+matches nothing outside `dut_control.h` itself, and the sixty consuming cases run unchanged on
+the opcode DUT.
+
+---
+
+## TD-22 — nothing proves a declared capability bit is ever demanded, or an advertised one ever reachable
+
+**Status:** OPEN. **Logged:** 2026-09-23, after two capability-declaration passes (TD-19 and
+the ARP pass before it) each found the gap by hand.
+
+**What it is.** `src/sce_integration/include/sce_integration/dut_capabilities.h` defines
+thirteen bits. Three independent things must agree for one to mean anything: a case declares it
+in `kRequiredCapabilities`, a backend advertises it, and some code path actually demands the
+sub-interface the bit stands for. Nothing checks that they do. Every combination of two out of
+three fails silently:
+
+- declared but never demanded — the case skips on a backend that could have run it.
+- demanded but never declared — the case drives a sub-interface the gate never checked for;
+  on the TCP seam that is an assert in a debug build and undefined behaviour under NDEBUG.
+- advertised but never demanded — the bit is decoration, and a backend that starts declining
+  it changes nothing, so the decline is untestable.
+
+**Why it exists.** The three sides were built at different times and each is individually
+readable. The audit that would join them is a whole-tree question — which case headers reach
+which seam accessor, transitively through the pilot helpers — and both passes that asked it
+asked it with an ad-hoc regex.
+
+**Risk if left.** Measured, not speculative. Both hand passes produced wrong numbers before
+they produced right ones: one credited ten cases with a capability because the detector read a
+mention in a COMMENT, which on a declining backend would have turned ten sound passes into
+skips; another missed every case reaching the seam through a helper because it had no
+transitive closure, and undercounted by nearly half. A gate would have caught both the moment
+they were written; a reviewer caught one of them and the over-declaration check caught the
+other, which is not a mechanism.
+
+**Textbook fix.** An audit in the existing family (`tools/negative_coverage_audit.py`,
+`tools/workflow_runner_audit.py`): resolve each case header's declared set, resolve the seam
+accessors it reaches through the include graph, and require the two to agree; separately
+require every defined bit to be advertised by at least one backend and demanded by at least
+one call site, with an explicit ratchet line for a bit deliberately reserved ahead of its
+backend. Fail closed — a header the audit cannot resolve is a finding, not a pass.
+
+**Done when:** `tools/` holds that audit with a `--self-test` proving each direction fires, it
+gates `pre-commit` and `build-test.yml`, and it is green with no ratchet entries beyond the
+ones argued in the file itself.
+
+---
+
+## TD-23 — an excluded case is never observed again, so both exclusion ledgers can only rot
+
+**Status:** OPEN. **Logged:** 2026-09-23.
+
+**What it is.** Two ledgers withhold cases from a verdict: `platform_known_fail` in the
+`inventory_overrides.json` files (a DUT is known to fail the case) and, in the other direction,
+`tools/fault_injection_floor.txt` plus the `_NEG` pairings that record a fault as empirically
+proven to fire. Both are written from a measurement taken on the day. Neither is re-measured:
+a known-fail case is EXCLUDED FROM THE RUN, so the run cannot notice it has started passing,
+and a `_NEG` whose fault has gone inert reports a non-conclusion, which renders as JUnit
+`<skipped>` and is green.
+
+**Why it exists.** Exclusion is the correct immediate response to a case that cannot pass on a
+given DUT — it keeps the gate honest about the rest. The cost is that exclusion and observation
+are the same switch.
+
+**Risk if left.** Measured once already: a refresh of the known-fail ledger found entries that
+had begun passing, and a separate check found a ledger mark suppressing an INCONCLUSIVE rather
+than a FAIL — a category error the mark itself could not express, because the case has no
+`fail` final at all. Each stale entry is a case the suite silently stopped grading. Nine of the
+Linux-side entries additionally justify themselves by pointing at paths outside this repository
+(`tools/debt_census.py` lists them), so a reader here cannot check the reason either.
+
+**Textbook fix.** Three parts, independent. Make the exclusion OBSERVABLE: run the known-fail
+set on a cadence that is not the gate — its own workflow, reporting "these are still failing"
+and reddening only when one has started passing, which is the signal the ledger exists to catch.
+Move every justification in-tree, so `platform_known_fail_ref` resolves to a tracked path or a
+TD id. And require a mark to name what it suppresses, so a case with no `fail` final cannot be
+marked known-fail at all.
+
+**Done when:** `tools/debt_census.py` reports zero known-fail entries whose justification does
+not resolve in-tree, a scheduled run re-measures the excluded set and has been seen to red on a
+case that started passing, and a case without a `fail` final is rejected as a known-fail mark.
