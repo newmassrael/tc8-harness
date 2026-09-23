@@ -13,7 +13,7 @@
 // (src/testability_client/testability_client.cpp) and the DUT-side endpoint
 // (dut/dut_service/testability_server.*).
 //
-// Spec: docs/spec/AUTOSAR_PRS_TestabilityProtocolAndServicePrimitives.pdf,
+// Spec: AUTOSAR "Testability Protocol and Service Primitives" (PRS_TPSP),
 // AUTOSAR TC Release 1.2.0, Document ID 778, PRS_TPSP §6 "Protocol Specification".
 //
 // The TC8 Upper Tester (see upper_tester_protocol.h) is spec-defined only as "a separate UDP

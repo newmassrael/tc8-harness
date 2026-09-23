@@ -28,12 +28,25 @@ What it flags, per line of every tracked text file in scope:
                    name of any tracked file. This is what catches a
                    `claudedocs/` note: the directory is ignored, so nothing in
                    it is tracked.
+    REPO_PATH      a file path rooted at one of this repository's own top-level
+                   directories (`src/...`, `dut/...`, `tests/...`) that the
+                   repository has never held: not in the tree now, and not in
+                   git history. A file that was moved or deleted is still held
+                   -- `git log -- <path>` follows it -- so naming it as history
+                   is allowed; a path that never existed is a typo or a
+                   pointer into someone else's tree, and fails.
+
+A limit, stated rather than hidden: REPO_PATH cannot tell a moved file named as
+history from one still pointed at as if live (a comment giving a file's
+pre-move path). Both are held in history. Keeping those current is review's
+job; this gate only guarantees every pointer leads somewhere a reader can go.
 
 Scope: every file `git ls-files` lists, except `third_party/` (vendored
 upstream text, not this repository's claims), `docs/.atomic/` (the mnemosyne
-store, machine-written), `.gitignore` (it names `claudedocs/` as a rule, not as
-a pointer), binary files, and this file (its docstring and self-test carry
-samples of what it rejects).
+store, machine-written), every `.gitignore` (it names paths as rules, not as
+pointers), binary files, and this file (its docstring and self-test carry
+samples of what it rejects). A path inside a submodule is held by that
+submodule's repository.
 
 Exemptions are (file, token) PAIRS, each with a reason, never whole files: a
 new pointer added to an exempt file is still caught.
@@ -78,6 +91,29 @@ EXEMPT: dict[tuple[str, str], str] = {
         "TD-34 records the defect by naming the notes it measured",
     ("docs/tech-debt.md", "reference_active_open_port_quad_collision.md"):
         "TD-34 records the defect by naming the notes it measured",
+    # REPO_PATH: paths inside the upstream lwIP and CommonAPI source trees, which
+    # share a top-level name (src/, examples/, include/) with this repository.
+    ("dut/lwip_dut/CMakeLists.txt", "src/Filelists.cmake"): "a path in the lwIP source tree",
+    ("dut/lwip_dut/CMakeLists.txt", "src/netif/ppp/polarssl/md5.c"): "a path in the lwIP source tree",
+    ("dut/lwip_dut/README.md", "src/core/ipv4/icmp.c"): "a path in the lwIP source tree",
+    ("dut/lwip_dut/README.md", "src/core/ipv4/etharp.c"): "a path in the lwIP source tree",
+    ("dut/lwip_dut/README.md", "src/core/udp.c"): "a path in the lwIP source tree",
+    ("dut/lwip_dut/lwipopts.h", "src/include/lwip/opt.h"): "a path in the lwIP source tree",
+    ("dut/lwip_dut/lwip_stack_bringup.cpp", "examples/example_app/default_netif.h"):
+        "a path in the lwIP contrib tree",
+    ("dut/ets/ets.fdepl", "include/CommonAPI/SomeIP/Deployment.hpp"):
+        "a path in the CommonAPI-SomeIP source tree",
+    ("docs/tech-debt.md", "src/CommonAPI/SomeIP/Connection.cpp"):
+        "a path in the CommonAPI-SomeIP source tree",
+    ("docs/tech-debt.md", "src/core/ipv4/etharp.c"): "a path in the lwIP source tree",
+    ("examples/demo_middleware_module/README.md", "examples/example_app/default_netif.h"):
+        "a path in the lwIP contrib tree",
+    ("site/scripts/build_manifest.py", "site/src/data/index.json"):
+        "the manifest this script generates at site build time",
+    ("site/src/lib/cases.ts", "site/src/data/index.json"):
+        "the manifest site/scripts/build_manifest.py generates at site build time",
+    ("tools/workflow_runner_audit.py", "./.github/workflows/x.yml"):
+        "a placeholder showing the shape of a local reusable-workflow call",
 }
 
 PRIVATE_NOTE_RE = re.compile(
@@ -85,30 +121,67 @@ PRIVATE_NOTE_RE = re.compile(
 )
 MEMORY_PATH_RE = re.compile(r"(?<![A-Za-z0-9_])memory/[A-Za-z0-9_.-]+\.md\b")
 MD_TOKEN_RE = re.compile(r"(?<![A-Za-z0-9_./-])[A-Za-z0-9_][A-Za-z0-9_./-]*\.md\b")
+# A relative file path with at least one directory and an extension. `$`, `{`
+# and `}` in the look-behind skip shell expansions like `$ROOT/dut/...`.
+PATH_TOKEN_RE = re.compile(
+    r"(?<![A-Za-z0-9_./${}-])[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+\.[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*\b"
+)
 
 
-def tracked_files() -> list[str]:
-    out = subprocess.run(
-        ["git", "-C", str(ROOT), "ls-files", "-z"],
-        check=True, capture_output=True,
-    ).stdout.decode("utf-8", "replace")
-    return [f for f in out.split("\0") if f]
+class Tree:
+    """What a pointer can resolve against: the tracked files now, every path
+    git history has held, and the repository's own top-level directories."""
+
+    def __init__(self, files: set[str], history: set[str], submodules: frozenset[str] = frozenset()):
+        self.files = files
+        self.history = history
+        self.submodules = submodules  # a path inside one is held by that repository
+        self.basenames = {os.path.basename(f) for f in files}
+        self.tops = {f.split("/", 1)[0] for f in files if "/" in f}
+
+
+def git_lines(*args: str) -> list[str]:
+    out = subprocess.run(["git", "-C", str(ROOT), *args], check=True, capture_output=True)
+    return out.stdout.decode("utf-8", "replace").splitlines()
+
+
+def load_tree() -> Tree:
+    files = set(git_lines("ls-files"))
+    history = {p for p in git_lines("log", "--all", "--format=", "--name-only") if p}
+    submodules = frozenset(
+        line.split("\t", 1)[1] for line in git_lines("ls-files", "-s") if line.startswith("160000 ")
+    )
+    return Tree(files, history, submodules)
 
 
 def in_scope(path: str) -> bool:
-    return not path.startswith(EXCLUDED_PREFIXES) and path not in EXCLUDED_FILES
+    if path.startswith(EXCLUDED_PREFIXES) or path in EXCLUDED_FILES:
+        return False
+    return os.path.basename(path) != ".gitignore"  # rules, not pointers
 
 
-def md_resolves(token: str, citing: str, files: set[str], basenames: set[str]) -> bool:
-    if token in files:
+def md_resolves(token: str, citing: str, tree: Tree) -> bool:
+    if token in tree.files:
         return True
     rel = os.path.normpath(os.path.join(os.path.dirname(citing), token))
-    if rel in files:
+    if rel in tree.files:
         return True
-    return "/" not in token and token in basenames
+    return "/" not in token and token in tree.basenames
 
 
-def scan_line(line: str, citing: str, files: set[str], basenames: set[str]) -> list[tuple[str, str]]:
+def repo_path_held(token: str, citing: str, tree: Tree) -> bool:
+    """True unless the token is rooted at one of this repository's top-level
+    directories and the repository has never held it, now or in history."""
+    t = token[2:] if token.startswith("./") else token
+    if t.split("/", 1)[0] not in tree.tops:
+        return True  # a system header, a third-party tree, a path under a variable
+    if any(t == s or t.startswith(s + "/") for s in tree.submodules):
+        return True
+    rel = os.path.normpath(os.path.join(os.path.dirname(citing), t))
+    return any(p in tree.files or p in tree.history for p in (t, rel))
+
+
+def scan_line(line: str, citing: str, tree: Tree) -> list[tuple[str, str]]:
     """(kind, token) for every unfollowable pointer on one line."""
     found: list[tuple[str, str]] = []
     seen: set[str] = set()
@@ -123,17 +196,22 @@ def scan_line(line: str, citing: str, files: set[str], basenames: set[str]) -> l
         tok = m.group(0)
         if tok in seen or line[max(0, m.start() - 3):m.start()] == "://":
             continue
-        if not md_resolves(tok, citing, files, basenames):
+        seen.add(tok)
+        if not md_resolves(tok, citing, tree):
             found.append(("UNRESOLVED_MD", tok))
+    for m in PATH_TOKEN_RE.finditer(line):
+        tok = m.group(0)
+        if tok in seen or line[max(0, m.start() - 3):m.start()] == "://":
+            continue
+        if not repo_path_held(tok, citing, tree):
+            found.append(("REPO_PATH", tok))
     return found
 
 
 def scan() -> list[str]:
-    all_files = tracked_files()
-    files = set(all_files)
-    basenames = {os.path.basename(f) for f in all_files}
+    tree = load_tree()
     findings: list[str] = []
-    for path in all_files:
+    for path in sorted(tree.files):
         if not in_scope(path):
             continue
         try:
@@ -144,7 +222,7 @@ def scan() -> list[str]:
             continue  # binary
         text = data.decode("utf-8", "replace")
         for lineno, line in enumerate(text.splitlines(), 1):
-            for kind, tok in scan_line(line, path, files, basenames):
+            for kind, tok in scan_line(line, path, tree):
                 if (path, tok) in EXEMPT:
                     continue
                 findings.append(f"{kind}: {path}:{lineno}: {tok}")
@@ -168,8 +246,11 @@ def _check() -> int:
 
 
 def _self_test() -> int:
-    files = {"docs/tech-debt.md", "dut/env/negative_rows.md", "src/a/b.h", "README.md"}
-    basenames = {os.path.basename(f) for f in files}
+    tree = Tree(
+        files={"docs/tech-debt.md", "dut/env/negative_rows.md", "src/a/b.h", "README.md",
+               "tests/x/x.scxml", "tools/x.py", "docs/spec/x.json"},
+        history={"dut/env/smoke-test.sh", "src/old/moved.h"},
+    )
     cases = [
         ("see reference_icmp_packet_host_gate.md", "src/a/b.h", {"PRIVATE_NOTE"}),
         ("see reference_subscribe_sd_port memory.", "src/a/b.h", {"PRIVATE_NOTE"}),
@@ -182,10 +263,17 @@ def _self_test() -> int:
         ("see README.md", "src/a/b.h", set()),
         ("the user_data_len field", "src/a/b.h", set()),
         ("https://example.org/notes/design.md", "src/a/b.h", set()),
+        ("see src/a/b.h", "tests/x/x.scxml", set()),
+        ("the Rust successor to dut/env/smoke-test.sh", "src/a/b.h", set()),
+        ("formerly src/old/moved.h", "src/a/b.h", set()),
+        ("see mock_dut/env/smoke-test.sh", "tests/x/x.scxml", set()),
+        ("see src/never/held.h", "tests/x/x.scxml", {"REPO_PATH"}),
+        ("#include <sys/socket.h>", "src/a/b.h", set()),
+        ("\"$ROOT/dut/env/wire.gen.sh\"", "tools/x.py", set()),
     ]
     failed = 0
     for line, citing, want in cases:
-        got = {k for k, _ in scan_line(line, citing, files, basenames)}
+        got = {k for k, _ in scan_line(line, citing, tree)}
         if got != want:
             print(f"self-test FAIL: {line!r} -> {sorted(got)}, want {sorted(want)}", file=sys.stderr)
             failed += 1

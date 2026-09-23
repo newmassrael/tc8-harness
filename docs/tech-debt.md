@@ -1940,9 +1940,9 @@ fragment as a fail, and each still passes on single-pc and lwip-tap.
 `tests/_templates/dhcpv4_renewing_retx_field.sce-template.xml` left its §4.4.5 binding
 unbacked. The entry below is the debt as logged; **Resolution** at its end records what closed it.
 
-**What it is.** TC8's §4.4 (IPv4) has four subsections, 4.4.1 to 4.4.4
-(`docs/spec/split/tc8_p001-p020.txt`, the table of contents). The only "4.4.5" in the spec
-text is a row of the RFC 2131 cross-reference table. The atomic store
+**What it is.** TC8's §4.4 (IPv4) has four subsections, 4.4.1 to 4.4.4, per the TC8 v3.0
+table of contents (the spec is members-only; this repository holds none of its text). The only
+"4.4.5" in the spec text is a row of the RFC 2131 cross-reference table. The atomic store
 (`docs/.atomic/workspace.atomic.json`) nevertheless holds a section `4.4.5`, "auto-seeded
 TC8-internal sub-section", with 7 `implements` bindings. Every one of the 7 files cites
 RFC 2131 §4.4.5 (RENEWING / REBINDING, T1 and T2), not TC8. The citation is either wrapped
