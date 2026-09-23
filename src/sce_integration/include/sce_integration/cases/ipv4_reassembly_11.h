@@ -48,7 +48,7 @@ struct TestCaseTraits<cases::Ipv4Reassembly11SM>
     // Linux (verified 2026-09-23, kernel 7.0): ip_frag_queue arms the
     // bucket timer from ip4_frags.timeout regardless of arriving TTL —
     // no RFC 791 §3.2 MAX(TLB, TTL) extension — and sends the Time
-    // Exceeded 2 s after frag 0. A DUT that follows
+    // Exceeded 2 s after frag 0 (see docs/tech-debt.md TD-28). A DUT that follows
     // RFC 791 §3.2 verbatim passes on the same wire shape.
     static constexpr std::chrono::milliseconds kInterFragmentWait{3000};
 

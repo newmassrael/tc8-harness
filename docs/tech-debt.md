@@ -1619,3 +1619,40 @@ TCP_BASICS_01 (all PASS). Each `.dut.log` holds the banner, `stack up`, that spa
 `SIGTERM — UT slots aborted, exiting`. One correction to the Done-when: the `exiting` line is
 not the last line. The DUT prints its lwIP stats dump after it, and that dump belongs to the
 same spawn. The run log holds four `exiting` lines: three cases plus the spare.
+
+---
+
+## TD-28 — the Linux reference DUT's reassembly timer ignores arriving TTL, so IPv4_REASSEMBLY_11 fails there
+
+**Status:** OPEN (accepted). **Logged:** 2026-09-24, from a run of the Linux known-fail set.
+
+**What it is.** RFC 791 §3.2 sets a reassembly bucket's timer to `MAX(TLB, TTL)` on every
+arriving fragment, so a fragment with a large TTL extends the bucket's life.
+`IPv4_REASSEMBLY_11` sends the two halves of an Echo Request with TTL 255, three seconds
+apart, against `ipfrag_time=2` (per-case conditioning in
+`dut/env/orchestrator/src/conditioning.rs`). The Linux kernel arms the bucket timer from
+`net.ipv4.ipfrag_time` alone (`net/ipv4/ip_fragment.c`, `ip_frag_queue`), so the bucket
+expires at two seconds and the kernel reports it. Measured on 2026-09-24 on kernel
+7.0.0-31-generic, single-pc: frag 0 at 00:12:12.808, an ICMP Time Exceeded code 1 from the
+DUT at 00:12:14.810 quoting frag 0 (id 61462), and no Echo Reply. The case lands
+`fail:reassembly_timer_not_extended_by_large_ttl`, an observed violation.
+
+The lwIP fixture has the same deviation (a static `IP_REASS_MAXAGE`) and reached the same
+verdict in the same session. Its evidence is in `dut/lwip_dut/README.md`, where that ledger
+entry points.
+
+**Why it exists.** The mark in `docs/spec/inventory_overrides.json` keeps a case the
+reference DUT cannot pass out of the regression lane. A DUT that implements the extension
+passes on the same wire shape. No sysctl couples the Linux timer to TTL, so conditioning
+cannot move the reference DUT into a conforming mode, as `arp_accept` and
+`tcp_syn_linear_timeouts` do for other cases.
+
+**Risk if left.** Contained. The case still runs wherever it is not marked. On Linux it
+concludes on the DUT's own report rather than on an absence, so if the kernel's behaviour
+changes the case passes, and the ledger then has to explain that pass.
+
+**Textbook fix.** None inside this repository. The kernel would have to couple the bucket
+timer to arriving TTL.
+
+**Done when:** the Linux kernel implements the RFC 791 §3.2 timer extension, so the
+reference DUT passes `IPv4_REASSEMBLY_11` and the mark is removed.
