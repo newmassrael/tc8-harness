@@ -1756,3 +1756,39 @@ it would no longer be the stimulus the spec describes.
 **Done when:** the Linux kernel answers an unacceptable ACK on an orphaned FIN-WAIT-2 with an
 empty ACK before it applies the new-data reset, so the reference DUT passes
 `TCP_UNACCEPTABLE_10` and the mark is removed.
+
+---
+
+## TD-32 — lwIP creates no ARP entry from a gratuitous Response, so ARP_05, ARP_06 and ARP_33 fail on the lwIP fixture
+
+**Status:** OPEN (accepted). **Logged:** 2026-09-24, from a lwip-tap run of the lwIP known-fail
+ARP set.
+
+**What it is.** All three cases inject gratuitous ARP Responses for the tester's address into a
+cold DUT cache, then have the DUT send to that address, and grade that it does so without
+asking. lwIP's `etharp_input` (`src/core/ipv4/etharp.c`) updates an existing entry from any ARP
+frame but creates one only when the DUT is the target (`for_us`), which is the literal RFC 826
+reception algorithm. A gratuitous Response targets its own sender, so the cache stays cold.
+`ARP_33` sends two such Responses and fails the same way. Measured on 2026-09-24, lwip-tap:
+in `ARP_05` the Response at 00:14:18.714 was followed at 00:14:20.215 by the DUT's own
+broadcast `who-has 172.16.0.1`. In `ARP_33` the second Response at 00:14:29.871 was followed
+at 00:14:31.372 by the same Request. The verdicts were
+`fail:dut_arp_request_after_gratuitous_learning` (ARP_05, ARP_06) and
+`fail:dut_arp_request_after_double_injection` (ARP_33). `dut/lwip_dut/README.md` ("Verified
+lwIP deviations") has the source reading, and why `ARP_34` passes on this fixture.
+
+Learning from a gratuitous Response goes beyond RFC 826. The Linux reference DUT meets it only
+through per-case `arp_accept=1` conditioning.
+
+**Why it exists.** lwIP has no option that creates entries from unsolicited ARP, and this
+repository never patches the vendored lwIP core, so the fixture cannot be conditioned the way
+the Linux reference is. The marks in `dut/lwip_dut/inventory_overrides.json` keep the three
+cases out of the lwIP sweep.
+
+**Risk if left.** Contained. The cases conclude on an observed ARP Request.
+
+**Textbook fix.** None inside this repository.
+
+**Done when:** lwIP gains a configuration that creates a cache entry from a gratuitous ARP
+Response, the fixture enables it, and `ARP_05`, `ARP_06` and `ARP_33` pass on lwip-tap with
+their marks removed.

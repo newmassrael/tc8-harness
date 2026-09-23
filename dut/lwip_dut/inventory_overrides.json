@@ -4,14 +4,17 @@
   "overrides": {
     "ARP_05": {
       "platform_known_fail": true,
+      "platform_known_fail_ref": "docs/tech-debt.md TD-32",
       "reason": "lwIP etharp implements the literal RFC 826 reception algorithm: a gratuitous Response not addressed to the DUT updates an EXISTING table entry but never creates one, so the cold cache stays cold and the DUT emits its own ARP Request (fail:dut_arp_request_after_gratuitous_learning). The Linux reference passes only via the arp_accept=1 per-case conditioning; lwIP has no equivalent knob (dut/lwip_dut/README.md)"
     },
     "ARP_06": {
       "platform_known_fail": true,
+      "platform_known_fail_ref": "docs/tech-debt.md TD-32",
       "reason": "lwIP etharp implements the literal RFC 826 reception algorithm: a gratuitous Response not addressed to the DUT updates an EXISTING table entry but never creates one, so the cold cache stays cold and the DUT emits its own ARP Request (fail:dut_arp_request_after_gratuitous_learning). The Linux reference passes only via the arp_accept=1 per-case conditioning; lwIP has no equivalent knob (dut/lwip_dut/README.md)"
     },
     "ARP_33": {
       "platform_known_fail": true,
+      "platform_known_fail_ref": "docs/tech-debt.md TD-32",
       "reason": "both injections are gratuitous Responses not addressed to the DUT; lwIP etharp creates no table entry from either (RFC 826 literal: add only when the DUT is the target), the cache stays cold and the DUT emits its own ARP Request (fail:dut_arp_request_after_double_injection). Distinct mechanism from the Linux reference's hold on the same case (arp_is_garp target_hw shape + locktime, conditioned away per case); ARP_34 passes here because its first injection is a Request addressed to the DUT (dut/lwip_dut/README.md)"
     },
     "IPv4_AUTOCONF_ADDRESS_SELECTION_01": {

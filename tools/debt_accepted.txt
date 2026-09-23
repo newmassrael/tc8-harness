@@ -22,3 +22,4 @@ TD-28   the Linux kernel arms the reassembly timer from ipfrag_time alone, whate
 TD-29   the Linux kernel points a Parameter Problem at the option start; no knob selects 22
 TD-30   the Linux timewait socket ACKs any out-of-window segment; no knob turns it off
 TD-31   the Linux timewait socket resets new data after close before it checks the ACK
+TD-32   lwIP etharp creates entries only when for_us; the vendored core is never patched
