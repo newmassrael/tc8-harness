@@ -1,19 +1,14 @@
 #pragma once
 
-#include <chrono>
-#include <cstdint>
 #include <string_view>
-#include <thread>
-#include <vector>
 
 #include "tc8/upper_tester_protocol.h"
 
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_fault_flavor_arm.h"
 #include "sce_integration/cases/_udp_traits_base.h"
-#include "sce_integration/cases/udp_fields_12.h"  // SSOT for kUdpMaxPayloadBytes
+#include "sce_integration/cases/udp_fields_12.h"  // SSOT for the positive's stimulus
 #include "sce_integration/test_runner.h"
-#include "sce_integration/udp_pilot_common.h"
 
 #include "udp_fields_12_neg_sm.h"
 
@@ -50,27 +45,7 @@ struct TestCaseTraits<cases::UdpFields12NegSM>
                          std::string_view iface,
                          ::tc8::sce::IDutControl& dut) {
         emitAppFlavorArm(cfg, iface, ::tc8::ut::kAppFaultReportWrongLength);
-
-        std::vector<std::uint8_t> payload(cases::kUdpMaxPayloadBytes);
-        for (std::size_t i = 0; i < payload.size(); ++i) {
-            payload[i] = static_cast<std::uint8_t>(i & 0xFFU);
-        }
-
-        ::tc8::sce::udp::emitFragmentedUdpStimulus(
-            cfg, iface,
-            /*dst_ip_be=*/cfg.ipv4.dut_iface_ip,
-            /*src_port=*/::tc8::sce::udp::kDataPeerPort,
-            /*dst_port=*/::tc8::sce::udp::kDataPort,
-            payload.data(),
-            payload.size(),
-            cfg.dut.mac);
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-
-        ::tc8::sce::udp::emitGetReceivedUdp(
-            dut,
-            /*listen_port=*/::tc8::sce::udp::kDataPort,
-            /*expected_dst_ip_be=*/cfg.ipv4.dut_iface_ip);
+        cases::emitMaxLengthDatagramAndQuery(cfg, iface, dut);
     }
 };
 
