@@ -1505,7 +1505,8 @@ offers it — and `dut/lwip_dut/sweep-cases.sh` again emits only what the fixtur
 
 ## TD-26 — the lwip-tap teardown reports "DUT ignored SIGTERM" for every DUT that obeyed it
 
-**Status:** OPEN. **Logged:** 2026-09-23, while closing TD-20 on lwip-tap.
+**Status:** RESOLVED (2026-09-23). **Logged:** 2026-09-23, while closing TD-20 on lwip-tap.
+The entry below is the debt as logged; **Resolution** at its end records what closed it.
 
 **What it is.** `LwipTap::kill_dut` (`dut/env/orchestrator/src/topology/lwip_tap.rs`) sends
 SIGTERM and then polls `pgrep -f <kill_name>` for 500 ms. It reaps the held `Child` only
@@ -1539,6 +1540,41 @@ is held. That also makes the SIGKILL fallback reachable only by a DUT that is re
 **Done when:** a lwip-tap run of any cases prints no "DUT ignored SIGTERM" warning while the
 DUT log still shows one orderly `exiting` line per spawn, and a DUT made to ignore SIGTERM
 still produces the warning and the SIGKILL.
+
+**Resolution.** The fix went one level below `kill_dut`, because the defect came from a rule
+nobody had written down: which oracle decides that a process has died.
+
+- **The held child decides for itself.** `kill_dut` still signals by `kill_name`, but polls
+  `dut_running`. That function asks the held `Child` through `try_wait`, which also reaps it,
+  and asks the process table only about what no handle covers. On the SIGKILL fallback the
+  held child is also killed by its own pid, so a `kill_name` that does not name it still
+  reaches it.
+- **A process-table poll never counts a zombie.** `proc::running_match` lists `pgrep -f`
+  matches and drops any whose `/proc/<pid>/stat` state is `Z` or `X`. A zombie's cmdline is
+  empty, so `-f` falls back to its comm. A NAME selector matches that comm; a symlink PATH
+  selector never does. That is why `kill_by_marker` on single-pc never showed this defect:
+  its path marker hid it rather than being correct. `kill_by_marker` now uses the same
+  helper, and the reap-selector matrix in the `topology` module docs states the rule.
+  ssh-remote already applied it with its own remote `ps` predicate.
+
+Measured on 2026-09-23 with the built orchestrator and lwIP DUT:
+
+- **Conforming DUT** (ICMPv4_TYPE_08, UDP_INTRODUCTION_03, TCP_BASICS_01, TCP_CALL_ABORT_02
+  on lwip-tap): 4 PASS, **0** warnings. Before the fix, the same fixture printed one warning
+  per kill. Each case's `.dut.log` (TD-27) holds exactly one
+  `SIGTERM — UT slots aborted, exiting` line, and the run log holds 5: four cases and the
+  spare.
+- **DUT that ignores SIGTERM**: a scratch `[lwip] app` wrapper started the real DUT, set
+  SIGTERM to ignored, waited for the DUT's orderly exit, then `exec`ed into `sleep`. That
+  left the held pid alive and no longer matching `kill_name`. On 2 cases the run printed
+  3 warnings for 3 kills (2 cases plus the spare) and then went on normally. There was no
+  bounded-wait warning and no `sleep` survived, so the pid-scoped SIGKILL took. The name
+  poll could not have seen this process, so only the handle could have raised these warnings.
+- **single-pc** (ICMPv4_TYPE_08, SOMEIPSRV_FORMAT_01, through the changed
+  `kill_by_marker`): 2 PASS, no "survived SIGKILL+confirm" warning.
+- Unit tests: `proc::tests::a_zombie_matching_by_name_is_not_running` first asserts that a
+  plain `pgrep -f` still matches the zombie, so the filter is really being tested.
+  `lwip_tap::tests::a_held_dut_that_exits_is_not_running` covers the handle.
 
 ---
 
