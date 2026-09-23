@@ -210,6 +210,11 @@ pub fn plan(case_id: &str, tester_ip4: &str, tester_mac: &str) -> Vec<CondStep> 
         steps.push(SysctlGlobal { side: Dut, key: "tcp_early_retrans", on: "0", off: "3" });
         steps.push(SysctlGlobal { side: Dut, key: "tcp_recovery", on: "0", off: "1" });
     }
+    // TCP_RETRANSMISSION_TO_08/_09 — set the RTO ceiling to the 2*MSL (60 s) the
+    // cases grade. Linux's default is TCP_RTO_MAX, 120 s; kernel 6.15+ exposes it.
+    else if id == "TCP_RETRANSMISSION_TO_08" || id == "TCP_RETRANSMISSION_TO_09" {
+        steps.push(SysctlGlobal { side: Dut, key: "tcp_rto_max_ms", on: "60000", off: "120000" });
+    }
 
     steps
 }
@@ -434,6 +439,11 @@ mod tests {
             assert_eq!(p.len(), 3, "{id}");
             assert_eq!(p[1], CondStep::SysctlGlobal { side: Side::Dut, key: "tcp_early_retrans", on: "0", off: "3" }, "{id}");
             assert_eq!(p[2], CondStep::SysctlGlobal { side: Side::Dut, key: "tcp_recovery", on: "0", off: "1" }, "{id}");
+        }
+        for id in ["TCP_RETRANSMISSION_TO_08", "TCP_RETRANSMISSION_TO_09"] {
+            let p = plan(id, TIP, TMAC);
+            assert_eq!(p.len(), 2, "{id}");
+            assert_eq!(p[1], CondStep::SysctlGlobal { side: Side::Dut, key: "tcp_rto_max_ms", on: "60000", off: "120000" }, "{id}");
         }
     }
 

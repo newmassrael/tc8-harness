@@ -650,14 +650,6 @@
       "platform_known_fail": true,
       "platform_known_fail_ref": "docs/tech-debt.md TD-30"
     },
-    "TCP_RETRANSMISSION_TO_08": {
-      "platform_known_fail": true,
-      "platform_known_fail_ref": "memory/reference_linux_syn_data_rto_deviations.md"
-    },
-    "TCP_RETRANSMISSION_TO_09": {
-      "platform_known_fail": true,
-      "platform_known_fail_ref": "memory/reference_linux_syn_data_rto_deviations.md"
-    },
     "TCP_UNACCEPTABLE_10": {
       "platform_known_fail": true,
       "platform_known_fail_ref": "docs/tech-debt.md TD-31"
