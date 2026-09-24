@@ -1415,6 +1415,33 @@ backend. Fail closed — a header the audit cannot resolve is a finding, not a p
 gates `pre-commit` and `build-test.yml`, and it is green with no ratchet entries beyond the
 ones argued in the file itself.
 
+**Half landed, 2026-09-24.** `tools/capability_gate_audit.py` exists, self-tests pass (13
+checks), and it runs whole-tree. It is NOT yet wired into `pre-commit` or `build-test.yml`,
+because it currently reports 159 findings and a gate that reds every commit is not a gate.
+Wiring it is the remaining half, and it waits on those findings being triaged rather than on
+more tool.
+
+What it reports, and why the numbers are worth keeping: each blind spot of the AUDIT was found
+by disbelieving its own output, and each fix changed the count sharply.
+
+| the gate could not see | it wrongly reported | after the fix |
+|---|---|---|
+| a case specialises `TestCaseTraits<SM>`, so the name carries a template argument | 780 UNRESOLVED | 190 |
+| a ROOT traits base has no parent, so `struct X {` never matched | 51 false UNDECLARED | 30 |
+| a base file holds FREE FUNCTIONS beside its structs (`dut.arpControl()` lives in one) | 33 ARP + 20 TCP false OVERDECLARED | 0 |
+
+What survives is a genuine finding of the class this entry describes: 95 cases inherit
+`Dhcpv4AnyBase`, which declares `kCapDhcpClientControl`, while never calling
+`emitStartDhcpClient` — the 86 cases that do call it are a different set. Those 95 would SKIP
+on a backend that declines the bit, even though nothing in them needs it. 29 more do the same
+with `kCapUdpReceiveControl`. That is the same shape as the ARP pass measured by hand
+(28 cases declared, 11 drove), now found by a machine instead of a reviewer.
+
+⚠ The audit resolves demand by NAME, not by a compiler's call graph — its own docstring says
+so, and the table it resolves against is the thing to review when a seam operation is added.
+Three of its four blind spots above were of exactly that kind, so treat a zero from it as
+"nothing this table can see" rather than "nothing".
+
 ---
 
 ## TD-23 — an excluded case is never observed again, so both exclusion ledgers can only rot
