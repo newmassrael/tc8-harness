@@ -1342,7 +1342,30 @@ No verdict changed on a conforming DUT. `negative_coverage_audit.py --check` and
 
 ## TD-21 — the link-local helper reads the DUT's address by raw opcode, with no seam operation behind it
 
-**Status:** OPEN. **Logged:** 2026-09-23, re-measuring Tier-2 seam adoption at HEAD.
+**Status:** RESOLVED (2026-09-25). **Logged:** 2026-09-23, re-measuring Tier-2 seam adoption at
+HEAD.
+
+**How it was repaid.** `ILinkLocalControl::queryCommittedAddress` answers the DUT's committed
+address as a `net::OpStatus` plus the value, the opcode backend implements it over the existing
+OpQueryLLAddress round-trip, and `ipv4_linklocal_common.h` asks through `IDutControl` instead of
+building the frame and opening a socket of its own. The two scheduling helpers take the seam and
+capture it by pointer; the twelve §4.5.6.2 call sites already held an `IDutControl&`.
+
+`OpStatus` rather than a bool because the three ways this fails are different things: a backend
+whose protocol has no such read (`Unsupported`, the decline the gate turns into a skip), a
+transport or malformed-reply failure (`Failed`), and success. The helper it replaced collapsed
+all three into `0`. The operation is pure virtual deliberately — a default `Unsupported` would
+let a new backend inherit a silent decline, and a silent decline of a READ is indistinguishable
+from a DUT that has not committed yet.
+
+**Verified by running, not by compiling** — and the run is what caught the mistake. The first
+implementation declined whenever a raw transport was configured, reasoning that such a backend
+could not answer. `dut/../dut_control_factory.cpp` sets `raw.iface` on EVERY opcode backend, so
+the branch was always taken and all twelve cases turned into non-conclusions: compiled clean,
+Done-when satisfied, wrong. Raw injection is a per-OPERATION choice here — it exists for
+requests that must not provoke a tester-side ARP before the DUT has an address to answer
+from — and a read has the opposite precondition. The read is now kernel-routed unconditionally,
+as the helper it replaced always was, and all twelve pass.
 
 **What it is.** `src/sce_integration/include/sce_integration/ipv4_linklocal_common.h` reaches
 the Upper Tester through `IDutControl` everywhere but one call: it builds a
@@ -1610,6 +1633,24 @@ so the gate skips the case honestly on any DUT lacking it, which generalises pas
 or record it in `dut/lwip_dut/inventory_overrides.json` as an `expected: false` fixture gap
 with an in-tree justification, which is the category the sweep list already drops and the
 cheapest honest answer. The capability is the one that answers for DUTs not yet written.
+
+⚠ **The capability option costs a FOURTH resolution axis, which this entry did not say and
+which is most of its price.** Audited 2026-09-25: `dut_capabilities.h` resolves a bit in one of
+three ways, and "this DUT has a second address" fits none of them. It is not
+backend-static — both the netns reference DUT and the lwIP fixture speak the SAME opcode
+backend, so `staticCapabilities()` cannot tell them apart. It is not DUT-derived either: that
+axis is the `OpQueryCapabilities` (0x16) bitmap, which reports which OPCODES a DUT implements,
+and an address is not an opcode — the file's own comment calls the per-opcode bit "a 1:1 proxy
+for the whole mechanism", which is exactly what a property bit would not be. And the premise is
+compiled rather than configured: `UDP_USER_INTERFACE_07` passes `kDutAliasIp4Be`, a constant,
+not a config value that could be absent.
+
+So the honest shapes are: make the premise CONFIGURED (the topology supplies the DUT alias or
+leaves it zero) and add a config-derived capability axis alongside the three; or extend 0x16 to
+carry DUT PROPERTIES beside opcodes. Both are real protocol or architecture work, and a
+half-done version leaves the capability system with an undocumented fourth kind — worse than
+either clean answer. The `expected: false` entry remains available and correct, and remains
+per-platform bookkeeping rather than something a DUT not yet written can decline.
 
 **Done when:** a run of the lwIP sweep reports zero non-conclusions for this case — because it
 passes, because the gate skipped it on a declared capability, or because the ledger no longer

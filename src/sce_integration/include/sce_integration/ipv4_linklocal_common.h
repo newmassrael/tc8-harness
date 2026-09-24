@@ -474,57 +474,25 @@ inline void dispatchArpFrameWithRepeatedConflictEmit(
     }
 }
 
-// §4.5.6.2 ADDRESS_SELECTION_16: synchronous OpQueryLLAddress over
-// UDP — opens a transient SOCK_DGRAM, sends the 0x0D request to
-// DUT:30600, waits up to `timeout` for the Confirmation, and returns
-// the committed LL address (network byte order). Returns 0 on any RPC failure (socket,
-// send, recv timeout, malformed response) so the caller can fail the
-// scheduled stimulus closure deterministically without raising into
-// SCXML — the closure simply skips the ARP Request emit and the
-// SCXML's `deadline_exceeded` path becomes the verdict.
-inline std::uint32_t queryLLAddressSync(
-    const ::tc8::TestConfig& cfg,
-    std::uint8_t  req_id  = 1,
-    std::chrono::milliseconds timeout = std::chrono::milliseconds(1000)) {
-    const int fd = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (fd < 0) return 0;
-    timeval tv{};
-    tv.tv_sec  = static_cast<time_t>(timeout.count() / 1000);
-    tv.tv_usec = static_cast<suseconds_t>((timeout.count() % 1000) * 1000);
-    ::setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-
-    sockaddr_in remote{};
-    remote.sin_family      = AF_INET;
-    remote.sin_addr.s_addr = cfg.ipv4.dut_iface_ip;
-    remote.sin_port        = htons(::tc8::ut::kPort);
-
-    const auto payload =
-        ::tc8::stimulus::buildQueryLLAddressRequest(req_id);
-    if (::sendto(fd, payload.data(), payload.size(), 0,
-                 reinterpret_cast<sockaddr*>(&remote), sizeof(remote))
-        != static_cast<ssize_t>(payload.size())) {
-        ::close(fd);
-        return 0;
-    }
-
-    std::uint8_t buf[16];
-    sockaddr_in peer{};
-    socklen_t peer_len = sizeof(peer);
-    const ssize_t n = ::recvfrom(fd, buf, sizeof(buf), 0,
-                                  reinterpret_cast<sockaddr*>(&peer), &peer_len);
-    ::close(fd);
-    // Expected: <opcode|0x80> <req_id> <status=0x00> <linklocal_addr:u32 BE>.
-    if (n < 7) return 0;
-    if (buf[0] != static_cast<std::uint8_t>(
-            ::tc8::ut::OpQueryLLAddress | ::tc8::ut::kResponseBit)) return 0;
-    if (buf[1] != req_id)                        return 0;
-    if (buf[2] != ::tc8::ut::kStatusOk)          return 0;
-    // Bytes 3..6 are the LL address in network byte order on the wire.
-    // Copy them verbatim into a uint32 — the codebase convention
-    // treats `*_be` as a uint32 whose memory bytes are the NBO wire
-    // bytes (so on LE the low byte holds the first wire octet).
+// §4.5.6.2 ADDRESS_SELECTION_16: read back the address the DUT committed to,
+// in network byte order, THROUGH the Tier-2 seam. Returns 0 when the DUT cannot
+// answer — a backend that declines the read, a transport failure, or a
+// malformed reply — so the caller can abandon the scheduled stimulus closure
+// deterministically without raising into SCXML: the closure simply skips the
+// ARP Request emit and the SCXML's `deadline_exceeded` path becomes the verdict.
+//
+// ⚠ This used to build the OpQueryLLAddress frame and send it on a transient
+// socket of its own — the last opcode-hardwired DUT interaction in the case
+// tree, and what docs/tech-debt.md TD-21 recorded. Two things were wrong with
+// it and neither was visible from here: a backend that is not the opcode UT
+// could not answer at all, and because it bypassed `IDutControl` it bypassed
+// the capability gate too, so such a backend produced a TIMEOUT where an honest
+// capability skip was owed.
+inline std::uint32_t queryCommittedLLAddress(::tc8::sce::IDutControl& dut) {
+    auto* ll = dut.linkLocalControl();
+    if (ll == nullptr) return 0;
     std::uint32_t addr_be = 0;
-    std::memcpy(&addr_be, buf + 3, 4);
+    if (ll->queryCommittedAddress(addr_be) != ::tc8::net::OpStatus::Ok) return 0;
     return addr_be;
 }
 
@@ -617,13 +585,19 @@ inline void scheduleClaimConditionTesterRequest(
     int                 target_state_id,
     const ::tc8::TestConfig& cfg,
     std::string_view    iface,
+    ::tc8::sce::IDutControl& dut,
     Captured&           c) {
     const auto cfg_copy   = cfg;
     const auto iface_copy = std::string(iface);
+    // The seam is captured by POINTER, not copied: it is an interface the runner
+    // owns for the whole case, and the closure runs inside that lifetime (after a
+    // state entry, before the verdict). Copying is not an option anyway — the
+    // sub-interface is polymorphic.
+    auto* dut_p = &dut;
     scheduler.scheduleAfterStateEntry(
         target_state_id,
-        [cfg_copy, iface_copy, &c]() {
-            const std::uint32_t committed_ll = queryLLAddressSync(cfg_copy);
+        [cfg_copy, iface_copy, dut_p, &c]() {
+            const std::uint32_t committed_ll = queryCommittedLLAddress(*dut_p);
             if (committed_ll == 0) return;
             c.expected_responder_sender_ip_be = committed_ll;
             emitArpRequestForDefenderTest(
@@ -697,6 +671,7 @@ inline void scheduleDefenderCeaseConflicts(
     int                 target_state_id,
     std::string_view    iface,
     const ::tc8::TestConfig& cfg,
+    ::tc8::sce::IDutControl& dut,
     Captured&           c,
     std::uint16_t       opcode1,
     std::uint16_t       opcode2 = 0,
@@ -704,11 +679,12 @@ inline void scheduleDefenderCeaseConflicts(
         kDefenderConflictGapMs) {
     const auto cfg_copy   = cfg;
     const auto iface_copy = std::string(iface);
+    auto* dut_p = &dut;   // see scheduleClaimConditionTesterRequest on the lifetime
     scheduler.scheduleAfterStateEntry(
         target_state_id,
-        [cfg_copy, iface_copy, &c, opcode1, opcode2,
+        [cfg_copy, iface_copy, dut_p, &c, opcode1, opcode2,
          inter_conflict_delay]() {
-            const std::uint32_t committed_ll = queryLLAddressSync(cfg_copy);
+            const std::uint32_t committed_ll = queryCommittedLLAddress(*dut_p);
             if (committed_ll == 0) return;
             c.expected_responder_sender_ip_be = committed_ll;
             emitDefenderConflictArp(iface_copy, committed_ll, opcode1);

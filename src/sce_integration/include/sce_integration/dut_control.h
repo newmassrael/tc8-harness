@@ -3,6 +3,7 @@
 #include <cassert>
 #include <chrono>
 #include <cstdint>
+#include <cstring>
 #include <optional>
 #include <string>
 #include <thread>
@@ -681,6 +682,41 @@ public:
         return stimulus::sendUpperTesterRequestAwaited(raw_.iface, raw_.tester_ip_be, dut_ip_be_,
                                                        raw_.dut_mac, raw_.tester_src_port, req,
                                                        timeout_ms_, "StartLLAutoconf") == 0;
+    }
+
+    // OpQueryLLAddress, KERNEL-ROUTED unconditionally — the transport the helper
+    // this replaced always used, so the wire behaviour is unchanged.
+    //
+    // ⚠ Deliberately NOT routed over `raw_` when one is configured, and that is not
+    // an oversight: raw injection exists for operations that must not provoke a
+    // tester-side ARP before the DUT has an address to answer from. A read has the
+    // opposite precondition — it is asked only after the DUT has COMMITTED, so it is
+    // reachable and a routed request costs nothing the case cares about.
+    //
+    // ⚠ And an earlier version of this declined (`Unsupported`) whenever a raw
+    // transport was configured, on the theory that such a backend could not answer.
+    // Measured 2026-09-25: `dut_control_factory.cpp` sets `raw.iface` on EVERY
+    // opcode backend, so that branch was always taken and all twelve §4.5.6.2
+    // claim-condition cases turned into non-conclusions. Raw transport is a
+    // per-operation choice here, never a property of the backend. The decline path
+    // is a backend that offers no `linkLocalControl()` at all.
+    ::tc8::net::OpStatus queryCommittedAddress(std::uint32_t &addr_be) override {
+        const auto req = stimulus::buildQueryLLAddressRequest(/*req_id=*/1);
+        const auto r =
+            stimulus::upperTesterRoundTrip(dut_ip_be_, req, port_, timeout_ms_, src_ip_be_);
+        if (!r || r->status != ut::kStatusOk) {
+            return ::tc8::net::OpStatus::Failed;
+        }
+        // The Confirmation carries the address in the four data bytes after the
+        // status. `*_be` is this tree's convention for a uint32 whose MEMORY bytes
+        // are the network-order wire bytes, so the copy is verbatim — no byte swap.
+        if (r->data.size() < 4) {
+            return ::tc8::net::OpStatus::Failed;
+        }
+        std::uint32_t got = 0;
+        std::memcpy(&got, r->data.data(), 4);
+        addr_be = got;
+        return ::tc8::net::OpStatus::Ok;
     }
 
 private:

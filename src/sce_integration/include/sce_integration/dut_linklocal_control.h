@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <optional>
 
+#include "tc8/net/op_status.h"
+
 // IPv4 link-local autoconfiguration sub-interface of the Tier-2 DUT-control
 // seam. Its own header for the same reason the DHCP one is: starting an
 // autoconf state machine is not socket-shaped, and the ~60 case headers that
@@ -57,6 +59,27 @@ public:
     // request; false means the ask did not happen, which is a non-conclusion
     // rather than a DUT verdict.
     virtual bool startAutoconf(const linklocal::LinkLocalStartConfig &spec) = 0;
+
+    // Read back the address the DUT has COMMITTED to, in network byte order.
+    // The one operation on this sub-interface that reads instead of changing,
+    // and the reason it exists at all: §4.5.6.2's claim-condition cases have to
+    // address the tester's ARP Request at whatever the DUT chose, and that value
+    // exists nowhere but the DUT. Until 2026-09-25 the helper built the request
+    // frame itself and sent it, which is what docs/tech-debt.md TD-21 recorded —
+    // a path that bypassed this seam and with it the capability gate, so a
+    // backend that cannot answer produced a TIMEOUT where an honest skip was
+    // owed.
+    //
+    // Answers `net::OpStatus` rather than a bool so the three ways this fails
+    // stay apart: `Unsupported` for a backend whose protocol has no such read
+    // (the decline the gate turns into a skip), `Failed` for a transport or
+    // malformed-reply failure, `Ok` with `addr_be` set otherwise. `addr_be` is
+    // untouched on anything but `Ok`.
+    //
+    // ⚠ Pure virtual on purpose. A default returning `Unsupported` would let a
+    // new backend inherit a silent decline, and a silent decline of a read is
+    // indistinguishable from a DUT that has not committed yet.
+    virtual ::tc8::net::OpStatus queryCommittedAddress(std::uint32_t &addr_be) = 0;
 };
 
 }  // namespace tc8::sce

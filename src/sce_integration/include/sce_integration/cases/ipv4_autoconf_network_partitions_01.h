@@ -52,7 +52,7 @@ struct TestCaseTraits<cases::Ipv4AutoconfNetworkPartitions01SM>
         ::tc8::sce::linklocal::emitStartLLAutoconfFast(dut);
         ::tc8::sce::linklocal::scheduleClaimConditionTesterRequest(
             scheduler, static_cast<int>(State::Listening_post_claim),
-            cfg, iface, c);
+            cfg, iface, dut, c);
     }
 };
 

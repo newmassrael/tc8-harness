@@ -45,7 +45,7 @@ struct TestCaseTraits<cases::Ipv4AutoconfConflict06SM>
         ::tc8::sce::linklocal::scheduleDefenderCeaseConflicts(
             scheduler,
             static_cast<int>(State::Listening_post_claim),
-            iface, cfg, c,
+            iface, cfg, dut, c,
             /*opcode1=*/0x0001,  // ARP Request
             /*opcode2=*/0x0001); // ARP Request
     }
