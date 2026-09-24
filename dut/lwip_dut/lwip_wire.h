@@ -54,6 +54,13 @@ constexpr std::uint8_t  kIcmpTypeEchoReply   = 0;
 constexpr std::uint8_t  kIcmpTypeDestUnreach = 3;
 constexpr std::uint8_t  kIcmpTypeTimeExceeded = 11;
 constexpr std::uint8_t  kIcmpTypeParamProblem = 12;
+constexpr std::uint8_t  kIcmpTypeTimestamp      = 13;
+constexpr std::uint8_t  kIcmpTypeTimestampReply = 14;
+// RFC 792 p17: type, code, checksum, identifier, sequence, then the originate,
+// receive and transmit timestamps. The identifier and sequence occupy the same
+// offsets as in the Echo layout above, which is why one pair of accessors serves
+// both message families.
+constexpr std::uint16_t kIcmpTimestampLen = 20;
 constexpr std::uint8_t  kIcmpTypeInfoReply   = 16;
 constexpr std::uint16_t kUdpSrcPort  = 0;
 constexpr std::uint16_t kUdpDstPort  = 2;

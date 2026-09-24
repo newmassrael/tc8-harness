@@ -21,7 +21,7 @@ namespace tc8::sce {
 
 template <>
 struct TestCaseTraits<cases::Arp28NegSM>
-    : ArpIngressFaultNegUdpBase<cases::Arp28NegSM> {
+    : ArpFaultNegUdpBase<cases::Arp28NegSM, ::tc8::sce::kCapIngressFault> {
     static constexpr std::string_view kCaseId      = "ARP_28_NEG";
     static constexpr std::string_view kDescription =
         "Self-validation of ARP_28: the lwIP kArpFaultLearnFromDropFrame ingress "

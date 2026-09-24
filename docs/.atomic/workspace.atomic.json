@@ -422,6 +422,14 @@
         {
           "file": "tests/arp_34_neg/arp_34_neg.scxml",
           "kind": "references"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_ingress_fault.cpp",
+          "kind": "references"
+        },
+        {
+          "file": "tests/arp_34_neg2/arp_34_neg2.scxml",
+          "kind": "references"
         }
       ]
     },
@@ -691,6 +699,18 @@
         },
         {
           "file": "src/sce_integration/include/sce_integration/dut_arp_control.h",
+          "kind": "references"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_egress_fault.cpp",
+          "kind": "references"
+        },
+        {
+          "file": "tests/arp_45_neg/arp_45_neg.scxml",
+          "kind": "references"
+        },
+        {
+          "file": "tests/arp_49_neg/arp_49_neg.scxml",
           "kind": "references"
         }
       ]
@@ -1006,6 +1026,18 @@
         {
           "file": "src/sce_integration/include/sce_integration/icmpv4_expectations.h",
           "kind": "implements"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_ingress_fault.cpp",
+          "kind": "references"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/cases/icmpv4_type_12_neg.h",
+          "kind": "references"
+        },
+        {
+          "file": "tests/icmpv4_type_12_neg/icmpv4_type_12_neg.scxml",
+          "kind": "references"
         }
       ]
     },
@@ -1918,6 +1950,14 @@
         {
           "file": "tests/ipv4_reassembly_12_neg3/ipv4_reassembly_12_neg3.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/cases/ipv4_reassembly_10_neg4.h",
+          "kind": "references"
+        },
+        {
+          "file": "tests/ipv4_reassembly_10_neg4/ipv4_reassembly_10_neg4.scxml",
+          "kind": "references"
         }
       ]
     },

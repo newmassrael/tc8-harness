@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.2.4.2 ARP_45 negative — lwIP egress-fault self-validation of the positive's
+  SECOND target_hw guard. The positive requires each DUT Reply to echo the sender_hw of
+  the Request it answers; its two guards are ordered, and one run reaches one final, so
+  a fault that corrupted both Replies would land the FIRST guard and never reach the
+  second. The trait therefore drives Request 1 with the fault DISARMED, arms
+  kArpFaultResponseTargetHwWrong between the two, and only then sends Request 2 — the
+  same arm-between-emissions selection the multi-phase TCP ack negatives use, which is
+  why no occurrence counter is needed in the UT protocol.
+
+    Pass:         Reply 1 correct (target_hw == MAC1), then Reply 2 with a target_hw
+                  that is NOT MAC2 — the violation the positive's
+                  `second_response_target_hw_not_mac2` final grades.
+    Fail:         Reply 2 still carried MAC2, so the arm did not land before the DUT
+                  answered Request 2 — the fault was inert, a wiring regression rather
+                  than a DUT conformance violation. The single `fail` a `_neg` carries.
+    Inconclusive: Reply 1 never matched, so the fault reached the frame this negative
+                  needs left alone and the second guard was never reached. A wrong-STAGE
+                  catch, so it is a non-conclusion, not the inert verdict — the two have
+                  opposite fixes and collapsing them would hide which one is owed.
+
+  lwIP-only (kCapEgressFault).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="arp_45_neg"
+       datamodel="null"
+       initial="wait_resp_1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="wait_resp_1">
+    <onentry>
+      <send event="deadline_exceeded" delay="6s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 2 and captured.sender_hw == expected.dut_iface_mac and captured.target_hw == expected.tester_mac"
+                target="wait_resp_2"/>
+    <transition event="deadline_exceeded" target="inconclusive_armed_too_early"/>
+  </state>
+
+  <state id="wait_resp_2">
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 2 and captured.sender_hw == expected.dut_iface_mac and captured.target_hw != expected.tester_mac2"
+                target="pass"/>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 2 and captured.sender_hw == expected.dut_iface_mac and captured.target_hw == expected.tester_mac2"
+                target="fail_compliant_armed_too_late"/>
+    <transition event="deadline_exceeded" target="fail_compliant_armed_too_late"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_compliant_armed_too_late">
+    <donedata>
+      <content>{"verdict":"fail","reason":"second_response_still_carried_mac2_despite_armed_flavor","role":"fault_injection_inert"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_armed_too_early">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"first_response_lost_before_the_second_could_be_graded","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+</scxml>

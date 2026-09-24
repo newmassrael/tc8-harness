@@ -414,6 +414,8 @@ _DEADLINE_EVENTS = ("deadline", "timeout", "window", "silence")
 # docs/verdict_policy.md Section 6).
 CLASS_STRUCTURE_EXCEPTIONS = {
     "SOMEIP_ETS_096": "prohibited: forbidden SubscribeAck; PASS requires observing a NACK, so silence reaches inconclusive (not pass)",
+    "ARP_39": "prohibited: forbidden UDP before the DUT's own ARP Request; PASS requires observing that Request, so silence reaches inconclusive (not pass)",
+    "ARP_40": "prohibited: forbidden UDP before the DUT's own ARP Request; PASS requires observing that Request, so silence reaches inconclusive (not pass)",
 }
 
 

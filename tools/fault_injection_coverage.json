@@ -9,10 +9,20 @@
       "udp_eth_dst_is_mac1_not_mac2": "ARP_32_NEG2"
     },
     "ARP_34": {
-      "dut_arp_request_after_double_injection": "ARP_34_NEG"
+      "dut_arp_request_after_double_injection": "ARP_34_NEG",
+      "udp_eth_dst_is_mac1_not_mac2": "ARP_34_NEG2"
     },
     "ARP_35": {
       "dut_arp_request_after_double_injection": "ARP_35_NEG"
+    },
+    "ARP_45": {
+      "second_response_target_hw_not_mac2": "ARP_45_NEG"
+    },
+    "ARP_49": {
+      "second_udp_eth_dst_not_learned_mac": "ARP_49_NEG"
+    },
+    "ICMPv4_TYPE_12": {
+      "timestamp_reply_sequence_not_echoed": "ICMPv4_TYPE_12_NEG"
     },
     "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_13": {
       "dut_first_retx_interval_out_of_range": "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_13_NEG",
@@ -67,7 +77,8 @@
     "IPv4_REASSEMBLY_10": {
       "phase_a_datagram_discarded_within_timer": "IPv4_REASSEMBLY_10_NEG",
       "echo_seq_mismatch_phase_a_within_timer": "IPv4_REASSEMBLY_10_NEG2",
-      "reassembled_echo_data_mismatch_phase_a": "IPv4_REASSEMBLY_10_NEG3"
+      "reassembled_echo_data_mismatch_phase_a": "IPv4_REASSEMBLY_10_NEG3",
+      "dut_replied_phase_b_after_timer_expired": "IPv4_REASSEMBLY_10_NEG4"
     },
     "IPv4_REASSEMBLY_12": {
       "reassembly_timer_shrunk_by_low_ttl": "IPv4_REASSEMBLY_12_NEG",

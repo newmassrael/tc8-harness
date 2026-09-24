@@ -46,6 +46,17 @@ constexpr std::uint8_t  kWrongHLen   = 0x08;    // not 6
 constexpr std::uint8_t  kWrongPLen   = 0x06;    // not 4
 constexpr std::uint16_t kWrongOpcode = 0x0009;  // neither request (1) nor reply (2)
 
+// Deterministic non-conformant hardware-address sentinel, for the two flavors that
+// corrupt a MAC rather than a scalar field. Locally administered and unicast, so it can
+// never collide with a real tester or DUT address the guards compare against.
+constexpr std::uint8_t kWrongMac[6] = {0x02, 0x00, 0xDE, 0xAD, 0x00, 0x01};
+
+void writeMac(std::uint8_t *f, std::uint16_t off) {
+    for (std::uint16_t i = 0; i < 6; ++i) {
+        f[off + i] = kWrongMac[i];
+    }
+}
+
 void mutateArp(std::uint8_t *f, std::uint8_t flavor) {
     switch (flavor) {
         case ut::kArpFaultHwTypeWrong:    put16(f, kArpHType, kWrongHType);   break;
@@ -53,6 +64,15 @@ void mutateArp(std::uint8_t *f, std::uint8_t flavor) {
         case ut::kArpFaultHwLenWrong:     f[kArpHLen] = kWrongHLen;           break;
         case ut::kArpFaultProtoLenWrong:  f[kArpPLen] = kWrongPLen;           break;
         case ut::kArpFaultOpcodeWrong:    put16(f, kArpOpcode, kWrongOpcode); break;
+        // §4.2.4.2 ARP_45: the address a Response is answering TO, which the case requires
+        // to track the sender of the Request being answered. Gated on opcode 2 so the DUT's
+        // own resolution Requests — whose target_hw is the all-zero placeholder RFC 826
+        // prescribes, and which the case does not grade — pass through untouched.
+        case ut::kArpFaultResponseTargetHwWrong:
+            if (get16(f, kArpOpcode) == 0x0002) {
+                writeMac(f, kArpTargetHw);
+            }
+            break;
         default:                          break;  // None / non-ARP flavor: no-op
     }
 }
@@ -89,6 +109,13 @@ void mutateUdp(std::uint8_t *f, std::uint8_t flavor, std::uint16_t udp) {
         case ut::kUdpFaultLengthWrong:   put16(f, udp + kUdpLength, kWrongUdpLength); break;
         case ut::kUdpFaultChecksumWrong: put16(f, udp + kUdpChecksum,
                                                get16(f, udp + kUdpChecksum) ^ kChecksumFlip); break;
+        // §4.2.4.2 ARP_49: the LINK-layer destination of the DUT's UDP egress, which the case
+        // reads to decide whether the DUT still addressed the datagram to the MAC it was
+        // taught. It rides the UDP mutator rather than a branch of its own precisely because
+        // an Ethernet destination is present on EVERY frame: the src_port == ut::kPort early
+        // return above is what keeps the DUT's own UT Confirmation out of reach, and an
+        // unscoped version would strand the control channel and read as inert.
+        case ut::kEthFaultUdpEgressDstWrong: writeMac(f, 0);                                  break;
         default:                         break;  // None / non-UDP flavor: no-op
     }
 }

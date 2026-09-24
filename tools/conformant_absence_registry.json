@@ -1127,6 +1127,24 @@
         }
       ]
     },
+    "ARP_39": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "udp_egress_before_dut_arp_request",
+          "property": "DUT must not emit the provoked UDP before it has resolved the tester. Ordering only, so no --expect value can fault it: the guard's single expected-value conjunct is the L3 destination filter, and flipping a filter suppresses the observation rather than faulting the DUT (the audit already rejects that shape as a spurious row). PARTIAL entry -- the case's other fail final is proven by its negative row"
+        }
+      ]
+    },
+    "ARP_40": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "udp_egress_before_dut_arp_request",
+          "property": "DUT must not emit the provoked UDP before it has resolved the tester, on the third injected MAC. Ordering only, so no --expect value can fault it: the guard's single expected-value conjunct is the L3 destination filter, and flipping a filter suppresses the observation rather than faulting the DUT. PARTIAL entry -- the case's other fail final is proven by its negative row"
+        }
+      ]
+    },
     "ARP_41": {
       "guards": [
         {

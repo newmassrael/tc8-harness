@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.2.4.1 ARP_34 negative (stale MAC) — lwIP ingress-fault self-validation of the
+  positive's cache-update guard. The trait arms kArpFaultIgnoreGratuitous and sends the
+  positive's Request/gratuitous-Response pair. The Request teaches MAC1 and lands; the
+  gratuitous Response that would have carried MAC2 over it is swallowed, so the DUT keeps
+  MAC1 and addresses its egress to it, which is the positive's
+  `udp_eth_dst_is_mac1_not_mac2` final. Pass = a DUT UDP to the tester carrying MAC1;
+  fail_compliant = none within the window, meaning the DUT updated to MAC2 anyway and the
+  fault was inert.
+
+  Why a SECOND ingress flavour rather than the Request/Request stale-MAC negative's
+  kArpFaultIgnoreUpdate: that one is opcode-1 gated, for the control-plane reason its own
+  comment gives, so it passes straight over this case's Response. The two flavours divide
+  the same cache-update guard by the shape of the frame that carries the re-teaching.
+
+  Distinct from its ARP_34_NEG sibling by WHICH final it proves: that one suppresses the
+  Request instead, leaving no entry at all, and TD-32's FIND_ONLY semantics mean the
+  gratuitous Response cannot make up for it.
+
+  lwIP-only (kCapIngressFault + kCapArpConditioning). Envelope: arp_cache_stale_mac_neg.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="arp_34_neg2"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/arp_cache_stale_mac_neg.sce-template.xml"/>
+</scxml>

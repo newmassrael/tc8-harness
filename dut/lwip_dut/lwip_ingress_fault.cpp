@@ -150,6 +150,52 @@ void emitProhibitedIcmpReply(struct netif *nif, const std::uint8_t *rx,
     pbuf_free(p);
 }
 
+// kIcmpFaultSynthTimestampReplyBadSeq: a buggy DUT answering a §4.3.3.2 Timestamp Request
+// (type 13) with a Reply (type 14) that echoes the identifier but NOT the sequence. It is a
+// synthesis rather than an egress corruption because lwIP implements no Timestamp at all —
+// icmp.c counts ICMP_TS and drops — so there is no emitted reply to corrupt, and the positive
+// is a platform_known_fail here for that reason.
+//
+// A full 20-byte Timestamp body is built rather than the 8-byte minimum the Echo-family synth
+// above uses: RFC 792 p17 defines the message through the transmit timestamp, and the sibling
+// emitter's contract is that the frame is valid at every layer rather than merely dissectable.
+// The three timestamps stay zero — no guard reads them, and a zeroed millisecond-since-midnight
+// is a legal value, so leaving them is not a malformation.
+//
+// ⚠ The identifier is echoed DELIBERATELY. ICMPv4_TYPE_12 guards the identifier and the
+// sequence with separate finals and one run reaches one final; echoing the identifier is what
+// makes the run fall through to the sequence guard, which is the one no negative row can reach.
+void emitTimestampReplyBadSeq(struct netif *nif, const std::uint8_t *rx) {
+    constexpr std::uint16_t kL4Off    = kEthHdrLen + kIpHdrLenMin;        // 34
+    constexpr std::uint16_t kFrameLen = kL4Off + kIcmpTimestampLen;       // 54
+    struct pbuf *p = pbuf_alloc(PBUF_RAW, kFrameLen, PBUF_RAM);
+    if (p == nullptr) {
+        return;
+    }
+    auto *o = static_cast<std::uint8_t *>(p->payload);
+    std::memset(o, 0, kFrameLen);
+    std::memcpy(o + 0, rx + 6, 6);                        // eth dst = trigger's eth src (the tester)
+    std::memcpy(o + 6, nif->hwaddr, 6);                   // eth src = DUT MAC
+    put16(o, kEthTypeOff, 0x0800);                        // IPv4
+    o[kIpVerIhlOff] = 0x45;                               // version 4, IHL 5 (no options)
+    put16(o, kIpTotalLenOff, kIpHdrLenMin + kIcmpTimestampLen);
+    o[kIpTtlOff]   = 64;
+    o[kIpProtoOff] = kIpProtoIcmp;
+    const std::uint32_t dut_ip = ip4_addr_get_u32(netif_ip4_addr(nif));
+    std::memcpy(o + kIpSrcOff, &dut_ip, 4);               // src = DUT IP (network order)
+    std::memcpy(o + kIpDstOff, rx + kIpSrcOff, 4);        // dst = trigger's IPv4 src (the tester)
+    put16(o, kIpHdrChecksumOff, ::tc8::wire::inetChecksum(o + kEthHdrLen, kIpHdrLenMin));
+    o[kL4Off + kIcmpTypeOff] = kIcmpTypeTimestampReply;
+    put16(o, kL4Off + kIcmpEchoIdOff, get16(rx, kL4Off + kIcmpEchoIdOff));  // echoed, on purpose
+    // The corruption: the sequence the case requires to be echoed verbatim, returned inverted
+    // so it cannot collide with the requested value whatever the tester chose.
+    put16(o, kL4Off + kIcmpEchoSeqOff,
+          static_cast<std::uint16_t>(~get16(rx, kL4Off + kIcmpEchoSeqOff)));
+    put16(o, kL4Off + kIcmpChecksumOff, ::tc8::wire::inetChecksum(o + kL4Off, kIcmpTimestampLen));
+    nif->linkoutput(nif, p);
+    pbuf_free(p);
+}
+
 // emitTcpReply: build + emit a 20-byte TCP segment (no options, no payload) on an explicit
 // (src_port, dst_port) 4-tuple, addressed back to the inbound trigger's sender with the DUT's
 // own source identity — the source IP is the DUT's own netif address so a multicast-destination
@@ -262,6 +308,17 @@ void emitSrcPortBlindAck(struct netif *nif, const std::uint8_t *rx) {
 std::uint32_t g_first_taught_ip = 0;
 bool          g_have_first_taught = false;
 
+// kIpv4FaultHoldFirstFragment's deferred head. A COPY of the frame rather than the pbuf
+// itself: holding a borrowed pbuf across an unbounded wire gap would keep a stack buffer
+// checked out of the pool for seconds, and the whole point of the seam is that the gap is
+// long. The copy is replayed into a fresh pbuf when the tail arrives, so ownership never
+// crosses the hook boundary. One slot, because the flavor exists for a single two-fragment
+// phase; a second head before the tail simply replaces it, which is the honest behaviour
+// (the newest head is the one whose tail is still coming).
+constexpr std::uint16_t kHeldFragmentCap = 1600;  // an Ethernet frame plus slack
+std::uint8_t  g_held_fragment[kHeldFragmentCap];
+std::uint16_t g_held_fragment_len = 0;
+
 bool senderAlreadyTaught(const std::uint8_t *rx) {
     std::uint32_t ip = 0;
     std::memcpy(&ip, rx + kArpSenderIp, 4);  // network order
@@ -338,6 +395,23 @@ err_t ingressFaultInput(struct pbuf *p, struct netif *nif) {
                 // Response teaching is the sibling kArpFaultLearnFromDropFrame's half.
                 pbuf_free(p);
                 return ERR_OK;
+            } else if (flavor == ut::kArpFaultIgnoreGratuitous &&
+                       get16(f, kArpOpcode) == 0x0002 &&
+                       std::memcmp(f + kArpSenderIp, f + kArpTargetIp, 4) == 0) {
+                // §4.2.4.1 ARP_34: the opcode-2 counterpart of the ignore-update sibling above.
+                // TD-32 records that lwIP etharp UPDATES an existing entry from a gratuitous
+                // Response although it never creates one, and ARP_34's pass rides exactly that
+                // update — its opening Request teaches MAC1, its gratuitous Response carries
+                // MAC2 over it. Swallowing the Response leaves MAC1 held, so the DUT addresses
+                // its egress to the stale MAC, which is the final the positive forbids.
+                //
+                // ⚠ target_ip == sender_ip is the control-plane gate, not a shape filter. The
+                // sibling flavors take Requests only because swallowing every Response would
+                // eat the tester's answer to the DUT's own resolution and starve the UT
+                // channel; a tester answering a Request addresses it to the DUT, so that frame
+                // is never gratuitous and never reaches this branch.
+                pbuf_free(p);
+                return ERR_OK;
             }
         } else if ((flavor == ut::kUdpFaultAcceptBadChecksum ||
                     flavor == ut::kUdpFaultRejectValid) &&
@@ -370,6 +444,17 @@ err_t ingressFaultInput(struct pbuf *p, struct netif *nif) {
                 flavor == ut::kIcmpFaultSynthTimeExceeded ? kIcmpTypeTimeExceeded :
                                                             kIcmpTypeEchoReply;
             emitProhibitedIcmpReply(nif, f, reply_type);
+        } else if (flavor == ut::kIcmpFaultSynthTimestampReplyBadSeq &&
+                   p->len >= kEthHdrLen + kIpHdrLenMin && isIpv4(f) &&
+                   f[kIpProtoOff] == kIpProtoIcmp &&
+                   p->len >= l4RegionOffset(f) + kIcmpMinHdrLen &&
+                   f[l4RegionOffset(f) + kIcmpTypeOff] == kIcmpTypeTimestamp) {
+            // §4.3.3.2 TYPE_12: a buggy DUT that answers a Timestamp Request without echoing
+            // the sequence. Gated on the trigger's ICMP type rather than on ICMP alone, so the
+            // Echo traffic the fixture's other cases carry is never answered twice. The
+            // original frame still goes to lwIP, which drops it (ICMP_TS is counted and
+            // discarded) — the synthesized reply is the only type 14 on the wire.
+            emitTimestampReplyBadSeq(nif, f);
         } else if ((flavor == ut::kTcpSynthRst || flavor == ut::kTcpSynthAck ||
                     flavor == ut::kTcpSynthRstOnDisruptive ||
                     flavor == ut::kTcpSynthFinOnDisruptive) &&
@@ -506,6 +591,45 @@ err_t ingressFaultInput(struct pbuf *p, struct netif *nif) {
                           ::tc8::wire::inetChecksum(f + kEthHdrLen, kIpHdrLenMin));
                 }
             }
+        } else if (flavor == ut::kIpv4FaultHoldFirstFragment &&
+                   p->len >= kEthHdrLen + kIpHdrLenMin && isIpv4(f)) {
+            // §4.4.4.7 REASSEMBLY_10 phase B: a buggy DUT whose reassembly timer is too long,
+            // so a pair the wire spread ACROSS the window still completes and is answered —
+            // the emission phase B forbids once its bucket has expired. A DEFER seam: the head
+            // is copied and swallowed, then replayed immediately ahead of its tail, so ip4_reass
+            // meets the two back-to-back however long the gap was. Nothing is rewritten, so no
+            // checksum is owed at any layer.
+            //
+            // ⚠ The obvious shortcut — clear MF so the head reads as a whole datagram — was
+            // MEASURED INERT on 2026-09-25, and not for a timing reason: the head carries the
+            // ICMP checksum of the WHOLE message, so a truncated datagram fails
+            // CHECKSUM_CHECK_ICMP in icmp_input and is dropped in silence. Recomputing that
+            // checksum would not rescue it, because a stack that genuinely mishandles MF hands
+            // icmp_input the same stale checksum and drops it too. That shortcut cannot produce
+            // this guard's observable on ANY stack, which is why the seam defers a frame.
+            //
+            // ⚠ Fragments only (MF set, or a non-zero offset). An unfragmented frame — the UT
+            // control channel and the arm itself included — matches neither arm and passes.
+            const bool more_fragments = (f[kEthHdrLen + 6] & 0x20U) != 0U;
+            const std::uint16_t frag_offset = static_cast<std::uint16_t>(
+                (static_cast<std::uint16_t>(f[kEthHdrLen + 6] & 0x1FU) << 8) | f[kEthHdrLen + 7]);
+            if (more_fragments && frag_offset == 0U && p->len <= kHeldFragmentCap) {
+                std::memcpy(g_held_fragment, f, p->len);
+                g_held_fragment_len = p->len;
+                pbuf_free(p);  // swallow the head; the tail's arrival is what releases it
+                return ERR_OK;
+            }
+            if (!more_fragments && frag_offset != 0U && g_held_fragment_len != 0U) {
+                struct pbuf *head = pbuf_alloc(PBUF_RAW, g_held_fragment_len, PBUF_RAM);
+                if (head != nullptr) {
+                    std::memcpy(head->payload, g_held_fragment, g_held_fragment_len);
+                    g_held_fragment_len = 0;
+                    // Straight to the saved input, not back through this hook: the replay must
+                    // not be deferred a second time, and the counters above already counted
+                    // this frame when the wire delivered it.
+                    g_orig_input(head, nif);
+                }
+            }
         } else if (flavor == ut::kTcpSynthAckSrcPortBlind &&
                    p->len >= kEthHdrLen + kIpHdrLenMin && isIpv4(f) &&
                    f[kIpProtoOff] == kIpProtoTcp &&
@@ -540,6 +664,10 @@ void setIngressFaultFlavor(std::uint8_t flavor) {
     // and swallow its FIRST teaching.
     g_have_first_taught = false;
     g_first_taught_ip = 0;
+    // Likewise kIpv4FaultHoldFirstFragment's deferred head: a head swallowed by one case and
+    // never released (its tail lost, or the case ended between the two) must not be replayed
+    // into the next case's first tail.
+    g_held_fragment_len = 0;
     g_ingress_flavor.store(flavor, std::memory_order_relaxed);
 }
 

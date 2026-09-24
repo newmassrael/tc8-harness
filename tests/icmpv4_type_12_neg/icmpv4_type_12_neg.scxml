@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.3.3.2 ICMPv4_TYPE_12 negative — lwIP ingress-fault self-validation of the
+  positive's SEQUENCE guard. The case grades the identifier and the sequence with
+  separate finals; the identifier half is already disposed by a negative row flipping
+  `icmpv4.echo_id`, and one run reaches one final, so the sequence half needs a fault.
+
+  lwIP implements no Timestamp at all — icmp.c counts ICMP_TS and drops — which is why
+  the positive is a platform_known_fail here and why this is a SYNTHESIS rather than an
+  egress corruption: there is no emitted reply to corrupt. kIcmpFaultSynthTimestampReplyBadSeq
+  answers the trait's Timestamp Request with a type-14 Reply that echoes the identifier
+  and returns the sequence inverted.
+
+  ⚠ The identifier is echoed deliberately. Corrupting both would land the identifier
+  guard first and this negative would prove the final it is not for.
+
+  The platform's own defect lands INCONCLUSIVE (no reply at all), not this fail final, so
+  the pairing is weaker than one on a passing positive but is not the vacuous shape
+  docs/tech-debt.md TD-45 describes.
+
+    Pass:  a DUT-origin type-14 Reply echoing the identifier but NOT the sequence.
+    Fail:  no Reply arrived at all — the flavour was inert, a wiring regression rather
+           than a DUT conformance violation. The single `fail` a `_neg` carries.
+    Inconclusive: a Reply arrived but echoed the sequence. The flavour reached the
+           frame and produced the wrong one, which is a different fix from producing
+           none, so it is a non-conclusion rather than the inert verdict.
+
+  lwIP-only (kCapIngressFault).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="icmpv4_type_12_neg"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Icmpv4Captured"
+               cpp:include="sce_integration/icmpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Icmpv4Expected"
+               cpp:include="sce_integration/icmpv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="3s"/>
+    </onentry>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 14 and captured.src_ip == expected.dut_iface_ip and captured.echo_id == expected.echo_id and captured.echo_seq != expected.echo_seq"
+                target="pass"/>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 14 and captured.src_ip == expected.dut_iface_ip and captured.echo_seq == expected.echo_seq"
+                target="inconclusive_sequence_echoed"/>
+    <transition event="deadline_exceeded" target="fail_compliant_no_reply"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_sequence_echoed">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"synthesized_timestamp_reply_echoed_the_sequence","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_compliant_no_reply">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_timestamp_reply_despite_armed_synth_flavor","role":"fault_injection_inert"}</content>
+    </donedata>
+  </final>
+</scxml>

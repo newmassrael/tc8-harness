@@ -934,7 +934,28 @@ inline constexpr std::uint8_t kIcmpFaultEchoPayloadTruncate = 0x18;  // RFC 791 
 // gated on a TCP segment carrying payload) — the guard reads payload_len, which drops off the
 // expected MSS.
 inline constexpr std::uint8_t kTcpFaultDataSegTruncate = 0x19;  // RFC 1122 §4.2.2.6 segment size: §4.8 MSS_OPTIONS_06/09/10 (data segment truncated below the MSS)
-inline constexpr std::uint8_t kEgressFaultMax         = kTcpFaultDataSegTruncate;
+// RFC 826 target hardware address in a DUT-emitted ARP RESPONSE — the address the DUT is
+// answering TO, which §4.2.4.2 ARP_45 requires to track the sender of the Request being
+// answered rather than a first correspondent remembered from an earlier exchange.
+//
+// ⚠ ARP_45 grades TWO Responses and this flavor corrupts whichever one is in flight, so the
+// negative that reaches the SECOND guard arms MID-STREAM (emitEgressFlavorArmMidStream) after
+// the first Response has left. Corrupting both would land the first guard and the run would
+// never reach the second — the same one-run-one-final constraint the per-final coverage map
+// exists for. No occurrence counter is needed in the UT protocol: arming between emissions is
+// how the multi-phase TCP ack negatives already select a later frame.
+inline constexpr std::uint8_t kArpFaultResponseTargetHwWrong = 0x1A;  // RFC 826 target hw: §4.2.4.2 ARP_45 (a Response answers the Request's sender)
+// The Ethernet destination of a DUT-emitted UDP datagram — the field §4.2.4.2 ARP_49 reads to
+// decide whether the DUT still addressed its egress to the MAC it was taught.
+//
+// ⚠ Scoped to DUT UDP egress, and unlike the narrowings above that is a REQUIREMENT rather
+// than a convenience. Every other flavor in this catalog is self-filtering by the field it
+// corrupts: an ARP field cannot match a TCP segment, so an armed flavor passes over frames it
+// does not describe. A link-layer destination is present on EVERY frame, so an unscoped version
+// would corrupt whichever frame left first — including the DUT's own UT acknowledgement, which
+// would strand the control channel and make the fault read as inert instead of effective.
+inline constexpr std::uint8_t kEthFaultUdpEgressDstWrong = 0x1B;  // §4.2.4.2 ARP_49 (UDP egress carries the learned MAC until the entry expires)
+inline constexpr std::uint8_t kEgressFaultMax         = kEthFaultUdpEgressDstWrong;
 
 // `OpSetIngressFlavor` ingress-reaction catalog (lwIP fixture input hook). The
 // reception cases where a conformant DUT's reaction to an inbound frame is itself
@@ -1058,14 +1079,55 @@ inline constexpr std::uint8_t kIpv4FaultNormaliseFragTuple = 0x11;  // §4.4.4.6
 // they fire DIFFERENT finals of the same double-injection case: the absent-entry path gives
 // `dut_arp_request_after_double_injection`, the stale-entry path `udp_eth_dst_is_mac1_not_mac2`.
 // Request-only for the same control-plane reason as its sibling.
-inline constexpr std::uint8_t kArpFaultIgnoreUpdate      = 0x12;  // §4.2.4.1 cache-update: ARP_32/35 (a second teaching must replace the first)
-// ⚠ 0x13 was a resolve-before-send seed, meant to give the DUT the tester's address so its
-// egress would carry no ARP Request in front of it. It was REMOVED rather than kept unused:
-// the arm cannot be its own seed (the hook reads the flavour while the arm frame passes, and
-// the UT handler sets it only after delivery), and by any later frame the DUT has already
-// resolved — because answering the arm is what makes it resolve. See docs/tech-debt.md TD-46
-// before reaching for this idea again; the value is free to reuse.
-inline constexpr std::uint8_t kIngressFaultMax           = kArpFaultIgnoreUpdate;
+inline constexpr std::uint8_t kArpFaultIgnoreUpdate      = 0x12;  // §4.2.4.1 cache-update: ARP_32 (a second teaching must replace the first)
+// ⚠ A resolve-before-send seed does NOT belong in this catalog, whatever value it is given.
+// Such a seed would hand the DUT the tester's address so its egress carried no ARP Request in
+// front of it — but the arm cannot be its own seed: the hook reads the flavour while the arm
+// frame passes, and the UT handler sets it only after delivery; by any later frame the DUT has
+// already resolved, because answering the arm is what makes it resolve. See docs/tech-debt.md
+// TD-46 before reaching for the idea again. The lesson is the ORDERING, not a reserved byte,
+// so no value is held back for it.
+// §4.2.4.1 cache UPDATE by a GRATUITOUS Response — the opcode-2 counterpart of
+// kArpFaultIgnoreUpdate, and needed because that one is Request-only. TD-32 records what lwIP
+// etharp does with a gratuitous Response: it UPDATES an existing entry although it never
+// creates one, and ARP_34's pass depends on exactly that update carrying MAC2 over the MAC1 its
+// opening Request taught. Swallowing it leaves MAC1 in the table, which is the
+// `udp_eth_dst_is_mac1_not_mac2` final.
+//
+// ⚠ Gated on target_ip == sender_ip, and that IS the control-plane safety argument rather than
+// a shape convenience: the sibling flavors above take Requests only because swallowing every
+// Response would eat the tester's answer to the DUT's own resolution and starve the UT channel.
+// A tester answering a Request addresses it to the DUT, so it is never gratuitous — this gate
+// admits only frames no control plane depends on.
+inline constexpr std::uint8_t kArpFaultIgnoreGratuitous  = 0x13;  // §4.2.4.1 cache-update: ARP_34 (a gratuitous re-teaching must replace the first)
+// §4.3.3.2 ICMP Timestamp synthesis. lwIP does not implement Timestamp at all (icmp.c counts
+// ICMP_TS and drops), so ICMPv4_TYPE_12 is a platform_known_fail here and no run can corrupt a
+// reply the stack never emits — the frame has to be synthesized, as the Echo / Information /
+// Parameter Problem synth flavors above already do for their own absent reactions. Echoes the
+// request's identifier and deliberately NOT its sequence, so the reply lands the case's
+// sequence guard rather than its identifier guard (the identifier half is already disposed by
+// a negative row, and one run reaches one final).
+inline constexpr std::uint8_t kIcmpFaultSynthTimestampReplyBadSeq = 0x14;  // §4.3.3.2 TYPE_12: a Timestamp Reply that does not echo the sequence
+// §4.4.4.7 reassembly-window escape — a DEFER seam, unlike every drop and mutate flavor above.
+// The hook keeps a copy of a head fragment (MF set, offset 0) and swallows it, then replays the
+// copy immediately ahead of the matching tail, so the stack meets the pair back-to-back however
+// long the wire gap between them was. That is precisely what a DUT whose reassembly timer is
+// too long looks like from the tester: the pair completes and a correct Echo Reply arrives,
+// which is the emission IPv4_REASSEMBLY_10's phase B forbids once its bucket has expired.
+//
+// ⚠ The obvious shortcut — clear MF on the head so the stack takes it for a whole datagram —
+// was MEASURED INERT on 2026-09-25 and is not a timing bug: the head carries the ICMP checksum
+// of the WHOLE message, so a truncated datagram fails CHECKSUM_CHECK_ICMP in icmp_input and is
+// dropped in silence. Recomputing that checksum would not rescue it either, because a stack
+// that genuinely mishandles MF would hand icmp_input the same stale checksum and drop it too —
+// the shortcut cannot produce this guard's observable on ANY stack, which is why the seam
+// defers a frame instead of rewriting one.
+//
+// ⚠ Must be armed MID-STREAM (emitIngressFlavorArmMidStream), between the phases. Armed from
+// the start it would defer phase A's head the same way, the positive's phase-A guard would take
+// the run, and phase B — the half under test — would never be entered.
+inline constexpr std::uint8_t kIpv4FaultHoldFirstFragment = 0x15;  // §4.4.4.7 REASSEMBLY_10: the DUT answers a pair the wire spread across its reassembly window
+inline constexpr std::uint8_t kIngressFaultMax           = kIpv4FaultHoldFirstFragment;
 
 // `OpSetAppFlavor` (0x1A) APP-LAYER reception-fault flavor byte. Distinct from the
 // egress/ingress catalogs: those mutate or synthesize wire frames at the netif hook,

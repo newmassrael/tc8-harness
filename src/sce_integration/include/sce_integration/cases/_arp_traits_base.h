@@ -36,7 +36,7 @@
 // Every §4.2 case is covered by these two ArpFrame dispatch shapes, plus one
 // narrowing for the drop-and-emit `_neg`: the ArpEgressFaultNegBase /
 // ArpIngressFaultNegBase mixins just add a capability declaration over ArpAnyBase;
-// ArpIngressFaultNegUdpBase (the §4.2.4.2 drop-and-emit cases) narrows ArpAndUdpBase
+// ArpFaultNegUdpBase (the §4.2.4.2 drop-and-emit cases) narrows ArpAndUdpBase
 // to a UDP-ONLY dispatch because it must ignore the DUT's conformant control-plane
 // ARP resolution (see the base below). Stated by shape, not a frozen case count, so
 // the claim survives the `_neg` track and future §4.2 additions.
@@ -260,9 +260,15 @@ struct ArpIngressFaultNegProvokedBase : ArpAnyBase<StateMachine> {
 // the fault took. Inherits ArpAndUdpBase for the constants + aliases (kBpfGroup
 // stays ArpAndUdp so the ARP frames are still captured for the pcap/evidence) and
 // OVERRIDES dispatch to UDP-only; the base's ArpFrame dispatch is never odr-used, so
-// its Arp_observed reference is never instantiated. Requires kCapIngressFault.
-template <typename StateMachine>
-struct ArpIngressFaultNegUdpBase : ArpAndUdpBase<StateMachine> {
+// its Arp_observed reference is never instantiated.
+//
+// `FaultSeam` is the fixture seam the variant's fault rides on, named by each consumer
+// rather than defaulted: kCapIngressFault for the cases that swallow a teaching frame
+// before etharp sees it, kCapEgressFault for the ones that corrupt what the DUT emits.
+// It carries no default on purpose — the comment below is about a bit that goes missing
+// silently, and a default is the shape that lets it.
+template <typename StateMachine, ::tc8::sce::DutCapabilities FaultSeam>
+struct ArpFaultNegUdpBase : ArpAndUdpBase<StateMachine> {
     using Base = ArpAndUdpBase<StateMachine>;
     using typename Base::SM;
     using typename Base::Event;
@@ -270,9 +276,11 @@ struct ArpIngressFaultNegUdpBase : ArpAndUdpBase<StateMachine> {
 
     // Shadows ArpAndUdpBase's declaration rather than extending it, so the seam
     // bit has to be restated here — dropping it would silently un-gate the very
-    // provocation these cases depend on.
+    // provocation these cases depend on. kCapArpConditioning is not part of the
+    // parameter because it is what the egress provocation itself needs, whichever
+    // seam the fault uses.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
-        ::tc8::sce::kCapIngressFault | ::tc8::sce::kCapArpConditioning;
+        FaultSeam | ::tc8::sce::kCapArpConditioning;
 
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {
         if (const auto* u = std::get_if<::tc8::UdpFrame>(&ev)) {

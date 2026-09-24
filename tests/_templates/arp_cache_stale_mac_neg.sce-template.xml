@@ -1,19 +1,28 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   §4.2.4.1 stale-MAC `_NEG` body: the lwIP ingress-fault self-validation of the
-  `udp_eth_dst_is_mac1_not_mac2` guard (ARP_32/35).
+  `udp_eth_dst_is_mac1_not_mac2` guard (ARP_32, ARP_34).
 
   The positive teaches the DUT the tester's address TWICE from two different MACs and
   requires the egress to carry the SECOND — a second teaching must replace the first.
-  Its `_NEG` arms kArpFaultIgnoreUpdate, whose netif input hook swallows a teaching
-  Request whose sender IP the table already holds, so the first MAC survives and the
-  DUT addresses its egress to it.
+  Its `_NEG` swallows the SECOND teaching at the netif input so the first MAC survives
+  and the DUT addresses its egress to it. WHICH flavour does the swallowing depends on
+  the shape of the positive's second injection, and the two are deliberately separate:
+  kArpFaultIgnoreUpdate takes a Request re-teaching an address the table already holds
+  (ARP_32, whose pair is Request/Request), kArpFaultIgnoreGratuitous takes a gratuitous
+  Response (ARP_34, whose second injection is one). The body is the same either way
+  because it reads the egress MAC, not the frame that failed to change it.
+
+  Not every sibling of those two can be negated this way. ARP_35 injects the gratuitous
+  Response FIRST, and TD-32 records that lwIP etharp creates no entry from one, so there
+  is no first MAC to keep and neither flavour has anything to swallow — its stale-MAC
+  unit is deferred against that debt rather than paired with a case here.
 
     Pass:    a DUT UDP to the tester carrying eth_dst == the FIRST injected MAC — the
              staleness the positive forbids, present here because the fault took.
     Fail:    deadline_exceeded -> fail_compliant — no such UDP within the window: the
-             DUT updated to the second MAC anyway, so the flavor never reached the
-             second teaching (a wiring regression, NOT a DUT conformance violation;
+             DUT updated to the second MAC anyway, so the armed flavour never reached
+             the second teaching (a wiring regression, NOT a DUT conformance violation;
              role fault_injection_inert).
 
   Keyed on the egress MAC, not on the absence of one: a DUT that learned NEITHER MAC
@@ -55,7 +64,7 @@
 
   <final id="fail_compliant">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_used_second_mac_despite_ignore_update_flavor","role":"fault_injection_inert"}</content>
+      <content>{"verdict":"fail","reason":"dut_used_second_mac_despite_armed_ignore_flavor","role":"fault_injection_inert"}</content>
     </donedata>
   </final>
 </sce:template>

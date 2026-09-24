@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.2.4.2 ARP_49 negative — lwIP egress-fault self-validation of the positive's
+  SECOND UDP guard. The positive requires the DUT's egress to keep riding the learned
+  MAC while the entry is merely half-aged; its first and second UDP guards are ordered,
+  so a fault armed from the start would land the first and never reach the second. The
+  trait drives UDP 1 with the fault DISARMED, arms kEthFaultUdpEgressDstWrong between
+  the phases, and only then provokes UDP 2.
+
+    Pass:  a DUT UDP to the tester whose eth_dst is NOT the learned MAC — the violation
+           the positive's `second_udp_eth_dst_not_learned_mac` final grades.
+    Fail:  deadline_exceeded -> no such UDP within the window, so the arm did not reach
+           the second egress — the fault was inert, a wiring regression rather than a
+           DUT conformance violation. The single `fail` a `_neg` carries.
+    Inconclusive: the FIRST egress already lost the learned MAC (the arm landed too
+           early), or none arrived at all. Wrong-STAGE catches, so they are
+           non-conclusions rather than the inert verdict.
+
+  ⚠ A correct-MAC UDP in the second window is deliberately given NO transition rather
+  than a fail. The positive's own trait records that one UT 0x02 emit yields the
+  response and the triggered datagram as a PAIR, so a correct-MAC frame from the first
+  phase can still be in flight here; consuming it as a verdict would make this negative
+  report on a frame it never armed against. The deadline is the honest judge.
+
+  lwIP-only (kCapEgressFault + kCapArpConditioning).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="arp_49_neg"
+       datamodel="null"
+       initial="wait_udp1">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="wait_udp1">
+    <onentry>
+      <send event="deadline_exceeded" delay="8s"/>
+    </onentry>
+    <transition event="udp_observed"
+                cond="cpp:captured.observed_udp_dst_ip == expected.tester_ip and captured.observed_udp_eth_dst == expected.tester_mac"
+                target="wait_udp2"/>
+    <transition event="udp_observed"
+                cond="cpp:captured.observed_udp_dst_ip == expected.tester_ip and captured.observed_udp_eth_dst != expected.tester_mac"
+                target="inconclusive_armed_too_early"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_first_udp"/>
+  </state>
+
+  <state id="wait_udp2">
+    <transition event="udp_observed"
+                cond="cpp:captured.observed_udp_dst_ip == expected.tester_ip and captured.observed_udp_eth_dst != expected.tester_mac"
+                target="pass"/>
+    <transition event="deadline_exceeded" target="fail_compliant_armed_too_late"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_compliant_armed_too_late">
+    <donedata>
+      <content>{"verdict":"fail","reason":"second_udp_still_carried_learned_mac_despite_armed_flavor","role":"fault_injection_inert"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_armed_too_early">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"first_udp_lost_the_learned_mac_before_the_second_was_graded","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_first_udp">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_first_udp_so_the_arm_window_never_opened","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+</scxml>

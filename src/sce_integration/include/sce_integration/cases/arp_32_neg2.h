@@ -22,11 +22,11 @@ namespace tc8::sce {
 
 // UDP-only dispatch, unlike its ARP_32_NEG sibling: this case's envelope listens for
 // the egress MAC alone, so its generated Event enum carries no Arp_observed and the
-// ArpAnyBase dispatch would not compile against it. ArpIngressFaultNegUdpBase exists
-// for exactly that shape and declares the same two seam bits.
+// ArpAnyBase dispatch would not compile against it. ArpFaultNegUdpBase exists for
+// exactly that shape; the seam bit it carries is named here rather than defaulted.
 template <>
 struct TestCaseTraits<cases::Arp32Neg2SM>
-    : ArpIngressFaultNegUdpBase<cases::Arp32Neg2SM> {
+    : ArpFaultNegUdpBase<cases::Arp32Neg2SM, ::tc8::sce::kCapIngressFault> {
     static constexpr std::string_view kCaseId      = "ARP_32_NEG2";
     static constexpr std::string_view kDescription =
         "Self-validation of ARP_32's stale-MAC guard: kArpFaultIgnoreUpdate swallows "
