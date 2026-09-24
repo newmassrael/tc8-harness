@@ -418,6 +418,10 @@
         {
           "file": "tests/arp_35_neg/arp_35_neg.scxml",
           "kind": "references"
+        },
+        {
+          "file": "tests/arp_34_neg/arp_34_neg.scxml",
+          "kind": "references"
         }
       ]
     },

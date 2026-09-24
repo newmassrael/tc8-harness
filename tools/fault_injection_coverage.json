@@ -8,6 +8,9 @@
       "dut_arp_request_after_double_injection": "ARP_32_NEG",
       "udp_eth_dst_is_mac1_not_mac2": "ARP_32_NEG2"
     },
+    "ARP_34": {
+      "dut_arp_request_after_double_injection": "ARP_34_NEG"
+    },
     "ARP_35": {
       "dut_arp_request_after_double_injection": "ARP_35_NEG"
     },
