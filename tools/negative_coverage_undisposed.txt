@@ -8,13 +8,10 @@
 # fails on a new unproven unit or a stale (now-proven) entry. When this file
 # is empty every guard of every positive case is proven checkable.
 arp_06:dut_arp_request_after_gratuitous_learning
-arp_32:dut_arp_request_after_double_injection
-arp_32:udp_eth_dst_is_mac1_not_mac2
 arp_33:dut_arp_request_after_double_injection
 arp_33:udp_eth_dst_is_mac1_not_mac2
 arp_34:dut_arp_request_after_double_injection
 arp_34:udp_eth_dst_is_mac1_not_mac2
-arp_35:dut_arp_request_after_double_injection
 arp_35:udp_eth_dst_is_mac1_not_mac2
 arp_39:udp_egress_before_dut_arp_request
 arp_40:udp_egress_before_dut_arp_request

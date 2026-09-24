@@ -1051,7 +1051,15 @@ inline constexpr std::uint8_t kArpFaultIgnoreLearn       = 0x10;  // §4.2.4.1 c
 // would read as inert. One flavor covers all three fields because the tuple is what
 // matching is defined over; never an ip4_reass.c patch.
 inline constexpr std::uint8_t kIpv4FaultNormaliseFragTuple = 0x11;  // §4.4.4.6 FRAGMENTS_02/03/04: the DUT reassembles fragments whose tuple does not match
-inline constexpr std::uint8_t kIngressFaultMax           = kIpv4FaultNormaliseFragTuple;
+// §4.2.4.1 cache UPDATE — the narrower sibling of kArpFaultIgnoreLearn. That one swallows
+// every teaching Request, leaving the table empty so the DUT resolves; this one swallows
+// only a Request re-teaching an address the table ALREADY holds, so the FIRST MAC survives
+// and the DUT addresses its egress to the stale one. Two flavours rather than one because
+// they fire DIFFERENT finals of the same double-injection case: the absent-entry path gives
+// `dut_arp_request_after_double_injection`, the stale-entry path `udp_eth_dst_is_mac1_not_mac2`.
+// Request-only for the same control-plane reason as its sibling.
+inline constexpr std::uint8_t kArpFaultIgnoreUpdate      = 0x12;  // §4.2.4.1 cache-update: ARP_32/35 (a second teaching must replace the first)
+inline constexpr std::uint8_t kIngressFaultMax           = kArpFaultIgnoreUpdate;
 
 // `OpSetAppFlavor` (0x1A) APP-LAYER reception-fault flavor byte. Distinct from the
 // egress/ingress catalogs: those mutate or synthesize wire frames at the netif hook,

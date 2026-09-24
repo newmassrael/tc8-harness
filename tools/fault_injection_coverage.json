@@ -4,6 +4,13 @@
     "ARP_04": {
       "dut_arp_request_after_cache_populated": "ARP_04_NEG"
     },
+    "ARP_32": {
+      "dut_arp_request_after_double_injection": "ARP_32_NEG",
+      "udp_eth_dst_is_mac1_not_mac2": "ARP_32_NEG2"
+    },
+    "ARP_35": {
+      "dut_arp_request_after_double_injection": "ARP_35_NEG"
+    },
     "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_13": {
       "dut_first_retx_interval_out_of_range": "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_13_NEG",
       "dut_second_retx_interval_out_of_range": "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_13_NEG2"

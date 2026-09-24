@@ -188,6 +188,10 @@
         {
           "file": "tests/_templates/arp_cache_staleness_neg.sce-template.xml",
           "kind": "references"
+        },
+        {
+          "file": "tests/_templates/arp_cache_stale_mac_neg.sce-template.xml",
+          "kind": "references"
         }
       ]
     },
@@ -397,6 +401,22 @@
         },
         {
           "file": "tests/arp_04_neg/arp_04_neg.scxml",
+          "kind": "references"
+        },
+        {
+          "file": "tests/_templates/arp_cache_stale_mac_neg.sce-template.xml",
+          "kind": "references"
+        },
+        {
+          "file": "tests/arp_32_neg/arp_32_neg.scxml",
+          "kind": "references"
+        },
+        {
+          "file": "tests/arp_32_neg2/arp_32_neg2.scxml",
+          "kind": "references"
+        },
+        {
+          "file": "tests/arp_35_neg/arp_35_neg.scxml",
           "kind": "references"
         }
       ]

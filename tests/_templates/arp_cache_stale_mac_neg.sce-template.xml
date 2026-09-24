@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.2.4.1 stale-MAC `_NEG` body: the lwIP ingress-fault self-validation of the
+  `udp_eth_dst_is_mac1_not_mac2` guard (ARP_32/35).
+
+  The positive teaches the DUT the tester's address TWICE from two different MACs and
+  requires the egress to carry the SECOND — a second teaching must replace the first.
+  Its `_NEG` arms kArpFaultIgnoreUpdate, whose netif input hook swallows a teaching
+  Request whose sender IP the table already holds, so the first MAC survives and the
+  DUT addresses its egress to it.
+
+    Pass:    a DUT UDP to the tester carrying eth_dst == the FIRST injected MAC — the
+             staleness the positive forbids, present here because the fault took.
+    Fail:    deadline_exceeded -> fail_compliant — no such UDP within the window: the
+             DUT updated to the second MAC anyway, so the flavor never reached the
+             second teaching (a wiring regression, NOT a DUT conformance violation;
+             role fault_injection_inert).
+
+  Keyed on the egress MAC, not on the absence of one: a DUT that learned NEITHER MAC
+  would emit its own ARP Request and no qualifying UDP at all, which lands on
+  fail_compliant rather than pass. That is the correct reading — the sibling flavour
+  kArpFaultIgnoreLearn is what demonstrates the absent-entry final, and conflating the
+  two would let either fault satisfy both negatives.
+
+  Param-less, shared by the pair. 5 s deadline matches the §4.2 `_NEG` cluster.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="arp_cache_stale_mac_neg">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="udp_observed"
+                cond="cpp:captured.observed_udp_dst_ip == expected.tester_ip and captured.observed_udp_eth_dst == expected.tester_mac"
+                target="pass"/>
+    <transition event="deadline_exceeded" target="fail_compliant"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_compliant">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_used_second_mac_despite_ignore_update_flavor","role":"fault_injection_inert"}</content>
+    </donedata>
+  </final>
+</sce:template>

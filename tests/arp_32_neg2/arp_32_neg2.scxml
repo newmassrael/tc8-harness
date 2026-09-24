@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.2.4.1 ARP_32 negative (stale MAC) — lwIP ingress-fault self-validation of the
+  positive's cache-update guard. The trait arms kArpFaultIgnoreUpdate and sends the
+  positive's two teaching Requests. The hook swallows only a Request whose sender IP
+  the table ALREADY holds, so the first teaching lands and the second is lost: the DUT
+  keeps the first MAC and addresses its egress to it, which is the positive's
+  `udp_eth_dst_is_mac1_not_mac2` final. Pass = a DUT UDP to the tester carrying that
+  first MAC; fail_compliant = none within the window, meaning the DUT updated to the
+  second MAC anyway and the fault was inert.
+
+  Distinct from its ARP_32_NEG sibling by WHICH final it proves: that one suppresses
+  both teachings so no entry exists at all. Keeping the two faults separate is what
+  stops either negative from satisfying both guards.
+
+  lwIP-only (kCapIngressFault + kCapArpConditioning). Envelope: arp_cache_stale_mac_neg.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="arp_32_neg2"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/arp_cache_stale_mac_neg.sce-template.xml"/>
+</scxml>

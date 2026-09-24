@@ -247,6 +247,30 @@ void emitSrcPortBlindAck(struct netif *nif, const std::uint8_t *rx) {
 // straight to the dropped frame's MAC instead of emitting its own ARP Request — the
 // exact violation the positive guard forbids. Under the core lock: this rx thread is
 // not the tcpip thread, so it must hold it to touch the ARP table.
+// True when THIS HOOK has already passed a teaching Request for the same sender IP since
+// the flavour was armed — what tells a SECOND teaching of an address from the first, and
+// so what kArpFaultIgnoreUpdate is gated on.
+//
+// ⚠ It does NOT ask the ARP table, and the first version did. MEASURED 2026-09-24: asking
+// `etharp_find_addr` made the stale-MAC negative inert. This hook runs on the rx thread while
+// `tcpip_input` hands the frame to the tcpip thread asynchronously, so when the second
+// teaching arrives microseconds after the first, the table has not necessarily been
+// updated yet and the lookup answers "not held" — the very frame to swallow passes
+// through. Remembering what the hook itself forwarded has no such race, and it is also
+// the more faithful reading of "ignore an UPDATE": the update is the second teaching,
+// whatever the stack has managed to do with the first.
+std::uint32_t g_first_taught_ip = 0;
+bool          g_have_first_taught = false;
+
+bool senderAlreadyTaught(const std::uint8_t *rx) {
+    std::uint32_t ip = 0;
+    std::memcpy(&ip, rx + kArpSenderIp, 4);  // network order
+    if (g_have_first_taught && ip == g_first_taught_ip) return true;
+    g_first_taught_ip = ip;
+    g_have_first_taught = true;
+    return false;
+}
+
 void learnDropFrameAddress(const std::uint8_t *rx) {
     ip4_addr_t ip;
     std::memcpy(&ip.addr, rx + kArpSenderIp, 4);  // network order, as ip4_addr_t stores it
@@ -293,8 +317,9 @@ err_t ingressFaultInput(struct pbuf *p, struct netif *nif) {
             } else if (flavor == ut::kArpFaultLearnFromDropFrame &&
                        get16(f, kArpOpcode) == 0x0002) {  // learn only from a Response
                 learnDropFrameAddress(f);
-            } else if (flavor == ut::kArpFaultIgnoreLearn &&
-                       get16(f, kArpOpcode) == 0x0001) {  // a teaching REQUEST only
+            } else if (get16(f, kArpOpcode) == 0x0001 &&  // a teaching REQUEST only
+                       (flavor == ut::kArpFaultIgnoreLearn ||
+                        (flavor == ut::kArpFaultIgnoreUpdate && senderAlreadyTaught(f)))) {
                 // Swallow the frame so lwIP's etharp never sees it and the cache keeps
                 // whatever it held. Ignore-learn takes any teaching Request, so the
                 // taught address is never held and the DUT resolves by emitting its own
@@ -510,6 +535,11 @@ err_t ingressFaultInput(struct pbuf *p, struct netif *nif) {
 }  // namespace
 
 void setIngressFaultFlavor(std::uint8_t flavor) {
+    // Arming resets the per-arm memory kArpFaultIgnoreUpdate keeps, so a second case in
+    // the same DUT lifetime does not inherit the first case's "already taught" sender
+    // and swallow its FIRST teaching.
+    g_have_first_taught = false;
+    g_first_taught_ip = 0;
     g_ingress_flavor.store(flavor, std::memory_order_relaxed);
 }
 

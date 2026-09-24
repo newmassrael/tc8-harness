@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.2.4.1 ARP_32 negative — lwIP ingress-fault self-validation of the positive's
+  absent-entry guard. The trait arms kArpFaultIgnoreLearn and sends the positive's two
+  teaching Requests; the netif input hook swallows both before lwIP's etharp sees them,
+  so the DUT holds no entry and must resolve, emitting the opcode-1 ARP Request the
+  positive's `dut_arp_request_after_double_injection` final forbids. Pass = that
+  Request; fail_compliant = none within the window, meaning the DUT resolved from cache
+  anyway and the fault was inert. lwIP-only (kCapIngressFault + kCapArpConditioning).
+  Envelope: arp_cache_staleness_neg.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="arp_32_neg"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/arp_cache_staleness_neg.sce-template.xml"/>
+</scxml>
