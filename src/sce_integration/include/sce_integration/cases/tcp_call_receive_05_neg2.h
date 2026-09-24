@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string_view>
 
+#include "tc8/upper_tester_fault_catalog.h"
 #include "tc8/upper_tester_protocol.h"
 
 #include "sce_integration/case_registry.h"

@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "tc8/net/socket_backend.h"
+#include "tc8/upper_tester_fault_catalog.h"
 #include "tc8/upper_tester_protocol.h"
 #include "upper_tester/stack_probe.h"
 

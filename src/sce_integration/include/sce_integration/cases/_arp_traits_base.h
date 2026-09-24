@@ -9,7 +9,6 @@
 #include "tc8/captured_event.h"
 
 #include "sce_integration/arp_captured.h"
-#include "sce_integration/cases/_fault_flavor_arm.h"
 #include "sce_integration/dut_capabilities.h"
 #include "tc8/unperformed_stimulus.h"
 #include "sce_integration/dut_control.h"
@@ -102,26 +101,17 @@ inline int emitArpCacheConditioning(::tc8::sce::IDutControl &dut,
     return arp->conditionCache(action, param);
 }
 
-// emitEgressFlavorArm / emitIngressFlavorArm (the generic UT 0x18 / 0x19 arming)
-// live in _fault_flavor_arm.h — they are mechanism-generic (ARP egress 07..12 /
-// 46/47 and ingress 21/27/37/42 + 22/28/38 here; UDP and beyond elsewhere).
-
-// Request-shape egress _neg stimulus (ARP_07..12): arm the egress fault, then drive
-// the same UT 0x02 egress provocation the positive case uses so the lwIP DUT emits a
-// cache-miss ARP Request the hook corrupts. The provocation's own bring-up wait is
-// suppressed — `emitEgressFlavorArm` already paid it, and the UT server is now
-// proven up — so the two emits do not double the pause. The deadline does not arm
-// until kickStimulus returns (test_runner.h), so this whole block runs before the
-// listen window opens and the corrupted Request is captured either way.
-inline void emitEgressFlavorRequestProvocation(const ::tc8::TestConfig &cfg,
-                                               std::string_view iface,
-                                               ::tc8::sce::IDutControl &dut,
-                                               std::uint8_t flavor) {
-    emitEgressFlavorArm(cfg, iface, flavor);
-    ::tc8::stimulus::BootTiming timing = cfg.stimulus_timing;
-    timing.initial_wait = std::chrono::milliseconds{0};
-    emitArpEgressProvocation(dut, timing);
-}
+// emitEgressFlavorArm / emitIngressFlavorArm (the generic UT 0x18 / 0x19 arming) live
+// in _fault_flavor_arm.h — mechanism-generic (ARP egress 07..12 / 46/47 and ingress
+// 21/27/37/42 + 22/28/38; UDP and beyond elsewhere). The one ARP-shaped composition of
+// them, emitEgressFlavorRequestProvocation, lives in _arp_fault_arm.h.
+//
+// ⚠ This file deliberately does NOT include either. It is the base EVERY §4.2 case
+// uses, positive and negative alike, and the arm header carries the fault-flavour
+// catalogue: including it here put the catalogue in all 64 ARP cases, which the MD5
+// bucketing then spread over every registrar chunk — measured 2026-09-25, that alone
+// undid the TD-44 split (23 of 25 chunks still rebuilt on a catalogue change). Six
+// case headers needed that composition; all 806 were paying for it.
 
 template <typename StateMachine>
 struct ArpAnyBase {

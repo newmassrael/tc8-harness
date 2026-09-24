@@ -192,6 +192,14 @@
         {
           "file": "tests/_templates/arp_cache_stale_mac_neg.sce-template.xml",
           "kind": "references"
+        },
+        {
+          "file": "include/tc8/upper_tester_fault_catalog.h",
+          "kind": "references"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/cases/_arp_fault_arm.h",
+          "kind": "references"
         }
       ]
     },
@@ -388,10 +396,6 @@
           "kind": "implements"
         },
         {
-          "file": "include/tc8/upper_tester_protocol.h",
-          "kind": "references"
-        },
-        {
           "file": "src/sce_integration/include/sce_integration/cases/_arp_traits_base.h",
           "kind": "references"
         },
@@ -429,6 +433,10 @@
         },
         {
           "file": "tests/arp_34_neg2/arp_34_neg2.scxml",
+          "kind": "references"
+        },
+        {
+          "file": "include/tc8/upper_tester_fault_catalog.h",
           "kind": "references"
         }
       ]
@@ -712,6 +720,10 @@
         {
           "file": "tests/arp_49_neg/arp_49_neg.scxml",
           "kind": "references"
+        },
+        {
+          "file": "include/tc8/upper_tester_fault_catalog.h",
+          "kind": "references"
         }
       ]
     },
@@ -766,10 +778,6 @@
         {
           "file": "dut/lwip_dut/lwip_egress_fault.cpp",
           "kind": "references"
-        },
-        {
-          "file": "include/tc8/upper_tester_protocol.h",
-          "kind": "implements"
         },
         {
           "file": "dut/lwip_dut/README.md",
@@ -834,6 +842,10 @@
         {
           "file": "src/harness/packet_pipeline.cpp",
           "kind": "implements"
+        },
+        {
+          "file": "include/tc8/upper_tester_fault_catalog.h",
+          "kind": "references"
         }
       ]
     },
@@ -878,10 +890,6 @@
           "kind": "implements"
         },
         {
-          "file": "include/tc8/upper_tester_protocol.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/icmpv4_error_03_neg/icmpv4_error_03_neg.scxml",
           "kind": "implements"
         },
@@ -911,6 +919,10 @@
         },
         {
           "file": "src/stimulus/include/stimulus/ipv4_frame_builder.h",
+          "kind": "references"
+        },
+        {
+          "file": "include/tc8/upper_tester_fault_catalog.h",
           "kind": "references"
         }
       ]
@@ -980,10 +992,6 @@
           "kind": "implements"
         },
         {
-          "file": "include/tc8/upper_tester_protocol.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/icmpv4_type_10_neg/icmpv4_type_10_neg.scxml",
           "kind": "implements"
         },
@@ -1037,6 +1045,10 @@
         },
         {
           "file": "tests/icmpv4_type_12_neg/icmpv4_type_12_neg.scxml",
+          "kind": "references"
+        },
+        {
+          "file": "include/tc8/upper_tester_fault_catalog.h",
           "kind": "references"
         }
       ]
@@ -1173,6 +1185,10 @@
         },
         {
           "file": "tests/_templates/ipv4_fragment_tuple_neg.sce-template.xml",
+          "kind": "references"
+        },
+        {
+          "file": "include/tc8/upper_tester_fault_catalog.h",
           "kind": "references"
         }
       ]
@@ -1534,6 +1550,10 @@
         {
           "file": "src/sce_integration/include/sce_integration/cases/ipv4_addressing_03_neg.h",
           "kind": "implements"
+        },
+        {
+          "file": "include/tc8/upper_tester_fault_catalog.h",
+          "kind": "references"
         }
       ]
     },
@@ -1712,6 +1732,10 @@
         {
           "file": "tests/ipv4_fragments_03_neg3/ipv4_fragments_03_neg3.scxml",
           "kind": "references"
+        },
+        {
+          "file": "include/tc8/upper_tester_fault_catalog.h",
+          "kind": "references"
         }
       ]
     },
@@ -1801,10 +1825,6 @@
         },
         {
           "file": "dut/lwip_dut/lwip_ingress_fault.cpp",
-          "kind": "implements"
-        },
-        {
-          "file": "include/tc8/upper_tester_protocol.h",
           "kind": "implements"
         },
         {
@@ -1958,6 +1978,10 @@
         {
           "file": "tests/ipv4_reassembly_10_neg4/ipv4_reassembly_10_neg4.scxml",
           "kind": "references"
+        },
+        {
+          "file": "include/tc8/upper_tester_fault_catalog.h",
+          "kind": "references"
         }
       ]
     },
@@ -2063,6 +2087,10 @@
         },
         {
           "file": "src/sce_integration/include/sce_integration/dut_control.h",
+          "kind": "references"
+        },
+        {
+          "file": "include/tc8/upper_tester_fault_catalog.h",
           "kind": "references"
         }
       ]
@@ -2582,12 +2610,12 @@
           "kind": "implements"
         },
         {
-          "file": "include/tc8/upper_tester_protocol.h",
-          "kind": "references"
-        },
-        {
           "file": "src/sce_integration/include/sce_integration/cases/udp_padding_02_neg.h",
           "kind": "implements"
+        },
+        {
+          "file": "include/tc8/upper_tester_fault_catalog.h",
+          "kind": "references"
         }
       ]
     },
@@ -2670,10 +2698,6 @@
         {
           "file": "dut/lwip_dut/lwip_stack_probe.cpp",
           "kind": "implements"
-        },
-        {
-          "file": "include/tc8/upper_tester_protocol.h",
-          "kind": "references"
         },
         {
           "file": "dut/lwip_dut/lwip_egress_fault.cpp",
@@ -2802,6 +2826,10 @@
         {
           "file": "tests/udp_fields_12_neg2/udp_fields_12_neg2.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "include/tc8/upper_tester_fault_catalog.h",
+          "kind": "references"
         }
       ]
     },
@@ -2948,6 +2976,10 @@
         {
           "file": "tests/udp_user_interface_04_neg2/udp_user_interface_04_neg2.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "include/tc8/upper_tester_fault_catalog.h",
+          "kind": "references"
         }
       ]
     },
@@ -2984,10 +3016,6 @@
           "kind": "implements"
         },
         {
-          "file": "include/tc8/upper_tester_protocol.h",
-          "kind": "references"
-        },
-        {
           "file": "tests/udp_introduction_01_neg/udp_introduction_01_neg.scxml",
           "kind": "implements"
         },
@@ -3022,6 +3050,10 @@
         {
           "file": "src/sce_integration/include/sce_integration/cases/udp_introduction_03_neg.h",
           "kind": "implements"
+        },
+        {
+          "file": "include/tc8/upper_tester_fault_catalog.h",
+          "kind": "references"
         }
       ]
     },
@@ -4148,6 +4180,10 @@
         {
           "file": "src/harness/packet_pipeline.cpp",
           "kind": "implements"
+        },
+        {
+          "file": "include/tc8/upper_tester_fault_catalog.h",
+          "kind": "references"
         }
       ]
     },
@@ -4642,10 +4678,6 @@
           "kind": "implements"
         },
         {
-          "file": "include/tc8/upper_tester_protocol.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/_templates/tcp_synth_ack_neg.sce-template.xml",
           "kind": "implements"
         },
@@ -4704,6 +4736,10 @@
         {
           "file": "src/sce_integration/include/sce_integration/cases/tcp_header_04_neg.h",
           "kind": "implements"
+        },
+        {
+          "file": "include/tc8/upper_tester_fault_catalog.h",
+          "kind": "references"
         }
       ]
     },
@@ -4806,10 +4842,6 @@
           "kind": "implements"
         },
         {
-          "file": "include/tc8/upper_tester_protocol.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/tcp_acknowledgement_04_neg/tcp_acknowledgement_04_neg.scxml",
           "kind": "implements"
         },
@@ -4828,6 +4860,10 @@
         {
           "file": "src/sce_integration/include/sce_integration/cases/tcp_acknowledgement_04_neg.h",
           "kind": "implements"
+        },
+        {
+          "file": "include/tc8/upper_tester_fault_catalog.h",
+          "kind": "references"
         }
       ]
     },
@@ -5050,10 +5086,6 @@
           "kind": "implements"
         },
         {
-          "file": "include/tc8/upper_tester_protocol.h",
-          "kind": "implements"
-        },
-        {
           "file": "dut/lwip_dut/lwip_ingress_fault.cpp",
           "kind": "implements"
         },
@@ -5076,6 +5108,10 @@
         {
           "file": "src/sce_integration/include/sce_integration/cases/tcp_call_receive_05.h",
           "kind": "implements"
+        },
+        {
+          "file": "include/tc8/upper_tester_fault_catalog.h",
+          "kind": "references"
         }
       ]
     },
@@ -5226,10 +5262,6 @@
           "kind": "implements"
         },
         {
-          "file": "include/tc8/upper_tester_protocol.h",
-          "kind": "implements"
-        },
-        {
           "file": "dut/lwip_dut/lwip_ingress_fault.cpp",
           "kind": "implements"
         },
@@ -5320,6 +5352,10 @@
         {
           "file": "src/sce_integration/include/sce_integration/cases/tcp_flags_invalid_05_neg2.h",
           "kind": "implements"
+        },
+        {
+          "file": "include/tc8/upper_tester_fault_catalog.h",
+          "kind": "references"
         }
       ]
     },
@@ -5400,10 +5436,6 @@
           "kind": "implements"
         },
         {
-          "file": "include/tc8/upper_tester_protocol.h",
-          "kind": "implements"
-        },
-        {
           "file": "tests/tcp_flags_processing_09_neg/tcp_flags_processing_09_neg.scxml",
           "kind": "implements"
         },
@@ -5462,6 +5494,10 @@
         {
           "file": "src/sce_integration/include/sce_integration/cases/tcp_flags_processing_09_neg3.h",
           "kind": "implements"
+        },
+        {
+          "file": "include/tc8/upper_tester_fault_catalog.h",
+          "kind": "references"
         }
       ]
     },
@@ -8582,6 +8618,10 @@
         {
           "file": "src/sce_integration/include/sce_integration/cases/someip_ets_067_neg.h",
           "kind": "implements"
+        },
+        {
+          "file": "include/tc8/upper_tester_fault_catalog.h",
+          "kind": "references"
         }
       ]
     },

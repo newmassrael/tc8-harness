@@ -8,6 +8,7 @@
 #include "lwip/netif.h"
 #include "lwip/tcpip.h"
 
+#include "tc8/upper_tester_fault_catalog.h"
 #include "tc8/upper_tester_protocol.h"
 
 #include "lwip_ingress_fault.h"

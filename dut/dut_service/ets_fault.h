@@ -3,6 +3,7 @@
 #include <atomic>
 #include <cstdint>
 
+#include "tc8/upper_tester_fault_catalog.h"
 #include "tc8/upper_tester_protocol.h"
 
 // SOME/IP application-layer fault flavor for the reference tc8-dut's EnhancedTestability

@@ -369,17 +369,49 @@ function(tc8_emit_case_registration_tus)
     foreach(_skey IN LISTS _suites)
         get_property(_ids GLOBAL PROPERTY TC8_CASE_IDS_${_skey})
         get_property(_dir GLOBAL PROPERTY TC8_CASE_STUBDIR_${_skey})
-        list(LENGTH _ids _n)
-        # ceil(n / cases-per-TU), never zero.
-        math(EXPR _buckets "(${_n} + ${TC8_CASES_PER_TU} - 1) / ${TC8_CASES_PER_TU}")
-        if(_buckets LESS 1)
-            set(_buckets 1)
-        endif()
         # Sorted so a chunk's CONTENT depends only on its membership, never on the
         # order the collection passes happened to visit directories in — otherwise
         # an override pass reordering two cases would rewrite the chunk and
         # recompile it for no semantic change.
         list(SORT _ids)
+
+        # PARTITION BY NEGATIVE-NESS, BEFORE the hash — not instead of it.
+        #
+        # The hash exists so that adding a CASE perturbs exactly one chunk, and it
+        # still does: a case is hashed within its own partition. What the hash alone
+        # could not give is the other change rate. Measured 2026-09-25: every fault
+        # flavour a negative arms lives in one shared catalogue header, 184 case
+        # headers reach it, and the MD5 spread put at least one of them in ALL 25
+        # chunks — so appending one flavour constant recompiled the whole registrar
+        # and cost about thirty minutes (docs/tech-debt.md TD-44 has the table).
+        #
+        # Partitioning concentrates them: the negatives occupy their own contiguous
+        # index range, so a catalogue change reaches only those chunks and a positive
+        # chunk is not rebuilt for a fault it cannot name. The split is by NAME because
+        # the property is exactly that — measured the same day, every one of the 184
+        # flavour-naming case headers is a `_neg` and no positive names a flavour
+        # outside a comment, so the filename is the honest discriminator and needs no
+        # source scan at configure time.
+        set(_neg_ids)
+        set(_pos_ids)
+        foreach(_id IN LISTS _ids)
+            if(_id MATCHES "_neg[0-9]*$")
+                list(APPEND _neg_ids ${_id})
+            else()
+                list(APPEND _pos_ids ${_id})
+            endif()
+        endforeach()
+        list(LENGTH _pos_ids _n_pos)
+        list(LENGTH _neg_ids _n_neg)
+        # ceil(n / cases-per-TU) per partition; a partition with no cases gets no
+        # chunks at all rather than an empty one.
+        math(EXPR _pos_buckets "(${_n_pos} + ${TC8_CASES_PER_TU} - 1) / ${TC8_CASES_PER_TU}")
+        math(EXPR _neg_buckets "(${_n_neg} + ${TC8_CASES_PER_TU} - 1) / ${TC8_CASES_PER_TU}")
+        math(EXPR _buckets "${_pos_buckets} + ${_neg_buckets}")
+        if(_buckets LESS 1)
+            set(_buckets 1)
+            set(_pos_buckets 1)
+        endif()
         # Accumulated in global properties rather than a CMake list of bodies: a
         # body is multi-line text, and a list whose elements are text is exactly
         # where CMake's separator and empty-element rules bite. APPEND_STRING has
@@ -388,10 +420,19 @@ function(tc8_emit_case_registration_tus)
         foreach(_idx RANGE 0 ${_last})
             set_property(GLOBAL PROPERTY TC8_BUCKETBODY_${_skey}_${_idx} "")
         endforeach()
-        foreach(_id IN LISTS _ids)
+        # Positives take indices [0, _pos_buckets), negatives the range above them, so
+        # a chunk's index alone says which partition it belongs to.
+        foreach(_id IN LISTS _pos_ids)
             get_property(_h GLOBAL PROPERTY TC8_CASEHASH_${_skey}_${_id})
             get_property(_b GLOBAL PROPERTY TC8_CASEBLOCK_${_skey}_${_id})
-            math(EXPR _idx "0x${_h} % ${_buckets}")
+            math(EXPR _idx "0x${_h} % ${_pos_buckets}")
+            set_property(GLOBAL APPEND_STRING
+                         PROPERTY TC8_BUCKETBODY_${_skey}_${_idx} "${_b}")
+        endforeach()
+        foreach(_id IN LISTS _neg_ids)
+            get_property(_h GLOBAL PROPERTY TC8_CASEHASH_${_skey}_${_id})
+            get_property(_b GLOBAL PROPERTY TC8_CASEBLOCK_${_skey}_${_id})
+            math(EXPR _idx "${_pos_buckets} + (0x${_h} % ${_neg_buckets})")
             set_property(GLOBAL APPEND_STRING
                          PROPERTY TC8_BUCKETBODY_${_skey}_${_idx} "${_b}")
         endforeach()

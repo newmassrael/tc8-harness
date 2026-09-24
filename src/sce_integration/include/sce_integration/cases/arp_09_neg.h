@@ -2,9 +2,11 @@
 
 #include <string_view>
 
+#include "tc8/upper_tester_fault_catalog.h"
 #include "tc8/upper_tester_protocol.h"
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_arp_fault_arm.h"
 #include "sce_integration/cases/_arp_traits_base.h"
 #include "sce_integration/test_runner.h"
 

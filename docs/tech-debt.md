@@ -1411,9 +1411,25 @@ require every defined bit to be advertised by at least one backend and demanded 
 one call site, with an explicit ratchet line for a bit deliberately reserved ahead of its
 backend. Fail closed — a header the audit cannot resolve is a finding, not a pass.
 
+⚠ **A first attempt exists and its output must not be quoted.** `tools/capability_gate_audit.py`
+was written on 2026-09-24 and is deliberately NOT gated. Re-run on 2026-09-25 it reports 168
+findings, and they are mostly an artefact of the resolver rather than the tree: it resolves 41
+traits structs out of 806 case headers, because it reads a `kRequiredCapabilities` written in
+the case header itself and most cases INHERIT theirs from a traits base. Its first finding,
+`arp_22_neg.h demands kCapIngressFault but does not declare it`, is false — that case declares
+it through `ArpFaultNegUdpBase<…, kCapIngressFault>`.
+
+That base is the shape the audit has to learn: a capability arriving as a TEMPLATE ARGUMENT,
+which the repository uses deliberately (`Ipv4ReassemblyFaultNegBase` does the same) precisely
+so the seam bit is named at each consumer rather than defaulted. Resolving it means following
+the base list and substituting arguments, not grepping the header — which is the "whole-tree
+question" this entry already says the two hand passes got wrong. The tool is a third instance
+of that, caught before it was believed rather than after.
+
 **Done when:** `tools/` holds that audit with a `--self-test` proving each direction fires, it
-gates `pre-commit` and `build-test.yml`, and it is green with no ratchet entries beyond the
-ones argued in the file itself.
+resolves a capability inherited from a base and one passed as a template argument (both shapes
+are live in the tree), it gates `pre-commit` and `build-test.yml`, and it is green with no
+ratchet entries beyond the ones argued in the file itself.
 
 **Half landed, 2026-09-24.** `tools/capability_gate_audit.py` exists, self-tests pass (13
 checks), and it runs whole-tree. It is NOT yet wired into `pre-commit` or `build-test.yml`,
@@ -2499,8 +2515,32 @@ shows it named here.
 
 ## TD-44 — the fault catalogue shares a header with the opcode contract, so adding one flavour recompiles the suite
 
-**Status:** OPEN. **Logged:** 2026-09-24, measured while adding two ingress fault flavours in
-one session and paying a full rebuild for each.
+**Status:** RESOLVED (2026-09-25). **Logged:** 2026-09-24, measured while adding two ingress
+fault flavours in one session and paying a full rebuild for each.
+
+**The closing measurement.** One `touch` of the catalogue header, then a build, counting the
+objects make decided to rebuild — the Done-when's "counting what the build touched":
+
+| | before | after |
+|---|---|---|
+| registrar chunks recompiled | 25 of 25 | **8 of 25** |
+| non-case translation units recompiled | several | **0** |
+| the 8, by name | — | `register_17` … `register_24`, the negative-only chunks |
+
+⚠ **Wall-clock is NOT the instrument here and must not be quoted as one.** This tree builds
+through ccache, so a rebuild decision on unchanged content is a cache hit and finishes in
+seconds; the first attempt at this measurement read 8 s and looked like success while make had
+in fact rebuilt 23 of 25. Count the objects, not the clock — a real flavour change alters the
+header's content, so every object counted here is a genuine compile.
+
+⚠ **The first implementation was wrong, and only the count caught it.** Both parts landed —
+catalogue split out, chunks partitioned — and 23 of 25 chunks still rebuilt. The cause was a
+single include: the catalogue reached consumers through `_fault_flavor_arm.h`, and
+`_arp_traits_base.h` included that for ONE composed helper
+(`emitEgressFlavorRequestProvocation`). All 64 ARP cases include that base, the MD5 bucketing
+spreads them over every chunk, and so the catalogue was back in all of them. Six case headers
+used the helper; 800 were paying for it. It now lives in `_arp_fault_arm.h`, and the base
+carries a comment saying why it must not be re-added.
 
 **What it is.** `include/tc8/upper_tester_protocol.h` carries two things whose change rates
 differ by an order of magnitude: the Upper Tester OPCODE and wire contract, which is stable,

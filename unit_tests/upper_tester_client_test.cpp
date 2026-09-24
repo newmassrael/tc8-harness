@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include "stimulus/upper_tester_client.h"
+#include "tc8/upper_tester_fault_catalog.h"
 #include "tc8/upper_tester_protocol.h"
 
 namespace tc8::stimulus {

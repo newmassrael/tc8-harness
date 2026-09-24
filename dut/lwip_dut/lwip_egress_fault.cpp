@@ -18,6 +18,7 @@
 #include "lwip/netif.h"
 #include "lwip/pbuf.h"
 
+#include "tc8/upper_tester_fault_catalog.h"
 #include "tc8/upper_tester_protocol.h"
 
 #include "lwip_wire.h"

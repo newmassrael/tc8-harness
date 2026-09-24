@@ -46,6 +46,7 @@
 // block covers every declaration, so no wrapper (matches lwip_stack_probe.cpp).
 #include "lwip/priv/tcp_priv.h"
 
+#include "tc8/upper_tester_fault_catalog.h"
 #include "tc8/upper_tester_protocol.h"
 #include "tc8/wire/ip_checksum.h"
 

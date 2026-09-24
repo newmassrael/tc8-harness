@@ -5,6 +5,12 @@
 #include <string_view>
 #include <thread>
 
+// The flavour catalogue rides HERE on purpose: naming a flavour and arming it are the
+// same act, so 165 of the 184 case headers that name one already reach it through these
+// helpers and need no include of their own. That is what keeps docs/tech-debt.md TD-44's
+// split from costing an edit in every negative case.
+#include "tc8/upper_tester_fault_catalog.h"
+
 #include "sce_integration/test_config.h"
 #include "stimulus/upper_tester_client.h"
 

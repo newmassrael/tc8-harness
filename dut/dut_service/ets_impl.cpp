@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <thread>
 
+#include "tc8/upper_tester_fault_catalog.h"
 #include "tc8/upper_tester_protocol.h"
 
 #include "ets_emission.h"
