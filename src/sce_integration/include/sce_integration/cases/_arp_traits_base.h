@@ -233,6 +233,24 @@ struct ArpIngressFaultNegBase : ArpAnyBase<StateMachine> {
         ::tc8::sce::kCapIngressFault;
 };
 
+// Base for the §4.2.4.1 cache-staleness INGRESS `_NEG` cases, which arm
+// kArpFaultIgnoreLearn / kArpFaultIgnoreUpdate and then PROVOKE an egress over the
+// seam. Two seams, so two bits: the ingress flavor is what makes the teaching not
+// take, and the provocation is what gives the DUT a reason to resolve at all.
+//
+// Dispatches ArpFrame (inherited from ArpAnyBase), unlike the drop-and-emit sibling
+// below, and that difference is deliberate. There the DUT's own control-plane ARP
+// Request is indistinguishable from the behaviour under test, so it cannot be the
+// discriminator. Here it IS the behaviour under test: these cases teach the DUT an
+// address first, so a conformant run never needs to resolve it — every opcode-1
+// Request from the DUT means the teaching did not take, which is exactly what the
+// positive's `dut_arp_request_after_*` final forbids.
+template <typename StateMachine>
+struct ArpIngressFaultNegProvokedBase : ArpAnyBase<StateMachine> {
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapIngressFault | ::tc8::sce::kCapArpConditioning;
+};
+
 // Base for the §4.2.4.2 drop-and-emit INGRESS `_NEG` cases (ARP_22/28/38). These
 // observe ONLY the UDP egress MAC, so they dispatch UdpFrame alone: on the lwIP
 // fixture the DUT ARP-resolves the tester for its own UT control-plane ACKs (no

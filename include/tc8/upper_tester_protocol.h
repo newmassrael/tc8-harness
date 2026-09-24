@@ -1028,7 +1028,19 @@ inline constexpr std::uint8_t kTcpSynthAckSrcPortBlind   = 0x0E;  // §4.8.6.16 
 // its own reporting path. An unfragmented frame (offset 0, MF clear) — the UT control
 // channel included — and every earlier fragment pass untouched:
 inline constexpr std::uint8_t kIpv4FaultDropLastFragment = 0x0F;  // §4.4.4.7 REASSEMBLY_11 (timer) / _13 (overlap): the DUT discards the datagram and reports the expiry
-inline constexpr std::uint8_t kIngressFaultMax           = kIpv4FaultDropLastFragment;
+// §4.2 ARP cache staleness — a DROP seam at the netif input, the sibling of
+// kArpFaultLearnFromDropFrame above. That one makes the DUT learn an address it must
+// NOT learn; this one makes it fail to learn one it MUST, which is the violation the
+// cache-populated guards forbid: with the teaching swallowed the table never holds the
+// address, so the DUT resolves by emitting its own Request.
+//
+// ARP REQUEST ONLY, and that is not a narrowing for tidiness: the lwIP DUT resolves the
+// tester for its own UT control-plane ACKs and the tester answers with a RESPONSE, so
+// swallowing responses would starve the control channel — the case would report nothing
+// and an effective fault would read as inert. A gratuitous-Response teaching (ARP_06) is
+// therefore out of this flavor's reach and needs its own.
+inline constexpr std::uint8_t kArpFaultIgnoreLearn       = 0x10;  // §4.2.4.1 cache-populated absence: ARP_04 (the DUT must not emit a Request for an address it was taught)
+inline constexpr std::uint8_t kIngressFaultMax           = kArpFaultIgnoreLearn;
 
 // `OpSetAppFlavor` (0x1A) APP-LAYER reception-fault flavor byte. Distinct from the
 // egress/ingress catalogs: those mutate or synthesize wire frames at the netif hook,

@@ -184,6 +184,10 @@
         {
           "file": "src/sce_integration/include/sce_integration/dut_arp_control.h",
           "kind": "references"
+        },
+        {
+          "file": "tests/_templates/arp_cache_staleness_neg.sce-template.xml",
+          "kind": "references"
         }
       ]
     },
@@ -378,6 +382,22 @@
         {
           "file": "src/sce_integration/include/sce_integration/test_runner.h",
           "kind": "implements"
+        },
+        {
+          "file": "include/tc8/upper_tester_protocol.h",
+          "kind": "references"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/cases/_arp_traits_base.h",
+          "kind": "references"
+        },
+        {
+          "file": "tests/_templates/arp_cache_staleness_neg.sce-template.xml",
+          "kind": "references"
+        },
+        {
+          "file": "tests/arp_04_neg/arp_04_neg.scxml",
+          "kind": "references"
         }
       ]
     },

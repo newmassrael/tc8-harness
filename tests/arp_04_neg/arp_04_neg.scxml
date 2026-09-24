@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.2.4.1 ARP_04 negative — lwIP ingress-fault self-validation of the
+  positive _04 cache-populated guard. The trait teaches the DUT the tester's
+  address with an ARP Request, arms kArpFaultIgnoreLearn so the netif input hook
+  swallows that Request before lwIP's etharp sees it, then provokes UDP egress.
+  With the teaching lost the DUT holds no entry and must resolve, emitting the
+  opcode-1 ARP Request the positive's `dut_arp_request_after_cache_populated`
+  final forbids. Pass = that Request observed; fail_compliant = none within the
+  window, meaning the DUT resolved from cache anyway and the fault was inert.
+  lwIP-only (capability-gated on kCapIngressFault + kCapArpConditioning).
+  Envelope: arp_cache_staleness_neg.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="arp_04_neg"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/arp_cache_staleness_neg.sce-template.xml"/>
+</scxml>

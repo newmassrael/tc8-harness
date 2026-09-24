@@ -293,6 +293,26 @@ err_t ingressFaultInput(struct pbuf *p, struct netif *nif) {
             } else if (flavor == ut::kArpFaultLearnFromDropFrame &&
                        get16(f, kArpOpcode) == 0x0002) {  // learn only from a Response
                 learnDropFrameAddress(f);
+            } else if (flavor == ut::kArpFaultIgnoreLearn &&
+                       get16(f, kArpOpcode) == 0x0001) {  // a teaching REQUEST only
+                // Swallow the frame so lwIP's etharp never sees it and the cache keeps
+                // whatever it held. Ignore-learn takes any teaching Request, so the
+                // taught address is never held and the DUT resolves by emitting its own
+                // Request; ignore-update takes only one re-teaching an address already
+                // held, so the FIRST MAC survives and egress goes to the stale one.
+                // Freeing here is the same swallow kTcpDropDisruptiveRst and
+                // kIpv4FaultDropLastFragment do.
+                //
+                // ⚠ OPCODE 1 ONLY, and that is not a narrowing for tidiness. This DUT
+                // ARP-resolves the tester for its OWN UT control-plane ACKs, and the
+                // tester answers that with an ARP RESPONSE. Swallowing responses too
+                // would starve the control channel, so the case could never report
+                // anything and the fault would look inert rather than effective. The
+                // teaching frames these flavors target are Requests
+                // (emitArpLearningBoot, ArpLearningVariant::Request); a gratuitous
+                // Response teaching is the sibling kArpFaultLearnFromDropFrame's half.
+                pbuf_free(p);
+                return ERR_OK;
             }
         } else if ((flavor == ut::kUdpFaultAcceptBadChecksum ||
                     flavor == ut::kUdpFaultRejectValid) &&

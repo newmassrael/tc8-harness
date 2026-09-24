@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.2.4.1 cache-staleness `_NEG` body: the lwIP ingress-fault self-validation of
+  the positive `dut_arp_request_after_*` guards (ARP_04/06/32/33/34/35).
+
+  The positive TEACHES the DUT an address and then provokes an egress to it, so a
+  conformant DUT never needs to resolve: any opcode-1 ARP Request it emits means the
+  teaching did not take, and that is the positive's fail final. Its `_NEG` arms
+  kArpFaultIgnoreLearn, whose netif input hook swallows the teaching Request before
+  lwIP's etharp sees it, so the address is never held.
+
+    Pass:    an opcode-1 ARP Request from the DUT's own MAC — the resolution the
+             positive forbids, present here because the fault took.
+    Fail:    deadline_exceeded -> fail_compliant — no such Request within the
+             window: the DUT resolved from cache anyway, so the flavor never
+             reached the teaching frame (a wiring regression, NOT a DUT
+             conformance violation; role fault_injection_inert).
+
+  WHY THIS ONE MAY KEY ON A DUT ARP REQUEST when arp_group_c_drop_and_emit_neg may
+  not. There the cache is deliberately never populated, so the DUT ARP-resolves the
+  tester for its own UT control-plane ACKs and that conformant Request is
+  indistinguishable from the behaviour under test. Here the teaching is what a
+  conformant run relies on: with it intact the DUT has no reason to emit ANY
+  Request, control plane included, which is why the positive passes on this fixture
+  today. The discriminator is sound precisely because the teaching is part of the
+  premise rather than withheld from it.
+
+  Param-less, shared by the cluster. 5 s deadline matches the §4.2 `_NEG` cases.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="arp_cache_staleness_neg">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 1 and captured.sender_hw == expected.dut_iface_mac"
+                target="pass"/>
+    <transition event="deadline_exceeded" target="fail_compliant"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_compliant">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_resolved_from_cache_despite_ignore_learn_flavor","role":"fault_injection_inert"}</content>
+    </donedata>
+  </final>
+</sce:template>

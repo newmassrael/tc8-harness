@@ -7,7 +7,6 @@
 # deferred_negatives.json entry) MUST delete its line here too; --check
 # fails on a new unproven unit or a stale (now-proven) entry. When this file
 # is empty every guard of every positive case is proven checkable.
-arp_04:dut_arp_request_after_cache_populated
 arp_06:dut_arp_request_after_gratuitous_learning
 arp_32:dut_arp_request_after_double_injection
 arp_32:udp_eth_dst_is_mac1_not_mac2
