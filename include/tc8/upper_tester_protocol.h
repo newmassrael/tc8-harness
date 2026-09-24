@@ -1059,6 +1059,12 @@ inline constexpr std::uint8_t kIpv4FaultNormaliseFragTuple = 0x11;  // §4.4.4.6
 // `dut_arp_request_after_double_injection`, the stale-entry path `udp_eth_dst_is_mac1_not_mac2`.
 // Request-only for the same control-plane reason as its sibling.
 inline constexpr std::uint8_t kArpFaultIgnoreUpdate      = 0x12;  // §4.2.4.1 cache-update: ARP_32/35 (a second teaching must replace the first)
+// ⚠ 0x13 was a resolve-before-send seed, meant to give the DUT the tester's address so its
+// egress would carry no ARP Request in front of it. It was REMOVED rather than kept unused:
+// the arm cannot be its own seed (the hook reads the flavour while the arm frame passes, and
+// the UT handler sets it only after delivery), and by any later frame the DUT has already
+// resolved — because answering the arm is what makes it resolve. See docs/tech-debt.md TD-46
+// before reaching for this idea again; the value is free to reuse.
 inline constexpr std::uint8_t kIngressFaultMax           = kArpFaultIgnoreUpdate;
 
 // `OpSetAppFlavor` (0x1A) APP-LAYER reception-fault flavor byte. Distinct from the

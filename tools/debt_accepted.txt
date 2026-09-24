@@ -23,3 +23,4 @@ TD-30   the Linux timewait socket ACKs any out-of-window segment; no knob turns 
 TD-31   the Linux timewait socket resets new data after close before it checks the ACK
 TD-32   lwIP etharp creates entries only when for_us; the vendored core is never patched
 TD-33   the Linux kernel kills an overlapped fragment queue whole and reports nothing
+TD-46   arming is control-plane traffic, and answering it is the resolution under test

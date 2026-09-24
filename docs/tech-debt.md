@@ -2558,3 +2558,46 @@ above took a run, a pcap and a ledger diff to reach, and a reviewer will not rep
 **Done when:** the audit rejects a mapping whose negative can only run where the positive is a
 known-fail on the same final, the three bases above are each either re-paired or exempted with
 a reason, and a deliberately vacuous mapping is shown to be refused.
+
+---
+
+## TD-46 — a UT-armed fault cannot precede the DUT's first resolution, so an ordering final is unreachable
+
+**Status:** OPEN (accepted). **Logged:** 2026-09-24, after building a fault for
+`udp_egress_before_dut_arp_request` and finding the mechanism circular.
+
+**What it is.** Every ingress fault flavour is armed by a UT datagram from the tester. The
+lwIP DUT must resolve the tester's address to ANSWER that datagram, so its first ARP Request
+goes out because of the arm itself. A fault meant to make the DUT skip resolution therefore
+cannot be in force before the resolution it is supposed to prevent.
+
+Measured on the pcap of the attempt (the whole capture, four frames):
+
+```
+t=0        DUT      -> broadcast   ARP Request who-has <tester> tell <dut>
+t=0.00004  tester   -> DUT         ARP Reply
+t=1.70     tester   -> DUT         ARP Request   (the case's own injection)
+t=1.70     DUT      -> tester      ARP Reply
+```
+
+The attempted flavour seeded a static entry from the first inbound IPv4 frame after arming,
+intending that frame to be the arm datagram. It cannot be: the hook reads the flavour while
+the frame passes, and the UT handler sets the flavour only after the frame is delivered. The
+arm cannot be its own seed. Moving the seed later does not help either — by then the DUT has
+already resolved, which is the event the guard grades.
+
+**Which finals this reaches.** `ARP_39` and `ARP_40`, whose
+`udp_egress_before_dut_arp_request` grades the ORDER of the DUT's first egress against its
+first resolution. Both stay in `tools/negative_coverage_undisposed.txt`.
+
+**Why this is accepted rather than deferred.** It is not a gap in the fault catalogue that a
+better flavour would close. Arming is control-plane traffic, the DUT answers control-plane
+traffic, and answering requires resolution — the three together make "no resolution before the
+first egress" unobservable on a fixture whose only fault channel is that same control plane. A
+DUT that could be faulted out of band, or one pre-seeded before it ever sees the tester, would
+not have the problem; this one does.
+
+**Done when:** the ordering is demonstrated on a DUT whose fault arming does not itself require
+the resolution under test — an out-of-band arming channel, or a fixture whose ARP table can be
+seeded before its first control exchange. Neither exists here, which is why this stands in
+`tools/debt_accepted.txt` rather than waiting for one.
