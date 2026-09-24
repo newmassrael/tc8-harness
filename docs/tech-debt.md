@@ -2530,11 +2530,39 @@ roughly twenty minutes before its case can be run once — and a typo in the cas
 again, as it did here. It also pushes toward batching unverified cases, which is the habit
 that produced unproven `_neg` files in the first place.
 
-**Textbook fix.** Split the catalogues into their own header (the opcode contract keeps
+**⚠ The fix first written here does not pay, and that was measured on 2026-09-25 rather than
+argued.** Splitting the header reduces the TU count and leaves the WALL CLOCK exactly where it
+is, because the registrar's MD5 bucketing spreads the flavour-naming cases across every chunk:
+
+| | count |
+|---|---|
+| registrar chunks | 25 |
+| chunks holding at least one flavour-naming case header | **25** |
+| fewest flavour-naming cases in any one chunk | 2 |
+
+Every chunk therefore still recompiles when a flavour constant moves, and the chunks are where
+the twenty minutes goes — a rebuild measured the same day touched 26 of 38 objects and 19 of
+them were registrar stubs. Two flavour-adding rebuilds that day each ran about 32 minutes.
+
+**Textbook fix, in two parts that only work together.**
+
+*One:* split the catalogues into their own header (the opcode contract keeps
 `upper_tester_protocol.h`, the flavour values move to a sibling) and include it only where a
-flavour is named. Adding a flavour then touches 171 case headers instead of 241, and no
-non-case TU at all. The SSOT property is unchanged: the catalogue is still written once and
-shared by harness and DUT, which is what makes it a wire contract in the first place.
+flavour is named. Measured, the reach is shorter than it looks: 182 case headers name a
+flavour and 165 of them ALREADY include `_fault_flavor_arm.h`, so the catalogue belongs
+wherever that helper can reach it and only 17 case headers plus 3 lwIP DUT files and one unit
+test need a direct include. The SSOT property is unchanged: the catalogue is still written once
+and shared by harness and DUT, which is what makes it a wire contract.
+
+*Two:* make the chunking flavour-aware. Bucket the flavour-naming cases into their own chunk
+range instead of spreading them by MD5 over all of them. 182 of 806 cases at the current 32
+per TU is about 6 chunks, so a flavour change recompiles 6 instead of 25 while adding a CASE
+still perturbs exactly one chunk — the property the MD5 bucketing exists for, preserved because
+the partition is applied before the hash, not instead of it.
+
+Part one without part two changes the touched-TU count and nothing a person waiting on a build
+would notice. That is why this entry's original plan is recorded as insufficient rather than
+quietly replaced.
 
 ⚠ Not free, and the cost is why this is a register entry rather than a change already made:
 the split is itself one whole-suite rebuild, and every consumer's include list has to be
@@ -2542,7 +2570,9 @@ corrected in the same commit or the build breaks halfway. Worth doing BEFORE the
 fault mechanisms, not during one.
 
 **Done when:** a commit that appends a flavour constant recompiles no translation unit that
-does not name a flavour — shown by the touched-file count, not by reasoning.
+does not name a flavour AND recompiles a MINORITY of the registrar chunks — both shown by
+counting what the build touched, not by reasoning. The second clause is the one the original
+Done-when was missing, and the reason this entry outlived its first plan.
 
 ---
 
