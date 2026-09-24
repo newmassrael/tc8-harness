@@ -2508,3 +2508,53 @@ fault mechanisms, not during one.
 
 **Done when:** a commit that appends a flavour constant recompiles no translation unit that
 does not name a flavour — shown by the touched-file count, not by reasoning.
+
+---
+
+## TD-45 — a fault-injection negative can only run where its positive cannot pass, and nothing notices
+
+**Status:** OPEN. **Logged:** 2026-09-24, after nearly shipping a negative that would have
+passed with the fault disarmed.
+
+**What it is.** A `_NEG` proves its positive's guard is checkable by driving a faulted DUT onto
+a `fail` final. The fault seams live only on the lwIP fixture, so every fault-injection
+negative is capability-gated to that fixture. If the POSITIVE is a `platform_known_fail` there,
+the negative runs on the one platform where the conformant path it is validating does not
+exist — and `tools/negative_coverage_audit.py` credits it anyway, because it checks that a
+mapped `_neg` exists and has the right final shape, never that the pairing is meaningful on the
+platform both can reach.
+
+Measured across the whole coverage map, not just the entry that surfaced it:
+
+| | count |
+|---|---|
+| positives carrying a fault-injection mapping | 30 |
+| of those, `platform_known_fail` on lwIP | 3 |
+| negatives under those three | 10 |
+
+`IPv4_FRAGMENTS_04` (2 negatives), `IPv4_REASSEMBLY_11` (4), `IPv4_REASSEMBLY_13` (4). Two of
+the ten arrived in `dcba9425`; the other eight predate it, so this is a standing shape rather
+than one commit's mistake.
+
+**How it was found, because the mechanism matters more than the list.** A negative was written
+for `IPv4_FRAGMENTS_04`'s PHASE-1 final (`dut_reassembled_mismatched_protocol_fragments`) using
+an ingress flavour that normalises the reassembly tuple. It passed. It would also have passed
+with the flavour disarmed: lwIP's bucket match omits the protocol field, so the fixture already
+commits that violation — the fault changed nothing and the negative proved nothing. It was
+dropped rather than committed. The two that shipped are NOT that case: they prove PHASE-2
+finals the known-fail does not reach, so they are weaker rather than empty. The distinction is
+which final the platform's own defect lands on, and no tool computes it.
+
+**Risk if left.** A negative that cannot fail is indistinguishable from one that cannot be
+written, and the register counts them the same. This is the vacuity TD-42 made countable per
+final; this entry is the part TD-42's counting still cannot see.
+
+**Textbook fix.** Teach the audit the pairing: when a positive is `platform_known_fail` on the
+platform its negative is gated to, require the mapped final to be one the platform's own
+failure does not already reach — stated in the override's reason, which already names the
+mechanism — or refuse the mapping. Whatever the rule, it has to be MECHANICAL: the reasoning
+above took a run, a pcap and a ledger diff to reach, and a reviewer will not repeat it.
+
+**Done when:** the audit rejects a mapping whose negative can only run where the positive is a
+known-fail on the same final, the three bases above are each either re-paired or exempted with
+a reason, and a deliberately vacuous mapping is shown to be refused.
