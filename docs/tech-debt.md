@@ -1587,12 +1587,45 @@ shape is not specific to this case: any multi-phase case whose earlier phase lea
 retrying will squeeze the later ones, and the reason string will keep naming the DUT. Nothing
 currently detects "the window closed inside an earlier phase".
 
-**Textbook fix.** Two independent halves. Answer the retransmission: the crafted SYN+ACK
-should be re-sent for each matching SYN on that quad for as long as the phase is live, which
-is what a real peer does and what makes phase 1 terminate promptly. And make the starvation
-observable rather than inferred — a phase that never opened its own window should say so, in
-the `tc8::UnperformedStimulus` vocabulary that already exists for "this did not happen", not
-report an absence as if the DUT had been asked.
+⚠ **The causal chain above is WRONG, re-measured on lwip-tap 2026-09-25 from the pcap and the
+harness log.** The observation stands — phase 2 never gets its window — but answering the
+retransmissions would not fix it, and phase 1 is not slow.
+
+What the wire actually shows (`--log-dir`, one run):
+
+| t (s) | event |
+|---|---|
+| 47.834 | DUT SYN, phase-1 quad |
+| 47.927 | harness crafted SYN+ACK with the unacceptable ack |
+| **47.927** | **DUT RST — the emission phase 1 grades, immediate** |
+| 48.127 | a UT request goes out |
+| 48.58 / 49.58 / 50.58 / 51.58 | DUT SYN retransmits 2..5 |
+| **51.588** | **that UT request is answered — it blocked for 3.46 s** |
+| 51.589 | phase 2's DUT SYN, long after the window closed |
+
+Phase 1 succeeds in 93 ms. What consumes the window is the UPPER TESTER CHANNEL: a UT call
+made while the DUT's SYN-SENT pcb is still retransmitting does not return until the
+retransmission cycle ends. The harness log names the casualty directly —
+`tcp-pilot: seam SYN-SENT open failed (connectTcp local=49528 remote=23484, backend=opcode-ut)`
+— so phase 2's OPEN timed out, the DUT emitted its SYN late anyway, and no crafted segment was
+ever sent for phase 2 because the pilot had already given up.
+
+Answering the retransmitted SYNs cannot help: RFC 793 has a SYN-SENT connection receiving an
+unacceptable ack form a reset and STAY IN SYN-SENT, so each answer yields another RST and the
+pcb keeps retransmitting — and it is the pcb, not the silence, that holds the UT channel.
+
+**Textbook fix, restated.** Two independent halves, and the first one is different from what
+this entry first said. Stop a finished phase's socket from holding the UT channel: phase 1's
+teardown must not block on a pcb that will retransmit for seconds (an abort rather than a
+graceful close, or a teardown that does not serialise with the next phase's open), or the
+channel must not serialise one caller behind another — the same surface `src/upper_tester/
+ut_server.cpp` and the socket backends under `dut/` already share for slot teardown, where
+`OpAbortTcpSocket` (0x09) is the non-graceful counterpart of the close this phase uses. And
+make the starvation observable rather than
+inferred — a phase that never opened its own window should say so, in the
+`tc8::UnperformedStimulus` vocabulary that already exists for "this did not happen", not report
+an absence as if the DUT had been asked. That half is unchanged and is what would have named
+this correctly the first time.
 
 **Done when:** the harness answers a repeated SYN on a live phase quad, `TCP_UNACCEPTABLE_08`
 passes on both the lwIP fixture and the Linux reference, and a phase whose window never opened
