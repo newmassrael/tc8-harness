@@ -9,7 +9,8 @@ reference vsomeip stack.
 The harness half of the contract is live: the reserved marker id
 (`libs/common/someip/protocol.h`), the recognizer and anchor
 (`tc8::SomeIpCaptured::is_sd_start_marker` / `sd_start_ts_us` /
-`delta_from_sd_start_us` in `src/sce_integration/someip_captured.h`), and the trace
+`delta_from_sd_start_us` in
+`src/sce_integration/include/sce_integration/someip_captured.h`), and the trace
 emit (`decode_pcap` exporter) are all in-tree. The DUT half is an opt-in,
 default-off reference implementation described in Section 5.
 
@@ -94,7 +95,8 @@ are single-sourced in `libs/common/someip/protocol.h`.
 
 ## 4. Harness side (how the tester anchors)
 
-Live in `src/sce_integration/someip_captured.h` on `tc8::SomeIpCaptured`:
+Live in `src/sce_integration/include/sce_integration/someip_captured.h` on
+`tc8::SomeIpCaptured`:
 
 - `is_sd_start_marker()` returns true for an `OfferService` whose first entry
   advertises `someip::kSdStartMarkerServiceId`. It delegates to the shared

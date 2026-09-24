@@ -298,7 +298,8 @@ jobs:
       - name: DUT identity cross-check gate
         # The DUT's primary + secondary identity (service/instance/ports/unicast IP/
         # SD-multicast/app-name) is written by hand across 8 artifacts that MUST
-        # agree: include/tc8/dut_config.h + src/sce_integration/someip_method_dest.h
+        # agree: include/tc8/dut_config.h +
+        # src/sce_integration/include/sce_integration/someip_method_dest.h
         # (C++), the 4 dut/dut_service/vsomeip*.json deployments, and dut/ets/
         # {ets,ets2}.fdepl (CommonAPI). No single SUPERSET source exists to generate
         # from (distinct formats; each carries something the others don't), so this

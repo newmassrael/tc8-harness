@@ -200,7 +200,7 @@ DecodePcapCommand::DecodePcapCommand(CLI::App &app) {
     sub_ = app.add_subcommand(
         "decode-pcap",
         "Decode a saved pcap into the documentation site's PacketCapture JSON "
-        "(replaces site/scripts/decode_pcap.py; see docs/tech-debt.md TD-05)");
+        "(replaces the retired Python site decoder; see docs/tech-debt.md TD-05)");
     sub_->add_option("case_id", case_id_, "Case ID (uppercased into the output)")->required();
     sub_->add_option("outcome", outcome_, "Run outcome")
         ->required()

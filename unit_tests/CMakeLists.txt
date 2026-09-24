@@ -354,7 +354,7 @@ if(TARGET tc8_testability_server)
             $<TARGET_FILE:testability_server_test>
             --gtest_filter=PosixBackendNeighbor.*)
     set_tests_properties(posix_neighbor_privileged PROPERTIES SKIP_RETURN_CODE 77)
-    # The reusable Reactor (src/testability/reactor.h) exercised in isolation
+    # The reusable Reactor (include/tc8/testability/reactor.h) exercised in isolation
     # against the real POSIX IoMultiplexer — no ProtocolServer/module — proving the
     # extracted event loop stands on its own. Links tc8_testability_server for
     # LinuxSocketBackend (the IoMultiplexer) and the server header include path.

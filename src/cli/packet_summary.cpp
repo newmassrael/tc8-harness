@@ -46,7 +46,7 @@ std::string join(const std::vector<std::string> &parts, const char *sep) {
 
 // ---------------------------------------------------------------------------
 // Display name tables (presentation only; the numeric values are the wire
-// constants). Mirror the labels site/scripts/decode_pcap.py used so the
+// constants). Mirror the labels the retired Python site decoder used so the
 // rendered timeline text is unchanged.
 // ---------------------------------------------------------------------------
 

@@ -38,7 +38,8 @@ if ! python3 "$HERE/../tools/timing_serial_audit.py" >/dev/null; then
 fi
 
 # Verdict SSOT invariant: every registered case carries a donedata verdict with
-# a canonical conformance class (src/sce_integration/verdict.h). Fast,
+# a canonical conformance class
+# (src/sce_integration/include/sce_integration/verdict.h). Fast,
 # pure-Python; keeps the single source from rotting between CI runs.
 if ! python3 "$HERE/../tools/verdict_drift_audit.py" --summary >/dev/null; then
     echo "pre-commit: verdict donedata SSOT gate FAILED — details:" >&2

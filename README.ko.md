@@ -625,7 +625,7 @@ Upper Tester(UT)는 UDP:30600 위의 tester가 발급하는 RPC 채널입니다.
 
 각 opcode의 정확한 와이어 포맷은 `include/tc8/upper_tester_protocol.h`를
 참조하세요 (모든 opcode 주석이 해당 TC8 §을 인용합니다).
-`dut/dut_service/upper_tester_server.cpp`가 레퍼런스 Linux 구현입니다 —
+`src/upper_tester/ut_server.cpp`가 레퍼런스 구현입니다 —
 디스패치 루프와 opcode별 본문을 타겟 ECU의 RTOS / lwIP 등에 이식하면
 됩니다. 전송은 DUT IP의 30600 포트로 UDP unicast이며, SOME/IP 프레이밍은
 없습니다.

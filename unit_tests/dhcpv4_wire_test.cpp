@@ -9,11 +9,12 @@ namespace tc8 {
 namespace {
 
 // Pins the C++ side of the DHCPv4 BOOTP fixed-header SSOT
-// (src/sce_integration/dhcpv4_wire.def, TD-02) bit-for-bit. The decoder
-// here and the Python site mirror both expand the same .def, so a wrong
-// offset/width would be applied to both consistently; this test plus the
-// generator's golden-vector self-test (tools/gen_dhcpv4_wire.py) together
-// catch a wrong number in the .def itself. See docs/tech-debt.md TD-02.
+// (src/sce_integration/dhcpv4_wire.def, TD-02) bit-for-bit. Every consumer
+// expands that one .def, so a wrong offset or width would be applied
+// CONSISTENTLY everywhere and no cross-check between consumers could see it;
+// this test is what catches a wrong number in the .def itself. (The Python
+// site mirror and its generator that this once cross-checked against were
+// retired when the C++ decoder replaced them -- docs/tech-debt.md TD-05.)
 
 // Build a DHCPDISCOVER-shaped BOOTP body: 240 B fixed part + magic cookie.
 // Every fixed field carries a DISTINCT nonzero value (matching the generator's

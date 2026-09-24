@@ -1,5 +1,5 @@
 # Verification fixture for the 'ssh-remote' topology — the typed Rust successor to
-# dut/env/topology.d/examples/ssh-remote-netns-fixture.conf.
+# its retired topology.d shell-conf predecessor.
 #
 # The orchestrator emulates a second PC: an isolated netns holding the DUT-side
 # veth AND a dedicated sshd (port 2222, fixture-local keys under /tmp/tc8-sshfix —

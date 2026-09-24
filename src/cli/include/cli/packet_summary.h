@@ -21,8 +21,8 @@
 
 namespace tc8::cli {
 
-// Per-protocol one-line human summaries (mirror the labels the retired
-// site/scripts/decode_pcap.py emitted so the rendered timeline text is stable).
+// Per-protocol one-line human summaries (mirror the labels the retired Python
+// site decoder emitted so the rendered timeline text is stable).
 std::string arpSummary(const ::tc8::ArpFrame &f);
 std::string icmpSummary(const ::tc8::Icmpv4Frame &f);
 std::string dhcpSummary(const ::tc8::Dhcpv4Frame &f);

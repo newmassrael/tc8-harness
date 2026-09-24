@@ -30,16 +30,27 @@ What it flags, per line of every tracked text file in scope:
                    it is tracked.
     REPO_PATH      a file path rooted at one of this repository's own top-level
                    directories (`src/...`, `dut/...`, `tests/...`) that the
-                   repository has never held: not in the tree now, and not in
-                   git history. A file that was moved or deleted is still held
-                   -- `git log -- <path>` follows it -- so naming it as history
-                   is allowed; a path that never existed is a typo or a
-                   pointer into someone else's tree, and fails.
+                   tree does not hold NOW. A reader opens files, not history,
+                   so a path retired three months ago leads nowhere even though
+                   `git log -- <path>` still finds it.
 
-A limit, stated rather than hidden: REPO_PATH cannot tell a moved file named as
-history from one still pointed at as if live (a comment giving a file's
-pre-move path). Both are held in history. Keeping those current is review's
-job; this gate only guarantees every pointer leads somewhere a reader can go.
+WHY THIS RULE IS THE TREE AND NOT THE HISTORY, measured 2026-09-24. It was
+history-aware at first: a path counted as held if `git log --all --name-only`
+had ever listed it. That made the VERDICT depend on CLONE DEPTH. This
+workstation has 5803 such paths and the gate was green; CI checks out with
+`actions/checkout` and no `fetch-depth`, so its clone is shallow, its history is
+one commit, and the same tree failed with 29 findings. A gate that answers
+differently in two places teaches a green that means nothing -- the same defect
+as the negative-coverage audit crediting a whole case for one proven final
+(docs/tech-debt.md TD-42).
+
+Both readings could have been made deterministic; this one was chosen because
+the other left the gate unable to tell a deliberate historical mention from a
+stale live pointer, and the 29 findings were nearly all the second kind
+(`dut/env/smoke-test.sh`, retired at the orchestrator cutover;
+`site/scripts/decode_pcap.py`, replaced by the C++ decoder at TD-05). A genuine
+historical reference is still expressible -- as an exemption pair carrying its
+reason, which is a line a reviewer sees.
 
 Scope: every file `git ls-files` lists, except `third_party/` (vendored
 upstream text, not this repository's claims), `docs/.atomic/` (the mnemosyne
@@ -129,12 +140,12 @@ PATH_TOKEN_RE = re.compile(
 
 
 class Tree:
-    """What a pointer can resolve against: the tracked files now, every path
-    git history has held, and the repository's own top-level directories."""
+    """What a pointer can resolve against: the tracked files NOW and the
+    repository's own top-level directories. Deliberately not git history --
+    the module docstring records what that cost."""
 
-    def __init__(self, files: set[str], history: set[str], submodules: frozenset[str] = frozenset()):
+    def __init__(self, files: set[str], submodules: frozenset[str] = frozenset()):
         self.files = files
-        self.history = history
         self.submodules = submodules  # a path inside one is held by that repository
         self.basenames = {os.path.basename(f) for f in files}
         self.tops = {f.split("/", 1)[0] for f in files if "/" in f}
@@ -147,11 +158,10 @@ def git_lines(*args: str) -> list[str]:
 
 def load_tree() -> Tree:
     files = set(git_lines("ls-files"))
-    history = {p for p in git_lines("log", "--all", "--format=", "--name-only") if p}
     submodules = frozenset(
         line.split("\t", 1)[1] for line in git_lines("ls-files", "-s") if line.startswith("160000 ")
     )
-    return Tree(files, history, submodules)
+    return Tree(files, submodules)
 
 
 def in_scope(path: str) -> bool:
@@ -171,14 +181,15 @@ def md_resolves(token: str, citing: str, tree: Tree) -> bool:
 
 def repo_path_held(token: str, citing: str, tree: Tree) -> bool:
     """True unless the token is rooted at one of this repository's top-level
-    directories and the repository has never held it, now or in history."""
+    directories and the tree does not hold it NOW. No history lookup: the
+    verdict must not depend on how deep the clone is."""
     t = token[2:] if token.startswith("./") else token
     if t.split("/", 1)[0] not in tree.tops:
         return True  # a system header, a third-party tree, a path under a variable
     if any(t == s or t.startswith(s + "/") for s in tree.submodules):
         return True
     rel = os.path.normpath(os.path.join(os.path.dirname(citing), t))
-    return any(p in tree.files or p in tree.history for p in (t, rel))
+    return any(p in tree.files for p in (t, rel))
 
 
 def scan_line(line: str, citing: str, tree: Tree) -> list[tuple[str, str]]:
@@ -208,6 +219,37 @@ def scan_line(line: str, citing: str, tree: Tree) -> list[tuple[str, str]]:
     return found
 
 
+DEBT_REGISTER = "docs/tech-debt.md"
+_TD_HEAD_RE = re.compile(r"^## TD-\d+\s")
+_TD_RESOLVED_RE = re.compile(r"\*\*Status:\*\*\s*RESOLVED")
+
+
+def settled_debt_entry(path: str, line: str, settled: bool) -> bool:
+    """Whether this line of the debt register sits inside a RESOLVED entry.
+
+    REPO_PATH is suppressed there, and ONLY there. A resolved entry's body is a
+    DATED RECORD of a state that no longer exists -- TD-01 says the SD decode
+    once lived in `src/sce_integration/someip_captured.h`, which was true when
+    logged and is why the entry exists. Repointing it at today's path would make
+    the record state something that never happened, and the register's own
+    header forbids rewriting entries ("Append new entries; do not renumber").
+
+    Measured before this was written, 2026-09-24: all 43 REPO_PATH occurrences
+    in the register fell inside TD-01..TD-14, every one RESOLVED, and none in an
+    OPEN entry. So this suppresses exactly the historical class and nothing
+    live: an OPEN entry naming a dead path still fails, which is what keeps a
+    Textbook fix or a Done when line honest.
+
+    The other three classes are NOT suppressed here. A private-note name or an
+    unresolvable .md is a dead pointer whatever its surrounding entry says.
+    """
+    if path != DEBT_REGISTER:
+        return False
+    if _TD_HEAD_RE.match(line):
+        return False  # a new entry starts unsettled until its Status says so
+    return settled or bool(_TD_RESOLVED_RE.search(line))
+
+
 def scan() -> list[str]:
     tree = load_tree()
     findings: list[str] = []
@@ -221,9 +263,13 @@ def scan() -> list[str]:
         if b"\0" in data[:8192]:
             continue  # binary
         text = data.decode("utf-8", "replace")
+        settled = False  # see settled_debt_entry()
         for lineno, line in enumerate(text.splitlines(), 1):
+            settled = settled_debt_entry(path, line, settled)
             for kind, tok in scan_line(line, path, tree):
                 if (path, tok) in EXEMPT:
+                    continue
+                if kind == "REPO_PATH" and settled:
                     continue
                 findings.append(f"{kind}: {path}:{lineno}: {tok}")
     return findings
@@ -249,7 +295,6 @@ def _self_test() -> int:
     tree = Tree(
         files={"docs/tech-debt.md", "dut/env/negative_rows.md", "src/a/b.h", "README.md",
                "tests/x/x.scxml", "tools/x.py", "docs/spec/x.json"},
-        history={"dut/env/smoke-test.sh", "src/old/moved.h"},
     )
     cases = [
         ("see reference_icmp_packet_host_gate.md", "src/a/b.h", {"PRIVATE_NOTE"}),
@@ -264,8 +309,12 @@ def _self_test() -> int:
         ("the user_data_len field", "src/a/b.h", set()),
         ("https://example.org/notes/design.md", "src/a/b.h", set()),
         ("see src/a/b.h", "tests/x/x.scxml", set()),
-        ("the Rust successor to dut/env/smoke-test.sh", "src/a/b.h", set()),
-        ("formerly src/old/moved.h", "src/a/b.h", set()),
+        # A retired path is a finding even though git history still holds it.
+        # These two cases are the clone-depth dependence, written as a test:
+        # under the old history-aware rule they passed on a full clone and
+        # failed on CI's shallow one, which is how the divergence shipped.
+        ("the Rust successor to dut/env/smoke-test.sh", "src/a/b.h", {"REPO_PATH"}),
+        ("formerly src/old/moved.h", "src/a/b.h", {"REPO_PATH"}),
         ("see mock_dut/env/smoke-test.sh", "tests/x/x.scxml", set()),
         ("see src/never/held.h", "tests/x/x.scxml", {"REPO_PATH"}),
         ("#include <sys/socket.h>", "src/a/b.h", set()),

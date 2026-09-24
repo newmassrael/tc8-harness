@@ -7,7 +7,7 @@
 // because it literally expands it.
 //
 // This file formerly also fed a Python site decoder (a generator emitted a
-// mirror imported by site/scripts/decode_pcap.py, guarded by a `--check`
+// mirror imported by the site's Python pcap decoder, guarded by a `--check`
 // freshness gate). That second decoder was removed when the documentation
 // site stopped re-decoding the wire — it now renders the harness's own
 // decode via `tc8-harness decode-pcap` — so the layout has a single C++

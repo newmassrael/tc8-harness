@@ -2,7 +2,7 @@
 name = "tc8-orchestrator"
 version = "0.1.0"
 edition = "2021"
-description = "Test orchestrator for the TC8 conformance harness — the Rust successor to dut/env/smoke-test.sh. Drives the harness against per-topology DUTs (single-pc netns, external, ssh-remote), aggregates verdicts, and emits JUnit. Built incrementally (strangler) alongside the bash original."
+description = "Test orchestrator for the TC8 conformance harness — the Rust successor to the retired bash smoke-test driver. Drives the harness against per-topology DUTs (single-pc netns, external, ssh-remote), aggregates verdicts, and emits JUnit. Built incrementally (strangler) alongside the bash original."
 
 [[bin]]
 name = "tc8-orchestrator"

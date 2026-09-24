@@ -1,6 +1,7 @@
 // Single source of truth (SSOT) for the DHCPv4 BOOTP fixed-header wire
 // layout (RFC 951 / RFC 2131 Section 2). X-macro form, #included by the C++
-// authoritative decoder src/sce_integration/dhcpv4_wire.h, which #defines the
+// authoritative decoder src/sce_integration/include/sce_integration/dhcpv4_wire.h,
+// which #defines the
 // TC8_DHCP_* macros so each row expands into a read against the shared
 // ::tc8::wire::readBe primitive (or a memcpy/copy for address/byte fields).
 // src/harness/packet_pipeline.cpp calls the resulting
@@ -8,7 +9,7 @@
 // literally expands it.
 //
 // This file formerly also fed a Python site decoder (a generator emitted a
-// mirror imported by site/scripts/decode_pcap.py, guarded by a `--check`
+// mirror imported by the site's Python pcap decoder, guarded by a `--check`
 // freshness gate). That second decoder was removed when the documentation
 // site stopped re-decoding the wire — it now renders the harness's own decode
 // via `tc8-harness decode-pcap` — so the layout has a single C++ consumer.

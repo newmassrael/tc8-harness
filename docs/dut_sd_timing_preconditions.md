@@ -80,8 +80,8 @@ per-case conformance FAIL and never as a silent no-op.
 
 ## Scope: DUT configuration, not the expect surface
 
-The per-case SD-timing field-patch overlay described above was a `dut/env/smoke-test.sh`
-feature and was retired with that bash driver; the pure transform
+The per-case SD-timing field-patch overlay described above was a feature of the
+bash smoke-test driver and was retired with it; the pure transform
 (`tools/dut_sd_timing_override.py`) remains available for field-level patching. The
 per-case DUT-config path that survives in the sole driver is the orchestrator's
 whole-config vsomeip variant selection (the former `CASE_VSOMEIP_VARIANT`), declared per
@@ -111,7 +111,8 @@ reads for the verdict.
 A timing verdict compares a captured delay against an *expected window*, which a case
 supplies through the `--expect` surface (e.g. `sd_initial_delay_min_ms`,
 `sd_initial_delay_max_ms`, and `sd_service_down_ms`; see
-`src/sce_integration/someip_expectations.h`). The DUT-config precondition here and the
+`src/sce_integration/include/sce_integration/someip_expectations.h`). The
+DUT-config precondition here and the
 expected-window value there are two ends of the same fact: a deployment is expected to
 single-source them on its side (declare the timer once, feed both the
 `TC8_TOPOLOGY_DUT_SD_TIMING` override that provisions the DUT and the matching

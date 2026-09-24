@@ -854,8 +854,8 @@ implement the UT, you can still run most of the corpus.
 
 Read `include/tc8/upper_tester_protocol.h` for the exact wire-format of
 each opcode (every opcode comment cites the TC8 § that drives it).
-`dut/dut_service/upper_tester_server.cpp` is the reference Linux
-implementation — port the dispatch loop and per-opcode bodies onto your
+`src/upper_tester/ut_server.cpp` is the reference implementation — port the
+dispatch loop and per-opcode bodies onto your
 ECU's RTOS / lwIP / etc. The transport is UDP unicast to the DUT IP on
 port 30600; no SOME/IP framing.
 

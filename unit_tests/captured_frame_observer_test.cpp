@@ -1,8 +1,9 @@
 // Cover for the captured-frame observer seam and the registry that drives it:
 //  - the seam types (ICapturedFrameObserver / IFrameObservingService,
-//    src/sce_integration/captured_frame_observer.h) — the relationships and
-//    polymorphic dispatch the runner relies on; and
-//  - AdoptedServices (src/sce_integration/adopted_services.h), the run-scoped
+//    src/sce_integration/include/sce_integration/captured_frame_observer.h) —
+//    the relationships and polymorphic dispatch the runner relies on; and
+//  - AdoptedServices (src/sce_integration/include/sce_integration/adopted_services.h),
+//    the run-scoped
 //    registry TestRunner delegates to — the ACTUAL production adopt + ownership +
 //    fan-out logic, tested directly (TestRunner<SM> only delegates to it, so this
 //    exercises the real code without a generated SCXML state machine).

@@ -1,10 +1,10 @@
-//! tc8-orchestrator — Rust successor to `dut/env/smoke-test.sh`.
+//! tc8-orchestrator — Rust successor to the retired bash smoke-test driver.
 //!
 //! Drives the TC8 conformance harness against a per-topology DUT, extracts the
 //! verdict, and aggregates JUnit. Built incrementally (strangler): each stage
 //! absorbed more of smoke-test.sh.
 //!
-//! THE STRANGLER IS FINISHED. `dut/env/smoke-test.sh` was deleted at the S8
+//! THE STRANGLER IS FINISHED. The bash driver was deleted at the S8
 //! cutover and this binary is the sole CI driver; there is no bash baseline left
 //! to stay in parity with. The stage list below is kept as the record of how the
 //! port was sequenced — it explains why the modules are shaped the way they are —

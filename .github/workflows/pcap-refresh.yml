@@ -25,7 +25,7 @@ jobs:
   refresh:
     name: capture + decode + push
     # Same self-hosted netns runner as smoke-test.yml — needs sudo
-    # NOPASSWD for setup-vsomeip.sh + dut/env/smoke-test.sh + cmake.
+    # NOPASSWD for setup-vsomeip.sh + the orchestrator binary + cmake.
     runs-on: [self-hosted, netns]
     # Cold path: vsomeip rebuild + harness build + 543-case smoke run +
     # decode + push ≈ 30 min. Set the cap high enough to absorb the

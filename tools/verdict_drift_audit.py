@@ -5,7 +5,8 @@ Since the donedata-SSOT migration, each TC8 case declares its verdict exactly
 once: in the SCXML `<final>`'s `<donedata><content>{"verdict":..,"reason":..}`
 (or, for a template-based case, in the shared `.sce-template.xml` it binds via
 `<sce:use>`). The generated SM stashes it and the runner reads it back
-(`tc8::sce::verdictFromDonedata`, src/sce_integration/verdict.h). There is no
+(`tc8::sce::verdictFromDonedata`,
+src/sce_integration/include/sce_integration/verdict.h). There is no
 second declaration — the legacy per-case `verdictFor(State)` switch was retired.
 
 This tool guards that single source. For every registered case it checks:

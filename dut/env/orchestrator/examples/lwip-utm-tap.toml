@@ -1,5 +1,5 @@
 # Standalone AUTOSAR Testability UTM (tc8-lwip-utm) on the lwip-tap topology — the
-# typed Rust successor to dut/env/topology.d/examples/lwip-utm-tap.conf.
+# typed Rust successor to its retired topology.d shell-conf predecessor.
 #
 # Same tap provisioning + per-case respawn as the default lwip-tap topology, but
 # driving the standalone testability UTM (no in-house opcode UT). The [lwip] section

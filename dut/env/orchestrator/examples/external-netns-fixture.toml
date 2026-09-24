@@ -1,5 +1,5 @@
 # Verification fixture for the 'external' topology — the typed Rust successor to
-# dut/env/topology.d/examples/external-netns-fixture.conf.
+# its retired topology.d shell-conf predecessor.
 #
 # The orchestrator provisions a persistent "external DUT": the reference tc8-dut
 # inside an isolated netns, with the tester-side veth left in the root namespace —

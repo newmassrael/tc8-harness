@@ -5,8 +5,8 @@ a conformance verdict to a test case. It is grounded in ISO/IEC 9646 (the OSI
 Conformance Testing Methodology and Framework) and ETSI ES 201 873 (TTCN-3)
 verdict semantics. Every `<final>` donedata authored in `tests/`, the
 donedata-validity audit (`tools/verdict_drift_audit.py`), the runtime mapping in
-`src/cli/test_command.cpp`, and the smoke gate (`dut/env/smoke-test.sh`) derive
-their behaviour from this policy.
+`src/cli/commands/test_command.cpp`, and the smoke gate
+(`dut/env/orchestrator`) derive their behaviour from this policy.
 
 The policy is enforced mechanically (Section 5), not by per-case human judgement.
 Authoring a verdict means choosing a **role** (Section 3); the **class** follows
@@ -19,8 +19,9 @@ inconclusive" per case — the role decides.
 
 These are the ISO/IEC 9646 / TTCN-3 verdicts. They are an **immutable
 conformance invariant**: an OEM may not redefine them, because doing so would
-break comparability of results across implementations. `src/sce_integration/verdict.h`
-is their single C++ definition; the Bash and Python mirrors are **generated**
+break comparability of results across implementations.
+`src/sce_integration/include/sce_integration/verdict.h` is their single C++
+definition; the Bash and Python mirrors are **generated**
 from it (Section 5), never hand-copied.
 
 | class | meaning | exit | reds the gate? |
@@ -129,7 +130,7 @@ what proves such a guard is non-vacuous; see Section 6.
 | any | harness `-t` budget elapsed before a verdict | `property_unobserved` | inconclusive |
 | any | run interrupted (SIGINT/SIGTERM) | `test_system_fault` | error |
 
-**Harness-synthesised verdicts** (`src/cli/test_command.cpp`, when the SCXML did
+**Harness-synthesised verdicts** (`src/cli/commands/test_command.cpp`, when the SCXML did
 not reach a final): an operator **interruption** is a `test_system_fault` →
 `error` (the test system was stopped externally and did not run to completion). A
 **budget exceedance** is the harness `-t` backstop — for liveness/throughput

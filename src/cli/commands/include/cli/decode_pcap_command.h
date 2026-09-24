@@ -8,8 +8,8 @@ namespace tc8::cli {
 
 // `tc8-harness decode-pcap` — offline pcap → site PacketCapture JSON exporter.
 //
-// Replaces the documentation site's second Python wire decoder
-// (site/scripts/decode_pcap.py): the conformance harness owns the single
+// Replaces the documentation site's second Python wire decoder, since
+// retired: the conformance harness owns the single
 // authoritative wire decoder (src/dissect + *_captured.h), so the site's
 // per-case capture view is produced by replaying the saved pcap through that
 // same `dissect::PacketPipeline` rather than re-decoding the frames in Python.
