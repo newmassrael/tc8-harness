@@ -43,13 +43,13 @@ struct TestCaseTraits<cases::Ipv4Fragments03SM>
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,
                          IStimulusScheduler& scheduler) {
-        ::tc8::sce::ipv4::fragments::FragmentPairParams phase1{};
         // frag 0: tester src (default — std::nullopt resolves to
         // cfg.icmpv4.tester_ip inside emitFragmentPair).
         // frag 1: host2 src (mismatched — this is the test invariant).
-        phase1.src_ip_frag1 = ::tc8::sce::ipv4::fragments::kFragmentsHost2IpBe;
+        // Shared with the _NEG siblings.
         ::tc8::sce::ipv4::fragments::emitFragmentPair(
-            iface, cfg, cfg.arp.dut_iface_mac, phase1);
+            iface, cfg, cfg.arp.dut_iface_mac,
+            ::tc8::sce::ipv4::fragments::fragments03Phase1());
 
         // Phase 2 — re-send frag 1 with tester src (matching frag 0's
         // bucket). The helper defaults to tester_ip on the retry.

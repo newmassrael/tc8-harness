@@ -28,16 +28,36 @@
       "dut_truncated_576_byte_datagram_data": "IPv4_HEADER_05_NEG2"
     },
     "IPv4_FRAGMENTS_01": {
-      "complete_fragment_pair_discarded_by_reassembly_timeout": "IPv4_FRAGMENTS_01_NEG"
+      "complete_fragment_pair_discarded_by_reassembly_timeout": "IPv4_FRAGMENTS_01_NEG",
+      "echo_seq_mismatch": "IPv4_FRAGMENTS_01_NEG2",
+      "reassembled_echo_data_mismatch": "IPv4_FRAGMENTS_01_NEG3"
+    },
+    "IPv4_FRAGMENTS_02": {
+      "echo_seq_mismatch_after_id_retry": "IPv4_FRAGMENTS_02_NEG",
+      "reassembled_echo_data_mismatch_id_case": "IPv4_FRAGMENTS_02_NEG2"
+    },
+    "IPv4_FRAGMENTS_03": {
+      "echo_seq_mismatch_after_src_retry": "IPv4_FRAGMENTS_03_NEG",
+      "reassembled_echo_data_mismatch_src_case": "IPv4_FRAGMENTS_03_NEG2"
+    },
+    "IPv4_FRAGMENTS_04": {
+      "echo_seq_mismatch_after_protocol_retry": "IPv4_FRAGMENTS_04_NEG",
+      "reassembled_echo_data_mismatch_protocol_case": "IPv4_FRAGMENTS_04_NEG2"
     },
     "IPv4_REASSEMBLY_04": {
-      "unordered_fragments_discarded_by_reassembly_timeout": "IPv4_REASSEMBLY_04_NEG"
+      "unordered_fragments_discarded_by_reassembly_timeout": "IPv4_REASSEMBLY_04_NEG",
+      "echo_seq_mismatch_after_unordered_reassembly": "IPv4_REASSEMBLY_04_NEG2",
+      "reassembled_echo_data_mismatch_unordered": "IPv4_REASSEMBLY_04_NEG3"
     },
     "IPv4_REASSEMBLY_10": {
-      "phase_a_datagram_discarded_within_timer": "IPv4_REASSEMBLY_10_NEG"
+      "phase_a_datagram_discarded_within_timer": "IPv4_REASSEMBLY_10_NEG",
+      "echo_seq_mismatch_phase_a_within_timer": "IPv4_REASSEMBLY_10_NEG2",
+      "reassembled_echo_data_mismatch_phase_a": "IPv4_REASSEMBLY_10_NEG3"
     },
     "IPv4_REASSEMBLY_12": {
-      "reassembly_timer_shrunk_by_low_ttl": "IPv4_REASSEMBLY_12_NEG"
+      "reassembly_timer_shrunk_by_low_ttl": "IPv4_REASSEMBLY_12_NEG",
+      "echo_seq_mismatch_after_low_ttl_reassembly": "IPv4_REASSEMBLY_12_NEG2",
+      "reassembled_echo_data_mismatch_low_ttl": "IPv4_REASSEMBLY_12_NEG3"
     },
     "IPv4_REASSEMBLY_11": {
       "reassembly_timer_not_extended_by_large_ttl": "IPv4_REASSEMBLY_11_NEG",

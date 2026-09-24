@@ -35,6 +35,14 @@ using ::tc8::sce::IStimulusScheduler;
 inline constexpr std::array<std::uint8_t, 8> kFragmentsEchoPayload{
     0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
 
+// kFragmentsEchoPayload as the view `Icmpv4Captured::payload_equals` takes, so
+// a `_NEG` data variant names the Echo data its positive grades without
+// spelling the cast in SCXML.
+inline std::string_view fragmentsEchoData() {
+    return {reinterpret_cast<const char*>(kFragmentsEchoPayload.data()),
+            kFragmentsEchoPayload.size()};
+}
+
 // IP Identification values the FRAGMENTS_02/03/04 compound stimuli
 // use to distinguish the two reassembly tuples. `id1` is the
 // "matched" tuple that phase 2's retry uses; `id2` is the
@@ -200,6 +208,40 @@ inline int emitFragmentOne(std::string_view iface,
     frag1_spec.fragment_offset = 1;
 
     return ::tc8::stimulus::emitIpv4Frame(iface, frag1_spec, frag1_payload);
+}
+
+// Phase 1 of each compound case: the pair whose second fragment differs from
+// the first in exactly the one tuple field the case is about. The one source
+// for a positive and its `_NEG` siblings, so the frames a sibling faults are
+// the positive's own.
+inline FragmentPairParams fragments02Phase1() {
+    FragmentPairParams p{};
+    p.ip_id_frag0 = kFragmentsIpId1;
+    p.ip_id_frag1 = kFragmentsIpId2;   // Identification differs
+    return p;
+}
+
+inline FragmentPairParams fragments03Phase1() {
+    FragmentPairParams p{};
+    p.src_ip_frag1 = kFragmentsHost2IpBe;   // Source Address differs
+    return p;
+}
+
+inline FragmentPairParams fragments04Phase1() {
+    FragmentPairParams p{};
+    p.ip_protocol_frag0 = kFragmentsProtocolIcmp;
+    p.ip_protocol_frag1 = kFragmentsProtocolTcp;   // Protocol differs
+    return p;
+}
+
+// A compound case's phase 1 and its phase 2 retry, back to back. The `_NEG`
+// siblings' stimulus: their single listening state grades only the reply the
+// retry completes, so they need no phase gap between the two.
+inline void emitCompoundPhase1ThenRetry(std::string_view iface,
+                                        const ::tc8::TestConfig& cfg,
+                                        const FragmentPairParams& phase1) {
+    emitFragmentPair(iface, cfg, cfg.arp.dut_iface_mac, phase1);
+    emitFragmentOne(iface, cfg, cfg.arp.dut_iface_mac);
 }
 
 // Schedule phase-2 frag 1 emission via the runner's

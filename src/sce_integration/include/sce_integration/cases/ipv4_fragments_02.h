@@ -52,13 +52,11 @@ struct TestCaseTraits<cases::Ipv4Fragments02SM>
                          const ::tc8::TestConfig& cfg,
                          std::string_view iface,
                          IStimulusScheduler& scheduler) {
-        ::tc8::sce::ipv4::fragments::FragmentPairParams phase1{};
-        // frag 0: id1 (matched tuple anchor).
-        phase1.ip_id_frag0 = ::tc8::sce::ipv4::fragments::kFragmentsIpId1;
-        // frag 1: id2 (mismatched — this is the test invariant).
-        phase1.ip_id_frag1 = ::tc8::sce::ipv4::fragments::kFragmentsIpId2;
+        // frag 0: id1 (matched tuple anchor); frag 1: id2 (mismatched — this
+        // is the test invariant). Shared with the _NEG siblings.
         ::tc8::sce::ipv4::fragments::emitFragmentPair(
-            iface, cfg, cfg.arp.dut_iface_mac, phase1);
+            iface, cfg, cfg.arp.dut_iface_mac,
+            ::tc8::sce::ipv4::fragments::fragments02Phase1());
 
         // Phase 2 — re-send frag 1 with id1 so the DUT's bucket A
         // (still holding frag 0 from phase 1) completes. Fires on

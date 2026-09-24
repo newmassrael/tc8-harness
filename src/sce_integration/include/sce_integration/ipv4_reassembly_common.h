@@ -144,9 +144,15 @@ inline std::vector<std::uint8_t> buildReassembly32BEchoBody() {
 // The Echo data a reassembled reply must carry, as the view
 // `Icmpv4Captured::payload_equals` takes. One name per case for its pass guard
 // and its `_NEG` data variant, so neither spells the cast in SCXML.
+inline std::string_view reassembly04EchoData() {
+    return {reinterpret_cast<const char*>(kReassembly04EchoPayload.data()),
+            kReassembly04EchoPayload.size()};
+}
+
+// The 2-fragment cases (_10 / _11 / _12) carry the FRAGMENTS_01 body, so their
+// `_NEG` data variants name fragmentsEchoData() directly.
 inline std::string_view reassembly11EchoData() {
-    const auto& d = ::tc8::sce::ipv4::fragments::kFragmentsEchoPayload;
-    return {reinterpret_cast<const char*>(d.data()), d.size()};
+    return ::tc8::sce::ipv4::fragments::fragmentsEchoData();
 }
 
 inline std::string_view reassembly13EchoData() {

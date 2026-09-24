@@ -1544,6 +1544,70 @@
         {
           "file": "tests/ipv4_fragments_01_neg/ipv4_fragments_01_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/cases/ipv4_fragments_01_neg2.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_fragments_01_neg2/ipv4_fragments_01_neg2.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/cases/ipv4_fragments_01_neg3.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_fragments_01_neg3/ipv4_fragments_01_neg3.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/cases/ipv4_fragments_02_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_fragments_02_neg/ipv4_fragments_02_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/cases/ipv4_fragments_02_neg2.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_fragments_02_neg2/ipv4_fragments_02_neg2.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/cases/ipv4_fragments_03_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_fragments_03_neg/ipv4_fragments_03_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/cases/ipv4_fragments_03_neg2.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_fragments_03_neg2/ipv4_fragments_03_neg2.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/cases/ipv4_fragments_04_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_fragments_04_neg/ipv4_fragments_04_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/cases/ipv4_fragments_04_neg2.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_fragments_04_neg2/ipv4_fragments_04_neg2.scxml",
+          "kind": "implements"
         }
       ]
     },
@@ -1733,6 +1797,54 @@
         },
         {
           "file": "tests/ipv4_reassembly_12_neg/ipv4_reassembly_12_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/cases/ipv4_reassembly_04_neg2.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_reassembly_04_neg2/ipv4_reassembly_04_neg2.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/cases/ipv4_reassembly_04_neg3.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_reassembly_04_neg3/ipv4_reassembly_04_neg3.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/cases/ipv4_reassembly_10_neg2.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_reassembly_10_neg2/ipv4_reassembly_10_neg2.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/cases/ipv4_reassembly_10_neg3.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_reassembly_10_neg3/ipv4_reassembly_10_neg3.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/cases/ipv4_reassembly_12_neg2.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_reassembly_12_neg2/ipv4_reassembly_12_neg2.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/cases/ipv4_reassembly_12_neg3.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/ipv4_reassembly_12_neg3/ipv4_reassembly_12_neg3.scxml",
           "kind": "implements"
         }
       ]
