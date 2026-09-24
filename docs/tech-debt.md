@@ -2391,3 +2391,44 @@ any deferral of a case already disposed. Both rules were case-level. They are no
   the exclusive-mechanism rule removed it fails 2 more.
 
 Repaying the 33 is not part of this entry. The ledger holds them, and the census counts them.
+
+---
+
+## TD-43 — the smoke lane no longer fits its timeout, so it judges nothing
+
+**Status:** OPEN. **Logged:** 2026-09-24, after two consecutive pushes were cancelled by the
+job timer rather than answered by the suite.
+
+**What it is.** `.github/workflows/smoke-test.yml` runs on `[self-hosted, netns]` — this
+workstation — under `timeout-minutes: 120`. Both pushes made today were cancelled at the cap:
+run 35950954625 at 2 h 1 m 14 s and run 35960649319 at 2 h 1 m 34 s. A cancellation is not a
+pass and not a fail. The lane that gates every push is currently returning NO VERDICT, and
+because a cancelled run looks orange rather than red, nothing about it demands attention.
+
+**Why it exists.** The cap was chosen against a measurement that has since stopped being true.
+The job's own comment records it: a cold path of "vsomeip rebuild + 543 SCXML codegen + harness
++ tc8-dut + unit tests plus 549-case positive smoke plus negative curated set on a mid-tier
+developer machine totals ~90 min", warm runs ~25 min, "we set the cap high enough for the cold
+path and rely on the test logic to hard-fail rather than the timer to bound runtime". That
+estimate assumes the machine is doing nothing else. It no longer is: the same box concurrently
+runs other repositories' agent loops and their builds, and it is where local verification runs
+too. The cap did not move; the machine underneath it did.
+
+**Risk if left.** The push gate is off, silently. A regression that smoke would catch now
+reaches main with an orange tick beside it, and the longer this holds the more the tick is read
+as noise. Two adjacent facts make it worse rather than better: the 14 negative cases added in
+`dcba9425` joined this lane, and `feedback` recorded elsewhere in this session shows a push also
+CANCELS an in-flight smoke, so a busy day can leave the lane never once completing.
+
+**Textbook fix.** Name which of these it is rather than raising the number, because raising the
+cap alone removes the only bound on a genuine hang:
+- make the lane not compete — the runner is shared with work this repository does not control,
+  so either it gets the box while it runs, or it accepts a queue rather than a timer;
+- split what runs per push from what runs on dispatch, so the per-push lane is sized to the cap
+  and the full set is a deliberate act (the shape `lwip-sweep.yml` already uses);
+- measure the lane on a quiet box first. Until someone knows what it costs when nothing else
+  runs, every number chosen for the cap is a guess.
+
+**Done when:** consecutive pushes produce a pass or a fail from this lane rather than a
+cancellation, and the timer is bounding a hang rather than ordinary work — with the run that
+shows it named here.
