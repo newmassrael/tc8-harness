@@ -1040,7 +1040,18 @@ inline constexpr std::uint8_t kIpv4FaultDropLastFragment = 0x0F;  // §4.4.4.7 R
 // and an effective fault would read as inert. A gratuitous-Response teaching (ARP_06) is
 // therefore out of this flavor's reach and needs its own.
 inline constexpr std::uint8_t kArpFaultIgnoreLearn       = 0x10;  // §4.2.4.1 cache-populated absence: ARP_04 (the DUT must not emit a Request for an address it was taught)
-inline constexpr std::uint8_t kIngressFaultMax           = kArpFaultIgnoreLearn;
+// §4.4.4.6 IPv4 reassembly tuple — a MUTATE seam, unlike the drop seams above. The
+// FRAGMENTS_02/03/04 positives each send a fragment pair differing in exactly one
+// reassembly-tuple field (id, source address, protocol) and forbid the DUT to
+// reassemble them. Rewriting the later fragment's field to match the head's at the
+// netif input makes the STACK see a matching pair it legitimately reassembles, so the
+// DUT answers — the violation the positive grades, while the WIRE still carried the
+// mismatch the tester injected. Recomputes the IPv4 header checksum, which a drop seam
+// never has to: lwIP validates it and would otherwise discard the frame, and the fault
+// would read as inert. One flavor covers all three fields because the tuple is what
+// matching is defined over; never an ip4_reass.c patch.
+inline constexpr std::uint8_t kIpv4FaultNormaliseFragTuple = 0x11;  // §4.4.4.6 FRAGMENTS_02/03/04: the DUT reassembles fragments whose tuple does not match
+inline constexpr std::uint8_t kIngressFaultMax           = kIpv4FaultNormaliseFragTuple;
 
 // `OpSetAppFlavor` (0x1A) APP-LAYER reception-fault flavor byte. Distinct from the
 // egress/ingress catalogs: those mutate or synthesize wire frames at the netif hook,

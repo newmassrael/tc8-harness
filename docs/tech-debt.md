@@ -2459,3 +2459,52 @@ cap alone removes the only bound on a genuine hang:
 **Done when:** consecutive pushes produce a pass or a fail from this lane rather than a
 cancellation, and the timer is bounding a hang rather than ordinary work — with the run that
 shows it named here.
+
+---
+
+## TD-44 — the fault catalogue shares a header with the opcode contract, so adding one flavour recompiles the suite
+
+**Status:** OPEN. **Logged:** 2026-09-24, measured while adding two ingress fault flavours in
+one session and paying a full rebuild for each.
+
+**What it is.** `include/tc8/upper_tester_protocol.h` carries two things whose change rates
+differ by an order of magnitude: the Upper Tester OPCODE and wire contract, which is stable,
+and the EGRESS / INGRESS / APP fault-flavour catalogues, which grow every time a `_neg` case
+needs a new mechanism. Appending one flavour constant to a catalogue therefore dirties every
+consumer of the wire contract.
+
+Measured, not estimated:
+
+| | count |
+|---|---|
+| translation units including the header | 272 |
+| of those, case headers | 241 |
+| case headers that actually name a `ut::` symbol | 237 |
+| case headers naming a FAULT-CATALOGUE constant | 171 |
+| case headers using `ut::` but NOT the catalogue | 70 |
+
+So the include is honest — only 4 of 241 are unused — but two thirds of the blast radius is
+the catalogue's, and the remaining third plus the 31 non-case TUs are collateral. The case
+registrar is chunked into 24 TUs and buckets by an MD5 of the case id precisely so that adding
+a CASE perturbs one chunk (`src/harness/CMakeLists.txt` says so in its own comment); adding a
+FLAVOUR defeats that, because the dirty header is in every chunk.
+
+**Risk if left.** It is a tax on exactly the work the negative-coverage ledger asks for. Each
+unproven fail final left needs its own fault mechanism, so each costs a whole-suite rebuild of
+roughly twenty minutes before its case can be run once — and a typo in the case costs the same
+again, as it did here. It also pushes toward batching unverified cases, which is the habit
+that produced unproven `_neg` files in the first place.
+
+**Textbook fix.** Split the catalogues into their own header (the opcode contract keeps
+`upper_tester_protocol.h`, the flavour values move to a sibling) and include it only where a
+flavour is named. Adding a flavour then touches 171 case headers instead of 241, and no
+non-case TU at all. The SSOT property is unchanged: the catalogue is still written once and
+shared by harness and DUT, which is what makes it a wire contract in the first place.
+
+⚠ Not free, and the cost is why this is a register entry rather than a change already made:
+the split is itself one whole-suite rebuild, and every consumer's include list has to be
+corrected in the same commit or the build breaks halfway. Worth doing BEFORE the next batch of
+fault mechanisms, not during one.
+
+**Done when:** a commit that appends a flavour constant recompiles no translation unit that
+does not name a flavour — shown by the touched-file count, not by reasoning.

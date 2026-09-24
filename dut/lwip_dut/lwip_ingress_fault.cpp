@@ -448,6 +448,39 @@ err_t ingressFaultInput(struct pbuf *p, struct netif *nif) {
                 pbuf_free(p);  // swallow — the DUT wrongly loses a fragment it must keep
                 return ERR_OK;
             }
+        } else if (flavor == ut::kIpv4FaultNormaliseFragTuple &&
+                   p->len >= kEthHdrLen + kIpHdrLenMin && isIpv4(f)) {
+            // §4.4.4.6 FRAGMENTS_02/03/04: a buggy DUT that reassembles fragments whose
+            // reassembly tuple does not match. The head fragment (offset 0, MF set) is
+            // the anchor; every later fragment of the burst adopts its id, source and
+            // protocol, so lwIP sees a matching pair and completes the bucket while the
+            // WIRE still carried the mismatch the tester injected. The DUT then answers
+            // the Echo, which is the violation each positive grades.
+            //
+            // Mutate seam, so the IPv4 header checksum MUST be recomputed — lwIP
+            // validates it and a stale one would make the frame vanish and the fault
+            // read as inert. Unfragmented traffic (the UT control channel included) has
+            // MF clear and offset 0, so it is never touched.
+            const bool more_fragments = (f[kEthHdrLen + 6] & 0x20U) != 0U;
+            const std::uint16_t frag_offset = static_cast<std::uint16_t>(
+                (static_cast<std::uint16_t>(f[kEthHdrLen + 6] & 0x1FU) << 8) | f[kEthHdrLen + 7]);
+            if (more_fragments || frag_offset != 0U) {
+                static std::uint8_t anchor[7];  // id(2) | proto(1) | src(4)
+                static bool have_anchor = false;
+                if (frag_offset == 0U) {
+                    std::memcpy(anchor, f + kEthHdrLen + 4, 2);
+                    anchor[2] = f[kIpProtoOff];
+                    std::memcpy(anchor + 3, f + kIpSrcOff, 4);
+                    have_anchor = true;
+                } else if (have_anchor) {
+                    std::memcpy(f + kEthHdrLen + 4, anchor, 2);
+                    f[kIpProtoOff] = anchor[2];
+                    std::memcpy(f + kIpSrcOff, anchor + 3, 4);
+                    put16(f, kIpHdrChecksumOff, 0);
+                    put16(f, kIpHdrChecksumOff,
+                          ::tc8::wire::inetChecksum(f + kEthHdrLen, kIpHdrLenMin));
+                }
+            }
         } else if (flavor == ut::kTcpSynthAckSrcPortBlind &&
                    p->len >= kEthHdrLen + kIpHdrLenMin && isIpv4(f) &&
                    f[kIpProtoOff] == kIpProtoTcp &&

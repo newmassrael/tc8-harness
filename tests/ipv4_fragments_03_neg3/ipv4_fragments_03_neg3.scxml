@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.4.4.6 IPv4_FRAGMENTS_03 negative — lwIP ingress-fault self-validation of the
+  positive's phase-1 guard. The trait arms kIpv4FaultNormaliseFragTuple and sends the
+  positive's phase-1 pair alone, whose two fragments carry DIFFERENT source addresses.
+  The netif input hook rewrites the later fragment's source to the head's, so lwIP sees
+  a matching pair, completes the bucket and answers the Echo — the reassembly the
+  positive's `dut_reassembled_mismatched_src_fragments` final forbids. Pass = that Echo
+  Reply; fail_compliant = none within the window, meaning the DUT refused the pair
+  anyway and the fault was inert. lwIP-only (capability-gated on kCapIngressFault).
+  Envelope: ipv4_fragment_tuple_neg.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="ipv4_fragments_03_neg3"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/ipv4_fragment_tuple_neg.sce-template.xml"/>
+</scxml>

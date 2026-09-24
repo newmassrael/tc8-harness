@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.4.4.6 reassembly-tuple `_NEG` body: the lwIP ingress-fault self-validation of the
+  FRAGMENTS_02/03/04 phase-1 guards.
+
+  Each positive sends a fragment pair differing in exactly ONE reassembly-tuple field
+  — id (02), source address (03), protocol (04) — and forbids the DUT to reassemble
+  them: a phase-1 Echo Reply is its `dut_reassembled_mismatched_*` final. Its `_NEG`
+  arms kIpv4FaultNormaliseFragTuple, whose netif input hook rewrites the later
+  fragment's field to the head's, so the stack sees a matching pair and completes the
+  bucket while the WIRE still carried the mismatch the tester injected.
+
+    Pass:    an Echo Reply from the DUT — the reassembly the positive forbids,
+             present here because the fault took.
+    Fail:    deadline_exceeded -> fail_compliant — none within the window: the DUT
+             refused the mismatched pair anyway, so the flavor never reached the
+             fragments (a wiring regression, NOT a DUT conformance violation; role
+             fault_injection_inert).
+
+  THE STIMULUS MUST SEND PHASE 1 ONLY. The positive follows it with a phase-2 retry
+  carrying the MATCHED field, whose reply is conformant and expected; including it
+  here would make any Echo Reply ambiguous and the pass vacuous. With phase 1 alone a
+  conformant DUT answers nothing, so the observation itself is the violation and no
+  field predicate is needed to disambiguate it.
+
+  Param-less, shared by the three. 5 s deadline matches the §4.4 `_NEG` cluster.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="ipv4_fragment_tuple_neg">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Icmpv4Captured"
+               cpp:include="sce_integration/icmpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <!-- `icmp_observed`, not `icmpv4_observed`: the reassembly dispatch in
+         ipv4_fragments_common.h raises Event::Icmp_observed, and a name the
+         generated Event enum does not carry is a COMPILE error in that dispatch,
+         not a transition that quietly never fires. -->
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 0 and captured.src_ip == expected.dut_iface_ip"
+                target="pass"/>
+    <transition event="deadline_exceeded" target="fail_compliant"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_compliant">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_refused_mismatched_pair_despite_normalise_flavor","role":"fault_injection_inert"}</content>
+    </donedata>
+  </final>
+</sce:template>

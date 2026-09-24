@@ -1114,6 +1114,10 @@
         {
           "file": "src/harness/packet_pipeline.cpp",
           "kind": "implements"
+        },
+        {
+          "file": "tests/_templates/ipv4_fragment_tuple_neg.sce-template.xml",
+          "kind": "references"
         }
       ]
     },
@@ -1628,6 +1632,30 @@
         {
           "file": "tests/ipv4_fragments_04_neg2/ipv4_fragments_04_neg2.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "dut/lwip_dut/lwip_ingress_fault.cpp",
+          "kind": "references"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/cases/ipv4_fragments_02_neg3.h",
+          "kind": "references"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/cases/ipv4_fragments_03_neg3.h",
+          "kind": "references"
+        },
+        {
+          "file": "tests/_templates/ipv4_fragment_tuple_neg.sce-template.xml",
+          "kind": "references"
+        },
+        {
+          "file": "tests/ipv4_fragments_02_neg3/ipv4_fragments_02_neg3.scxml",
+          "kind": "references"
+        },
+        {
+          "file": "tests/ipv4_fragments_03_neg3/ipv4_fragments_03_neg3.scxml",
+          "kind": "references"
         }
       ]
     },

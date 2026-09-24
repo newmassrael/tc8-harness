@@ -36,10 +36,12 @@
       "reassembled_echo_data_mismatch": "IPv4_FRAGMENTS_01_NEG3"
     },
     "IPv4_FRAGMENTS_02": {
+      "dut_reassembled_mismatched_id_fragments": "IPv4_FRAGMENTS_02_NEG3",
       "echo_seq_mismatch_after_id_retry": "IPv4_FRAGMENTS_02_NEG",
       "reassembled_echo_data_mismatch_id_case": "IPv4_FRAGMENTS_02_NEG2"
     },
     "IPv4_FRAGMENTS_03": {
+      "dut_reassembled_mismatched_src_fragments": "IPv4_FRAGMENTS_03_NEG3",
       "echo_seq_mismatch_after_src_retry": "IPv4_FRAGMENTS_03_NEG",
       "reassembled_echo_data_mismatch_src_case": "IPv4_FRAGMENTS_03_NEG2"
     },
