@@ -18,12 +18,34 @@ use crate::dispatch::{self, Verdict};
 use crate::junit::{CaseRecord, Status};
 use crate::topology::{Topology, WorkerCtx};
 
-/// The negative schedule: `case_id -> expected_fail` for a `--negative` run. When
-/// present, every scheduled case is dispatched as its authored negative row
-/// (`dispatch::run_negative_row`) instead of positively. `None` = a positive run.
-/// Threaded by reference into the scoped worker threads (it is `Sync` and outlives
-/// the scope), so `distribute` stays over plain case-id strings.
-pub type NegSchedule<'a> = Option<&'a HashMap<String, String>>;
+/// Which authored expectation an asserted run drives, and therefore what has to be
+/// injected to reach it. Both modes assert one `class:reason` verdict per case and share
+/// `dispatch::map_negative_verdict`; they differ ONLY in whether anything is injected,
+/// which is exactly the difference between the two axes they read.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum AssertMode {
+    /// The inventory overrides' SIXTH axis. The harness flips one `--expect` value
+    /// (`--negative-row`) and the case must land the authored fail — the self-check that
+    /// its guard is not trivially true.
+    NegativeRow,
+    /// The platform known-fail axis. NOTHING is injected: the platform's own deviation is
+    /// what produces the verdict, and the case must still land the registered one. It
+    /// exists because `--exclude-platform-known-fail` means both lanes otherwise SKIP
+    /// these cases, so a registration that has gone stale — the platform fixed, or its
+    /// defect changed shape — is never observed.
+    KnownFail,
+}
+
+/// An asserted schedule: `case_id -> expected class:reason`, plus the mode saying how each
+/// case is driven. `None` = an ordinary positive run. Threaded by reference into the
+/// scoped worker threads (it is `Sync` and outlives the scope), so `distribute` stays over
+/// plain case-id strings.
+pub struct AssertSchedule {
+    pub mode: AssertMode,
+    pub expect: HashMap<String, String>,
+}
+
+pub type NegSchedule<'a> = Option<&'a AssertSchedule>;
 
 /// A non-failing case outcome carrying its reason — `case` + `reason` kept
 /// structured (the bash `case|reason` string encoding existed only for its file
@@ -194,19 +216,29 @@ fn run_worker(
         // A negative run dispatches each case as its authored negative row; the
         // schedule carries every scheduled case's expected fail (built alongside
         // the bucket in main), so a miss is a construction bug, not a data gap.
-        let negative = neg.is_some();
+        let negative = matches!(neg, Some(s) if s.mode == AssertMode::NegativeRow);
         let started = Instant::now();
         let outcome = match neg {
-            Some(map) => {
-                let expected = map
+            Some(sched) => {
+                let expected = sched
+                    .expect
                     .get(case)
-                    .expect("negative schedule carries every scheduled case");
-                dispatch::run_negative_row(cfg, topo, w, case_ctx, case, expected)
+                    .expect("asserted schedule carries every scheduled case");
+                match sched.mode {
+                    AssertMode::NegativeRow => {
+                        dispatch::run_negative_row(cfg, topo, w, case_ctx, case, expected)
+                    }
+                    AssertMode::KnownFail => {
+                        dispatch::run_known_fail(cfg, topo, w, case_ctx, case, expected)
+                    }
+                }
             }
             None => dispatch::run_case(cfg, topo, w, case_ctx, case, dut_first),
         };
         let duration_s = started.elapsed().as_secs_f64();
-        // bash names a negative testcase `<case>_neg` in the junit stream.
+        // bash names a negative testcase `<case>_neg` in the junit stream. A known-fail
+        // assertion keeps the plain case name: it runs the case exactly as the positive
+        // lane would, so a report reader should see the same testcase identity.
         let rec_name = if negative { format!("{case}_neg") } else { case.clone() };
         // Derive the report status + message per outcome (a non-conclusion and a
         // dispatch fault both render as a skip carrying their reason, matching bash).

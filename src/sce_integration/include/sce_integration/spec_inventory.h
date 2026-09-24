@@ -27,6 +27,18 @@ namespace tc8::sce {
 //     file) owns its platform's entries. Kept ACTIVE in coverage
 //     reports so spec coverage stays honest; CI/smoke skip lists
 //     filter it via `--exclude-platform-known-fail`.
+//     `platform_known_fail_verdict` (optional) is the verdict the case
+//     ACTUALLY lands on that platform, as a `class:reason` token —
+//     `fail:dut_arp_request_after_double_injection`, or an
+//     `inconclusive:...` for a deviation that produces no observation
+//     at all. It exists because the excluding flag above means nothing
+//     ever re-measures the claim, so a registration that has gone stale
+//     (the platform was fixed, or its defect changed shape) is invisible;
+//     `--list-known-fails` prints the pairs and a driver runs the set and
+//     asserts them, exactly as `--list-neg-rows` does for the sixth axis.
+//     Only a `fail:` verdict can account for a negative-coverage unit —
+//     an `inconclusive:` one says the guard was never exercised, which
+//     proves nothing about a fail final's reachability.
 // Both `id` and `category` are stored verbatim from the spec body —
 // case-folding to upper case for comparison against harness-registered
 // IDs is the consumer's job (see SpecInventory::canonicalise).
@@ -46,6 +58,7 @@ struct SpecCase {
     std::string defer_reason;
     bool platform_known_fail = false;
     std::string platform_known_fail_ref;
+    std::string platform_known_fail_verdict;
     // Third (independent) axis: `timing_serial:true` (+ `timing_serial_ref`)
     // marks a case whose verdict measures a sub-second inter-frame interval
     // (a strict `frame_delta_within_us` cadence window) — the reference DUT

@@ -156,7 +156,8 @@
     },
     "ICMPV4_ERROR_02": {
       "platform_known_fail": true,
-      "platform_known_fail_ref": "docs/tech-debt.md TD-29"
+      "platform_known_fail_ref": "docs/tech-debt.md TD-29",
+      "platform_known_fail_verdict": "fail:parameter_problem_pointer_not_22"
     },
     "ICMPv4_TYPE_08": {
       "neg_wrong_token": "icmpv4.payload=45:43:55:20:4E:45:54:57:4F:52:4B:20:56:41:4C:49:44:41:54:49:4F:4E:20:54:45:53:55",
@@ -170,11 +171,13 @@
     },
     "IPV4_REASSEMBLY_11": {
       "platform_known_fail": true,
-      "platform_known_fail_ref": "docs/tech-debt.md TD-28"
+      "platform_known_fail_ref": "docs/tech-debt.md TD-28",
+      "platform_known_fail_verdict": "fail:reassembly_timer_not_extended_by_large_ttl"
     },
     "IPV4_REASSEMBLY_13": {
       "platform_known_fail": true,
-      "platform_known_fail_ref": "docs/tech-debt.md TD-33"
+      "platform_known_fail_ref": "docs/tech-debt.md TD-33",
+      "platform_known_fail_verdict": "inconclusive:no_echo_reply_after_overlap_reassembly"
     },
     "IPv4_FRAGMENTS_01": {
       "neg_wrong_token": "icmpv4.echo_id=0xFFFE",
@@ -658,11 +661,13 @@
     },
     "TCP_FLAGS_INVALID_15": {
       "platform_known_fail": true,
-      "platform_known_fail_ref": "docs/tech-debt.md TD-30"
+      "platform_known_fail_ref": "docs/tech-debt.md TD-30",
+      "platform_known_fail_verdict": "fail:dut_emitted_response_to_otw_rst_in_fw2"
     },
     "TCP_UNACCEPTABLE_10": {
       "platform_known_fail": true,
-      "platform_known_fail_ref": "docs/tech-debt.md TD-31"
+      "platform_known_fail_ref": "docs/tech-debt.md TD-31",
+      "platform_known_fail_verdict": "fail:dut_rst_to_unacc_ack_finwait2"
     },
     "UDP_USER_INTERFACE_07": {
       "neg_wrong_token": "ipv4.dut_alias_ip=10.99.99.99",

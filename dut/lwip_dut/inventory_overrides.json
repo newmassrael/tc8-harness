@@ -4,16 +4,19 @@
   "overrides": {
     "ARP_05": {
       "platform_known_fail": true,
+      "platform_known_fail_verdict": "fail:dut_arp_request_after_gratuitous_learning",
       "platform_known_fail_ref": "docs/tech-debt.md TD-32",
       "reason": "lwIP etharp implements the literal RFC 826 reception algorithm: a gratuitous Response not addressed to the DUT updates an EXISTING table entry but never creates one, so the cold cache stays cold and the DUT emits its own ARP Request (fail:dut_arp_request_after_gratuitous_learning). The Linux reference passes only via the arp_accept=1 per-case conditioning; lwIP has no equivalent knob (dut/lwip_dut/README.md)"
     },
     "ARP_06": {
       "platform_known_fail": true,
+      "platform_known_fail_verdict": "fail:dut_arp_request_after_gratuitous_learning",
       "platform_known_fail_ref": "docs/tech-debt.md TD-32",
       "reason": "lwIP etharp implements the literal RFC 826 reception algorithm: a gratuitous Response not addressed to the DUT updates an EXISTING table entry but never creates one, so the cold cache stays cold and the DUT emits its own ARP Request (fail:dut_arp_request_after_gratuitous_learning). The Linux reference passes only via the arp_accept=1 per-case conditioning; lwIP has no equivalent knob (dut/lwip_dut/README.md)"
     },
     "ARP_33": {
       "platform_known_fail": true,
+      "platform_known_fail_verdict": "fail:dut_arp_request_after_double_injection",
       "platform_known_fail_ref": "docs/tech-debt.md TD-32",
       "reason": "both injections are gratuitous Responses not addressed to the DUT; lwIP etharp creates no table entry from either (RFC 826 literal: add only when the DUT is the target), the cache stays cold and the DUT emits its own ARP Request (fail:dut_arp_request_after_double_injection). Distinct mechanism from the Linux reference's hold on the same case (arp_is_garp target_hw shape + locktime, conditioned away per case); ARP_34 passes here because its first injection is a Request addressed to the DUT (dut/lwip_dut/README.md)"
     },
@@ -175,66 +178,79 @@
     },
     "ICMPv4_TYPE_11": {
       "platform_known_fail": true,
+      "platform_known_fail_verdict": "inconclusive:no_timestamp_reply_within_listen_window",
       "platform_known_fail_ref": "dut/lwip_dut/README.md",
       "reason": "ICMP Timestamp not implemented (icmp.c counts ICMP_TS in stats and drops)"
     },
     "ICMPv4_TYPE_12": {
       "platform_known_fail": true,
+      "platform_known_fail_verdict": "inconclusive:no_timestamp_reply_within_listen_window",
       "platform_known_fail_ref": "dut/lwip_dut/README.md",
       "reason": "ICMP Timestamp not implemented (icmp.c counts ICMP_TS in stats and drops)"
     },
     "ICMPv4_ERROR_02": {
       "platform_known_fail": true,
+      "platform_known_fail_verdict": "inconclusive:no_parameter_problem_within_listen_window",
       "platform_known_fail_ref": "dut/lwip_dut/README.md",
       "reason": "ICMP Parameter Problem emission not implemented (only dest-unreach/time-exceeded generators exist)"
     },
     "IPv4_FRAGMENTS_04": {
       "platform_known_fail": true,
+      "platform_known_fail_verdict": "fail:dut_reassembled_mismatched_protocol_fragments",
       "platform_known_fail_ref": "dut/lwip_dut/README.md",
       "reason": "reassembly bucket match omits the protocol field (IP_ADDRESSES_AND_ID_MATCH compares src/dst/id only; RFC 791 requires the src/dst/protocol/id quad)"
     },
     "IPv4_REASSEMBLY_11": {
       "platform_known_fail": true,
+      "platform_known_fail_verdict": "fail:reassembly_timer_not_extended_by_large_ttl",
       "platform_known_fail_ref": "dut/lwip_dut/README.md",
       "reason": "static IP_REASS_MAXAGE timer ignores TTL; RFC 791 MAX(TLB,TTL) extension not implemented (same deviation class as the Linux reference DUT)"
     },
     "IPv4_REASSEMBLY_13": {
       "platform_known_fail": true,
+      "platform_known_fail_verdict": "fail:overlapping_datagram_discarded_by_reassembly_timeout",
       "platform_known_fail_ref": "dut/lwip_dut/README.md",
       "reason": "overlap reassembly structurally unsupported: chain validation requires exact fragment contiguity, so an overlapped bucket never completes regardless of IP_REASS_CHECK_OVERLAP"
     },
     "TCP_BASICS_17": {
       "platform_known_fail": true,
+      "platform_known_fail_verdict": "inconclusive:no_dut_synack_to_simultaneous_syn",
       "platform_known_fail_ref": "dut/lwip_dut/README.md",
       "reason": "simultaneous open not implemented: a SYN arriving in SYN-SENT gets no SYN+ACK (RFC 793 p32 simultaneous-open figure); the stack later RSTs the tester's follow-up ACK"
     },
     "TCP_FLAGS_INVALID_06": {
       "platform_known_fail": true,
+      "platform_known_fail_verdict": "fail:dut_emitted_response_to_bare_ack_with_acceptable_ack",
       "platform_known_fail_ref": "dut/lwip_dut/README.md",
       "reason": "SYN-SENT answers an acceptable bare ACK with RST where RFC 793 p66 says discard-and-stay (Linux silently drops)"
     },
     "TCP_FLAGS_INVALID_07": {
       "platform_known_fail": true,
+      "platform_known_fail_verdict": "inconclusive:no_dut_ack_to_otw_seq_syn_in_syn_recv",
       "platform_known_fail_ref": "dut/lwip_dut/README.md",
       "reason": "OTW-SEQ SYN in SYN-RCVD is dropped without the RFC 793 section 3.9 challenge ACK"
     },
     "TCP_URGENT_PTR_04": {
       "platform_known_fail": true,
+      "platform_known_fail_verdict": "inconclusive:dut_did_not_isolate_urgent_data",
       "platform_known_fail_ref": "dut/lwip_dut/README.md",
       "reason": "TCP urgent/out-of-band data path not implemented (RFC 793 section 3.7 URG); the UT answers OpReceiveTcpDataOob with zero bytes by design"
     },
     "TCP_RETRANSMISSION_TO_05": {
       "platform_known_fail": true,
+      "platform_known_fail_verdict": "fail:phase1_rto_below_doubled_baseline",
       "platform_known_fail_ref": "dut/lwip_dut/README.md",
       "reason": "case asserts the SYN-retransmission RTO grows exponentially (RFC 1122 section 4.2.3.1 / RFC 6298 section 5 'more than linear'); lwIP excludes SYN_SENT from RTO backoff (tcp.c tcp_slowtmr: 'unless we are trying to connect') so the SYN RTO stays at the fixed ~1 s seed (measured 1 s/1 s/1 s on the wire), failing phase 1's rto-doubled check deterministically (fail:phase1_rto_below_doubled_baseline, verified x4 2026-06-11). Same root deviation as RETRANSMISSION_TO_09; genuine non-conformance, not a harness window issue"
     },
     "TCP_RETRANSMISSION_TO_08": {
       "platform_known_fail": true,
+      "platform_known_fail_verdict": "fail:rto_exceeded_2_msl",
       "platform_known_fail_ref": "dut/lwip_dut/README.md",
       "reason": "spec expects the data-retransmission RTO to plateau at 2*MSL (60 s); lwIP doubles RTO per retransmit with no 2*MSL clamp (tcp.c tcp_backoff shift, cap at <<7), so the RTO passes 63 s at the retransmit ~63 s in (wire 2/4/8/16/32 s gaps) — fail:rto_exceeded_2_msl (verified 2026-09-24)"
     },
     "TCP_RETRANSMISSION_TO_09": {
       "platform_known_fail": true,
+      "platform_known_fail_verdict": "inconclusive:dut_dropped_connection_before_rto_ceiling",
       "platform_known_fail_ref": "dut/lwip_dut/README.md",
       "reason": "spec expects the SYN-retransmission RTO to plateau at 2*MSL (60 s); lwIP never backs off the SYN RTO (tcp.c excludes SYN_SENT from RTO doubling, fixed 1 s cadence) and aborts the pcb at TCP_SYNMAXRTX=6 (~7 s), before any ceiling exists to grade — inconclusive:dut_dropped_connection_before_rto_ceiling (verified 2026-09-24). The mark withholds a non-conclusion, not a fail: its cause is the missing SYN backoff that RETRANSMISSION_TO_05 grades as a fail"
     }

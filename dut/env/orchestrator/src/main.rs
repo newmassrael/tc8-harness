@@ -102,6 +102,13 @@ struct Cli {
     #[arg(long)]
     negative: bool,
 
+    /// Run the registered platform known-fails and assert each lands its registered
+    /// verdict. Nothing is injected — the platform's own deviation produces it — so this
+    /// is what stops `--exclude-platform-known-fail` from letting a stale registration
+    /// rot unobserved.
+    #[arg(long, conflicts_with = "negative")]
+    known_fail: bool,
+
     /// Preserve per-case pcap + harness/dut logs in this directory.
     #[arg(long)]
     log_dir: Option<String>,
@@ -260,7 +267,28 @@ fn main() -> Result<()> {
     // A `--negative` run dispatches each case as its authored negative row instead
     // of positively. Built here (after the topology gate) so the schedule and the
     // worker cap below see the negative case set, not the positive default.
-    let neg_schedule: Option<HashMap<String, String>> = if cli.negative {
+    let neg_schedule: Option<worker::AssertSchedule> = if cli.known_fail {
+        // The known-fail set is the harness's --list-known-fails (the platform overrides'
+        // measured landed verdicts) — the SAME one-home rule the negative set follows.
+        let rows = dispatch::list_known_fails(&cfg)?;
+        let filtered: Vec<(String, String)> = if cli.cases.is_empty() {
+            rows
+        } else {
+            let want: HashSet<String> = cli.cases.iter().map(|c| c.to_uppercase()).collect();
+            rows.into_iter()
+                .filter(|(case, _)| want.contains(&case.to_uppercase()))
+                .collect()
+        };
+        if filtered.is_empty() {
+            bail!("--known-fail: no case carries a registered platform_known_fail_verdict (narrow the case list, or measure one first)");
+        }
+        cases = filtered.iter().map(|(case, _)| case.clone()).collect();
+        cases.sort();
+        Some(worker::AssertSchedule {
+            mode: worker::AssertMode::KnownFail,
+            expect: filtered.into_iter().collect(),
+        })
+    } else if cli.negative {
         if !topo.supports_negative() {
             bail!("--negative requires a topology with a spawned reference DUT (deliberate mis-expectations + start-order control); topology '{topology}' does not support it");
         }
@@ -285,7 +313,10 @@ fn main() -> Result<()> {
         // plus the case_id -> expected_fail map the workers assert against.
         cases = filtered.iter().map(|(case, _)| case.clone()).collect();
         cases.sort();
-        Some(filtered.into_iter().collect())
+        Some(worker::AssertSchedule {
+            mode: worker::AssertMode::NegativeRow,
+            expect: filtered.into_iter().collect(),
+        })
     } else {
         None
     };

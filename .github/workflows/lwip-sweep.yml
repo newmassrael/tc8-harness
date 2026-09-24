@@ -76,6 +76,34 @@ jobs:
             --log-dir sweep-logs/full \
             $(dut/lwip_dut/sweep-cases.sh)
 
+      - name: Assert the registered platform known-fails (--known-fail)
+        # The sweep above EXCLUDES every platform_known_fail case
+        # (sweep-cases.sh passes --exclude-platform-known-fail), which is
+        # right for a "what can this fixture pass" list but leaves those
+        # registrations unmeasured by anything. A registration that has
+        # gone stale — the deviation fixed upstream, or its defect changed
+        # shape — then keeps its entry and keeps being skipped for it; two
+        # of thirteen were stale when that was last checked by hand.
+        #
+        # This stage runs those cases with NOTHING injected (the platform's
+        # own deviation is what produces the verdict) and asserts each lands
+        # the `platform_known_fail_verdict` recorded in the overrides. A case
+        # that starts PASSING reds here, which is the observation nothing
+        # else in either lane can make.
+        #
+        # --inventory-overrides is explicit rather than implied: it names
+        # which platform's claims this stage is asserting, and
+        # tools/negative_coverage_audit.py reads that pairing to decide
+        # whether a claim may account for a fail final at all.
+        run: |
+          mkdir -p reports sweep-logs/known-fail
+          sudo -n dut/env/orchestrator/target/debug/tc8-orchestrator \
+            --topology lwip-tap \
+            --inventory-overrides dut/lwip_dut/inventory_overrides.json \
+            --junit-xml reports/junit-lwip-known-fail.xml \
+            --log-dir sweep-logs/known-fail \
+            --known-fail
+
       - name: Run testability-backend TCP slice (--dut-control testability)
         # The full sweep above drives the in-house opcode UT backend. This
         # pass re-runs the TCP seam cases against the AUTOSAR Testability

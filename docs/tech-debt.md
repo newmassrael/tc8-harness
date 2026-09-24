@@ -1446,7 +1446,42 @@ Three of its four blind spots above were of exactly that kind, so treat a zero f
 
 ## TD-23 — an excluded case is never observed again, so both exclusion ledgers can only rot
 
-**Status:** OPEN. **Logged:** 2026-09-23.
+**Status:** RESOLVED (2026-09-25) against the Done-when below; the `_NEG` half of the
+original observation outlived it and is now docs/tech-debt.md TD-47. **Logged:** 2026-09-23.
+
+**How it was repaid.** All three Done-when clauses, in the order they are stated.
+
+*Justifications in-tree*: `tools/debt_census.py` reports zero known-fail entries whose
+justification does not resolve in-tree — the in-tree pointer gate closed that while TD-34/36
+were repaid.
+
+*The excluded set is re-measured, and has been seen to red*: `platform_known_fail_verdict`
+records the `class:reason` each registered deviation actually lands,
+`tc8-harness test --list-known-fails` prints the pairs, and `tc8-orchestrator --known-fail`
+runs exactly the excluded set with NOTHING injected and asserts them. Both lanes carry the
+stage — `.github/workflows/lwip-sweep.yml` for the fixture, `.github/workflows/smoke-test.yml`
+for the reference DUT — and neither adds a cron, which this entry argued against: the smoke
+stage is per-push and the set is small and disjoint from the lanes above it, which is what
+makes measuring it affordable where measuring everything was not.
+
+The red was DEMONSTRATED rather than assumed, on 2026-09-25: a copy of the lwIP overrides with
+`ARP_05`'s verdict altered to one the DUT no longer lands produced
+`FAIL ARP_05 — expected 'fail:a_reason_the_dut_no_longer_lands', harness returned
+'fail:dut_arp_request_after_gratuitous_learning'` and exit 1. The message names both verdicts,
+so the reader is told whether the platform was fixed or its defect changed shape.
+
+*A mark must name what it suppresses*: `negative_coverage_audit.py` rejects a verdict that is
+not a `class:reason` token (KNOWN_FAIL_MALFORMED), one naming a final the case does not have
+(KNOWN_FAIL_STALE), one on a case with no fail final at all (KNOWN_FAIL_NO_FAIL_FINAL) and one
+on something that is not a positive case (KNOWN_FAIL_NOT_POSITIVE). The category error this
+entry recorded — a mark suppressing an INCONCLUSIVE while claiming to suppress a FAIL — is now
+unstateable: the verdict carries its class.
+
+**The measurement that closed it.** Twenty-one registered deviations across both platforms, all
+re-run on 2026-09-25. lwIP: nine `fail:`, seven `inconclusive:`, none passing. Linux reference:
+four `fail:`, one `inconclusive:`. Every prose reason that already named a verdict agreed with
+the measurement, so nothing was stale at the moment the mechanism landed — that is the baseline
+it now holds rather than a claim that staleness never happened.
 
 **What it is.** Two ledgers withhold cases from a verdict: `platform_known_fail` in the
 `inventory_overrides.json` files (a DUT is known to fail the case) and, in the other direction,
@@ -2513,8 +2548,35 @@ does not name a flavour — shown by the touched-file count, not by reasoning.
 
 ## TD-45 — a fault-injection negative can only run where its positive cannot pass, and nothing notices
 
-**Status:** OPEN. **Logged:** 2026-09-24, after nearly shipping a negative that would have
-passed with the fault disarmed.
+**Status:** RESOLVED (2026-09-25). **Logged:** 2026-09-24, after nearly shipping a negative
+that would have passed with the fault disarmed.
+
+**How it was repaid.** Not by re-pairing the three bases, which would have meant writing
+negatives whose value the entry already argues is near zero, but by giving those finals a
+BETTER account than a synthetic fault: the platform's own defect, measured. A
+`platform_known_fail_verdict` records the `class:reason` each registered deviation actually
+lands, `tc8-harness test --list-known-fails` prints the pairs, and
+`tc8-orchestrator --known-fail` runs the set with NOTHING injected and asserts them. An
+unmodified DUT reaching a fail final in a real run is the strongest reachability evidence
+the five mechanisms have; this audit now counts it as `known_fail`.
+
+The vacuity the entry named is closed from the other side too. A mapping is only counted
+where a lane actually asserts the claim (`known_fail_lanes`), so a registration nothing
+re-measures accounts for nothing — which is what stops this fix from being the same
+vacuity one level up. `arp_06`, `arp_33:dut_arp_request_after_double_injection` and
+`ipv4_fragments_04:dut_reassembled_mismatched_protocol_fragments` were the three units left
+in the ledger, and they are now accounted this way; the ledger is empty.
+
+Measured on lwip-tap 2026-09-25, all sixteen registered deviations: nine land a `fail:`
+verdict, seven land an `inconclusive:`, none pass. The six whose prose already named a
+verdict all agreed with the measurement, so no registration was stale at the moment the
+mechanism landed — that is the baseline it now holds.
+
+⚠ **Known limit, recorded rather than papered over.** An `inconclusive:` registration
+asserts nothing today: the harness returns a non-conclusion, the driver's Skip arm swallows
+it, and the case reports green either way. Seven of sixteen are in that state. Closing it
+needs the runner to distinguish "no observation, as registered" from "no observation,
+unexpectedly", which is a verdict-model change rather than a driver change.
 
 **What it is.** A `_NEG` proves its positive's guard is checkable by driving a faulted DUT onto
 a `fail` final. The fault seams live only on the lwIP fixture, so every fault-injection
@@ -2601,3 +2663,48 @@ not have the problem; this one does.
 the resolution under test — an out-of-band arming channel, or a fixture whose ARP table can be
 seeded before its first control exchange. Neither exists here, which is why this stands in
 `tools/debt_accepted.txt` rather than waiting for one.
+
+---
+
+## TD-47 — a `_NEG` that never reaches its stage reports green, and today's rule enlarged that
+
+**Status:** OPEN. **Logged:** 2026-09-25, splitting the half of TD-23 that outlived its
+Done-when, and recording that a change made the same day made it bigger rather than smaller.
+
+**What it is.** A fault-injection negative carries exactly ONE `fail` final — the
+conformant-DUT branch, role `fault_injection_inert`, which `negative_coverage_audit.py`
+enforces. Every other way the run can miss is therefore `inconclusive`, which the orchestrator
+maps to a skip and JUnit renders as `<skipped>`: green. So a negative whose fault has gone
+inert AT A STAGE IT NEVER REACHED reports nothing at all.
+
+**Why the arity rule is still right.** A run that never reached the guarded stage says nothing
+about whether the fault works, so grading it `fail` would blame the fault-wiring for a
+precondition that was never met. The two misses also have OPPOSITE fixes — an arm that landed
+too late moves earlier, one that landed too early moves later — and a single `fail` reason
+cannot say which is owed. The rule is not the defect; the defect is that the honest
+non-conclusion is then indistinguishable from a healthy skip.
+
+**How it grew.** Five negatives landed on 2026-09-25 with multi-stage shapes (a first emission
+driven with the fault disarmed, the arm placed between, the second graded). Four of them were
+written with a `fail_compliant_*` for each way the run could miss and the audit rejected them;
+routing those catches to `inconclusive` is what made them pass — and what put four more
+never-reached-the-stage outcomes into the green column. The count is small and the direction is
+wrong, which is the whole reason this is written down rather than left implicit.
+
+**Risk if left.** The `_NEG` population is the instrument the whole negative-coverage ledger
+rests on: an empty ledger means every guard is PROVEN checkable, and that proof is only as good
+as the negatives still firing. A negative that has silently stopped exercising its guard keeps
+its ledger entry and keeps reporting green, which is the same rot TD-23 repaid for the
+known-fail ledger, one register over.
+
+**Textbook fix.** The known-fail mechanism is the shape to copy, because the problem is
+identical: an outcome nothing re-measures. A negative's expected outcome is already known — it
+is `pass` — so a lane can assert it the way `--known-fail` asserts a registered verdict, and a
+`_NEG` that turns inconclusive reds instead of skipping. What it must NOT do is re-grade a
+genuine precondition failure as a conformance failure; the distinction TD-23 made between "no
+observation, as registered" and "no observation, unexpectedly" is the same one needed here, and
+it is a verdict-model question rather than a driver one.
+
+**Done when:** a `_NEG` that stops reaching its guarded stage reds in a lane rather than
+rendering as a skip, the four negatives named above are covered by it, and a deliberately
+un-armed negative is shown to red.

@@ -605,6 +605,8 @@ std::optional<SpecInventory> SpecInventory::load(
                 findBoolField(body, "platform_known_fail", false);
             std::string platform_known_fail_ref =
                 findStringField(body, "platform_known_fail_ref");
+            std::string platform_known_fail_verdict =
+                findStringField(body, "platform_known_fail_verdict");
             const bool timing_serial =
                 findBoolField(body, "timing_serial", false);
             std::string timing_serial_ref =
@@ -635,6 +637,24 @@ std::optional<SpecInventory> SpecInventory::load(
                 return fail("overrides: " + id +
                             " has only half a negative row (neg_wrong_token and "
                             "neg_expect_fail must be set together)");
+            }
+            // A landed verdict without the flag is a claim about a platform deviation
+            // the entry does not declare — half a claim, and the same shape as half a
+            // negative row above, so it is refused rather than silently ignored. The
+            // converse is allowed: an entry may declare the deviation before anyone has
+            // measured what it lands on, and `--list-known-fails` simply omits it.
+            if (!platform_known_fail_verdict.empty() && !platform_known_fail) {
+                return fail("overrides: " + id +
+                            " sets platform_known_fail_verdict without "
+                            "platform_known_fail:true");
+            }
+            // The verdict is the same `class:reason` token the sixth axis uses, so the
+            // one grammar serves both listings and one parser reads them.
+            if (!platform_known_fail_verdict.empty() &&
+                platform_known_fail_verdict.find(':') == std::string::npos) {
+                return fail("overrides: " + id +
+                            " platform_known_fail_verdict '" + platform_known_fail_verdict +
+                            "' is not a class:reason token");
             }
             // Only --negative-row reads neg_expect_overrides, and it refuses a
             // case with no neg_wrong_token — so this shape is unreachable data
@@ -685,6 +705,7 @@ std::optional<SpecInventory> SpecInventory::load(
                     sc.defer_reason = std::move(reason);
                     sc.platform_known_fail = platform_known_fail;
                     sc.platform_known_fail_ref = std::move(platform_known_fail_ref);
+                    sc.platform_known_fail_verdict = std::move(platform_known_fail_verdict);
                     sc.timing_serial = timing_serial;
                     sc.timing_serial_ref = std::move(timing_serial_ref);
                     sc.requires_secondary_iface = requires_secondary_iface;

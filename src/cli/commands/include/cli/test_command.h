@@ -26,6 +26,7 @@ public:
 private:
     int runListCases() const;
     int runListNegRows() const;
+    int runListKnownFails() const;
     int runListVsomeipVariants() const;
     int runVsSpecReport() const;
     int runCase(std::optional<std::string> bpf_override);
@@ -99,6 +100,12 @@ private:
     // array used, so the drivers and tools/negative_coverage_audit.py all read
     // ONE source instead of re-parsing bash.
     bool list_neg_rows_ = false;
+    // `--list-known-fails`: print each platform known-fail that carries a MEASURED
+    // landed verdict as `CASE|class:reason`. The sibling of the row listing above,
+    // and the answer to `--exclude-platform-known-fail` meaning nothing ever
+    // re-measures those registrations — a driver runs the set and asserts them, so a
+    // registration that has gone stale reds instead of rotting unseen.
+    bool list_known_fails_ = false;
     // `--list-vsomeip-variants`: print each case with a DUT vsomeip flavor (the
     // seventh axis) as `CASE|cfg|env1,env2`. The harness never launches the DUT;
     // both spawning drivers (single-pc / ssh-remote) read this ONE source instead

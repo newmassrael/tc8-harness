@@ -191,6 +191,28 @@ jobs:
             --log-dir smoke-logs/negative \
             --negative
 
+      - name: Assert the registered platform known-fails (--known-fail)
+        # Every step above passes --exclude-platform-known-fail, so the reference
+        # DUT's registered deviations are never run and nothing can notice one
+        # has started passing — the exclusion and the observation are the same
+        # switch (docs/tech-debt.md TD-23). This stage runs exactly that excluded
+        # set, with NOTHING injected, and asserts each lands the
+        # platform_known_fail_verdict the overrides record. Small and disjoint
+        # from the lanes above, which is what makes it affordable.
+        #
+        # --inventory-overrides names the file explicitly even though it is the
+        # default: it declares WHICH platform's claims this stage asserts, and
+        # tools/negative_coverage_audit.py reads that pairing to decide whether a
+        # claim may account for a fail final at all.
+        run: |
+          sudo -n dut/env/orchestrator/run-isolated.sh \
+            dut/env/orchestrator/target/debug/tc8-orchestrator \
+            --workers 1 \
+            --inventory-overrides docs/spec/inventory_overrides.json \
+            --junit-xml reports/junit-smoke-known-fail.xml \
+            --log-dir smoke-logs/known-fail \
+            --known-fail
+
       # Topology-profile regression: the external / ssh-remote profiles
       # are exercised against the self-contained netns fixtures in
       # dut/env/orchestrator/examples/*.toml (a persistent "external ECU" and an

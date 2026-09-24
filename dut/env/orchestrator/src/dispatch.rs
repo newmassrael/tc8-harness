@@ -350,6 +350,93 @@ pub fn run_negative_row(
     Ok(map_negative_verdict(raw, expected_fail))
 }
 
+/// Run a case as its registered PLATFORM KNOWN-FAIL: no flip, no injection — the
+/// platform's own deviation is what produces the verdict — and the case must land the
+/// registered `class:reason`. The registration is the inventory overrides'
+/// `platform_known_fail_verdict`, listed via `list_known_fails`.
+///
+/// This exists because `--exclude-platform-known-fail` drops these cases from BOTH lanes,
+/// so nothing re-measures a registration and a stale one is invisible: a platform that was
+/// fixed keeps its entry and keeps being skipped for it. Asserting the registered verdict
+/// is what makes the claim falsifiable.
+///
+/// The verdict mapping is `map_negative_verdict`, REUSED rather than re-derived, because
+/// its four arms already answer this question:
+///   fail == registered -> Pass  the deviation still reads exactly as registered
+///   fail != registered -> Fail  the defect changed shape; the entry is stale
+///   pass               -> Fail  the case now PASSES; the entry must be removed
+///   skip/inconclusive  -> Skip  never exercised, non-gating
+/// The third arm is the one that cannot be observed today, and the reason this exists.
+///
+/// ⚠ A registered verdict may itself be an `inconclusive:` — a deviation that produces no
+/// observation at all, which the measured set shows is 7 of 16 on the lwIP fixture. The
+/// harness returns those as NonConclusion, so the Skip arm swallows them and such an entry
+/// asserts nothing. That is a known limit of this pass, recorded rather than papered over:
+/// closing it needs the runner to distinguish "no observation, as registered" from "no
+/// observation, unexpectedly", which is a verdict-model change, not a driver change.
+pub fn run_known_fail(
+    cfg: &Config,
+    topo: &dyn Topology,
+    w: u32,
+    ctx: &WorkerCtx,
+    case_id: &str,
+    expected: &str,
+) -> Result<Verdict> {
+    // dut_first like the negative path: these cases are graded against a spawned DUT, and
+    // the start-order control is what makes the first frames observable.
+    let raw = run_case_impl(cfg, topo, w, ctx, case_id, true, false)?;
+    Ok(map_negative_verdict(raw, expected))
+}
+
+/// The platform known-fail set: every case whose overrides carry a MEASURED landed
+/// verdict, read from the harness's `--list-known-fails` (`CASE|class:reason`). Returns
+/// `(case_id, expected_verdict)`. The sibling of `list_negative_rows`, and the same
+/// one-home rule: the harness owns the axis, the driver only iterates it.
+///
+/// Unlike the negative set, an EMPTY list is not an error here. A platform may genuinely
+/// have no registered deviation, and a lane that refused to start would make the clean
+/// case the unrepresentable one.
+pub fn list_known_fails(cfg: &Config) -> Result<Vec<(String, String)>> {
+    use anyhow::{bail, Context};
+    let out = cfg
+        .harness_test()
+        .arg("--list-known-fails")
+        .output()
+        .with_context(|| format!("running {} test --list-known-fails", cfg.harness.display()))?;
+    if !out.status.success() {
+        bail!(
+            "{} test --list-known-fails exited {}: {}",
+            cfg.harness.display(),
+            out.status,
+            String::from_utf8_lossy(&out.stderr).trim()
+        );
+    }
+    let text = String::from_utf8(out.stdout).context("--list-known-fails output not UTF-8")?;
+    parse_known_fails_output(&text)
+}
+
+/// Parse `CASE|class:reason` into `(case_id, expected)`. Pure over the text so it is
+/// unit-tested without invoking the harness. `splitn(2)` keeps the verdict intact even
+/// though a reason could in principle hold a colon.
+fn parse_known_fails_output(text: &str) -> Result<Vec<(String, String)>> {
+    use anyhow::bail;
+    let mut rows = Vec::new();
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let mut it = line.splitn(2, '|');
+        match (it.next(), it.next()) {
+            (Some(case), Some(expected)) if !case.is_empty() && expected.contains(':') => {
+                rows.push((case.to_string(), expected.to_string()));
+            }
+            _ => bail!("--list-known-fails produced a malformed row: {line:?}"),
+        }
+    }
+    Ok(rows)
+}
+
 /// Map a harness verdict into the negative test's frame — the bash
 /// `run_negative_case` precedence, pure over the inputs so it is unit-tested
 /// without a harness run (the parity-critical decision, so it must be pinned).

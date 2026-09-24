@@ -209,6 +209,14 @@ TestCommand::TestCommand(CLI::App &app) {
                    "know which cases to run with --negative-row and which "
                    "verdict to assert; --negative-row injects the token itself, "
                    "so the driver never re-emits it.");
+    sub_->add_flag("--list-known-fails", list_known_fails_,
+                   "Print every platform known-fail carrying a MEASURED landed "
+                   "verdict as CASE|class:reason and exit. A driver iterates this, "
+                   "runs each case with NOTHING injected (the platform's own "
+                   "deviation produces the verdict) and asserts it — the answer to "
+                   "--exclude-platform-known-fail meaning neither lane ever "
+                   "re-measures these registrations. An entry with no measured "
+                   "verdict is omitted, not an error.");
     sub_->add_flag("--list-vsomeip-variants", list_vsomeip_variants_,
                    "Print every case whose overrides declare a DUT vsomeip flavor "
                    "(the seventh inventory-overrides axis) as CASE|cfg|env1,env2 and "
@@ -349,6 +357,51 @@ int TestCommand::runListNegRows() const {
     return 0;
 }
 
+// Emits the platform known-fails that have a MEASURED landed verdict, as
+// `CASE|class:reason`, sorted for a stable iteration order and diff. The sibling of
+// runListNegRows above, and deliberately the same grammar minus the flip column: a
+// negative row needs an injected wrong value to reach its verdict, while a known-fail
+// needs nothing injected at all — the platform's own deviation produces it.
+//
+// This exists because `--exclude-platform-known-fail` means both lanes SKIP these cases,
+// so nothing re-measures the registration and a stale one is invisible: a platform that
+// was fixed, or whose defect changed shape, keeps its entry and keeps being skipped for
+// it. A driver iterates this, runs each case with nothing injected, and asserts the
+// verdict — the same shape that keeps the sixth axis honest.
+//
+// An entry with no measured verdict is OMITTED rather than reported as an error: a
+// deviation may be registered before anyone has run it, and a listing that refused to
+// print would make adding the first entry impossible.
+int TestCommand::runListKnownFails() const {
+    std::string err;
+    bool stripped = false;
+    const auto inv = loadInventory(&err, &stripped);
+    if (!inv.has_value()) {
+        std::fprintf(stderr, "error: %s\n", err.c_str());
+        return 1;
+    }
+    if (!suite_.empty() && !inv->hasSuite(suite_)) {
+        std::fprintf(stderr, "error: --suite %s: no inventory declares that suite\n",
+                     suite_.c_str());
+        return 1;
+    }
+    std::vector<std::string> rows;
+    for (const auto &sc : inv->cases()) {
+        if (!inSuiteScope(sc.suite)) {
+            continue;
+        }
+        if (sc.platform_known_fail && !sc.platform_known_fail_verdict.empty()) {
+            rows.push_back(sce::qualifiedCaseId(sc.suite, sc.id) + "|" +
+                           sc.platform_known_fail_verdict);
+        }
+    }
+    std::sort(rows.begin(), rows.end());
+    for (const auto &r : rows) {
+        std::printf("%s\n", r.c_str());
+    }
+    return 0;
+}
+
 // The seventh axis (vsomeip_cfg / vsomeip_env) as CASE|cfg|env1,env2 lines — the
 // harness's exposer for a driver-launched DUT flavor, mirroring runListNegRows.
 // Both smoke-test.sh and the orchestrator read this ONE source, so the flavor
@@ -409,6 +462,9 @@ int TestCommand::run(std::optional<std::string> bpf_override) {
     }
     if (list_neg_rows_) {
         return runListNegRows();
+    }
+    if (list_known_fails_) {
+        return runListKnownFails();
     }
     if (list_cases_) {
         if (vs_spec_) {
