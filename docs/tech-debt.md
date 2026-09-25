@@ -3289,12 +3289,26 @@ applied INTO `third_party/vsomeip`'s working tree, so four tracked files
 refuses with them named. Setting `send = "tracked"` does not avoid it — the comparison happens
 regardless of what is sent.
 
-That refusal is correct and should not be worked around: a verification copy that silently
-differs from the tree under test proves nothing about it. The two honest repairs are to stop
-carrying the series as working-tree modifications (provision the patched vsomeip somewhere that
-is not a submodule working tree), or for `bx` to learn that a submodule the transfer does not
-send is not part of the comparison. The first is this repository's, is entangled with the
-compile-gated patch ratchet, and is deliberately not improvised here.
+**Which of the two repairs is right, examined 2026-09-25 rather than assumed.** The first
+reading was that this repository should stop carrying the series as working-tree modifications —
+`scripts/setup-vsomeip.sh` already has the seam for it (`TC8_VSOMEIP_SRC` selects the tree), so
+the change looked small. It is the wrong fix, and the evidence is in `bx`'s own two refusals:
+with `send = "tracked+submodules"` it printed "sending tracked+submodules files", and with
+`send = "tracked"` it printed "sending tracked files" — and then refused **identically**, naming
+the same four paths. The comparison does not depend on what is transferred. Under
+`send = "tracked"` a submodule's file contents never leave this machine, so no modification
+inside one can make the remote copy differ in any way the transfer can observe.
+
+So the defect is the checker's SCOPE, not this repository's layout. Patching a vendored tree in
+place is what quilt is for; `setup-vsomeip.sh` resets to the pin and re-applies from scratch on
+every run, and its own header documents that as the contract. Restructuring a working,
+documented provisioning path so that a checker stops inspecting something it does not send would
+be a change made to satisfy a measurement rather than a requirement — and it would add real
+machinery (a scratch checkout to clone, and to re-clone on every pin bump) in exchange.
+
+⚠ That leaves the repair outside this repository after all, and this time the claim is
+measured rather than assumed: `bx` should not compare a submodule that `send` excludes. Until
+then this repository's builds stay local, and TD-43's contention exposure stays with them.
 
 ⚠ Do NOT close this by adding `pin_host` or by loosening `needs`. A declaration that names less
 than the build needs routes work to a machine that then fails mid-build, which is worse than the
