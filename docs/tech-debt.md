@@ -2782,6 +2782,36 @@ with no `.claude/remote-build.toml`, so `bx` sent its builds to the very box the
 That file now exists, and the machine gap it exposes is registered as TD-50. Moving the runner
 remains an option; it is no longer the only one.
 
+**First verdict since the repair, 2026-09-25 — run 36114404143, push, HEAD `51dacc1e`:
+`success` in 1h30m** (08:42:42Z .. 10:13:42Z). Every step ran and passed; the ratchet reads
+`skipped`, which is the change working.
+
+| step | this run | the cancelled run | a quiet run (35441257615) |
+|---|---:|---:|---:|
+| Build harness | 38m37 (42%) | 59m03 | 8m14 |
+| Run positive smoke | 28m07 (31%) | cancelled at 8m36 | 13m45 |
+| lwIP DUT regression | 14m46 (16%) | never reached | 11m28 |
+| Suite producer ratchet | **skipped** | 51m42 | 8m20 |
+
+⚠ **The change is what produced the verdict, and the arithmetic says so rather than the
+intention.** The ratchet cost 51m42 under comparable contention; 1h30m plus that is about
+2h22m, past the 120-minute cap. This push would have been cancelled too. And the steps the two
+cancelled runs never reached — the negative set, both topology profiles, the lwIP build and
+regression, all three testability checks — ran here.
+
+⚠ **Contention is undiminished and is now the whole of the remainder.** The harness build took
+38m37 against 8m14 on a quiet box and the positive lane 28m07 against 13m45 — still three to
+four times. Nothing in this repair touched that; TD-50 is where it lives, and part of it was
+this session, working in this repository on this box while the lane ran.
+
+On the accounting step: it exited 0, which requires the API fetch, the render and the append to
+`$GITHUB_STEP_SUMMARY` all to have succeeded, and the same endpoint and tool produced the table
+above when run by hand against this run. The rendered summary TEXT is not verified here, because
+GitHub exposes job summaries only in the run page and not through the API.
+
+**Status stays OPEN on one word of the Done-when: "consecutive".** This is one push. The next
+one that returns a verdict closes the entry.
+
 ⚠ **What remains is not in this repository, and it is the only permanent fix.** Removing the
 ratchet takes the cancelled run's non-test cost from 110m to 59m, which would very likely have
 let it finish — "likely" being exactly as far as the evidence reaches. The 59m build was a
