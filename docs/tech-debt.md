@@ -2776,6 +2776,12 @@ this box was compiling, which is the one thing the lane does not control.
   was refused for the reason the entry already gives; sizing it to contention is impossible, since
   wall-clock on a shared box measures the box.
 
+⚠ **Correction to the paragraph below, 2026-09-25:** "not in this repository" was wrong. The
+largest remaining lever WAS an in-repo file — this was the only repository on the workstation
+with no `.claude/remote-build.toml`, so `bx` sent its builds to the very box the runner uses.
+That file now exists, and the machine gap it exposes is registered as TD-50. Moving the runner
+remains an option; it is no longer the only one.
+
 ⚠ **What remains is not in this repository, and it is the only permanent fix.** Removing the
 ratchet takes the cancelled run's non-test cost from 110m to 59m, which would very likely have
 let it finish — "likely" being exactly as far as the evidence reaches. The 59m build was a
@@ -3207,3 +3213,62 @@ rather than by special-casing one address.
 **Done when:** UI_08's ask and the tester's configured second address come from one field, with
 the expectation still independently flippable, and a site naming its own tester alias is shown
 to exercise the case rather than time out on it.
+
+---
+
+## TD-50 — no build machine can compile this repository, so its builds land on the box its own CI gate runs on
+
+**Status:** OPEN. **Logged:** 2026-09-25, as the named remainder of TD-43.
+
+**What it is.** This was the only repository on this workstation without a
+`.claude/remote-build.toml`, and `bx` said so in as many words — "tc8-harness declares no
+.claude/remote-build.toml, so nothing says what to send or what it needs" — and therefore sent
+every build here. Here is also where the `[self-hosted, netns]` smoke runner lives, so the
+repository was competing with its own push gate: a cache-warm harness build inside the gate took
+59m03 against 8m14 on a quiet run, and the gate returned no verdict (TD-43).
+
+The declaration now exists and is honest. What it revealed is that **neither registered machine
+can build this repository**, measured 2026-09-25:
+
+| requirement | pc2 | pc3 | needed for |
+|---|---|---|---|
+| cmake / make / g++ / python3 / git | ok | ok | everything |
+| libpcap | ok | ok | capture |
+| **libtins** | missing | missing | every dissector the tester links |
+| **`sce-codegen`** | missing | missing | all 543 case state machines |
+| vsomeip3 | ok | missing | the ETS mock DUT |
+| **CommonAPI / CommonAPI-SomeIP** | missing | missing | the ETS mock DUT |
+| cargo | missing | missing | the orchestrator (6 s locally; not worth sending) |
+
+`bx` now selects pc2 on its own merits and then refuses by name —
+``host pc2 cannot RUN `sce-codegen` — existence is not usability`` — instead of silently
+building here. That refusal is the repayment's first half working: the gap is named rather than
+absorbed.
+
+⚠ **`sce-codegen` is the surprising one.** It is not built from this tree. `third_party/sce`
+ships `SCEFindCodegen.cmake`, which FINDS a generator; this workstation resolves it to
+`~/.local/bin/sce-codegen`. A machine without it builds nothing at all here, so it is the first
+thing to place, not the last.
+
+**Why it exists.** Nobody wrote the file. The `remote-build` skill has the same finding recorded
+against another repository — 815 builds fell to local because the declaration was missing, which
+it calls "not a refusal, but nobody having written it" — so this is a known shape rather than a
+new one.
+
+**Risk if left.** TD-43's remaining exposure, exactly. The gate and this repository's own
+compiles share one box, and the only thing separating them is a habit ("keep quiet after a
+push") that this session broke itself, running a 1445-second local build while the lane's
+evidence was the thing at stake. A habit is not a mechanism.
+
+**Textbook fix.** Provision one machine to meet the declaration, cheapest first: `libtins-dev`
+by package, then `sce-codegen` at the pin this tree expects. That alone moves the tester and the
+unit tests off this box, which is the build the repository actually repeats. CommonAPI is a
+separate and larger step and buys only the mock DUT, which the hosted `build-test` lane already
+declines to build for the same reason — so it is deliberately last.
+
+⚠ Do NOT close this by adding `pin_host` or by loosening `needs`. A declaration that names less
+than the build needs routes work to a machine that then fails mid-build, which is worse than the
+named refusal it replaced.
+
+**Done when:** `bx` sends a harness build to a build machine and it succeeds there, and a smoke
+run overlapping local work in this repository no longer shows the build step inflating.
