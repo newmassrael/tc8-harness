@@ -719,10 +719,20 @@ bool UpperTesterServer::tearDownSlot(std::uint8_t socket_id, bool abort) {
         tcp_slots_.erase(it);
     }
     // Outside tcp_mu_: an acceptor finishing under the lock cannot deadlock the
-    // join. Active connectors block in connect(); shutdown(RDWR) unblocks them —
-    // but ONLY while one is still blocked. On a connection that already reached
-    // ESTABLISHED the same call is a graceful close, and an ABORT that FINs is
-    // not an abort (see TcpSlot::connect_done).
+    // join.
+    //
+    // `stop` is what releases an active connector: it is handed to
+    // connectBoundedV4 as that call's cancellation flag, so setting it here ends
+    // the wait wherever the attempt has got to. The shutdown(RDWR) below is now
+    // only for a connector on a stack that needs the socket poked as well — it is
+    // NOT the mechanism, which matters because it never worked on lwIP and the
+    // join then waited out the connection attempt (docs/tech-debt.md TD-24).
+    //
+    // Still skipped once the connector is done: on an ESTABLISHED connection
+    // SHUT_RDWR is a graceful close — it FINs, and on lwIP it also nulls
+    // conn->pcb.tcp, after which closeWithAbort's null guard declines to
+    // tcp_abort and the ABORT primitive emits FIN instead of RST
+    // (see TcpSlot::connect_done).
     owned->stop.store(true);
     if (owned->kind == TcpKind::Active && owned->accepted_fd >= 0 &&
         !owned->connect_done.load(std::memory_order_acquire)) {
@@ -779,7 +789,12 @@ void UpperTesterServer::tcpConnectorLoop(TcpSlot *slot, std::uint32_t remote_ip_
     net::Endpoint dst;
     dst.addr_be = remote_ip_be;
     dst.port = remote_port;
-    backend_->connectBoundedV4(slot->accepted_fd, dst, kConnectTimeoutMs);
+    // `&slot->stop` is what lets a teardown reclaim this thread promptly: the slot
+    // sets it before joining, and the bounded connect abandons its wait on seeing
+    // it. Without that the join waits out the connection attempt — measured 3.47 s
+    // on lwip-tap, and because this server answers one request at a time it was
+    // 3.47 s of the whole UT channel (docs/tech-debt.md TD-24).
+    backend_->connectBoundedV4(slot->accepted_fd, dst, kConnectTimeoutMs, &slot->stop);
     // Nothing is blocked from here on, so teardown must not "unblock" us with a
     // SHUT_RDWR it would otherwise send — see TcpSlot::connect_done.
     slot->connect_done.store(true, std::memory_order_release);

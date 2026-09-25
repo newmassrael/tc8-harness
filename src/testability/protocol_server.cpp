@@ -737,7 +737,10 @@ std::uint8_t ProtocolServer::connectTcp(const std::uint8_t *dat, std::size_t dat
     const Endpoint dst = endpointFromWire(addr_body, dest_port);
     // Bounded so an absent peer times out instead of freezing the dispatch loop.
     // The backend records whatever it needs (e.g. the 4-tuple) for a later abort.
-    if (!backend_->connectBoundedV4(*fd, dst, /*timeout_ms=*/1000)) {
+    // No cancellation: this call runs ON the request thread rather than in a worker
+    // another request tears down, so there is no second party to abandon it. The
+    // 1 s bound is the whole story here.
+    if (!backend_->connectBoundedV4(*fd, dst, /*timeout_ms=*/1000, /*cancel=*/nullptr)) {
         return kRidENok;  // connection refused / unreachable / timed out
     }
     return kRidEOk;

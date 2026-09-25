@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -7,6 +8,11 @@
 #include "tc8/net/op_status.h"
 
 namespace tc8::net {
+
+// How long a bounded connect waits before re-reading its cancellation flag. Short
+// enough that a teardown is not perceptibly delayed, long enough that the wait is
+// still a wait rather than a spin: at 50 ms a 5 s connect costs 100 wakeups.
+inline constexpr int kConnectPollSliceMs = 50;
 
 // A platform-neutral IPv4 endpoint (network byte order). A server core speaks
 // this instead of sockaddr_in so it carries no OS socket headers — the
@@ -109,7 +115,25 @@ public:
     // Bounded active connect (non-blocking connect + wait up to timeout_ms,
     // fd left blocking on return). true on an established connection. The
     // backend captures whatever per-fd state a later abortive close needs.
-    virtual bool connectBoundedV4(int fd, const Endpoint &dst, int timeout_ms) = 0;
+    //
+    // `cancel`, when non-null, is polled while waiting and ABANDONS the wait as
+    // soon as it reads true, returning false. This is an obligation on the
+    // implementation, not a hint: an implementation that waits the full timeout
+    // regardless holds its caller's thread for that long.
+    //
+    // ⚠ It exists because the alternative does not work across stacks. The Upper
+    // Tester's slot teardown joins the worker that is sitting in here, and used to
+    // rely on `shutdown(SHUT_RDWR)` to release it — true on Linux, false on lwIP,
+    // where `lwip_shutdown` acts on an established netconn and leaves a pending
+    // connect waiting out its own retransmissions. Measured on lwip-tap 2026-09-25
+    // that cost 3.47 s of the single-threaded UT channel and timed out the next
+    // request behind it (docs/tech-debt.md TD-24). A cancellation the CALLER owns
+    // needs no such behaviour from any stack, and a backend not yet written cannot
+    // silently omit it — hence a parameter rather than a documented expectation,
+    // and no default argument (Core Guidelines C.140: a default on a virtual is
+    // resolved statically, so an override could disagree with it unnoticed).
+    virtual bool connectBoundedV4(int fd, const Endpoint &dst, int timeout_ms,
+                                  const std::atomic<bool> *cancel) = 0;
 
     virtual bool listen(int fd, int backlog) = 0;
     // accept: new fd, or < 0 if none ready (fills `client` on success).

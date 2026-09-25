@@ -1562,8 +1562,34 @@ case that started passing, and a case without a `fail` final is rejected as a kn
 
 ## TD-24 — a multi-phase TCP case answers the DUT once, and a conforming retry starves the later phases
 
-**Status:** OPEN. **Logged:** 2026-09-23, from the pcap of the one TCP non-conclusion left in
-the lwIP sweep (346 of 348 pass, zero failures).
+**Status:** OPEN — the starvation is fixed and `TCP_UNACCEPTABLE_08` passes on both platforms;
+what remains is the OBSERVABILITY half, which is the part that would have named this correctly
+the first time. **Logged:** 2026-09-23, from the pcap of the one TCP non-conclusion left in the
+lwIP sweep (346 of 348 pass, zero failures).
+
+**What was fixed (2026-09-25), three diagnoses deep.** The first two were wrong and are kept
+below because the shape of the error is the lesson: "the harness answers the retransmission
+once" (wrong — answering cannot help, RFC 793 keeps the peer in SYN-SENT), then "the graceful
+close is slow" (wrong — swapping in `abortTcp` changed nothing; both verbs reach the same
+teardown). The third held: `UpperTesterServer::tearDownSlot` JOINS the slot worker, and that
+worker sits inside `SocketBackend::connectBoundedV4`, which was one uninterruptible `select`.
+The teardown tried to release it with `shutdown(SHUT_RDWR)` — a POSIX behaviour the shared code
+asserted in a COMMENT. True on Linux. False on lwIP, where `lwip_shutdown` acts on an
+established netconn and leaves a pending connect to wait out its own retransmissions.
+
+The fix does not make lwIP honour the comment; it removes the dependency. `connectBoundedV4`
+now takes a caller-owned `const std::atomic<bool> *cancel`, polls it between short slices, and
+abandons the wait when it reads true; the worker is given its slot's `stop`, which teardown
+already sets before joining. No stack-specific behaviour is required of any backend, the
+parameter carries no default (Core Guidelines C.140, so a backend not yet written cannot
+silently omit the obligation), and the Linux backend implements the same slicing although its
+kernel would not need it — the obligation belongs to the interface, and a caller must not carry
+one teardown path per stack.
+
+Measured on lwip-tap: teardown request to teardown response **3.47 s → 1.4 ms**, phase 2 gets
+its window, the crafted segment goes out, and the DUT emits the RST the case grades.
+`TCP_UNACCEPTABLE_08` passes on lwip-tap and on the Linux reference; seven other active-connect
+TCP cases re-run unchanged.
 
 **What it is.** `TCP_UNACCEPTABLE_08` runs two phases against two port quads. Phase 1 works:
 the DUT opens, the harness answers with a SYN+ACK carrying an unacceptable ack, and the DUT
@@ -1627,8 +1653,9 @@ inferred — a phase that never opened its own window should say so, in the
 an absence as if the DUT had been asked. That half is unchanged and is what would have named
 this correctly the first time.
 
-**Done when:** the harness answers a repeated SYN on a live phase quad, `TCP_UNACCEPTABLE_08`
-passes on both the lwIP fixture and the Linux reference, and a phase whose window never opened
+**Done when:** ~~the harness answers a repeated SYN on a live phase quad~~ (superseded — see
+above; answering cannot help and was never the cause), `TCP_UNACCEPTABLE_08`
+passes on both the lwIP fixture and the Linux reference — DONE — and a phase whose window never opened
 reports that fact instead of a DUT-shaped absence reason.
 
 ---

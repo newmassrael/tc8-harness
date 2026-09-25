@@ -125,6 +125,14 @@ private:
             std::this_thread::sleep_for(kTcpPilotPhaseGap);
         }
 
+        // A graceful close is right here and the teardown is NOT this case's
+        // problem, though it looked like it: measured 2026-09-25, this close was
+        // answered 3.47 s after it was issued and phase 2's open timed out behind
+        // it. Swapping in `abortTcp` changed nothing, because both verbs reach the
+        // same `tearDownSlot`, which JOINS a worker still sitting inside connect().
+        // The fix was to make `shutdown(RDWR)` on a SYN_SENT pcb actually unblock
+        // that connect on the lwIP backend — the contract the shared teardown
+        // already assumed. See docs/tech-debt.md TD-24.
         if (open) dut.tcpControl()->closeTcp(open->socket);
     }
 };

@@ -474,7 +474,8 @@ int LinuxSocketBackend::send(int fd, const void *buf, std::size_t len) {
     return static_cast<int>(::send(fd, buf, len, MSG_NOSIGNAL));
 }
 
-bool LinuxSocketBackend::connectBoundedV4(int fd, const Endpoint &dst, int timeout_ms) {
+bool LinuxSocketBackend::connectBoundedV4(int fd, const Endpoint &dst, int timeout_ms,
+                                          const std::atomic<bool> *cancel) {
     sockaddr_in d{};
     d.sin_family = AF_INET;
     d.sin_addr.s_addr = dst.addr_be;
@@ -487,18 +488,35 @@ bool LinuxSocketBackend::connectBoundedV4(int fd, const Endpoint &dst, int timeo
     if (rc == 0) {
         ok = true;  // immediate (loopback) connect
     } else if (errno == EINPROGRESS) {
-        fd_set wset;
-        FD_ZERO(&wset);
-        FD_SET(fd, &wset);
-        timeval tv{};
-        tv.tv_sec = timeout_ms / 1000;
-        tv.tv_usec = (timeout_ms % 1000) * 1000;
-        if (::select(fd + 1, nullptr, &wset, nullptr, &tv) > 0) {
-            int err = 0;
-            socklen_t l = sizeof(err);
-            if (::getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &l) == 0 && err == 0) {
-                ok = true;
+        // Sliced so `cancel` is observed mid-attempt. This kernel DOES release a
+        // pending connect on shutdown(SHUT_RDWR), so the slicing changes nothing
+        // here today — it is implemented anyway because the OBLIGATION is on the
+        // interface, and a caller may not carry two teardown paths, one per stack.
+        int remaining = timeout_ms;
+        while (remaining > 0) {
+            if (cancel != nullptr && cancel->load(std::memory_order_acquire)) {
+                break;
             }
+            const int slice = (remaining < kConnectPollSliceMs) ? remaining : kConnectPollSliceMs;
+            fd_set wset;
+            FD_ZERO(&wset);
+            FD_SET(fd, &wset);
+            timeval tv{};
+            tv.tv_sec = slice / 1000;
+            tv.tv_usec = (slice % 1000) * 1000;
+            const int sr = ::select(fd + 1, nullptr, &wset, nullptr, &tv);
+            if (sr > 0) {
+                int err = 0;
+                socklen_t l = sizeof(err);
+                if (::getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &l) == 0 && err == 0) {
+                    ok = true;
+                }
+                break;
+            }
+            if (sr < 0) {
+                break;
+            }
+            remaining -= slice;
         }
     }
     ::fcntl(fd, F_SETFL, flags);  // restore blocking mode

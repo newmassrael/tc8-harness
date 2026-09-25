@@ -253,7 +253,8 @@ int LwipSocketBackend::send(int fd, const void *buf, std::size_t len) {
     return static_cast<int>(lwip_send(fd, buf, len, 0));
 }
 
-bool LwipSocketBackend::connectBoundedV4(int fd, const Endpoint &dst, int timeout_ms) {
+bool LwipSocketBackend::connectBoundedV4(int fd, const Endpoint &dst, int timeout_ms,
+                                         const std::atomic<bool> *cancel) {
     sockaddr_in d{};
     d.sin_family = AF_INET;
     d.sin_addr.s_addr = dst.addr_be;
@@ -266,18 +267,34 @@ bool LwipSocketBackend::connectBoundedV4(int fd, const Endpoint &dst, int timeou
     if (rc == 0) {
         ok = true;
     } else if (errno == EINPROGRESS) {
-        fd_set wset;
-        FD_ZERO(&wset);
-        FD_SET(fd, &wset);
-        timeval tv{};
-        tv.tv_sec = timeout_ms / 1000;
-        tv.tv_usec = (timeout_ms % 1000) * 1000;
-        if (lwip_select(fd + 1, nullptr, &wset, nullptr, &tv) > 0) {
-            int err = 0;
-            socklen_t l = sizeof(err);
-            if (lwip_getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &l) == 0 && err == 0) {
-                ok = true;
+        // Sliced rather than one long select, so `cancel` is observed while the
+        // connection attempt is still in flight — see SocketBackend for why the
+        // caller cannot rely on a shutdown to release this thread instead.
+        int remaining = timeout_ms;
+        while (remaining > 0) {
+            if (cancel != nullptr && cancel->load(std::memory_order_acquire)) {
+                break;
             }
+            const int slice = (remaining < kConnectPollSliceMs) ? remaining : kConnectPollSliceMs;
+            fd_set wset;
+            FD_ZERO(&wset);
+            FD_SET(fd, &wset);
+            timeval tv{};
+            tv.tv_sec = slice / 1000;
+            tv.tv_usec = (slice % 1000) * 1000;
+            const int sr = lwip_select(fd + 1, nullptr, &wset, nullptr, &tv);
+            if (sr > 0) {
+                int err = 0;
+                socklen_t l = sizeof(err);
+                if (lwip_getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &l) == 0 && err == 0) {
+                    ok = true;
+                }
+                break;  // resolved either way: established, or failed with SO_ERROR
+            }
+            if (sr < 0) {
+                break;
+            }
+            remaining -= slice;
         }
     }
     lwip_fcntl(fd, F_SETFL, flags);  // restore blocking mode

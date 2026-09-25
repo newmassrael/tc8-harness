@@ -71,7 +71,8 @@ public:
                                               int reachable_ms) override;
     int recv(int fd, void *buf, std::size_t len) override;
     int send(int fd, const void *buf, std::size_t len) override;
-    bool connectBoundedV4(int fd, const tc8::net::Endpoint &dst, int timeout_ms) override;
+    bool connectBoundedV4(int fd, const tc8::net::Endpoint &dst, int timeout_ms,
+                          const std::atomic<bool> *cancel) override;
     bool listen(int fd, int backlog) override;
     int accept(int fd, tc8::net::Endpoint &client) override;
     bool shutdown(int fd, int how) override;
