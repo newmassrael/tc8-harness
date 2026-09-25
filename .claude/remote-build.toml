@@ -16,11 +16,25 @@
 # citation gate and pushes are local by rule; anything edited over there is erased
 # by the next rsync.
 
-# Tracked files plus submodules. `third_party/vsomeip` is a submodule and the CI
-# checkout takes it recursively, so a copy without it cannot configure the mock
-# DUT. Untracked output (`build/`, `target/`, `reports/`, `smoke-logs/`) is left
-# behind by this choice rather than by an exclude list -- see the note at the end.
-send = "tracked+submodules"
+# Tracked files, WITHOUT submodules, and both halves of that were measured.
+#
+# The one submodule is `third_party/vsomeip`, and the build below does not consume
+# it: the top-level CMake never adds it as a subdirectory, and its own comment
+# records that a `-DTC8_BUILD_MOCK_DUT=OFF` configure "needs NONE of this stack
+# installed". The CI checkout takes it recursively because that lane also builds
+# the mock DUT; this one does not.
+#
+# ⚠ Sending it is not merely wasteful, it BLOCKS the transfer. The series in
+# `dut/env/vsomeip-patches` is applied into the submodule's working tree, so four
+# tracked files sit modified there permanently. `bx` compares the two working
+# trees and refuses when they differ -- correctly, since a verification copy that
+# silently differs from the tree under test proves nothing about it. Reconciling
+# would mean committing a vendored upstream's patches, which is not ours to do.
+#
+# Untracked output (`build/`, `build-remote/`, `target/`, `reports/`,
+# `smoke-logs/`) stays home by this choice rather than by an exclude list -- see
+# the note at the end.
+send = "tracked"
 
 # The executables the commands below invoke. bx asks each host whether it RUNS
 # every name here before sending anything, so a host missing one is refused BY

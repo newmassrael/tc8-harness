@@ -3266,6 +3266,36 @@ unit tests off this box, which is the build the repository actually repeats. Com
 separate and larger step and buys only the mock DUT, which the hosted `build-test` lane already
 declines to build for the same reason — so it is deliberately last.
 
+**Progress, 2026-09-25 — the machine gap is closed and a THIRD obstacle appeared behind it.**
+
+pc2 now meets the declaration's package and executable requirements:
+
+- `libtins-dev 4.5-1build2` installed, which is byte-for-byte the version this workstation
+  carries (both are Ubuntu noble `universe`), so the dissectors compile against the same library
+  rather than a near one.
+- `sce-codegen` placed and verified running there, reporting `0.1.0 (341f0e0c446c)` — the SAME
+  build this workstation resolves. It was COPIED rather than rebuilt on purpose: a freshly built
+  generator could emit different code than the local one, and then a remote "verification" would
+  be verifying a different program.
+- The submodule's quilt state (`third_party/vsomeip/.pc/`) was neither tracked nor ignored, which
+  made `bx` refuse to send the tree and name ten paths. It is now ignored through that
+  submodule's `.git/modules/.../info/exclude` — local and uncommitted, because a `.gitignore`
+  there is a TRACKED file of a vendored upstream.
+
+⚠ **What still blocks it is this repository's own shape, not the machines.** `bx` requires the
+local and remote working trees to agree and walks submodules to check. The base patch series is
+applied INTO `third_party/vsomeip`'s working tree, so four tracked files
+(`CMakeLists.txt` and three `implementation/` sources) sit permanently modified there, and `bx`
+refuses with them named. Setting `send = "tracked"` does not avoid it — the comparison happens
+regardless of what is sent.
+
+That refusal is correct and should not be worked around: a verification copy that silently
+differs from the tree under test proves nothing about it. The two honest repairs are to stop
+carrying the series as working-tree modifications (provision the patched vsomeip somewhere that
+is not a submodule working tree), or for `bx` to learn that a submodule the transfer does not
+send is not part of the comparison. The first is this repository's, is entangled with the
+compile-gated patch ratchet, and is deliberately not improvised here.
+
 ⚠ Do NOT close this by adding `pin_host` or by loosening `needs`. A declaration that names less
 than the build needs routes work to a machine that then fails mid-build, which is worse than the
 named refusal it replaced.
