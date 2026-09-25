@@ -83,7 +83,7 @@ inline std::optional<::tc8::sce::DutConnection> seamConnectTcp(
     ::tc8::sce::IDutControl &dut, const ::tc8::TestConfig &cfg,
     std::uint16_t local_port, std::uint16_t remote_port, const char *phase) {
     auto conn = ::tc8::sce::seamTcpControl(dut).connectTcp(
-        ::tc8::sce::Endpoint{cfg.ipv4.tester_ip, remote_port},
+        ::tc8::sce::Endpoint{cfg.tester.ip, remote_port},
         ::tc8::sce::BindSpec{/*do_bind=*/true, local_port, /*local_addr_be=*/0});
     if (!conn) {
         std::fprintf(stderr,

@@ -63,7 +63,7 @@ struct TestCaseTraits<cases::SomeipEts152SM> : SomeIpAnyBase<cases::SomeipEts152
         params.target.eventgroup_id   = 0x0002;
         params.session_id             = 0x0001;
         params.sd_flags               = 0x40;
-        params.tester_endpoint.ipv4_be = cfg.ipv4.tester_ip;
+        params.tester_endpoint.ipv4_be = cfg.tester.ip;
         params.tester_endpoint.port    = tc8::dut::kSdPort;
         params.tester_endpoint.l4proto = 0x11;  // UDP
         const auto datagram = ::tc8::stimulus::buildSubscribeEventgroup(params);
@@ -75,7 +75,7 @@ struct TestCaseTraits<cases::SomeipEts152SM> : SomeIpAnyBase<cases::SomeipEts152
         // reach reaps the thread; partial-emit at exit is acceptable
         // because the test asserts wire observation, not burst completion.
         const std::uint32_t dut_ip   = cfg.ipv4.dut_iface_ip;
-        const std::uint32_t tester_ip = cfg.ipv4.tester_ip;
+        const std::uint32_t tester_ip = cfg.tester.ip;
         std::thread([datagram, dut_ip, tester_ip]() {
             const int sock = ::socket(AF_INET, SOCK_DGRAM, 0);
             if (sock < 0) return;

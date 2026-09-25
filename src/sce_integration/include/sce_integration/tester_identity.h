@@ -10,13 +10,24 @@ namespace tc8 {
 // from, an expectation is what an SCXML guard grades the answer with, and a
 // `--negative` row rewrites only the latter.
 //
-// ⚠ It starts with one field on purpose. `cfg.ipv4.tester_ip` is the tester's
-// primary address and lives in an EXPECTATION struct, which several stimulus
-// paths already read as though it were identity — that is a real crossing, and
-// moving it means moving every one of those readers at once. This header is the
-// home that migration lands in; it is not the migration
-// (docs/tech-debt.md TD-49).
 struct TesterIdentity {
+    // The tester's PRIMARY address, network byte order. What a stimulus puts in
+    // a frame it builds; never what a guard grades.
+    //
+    // ⚠ `ipv4.tester_ip` holds the same value and is the OTHER job: 167 case
+    // SCXMLs compare an observed frame against `expected.tester_ip`. Until
+    // 2026-09-26 one field did both, and the cost was precise — a
+    // `--negative ipv4.tester_ip=…` row moved the grading and the destination
+    // together, so the DUT was asked to answer an address nobody held and the
+    // case reported a non-conclusion instead of the declared fail. The most
+    // graded field in the tree was the one whose guard could not be shown to be
+    // load-bearing (docs/tech-debt.md TD-52).
+    //
+    // The same wall, measured on a case rather than reasoned about:
+    // SOMEIPSRV_ONWIRE_01 grades the two fields its request is addressed to, and
+    // both candidate flips landed on `inconclusive:no_response_within_listen_window`.
+    std::uint32_t ip = 0;
+
     // A SECOND address the tester answers on, network byte order, or 0 for a
     // tester with only its primary. Populated by `--expect tester.secondary_ip`,
     // emitted by the topology that provisions it: the netns topologies alias

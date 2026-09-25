@@ -70,11 +70,11 @@ struct TestCaseTraits<cases::TcpHeader11SM>
         // Pseudo-header checksum must match the IP layer dst — the
         // multicast IP, not the unicast DUT IP.
         const auto tcp_bytes = ::tc8::stimulus::buildTcpSegment(
-            cfg.ipv4.tester_ip, multicast_dst_ip, syn);
+            cfg.tester.ip, multicast_dst_ip, syn);
 
         ::tc8::stimulus::Ipv4FrameSpec ip_spec{};
         ip_spec.dst_mac     = kMulticastMacAllHosts;
-        ip_spec.src_ip      = cfg.ipv4.tester_ip;
+        ip_spec.src_ip      = cfg.tester.ip;
         ip_spec.dst_ip      = multicast_dst_ip;
         ip_spec.ip_protocol = ::tc8::stimulus::kIpProtoTcp;
         ::tc8::stimulus::IpBootTiming timing{};

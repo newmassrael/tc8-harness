@@ -55,7 +55,7 @@ struct TestCaseTraits<cases::SomeipEts117SM> : SomeIpAnyBase<cases::SomeipEts117
         params.target.eventgroup_id = 0x0005;
         params.session_id = 0x0001;
         params.second_endpoint =
-            ::tc8::stimulus::Ipv4Endpoint{cfg.ipv4.tester_ip, tc8::dut::kSdPort, 0x11};
+            ::tc8::stimulus::Ipv4Endpoint{cfg.tester.ip, tc8::dut::kSdPort, 0x11};
         params.num_options_first_override = std::uint8_t{2};
         ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, params);
     }

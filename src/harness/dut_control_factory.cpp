@@ -44,7 +44,7 @@ std::unique_ptr<IDutControl> makeDutControl(const ::tc8::TestConfig &cfg, std::s
     // legacy path it replaces.
     OpcodeRawTransport raw;
     raw.iface = std::string(iface);
-    raw.tester_ip_be = cfg.ipv4.tester_ip;
+    raw.tester_ip_be = cfg.tester.ip;
     raw.dut_mac = cfg.dut.mac;
     // The one capability the TOPOLOGY answers rather than the backend or the DUT
     // firmware: whether the DUT holds a second address. Both DUTs speak this

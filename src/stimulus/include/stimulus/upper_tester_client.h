@@ -648,7 +648,7 @@ inline constexpr std::uint16_t kEgressBootDutSrcPort = 20010;
 // `sendUpperTesterRequest`.
 //
 // `tester_ip_be` / `dut_ip_be` / `dut_mac` are TOPOLOGY identities, not
-// SCXML expectations: §4.2 callers pass `cfg.ipv4.tester_ip` +
+// SCXML expectations: §4.2 callers pass `cfg.tester.ip` +
 // `cfg.dut.ip` / `cfg.dut.mac` (the DUT wire-identity SSOT in
 // `DutIdentity`, read by every protocol's stimulus path). Passing an
 // expectation knob like `arp.tester_ip` instead would let a

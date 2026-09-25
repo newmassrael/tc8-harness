@@ -41,7 +41,7 @@ inline constexpr std::array<std::uint8_t, 8> kUdpDefaultData{
 // §4.6.5.4 UDP_FIELDS_04/_05 Topology 2 second-host literal. RFC 768
 // specifies the egress (`_04`) and ingress (`_05`) tests in terms of
 // "Host-1-IP" and "Host-2-IP" — two distinct IPs reachable on the
-// DUT's primary iface. Host-1 reuses cfg.ipv4.tester_ip
+// DUT's primary iface. Host-1 reuses cfg.tester.ip
 // (172.16.0.1); Host-2 is this fixed 172.16.0.3 NBO literal,
 // chosen on the same /24 so the DUT routes directly. The harness
 // pre-pins `<172.16.0.3, tester_mac> NUD_PERMANENT` on the DUT side
@@ -134,7 +134,7 @@ inline void emitUdpStimulus(const ::tc8::TestConfig& cfg,
                                  UdpStimulusOverrides{}) {
     const std::uint32_t src_ip_be = ov.src_ip_override.has_value()
         ? ov.src_ip_override.value()
-        : cfg.ipv4.tester_ip;
+        : cfg.tester.ip;
     const auto udp = ::tc8::stimulus::buildUdpDatagramWithOverrides(
         src_ip_be, dst_ip_be, src_port, dst_port, payload, payload_len, ov.udp);
 
@@ -181,7 +181,7 @@ inline int emitFragmentedUdpStimulus(const ::tc8::TestConfig& cfg,
     constexpr std::size_t   kFragmentChunkBytes = 1480U;
     constexpr std::uint16_t kFragmentedUdpIpId  = 0xFE12U;
 
-    const std::uint32_t src_ip_be = cfg.ipv4.tester_ip;
+    const std::uint32_t src_ip_be = cfg.tester.ip;
     const auto udp = ::tc8::stimulus::buildUdpDatagram(
         src_ip_be, dst_ip_be, src_port, dst_port, payload, payload_len);
 

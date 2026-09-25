@@ -62,6 +62,11 @@ fn append_l2l3_identity(e: &mut Vec<String>, cfg: &Config, dut_mac: &str) {
     ex(e, "icmpv4.echo_id", wire::ICMP_ECHO_ID);
     ex(e, "icmpv4.echo_seq", wire::ICMP_ECHO_SEQ);
     ex(e, "ipv4.tester_ip", &cfg.tester_ip4);
+    // The same address again under the TESTER IDENTITY key. Two keys off one source,
+    // for the reason `tester.secondary_ip` below has: the row above is what 167 case
+    // SCXMLs grade against and what a `--negative` flips, so the address a stimulus
+    // SENDS to needs a key that row does not rewrite (docs/tech-debt.md TD-52).
+    ex(e, "tester.ip", &cfg.tester_ip4);
     ex(e, "ipv4.dut_iface_ip", &cfg.dut_ip4);
     // Netns alias IPs (setup-netns.sh) for the UDP_USER_INTERFACE caller-specified
     // IP axis. External topologies whose DUT carries different aliases override via

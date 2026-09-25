@@ -62,7 +62,7 @@ namespace tc8::sce {
 // compose it with their injections.
 //
 // This is the single place that selects the UT envelope identities:
-// TOPOLOGY values (`cfg.ipv4.tester_ip` + `cfg.arp.dut_real_*`), never
+// TOPOLOGY values (`cfg.tester.ip` + `cfg.arp.dut_real_*`), never
 // the `arp.tester_ip` / `arp.dut_iface_*` SCXML-expectation knobs — a
 // `--negative` override must shift only the SCXML comparison, not
 // silence the DUT (see `emitTriggerSendUdpBoot` in

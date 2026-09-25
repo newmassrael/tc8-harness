@@ -3540,3 +3540,82 @@ success. Both halves of the Done-when are in it:
   `Log-dir ownership gate` both listed as executed rather than skipped. ⚠ Checked as steps and
   not as a job conclusion on purpose: a gate that is green because it never ran is the failure
   mode this repository keeps meeting, and a job-level tick cannot tell the two apart.
+
+---
+
+## TD-52 — the tester's own IP is an expectation, so the field 167 cases grade cannot carry a negative
+
+**Status:** RESOLVED (2026-09-26), the same day it was logged. **Logged:** 2026-09-26, from a
+prose sweep of this repository rather than from the register — the deferral was a comment
+nothing counted. **Resolution** at the end.
+
+**What it is.** `cfg.ipv4.tester_ip` is the tester's primary address. It lives in
+`Ipv4Expectations`, and **167 case SCXMLs grade against `expected.tester_ip`**. It is also what
+44 C++ stimulus sites across 33 files read to decide where to SEND — the tester's own address in
+a frame it builds. One field, both jobs.
+
+That crossing is the exact shape this tree separates everywhere else, and TD-48/TD-49 spent a
+day on two instances of it. The consequence here is measurable and specific: **no sound negative
+row can ever be authored for `ipv4.tester_ip`.** A `--negative ipv4.tester_ip=10.99.99.99` would
+move the grading AND the destination together, the DUT would be asked to answer an address
+nobody holds, and the case would report `inconclusive` instead of the declared fail. The most
+graded field in the tree is the one field whose guard cannot be proven load-bearing.
+
+⚠ That is not a prediction. The same wall was measured on 2026-09-25 on
+`SOMEIPSRV_ONWIRE_01`, whose graded fields are also its destination: both candidate flips landed
+on `inconclusive:no_response_within_listen_window`, and the case stayed deferred for it.
+
+**Why it exists.** `TesterIdentity` did not exist until TD-49, so there was nowhere else for the
+address to live. TD-49 created the struct with one field and said so in a comment — "this header
+is the home that migration lands in; it is not the migration" — which is prose, and prose is not
+counted by `debt_census.py`. This entry is that comment, registered.
+
+**Risk if left.** Not a live failure: no negative row flips this field today, precisely because
+one cannot be authored. The risk is the silent kind — the exhaustiveness audit counts 167 cases
+as graded by a guard nothing can demonstrate, and the next person who tries to author that row
+spends the afternoon that `ONWIRE_01` cost before concluding the same thing.
+
+**Textbook fix.** `TesterIdentity` gains `ip`, the orchestrator emits `tester.ip` from the same
+source `ipv4.tester_ip` already comes from, and the 44 stimulus sites read `cfg.tester.ip`. The
+expectation field keeps its name, its value and all 167 readers; only the ASK moves. Then a
+negative on `ipv4.tester_ip` becomes authorable, which is the check that the split took.
+
+⚠ Half of it is worse than none: with some sites migrated and some not, a flip moves one part of
+the ask and not the other, and the case fails for a reason unrelated to its guard. It is 44
+sites in 33 files and they move together or not at all.
+
+**Done when:** no C++ stimulus path reads a `tester_ip` expectation field, and a negative row on
+`ipv4.tester_ip` is authored and shown to land on its declared fail rather than a
+non-conclusion — with the case and the run named here.
+
+**Resolution.** `TesterIdentity` gained `ip`, `tools/expect_surface.def` emits `tester.ip` from
+the same source `ipv4.tester_ip` already came from, and every stimulus site moved:
+`git grep cfg.ipv4.tester_ip -- src/` returns **0**, against 48 before (44 code uses plus 4
+comments describing those uses, which moved with them). The expectation keeps its name, its
+value and all 167 SCXML readers; only the ask moved. It went in one commit because half of it is
+worse than none.
+
+**The done-when's second clause, demonstrated on `UDP_USER_INTERFACE_04`.** Its `pass_expr`
+grades `captured.ut_recv_src_ip == expected.tester_ip` and its miss branch does not, so the flip
+discriminates rather than filtering — most cases put `expected.tester_ip` in BOTH branches,
+where a flip matches nothing and reports a non-conclusion. Authored as
+`ipv4.tester_ip=10.99.99.99` → `fail:dut_received_udp_with_wrong_src_ip_in_confirmation`, and
+the run returned **PASS**: the flip landed on the declared fail. Before the migration the same
+flip would have redirected the stimulus as well, which is the state this entry was about.
+
+⚠ **The row was then REMOVED, and the audit is why.** `negative_coverage_audit.py` reported
+`PHASE_F_REGRESSION: lwip FAULT_INJECTION 110 < high-water 111`. Nothing was lost: this case
+already has a `_NEG` sibling proving that same final, so the row became a SECOND account for it
+and the counts moved (sound 76→77, fault-inj 179→178) rather than growing. This tree's rule is
+one account per `case:final`, so the demonstration stands as the measurement recorded here and
+the permanent disposal stays with the `_NEG` that already had it. No coverage is given up by
+removing it.
+
+Positives re-run after the migration, across every family that reads the moved field:
+`UDP_FIELDS_01`, `UDP_FIELDS_04`, `UDP_PADDING_02`, `UDP_USER_INTERFACE_04/05/07`,
+`TCP_CHECKSUM_02`, `TCP_CHECKSUM_03`, `TCP_HEADER_11`, `IPv4_FRAGMENTS_05`, `ARP_48` — all PASS.
+
+⚠ And the compile was proven on a build machine rather than here: `bx` sent the tree to pc2
+(`trees agree: HEAD 4aaf0496, working state identical`, uncommitted edits included) and built it
+cold in **107 s** while this workstation sat at load 29 with two free cores. That is TD-50
+paying for itself on the first change after it landed.

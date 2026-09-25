@@ -172,6 +172,7 @@ TC8_EXPECT_KEY(dut, IPV4, secondary_ip)
 // read by the stimulus that asks the DUT to send there. Not the same field as
 // `ipv4.tester_alias_ip`, which is what the SCXML grades the answer against and
 // what a `--negative` row flips (docs/tech-debt.md TD-49).
+TC8_EXPECT_KEY(tester, IPV4, ip)
 TC8_EXPECT_KEY(tester, IPV4, secondary_ip)
 
 // --- ARP stimulus knobs (ArpStimulusConfig, "arp_stimulus." prefix) ---------

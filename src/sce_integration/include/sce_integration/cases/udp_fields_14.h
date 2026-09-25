@@ -47,7 +47,7 @@ struct TestCaseTraits<cases::UdpFields14SM>
         ::tc8::sce::udp::emitTriggerSendUdp(
             dut,
             /*dut_src_port=*/20014,
-            /*target_ip_be=*/cfg.ipv4.tester_ip,
+            /*target_ip_be=*/cfg.tester.ip,
             /*target_port=*/::tc8::sce::udp::kDataPort,
             p.data(), static_cast<std::uint16_t>(p.size()));
     }

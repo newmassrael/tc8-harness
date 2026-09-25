@@ -96,11 +96,11 @@ struct TestCaseTraits<cases::TcpChecksum02SM>
                                     kChecksumPayload.end());
                 spec.corrupt_tcp_checksum = true;
                 const auto tcp_bytes = ::tc8::stimulus::buildTcpSegment(
-                    cfg.ipv4.tester_ip, cfg.ipv4.dut_iface_ip, spec);
+                    cfg.tester.ip, cfg.ipv4.dut_iface_ip, spec);
 
                 ::tc8::stimulus::Ipv4FrameSpec ip_spec{};
                 ip_spec.dst_mac     = cfg.dut.mac;
-                ip_spec.src_ip      = cfg.ipv4.tester_ip;
+                ip_spec.src_ip      = cfg.tester.ip;
                 ip_spec.dst_ip      = cfg.ipv4.dut_iface_ip;
                 ip_spec.ip_protocol = ::tc8::stimulus::kIpProtoTcp;
                 ::tc8::stimulus::IpBootTiming timing{};
