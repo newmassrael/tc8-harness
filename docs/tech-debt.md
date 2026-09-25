@@ -2597,6 +2597,24 @@ run 35950954625 at 2 h 1 m 14 s and run 35960649319 at 2 h 1 m 34 s. A cancellat
 pass and not a fail. The lane that gates every push is currently returning NO VERDICT, and
 because a cancelled run looks orange rather than red, nothing about it demands attention.
 
+⚠ **The lane ALSO grew, which this entry first attributed entirely to the machine.** Measured
+2026-09-25 by asking the harness what each step selects:
+
+| step | selection | cases |
+|---|---|---|
+| positive, parallel | `--exclude-deferred --exclude-platform-known-fail --exclude-serial` | **754** |
+| positive, serial (`--workers 1`) | `--only-serial` | 15 |
+| negative rows | `--list-neg-rows` | 66 |
+| known-fail asserts | `--list-known-fails` (added 2026-09-25) | 5 |
+| | **per push** | **840** |
+
+The cap was sized against the job's own comment, which still says "549-case positive smoke".
+The positive lane is now 754 — **37% more than the number the 120 minutes was chosen for** —
+and the negative and known-fail stages sit beside it. So contention is not the whole story, and
+the third option below ("measure the lane on a quiet box") should be read as measuring a lane
+that is materially bigger than the one the estimate described. A cap raised to fit today's
+contention would still be sized against a case count that keeps growing.
+
 **Why it exists.** The cap was chosen against a measurement that has since stopped being true.
 The job's own comment records it: a cold path of "vsomeip rebuild + 543 SCXML codegen + harness
 + tc8-dut + unit tests plus 549-case positive smoke plus negative curated set on a mid-tier
