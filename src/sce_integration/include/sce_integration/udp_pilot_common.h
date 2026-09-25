@@ -68,11 +68,15 @@ inline constexpr std::uint32_t kUdpHost2IpBe = 0x030010ACU;  // 172.16.0.3 NBO
 //     sends, so wire src_ip == expectation proves the DUT honoured the
 //     caller's choice instead of silently defaulting to the primary IP.
 //   * `kTesterAliasIp4Be` (172.16.0.4) — AIface-0 alias on the tester
-//     veth. UI_08 stimulus passes this as the `target_ip_be` for the
-//     OpTriggerSendUdp request; tc8-dut sends to (alias, dst_port).
-//     Tester is configured with the alias so its kernel resolves DUT's
-//     ARP for it (single MAC across primary + alias). SCXML cond
-//     literal must match.
+//     veth. The netns fixture's OWN value, with no reader on the
+//     assertion path: UI_08's stimulus sources its `target_ip_be` from
+//     `cfg.tester.secondary_ip` (what the topology declared this tester
+//     holds) and the SCXML compares against `expected.tester_alias_ip`,
+//     so a site naming its own alias moves the ask and the expectation
+//     together while this constant keeps describing the veth it
+//     configures (TD-49). tc8-dut sends to (that address, dst_port); the
+//     tester is configured with the alias so its kernel resolves the
+//     DUT's ARP for it (single MAC across primary + alias).
 //
 // Single source of truth shared with `dut/env/setup-netns.sh` — keeping
 // both ends in lockstep prevents silent drift if the addresses are ever

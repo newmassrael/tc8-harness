@@ -278,6 +278,15 @@ bool applyExpectToken(std::string_view token, ::tc8::DutIdentity &e) {
     return matchExpect(token, ekPrefix_dut, e, kKeys, std::size(kKeys));
 }
 
+bool applyExpectToken(std::string_view token, ::tc8::TesterIdentity &e) {
+    static constexpr EKey<::tc8::TesterIdentity> kKeys[] = {
+#define TC8_EK_tester(kind, name) TC8_EK_ROW(TesterIdentity, kind, name)
+#include "tc8_expect_keys.def"
+#undef TC8_EK_tester
+    };
+    return matchExpect(token, ekPrefix_tester, e, kKeys, std::size(kKeys));
+}
+
 bool applyExpectToken(std::string_view token, ::tc8::ArpStimulusConfig &e) {
     static constexpr EKey<::tc8::ArpStimulusConfig> kKeys[] = {
 #define TC8_EK_arp_stimulus(kind, name) TC8_EK_ROW(ArpStimulusConfig, kind, name)

@@ -617,6 +617,12 @@ fn run_case_impl(
         args.push("--expect".to_string());
         args.push(format!("dut.secondary_ip={}", cfg.dut_alias_ip4));
     }
+    // ⚠ The TESTER's second address is NOT emitted here. It is unconditional —
+    // every topology in this tree stands the tester up itself — so it is a static
+    // key->source row and belongs in tools/expect_surface.def, which generates it
+    // into the surface above. The DUT one stays hand-written because it is
+    // control flow: a topology either provisions a second DUT address or does not
+    // (docs/tech-debt.md TD-49, and TD-12 for why the split matters).
     // This invocation IS the case's negative row: the harness appends the authored
     // flip after every --expect above and asserts the guard reacts. Suppresses the
     // positive expect_overrides (which describe the positive run) so they cannot

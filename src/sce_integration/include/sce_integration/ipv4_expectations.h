@@ -24,8 +24,8 @@ struct Ipv4Expectations {
     // §4.6.5.5 UDP_USER_INTERFACE_07/_08 caller-specified IP axis
     // expectations. These slots carry what the SCXML compares against,
     // held apart from what the stimulus ASKS for — UI_07 asks from
-    // `cfg.dut.secondary_ip` (TD-48) and UI_08 still from the constant
-    // `kTesterAliasIp4Be` (TD-49). The
+    // `cfg.dut.secondary_ip` (TD-48) and UI_08 from
+    // `cfg.tester.secondary_ip` (TD-49), both IDENTITY fields. The
     // separation lets `--negative ipv4.dut_alias_ip=10.99.99.99` and
     // `--negative ipv4.tester_alias_ip=10.99.99.99` flip ONLY the
     // SCXML expectation. The DUT still emits the correct alias under

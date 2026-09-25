@@ -68,6 +68,15 @@ fn append_l2l3_identity(e: &mut Vec<String>, cfg: &Config, dut_mac: &str) {
     // TC8_TOPOLOGY_{DUT,TESTER}_ALIAS_IP (bash side only).
     ex(e, "ipv4.dut_alias_ip", &cfg.dut_alias_ip4);
     ex(e, "ipv4.tester_alias_ip", &cfg.tester_alias_ip4);
+    // The same tester alias again, under the TESTER IDENTITY key rather than the
+    // expectation one — the address this tester HOLDS, which UDP_USER_INTERFACE_08's
+    // stimulus asks the DUT to send to. Two keys off one source on purpose: the
+    // expectation above is what a `--negative ipv4.tester_alias_ip=…` row flips to
+    // prove UI_08's guard is load-bearing, so the ask needs a key that row does not
+    // rewrite. Emitted here rather than hand-pushed in dispatch.rs because it is
+    // unconditional, and hand-mirroring this list is what TD-12 was
+    // (docs/tech-debt.md TD-49).
+    ex(e, "tester.secondary_ip", &cfg.tester_alias_ip4);
 }
 
 /// The per-worker DUT-MAC `--expect` keys (kernel-assigned veth MAC,

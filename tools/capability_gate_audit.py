@@ -113,7 +113,13 @@ BIT_DEMANDS = {
     # property is read the address. So the demand token is the identity field, which
     # is also what the bit itself is derived from: a case cannot name the address
     # without naming the thing that decided the bit (docs/tech-debt.md TD-25).
-    "kCapSecondaryDutAddress": {"secondary_ip"},
+    #
+    # ⚠ QUALIFIED, and it had to become so. It was the bare `secondary_ip` until
+    # the tester gained a field of the same name (TD-49); UDP_USER_INTERFACE_08
+    # reads `cfg.tester.secondary_ip` and was immediately reported as demanding a
+    # bit about the DUT. The owner is the whole distinction here, so the token
+    # carries it.
+    "kCapSecondaryDutAddress": {"dut.secondary_ip"},
 }
 
 BIT_RE = re.compile(r"\b(kCap[A-Za-z]+)\b")
@@ -252,7 +258,19 @@ def demands_of(text: str, bodies: dict[str, str], seen: set[str] | None = None) 
     """Bits this text demands, following helpers it NAMES, transitively."""
     seen = set() if seen is None else seen
     names = set(re.findall(r"\b([a-zA-Z_][A-Za-z0-9_]*)\b", text))
-    bits = {bit for bit, toks in BIT_DEMANDS.items() if toks & names}
+    # A token containing a dot is a MEMBER PATH and is matched literally, not as
+    # an identifier. This exists because bare names stopped being unique: the
+    # tester grew a `secondary_ip` beside the DUT's (docs/tech-debt.md TD-49), so
+    # `cfg.tester.secondary_ip` made UDP_USER_INTERFACE_08 look like it demanded
+    # kCapSecondaryDutAddress -- a bit about the DUT, in a case about this side.
+    # Which object a field hangs off is exactly what a name-based detector cannot
+    # see (TD-22), and spelling the owner into the token is the smallest way to
+    # tell it, rather than teaching it types.
+    bits = {
+        bit
+        for bit, toks in BIT_DEMANDS.items()
+        if any((t in text) if "." in t else (t in names) for t in toks)
+    }
     for name in sorted(names & set(bodies)):
         if name in seen:
             continue
@@ -450,6 +468,14 @@ def _self_test() -> int:
          demands_of("udpControl();", {}) == {"kCapUdpControl"}),
         ("a comment is NOT a demand",
          demands_of(strip_comments("// udpControl() would go here\n"), {}) == set()),
+        # The owner half of a qualified token. Both of these are live case text.
+        ("a qualified token matches its own owner",
+         demands_of("emit(cfg.dut.secondary_ip);", {})
+         == {"kCapSecondaryDutAddress"}),
+        ("a qualified token does NOT match another owner's same-named field",
+         demands_of("emit(cfg.tester.secondary_ip);", {}) == set()),
+        ("the bare field name alone is not the demand",
+         demands_of("std::uint32_t secondary_ip = 0;", {}) == set()),
         ("a helper is followed one level",
          "kCapTcpControl" in demands_of("driveSeamSynSentOpen(d);", bodies)),
         ("the helper keeps its own bit too",

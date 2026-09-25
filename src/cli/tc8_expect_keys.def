@@ -66,6 +66,10 @@
 #define TC8_EK_dut(kind, name)
 #define TC8_EK_dut_DEFAULTED
 #endif
+#ifndef TC8_EK_tester
+#define TC8_EK_tester(kind, name)
+#define TC8_EK_tester_DEFAULTED
+#endif
 #ifndef TC8_EK_arp_stimulus
 #define TC8_EK_arp_stimulus(kind, name)
 #define TC8_EK_arp_stimulus_DEFAULTED
@@ -91,6 +95,7 @@
 TC8_EXPECT_GROUP(someip,       "")
 TC8_EXPECT_GROUP(arp,          "arp.")
 TC8_EXPECT_GROUP(dut,          "dut.")
+TC8_EXPECT_GROUP(tester,       "tester.")
 TC8_EXPECT_GROUP(arp_stimulus, "arp_stimulus.")
 TC8_EXPECT_GROUP(icmpv4,       "icmpv4.")
 TC8_EXPECT_GROUP(ipv4,         "ipv4.")
@@ -161,6 +166,14 @@ TC8_EXPECT_KEY(dut, MAC,  mac)
 // (docs/tech-debt.md TD-25).
 TC8_EXPECT_KEY(dut, IPV4, secondary_ip)
 
+// --- Tester wire identity (TesterIdentity, "tester." prefix) ----------------
+// A second address the TESTER answers on, or absent for a tester with one. The
+// mirror of `dut.secondary_ip`: emitted by the topology that provisions it, and
+// read by the stimulus that asks the DUT to send there. Not the same field as
+// `ipv4.tester_alias_ip`, which is what the SCXML grades the answer against and
+// what a `--negative` row flips (docs/tech-debt.md TD-49).
+TC8_EXPECT_KEY(tester, IPV4, secondary_ip)
+
 // --- ARP stimulus knobs (ArpStimulusConfig, "arp_stimulus." prefix) ---------
 TC8_EXPECT_KEY(arp_stimulus, U16, ut_cache_conditioning_s)
 
@@ -202,6 +215,10 @@ TC8_EXPECT_KEY(dhcpv4, MAC, dut_iface_mac)
 #ifdef TC8_EK_dut_DEFAULTED
 #undef TC8_EK_dut_DEFAULTED
 #undef TC8_EK_dut
+#endif
+#ifdef TC8_EK_tester_DEFAULTED
+#undef TC8_EK_tester_DEFAULTED
+#undef TC8_EK_tester
 #endif
 #ifdef TC8_EK_arp_stimulus_DEFAULTED
 #undef TC8_EK_arp_stimulus_DEFAULTED

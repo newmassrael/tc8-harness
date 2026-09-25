@@ -3004,6 +3004,10 @@
         {
           "file": "src/sce_integration/include/sce_integration/dut_capabilities.h",
           "kind": "references"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/tester_identity.h",
+          "kind": "implements"
         }
       ]
     },

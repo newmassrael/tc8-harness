@@ -117,3 +117,12 @@ TC8_EXPECT_ROW(ipv4, ipv4.dut_iface_ip,   dut_ip,     -)
 /// TC8_TOPOLOGY_{DUT,TESTER}_ALIAS_IP (bash side only).
 TC8_EXPECT_ROW(ipv4, ipv4.dut_alias_ip,   wire_alias, DUT_ALIAS_IP)
 TC8_EXPECT_ROW(ipv4, ipv4.tester_alias_ip, wire_alias, TESTER_ALIAS_IP)
+/// The same tester alias again, under the TESTER IDENTITY key rather than the
+/// expectation one — the address this tester HOLDS, which UDP_USER_INTERFACE_08's
+/// stimulus asks the DUT to send to. Two keys off one source on purpose: the
+/// expectation above is what a `--negative ipv4.tester_alias_ip=…` row flips to
+/// prove UI_08's guard is load-bearing, so the ask needs a key that row does not
+/// rewrite. Emitted here rather than hand-pushed in dispatch.rs because it is
+/// unconditional, and hand-mirroring this list is what TD-12 was
+/// (docs/tech-debt.md TD-49).
+TC8_EXPECT_ROW(ipv4, tester.secondary_ip, wire_alias, TESTER_ALIAS_IP)

@@ -11,6 +11,7 @@
 #include "icmpv4_expectations.h"
 #include "ipv4_expectations.h"
 #include "someip_expectations.h"
+#include "tester_identity.h"
 #include "stimulus/someip_sd_builder.h"
 
 namespace tc8 {
@@ -36,6 +37,9 @@ struct TestConfig {
     // DUT wire identity (MAC/IP frames are sent to) — domain-neutral
     // SSOT read by every protocol's stimulus path; see `DutIdentity`.
     DutIdentity dut{};
+    // The TESTER's own addresses, as opposed to what it grades against — the
+    // mirror of `dut` above; see `TesterIdentity`.
+    TesterIdentity tester{};
     SomeIpExpectations someip{};
     ArpExpectations arp{};
     // ARP stimulus knobs (not guard-compared); see `ArpStimulusConfig`.

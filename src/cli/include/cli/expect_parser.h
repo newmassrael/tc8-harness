@@ -10,6 +10,7 @@
 #include "sce_integration/arp_stimulus_config.h"
 #include "sce_integration/dhcpv4_expectations.h"
 #include "sce_integration/dut_identity.h"
+#include "sce_integration/tester_identity.h"
 #include "sce_integration/icmpv4_expectations.h"
 #include "sce_integration/ipv4_expectations.h"
 #include "sce_integration/someip_expectations.h"
@@ -66,6 +67,13 @@ bool applyExpectToken(std::string_view token, ::tc8::ArpExpectations &e);
 // tc8_expect_keys.def. Returns false when the token lacks the `dut.` prefix,
 // the value fails its parser, or the post-prefix key is unknown.
 bool applyExpectToken(std::string_view token, ::tc8::DutIdentity &e);
+
+// Applies a single `--expect tester.<key>=<value>` token to `e` — the TESTER's
+// own wire identity, addresses this side HOLDS rather than grades against (see
+// `TesterIdentity`). Mirror of the `dut.` overload above, and separate from the
+// `ipv4.tester_*` expectation keys for the reason that header gives: a
+// `--negative` row rewrites an expectation and must not redirect a stimulus.
+bool applyExpectToken(std::string_view token, ::tc8::TesterIdentity &e);
 
 // Applies a single `--expect arp_stimulus.<key>=<value>` token to `e` — ARP
 // stimulus knobs that steer a case rather than gate its verdict (never

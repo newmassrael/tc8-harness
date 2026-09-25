@@ -880,6 +880,9 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
         if (applyExpectToken(tok, config.dut)) {
             continue;
         }
+        if (applyExpectToken(tok, config.tester)) {
+            continue;
+        }
         if (applyExpectToken(tok, config.arp_stimulus)) {
             continue;
         }

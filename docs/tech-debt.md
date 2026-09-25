@@ -3230,7 +3230,8 @@ MET, by the two host topologies now reporting that declaration.
 
 ## TD-49 — the tester's own second address is asked for by a constant and graded against a config value
 
-**Status:** OPEN. **Logged:** 2026-09-25, as the measured mirror of TD-48.
+**Status:** RESOLVED (2026-09-25), the same day it was logged. **Logged:** 2026-09-25, as the
+measured mirror of TD-48. **Resolution** at the end.
 
 **What it is.** `UDP_USER_INTERFACE_08` is UI_07 with the sides swapped: it asks the DUT to send
 TO a caller-specified destination, which needs the TESTER to hold a second address. The ask is
@@ -3269,6 +3270,44 @@ rather than by special-casing one address.
 **Done when:** UI_08's ask and the tester's configured second address come from one field, with
 the expectation still independently flippable, and a site naming its own tester alias is shown
 to exercise the case rather than time out on it.
+
+**Resolution.** The tester got the identity surface the DUT already had.
+`TesterIdentity` sits beside `DutIdentity` in `TestConfig`, carrying `secondary_ip`, filled by
+`--expect tester.secondary_ip`, and UI_08's stimulus reads it instead of `kTesterAliasIp4Be`.
+The constant now has no reader on the assertion path — verified by counting its occurrences with
+comments stripped: one, its own definition.
+
+⚠ **It starts as a one-field struct on purpose.** `cfg.ipv4.tester_ip` is the tester's primary
+address living in an EXPECTATION struct, which several stimulus paths already read as though it
+were identity. That is a real crossing and moving it means moving every reader at once; this
+header is the home that migration lands in, and adding `ip` here without migrating them would
+create the second source this entry exists to remove.
+
+⚠ **The emit belongs in `tools/expect_surface.def`, not in `dispatch.rs`, and the first attempt
+put it in the wrong one.** It was hand-pushed beside the `dut.secondary_ip` push before the
+`.def`'s own header corrected it: hand-mirroring that key->source list across two drivers is
+what TD-12 was. The split is whether the row is CONDITIONAL — `dut.secondary_ip` is control flow
+(a topology provisions a second DUT address or does not), `tester.secondary_ip` is not, because
+every topology here stands its own tester up.
+
+Measured 2026-09-25, and the second row is the one that matters:
+
+- **single-pc positive**: `PASS UDP_USER_INTERFACE_08`, plus `UDP_USER_INTERFACE_07`,
+  `UDP_USER_INTERFACE_02` and `UDP_FIELDS_12` beside it — neighbours on the same base, so the
+  change did not widen anything.
+- **single-pc `--negative`**: `PASS UDP_USER_INTERFACE_08`, i.e. flipping
+  `ipv4.tester_alias_ip=10.99.99.99` still lands on the declared
+  `fail:dut_emitted_udp_with_wrong_user_interface_dst_ip`. **This is the proof of separation**:
+  had the ask followed the flip, the DUT would have been told to send to 10.99.99.99, nothing
+  would have been captured, and the case would have reported `inconclusive` rather than the
+  declared fail. The negative is still load-bearing.
+- **lwip-tap**: `PASS UDP_USER_INTERFACE_08` — the case needs no DUT capability (the second
+  address is on the tester's side), so unlike UI_07 it keeps running on the one-netif fixture.
+
+⚠ Two gates caught this change before the verification did, which is the argument for having
+them: `check_expect_keys.py` named the missing `TC8_EXPECT_GROUP(tester, …)`, and the build
+named `TC8_EK_tester was not declared` — the X-macro requires a per-group default block, an
+undef block and a parser overload, none of which a new key gets for free.
 
 ---
 
