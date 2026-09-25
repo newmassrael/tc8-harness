@@ -3384,26 +3384,47 @@ applied INTO `third_party/vsomeip`'s working tree, so four tracked files
 refuses with them named. Setting `send = "tracked"` does not avoid it — the comparison happens
 regardless of what is sent.
 
-**Which of the two repairs is right, examined 2026-09-25 rather than assumed.** The first
-reading was that this repository should stop carrying the series as working-tree modifications —
-`scripts/setup-vsomeip.sh` already has the seam for it (`TC8_VSOMEIP_SRC` selects the tree), so
-the change looked small. It is the wrong fix, and the evidence is in `bx`'s own two refusals:
-with `send = "tracked+submodules"` it printed "sending tracked+submodules files", and with
-`send = "tracked"` it printed "sending tracked files" — and then refused **identically**, naming
-the same four paths. The comparison does not depend on what is transferred. Under
-`send = "tracked"` a submodule's file contents never leave this machine, so no modification
-inside one can make the remote copy differ in any way the transfer can observe.
+⚠⚠ **This entry has now carried TWO wrong causes, and the second one was written as
+"measured". Both are recorded here rather than edited away, because the way each was reached is
+the lesson.**
 
-So the defect is the checker's SCOPE, not this repository's layout. Patching a vendored tree in
-place is what quilt is for; `setup-vsomeip.sh` resets to the pin and re-applies from scratch on
-every run, and its own header documents that as the contract. Restructuring a working,
-documented provisioning path so that a checker stops inspecting something it does not send would
-be a change made to satisfy a measurement rather than a requirement — and it would add real
-machinery (a scratch checkout to clone, and to re-clone on every pin bump) in exchange.
+**Wrong cause #1** (corrected earlier the same day): "the remaining fix is outside this
+repository." It was not — the largest lever was an in-repo file, `.claude/remote-build.toml`,
+which did not exist.
 
-⚠ That leaves the repair outside this repository after all, and this time the claim is
-measured rather than assumed: `bx` should not compare a submodule that `send` excludes. Until
-then this repository's builds stay local, and TD-43's contention exposure stays with them.
+**Wrong cause #2, and the instructive one:** that `bx` compares a submodule it does not send, so
+the defect is the checker's SCOPE. The supporting "control experiment" was running `bx` under
+`send = "tracked+submodules"` and again under `send = "tracked"`, observing that it printed
+"sending tracked+submodules files" and then "sending tracked files" and refused identically both
+times, and concluding that the comparison ignores what travels.
+
+⚠ **That experiment varied nothing.** `$send` appears exactly ONCE in the whole of `bx` — in the
+sentence that reports what it is sending. It never branches behaviour. So the knob under test
+controlled a noun in a message, the two runs were the same run, and "identical refusal" was
+guaranteed rather than informative. A difference that cannot fail to appear is not evidence.
+
+**What actually happens, read from `bx`'s source and then confirmed on the far side.** The
+submodule leg sends the submodule and then runs, on the remote,
+`git submodule update --recursive --force` followed by `git submodule foreach 'git clean -qfd'`.
+A forced update RESETS each submodule's working tree to its recorded commit, so any local
+modification the transfer carried is discarded by the next line of the same command. Measured on
+pc2 on 2026-09-25: the remote `third_party/vsomeip` is populated, at HEAD `6171fdfe`, with
+**zero** porcelain lines — while this side holds four modified tracked files. The equality proof
+then correctly reports a difference it can never not report.
+
+⚠ And that reset is not an oversight to patch out. Its own comment records what the raw-directory
+rsync it replaced cost: files deleted upstream survived on the build machines, every later run
+was refused with a message blaming "the working tree", and one repository burned two days of
+local-only builds while the cause was recorded wrongly twice. Restoring dirty submodule state
+across the wire means going back to that.
+
+**So the repair is in THIS repository, which is where the first reading put it before the false
+experiment moved it.** The series must stop living as uncommitted modifications inside the
+submodule's working tree. `scripts/setup-vsomeip.sh` already has the seam — `TC8_VSOMEIP_SRC`
+selects the tree it resets, patches and builds, and the submodule is only its default — so the
+change is to make that default a scratch checkout at the pinned revision, leaving the submodule
+as what it should be: the pin RECORD, not the build scratch. Not mutating a vendored source tree
+in place is the ordinary form of this, independent of `bx`.
 
 ⚠ Do NOT close this by adding `pin_host` or by loosening `needs`. A declaration that names less
 than the build needs routes work to a machine that then fails mid-build, which is worse than the
