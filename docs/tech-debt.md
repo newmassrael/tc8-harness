@@ -2812,6 +2812,15 @@ GitHub exposes job summaries only in the run page and not through the API.
 **Status stays OPEN on one word of the Done-when: "consecutive".** This is one push. The next
 one that returns a verdict closes the entry.
 
+⚠ **The next push (run 36123076966, HEAD `3527fc29`) returned `failure` in 25 seconds, and it
+does NOT close this entry — by the spirit of the Done-when, against its letter.** Literally,
+two consecutive pushes produced a pass and then a fail rather than a cancellation, and the timer
+bounded nothing. But that fail was `actions/checkout` dying in 2 s: nothing built, nothing ran,
+and the lane judged nothing about the change. Closing on it would be counting a technicality as
+evidence. The cause is its own entry, TD-51, and it was EXPOSED by this repair rather than
+caused by it — the lane had been timing out before reaching the step whose leftovers broke the
+next checkout.
+
 ⚠ **What remains is not in this repository, and it is the only permanent fix.** Removing the
 ratchet takes the cancelled run's non-test cost from 110m to 59m, which would very likely have
 let it finish — "likely" being exactly as far as the evidence reaches. The 59m build was a
@@ -3346,3 +3355,55 @@ named refusal it replaced.
 
 **Done when:** `bx` sends a harness build to a build machine and it succeeds there, and a smoke
 run overlapping local work in this repository no longer shows the build step inflating.
+
+---
+
+## TD-51 — a sudo lane left a root-owned log directory, and the next checkout died in it
+
+**Status:** OPEN — repaired, pending the run that shows a checkout surviving a known-fail step.
+**Logged:** 2026-09-25, from the push that followed TD-43's first green run.
+
+**What it is.** The netns lanes run the orchestrator under `sudo`, so any directory the
+orchestrator creates is owned by root. The runner user cannot then delete its contents, and
+`actions/checkout`'s `git clean` fails — before anything builds.
+
+`smoke-test.yml` already knew this. The comment above its pre-creation `mkdir -p` says it in as
+many words: *"A root-owned dir here fails `git clean` (exit 128) and blocks all future
+checkouts."* What it did not have was anything checking that the list under that comment stayed
+complete. The `--known-fail` assertion step was added on 2026-09-25 with
+`--log-dir smoke-logs/known-fail`, and that path was never added to the `mkdir`.
+
+Measured 2026-09-25:
+
+- Run 36123076966 (push, HEAD `3527fc29`): `failure` in 25 s, `actions/checkout@v5` failing at
+  2 s. Its log is ~20 lines of `smoke-logs/known-fail/<case>.{harness.log,dut.log,pcap,trace.json}
+  제거에 실패했습니다: 허가 거부`.
+- The runner workspace confirmed it directly: `smoke-logs` was `coin coin` and
+  `smoke-logs/known-fail` was `root root`, created 18:56 local — inside the previous run's
+  known-fail step.
+
+⚠ **It was invisible for a week because the lane never reached the step.** Both 2026-09-24 runs
+were cancelled by the job timer during the positive lane, so the known-fail step ran for the
+first time in run 36114404143 — the first run to finish after TD-43's repair. Repairing one
+defect is what made the other one reachable. A latent break of this kind cannot be found by
+reading; it needs the lane to get far enough to leave the residue.
+
+**Why it exists.** The rule was a comment plus a hand-maintained list, and the pairing between
+"every `--log-dir` in this file" and "every path in the `mkdir`" was enforced by nothing. A step
+was added and the list was not.
+
+**How it was repaid.** `smoke-logs/known-fail` added to the pre-creation list, and the pairing
+now gated by `tools/workflow_logdir_audit.py`, wired into `workflow-hygiene.yml` beside the
+runner-trigger gate — hosted, so it judges the self-hosted lane from outside it. The root-owned
+directory left on the runner was removed by hand after confirming the evidence it held was
+already in run 36114404143's `smoke-diagnostics` artifact (8.6 MB, unexpired).
+
+⚠ The gate's own first live run returned **three** findings of which **two were comment prose**
+— a sentence describing "each step's `--log-dir smoke-logs/<step>`" and another ending
+"--log-dir to feed this." Stripping whole comment lines fixed it, and the self-test now pins
+both. A gate that is two parts noise teaches its reader to skim, which is how the real row gets
+skimmed too.
+
+**Done when:** a push-triggered run checks out cleanly after a previous run executed the
+known-fail step, and `workflow_logdir_audit.py --check` is green in the hosted lane — with the
+run that shows it named here.

@@ -189,8 +189,15 @@ jobs:
           # on the next checkout. A root-owned dir here fails `git clean` (exit
           # 128) and blocks all future checkouts. Mirrors how reports/ is created
           # once here and reused by every later step.
+          # ⚠ EVERY `--log-dir` in this file belongs here, and that pairing is now
+          # gated by tools/workflow_logdir_audit.py rather than by this comment.
+          # `smoke-logs/known-fail` was missing from this list for a week and the
+          # lane was timing out before reaching the step that needed it; the first
+          # run to REACH that step left a root-owned directory, and the next
+          # checkout died in 2 s exactly as the paragraph above predicts.
           mkdir -p reports \
             smoke-logs/positive smoke-logs/serial smoke-logs/negative \
+            smoke-logs/known-fail \
             smoke-logs/topology-external smoke-logs/topology-ssh-remote \
             smoke-logs/lwip-dut
           # run-isolated.sh runs the single-pc orchestrator in a PRIVATE net + mount

@@ -55,3 +55,18 @@ jobs:
         # from an event an outsider can raise (pull_request from a fork,
         # issue_comment, pull_request_target, a chained workflow_run, ...).
         run: python3 tools/workflow_runner_audit.py --check
+
+      - name: Log-dir ownership gate self-test
+        # Same order and the same reason as above: this analyzer's first live run
+        # returned two findings out of three from COMMENT prose, so its self-test
+        # pins the stripping as well as the detection.
+        run: python3 tools/workflow_logdir_audit.py --self-test
+
+      - name: Log-dir ownership gate
+        # Fails if a step passes `--log-dir` at a path no earlier `mkdir -p`
+        # creates. On the netns lanes the orchestrator runs under sudo, so a
+        # directory it creates itself is root-owned, and the runner user then
+        # cannot `git clean` it -- which kills the NEXT run's checkout before
+        # anything builds. Hosted here, like the gate above, so it judges the
+        # self-hosted lane from outside it (docs/tech-debt.md TD-51).
+        run: python3 tools/workflow_logdir_audit.py --check
