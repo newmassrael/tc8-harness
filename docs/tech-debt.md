@@ -2664,8 +2664,10 @@ Repaying the 33 is not part of this entry. The ledger holds them, and the census
 
 ## TD-43 — the smoke lane no longer fits its timeout, so it judges nothing
 
-**Status:** OPEN — repaid, pending the push that demonstrates it. **Logged:** 2026-09-24,
-after two consecutive pushes were cancelled by the job timer rather than answered by the suite.
+**Status:** RESOLVED (2026-09-25). **Logged:** 2026-09-24, after two consecutive pushes were
+cancelled by the job timer rather than answered by the suite. The Done-when is answered by run
+36124982820; see the Correction at the end, which also records that this entry's original CAUSE
+was wrong.
 
 ⚠⚠ **The OBSERVATION below holds and its CAUSE is wrong.** The entry says the lane outgrew its
 cap, and the ⚠ table in it measures a 37% case-count growth to support that. The growth is real;
@@ -2813,13 +2815,28 @@ GitHub exposes job summaries only in the run page and not through the API.
 one that returns a verdict closes the entry.
 
 ⚠ **The next push (run 36123076966, HEAD `3527fc29`) returned `failure` in 25 seconds, and it
-does NOT close this entry — by the spirit of the Done-when, against its letter.** Literally,
-two consecutive pushes produced a pass and then a fail rather than a cancellation, and the timer
-bounded nothing. But that fail was `actions/checkout` dying in 2 s: nothing built, nothing ran,
-and the lane judged nothing about the change. Closing on it would be counting a technicality as
-evidence. The cause is its own entry, TD-51, and it was EXPOSED by this repair rather than
-caused by it — the lane had been timing out before reaching the step whose leftovers broke the
-next checkout.
+was NOT counted** — by the spirit of the Done-when, against its letter. That fail was
+`actions/checkout` dying in 2 s: nothing built, nothing ran, and the lane judged nothing about
+the change. Its cause is TD-51, and it was EXPOSED by this repair rather than caused by it —
+the lane had been timing out before reaching the step whose leftovers broke the next checkout.
+
+**RESOLVED by the third push: run 36124982820 (HEAD `91aee810`), `success` in 56m26**, no step
+short of success. Three consecutive pushes, ZERO cancellations, and two of the three a verdict
+on the change itself. The timer bounded nothing in any of them.
+
+⚠ **And that run measured the remainder rather than only passing.** It ran while this session
+deliberately kept the box idle, and the contrast is the cleanest evidence TD-50 has:
+
+| step | 36124982820 (box idle) | 36114404143 (box busy) | quiet baseline |
+|---|---:|---:|---:|
+| Build harness | **8m25** | 38m37 | 8m14 |
+| Run positive smoke | 23m24 | 28m07 | 13m45 |
+| **job total** | **56m26** | 1h30m | 47m07 |
+
+The build returned to its quiet-box cost almost exactly. Not competing for the box is worth 34
+minutes of this lane, which is what TD-50 is for — and the only thing that produced it here was
+an agent choosing not to compile, which is the habit this entry has twice recorded as not being
+a mechanism.
 
 ⚠ **What remains is not in this repository, and it is the only permanent fix.** Removing the
 ratchet takes the cancelled run's non-test cost from 110m to 59m, which would very likely have
@@ -3360,8 +3377,9 @@ run overlapping local work in this repository no longer shows the build step inf
 
 ## TD-51 — a sudo lane left a root-owned log directory, and the next checkout died in it
 
-**Status:** OPEN — repaired, pending the run that shows a checkout surviving a known-fail step.
-**Logged:** 2026-09-25, from the push that followed TD-43's first green run.
+**Status:** RESOLVED (2026-09-25), the same day it was logged. **Logged:** 2026-09-25, from the
+push that followed TD-43's first green run. **Resolution** at the end names the run that shows
+it.
 
 **What it is.** The netns lanes run the orchestrator under `sudo`, so any directory the
 orchestrator creates is owned by root. The runner user cannot then delete its contents, and
@@ -3407,3 +3425,16 @@ skimmed too.
 **Done when:** a push-triggered run checks out cleanly after a previous run executed the
 known-fail step, and `workflow_logdir_audit.py --check` is green in the hosted lane — with the
 run that shows it named here.
+
+**Resolution.** Run 36124982820 (push, HEAD `91aee810`): `success` in 56m26, no step short of
+success. Both halves of the Done-when are in it:
+
+- Its `actions/checkout@v5` passed — the step that died at 2 s in run 36123076966 — and the run
+  it checked out AFTER is 36114404143, the one whose known-fail step created the root-owned
+  directory. So the ordering that produced the break was reproduced, and it no longer breaks.
+- Its own known-fail step ran again (0m52, `success`), now writing into the runner-owned
+  directory the `mkdir -p` pre-creates, so the residue this entry is about is not re-created.
+- `workflow-hygiene` run 36124982755: `success`, with `Log-dir ownership gate self-test` and
+  `Log-dir ownership gate` both listed as executed rather than skipped. ⚠ Checked as steps and
+  not as a job conclusion on purpose: a gate that is green because it never ran is the failure
+  mode this repository keeps meeting, and a job-level tick cannot tell the two apart.
