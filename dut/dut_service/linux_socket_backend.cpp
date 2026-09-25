@@ -497,7 +497,9 @@ bool LinuxSocketBackend::connectBoundedV4(int fd, const Endpoint &dst, int timeo
             if (cancel != nullptr && cancel->load(std::memory_order_acquire)) {
                 break;
             }
-            const int slice = (remaining < kConnectPollSliceMs) ? remaining : kConnectPollSliceMs;
+            const int slice = (remaining < ::tc8::net::kConnectPollSliceMs)
+                                  ? remaining
+                                  : ::tc8::net::kConnectPollSliceMs;
             fd_set wset;
             FD_ZERO(&wset);
             FD_SET(fd, &wset);

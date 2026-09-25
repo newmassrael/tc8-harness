@@ -9,6 +9,8 @@
 #include <utility>
 #include <vector>
 
+#include "tc8/unperformed_stimulus.h"
+
 #include "sce_integration/dut_control.h"
 #include "sce_integration/tcp_pilot_common.h"
 #include "sce_integration/test_config.h"
@@ -88,6 +90,18 @@ inline std::optional<::tc8::sce::DutConnection> seamConnectTcp(
                      "tcp-pilot: seam %s failed (connectTcp local=%u "
                      "remote=%u, backend=%s)\n",
                      phase, local_port, remote_port, dut.backendName());
+        // The open IS the stimulus for everything downstream of it: no connection
+        // means the case never asked the DUT the question its guards grade. Record
+        // it so the verdict says THAT, instead of reporting the resulting silence
+        // as if the DUT had been asked and stayed quiet.
+        //
+        // ⚠ This header already claimed the property in prose — "a failed open does
+        // not mis-report downstream as a DUT 'no SYN / no FIN' timeout" — and only
+        // wrote a line to stderr, which no verdict reads. Measured 2026-09-25
+        // (docs/tech-debt.md TD-24): a phase-2 open that timed out produced
+        // `inconclusive:no_dut_rst_phase2_ack_with_unacceptable_ack`, naming the DUT
+        // for a window the harness had spent. A comment is not a mechanism.
+        ::tc8::UnperformedStimulus::record("tcp_seam_open");
     }
     return conn;
 }

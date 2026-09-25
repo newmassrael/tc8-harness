@@ -1562,10 +1562,22 @@ case that started passing, and a case without a `fail` final is rejected as a kn
 
 ## TD-24 — a multi-phase TCP case answers the DUT once, and a conforming retry starves the later phases
 
-**Status:** OPEN — the starvation is fixed and `TCP_UNACCEPTABLE_08` passes on both platforms;
-what remains is the OBSERVABILITY half, which is the part that would have named this correctly
-the first time. **Logged:** 2026-09-23, from the pcap of the one TCP non-conclusion left in the
-lwIP sweep (346 of 348 pass, zero failures).
+**Status:** RESOLVED (2026-09-25), both halves. **Logged:** 2026-09-23, from the pcap of the one
+TCP non-conclusion left in the lwIP sweep (346 of 348 pass, zero failures).
+
+**The observability half.** `seamConnectTcp` — the one place every TCP case's active OPEN goes,
+shared by `driveSeamActiveOpen` and `driveSeamSynSentOpen` — now records
+`UnperformedStimulus::record("tcp_seam_open")` when the open fails. The open IS the stimulus for
+everything downstream of it: with no connection the case never asked the DUT the question its
+guards grade, so the verdict must say that rather than report the resulting silence as a DUT
+absence.
+
+⚠ That header had ALREADY claimed the property in prose — "a failed open does not mis-report
+downstream as a DUT 'no SYN / no FIN' timeout" — while only writing a line to stderr, which no
+verdict reads. That is the same shape as the teardown above, where a comment asserted a
+`shutdown` behaviour one backend did not have. Both read as true and neither was. The claim is
+now pinned by `unit_tests/unperformed_stimulus_test.cpp`
+(`ASeamOpenThatDoesNotHappenIsRecorded`), so it cannot quietly become a comment again.
 
 **What was fixed (2026-09-25), three diagnoses deep.** The first two were wrong and are kept
 below because the shape of the error is the lesson: "the harness answers the retransmission
@@ -1654,9 +1666,10 @@ an absence as if the DUT had been asked. That half is unchanged and is what woul
 this correctly the first time.
 
 **Done when:** ~~the harness answers a repeated SYN on a live phase quad~~ (superseded — see
-above; answering cannot help and was never the cause), `TCP_UNACCEPTABLE_08`
-passes on both the lwIP fixture and the Linux reference — DONE — and a phase whose window never opened
-reports that fact instead of a DUT-shaped absence reason.
+above; answering cannot help and was never the cause) — MET; `TCP_UNACCEPTABLE_08`
+passes on both the lwIP fixture and the Linux reference — MET; and a phase whose window never opened
+reports that fact instead of a DUT-shaped absence reason — MET, and proven by a test rather
+than by the comment that used to stand in for it.
 
 ---
 

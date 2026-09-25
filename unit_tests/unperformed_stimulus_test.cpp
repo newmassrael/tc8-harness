@@ -9,9 +9,14 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdint>
+#include <functional>
+#include <optional>
 #include <string>
 #include <thread>
 #include <vector>
+
+#include "sce_integration/cases/_tcp_seam.h"
 
 using tc8::UnperformedStimulus;
 
@@ -83,6 +88,87 @@ TEST_F(UnperformedStimulusTest, ConcurrentRecordsAreSafeAndStillDeterministic) {
         }
     }
     EXPECT_TRUE(matched_one) << "reason was not one of the recorded names: " << reason;
+}
+
+// ---- the seam open is a stimulus -------------------------------------------
+//
+// `seamConnectTcp` is where every TCP case's active OPEN goes, and a failed open
+// means the case never asked the DUT the question its guards grade. The header
+// claimed that property in prose for a long time while only writing to stderr,
+// which no verdict reads — measured 2026-09-25, a phase whose open timed out
+// still reported `inconclusive:no_dut_rst_phase2_...`, naming the DUT for a
+// window the harness had spent (docs/tech-debt.md TD-24). These two pin the
+// behaviour so the claim cannot go back to being only a comment.
+
+// A TCP sub-interface whose OPEN fails, which is the shape a timed-out or refused
+// connectTcp RPC has. The sub-interface is PRESENT: `seamConnectTcp` dereferences
+// it as a documented contract (the capability gate skips a backend that lacks it
+// before stimulus runs), so a fake without one crashes rather than exercising the
+// path — which is how the first version of this test was found to prove nothing.
+class FailingOpenTcpControl final : public ::tc8::sce::ITcpControl {
+public:
+    std::optional<::tc8::sce::DutConnection> connectTcp(const ::tc8::sce::Endpoint &,
+                                                        const ::tc8::sce::BindSpec &) override {
+        return std::nullopt;
+    }
+    std::optional<::tc8::sce::DutConnection> acceptTcp(const ::tc8::sce::BindSpec &,
+                                                       const std::function<void()> &) override {
+        return std::nullopt;
+    }
+    std::optional<::tc8::sce::DutSocket> listenTcp(const ::tc8::sce::BindSpec &) override {
+        return std::nullopt;
+    }
+    bool sendTcp(::tc8::sce::DutSocket, const std::vector<std::uint8_t> &) override { return false; }
+    bool sendTcpPattern(::tc8::sce::DutSocket, std::uint8_t, std::uint16_t) override {
+        return false;
+    }
+    std::optional<std::vector<std::uint8_t>> receiveTcp(::tc8::sce::DutSocket, std::uint16_t,
+                                                        const std::function<void()> &) override {
+        return std::nullopt;
+    }
+    bool shutdownTcpWr(::tc8::sce::DutSocket) override { return false; }
+    bool closeTcp(::tc8::sce::DutSocket) override { return false; }
+    bool abortTcp(::tc8::sce::DutSocket) override { return false; }
+};
+
+class FailingOpenDutControl final : public ::tc8::sce::IDutControl {
+public:
+    bool probe() override { return true; }
+    bool startTest() override { return true; }
+    bool endTest() override { return true; }
+    const char *backendName() const override { return "unit-test-failing-open"; }
+    std::uint16_t controlPort() const override { return 0; }
+    ::tc8::sce::DutCapabilities capabilities() const override {
+        return ::tc8::sce::kCapTcpControl;
+    }
+    ::tc8::sce::ITcpControl *tcpControl() override { return &tcp_; }
+
+private:
+    FailingOpenTcpControl tcp_;
+};
+
+TEST_F(UnperformedStimulusTest, ASeamOpenThatDoesNotHappenIsRecorded) {
+    FailingOpenDutControl dut;
+    ::tc8::TestConfig cfg{};
+    const auto conn = ::tc8::sce::tcp::seamConnectTcp(dut, cfg, /*local_port=*/1u,
+                                                      /*remote_port=*/2u, "unit-test open");
+    ASSERT_FALSE(conn.has_value());
+    EXPECT_TRUE(UnperformedStimulus::any())
+        << "a failed seam open left no record, so the verdict will name the DUT "
+           "for a question it was never asked";
+    EXPECT_EQ(UnperformedStimulus::reason(), "stimulus_tcp_seam_open_not_performed");
+}
+
+TEST_F(UnperformedStimulusTest, TheSeamOpenRecordNamesTheOpenNotTheCase) {
+    // One name for every case that opens through the seam, on purpose: the reader
+    // needs to know WHICH stimulus did not happen, and "the TCP seam open" is that
+    // fact. Per-case names would multiply the vocabulary without adding anything a
+    // report consumer can act on.
+    FailingOpenDutControl dut;
+    ::tc8::TestConfig cfg{};
+    (void)::tc8::sce::tcp::seamConnectTcp(dut, cfg, 1u, 2u, "first");
+    (void)::tc8::sce::tcp::seamConnectTcp(dut, cfg, 3u, 4u, "second");
+    EXPECT_EQ(UnperformedStimulus::reason(), "stimulus_tcp_seam_open_not_performed");
 }
 
 }  // namespace
