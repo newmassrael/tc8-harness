@@ -3028,36 +3028,114 @@ unit test and the capability-skip path was run end-to-end to show it is untouche
 
 ## TD-48 — the DUT's second address is declared by the topology and compiled by the case, and nothing checks they agree
 
-**Status:** OPEN. **Logged:** 2026-09-25, as the stated residue of TD-25.
+**Status:** RESOLVED (2026-09-25), the same day it was logged. **Logged:** 2026-09-25, as the
+stated residue of TD-25.
 
-**What it is.** `UDP_USER_INTERFACE_07` now asks for its premise the right way — it declares
-`kCapSecondaryDutAddress`, and the gate skips it on a DUT that holds one address. But the
-capability answers only the PRESENCE of a second address. Its VALUE is compiled, in two places:
-`kDutAliasIp4Be` (172.16.0.5) in `udp_pilot_common.h`, which the stimulus passes as the
-`OpTriggerSendUdp` source override, and the literal `0x050010ACU` in the case's SCXML, which
-gates the pass branch on an exact match.
+⚠ **This entry was FIRST LOGGED WITH A WRONG PREMISE, and the correction is the useful part of
+it.** It said the address was compiled in TWO places — the stimulus constant and a literal in
+the case's SCXML — and it was written from the case header's own comment, which claims "SCXML
+cond literal … gates the pass branch on exact match". Opening the SCXML instead shows
+`cond="cpp:… captured.src_ip == expected.dut_alias_ip …"`: an expectation key, not a literal,
+and it has been one all along. What follows is the debt as MEASURED afterwards; the header
+comment that misled it is corrected in the same commit. The rule it cost, again: read the
+corpus, not the summary that describes it.
 
-So a topology that provisions a second DUT address at a DIFFERENT value satisfies the capability,
-is handed the case, asks the DUT to emit from 172.16.0.5, and grades the answer against
-172.16.0.5 — which the DUT does not hold. The DUT behaves correctly and the case reports
-`fail_wrong_src_ip_or_port`.
+**What it is.** Four things name "the DUT's second address", and they do not read one source:
 
-**Why it exists.** The address was a fixture constant before any of this: one topology existed,
-it aliased one address, and a constant was the honest shape. TD-25 made the PRESENCE
-configurable because that is what the gate needed, and stopped there rather than half-teaching
-the SCXML to compare against an expectation — a larger and separate change.
+| consumer | reads | follows a site override? |
+|---|---|---|
+| netns provisioner (`netns.rs`, `setup-netns.sh`) | `wire::DUT_ALIAS_IP` / `TC8_WIRE_DUT_ALIAS_IP` | no |
+| SCXML expectation `ipv4.dut_alias_ip` | `cfg.dut_alias_ip4` | yes |
+| capability `dut.secondary_ip` (TD-25) | `cfg.dut_alias_ip4` | yes |
+| UI_07 stimulus — the ASK | `kDutAliasIp4Be` | **no** |
 
-**Risk if left.** A false FAIL, which is the expensive direction: it accuses a conforming DUT.
-It cannot fire today, because the only topology that declares the capability is the one that
-aliases exactly this address, so the two agree by coincidence rather than by construction. The
-day a second such topology exists, the failure appears in a case that looks unrelated to it.
+All four values originate in one `tools/wire.def` row, which generates the C++ constant, the
+Rust constant and the shell variable, so there is no hand-copy between languages and the netns
+topologies cannot drift at all: `apply_alias_overrides` in `main.rs` says in its own doc that
+only the host-NIC topologies reach it, because single-pc and lwip-tap build the aliases
+themselves and their configured value IS the wire constant.
 
-**Textbook fix.** Make the value follow the declaration. `dut.secondary_ip` already carries it
-to the harness, so the stimulus can pass `cfg.dut.secondary_ip` instead of the constant, and the
-SCXML can compare against an expectation key rather than a literal — the same shape every other
-address-valued assertion in the tree already uses. The constant then survives only as the netns
-topology's own value, in the one file that provisions it.
+The drift is reachable on exactly one path, and that path is real. An `External` or `SshRemote`
+site names its DUT's alias in `site.wire.dut_alias_ip`. The expectation follows it. The
+capability follows it. The ask does not — the harness asks a conforming external DUT to emit
+from 172.16.0.5, an address it does not hold, and gets a refusal.
 
-**Done when:** no compiled literal names the DUT alias on the assertion path — the stimulus
-sources it from config and the SCXML from an expectation — and a topology declaring a different
-secondary address is shown to pass the case rather than fail it.
+⚠ **And TD-25 made that path worse hours before this entry fixed it.**
+`dut_has_secondary_address()` defaulted to `false` with only `SinglePc` overriding, so on a site
+that HAD declared its DUT's alias the case became a capability skip — the operator stated the
+premise in the field that exists for stating it, and the gate ignored the statement.
+
+**How it was repaid.** The ask now reads the same field the bit is derived from.
+
+- `UDP_USER_INTERFACE_07`'s stimulus passes `cfg.dut.secondary_ip` instead of the constant. A
+  case can no longer be admitted by a capability and then ask for a different address than the
+  one that admitted it, because there is one field and both come from it.
+- `External` and `SshRemote` answer `dut_has_secondary_address()` from
+  `site.wire.dut_alias_ip.is_some()`. The operator's declaration is the only thing that knows a
+  real DUT's addresses, so it is what the topology reports.
+- ⚠ **`cfg.ipv4.dut_alias_ip` was rejected as the ask's source for the second time**, for the
+  reason `ipv4_expectations.h` gives: it is the EXPECTATION that
+  `--negative ipv4.dut_alias_ip=10.99.99.99` flips to prove this assertion is load-bearing.
+  Sourcing the ask from it would move both sides together and make that negative vacuous. The
+  identity field is what the ask reads, the expectation is what the SCXML reads, they hold the
+  same value, and they must stay separately addressable.
+- `kDutAliasIp4Be` stays with no reader on the assertion path: it is the netns fixture's own
+  value, which `setup-netns.sh` and `netns.rs` still configure from the same `wire.def` row.
+- The capability audit's demand token moved from the constant to `secondary_ip`, which is the
+  stronger statement — a case cannot name the address without naming the thing that decided the
+  bit.
+
+⚠ **UI_08 is the untouched mirror:** its stimulus still asks the DUT to send TO the compiled
+`kTesterAliasIp4Be` while the SCXML compares against `expected.tester_alias_ip`, so a site naming
+its own tester alias moves one and not the other. Not fixed here because the tester has no
+identity struct to hold the value — `TestConfig` carries `DutIdentity` and per-protocol
+expectations and nothing else — so the fix is a new surface rather than a redirected read.
+Registered as TD-49.
+
+**Done when:** the address UI_07 asks for and the capability that admitted the case come from
+one field — MET; and a site declaring its DUT's alias runs the case rather than skipping it —
+MET, by the two host topologies now reporting that declaration.
+
+---
+
+## TD-49 — the tester's own second address is asked for by a constant and graded against a config value
+
+**Status:** OPEN. **Logged:** 2026-09-25, as the measured mirror of TD-48.
+
+**What it is.** `UDP_USER_INTERFACE_08` is UI_07 with the sides swapped: it asks the DUT to send
+TO a caller-specified destination, which needs the TESTER to hold a second address. The ask is
+the compiled `kTesterAliasIp4Be` (172.16.0.4); the SCXML grades against
+`expected.tester_alias_ip`, which the orchestrator fills from `cfg.tester_alias_ip4`. A site that
+names its own tester alias in `site.wire.tester_alias_ip` moves the expectation and not the ask,
+so the DUT is told to send to 172.16.0.4, the tester is listening on something else, and nothing
+arrives.
+
+Same shape as TD-48, same reachable path — `External` / `SshRemote`, where
+`apply_alias_overrides` is the only thing that knows the wire — and unreachable for the same
+reason on the netns topologies, whose configured value IS the wire constant.
+
+**Why it exists.** TD-48 fixed the DUT side by pointing the ask at `cfg.dut.secondary_ip`, an
+IDENTITY field that `DutIdentity` already existed to hold. The tester has no counterpart:
+`TestConfig` carries `DutIdentity` and the per-protocol EXPECTATION structs and nothing else, so
+there is no identity home for "an address the tester holds".
+
+⚠ And the obvious shortcut is the one TD-48 rejected twice: `cfg.ipv4.tester_alias_ip` holds the
+right value but is the expectation that `--negative ipv4.tester_alias_ip=10.99.99.99` flips to
+prove UI_08's assertion is load-bearing. Reading the ask from it would move both sides together
+and make that negative vacuous.
+
+**Risk if left.** Narrower than TD-48's was, because no capability gates UI_08 — so instead of a
+skip, a site with its own tester alias gets a case that cannot pass and whose reason points at
+the DUT. It is unreachable on every in-tree topology today, which is why this is logged rather
+than rushed.
+
+**Textbook fix.** Give the tester the identity surface the DUT already has: a `TesterIdentity`
+beside `DutIdentity` in `TestConfig`, carrying the tester's primary and secondary addresses,
+filled from the same `--expect` path (`tester.secondary_ip`), with UI_08's stimulus reading it.
+That also gives `cfg.ipv4.tester_ip` — today an expectation field that several stimuli already
+read as if it were identity — a correct home, which is the larger reason to do it this way
+rather than by special-casing one address.
+
+**Done when:** UI_08's ask and the tester's configured second address come from one field, with
+the expectation still independently flippable, and a site naming its own tester alias is shown
+to exercise the case rather than time out on it.

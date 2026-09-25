@@ -235,6 +235,9 @@ pub trait Topology {
     ///
     /// The topology states the FACT and the config supplies the VALUE, so a site that
     /// overrides `dut_alias_ip` moves both together and neither has to know the other.
+    /// The case's stimulus reads that same emitted value rather than a compiled
+    /// constant, so the ask cannot disagree with the capability that admitted it
+    /// (docs/tech-debt.md TD-48).
     ///
     /// It exists because a case can REQUIRE one: §4.6.5.5 UDP_USER_INTERFACE_07
     /// grades whether the DUT honours a caller-specified source address, which is
@@ -248,6 +251,11 @@ pub trait Topology {
     /// neither of those axes can carry it. Default `false` — a topology that provides
     /// an alias must say so, and one that stays silent loses only the cases that
     /// need it, which is the safe direction.
+    ///
+    /// Who says so, and from what: `SinglePc` from its netns transport, which
+    /// provisions the alias itself; `External` / `SshRemote` from the operator's
+    /// `site.wire.dut_alias_ip`, because nothing in-tree configures a real DUT's
+    /// addresses; `LwipTap` not at all, because its one netif cannot hold two.
     fn dut_has_secondary_address(&self) -> bool {
         false
     }

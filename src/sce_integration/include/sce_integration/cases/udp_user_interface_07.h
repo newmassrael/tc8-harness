@@ -41,21 +41,27 @@ struct TestCaseTraits<cases::UdpUserInterface07SM>
 
     // §4.6.5.5 UI_07 spec axis: TESTER asks DUT to emit a UDP message
     // with src=`<DIface-0-IP>`. With a single primary IP per side the
-    // axis vacuously passes; the DUT-side `kDutAliasIp4Be` alias makes
-    // it observable. Stimulus passes the alias as the TriggerSendUdp
+    // axis vacuously passes; the DUT's SECOND address makes it
+    // observable. Stimulus passes that address as the TriggerSendUdp
     // src_ip override; tc8-dut binds the transient socket to
-    // (alias, dut_src_port) and sends, so wire src_ip carries the alias
-    // iff the DUT honoured the caller's choice. SCXML cond literal
-    // (the `0x050010ACU` = `kDutAliasIp4Be`) gates the pass branch on
-    // exact match — a buggy DUT that silently defaults to the primary
-    // iface IP lands on `fail_wrong_src_ip_or_port`.
+    // (secondary, dut_src_port) and sends, so wire src_ip carries it
+    // iff the DUT honoured the caller's choice. The SCXML cond gates
+    // the pass branch on `captured.src_ip == expected.dut_alias_ip` —
+    // a buggy DUT that silently defaults to the primary iface IP lands
+    // on `fail_wrong_src_ip_or_port`.
     //
-    // ⚠ The alias VALUE is still compiled, here and in the SCXML literal, while
-    // its PRESENCE is now a topology fact (`dut.secondary_ip`, the capability
-    // above). A topology that aliased a different address would satisfy the
-    // capability and then fail the guard. Unifying the two means teaching the
-    // SCXML to compare against an expectation instead of a literal — a smaller,
-    // separate coupling than the one TD-25 was about, and not fixed here.
+    // ⚠ The ask is sourced from `cfg.dut.secondary_ip` -- the SAME field the
+    // capability above is derived from -- and NOT from the compiled
+    // `kDutAliasIp4Be`, which is the netns fixture's own value and is only one
+    // of the addresses a DUT may hold. A site naming its external DUT's alias
+    // moves the config, the expectation and this ask together; the constant
+    // would have stayed at 172.16.0.5 and asked a conforming DUT for an address
+    // it does not have (docs/tech-debt.md TD-48).
+    //
+    // ⚠ And NOT from `cfg.ipv4.dut_alias_ip`, which holds the same value: that
+    // one is the EXPECTATION a `--negative ipv4.dut_alias_ip=…` row flips to
+    // prove this assertion is load-bearing. Sourcing the ask from it would move
+    // both sides together and make that negative vacuous.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          std::string_view /*iface*/,
@@ -68,7 +74,7 @@ struct TestCaseTraits<cases::UdpUserInterface07SM>
             ::tc8::sce::udp::kUdpDefaultData.data(),
             static_cast<std::uint16_t>(::tc8::sce::udp::kUdpDefaultData.size()),
             ::tc8::sce::udp::kUdpPilotInitialWait,
-            /*dut_src_ip_override_be=*/::tc8::sce::udp::kDutAliasIp4Be);
+            /*dut_src_ip_override_be=*/cfg.dut.secondary_ip);
     }
 };
 

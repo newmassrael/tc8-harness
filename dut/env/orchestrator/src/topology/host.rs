@@ -306,6 +306,14 @@ impl Topology for External<'_> {
     fn dut_ready_marker(&self) -> Option<&'static str> {
         self.dut.ready_marker()
     }
+    fn dut_has_secondary_address(&self) -> bool {
+        // The SITE answers here, because on a host-NIC wire nothing in-tree
+        // provisions the DUT's addresses -- a real external DUT carries whatever
+        // its operator configured. `site.wire.dut_alias_ip` is the field that
+        // exists for the operator to say so, and `apply_alias_overrides` in main
+        // has already copied it into the config this reports on.
+        self.site.wire.dut_alias_ip.is_some()
+    }
 
     fn preflight(&self) -> Result<()> {
         // Preconditions only. Required config vars (iface/dut_ip/tester_ip) are
@@ -454,6 +462,11 @@ impl Topology for SshRemote<'_> {
     }
     fn dut_ready_marker(&self) -> Option<&'static str> {
         self.dut.ready_marker()
+    }
+    fn dut_has_secondary_address(&self) -> bool {
+        // Same answer and the same reason as `External` above: the operator's
+        // site declaration is the only thing that knows a remote DUT's addresses.
+        self.site.wire.dut_alias_ip.is_some()
     }
 
     fn preflight(&self) -> Result<()> {

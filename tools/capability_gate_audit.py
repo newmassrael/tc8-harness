@@ -106,14 +106,14 @@ BIT_DEMANDS = {
     "kCapIngressFault": {"emitIngressFlavorArm", "emitIngressFlavorArmMidStream"},
     "kCapAppFault": {"emitAppFlavorArm"},
     "kCapEtsFault": {"emitEtsFlavorArm"},
-    # The one bit whose demand is a VALUE rather than a seam call. Every other
+    # The one bit whose demand is a FIELD rather than a seam call. Every other
     # entry here names an accessor, because every other capability is a mechanism
     # the DUT either implements or does not. This one is a DUT property -- it holds
     # a second address or it does not -- and the only thing a case can do with that
-    # property is NAME the address. So the demand token is the alias constant; a
-    # case that passes it as a source override is asking for the second address by
-    # the only means the ask has (docs/tech-debt.md TD-25).
-    "kCapSecondaryDutAddress": {"kDutAliasIp4Be"},
+    # property is read the address. So the demand token is the identity field, which
+    # is also what the bit itself is derived from: a case cannot name the address
+    # without naming the thing that decided the bit (docs/tech-debt.md TD-25).
+    "kCapSecondaryDutAddress": {"secondary_ip"},
 }
 
 BIT_RE = re.compile(r"\b(kCap[A-Za-z]+)\b")

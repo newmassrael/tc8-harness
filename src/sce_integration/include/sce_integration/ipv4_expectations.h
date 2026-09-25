@@ -22,9 +22,10 @@ struct Ipv4Expectations {
     std::uint32_t dut_iface_ip = 0;  // network byte order
 
     // §4.6.5.5 UDP_USER_INTERFACE_07/_08 caller-specified IP axis
-    // expectations. Stimulus pins the axis literal to a constant in
-    // `udp_pilot_common.h` (`kDutAliasIp4Be` / `kTesterAliasIp4Be`),
-    // while these slots carry what the SCXML compares against —
+    // expectations. These slots carry what the SCXML compares against,
+    // held apart from what the stimulus ASKS for — UI_07 asks from
+    // `cfg.dut.secondary_ip` (TD-48) and UI_08 still from the constant
+    // `kTesterAliasIp4Be` (TD-49). The
     // separation lets `--negative ipv4.dut_alias_ip=10.99.99.99` and
     // `--negative ipv4.tester_alias_ip=10.99.99.99` flip ONLY the
     // SCXML expectation. The DUT still emits the correct alias under
@@ -33,9 +34,10 @@ struct Ipv4Expectations {
     // assertion is load-bearing rather than vacuous.
     //
     // Default 0 is harmless: only UI_07 / UI_08 SCXML consume these
-    // slots. The smoke-test harness pins them in
-    // `IPV4_DUT_EXPECT_STATIC` so the positive run resolves to the
-    // netns-configured alias literals.
+    // slots. The orchestrator emits both on every run
+    // (`expect_surface.gen.rs`, from `cfg.dut_alias_ip4` /
+    // `cfg.tester_alias_ip4`), so a positive run resolves to whatever
+    // the topology or the site configured.
     std::uint32_t dut_alias_ip    = 0;  // network byte order — UI_07
     std::uint32_t tester_alias_ip = 0;  // network byte order — UI_08
 };

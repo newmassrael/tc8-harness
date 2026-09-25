@@ -58,11 +58,15 @@ inline constexpr std::uint32_t kUdpHost2IpBe = 0x030010ACU;  // 172.16.0.3 NBO
 // activate the axis the harness configures secondary IPs on each side:
 //
 //   * `kDutAliasIp4Be` (172.16.0.5) — DIface-0 alias on the DUT veth.
-//     UI_07 stimulus passes this as the `src_ip_override` for the
-//     OpTriggerSendUdp request; tc8-dut binds the transient socket to
-//     (alias, src_port) and sends, so wire src_ip == alias proves the
-//     DUT honoured the caller's choice instead of silently defaulting
-//     to the primary iface IP. SCXML cond literal must match.
+//     The netns fixture's OWN value, and nothing on the assertion path
+//     reads it: UI_07's stimulus sources its `src_ip_override` from
+//     `cfg.dut.secondary_ip` (what the topology declared) and the SCXML
+//     compares against `expected.dut_alias_ip`, so a site naming a real
+//     DUT's alias moves the ask and the expectation together while this
+//     constant keeps describing the veth it configures (TD-48).
+//     tc8-dut binds the transient socket to (secondary, src_port) and
+//     sends, so wire src_ip == expectation proves the DUT honoured the
+//     caller's choice instead of silently defaulting to the primary IP.
 //   * `kTesterAliasIp4Be` (172.16.0.4) — AIface-0 alias on the tester
 //     veth. UI_08 stimulus passes this as the `target_ip_be` for the
 //     OpTriggerSendUdp request; tc8-dut sends to (alias, dst_port).
