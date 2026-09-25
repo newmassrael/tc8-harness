@@ -2664,8 +2664,13 @@ Repaying the 33 is not part of this entry. The ledger holds them, and the census
 
 ## TD-43 — the smoke lane no longer fits its timeout, so it judges nothing
 
-**Status:** OPEN. **Logged:** 2026-09-24, after two consecutive pushes were cancelled by the
-job timer rather than answered by the suite.
+**Status:** OPEN — repaid, pending the push that demonstrates it. **Logged:** 2026-09-24,
+after two consecutive pushes were cancelled by the job timer rather than answered by the suite.
+
+⚠⚠ **The OBSERVATION below holds and its CAUSE is wrong.** The entry says the lane outgrew its
+cap, and the ⚠ table in it measures a 37% case-count growth to support that. The growth is real;
+it is not what cancelled those runs. **Correction** at the end of this entry has the step
+timings, which nobody had looked at, and the repair that followed from them.
 
 **What it is.** `.github/workflows/smoke-test.yml` runs on `[self-hosted, netns]` — this
 workstation — under `timeout-minutes: 120`. Both pushes made today were cancelled at the cap:
@@ -2718,6 +2723,69 @@ cap alone removes the only bound on a genuine hang:
 **Done when:** consecutive pushes produce a pass or a fail from this lane rather than a
 cancellation, and the timer is bounding a hang rather than ordinary work — with the run that
 shows it named here.
+
+**Correction (2026-09-25) — the cause was not the lane's size, and the step timings say so.**
+
+The entry reasoned from the job's total wall-clock and from a case count. Neither can locate a
+cost. The Actions API carries per-step timings for every run, including cancelled ones, and no
+round had read them. They put 92% of the cancelled run in two steps that run no tests at all:
+
+| step | run 35950954625 (cancelled, 2h01m) | run 35441257615 (success, 47m) |
+|---|---:|---:|
+| Build harness (vsomeip + cmake) | **59m03** (49%) | 8m14 |
+| Suite producer coexistence ratchet | **51m42** (43%) | 8m20 |
+| Run positive smoke (754 cases) | cancelled at 8m36 | 13m45 |
+| Run timing-cadence serially | not reached | 2m20 |
+| Run negative curated set | not reached | 1m33 |
+| lwIP DUT regression | not reached | 11m28 |
+
+So the whole of TESTING is about 28 minutes, inside a 120-minute cap. The lane is not close to
+outgrowing it, and the 37% case growth lives entirely inside the 13m45 step.
+
+⚠ **And it is contention, not a cold cache or a wide rebuild — which the two commits settle.**
+The cancelled run is `77c50641`, whose diff is almost entirely `tools/*.py`, `.txt` and `.json`:
+a build that should have been nearly all ccache hits took 59m03. The successful run is
+`eb6b9761`, which changed **15 case headers** — real C++, a genuinely wider rebuild — and built
+in 8m14. The run with less C++ to compile took seven times longer. What differs is what else
+this box was compiling, which is the one thing the lane does not control.
+
+**What was repaid, and what was deliberately not.**
+
+- **The second full build left the push lane.** The coexistence ratchet is a clean from-scratch
+  harness build re-proving that an out-of-tree suite reusing an in-tree case id still builds and
+  registers. It is the largest removable term — 51m42 of the 121 — and it proves a BUILD
+  property that moves only when the registrar / suite-producer surface does. It now runs on a
+  nightly `schedule` and on dispatch. ⚠ This is NOT the entry's "split what runs per push"
+  option, which the table above refutes: splitting by test content would save minutes. What
+  moved is compile work.
+- **Nothing that decides a conformance verdict moved.** Note that today's failure mode already
+  costs more than the split does: when the lane overruns, every step after the cancelled one
+  reads "skipped", so the negative set, both topology profiles, the whole lwIP regression and
+  the testability checks ran on NEITHER of those two pushes. A push lane that finishes runs
+  strictly more than one that does not.
+- **The nightly got its own concurrency group.** It carries the steps no push re-proves, so
+  leaving it in the group a push cancels would have meant it ran only on nights nobody pushed.
+- **The lane now accounts for its own time.** `tools/ci_step_timing.py`, called from an
+  `always()` step, writes the table above into the run summary. This is the part that closes the
+  loop rather than this instance of it: the cause here went unexamined for a day and was then
+  recorded WRONG in this very entry, because reading it took an API reconstruction by hand.
+  Verified against run 35950954625's real payload, and its self-test pins the row that matters
+  most — the step still running when the cap fires, which has no `completed_at` and is the one a
+  naive renderer drops.
+- **The cap stays at 120 and is now documented as a hang bound rather than a budget.** Raising it
+  was refused for the reason the entry already gives; sizing it to contention is impossible, since
+  wall-clock on a shared box measures the box.
+
+⚠ **What remains is not in this repository, and it is the only permanent fix.** Removing the
+ratchet takes the cancelled run's non-test cost from 110m to 59m, which would very likely have
+let it finish — "likely" being exactly as far as the evidence reaches. The 59m build was a
+cache-warm build slowed sevenfold by other work on the same host, and nothing inside this repo
+can stop that. The fix is to move the `[self-hosted, netns]` runner off this workstation onto one
+of the build machines, which needs a runner provisioned there with netns + sudo. Rationing the
+box instead — a host-wide lock between the lane and local agent work — was considered and
+rejected: it stalls the developer's own loops for the length of a run, and under
+`cancel-in-progress` a queued lane can be superseded before it ever starts, which trades a
+cancelled verdict for a never-attempted one.
 
 ---
 

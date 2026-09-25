@@ -17,6 +17,12 @@ on:
       - '.github/workflows/pcap-refresh.yml'
       - 'docs/spec/deprecated_cases.json'
   workflow_dispatch: {}
+  # Nightly, 04:00 KST. This is where the steps too expensive to re-prove on
+  # every push live -- see the `event_name != 'push'` guards below. A property
+  # proved once a day is caught within a day; the push lane keeps everything
+  # that decides a conformance verdict.
+  schedule:
+    - cron: '0 19 * * *'
 
 # A newer push to the same ref cancels an older in-flight run of THIS workflow —
 # the conformance verdict only cares about HEAD, and on the single self-hosted
@@ -24,8 +30,16 @@ on:
 # the 117b4c70-vs-688a843d pile-up that motivated this). Per-workflow group
 # (github.workflow) so smoke-test never cancels build-test or mnemosyne.
 # workflow_dispatch runs share the group too (a manual re-run supersedes).
+#
+# The NIGHTLY run is deliberately in a group of its own. It carries the steps no
+# push re-proves, so letting a push cancel it would mean those steps run only on
+# the nights nobody pushed -- which on this repository is few nights. Push and
+# dispatch keep sharing one group, so the supersede behaviour above is unchanged
+# for both. The single self-hosted runner serialises the two groups anyway: a
+# nightly already running makes a push QUEUE, which is the right order (a queued
+# verdict is late, a cancelled one never arrives).
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'schedule' && 'nightly' || 'interactive' }}
   cancel-in-progress: true
 
 permissions:
@@ -35,6 +49,10 @@ permissions:
   # `checks: write` scope. Without it the publish step exits 1
   # even when every smoke case passed.
   checks: write
+  # The step-timing accounting below reads this run's own job via the Actions
+  # API. Read-only, and it is what makes a cancelled run say where its time
+  # went instead of only that it ran out (docs/tech-debt.md TD-43).
+  actions: read
 
 jobs:
   smoke:
@@ -64,13 +82,22 @@ jobs:
     # (OpQueryTcpInfo, opcode 0x13) that is timing-noise-tolerant by
     # construction; the workaround was retired alongside the fix.
     runs-on: [self-hosted, netns]
-    # Cold build (vsomeip rebuild + 543 SCXML codegen + harness +
-    # tc8-dut + unit tests) plus 549-case positive smoke plus
-    # negative curated set on a mid-tier developer machine totals
-    # ~90 min. Subsequent runs reuse cmake incremental + actions/cache
-    # so they fit in ~25 min — we set the cap high enough for the cold
-    # path and rely on the test logic to hard-fail rather than the
-    # timer to bound runtime.
+    # A HANG BOUND, and nothing else. It is not a budget the lane is sized to:
+    # on a box this lane does not own, wall-clock measures contention rather
+    # than the lane, so no number here can be both tight enough to catch a hang
+    # quickly and loose enough to survive a busy afternoon.
+    #
+    # What the lane actually costs, measured from run step timings rather than
+    # estimated (2026-09-19 through 2026-09-24): 30-80 min end to end on runs
+    # that completed; positive smoke 13m45 for 754 cases, serial 2m20, negative
+    # 1m33, lwIP regression 11m28 -- about 28 min of TESTING. The two runs that
+    # hit this cap spent 110 of their 121 minutes in two compile-shaped steps,
+    # one of which now runs nightly instead (see the ratchet step below).
+    #
+    # ⚠ The comment this replaces said "549-case positive smoke ... ~25 min",
+    # and both halves had gone stale: the positive lane is 754 cases, and the
+    # cap was being read as a budget the lane had outgrown. It had not
+    # (docs/tech-debt.md TD-43).
     timeout-minutes: 120
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: '4'
@@ -100,8 +127,24 @@ jobs:
       - name: Suite producer coexistence ratchet
         # Full proof that an out-of-tree OEM suite reusing an in-tree case id
         # builds + registers + coexists (the link/compile half the build-test
-        # configure gate cannot reach). Self-hosted: a clean harness-only build
-        # is cheap here. Asserts tc8:/demo:SOMEIPSRV_OPTIONS_01 both list.
+        # configure gate cannot reach). Asserts tc8:/demo:SOMEIPSRV_OPTIONS_01
+        # both list.
+        #
+        # ⚠ NOT on push, and the reason is measured rather than stylistic. This
+        # step is a SECOND full clean build -- the comment it replaces called
+        # that "cheap here", which was true of the machine it was written for.
+        # Step timings from the two runs that hit the job cap on 2026-09-24:
+        # this step took 51m42 and the harness build 59m03, of 121m total, while
+        # every test lane after them was skipped. On a quiet run four days
+        # earlier the same two steps took 8m20 and 8m14. The build cost is not
+        # the lane growing; it is this box compiling other work at the same time
+        # (docs/tech-debt.md TD-43).
+        #
+        # So it runs nightly and on dispatch. It proves a BUILD property, not a
+        # conformance verdict, and that property moves only when the registrar /
+        # suite-producer surface does. Caught within a day is proportionate; a
+        # push lane that reaches no test lane at all is not.
+        if: ${{ github.event_name != 'push' }}
         run: ./scripts/check-suite-producer.sh "${{ runner.temp }}/suite-producer" 4
 
       - name: Run host unit tests (DUT + engines, ctest)
@@ -520,6 +563,29 @@ jobs:
       # The E_OK path the hermetic unit tests skip, verified against the deployable UTM.
       - name: Testability IPv6 STATIC SP observable check
         run: sudo -n dut/env/testability-ipv6-static-check.sh
+
+      # Where did the time go? A run that hits `timeout-minutes` reports only
+      # that it did: the job goes orange, every remaining step reads "skipped",
+      # and nothing on the run page says which step held the clock. Diagnosing
+      # the two 2026-09-24 cancellations meant reconstructing the step timings
+      # by hand from the API, and until someone did, the register carried a
+      # WRONG cause for them -- it blamed the case count, while the two
+      # compile-shaped steps had taken 110 of the 121 minutes.
+      #
+      # So the lane accounts for itself. `always()` reaches this even on a
+      # cancelled run (verified against run 35950954625, whose always-steps all
+      # ran after the cap fired), and a step still executing has no
+      # completed_at, which is exactly the one to name (docs/tech-debt.md TD-43).
+      - name: Account for the lane's time
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          curl -sS -H "Authorization: Bearer $GH_TOKEN" \
+               -H "Accept: application/vnd.github+json" \
+               "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs" \
+            > "$RUNNER_TEMP/jobs.json"
+          python3 tools/ci_step_timing.py "$RUNNER_TEMP/jobs.json" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload JUnit reports
         if: always()
