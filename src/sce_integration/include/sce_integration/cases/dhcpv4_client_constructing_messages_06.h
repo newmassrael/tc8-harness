@@ -4,7 +4,7 @@
 
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_dhcpv4_traits_base.h"
-#include "sce_integration/cases/dhcpv4_router_option_egress_common.h"
+#include "sce_integration/cases/_dhcpv4_router_option_egress_common.h"
 #include "sce_integration/test_runner.h"
 
 #include "dhcpv4_client_constructing_messages_06_sm.h"

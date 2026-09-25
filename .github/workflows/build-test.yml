@@ -245,6 +245,16 @@ jobs:
           python3 tools/negative_coverage_audit.py --self-test
           python3 tools/negative_coverage_audit.py --check
 
+      - name: Capability gate
+        # Joins the three sides that must agree for a capability bit to mean
+        # anything: a case DECLARES it, a backend ADVERTISES it, some path
+        # DEMANDS it (docs/tech-debt.md TD-22). Every pair of two out of three
+        # fails silently today. Self-test first, for the same reason as above —
+        # a resolver that has gone blind finds nothing and looks green.
+        run: |
+          python3 tools/capability_gate_audit.py --self-test
+          python3 tools/capability_gate_audit.py --check
+
       - name: Debt-register well-formedness
         # Unions the four registers that hold this repository's open work
         # (docs/tech-debt.md, deferred_negatives.json, the undisposed ledger,

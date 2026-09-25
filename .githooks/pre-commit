@@ -56,6 +56,18 @@ if ! python3 "$HERE/../tools/negative_coverage_audit.py" --check >/dev/null; the
     exit 1
 fi
 
+# Capability gate: a case's declared kRequiredCapabilities must match what it
+# actually demands (docs/tech-debt.md TD-22). Three things have to agree — a case
+# declares a bit, a backend advertises it, some path demands it — and every pair of
+# two out of three fails silently. Demanded-but-not-declared is the dangerous
+# direction: the case drives a sub-interface the gate never checked for, which is an
+# assert in a debug build and undefined behaviour under NDEBUG.
+if ! python3 "$HERE/../tools/capability_gate_audit.py" --check >/dev/null; then
+    echo "pre-commit: capability gate FAILED — details:" >&2
+    python3 "$HERE/../tools/capability_gate_audit.py" --check >&2
+    exit 1
+fi
+
 # In-tree pointers: no tracked file may name a private note, a memory/ path, or
 # a .md this repository does not hold (docs/tech-debt.md TD-34). The reader of
 # this public repo must be able to follow every "see X".

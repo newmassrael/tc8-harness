@@ -112,9 +112,39 @@ DECL_RE = re.compile(r"kRequiredCapabilities\s*=\s*([^;]+);", re.S)
 STRUCT_RE = re.compile(
     r"\bstruct\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:<[^>{]*>)?\s*(?::\s*([^{;]+))?\{")
 BASE_NAME_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*<")
+# ⚠ The parameter list tolerates BRACES. It used to be `[^;{]*`, which silently
+# refused to see any helper with a brace-initialised default argument — measured
+# 2026-09-25, `emitStartDhcpClient(IDutControl&, const Dhcpv4StartConfig& c = {})`
+# was invisible, and with it the whole DHCP demand chain every DHCP case reaches the
+# seam through. The audit then reported those cases as declaring a bit they "demand
+# nowhere", which is the opposite of true. Non-greedy plus the `) {` anchor keeps a
+# match from running past the end of one signature into the next.
+# ⚠ The parameter list forbids braces EXCEPT an empty `{}`, and both halves of that
+# were measured on 2026-09-25.
+#
+# Allowing `{}`: it used to forbid every brace, which silently refused to see any
+# helper with a brace-initialised default — `emitStartDhcpClient(IDutControl&, const
+# Dhcpv4StartConfig& c = {})` was invisible, and with it the demand chain every DHCP
+# case reaches the seam through. Those cases were then reported as declaring a bit
+# they "demand nowhere", the opposite of true: 95 findings of pure noise.
+#
+# Forbidding the rest: a permissive `[^;]*?` lets the span cross out of one construct
+# into the next, so `std::chrono::milliseconds(400),` plus a later brace matched as a
+# function named `milliseconds`, whose body then joined the demand chain of every case
+# that mentions a duration — 6 findings became 301. Requiring an `inline`/`template`
+# prefix would also have stopped that, and was tried; it loses 66 real helpers,
+# including the member functions that ARE the seam accessors, so the narrower fix is
+# the parameter list itself.
 FUNC_DEF_RE = re.compile(
     r"^[ \t]*(?:inline\s+|static\s+|constexpr\s+|template\s*<[^>]*>\s*)*"
-    r"[A-Za-z_][A-Za-z0-9_:<>,\s\*&]*?\b([a-z][A-Za-z0-9_]*)\s*\([^;{]*\)\s*(?:const\s*)?\{",
+    # ⚠ The name may NOT be immediately preceded by `::`. A definition in these headers
+    # writes its name unqualified; a qualified CALL nested in an argument list does not,
+    # and that is the difference that stops `std::chrono::milliseconds(400),` followed
+    # by a later brace from matching as a function named `milliseconds` — a phantom
+    # whose "body" is a fragment of the enclosing lambda, which then joined the demand
+    # chain of every case that mentions a duration (measured: 6 findings became 286).
+    r"[A-Za-z_][A-Za-z0-9_:<>,\s\*&]*?(?<!:)\b([a-z][A-Za-z0-9_]*)\s*"
+    r"\((?:[^;{]|\{\})*\)\s*(?:const\s*)?\{",
     re.M,
 )
 
@@ -179,6 +209,18 @@ def helper_bodies() -> dict[str, str]:
     # struct, not from inside it. Scanning only the parent directory missed
     # those and reported 33 ARP cases as declaring a bit they never demand.
     paths = [p for d in SEAM_DIRS for p in sorted(d.glob("*.h"))]
+    # ⚠ `_`-prefixed cases/ headers ONLY, and the exclusions are measured, not stylistic.
+    #
+    # Globbing all of cases/ merges ~800 `stimulus` bodies under one key (bodies are
+    # keyed by FUNCTION NAME and concatenated) and makes every case appear to demand
+    # every bit: 6 findings became 9653. Selecting the struct-less files instead —
+    # which is what `dhcpv4_router_option_egress_common.h`, a shared helper without the
+    # prefix, is — pulls in one file whose text contains a nested multi-line CALL that
+    # FUNC_DEF_RE reads as a definition, and that phantom body then joins the demand
+    # chain of every case mentioning a duration: 286 findings, all spurious.
+    #
+    # So the prefix stays the selector until the demand detector stops being
+    # name-based; that consumer's chain is the known blind spot recorded in TD-22.
     paths += sorted(CASES_DIR.glob("_*.h"))
     for path in paths:
         src = strip_comments(path.read_text(encoding="utf-8"))
@@ -235,6 +277,9 @@ def base_declarations() -> dict[str, tuple[set[str], list[str]]]:
             body = brace_body(src, src.index("{", m.end() - 1))
             decl = DECL_RE.search(body)
             bits = set(BIT_RE.findall(decl.group(1))) if decl else set()
+            # ... and a base that inherits another WITH a bit argument, for the same
+            # reason the case loop does it.
+            bits |= set(BIT_RE.findall(m.group(2) or ""))
             prev_bits, prev_bases = out.get(name, (set(), []))
             out[name] = (prev_bits | bits, prev_bases + bases)
             BASE_BODIES[name] = BASE_BODIES.get(name, "") + body
@@ -282,15 +327,59 @@ def audit() -> tuple[list[str], list[str]]:
         src = strip_comments(path.read_text(encoding="utf-8"))
         structs = list(STRUCT_RE.finditer(src))
         if not structs:
-            findings.append(f"UNRESOLVED: {path.name} declares no traits struct; the gate "
-                            f"cannot resolve its capabilities, so it is a finding, not a pass")
+            # A file in cases/ with no traits struct but WITH function definitions is a
+            # shared helper that simply does not carry the `_` prefix the others use —
+            # `dhcpv4_router_option_egress_common.h` is one, and treating it as an
+            # unresolvable CASE also kept its helpers out of the demand chain, which
+            # then reported its two consumers as declaring a bit they "demand nowhere".
+            # Classified by CONTENT rather than by the naming convention, because a
+            # convention that is only sometimes followed cannot carry a gate.
+            #
+            # ⚠ Still fails closed on the shape that matters: no struct AND no function
+            # definitions is a header the audit genuinely cannot account for, and stays
+            # a finding rather than a silent pass.
+            if FUNC_DEF_RE.search(src):
+                continue
+            findings.append(f"UNRESOLVED: {path.name} declares no traits struct and defines "
+                            f"no helper; the gate cannot account for it, so it is a finding, "
+                            f"not a pass")
             continue
         declared: set[str] = set()
         for m in structs:
             body = brace_body(src, src.index("{", m.end() - 1))
             decl = DECL_RE.search(body)
+            # A case that declares kRequiredCapabilities SHADOWS its base's — that is
+            # what the language does with a static member of the same name, and the
+            # gate reads the most-derived one. Unioning the base's bits in anyway
+            # credits the case with capabilities it deliberately dropped: measured
+            # 2026-09-25, that alone accounted for 95 of 126 OVERDECLARED findings,
+            # every one of them a DHCP case that had already narrowed the family
+            # base's kCapDhcpClientControl to what it actually needs.
+            #
+            # A declaration that NAMES a base's kRequiredCapabilities is the other
+            # shape — `Base<SM>::kRequiredCapabilities | kCapX` — and EXTENDS rather
+            # than shadows, so the base's bits do belong to it.
             if decl:
-                declared |= set(BIT_RE.findall(decl.group(1)))
+                text = decl.group(1)
+                declared |= set(BIT_RE.findall(text))
+                if "kRequiredCapabilities" in text:
+                    declared |= set(BIT_RE.findall(m.group(2) or ""))
+                    for base in BASE_NAME_RE.findall(m.group(2) or ""):
+                        declared |= resolve_declared(base, table)
+                continue
+            # A bit named in the BASE-SPECIFIER is declared by this case: the tree
+            # passes a seam bit as a TEMPLATE ARGUMENT where the base composes it
+            # into kRequiredCapabilities -- `ArpFaultNegUdpBase<SM, kCapIngressFault>`
+            # and `Ipv4ReassemblyFaultNegBase<SM, kCapEgressFault>` are both live.
+            # Reading only the base's own body misses those entirely, because what
+            # stands there is the PARAMETER NAME (`FaultSeam`), not a bit.
+            #
+            # Which parameter it binds to is deliberately not modelled. Nothing in
+            # the tree passes a kCap* to a base for any other purpose, so position
+            # would add a way to be wrong without adding a question it can answer --
+            # and a base that took one for some other reason would show up as an
+            # OVERDECLARED finding rather than as silence.
+            declared |= set(BIT_RE.findall(m.group(2) or ""))
             for base in BASE_NAME_RE.findall(m.group(2) or ""):
                 declared |= resolve_declared(base, table)
         inherited = "".join(
@@ -301,6 +390,15 @@ def audit() -> tuple[list[str], list[str]]:
         for bit in sorted(demanded - declared):
             undeclared.append(f"{path.name}: demands {bit} but does not declare it")
         for bit in sorted(declared - demanded):
+            # A `<case>.h:<bit>` line in the ratchet exempts ONE declaration, for the
+            # shape this audit structurally cannot see: a bit demanded by the VERDICT
+            # path rather than by the stimulus. `UdpAppFaultNegBase`'s receipt question
+            # is asked by the SCXML, so no C++ call names the accessor, yet dropping
+            # the declaration would let the case run on a backend that cannot answer.
+            # Per-declaration rather than per-bit on purpose — exempting a whole bit
+            # would silence every real over-declaration of it too.
+            if f"{path.name}:{bit}" in reserved:
+                continue
             undemanded.append(f"{path.name}: declares {bit} but demands it nowhere")
 
     findings += [f"UNDECLARED: {x}" for x in undeclared]
@@ -358,6 +456,28 @@ def _self_test() -> int:
          resolve_declared("X", {"X": ({"kCapUdpControl"}, ["Missing"])}) == {"kCapUdpControl"}),
         ("every defined bit has a demand vocabulary",
          set(defined_bits()) - set(BIT_DEMANDS) - set(read_ratchet()) == set()),
+
+        # ---- the two DECLARATION shapes this tree actually uses (TD-22) ----------
+        # Both are live, both were invisible to the first version of this audit, and
+        # each one alone accounted for a block of findings that were not real.
+        ("a capability passed as a TEMPLATE ARGUMENT is a declaration",
+         "kCapIngressFault" in set(BIT_RE.findall(
+             "ArpFaultNegUdpBase<cases::Arp22NegSM, ::tc8::sce::kCapIngressFault>"))),
+        ("a declaration NAMING its base extends it",
+         "kRequiredCapabilities" in
+         "Base<SM>::kRequiredCapabilities | ::tc8::sce::kCapTcpSynSentOpen"),
+        ("a declaration NOT naming its base shadows it",
+         "kRequiredCapabilities" not in "::tc8::sce::kCapLinkLocalControl"),
+
+        # ---- what FUNC_DEF_RE must and must not read as a definition -------------
+        ("a helper with a brace-initialised default is seen",
+         "emitStartDhcpClient" in {m.group(1) for m in FUNC_DEF_RE.finditer(
+             "inline bool emitStartDhcpClient(IDutControl& d,\n"
+             "                                const Cfg& c = {}) {\n  body();\n}\n")}),
+        ("a qualified CALL is not read as a definition",
+         "milliseconds" not in {m.group(1) for m in FUNC_DEF_RE.finditer(
+             "        f(\n            std::chrono::milliseconds(400),\n"
+             "            [&] {\n                g();\n            });\n")}),
     ]
     failed = [label for label, ok in cases if not ok]
     for label in failed:

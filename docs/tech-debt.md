@@ -1399,8 +1399,43 @@ the opcode DUT.
 
 ## TD-22 — nothing proves a declared capability bit is ever demanded, or an advertised one ever reachable
 
-**Status:** OPEN. **Logged:** 2026-09-23, after two capability-declaration passes (TD-19 and
-the ARP pass before it) each found the gap by hand.
+**Status:** RESOLVED (2026-09-25). **Logged:** 2026-09-23, after two capability-declaration
+passes (TD-19 and the ARP pass before it) each found the gap by hand.
+
+**How it was repaid.** `tools/capability_gate_audit.py` joins the three sides, carries an
+18-check `--self-test`, gates `pre-commit` and `build-test.yml`, and is green with two ratchet
+lines, both argued in `tools/capability_gate_reserved.txt`.
+
+**Six real findings, all of the dangerous direction**, and all fixed:
+`TCP_FLAGS_INVALID_03_NEG/_04_NEG/_05_NEG/_05_NEG2`, `TCP_FLAGS_PROCESSING_08_NEG3` and
+`TCP_SEQUENCE_02_NEG` call `driveSeamSynSentOpen` — a non-establishing active open left in
+SYN-SENT, its own sub-interface — while declaring only what their base declares. Two of the six
+reach it through a shared `_neg_common` helper, so a direct grep would not have found them.
+Declared per-case rather than by widening the base (1 of that base's 15 users needs it, 3 of
+another's 38) and written as `Base<SM>::kRequiredCapabilities | …` so the two cannot drift. All
+six still pass on lwip-tap.
+
+**Three of the four defects were the AUDIT's**, which is why its first output could not be
+believed:
+
+| defect | findings it invented |
+|---|---|
+| a capability passed as a TEMPLATE ARGUMENT (`ArpFaultNegUdpBase<SM, kCapIngressFault>`) was invisible — the base's body holds the PARAMETER name | 41 false UNDECLARED, masking the 6 real ones |
+| a derived declaration was UNIONED with its base's, where C++ SHADOWS | 8 false OVERDECLARED |
+| a helper with a brace-initialised default (`const Cfg& c = {}`) was invisible, and with it the whole DHCP demand chain | 95 false OVERDECLARED |
+
+⚠ **Two attempted fixes were worse than the defect, and only counting caught them.** Feeding
+every `cases/*.h` into the helper table merged ~800 `stimulus` bodies under one key — bodies are
+keyed by function NAME — and made every case appear to demand every bit: 6 findings became
+9653. Requiring an `inline`/`template` prefix on a definition dropped the count to 2, which
+looked like success and was blindness: it lost 66 real helpers, including the member functions
+that ARE the seam accessors. The rule that holds is narrower and principled — a definition's
+name is not immediately preceded by `::`, so `std::chrono::milliseconds(400),` spanning into a
+later brace stops matching as a function whose "body" is a fragment of the enclosing lambda.
+
+⚠ Also corrected here: an earlier note in this entry read the census line "traits structs
+resolved: 41" as 41 of 806 CASES resolving. 41 is the number of traits BASES; cases are resolved
+per file. The real causes are the three above.
 
 **What it is.** `src/sce_integration/include/sce_integration/dut_capabilities.h` defines
 thirteen bits. Three independent things must agree for one to mean anything: a case declares it
@@ -1433,21 +1468,6 @@ accessors it reaches through the include graph, and require the two to agree; se
 require every defined bit to be advertised by at least one backend and demanded by at least
 one call site, with an explicit ratchet line for a bit deliberately reserved ahead of its
 backend. Fail closed — a header the audit cannot resolve is a finding, not a pass.
-
-⚠ **A first attempt exists and its output must not be quoted.** `tools/capability_gate_audit.py`
-was written on 2026-09-24 and is deliberately NOT gated. Re-run on 2026-09-25 it reports 168
-findings, and they are mostly an artefact of the resolver rather than the tree: it resolves 41
-traits structs out of 806 case headers, because it reads a `kRequiredCapabilities` written in
-the case header itself and most cases INHERIT theirs from a traits base. Its first finding,
-`arp_22_neg.h demands kCapIngressFault but does not declare it`, is false — that case declares
-it through `ArpFaultNegUdpBase<…, kCapIngressFault>`.
-
-That base is the shape the audit has to learn: a capability arriving as a TEMPLATE ARGUMENT,
-which the repository uses deliberately (`Ipv4ReassemblyFaultNegBase` does the same) precisely
-so the seam bit is named at each consumer rather than defaulted. Resolving it means following
-the base list and substituting arguments, not grepping the header — which is the "whole-tree
-question" this entry already says the two hand passes got wrong. The tool is a third instance
-of that, caught before it was believed rather than after.
 
 **Done when:** `tools/` holds that audit with a `--self-test` proving each direction fires, it
 resolves a capability inherited from a base and one passed as a template argument (both shapes

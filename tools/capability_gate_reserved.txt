@@ -1,0 +1,18 @@
+# Capability-gate ratchet (tools/capability_gate_audit.py, docs/tech-debt.md TD-22).
+#
+# Two kinds of line, both `<key> <why>`:
+#
+#   kCapX            <why>   a BIT that is defined but not yet advertised by any
+#                            backend, or has no demand vocabulary — a capability
+#                            reserved ahead of the backend that will answer it.
+#   <case>.h:kCapX   <why>   ONE case's declaration of one bit that the audit
+#                            cannot see demanded. Per-declaration, never per-bit:
+#                            exempting the bit would silence every real
+#                            over-declaration of it as well.
+#
+# ⚠ A line here is an argument, not a mute. It says the audit is structurally
+# unable to see something that IS true, and names what. "The finding is noisy" is
+# not a reason; fixing the detector, or the declaration, is.
+
+udp_fields_12_neg.h:kCapUdpReceiveControl   the receipt question is asked by the SCXML verdict path, not by a C++ call, so no stimulus names the accessor — but a backend that cannot answer it must still skip the case, which is why UdpAppFaultNegBase declares it for every member (see its comment: the declaration cannot wait for a run to demand it)
+udp_fields_12_neg2.h:kCapUdpReceiveControl  as udp_fields_12_neg.h — same base, same verdict-path demand

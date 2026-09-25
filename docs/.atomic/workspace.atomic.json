@@ -3668,10 +3668,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/sce_integration/include/sce_integration/cases/dhcpv4_router_option_egress_common.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/include/sce_integration/cases/ipv4_autoconf_intro_01.h",
           "kind": "implements"
         },
@@ -3702,6 +3698,10 @@
         {
           "file": "src/sce_integration/include/sce_integration/udp_captured.h",
           "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/cases/_dhcpv4_router_option_egress_common.h",
+          "kind": "references"
         }
       ]
     },

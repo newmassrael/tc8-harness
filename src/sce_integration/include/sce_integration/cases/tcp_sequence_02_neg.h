@@ -34,6 +34,14 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::TcpSequence02NegSM>
     : TcpEgressFaultNegDrivenBase<cases::TcpSequence02NegSM> {
+    // `driveSeamSynSentOpen` leaves the DUT in SYN-SENT WITHOUT establishing, which is
+    // its own sub-interface — the base declares the TCP data plane and the fault seam,
+    // not this one. Only 1 of that base's 15 users needs it, so it is declared here
+    // rather than widened into the base. Extended from the base's value rather than
+    // restated, so the two cannot drift (docs/tech-debt.md TD-22).
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        TcpEgressFaultNegDrivenBase<cases::TcpSequence02NegSM>::kRequiredCapabilities |
+        ::tc8::sce::kCapTcpSynSentOpen;
     static constexpr std::string_view kCaseId       = "TCP_SEQUENCE_02_NEG";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_SEQUENCE_02: the lwIP kTcpFaultPureAckNumWrong egress "

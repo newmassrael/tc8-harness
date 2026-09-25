@@ -33,6 +33,12 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::TcpFlagsInvalid05NegSM>
     : TcpIngressFaultNegDrivenBase<cases::TcpFlagsInvalid05NegSM> {
+    // `driveSeamSynSentOpen` is its own sub-interface (a non-establishing active open
+    // left in SYN-SENT), reached here through the shared _neg_common helper rather than
+    // called directly — which is why it went unnoticed. See docs/tech-debt.md TD-22.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        TcpIngressFaultNegDrivenBase<cases::TcpFlagsInvalid05NegSM>::kRequiredCapabilities |
+        ::tc8::sce::kCapTcpSynSentOpen;
     static constexpr std::string_view kCaseId       = "TCP_FLAGS_INVALID_05_NEG";
     static constexpr std::string_view kDescription  =
         "Self-validation of TCP_FLAGS_INVALID_05 phase 1: the lwIP kTcpDropDisruptiveRst "

@@ -176,7 +176,7 @@ def audit_case(name: str) -> CaseReport:
 
 def all_case_names() -> list[str]:
     """Registered cases only. A shared helper header (e.g.
-    dhcpv4_router_option_egress_common.h, included by CM_05/_06) carries no
+    _dhcpv4_router_option_egress_common.h, included by CM_05/_06) carries no
     `TC8_REGISTER_CASE` and is not a case, so it is excluded — the macro is the
     authoritative registration signal."""
     names = []
