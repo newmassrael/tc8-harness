@@ -609,6 +609,14 @@ fn run_case_impl(
         args.push("--expect".to_string());
         args.push(format!("arp_stimulus.ut_cache_conditioning_s={t}"));
     }
+    // The DUT's second address, when this topology provisions one. Absent, the
+    // harness advertises no kCapSecondaryDutAddress and a case needing it is
+    // capability-skipped rather than left to report a non-conclusion for a premise
+    // nothing declared (docs/tech-debt.md TD-25).
+    if topo.dut_has_secondary_address() {
+        args.push("--expect".to_string());
+        args.push(format!("dut.secondary_ip={}", cfg.dut_alias_ip4));
+    }
     // This invocation IS the case's negative row: the harness appends the authored
     // flip after every --expect above and asserts the guard reacts. Suppresses the
     // positive expect_overrides (which describe the positive run) so they cannot

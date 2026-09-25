@@ -155,6 +155,11 @@ TC8_EXPECT_KEY(arp, IPV4, tester_linklocal_ip)
 // --- DUT wire identity (DutIdentity, "dut." prefix) -------------------------
 TC8_EXPECT_KEY(dut, IPV4, ip)
 TC8_EXPECT_KEY(dut, MAC,  mac)
+// A second address the DUT answers on, or absent for a DUT that has one. The
+// topology that provisions it emits this; a case needing it declares
+// kCapSecondaryDutAddress and is capability-skipped where it is absent
+// (docs/tech-debt.md TD-25).
+TC8_EXPECT_KEY(dut, IPV4, secondary_ip)
 
 // --- ARP stimulus knobs (ArpStimulusConfig, "arp_stimulus." prefix) ---------
 TC8_EXPECT_KEY(arp_stimulus, U16, ut_cache_conditioning_s)

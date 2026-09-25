@@ -46,9 +46,17 @@ std::unique_ptr<IDutControl> makeDutControl(const ::tc8::TestConfig &cfg, std::s
     raw.iface = std::string(iface);
     raw.tester_ip_be = cfg.ipv4.tester_ip;
     raw.dut_mac = cfg.dut.mac;
+    // The one capability the TOPOLOGY answers rather than the backend or the DUT
+    // firmware: whether the DUT holds a second address. Both DUTs speak this
+    // backend, and the 0x16 bitmap is defined over opcodes, so neither of the other
+    // two axes can express it — the topology emits `dut.secondary_ip` or does not,
+    // and a case that needs one is capability-skipped where it is absent rather
+    // than reporting a standing non-conclusion (docs/tech-debt.md TD-25).
+    const DutCapabilities topology_caps =
+        (cfg.dut.secondary_ip != 0U) ? kCapSecondaryDutAddress : DutCapabilities{0};
     return std::make_unique<OpcodeUtControl>(dut_ip_be, ut::kPort, /*src_ip_be=*/0, timeout_ms,
                                              /*cap_probe_src_ip_be=*/cfg.ipv4.tester_alias_ip,
-                                             std::move(raw));
+                                             std::move(raw), topology_caps);
 }
 
 }  // namespace tc8::sce

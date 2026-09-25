@@ -3,9 +3,24 @@
 # the single source of the sweep selection, consumed verbatim by
 # dut/lwip_dut/README.md ("Running the sweep") and
 # .github/workflows/lwip-sweep.yml. Selection = every case the fixture
-# can meaningfully pass: the per-platform overrides ledger drops
+# is ASKED to run: the per-platform overrides ledger drops
 # expected:false (UT opcode / SOME/IP responder gaps) and
 # platform_known_fail (verified lwIP stack deviations).
+#
+# "Asked", not "can pass", and the difference is one row. A case whose
+# premise is a DECLARED CAPABILITY stays on this list and is declined at
+# RUN time by the gate (UDP_USER_INTERFACE_07 needs a second DUT address;
+# the fixture runs one netif, so it reports skip:requires_capability_*).
+# Keeping it here is deliberate: a drop is frozen bookkeeping that a
+# fixture gaining the capability would not undo, while the gate re-asks
+# every run and starts exercising the case the day the premise holds.
+# Listing it in BOTH places would be the duplicate that drifts.
+#
+# ⚠ The split between "dropped here" and "declined at run time" is
+# HISTORICAL, not principled: several expected:false reasons above are
+# themselves missing UT opcodes, which is exactly what the 0x16
+# DUT-derived capability axis reports. They predate the gate and have no
+# capability declaration yet (docs/tech-debt.md TD-25).
 #
 # The category filter exists because the SOME/IP families (SOMEIPSRV_*,
 # SOMEIP_ETS_*) test an application-layer stack the lwIP DUT does not

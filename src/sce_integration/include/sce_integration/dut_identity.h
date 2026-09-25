@@ -27,6 +27,23 @@ namespace tc8 {
 struct DutIdentity {
     std::array<std::uint8_t, 6> mac{};
     std::uint32_t ip = 0;
+    // A SECOND address the DUT answers on, network byte order, or 0 for a DUT
+    // that has only `ip`. A topology fact like the two above and populated the
+    // same way (`--expect dut.secondary_ip=<dotted>`), declared by the topology
+    // that provisions the alias rather than compiled into the case that needs it.
+    //
+    // It exists because a case can REQUIRE it: §4.6.5.5 UDP_USER_INTERFACE_07
+    // proves the DUT honours a caller-specified source address, which needs the
+    // DUT to HAVE a second one. The netns topologies alias 172.16.0.5 onto the
+    // DUT veth; the lwIP fixture runs one netif with one address and cannot.
+    // Leaving that premise compiled into the case made the fixture report a
+    // standing non-conclusion instead of an honest skip (docs/tech-debt.md TD-25).
+    //
+    // ⚠ Deliberately NOT `ipv4.dut_alias_ip`, which looks like the same value and
+    // is not: that one is an EXPECTATION a `--negative` row flips to prove the
+    // guard is load-bearing. Deriving a capability from a field a negative row
+    // rewrites would let a row silently change which cases run.
+    std::uint32_t secondary_ip = 0;
 };
 
 }  // namespace tc8

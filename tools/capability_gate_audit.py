@@ -69,10 +69,19 @@ CASES_DIR = ROOT / "src/sce_integration/include/sce_integration/cases"
 SEAM_DIRS = [ROOT / "src/sce_integration/include/sce_integration"]
 RATCHET = ROOT / "tools" / "capability_gate_reserved.txt"
 
-# Backends that build a capability word. A bit named by none of these is
+# Places that build a capability word. A bit named by none of these is
 # advertised by nothing.
+#
+# ⚠ This was ONE file until 2026-09-25, and the reason it grew is worth keeping:
+# a capability word is no longer assembled in a single place. The backend-static
+# and DUT-derived bits are both decided inside `dut_control.h`, because both are
+# facts a backend knows about itself. `kCapSecondaryDutAddress` is neither -- its
+# input is the TOPOLOGY, which the backend cannot see and is handed at
+# construction -- so the factory is genuinely a second site that builds a word,
+# not a loophole for one bit (docs/tech-debt.md TD-25).
 BACKEND_FILES = [
     ROOT / "src/sce_integration/include/sce_integration/dut_control.h",
+    ROOT / "src/harness/dut_control_factory.cpp",
 ]
 
 # bit -> the tokens whose presence means "this code demands that sub-interface".
@@ -97,6 +106,14 @@ BIT_DEMANDS = {
     "kCapIngressFault": {"emitIngressFlavorArm", "emitIngressFlavorArmMidStream"},
     "kCapAppFault": {"emitAppFlavorArm"},
     "kCapEtsFault": {"emitEtsFlavorArm"},
+    # The one bit whose demand is a VALUE rather than a seam call. Every other
+    # entry here names an accessor, because every other capability is a mechanism
+    # the DUT either implements or does not. This one is a DUT property -- it holds
+    # a second address or it does not -- and the only thing a case can do with that
+    # property is NAME the address. So the demand token is the alias constant; a
+    # case that passes it as a source override is asking for the second address by
+    # the only means the ask has (docs/tech-debt.md TD-25).
+    "kCapSecondaryDutAddress": {"kDutAliasIp4Be"},
 }
 
 BIT_RE = re.compile(r"\b(kCap[A-Za-z]+)\b")

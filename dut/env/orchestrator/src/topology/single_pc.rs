@@ -75,6 +75,14 @@ impl Topology for SinglePc<'_> {
     fn ut_arp_cache_timeout(&self) -> Option<String> {
         self.dut.ut_arp_cache_timeout()
     }
+    fn dut_has_secondary_address(&self) -> bool {
+        // `dut/env/setup-netns.sh` aliases DUT_ALIAS_IP onto the DUT veth alongside
+        // its primary, which is what lets §4.6.5.5 UDP_USER_INTERFACE_07 ask the DUT
+        // to emit from a caller-chosen source. A fact about this TRANSPORT, not about
+        // the DUT lifecycle riding it — the netns pair provisions the alias whichever
+        // DUT is spawned into it (docs/tech-debt.md TD-25).
+        true
+    }
     fn rebuild_netns_per_case(&self) -> bool {
         // The transport owns and REUSES a per-worker netns pair across the bucket, so
         // it MUST rebuild between cases (bash TOPOLOGY_DUT_CONDITIONING=1).

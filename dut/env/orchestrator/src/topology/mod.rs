@@ -229,6 +229,28 @@ pub trait Topology {
     fn ut_arp_cache_timeout(&self) -> Option<String> {
         None
     }
+    /// Whether this topology's DUT answers on a SECOND address. `true` makes dispatch
+    /// emit a global `--expect dut.secondary_ip=<cfg.dut_alias_ip4>`, from which the
+    /// harness advertises `kCapSecondaryDutAddress`.
+    ///
+    /// The topology states the FACT and the config supplies the VALUE, so a site that
+    /// overrides `dut_alias_ip` moves both together and neither has to know the other.
+    ///
+    /// It exists because a case can REQUIRE one: §4.6.5.5 UDP_USER_INTERFACE_07
+    /// grades whether the DUT honours a caller-specified source address, which is
+    /// unaskable of a DUT with nothing to choose between. The netns topologies alias
+    /// 172.16.0.5 onto the DUT veth (`dut/env/setup-netns.sh`); the lwIP fixture runs
+    /// one netif and cannot, and used to report a standing non-conclusion for a
+    /// premise nothing had declared (docs/tech-debt.md TD-25).
+    ///
+    /// ⚠ A TOPOLOGY fact, not a backend or firmware one: both DUTs speak the same
+    /// opcode backend, and the 0x16 capability bitmap is defined over opcodes, so
+    /// neither of those axes can carry it. Default `false` — a topology that provides
+    /// an alias must say so, and one that stays silent loses only the cases that
+    /// need it, which is the safe direction.
+    fn dut_has_secondary_address(&self) -> bool {
+        false
+    }
     /// Whether the orchestrator rebuilds this worker's netns before EVERY case —
     /// bash run_case's `TOPOLOGY_DUT_CONDITIONING`-gated per-case tear-down +
     /// bring-up (smoke-test.sh). `true` only for a topology that OWNS and REUSES a

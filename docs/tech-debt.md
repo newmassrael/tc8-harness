@@ -1695,7 +1695,10 @@ than by the comment that used to stand in for it.
 
 ## TD-25 — the lwIP fixture has one address, and the case that needs a second one reports as a non-conclusion
 
-**Status:** OPEN. **Logged:** 2026-09-23, the other non-conclusion in the same sweep.
+**Status:** RESOLVED (2026-09-25). **Logged:** 2026-09-23, the other non-conclusion in
+the same sweep. The entry below is the debt as logged, including an audit note that this
+resolution REFUTES; **Resolution** at its end records what closed it and where that note
+was wrong.
 
 **What it is.** `UDP_USER_INTERFACE_07` proves the DUT honours a caller-specified source
 address, which needs the DUT to HAVE a second one: the netns topology supplies the alias
@@ -1748,6 +1751,59 @@ per-platform bookkeeping rather than something a DUT not yet written can decline
 **Done when:** a run of the lwIP sweep reports zero non-conclusions for this case — because it
 passes, because the gate skipped it on a declared capability, or because the ledger no longer
 offers it — and `dut/lwip_dut/sweep-cases.sh` again emits only what the fixture can pass.
+
+**Resolution.** The capability, and the audit note above that priced it at a fourth
+resolution axis was wrong.
+
+- **There is no fourth axis, because the backend never had to KNOW the fact.** The note
+  reasoned over who can OBSERVE a capability — the backend class, or the DUT through 0x16 —
+  and correctly found that neither can observe a second address. What it missed is that a
+  backend-static word is ASSEMBLED AT CONSTRUCTION, so the third axis already accepts facts
+  the backend is TOLD. `OpcodeUtControl` takes a `topology_caps` word and ORs it into
+  `staticCapabilities()`; the factory decides it. The axis count is unchanged at three, and
+  what grew is the set of INPUTS to one of them. `dut_capabilities.h` says so at the bit.
+- **The premise became configured, which the note did name as an honest shape.**
+  `Topology::dut_has_secondary_address()` (default `false`; `single_pc` returns `true`, and
+  the comment there records that it is a fact about the netns TRANSPORT, since the pair
+  provisions the alias whichever DUT is spawned into it) makes `dispatch.rs` emit
+  `--expect dut.secondary_ip`, which lands in `DutIdentity::secondary_ip`.
+- ⚠ **`cfg.ipv4.dut_alias_ip` was rejected as the discriminator, and this is the trap to
+  keep.** It holds the same address and was already in the config, so it reads like the
+  obvious source — but its own header says it is an EXPECTATION, the value a `--negative`
+  row is allowed to FLIP. Deriving a capability from it would let a negative row silently
+  revoke a capability, which is a hole, not a shortcut. Identity and expectation are
+  separate fields for this reason, and the new field is an identity.
+
+Measured 2026-09-25, both directions, because a capability that skips everywhere is
+indistinguishable from one that works:
+
+- **lwip-tap** — `SKIP UDP_USER_INTERFACE_07 — skip:requires_capability_0x2000_unavailable_on_opcode-ut`.
+  The standing non-conclusion is now a skip that names the bit it lacks.
+- **single-pc** (exit 0) — `PASS UDP_USER_INTERFACE_07`, and `PASS UDP_FIELDS_12`,
+  `UDP_USER_INTERFACE_02`, `UDP_USER_INTERFACE_08` beside it. The three neighbours share
+  `UdpDutOriginatedBase`, so they prove the declaration EXTENDED that base's value for one
+  case rather than widening the base — a widened base would have skipped all four here.
+- `capability_gate_audit.py --check`: 14 bits defined, 14 advertised, 14 with a demand
+  vocabulary, 0 undeclared demands, 0 declarations with no demand. The last number is the
+  one that proves the new demand is SEEN: the token is the alias constant `kDutAliasIp4Be`,
+  and had the audit not matched it, the declaration would have reported as OVERDECLARED.
+- The audit's `BACKEND_FILES` grew from one file to two, which is the shape of the change
+  rather than an exemption for it: a capability word is no longer assembled in one place.
+
+**The second done-when clause was answered by correcting the CONTRACT, not the list.** The
+sweep still offers the case; the gate declines it at run time. Dropping it into
+`inventory_overrides.json` instead would have put the same premise in two places, and the
+two would drift — a list drop is frozen bookkeeping that a fixture GAINING the capability
+would not undo, while the gate re-asks every run and starts exercising the case the day the
+premise holds. So `sweep-cases.sh` now says it emits every case the fixture is ASKED, names
+both dispositions, and records that the split between them is historical: several
+`expected:false` reasons in that ledger are themselves missing UT opcodes, which is exactly
+what the 0x16 axis reports, and they simply predate the gate.
+
+⚠ **Residue, stated rather than hidden:** the alias VALUE is still compiled twice — the C++
+constant and the SCXML `0x050010ACU` literal — while its PRESENCE is now a topology fact.
+A topology declaring a DIFFERENT second address satisfies the capability and then fails the
+guard. Registered as TD-48.
 
 ---
 
@@ -2967,3 +3023,41 @@ per-case-shape and covers all 163 the sweep runs; and a deliberately un-armed ne
 to red — MET in the equivalent form the tree allows: the classification boundary is pinned by a
 unit test and the capability-skip path was run end-to-end to show it is untouched, which is what
 "shown" can mean without authoring a deliberately broken case the suite would then have to carry.
+
+---
+
+## TD-48 — the DUT's second address is declared by the topology and compiled by the case, and nothing checks they agree
+
+**Status:** OPEN. **Logged:** 2026-09-25, as the stated residue of TD-25.
+
+**What it is.** `UDP_USER_INTERFACE_07` now asks for its premise the right way — it declares
+`kCapSecondaryDutAddress`, and the gate skips it on a DUT that holds one address. But the
+capability answers only the PRESENCE of a second address. Its VALUE is compiled, in two places:
+`kDutAliasIp4Be` (172.16.0.5) in `udp_pilot_common.h`, which the stimulus passes as the
+`OpTriggerSendUdp` source override, and the literal `0x050010ACU` in the case's SCXML, which
+gates the pass branch on an exact match.
+
+So a topology that provisions a second DUT address at a DIFFERENT value satisfies the capability,
+is handed the case, asks the DUT to emit from 172.16.0.5, and grades the answer against
+172.16.0.5 — which the DUT does not hold. The DUT behaves correctly and the case reports
+`fail_wrong_src_ip_or_port`.
+
+**Why it exists.** The address was a fixture constant before any of this: one topology existed,
+it aliased one address, and a constant was the honest shape. TD-25 made the PRESENCE
+configurable because that is what the gate needed, and stopped there rather than half-teaching
+the SCXML to compare against an expectation — a larger and separate change.
+
+**Risk if left.** A false FAIL, which is the expensive direction: it accuses a conforming DUT.
+It cannot fire today, because the only topology that declares the capability is the one that
+aliases exactly this address, so the two agree by coincidence rather than by construction. The
+day a second such topology exists, the failure appears in a case that looks unrelated to it.
+
+**Textbook fix.** Make the value follow the declaration. `dut.secondary_ip` already carries it
+to the harness, so the stimulus can pass `cfg.dut.secondary_ip` instead of the constant, and the
+SCXML can compare against an expectation key rather than a literal — the same shape every other
+address-valued assertion in the tree already uses. The constant then survives only as the netns
+topology's own value, in the one file that provisions it.
+
+**Done when:** no compiled literal names the DUT alias on the assertion path — the stimulus
+sources it from config and the SCXML from an expectation — and a topology declaring a different
+secondary address is shown to pass the case rather than fail it.

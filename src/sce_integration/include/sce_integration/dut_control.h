@@ -739,12 +739,18 @@ public:
     // the tester ALIAS, so the probe's UT response is answerable from the DUT's
     // already-warm alias ARP entry and the §4.2 cold-cache primary stays cold
     // (see makeDutControl). 0 = kernel-chosen, like the data-plane src.
+    // `topology_caps` carries the bits the TOPOLOGY declares rather than the
+    // backend class — today just kCapSecondaryDutAddress, which the factory sets
+    // when the topology emitted a `dut.secondary_ip`. Both DUTs speak this same
+    // backend, so a fact that differs between them cannot be a constant here
+    // (docs/tech-debt.md TD-25).
     explicit OpcodeUtControl(std::uint32_t dut_ip_be, std::uint16_t port = ut::kPort,
                              std::uint32_t src_ip_be = 0, int timeout_ms = 1000,
                              std::uint32_t cap_probe_src_ip_be = 0,
-                             OpcodeRawTransport raw = {})
+                             OpcodeRawTransport raw = {},
+                             DutCapabilities topology_caps = 0)
         : dut_ip_be_(dut_ip_be), port_(port), src_ip_be_(src_ip_be), timeout_ms_(timeout_ms),
-          cap_probe_src_ip_be_(cap_probe_src_ip_be),
+          cap_probe_src_ip_be_(cap_probe_src_ip_be), topology_caps_(topology_caps),
           tcp_ctrl_(dut_ip_be, port, src_ip_be, timeout_ms),
           state_probe_(dut_ip_be, port, src_ip_be,
                        timeout_ms < kStateProbeTimeoutMs ? timeout_ms : kStateProbeTimeoutMs),
@@ -777,7 +783,7 @@ public:
         return static_cast<DutCapabilities>(
             kCapTcpControl | kCapUdpControl | kCapTcpStateProbe | kCapTcpSynSentOpen |
             kCapTcpRecvOob | kCapDhcpClientControl | kCapLinkLocalControl |
-            kCapUdpReceiveControl | kCapArpConditioning);
+            kCapUdpReceiveControl | kCapArpConditioning | topology_caps_);
     }
 
     DutCapabilities capabilities() const override {
@@ -874,6 +880,7 @@ private:
     std::uint32_t src_ip_be_;
     int timeout_ms_;
     std::uint32_t cap_probe_src_ip_be_;  // alias source for the 0x16 cap probe
+    DutCapabilities topology_caps_;      // bits the topology declares, not the backend
     // DUT-derived fault caps (axis 2) + resolution state, lazily filled by
     // resolveCaps16() and cached.
     mutable bool caps16_done_ = false;       // resolution attempted

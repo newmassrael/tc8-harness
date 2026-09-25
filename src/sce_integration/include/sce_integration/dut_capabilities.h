@@ -65,6 +65,21 @@ enum DutCapability : std::uint32_t {
     // IUdpReceiveControl), so a case needing it skips there rather than sitting
     // out its listen window.
     kCapUdpReceiveControl = 1u << 12,
+    // The DUT answers on a SECOND address (`TestConfig::dut.secondary_ip`), which
+    // §4.6.5.5 UDP_USER_INTERFACE_07 needs in order to ask it to emit from one.
+    //
+    // Backend-STATIC like the two above, and resolved from the topology's own
+    // declaration rather than from the backend class: both the netns reference DUT
+    // and the lwIP fixture speak the same opcode backend, so the backend alone
+    // cannot tell them apart. The factory reads the address the topology emitted
+    // and advertises this bit when there is one.
+    //
+    // ⚠ Not a DUT-derived bit. That axis is the OpQueryCapabilities (0x16) bitmap,
+    // which is defined over the OPCODE value space — bit (opcode % 8) of byte
+    // (opcode / 8) — so it can say which operations a DUT implements and nothing
+    // about what addresses it holds. Adding a property there would make the bitmap
+    // mean two things (docs/tech-debt.md TD-25).
+    kCapSecondaryDutAddress = 1u << 13,
 };
 using DutCapabilities = std::uint32_t;
 

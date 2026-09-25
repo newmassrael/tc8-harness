@@ -2988,6 +2988,22 @@
         {
           "file": "include/tc8/upper_tester_fault_catalog.h",
           "kind": "references"
+        },
+        {
+          "file": "dut/env/orchestrator/src/topology/mod.rs",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/env/orchestrator/src/topology/single_pc.rs",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/dut_identity.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/dut_capabilities.h",
+          "kind": "references"
         }
       ]
     },
