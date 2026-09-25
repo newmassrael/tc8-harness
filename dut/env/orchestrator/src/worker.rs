@@ -75,6 +75,19 @@ pub struct WorkerResult {
     pub worker_error: Option<String>,
 }
 
+/// Is this case id a fault-injection NEGATIVE — `<base>_NEG` or `<base>_NEG<n>`?
+///
+/// The suffix is the whole discriminator, deliberately: the harness registers a
+/// negative as an ordinary case, so there is no flag on the wire that says "this one
+/// is a negative", and the naming is already the convention every register in the tree
+/// keys on (`tools/negative_coverage_audit.py` splits the same way). Case-insensitive
+/// because the orchestrator takes case ids as the user typed them.
+fn is_negative_case(case: &str) -> bool {
+    let upper = case.to_uppercase();
+    let Some(idx) = upper.rfind("_NEG") else { return false };
+    upper[idx + "_NEG".len()..].chars().all(|c| c.is_ascii_digit())
+}
+
 /// Round-robin the cases into `workers` buckets — bash `distribute` (`i % WORKERS`).
 /// Precondition: `workers >= 1` (the caller clamps to the schedule size and clap
 /// enforces `range(1..)`); asserted here so the modulo can never divide by zero.
@@ -257,6 +270,30 @@ fn run_worker(
                 r.skips.push(Skip { case: case.clone(), reason: reason.clone() });
                 (Status::Skip, reason)
             }
+            // A NEGATIVE that did not conclude is a hard failure, unlike every other
+            // case, because of what a negative is FOR. Its whole job is to reach a
+            // guard and prove a fault fires there; a run that never reached it
+            // demonstrates nothing, and the exhaustiveness ledger goes on counting
+            // that guard as proven checkable on the strength of a case that has
+            // silently stopped checking it (docs/tech-debt.md TD-47).
+            //
+            // ⚠ This is NOT the capability skip. Those arrive as Verdict::Skip with
+            // `skip:requires_capability_…` — measured 2026-09-25, the six lwIP-only
+            // negatives on the Linux lane all land there — so an lwIP-only negative
+            // sitting out a run it cannot drive is untouched by this.
+            //
+            // ⚠ Safe to gate because the population was measured first: all 163
+            // negatives the lwIP sweep runs PASS, with zero non-conclusions, so this
+            // turns nothing green into red today. It exists to catch the first one
+            // that regresses.
+            Ok(Verdict::NonConclusion(reason)) if is_negative_case(case) => {
+                let reason = format!(
+                    "negative did not exercise its guard, so it proves nothing: {reason}"
+                );
+                println!("[w{w}] FAIL {case} — {reason}");
+                r.fails.push(case.clone());
+                (Status::Fail, reason)
+            }
             Ok(Verdict::NonConclusion(reason)) => {
                 println!("[w{w}] SKIP* {case} — {reason}  (non-conclusion)");
                 r.nonconclusions.push(Skip { case: case.clone(), reason: reason.clone() });
@@ -314,6 +351,22 @@ mod tests {
 
     fn cases(n: usize) -> Vec<String> {
         (0..n).map(|i| format!("C{i}")).collect()
+    }
+
+    #[test]
+    fn negative_case_detection_matches_the_registers_naming() {
+        // The shapes the tree actually uses.
+        assert!(is_negative_case("ARP_34_NEG"));
+        assert!(is_negative_case("ARP_34_NEG2"));
+        assert!(is_negative_case("IPv4_REASSEMBLY_10_NEG4"));
+        assert!(is_negative_case("arp_34_neg"));  // ids arrive as the user typed them
+        // Positives, including ones whose NAME contains the letters.
+        assert!(!is_negative_case("ARP_34"));
+        assert!(!is_negative_case("TCP_UNACCEPTABLE_08"));
+        // `_NEG` must END the id: a suffix after it is a different case, and
+        // mis-classifying one would make an ordinary non-conclusion a hard failure.
+        assert!(!is_negative_case("ARP_34_NEG_EXTRA"));
+        assert!(!is_negative_case("ARP_NEGOTIATION_01"));
     }
 
     #[test]

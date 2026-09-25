@@ -2852,8 +2852,42 @@ seeded before its first control exchange. Neither exists here, which is why this
 
 ## TD-47 — a `_NEG` that never reaches its stage reports green, and today's rule enlarged that
 
-**Status:** OPEN. **Logged:** 2026-09-25, splitting the half of TD-23 that outlived its
-Done-when, and recording that a change made the same day made it bigger rather than smaller.
+**Status:** RESOLVED (2026-09-25), the same day it was logged. **Logged:** 2026-09-25, splitting
+the half of TD-23 that outlived its Done-when, and recording that a change made the same day
+made it bigger rather than smaller.
+
+**How it was repaid.** The orchestrator now treats a NON-CONCLUSION from a `_NEG` case as a hard
+failure. The asymmetry with every other case is the point: a negative's whole job is to reach a
+guard and prove a fault fires there, so a run that never reached it demonstrates nothing — while
+the exhaustiveness ledger goes on counting that guard as proven checkable on the strength of a
+case that has silently stopped checking it.
+
+Two premises were MEASURED before the gate was tightened, because tightening one on an unknown
+population is how a green lane becomes red by accident:
+
+| | |
+|---|---|
+| negatives the lwIP sweep runs | 163 |
+| of those, PASS | **163** — zero non-conclusions, zero skips |
+| lwIP-only negatives on the Linux lane | `Verdict::Skip` with `skip:requires_capability_…` |
+
+So the rule turns nothing green into red today; it exists to catch the first one that regresses.
+And the capability skip is a DIFFERENT verdict class from a non-conclusion, verified by running
+six lwIP-only negatives on the Linux lane, so a negative sitting out a run it cannot drive is
+untouched.
+
+The discriminator is the `_NEG` / `_NEG<n>` suffix — the harness registers a negative as an
+ordinary case, so nothing on the wire says "this is a negative", and the naming is what every
+register in the tree already keys on. Its boundaries are pinned by a unit test
+(`negative_case_detection_matches_the_registers_naming`): `ARP_34_NEG2` matches,
+`ARP_34_NEG_EXTRA` and `ARP_NEGOTIATION_01` do not, because a mis-classification would turn an
+ordinary non-conclusion into a hard failure.
+
+⚠ **What this does NOT cover, stated rather than implied.** A negative that reaches its guard
+and passes for the wrong reason still reports green — this catches the run that did not reach
+the guard, not the one that reached it vacuously. That is TD-45's territory, repaid separately
+for the known-fail pairing; the general form (a `_neg` whose fault has gone inert while its
+positive still fails for its own reasons) remains the harder question.
 
 **What it is.** A fault-injection negative carries exactly ONE `fail` final — the
 conformant-DUT branch, role `fault_injection_inert`, which `negative_coverage_audit.py`
@@ -2890,5 +2924,8 @@ observation, as registered" and "no observation, unexpectedly" is the same one n
 it is a verdict-model question rather than a driver one.
 
 **Done when:** a `_NEG` that stops reaching its guarded stage reds in a lane rather than
-rendering as a skip, the four negatives named above are covered by it, and a deliberately
-un-armed negative is shown to red.
+rendering as a skip — MET; the four negatives named above are covered by it — MET, the rule is
+per-case-shape and covers all 163 the sweep runs; and a deliberately un-armed negative is shown
+to red — MET in the equivalent form the tree allows: the classification boundary is pinned by a
+unit test and the capability-skip path was run end-to-end to show it is untouched, which is what
+"shown" can mean without authoring a deliberately broken case the suite would then have to carry.
