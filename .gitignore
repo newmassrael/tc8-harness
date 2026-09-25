@@ -12,3 +12,10 @@ __pycache__/
 # dut/env/orchestrator/target/, and the remote-build wrapper writes its lock and
 # logs into a target/ at the repo root; neither is source.
 target/
+
+# The vsomeip build scratch: a git worktree of third_party/vsomeip at its pinned
+# commit, stood up by scripts/setup-vsomeip.sh, which resets and patches it on
+# every run. It is derived from the submodule and rebuilt from it, so it is not
+# source; ignoring it is also what keeps it from travelling to a build machine
+# (docs/tech-debt.md TD-50).
+/.vsomeip-src/

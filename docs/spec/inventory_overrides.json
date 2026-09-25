@@ -245,11 +245,39 @@
       "neg_expect_fail": "fail:entry_minor_version_mismatch",
       "neg_row_ref": "dut/env/negative_rows.md"
     },
+    "SOMEIPSRV_FORMAT_23": {
+      "neg_wrong_token": "service_id=0x0000",
+      "neg_expect_fail": "fail:entry_service_id_mismatch",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIPSRV_FORMAT_24": {
+      "neg_wrong_token": "instance_id=0x0099",
+      "neg_expect_fail": "fail:entry_instance_id_mismatch",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIPSRV_FORMAT_25": {
+      "neg_wrong_token": "major_version=9",
+      "neg_expect_fail": "fail:entry_major_version_mismatch",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIPSRV_FORMAT_26": {
+      "neg_wrong_token": "ttl=99",
+      "neg_expect_fail": "fail:entry_ttl_mismatch",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
     "SOMEIPSRV_FORMAT_28": {
       "expect_overrides": [
         "eventgroup_id=0x0002"
       ],
-      "expect_overrides_ref": "dut/env/expect_overrides.md"
+      "expect_overrides_ref": "dut/env/expect_overrides.md",
+      "neg_wrong_token": "eventgroup_id=0x0099",
+      "neg_expect_fail": "fail:entry_eventgroup_id_mismatch",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIPSRV_ONWIRE_06": {
+      "neg_wrong_token": "major_version=99",
+      "neg_expect_fail": "fail:response_interface_version_not_configured_major",
+      "neg_row_ref": "dut/env/negative_rows.md"
     },
     "SOMEIPSRV_OPTIONS_04": {
       "neg_wrong_token": "dut_iface_ip=10.99.99.99",
@@ -307,7 +335,10 @@
       "expect_overrides": [
         "eventgroup_id=0x0008"
       ],
-      "expect_overrides_ref": "dut/env/expect_overrides.md"
+      "expect_overrides_ref": "dut/env/expect_overrides.md",
+      "neg_wrong_token": "mcast_port=30599",
+      "neg_expect_fail": "fail:ipv4_multicast_port_mismatch",
+      "neg_row_ref": "dut/env/negative_rows.md"
     },
     "SOMEIPSRV_OPTIONS_15": {
       "neg_wrong_token": "tcp_port=12345",
@@ -319,8 +350,18 @@
       "neg_expect_fail": "fail:offer_entry_major_version_mismatch",
       "neg_row_ref": "dut/env/negative_rows.md"
     },
+    "SOMEIPSRV_SD_MESSAGE_04": {
+      "neg_wrong_token": "major_version=99",
+      "neg_expect_fail": "fail:offer_entry_major_version_mismatch",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
     "SOMEIPSRV_SD_MESSAGE_05": {
       "neg_wrong_token": "minor_version=42",
+      "neg_expect_fail": "fail:offer_entry_minor_version_mismatch",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
+    "SOMEIPSRV_SD_MESSAGE_06": {
+      "neg_wrong_token": "minor_version=99",
       "neg_expect_fail": "fail:offer_entry_minor_version_mismatch",
       "neg_row_ref": "dut/env/negative_rows.md"
     },
@@ -699,6 +740,11 @@
         "TC8_DUT_INSTANCE_2=1"
       ],
       "vsomeip_variant_ref": "dut/env/vsomeip_variants.md"
+    },
+    "SOMEIPSRV_RPC_20": {
+      "neg_wrong_token": "major_version=99",
+      "neg_expect_fail": "fail:error_message_did_not_echo_interface_version",
+      "neg_row_ref": "dut/env/negative_rows.md"
     },
     "SOMEIPSRV_RPC_17": {
       "vsomeip_cfg": "vsomeip-multi-instance.json",

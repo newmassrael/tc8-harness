@@ -3313,7 +3313,9 @@ undef block and a parser overload, none of which a new key gets for free.
 
 ## TD-50 — no build machine can compile this repository, so its builds land on the box its own CI gate runs on
 
-**Status:** OPEN. **Logged:** 2026-09-25, as the named remainder of TD-43.
+**Status:** RESOLVED (2026-09-25), the same day it was logged. **Logged:** 2026-09-25, as the
+named remainder of TD-43. ⚠ It carried TWO wrong causes on the way; both are kept below, with
+the **Resolution** at the end.
 
 **What it is.** This was the only repository on this workstation without a
 `.claude/remote-build.toml`, and `bx` said so in as many words — "tc8-harness declares no
@@ -3432,6 +3434,46 @@ named refusal it replaced.
 
 **Done when:** `bx` sends a harness build to a build machine and it succeeds there, and a smoke
 run overlapping local work in this repository no longer shows the build step inflating.
+
+**Resolution.** `scripts/setup-vsomeip.sh` no longer builds in the submodule. Its default source
+tree is now a git worktree of `third_party/vsomeip` at that submodule's own HEAD, stood up at
+`.vsomeip-src` (gitignored), recreated or moved to the pin on every run. `TC8_VSOMEIP_SRC` still
+overrides it and an OEM tree gets no worktree built beside it.
+
+The worktree is git-native: it shares the submodule's object store, so it costs no clone and no
+network, and the script's existing `git checkout -- . && git clean -fdxq -e build` reset applies
+to it unchanged. **The submodule goes back to being the pin RECORD rather than the build
+scratch**, which is the ordinary rule about not mutating vendored sources in place and would be
+worth doing with no build machine in sight: `git status` in this repository was never clean
+before, so a real change inside the submodule looked exactly like the patch series.
+
+Measured 2026-09-25, after one full `setup-vsomeip.sh` run into a scratch prefix (deliberately
+NOT `/usr/local`, which a separate note records as breaking SOME/IP when clobbered):
+
+| | |
+|---|---|
+| `third_party/vsomeip` porcelain | **0 lines** |
+| `.vsomeip-src` porcelain | 4 modified — the base series, where it belongs |
+| both trees | detached at `6171fdfe`, the pin |
+| install | vsomeip 3.7.3 into the scratch prefix |
+
+And then the thing the entry exists for:
+
+```
+bx: WHERE=remote host=pc2
+bx: trees agree: HEAD dabf2e50, working state identical
+bx: exit=0 in 32s
+```
+
+This repository now builds on a build machine. The machine side had already been provisioned
+(libtins-dev at the same version this workstation carries, `sce-codegen` copied rather than
+rebuilt so the generator is byte-identical); what remained was this repository's own shape, and
+the first reading of this entry had said so before a false experiment moved it.
+
+⚠ The second half of the Done-when — a smoke run overlapping local work no longer inflating —
+is not claimed here. It needs a run that overlaps deliberately, and the mechanism that makes it
+true (builds leaving the box) is what just landed. TD-43's own table already measured the size
+of the effect: 8m25 against 38m37 for the same step.
 
 ---
 

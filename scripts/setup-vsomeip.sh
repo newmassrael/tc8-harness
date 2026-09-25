@@ -23,7 +23,55 @@ PATCHES_DIR="$REPO_ROOT/patches/vsomeip"
 # applies to it unchanged, and so does the base series — a different COVESA
 # commit may fuzz or fail there, which quilt refuses loudly rather than building
 # something unintended. Unset => vendored submodule => public build unchanged.
-VSOMEIP_DIR="${TC8_VSOMEIP_SRC:-$REPO_ROOT/third_party/vsomeip}"
+#
+# ⚠ The DEFAULT is a scratch worktree, NOT the submodule itself, and that changed
+# on 2026-09-25. This script RESETS, PATCHES and BUILDS IN whatever tree it is
+# given, so pointing it at the submodule made a vendored checkout the build
+# scratch: four tracked files stayed permanently modified there, plus quilt's
+# `.pc/` and a `build/` tree. Two costs came from that, and only the second is
+# about tooling. `git status` in this repository was never clean, so a real
+# change inside the submodule looked exactly like the patch series. And `bx`
+# could not send this repository to a build machine AT ALL — its transfer runs
+# `git submodule update --force` on the far side, which resets each submodule to
+# its recorded commit, so a submodule carrying deliberate local modifications can
+# never satisfy the equality proof that follows. Measured on pc2: the remote
+# submodule at HEAD with zero porcelain lines while this side held four modified
+# files (docs/tech-debt.md TD-50).
+#
+# The submodule goes back to being the PIN RECORD. The worktree is git-native
+# (shares the submodule's object store, costs no clone and no network), is
+# recreated at the pin on every run, and is ignored so it never travels.
+VSOMEIP_SCRATCH="$REPO_ROOT/.vsomeip-src"
+VSOMEIP_DIR="${TC8_VSOMEIP_SRC:-$VSOMEIP_SCRATCH}"
+
+# Stand the scratch worktree up, or move it to the pin if the submodule moved.
+# Only when this run is USING it: an OEM that set TC8_VSOMEIP_SRC owns its own
+# tree and must not have one built beside it.
+if [[ -z "${TC8_VSOMEIP_SRC:-}" ]]; then
+    SUBMODULE_DIR="$REPO_ROOT/third_party/vsomeip"
+    if [[ ! -e "$SUBMODULE_DIR/.git" ]]; then
+        echo "error: $SUBMODULE_DIR submodule not initialised" >&2
+        echo "       run: git submodule update --init --recursive" >&2
+        exit 1
+    fi
+    # The pin is whatever the submodule is checked out at — read it from there
+    # rather than from `git ls-tree` on the superproject, so a deliberate local
+    # submodule bump under test is honoured the same way it always was.
+    SM_HEAD="$(git -C "$SUBMODULE_DIR" rev-parse HEAD)"
+    if [[ -e "$VSOMEIP_SCRATCH/.git" ]]; then
+        # Detached and forced: this tree is ours, it holds no work of anyone's,
+        # and the reset below restores it anyway.
+        git -C "$VSOMEIP_SCRATCH" checkout --detach --force -q "$SM_HEAD"
+    else
+        # `--force` so a leftover registration from a removed directory (a
+        # `git clean -fdx` at repo level takes the tree but not the record)
+        # does not refuse the add. `prune` first is the git-native way to say it.
+        git -C "$SUBMODULE_DIR" worktree prune
+        rm -rf "$VSOMEIP_SCRATCH"
+        git -C "$SUBMODULE_DIR" worktree add --detach --force -q \
+            "$VSOMEIP_SCRATCH" "$SM_HEAD"
+    fi
+fi
 
 # Install prefix: argv[1] > VSOMEIP_INSTALL_PREFIX > /usr/local. CI passes a
 # job-scoped prefix (/opt/someip-stack, the build-test.yml convention) so the
