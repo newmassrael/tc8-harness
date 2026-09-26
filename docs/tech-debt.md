@@ -3941,3 +3941,82 @@ out with it, and `docs/spec/inventory_overrides.json` loses two keys nobody set.
 **Done when:** either a case authors an extra row that lands its own final on a lane that is not
 load-fragile — with the case and run named here — or the mechanism is removed as unused, with the
 row grammar reverted to three fields in the same change.
+
+---
+
+## TD-58 — the orchestrator forwarded an injected suite's overrides but not its catalog
+
+**Status:** RESOLVED (2026-09-26). **Logged:** 2026-09-26, on a consumer's report after it held
+its pin at `eb6b9761` rather than bump to `a3004958`. The entry below is the debt as logged;
+**Resolution** at its end records what closed it.
+
+**What it is.** TD-17's refusal tells a consumer to declare the DUT an injected case needs under
+its own `suite:ID` overrides key, and TD-39 made an empty declaration mean the base DUT. The
+consumer did exactly that for five cases whose ids collide with flavored in-tree ids, and all five
+were still refused. `SpecInventory::load` applies an overrides entry only to a case some inventory
+holds, and `--list-vsomeip-variants` iterates the inventory. A `suite:ID` entry therefore produces
+a row only when the suite's own catalog is loaded with `--inventory-extra`. `Config::inventory_args`,
+which builds the inventory arguments for every harness call, forwarded `--inventory-overrides`
+and nothing else, and the orchestrator had no flag to take the catalog.
+
+**Why it exists.** TD-40's passthrough was added for the overrides file alone. TD-39's runs proved
+the declaration against the harness directly, with the demo catalog passed by hand, and never
+through the orchestrator.
+
+**Risk if left.** Every injected case that reuses a flavored in-tree id is refused by the one
+remedy its refusal names. Measured at `a3004958`: the consumer's merged overrides file (153 public
+and 5 entries qualified by its suite) produced 15 variant rows, byte-identical to the default. The
+same file with a 5-case catalog for that suite added produced the 15 rows plus five `suite:ID||`
+rows. Five of the
+consumer's 414 cases produced no verdict. The run still exited 0, because a dispatch fault is
+routed to skip and 5 of 261 is under the 5% ceiling.
+
+**Done when:** the orchestrator takes `--inventory-extra` (repeatable), resolves and refuses it as
+it does `--inventory-overrides`, and `inventory_args` emits both. A test must pin the argument
+list, and the refusal message must name the catalog as part of the remedy.
+
+**Resolution.** `tc8-orchestrator --inventory-extra FILE` is repeatable. Each file is absolutised
+and refused when missing by `config::resolve_inventory_file`, which `--inventory-overrides` now
+shares, and `inventory_args` emits every file after the overrides, in the order given. With
+neither flag the argument list is empty, as before. TD-17's refusal now says to pass the suite's
+own catalog with `--inventory-extra` as well.
+
+The consumer's second finding, that the run exited 0 anyway, is TD-59.
+
+**Runs (2026-09-26).**
+
+- `cargo test` in `dut/env/orchestrator` passes 90, including
+  `inventory_args_carry_the_overrides_and_every_extra_catalog`,
+  `an_inventory_file_that_does_not_exist_is_refused_by_its_flag`, and the refusal test's new
+  `--inventory-extra` assertion.
+- The harness measurement above, with a 5-case scratch catalog in place of the consumer's.
+
+---
+
+## TD-59 — a case the orchestrator could not dispatch is absorbed by the flake ceiling
+
+**Status:** OPEN. **Logged:** 2026-09-26, from the same consumer report as TD-58.
+
+**What it is.** `worker.rs` routes every `Err` from dispatch to `error:dispatch_fault`, a
+non-conclusion, and `summarize` gates all non-conclusions with one rate: at least
+`TC8_MIN_NONCONCLUSION_FAIL` (3) and over `TC8_MAX_NONCONCLUSION_PCT` (5%). The consumer's
+TD-58 run had 5 dispatch faults in 261 cases, 1.9%, and exited 0.
+
+**Why it exists.** The ceiling was built for inconclusive results. It is a flake detector, and a
+rate is the right shape for one. `error` shares the bucket because both are "not a DUT
+violation". But the two make different claims. An inconclusive ran the case and could not
+establish the DUT's behaviour. A dispatch fault never ran the case. That includes a TD-17
+refusal, which is deterministic configuration, so no rate of it is noise.
+
+**Risk if left.** A consumer whose gate reads the exit code takes a pin bump that silently loses
+cases. The consumer caught TD-58 only because it counts verdict lines.
+
+**Open question, the owner's to decide.** Which dispatch faults, if any, a rate may absorb.
+Candidates range from "every `error:` reds the gate", which is the consumer's proposal, to "only a
+refusal before spawn does", which keeps spawn and IO faults under load inside the flake ceiling.
+`docs/verdict_policy.md` §1 fixes the four classes and states that `error` does not red the gate,
+so this is a change to written policy, not a bug fix. That table would have to change with the
+code.
+
+**Done when:** the policy is chosen, `summarize` applies it with a test for each branch, and a run
+with one TD-17-style refusal exits non-zero.

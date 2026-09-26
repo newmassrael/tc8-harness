@@ -97,7 +97,9 @@ fn lookup<'t>(table: &'t HashMap<String, DutVariant>, token: &str) -> Result<Opt
                      known; declare which DUT it needs under the overrides key \
                      \"{token}\" rather than inherit the in-tree one by id coincidence: \
                      the in-tree case's vsomeip_cfg / vsomeip_env to want that flavor, or \
-                     both empty (\"vsomeip_cfg\": \"\", \"vsomeip_env\": []) for the base DUT"
+                     both empty (\"vsomeip_cfg\": \"\", \"vsomeip_env\": []) for the base DUT. \
+                     The entry applies only to a case the inventory holds, so pass suite \
+                     '{s}''s own catalog with --inventory-extra as well"
                 );
             }
             Ok(None)
@@ -189,6 +191,9 @@ mod tests {
         let msg = format!("{err:#}");
         assert!(msg.contains("demo:SOMEIPSRV_RPC_14"), "{msg}");
         assert!(msg.contains("declares none of its own"), "{msg}");
+        // The remedy needs both halves; naming only the overrides key sent a
+        // consumer to a declaration nothing could see (TD-58).
+        assert!(msg.contains("--inventory-extra"), "{msg}");
     }
 
     #[test]

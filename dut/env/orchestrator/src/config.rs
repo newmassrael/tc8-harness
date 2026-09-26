@@ -122,6 +122,14 @@ pub struct Config {
     /// consumer's overrides can no longer reach some of them and not others.
     /// Populated by main() from the CLI, absolutised so the harness's cwd is moot.
     pub inventory_overrides: Option<PathBuf>,
+    /// `--inventory-extra FILE` (repeatable): an injected suite's own catalog, the
+    /// harness's D5 injection hook. It travels with the overrides file, not beside
+    /// it: an overrides entry keyed `suite:ID` applies only to a case some
+    /// inventory holds, and every per-case listing iterates the inventory, so
+    /// without the catalog such an entry is read and dropped. TD-17's refusal
+    /// names that entry as the remedy, and TD-58 is what went wrong when the
+    /// catalog could not follow it here. Populated by main(), absolutised.
+    pub inventory_extra: Vec<PathBuf>,
     /// Case ids (UPPER-cased) that need the Topology-2 second tester interface —
     /// the harness's `requires_secondary_iface` axis (`--list-cases
     /// --only-secondary-iface`). run_case passes `--interface-secondary` for a
@@ -254,6 +262,7 @@ impl Config {
             log_dir: None,
             dut_control: None,
             inventory_overrides: None,
+            inventory_extra: Vec::new(),
             secondary_iface_cases: HashSet::new(),
             root,
         })
@@ -262,10 +271,16 @@ impl Config {
     /// The inventory-selecting arguments every harness `test` call that reads the
     /// spec inventory must carry. The ONE place they are built.
     pub fn inventory_args(&self) -> Vec<String> {
-        match &self.inventory_overrides {
-            Some(p) => vec!["--inventory-overrides".to_string(), p.to_string_lossy().into_owned()],
-            None => Vec::new(),
+        let mut args = Vec::new();
+        if let Some(p) = &self.inventory_overrides {
+            args.push("--inventory-overrides".to_string());
+            args.push(p.to_string_lossy().into_owned());
         }
+        for p in &self.inventory_extra {
+            args.push("--inventory-extra".to_string());
+            args.push(p.to_string_lossy().into_owned());
+        }
+        args
     }
 
     /// `<harness> test <inventory args>` — the start of every harness listing call,
@@ -318,8 +333,21 @@ pub(crate) fn fake_cfg() -> Config {
         log_dir: None,
         dut_control: None,
         inventory_overrides: None,
+        inventory_extra: Vec::new(),
         secondary_iface_cases: std::collections::HashSet::new(),
     }
+}
+
+/// Resolve an inventory file named on the CLI: absolutised, so the harness's cwd
+/// is moot, and refused when it is not a file. Checked before any harness call —
+/// a missing file would otherwise surface as a harness load error on the first
+/// listing, far from the flag that named it. `flag` names the flag in the error.
+pub fn resolve_inventory_file(flag: &str, p: &str) -> Result<PathBuf> {
+    let abs = std::path::absolute(p).with_context(|| format!("resolving {flag} {p}"))?;
+    if !abs.is_file() {
+        anyhow::bail!("{flag} {}: no such file", abs.display());
+    }
+    Ok(abs)
 }
 
 #[cfg(test)]
@@ -376,5 +404,35 @@ mod tests {
         }
         // Neither parser invented or dropped a key.
         assert_eq!(py.len(), pairs.len(), "dut_identity.py emitted unexpected keys: {py:?}");
+    }
+
+    /// Every inventory file travels in the one argument list (TD-58): an injected
+    /// suite's catalog alongside the overrides that key on it, each extra under its
+    /// own flag and in the order given. With neither set the list is empty, so the
+    /// harness defaults stand exactly as before.
+    #[test]
+    fn inventory_args_carry_the_overrides_and_every_extra_catalog() {
+        let mut cfg = fake_cfg();
+        assert!(cfg.inventory_args().is_empty());
+        cfg.inventory_overrides = Some("/o/ov.json".into());
+        cfg.inventory_extra = vec!["/o/a.json".into(), "/o/b.json".into()];
+        assert_eq!(
+            cfg.inventory_args(),
+            [
+                "--inventory-overrides", "/o/ov.json",
+                "--inventory-extra", "/o/a.json",
+                "--inventory-extra", "/o/b.json",
+            ]
+        );
+    }
+
+    #[test]
+    fn an_inventory_file_that_does_not_exist_is_refused_by_its_flag() {
+        let err = resolve_inventory_file("--inventory-extra", "/nonexistent/tc8/extra.json")
+            .unwrap_err()
+            .to_string();
+        assert!(err.starts_with("--inventory-extra /nonexistent/tc8/extra.json"), "{err}");
+        let manifest = concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml");
+        assert!(resolve_inventory_file("--inventory-extra", manifest).unwrap().is_absolute());
     }
 }

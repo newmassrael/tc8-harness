@@ -876,6 +876,10 @@ OEM이 관리하는 overrides JSON을 `--inventory-overrides` 플래그로 태�
 키(`"vendorx:ARP_03"`, `--case`가 받는 형식)는 주입한 스위트의 케이스를
 가리킵니다. 주입한 스위트의 같은 id 케이스는 in-tree 축을 하나도 물려받지
 않습니다 — 스티뮬러스 override도, DUT flavor도, known-fail 면제도.
+한정된 키는 인벤토리에 있는 케이스에만 적용되므로, 주입한 스위트의
+overrides를 넘기는 곳에서는 그 스위트의 카탈로그도 `--inventory-extra`로
+함께 넘겨야 합니다. `tc8-orchestrator`는 두 플래그를 모두 받아 인벤토리를
+읽는 모든 하네스 호출에 전달합니다.
 
 ### IEEE 802.1Q VLAN 태깅
 

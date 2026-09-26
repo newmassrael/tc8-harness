@@ -127,6 +127,12 @@ struct Cli {
     #[arg(long)]
     inventory_overrides: Option<String>,
 
+    /// An injected suite's inventory, the harness's `--inventory-extra`
+    /// (repeatable). Passed with the overrides file to every harness call that
+    /// reads the inventory, so a `suite:ID` overrides entry has a case to apply to.
+    #[arg(long)]
+    inventory_extra: Vec<String>,
+
     /// Print the resolved static `--expect` identity (sorted key=value) and exit,
     /// without standing up any fixture. Used by parity-check.sh to diff value-level
     /// identity against bash smoke-test.sh's `--print-expect`.
@@ -167,17 +173,16 @@ fn main() -> Result<()> {
     // resolve, parallel to extra_expect (which main also populates post-resolve).
     cfg.log_dir = cli.log_dir.as_deref().map(std::path::PathBuf::from);
     cfg.dut_control = cli.dut_control.clone();
-    // Checked and absolutised here, before any harness call: a missing file would
-    // otherwise be read by the harness as "no overrides" and every axis would
-    // silently fall back to none.
+    // Checked and absolutised here, before any harness call
+    // (config::resolve_inventory_file).
     if let Some(p) = &cli.inventory_overrides {
-        let abs = std::path::absolute(p)
-            .with_context(|| format!("resolving --inventory-overrides {p}"))?;
-        if !abs.is_file() {
-            bail!("--inventory-overrides {}: no such file", abs.display());
-        }
-        cfg.inventory_overrides = Some(abs);
+        cfg.inventory_overrides = Some(config::resolve_inventory_file("--inventory-overrides", p)?);
     }
+    cfg.inventory_extra = cli
+        .inventory_extra
+        .iter()
+        .map(|p| config::resolve_inventory_file("--inventory-extra", p))
+        .collect::<Result<_>>()?;
     if let Some(dir) = &cfg.log_dir {
         fs::create_dir_all(dir)
             .with_context(|| format!("creating --log-dir {}", dir.display()))?;

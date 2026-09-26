@@ -1111,7 +1111,11 @@ OEM-maintained overrides JSON: a bare key (`"ARP_03"`) addresses the
 in-tree suite's case and a qualified key (`"vendorx:ARP_03"`, the token
 `--case` accepts) addresses the injected suite's. A same-id case in an
 injected suite inherits no in-tree axis — not its stimulus overrides,
-not its DUT flavor, not its known-fail excuse.
+not its DUT flavor, not its known-fail excuse. A qualified key applies
+only to a case some inventory holds, so pass the injected suite's
+catalog with `--inventory-extra` wherever its overrides go;
+`tc8-orchestrator` takes both flags and forwards them to every harness
+call that reads the inventory.
 
 ### Case-documentation site (`SITE_EXTRA_CASE_ROOTS`)
 
