@@ -19,11 +19,24 @@ constexpr std::uint32_t kDutIpBe = 0x020010ACu;  // 172.16.0.2 in network byte o
 constexpr std::uint16_t kUdpPort = 30502;        // services[0] unreliable
 constexpr std::uint16_t kTcpPort = 30501;        // services[0] reliable
 
+// ⚠ IDENTITY, not the expectations. These helpers address a request, and since
+// 2026-09-26 they read `dut.ip` / `someip_dut.*` rather than the `someip.*`
+// expectation fields 209 SCXMLs grade against — so a `--negative` row rewriting
+// an expectation moves what a guard compares and not where the request goes
+// (docs/tech-debt.md TD-54).
+//
+// The expectations are set to DELIBERATELY WRONG values below, which is what
+// makes this fixture assert the sourcing rather than merely agree with it: the
+// old version set only the expectations and would pass again if someone pointed
+// these helpers back at them.
 tc8::TestConfig configured() {
     tc8::TestConfig cfg{};
-    cfg.someip.dut_iface_ip = kDutIpBe;
-    cfg.someip.udp_port = kUdpPort;
-    cfg.someip.tcp_port = kTcpPort;
+    cfg.dut.ip = kDutIpBe;
+    cfg.someip_dut.udp_port = kUdpPort;
+    cfg.someip_dut.tcp_port = kTcpPort;
+    cfg.someip.dut_iface_ip = 0x0A0A0A0Au;  // 10.10.10.10 — never the destination
+    cfg.someip.udp_port = 1;
+    cfg.someip.tcp_port = 2;
     return cfg;
 }
 
