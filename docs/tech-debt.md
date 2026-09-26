@@ -3686,6 +3686,36 @@ its own declared final. `negative_coverage_audit.py`: 0 undisposed, 0/518 unprov
 **Done when:** a case with two expectation-graded fail finals proves both by rows, with the run
 named here — MET.
 
+⚠ **`ARP_33` was reverted to ONE row, and CI is what found out why.** Smoke run 36220640037
+reported `FAIL ARP_33#1 — expected 'fail:udp_eth_dst_neither_mac1_nor_mac2', harness returned
+'fail:udp_eth_dst_is_mac1_not_mac2'`. Not a defect in multi-row: the two rows of this case are
+**each other's failure mode**, because which of the two finals is correct depends on the DUT.
+
+| DUT's egress MAC | row 0 (`tester_mac=MAC2` + override) | row 1 (`tester_mac2=bogus`) |
+|---|---|---|
+| MAC2 — merged | `is_mac1_not_mac2` ✓ | `neither_mac1_nor_mac2` ✓ |
+| MAC1 — not merged | `neither_mac1_nor_mac2` ✗ | `is_mac1_not_mac2` ✗ |
+
+ARP_33 injects TWO gratuitous Responses, and whether the Linux DUT merges the second MAC turns on
+`arp_is_garp`/locktime timing; under a loaded runner it sometimes keeps MAC1. So a case can carry
+a row per final only while its DUT is deterministic about which final is right. `ARP_35` does
+carry both, because its Response-then-REQUEST addresses the DUT and the merge is reliable — which
+is what the older ledger entry meant by ARP_33 being "the same wall, and harder", and which I had
+read as a difference of degree rather than of kind.
+
+⚠ Not reproducible locally: the full negative lane at CI's own `--workers 4` passed **80/80**. It
+needs the sustained load of a whole smoke job — an hour of build and 754 positives first. A local
+lane at matching parallelism is NOT a matching environment, and that is worth more than this case.
+
+⚠ `timing_serial:true` would have been the wrong instrument, and checking its meaning is what
+stopped me using it: it selects cases measuring a strict inter-frame cadence
+(`frame_delta_within_us`) that a CPU-starved DUT emits late. This is a DUT-state race, not an
+interval — and the negative lane does not honour that axis anyway, so the mark would have moved
+only the positive and read as a fix.
+
+The second final is deferred with the DUT-nondeterminism reason, which is a legitimate deferral by
+the rule `tools/deferred_negatives.json` carries: it names the DUT, not this harness.
+
 ---
 
 ## TD-54 — the DUT's SOME/IP service identity is an expectation, so the cases that grade an endpoint could not fault it

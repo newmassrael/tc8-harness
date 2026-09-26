@@ -43,11 +43,8 @@
       "neg_row_ref": "dut/env/negative_rows.md"
     },
     "ARP_33": {
-      "neg_wrong_token": "arp.tester_mac=02:00:00:00:00:A2",
-      "neg_expect_overrides": ["arp.tester_mac2=de:ad:be:ef:00:00"],
-      "neg_expect_fail": "fail:udp_eth_dst_is_mac1_not_mac2",
-      "neg_extra_wrong_tokens": ["arp.tester_mac2=de:ad:be:ef:00:00"],
-      "neg_extra_expect_fails": ["fail:udp_eth_dst_neither_mac1_nor_mac2"],
+      "neg_wrong_token": "arp.tester_mac2=de:ad:be:ef:00:00",
+      "neg_expect_fail": "fail:udp_eth_dst_neither_mac1_nor_mac2",
       "neg_row_ref": "dut/env/negative_rows.md"
     },
     "ARP_34": {
