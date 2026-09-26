@@ -1,0 +1,9 @@
+# demo:DEMO_OPTIONS_11 IS the in-tree SOMEIPSRV_OPTIONS_11, reported under the
+# demo suite's identity. Premise: this id asks exactly the question the target
+# answers (all of it, not one of its iterations). The target carries a stimulus
+# override and an authored negative row, both of which this alias inherits.
+tc8:SOMEIPSRV_OPTIONS_11
+# Pinned DELIBERATELY to a digest no target produces, so that
+# scripts/check-suite-producer.sh proves the drift report fires. A real consumer
+# pins the value `--list-cases` prints after reviewing the target.
+surface 0000000000000000

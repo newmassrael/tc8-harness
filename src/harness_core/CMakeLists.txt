@@ -21,6 +21,7 @@ add_library(tc8_harness_core STATIC
     ${PROJECT_SOURCE_DIR}/src/cli/expect_parser.cpp
     ${PROJECT_SOURCE_DIR}/src/cli/packet_summary.cpp
     ${PROJECT_SOURCE_DIR}/src/sce_integration/case_registry.cpp
+    ${PROJECT_SOURCE_DIR}/src/sce_integration/case_spec.cpp
     ${PROJECT_SOURCE_DIR}/src/sce_integration/spec_coverage.cpp
     ${PROJECT_SOURCE_DIR}/src/sce_integration/spec_inventory.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/responders/arp_responder.cpp

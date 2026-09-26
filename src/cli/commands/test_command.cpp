@@ -1,6 +1,7 @@
 #include "cli/test_command.h"
 
 #include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <cstdio>
 #include <cstring>
@@ -31,6 +32,7 @@
 #include "cli/signal_handler.h"
 #include "dissect/packet_pipeline.h"
 #include "sce_integration/case_registry.h"
+#include "sce_integration/case_spec.h"
 #include "sce_integration/dut_control.h"
 #include "sce_integration/dut_control_factory.h"
 #include "sce_integration/spec_coverage.h"
@@ -129,18 +131,69 @@ std::string sectionOf(const sce::SpecCase *sc) {
     return (sc != nullptr && !sc->section.empty()) ? sc->section : std::string{"-"};
 }
 
-// The inventory's SpecCase for a registered case, or nullptr when the
-// inventory is unavailable or the case's own suite's catalog does not hold it —
-// the same best-effort contract sectionOf's "-" fallback encodes, so every
-// consumer shares one lookup. Keyed on the entry's (suite, id): every axis the
-// SpecCase carries belongs to one catalog's case, never to an id shared by
-// several (spec_inventory.h, "ONE CATALOG PER SUITE").
-const sce::SpecCase *specCaseFor(const std::optional<sce::SpecInventory> &inv,
-                                 const sce::CaseEntry &entry) {
+// The inventory's entries for a registered case — `own` for the section and the
+// verdict-excusing axes, `execution` for everything that decides what runs — or
+// both nullptr when the inventory is unavailable, the same best-effort contract
+// sectionOf's "-" fallback encodes, so every consumer shares one lookup. The two
+// differ only for an alias; which axis reads which is case_spec.h's to decide,
+// and every reader below takes the view that header assigns its axis.
+sce::CaseSpec specCaseFor(const std::optional<sce::SpecInventory> &inv,
+                          const sce::CaseEntry &entry) {
     if (!inv.has_value()) {
-        return nullptr;
+        return {};
     }
-    return inv->find(entry.suite, entry.id);
+    return sce::resolveCaseSpec(*inv, entry);
+}
+
+// The display suffix naming an alias's target and the target's current execution
+// surface, or "" for an authored case. When the pointer file pinned a surface that
+// no longer matches, the suffix says so — the report half of question 4 of the
+// alias design: drift is shown where the alias is listed, never refused.
+std::string aliasTag(const sce::CaseEntry &entry, const sce::CaseSpec &spec) {
+    if (!entry.isAlias()) {
+        return {};
+    }
+    const std::string now = sce::executionSurface(entry, spec);
+    std::string tag =
+        " [alias of " + sce::qualifiedCaseId(entry.alias_of.suite, entry.alias_of.id);
+    if (entry.alias_surface_pin.empty() || entry.alias_surface_pin == now) {
+        tag += ", surface " + now + "]";
+    } else {
+        tag += ", surface CHANGED: pinned " + std::string{entry.alias_surface_pin} + ", now " +
+               now + "]";
+    }
+    return tag;
+}
+
+// Whether a negative-row flip leaves the driver's own base value for its key
+// unchanged, so the "wrong" value is the deployment's actual one and the flip is
+// not a flip. `neg_wrong_token` is an ABSOLUTE bogus value whose wrongness is a
+// property of the reference deployment; a case run under any other deployment —
+// an alias always is — can meet a site that genuinely uses it. The run would then
+// pass and be mapped to a Fail blaming the DUT, so this refuses it up front and
+// names the collision instead. Compared on the key and the value's spelling,
+// case-insensitively (MAC and hex values vary in case); a value the driver spells
+// differently but means the same is not caught, and fails loudly as before.
+bool flipIsNoOp(const std::string &flip, const std::vector<std::string> &base_tokens) {
+    const auto eq = flip.find('=');
+    if (eq == std::string::npos) {
+        return false;
+    }
+    const std::string_view key{flip.data(), eq + 1};  // "key=" — the '=' anchors it
+    const auto lower = [](std::string_view s) {
+        std::string out{s};
+        std::transform(out.begin(), out.end(), out.begin(),
+                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        return out;
+    };
+    // Last wins among the driver's tokens, exactly as applyExpectToken applies them.
+    for (auto it = base_tokens.rbegin(); it != base_tokens.rend(); ++it) {
+        if (std::string_view{*it}.substr(0, key.size()) == key) {
+            return lower(std::string_view{*it}.substr(key.size())) ==
+                   lower(std::string_view{flip}.substr(key.size()));
+        }
+    }
+    return false;
 }
 
 }  // namespace
@@ -324,7 +377,21 @@ std::optional<sce::SpecInventory> TestCommand::loadInventory(std::string *err,
     if (ov_path.empty() && std::filesystem::exists(kDefaultOverrides, ec)) {
         ov_path = kDefaultOverrides;
     }
-    return sce::SpecInventory::load(inv_path, inventory_extra_paths_, ov_path, err);
+    auto inv = sce::SpecInventory::load(inv_path, inventory_extra_paths_, ov_path, err);
+    if (!inv.has_value()) {
+        return inv;
+    }
+    // Checked here, the one funnel every inventory reader goes through, so no path
+    // can resolve an alias whose own entry claims an axis that will be ignored.
+    const auto conflicts = sce::aliasAxisConflicts(*inv, sce::CaseRegistry::instance());
+    if (!conflicts.empty()) {
+        *err = conflicts.front();
+        for (std::size_t i = 1; i < conflicts.size(); ++i) {
+            *err += "\n       " + conflicts[i];
+        }
+        return std::nullopt;
+    }
+    return inv;
 }
 
 // Emits the authored negative rows in the historical NEG_ROWS grammar
@@ -346,22 +413,34 @@ int TestCommand::runListNegRows() const {
         return 1;
     }
     std::vector<std::string> rows;
+    // `CASE|INDEX|token|verdict`. The INDEX is what `--negative-row` takes: a case
+    // may author more than one row (a template with two expectation-graded fail
+    // finals needs one each), and without it the driver could name the case but
+    // not which of its rows to run.
+    const auto emit = [&rows](const std::string &qid, const sce::SpecCase &sc) {
+        if (sc.neg_wrong_token.empty()) {
+            return;
+        }
+        rows.push_back(qid + "|0|" + sc.neg_wrong_token + "|" + sc.neg_expect_fail);
+        for (std::size_t i = 0; i < sc.neg_extra_wrong_tokens.size(); ++i) {
+            rows.push_back(qid + "|" + std::to_string(i + 1) + "|" +
+                           sc.neg_extra_wrong_tokens[i] + "|" + sc.neg_extra_expect_fails[i]);
+        }
+    };
     for (const auto &sc : inv->cases()) {
-        if (!inSuiteScope(sc.suite)) {
+        if (inSuiteScope(sc.suite)) {
+            emit(sce::qualifiedCaseId(sc.suite, sc.id), sc);
+        }
+    }
+    // An alias runs its target's rows under its own id (case_spec.h): the
+    // self-check belongs to the case, and the alias IS the case. Its own entry can
+    // declare none — loadInventory refused that — so no id is listed twice.
+    for (const auto *e : sce::CaseRegistry::instance().listSorted(/*include_deprecated=*/true)) {
+        if (!e->isAlias() || !inSuiteScope(e->suite)) {
             continue;
         }
-        if (!sc.neg_wrong_token.empty()) {
-            // `CASE|INDEX|token|verdict`. The INDEX is what `--negative-row`
-            // takes: a case may author more than one row (a template with two
-            // expectation-graded fail finals needs one each), and without it the
-            // driver could name the case but not which of its rows to run.
-            const std::string qid = sce::qualifiedCaseId(sc.suite, sc.id);
-            rows.push_back(qid + "|0|" + sc.neg_wrong_token + "|" + sc.neg_expect_fail);
-            for (std::size_t i = 0; i < sc.neg_extra_wrong_tokens.size(); ++i) {
-                rows.push_back(qid + "|" + std::to_string(i + 1) + "|" +
-                               sc.neg_extra_wrong_tokens[i] + "|" +
-                               sc.neg_extra_expect_fails[i]);
-            }
+        if (const sce::SpecCase *target = sce::resolveCaseSpec(*inv, *e).execution) {
+            emit(sce::qualifiedCaseId(e->suite, e->id), *target);
         }
     }
     std::sort(rows.begin(), rows.end());
@@ -434,24 +513,38 @@ int TestCommand::runListVsomeipVariants() const {
         return 1;
     }
     std::vector<std::string> rows;
-    for (const auto &sc : inv->cases()) {
-        if (!inSuiteScope(sc.suite)) {
-            continue;
+    // `flavor` null = the base DUT: cfg and env both empty.
+    const auto emit = [&rows](const std::string &qid, const sce::SpecCase *flavor) {
+        std::string cfg;
+        std::string env;
+        if (flavor != nullptr) {
+            cfg = flavor->vsomeip_cfg;
+            for (std::size_t i = 0; i < flavor->vsomeip_env.size(); ++i) {
+                env += (i != 0 ? "," : "") + flavor->vsomeip_env[i];
+            }
         }
+        rows.push_back(qid + "|" + cfg + "|" + env);
+    };
+    for (const auto &sc : inv->cases()) {
         // A row per DECLARATION, not per non-empty value: `ID||` is a case that
         // declared the base DUT, which the orchestrator must be able to tell from a
         // case that declared nothing (spec_inventory.h, vsomeip_declared).
-        if (!sc.vsomeip_declared) {
+        if (inSuiteScope(sc.suite) && sc.vsomeip_declared) {
+            emit(sce::qualifiedCaseId(sc.suite, sc.id), &sc);
+        }
+    }
+    // An alias ALWAYS declares: its DUT is its target's, which is the target's
+    // flavor when it has one and the base DUT when it does not. Leaving the base
+    // case unlisted would let the orchestrator refuse an alias whose id happens to
+    // spell an in-tree case that does carry a flavor — the refusal meant for a case
+    // whose DUT cannot be known, when this one's is known exactly.
+    for (const auto *e : sce::CaseRegistry::instance().listSorted(/*include_deprecated=*/true)) {
+        if (!e->isAlias() || !inSuiteScope(e->suite)) {
             continue;
         }
-        std::string env;
-        for (std::size_t i = 0; i < sc.vsomeip_env.size(); ++i) {
-            if (i != 0) {
-                env += ",";
-            }
-            env += sc.vsomeip_env[i];
-        }
-        rows.push_back(sce::qualifiedCaseId(sc.suite, sc.id) + "|" + sc.vsomeip_cfg + "|" + env);
+        const sce::SpecCase *target = sce::resolveCaseSpec(*inv, *e).execution;
+        emit(sce::qualifiedCaseId(e->suite, e->id),
+             (target != nullptr && target->vsomeip_declared) ? target : nullptr);
     }
     std::sort(rows.begin(), rows.end());
     for (const auto &r : rows) {
@@ -534,11 +627,15 @@ int TestCommand::runListCases() const {
         if (!inSuiteScope(e->suite)) {
             continue;
         }
-        const sce::SpecCase *sc = specCaseFor(inv, *e);
+        const sce::CaseSpec spec = specCaseFor(inv, *e);
         if (need_filter) {
+            // Lane routing is an execution axis (the target's, for an alias);
+            // deferral and known-fail are the case's own (case_spec.h).
+            const sce::SpecCase *exec = spec.execution;
+            const sce::SpecCase *own = spec.own;
             // timing_serial defaults false, so a case with no override entry is
             // non-serial — --only-serial drops it, --exclude-serial keeps it.
-            const bool serial = (sc != nullptr) && sc->timing_serial;
+            const bool serial = (exec != nullptr) && exec->timing_serial;
             if (only_serial_ && !serial) {
                 continue;
             }
@@ -549,15 +646,15 @@ int TestCommand::runListCases() const {
             // keeps only the dual-iface (Topology 2) cases the smoke harness
             // must give a second tester veth.
             const bool secondary_iface =
-                (sc != nullptr) && sc->requires_secondary_iface;
+                (exec != nullptr) && exec->requires_secondary_iface;
             if (only_secondary_iface_ && !secondary_iface) {
                 continue;
             }
-            if (sc != nullptr) {
-                if (exclude_deferred_ && !sc->expected) {
+            if (own != nullptr) {
+                if (exclude_deferred_ && !own->expected) {
                     continue;
                 }
-                if (exclude_platform_known_fail_ && sc->platform_known_fail) {
+                if (exclude_platform_known_fail_ && own->platform_known_fail) {
                     continue;
                 }
             }
@@ -585,16 +682,18 @@ int TestCommand::runListCases() const {
             std::printf("%.*s\n", static_cast<int>(e->category.size()), e->category.data());
             current_category = e->category;
         }
-        const std::string section = sectionOf(sc);
+        const std::string section = sectionOf(spec.own);
         const char *tag = e->deprecated ? " [deprecated]" : "";
         // Non-default suites print the qualified "suite:id" so the listed token
         // is the exact `--case` arg to run it; the in-tree suite stays bare
         // (output byte-identical to before any suite injection).
         const std::string display_id = sce::qualifiedCaseId(e->suite, e->id);
-        std::printf("  %-28.*s  §%-10.*s %.*s%s\n",
+        const std::string alias = aliasTag(*e, spec);
+        std::printf("  %-28.*s  §%-10.*s %.*s%s%s\n",
                     static_cast<int>(display_id.size()), display_id.data(),
                     static_cast<int>(section.size()), section.data(),
-                    static_cast<int>(e->description.size()), e->description.data(), tag);
+                    static_cast<int>(e->description.size()), e->description.data(), tag,
+                    alias.c_str());
         ++emitted;
     }
     if (only_serial_) {
@@ -787,13 +886,35 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
         std::fprintf(stderr, "error: %s\n", inv_err.c_str());
         return 2;
     }
-    // Resolved once, by the case's (suite, id): the section below and every
-    // override axis further down come from the same catalog entry.
-    const sce::SpecCase *sc = specCaseFor(inv, *entry);
-    const std::string section = sectionOf(sc);
+    // Resolved once. The section comes from the case's own catalog entry; the
+    // stimulus overrides and the negative row further down are execution axes,
+    // which for an alias are its target's (case_spec.h).
+    const sce::CaseSpec spec = specCaseFor(inv, *entry);
+    const sce::SpecCase *sc = spec.execution;
+    const std::string section = sectionOf(spec.own);
 
     std::printf("case     : %.*s  (§%s)\n", static_cast<int>(entry->id.size()), entry->id.data(),
                 section.c_str());
+    // Provenance, printed on every alias run: the verdict below is produced by the
+    // target's state machine and, under --negative-row, proven by the target's
+    // authored flip, so the alias's row must be able to cite whose they were.
+    if (entry->isAlias()) {
+        const std::string now = sce::executionSurface(*entry, spec);
+        std::printf("alias_of : %s (surface %s)\n",
+                    sce::qualifiedCaseId(entry->alias_of.suite, entry->alias_of.id).c_str(),
+                    now.c_str());
+        // Reported, not refused: the run goes ahead and its verdict stands for
+        // what ran, but whoever reads the row learns the target moved since the
+        // alias was last reviewed.
+        if (!entry->alias_surface_pin.empty() && entry->alias_surface_pin != now) {
+            std::fprintf(stderr,
+                         "warning: alias target surface changed since it was pinned "
+                         "(pinned %.*s, now %s); review the target's traits and inventory "
+                         "axes, then update the pointer file's `surface` line\n",
+                         static_cast<int>(entry->alias_surface_pin.size()),
+                         entry->alias_surface_pin.data(), now.c_str());
+        }
+    }
     std::printf("source   : test live (%s)\n", iface_.c_str());
     std::printf("bpf      : %s\n", bpf.c_str());
 
@@ -877,27 +998,37 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
                          static_cast<int>(entry->id.size()), entry->id.data());
             return 1;
         }
+        // Out of range is refused for the same reason half a row is: a run that
+        // quietly fell back to row 0 would assert the wrong verdict and report it
+        // as the authored one.
+        if (negative_row_index_ < 0 ||
+            static_cast<std::size_t>(negative_row_index_) > sc->neg_extra_wrong_tokens.size()) {
+            std::fprintf(stderr,
+                         "error: --negative-row-index %d: case %.*s authors %zu row(s) "
+                         "(0..%zu)\n",
+                         negative_row_index_, static_cast<int>(entry->id.size()),
+                         entry->id.data(), sc->neg_extra_wrong_tokens.size() + 1,
+                         sc->neg_extra_wrong_tokens.size());
+            return 1;
+        }
+        const std::string &flip =
+            negative_row_index_ == 0
+                ? sc->neg_wrong_token
+                : sc->neg_extra_wrong_tokens[static_cast<std::size_t>(negative_row_index_) - 1];
+        if (flipIsNoOp(flip, expect_tokens_)) {
+            std::fprintf(stderr,
+                         "error: --negative-row: the flip '%s' equals this deployment's own "
+                         "--expect value for that key, so it would falsify nothing; the row's "
+                         "wrong value is wrong only for the reference deployment\n",
+                         flip.c_str());
+            return 1;
+        }
+        effective_expect.push_back(flip);
         // Row 0 is the primary and the only one that carries overrides; an extra
         // row is base + its own token, which is why it needs none.
         if (negative_row_index_ == 0) {
-            effective_expect.push_back(sc->neg_wrong_token);
             effective_expect.insert(effective_expect.end(), sc->neg_expect_overrides.begin(),
                                     sc->neg_expect_overrides.end());
-        } else {
-            // Out of range is refused for the same reason half a row is: a run
-            // that quietly fell back to row 0 would assert the wrong verdict and
-            // report it as the authored one.
-            const std::size_t extra = static_cast<std::size_t>(negative_row_index_) - 1;
-            if (negative_row_index_ < 0 || extra >= sc->neg_extra_wrong_tokens.size()) {
-                std::fprintf(stderr,
-                             "error: --negative-row-index %d: case %.*s authors %zu row(s) "
-                             "(0..%zu)\n",
-                             negative_row_index_, static_cast<int>(entry->id.size()),
-                             entry->id.data(), sc->neg_extra_wrong_tokens.size() + 1,
-                             sc->neg_extra_wrong_tokens.size());
-                return 1;
-            }
-            effective_expect.push_back(sc->neg_extra_wrong_tokens[extra]);
         }
     } else if (sc != nullptr) {
         effective_expect.insert(effective_expect.end(), sc->expect_overrides.begin(),

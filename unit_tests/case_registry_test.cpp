@@ -1,7 +1,9 @@
 #include <gtest/gtest.h>
 
 #include <memory>
+#include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "tc8/bpf_group.h"
@@ -292,6 +294,88 @@ TEST(CaseRegistryDeathTest, DuplicateSuiteIdAborts) {
     reg.add(makeEntryInSuite("vendorx", "ARP_01"));
     EXPECT_DEATH_IF_SUPPORTED(reg.add(makeEntryInSuite("vendorx", "ARP_01")),
                               "duplicate case registration for 'vendorx:ARP_01'");
+}
+
+// Case aliases (case_alias.h): an injected suite's id registered as a copy of an
+// in-tree case's entry, so the alias runs the target's state machine with the
+// target's traits and only its identity differs.
+TEST(CaseRegistryAlias, CopiesTheTargetUnderTheAliasIdentity) {
+    CaseRegistry reg;
+    CaseEntry target = makeEntry("TCP_BASICS_04");
+    target.topology = 2;
+    target.required_capabilities = 0x20U;
+    target.bpf_group = ::tc8::BpfGroup::Tcp;
+    reg.add(std::move(target));
+
+    std::string err;
+    ASSERT_TRUE(reg.addAlias({"vendorx", "VX_TCP_04", "tc8", "tcp_basics_04"}, &err)) << err;
+
+    const CaseEntry *a = reg.find("vendorx", "VX_TCP_04");
+    ASSERT_NE(a, nullptr);
+    EXPECT_EQ(a->suite, "vendorx");
+    EXPECT_EQ(a->id, "VX_TCP_04");
+    // Category follows the alias's OWN id, as every listing groups by it.
+    EXPECT_EQ(a->category, "VX_TCP");
+    ASSERT_TRUE(a->isAlias());
+    EXPECT_EQ(a->alias_of.suite, "tc8");
+    // The target's registered spelling, not the declaration's.
+    EXPECT_EQ(a->alias_of.id, "TCP_BASICS_04");
+    // Everything that decides how the case runs is the target's.
+    EXPECT_EQ(a->topology, 2);
+    EXPECT_EQ(a->required_capabilities, 0x20U);
+    EXPECT_EQ(a->bpf_group, ::tc8::BpfGroup::Tcp);
+    ASSERT_TRUE(static_cast<bool>(a->factory));
+    EXPECT_EQ(a->factory(::tc8::TestConfig{})->verdict().str(), "pass");
+
+    // The target is untouched and not itself an alias.
+    const CaseEntry *t = reg.find("tc8", "TCP_BASICS_04");
+    ASSERT_NE(t, nullptr);
+    EXPECT_FALSE(t->isAlias());
+    EXPECT_EQ(reg.size(), 2U);
+}
+
+TEST(CaseRegistryAlias, RefusesAMissingTarget) {
+    CaseRegistry reg;
+    std::string err;
+    EXPECT_FALSE(reg.addAlias({"vendorx", "VX_ARP_03", "tc8", "ARP_03"}, &err));
+    EXPECT_NE(err.find("not a registered case"), std::string::npos) << err;
+    EXPECT_EQ(reg.size(), 0U);
+}
+
+TEST(CaseRegistryAlias, RefusesAnAliasOfAnAlias) {
+    CaseRegistry reg;
+    reg.add(makeEntry("ARP_03"));
+    std::string err;
+    ASSERT_TRUE(reg.addAlias({"vendorx", "VX_ARP_03", "tc8", "ARP_03"}, &err)) << err;
+    EXPECT_FALSE(reg.addAlias({"vendory", "VY_ARP_03", "vendorx", "VX_ARP_03"}, &err));
+    EXPECT_NE(err.find("itself an alias"), std::string::npos) << err;
+}
+
+// One test under two ids in one catalog would be counted twice by that
+// catalog's coverage report, so an alias must cross a suite boundary.
+TEST(CaseRegistryAlias, RefusesTheTargetsOwnSuite) {
+    CaseRegistry reg;
+    reg.add(makeEntry("ARP_03"));
+    std::string err;
+    EXPECT_FALSE(reg.addAlias({"TC8", "ARP_99", "tc8", "ARP_03"}, &err));
+    EXPECT_NE(err.find("different suite"), std::string::npos) << err;
+}
+
+TEST(CaseRegistryAlias, RefusesATakenIdentity) {
+    CaseRegistry reg;
+    reg.add(makeEntry("ARP_03"));
+    reg.add(makeEntryInSuite("vendorx", "ARP_03"));
+    std::string err;
+    EXPECT_FALSE(reg.addAlias({"vendorx", "arp_03", "tc8", "ARP_03"}, &err));
+    EXPECT_NE(err.find("already registered"), std::string::npos) << err;
+}
+
+TEST(CaseRegistryAlias, RefusesAMalformedAliasId) {
+    CaseRegistry reg;
+    reg.add(makeEntry("ARP_03"));
+    std::string err;
+    EXPECT_FALSE(reg.addAlias({"vendorx", "VX_ARP", "tc8", "ARP_03"}, &err));
+    EXPECT_NE(err.find("_<digits>"), std::string::npos) << err;
 }
 
 // Out-of-tree capture-filter escape hatch: bpfExpressionOf<T>() reads the

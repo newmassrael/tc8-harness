@@ -1117,6 +1117,54 @@ catalog with `--inventory-extra` wherever its overrides go;
 `tc8-orchestrator` takes both flags and forwards them to every harness
 call that reads the inventory.
 
+### Case aliases — an injected id that IS an in-tree case
+
+A third relationship, next to "new case" and "replaced case": the
+injected suite's id is not a new test and not a modified one, it is the
+in-tree case reported under the injected suite's identity. The case
+directory holds one file and nothing else:
+
+```
+oem_cases/                  # a TC8_EXTRA_CASE_DIRS root with a non-default suite
+└── oemx_tcp_04/
+    └── oemx_tcp_04.alias   # one token: tc8:TCP_BASICS_04  (# comments allowed)
+```
+
+The alias id is the directory name upper-cased (`OEMX_TCP_04`). Configure
+refuses an alias in the default suite, a target that is not an in-tree
+case, and any file beside the pointer. At run time `oemx:OEMX_TCP_04`
+runs the in-tree state machine with the in-tree traits, `--list-cases`
+tags it `[alias of TCP_BASICS_04, surface <digest>]`, and a run prints
+`alias_of :` naming the target whose verdict it reports.
+
+The digest covers what the target executes as — its traits (topology,
+capture filter, capabilities, control-plane role) and its execution axes
+below — and deliberately not its SCXML text or prose, which change for
+reasons that change nothing. Pin the value you reviewed with a second
+line in the pointer file, `surface <digest>`; after a harness bump, an
+alias whose target moved is listed `surface CHANGED: pinned …, now …`
+and its run prints a warning. Drift is reported, never refused.
+
+The inventory axes split by what each one describes:
+
+| Axis | Resolved against |
+|------|------------------|
+| `expect_overrides`, the negative row(s), `vsomeip_cfg`/`vsomeip_env`, `timing_serial`, `requires_secondary_iface` | the **target** — an alias runs the target's stimulus against the target's DUT deployment, or it is not the same test |
+| section, `expected`, `platform_known_fail` | the alias's **own** catalog entry — a deviation measured on one platform must not excuse another's row |
+
+An alias's own overrides entry that declares an execution axis is refused
+by every inventory reader, since it would be ignored: declare it on the
+target, or author the case as a variant.
+
+⚠ **An alias must ask exactly the question its target answers.** An id
+that names one iteration of a target that runs several is not an alias:
+the target's phases run in sequence and any non-pass final ends the
+case, so a failure in an earlier phase would red an id that asked only
+about a later one. Map such an id in documentation instead — "covered
+by `tc8:<id>`, phase N" — citing a target `pass` freely and a non-pass
+only when its final names that phase. `examples/demo-suite` carries two
+aliases that CI builds and checks.
+
 ### Case-documentation site (`SITE_EXTRA_CASE_ROOTS`)
 
 The Astro case-documentation site (`site/`) has the same overlay seam for

@@ -1,0 +1,3 @@
+# demo:DEMO_RPC_14 IS the in-tree SOMEIPSRV_RPC_14. The target needs a DUT
+# provisioned with a second service instance, which this alias inherits.
+tc8:SOMEIPSRV_RPC_14

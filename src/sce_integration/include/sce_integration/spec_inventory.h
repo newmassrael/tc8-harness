@@ -184,7 +184,11 @@ struct SpecCase {
 // requires_secondary_iface, expect_overrides, the negative row and the vsomeip
 // flavor each describe either the case's own stimulus and verdict, or how one
 // DUT behaves under that case's stimulus. None is a property of the id's
-// spelling, so none crosses a suite boundary.
+// spelling, so none crosses a suite boundary BY COINCIDENCE. The one way an axis
+// does cross is declared: a case alias names its target explicitly, and then the
+// execution axes are the target's while the verdict-excusing ones stay the
+// alias's own — resolved per axis in case_spec.h, not here, because it needs the
+// registry's `alias_of` and this class knows nothing of the registry.
 class SpecInventory {
 public:
     // Load the primary TC8 inventory plus zero or more EXTRA inventory

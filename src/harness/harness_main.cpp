@@ -13,9 +13,25 @@
 #include "cli/testability_probe_command.h"
 #include "cli/testability_send_command.h"
 #include "cli/ut_ping_command.h"
+#include "sce_integration/case_alias.h"
+#include "sce_integration/case_registry.h"
 
 int main(int argc, char** argv) {
     std::setvbuf(stdout, nullptr, _IOLBF, 0);
+
+    // Case aliases resolve here, not at static init: an alias copies its target's
+    // registered entry, and registrar order across TUs is unspecified, so the
+    // target is guaranteed present only once static init has finished. Before any
+    // command, so no command ever holds a registry pointer across the additions.
+    // A failure is a build whose configure-time check and registry disagree, and
+    // stops everything rather than run a catalog missing its aliases.
+    for (const auto& alias : tc8::sce::declaredCaseAliases()) {
+        std::string err;
+        if (!tc8::sce::CaseRegistry::instance().addAlias(alias, &err)) {
+            std::fprintf(stderr, "error: %s\n", err.c_str());
+            return 2;
+        }
+    }
 
     CLI::App app{"tc8-harness — OPEN Alliance TC8 v3.0 conformance harness"};
     app.require_subcommand(1);

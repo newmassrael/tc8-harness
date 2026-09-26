@@ -21,6 +21,23 @@ to stay `(suite, id)`-aware rather than colliding:
   under separate suite banners and `-c demo:SOMEIPSRV_OPTIONS_01` selects the
   demo one.
 
+## Case aliases
+
+`demo_options_11/` and `demo_rpc_14/` hold one file each, a `.alias` pointer,
+and prove the third relationship a suite can have to an in-tree case (see the
+top-level README, *Case aliases*):
+
+| Alias | Target | What it inherits |
+|---|---|---|
+| `demo:DEMO_OPTIONS_11` | `SOMEIPSRV_OPTIONS_11` | a stimulus override and an authored negative row |
+| `demo:DEMO_RPC_14` | `SOMEIPSRV_RPC_14` | a DUT provisioned with a second service instance |
+
+`scripts/check-suite-producer.sh` asserts that each is listed as an alias of its
+target — `DEMO_OPTIONS_11` pins a surface digest no target produces, so its
+listing must report the drift, which is the proof that the report fires — and that `--list-neg-rows` and `--list-vsomeip-variants` print the
+target's row under the alias's id — plus a base-DUT row for the alias whose
+target needs no flavor, so the orchestrator never refuses it.
+
 ## Build it
 
 ```sh

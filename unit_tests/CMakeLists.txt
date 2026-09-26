@@ -412,6 +412,9 @@ tc8_add_unit_test(iface_enumeration_test)
 tc8_add_unit_test(spec_inventory_test)
 # The --vs-spec gap report's suite scoping: one catalog per report.
 tc8_add_unit_test(spec_coverage_test)
+# Which catalog entry answers which inventory axis — the per-axis split a case
+# alias depends on (execution axes from the target, verdict axes its own).
+tc8_add_unit_test(case_spec_test)
 # Verdict SSOT parser: drives the runner's donedata->verdict flattening with
 # the *real* SCE DoneDataHelper encoding (emitContentLiteral), so it links
 # sce_base to pin the engine's string-content wrapping contract.

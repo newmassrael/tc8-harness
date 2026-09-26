@@ -64,6 +64,13 @@ set_target_properties(tc8-harness PROPERTIES
 #                            time. A subdirectory that does not match any
 #                            in-tree case is a configure error (typo guard).
 #
+# A third relationship rides on TC8_EXTRA_CASE_DIRS: a case subdirectory holding
+# only `<case_id>.alias` (one line, `tc8:<ID>`) declares that its suite's id IS
+# that in-tree case — no second implementation, the in-tree case registered
+# under a second identity. Collected by Pass 4 below; see
+# src/sce_integration/include/sce_integration/case_alias.h for what an alias
+# asserts and the scope premise it relies on.
+#
 # Traits header resolution for every collected case: <case_dir>/<case_id>.h
 # first, then src/sce_integration/include/sce_integration/cases/<case_id>.h. An override that ships
 # only the .scxml therefore reuses the in-tree traits (SCXML-level
@@ -576,6 +583,9 @@ if(_tc8_suite_count GREATER _tc8_dir_count)
         "index-aligned; remove the surplus suite name(s)")
 endif()
 set(_tc8_extra_keys "")
+set(_tc8_alias_dirs "")
+set(_tc8_alias_suites "")
+set(_tc8_alias_defaults "")
 set(_tc8_extra_root_index 0)
 foreach(extra_root ${TC8_EXTRA_CASE_DIRS})
     tc8_check_injection_root(${extra_root} TC8_EXTRA_CASE_DIRS)
@@ -622,6 +632,18 @@ foreach(extra_root ${TC8_EXTRA_CASE_DIRS})
                 "provided by more than one directory")
         endif()
         list(APPEND _tc8_extra_keys ${_tc8_key})
+        # A directory declaring an alias carries no state machine; Pass 4 owns it.
+        # Recorded after the duplicate-key check so an alias and an authored case
+        # cannot claim the same (suite, id) from two roots.
+        # Index-aligned lists, not variables named after the case id: two roots may
+        # each declare the same id under different suites.
+        if(EXISTS ${case_dir}/${case_id}.alias)
+            list(APPEND _tc8_alias_dirs ${case_dir})
+            list(APPEND _tc8_alias_suites ${_tc8_root_suite})
+            list(APPEND _tc8_alias_defaults ${_tc8_root_is_default})
+            math(EXPR _tc8_root_hits "${_tc8_root_hits} + 1")
+            continue()
+        endif()
         tc8_add_case(${case_dir} extra "${_tc8_root_suite}")
         math(EXPR _tc8_root_hits "${_tc8_root_hits} + 1")
     endforeach()
@@ -633,11 +655,150 @@ foreach(extra_root ${TC8_EXTRA_CASE_DIRS})
     math(EXPR _tc8_extra_root_index "${_tc8_extra_root_index} + 1")
 endforeach()
 
+# Pass 4 — case aliases (src/sce_integration/include/sce_integration/case_alias.h).
+# An injected case directory whose only content is `<case_id>.alias` declares that
+# `<suite>:<case_id>` IS an in-tree case. The file holds one token, the target as
+# `tc8:<ID>`, and optionally a `surface <hex>` line pinning the target's execution
+# surface (case_spec.h, executionSurface); blank lines and `#` comments are
+# ignored, so the file can state the premise it relies on. No state machine is generated and no traits header is read:
+# the alias is registered at run time as a copy of the target's entry, which is why
+# it needs a pass of its own rather than a branch in tc8_add_case — codegen and the
+# traits-header check there both require a .scxml the directory does not have.
+#
+# Validated here so a typo fails the configure, not a run: the target must be an
+# in-tree case (the only catalog configure can see), the alias must live in a
+# non-default suite (an alias of the in-tree suite inside the in-tree suite would
+# count one test twice), and the directory must hold nothing else — a .scxml or .h
+# beside the pointer would mean the consumer is authoring after all, and which of
+# the two they meant is not for this file to guess.
+#
+# The alias's case id is its directory name upper-cased — the inverse of the
+# authoring convention "directory == lower-cased kCaseId" — since there is no
+# traits header to carry a kCaseId.
+set(_tc8_alias_decls "")
+list(LENGTH _tc8_alias_dirs _tc8_alias_n)
+set(_tc8_alias_i 0)
+while(_tc8_alias_i LESS _tc8_alias_n)
+    list(GET _tc8_alias_dirs ${_tc8_alias_i} case_dir)
+    list(GET _tc8_alias_suites ${_tc8_alias_i} _suite)
+    list(GET _tc8_alias_defaults ${_tc8_alias_i} _is_default)
+    math(EXPR _tc8_alias_i "${_tc8_alias_i} + 1")
+    get_filename_component(_dir_name ${case_dir} NAME)
+    string(TOUPPER "${_dir_name}" case_id)
+    set(_where "TC8_EXTRA_CASE_DIRS: alias '${_suite}:${case_id}' (${case_dir})")
+    if(_is_default)
+        message(FATAL_ERROR
+            "${_where} is in the default suite; an alias must be declared by a "
+            "non-default suite (TC8_EXTRA_CASE_SUITES), since it gives an in-tree "
+            "case a second identity in ANOTHER catalog")
+    endif()
+    set(_pointer ${case_dir}/${_dir_name}.alias)
+    file(GLOB _others ${case_dir}/*)
+    list(REMOVE_ITEM _others ${_pointer})
+    if(_others)
+        message(FATAL_ERROR
+            "${_where} holds files beside its ${_dir_name}.alias pointer: ${_others}. "
+            "An alias carries no implementation; remove them, or remove the pointer "
+            "and author the case")
+    endif()
+    file(STRINGS ${_pointer} _lines)
+    set(_tokens "")
+    set(_surface "")
+    foreach(_l IN LISTS _lines)
+        string(STRIP "${_l}" _l)
+        if(_l STREQUAL "" OR _l MATCHES "^#")
+            continue()
+        endif()
+        # Optional: the target's execution surface the consumer last reviewed,
+        # as `--list-cases` prints it. Drift is reported at run time, not here.
+        if(_l MATCHES "^surface[ \t]")
+            if(NOT _surface STREQUAL "")
+                message(FATAL_ERROR "${_where}: more than one `surface` line")
+            endif()
+            string(REGEX MATCH "^surface[ \t]+([0-9a-f]+)$" _sm "${_l}")
+            string(LENGTH "${CMAKE_MATCH_1}" _slen)
+            if(_sm STREQUAL "" OR NOT _slen EQUAL 16)
+                message(FATAL_ERROR
+                    "${_where}: `${_l}` is not `surface <16 lower-case hex digits>`")
+            endif()
+            set(_surface "${CMAKE_MATCH_1}")
+            continue()
+        endif()
+        list(APPEND _tokens "${_l}")
+    endforeach()
+    list(LENGTH _tokens _n)
+    if(NOT _n EQUAL 1)
+        message(FATAL_ERROR
+            "${_where}: ${_dir_name}.alias must hold exactly one target token "
+            "('${TC8_DEFAULT_SUITE}:<ID>'), found ${_n}")
+    endif()
+    string(REGEX MATCH "^([A-Za-z_][A-Za-z0-9_]*):([A-Za-z0-9_]+)$" _m "${_tokens}")
+    if(_m STREQUAL "")
+        message(FATAL_ERROR
+            "${_where}: target '${_tokens}' is not a qualified case id "
+            "('${TC8_DEFAULT_SUITE}:<ID>')")
+    endif()
+    string(TOLOWER "${CMAKE_MATCH_1}" _target_suite)
+    set(_target_id "${CMAKE_MATCH_2}")
+    if(NOT _target_suite STREQUAL "${TC8_DEFAULT_SUITE}")
+        message(FATAL_ERROR
+            "${_where}: target suite '${_target_suite}' is not the in-tree suite "
+            "'${TC8_DEFAULT_SUITE}'; only an in-tree case can be aliased, because "
+            "the in-tree catalog is the only one whose cases configure can verify")
+    endif()
+    # tests/ directories are the lower-cased case ids.
+    string(TOLOWER "${_target_id}" _target_dir)
+    if(NOT IS_DIRECTORY ${PROJECT_SOURCE_DIR}/tests/${_target_dir})
+        message(FATAL_ERROR
+            "${_where}: target '${_tokens}' names no in-tree case "
+            "(no tests/${_target_dir}/)")
+    endif()
+    if(_target_dir IN_LIST _tc8_override_ids)
+        message(STATUS
+            "TC8: alias '${_suite}:${case_id}' targets '${_tokens}', which "
+            "TC8_CASE_OVERRIDE_DIRS replaces in this build; the alias runs the "
+            "replacement")
+    endif()
+    message(STATUS "TC8: alias '${_suite}:${case_id}' -> '${_tokens}' (${case_dir})")
+    string(APPEND _tc8_alias_decls
+        "        {\"${_suite}\", \"${case_id}\", \"${_target_suite}\", \"${_target_id}\", \"${_surface}\"},\n")
+endwhile()
+
+# Emitted on every configure, empty or not, so declaredCaseAliases() always links;
+# rewritten only when its content changes, as the registration TUs are.
+set(_tc8_alias_tu ${TC8_CASE_STUBS_DIR}/case_aliases.cpp)
+set(_tc8_alias_text
+"// Auto-generated by CMake (src/harness/CMakeLists.txt, Pass 4). Do not edit.
+// Defines no TC8_CASE_SUITE and includes no case header: an alias names its
+// target by string and never instantiates a registrar (case_registry.h).
+#include \"sce_integration/case_alias.h\"
+
+namespace tc8::sce {
+
+const std::vector<CaseAlias> &declaredCaseAliases() {
+    static const std::vector<CaseAlias> kAliases = {
+${_tc8_alias_decls}    };
+    return kAliases;
+}
+
+}  // namespace tc8::sce
+")
+set(_tc8_alias_existing "")
+if(EXISTS ${_tc8_alias_tu})
+    file(READ ${_tc8_alias_tu} _tc8_alias_existing)
+endif()
+if(NOT "${_tc8_alias_existing}" STREQUAL "${_tc8_alias_text}")
+    file(WRITE ${_tc8_alias_tu} "${_tc8_alias_text}")
+endif()
+target_sources(tc8-harness PRIVATE ${_tc8_alias_tu})
+
 list(LENGTH _tc8_extra_keys _tc8_extra_count)
+list(LENGTH _tc8_alias_dirs _tc8_alias_count)
+math(EXPR _tc8_extra_count "${_tc8_extra_count} - ${_tc8_alias_count}")
 message(STATUS
     "TC8: case collection complete — ${_tc8_intree_count} in-tree, "
     "${_tc8_overrides_applied} overridden, ${_tc8_extra_count} "
-    "out-of-tree extra")
+    "out-of-tree extra, ${_tc8_alias_count} alias(es)")
 
 # Every pass has contributed; now group the cases into registration TUs. Must come
 # after the LAST tc8_add_case — a chunk's membership is not knowable before then.

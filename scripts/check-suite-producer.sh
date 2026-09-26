@@ -81,8 +81,54 @@ if ! grep -qxF "SOMEIPSRV_OPTIONS_01" <<<"${ids}"; then
     fail=1
 fi
 
+# Case aliases (Pass 4, case_alias.h). The demo suite declares two, each a
+# pointer file and nothing else: DEMO_OPTIONS_11 -> SOMEIPSRV_OPTIONS_11 (a
+# stimulus override and an authored negative row) and DEMO_RPC_14 ->
+# SOMEIPSRV_RPC_14 (a provisioned DUT flavor). What must hold end to end is that
+# the alias is registered under its own identity with its target named, that a
+# pinned surface that no longer matches is reported, and that every execution
+# axis the drivers read is the TARGET's row under the ALIAS's id.
+# The exposers read docs/spec relative to the working directory, hence the cd.
+# DEMO_RPC_14 pins no surface, so it lists the target's current digest.
+# DEMO_OPTIONS_11 pins one no target produces, so its listing must report the
+# drift: that is the negative control proving the report fires at all.
+hex='[0-9a-f]{16}'
+if ! grep -qE "^  demo:DEMO_RPC_14[[:space:]].*\[alias of SOMEIPSRV_RPC_14, surface ${hex}\]$" \
+        <<<"${listing}"; then
+    echo "[suite-producer] FAIL: demo:DEMO_RPC_14 not listed as an alias of SOMEIPSRV_RPC_14" >&2
+    fail=1
+fi
+if ! grep -qE "^  demo:DEMO_OPTIONS_11[[:space:]].*\[alias of SOMEIPSRV_OPTIONS_11, surface CHANGED: pinned 0{16}, now ${hex}\]$" \
+        <<<"${listing}"; then
+    echo "[suite-producer] FAIL: demo:DEMO_OPTIONS_11 does not report its pinned surface as changed" >&2
+    fail=1
+fi
+neg_rows="$(cd "${repo_root}" && "${build_dir}/tc8-harness" test --list-neg-rows)"
+target_neg="$(grep "^SOMEIPSRV_OPTIONS_11|" <<<"${neg_rows}" | cut -d'|' -f2- || true)"
+alias_neg="$(grep "^demo:DEMO_OPTIONS_11|" <<<"${neg_rows}" | cut -d'|' -f2- || true)"
+if [[ -z "${target_neg}" || "${alias_neg}" != "${target_neg}" ]]; then
+    echo "[suite-producer] FAIL: demo:DEMO_OPTIONS_11 negative rows '${alias_neg}'" \
+         "differ from its target's '${target_neg}'" >&2
+    fail=1
+fi
+variants="$(cd "${repo_root}" && "${build_dir}/tc8-harness" test --list-vsomeip-variants)"
+target_flavor="$(grep "^SOMEIPSRV_RPC_14|" <<<"${variants}" | cut -d'|' -f2- || true)"
+alias_flavor="$(grep "^demo:DEMO_RPC_14|" <<<"${variants}" | cut -d'|' -f2- || true)"
+if [[ -z "${target_flavor}" || "${alias_flavor}" != "${target_flavor}" ]]; then
+    echo "[suite-producer] FAIL: demo:DEMO_RPC_14 DUT flavor '${alias_flavor}'" \
+         "differs from its target's '${target_flavor}'" >&2
+    fail=1
+fi
+# An alias of a target with no flavor still DECLARES one — the base DUT — so the
+# orchestrator never refuses it as a case whose DUT cannot be known.
+if ! grep -qxF "demo:DEMO_OPTIONS_11||" <<<"${variants}"; then
+    echo "[suite-producer] FAIL: demo:DEMO_OPTIONS_11 does not declare the base DUT" >&2
+    fail=1
+fi
+
 if [[ ${fail} -ne 0 ]]; then
-    echo "[suite-producer] FAILED — (suite, id) coexistence regressed" >&2
+    echo "[suite-producer] FAILED — (suite, id) coexistence or case aliasing regressed" >&2
     exit 1
 fi
-echo "[suite-producer] OK — tc8:SOMEIPSRV_OPTIONS_01 and demo:SOMEIPSRV_OPTIONS_01 coexist"
+echo "[suite-producer] OK — tc8:SOMEIPSRV_OPTIONS_01 and demo:SOMEIPSRV_OPTIONS_01 coexist;" \
+     "demo aliases resolve to their targets' rows"

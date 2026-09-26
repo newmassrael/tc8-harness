@@ -125,6 +125,42 @@ void CaseRegistry::add(CaseEntry entry) {
     entries_.push_back(std::move(entry));
 }
 
+bool CaseRegistry::addAlias(const CaseAlias &alias, std::string *err) {
+    const auto fail = [&](const char *why) {
+        *err = "case alias " + qualifiedCaseId(alias.suite, alias.id) + " -> " +
+               qualifiedCaseId(alias.target_suite, alias.target_id) + ": " + why;
+        return false;
+    };
+    if (!isWellFormedCaseId(alias.id)) {
+        return fail("the alias id must end in '_<digits>', as every case id does");
+    }
+    if (equalsIgnoreAsciiCase(alias.suite, alias.target_suite)) {
+        return fail("an alias must live in a different suite than its target; one test "
+                    "under two ids in one catalog would be counted twice");
+    }
+    const CaseEntry *target = find(alias.target_suite, alias.target_id);
+    if (target == nullptr) {
+        return fail("the target is not a registered case");
+    }
+    if (target->isAlias()) {
+        return fail("the target is itself an alias; name the case it resolves to");
+    }
+    if (find(alias.suite, alias.id) != nullptr) {
+        return fail("that (suite, id) is already registered");
+    }
+    // Copied BEFORE the push_back, which may reallocate and invalidate `target`.
+    // The string views it carries point at static storage, not into entries_, so
+    // they survive the reallocation.
+    CaseEntry copy = *target;
+    copy.id = alias.id;
+    copy.suite = alias.suite;
+    copy.category = deriveCategory(alias.id);
+    copy.alias_of = {target->suite, target->id};
+    copy.alias_surface_pin = alias.pinned_surface;
+    entries_.push_back(std::move(copy));
+    return true;
+}
+
 const CaseEntry *CaseRegistry::find(std::string_view id) const {
     const CaseEntry *match = nullptr;
     for (const auto &e : entries_) {

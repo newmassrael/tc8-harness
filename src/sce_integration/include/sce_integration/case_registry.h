@@ -4,11 +4,13 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <vector>
 
 #include "tc8/bpf_group.h"
 
+#include "case_alias.h"
 #include "case_id_shape.h"
 #include "case_suite.h"  // kDefaultSuite — the in-tree catalog name's SSOT
 #include "test_case_traits.h"
@@ -26,8 +28,15 @@
 // types. gRegisterCase<SM> is an inline variable template — registering the SAME
 // SM type from two TUs that saw different TC8_CASE_SUITE values is an ODR
 // violation (one definition silently wins). Distinct suite => distinct
-// cpp-namespace-prefix => distinct SM type => safe. Never reuse an SM type across
-// suites.
+// cpp-namespace-prefix => distinct SM type => safe. Never INSTANTIATE an SM type's
+// registrar under a second suite.
+//
+// Precisely what this forbids, because it reads broader than it is: the hazard is
+// gRegisterCase<SM> and the macro value at its instantiation — NOT one SM type
+// being reachable under two suites at run time. A case alias (case_alias.h) does
+// exactly that, and is safe, because it never instantiates a registrar: it copies
+// an already-registered CaseEntry at run time via CaseRegistry::addAlias, taking
+// the suite as a runtime string from a TU that defines no TC8_CASE_SUITE.
 #ifndef TC8_CASE_SUITE
 #define TC8_CASE_SUITE (::tc8::sce::kDefaultSuite)
 #endif
@@ -83,6 +92,19 @@ struct CaseEntry {
     // construction (which omits it) stays in the in-tree suite; the OEM-suite
     // register stub sets it via TC8_CASE_SUITE. Identity is (suite, id).
     std::string_view suite = kDefaultSuite;
+    // The case this entry IS, when it was registered as an alias (case_alias.h);
+    // empty `id` for every authored case. Carried so the relationship is legible
+    // at run time: the alias's row cites the target whose state machine — and
+    // whose negative-row self-check — actually ran, and the inventory resolves
+    // the target's execution axes through it (case_spec.h).
+    QualifiedCaseId alias_of = {};
+    // The alias's pinned target surface (CaseAlias::pinned_surface); empty for an
+    // authored case and for an alias that pins none.
+    std::string_view alias_surface_pin = {};
+
+    bool isAlias() const {
+        return !alias_of.id.empty();
+    }
 };
 
 // Meyers-singleton registry populated at static-init time by each case
@@ -95,6 +117,15 @@ public:
 
     void add(CaseEntry entry);
 
+    // Registers `alias` as a copy of its target's entry under the alias's own
+    // (suite, id), with `alias_of` naming the target. Must run after static
+    // init, when every authored case is registered — harness_main does it before
+    // any command. Returns false with *err set, adding nothing, when the target
+    // is not registered or is itself an alias, when the alias shares its target's
+    // suite (one test under two ids in one catalog would count twice), when the
+    // alias id is malformed, or when its (suite, id) is taken.
+    bool addAlias(const CaseAlias &alias, std::string *err);
+
     // Unqualified lookup: resolves an id that is unique across all suites.
     // Returns nullptr if no match OR if the id is ambiguous (present in more
     // than one suite) — callers then qualify via find(suite, id).
@@ -104,8 +135,9 @@ public:
     const CaseEntry *find(std::string_view suite, std::string_view id) const;
 
     // Returns non-owning pointers into the internal vector. Pointers stay
-    // valid for the lifetime of the program (registry is never mutated
-    // after static init completes).
+    // valid for the lifetime of the program: the registry is mutated only
+    // during static init and by harness_main's addAlias pass, both of which
+    // complete before any command takes a pointer.
     std::vector<const CaseEntry *> listSorted(bool include_deprecated = false) const;
 
     std::size_t size() const {
