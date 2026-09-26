@@ -42,6 +42,14 @@ conflated:
 > harness itself failing: a stimulus that could not be sent, a capture that
 > could not open, an interpreter fault, an operator interruption.
 
+The four classes are verdicts, and a verdict is what a run returns. A case the
+smoke gate could not dispatch (its DUT flavor refused, its conditioning failed,
+the DUT or harness failed to spawn) returned none. It is not an `error`, and the
+gate's non-conclusion ceiling does not apply to it: that ceiling tolerates a rate
+of undecided verdicts, and a rate cannot tell a transient spawn fault from a
+refusal that fails on every run. Any undispatched case reds the gate, the same way
+a worker that dies before finishing its cases does (`docs/tech-debt.md` TD-59).
+
 ---
 
 ## 2. Verdict semantics (decision rule)

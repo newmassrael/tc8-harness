@@ -11,12 +11,15 @@ use anyhow::{Context, Result};
 
 /// One case's outcome for the report — the pass/fail/skip trichotomy bash's
 /// aggregator renders (a non-conclusion is a skip carrying its `inconclusive:`
-/// reason, exactly as bash routes it).
+/// reason, exactly as bash routes it), plus `Error` for a case the orchestrator
+/// could not dispatch. That case has no verdict at all, which is what Surefire's
+/// `<error>` means (docs/tech-debt.md TD-59).
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Status {
     Pass,
     Fail,
     Skip,
+    Error,
 }
 
 /// One `<testcase>`. `name` is already `_neg`-suffixed for a negative run (bash
@@ -74,24 +77,27 @@ pub fn render(records: &[CaseRecord], timestamp: &str) -> String {
     let total = records.len();
     let total_fail = records.iter().filter(|r| r.status == Status::Fail).count();
     let total_skip = records.iter().filter(|r| r.status == Status::Skip).count();
+    let total_error = records.iter().filter(|r| r.status == Status::Error).count();
     let total_time: f64 = records.iter().map(|r| r.duration_s).sum();
 
     let mut out = String::new();
     out.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
     out.push_str(&format!(
         "<testsuites name=\"tc8-harness smoke\" tests=\"{total}\" failures=\"{total_fail}\" \
-         skipped=\"{total_skip}\" time=\"{total_time:.3}\" timestamp=\"{}\">\n",
+         skipped=\"{total_skip}\" errors=\"{total_error}\" time=\"{total_time:.3}\" \
+         timestamp=\"{}\">\n",
         xml_escape(timestamp)
     ));
     for (suite, mut cases) in suites {
         cases.sort_by(|a, b| a.name.cmp(&b.name));
         let s_fail = cases.iter().filter(|r| r.status == Status::Fail).count();
         let s_skip = cases.iter().filter(|r| r.status == Status::Skip).count();
+        let s_error = cases.iter().filter(|r| r.status == Status::Error).count();
         let s_time: f64 = cases.iter().map(|r| r.duration_s).sum();
         let esc_suite = xml_escape(&suite);
         out.push_str(&format!(
             "  <testsuite name=\"{esc_suite}\" tests=\"{}\" failures=\"{s_fail}\" \
-             skipped=\"{s_skip}\" time=\"{s_time:.3}\">\n",
+             skipped=\"{s_skip}\" errors=\"{s_error}\" time=\"{s_time:.3}\">\n",
             cases.len()
         ));
         for r in cases {
@@ -116,6 +122,10 @@ pub fn render(records: &[CaseRecord], timestamp: &str) -> String {
                 }
                 Status::Skip => out.push_str(&format!(
                     "{open}><skipped message=\"{}\"/></testcase>\n",
+                    xml_escape(&r.message)
+                )),
+                Status::Error => out.push_str(&format!(
+                    "{open}><error message=\"{}\"/></testcase>\n",
                     xml_escape(&r.message)
                 )),
             }
@@ -188,6 +198,23 @@ mod tests {
         assert!(xml.contains("<failure type=\"negative\" message=\"expected &#x27;fail:x&#x27;")
             || xml.contains("<failure type=\"negative\" message=\"expected 'fail:x'"));
         assert!(xml.contains("<skipped message=\"guard not exercised: inconclusive:no_method_response\"/>"));
+    }
+
+    /// A case that never ran is an `<error>`, counted in `errors`, never a skip:
+    /// rendering it as a skip is how it passed unnoticed (TD-59).
+    #[test]
+    fn an_undispatched_case_renders_as_an_error_not_a_skip() {
+        let recs = vec![CaseRecord {
+            name: "SOMEIPSRV_RPC_13".into(),
+            status: Status::Error,
+            duration_s: 0.0,
+            message: "dispatch_fault: no DUT flavor".into(),
+            negative: false,
+        }];
+        let xml = render(&recs, "T");
+        assert!(xml.contains("skipped=\"0\" errors=\"1\""), "{xml}");
+        assert!(xml.contains("<error message=\"dispatch_fault: no DUT flavor\"/>"), "{xml}");
+        assert!(!xml.contains("<skipped"), "{xml}");
     }
 
     #[test]

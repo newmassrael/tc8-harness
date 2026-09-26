@@ -3995,7 +3995,8 @@ The consumer's second finding, that the run exited 0 anyway, is TD-59.
 
 ## TD-59 — a case the orchestrator could not dispatch is absorbed by the flake ceiling
 
-**Status:** OPEN. **Logged:** 2026-09-26, from the same consumer report as TD-58.
+**Status:** RESOLVED (2026-09-26). **Logged:** 2026-09-26, from the same consumer report as
+TD-58. The entry below is the debt as logged; **Resolution** at its end records what closed it.
 
 **What it is.** `worker.rs` routes every `Err` from dispatch to `error:dispatch_fault`, a
 non-conclusion, and `summarize` gates all non-conclusions with one rate: at least
@@ -4020,3 +4021,30 @@ code.
 
 **Done when:** the policy is chosen, `summarize` applies it with a test for each branch, and a run
 with one TD-17-style refusal exits non-zero.
+
+**Resolution.** Neither candidate above. Both treated a dispatch fault as an `error` verdict, and
+it is not a verdict at all. The harness assigns verdicts, and a case that never reached the
+harness has none. So the policy table did not change. The gap was in the ledger instead:
+`summarize` already fails a run in which a worker died before finishing its cases, and a case
+that was never dispatched breaks the same promise, one case at a time.
+
+- `worker.rs` puts an `Err` from dispatch in its own `undispatched` list, with the reason
+  `dispatch_fault: …`. The `error:` prefix is gone, because it claimed a class no harness assigned.
+- `summarize` fails the run on any undispatched case, whatever the rate. The non-conclusion
+  ceiling now counts only the harness's verdicts, and its thresholds are unchanged.
+- The JUnit report renders the case as `<error>` and counts it under `errors`. It no longer
+  appears as a skip.
+- `docs/verdict_policy.md` §1 says a case with no verdict is outside the four classes and reds
+  the gate.
+
+The narrower candidate, failing the run only on a refusal before spawn, was rejected. A spawn
+fault under load loses the case just as completely, and a transient cause is a reason to re-run,
+not to pass. **Measured before choosing:** the junit-reports artifacts of the 11 most recent smoke
+runs, 9 of which had artifacts, 8,857 testcases in all, contain no dispatch fault. The skip
+messages carry their reasons, 13 of them `inconclusive:`, so a dispatch fault would have
+appeared. This change turns nothing green into red today.
+
+**Runs (2026-09-26).** `cargo test` in `dut/env/orchestrator` passes 93, including
+`a_single_undispatched_case_reds_the_run_below_any_ceiling` (1 of 261, the consumer's shape),
+`non_conclusions_below_the_ceiling_still_pass`, and
+`an_undispatched_case_renders_as_an_error_not_a_skip`.

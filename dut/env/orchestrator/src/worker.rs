@@ -62,9 +62,14 @@ pub struct WorkerResult {
     pub fails: Vec<String>,
     /// Deterministic skips (capability / topology) — expected, non-gating.
     pub skips: Vec<Skip>,
-    /// Non-conclusions (inconclusive/error, incl. dispatch faults) — routed to a
+    /// Non-conclusions (the harness's inconclusive/error verdicts) — routed to a
     /// non-gating skip but counted against the non-conclusion ceiling.
     pub nonconclusions: Vec<Skip>,
+    /// Cases the orchestrator could not dispatch, so the harness never returned a
+    /// verdict: a refused DUT flavor, failed conditioning, a spawn or wait fault.
+    /// Not a non-conclusion, which is a verdict about a run that happened. Any one
+    /// of these reds the run, whatever the rate (docs/tech-debt.md TD-59).
+    pub undispatched: Vec<Skip>,
     /// Cases this worker actually concluded — cross-checked against the schedule.
     pub processed: usize,
     /// One record per concluded case (name, status, duration, message) for the
@@ -253,8 +258,8 @@ fn run_worker(
         // assertion keeps the plain case name: it runs the case exactly as the positive
         // lane would, so a report reader should see the same testcase identity.
         let rec_name = if negative { format!("{case}_neg") } else { case.clone() };
-        // Derive the report status + message per outcome (a non-conclusion and a
-        // dispatch fault both render as a skip carrying their reason, matching bash).
+        // Derive the report status + message per outcome (a non-conclusion renders
+        // as a skip carrying its reason, matching bash; a dispatch fault as an error).
         let (status, message) = match outcome {
             Ok(Verdict::Pass) => {
                 println!("[w{w}] PASS {case}");
@@ -300,12 +305,16 @@ fn run_worker(
                 (Status::Skip, reason)
             }
             Err(e) => {
-                // A dispatch failure (spawn/IO) is a test-system fault, not a DUT
-                // violation — route to the error non-conclusion class, not Fail.
-                let reason = format!("error:dispatch_fault: {e:#}");
-                println!("[w{w}] SKIP* {case} — {reason}  (non-conclusion)");
-                r.nonconclusions.push(Skip { case: case.clone(), reason: reason.clone() });
-                (Status::Skip, reason)
+                // A dispatch failure is not a DUT violation, so not Fail. It is not a
+                // non-conclusion either: that is a verdict about a run, and this case
+                // never ran. Hence no `error:` class token — the harness assigns
+                // those, and none was assigned here. It stays out of the flake ceiling
+                // because a rate cannot tell a transient fault from a deterministic
+                // refusal such as TD-17's, and hiding either loses the case.
+                let reason = format!("dispatch_fault: {e:#}");
+                println!("[w{w}] ERROR {case} — {reason}  (not dispatched)");
+                r.undispatched.push(Skip { case: case.clone(), reason: reason.clone() });
+                (Status::Error, reason)
             }
         };
         r.records.push(CaseRecord { name: rec_name, status, duration_s, message, negative });

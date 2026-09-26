@@ -511,12 +511,14 @@ fn summarize(topology: TopologyKind, total: usize, workers: u32, results: &[Work
     let mut fails: Vec<&str> = Vec::new();
     let mut skips: Vec<&worker::Skip> = Vec::new();
     let mut nonconcl: Vec<&worker::Skip> = Vec::new();
+    let mut undispatched: Vec<&worker::Skip> = Vec::new();
     let mut processed = 0usize;
     let mut worker_errors: Vec<&str> = Vec::new();
     for r in results {
         fails.extend(r.fails.iter().map(String::as_str));
         skips.extend(r.skips.iter());
         nonconcl.extend(r.nonconclusions.iter());
+        undispatched.extend(r.undispatched.iter());
         processed += r.processed;
         if let Some(e) = &r.worker_error {
             worker_errors.push(e);
@@ -524,16 +526,20 @@ fn summarize(topology: TopologyKind, total: usize, workers: u32, results: &[Work
     }
 
     println!(
-        "orchestrator summary [topology={topology}]: {total} case(s), {} failure(s), {} skipped, {} non-conclusion(s) across {workers} worker(s)",
+        "orchestrator summary [topology={topology}]: {total} case(s), {} failure(s), {} skipped, {} non-conclusion(s), {} not dispatched across {workers} worker(s)",
         fails.len(),
         skips.len(),
         nonconcl.len(),
+        undispatched.len(),
     );
     for s in &skips {
         println!("  SKIP  {} — {}", s.case, s.reason);
     }
     for s in &nonconcl {
         println!("  SKIP* {} — {}  (non-conclusion / regression-watch)", s.case, s.reason);
+    }
+    for s in &undispatched {
+        println!("  ERROR {} — {}  (not dispatched)", s.case, s.reason);
     }
 
     // Execution-ledger cross-check — every scheduled case must have concluded.
@@ -548,6 +554,16 @@ fn summarize(topology: TopologyKind, total: usize, workers: u32, results: &[Work
         // no destructor is bypassed.
         bail!(
             "FATAL — scheduled {total} case(s) but only {processed} were processed; a worker terminated early. Treat every result above as suspect."
+        );
+    }
+
+    // Dispatch ledger — the same promise per case: every scheduled case produced a
+    // verdict. One that could not be dispatched has none, so no rate absorbs it; the
+    // non-conclusion ceiling below is for verdicts, not for their absence (TD-59).
+    if !undispatched.is_empty() {
+        bail!(
+            "{} case(s) could not be dispatched and have no verdict — see the ERROR line(s) above",
+            undispatched.len()
         );
     }
 
@@ -589,5 +605,43 @@ fn env_usize(key: &str, default: usize) -> Result<usize> {
         Ok(s) => s
             .parse()
             .map_err(|_| anyhow::anyhow!("env {key}='{s}' must be a non-negative integer")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use worker::{Skip, WorkerResult};
+
+    fn skip(case: &str, reason: &str) -> Skip {
+        Skip { case: case.into(), reason: reason.into() }
+    }
+
+    /// The consumer's run (TD-59): 5 of 261 not dispatched, 1.9%, under the 5%
+    /// ceiling that used to absorb them. One is enough to red the run now.
+    #[test]
+    fn a_single_undispatched_case_reds_the_run_below_any_ceiling() {
+        let r = WorkerResult {
+            undispatched: vec![skip("SOMEIPSRV_RPC_13", "dispatch_fault: refused")],
+            processed: 261,
+            ..Default::default()
+        };
+        let err = summarize(TopologyKind::SinglePc, 261, 1, &[r]).unwrap_err().to_string();
+        assert!(err.contains("could not be dispatched"), "{err}");
+    }
+
+    /// The ceiling still governs verdicts: two non-conclusions in 261 stay green,
+    /// so moving dispatch faults out did not tighten what the harness reports.
+    #[test]
+    fn non_conclusions_below_the_ceiling_still_pass() {
+        let r = WorkerResult {
+            nonconclusions: vec![
+                skip("ARP_01", "inconclusive:x"),
+                skip("ARP_02", "error:capture_open"),
+            ],
+            processed: 261,
+            ..Default::default()
+        };
+        summarize(TopologyKind::SinglePc, 261, 1, &[r]).expect("under the ceiling");
     }
 }
