@@ -37,7 +37,21 @@ namespace tc8 {
 // `SomeIpExpectations` alone and cannot drift between the DTO and this Named
 // Context. The payload accessor `expected.payload_view()` and the case-default
 // setter come from the shared ExpectedPayload base (expected_payload.h).
-struct SomeIpExpected : SomeIpExpectations {};
+struct SomeIpExpected : SomeIpExpectations {
+    // The service the tester is TALKING TO, copied from `SomeIpIdentity` rather
+    // than from the expectations above. A direct member, not inherited, because
+    // it is deliberately NOT part of the `--expect`-flippable DTO — and
+    // single-dot `expected.dut_service_id` still satisfies SCE's rewriter.
+    //
+    // It exists for the guards that ask WHICH PEER rather than WHAT VALUE. A
+    // two-phase case waits for the DUT's OfferService before provoking the frame
+    // it grades; that wait is a question about the peer, so pinning it to the
+    // expectation made the whole case unfaultable — flip the expectation to test
+    // phase 2's guard and phase 1 stops recognising the offer, so the run ends in
+    // a non-conclusion and the guard is never reached (SOMEIPSRV_RPC_18,
+    // docs/tech-debt.md TD-55).
+    std::uint16_t dut_service_id = 0;
+};
 
 // ADL hook called by `TestRunner<SM>` at construction for any case whose
 // expected-context Named Context is `SomeIpExpected`. Copies the flat DTO
@@ -53,6 +67,11 @@ inline void applyTestConfig(SomeIpExpected &e, const TestConfig &cfg) {
     SomeIpExpectations effective = cfg.someip;
     keepCaseDefaultPayloadUnlessSet(effective, e);
     static_cast<SomeIpExpectations &>(e) = effective;
+    // Assigned after the base-slice above, which by construction leaves direct
+    // members untouched. Sourced from the IDENTITY so a `--negative` row
+    // rewriting `service_id` moves what a guard grades and not which peer a
+    // phase is waiting for.
+    e.dut_service_id = cfg.someip_dut.service_id;
 }
 
 }  // namespace tc8

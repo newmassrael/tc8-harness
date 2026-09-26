@@ -3748,3 +3748,57 @@ work.
 **Done when:** no C++ stimulus path addresses a request from a SOME/IP expectation field, and a
 case that grades a service endpoint carries a row that lands on its declared fail — MET, by
 `SOMEIPSRV_ONWIRE_01`.
+
+---
+
+## TD-55 — a two-phase case pinned its "is the peer there?" wait to the value its second phase grades
+
+**Status:** RESOLVED (2026-09-26), the same day it was logged. **Logged:** 2026-09-26, the last
+entry in the deferred-negative ledger, and the third framing of the same case.
+
+**What it is.** `SOMEIPSRV_RPC_18` runs in two phases. Phase 1 waits for the DUT's
+`OfferService`; phase 2 provokes an Error frame by calling an unknown method and grades whether
+it echoes the request's Message ID. Both read `expected.service_id`:
+
+```
+phase 1   captured.sd_entries[0].service_id == expected.service_id
+phase 2   captured.service_id               == expected.service_id   (and the method id)
+```
+
+So the flip that tests phase 2's guard stops phase 1 recognising the offer, and the run ends in
+`inconclusive:no_offer_service_within_listen_window` having graded nothing. Phase 2's only other
+graded field is a compiled method-id constant with no expect key, so no other token reaches the
+final. The case was undemonstrable.
+
+⚠ **I framed that as a trade, and it was not one.** The entry this replaces said the only way
+open was "loosening phase 1 to check that the DUT is offering rather than WHICH service it
+offers — a real weakening of that phase's premise". That assumed two options: grade against the
+expectation, or check nothing. There is a third, and it is the one this repository had already
+chosen five times today: **phase 1 asks WHICH PEER, which is identity.** It read the expectation
+only because identity had never been offered to an SCXML, not because the expectation was right.
+
+**How it was repaid.** `SomeIpExpected` — the Named Context an SCXML sees as `expected.` — gained
+a DIRECT member `dut_service_id`, deliberately outside the inherited `SomeIpExpectations` DTO so
+`--expect` cannot reach it, and populated from `cfg.someip_dut.service_id` (TD-54's identity).
+A direct member still satisfies SCE's single-dot rewriter. `someipsrv_rpc_18.scxml`'s phase 1 now
+reads `expected.dut_service_id`; phase 2 is untouched.
+
+Nothing was loosened. Phase 1 asks a strictly more precise question than before — *is the service
+I am addressing being offered* — where it used to ask *is a service matching what I will later
+grade against being offered*, which is the same question only while the two agree.
+
+**Measured 2026-09-26.** `--negative SOMEIPSRV_RPC_18` → **PASS**, landing
+`fail:error_message_did_not_echo_request_message_id`. Positives `RPC_18`, `RPC_20`,
+`ONWIRE_01` all PASS. `negative_coverage_audit.py`: 78 sound rows, **0 deferred**, 0 undisposed,
+0/518 fail finals unproven — and the audit named the leftover itself
+(`DEFERRED_REDUNDANT: someipsrv_rpc_18 is already SOUND_ROW`) rather than letting a stale
+deferral double-account the final.
+
+⚠ The pattern is now worth more than the case. `tools/deferred_negatives.json` is empty, and its
+note records why every entry it ever held was opened by a measurement that contradicted its own
+stated reason: **a deferral whose reason names a property of this harness — one row per case, one
+field doing two jobs, a guard pinned to the wrong surface — is a defect wearing a deferral's
+clothes.** Only a reason that names the SPEC or the DUT is a deferral.
+
+**Done when:** `SOMEIPSRV_RPC_18` carries a row that lands on its declared fail with no phase-1
+premise given up, and the deferred-negative ledger is empty — MET.

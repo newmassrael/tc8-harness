@@ -752,6 +752,11 @@
       ],
       "vsomeip_variant_ref": "dut/env/vsomeip_variants.md"
     },
+    "SOMEIPSRV_RPC_18": {
+      "neg_wrong_token": "service_id=0x0000",
+      "neg_expect_fail": "fail:error_message_did_not_echo_request_message_id",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
     "SOMEIPSRV_RPC_20": {
       "neg_wrong_token": "major_version=99",
       "neg_expect_fail": "fail:error_message_did_not_echo_interface_version",
