@@ -69,6 +69,15 @@ TC8_EXPECT_ROW(someip, dut_iface_ip,                dut_ip,    -)
 TC8_EXPECT_ROW(someip, tester_ipv4,                 tester_ip, -)
 TC8_EXPECT_ROW(someip, udp_port,                    vs_id,     udp_port)
 TC8_EXPECT_ROW(someip, tcp_port,                    vs_id,     tcp_port)
+/// The same four values again under the DUT SOME/IP IDENTITY keys — what a
+/// Method Request is addressed to, as opposed to what an SCXML grades a captured
+/// frame against. One source, two keys, for the reason `tester.ip` above has: a
+/// `--negative` row rewrites the expectation, and an ask reading the same field
+/// would be redirected by it (docs/tech-debt.md TD-54).
+TC8_EXPECT_ROW(someip, someip_dut.udp_port,         vs_id,     udp_port)
+TC8_EXPECT_ROW(someip, someip_dut.tcp_port,         vs_id,     tcp_port)
+TC8_EXPECT_ROW(someip, someip_dut.service_id,       vs_id,     service_id)
+TC8_EXPECT_ROW(someip, someip_dut.instance_id,      vs_id,     instance_id)
 /// SD_BEHAVIOR cases compare the DUT's multicast OfferService against the SD
 /// multicast group (vsomeip service-discovery.multicast). Spec-section citations
 /// live in the hand-edited drivers, not this generated surface (mnemosyne bindings).

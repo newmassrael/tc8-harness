@@ -47,7 +47,7 @@ struct TestCaseTraits<cases::SomeipEts155SM> : SomeIpAnyBase<cases::SomeipEts155
         auto session = std::make_unique<::tc8::stimulus::SubscribeEventgroupTcpSession>(
             iface, ::tc8::sce::someipTcpMethodDest(cfg));
         ::tc8::stimulus::SubscribeDestination sd_dest{};
-        sd_dest.ipv4_be = cfg.someip.dut_iface_ip;
+        sd_dest.ipv4_be = cfg.dut.ip;
 
         // First Subscribe (Sub_1).
         ::tc8::stimulus::SubscribeEventgroupParams sub1{};

@@ -60,7 +60,7 @@ struct TestCaseTraits<cases::SomeipEts175SM> : SomeIpAnyBase<cases::SomeipEts175
         auto session = std::make_unique<::tc8::stimulus::SubscribeEventgroupTcpSession>(
             iface, ::tc8::sce::someipTcpMethodDest(cfg));
         ::tc8::stimulus::SubscribeDestination sd_dest{};
-        sd_dest.ipv4_be = cfg.someip.dut_iface_ip;
+        sd_dest.ipv4_be = cfg.dut.ip;
         session->subscribeDualParams(params, sd_dest);
         owner.adoptService(std::move(session));
     }

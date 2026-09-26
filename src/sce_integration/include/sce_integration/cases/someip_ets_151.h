@@ -66,7 +66,7 @@ struct TestCaseTraits<cases::SomeipEts151SM> : SomeIpAnyBase<cases::SomeipEts151
         subscribe.eventgroup_id = 0x0002;  // mixed eg carrying reliable 0x8003 (ets.fdepl).
         subscribe.ttl = ::tc8::stimulus::kSubscribeOutlastTtl;  // outlast emission window
         ::tc8::stimulus::SubscribeDestination sd_dest{};
-        sd_dest.ipv4_be = cfg.someip.dut_iface_ip;  // DUT SD endpoint (:30490).
+        sd_dest.ipv4_be = cfg.dut.ip;  // DUT SD endpoint (:30490).
         session->subscribeDual(subscribe, sd_dest);
         owner.adoptService(std::move(session));
         // triggerEventUINT8Reliable (Method 0x05, Fire&Forget): start=0 s,

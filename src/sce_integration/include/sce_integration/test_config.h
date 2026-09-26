@@ -11,6 +11,7 @@
 #include "icmpv4_expectations.h"
 #include "ipv4_expectations.h"
 #include "someip_expectations.h"
+#include "someip_identity.h"
 #include "tester_identity.h"
 #include "stimulus/someip_sd_builder.h"
 
@@ -40,6 +41,9 @@ struct TestConfig {
     // The TESTER's own addresses, as opposed to what it grades against — the
     // mirror of `dut` above; see `TesterIdentity`.
     TesterIdentity tester{};
+    // The DUT's SOME/IP service identity — what a request is ADDRESSED to, as
+    // opposed to what `someip` below grades an observed frame against.
+    SomeIpIdentity someip_dut{};
     SomeIpExpectations someip{};
     ArpExpectations arp{};
     // ARP stimulus knobs (not guard-compared); see `ArpStimulusConfig`.

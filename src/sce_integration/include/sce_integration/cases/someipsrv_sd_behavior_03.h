@@ -53,7 +53,7 @@ struct TestCaseTraits<cases::SdBehavior03SM>
         // name + DUT IP by value because the observer runs on the poll-loop
         // thread long after this function returns.
         const std::string iface_owned(iface);
-        const std::uint32_t dut_ip_be = cfg.someip.dut_iface_ip;
+        const std::uint32_t dut_ip_be = cfg.dut.ip;
         scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_offer_reply),
             [iface_owned, dut_ip_be]() {

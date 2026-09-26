@@ -70,6 +70,10 @@
 #define TC8_EK_tester(kind, name)
 #define TC8_EK_tester_DEFAULTED
 #endif
+#ifndef TC8_EK_someip_dut
+#define TC8_EK_someip_dut(kind, name)
+#define TC8_EK_someip_dut_DEFAULTED
+#endif
 #ifndef TC8_EK_arp_stimulus
 #define TC8_EK_arp_stimulus(kind, name)
 #define TC8_EK_arp_stimulus_DEFAULTED
@@ -96,6 +100,7 @@ TC8_EXPECT_GROUP(someip,       "")
 TC8_EXPECT_GROUP(arp,          "arp.")
 TC8_EXPECT_GROUP(dut,          "dut.")
 TC8_EXPECT_GROUP(tester,       "tester.")
+TC8_EXPECT_GROUP(someip_dut,   "someip_dut.")
 TC8_EXPECT_GROUP(arp_stimulus, "arp_stimulus.")
 TC8_EXPECT_GROUP(icmpv4,       "icmpv4.")
 TC8_EXPECT_GROUP(ipv4,         "ipv4.")
@@ -175,6 +180,18 @@ TC8_EXPECT_KEY(dut, IPV4, secondary_ip)
 TC8_EXPECT_KEY(tester, IPV4, ip)
 TC8_EXPECT_KEY(tester, IPV4, secondary_ip)
 
+// --- DUT SOME/IP service identity (SomeIpIdentity, "someip_dut." prefix) -----
+// What a Method Request is ADDRESSED to. The same four values also exist as
+// bare-prefix EXPECTATIONS (`service_id`, `udp_port`, …) that 186 SCXMLs grade
+// an observed frame against and a `--negative` row rewrites; sending from those
+// made the flip redirect the request and silence the DUT, which is why
+// SOMEIPSRV_ONWIRE_01 and _RPC_18 had no authorable row
+// (docs/tech-debt.md TD-54).
+TC8_EXPECT_KEY(someip_dut, U16, udp_port)
+TC8_EXPECT_KEY(someip_dut, U16, tcp_port)
+TC8_EXPECT_KEY(someip_dut, U16, service_id)
+TC8_EXPECT_KEY(someip_dut, U16, instance_id)
+
 // --- ARP stimulus knobs (ArpStimulusConfig, "arp_stimulus." prefix) ---------
 TC8_EXPECT_KEY(arp_stimulus, U16, ut_cache_conditioning_s)
 
@@ -220,6 +237,10 @@ TC8_EXPECT_KEY(dhcpv4, MAC, dut_iface_mac)
 #ifdef TC8_EK_tester_DEFAULTED
 #undef TC8_EK_tester_DEFAULTED
 #undef TC8_EK_tester
+#endif
+#ifdef TC8_EK_someip_dut_DEFAULTED
+#undef TC8_EK_someip_dut_DEFAULTED
+#undef TC8_EK_someip_dut
 #endif
 #ifdef TC8_EK_arp_stimulus_DEFAULTED
 #undef TC8_EK_arp_stimulus_DEFAULTED

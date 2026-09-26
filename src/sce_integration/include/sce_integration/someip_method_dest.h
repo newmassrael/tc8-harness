@@ -54,13 +54,13 @@ methodDest(std::uint32_t dut_iface_ip_be, std::uint16_t configured_port,
 // DUT Method Request endpoint for the UNRELIABLE (UDP) transport.
 inline ::tc8::stimulus::MethodEndpoint
 someipUdpMethodDest(const ::tc8::TestConfig &cfg, std::uint16_t port_override = 0) {
-    return detail::methodDest(cfg.someip.dut_iface_ip, cfg.someip.udp_port, port_override);
+    return detail::methodDest(cfg.dut.ip, cfg.someip_dut.udp_port, port_override);
 }
 
 // DUT Method Request endpoint for the RELIABLE (TCP) transport.
 inline ::tc8::stimulus::MethodEndpoint
 someipTcpMethodDest(const ::tc8::TestConfig &cfg, std::uint16_t port_override = 0) {
-    return detail::methodDest(cfg.someip.dut_iface_ip, cfg.someip.tcp_port, port_override);
+    return detail::methodDest(cfg.dut.ip, cfg.someip_dut.tcp_port, port_override);
 }
 
 }  // namespace tc8::sce

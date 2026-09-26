@@ -57,7 +57,7 @@ struct TestCaseTraits<cases::SomeipEts173SM> : SomeIpAnyBase<cases::SomeipEts173
             iface, ::tc8::sce::someipTcpMethodDest(cfg));
         const ::tc8::stimulus::Ipv4Endpoint tcp_option = session->reliableEndpointOption();
         ::tc8::stimulus::SubscribeDestination sd_dest{};
-        sd_dest.ipv4_be = cfg.someip.dut_iface_ip;
+        sd_dest.ipv4_be = cfg.dut.ip;
 
         // Phase 1: index1=0, index2=1, #Opt1=1, #Opt2=1 — opt0 (UDP) via run 1,
         // opt1 (TCP) via run 2.

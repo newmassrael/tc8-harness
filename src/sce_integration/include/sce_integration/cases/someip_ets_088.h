@@ -65,7 +65,7 @@ struct TestCaseTraits<cases::SomeipEts088SM> : SomeIpAnyBase<cases::SomeipEts088
         auto session = std::make_unique<::tc8::stimulus::SubscribeEventgroupTcpSession>(
             iface, ::tc8::sce::someipTcpMethodDest(cfg));
         ::tc8::stimulus::SubscribeDestination sd_dest{};
-        sd_dest.ipv4_be = cfg.someip.dut_iface_ip;
+        sd_dest.ipv4_be = cfg.dut.ip;
         ::tc8::stimulus::MultiSubscribeEventgroupParams params{};
         params.entries = entries;
         params.per_entry_num_options_first = {2, 1, 1};  // 0x02 dual; 0x05/0x06 UDP-only

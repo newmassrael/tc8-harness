@@ -68,7 +68,7 @@ struct TestCaseTraits<cases::SomeipEts120SM> : SomeIpAnyBase<cases::SomeipEts120
         params.tester_endpoint.port = 12345U;
         params.tester_endpoint.l4proto = 0x11;  // UDP
         ::tc8::stimulus::SubscribeDestination sd_dest{};
-        sd_dest.ipv4_be = cfg.someip.dut_iface_ip;
+        sd_dest.ipv4_be = cfg.dut.ip;
         session->subscribeDualParams(params, sd_dest);
         owner.adoptService(std::move(session));
     }

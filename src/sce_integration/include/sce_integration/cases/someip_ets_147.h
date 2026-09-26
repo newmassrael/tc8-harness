@@ -50,7 +50,7 @@ struct TestCaseTraits<cases::SomeipEts147SM> : SomeIpAnyBase<cases::SomeipEts147
         subscribe.eventgroup_id = 0x0002;
         subscribe.ttl = ::tc8::stimulus::kSubscribeOutlastTtl;  // outlast capture window
         ::tc8::stimulus::SubscribeDestination sd_dest{};
-        sd_dest.ipv4_be = cfg.someip.dut_iface_ip;  // DUT SD endpoint (:30490).
+        sd_dest.ipv4_be = cfg.dut.ip;  // DUT SD endpoint (:30490).
         session->subscribeDual(subscribe, sd_dest);
         owner.adoptService(std::move(session));
     }

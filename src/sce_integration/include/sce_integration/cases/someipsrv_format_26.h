@@ -58,7 +58,7 @@ struct TestCaseTraits<cases::Format26SM>
         ::tc8::stimulus::SubscribeEventgroupTarget subscribe{};
         subscribe.eventgroup_id = 0x0002;
         ::tc8::stimulus::SubscribeDestination sd_dest{};
-        sd_dest.ipv4_be = cfg.someip.dut_iface_ip;
+        sd_dest.ipv4_be = cfg.dut.ip;
         session->subscribeDual(subscribe, sd_dest);
         owner.adoptService(std::move(session));
     }

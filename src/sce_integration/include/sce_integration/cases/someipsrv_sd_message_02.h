@@ -81,12 +81,12 @@ struct TestCaseTraits<cases::SdMessage02SM>
         // the DUT SD startup window and ensures at least one Find lands
         // during the DUT's Repetition Phase.
         ::tc8::stimulus::FindServiceTarget find_all{};
-        find_all.service_id = cfg.someip.service_id;
+        find_all.service_id = cfg.someip_dut.service_id;
         find_all.instance_id = 0xFFFF;
         ::tc8::stimulus::emitFindServiceBoot(iface, find_all);
 
         const std::string iface_owned(iface);
-        const std::uint16_t service_id = cfg.someip.service_id;
+        const std::uint16_t service_id = cfg.someip_dut.service_id;
 
         // Phase 2 entry → emit Find(extractedInstID1). State entry
         // observer guarantees the Find post-dates SCXML's listen-window

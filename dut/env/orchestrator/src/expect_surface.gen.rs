@@ -25,6 +25,15 @@ fn append_someip_identity(e: &mut Vec<String>, cfg: &Config) {
     ex(e, "tester_ipv4", &cfg.tester_ip4);
     ex(e, "udp_port", &id.udp_port);
     ex(e, "tcp_port", &id.tcp_port);
+    // The same four values again under the DUT SOME/IP IDENTITY keys — what a
+    // Method Request is addressed to, as opposed to what an SCXML grades a captured
+    // frame against. One source, two keys, for the reason `tester.ip` above has: a
+    // `--negative` row rewrites the expectation, and an ask reading the same field
+    // would be redirected by it (docs/tech-debt.md TD-54).
+    ex(e, "someip_dut.udp_port", &id.udp_port);
+    ex(e, "someip_dut.tcp_port", &id.tcp_port);
+    ex(e, "someip_dut.service_id", &id.service_id);
+    ex(e, "someip_dut.instance_id", &id.instance_id);
     // SD_BEHAVIOR cases compare the DUT's multicast OfferService against the SD
     // multicast group (vsomeip service-discovery.multicast). Spec-section citations
     // live in the hand-edited drivers, not this generated surface (mnemosyne bindings).

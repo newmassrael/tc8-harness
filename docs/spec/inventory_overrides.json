@@ -280,6 +280,11 @@
       "neg_expect_fail": "fail:entry_eventgroup_id_mismatch",
       "neg_row_ref": "dut/env/negative_rows.md"
     },
+    "SOMEIPSRV_ONWIRE_01": {
+      "neg_wrong_token": "udp_port=30599",
+      "neg_expect_fail": "fail:response_src_endpoint_did_not_match_dut_service_endpoint",
+      "neg_row_ref": "dut/env/negative_rows.md"
+    },
     "SOMEIPSRV_ONWIRE_06": {
       "neg_wrong_token": "major_version=99",
       "neg_expect_fail": "fail:response_interface_version_not_configured_major",

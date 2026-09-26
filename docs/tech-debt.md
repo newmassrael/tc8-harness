@@ -3677,3 +3677,74 @@ its own declared final. `negative_coverage_audit.py`: 0 undisposed, 0/518 unprov
 
 **Done when:** a case with two expectation-graded fail finals proves both by rows, with the run
 named here — MET.
+
+---
+
+## TD-54 — the DUT's SOME/IP service identity is an expectation, so the cases that grade an endpoint could not fault it
+
+**Status:** RESOLVED (2026-09-26), the same day it was logged. **Logged:** 2026-09-26, the fifth
+and sixth instances of one defect, found by asking what the *most long-term-correct* repair was
+instead of reaching for the one that was nearest.
+
+**What it is.** The last unsplit identity in the tree. `cfg.someip.{dut_iface_ip, udp_port,
+tcp_port, service_id, instance_id}` are EXPECTATIONS — 209 SCXMLs grade `expected.dut_iface_ip`
+and 186 grade `expected.service_id` — and 30 C++ stimulus sites read the same fields to decide
+where to ADDRESS a Method Request. A `--negative` row rewriting one of them moved the grading and
+the destination together, so the DUT was asked to answer an endpoint nobody held and the case
+reported a non-conclusion instead of its declared fail.
+
+⚠ **I had recorded that as structural.** The deferred-negative ledger said of
+`SOMEIPSRV_ONWIRE_01`: *"the two fields the guard grades are the SAME two the request is
+addressed to … a sound negative needs a fault seam rather than an expect flip."* The observation
+was right and the conclusion was wrong — those fields are not inherently one thing, they were
+one field nobody had split. The same sentence had been written about `cfg.ipv4.tester_ip`
+(TD-52), `kTesterAliasIp4Be` (TD-49) and `kDutAliasIp4Be` (TD-48) in turn.
+
+**Why the alternative was refused.** The nearest repair was a third vsomeip patch: make the
+stack echo a wrong message id, or answer from another endpoint, when a fault is armed. The
+series is quilt-managed, compile-gated and has two patches already, so the machinery was not the
+objection. The objection is what such a patch IS. Both existing patches REMOVE an upstream
+behaviour that makes a spec assertion unobservable; a fault patch adds a deliberate
+non-conformance to the reference implementation, and `dut/dut_service/ets_fault.h` had already
+drawn that line — *"the response serialization is vendored-vsomeip-owned"*. Splitting identity
+from expectation needs no such thing, and it fixes every case in the family rather than the two
+that happened to be stuck.
+
+**How it was repaid.** `SomeIpIdentity` beside `DutIdentity` and `TesterIdentity`, carrying the
+two ports and the service/instance ids, filled by `--expect someip_dut.*` from the same source
+the expectations come from. 30 ask sites across 25 files moved; `git grep cfg.someip.<field> --
+src/` now returns one hit, a comment about the grading half.
+
+⚠ **The DUT's IP is NOT in the new struct, and that was a measurement.** `someip.dut_iface_ip`
+and `dut.ip` hold the same value (both `172.16.0.2`), so the 24 sites reading the expectation
+only did so because the identity had never been offered to them. They now read `cfg.dut.ip`.
+Adding a copy would have been the duplicate this family exists to remove.
+
+**Measured 2026-09-26.**
+
+- `SOMEIPSRV_ONWIRE_01` now carries a row — `udp_port=30599` →
+  `fail:response_src_endpoint_did_not_match_dut_service_endpoint` — and the run returns **PASS**.
+  The flip moves the grading while the request still reaches the DUT, which is exactly what the
+  ledger said was impossible.
+- Regression across every family whose ask path moved: `ONWIRE_01/06`, `RPC_18`, `BASIC_03`,
+  `SD_MESSAGE_02/17`, `FORMAT_26`, `ETS_086`, `ETS_152` — 9/9 PASS.
+- Deferred negatives 2 → 1; `0/518` fail finals unproven; `0` undisposed.
+
+⚠ **`SOMEIPSRV_RPC_18` did NOT open, and the split is what made its real blocker visible.** Its
+phase 2 grades the error frame's `service_id` against the expectation; its phase 1 waits for an
+OfferService and filters on that SAME expectation. The ask is fixed — the request now goes to the
+right service under a flip — and the case still reports
+`inconclusive:no_offer_service_within_listen_window`. Phase 2's only other graded field is a
+compiled method-id constant with no expect key. Opening it means loosening phase 1 to check THAT
+the DUT is offering rather than WHICH service, which weakens that phase's premise; it is left
+deferred with that trade stated rather than taken quietly.
+
+⚠ One measurement nearly went into this entry as a false negative: the first ONWIRE_01 run still
+reported `no_response_within_listen_window`, because the expect surface had been regenerated and
+the ORCHESTRATOR not rebuilt, so `someip_dut.*` was never emitted and the port was 0.
+`--print-expect` showed zero such keys. A stale driver looks exactly like a repair that did not
+work.
+
+**Done when:** no C++ stimulus path addresses a request from a SOME/IP expectation field, and a
+case that grades a service endpoint carries a row that lands on its declared fail — MET, by
+`SOMEIPSRV_ONWIRE_01`.

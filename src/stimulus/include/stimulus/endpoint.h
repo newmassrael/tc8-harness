@@ -17,7 +17,7 @@ namespace tc8::stimulus {
 // silently targeting a hardcoded host.
 struct Endpoint {
     // IPv4 in network byte order (matches `Ipv4Endpoint::ipv4_be` and
-    // cfg.someip.dut_iface_ip, both NBO via inet_pton).
+    // cfg.dut.ip, both NBO via inet_pton).
     std::uint32_t ipv4_be = 0;
     // Host order; the emitter applies htons.
     std::uint16_t port = 0;
