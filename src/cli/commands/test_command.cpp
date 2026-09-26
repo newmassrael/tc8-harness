@@ -1061,10 +1061,14 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
         // into a false fail, with the probe's ARP as the only new frame on the
         // wire. A backend-static requirement is answerable without touching the
         // DUT, so answer it that way.
+        // The topology's bits are ORed in HERE, for every backend alike, rather
+        // than handed to one backend to advertise: the other one then never did,
+        // and a case it ran correctly skipped as unavailable (TD-25).
         const std::uint32_t caps =
-            (entry->required_capabilities & sce::kDutDerivedCaps) != 0U
-                ? dut_control->capabilities()
-                : dut_control->staticCapabilities();
+            ((entry->required_capabilities & sce::kDutDerivedCaps) != 0U
+                 ? dut_control->capabilities()
+                 : dut_control->staticCapabilities()) |
+            sce::topologyCapabilities(config);
         if (const std::uint32_t missing = entry->required_capabilities & ~caps;
             missing != 0U) {
             // A missing DUT-derived fault cap has two causes that must NOT be

@@ -1762,6 +1762,8 @@ resolution axis was wrong.
   the backend is TOLD. `OpcodeUtControl` takes a `topology_caps` word and ORs it into
   `staticCapabilities()`; the factory decides it. The axis count is unchanged at three, and
   what grew is the set of INPUTS to one of them. `dut_capabilities.h` says so at the bit.
+  ⚠ **Superseded 2026-09-26 — this bullet shipped a defect; see "Correction" at the end of
+  this entry.** The topology word no longer enters any backend.
 - **The premise became configured, which the note did name as an honest shape.**
   `Topology::dut_has_secondary_address()` (default `false`; `single_pc` returns `true`, and
   the comment there records that it is a fact about the netns TRANSPORT, since the pair
@@ -1804,6 +1806,24 @@ what the 0x16 axis reports, and they simply predate the gate.
 constant and the SCXML `0x050010ACU` literal — while its PRESENCE is now a topology fact.
 A topology declaring a DIFFERENT second address satisfies the capability and then fails the
 guard. Registered as TD-48.
+
+**Correction (2026-09-26): the topology word was handed to ONE of the two backends.** The
+factory built `topology_caps` and passed it to `OpcodeUtControl` only; the `kTestability`
+branch constructed `TestabilityControl` with nothing, and that class's `capabilities()` is a
+constant. On single-pc the netns pair holds the alias whichever backend reaches the DUT, so on
+a testability-only DUT `UDP_USER_INTERFACE_07` went from `pass` (at `eb6b9761`, pcap showing
+the DUT sourcing from 172.16.0.5 as asked) to
+`skip:requires_capability_0x2000_unavailable_on_autosar-testability`. A false skip — the
+inverse of a false pass — reported by the utm_test consumer, not caught here: both
+measurements above were on the opcode backend, so "both directions" covered both topologies
+and one backend.
+
+The resolution's own reasoning named the flaw and then built around it: a fact the backend
+cannot see does not belong to the backend. Handing it in at construction made every backend a
+place that could forget it. `topologyCapabilities(cfg)` in the factory TU now answers it, no
+backend class carries it, and the one gate in `test_command.cpp` ORs it beside whichever
+backend word it reads. A third backend cannot drop the bit, because it is never asked for it.
+`IDutControl::capabilities()` says at its declaration that it never carries a topology bit.
 
 ---
 

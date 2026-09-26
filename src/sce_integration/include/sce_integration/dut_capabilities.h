@@ -68,11 +68,12 @@ enum DutCapability : std::uint32_t {
     // The DUT answers on a SECOND address (`TestConfig::dut.secondary_ip`), which
     // §4.6.5.5 UDP_USER_INTERFACE_07 needs in order to ask it to emit from one.
     //
-    // Backend-STATIC like the two above, and resolved from the topology's own
-    // declaration rather than from the backend class: both the netns reference DUT
-    // and the lwIP fixture speak the same opcode backend, so the backend alone
-    // cannot tell them apart. The factory reads the address the topology emitted
-    // and advertises this bit when there is one.
+    // Static like the two above (no DUT I/O), but answered by the TOPOLOGY, not by
+    // any backend: both the netns reference DUT and the lwIP fixture speak the
+    // same opcode backend, so the backend cannot tell them apart, and the netns
+    // pair holds the alias whichever backend reaches the DUT, so no backend may
+    // own the answer either. `topologyCapabilities()` reads the address the
+    // topology emitted and the gate ORs the bit in beside the backend's word.
     //
     // ⚠ Not a DUT-derived bit. That axis is the OpQueryCapabilities (0x16) bitmap,
     // which is defined over the OPCODE value space — bit (opcode % 8) of byte

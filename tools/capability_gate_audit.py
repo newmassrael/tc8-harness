@@ -76,9 +76,10 @@ RATCHET = ROOT / "tools" / "capability_gate_reserved.txt"
 # a capability word is no longer assembled in a single place. The backend-static
 # and DUT-derived bits are both decided inside `dut_control.h`, because both are
 # facts a backend knows about itself. `kCapSecondaryDutAddress` is neither -- its
-# input is the TOPOLOGY, which the backend cannot see and is handed at
-# construction -- so the factory is genuinely a second site that builds a word,
-# not a loophole for one bit (docs/tech-debt.md TD-25).
+# input is the TOPOLOGY, which holds whichever backend reaches the DUT -- so
+# `topologyCapabilities()` in the factory TU is genuinely a second site that
+# builds a word, not a loophole for one bit. (It was first handed to ONE backend
+# at construction, and the other never advertised it; docs/tech-debt.md TD-25.)
 BACKEND_FILES = [
     ROOT / "src/sce_integration/include/sce_integration/dut_control.h",
     ROOT / "src/harness/dut_control_factory.cpp",
