@@ -3698,10 +3698,26 @@ reported `FAIL ARP_33#1 — expected 'fail:udp_eth_dst_neither_mac1_nor_mac2', h
 
 ARP_33 injects TWO gratuitous Responses, and whether the Linux DUT merges the second MAC turns on
 `arp_is_garp`/locktime timing; under a loaded runner it sometimes keeps MAC1. So a case can carry
-a row per final only while its DUT is deterministic about which final is right. `ARP_35` does
-carry both, because its Response-then-REQUEST addresses the DUT and the merge is reliable — which
-is what the older ledger entry meant by ARP_33 being "the same wall, and harder", and which I had
-read as a difference of degree rather than of kind.
+a row per final only while its DUT is deterministic about which final is right.
+
+⚠⚠ **`ARP_35` was reverted too, one run later, and that refuted what this paragraph first said.**
+It claimed ARP_35 could keep both rows because its Response-then-REQUEST addresses the DUT and so
+merges reliably. Smoke run 36226887642 then failed `ARP_35` row 0 in the OPPOSITE direction —
+`expected 'is_mac1_not_mac2', returned 'neither_mac1_nor_mac2'`, i.e. that DUT had kept MAC1 too.
+The whole `ARP_32/33/34/35` family shares the nondeterminism; the difference I read between the
+two siblings was one CI run's luck, asserted in prose before a second run could disagree.
+
+⚠ And it goes further than my change. Those four cases have each carried ONE row —
+`tester_mac2=bogus` → `neither_mac1_nor_mac2` — for a long time, and that row lands correctly only
+when the DUT merges. It has been green because the merge usually happens, not because it must.
+Nothing here made that worse; the two-row version doubled the exposure and so surfaced it. All
+four are back to that single row, and both `is_mac1_not_mac2` finals are deferred with the
+DUT-nondeterminism reason.
+
+⚠ **So multi-row now has no consumer in this tree.** It is small, gated by the loader, pinned by
+a self-test and by the parser's unit tests, and it is the mechanism the next genuinely
+deterministic two-final case will need — but a mechanism whose only justification has been
+withdrawn is worth stating rather than quietly keeping. Recorded as TD-57.
 
 ⚠ Not reproducible locally: the full negative lane at CI's own `--workers 4` passed **80/80**. It
 needs the sustained load of a whole smoke job — an hour of build and 754 positives first. A local
@@ -3887,3 +3903,41 @@ lane's own evidence was the thing at stake.
 
 **Done when:** a smoke run that overlaps deliberate local work in this repository shows no build
 inflation against the quiet baseline — with both runs named here.
+
+---
+
+## TD-57 — multi-row negatives exist and nothing uses them
+
+**Status:** OPEN (accepted) — kept deliberately, with the reason written down so the next reader
+does not have to reconstruct it. **Logged:** 2026-09-26, the same day the mechanism landed and
+the same day its only consumer was withdrawn.
+
+**What it is.** TD-53 added extra negative rows per case: `neg_extra_wrong_tokens` /
+`neg_extra_expect_fails` in the inventory, `CASE|INDEX|token|verdict` from `--list-neg-rows`,
+`--negative-row-index`, and `CASE#N` scheduling in the orchestrator. Its justification was
+`ARP_32/33/34/35`, whose shared template has two expectation-graded fail finals. Two CI runs then
+showed that which of those finals is correct depends on whether the Linux DUT merged the second
+advertised MAC, which is nondeterministic under load — so those cases went back to one row each
+and both second finals are deferred. `--list-neg-rows` prints 78 rows and **every index is 0**.
+
+**Why it is kept rather than reverted.** Three reasons, and the first is the weakest:
+
+- It is small and it is guarded. The loader refuses a length mismatch, a row with no primary, a
+  non-`class:reason` verdict and two rows flipping the same key; `--negative-row-index` refuses an
+  index out of range instead of falling back to row 0; the parser's behaviour is pinned by unit
+  tests including that row 0 keeps the bare id.
+- Reverting it would also revert the 4-field `--list-neg-rows` grammar, which is what makes a row
+  addressable at all — and the positional-filter fix that came with it (`--negative ARP_35` used
+  to run only the primary once extras existed).
+- ⚠ The honest one: the finding that withdrew its consumer is about the DUT, not about the
+  mechanism. A case with two graded finals and a deterministic DUT is the normal shape, not an
+  exotic one, and this is what it will need.
+
+⚠ **This is not a licence to keep unused mechanisms.** It is accepted because the cost is bounded
+and stated; the thing that would make it debt worth paying is discovering that no such case is
+ever authored. If a year passes with every index still 0, delete it — the gates and tests come
+out with it, and `docs/spec/inventory_overrides.json` loses two keys nobody set.
+
+**Done when:** either a case authors an extra row that lands its own final on a lane that is not
+load-fragile — with the case and run named here — or the mechanism is removed as unused, with the
+row grammar reverted to three fields in the same change.
