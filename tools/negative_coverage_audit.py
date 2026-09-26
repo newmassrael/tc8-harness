@@ -227,6 +227,29 @@ def parse_neg_rows(overrides_path: Path) -> list[NegRow]:
                 f"{expect!r} is not <class>:<reason>"
             )
         rows.append(NegRow(case_id, token, exp_class, exp_reason))
+
+        # EXTRA rows, for a case whose SCXML has more than one
+        # expectation-graded fail final. Parallel arrays, mirroring the harness
+        # loader; a length mismatch would pair a token with another row's verdict
+        # and assert the wrong thing while looking authored, so it is refused
+        # here as well as there (docs/tech-debt.md TD-53).
+        extra_tokens = body.get("neg_extra_wrong_tokens", [])
+        extra_expects = body.get("neg_extra_expect_fails", [])
+        if len(extra_tokens) != len(extra_expects):
+            raise SystemExit(
+                f"negative_coverage_audit: {case_id} has {len(extra_tokens)} "
+                f"neg_extra_wrong_tokens but {len(extra_expects)} "
+                "neg_extra_expect_fails; they are parallel and must be the "
+                "same length"
+            )
+        for extra_token, extra_expect in zip(extra_tokens, extra_expects):
+            cls, sep2, reason = extra_expect.partition(":")
+            if not sep2 or not reason:
+                raise SystemExit(
+                    f"negative_coverage_audit: {case_id} neg_extra_expect_fails "
+                    f"{extra_expect!r} is not <class>:<reason>"
+                )
+            rows.append(NegRow(case_id, extra_token, cls, reason))
     return rows
 
 

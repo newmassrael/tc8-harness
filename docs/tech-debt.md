@@ -3619,3 +3619,61 @@ Positives re-run after the migration, across every family that reads the moved f
 (`trees agree: HEAD 4aaf0496, working state identical`, uncommitted edits included) and built it
 cold in **107 s** while this workstation sat at load 29 with two free cores. That is TD-50
 paying for itself on the first change after it landed.
+
+---
+
+## TD-53 — one negative row per case, so a template with two graded fails could only prove one
+
+**Status:** RESOLVED (2026-09-26), the same day it was logged. **Logged:** 2026-09-26, after a
+question — "so you're saying it can't be done?" — sent me to the corpus instead of the ledger.
+
+**What it is.** A case authored at most ONE negative row: `neg_wrong_token` + `neg_expect_fail`,
+one pair per entry. `ARP_32/33/34/35` share a template with THREE graded branches, taken in
+document order:
+
+| | branch | condition |
+|---|---|---|
+| 1 | `pass` | egress MAC == `expected.tester_mac2` |
+| 2 | `fail_used_mac1` | egress MAC == `expected.tester_mac` |
+| 3 | `fail_unknown_mac` | neither |
+
+Two of those are fail finals and per-final accounting (TD-42) wants an account for each, but one
+row can only ever carry one. So `udp_eth_dst_is_mac1_not_mac2` sat in the deferred-negative
+ledger reading *"not by any single flip … the case's one row slot is already spent"*.
+
+⚠ **That sentence was true and I read it as "impossible".** It is a statement about the tool,
+not about the case. Two measurements corrected it:
+
+- `neg_wrong_token=arp.tester_mac=<MAC2>` with `neg_expect_overrides=[arp.tester_mac2=<other>]`
+  lands on `fail_used_mac1` exactly — branch 1 misses because its expectation moved, branch 2
+  matches because the DUT's real MAC2 now equals what `tester_mac` claims. `neg_expect_overrides`
+  existed for precisely this and nobody had tried it.
+- With that row in place the coverage audit named the real limit rather than a wall:
+  `PROOF_CONFLICT` on the final now proven twice, and `NEW_UNPROVEN_FINAL` on the one whose
+  account the swap had taken.
+
+**How it was repaid.** A case may now author extra rows, across five files and three languages:
+
+- `neg_extra_wrong_tokens` / `neg_extra_expect_fails`, parallel arrays because this inventory's
+  reader is regex-based and cannot see inside a nested object. The shape's own failure mode is a
+  length mismatch — it would pair a token with another row's verdict and assert the wrong thing
+  while looking authored — so the loader refuses it, and so does the audit. Two rows flipping the
+  same key are refused too: that proves one thing twice while counting as two accounts.
+- `--list-neg-rows` prints `CASE|INDEX|token|verdict`; `--negative-row-index N` selects. An index
+  out of range is refused rather than quietly falling back to row 0, which would assert one
+  verdict and report it as another.
+- The orchestrator carries the index IN THE CASE ID (`ARP_35#1`). The schedule is keyed by one
+  string, and that is what makes a row a schedulable unit; widening the tuple would have moved
+  three signatures to say the same thing. Row 0 keeps the bare id, so all 76 existing rows and
+  every report line are unchanged.
+- ⚠ The positional filter had to learn the split as well. Without it, `--negative ARP_35` ran
+  only the primary — the run reported complete while proving half of what it had just listed,
+  which is the exact shape of green this repository keeps refusing.
+
+Measured after: `--list-neg-rows` 76 → 78, and
+`--negative ARP_33 ARP_35` → **PASS ARP_33, PASS ARP_33#1, PASS ARP_35, PASS ARP_35#1**, each on
+its own declared final. `negative_coverage_audit.py`: 0 undisposed, 0/518 unproven, deferred
+4 → 2. The compile was proven on pc2 first, where `-Wshadow` caught a shadowed local in 35 s.
+
+**Done when:** a case with two expectation-graded fail finals proves both by rows, with the run
+named here — MET.

@@ -303,7 +303,15 @@ fn main() -> Result<()> {
         } else {
             let want: HashSet<String> = cli.cases.iter().map(|c| c.to_uppercase()).collect();
             rows.into_iter()
-                .filter(|(case, _)| want.contains(&case.to_uppercase()))
+                // Match the CASE, not the row: a case's extra rows carry a `#N`
+                // suffix, and naming `ARP_35` means every row it authors. Without
+                // the split, asking for a case ran only its primary — the run
+                // looked complete while proving half of what it had listed
+                // (docs/tech-debt.md TD-53).
+                .filter(|(case, _)| {
+                    let base = case.split('#').next().unwrap_or(case);
+                    want.contains(&base.to_uppercase())
+                })
                 .collect()
         };
         if filtered.is_empty() {

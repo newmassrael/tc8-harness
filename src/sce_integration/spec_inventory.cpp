@@ -622,6 +622,10 @@ std::optional<SpecInventory> SpecInventory::load(
             std::vector<std::string> neg_expect_overrides =
                 findStringArrayField(body, "neg_expect_overrides");
             std::string neg_row_ref = findStringField(body, "neg_row_ref");
+            std::vector<std::string> neg_extra_wrong_tokens =
+                findStringArrayField(body, "neg_extra_wrong_tokens");
+            std::vector<std::string> neg_extra_expect_fails =
+                findStringArrayField(body, "neg_extra_expect_fails");
             std::string vsomeip_cfg = findStringField(body, "vsomeip_cfg");
             std::vector<std::string> vsomeip_env =
                 findStringArrayField(body, "vsomeip_env");
@@ -684,6 +688,51 @@ std::optional<SpecInventory> SpecInventory::load(
                     }
                 }
             }
+            // Extra rows are two PARALLEL arrays, so the shape's own failure mode
+            // is a length mismatch: it would silently pair a token with another
+            // row's verdict and assert the wrong thing while looking authored.
+            if (neg_extra_wrong_tokens.size() != neg_extra_expect_fails.size()) {
+                return fail("overrides: " + id + " has " +
+                            std::to_string(neg_extra_wrong_tokens.size()) +
+                            " neg_extra_wrong_tokens but " +
+                            std::to_string(neg_extra_expect_fails.size()) +
+                            " neg_extra_expect_fails; they are parallel and must "
+                            "be the same length");
+            }
+            // An extra row with no primary is the same unreachable-data shape the
+            // neg_expect_overrides check above refuses: `--negative-row` numbers
+            // rows from the primary, so row 1 with no row 0 could never be run.
+            if (!neg_extra_wrong_tokens.empty() && neg_wrong_token.empty()) {
+                return fail("overrides: " + id +
+                            " sets neg_extra_wrong_tokens but has no primary "
+                            "negative row (neg_wrong_token); they could never be run");
+            }
+            // Same grammar as the primary's, read by the same listing parser.
+            for (const auto &verdict : neg_extra_expect_fails) {
+                if (verdict.find(':') == std::string::npos) {
+                    return fail("overrides: " + id + " neg_extra_expect_fails entry '" +
+                                verdict + "' is not a class:reason token");
+                }
+            }
+            // Two rows flipping the same key prove the same thing twice while
+            // reading as two accounts — and per-final accounting is what this axis
+            // feeds, so a duplicate would inflate it.
+            {
+                std::vector<std::string> flipped_keys;
+                flipped_keys.push_back(neg_wrong_token.substr(0, neg_wrong_token.find('=')));
+                for (const auto &tok : neg_extra_wrong_tokens) {
+                    const std::string key = tok.substr(0, tok.find('='));
+                    for (const auto &prior : flipped_keys) {
+                        if (!key.empty() && key == prior) {
+                            return fail("overrides: " + id + " negative rows flip '" +
+                                        key +
+                                        "' more than once; each row must fault a "
+                                        "different expectation");
+                        }
+                    }
+                    flipped_keys.push_back(key);
+                }
+            }
             // Seventh-axis gates the bash array could not have: a cfg must be a
             // bare `*.json` basename (a sibling of the base cfg the driver resolves),
             // never a path; each env token must be KEY=VALUE.
@@ -715,6 +764,8 @@ std::optional<SpecInventory> SpecInventory::load(
                     sc.neg_expect_fail = std::move(neg_expect_fail);
                     sc.neg_expect_overrides = std::move(neg_expect_overrides);
                     sc.neg_row_ref = std::move(neg_row_ref);
+                    sc.neg_extra_wrong_tokens = std::move(neg_extra_wrong_tokens);
+                    sc.neg_extra_expect_fails = std::move(neg_extra_expect_fails);
                     sc.vsomeip_cfg = std::move(vsomeip_cfg);
                     sc.vsomeip_env = std::move(vsomeip_env);
                     sc.vsomeip_variant_ref = std::move(vsomeip_variant_ref);

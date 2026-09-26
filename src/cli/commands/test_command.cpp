@@ -233,6 +233,11 @@ TestCommand::TestCommand(CLI::App &app) {
                    "positive expect_overrides. Errors if the case has no "
                    "authored row. Unrelated to a _NEG-suffixed case, which is a "
                    "separately registered firmware-mutant case.");
+    sub_->add_option("--negative-row-index", negative_row_index_,
+                     "Which of the case's authored rows --negative-row runs "
+                     "(default 0, the primary). A case whose SCXML has more than "
+                     "one expectation-graded fail final authors one row each, and "
+                     "--list-neg-rows prints the index to pass here.");
     sub_->add_option("--inventory", inventory_path_,
                      "Path to spec inventory JSON "
                      "(default: docs/spec/case_inventory.json)");
@@ -346,8 +351,17 @@ int TestCommand::runListNegRows() const {
             continue;
         }
         if (!sc.neg_wrong_token.empty()) {
-            rows.push_back(sce::qualifiedCaseId(sc.suite, sc.id) + "|" + sc.neg_wrong_token +
-                           "|" + sc.neg_expect_fail);
+            // `CASE|INDEX|token|verdict`. The INDEX is what `--negative-row`
+            // takes: a case may author more than one row (a template with two
+            // expectation-graded fail finals needs one each), and without it the
+            // driver could name the case but not which of its rows to run.
+            const std::string qid = sce::qualifiedCaseId(sc.suite, sc.id);
+            rows.push_back(qid + "|0|" + sc.neg_wrong_token + "|" + sc.neg_expect_fail);
+            for (std::size_t i = 0; i < sc.neg_extra_wrong_tokens.size(); ++i) {
+                rows.push_back(qid + "|" + std::to_string(i + 1) + "|" +
+                               sc.neg_extra_wrong_tokens[i] + "|" +
+                               sc.neg_extra_expect_fails[i]);
+            }
         }
     }
     std::sort(rows.begin(), rows.end());
@@ -863,9 +877,28 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
                          static_cast<int>(entry->id.size()), entry->id.data());
             return 1;
         }
-        effective_expect.push_back(sc->neg_wrong_token);
-        effective_expect.insert(effective_expect.end(), sc->neg_expect_overrides.begin(),
-                                sc->neg_expect_overrides.end());
+        // Row 0 is the primary and the only one that carries overrides; an extra
+        // row is base + its own token, which is why it needs none.
+        if (negative_row_index_ == 0) {
+            effective_expect.push_back(sc->neg_wrong_token);
+            effective_expect.insert(effective_expect.end(), sc->neg_expect_overrides.begin(),
+                                    sc->neg_expect_overrides.end());
+        } else {
+            // Out of range is refused for the same reason half a row is: a run
+            // that quietly fell back to row 0 would assert the wrong verdict and
+            // report it as the authored one.
+            const std::size_t extra = static_cast<std::size_t>(negative_row_index_) - 1;
+            if (negative_row_index_ < 0 || extra >= sc->neg_extra_wrong_tokens.size()) {
+                std::fprintf(stderr,
+                             "error: --negative-row-index %d: case %.*s authors %zu row(s) "
+                             "(0..%zu)\n",
+                             negative_row_index_, static_cast<int>(entry->id.size()),
+                             entry->id.data(), sc->neg_extra_wrong_tokens.size() + 1,
+                             sc->neg_extra_wrong_tokens.size());
+                return 1;
+            }
+            effective_expect.push_back(sc->neg_extra_wrong_tokens[extra]);
+        }
     } else if (sc != nullptr) {
         effective_expect.insert(effective_expect.end(), sc->expect_overrides.begin(),
                                 sc->expect_overrides.end());

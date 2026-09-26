@@ -116,6 +116,11 @@ private:
     // not trivially-true. NOT related to a `_NEG`-suffixed case, which is a
     // separately registered firmware-fault-injection mutant.
     bool negative_row_ = false;
+    // Which of the case's authored rows `--negative-row` runs. 0 is the primary
+    // (the one that may carry neg_expect_overrides); 1.. are its extras. A
+    // separate option rather than an optional value on the flag above so that
+    // every existing caller keeps its meaning unchanged.
+    int negative_row_index_ = 0;
     std::string inventory_path_;
     std::string overrides_path_;
     // `--inventory-extra` (repeatable) — D5 out-of-tree injection hook.

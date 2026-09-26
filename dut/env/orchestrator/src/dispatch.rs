@@ -346,7 +346,15 @@ pub fn run_negative_row(
     // Negative rows run DUT-first — the deliberate mis-expectation plus start-order
     // control bash's negative path uses (a topology that supports negatives spawns
     // the reference DUT, so dut_first is always valid here).
-    let raw = run_case_impl(cfg, topo, w, ctx, case_id, true, true)?;
+    //
+    // `case_id` may carry a `#N` row suffix (see `parse_neg_rows_output`). The
+    // harness knows the case by its bare name and the row by an index, so the
+    // two are split apart here — the one place that has to know the encoding.
+    let (bare, row_index) = match case_id.split_once('#') {
+        Some((c, n)) => (c, n.parse::<u32>().unwrap_or(0)),
+        None => (case_id, 0),
+    };
+    let raw = run_case_impl_row(cfg, topo, w, ctx, bare, true, true, row_index)?;
     Ok(map_negative_verdict(raw, expected_fail))
 }
 
@@ -500,15 +508,37 @@ fn parse_neg_rows_output(text: &str) -> Result<Vec<(String, String)>> {
         if line.is_empty() {
             continue;
         }
-        // The expected verdict is the 3rd field (a `class:reason`, e.g.
-        // `fail:entry_service_id_mismatch`), which contains no `|`, so splitn(3)
-        // keeps it intact even though a reason could in principle hold a colon.
-        let mut it = line.splitn(3, '|');
-        match (it.next(), it.next(), it.next()) {
-            (Some(case), Some(_wrong), Some(expected))
+        // `CASE|INDEX|token|verdict`. The verdict is the 4th field (a
+        // `class:reason`, e.g. `fail:entry_service_id_mismatch`), which contains
+        // no `|`, so splitn(4) keeps it intact even though a reason could in
+        // principle hold a colon.
+        //
+        // ⚠ The INDEX is not decoration. A case may author more than one row —
+        // a template with two expectation-graded fail finals needs one each —
+        // and the harness cannot infer which one this invocation means. Running
+        // row 0 for all of them would assert one verdict while the ledger
+        // counted two (docs/tech-debt.md TD-53).
+        let mut it = line.splitn(4, '|');
+        match (it.next(), it.next(), it.next(), it.next()) {
+            (Some(case), Some(idx), Some(_wrong), Some(expected))
                 if !case.is_empty() && !expected.is_empty() =>
             {
-                rows.push((case.to_string(), expected.to_string()));
+                let n: u32 = idx.parse().map_err(|_| {
+                    anyhow::anyhow!("--list-neg-rows row index is not a number: {line:?}")
+                })?;
+                // Row 0 keeps the bare case id, so every existing row, every
+                // schedule key and every report line is unchanged. Only a case
+                // that authors extras grows `#N` ids, and `run_negative_row`
+                // splits the suffix back off before naming the case to the
+                // harness. Encoding it here rather than widening the tuple keeps
+                // the schedule keyed by one string, which is what makes a row a
+                // schedulable unit at all.
+                let id = if n == 0 {
+                    case.to_string()
+                } else {
+                    format!("{case}#{n}")
+                };
+                rows.push((id, expected.to_string()));
             }
             _ => bail!("--list-neg-rows produced a malformed row: {line:?}"),
         }
@@ -527,6 +557,23 @@ fn run_case_impl(
     case_id: &str,
     dut_first: bool,
     negative_row: bool,
+) -> Result<Verdict> {
+    run_case_impl_row(cfg, topo, w, ctx, case_id, dut_first, negative_row, 0)
+}
+
+/// As `run_case_impl`, plus WHICH authored negative row to run. Only the negative
+/// lane passes a non-zero index; every other caller means the primary row and
+/// says so by going through the wrapper above rather than spelling a 0.
+#[allow(clippy::too_many_arguments)]
+fn run_case_impl_row(
+    cfg: &Config,
+    topo: &dyn Topology,
+    w: u32,
+    ctx: &WorkerCtx,
+    case_id: &str,
+    dut_first: bool,
+    negative_row: bool,
+    negative_row_index: u32,
 ) -> Result<Verdict> {
     // --log-dir redirects the per-case logs to a KEPT directory (bash smoke-test.sh
     // keep_logs=1); otherwise they are scratch under work_root, removed at run end.
@@ -629,6 +676,13 @@ fn run_case_impl(
     // overwrite the flip.
     if negative_row {
         args.push("--negative-row".to_string());
+        // Only spelled when it is not the primary, so every existing invocation
+        // is byte-identical to what it was and a diff of two runs shows the row
+        // that actually differs (docs/tech-debt.md TD-53).
+        if negative_row_index != 0 {
+            args.push("--negative-row-index".to_string());
+            args.push(negative_row_index.to_string());
+        }
     }
     // --dut-control backend passthrough (bash smoke-test.sh): seam-migrated cases
     // route their stimulus through the selected UT backend; opcode-builder cases
@@ -1041,8 +1095,8 @@ mod tests {
     #[test]
     fn parse_neg_rows_keeps_case_and_expected_drops_wrong_token() {
         let rows = parse_neg_rows_output(
-            "SOMEIPSRV_FORMAT_14|service_id=0x0000|fail:entry_service_id_mismatch\n\
-             ARP_03|arp.tester_ip=10.99.99.99|fail:dut_arp_request_after_cache_populated\n",
+            "SOMEIPSRV_FORMAT_14|0|service_id=0x0000|fail:entry_service_id_mismatch\n\
+             ARP_03|0|arp.tester_ip=10.99.99.99|fail:dut_arp_request_after_cache_populated\n",
         )
         .expect("well-formed rows parse");
         assert_eq!(rows.len(), 2);
@@ -1051,10 +1105,33 @@ mod tests {
         assert_eq!(rows[1].0, "ARP_03");
     }
 
+    /// Row 0 keeps the bare id and an extra row carries `#N`, which is what lets
+    /// a schedule keyed by one string hold both rows of one case. Asserted in one
+    /// test with both, because the property that matters is that they DIFFER.
+    #[test]
+    fn parse_neg_rows_encodes_only_extra_rows_with_a_suffix() {
+        let rows = parse_neg_rows_output(
+            "ARP_35|0|arp.tester_mac=02:00:00:00:00:A2|fail:udp_eth_dst_is_mac1_not_mac2\n\
+             ARP_35|1|arp.tester_mac2=de:ad:be:ef:00:00|fail:udp_eth_dst_neither_mac1_nor_mac2\n",
+        )
+        .expect("well-formed rows parse");
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].0, "ARP_35");
+        assert_eq!(rows[1].0, "ARP_35#1");
+        assert_ne!(rows[0].1, rows[1].1);
+    }
+
     #[test]
     fn parse_neg_rows_rejects_malformed_and_empty() {
-        // Only two fields — a half row.
-        assert!(parse_neg_rows_output("SOMEIPSRV_FORMAT_14|service_id=0x0000\n").is_err());
+        // Only three fields — a half row now that the index is one of them.
+        assert!(parse_neg_rows_output("SOMEIPSRV_FORMAT_14|0|service_id=0x0000\n").is_err());
+        // An index that is not a number: the old three-field grammar reaching a
+        // driver that expects four would land the token here and be asserted as a
+        // row index, so it is refused by name rather than parsed as 0.
+        assert!(parse_neg_rows_output(
+            "SOMEIPSRV_FORMAT_14|service_id=0x0000|fail:x|extra\n"
+        )
+        .is_err());
         // No rows at all — an empty negative run would pass by vacuity.
         assert!(parse_neg_rows_output("\n  \n").is_err());
     }

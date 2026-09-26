@@ -125,6 +125,28 @@ struct SpecCase {
     std::vector<std::string> neg_expect_overrides;
     std::string neg_row_ref;
 
+    // ADDITIONAL rows, for a case whose SCXML has more than one expectation-graded
+    // fail final. Parallel arrays rather than an array of objects because this
+    // file's reader is regex-based and cannot see inside a nested object; the
+    // loader refuses a length mismatch, which is the failure that shape invites.
+    //
+    // It exists because one row per case is a limit that was mistaken for a wall.
+    // ARP_32/33/34/35 share a template with THREE graded branches, in order:
+    // `pass` (egress MAC == tester_mac2), `fail_used_mac1` (== tester_mac), and
+    // `fail_unknown_mac` (neither). One row could only ever account for one of
+    // the two fails, and the other was carried as a deferred negative reading
+    // "not by any single flip" — true, and not the same thing as unreachable.
+    // Measured 2026-09-26: `neg_wrong_token=arp.tester_mac=<MAC2>` with
+    // `neg_expect_overrides=[arp.tester_mac2=<other>]` lands on `fail_used_mac1`
+    // exactly (docs/tech-debt.md TD-53).
+    //
+    // ⚠ `neg_expect_overrides` belongs to the PRIMARY row only. An extra row is
+    // base + its own token and nothing else, so the "applied last would overwrite
+    // the lie" hazard above cannot arise for one; a flip that needs a baseline
+    // shift is why the primary slot exists, and it takes it.
+    std::vector<std::string> neg_extra_wrong_tokens;
+    std::vector<std::string> neg_extra_expect_fails;
+
     // Seventh axis: `vsomeip_cfg` / `vsomeip_env` — the DUT-launch flavor a case
     // needs (bash CASE_VSOMEIP_VARIANT). The harness NEVER launches the DUT, so it
     // does not apply these; it only parses and EXPOSES them via
