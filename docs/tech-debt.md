@@ -3470,6 +3470,14 @@ This repository now builds on a build machine. The machine side had already been
 rebuilt so the generator is byte-identical); what remained was this repository's own shape, and
 the first reading of this entry had said so before a false experiment moved it.
 
+⚠⚠ **Correction, 2026-09-26: the second Done-when clause does not belong to this entry, and
+leaving it here hid an exposure.** It is not merely unverified — it is UNREACHABLE by this
+repair. `bx` relocates the builds THIS SESSION runs; the CI runner compiles on this workstation
+whatever `bx` does, because the runner is installed here. So a smoke run can still be inflated by
+local work, and nothing in this entry could ever change that. The clause is TD-43's territory —
+the runner sharing the box — and the fact that it lived as prose inside two RESOLVED entries is
+why nothing counted it. Registered as TD-56.
+
 ⚠ The second half of the Done-when — a smoke run overlapping local work no longer inflating —
 is not claimed here. It needs a run that overlaps deliberately, and the mechanism that makes it
 true (builds leaving the box) is what just landed. TD-43's own table already measured the size
@@ -3802,3 +3810,50 @@ clothes.** Only a reason that names the SPEC or the DUT is a deferral.
 
 **Done when:** `SOMEIPSRV_RPC_18` carries a row that lands on its declared fail with no phase-1
 premise given up, and the deferred-negative ledger is empty — MET.
+
+---
+
+## TD-56 — the push gate compiles on the workstation it gates, and no register counted that
+
+**Status:** OPEN (accepted) — the repair is an infrastructure action outside this repository, and
+the exposure is recorded here so it is counted rather than remembered.
+**Logged:** 2026-09-26, from a sweep answering "is anything left?" after all four registers read
+zero.
+
+**What it is.** The `[self-hosted, netns]` runner is installed on this workstation, so every
+smoke run's own build competes for cores with whatever a session is doing here. TD-50 moved THIS
+repository's builds off the box, which is what a session controls; it cannot move the runner's,
+because the runner is the box.
+
+The measurement, and the reason it is trustworthy — both pushes changed NO C++, so both builds
+were cache-warm and the only variable left is what else the machine was doing:
+
+| run | HEAD | this session | `Build harness` |
+|---|---|---|---:|
+| 36124982820 | `91aee810` | deliberately idle | **8m25** |
+| 36114404143 | `51dacc1e` | working here | **38m37** |
+
+⚠ **Do not cite a wide-rebuild run as evidence for this.** Run 36216232610's 48m06s build looks
+like a bigger version of the same thing and is not: that push touched `test_config.h`, so the
+rebuild was genuinely wide. Width and contention inflate the same number, and separating them is
+what makes the pair above worth anything. I conflated them once on 2026-09-26 and the correction
+is the useful half of this entry.
+
+**Why it exists as an entry at all.** It was already written down — twice, as prose inside TD-43
+and TD-50, both RESOLVED. Neither was wrong; a resolved entry's prose is simply not something
+`debt_census.py` counts, so the exposure was invisible to the one question anyone asks ("is
+anything left?"). This is the same shape as the rule `tools/deferred_negatives.json` now carries:
+a fact that only a human re-reading old entries would find is not tracked.
+
+⚠ It is ACCEPTED rather than open because the repair is provisioning a runner on a build
+machine — `pc2`/`pc3` now both meet this repository's declaration (TD-50), so the toolchain side
+is ready — and registering a self-hosted runner with the GitHub repository is the owner's action,
+not an agent's. Should that happen, close this and drop the clause from TD-50's Done-when.
+
+**What holds the line meanwhile.** Nothing mechanical, and that is the honest statement: the
+practice is that a session stays quiet while a lane runs, which TD-43 recorded twice as "a habit
+is not a mechanism" — and this session broke it once, running a 1445-second local build while the
+lane's own evidence was the thing at stake.
+
+**Done when:** a smoke run that overlaps deliberate local work in this repository shows no build
+inflation against the quiet baseline — with both runs named here.
