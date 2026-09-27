@@ -83,14 +83,18 @@ impl DutLifecycle for LocalExec<'_> {
         self.is_reference
     }
 
-    fn ready_marker(&self) -> Option<&'static str> {
+    fn readiness(&self) -> crate::dispatch::DutReadiness {
         // Only the reference tc8-dut prints it. A site-named binary may well bind its
         // ports just as carefully, but we did not build it and cannot promise it says
         // so — and a barrier that waits for an announcement that will never come is
         // worse than no barrier: it would add its whole ceiling to every case before
         // giving up. Same discriminator, and the same reasoning, as the negative rows
         // just above: what OUR implementation guarantees is not what any DUT does.
-        self.is_reference.then_some(crate::dispatch::DUT_READY_MARKER)
+        if self.is_reference {
+            crate::dispatch::DutReadiness::Announced(crate::dispatch::DUT_READY_MARKER)
+        } else {
+            crate::dispatch::DutReadiness::Unknown
+        }
     }
 
     fn start_dut(

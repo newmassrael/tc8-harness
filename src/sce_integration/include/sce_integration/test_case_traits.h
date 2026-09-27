@@ -525,9 +525,11 @@ constexpr ControlPlaneRole controlPlaneRoleOf() {
 // merely being likely to be ready by the time the stimulus lands.
 //
 // The barrier is opt-in at the command line, and that is where it leaks. The
-// orchestrator passes `--go-file` whenever the DUT announces readiness, so every
-// run it launches is protected; a harness spawned any other way (by hand, or by a
-// lane that drives the binary directly) waits for nothing. For most cases that
+// orchestrator passes `--go-file` whenever its topology can know the DUT is ready —
+// the DUT announcing it, or the fixture's own probe establishing it — so every run
+// it launches on such a topology is protected; a harness spawned any other way (by
+// hand, or by a lane that drives the binary directly) waits for nothing, and so
+// does one against a DUT whose readiness nothing can know. For most cases that
 // costs nothing, because their stimulus is re-driven or solicits a response. For
 // a fire-and-forget datagram it is the whole race the barrier exists to close,
 // and it is SILENT: the datagram is on the wire, the DUT's kernel answers it with

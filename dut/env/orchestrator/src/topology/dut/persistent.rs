@@ -70,13 +70,19 @@ impl DutLifecycle for PersistentDut<'_> {
         false
     }
 
-    fn ready_marker(&self) -> Option<&'static str> {
+    fn readiness(&self) -> crate::dispatch::DutReadiness {
         // There is no per-case spawn to wait on: this DUT was already running before
         // the run began and stays up across every case, so the race the barrier exists
         // for cannot occur here. Its liveness question is asked once, in
         // `provision_run` below, where an ACTIVE probe is affordable precisely because
-        // no case's capture is open yet.
-        None
+        // no case's capture is open yet — and a DUT that does not answer it fails the
+        // provision, so no case is ever dispatched against one that did not.
+        //
+        // So readiness here is ESTABLISHED, not unknown. Answering `Unknown` (what the
+        // absence of a marker used to mean) would report every case that requires the
+        // barrier as having run without proof, on the one lifecycle where the start
+        // order cannot race at all.
+        crate::dispatch::DutReadiness::Established(crate::dispatch::DutReady::Ready)
     }
 
     fn provision_run(&self, _placement: &DutPlacement) -> Result<()> {
@@ -144,5 +150,23 @@ impl DutLifecycle for PersistentDut<'_> {
 
     fn stop_dut(&self, _w: u32, _placement: &DutPlacement) -> Result<()> {
         Ok(()) // persistent — deliberately nothing to stop
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::fake_cfg;
+    use crate::dispatch::{DutReadiness, DutReady};
+
+    /// A DUT that was up before the run and passed the provision probe cannot be
+    /// outrun by a case's stimulus, so its readiness is established — NOT unknown,
+    /// which would report every barrier-requiring case as run without proof on the
+    /// one lifecycle whose start order cannot race.
+    #[test]
+    fn a_persistent_dut_is_established_ready() {
+        let cfg = fake_cfg();
+        let dut = PersistentDut::new(&cfg, "192.0.2.1", "eth0", None, false);
+        assert_eq!(dut.readiness(), DutReadiness::Established(DutReady::Ready));
     }
 }

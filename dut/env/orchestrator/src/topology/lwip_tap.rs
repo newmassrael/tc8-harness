@@ -64,6 +64,7 @@ use std::time::Duration;
 
 use crate::conditioning::{CondDir, CondStep};
 use crate::config::Config;
+use crate::dispatch::{DutReadiness, DutReady};
 use crate::netns;
 use crate::site::{LwipSpec, TopologyKind};
 use crate::wire::{self, DUT_IP, DUT_MASK, FIX_DIR, LAST_DUT_LOG, LOCK_FILE, TAP, TESTER_IP};
@@ -135,6 +136,12 @@ pub struct LwipTap<'a> {
     ready_probe: ReadyProbe,
     kill_name: String,
     state: Mutex<Option<LwipState>>,
+    /// The outcome of the latest readiness proof — provision's, or the per-case
+    /// respawn's — which is what the NEXT case is dispatched against. Published to
+    /// that case's harness as its DUT-ready signal (`dut_readiness`). Kept even when
+    /// negative, because the respawn path deliberately does not fail the run ("the
+    /// next case fails visibly"), and the harness is where it becomes visible.
+    last_ready: Mutex<DutReady>,
     /// Set once `teardown()` has run. teardown_run() reaps in the main flow, then
     /// Drop reaps again as the panic/SIGINT backstop — but the first teardown
     /// RELEASES the fixture lock, so a second pass must not run the no-tracked-state
@@ -173,6 +180,9 @@ impl<'a> LwipTap<'a> {
             ready_probe,
             kill_name,
             state: Mutex::new(None),
+            last_ready: Mutex::new(DutReady::NotReady(
+                "the lwIP DUT has not been probed yet".to_string(),
+            )),
             torn: AtomicBool::new(false),
             host,
         }
@@ -254,14 +264,24 @@ impl<'a> LwipTap<'a> {
     fn wait_dut_ready(&self) -> Result<()> {
         for _ in 0..READY_ATTEMPTS {
             if self.probe_ready() {
+                self.record_readiness(DutReady::Ready);
                 return Ok(());
             }
             sleep(READY_TICK);
         }
-        bail!(
+        let why = format!(
             "lwIP DUT did not answer the {} readiness probe after spawn (DUT log preserved at {LAST_DUT_LOG} on teardown)",
             self.probe_name()
-        )
+        );
+        self.record_readiness(DutReady::NotReady(why.clone()));
+        bail!(why)
+    }
+
+    /// Remember the latest readiness proof for the next dispatched case.
+    /// Poison-tolerant like `state`: a worker panic elsewhere must not turn every
+    /// later case's readiness into a second panic.
+    fn record_readiness(&self, outcome: DutReady) {
+        *self.last_ready.lock().unwrap_or_else(|p| p.into_inner()) = outcome;
     }
 
     fn probe_name(&self) -> &'static str {
@@ -413,7 +433,7 @@ impl Topology for LwipTap<'_> {
         false
     }
 
-    fn dut_ready_marker(&self) -> Option<&'static str> {
+    fn dut_readiness(&self) -> DutReadiness {
         // This topology already has a readiness barrier, and a STRONGER one: an
         // OpPing / GET_VERSION round trip (`wait_dut_ready`) proving the tap link, the
         // lwIP netif and the server bind end to end, rather than a line the DUT prints
@@ -422,9 +442,15 @@ impl Topology for LwipTap<'_> {
         // probe's own frames and no cold-cache ARP assertion can be spoiled by them —
         // the exact affordance the per-case barrier does not have.
         //
-        // So: nothing missing here, and adding a second barrier would only make the
-        // dispatcher wait on a marker this DUT never prints.
-        None
+        // So readiness here is ESTABLISHED before each case's harness starts, and what
+        // is published is that probe's own outcome — including a failed respawn, which
+        // `stop_dut` deliberately does not escalate. Waiting on a marker this DUT never
+        // prints would be wrong; reporting `Unknown` would be wrong the other way, and
+        // would mark every case that requires the barrier as run without proof on the
+        // fixture that proves it most strongly.
+        DutReadiness::Established(
+            self.last_ready.lock().unwrap_or_else(|p| p.into_inner()).clone(),
+        )
     }
 
     fn ut_arp_cache_timeout(&self) -> Option<String> {
@@ -556,6 +582,9 @@ impl Topology for LwipTap<'_> {
             Ok(spawn) => st.dut = Some(spawn),
             Err(e) => {
                 eprintln!("lwip-tap: WARNING — DUT respawn failed: {e:#} (the next case will fail readiness)");
+                self.record_readiness(DutReady::NotReady(format!(
+                    "the lwIP DUT respawn failed: {e:#}"
+                )));
                 return Ok(());
             }
         }

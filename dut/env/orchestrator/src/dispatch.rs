@@ -175,7 +175,7 @@ pub(crate) fn wait_for_dut_ready(dlog: &Path, marker: &str, dut: Option<&mut Chi
         }
         if let Some(f) = file.as_mut() {
             if scan_for_marker(f, &mut carry, marker.as_bytes()) {
-                return DutReady::Announced;
+                return DutReady::Ready;
             }
         }
         // The DUT (or, on ssh-remote, the ssh client carrying it) exited before it
@@ -184,7 +184,7 @@ pub(crate) fn wait_for_dut_ready(dlog: &Path, marker: &str, dut: Option<&mut Chi
         // start, that difference is hours.
         if let Some(d) = dut.as_deref_mut() {
             if matches!(d.try_wait(), Ok(Some(_)) | Err(_)) {
-                return DutReady::NotAnnounced(format!(
+                return DutReady::NotReady(format!(
                     "the DUT exited before announcing readiness (see {})",
                     dlog.display()
                 ));
@@ -192,7 +192,7 @@ pub(crate) fn wait_for_dut_ready(dlog: &Path, marker: &str, dut: Option<&mut Chi
         }
         sleep(Duration::from_millis(DUT_READY_POLL_MS));
     }
-    DutReady::NotAnnounced(format!(
+    DutReady::NotReady(format!(
         "the DUT did not announce readiness within {} ms (see {})",
         DUT_READY_POLL_MS * u64::from(DUT_READY_MAX_POLLS),
         dlog.display()
@@ -203,11 +203,52 @@ pub(crate) fn wait_for_dut_ready(dlog: &Path, marker: &str, dut: Option<&mut Chi
 /// `--go-file`, which is why the negative arm carries a reason rather than a bare
 /// `false`: the harness echoes it, so an operator reading the case log learns why
 /// the run could not conclude without also having to find the orchestrator's.
+///
+/// Named for the conclusion, not for how it was reached: an announcement in the
+/// DUT's log and a topology's own active probe (`DutReadiness::Established`) both
+/// arrive here, and the harness must not be able to tell which — only whether.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum DutReady {
-    /// The DUT announced that every endpoint a stimulus can arrive on is bound.
-    Announced,
-    /// It did not, for this reason.
-    NotAnnounced(String),
+    /// Every endpoint a stimulus can arrive on is shown to be bound.
+    Ready,
+    /// That could not be shown, for this reason.
+    NotReady(String),
+}
+
+/// How a topology knows its DUT is ready for a case's stimulus — the three answers
+/// a DUT lifecycle can honestly give, each of which dispatch turns into the same
+/// `--go-file` signal.
+///
+/// Three rather than a marker-or-nothing, because "nothing" conflated two opposite
+/// facts. A DUT we did not build announces nothing we can read: its readiness is
+/// UNKNOWN. A fixture that proves readiness itself, with an active probe run where
+/// no case's capture can see it (lwip-tap between cases, a persistent DUT at
+/// provision), announces nothing either — but its readiness is ESTABLISHED. With a
+/// case able to REQUIRE the barrier (the harness's `kDutReadyBarrier`), reading the
+/// second as the first would mark every such case on those fixtures as run without
+/// proof, when the fixture had the strongest proof of all.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum DutReadiness {
+    /// The DUT prints this line once every endpoint is bound; dispatch waits for it
+    /// in the case's DUT log ([`wait_for_dut_ready`]).
+    Announced(&'static str),
+    /// The topology has already decided, before this case's harness starts; dispatch
+    /// publishes that decision as it stands.
+    Established(DutReady),
+    /// Nothing can establish it for this DUT. No `--go-file` is offered, so a case
+    /// that requires the barrier reports that it ran without one.
+    Unknown,
+}
+
+/// Publish a readiness decision for this case: say a negative one in the
+/// orchestrator's own output too, then hand it to the harness. The one path every
+/// start order and every `DutReadiness` kind takes, so none of them can publish
+/// without the warning or warn without publishing.
+fn publish_dut_ready(go: &Path, outcome: &DutReady) {
+    if let DutReady::NotReady(why) = outcome {
+        eprintln!("orchestrator: warning: {why}");
+    }
+    signal_dut_ready(go, outcome);
 }
 
 /// Publish the barrier's outcome to the waiting harness.
@@ -222,8 +263,8 @@ pub(crate) enum DutReady {
 /// non-conclusion) rather than towards a verdict nobody can support.
 fn signal_dut_ready(go: &Path, outcome: &DutReady) {
     let body = match outcome {
-        DutReady::Announced => String::new(),
-        DutReady::NotAnnounced(reason) => format!("{reason}\n"),
+        DutReady::Ready => String::new(),
+        DutReady::NotReady(reason) => format!("{reason}\n"),
     };
     let tmp = go.with_extension("tmp");
     if fs::write(&tmp, body).is_ok() && fs::rename(&tmp, go).is_ok() {
@@ -720,13 +761,14 @@ fn run_case_impl_row(
     };
     let flavor_env: Vec<String> = variant.map(|v| v.env.clone()).unwrap_or_default();
 
-    // Whether this topology's DUT announces its own readiness. `None` — a DUT we did
-    // not build, or one the fixture owns and has already probed — means no barrier is
-    // offered in either start order, and the dispatch behaves exactly as it did
-    // before the barrier existed rather than blocking for a signal that never comes.
-    let ready_marker = topo.dut_ready_marker();
+    // How this topology knows its DUT is ready (see `DutReadiness`). `Unknown` — a DUT
+    // we did not build — offers no barrier in either start order, and the dispatch
+    // behaves exactly as it did before the barrier existed rather than blocking for a
+    // signal that never comes. `Established` — a fixture that has already probed — is
+    // published before the harness starts, so its wait returns on its first poll.
+    let readiness = topo.dut_readiness();
     // The harness's inbound signal path, declared here so the cleanup below can name
-    // it whichever start order ran (the `--dut-first` path never creates it).
+    // it whichever start order ran.
     let go = hlog.with_extension("go");
 
     let mut procs = CaseProcs::new(topo, w);
@@ -750,13 +792,15 @@ fn run_case_impl_row(
         // too. It is written BEFORE the harness is spawned, the answer already being
         // known, so the harness's wait returns on its first poll and costs nothing.
         let mut dargs = args.clone();
-        if let Some(marker) = ready_marker {
-            let outcome = wait_for_dut_ready(&dlog, marker, procs.dut.as_mut());
-            if let DutReady::NotAnnounced(why) = &outcome {
-                eprintln!("orchestrator: warning: {why}");
+        let outcome = match &readiness {
+            DutReadiness::Announced(marker) => {
+                Some(wait_for_dut_ready(&dlog, marker, procs.dut.as_mut()))
             }
-            let _ = fs::remove_file(&go);
-            signal_dut_ready(&go, &outcome);
+            DutReadiness::Established(decided) => Some(decided.clone()),
+            DutReadiness::Unknown => None,
+        };
+        if let Some(outcome) = outcome {
+            publish_dut_ready(&go, &outcome);
             dargs.push("--go-file".to_string());
             dargs.push(go.to_string_lossy().into_owned());
         }
@@ -787,26 +831,28 @@ fn run_case_impl_row(
         let mut hargs = args.clone();
         hargs.push("--ready-file".to_string());
         hargs.push(ready.to_string_lossy().into_owned());
-        if ready_marker.is_some() {
+        if readiness != DutReadiness::Unknown {
             hargs.push("--go-file".to_string());
             hargs.push(go.to_string_lossy().into_owned());
+        }
+        // A decision the topology already holds is published before the harness
+        // exists, the same way the `--dut-first` path publishes its own.
+        if let DutReadiness::Established(decided) = &readiness {
+            publish_dut_ready(&go, decided);
         }
         let mut harness = topo.run_harness(w, &hlog, &hargs)?;
         wait_for_capture_ready(&ready, &mut harness);
         let _ = fs::remove_file(&ready);
         procs.harness = Some(harness);
         procs.dut = topo.start_dut(w, &dlog, &vcfg, &flavor_env)?;
-        if let Some(marker) = ready_marker {
+        if let DutReadiness::Announced(marker) = &readiness {
             let outcome = wait_for_dut_ready(&dlog, marker, procs.dut.as_mut());
-            if let DutReady::NotAnnounced(why) = &outcome {
-                eprintln!("orchestrator: warning: {why}");
-            }
             // Release the harness either way. It owns the verdict, so it is the only
             // party that can record the unperformed stimulus that keeps a case from
             // passing on silence it never earned — and it can only do that once it
             // stops waiting. A harness left blocked would burn the case backstop and
             // report nothing at all.
-            signal_dut_ready(&go, &outcome);
+            publish_dut_ready(&go, &outcome);
         }
     }
 
@@ -1222,11 +1268,11 @@ mod tests {
         let _ = fs::create_dir_all(&dir);
 
         let ok = dir.join("ok.go");
-        signal_dut_ready(&ok, &DutReady::Announced);
+        signal_dut_ready(&ok, &DutReady::Ready);
         assert_eq!(fs::read_to_string(&ok).expect("ok.go"), "");
 
         let bad = dir.join("bad.go");
-        signal_dut_ready(&bad, &DutReady::NotAnnounced("the DUT exited".into()));
+        signal_dut_ready(&bad, &DutReady::NotReady("the DUT exited".into()));
         assert_eq!(fs::read_to_string(&bad).expect("bad.go"), "the DUT exited\n");
 
         // The staging file must not survive as litter next to the evidence.

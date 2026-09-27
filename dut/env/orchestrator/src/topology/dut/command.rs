@@ -110,7 +110,7 @@ impl DutLifecycle for CommandDut<'_> {
         false
     }
 
-    fn ready_marker(&self) -> Option<&'static str> {
+    fn readiness(&self) -> crate::dispatch::DutReadiness {
         // The whole point of this lifecycle is that the DUT is not an executable of
         // ours — a sibling container, a lab rig behind a script — so it announces
         // nothing we can recognise. Its output IS captured into the per-case DUT log
@@ -118,7 +118,7 @@ impl DutLifecycle for CommandDut<'_> {
         // the transport is already there; what is missing is a marker to agree on, and
         // inventing one on the site's behalf would be a guess that costs every case the
         // barrier's full ceiling when it turns out wrong.
-        None
+        crate::dispatch::DutReadiness::Unknown
     }
 
     fn start_dut(
@@ -208,6 +208,14 @@ mod tests {
 
     fn dut(cfg: &Config) -> CommandDut<'_> {
         CommandDut::new(cfg, vec!["/launch".into()], vec!["/stop".into()], 1)
+    }
+
+    /// A DUT behind a site's launcher gives us no way to know it is listening, so no
+    /// barrier is offered — and a case that requires one reports that it ran without.
+    #[test]
+    fn a_launched_dut_offers_no_readiness_proof() {
+        let cfg = fake_cfg();
+        assert_eq!(dut(&cfg).readiness(), crate::dispatch::DutReadiness::Unknown);
     }
 
     #[test]

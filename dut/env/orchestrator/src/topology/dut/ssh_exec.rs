@@ -300,7 +300,7 @@ impl DutLifecycle for SshExecDut<'_> {
         false
     }
 
-    fn ready_marker(&self) -> Option<&'static str> {
+    fn readiness(&self) -> crate::dispatch::DutReadiness {
         // It is our reference tc8-dut (`remote_dut_bin`), so it announces — and this
         // is the lifecycle that needs the barrier MOST. The margin the defect turns on
         // is how long a DUT takes to bind, and an ssh spawn adds a connection, a remote
@@ -310,7 +310,7 @@ impl DutLifecycle for SshExecDut<'_> {
         //
         // Its stdout is streamed straight into the per-case DUT log by `start_dut`, so
         // the reader on this side needs no second ssh round trip to see the line.
-        Some(crate::dispatch::DUT_READY_MARKER)
+        crate::dispatch::DutReadiness::Announced(crate::dispatch::DUT_READY_MARKER)
     }
 
     fn bring_up_worker(&self, _w: u32) -> Result<()> {

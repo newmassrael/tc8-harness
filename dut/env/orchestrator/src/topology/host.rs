@@ -303,8 +303,8 @@ impl Topology for External<'_> {
     fn supports_negative(&self) -> bool {
         self.dut.supports_negative()
     }
-    fn dut_ready_marker(&self) -> Option<&'static str> {
-        self.dut.ready_marker()
+    fn dut_readiness(&self) -> crate::dispatch::DutReadiness {
+        self.dut.readiness()
     }
     fn dut_has_secondary_address(&self) -> bool {
         // The SITE answers here, because on a host-NIC wire nothing in-tree
@@ -460,8 +460,8 @@ impl Topology for SshRemote<'_> {
     fn supports_negative(&self) -> bool {
         self.dut.supports_negative()
     }
-    fn dut_ready_marker(&self) -> Option<&'static str> {
-        self.dut.ready_marker()
+    fn dut_readiness(&self) -> crate::dispatch::DutReadiness {
+        self.dut.readiness()
     }
     fn dut_has_secondary_address(&self) -> bool {
         // Same answer and the same reason as `External` above: the operator's
