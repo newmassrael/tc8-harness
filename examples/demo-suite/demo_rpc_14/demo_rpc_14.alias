@@ -1,3 +1,5 @@
-# demo:DEMO_RPC_14 IS the in-tree SOMEIPSRV_RPC_14. The target needs a DUT
+# demo:DEMO_RPC_14 IS the in-tree SOMEIPSRV_RPC_14 — the target needs a DUT
 # provisioned with a second service instance, which this alias inherits.
+# (The em dash above is deliberate: the pointer file is read as UTF-8, and this
+# comment is the regression guard for a non-ASCII byte splitting a line.)
 tc8:SOMEIPSRV_RPC_14

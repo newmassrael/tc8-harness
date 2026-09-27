@@ -701,7 +701,12 @@ while(_tc8_alias_i LESS _tc8_alias_n)
             "An alias carries no implementation; remove them, or remove the pointer "
             "and author the case")
     endif()
-    file(STRINGS ${_pointer} _lines)
+    # ENCODING UTF-8, because without it file(STRINGS) treats every non-ASCII
+    # byte as a string separator: one em dash in a comment split the line, and
+    # its tail — no longer behind a `#` — was read as a second target token
+    # (reported by a consumer, 2026-09-27). The comments are where the premise is
+    # stated in prose, so they must accept prose.
+    file(STRINGS ${_pointer} _lines ENCODING UTF-8)
     set(_tokens "")
     set(_surface "")
     foreach(_l IN LISTS _lines)
@@ -730,7 +735,7 @@ while(_tc8_alias_i LESS _tc8_alias_n)
     if(NOT _n EQUAL 1)
         message(FATAL_ERROR
             "${_where}: ${_dir_name}.alias must hold exactly one target token "
-            "('${TC8_DEFAULT_SUITE}:<ID>'), found ${_n}")
+            "('${TC8_DEFAULT_SUITE}:<ID>'), found ${_n}: [${_tokens}]")
     endif()
     string(REGEX MATCH "^([A-Za-z_][A-Za-z0-9_]*):([A-Za-z0-9_]+)$" _m "${_tokens}")
     if(_m STREQUAL "")
