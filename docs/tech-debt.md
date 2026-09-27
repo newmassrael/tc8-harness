@@ -4139,7 +4139,11 @@ exactly one" is enforced by nothing.
 
 **Constraint.** An injected consumer suite compiles its own cases against these headers. Deleting a
 legacy form breaks that suite's build, so deletion needs a deprecation window the consumer agrees
-to. It cannot be done in one commit.
+to. It cannot be done in one commit. Sized by the consumer on 2026-09-28: 366 of its case headers
+declare a stimulus. 360 take the plain `iface` form, 6 take it and leave it unused, and 1 takes
+`IDutControl`. It asks that both forms stay accepted across at least one pin bump, so it can
+migrate in batches and gate each batch with its full sweep. It also asks that the cases that would
+use the observer migrate first, since they are the only ones whose verdicts gain anything.
 
 **Done when:** every in-tree case uses the context form, the legacy forms are deprecated with a
 compile-time diagnostic, and after the consumer has migrated they are deleted together with their
@@ -4163,11 +4167,25 @@ AUTOSAR testability vocabulary is fixed by its standard. So whatever is added be
 opcode Upper Tester and is capability-gated, as `kCapTcpSynSentOpen` is.
 
 **Not built yet, deliberately.** A generic "await a DUT state" (a probe polled under a bound, with
-the same unperformed record as an unmet observation) has no in-tree consumer. Its first real
-consumer needs a state the consumer has not yet defined precisely: which DUT-internal fact "SD
-session advanced" is, and which DUT reports it. Building the await before that state exists would
-fix its shape without a consumer.
+the same unperformed record as an unmet observation) has no in-tree consumer, and its one candidate
+consumer may not survive measurement. The consumer read one client case's artifacts. The DUT
+logged its stack ready and every receive endpoint bound 5.5 s before the tester's activate
+request, handled that request 11 ms after it arrived, and during the 2.5 s settle sent only its
+own cyclic SD messages. Its SD session counter advanced on its own timer, not in response to the
+tester's FindService. So the constant's stated purpose, "the DUT boots and advances its SD
+session", holds neither for booting (the barrier covers that) nor for the session. The consumer
+will shrink the settle toward zero across repeated client sweeps. If nothing moves, the constant
+is retired and this entry has no consumer. If something moves, that run names the DUT event, with
+a failing case behind it.
 
-**Done when:** the consumer's state is defined, the opcode Upper Tester reports it behind a
-capability bit, the reference DUT implements it, and `IStimulusObserver` gains the await that
-polls it, with the consumer's wait converted.
+**Seam this would need.** The consumer's DUT is the reference `dut_service` plus its own
+`IEtsExtension`, and that interface has no Upper Tester opcode hook (`onRegister`, `onSuspend`,
+`onReactivate`, `onTick`, `onStop`, `ets8001TriggerDriven`). A DUT-state op reported by an
+extension would need a registration seam, as the §4.2.3 static-entry pair needed
+`PosixUtExtensions`.
+
+**Done when:** either the consumer's experiment retires its settle (then this entry is resolved as
+having no consumer), or it yields a named DUT event with a failing case. In the second outcome, the
+opcode Upper Tester reports that event behind a capability bit, through an extension seam where
+the event is an extension's. The reference DUT implements it, and `IStimulusObserver` gains the
+await that polls it.
