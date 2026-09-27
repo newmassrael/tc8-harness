@@ -1,6 +1,8 @@
 #pragma once
 
+#include <array>
 #include <chrono>
+#include <cstdint>
 #include <string_view>
 #include <thread>
 #include <variant>
@@ -99,6 +101,30 @@ inline int emitArpCacheConditioning(::tc8::sce::IDutControl &dut,
         return -1;
     }
     return arp->conditionCache(action, param);
+}
+
+// Install / take out a permanent DUT ARP entry — TC8 §4.2.3's configuration and
+// cleanup operations (UT 0x17 AddStatic / RemoveStatic), for the same topologies as
+// `emitArpCacheConditioning` — gate the case on kCapArpConditioning. The entry is
+// the case's to name: pass the address and MAC the procedure pins (its HOST-1 IP
+// and the MAC it expects the DUT to address), never the SCXML expectation knobs.
+inline int emitArpStaticEntryAdd(::tc8::sce::IDutControl &dut, std::uint32_t ip_be,
+                                 const std::array<std::uint8_t, 6> &mac) {
+    auto *arp = dut.arpControl();
+    if (arp == nullptr) {
+        ::tc8::UnperformedStimulus::record("dut_arp_control_absent");
+        return -1;
+    }
+    return arp->addStaticEntry(ip_be, mac);
+}
+
+inline int emitArpStaticEntryRemove(::tc8::sce::IDutControl &dut, std::uint32_t ip_be) {
+    auto *arp = dut.arpControl();
+    if (arp == nullptr) {
+        ::tc8::UnperformedStimulus::record("dut_arp_control_absent");
+        return -1;
+    }
+    return arp->removeStaticEntry(ip_be);
 }
 
 // emitEgressFlavorArm / emitIngressFlavorArm (the generic UT 0x18 / 0x19 arming) live

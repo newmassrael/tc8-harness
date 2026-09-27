@@ -705,22 +705,27 @@ enum Opcode : std::uint8_t {
     // a compile-time ARP_MAXAGE no external knob can move, so the
     // conditioning has to ride the UT channel into the stack itself.
     //
-    //   Request params:  <action:u8> <param:u16>
-    //   Response params: (none beyond the status byte)
+    //   Request params:  <action:u8> <param:u16> [<ip:4> [<mac:6>]]
+    //   Response params: (none beyond the status byte), or one
+    //                    net::OpStatus byte with kStatusNotPerformed
     //
-    // Wire size: 1 + 1 + 1 + 2 = 5 bytes (request) /
-    //            1 + 1 + 1 = 3 bytes (response).
+    // Wire size: 1 + 1 + 1 + 2 = 5 bytes (FlushAll / AgeBySeconds),
+    //            + 4 (RemoveStatic) or + 4 + 6 (AddStatic) /
+    //            1 + 1 + 1 [+ 1] bytes (response).
     //
     // Actions (kArpCondition*): see below. The u16 `param` is
     // action-specific (seconds for AgeBySeconds, ignored for
-    // FlushAll). An unknown action byte answers kStatusMalformed —
+    // FlushAll and the static-entry pair). An unknown action byte
+    // answers kStatusMalformed —
     // unlike the 0x0F flavor byte there is no compliant fallback
     // semantics for a conditioning the DUT does not recognise, and a
     // silent no-op would let the case run against an unconditioned
     // cache and time out with a misleading verdict.
     //
     // Status codes: kStatusOk on success; kStatusMalformed for a
-    // short request or an unknown action byte.
+    // short request or an unknown action byte; kStatusNotPerformed
+    // when a static-entry action was well-formed but the stack did
+    // not carry it out.
     OpConditionArpCache = 0x17,
 
     // Arm an EGRESS field-fault flavor (kEgressFault* / k*Fault* catalog below) on
@@ -815,6 +820,10 @@ inline constexpr std::uint8_t kStatusSendFailed      = 0x03;  // TriggerSendUdp 
 inline constexpr std::uint8_t kStatusBindFailed      = 0x04;  // OpOpenTcpSocket(Passive) bind/listen error
 inline constexpr std::uint8_t kStatusUnknownSocket   = 0x05;  // socket_id not in active map
 inline constexpr std::uint8_t kStatusConnectFailed   = 0x06;  // OpOpenTcpSocket(Active) connect() error
+// A well-formed configuration request the DUT's stack did not carry out. The body
+// is one byte, the backend's net::OpStatus (include/tc8/net/op_status.h), so the
+// tester can tell a permanent "this stack cannot" (Unsupported) from a refusal.
+inline constexpr std::uint8_t kStatusNotPerformed    = 0x07;
 
 // `OpOpenTcpSocket` `type` byte. Passive=listen for an incoming
 // handshake (DUT observes tester-driven SYN); Active=initiate the
@@ -938,8 +947,32 @@ inline constexpr DhcpFlavorDomain dhcpFlavorDomain(std::uint8_t fb) {
 //     accumulated age crosses the stack's timeout are expired exactly
 //     as wall-clock aging would expire them — same code path, no
 //     wall-clock cost.
+//   * AddStatic / RemoveStatic — the two operations TC8 §4.2.3's procedure
+//     terminology gives the DUT for a permanent ARP entry: a configuration
+//     step that installs one and a cleanup step that takes it out again.
+//     The entry is carried EXPLICITLY after `param` (which is unused and sent
+//     as zero), never implied:
+//
+//       AddStatic:    <action> <param:u16> <ip:4 BE> <mac:6>
+//       RemoveStatic: <action> <param:u16> <ip:4 BE>
+//
+//     Implying either half was rejected. The UT request's source address is
+//     the CONTROL channel's, which need not be the address under test; and the
+//     tester's injected MAC is a tester-side stimulus constant, deliberately
+//     kept apart from the expected value so a negative row can move one without
+//     the other — a DUT that installed it by implication would compile that
+//     constant in and collapse the separation.
+//
+//     A DUT performs them through its net::SocketBackend's addStaticNeighbor /
+//     removeNeighbor (ut::applyArpStaticEntry). Remove is idempotent, as that
+//     seam's contract is. A request the DUT could not carry out answers
+//     kStatusNotPerformed with the backend's net::OpStatus as the one body byte,
+//     so "this stack cannot hold static entries" is told apart from a
+//     transient failure without a second protocol.
 inline constexpr std::uint8_t kArpConditionFlushAll     = 0x01;
 inline constexpr std::uint8_t kArpConditionAgeBySeconds = 0x02;
+inline constexpr std::uint8_t kArpConditionAddStatic    = 0x03;
+inline constexpr std::uint8_t kArpConditionRemoveStatic = 0x04;
 
 // `OpQueryCapabilities` bitmap packing — bit (opcode % 8) of byte
 // (opcode / 8). These helpers are the single source of the packing

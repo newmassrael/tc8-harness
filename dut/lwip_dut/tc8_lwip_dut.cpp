@@ -79,9 +79,14 @@ int main() {
     const std::uint32_t if_mask_be = ip4_addr_get_u32(netif_ip4_netmask(nif));
     const std::uint32_t iface_bcast_be = (if_ip_be & if_mask_be) | ~if_mask_be;
 
+    // Declared before the server so it outlives it: the 0x17 handler holds a
+    // reference for the §4.2.3 static-entry actions. A second instance rather than
+    // a share of the server's own, because the server owns that one exclusively and
+    // the backend carries no state of its own that the two would need to agree on.
+    tc8::lwip_dut::LwipSocketBackend neighbor_backend;
     tc8::ut::UpperTesterServer upper_tester{std::make_unique<tc8::lwip_dut::LwipSocketBackend>(),
                                             std::make_unique<tc8::lwip_dut::LwipStackProbe>()};
-    tc8::lwip_dut::registerLwipUtExtensions(upper_tester);
+    tc8::lwip_dut::registerLwipUtExtensions(upper_tester, neighbor_backend);
     if (!upper_tester.start(addr.addr, iface_bcast_be)) {
         // Abort, do not limp on: a half-up DUT (stack answering, UT dead) is
         // exactly the state the topology preflight cannot distinguish from "UT

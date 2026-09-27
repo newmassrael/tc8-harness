@@ -1,10 +1,11 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 
 #include "stimulus/boot_timing.h"
 
-// ARP-plane sub-interface of the Tier-2 DUT-control seam: the two things a §4.2
+// ARP-plane sub-interface of the Tier-2 DUT-control seam: the things a §4.2
 // case needs the DUT to DO, as opposed to the ARP frames the tester injects.
 //
 // Its own header, beside the DHCP and link-local ones, for the same reason: the
@@ -34,6 +35,16 @@ public:
     // implements the conditioning opcode can answer; a backend without it is
     // absent rather than silently ineffective, so the gate can skip honestly.
     virtual int conditionCache(std::uint8_t action, std::uint16_t param) = 0;
+
+    // Install / take out a permanent ARP entry on the DUT: the configuration and
+    // cleanup operations of TC8 §4.2.3. The entry is named explicitly by the case —
+    // typically its own tester address and the MAC it wants the DUT to use — and
+    // never implied by the backend from where the control request came from.
+    // A non-zero return means the DUT did not install (or remove) it; the backend
+    // records that as an unperformed stimulus, so a case that goes on to assert
+    // "no ARP Request" cannot pass or fail on an entry that was never there.
+    virtual int addStaticEntry(std::uint32_t ip_be, const std::array<std::uint8_t, 6> &mac) = 0;
+    virtual int removeStaticEntry(std::uint32_t ip_be) = 0;
 };
 
 }  // namespace tc8::sce

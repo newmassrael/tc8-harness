@@ -560,6 +560,16 @@ public:
                                                raw_.dut_mac, action, param);
     }
 
+    int addStaticEntry(std::uint32_t ip_be, const std::array<std::uint8_t, 6> &mac) override {
+        return stimulus::emitArpAddStatic(raw_.iface, raw_.tester_ip_be, dut_ip_be_, raw_.dut_mac,
+                                          ip_be, mac);
+    }
+
+    int removeStaticEntry(std::uint32_t ip_be) override {
+        return stimulus::emitArpRemoveStatic(raw_.iface, raw_.tester_ip_be, dut_ip_be_,
+                                             raw_.dut_mac, ip_be);
+    }
+
 private:
     std::uint32_t dut_ip_be_;
     OpcodeRawTransport raw_;

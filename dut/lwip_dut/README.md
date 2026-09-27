@@ -83,6 +83,20 @@ bitmap answer is what lets a tester see this DUT's sparse opcode set
 (0x01..0x0B + 0x13..0x17) precisely, where OpPing's contiguous
 feature-level byte honestly reports only 0x0B.
 
+0x17 also carries TC8 §4.2.3's static-entry pair (2026-09-27):
+`kArpConditionAddStatic` installs an `<ip, mac>` the request names
+explicitly, `kArpConditionRemoveStatic` removes it. The handler does not
+touch etharp itself; it hands both to this fixture's own
+`LwipSocketBackend::addStaticNeighbor` / `removeNeighbor` through the
+shared `ut::applyArpStaticEntry` (src/upper_tester), so the route check,
+the idempotent remove and the `OpStatus` answers are the ones that
+backend already documents and tests. A stack that could not do it
+answers `kStatusNotPerformed` with that `OpStatus`, never OK. No in-tree
+case uses the pair yet — the public spec names the operation in its
+terminology but no numbered ARP case exercises it — so it is proven by
+`arp_static_entry_test` and the backend's own in-process test, not by a
+sweep row.
+
 | Bucket | Count | Notes |
 |---|---|---|
 | Meaningful PASS | 216 | 107 non-TCP + 109 TCP |

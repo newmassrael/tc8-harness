@@ -419,6 +419,25 @@ TEST(UpperTesterClient, ConditionArpCacheRequestLayout) {
     EXPECT_EQ(ut::OpConditionArpCache & ut::kResponseBit, 0u);
 }
 
+TEST(UpperTesterClient, ArpStaticEntryRequestLayout) {
+    // TC8 §4.2.3 static-entry pair. <0x17> <req_id> <action> <param:u16=0>
+    // <ip:4, dotted order> [<mac:6>] — the entry carried explicitly, never implied.
+    const std::uint32_t ip_be = 0x0100A8C0U;  // 192.168.0.1 in network order
+    const std::array<std::uint8_t, 6> mac{0x02, 0x00, 0x00, 0x00, 0x00, 0xA1};
+
+    const auto add = buildArpAddStaticRequest(0x09, ip_be, mac);
+    const std::vector<std::uint8_t> want_add{0x17, 0x09, ut::kArpConditionAddStatic, 0x00, 0x00,
+                                             192,  168,  0,  1,  0x02, 0x00, 0x00, 0x00, 0x00, 0xA1};
+    EXPECT_EQ(add, want_add);
+    EXPECT_EQ(ut::kArpConditionAddStatic, 0x03U);  // action lock-in
+
+    const auto rm = buildArpRemoveStaticRequest(0x0A, ip_be);
+    const std::vector<std::uint8_t> want_rm{0x17, 0x0A, ut::kArpConditionRemoveStatic, 0x00, 0x00,
+                                            192,  168,  0,  1};
+    EXPECT_EQ(rm, want_rm);
+    EXPECT_EQ(ut::kArpConditionRemoveStatic, 0x04U);
+}
+
 
 TEST(UpperTesterClient, SetFlavorRequestLayout) {
     // Wire format: <opcode:u8> <req_id:u8> <flavor:u8>, shared by the egress

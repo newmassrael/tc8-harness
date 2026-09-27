@@ -372,6 +372,24 @@ std::vector<std::uint8_t> buildConditionArpCacheRequest(
     return req;
 }
 
+std::vector<std::uint8_t> buildArpAddStaticRequest(
+    std::uint8_t req_id,
+    std::uint32_t entry_ip_be,
+    const std::array<std::uint8_t, 6> &entry_mac) {
+    auto req = buildConditionArpCacheRequest(req_id, ut::kArpConditionAddStatic, 0);
+    appendIpv4Be(req, entry_ip_be);
+    req.insert(req.end(), entry_mac.begin(), entry_mac.end());
+    return req;
+}
+
+std::vector<std::uint8_t> buildArpRemoveStaticRequest(
+    std::uint8_t req_id,
+    std::uint32_t entry_ip_be) {
+    auto req = buildConditionArpCacheRequest(req_id, ut::kArpConditionRemoveStatic, 0);
+    appendIpv4Be(req, entry_ip_be);
+    return req;
+}
+
 std::vector<std::uint8_t> buildSetFlavorRequest(
     std::uint8_t opcode,
     std::uint8_t req_id,
@@ -654,6 +672,29 @@ int emitConditionArpCache(std::string_view iface,
     const auto req = buildConditionArpCacheRequest(0x01, action, param);
     return sendUpperTesterRequest(iface, tester_ip_be, dut_ip_be, dut_mac,
                                   ut::kTesterSrcPort, req);
+}
+
+int emitArpAddStatic(std::string_view iface,
+                     std::uint32_t tester_ip_be,
+                     std::uint32_t dut_ip_be,
+                     const std::array<std::uint8_t, 6> &dut_mac,
+                     std::uint32_t entry_ip_be,
+                     const std::array<std::uint8_t, 6> &entry_mac) {
+    return sendUpperTesterRequestAwaited(iface, tester_ip_be, dut_ip_be, dut_mac,
+                                         ut::kTesterSrcPort,
+                                         buildArpAddStaticRequest(0x01, entry_ip_be, entry_mac),
+                                         kAwaitedUtTimeoutMs, "dut_arp_static_entry_add");
+}
+
+int emitArpRemoveStatic(std::string_view iface,
+                        std::uint32_t tester_ip_be,
+                        std::uint32_t dut_ip_be,
+                        const std::array<std::uint8_t, 6> &dut_mac,
+                        std::uint32_t entry_ip_be) {
+    return sendUpperTesterRequestAwaited(iface, tester_ip_be, dut_ip_be, dut_mac,
+                                         ut::kTesterSrcPort,
+                                         buildArpRemoveStaticRequest(0x01, entry_ip_be),
+                                         kAwaitedUtTimeoutMs, "dut_arp_static_entry_remove");
 }
 
 int emitSetEgressFlavor(std::string_view iface,

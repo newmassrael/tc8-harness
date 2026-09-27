@@ -441,6 +441,24 @@ std::vector<std::uint8_t> buildConditionArpCacheRequest(
     std::uint8_t  action,
     std::uint16_t param);
 
+// Build the 0x17 static-entry pair — install and take out a permanent DUT ARP
+// entry, the configuration and cleanup operations of TC8 §4.2.3. The entry travels explicitly
+// (see `ut::kArpConditionAddStatic` for why neither half is implied); `param` is
+// sent as zero.
+//
+//   <opcode:u8=0x17> <req_id:u8> <action:u8=0x03> <param:u16=0> <ip:4> <mac:6>
+//   <opcode:u8=0x17> <req_id:u8> <action:u8=0x04> <param:u16=0> <ip:4>
+//
+// Wire size: 15 bytes (add) / 9 bytes (remove).
+std::vector<std::uint8_t> buildArpAddStaticRequest(
+    std::uint8_t req_id,
+    std::uint32_t entry_ip_be,
+    const std::array<std::uint8_t, 6> &entry_mac);
+
+std::vector<std::uint8_t> buildArpRemoveStaticRequest(
+    std::uint8_t req_id,
+    std::uint32_t entry_ip_be);
+
 // Build a SetEgressFlavor (0x18) or SetIngressFlavor (0x19) request — both share
 // the `<opcode:u8> <req_id:u8> <flavor:u8>` shape. Arms the lwIP fixture's egress
 // field fault or ingress prohibited-emission fault; lwIP-only — the kernel-backed
@@ -681,6 +699,27 @@ int emitConditionArpCache(std::string_view iface,
                           const std::array<std::uint8_t, 6> &dut_mac,
                           std::uint8_t action,
                           std::uint16_t param);
+
+// One-shot UT 0x17 static-entry add / remove (TC8 §4.2.3), raw-injected with the
+// same identity rules as `emitConditionArpCache` — but AWAITED, unlike it. The
+// case that installs a static entry next provokes egress and asserts the DUT sends
+// no ARP Request; if the add silently failed, that DUT would ask, and the case
+// would report a resolution defect for a step that never happened. So a DUT that
+// answers non-zero is recorded as an unperformed stimulus
+// (`stimulus_dut_arp_static_entry_*_not_performed`) and the verdict cannot land on
+// the DUT. Returns `sendUpperTesterRequestAwaited`'s result.
+int emitArpAddStatic(std::string_view iface,
+                     std::uint32_t tester_ip_be,
+                     std::uint32_t dut_ip_be,
+                     const std::array<std::uint8_t, 6> &dut_mac,
+                     std::uint32_t entry_ip_be,
+                     const std::array<std::uint8_t, 6> &entry_mac);
+
+int emitArpRemoveStatic(std::string_view iface,
+                        std::uint32_t tester_ip_be,
+                        std::uint32_t dut_ip_be,
+                        const std::array<std::uint8_t, 6> &dut_mac,
+                        std::uint32_t entry_ip_be);
 
 // One-shot UT SetEgressFlavor (0x18) / SetIngressFlavor (0x19) / SetAppFlavor (0x1A)
 // injection via AF_PACKET SOCK_RAW — arms the lwIP fixture's egress field fault /

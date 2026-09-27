@@ -404,6 +404,11 @@ if(TARGET tc8_upper_tester_server AND TARGET tc8_testability_server)
     tc8_add_unit_test(ut_server_test)
     target_link_libraries(ut_server_test PRIVATE
         tc8_upper_tester_server tc8_testability_server)
+    # OpConditionArpCache's TC8 §4.2.3 static-entry pair: request parsing +
+    # net::OpStatus mapping in the UT core, driven with the tester's own builders.
+    # Links the UT server lib for its upper_tester/ include root.
+    tc8_add_unit_test(arp_static_entry_test)
+    target_link_libraries(arp_static_entry_test PRIVATE tc8_upper_tester_server)
 endif()
 # Opcode-UT TCP control adapter, driven against a mock UT responder (the real
 # opcode server needs a netns/veth topology, not loopback).

@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 #include "lwip/etharp.h"
@@ -10,6 +11,8 @@
 
 #include "tc8/upper_tester_fault_catalog.h"
 #include "tc8/upper_tester_protocol.h"
+
+#include "upper_tester/arp_static_entry.h"
 
 #include "lwip_ingress_fault.h"
 #include "lwip_egress_fault.h"
@@ -21,11 +24,23 @@ namespace ut = ::tc8::ut;
 
 }  // namespace
 
-void registerLwipUtExtensions(tc8::ut::UpperTesterServer &server) {
+void registerLwipUtExtensions(tc8::ut::UpperTesterServer &server,
+                              tc8::net::SocketBackend &neighbors) {
+    // The static-entry actions name the interface the way the backend's netif_find
+    // parses it: the two name characters plus lwIP's number. Read once here — the
+    // stack is up before registration and the default netif never changes after.
+    const std::string ifname = std::string{netif_default->name[0], netif_default->name[1]} +
+                               std::to_string(netif_default->num);
     server.registerOpcode(
         ut::OpConditionArpCache,
-        [](const std::uint8_t *params, std::size_t len, std::uint8_t &status,
-           std::vector<std::uint8_t> & /*body*/) {
+        [&neighbors, ifname](const std::uint8_t *params, std::size_t len, std::uint8_t &status,
+                             std::vector<std::uint8_t> &body) {
+            // TC8 §4.2.3 DUT_CONFIGURE / CLEANUP static entry: the shared parser +
+            // status mapping over this stack's own backend, which already carries
+            // the etharp static-entry calls (lwip_socket_backend.cpp).
+            if (ut::applyArpStaticEntry(neighbors, ifname, params, len, status, body)) {
+                return;
+            }
             // Params: <action:u8> <param:u16>. §4.2.4.2 ARP_48/49 cache
             // conditioning against the stack's own table — lwIP's ARP_MAXAGE is a
             // compile-time constant, so the spec's "set a timeout" / "wait for the
