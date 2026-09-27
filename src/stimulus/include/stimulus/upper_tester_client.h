@@ -428,8 +428,8 @@ std::vector<std::uint8_t> buildQueryCapabilitiesRequest(std::uint8_t req_id);
 // Build a 0x17 ConditionArpCache request. TC8 §4.2.4.2 ARP_48/49
 // "DUT CONFIGURE" cache-conditioning steps for DUT stacks whose
 // ARP-table lifecycle the tester cannot reach externally (the Linux
-// reference DUT does not implement this — its conditioning rides the
-// smoke-test.sh netns sysctls).
+// reference DUT implements none of the aging actions — its conditioning
+// rides the smoke-test.sh netns sysctls — and answers them Malformed).
 //
 //   <opcode:u8=0x17> <req_id:u8> <action:u8> <param:u16>
 //

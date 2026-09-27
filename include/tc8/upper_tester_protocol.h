@@ -701,7 +701,9 @@ enum Opcode : std::uint8_t {
     // plus <ARP-TOLERANCE-TIME> for a refresh. The Linux reference DUT renders those
     // steps externally (smoke-test.sh per-case netns sysctls compress
     // base_reachable_time_ms / delay_first_probe_time) and therefore
-    // does NOT implement this opcode; the lwIP DUT ages its table at
+    // implements none of this opcode's AGING actions — it registers 0x17
+    // for the static-entry pair alone and answers the rest
+    // kStatusMalformed; the lwIP DUT ages its table at
     // a compile-time ARP_MAXAGE no external knob can move, so the
     // conditioning has to ride the UT channel into the stack itself.
     //
@@ -786,8 +788,8 @@ enum Opcode : std::uint8_t {
 // live with each DUT server (the reference tc8-dut and the lwIP DUT
 // each answer OpPing with their own honest contiguous top, and
 // OpQueryCapabilities with their exact implemented set — the
-// reference DUT itself skips OpConditionArpCache, whose §4.2 cache
-// conditioning rides netns sysctls instead).
+// reference DUT carries OpConditionArpCache for its static-entry pair
+// only, its §4.2 cache aging riding netns sysctls instead).
 inline constexpr std::uint8_t kMaxProtocolOpcode = OpSetEtsFlavor;
 
 // Wire encoding of the OpQueryTcpInfo `state` byte — the single source

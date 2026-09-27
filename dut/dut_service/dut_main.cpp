@@ -199,9 +199,13 @@ int main() {
     // capture its members.
     tc8::dut::PosixUtExtensions ut_ext;
     ut_ext.discoverInterfaces();
+    // The §4.2.3 static-entry handler's backend, declared before the server so it
+    // outlives it. A second instance, since the server owns its own exclusively;
+    // the neighbour operations use none of the backend's per-socket state.
+    tc8::dut::LinuxSocketBackend neighbor_backend;
     tc8::ut::UpperTesterServer upper_tester{std::make_unique<tc8::dut::LinuxSocketBackend>(),
                                             std::make_unique<tc8::dut::PosixStackProbe>()};
-    ut_ext.registerOn(upper_tester);
+    ut_ext.registerOn(upper_tester, neighbor_backend);
     // §5.1.6 ETS_103/104/105/146/166/167/168 + §5.1.5 SOMEIPSRV_RPC_11 EtsImpl fault arm (UT 0x1B
     // OpSetEtsFlavor). tc8-dut-only:
     // the SOME/IP EtsImpl is harness-owned, so this is the only faithful SOME/IP fault site

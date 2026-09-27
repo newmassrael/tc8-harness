@@ -406,9 +406,17 @@ if(TARGET tc8_upper_tester_server AND TARGET tc8_testability_server)
         tc8_upper_tester_server tc8_testability_server)
     # OpConditionArpCache's TC8 §4.2.3 static-entry pair: request parsing +
     # net::OpStatus mapping in the UT core, driven with the tester's own builders.
-    # Links the UT server lib for its upper_tester/ include root.
+    # Links the UT server lib for its upper_tester/ include root, and the testability
+    # server lib for the reference DUT's LinuxSocketBackend that the privileged half
+    # drives against a real kernel neighbour table.
     tc8_add_unit_test(arp_static_entry_test)
-    target_link_libraries(arp_static_entry_test PRIVATE tc8_upper_tester_server)
+    target_link_libraries(arp_static_entry_test PRIVATE
+        tc8_upper_tester_server tc8_testability_server)
+    add_test(NAME arp_static_entry_privileged
+        COMMAND ${PROJECT_SOURCE_DIR}/scripts/run-netns-test.sh
+            $<TARGET_FILE:arp_static_entry_test>
+            --gtest_filter=ArpStaticEntryPrivileged.*)
+    set_tests_properties(arp_static_entry_privileged PROPERTIES SKIP_RETURN_CODE 77)
 endif()
 # Opcode-UT TCP control adapter, driven against a mock UT responder (the real
 # opcode server needs a netns/veth topology, not loopback).

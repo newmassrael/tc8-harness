@@ -5,8 +5,8 @@
 
 namespace tc8::lwip_dut {
 
-// The lwIP DUT's Upper Tester opcode extension: OpConditionArpCache (0x17), which
-// the Linux reference DUT deliberately does NOT carry (its §4.2.4.2 cache
+// The lwIP DUT's Upper Tester opcode extension: OpConditionArpCache (0x17), whose
+// aging actions the Linux reference DUT deliberately does NOT carry (its §4.2.4.2 cache
 // conditioning rides the smoke-test.sh netns sysctls, while lwIP's compile-time
 // ARP_MAXAGE is reachable only from inside the stack). Registered on the
 // platform-agnostic UT core (UpperTesterServer::registerOpcode) rather than built

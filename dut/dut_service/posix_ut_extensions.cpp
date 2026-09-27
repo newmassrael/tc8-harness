@@ -16,6 +16,7 @@
 
 #include "tc8/iface_enumeration.h"
 #include "tc8/upper_tester_protocol.h"
+#include "upper_tester/arp_static_entry.h"
 
 namespace tc8::dut {
 
@@ -109,7 +110,8 @@ void PosixUtExtensions::discoverInterfaces() {
     }
 }
 
-void PosixUtExtensions::registerOn(ut::UpperTesterServer &server) {
+void PosixUtExtensions::registerOn(ut::UpperTesterServer &server,
+                                   net::SocketBackend &neighbors) {
     using std::chrono::milliseconds;
 
     // 0x0C OpStartLLAutoconf: 7 x u16 timing knobs.
@@ -266,6 +268,18 @@ void PosixUtExtensions::registerOn(ut::UpperTesterServer &server) {
             client->abort();
         }
     });
+
+    // 0x17 OpConditionArpCache: the TC8 §4.2.3 static-entry pair only (see the
+    // header for why the aging actions stay out). Any other action is malformed
+    // here, never a silent success.
+    server.registerOpcode(ut::OpConditionArpCache,
+                          [this, &neighbors](const std::uint8_t *p, std::size_t n,
+                                             std::uint8_t &status, std::vector<std::uint8_t> &body) {
+                              if (!ut::applyArpStaticEntry(neighbors, iface_name_, p, n, status,
+                                                           body)) {
+                                  status = ut::kStatusMalformed;
+                              }
+                          });
 }
 
 }  // namespace tc8::dut

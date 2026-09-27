@@ -8,6 +8,7 @@
 
 #include "dhcpv4_client.h"
 #include "linklocal_autoconf.h"
+#include "tc8/net/socket_backend.h"
 #include "upper_tester/ut_server.h"
 
 namespace tc8::dut {
@@ -32,8 +33,19 @@ public:
     // LL machine; one Dhcpv4Client is created per iface (§4.7.6.5 USAGE_01).
     void discoverInterfaces();
 
-    // Register the 0x0C..0x12 handlers on `server`. Call before server.start().
-    void registerOn(tc8::ut::UpperTesterServer &server);
+    // Register the 0x0C..0x12 handlers on `server`, plus 0x17 carrying ONLY the
+    // TC8 §4.2.3 static-entry pair, performed on the primary interface through
+    // `neighbors` (ut::applyArpStaticEntry). Call before server.start();
+    // `neighbors` must outlive the server.
+    //
+    // Only the pair, and deliberately: this DUT omits 0x17's AGING actions
+    // (FlushAll / AgeBySeconds) because its ARP_48/49 cache timing rides the
+    // netns sysctls, and that reason says nothing about writing one neighbour
+    // entry, which the kernel does on request. The other actions still answer
+    // kStatusMalformed here. Nothing about ARP_48/49 changes by registering the
+    // opcode: they choose the UT aging path from the topology's
+    // `arp_stimulus.ut_cache_conditioning_s` (0 on this DUT), not from the bitmap.
+    void registerOn(tc8::ut::UpperTesterServer &server, tc8::net::SocketBackend &neighbors);
 
     std::uint32_t ifaceIpBe() const { return iface_ip_be_; }
     std::uint32_t ifaceBcastBe() const { return iface_bcast_be_; }

@@ -276,6 +276,18 @@
         {
           "file": "src/stimulus/include/stimulus/upper_tester_client.h",
           "kind": "references"
+        },
+        {
+          "file": "dut/dut_service/posix_ut_extensions.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "dut/dut_service/posix_ut_extensions.h",
+          "kind": "references"
+        },
+        {
+          "file": "dut/dut_service/dut_main.cpp",
+          "kind": "references"
         }
       ]
     },

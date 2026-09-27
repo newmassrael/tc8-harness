@@ -14,11 +14,15 @@
 
 #include <array>
 #include <cstdint>
+#include <fstream>
+#include <sstream>
 #include <string>
 #include <vector>
 
+#include "netns_test_util.h"
 #include "stimulus/upper_tester_client.h"
 #include "stub_socket_backend.h"
+#include "tc8/linux_socket_backend.h"
 
 namespace tc8::ut {
 namespace {
@@ -125,6 +129,62 @@ TEST(ArpStaticEntry, OtherActionsAreDeclined) {
         EXPECT_EQ(status, 0xFF);
     }
     EXPECT_TRUE(be.calls.empty());
+}
+
+// The kernel's own record of one neighbour entry, from /proc/net/arp:
+// "<ip> <hw type> <flags> <mac> <mask> <device>". Empty when absent.
+struct ProcArpRow {
+    std::string flags;
+    std::string mac;
+};
+
+ProcArpRow procArpRow(const std::string &ip, const std::string &dev) {
+    std::ifstream in("/proc/net/arp");
+    std::string line;
+    std::getline(in, line);  // header
+    while (std::getline(in, line)) {
+        std::istringstream row(line);
+        std::string r_ip, hw, flags, mac, mask, r_dev;
+        if (row >> r_ip >> hw >> flags >> mac >> mask >> r_dev && r_ip == ip && r_dev == dev) {
+            return {flags, mac};
+        }
+    }
+    return {};
+}
+
+// End to end below the wire: the tester's own request bytes, the DUT-side parser,
+// the reference DUT's real backend, and the kernel's neighbour table as the oracle
+// — not the backend's return value, which says only that it believes it succeeded.
+// Runs under scripts/run-netns-test.sh (arp_static_entry_privileged), so it holds
+// CAP_NET_ADMIN over a private stack; skipped anywhere else.
+TEST(ArpStaticEntryPrivileged, TheKernelHoldsExactlyTheCarriedEntryAndThenNone) {
+    if (!::tc8::testutil::hasNetAdmin()) {
+        GTEST_SKIP() << "neighbour writes need CAP_NET_ADMIN "
+                        "(ctest runs this as arp_static_entry_privileged)";
+    }
+    constexpr const char *kIf = "tc8dummy3";
+    if (!::tc8::testutil::createDummyIface(kIf)) {
+        GTEST_SKIP() << "could not create a dummy interface (no dummy driver?)";
+    }
+    ::tc8::testutil::ScopeExit cleanup([&] { ::tc8::testutil::deleteIface(kIf); });
+
+    ::tc8::dut::LinuxSocketBackend be;
+    std::uint8_t status = 0xFF;
+    std::vector<std::uint8_t> body;
+
+    const auto add = paramsOf(stimulus::buildArpAddStaticRequest(0x01, kHost1IpBe, kMacAddr1));
+    ASSERT_TRUE(applyArpStaticEntry(be, kIf, add.data(), add.size(), status, body));
+    ASSERT_EQ(status, kStatusOk) << "OpStatus byte: " << (body.empty() ? -1 : int(body[0]));
+    const ProcArpRow row = procArpRow("192.168.0.1", kIf);
+    EXPECT_EQ(row.mac, "02:00:00:00:00:a1") << "the kernel holds a different entry, or none";
+    // ATF_COM | ATF_PERM: complete and permanent — a static entry, not a learned one.
+    EXPECT_EQ(row.flags, "0x6");
+
+    body.clear();
+    const auto rm = paramsOf(stimulus::buildArpRemoveStaticRequest(0x02, kHost1IpBe));
+    ASSERT_TRUE(applyArpStaticEntry(be, kIf, rm.data(), rm.size(), status, body));
+    EXPECT_EQ(status, kStatusOk);
+    EXPECT_TRUE(procArpRow("192.168.0.1", kIf).mac.empty()) << "the entry survived its removal";
 }
 
 }  // namespace
