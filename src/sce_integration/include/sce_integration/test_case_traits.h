@@ -330,6 +330,37 @@ inline constexpr bool has_iface_dispatch_v =
     has_iface_dispatch<Traits>::value;
 
 // Detects whether TestCaseTraits<SM> declares the optional
+// `static void onStimulusApplied(Captured&, StateMachine&, std::string_view name)`.
+// A case declares it when its grading must start at a stimulus step's
+// ACKNOWLEDGEMENT rather than at case start — typically an absence assertion
+// whose precondition is itself a DUT-control request, where the DUT's own
+// traffic while that request is being answered would otherwise be graded
+// (tc8/stimulus_marker.h has the measured instance). `name` is the stimulus's
+// stable identifier (the one an awaited request records if the step fails, e.g.
+// "dut_arp_static_entry_add"); the case raises its own SCXML event for the one
+// it waits on and ignores the rest. Declaring the hook also makes the CLI admit
+// the DUT-control port into the capture filter, since the acknowledgement is a
+// frame the capture has to see for its position to be known.
+//
+// Keyed on the state-machine type explicitly rather than `Traits::SM`, which only
+// some trait bases alias — a case without that alias must not silently lose its
+// hook.
+template <typename Traits, typename StateMachine, typename = void>
+struct has_stimulus_applied_hook : std::false_type {};
+
+template <typename Traits, typename StateMachine>
+struct has_stimulus_applied_hook<
+    Traits, StateMachine,
+    std::void_t<decltype(Traits::onStimulusApplied(
+        std::declval<typename Traits::Captured &>(), std::declval<StateMachine &>(),
+        std::declval<std::string_view>()))>>
+    : std::true_type {};
+
+template <typename StateMachine>
+inline constexpr bool has_stimulus_applied_hook_v =
+    has_stimulus_applied_hook<TestCaseTraits<StateMachine>, StateMachine>::value;
+
+// Detects whether TestCaseTraits<SM> declares the optional
 // `static constexpr std::string_view kBpfExpression` capture-filter
 // override (see the contract above). `bpfExpressionOf<T>()` returns it
 // when present and an empty view otherwise, so the registrar can carry

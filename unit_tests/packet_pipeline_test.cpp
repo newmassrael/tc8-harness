@@ -20,6 +20,7 @@
 
 #include "dissect/packet_pipeline.h"
 #include "tc8/captured_event.h"
+#include "tc8/stimulus_marker.h"
 
 namespace {
 
@@ -209,4 +210,77 @@ TEST(PacketPipelineControlPlane, TcpControlChannelExcludedDataPlaneUntouched) {
 
     EXPECT_EQ(pipe.controlPlaneFrames(), 1u);
     EXPECT_EQ(ipv4_events, 1u);
+}
+
+// Stimulus markers (tc8/stimulus_marker.h): a registered acknowledgement is
+// delivered by NAME at its own position among the captured frames — after every
+// frame captured before it, before every frame captured after it. That position is
+// the whole contract: it is what lets an absence case stop grading the DUT's
+// traffic while a precondition was still being applied.
+namespace {
+
+// Matches a UT reply carrying `first_byte` as the first UDP payload byte.
+tc8::StimulusMarkers::Matcher replyStartingWith(std::uint8_t first_byte) {
+    return [first_byte](const std::uint8_t *frame, std::size_t len) {
+        constexpr std::size_t kPayload = 14 + 20 + 8;
+        return len > kPayload && frame[kPayload] == first_byte;
+    };
+}
+
+}  // namespace
+
+TEST(PacketPipelineStimulusMarker, DeliveredAtTheAcknowledgementsPositionOnce) {
+    tc8::StimulusMarkers::reset();
+    constexpr std::uint16_t kControlPort = 30600;
+    std::vector<std::string> order;
+    tc8::dissect::PacketPipeline pipe([&](const tc8::CapturedEvent &ev) {
+        if (const auto *f = std::get_if<tc8::UdpFrame>(&ev)) {
+            order.push_back("udp:" + std::to_string(f->src_port));
+        }
+    });
+    pipe.setControlPlanePort(kControlPort);
+    pipe.setStimulusMarkerListener([&](const std::string &name) { order.push_back("mark:" + name); });
+    tc8::StimulusMarkers::expect("static_entry_add", replyStartingWith(0x97));
+
+    const auto ack = udpEth(kTesterMac, kDutMac, kDutIp, kTesterIp, kControlPort, 45000, {0x97, 0x05, 0x00});
+    feed(pipe, 1000, udpEth(kTesterMac, kDutMac, kDutIp, kTesterIp, 20001, 20000, {0x01}));
+    feed(pipe, 1100, ack);
+    feed(pipe, 1200, udpEth(kTesterMac, kDutMac, kDutIp, kTesterIp, 20002, 20000, {0x02}));
+    // A second, identical acknowledgement is not a second application.
+    feed(pipe, 1300, ack);
+
+    EXPECT_EQ(order, (std::vector<std::string>{"udp:20001", "mark:static_entry_add", "udp:20002"}));
+    // Still withheld as frames — the marker carries the meaning, not the frame.
+    EXPECT_EQ(pipe.controlPlaneFrames(), 2u);
+}
+
+// A step the DUT refused is withdrawn by its sender, and then no marker comes —
+// a case must never open its window on a precondition that was not applied.
+TEST(PacketPipelineStimulusMarker, AWithdrawnExpectationYieldsNothing) {
+    tc8::StimulusMarkers::reset();
+    constexpr std::uint16_t kControlPort = 30600;
+    std::vector<std::string> marks;
+    tc8::dissect::PacketPipeline pipe([](const tc8::CapturedEvent &) {});
+    pipe.setControlPlanePort(kControlPort);
+    pipe.setStimulusMarkerListener([&](const std::string &name) { marks.push_back(name); });
+    const auto token = tc8::StimulusMarkers::expect("refused_step", replyStartingWith(0x97));
+    tc8::StimulusMarkers::withdraw(token);
+
+    feed(pipe, 1000, udpEth(kTesterMac, kDutMac, kDutIp, kTesterIp, kControlPort, 45000, {0x97, 0x05, 0x07}));
+    EXPECT_TRUE(marks.empty());
+}
+
+// Only withheld control-plane packets are consulted: the same bytes on a data
+// port are traffic under test, never an acknowledgement.
+TEST(PacketPipelineStimulusMarker, NeverCutFromTrafficUnderTest) {
+    tc8::StimulusMarkers::reset();
+    std::vector<std::string> marks;
+    tc8::dissect::PacketPipeline pipe([](const tc8::CapturedEvent &) {});
+    pipe.setControlPlanePort(30600);
+    pipe.setStimulusMarkerListener([&](const std::string &name) { marks.push_back(name); });
+    tc8::StimulusMarkers::expect("static_entry_add", replyStartingWith(0x97));
+
+    feed(pipe, 1000, udpEth(kTesterMac, kDutMac, kDutIp, kTesterIp, 20001, 20000, {0x97, 0x05, 0x00}));
+    EXPECT_TRUE(marks.empty());
+    tc8::StimulusMarkers::reset();
 }

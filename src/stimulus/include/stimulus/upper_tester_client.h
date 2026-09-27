@@ -602,6 +602,11 @@ int sendUpperTesterRequest(std::string_view iface,
 // only so a reply that does reach this interface's MAC draws no ICMP
 // port-unreachable from the tester's kernel. Neither provokes an ARP.
 //
+// A NAMED request is also a stimulus marker (tc8/stimulus_marker.h): its OK
+// acknowledgement, where the capture pipeline meets it, delivers
+// `stimulus_name` to a case that opens its grading at that point. A request the
+// DUT refused, or whose reply was never heard, marks nothing.
+//
 // Returns the DUT's status byte (0 = success) on a correlated reply, or a
 // negative value: the send's own error code, or -4 on bind / tap failure,
 // timeout, or an uncorrelated reply. A caller that genuinely wants no synchronisation

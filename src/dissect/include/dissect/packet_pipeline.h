@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <string>
 
 #include <pcap/pcap.h>
 #include <tins/tcp_ip/stream_follower.h>
@@ -100,9 +101,14 @@ public:
     // Limit, stated rather than hidden: classification is by transport port, so
     // ARP traffic the control channel PROVOKES — the DUT resolving the tester
     // before it can answer — is indistinguishable from ARP under test and is NOT
-    // dropped. That exposure is handled where it arises: the capability probe is
-    // sourced from the tester alias, and a backend-static capability answer
-    // avoids the probe entirely (`IDutControl::staticCapabilities`).
+    // dropped. It cannot be, by any key: on single-pc the control peer IS the
+    // tester address the ARP cases grade, so withholding "ARP for the control
+    // peer" would withhold the very frame an absence case asserts and pass it
+    // vacuously. That exposure is handled where it arises: the capability probe is
+    // sourced from the tester alias, a backend-static capability answer avoids the
+    // probe entirely (`IDutControl::staticCapabilities`), and a case whose
+    // precondition is itself a control request opens its grading window at that
+    // request's acknowledgement — `setStimulusMarkerListener` below.
     //
     // 0 (the default) disables the drop, which is what every non-grading caller
     // wants — `decode-pcap` leaves it unset on purpose: it renders, it does not
@@ -114,6 +120,17 @@ public:
     // `truncatedFrames()`: the control channel is a property of the run, not of
     // one interface. Zero on a run whose cases never drove the seam.
     std::uint64_t controlPlaneFrames() const noexcept { return control_plane_frames_; }
+
+    // Called with a stimulus's name when a withheld control-plane frame is that
+    // stimulus's acknowledgement (`tc8::StimulusMarkers`) — at the frame's own
+    // position in capture order, which is the point of it: every frame the
+    // listener received before this call was emitted before the step took
+    // effect. Only packets `setControlPlanePort` withholds are consulted, so a
+    // run with no control port set never produces a marker.
+    using MarkerListener = std::function<void(const std::string &name)>;
+    void setStimulusMarkerListener(MarkerListener listener) {
+        marker_listener_ = std::move(listener);
+    }
 
 private:
     void onNewStream(Tins::TCPIP::Stream &stream);
@@ -131,6 +148,8 @@ private:
     // control channel to exclude, so every packet reaches the listener.
     std::uint16_t control_plane_port_ = 0;
     std::uint64_t control_plane_frames_ = 0;
+    // See setStimulusMarkerListener(). Empty = markers are not wanted.
+    MarkerListener marker_listener_;
     // Arrival timestamp (us, epoch) of the packet currently being processed,
     // stashed so the TCP stream-follower callbacks (which fire synchronously
     // inside follower_.process_packet) can stamp the reassembled Transport —

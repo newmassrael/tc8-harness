@@ -20,6 +20,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 
+#include "tc8/stimulus_marker.h"
 #include "tc8/unperformed_stimulus.h"
 
 #include "stimulus/arp_builder.h"  // sendRawEthernet
@@ -109,17 +110,17 @@ std::optional<std::vector<std::uint8_t>> utReplyPayload(const std::uint8_t *fram
 }
 
 // Wait on `tap` until `timeout_ms` for the reply correlated with `request`
-// (<opcode|0x80> <req_id>). Returns its status byte, or nullopt on timeout.
-std::optional<std::uint8_t> awaitUtReply(int tap, const std::vector<std::uint8_t> &request,
-                                         std::uint32_t dut_ip_be, std::uint32_t tester_ip_be,
-                                         std::uint16_t tester_port, int timeout_ms) {
+// (<opcode|0x80> <req_id>). Returns its status byte (0..255), or kNoReply.
+constexpr int kNoReply = -1;
+int awaitUtReply(int tap, const std::vector<std::uint8_t> &request, std::uint32_t dut_ip_be,
+                 std::uint32_t tester_ip_be, std::uint16_t tester_port, int timeout_ms) {
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
     std::uint8_t buf[2048];
     for (;;) {
         const auto left = std::chrono::duration_cast<std::chrono::milliseconds>(
             deadline - std::chrono::steady_clock::now());
         if (left.count() <= 0) {
-            return std::nullopt;
+            return kNoReply;
         }
         pollfd pfd{tap, POLLIN, 0};
         if (::poll(&pfd, 1, static_cast<int>(left.count())) <= 0) {
@@ -136,7 +137,7 @@ std::optional<std::uint8_t> awaitUtReply(int tap, const std::vector<std::uint8_t
                                             tester_ip_be, tester_port);
         if (payload && payload->size() >= 3 &&
             (*payload)[0] == (request[0] | ut::kResponseBit) && (*payload)[1] == request[1]) {
-            return (*payload)[2];
+            return static_cast<int>((*payload)[2]);
         }
     }
 }
@@ -729,27 +730,49 @@ int sendUpperTesterRequestAwaited(std::string_view iface,
         return -4;
     }
 
+    // A named step also becomes a stimulus MARKER (tc8/stimulus_marker.h): its
+    // successful acknowledgement, wherever the capture pipeline meets it, tells the
+    // case "applied from here on". Registered BEFORE the send, since the pipeline
+    // may process the acknowledgement frame before this function returns; matched
+    // on the same identity the tap correlates on, and on status OK only.
+    std::optional<std::uint64_t> marker;
+    if (!stimulus_name.empty()) {
+        const std::uint8_t op = static_cast<std::uint8_t>(ut_payload[0] | ut::kResponseBit);
+        const std::uint8_t req_id = ut_payload[1];
+        marker = ::tc8::StimulusMarkers::expect(
+            std::string(stimulus_name),
+            [=](const std::uint8_t *frame, std::size_t len) {
+                const auto p =
+                    utReplyPayload(frame, len, dut_ip_be, tester_ip_be, tester_src_port);
+                return p && p->size() >= 3 && (*p)[0] == op && (*p)[1] == req_id &&
+                       (*p)[2] == ut::kStatusOk;
+            });
+    }
+
     const int sent = sendUpperTesterRequest(iface, tester_ip_be, dut_ip_be, dut_mac,
                                             tester_src_port, ut_payload);
     // Correlate on <opcode|kResponseBit> <req_id>, the same rule dgramUtRoundTrip
     // uses. A stray datagram on this port must not be read as our acknowledgement.
-    const std::optional<std::uint8_t> heard =
-        sent < 0 ? std::nullopt
-                 : awaitUtReply(tap, ut_payload, dut_ip_be, tester_ip_be, tester_src_port,
-                                timeout_ms);
+    const int heard = sent < 0 ? kNoReply
+                               : awaitUtReply(tap, ut_payload, dut_ip_be, tester_ip_be,
+                                              tester_src_port, timeout_ms);
     ::close(tap);
     ::close(fd);
+    // A step that was not confirmed applied must never mark a boundary.
+    if (marker && heard != ut::kStatusOk) {
+        ::tc8::StimulusMarkers::withdraw(*marker);
+    }
     if (sent < 0) {
         return sent;
     }
-    if (!heard) {
+    if (heard == kNoReply) {
         std::fprintf(stderr,
                      "stimulus: UT opcode 0x%02x got no correlated reply in %d ms"
                      " — the DUT may not have applied it before the next step\n",
                      ut_payload[0], timeout_ms);
         return -4;
     }
-    const std::uint8_t status = *heard;
+    const auto status = static_cast<std::uint8_t>(heard);
     if (status != ut::kStatusOk) {
         // The DUT answered, and its answer is "I did not do that". Name the
         // stimulus so the verdict points at the step that did not happen instead

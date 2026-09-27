@@ -18,6 +18,7 @@
 #include "tc8/protocol_frames/ipv4_frame.h"
 #include "tc8/protocol_frames/tcp_frame.h"
 #include "tc8/protocol_frames/udp_frame.h"
+#include "tc8/stimulus_marker.h"
 
 #include "sce_integration/dhcpv4_wire.h"
 #include "tc8/wire/ip_checksum.h"  // tc8::wire::tcpChecksumValid (RFC 793 pseudo-header SSOT)
@@ -186,6 +187,14 @@ void PacketPipeline::processFrame(const pcap_pkthdr &hdr, const std::uint8_t *by
         // on the setter states what that leaves uncovered.
         if (control_plane_port_ != 0 && isControlPlanePacket(eth, control_plane_port_)) {
             ++control_plane_frames_;
+            // Withheld as a frame, but if it acknowledges a stimulus step, the
+            // step's name is delivered here — in capture order, which is the only
+            // place its position means anything (tc8/stimulus_marker.h).
+            if (marker_listener_) {
+                if (auto name = ::tc8::StimulusMarkers::take(bytes, hdr.caplen)) {
+                    marker_listener_(*name);
+                }
+            }
             return;
         }
 

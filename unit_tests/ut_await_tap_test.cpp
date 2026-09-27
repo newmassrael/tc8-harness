@@ -30,6 +30,8 @@
 #include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <mutex>
+#include <optional>
 #include <set>
 #include <string>
 #include <thread>
@@ -39,6 +41,7 @@
 #include "stimulus/arp_builder.h"  // sendRawEthernet
 #include "stimulus/ipv4_frame_builder.h"
 #include "stimulus/udp_datagram_builder.h"
+#include "tc8/stimulus_marker.h"
 #include "tc8/upper_tester_protocol.h"
 
 namespace tc8::stimulus {
@@ -94,6 +97,12 @@ public:
         }
     }
     bool ok() const { return ok_; }
+    // The last reply frame this fake DUT put on the wire — what the capture
+    // pipeline would meet as the acknowledgement.
+    std::vector<std::uint8_t> lastReply() const {
+        std::lock_guard<std::mutex> lk(mu_);
+        return last_reply_;
+    }
 
 private:
     void run() {
@@ -132,6 +141,10 @@ private:
             const auto frame = buildIpv4Frame(
                 spec, buildUdpDatagram(dut_ip_be_, tester_ip_be, ut::kPort, tester_port, reply,
                                        sizeof(reply)));
+            {
+                std::lock_guard<std::mutex> lk(mu_);
+                last_reply_ = frame;
+            }
             sendRawEthernet(frame, ifname_);
         }
     }
@@ -144,6 +157,8 @@ private:
     int sk_ = -1;
     bool ok_ = false;
     std::atomic<bool> stop_{false};
+    mutable std::mutex mu_;
+    std::vector<std::uint8_t> last_reply_;
     std::thread worker_;
 };
 
@@ -212,6 +227,32 @@ TEST_F(UtAwaitTap, AnUncorrelatedReplyIsNotAnAcknowledgement) {
     FakeDut dut(kDutIf, dutIpBe(), kForeignMac, ut::kStatusOk, /*corrupt_req_id=*/true);
     ASSERT_TRUE(dut.ok());
     EXPECT_EQ(send(ut::OpConditionArpCache), -4);
+}
+
+// A named, acknowledged step leaves exactly one marker, matched by the very frame
+// the DUT sent — what the capture pipeline will meet in order and consume.
+TEST_F(UtAwaitTap, AnAcknowledgedStepLeavesOneMarkerForItsAcknowledgement) {
+    ::tc8::StimulusMarkers::reset();
+    FakeDut dut(kDutIf, dutIpBe(), kForeignMac, ut::kStatusOk);
+    ASSERT_TRUE(dut.ok());
+    ASSERT_EQ(send(ut::OpConditionArpCache), 0);
+    const auto ack = dut.lastReply();
+    ASSERT_FALSE(ack.empty());
+    EXPECT_EQ(::tc8::StimulusMarkers::take(ack.data(), ack.size()),
+              std::optional<std::string>("await_tap_test"));
+    EXPECT_EQ(::tc8::StimulusMarkers::take(ack.data(), ack.size()), std::nullopt);
+}
+
+// A refused step marks nothing: a case must never open its grading window on a
+// precondition the DUT said it did not apply.
+TEST_F(UtAwaitTap, ARefusedStepLeavesNoMarker) {
+    ::tc8::StimulusMarkers::reset();
+    FakeDut dut(kDutIf, dutIpBe(), kForeignMac, ut::kStatusNotPerformed);
+    ASSERT_TRUE(dut.ok());
+    ASSERT_EQ(send(ut::OpConditionArpCache), ut::kStatusNotPerformed);
+    const auto ack = dut.lastReply();
+    ASSERT_FALSE(ack.empty());
+    EXPECT_EQ(::tc8::StimulusMarkers::take(ack.data(), ack.size()), std::nullopt);
 }
 
 // The allocator never hands out 0 and does not repeat within a window of 255.

@@ -1027,6 +1027,18 @@ so no edit to core `bpf_filter` is needed. Precedence is `-f/--bpf` >
 so a custom filter owns its own VLAN-awareness (wrap it `(X) or (vlan and
 (X))` if tagged traffic must match).
 
+A case whose precondition is itself a DUT-control request — install a
+static ARP entry, then assert the DUT sends no ARP Request — must not
+grade what the DUT emitted while that request was being answered. Its
+traits declare `static void onStimulusApplied(Captured&, SM&,
+std::string_view name)`: an awaited, named request's OK acknowledgement
+is delivered there by name, at the acknowledgement's own position among
+the captured frames, so the case opens its grading window exactly there
+(`include/tc8/stimulus_marker.h`). The acknowledgement frame itself stays
+out of the verdict, and the CLI admits the DUT-control port into the
+capture filter for such a case. A refused or unheard request marks
+nothing.
+
 For DUT-specific runtime values the in-tree `--expect` key set doesn't
 model (a deployment-varying OEM value — calibration id, OEM service
 catalogue, per-bench address), an OEM `Expected` Context reads raw

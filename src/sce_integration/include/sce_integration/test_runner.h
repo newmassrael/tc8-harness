@@ -206,6 +206,17 @@ public:
     // the corresponding SCXML event and runs one synchronous macrostep.
     virtual void onCaptured(const ::tc8::CapturedEvent &ev) = 0;
 
+    // A stimulus step's acknowledgement, delivered at its position among the
+    // captured frames (tc8/stimulus_marker.h). Forwarded to the case's optional
+    // `Traits::onStimulusApplied`; a case without one ignores it. Not pure: a
+    // runner with nothing to mark (every test double) needs no override.
+    virtual void onStimulusApplied(std::string_view /*name*/) {}
+
+    // Whether this case consumes stimulus markers — the CLI then admits the
+    // DUT-control port into the capture filter so the acknowledgement frames the
+    // markers are positioned by are actually seen.
+    virtual bool observesStimulusMarkers() const { return false; }
+
     // Advance the SM one "idle macrostep": pump the scheduler (ready
     // `<send delay="..."/>` events move to the external queue), process
     // the queue, run eventless transitions, fire completion callbacks,
@@ -471,6 +482,26 @@ public:
         // so a reaction responder reacts on the post-dispatch ground truth and on
         // this same single thread (no concurrency).
         adopted_.fanOutCapturedFrame(ev);
+    }
+
+    void onStimulusApplied(std::string_view name) override {
+        if constexpr (has_stimulus_applied_hook_v<StateMachine>) {
+            const State before = sm_.getCurrentState();
+            Traits::onStimulusApplied(captured_, sm_, name);
+            const State after = sm_.getCurrentState();
+            if (before != after) {
+                // Attributed to the acknowledgement frame the marker was cut
+                // from: the CLI set the slot for that frame before processing it.
+                recordTransition(before, after, /*event_name=*/"stimulus_applied",
+                                 /*pcap_frame_idx=*/next_pcap_frame_idx_);
+            }
+        } else {
+            (void)name;
+        }
+    }
+
+    bool observesStimulusMarkers() const override {
+        return has_stimulus_applied_hook_v<StateMachine>;
     }
 
     void tick() override {

@@ -793,6 +793,16 @@ constexpr std::string_view kBpfExpression`을 선언하세요 — `kBpfGroup`
 앞 둘은 libpcap에 그대로 전달되므로 커스텀 필터는 자신의 VLAN-인지를
 직접 책임집니다(태그 트래픽을 매치하려면 `(X) or (vlan and (X))`로 감쌀 것).
 
+전제 조건 자체가 DUT 제어 요청인 케이스 — 정적 ARP 항목을 설치한 뒤 DUT가
+ARP Request를 보내지 않음을 판정하는 경우 — 는 그 요청에 DUT가 응답하는
+동안 낸 프레임을 판정해서는 안 됩니다. 이런 케이스의 traits는 `static void
+onStimulusApplied(Captured&, SM&, std::string_view name)`를 선언합니다.
+이름이 붙은 awaited 요청의 OK 확인 응답이, 캡처된 프레임들 사이에서 그 응답이
+놓인 바로 그 위치에 이름으로 전달되므로, 케이스는 판정 창을 정확히 거기서
+엽니다(`include/tc8/stimulus_marker.h`). 확인 응답 프레임 자체는 판정에서
+계속 빠지고, CLI는 이런 케이스에 한해 DUT 제어 포트를 캡처 필터에 넣습니다.
+거부되었거나 응답을 듣지 못한 요청은 아무 표시도 남기지 않습니다.
+
 in-tree `--expect` 키 집합에 없는 DUT 고유 런타임 값(배포마다 달라지는
 OEM 값 — 캘리브레이션 id, OEM 서비스 카탈로그, 벤치별 주소)은, OEM
 `Expected` Context가 자신의 `applyTestConfig` 오버로드에서 raw

@@ -378,6 +378,29 @@ TEST(CaseRegistryAlias, RefusesAMalformedAliasId) {
     EXPECT_NE(err.find("_<digits>"), std::string::npos) << err;
 }
 
+// The stimulus-marker opt-in (tc8/stimulus_marker.h) is detected from the hook's
+// signature alone, keyed on the state-machine type — a case declares
+// `onStimulusApplied(Captured&, SM&, std::string_view)` and nothing else.
+struct MarkerAwareSM {};
+struct MarkerBlindSM {};
+
+}  // namespace
+
+template <> struct TestCaseTraits<MarkerAwareSM> {
+    struct Captured {};
+    static void onStimulusApplied(Captured &, MarkerAwareSM &, std::string_view) {}
+};
+template <> struct TestCaseTraits<MarkerBlindSM> {
+    struct Captured {};
+};
+
+namespace {
+
+static_assert(has_stimulus_applied_hook_v<MarkerAwareSM>,
+              "a case declaring onStimulusApplied must be detected as observing markers");
+static_assert(!has_stimulus_applied_hook_v<MarkerBlindSM>,
+              "a case without the hook must not be");
+
 // Out-of-tree capture-filter escape hatch: bpfExpressionOf<T>() reads the
 // optional kBpfExpression member when present and yields an empty view
 // otherwise, so a case without it (the overwhelming majority) registers

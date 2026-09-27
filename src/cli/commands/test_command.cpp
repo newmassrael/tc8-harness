@@ -1243,6 +1243,47 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
         pipeline.setControlPlanePort(dut_control->controlPort());
     }
 
+    // Stimulus markers (tc8/stimulus_marker.h): a case that opens its grading at
+    // a step's acknowledgement gets that acknowledgement's position in the
+    // stream. The acknowledgement is a control-plane frame, so the capture has to
+    // see it: the control port is admitted into the filter here, once the backend
+    // has said which port it speaks on, and before any stimulus runs. It stays
+    // out of the verdict all the same — the pipeline withholds it and delivers
+    // only the marker.
+    if (runner->observesStimulusMarkers()) {
+        if (entry->control_plane_role != ::tc8::sce::ControlPlaneRole::kScaffolding) {
+            // An Evidence case grades control frames AS frames; the same frame
+            // cannot also be a boundary marker. Refused rather than guessed.
+            std::fprintf(stderr,
+                         "error: case %.*s observes stimulus markers but declares "
+                         "ControlPlaneRole::kEvidence; the two are exclusive\n",
+                         static_cast<int>(entry->id.size()), entry->id.data());
+            return 2;
+        }
+        pipeline.setStimulusMarkerListener(
+            [&runner](const std::string &name) { runner->onStimulusApplied(name); });
+        std::vector<std::uint16_t> ports(
+            entry->extra_capture_udp_ports,
+            entry->extra_capture_udp_ports + entry->extra_capture_udp_port_count);
+        ports.push_back(dut_control->controlPort());
+        const std::string marked_bpf = capture::bpf::resolveCaptureFilter(
+            bpf_override, entry->bpf_expression, entry->bpf_group, ports.data(), ports.size());
+        if (marked_bpf != bpf) {
+            src->applyBpf(marked_bpf);
+            if (src2) {
+                src2->applyBpf(marked_bpf);
+            }
+            std::printf("bpf      : %s (DUT-control port %u admitted for stimulus markers)\n",
+                        marked_bpf.c_str(), static_cast<unsigned>(dut_control->controlPort()));
+        } else if (bpf_override.has_value() || !entry->bpf_expression.empty()) {
+            // An explicit filter (-f/--bpf or kBpfExpression) is taken verbatim and
+            // cannot be widened here; said so, because a marker that never arrives
+            // leaves the case waiting on a boundary it will not see.
+            std::printf("bpf      : explicit filter kept; stimulus markers need port %u in it\n",
+                        static_cast<unsigned>(dut_control->controlPort()));
+        }
+    }
+
     // When pcap_dump is enabled, wrap the frame callback to also write to
     // disk. Done as a separate callback inside dispatch(), below.
 
