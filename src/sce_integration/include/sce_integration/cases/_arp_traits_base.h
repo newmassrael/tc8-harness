@@ -161,6 +161,23 @@ struct ArpAnyBase {
     }
 };
 
+// Whether `u` is the datagram the egress provocation asked for (UT 0x02, DUT
+// `kEgressBootDutSrcPort` → tester `ut::kDataPort`) — the only UDP a §4.2 case
+// grades. Every UDP case on these bases reads its verdict off "the DUT's UDP
+// to the tester": pass when its Ethernet destination is the learned MAC, fail
+// when it is not. Identified by destination IP alone, ANY datagram the DUT sends
+// the tester decides that — measured on a DUT with its own service traffic: a
+// SOME/IP event datagram, sent to the tester through the very ARP entry under
+// test, met the guard five frames before the provoked one. Against a reference
+// DUT that sends the tester nothing else this never shows; against a real ECU
+// it decides the verdict. The port pair is the provocation's own identity, and
+// no fault flavor these cases arm rewrites it (kEthFaultUdpEgressDstWrong touches
+// only the Ethernet destination).
+inline bool isEgressProvocationDatagram(const ::tc8::UdpFrame &u) {
+    return u.src_port == ::tc8::stimulus::kEgressBootDutSrcPort &&
+           u.dst_port == ::tc8::ut::kDataPort;
+}
+
 template <typename StateMachine>
 struct ArpAndUdpBase : ArpAnyBase<StateMachine> {
     using Base = ArpAnyBase<StateMachine>;
@@ -191,6 +208,9 @@ struct ArpAndUdpBase : ArpAnyBase<StateMachine> {
             return;
         }
         if (const auto* u = std::get_if<::tc8::UdpFrame>(&ev)) {
+            if (!isEgressProvocationDatagram(*u)) {
+                return;  // the DUT's other traffic to the tester is not the egress under test
+            }
             ::tc8::fillArpCapturedFromUdpFrame(c, *u);
             sm.raiseExternal(Event::Udp_observed);
             sm.step();
@@ -300,6 +320,9 @@ struct ArpFaultNegUdpBase : ArpAndUdpBase<StateMachine> {
 
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {
         if (const auto* u = std::get_if<::tc8::UdpFrame>(&ev)) {
+            if (!isEgressProvocationDatagram(*u)) {
+                return;  // see isEgressProvocationDatagram
+            }
             ::tc8::fillArpCapturedFromUdpFrame(c, *u);
             sm.raiseExternal(Event::Udp_observed);
             sm.step();

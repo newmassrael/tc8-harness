@@ -10,6 +10,7 @@
 #include "tc8/captured_event.h"
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_arp_traits_base.h"
 #include "sce_integration/test_config.h"
 #include "sce_integration/test_runner.h"
 
@@ -400,6 +401,30 @@ static_assert(has_stimulus_applied_hook_v<MarkerAwareSM>,
               "a case declaring onStimulusApplied must be detected as observing markers");
 static_assert(!has_stimulus_applied_hook_v<MarkerBlindSM>,
               "a case without the hook must not be");
+
+// The §4.2 UDP-observing cases grade only the egress provocation's own datagram.
+// Measured on a DUT with its own service traffic: a SOME/IP event datagram to the
+// tester, carrying the same learned Ethernet destination, met the guard first.
+TEST(ArpEgressProvocation, OnlyTheProvokedDatagramIsTheEgressUnderTest) {
+    ::tc8::UdpFrame provoked{};
+    provoked.src_port = ::tc8::stimulus::kEgressBootDutSrcPort;
+    provoked.dst_port = ::tc8::ut::kDataPort;
+    EXPECT_TRUE(isEgressProvocationDatagram(provoked));
+
+    ::tc8::UdpFrame service_event{};  // 172.16.0.2.51712 > 172.16.0.1.51916
+    service_event.src_port = 51712;
+    service_event.dst_port = 51916;
+    EXPECT_FALSE(isEgressProvocationDatagram(service_event));
+
+    // The pair, not either half: a reply INTO the provocation's source port, or a
+    // datagram to the data port from elsewhere, is not the provoked one.
+    ::tc8::UdpFrame swapped = provoked;
+    std::swap(swapped.src_port, swapped.dst_port);
+    EXPECT_FALSE(isEgressProvocationDatagram(swapped));
+    ::tc8::UdpFrame other_src = provoked;
+    other_src.src_port = 30600;
+    EXPECT_FALSE(isEgressProvocationDatagram(other_src));
+}
 
 // Out-of-tree capture-filter escape hatch: bpfExpressionOf<T>() reads the
 // optional kBpfExpression member when present and yields an empty view

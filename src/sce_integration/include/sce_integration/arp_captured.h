@@ -49,6 +49,11 @@ struct ArpCaptured : CapturedFrameTiming {
     // it never matches on the un-populated default.
     std::array<std::uint8_t, 6> observed_udp_eth_dst{};
     std::uint32_t observed_udp_dst_ip = 0;  // network byte order
+    // The datagram's ports. Dispatch admits only the egress provocation's own
+    // datagram (`isEgressProvocationDatagram`), so these name it; they are
+    // recorded so the evidence shows WHICH datagram decided the verdict.
+    std::uint16_t observed_udp_src_port = 0;
+    std::uint16_t observed_udp_dst_port = 0;
 
     // Inter-frame timing surface (`observed_ts_us` / `prev_observed_ts_us`
     // / `frame_delta_us()`) is inherited from `CapturedFrameTiming`.
@@ -255,6 +260,8 @@ inline void fillArpCapturedFromFrame(ArpCaptured &c, const ArpFrame &f) {
 inline void fillArpCapturedFromUdpFrame(ArpCaptured &c, const UdpFrame &u) {
     c.observed_udp_eth_dst = u.eth_dst;
     c.observed_udp_dst_ip = u.dst_ip;
+    c.observed_udp_src_port = u.src_port;
+    c.observed_udp_dst_port = u.dst_port;
     c.observed_ts_us = u.observed_ts_us;
 }
 
@@ -282,6 +289,10 @@ inline void appendCapturedJson(std::string &out, const ArpCaptured &c) {
         ::tc8::sce::appendIpv4Json(out, c.observed_udp_dst_ip);
         out.append(",\"observed_udp_eth_dst\":");
         ::tc8::sce::appendMacJson(out, c.observed_udp_eth_dst);
+        std::snprintf(buf, sizeof(buf), ",\"observed_udp_ports\":[%u,%u]",
+                      static_cast<unsigned>(c.observed_udp_src_port),
+                      static_cast<unsigned>(c.observed_udp_dst_port));
+        out.append(buf);
     }
     ::tc8::sce::appendTimingJson(out, c);
     out.append("}");
