@@ -4151,8 +4151,9 @@ detectors.
 
 ## TD-63 — the DUT-control vocabulary cannot say "I am now in state X"
 
-**Status:** OPEN. **Logged:** 2026-09-28, from a consumer suite's request for stimuli that
-wait on events rather than durations.
+**Status:** RESOLVED (2026-09-28), with no consumer. **Logged:** 2026-09-28, from a consumer
+suite's request for stimuli that wait on events rather than durations. The entry below is the debt
+as logged; **Resolution** at its end records what closed it.
 
 **What it is.** A stimulus can now wait for a frame (`awaitObservation`), but not for a DUT state
 that puts nothing on the wire. The consumer has one such wait. At run start it waits for "the DUT
@@ -4189,3 +4190,16 @@ having no consumer), or it yields a named DUT event with a failing case. In the 
 opcode Upper Tester reports that event behind a capability bit, through an extension seam where
 the event is an extension's. The reference DUT implements it, and `IStimulusObserver` gains the
 await that polls it.
+
+**Resolution.** The first outcome. The consumer ran its 153-case client sweep three times with the
+settle at 0 instead of 2500 ms: 153/153 each time, with no skips and no non-conclusions. The load
+averages were 5–8, 11–14 and 24.5, and the last was above the load of the previous day's real
+flake episodes. Load can only add failures, so the loaded run is the strong one. The consumer also
+checked the one case that measures a delay from the listen window, the DUT's Initial-Wait. Its
+value varied across runs (118.8, 157.0, 259.0 ms), and that is the configured random draw, which
+the DUT logs per request. The settle cannot shift it, because the window opens at the activate
+request and the settle comes before that. So no DUT state stands behind the constant, and nothing
+here needs building. The settle's remaining job is to cover a run without the start-order barrier.
+That job belongs to `kDutReadyBarrier`, and the consumer will remove the settle by declaring the
+barrier once that commit reaches its pin. The TCP SYN-SENT half of the gap was already expressible
+on the opcode backend, and the testability backend's CONNECT is fixed by its standard.
