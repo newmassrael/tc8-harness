@@ -17,6 +17,14 @@ namespace tc8::stimulus {
 // datagram + IPv4 frame before injecting via AF_PACKET SOCK_RAW, or
 // hand to a normal SOCK_DGRAM socket.
 
+// The `req_id` every UT request of this process carries — one allocator, so no
+// two requests in flight share an id. A reply is correlated on <opcode|0x80,
+// req_id>, so a constant id (the 0x17 path had one) or per-object counters that
+// each start at 1 (the DUT-control sub-interfaces had five) let a late reply to
+// one request be taken as the acknowledgement of another. Thread-safe; never 0,
+// so an all-zero datagram can never correlate; wraps after 255.
+std::uint8_t nextUtReqId();
+
 // Build a 0x01 GetReceivedUdp request.
 //
 //   <opcode:u8=0x01> <req_id:u8> <listen_port:u16> <expected_dst_ip:u32>
@@ -585,13 +593,18 @@ int sendUpperTesterRequest(std::string_view iface,
 // The request still goes out RAW, deliberately: sending through a kernel UDP
 // socket would make the tester's stack ARP for the DUT, and the tester's ARP
 // cache must keep the MAC the ARP cases inject (a kernel ARP would overwrite
-// it and break ARP_04/ARP_06's eth_dst assertions). Only the RECEIVE side uses
-// a UDP socket, bound to `tester_src_port` before the send so the reply cannot
-// be missed — receiving provokes no ARP.
+// it and break ARP_04/ARP_06's eth_dst assertions). The reply is HEARD on an
+// AF_PACKET tap of `iface`, opened before the send, never read from a kernel
+// socket: once a case has taught the DUT a MAC for the tester that is not this
+// interface's own — an injected MAC-ADDR1, or an installed static entry — the
+// DUT addresses every reply there, and the tester's kernel drops such a frame
+// before any socket sees it. A UDP socket is still bound to `tester_src_port`,
+// only so a reply that does reach this interface's MAC draws no ICMP
+// port-unreachable from the tester's kernel. Neither provokes an ARP.
 //
 // Returns the DUT's status byte (0 = success) on a correlated reply, or a
-// negative value: the send's own error code, or -4 on bind failure / timeout /
-// an uncorrelated reply. A caller that genuinely wants no synchronisation
+// negative value: the send's own error code, or -4 on bind / tap failure,
+// timeout, or an uncorrelated reply. A caller that genuinely wants no synchronisation
 // keeps using `sendUpperTesterRequest`.
 //
 // A NON-OK STATUS IS RECORDED AS AN UNPERFORMED STIMULUS.

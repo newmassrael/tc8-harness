@@ -417,6 +417,16 @@ if(TARGET tc8_upper_tester_server AND TARGET tc8_testability_server)
             $<TARGET_FILE:arp_static_entry_test>
             --gtest_filter=ArpStaticEntryPrivileged.*)
     set_tests_properties(arp_static_entry_privileged PROPERTIES SKIP_RETURN_CODE 77)
+    # The awaited UT request hears its reply at L2, whatever MAC the DUT addressed
+    # it to: a veth pair and a fake DUT that answers to a MAC nobody owns. The
+    # allocator half runs unprivileged; the tap half needs the namespace.
+    tc8_add_unit_test(ut_await_tap_test)
+    target_link_libraries(ut_await_tap_test PRIVATE tc8_testability_server)
+    add_test(NAME ut_await_tap_privileged
+        COMMAND ${PROJECT_SOURCE_DIR}/scripts/run-netns-test.sh
+            $<TARGET_FILE:ut_await_tap_test>
+            --gtest_filter=UtAwaitTap.*)
+    set_tests_properties(ut_await_tap_privileged PROPERTIES SKIP_RETURN_CODE 77)
 endif()
 # Opcode-UT TCP control adapter, driven against a mock UT responder (the real
 # opcode server needs a netns/veth topology, not loopback).

@@ -1,13 +1,21 @@
 #include "stimulus/upper_tester_client.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cerrno>
+#include <chrono>
 #include <cstdio>
 #include <cstring>
+#include <optional>
+#include <string>
 #include <thread>
 
 #include <arpa/inet.h>
+#include <linux/if_ether.h>
+#include <linux/if_packet.h>
+#include <net/if.h>
 #include <netinet/in.h>
+#include <poll.h>
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <unistd.h>
@@ -34,7 +42,111 @@ void appendIpv4Be(std::vector<std::uint8_t> &b, std::uint32_t ip_be) {
     b.push_back(static_cast<std::uint8_t>((ip_be >> 24) & 0xFFU));
 }
 
+// A receive tap on `iface` for the DUT's UT replies, opened BEFORE the request
+// goes out (the DUT answers within ~500 us). AF_PACKET, so it hears a reply
+// whatever Ethernet destination the DUT chose — see sendUpperTesterRequestAwaited
+// for why that is the whole point — with promiscuous membership so a physical NIC
+// does not filter such a frame in hardware (a veth delivers it regardless; the
+// membership is refcounted by the kernel and released on close). -1 on failure.
+int openUtReplyTap(std::string_view iface) {
+    const int fd = ::socket(AF_PACKET, SOCK_RAW | SOCK_CLOEXEC, htons(ETH_P_IP));
+    if (fd < 0) {
+        return -1;
+    }
+    const unsigned int ifindex = ::if_nametoindex(std::string(iface).c_str());
+    sockaddr_ll ll{};
+    ll.sll_family   = AF_PACKET;
+    ll.sll_protocol = htons(ETH_P_IP);
+    ll.sll_ifindex  = static_cast<int>(ifindex);
+    if (ifindex == 0 || ::bind(fd, reinterpret_cast<const sockaddr *>(&ll), sizeof(ll)) < 0) {
+        ::close(fd);
+        return -1;
+    }
+    packet_mreq mr{};
+    mr.mr_ifindex = static_cast<int>(ifindex);
+    mr.mr_type    = PACKET_MR_PROMISC;
+    if (::setsockopt(fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mr, sizeof(mr)) < 0) {
+        ::close(fd);
+        return -1;
+    }
+    return fd;
+}
+
+// The UT payload of `frame` when it is a UDP datagram from the DUT's UT port to
+// the tester's `tester_port`, else nullopt. Untagged IPv4, unfragmented — the
+// shape of every reply to a request this file builds.
+std::optional<std::vector<std::uint8_t>> utReplyPayload(const std::uint8_t *frame, std::size_t n,
+                                                        std::uint32_t dut_ip_be,
+                                                        std::uint32_t tester_ip_be,
+                                                        std::uint16_t tester_port) {
+    constexpr std::size_t kEth = 14;
+    if (n < kEth + 20 || frame[12] != 0x08 || frame[13] != 0x00) {
+        return std::nullopt;
+    }
+    const std::uint8_t *ip = frame + kEth;
+    const std::size_t ihl = static_cast<std::size_t>(ip[0] & 0x0FU) * 4U;
+    if ((ip[0] >> 4) != 4 || ihl < 20 || ip[9] != 17 || n < kEth + ihl + 8 ||
+        ((ip[6] & 0x3FU) | ip[7]) != 0) {  // MF set or a non-zero offset: a fragment
+        return std::nullopt;
+    }
+    std::uint32_t src = 0;
+    std::uint32_t dst = 0;
+    std::memcpy(&src, ip + 12, 4);
+    std::memcpy(&dst, ip + 16, 4);
+    const std::uint8_t *udp = ip + ihl;
+    const auto be16 = [](const std::uint8_t *p) {
+        return static_cast<std::uint16_t>((p[0] << 8) | p[1]);
+    };
+    if (src != dut_ip_be || dst != tester_ip_be || be16(udp) != ut::kPort ||
+        be16(udp + 2) != tester_port) {
+        return std::nullopt;
+    }
+    const std::size_t udp_len = be16(udp + 4);
+    if (udp_len < 8 || kEth + ihl + udp_len > n) {
+        return std::nullopt;
+    }
+    return std::vector<std::uint8_t>(udp + 8, udp + udp_len);
+}
+
+// Wait on `tap` until `timeout_ms` for the reply correlated with `request`
+// (<opcode|0x80> <req_id>). Returns its status byte, or nullopt on timeout.
+std::optional<std::uint8_t> awaitUtReply(int tap, const std::vector<std::uint8_t> &request,
+                                         std::uint32_t dut_ip_be, std::uint32_t tester_ip_be,
+                                         std::uint16_t tester_port, int timeout_ms) {
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+    std::uint8_t buf[2048];
+    for (;;) {
+        const auto left = std::chrono::duration_cast<std::chrono::milliseconds>(
+            deadline - std::chrono::steady_clock::now());
+        if (left.count() <= 0) {
+            return std::nullopt;
+        }
+        pollfd pfd{tap, POLLIN, 0};
+        if (::poll(&pfd, 1, static_cast<int>(left.count())) <= 0) {
+            continue;  // timeout re-checks the deadline; EINTR retries
+        }
+        sockaddr_ll from{};
+        socklen_t fromlen = sizeof(from);
+        const ssize_t n = ::recvfrom(tap, buf, sizeof(buf), MSG_DONTWAIT,
+                                     reinterpret_cast<sockaddr *>(&from), &fromlen);
+        if (n <= 0 || from.sll_pkttype == PACKET_OUTGOING) {
+            continue;  // our own request leaving, or nothing after all
+        }
+        const auto payload = utReplyPayload(buf, static_cast<std::size_t>(n), dut_ip_be,
+                                            tester_ip_be, tester_port);
+        if (payload && payload->size() >= 3 &&
+            (*payload)[0] == (request[0] | ut::kResponseBit) && (*payload)[1] == request[1]) {
+            return (*payload)[2];
+        }
+    }
+}
+
 }  // namespace
+
+std::uint8_t nextUtReqId() {
+    static std::atomic<unsigned int> counter{0};
+    return static_cast<std::uint8_t>(counter.fetch_add(1U, std::memory_order_relaxed) % 255U + 1U);
+}
 
 std::vector<std::uint8_t> buildGetReceivedUdpRequest(
     std::uint8_t  req_id,
@@ -492,11 +604,10 @@ std::optional<UtPingResult> pingUpperTester(std::uint32_t dut_ip_be,
                                             std::uint16_t dut_port,
                                             int timeout_ms,
                                             std::uint32_t src_ip_be) {
-    constexpr std::uint8_t kReqId = 0x01;
     // Response: <OpPing|0x80> <req_id> <status> <max_opcode>.
     std::uint8_t buf[8] = {};
     const ssize_t n = dgramUtRoundTrip(dut_ip_be, dut_port, timeout_ms,
-                                       src_ip_be, buildPingRequest(kReqId),
+                                       src_ip_be, buildPingRequest(nextUtReqId()),
                                        buf, sizeof(buf));
     if (n < 4 || buf[2] != ut::kStatusOk) {
         return std::nullopt;
@@ -509,14 +620,13 @@ std::optional<UtCapabilities> queryUpperTesterCapabilities(
     std::uint16_t dut_port,
     int timeout_ms,
     std::uint32_t src_ip_be) {
-    constexpr std::uint8_t kReqId = 0x02;
     // Response: <0x16|0x80> <req_id> <status> <bitmap_len> <bitmap[]>.
     // 16 bytes covers a 12-byte bitmap (opcodes through 0x5F) — well
     // past kMaxProtocolOpcode growth before this buffer needs a bump.
     std::uint8_t buf[16] = {};
     const ssize_t n = dgramUtRoundTrip(
         dut_ip_be, dut_port, timeout_ms, src_ip_be,
-        buildQueryCapabilitiesRequest(kReqId), buf, sizeof(buf));
+        buildQueryCapabilitiesRequest(nextUtReqId()), buf, sizeof(buf));
     if (n < 3) {
         return std::nullopt;
     }
@@ -583,9 +693,21 @@ int sendUpperTesterRequestAwaited(std::string_view iface,
     if (ut_payload.size() < 2) {
         return -4;  // no opcode/req_id to correlate a reply against
     }
-    // Bind BEFORE the send: the DUT answers within ~500 us, so a socket opened
-    // afterwards can lose the race it exists to close.
-    const int fd = ::socket(AF_INET, SOCK_DGRAM, 0);
+    // The reply is HEARD at L2, not received on a UDP socket. A kernel socket gets
+    // only frames addressed to this interface's own MAC, and the DUT addresses its
+    // reply by whatever its ARP table holds for the tester — which, by the time a
+    // §4.2 case conditions anything, is routinely a MAC the case injected
+    // (MAC-ADDR1) or installed as a static entry. Measured on the wire (the first
+    // static-entry run): the acknowledgement of AddStatic went to 02:00:00:00:00:a1,
+    // 0.35 ms after the request, and a kernel socket reported "no correlated reply"
+    // for a step the capture shows applied. The tap hears it whatever the MAC.
+    //
+    // The UDP socket is still bound, and for a different reason: when the reply
+    // DOES reach this interface's own MAC, an unbound port would make the tester's
+    // kernel answer the DUT with ICMP port-unreachable, a frame of the tester's own
+    // making on the wire under test. Both are opened BEFORE the send — the DUT
+    // answers within ~500 us.
+    const int fd = ::socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
     if (fd < 0) {
         return -4;
     }
@@ -599,32 +721,35 @@ int sendUpperTesterRequestAwaited(std::string_view iface,
         ::close(fd);
         return -4;
     }
-    timeval tv{};
-    tv.tv_sec  = timeout_ms / 1000;
-    tv.tv_usec = (timeout_ms % 1000) * 1000;
-    ::setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    const int tap = openUtReplyTap(iface);
+    if (tap < 0) {
+        std::fprintf(stderr, "stimulus: UT await tap on '%.*s' failed: %s\n",
+                     static_cast<int>(iface.size()), iface.data(), std::strerror(errno));
+        ::close(fd);
+        return -4;
+    }
 
     const int sent = sendUpperTesterRequest(iface, tester_ip_be, dut_ip_be, dut_mac,
                                             tester_src_port, ut_payload);
-    if (sent < 0) {
-        ::close(fd);
-        return sent;
-    }
-
     // Correlate on <opcode|kResponseBit> <req_id>, the same rule dgramUtRoundTrip
     // uses. A stray datagram on this port must not be read as our acknowledgement.
-    std::uint8_t resp[64] = {};
-    const ssize_t n = ::recv(fd, resp, sizeof(resp), 0);
+    const std::optional<std::uint8_t> heard =
+        sent < 0 ? std::nullopt
+                 : awaitUtReply(tap, ut_payload, dut_ip_be, tester_ip_be, tester_src_port,
+                                timeout_ms);
+    ::close(tap);
     ::close(fd);
-    if (n < 3 || resp[0] != (ut_payload[0] | ut::kResponseBit) ||
-        resp[1] != ut_payload[1]) {
+    if (sent < 0) {
+        return sent;
+    }
+    if (!heard) {
         std::fprintf(stderr,
                      "stimulus: UT opcode 0x%02x got no correlated reply in %d ms"
                      " — the DUT may not have applied it before the next step\n",
                      ut_payload[0], timeout_ms);
         return -4;
     }
-    const std::uint8_t status = resp[2];
+    const std::uint8_t status = *heard;
     if (status != ut::kStatusOk) {
         // The DUT answered, and its answer is "I did not do that". Name the
         // stimulus so the verdict points at the step that did not happen instead
@@ -653,9 +778,9 @@ int emitTriggerSendUdpBoot(std::string_view iface,
     static constexpr std::uint8_t kPayload[] = {'T', 'C', '8', '-', 'E', 'G',
                                                 'R', 'E', 'S', 'S'};
 
-    return runBootCadence(timing, [&](int i) {
+    return runBootCadence(timing, [&](int /*attempt*/) {
         const auto req = buildTriggerSendUdpRequest(
-            static_cast<std::uint8_t>(1 + i), kEgressBootDutSrcPort,
+            nextUtReqId(), kEgressBootDutSrcPort,
             tester_ip_be, ut::kDataPort, kPayload,
             static_cast<std::uint16_t>(sizeof(kPayload)));
         return sendUpperTesterRequest(iface, tester_ip_be, dut_ip_be, dut_mac,
@@ -669,7 +794,7 @@ int emitConditionArpCache(std::string_view iface,
                           const std::array<std::uint8_t, 6> &dut_mac,
                           std::uint8_t action,
                           std::uint16_t param) {
-    const auto req = buildConditionArpCacheRequest(0x01, action, param);
+    const auto req = buildConditionArpCacheRequest(nextUtReqId(), action, param);
     return sendUpperTesterRequest(iface, tester_ip_be, dut_ip_be, dut_mac,
                                   ut::kTesterSrcPort, req);
 }
@@ -682,7 +807,8 @@ int emitArpAddStatic(std::string_view iface,
                      const std::array<std::uint8_t, 6> &entry_mac) {
     return sendUpperTesterRequestAwaited(iface, tester_ip_be, dut_ip_be, dut_mac,
                                          ut::kTesterSrcPort,
-                                         buildArpAddStaticRequest(0x01, entry_ip_be, entry_mac),
+                                         buildArpAddStaticRequest(nextUtReqId(), entry_ip_be,
+                                                                  entry_mac),
                                          kAwaitedUtTimeoutMs, "dut_arp_static_entry_add");
 }
 
@@ -693,7 +819,7 @@ int emitArpRemoveStatic(std::string_view iface,
                         std::uint32_t entry_ip_be) {
     return sendUpperTesterRequestAwaited(iface, tester_ip_be, dut_ip_be, dut_mac,
                                          ut::kTesterSrcPort,
-                                         buildArpRemoveStaticRequest(0x01, entry_ip_be),
+                                         buildArpRemoveStaticRequest(nextUtReqId(), entry_ip_be),
                                          kAwaitedUtTimeoutMs, "dut_arp_static_entry_remove");
 }
 
@@ -702,7 +828,7 @@ int emitSetEgressFlavor(std::string_view iface,
                         std::uint32_t dut_ip_be,
                         const std::array<std::uint8_t, 6> &dut_mac,
                         std::uint8_t flavor) {
-    const auto req = buildSetFlavorRequest(ut::OpSetEgressFlavor, 0x01, flavor);
+    const auto req = buildSetFlavorRequest(ut::OpSetEgressFlavor, nextUtReqId(), flavor);
     // Named for the ledger: a `_neg` mutant whose fault never armed observes a
     // COMPLIANT DUT and would otherwise report the harness's own self-validation
     // as passed — the false direction that costs the most, since the point of the
@@ -717,7 +843,7 @@ int emitSetIngressFlavor(std::string_view iface,
                          std::uint32_t dut_ip_be,
                          const std::array<std::uint8_t, 6> &dut_mac,
                          std::uint8_t flavor) {
-    const auto req = buildSetFlavorRequest(ut::OpSetIngressFlavor, 0x01, flavor);
+    const auto req = buildSetFlavorRequest(ut::OpSetIngressFlavor, nextUtReqId(), flavor);
     return sendUpperTesterRequestAwaited(iface, tester_ip_be, dut_ip_be, dut_mac,
                                   ut::kTesterSrcPort, req, kAwaitedUtTimeoutMs,
                                   "dut_ingress_flavor_arm");
@@ -728,7 +854,7 @@ int emitSetAppFlavor(std::string_view iface,
                      std::uint32_t dut_ip_be,
                      const std::array<std::uint8_t, 6> &dut_mac,
                      std::uint8_t flavor) {
-    const auto req = buildSetFlavorRequest(ut::OpSetAppFlavor, 0x01, flavor);
+    const auto req = buildSetFlavorRequest(ut::OpSetAppFlavor, nextUtReqId(), flavor);
     return sendUpperTesterRequestAwaited(iface, tester_ip_be, dut_ip_be, dut_mac,
                                   ut::kTesterSrcPort, req, kAwaitedUtTimeoutMs,
                                   "dut_app_flavor_arm");
@@ -739,7 +865,7 @@ int emitSetEtsFlavor(std::string_view iface,
                      std::uint32_t dut_ip_be,
                      const std::array<std::uint8_t, 6> &dut_mac,
                      std::uint8_t flavor) {
-    const auto req = buildSetFlavorRequest(ut::OpSetEtsFlavor, 0x01, flavor);
+    const auto req = buildSetFlavorRequest(ut::OpSetEtsFlavor, nextUtReqId(), flavor);
     return sendUpperTesterRequestAwaited(iface, tester_ip_be, dut_ip_be, dut_mac,
                                   ut::kTesterSrcPort, req, kAwaitedUtTimeoutMs,
                                   "dut_ets_flavor_arm");

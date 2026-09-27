@@ -330,7 +330,7 @@ public:
     }
 
 private:
-    std::uint8_t nextReqId() { return req_id_++; }
+    std::uint8_t nextReqId() { return stimulus::nextUtReqId(); }
 
     // Map the seam BindSpec's local endpoint onto the opcode protocol's single
     // local-port slot (the active/passive OPEN take one port; 0 == DUT-chosen
@@ -352,7 +352,6 @@ private:
     std::uint16_t port_;
     std::uint32_t src_ip_be_;
     int timeout_ms_;
-    std::uint8_t req_id_ = 1;
 };
 
 // Opcode-UT backend of ITcpStateProbe — synchronous OpQueryTcpEstablished
@@ -409,13 +408,12 @@ public:
     }
 
 private:
-    std::uint8_t nextReqId() { return req_id_++; }
+    std::uint8_t nextReqId() { return stimulus::nextUtReqId(); }
 
     std::uint32_t dut_ip_be_;
     std::uint16_t port_;
     std::uint32_t src_ip_be_;
     int timeout_ms_;
-    std::uint8_t req_id_ = 1;
 };
 
 // Opcode-UT backend of ITcpRecvOob — synchronous OpReceiveTcpDataOob (recv with
@@ -456,13 +454,12 @@ public:
     }
 
 private:
-    std::uint8_t nextReqId() { return req_id_++; }
+    std::uint8_t nextReqId() { return stimulus::nextUtReqId(); }
 
     std::uint32_t dut_ip_be_;
     std::uint16_t port_;
     std::uint32_t src_ip_be_;
     int timeout_ms_;
-    std::uint8_t req_id_ = 1;
 };
 
 // Raw-injection transport for an opcode sub-interface: what it needs to put a UT
@@ -526,14 +523,13 @@ public:
     }
 
 private:
-    std::uint8_t nextReqId() { return req_id_++; }
+    std::uint8_t nextReqId() { return stimulus::nextUtReqId(); }
 
     std::uint32_t dut_ip_be_;
     std::uint16_t port_;
     std::uint32_t src_ip_be_;
     int timeout_ms_;
     OpcodeRawTransport raw_;
-    std::uint8_t req_id_ = 1;
 };
 
 // Opcode-UT backend of IArpControl. Both operations keep the RAW inject path the
@@ -606,14 +602,13 @@ private:
                                                        raw_.dut_mac, raw_.tester_src_port, req,
                                                        timeout_ms_, name) == 0;
     }
-    std::uint8_t nextReqId() { return req_id_++; }
+    std::uint8_t nextReqId() { return stimulus::nextUtReqId(); }
 
     std::uint32_t dut_ip_be_;
     std::uint16_t port_;
     std::uint32_t src_ip_be_;
     int timeout_ms_;
     OpcodeRawTransport raw_;
-    std::uint8_t req_id_ = 1;
 };
 
 // Opcode-UT backend of IDhcpClientControl — one OpStartDhcpClient carrying the
@@ -634,7 +629,7 @@ public:
 
     bool startClient(const dhcpv4::Dhcpv4StartConfig &spec) override {
         const auto req = stimulus::buildStartDhcpClientRequest(
-            /*req_id=*/1,
+            stimulus::nextUtReqId(),
             /*offer_wait_ms=*/kDhcpOfferWaitMs,
             /*ack_wait_ms=*/kDhcpAckWaitMs, spec.retry_count, spec.retry_interval_ms,
             spec.nak_to_discover_min_ms, spec.nak_to_discover_max_ms, spec.arp_probe_listen_ms,
@@ -684,11 +679,13 @@ public:
         const auto req =
             spec.flavor.has_value()
                 ? stimulus::buildStartLLAutoconfBuggyRequest(
-                      /*req_id=*/1, spec.dhcp_timeout_ms, spec.probe_wait_ms, spec.probe_min_ms,
+                      stimulus::nextUtReqId(), spec.dhcp_timeout_ms, spec.probe_wait_ms,
+                      spec.probe_min_ms,
                       spec.probe_max_ms, spec.announce_wait_ms, spec.announce_interval_ms,
                       spec.rate_limit_interval_ms, *spec.flavor)
                 : stimulus::buildStartLLAutoconfRequest(
-                      /*req_id=*/1, spec.dhcp_timeout_ms, spec.probe_wait_ms, spec.probe_min_ms,
+                      stimulus::nextUtReqId(), spec.dhcp_timeout_ms, spec.probe_wait_ms,
+                      spec.probe_min_ms,
                       spec.probe_max_ms, spec.announce_wait_ms, spec.announce_interval_ms,
                       spec.rate_limit_interval_ms);
         if (raw_.iface.empty()) {
@@ -718,7 +715,7 @@ public:
     // per-operation choice here, never a property of the backend. The decline path
     // is a backend that offers no `linkLocalControl()` at all.
     ::tc8::net::OpStatus queryCommittedAddress(std::uint32_t &addr_be) override {
-        const auto req = stimulus::buildQueryLLAddressRequest(/*req_id=*/1);
+        const auto req = stimulus::buildQueryLLAddressRequest(stimulus::nextUtReqId());
         const auto r =
             stimulus::upperTesterRoundTrip(dut_ip_be_, req, port_, timeout_ms_, src_ip_be_);
         if (!r || r->status != ut::kStatusOk) {
