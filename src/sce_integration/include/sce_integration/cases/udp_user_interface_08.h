@@ -48,10 +48,9 @@ struct TestCaseTraits<cases::UdpUserInterface08SM>
     // together and make that negative vacuous.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::udp::emitTriggerSendUdp(
-            dut,
+            ctx.dut,
             /*dut_src_port=*/20028,
             /*target_ip_be=*/cfg.tester.secondary_ip,
             /*target_port=*/::tc8::sce::udp::kDataPort,

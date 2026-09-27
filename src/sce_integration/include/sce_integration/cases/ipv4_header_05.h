@@ -76,8 +76,8 @@ struct TestCaseTraits<cases::Ipv4Header05SM> {
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        cases::emitHeader05Stimulus(cfg, iface);
+                         ::tc8::sce::StimulusContext& ctx) {
+        cases::emitHeader05Stimulus(cfg, ctx.iface);
     }
 
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {

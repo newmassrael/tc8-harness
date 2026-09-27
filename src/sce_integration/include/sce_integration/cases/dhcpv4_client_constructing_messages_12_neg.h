@@ -42,8 +42,7 @@ struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages12NegSM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& /*cfg*/,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         // Same fast-envelope as the positive (cases::kCm12* SSOT) plus the
         // RetxExceedCap flavor byte: only the cap enforcement is faulted.
         ::tc8::sce::dhcpv4::Dhcpv4StartConfig sc;
@@ -53,7 +52,7 @@ struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages12NegSM>
         sc.retx_cap_ms = cases::kCm12RetxCapMs;
         sc.retx_jitter_ms = cases::kCm12RetxJitterMs;
         sc.flavor = ::tc8::ut::kDhcpFlavorRetxExceedCap;
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(dut, sc);
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(ctx.dut, sc);
     }
 };
 

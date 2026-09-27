@@ -87,16 +87,14 @@ struct TestCaseTraits<cases::TcpFlagsInvalid01SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         // LISTEN via driveSeamListen (ITcpControl::listenTcp, listen-only) so
         // the case runs on whichever backend `--dut-control` selected; the
         // three raw injects and the deferred close stay tester/seam-side.
-        const auto listen = driveSeamListen(dut, kBasicsListenPort);
+        const auto listen = driveSeamListen(ctx.dut, kBasicsListenPort);
         if (!listen) return;
 
         // Phase 1 — drive DUT from LISTEN into SYN-RCVD; the
@@ -107,7 +105,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid01SM>
         syn.seq_num  = kTesterInitialSeq;
         syn.ack_num  = 0U;
         syn.flags    = ::tc8::stimulus::kTcpFlagSyn;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, syn);
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, syn);
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
         // Phase 2 — spec-asserted invalid segment. Distinct tester
@@ -120,7 +118,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid01SM>
         syn_rst.ack_num  = 0U;
         syn_rst.flags    = ::tc8::stimulus::kTcpFlagSyn
                          | ::tc8::stimulus::kTcpFlagRst;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, syn_rst,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, syn_rst,
                      /*initial_wait=*/std::chrono::milliseconds(0));
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
@@ -135,14 +133,14 @@ struct TestCaseTraits<cases::TcpFlagsInvalid01SM>
         // `listening_phase3_synack`, the observer never fires, and
         // the poll loop exits cleanly — no thread to leak, no
         // SIGKILL race, no partial-emit risk.
-        std::string                 iface_copy(iface);
+        std::string                 iface_copy(ctx.iface);
         ::tc8::TestConfig           cfg_copy   = cfg;
         std::array<std::uint8_t, 6> dut_mac_copy = cfg.dut.mac;
         // dut outlives the poll loop (CLI-owned), so capturing &dut for the
         // deferred close is lifetime-safe (FLAGS_PROCESSING_09 idiom).
-        ::tc8::sce::IDutControl*    dut_ptr = &dut;
+        ::tc8::sce::IDutControl*    dut_ptr = &ctx.dut;
         const ::tc8::sce::DutSocket listen_handle = *listen;
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_phase3_synack),
             [iface_copy, cfg_copy, dut_mac_copy, dut_ptr, listen_handle]() {
                 ::tc8::stimulus::TcpSegmentSpec syn3{};

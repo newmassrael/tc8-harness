@@ -34,10 +34,9 @@ struct TestCaseTraits<cases::Dhcpv4ClientAllocating01NegSM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& /*cfg*/,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::dhcpv4::emitStartDhcpClientBuggy(
-            dut,
+            ctx.dut,
             ::tc8::ut::kDhcpFlavorDiscoverDstUnicast);
     }
 };

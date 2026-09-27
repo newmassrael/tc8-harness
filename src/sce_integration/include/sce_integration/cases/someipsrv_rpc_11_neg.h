@@ -41,15 +41,15 @@ struct TestCaseTraits<cases::Rpc11NegSM>
     // store stays correct; only the setter Response payload flips (0xBD != 0x42).
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        emitEtsFlavorArm(cfg, iface, ::tc8::ut::kEtsFaultSetterEchoWrong);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitEtsFlavorArm(cfg, ctx.iface, ::tc8::ut::kEtsFaultSetterEchoWrong);
 
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = 0x0042;
         target.payload   = {0x42};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

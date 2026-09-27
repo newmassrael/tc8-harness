@@ -43,15 +43,14 @@ struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages13SM>
     // cases::kCm13* SSOT (shared with _neg / _neg2 so it cannot drift).
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& /*cfg*/,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::dhcpv4::Dhcpv4StartConfig sc;
         sc.retry_count = cases::kCm13RetryCount;
         sc.retry_interval_ms = 0U;
         sc.retx_first_ms = cases::kCm13RetxFirstMs;
         sc.retx_cap_ms = cases::kCm13RetxCapMs;
         sc.retx_jitter_ms = cases::kCm13RetxJitterMs;
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(dut, sc);
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(ctx.dut, sc);
     }
 };
 

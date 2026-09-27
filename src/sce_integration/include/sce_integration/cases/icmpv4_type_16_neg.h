@@ -34,12 +34,12 @@ struct TestCaseTraits<cases::Icmpv4Type16NegSM>
     // (type=15) the positive uses (the frame the DUT must not answer).
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        emitIngressFlavorArm(cfg, iface, ::tc8::ut::kIcmpFaultSynthInfoReply);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitIngressFlavorArm(cfg, ctx.iface, ::tc8::ut::kIcmpFaultSynthInfoReply);
         ::tc8::sce::icmpv4::StimulusOverrides ov{};
         ov.icmp_type = std::uint8_t{15};  // Information Request
         ov.icmp_code = std::uint8_t{0};
-        ::tc8::sce::icmpv4::emitStimulus(cfg, iface, ov);
+        ::tc8::sce::icmpv4::emitStimulus(cfg, ctx.iface, ov);
     }
 };
 

@@ -42,13 +42,11 @@ struct TestCaseTraits<cases::Ipv4AutoconfLinklocalPackets04SM>
     // committed LL is not referenced by the guard.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
-        ::tc8::sce::linklocal::emitStartLLAutoconfFast(dut);
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::sce::linklocal::emitStartLLAutoconfFast(ctx.dut);
         ::tc8::sce::linklocal::scheduleArbitraryTargetTesterRequest(
-            scheduler, static_cast<int>(State::Listening_post_claim),
-            cfg, iface,
+            ctx.scheduler, static_cast<int>(State::Listening_post_claim),
+            cfg, ctx.iface,
             ::tc8::sce::linklocal::kArbitraryReservedLinkLocalIpBe);
     }
 };

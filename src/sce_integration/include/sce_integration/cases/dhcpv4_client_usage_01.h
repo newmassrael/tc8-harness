@@ -29,7 +29,7 @@ struct TestCaseTraits<cases::Dhcpv4ClientUsage01SM>
         "interface independently — DISCOVER#1 (DIface-0) and DISCOVER#2 "
         "(DIface-1) carry distinct chaddr values (RFC 2131 §3.6, MUST)";
     static constexpr int              kTopology   = 2;
-    // 4-arg stimulus shape — the trait registers two state-entry
+    // Stimulus uses the context's scheduler — the trait registers two state-entry
     // observers on s2 entry:
     //
     //   1. `snapshotDiscoverChaddr()` — copies the DISCOVER#1 chaddr
@@ -49,18 +49,16 @@ struct TestCaseTraits<cases::Dhcpv4ClientUsage01SM>
     // regardless of which iface the request arrived on.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& /*cfg*/,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(dut);
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(ctx.dut);
 
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_for_d1_discover),
             [&c]() { c.snapshotDiscoverChaddr(); });
 
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_for_d1_discover),
-            [dut = &dut]() {
+            [dut = &ctx.dut]() {
                 ::tc8::sce::dhcpv4::Dhcpv4StartConfig sc;
                 sc.iface_index = 1;
                 sc.apply_initial_wait = false;

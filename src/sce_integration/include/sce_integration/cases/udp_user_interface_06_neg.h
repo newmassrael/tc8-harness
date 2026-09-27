@@ -37,11 +37,10 @@ struct TestCaseTraits<cases::UdpUserInterface06NegSM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
-        emitEgressFlavorArm(cfg, iface, ::tc8::ut::kUdpFaultDstPortWrong);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitEgressFlavorArm(cfg, ctx.iface, ::tc8::ut::kUdpFaultDstPortWrong);
         ::tc8::sce::udp::emitTriggerSendUdp(
-            dut,
+            ctx.dut,
             /*dut_src_port=*/20029,
             /*target_ip_be=*/cfg.tester.ip,
             /*target_port=*/20026,

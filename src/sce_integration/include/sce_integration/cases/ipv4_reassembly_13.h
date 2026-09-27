@@ -61,18 +61,18 @@ struct TestCaseTraits<cases::Ipv4Reassembly13SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         namespace r = ::tc8::sce::ipv4::reassembly;
         const auto f     = r::buildReassembly13Fragments();
         const auto ip_id = r::kReassembly13IpId;
 
-        r::emitIpv4Fragment(iface, cfg, cfg.arp.dut_iface_mac, ip_id,
+        r::emitIpv4Fragment(ctx.iface, cfg, cfg.arp.dut_iface_mac, ip_id,
                             r::kReassembly13HeadOffset, /*MF=*/true, /*ttl=*/64, f.head);
-        r::emitIpv4Fragment(iface, cfg, cfg.arp.dut_iface_mac, ip_id,
+        r::emitIpv4Fragment(ctx.iface, cfg, cfg.arp.dut_iface_mac, ip_id,
                             r::kReassembly13OverlapOffset, /*MF=*/true, /*ttl=*/64, f.wrong_overlap);
-        r::emitIpv4Fragment(iface, cfg, cfg.arp.dut_iface_mac, ip_id,
+        r::emitIpv4Fragment(ctx.iface, cfg, cfg.arp.dut_iface_mac, ip_id,
                             r::kReassembly13OverlapOffset, /*MF=*/true, /*ttl=*/64, f.right_overlap);
-        r::emitIpv4Fragment(iface, cfg, cfg.arp.dut_iface_mac, ip_id,
+        r::emitIpv4Fragment(ctx.iface, cfg, cfg.arp.dut_iface_mac, ip_id,
                             r::kReassembly13TailOffset, /*MF=*/false, /*ttl=*/64, f.tail);
     }
 };

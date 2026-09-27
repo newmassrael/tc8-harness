@@ -38,14 +38,12 @@ struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages06SM>
         "(RFC 2132 §9.3 + RFC 2131 §3.5/§4.1, MUST)";
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         // CM_06: Option 52 = 1 → file holds options. Wire envelope
         // identical to CM_05 except for which BOOTP fixed region
         // carries the Option 3 (Router) TLV.
         cases::router_option_egress::wireRouterOverloadStimulus<SM>(
-            c, cfg, iface, dut, scheduler,
+            c, cfg, ctx.iface, ctx.dut, ctx.scheduler,
             /*option_52_overload=*/1U,
             /*sname_payload=*/{},
             /*file_payload=*/cases::router_option_egress::buildOption3RouterPayload());

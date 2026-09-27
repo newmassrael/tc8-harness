@@ -30,8 +30,8 @@ struct TestCaseTraits<cases::Rpc14SM> : SomeIpAnyBase<cases::Rpc14SM> {
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{});
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{});
 
         ::tc8::stimulus::SomeIpRpcMessage req{};
         req.service_id = 0xF4E7;
@@ -39,7 +39,7 @@ struct TestCaseTraits<cases::Rpc14SM> : SomeIpAnyBase<cases::Rpc14SM> {
         req.payload = {0x42};
 
         // instance 0x0001 unreliable = the configured services[0] endpoint.
-        ::tc8::stimulus::emitMethodRequestAfter(iface, req, {},
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, req, {},
                                                 ::tc8::sce::someipUdpMethodDest(cfg));
 
         ::tc8::stimulus::SomeIpRpcMessage req2 = req;
@@ -48,7 +48,7 @@ struct TestCaseTraits<cases::Rpc14SM> : SomeIpAnyBase<cases::Rpc14SM> {
         late.pre_emit_wait = std::chrono::milliseconds{800};
         // instance 0x0002 unreliable (vsomeip-multi-instance.json) — not the
         // base services[0] endpoint, so name the port explicitly.
-        ::tc8::stimulus::emitMethodRequestAfter(iface, req2, late,
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, req2, late,
                                                 ::tc8::sce::someipUdpMethodDest(cfg, ::tc8::sce::someip::kSi1Inst2UdpPort));
     }
 };

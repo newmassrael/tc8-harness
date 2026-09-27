@@ -41,11 +41,9 @@ struct TestCaseTraits<cases::UdpFields04SM>
     // observes the wire frame regardless.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::udp::emitTriggerSendUdp(
-            dut,
+            ctx.dut,
             /*dut_src_port=*/20040,
             /*target_ip_be=*/cfg.tester.ip,
             /*target_port=*/::tc8::sce::udp::kDataPort,
@@ -55,9 +53,9 @@ struct TestCaseTraits<cases::UdpFields04SM>
         // The backend outlives the run (the CLI owns it for the whole case), so
         // the deferred phase-2 send captures it by pointer rather than copying
         // the transport identities the legacy path had to carry into the lambda.
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_phase2),
-            [dut = &dut]() {
+            [dut = &ctx.dut]() {
                 ::tc8::sce::udp::emitTriggerSendUdp(
                     *dut,
                     /*dut_src_port=*/20040,

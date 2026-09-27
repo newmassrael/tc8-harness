@@ -31,9 +31,8 @@ struct TestCaseTraits<cases::Dhcpv4ClientProtocol02SM>
         "message MUST include this option (RFC 2131 §3, MUST)";
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& /*cfg*/,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
-        ::tc8::sce::linklocal::emitStartLLAutoconfFast(dut);
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::sce::linklocal::emitStartLLAutoconfFast(ctx.dut);
     }
 };
 

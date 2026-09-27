@@ -30,13 +30,13 @@ struct TestCaseTraits<cases::SdMessage17SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::stimulus::SubscribeEventgroupTarget target{};
         // UNKNOWN-INSTANCE-ID = extractedInstID1 + 1; the SCXML cond
         // mirrors this with `expected.instance_id + 1` so both sides
         // follow whatever SERVICE-ID-1 identity the operator passes.
         target.instance_id = static_cast<std::uint16_t>(cfg.someip_dut.instance_id + 1);
-        ::tc8::stimulus::emitSubscribeEventgroupBoot(iface, target,
+        ::tc8::stimulus::emitSubscribeEventgroupBoot(ctx.iface, target,
             cfg.stimulus_timing);
     }
 };

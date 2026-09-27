@@ -43,11 +43,11 @@ struct TestCaseTraits<cases::Ipv4Addressing03NegSM>
     // the positive uses (the datagram the DUT must drop without replying).
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        emitIngressFlavorArm(cfg, iface, ::tc8::ut::kIcmpFaultSynthEchoReply);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitIngressFlavorArm(cfg, ctx.iface, ::tc8::ut::kIcmpFaultSynthEchoReply);
         ::tc8::sce::ipv4::StimulusOverrides ov{};
         ov.dst_ip = cases::kIpv4LoopbackBe;
-        ::tc8::sce::ipv4::emitStimulus(cfg, iface, ov);
+        ::tc8::sce::ipv4::emitStimulus(cfg, ctx.iface, ov);
     }
 };
 

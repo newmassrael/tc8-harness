@@ -45,13 +45,13 @@ struct TestCaseTraits<cases::Ipv4Fragments01SM>
     // related fragment paths.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::ipv4::fragments::FragmentPairParams params{};
         // Defaults already encode the FRAGMENTS_01 positive tuple:
         // src_ip_frag0/1 = tester_ip (0 → cfg default), ip_id = id1
         // on both halves, ip_protocol = ICMP on both halves.
         ::tc8::sce::ipv4::fragments::emitFragmentPair(
-            iface, cfg, cfg.arp.dut_iface_mac, params);
+            ctx.iface, cfg, cfg.arp.dut_iface_mac, params);
     }
 };
 

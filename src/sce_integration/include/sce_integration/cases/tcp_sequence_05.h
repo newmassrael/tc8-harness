@@ -41,8 +41,7 @@ struct TestCaseTraits<cases::TcpSequence05SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -57,7 +56,7 @@ struct TestCaseTraits<cases::TcpSequence05SM>
         TesterAutoRstDrop rst_drop(cfg);
 
         const auto open = driveSeamRawPassiveAccept(
-            dut, cfg, iface,
+            ctx.dut, cfg, ctx.iface,
             kTcpSequence05ListenPort,
             std::vector<std::uint8_t>{},
             kTcpSequence05TesterSrcPort,
@@ -87,14 +86,14 @@ struct TestCaseTraits<cases::TcpSequence05SM>
             data.flags    = ::tc8::stimulus::kTcpFlagPsh
                           | ::tc8::stimulus::kTcpFlagAck;
             data.payload.assign(kSegPayload.begin(), kSegPayload.end());
-            emitTcpFrame(cfg, iface, cfg.dut.mac, data,
+            emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, data,
                          /*initial_wait=*/std::chrono::milliseconds(0));
             seg_seq += kSegLen;
             std::this_thread::sleep_for(kDelayedAckSettle);
         }
 
         if (open.conn) {
-            ::tc8::sce::seamTcpControl(dut).closeTcp(open.conn->socket);
+            ::tc8::sce::seamTcpControl(ctx.dut).closeTcp(open.conn->socket);
         }
     }
 };

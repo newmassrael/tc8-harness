@@ -60,21 +60,19 @@ struct TestCaseTraits<cases::TcpFlagsInvalid05SM>
     // as FLAGS_INVALID_15 phases 2..8.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        runPhase1SynAckRst(dut, cfg, iface);
+        runPhase1SynAckRst(ctx.dut, cfg, ctx.iface);
 
         // Phase 2 runs in a deferred scheduler callback that outlives this
         // stimulus frame; capture the DUT control by pointer (CLI-owned, lives
         // past the callback) per the deferred-lambda idiom.
-        ::tc8::sce::IDutControl* dut_ptr = &dut;
+        ::tc8::sce::IDutControl* dut_ptr = &ctx.dut;
         ::tc8::TestConfig cfg_copy = cfg;
-        std::string       iface_str(iface);
-        scheduler.scheduleAfterStateEntry(
+        std::string       iface_str(ctx.iface);
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p2_dut_syn),
             [dut_ptr, cfg_copy, iface_str]() {
                 runPhase2AckRst(*dut_ptr, cfg_copy, iface_str);

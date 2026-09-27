@@ -60,8 +60,7 @@ struct TestCaseTraits<cases::TcpCallReceive05SM>
     // for our data+FIN.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -69,7 +68,7 @@ struct TestCaseTraits<cases::TcpCallReceive05SM>
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kPortOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffset;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
         if (!open.conn) return;
@@ -79,7 +78,7 @@ struct TestCaseTraits<cases::TcpCallReceive05SM>
             return;
         }
 
-        auto& tcp = seamTcpControl(dut);
+        auto& tcp = seamTcpControl(ctx.dut);
 
         const std::vector<std::uint8_t> payload(kPayloadLen, cases::kCallReceive05FillByte);
 
@@ -99,7 +98,7 @@ struct TestCaseTraits<cases::TcpCallReceive05SM>
                                   | ::tc8::stimulus::kTcpFlagPsh
                                   | ::tc8::stimulus::kTcpFlagFin;
                 fin_data.payload  = payload;
-                emitTcpFrame(cfg, iface, cfg.dut.mac, fin_data,
+                emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, fin_data,
                              /*initial_wait=*/std::chrono::milliseconds(0));
             });
         if (received && *received == payload) {

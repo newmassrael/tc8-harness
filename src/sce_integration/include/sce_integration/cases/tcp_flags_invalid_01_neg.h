@@ -49,8 +49,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid01NegSM>
     // kernel's RST to the raw-injected baseline SYN,ACK (it has no socket for it).
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -59,9 +58,9 @@ struct TestCaseTraits<cases::TcpFlagsInvalid01NegSM>
 
         const std::uint16_t listen_port = kBasicsListenPort;
         const std::uint16_t tester_port = kBasicsTesterPort;
-        if (!driveSeamListen(dut, listen_port)) return;
+        if (!driveSeamListen(ctx.dut, listen_port)) return;
 
-        auto snippet = TcpFrameSnippet::forDutSynAck(cfg, iface, tester_port);
+        auto snippet = TcpFrameSnippet::forDutSynAck(cfg, ctx.iface, tester_port);
 
         // Baseline: bare SYN on the listen 4-tuple draws the DUT SYN,ACK (precondition confirm).
         ::tc8::stimulus::TcpSegmentSpec syn{};
@@ -70,11 +69,11 @@ struct TestCaseTraits<cases::TcpFlagsInvalid01NegSM>
         syn.seq_num  = kTesterInitialSeq;
         syn.ack_num  = 0U;
         syn.flags    = ::tc8::stimulus::kTcpFlagSyn;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, syn);
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, syn);
 
         const auto synack = snippet.tryCapture(std::chrono::milliseconds(500));
         if (synack.has_value()) {
-            emitIngressFlavorArmMidStream(cfg, iface, ::tc8::ut::kTcpSynthRstOnDisruptive);
+            emitIngressFlavorArmMidStream(cfg, ctx.iface, ::tc8::ut::kTcpSynthRstOnDisruptive);
 
             // Spec-asserted SYN+RST on a distinct tester source port; the conformant DUT drops it
             // in LISTEN, so the synthesized RST (on this same 4-tuple) is the only DUT segment the
@@ -85,7 +84,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid01NegSM>
             syn_rst.seq_num  = kTesterInitialSeq;
             syn_rst.ack_num  = 0U;
             syn_rst.flags    = ::tc8::stimulus::kTcpFlagSyn | ::tc8::stimulus::kTcpFlagRst;
-            emitTcpFrame(cfg, iface, cfg.dut.mac, syn_rst, /*initial_wait=*/kFlavorArmSettle);
+            emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, syn_rst, /*initial_wait=*/kFlavorArmSettle);
             std::this_thread::sleep_for(kSynthObserveHold);
         }
     }

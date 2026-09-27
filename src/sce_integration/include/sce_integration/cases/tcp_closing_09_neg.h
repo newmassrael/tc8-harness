@@ -47,8 +47,7 @@ struct TestCaseTraits<cases::TcpClosing09NegSM>
     // The arm is given the settle gap before the FIN so the raw-injected arm lands first.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -56,13 +55,13 @@ struct TestCaseTraits<cases::TcpClosing09NegSM>
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kPortOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffset;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0 || !open.conn) return;
 
         // Per-phase arm before the tester FIN. The settle gap lets the raw-injected arm reach
         // the DUT UT thread before the kernel-emitted FIN reaches the netif input hook.
-        emitIngressFlavorArmMidStream(cfg, iface, ::tc8::ut::kTcpSynthRstOnDisruptive);
+        emitIngressFlavorArmMidStream(cfg, ctx.iface, ::tc8::ut::kTcpSynthRstOnDisruptive);
         std::this_thread::sleep_for(kFlavorArmSettle);
 
         // Tester FIN: kernel emits FIN+ACK on shutdown(WR). The DUT enters CLOSE-WAIT; the

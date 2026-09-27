@@ -35,8 +35,8 @@ struct TestCaseTraits<cases::Arp35SM>
     // target_hw=broadcast, but keeping target_hw=sender_hw is the
     // semantically correct gratuitous form and matches the sibling
     // cache-merge cases in Group C.
-    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface,
-                         ::tc8::sce::IDutControl &dut) {
+    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg,
+                         ::tc8::sce::StimulusContext &ctx) {
         ::tc8::stimulus::ArpFrameSpec spec1;
         spec1.opcode = 0x0002;  // gratuitous Response
         spec1.sender_hw = ::tc8::stimulus::kTesterInjectedMac;
@@ -44,7 +44,7 @@ struct TestCaseTraits<cases::Arp35SM>
         spec1.target_hw = ::tc8::stimulus::kTesterInjectedMac;  // == sender_hw (Linux garp recognition)
         spec1.sender_ip_be = cfg.arp.tester_ip;
         spec1.target_ip_be = cfg.arp.tester_ip;
-        ::tc8::stimulus::emitArpFromTester(iface, spec1);
+        ::tc8::stimulus::emitArpFromTester(ctx.iface, spec1);
 
         ::tc8::stimulus::ArpFrameSpec spec2;
         spec2.opcode = 0x0001;  // Request
@@ -52,9 +52,9 @@ struct TestCaseTraits<cases::Arp35SM>
         spec2.eth_src = ::tc8::stimulus::kTesterInjectedMac2;
         spec2.sender_ip_be = cfg.arp.tester_ip;
         spec2.target_ip_be = cfg.dut.ip;
-        ::tc8::stimulus::emitArpFromTester(iface, spec2);
+        ::tc8::stimulus::emitArpFromTester(ctx.iface, spec2);
 
-        emitArpEgressProvocation(dut, cfg.stimulus_timing);
+        emitArpEgressProvocation(ctx.dut, cfg.stimulus_timing);
     }
 };
 

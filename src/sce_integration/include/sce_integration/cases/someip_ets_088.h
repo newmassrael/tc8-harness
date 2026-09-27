@@ -38,9 +38,8 @@ struct TestCaseTraits<cases::SomeipEts088SM> : SomeIpAnyBase<cases::SomeipEts088
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IBackgroundServiceOwner& owner) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         std::vector<::tc8::stimulus::SubscribeEventgroupTarget> entries;
         entries.reserve(3);
@@ -63,14 +62,14 @@ struct TestCaseTraits<cases::SomeipEts088SM> : SomeIpAnyBase<cases::SomeipEts088
         // (0x0005 / 0x0006) reference the UDP option ONLY (#Opt1=1) — the
         // reference bundle shape, so the unreliable subscriptions stay UDP-bound.
         auto session = std::make_unique<::tc8::stimulus::SubscribeEventgroupTcpSession>(
-            iface, ::tc8::sce::someipTcpMethodDest(cfg));
+            ctx.iface, ::tc8::sce::someipTcpMethodDest(cfg));
         ::tc8::stimulus::SubscribeDestination sd_dest{};
         sd_dest.ipv4_be = cfg.dut.ip;
         ::tc8::stimulus::MultiSubscribeEventgroupParams params{};
         params.entries = entries;
         params.per_entry_num_options_first = {2, 1, 1};  // 0x02 dual; 0x05/0x06 UDP-only
         session->subscribeMultiParams(std::move(params), sd_dest);
-        owner.adoptService(std::move(session));
+        ctx.services.adoptService(std::move(session));
     }
 };
 

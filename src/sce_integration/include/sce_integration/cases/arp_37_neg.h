@@ -32,14 +32,14 @@ struct TestCaseTraits<cases::Arp37NegSM>
     // positive uses (the frame the DUT must drop without replying).
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        emitIngressFlavorArm(cfg, iface, ::tc8::ut::kArpFaultReplyToDropFrame);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitIngressFlavorArm(cfg, ctx.iface, ::tc8::ut::kArpFaultReplyToDropFrame);
         ::tc8::stimulus::ArpFrameSpec spec;
         spec.sender_ip_be = cfg.arp.tester_ip;
         // 10.99.99.99 in network byte order: 0x0A 0x63 0x63 0x63 (a /24 host not
         // bound to the DUT or tester) — mirrors the positive ARP_37 stimulus.
         spec.target_ip_be = 0x6363630Au;
-        ::tc8::stimulus::emitArpFromTester(iface, spec);
+        ::tc8::stimulus::emitArpFromTester(ctx.iface, spec);
     }
 };
 

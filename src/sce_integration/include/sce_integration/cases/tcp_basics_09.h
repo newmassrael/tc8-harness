@@ -72,13 +72,12 @@ struct TestCaseTraits<cases::TcpBasics09SM>
     // side, not the DUT, so they do not belong on the DUT-control seam.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         auto open = driveSeamActiveOpen(
-            dut, cfg,
+            ctx.dut, cfg,
             kBasicsActiveLocalPort  + kTcpBasics09LocalOffset,
             kBasicsActiveRemotePort + kTcpBasics09LocalOffset);
 
@@ -91,7 +90,7 @@ struct TestCaseTraits<cases::TcpBasics09SM>
 
         // Stage c: DUT CLOSE → DUT FIN, LAST-ACK.
         if (open.conn) {
-            dut.tcpControl()->closeTcp(open.conn->socket);
+            ctx.dut.tcpControl()->closeTcp(open.conn->socket);
         }
 
         // Stage d: grace for tester kernel's auto-ACK of the DUT's
@@ -110,7 +109,7 @@ struct TestCaseTraits<cases::TcpBasics09SM>
         // pin the kernel would pick an ephemeral source and the
         // reverse-direction RST's dst_port would be unknowable to the
         // SCXML at compile time.
-        emitTcpStimulus(cfg, iface, cfg.dut.mac,
+        emitTcpStimulus(cfg, ctx.iface, cfg.dut.mac,
                         /*dst_port=*/kBasicsActiveLocalPort + kTcpBasics09LocalOffset,
                         /*flags=*/::tc8::stimulus::kTcpFlagSyn,
                         /*seq_num=*/kTesterInitialSeq,

@@ -40,14 +40,14 @@ struct TestCaseTraits<cases::Ipv4Reassembly10Neg4SM>
     // settle on a phase-A final instead of reaching the guard this negative is for.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::sce::ipv4::reassembly::emitReassembly10PhaseA(cfg, iface);
-        emitIngressFlavorArmMidStream(cfg, iface, ::tc8::ut::kIpv4FaultHoldFirstFragment);
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::sce::ipv4::reassembly::emitReassembly10PhaseA(cfg, ctx.iface);
+        emitIngressFlavorArmMidStream(cfg, ctx.iface, ::tc8::ut::kIpv4FaultHoldFirstFragment);
         // The arm is a raw-injected UT frame handled on the DUT's UT thread while phase B's
         // head arrives on the netif-input thread; the two need a gap, not an ordering
         // guarantee. Same settle the ARP mid-stream negatives use.
         std::this_thread::sleep_for(kFlavorArmSettle);
-        ::tc8::sce::ipv4::reassembly::emitReassembly10PhaseB(cfg, iface);
+        ::tc8::sce::ipv4::reassembly::emitReassembly10PhaseB(cfg, ctx.iface);
     }
 };
 

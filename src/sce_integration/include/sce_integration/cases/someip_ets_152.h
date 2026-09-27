@@ -42,9 +42,9 @@ struct TestCaseTraits<cases::SomeipEts152SM> : SomeIpAnyBase<cases::SomeipEts152
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         // FindService boot first so phase 1 fires on a fresh OfferService.
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
 
         // Pre-build the Subscribe datagram once. Carries:

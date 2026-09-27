@@ -33,15 +33,15 @@ struct TestCaseTraits<cases::SomeipEts019SM> : SomeIpAnyBase<cases::SomeipEts019
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = 0x0012;
         // CommonAPI Double wire shape: 8 bytes BE. 1.5 IEEE-754 = sign 0,
         // exponent 0x3FF, mantissa 0x8000000000000 -> 0x3FF8000000000000.
         target.payload = {0x3F, 0xF8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 
     // Conformant echo: case-local SSOT for the positive assertion;

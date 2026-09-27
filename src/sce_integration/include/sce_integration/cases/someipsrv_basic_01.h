@@ -33,12 +33,12 @@ struct TestCaseTraits<cases::Basic01SM> : SomeIpAnyBase<cases::Basic01SM> {
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         // Phase 1: drive the DUT to emit OfferService via a FindService
         // boot sequence. emitFindServiceBoot blocks for the full
         // (initial_wait + retry envelope), so by the time it returns
         // the DUT is well into its OfferService cycle.
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         // Phase 2: invoke echoUINT8 (METHOD-ID-1-SI-1 = 0x0008 on
         // tc8-dut, declared in dut/ets/ets.fdepl). Single 1-byte payload
@@ -48,7 +48,7 @@ struct TestCaseTraits<cases::Basic01SM> : SomeIpAnyBase<cases::Basic01SM> {
         // method_id), not payload bytes.
         ::tc8::stimulus::SomeIpRpcMessage target{};
         target.payload = {0x42};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

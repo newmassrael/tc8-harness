@@ -33,8 +33,8 @@ struct TestCaseTraits<cases::SomeipEts136SM> : SomeIpAnyBase<cases::SomeipEts136
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 
@@ -44,7 +44,7 @@ struct TestCaseTraits<cases::SomeipEts136SM> : SomeIpAnyBase<cases::SomeipEts136
         // Spec wording: option Length less than specified for the Type
         // (4 instead of 9). SOME/IP Length and OptionsLen stay canonical.
         params.option_body_len_override = std::uint16_t{4};
-        ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, params);
+        ::tc8::stimulus::emitSubscribeEventgroupRaw(ctx.iface, params);
     }
 };
 

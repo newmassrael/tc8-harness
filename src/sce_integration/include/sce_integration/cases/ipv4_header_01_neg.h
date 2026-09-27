@@ -34,9 +34,9 @@ struct TestCaseTraits<cases::Ipv4Header01NegSM>
     // header, observed regardless of the (now stale) header checksum.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        emitEgressFlavorArm(cfg, iface, ::tc8::ut::kIpv4FaultTotalLenWrong);
-        ::tc8::sce::ipv4::emitStimulus(cfg, iface);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitEgressFlavorArm(cfg, ctx.iface, ::tc8::ut::kIpv4FaultTotalLenWrong);
+        ::tc8::sce::ipv4::emitStimulus(cfg, ctx.iface);
     }
 };
 

@@ -28,13 +28,12 @@ struct TestCaseTraits<cases::UdpUserInterface04SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         // Conformant src_ip = tester_ip; SCXML asserts the UT
         // Confirmation surfaces the same value back. No overrides
         // beyond the default cfg-driven src_ip.
         ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, iface, dut,
+            cfg, ctx.iface, ctx.dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size());
     }

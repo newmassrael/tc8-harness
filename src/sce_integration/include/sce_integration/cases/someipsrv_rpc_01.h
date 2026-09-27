@@ -30,10 +30,10 @@ struct TestCaseTraits<cases::Rpc01SM> : SomeIpAnyBase<cases::Rpc01SM> {
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::stimulus::FindServiceTarget find{};
         find.service_id = ::tc8::someipsrv_si2::kServiceId;
-        ::tc8::stimulus::emitFindServiceBoot(iface, find);
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, find);
 
         ::tc8::stimulus::SomeIpRpcMessage target{};
         target.service_id = ::tc8::someipsrv_si2::kServiceId;
@@ -42,7 +42,7 @@ struct TestCaseTraits<cases::Rpc01SM> : SomeIpAnyBase<cases::Rpc01SM> {
         // SERVICE-ID-2 unreliable port (vsomeip-multi-service.json) — not the
         // configured services[0] endpoint, so name the port explicitly; the
         // DUT IP still derives from --expect.
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {},
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, target, {},
                                                 ::tc8::sce::someipUdpMethodDest(cfg, ::tc8::sce::someip::kSi2UdpPort));
     }
 };

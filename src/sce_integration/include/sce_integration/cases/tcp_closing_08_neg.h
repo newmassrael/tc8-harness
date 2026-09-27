@@ -50,8 +50,7 @@ struct TestCaseTraits<cases::TcpClosing08NegSM>
     // PSH regardless of the DUT's receive.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -59,7 +58,7 @@ struct TestCaseTraits<cases::TcpClosing08NegSM>
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kPortOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffset;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0 || !open.conn) return;
         const auto seq_range = queryTcpSeqRange(tester_fd);
@@ -67,12 +66,12 @@ struct TestCaseTraits<cases::TcpClosing08NegSM>
 
         // Half-close: shutdown(SHUT_WR) -> DUT FIN; the tester kernel auto-ACKs (no AckDrop)
         // so the DUT advances FW1 -> FW2.
-        seamTcpControl(dut).shutdownTcpWr(open.conn->socket);
+        seamTcpControl(ctx.dut).shutdownTcpWr(open.conn->socket);
         std::this_thread::sleep_for(std::chrono::milliseconds(150));
 
         // Per-phase arm after the DUT FIN + tester FIN-ACK (both excluded by the gate); the
         // eliciting data inject carries the arm settle so the raw-injected arm lands first.
-        emitIngressFlavorArmMidStream(cfg, iface, ::tc8::ut::kTcpSynthRstOnDisruptive);
+        emitIngressFlavorArmMidStream(cfg, ctx.iface, ::tc8::ut::kTcpSynthRstOnDisruptive);
 
         ::tc8::stimulus::TcpSegmentSpec data{};
         data.src_port = remote_port;
@@ -81,7 +80,7 @@ struct TestCaseTraits<cases::TcpClosing08NegSM>
         data.ack_num  = seq_range->rcv_nxt + 1U;     // ISN_d + 2, acks DUT FIN (benign dup)
         data.flags    = ::tc8::stimulus::kTcpFlagAck | ::tc8::stimulus::kTcpFlagPsh;
         data.payload.assign(kPayloadLen, 0x3CU);
-        emitTcpFrame(cfg, iface, cfg.dut.mac, data, /*initial_wait=*/kFlavorArmSettle);
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, data, /*initial_wait=*/kFlavorArmSettle);
 
         std::this_thread::sleep_for(kSynthObserveHold);
         (void)tester_fd;

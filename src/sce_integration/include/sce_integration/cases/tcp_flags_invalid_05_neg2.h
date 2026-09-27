@@ -47,10 +47,9 @@ struct TestCaseTraits<cases::TcpFlagsInvalid05Neg2SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         cases::flags_invalid_05_neg::driveSynSentRstDrop(
-            dut, cfg, iface,
+            ctx.dut, cfg, ctx.iface,
             ::tc8::sce::tcp::kTcpFlagsInvalid05Phase2LocalOffset,
             ::tc8::stimulus::kTcpFlagAck | ::tc8::stimulus::kTcpFlagRst);
     }

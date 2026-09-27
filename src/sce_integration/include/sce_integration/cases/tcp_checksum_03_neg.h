@@ -45,20 +45,19 @@ struct TestCaseTraits<cases::TcpChecksum03NegSM>
     // forbids — and captured via pcap regardless of the bad checksum.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
-        emitEgressFlavorArm(cfg, iface, ::tc8::ut::kTcpFaultDataChecksumWrong);
+        emitEgressFlavorArm(cfg, ctx.iface, ::tc8::ut::kTcpFaultDataChecksumWrong);
 
         auto open = driveSeamActiveOpen(
-            dut, cfg,
+            ctx.dut, cfg,
             kBasicsActiveLocalPort  + kTcpChecksum03LocalOffset,
             kBasicsActiveRemotePort + kTcpChecksum03LocalOffset);
 
         if (open.conn) {
-            seamSendTcp(dut, open.conn->socket, kChecksumPayload);
-            dut.tcpControl()->closeTcp(open.conn->socket);
+            seamSendTcp(ctx.dut, open.conn->socket, kChecksumPayload);
+            ctx.dut.tcpControl()->closeTcp(open.conn->socket);
         }
     }
 };

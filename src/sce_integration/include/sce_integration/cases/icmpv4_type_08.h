@@ -32,11 +32,11 @@ struct TestCaseTraits<cases::Icmpv4Type08SM>
     // sides cannot drift.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::icmpv4::StimulusOverrides ov{};
         ov.payload_data = reinterpret_cast<const std::uint8_t *>(::tc8::kIcmpv4EchoPayloadType08.data());
         ov.payload_len  = static_cast<std::uint32_t>(::tc8::kIcmpv4EchoPayloadType08.size());
-        ::tc8::sce::icmpv4::emitStimulus(cfg, iface, ov);
+        ::tc8::sce::icmpv4::emitStimulus(cfg, ctx.iface, ov);
     }
 
     // Conformant echo: the case-local SSOT the guard compares against

@@ -28,12 +28,10 @@ struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages02SM>
         "identifier' option for any unicast requests (RFC 2131 §4.1)";
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& /*cfg*/,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(dut);
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(ctx.dut);
         ::tc8::sce::dhcpv4::scheduleRenewingFastEnvelopeReplies<SM>(
-            scheduler, iface, c);
+            ctx.scheduler, ctx.iface, c);
     }
 };
 

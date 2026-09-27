@@ -38,21 +38,19 @@ struct TestCaseTraits<cases::UdpFields05SM>
     // expected src_ip.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, iface, dut,
+            cfg, ctx.iface, ctx.dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size(),
             ::tc8::sce::udp::kDataPeerPort,
             ::tc8::sce::udp::UdpStimulusOverrides{});
 
-        std::string iface_copy(iface);
+        std::string iface_copy(ctx.iface);
         ::tc8::TestConfig cfg_copy = cfg;
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_phase2),
-            [iface_copy, cfg_copy, dut = &dut]() {
+            [iface_copy, cfg_copy, dut = &ctx.dut]() {
                 ::tc8::sce::udp::UdpStimulusOverrides ov{};
                 ov.src_ip_override = ::tc8::sce::udp::kUdpHost2IpBe;
                 ::tc8::sce::udp::emitIngressProbeAndQuery(

@@ -79,22 +79,21 @@ struct TestCaseTraits<cases::TcpUnacceptable09SM>
     //   7. Pcap observes DUT empty ACK on the data path.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         // -------- Phase 1: OTW SEQ in FIN-WAIT-1 --------
         {
             auto open = driveSeamActiveOpen(
-                dut, cfg,
+                ctx.dut, cfg,
                 kBasicsActiveLocalPort  + kTcpUnacceptable09Phase1LocalOffset,
                 kBasicsActiveRemotePort + kTcpUnacceptable09Phase1LocalOffset);
             const int tester_fd = open.listener.acceptOne();
             TesterAutoAckDrop ack_drop(cfg);
             // Seam close drives DUT into FIN-WAIT-1 (no tester ACK
             // because of ack_drop).
-            if (open.conn) dut.tcpControl()->closeTcp(open.conn->socket);
+            if (open.conn) ctx.dut.tcpControl()->closeTcp(open.conn->socket);
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             if (tester_fd >= 0) {
                 const auto seq_range = queryTcpSeqRange(tester_fd);
@@ -115,7 +114,7 @@ struct TestCaseTraits<cases::TcpUnacceptable09SM>
                                   | ::tc8::stimulus::kTcpFlagAck;
                     data.payload.assign(kCorruptPayload.begin(),
                                         kCorruptPayload.end());
-                    emitTcpFrame(cfg, iface, cfg.dut.mac, data,
+                    emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, data,
                                  /*initial_wait=*/std::chrono::milliseconds(0));
                 }
                 (void)tester_fd;
@@ -129,12 +128,12 @@ struct TestCaseTraits<cases::TcpUnacceptable09SM>
             const std::uint16_t phase2_remote_port = kBasicsActiveRemotePort + kTcpUnacceptable09Phase2LocalOffset;
 
             auto open = driveSeamActiveOpen(
-                dut, cfg,
+                ctx.dut, cfg,
                 /*local_port=*/phase2_local_port,
                 /*remote_port=*/phase2_remote_port);
             const int tester_fd = open.listener.acceptOne();
             TesterAutoAckDrop ack_drop(cfg);
-            if (open.conn) dut.tcpControl()->closeTcp(open.conn->socket);
+            if (open.conn) ctx.dut.tcpControl()->closeTcp(open.conn->socket);
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             if (tester_fd >= 0) {
                 const auto seq_range = queryTcpSeqRange(tester_fd);
@@ -157,7 +156,7 @@ struct TestCaseTraits<cases::TcpUnacceptable09SM>
                                   | ::tc8::stimulus::kTcpFlagAck;
                     data.payload.assign(kCorruptPayload.begin(),
                                         kCorruptPayload.end());
-                    emitTcpFrame(cfg, iface, cfg.dut.mac, data,
+                    emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, data,
                                  /*initial_wait=*/std::chrono::milliseconds(0));
                 }
                 (void)tester_fd;

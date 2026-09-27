@@ -33,14 +33,14 @@ struct TestCaseTraits<cases::SomeipEts009SM> : SomeIpAnyBase<cases::SomeipEts009
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = 0x0017;
         // 1-byte enum payload (SomeIpEnumWidth=1, BitWidth=8).
         target.payload = {0x02};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 
     // Conformant echo: case-local SSOT for the positive assertion;

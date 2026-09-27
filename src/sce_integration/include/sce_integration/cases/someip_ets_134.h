@@ -35,8 +35,8 @@ struct TestCaseTraits<cases::SomeipEts134SM> : SomeIpAnyBase<cases::SomeipEts134
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 
@@ -50,7 +50,7 @@ struct TestCaseTraits<cases::SomeipEts134SM> : SomeIpAnyBase<cases::SomeipEts134
         // while one IPv4 Endpoint option remains physically on-wire.
         params.length_override = 36U;
         params.options_len_override = 0U;
-        ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, params);
+        ::tc8::stimulus::emitSubscribeEventgroupRaw(ctx.iface, params);
     }
 };
 

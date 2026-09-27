@@ -102,8 +102,7 @@ struct TestCaseTraits<cases::TcpMssOptions05SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -111,7 +110,7 @@ struct TestCaseTraits<cases::TcpMssOptions05SM>
         // Wire bytes [0x02 0x00] padded with NOP×2 → 4 B. Linux's
         // `tcp_parse_options` aborts further option parsing at
         // `opsize < 2` and proceeds with the rest of the SYN+ACK.
-        runPhase(dut, cfg, iface, cfg.dut.mac,
+        runPhase(ctx.dut, cfg, ctx.iface, cfg.dut.mac,
                  kTcpMssOptions05Phase1LocalOffset,
                  std::vector<std::uint8_t>{0x02U, 0x00U, 0x01U, 0x01U});
 
@@ -120,7 +119,7 @@ struct TestCaseTraits<cases::TcpMssOptions05SM>
         // bytes, one more than the RFC encoding's 2). Builder pads
         // with NOP×3 → 8 B options region; Data Offset = 7. Linux
         // skips the option per `opsize > TCPOLEN_MSS` and continues.
-        runPhase(dut, cfg, iface, cfg.dut.mac,
+        runPhase(ctx.dut, cfg, ctx.iface, cfg.dut.mac,
                  kTcpMssOptions05Phase2LocalOffset,
                  std::vector<std::uint8_t>{0x02U, 0x05U, 0xAAU, 0xBBU, 0xCCU});
     }

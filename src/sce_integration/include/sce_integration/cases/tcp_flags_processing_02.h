@@ -68,34 +68,32 @@ struct TestCaseTraits<cases::TcpFlagsProcessing02SM>
     //   * Phase 5 CW: tester shutdown(WR) -> DUT CLOSE-WAIT, no DUT close.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        runPhase1SynRecv(cfg, iface, dut);
+        runPhase1SynRecv(cfg, ctx.iface, ctx.dut);
 
-        std::string       iface_copy(iface);
+        std::string       iface_copy(ctx.iface);
         ::tc8::TestConfig cfg_copy = cfg;
-        ::tc8::sce::IDutControl* dut_ptr = &dut;
+        ::tc8::sce::IDutControl* dut_ptr = &ctx.dut;
 
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p2_handshake_ack),
             [iface_copy, cfg_copy, dut_ptr]() {
                 runPhase2Established(cfg_copy, iface_copy, *dut_ptr);
             });
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p3_handshake_ack),
             [iface_copy, cfg_copy, dut_ptr]() {
                 runPhase3FinWait1(cfg_copy, iface_copy, *dut_ptr);
             });
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p4_handshake_ack),
             [iface_copy, cfg_copy, dut_ptr]() {
                 runPhase4FinWait2(cfg_copy, iface_copy, *dut_ptr);
             });
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p5_handshake_ack),
             [iface_copy, cfg_copy, dut_ptr]() {
                 runPhase5CloseWait(cfg_copy, iface_copy, *dut_ptr);

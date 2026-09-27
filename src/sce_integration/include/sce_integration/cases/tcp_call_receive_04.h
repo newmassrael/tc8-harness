@@ -47,13 +47,11 @@ struct TestCaseTraits<cases::TcpCallReceive04SM>
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        runPhase1Established(c, cfg, iface, dut);
+        runPhase1Established(c, cfg, ctx.iface, ctx.dut);
 
         // Phases 2 + 3 deferred via scheduleAfterStateEntry. Each
         // phase emits its own active-OPEN handshake, FIN egress, and
@@ -68,16 +66,16 @@ struct TestCaseTraits<cases::TcpCallReceive04SM>
         // the CLI for the whole run, so the deferred phases capture a
         // raw pointer to it (the FP_09 idiom — a reference cannot be
         // re-seated into the lambda capture list).
-        std::string                 iface_copy(iface);
+        std::string                 iface_copy(ctx.iface);
         ::tc8::TestConfig           cfg_copy = cfg;
-        ::tc8::sce::IDutControl*     dut_ptr  = &dut;
+        ::tc8::sce::IDutControl*     dut_ptr  = &ctx.dut;
 
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p2_handshake_ack),
             [iface_copy, cfg_copy, &c, dut_ptr]() {
                 runPhase2FinWait1(c, cfg_copy, iface_copy, *dut_ptr);
             });
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p3_handshake_ack),
             [iface_copy, cfg_copy, &c, dut_ptr]() {
                 runPhase3FinWait2(c, cfg_copy, iface_copy, *dut_ptr);

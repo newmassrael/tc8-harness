@@ -54,26 +54,24 @@ struct TestCaseTraits<cases::SomeipEts094SM> : SomeIpAnyBase<cases::SomeipEts094
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         IStimulusScheduler& scheduler,
-                         ::tc8::sce::IBackgroundServiceOwner& owner) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         // eg 0x0002 is mixed-reliability: hold a TCP connection so vsomeip Acks
         // the dual-endpoint Subscribe. The reboot FindServices below still
         // expire the subscription (the DUT stops the UNRELIABLE 0x8001 over UDP).
         auto session = std::make_unique<::tc8::stimulus::SubscribeEventgroupTcpSession>(
-            iface, ::tc8::sce::someipTcpMethodDest(cfg));
+            ctx.iface, ::tc8::sce::someipTcpMethodDest(cfg));
         ::tc8::stimulus::SubscribeEventgroupTarget subscribe{};
         subscribe.eventgroup_id = 0x0002;
         subscribe.ttl = ::tc8::stimulus::kSubscribeOutlastTtl;
         ::tc8::stimulus::SubscribeDestination sd_dest{};
         sd_dest.ipv4_be = cfg.dut.ip;
         session->subscribeDual(subscribe, sd_dest);
-        owner.adoptService(std::move(session));
+        ctx.services.adoptService(std::move(session));
 
         // Capture-by-value so the lambdas survive past kickStimulus return.
-        std::string iface_copy(iface);
+        std::string iface_copy(ctx.iface);
 
         // First FindService — Session-ID 0x05, reboot flag set. Old
         // multicast tracker is (rb=1, sid=2) from emitFindServiceBoot's
@@ -83,7 +81,7 @@ struct TestCaseTraits<cases::SomeipEts094SM> : SomeIpAnyBase<cases::SomeipEts094
         // the runner one tick with phase4_settle as the current state
         // so this observer matches before fast-back-to-back cyclic
         // events skip the state between two pcap_dispatch drains.
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_phase4_settle),
             [iface_copy]() {
                 ::tc8::stimulus::FindServiceParams p{};
@@ -98,7 +96,7 @@ struct TestCaseTraits<cases::SomeipEts094SM> : SomeIpAnyBase<cases::SomeipEts094
         // is_reboot rule fires (5 >= 5) → vsomeip runs
         // `expire_subscriptions(_sender)` and DUT stops sending
         // TestEventUINT8 to the tester.
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_phase5_drain),
             [iface_copy]() {
                 ::tc8::stimulus::FindServiceParams p{};

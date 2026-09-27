@@ -52,23 +52,22 @@ struct TestCaseTraits<cases::SomeipEts151SM> : SomeIpAnyBase<cases::SomeipEts151
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IBackgroundServiceOwner& owner) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         // Client-initiated reliable session: connect + hold the TCP connection to
         // the DUT reliable endpoint, Subscribe eg 0x0002 (dual UDP+TCP) advertising
         // it, then hand ownership to the runner so the connection stays open across
         // the capture window (the DUT keeps delivering 0x8003 over it).
         auto session = std::make_unique<::tc8::stimulus::SubscribeEventgroupTcpSession>(
-            iface, ::tc8::sce::someipTcpMethodDest(cfg));
+            ctx.iface, ::tc8::sce::someipTcpMethodDest(cfg));
         ::tc8::stimulus::SubscribeEventgroupTarget subscribe{};
         subscribe.eventgroup_id = 0x0002;  // mixed eg carrying reliable 0x8003 (ets.fdepl).
         subscribe.ttl = ::tc8::stimulus::kSubscribeOutlastTtl;  // outlast emission window
         ::tc8::stimulus::SubscribeDestination sd_dest{};
         sd_dest.ipv4_be = cfg.dut.ip;  // DUT SD endpoint (:30490).
         session->subscribeDual(subscribe, sd_dest);
-        owner.adoptService(std::move(session));
+        ctx.services.adoptService(std::move(session));
         // triggerEventUINT8Reliable (Method 0x05, Fire&Forget): start=0 s,
         // duration=5 s, debounceTime=200 ms → DUT fires 0x8003 over the held TCP.
         ::tc8::stimulus::SomeIpRpcMessage trigger{};
@@ -77,7 +76,7 @@ struct TestCaseTraits<cases::SomeipEts151SM> : SomeIpAnyBase<cases::SomeipEts151
         trigger.payload = {0x00, 0x00, 0x00, 0x00,   // start = 0 s
                            0x00, 0x00, 0x00, 0x05,   // duration = 5 s
                            0x00, 0x00, 0x00, 0xC8};  // debounceTime = 200 ms
-        ::tc8::stimulus::emitMethodRequestAfter(iface, trigger, {},
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, trigger, {},
                                                 ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };

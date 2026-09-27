@@ -51,10 +51,10 @@ struct TestCaseTraits<cases::Ipv4Reassembly10SM>
     // installed by smoke-test.sh.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         // Phase A is shared with the _NEG, which sends it alone.
-        ::tc8::sce::ipv4::reassembly::emitReassembly10PhaseA(cfg, iface);
-        ::tc8::sce::ipv4::reassembly::emitReassembly10PhaseB(cfg, iface);
+        ::tc8::sce::ipv4::reassembly::emitReassembly10PhaseA(cfg, ctx.iface);
+        ::tc8::sce::ipv4::reassembly::emitReassembly10PhaseB(cfg, ctx.iface);
     }
 };
 

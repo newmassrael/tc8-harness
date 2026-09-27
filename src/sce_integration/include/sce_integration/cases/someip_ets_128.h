@@ -33,7 +33,7 @@ struct TestCaseTraits<cases::SomeipEts128SM> : SomeIpAnyBase<cases::SomeipEts128
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& /*cfg*/,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         // Burst A: Major = 0xFF (any major), Minor = 0 (default).
         ::tc8::stimulus::BootTiming timing_a{};
         timing_a.initial_wait    = std::chrono::milliseconds(1500);
@@ -42,7 +42,7 @@ struct TestCaseTraits<cases::SomeipEts128SM> : SomeIpAnyBase<cases::SomeipEts128
         ::tc8::stimulus::FindServiceTarget target_a{};
         target_a.major_version = 0xFF;
         target_a.minor_version = 0x00000000U;
-        ::tc8::stimulus::emitFindServiceBoot(iface, target_a, timing_a);
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, target_a, timing_a);
 
         // Burst B: Major = 1 (default), Minor = 0xFFFFFFFF (any minor).
         // initial_wait = 0 — already in main phase after burst A.
@@ -53,7 +53,7 @@ struct TestCaseTraits<cases::SomeipEts128SM> : SomeIpAnyBase<cases::SomeipEts128
         ::tc8::stimulus::FindServiceTarget target_b{};
         target_b.major_version = 0x01;
         target_b.minor_version = 0xFFFFFFFFU;
-        ::tc8::stimulus::emitFindServiceBoot(iface, target_b, timing_b);
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, target_b, timing_b);
     }
 };
 

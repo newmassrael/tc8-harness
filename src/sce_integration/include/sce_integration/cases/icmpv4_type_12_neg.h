@@ -40,12 +40,12 @@ struct TestCaseTraits<cases::Icmpv4Type12NegSM>
     // request arrives — the synthesized reply leaves on that same delivery.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        emitIngressFlavorArm(cfg, iface, ::tc8::ut::kIcmpFaultSynthTimestampReplyBadSeq);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitIngressFlavorArm(cfg, ctx.iface, ::tc8::ut::kIcmpFaultSynthTimestampReplyBadSeq);
         ::tc8::sce::icmpv4::StimulusOverrides ov{};
         ov.icmp_type = static_cast<std::uint8_t>(13);
         ov.timestamp_originate = ::tc8::stimulus::kIcmpTimestampOriginate;
-        ::tc8::sce::icmpv4::emitStimulus(cfg, iface, ov);
+        ::tc8::sce::icmpv4::emitStimulus(cfg, ctx.iface, ov);
     }
 };
 

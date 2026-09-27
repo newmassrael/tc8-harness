@@ -48,16 +48,15 @@ struct TestCaseTraits<cases::SomeipEts084SM> : SomeIpAnyBase<cases::SomeipEts084
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         IStimulusScheduler& scheduler) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
 
         ::tc8::stimulus::SomeIpRpcMessage activate{};
         activate.method_id    = 0x002F;       // clientServiceActivate
         activate.message_type = ::tc8::someip::MessageType::REQUEST_NO_RETURN;         // Fire&Forget
         activate.payload      = {0x00};       // delay = 0
-        ::tc8::stimulus::emitMethodRequestAfter(iface, activate, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, activate, {}, ::tc8::sce::someipUdpMethodDest(cfg));
 
         // Proxy buildProxy() registration delay — same gap as ETS_097.
         std::this_thread::sleep_for(std::chrono::milliseconds(800));
@@ -68,7 +67,7 @@ struct TestCaseTraits<cases::SomeipEts084SM> : SomeIpAnyBase<cases::SomeipEts084
         // UInt32 delay (0) + UInt32 duration (0).
         sub_trigger.payload      = {0x00, 0x00, 0x00, 0x00,
                                     0x00, 0x00, 0x00, 0x00};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, sub_trigger, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, sub_trigger, {}, ::tc8::sce::someipUdpMethodDest(cfg));
 
         // Open a tester-side TCP listener BEFORE emitting the offer.
         // For TCP-reliable eventgroups vsomeip on the DUT delays the wire
@@ -78,7 +77,7 @@ struct TestCaseTraits<cases::SomeipEts084SM> : SomeIpAnyBase<cases::SomeipEts084
         // accepted connection must be held open for the full SCXML walk —
         // a detached thread owns the fd and closes it after a generous
         // timeout that outlives the verdict deadline.
-        const int listen_fd = ::tc8::stimulus::openTcpListener(iface, 30509);
+        const int listen_fd = ::tc8::stimulus::openTcpListener(ctx.iface, 30509);
 
         // Tester-side OfferService for ets3 with TCP endpoint advertised.
         ::tc8::stimulus::OfferServiceWithEndpointTarget offer{};
@@ -95,7 +94,7 @@ struct TestCaseTraits<cases::SomeipEts084SM> : SomeIpAnyBase<cases::SomeipEts084
         offer.endpoint.port         = 30509;
         offer.endpoint.l4proto      = 0x06;     // TCP (matches ets3.fdepl 0x000A reliable=true)
         ::tc8::stimulus::emitOfferServiceMulticastWithEndpoint(
-            iface, offer, std::chrono::milliseconds(500));
+            ctx.iface, offer, std::chrono::milliseconds(500));
 
         // Inline accept that hands the accepted fd to a detached thread,
         // which holds the connection open for 30 s before closing both
@@ -127,9 +126,9 @@ struct TestCaseTraits<cases::SomeipEts084SM> : SomeIpAnyBase<cases::SomeipEts084
         // Schedule the clientServiceDeactivate emit on phase 3 entry —
         // i.e. immediately after the harness observes DUT's Subscribe
         // (Type 0x06, ttl > 0). Timing tracks SCXML, not wall clock.
-        std::string iface_copy(iface);
+        std::string iface_copy(ctx.iface);
         const auto deactivate_dest = ::tc8::sce::someipUdpMethodDest(cfg);
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_phase3_stop_seen),
             [iface_copy, deactivate_dest]() {
                 ::tc8::stimulus::SomeIpRpcMessage deactivate{};

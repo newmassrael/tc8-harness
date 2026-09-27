@@ -27,7 +27,7 @@ struct TestCaseTraits<cases::Ipv4AutoconfConflict06SM>
         "DUT ceases claim and re-probes after two ARP Request "
         "conflicts on its committed LL (RFC 3927 §2.5, MUST)";
 
-    // 4-arg stimulus: kick the LL state machine, then schedule a
+    // Stimulus uses the context's scheduler: kick the LL state machine, then schedule a
     // state-entry observer keyed on Listening_post_claim. SCXML
     // transitions pre_claim → post_claim on the first DUT Announce
     // (claim confirmation); the observer fires on entry, queries the
@@ -38,14 +38,12 @@ struct TestCaseTraits<cases::Ipv4AutoconfConflict06SM>
     // with target ≠ snapshotted LL.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
-        ::tc8::sce::linklocal::emitStartLLAutoconfFast(dut);
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::sce::linklocal::emitStartLLAutoconfFast(ctx.dut);
         ::tc8::sce::linklocal::scheduleDefenderCeaseConflicts(
-            scheduler,
+            ctx.scheduler,
             static_cast<int>(State::Listening_post_claim),
-            iface, cfg, dut, c,
+            ctx.iface, cfg, ctx.dut, c,
             /*opcode1=*/0x0001,  // ARP Request
             /*opcode2=*/0x0001); // ARP Request
     }

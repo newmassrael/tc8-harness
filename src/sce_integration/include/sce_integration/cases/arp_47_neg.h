@@ -32,12 +32,12 @@ struct TestCaseTraits<cases::Arp47NegSM>
     // uses so the lwIP DUT emits a (corrupted) Reply.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        emitEgressFlavorArm(cfg, iface, ::tc8::ut::kArpFaultHwLenWrong);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitEgressFlavorArm(cfg, ctx.iface, ::tc8::ut::kArpFaultHwLenWrong);
         ::tc8::stimulus::ArpFrameSpec spec;
         spec.sender_ip_be = cfg.arp.tester_ip;
         spec.target_ip_be = cfg.dut.ip;
-        ::tc8::stimulus::emitArpFromTester(iface, spec);
+        ::tc8::stimulus::emitArpFromTester(ctx.iface, spec);
     }
 };
 

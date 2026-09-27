@@ -34,7 +34,7 @@ struct TestCaseTraits<cases::SomeipEts091SM> : SomeIpAnyBase<cases::SomeipEts091
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         // FindServiceBoot warms up SD on the tester side and re-engages
         // the DUT's Repetition / Main Phase cadence — same envelope every
         // §5.1.6 ETS observation case uses. ETS_091's verdict only reads
@@ -42,7 +42,7 @@ struct TestCaseTraits<cases::SomeipEts091SM> : SomeIpAnyBase<cases::SomeipEts091
         // also provokes a unicast solicited OfferService whose Session-ID
         // is drawn from a separate per-relation counter; the SCXML multicast
         // cast guard excludes it so both phases compare within one relation.
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
     }
 };

@@ -32,10 +32,10 @@ struct TestCaseTraits<cases::Icmpv4Type10SM>
     // asserts absence via the `deadline_exceeded` path.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::icmpv4::StimulusOverrides ov{};
         ov.corrupt_icmp_checksum = true;
-        ::tc8::sce::icmpv4::emitStimulus(cfg, iface, ov);
+        ::tc8::sce::icmpv4::emitStimulus(cfg, ctx.iface, ov);
     }
 };
 

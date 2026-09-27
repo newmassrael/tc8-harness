@@ -33,9 +33,9 @@ struct TestCaseTraits<cases::Ipv4Version03NegSM>
     // dispatches by L2 ethertype so the frame still reaches the IPv4 guard.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        emitEgressFlavorArm(cfg, iface, ::tc8::ut::kIpv4FaultVersionWrong);
-        ::tc8::sce::ipv4::emitStimulus(cfg, iface);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitEgressFlavorArm(cfg, ctx.iface, ::tc8::ut::kIpv4FaultVersionWrong);
+        ::tc8::sce::ipv4::emitStimulus(cfg, ctx.iface);
     }
 };
 

@@ -33,8 +33,8 @@ struct TestCaseTraits<cases::SomeipEts124SM> : SomeIpAnyBase<cases::SomeipEts124
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 
@@ -50,7 +50,7 @@ struct TestCaseTraits<cases::SomeipEts124SM> : SomeIpAnyBase<cases::SomeipEts124
         // array region — sufficient to violate "Entry Array length goes
         // beyond its normal Limit").
         params.entries_len_override = 36U;
-        ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, params);
+        ::tc8::stimulus::emitSubscribeEventgroupRaw(ctx.iface, params);
     }
 };
 

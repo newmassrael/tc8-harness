@@ -32,8 +32,8 @@ struct TestCaseTraits<cases::SomeipEts143SM> : SomeIpAnyBase<cases::SomeipEts143
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 
@@ -41,7 +41,7 @@ struct TestCaseTraits<cases::SomeipEts143SM> : SomeIpAnyBase<cases::SomeipEts143
         params.target.service_id = 0x9999;
         params.target.eventgroup_id = 0x0002;
         params.session_id = 0x0001;
-        ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, params);
+        ::tc8::stimulus::emitSubscribeEventgroupRaw(ctx.iface, params);
     }
 };
 

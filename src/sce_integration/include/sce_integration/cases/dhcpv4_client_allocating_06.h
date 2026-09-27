@@ -26,15 +26,13 @@ struct TestCaseTraits<cases::Dhcpv4ClientAllocating06SM>
         "DHCPDISCOVER is retransmitted on no DHCPOFFER (RFC 2131 §3.1, MUST)";
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& /*cfg*/,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& /*scheduler*/) {
+                         ::tc8::sce::StimulusContext& ctx) {
         // Pilot drives retry_count=2 — DUT emits DISCOVER#1, waits
         // 2 s with no OFFER, sleeps 1 s, emits DISCOVER#2. No tester
         // OFFER injection is registered.
         ::tc8::sce::dhcpv4::Dhcpv4StartConfig sc;
         sc.retry_count = 2;
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(dut, sc);
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(ctx.dut, sc);
     }
 };
 

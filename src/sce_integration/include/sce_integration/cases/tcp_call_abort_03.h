@@ -48,17 +48,15 @@ struct TestCaseTraits<cases::TcpCallAbort03SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        runPhase1Closing(cfg, iface, dut);
+        runPhase1Closing(cfg, ctx.iface, ctx.dut);
 
-        std::string                 iface_copy(iface);
+        std::string                 iface_copy(ctx.iface);
         ::tc8::TestConfig           cfg_copy = cfg;
-        ::tc8::sce::IDutControl*     dut_ptr  = &dut;
+        ::tc8::sce::IDutControl*     dut_ptr  = &ctx.dut;
 
         // Phase 2 + 3 deferred: the per-phase active-OPEN, FIN
         // exchange, and abort all happen on the matching SCXML
@@ -66,12 +64,12 @@ struct TestCaseTraits<cases::TcpCallAbort03SM>
         // transitions are armed. Mirrors FP_02 / RECEIVE_04 phasing.
         // The DUT-control handle is owned by the CLI for the whole run,
         // so the deferred phases capture a raw pointer to it (FP_09 idiom).
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p2_handshake_ack),
             [iface_copy, cfg_copy, dut_ptr]() {
                 runPhase2LastAck(cfg_copy, iface_copy, *dut_ptr);
             });
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p3_handshake_ack),
             [iface_copy, cfg_copy, dut_ptr]() {
                 runPhase3TimeWait(cfg_copy, iface_copy, *dut_ptr);
@@ -83,13 +81,13 @@ struct TestCaseTraits<cases::TcpCallAbort03SM>
         // "DUT moved to CLOSED" assertion. Same scheduleAfterStateEntry
         // shape as TCP_CLOSING_03 / FLAGS_PROCESSING_02.
         std::array<std::uint8_t, 6> dut_mac = cfg.dut.mac;
-        scheduleVerifyProbe(scheduler, State::Listening_p1_verify_rst,
+        scheduleVerifyProbe(ctx.scheduler, State::Listening_p1_verify_rst,
                             iface_copy, cfg_copy, dut_mac,
                             kPortOffsetClosing);
-        scheduleVerifyProbe(scheduler, State::Listening_p2_verify_rst,
+        scheduleVerifyProbe(ctx.scheduler, State::Listening_p2_verify_rst,
                             iface_copy, cfg_copy, dut_mac,
                             kPortOffsetLastAck);
-        scheduleVerifyProbe(scheduler, State::Listening_p3_verify_rst,
+        scheduleVerifyProbe(ctx.scheduler, State::Listening_p3_verify_rst,
                             iface_copy, cfg_copy, dut_mac,
                             kPortOffsetTimeWait);
     }

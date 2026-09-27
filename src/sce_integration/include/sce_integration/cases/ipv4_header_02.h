@@ -28,10 +28,10 @@ struct TestCaseTraits<cases::Ipv4Header02SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::ipv4::StimulusOverrides ov{};
         ov.ihl = std::uint8_t{4};  // < 5 words → header-length < 20 bytes
-        ::tc8::sce::ipv4::emitStimulus(cfg, iface, ov);
+        ::tc8::sce::ipv4::emitStimulus(cfg, ctx.iface, ov);
     }
 };
 

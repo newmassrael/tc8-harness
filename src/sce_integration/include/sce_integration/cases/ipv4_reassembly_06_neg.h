@@ -49,14 +49,14 @@ struct TestCaseTraits<cases::Ipv4Reassembly06NegSM>
     // on the first fragment's arrival, well inside the icmpv4_synth_neg listen window.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        emitIngressFlavorArm(cfg, iface, ::tc8::ut::kIcmpFaultSynthEchoReply);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitIngressFlavorArm(cfg, ctx.iface, ::tc8::ut::kIcmpFaultSynthEchoReply);
 
         const std::vector<std::uint8_t> frag_payload_a(8, 0xAA);
         const std::vector<std::uint8_t> frag_payload_b(8, 0xBB);
 
         ::tc8::sce::ipv4::reassembly::emitIpv4Fragment(
-            iface, cfg, cfg.arp.dut_iface_mac,
+            ctx.iface, cfg, cfg.arp.dut_iface_mac,
             ::tc8::sce::ipv4::reassembly::kReassembly06IpId,
             /*fragment_offset=*/1,
             /*more_fragments=*/true,
@@ -64,7 +64,7 @@ struct TestCaseTraits<cases::Ipv4Reassembly06NegSM>
             frag_payload_a);
 
         ::tc8::sce::ipv4::reassembly::emitIpv4Fragment(
-            iface, cfg, cfg.arp.dut_iface_mac,
+            ctx.iface, cfg, cfg.arp.dut_iface_mac,
             ::tc8::sce::ipv4::reassembly::kReassembly06IpId,
             /*fragment_offset=*/2,
             /*more_fragments=*/false,

@@ -39,12 +39,12 @@ struct TestCaseTraits<cases::TcpBasics05NegSM>
     // reachable. The ACK literal is the tcp_pilot_common.h SSOT the _neg scxml guard reads.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
-        emitEgressFlavorArm(cfg, iface, ::tc8::ut::kTcpFaultRstSeqWrong);
+        emitEgressFlavorArm(cfg, ctx.iface, ::tc8::ut::kTcpFaultRstSeqWrong);
 
-        emitTcpStimulus(cfg, iface, cfg.dut.mac,
+        emitTcpStimulus(cfg, ctx.iface, cfg.dut.mac,
                         /*dst_port=*/kBasicsClosedPort,
                         /*flags=*/static_cast<std::uint8_t>(
                             ::tc8::stimulus::kTcpFlagSyn | ::tc8::stimulus::kTcpFlagAck),

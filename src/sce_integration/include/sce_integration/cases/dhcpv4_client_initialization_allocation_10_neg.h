@@ -35,20 +35,18 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation10NegSM>
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& /*cfg*/,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::dhcpv4::emitStartDhcpClientBuggy(
-            dut,
+            ctx.dut,
             ::tc8::ut::kDhcpFlavorAnnounceSenderIpWrong,
             /*apply_initial_wait=*/true,
             /*arp_probe_listen_ms=*/1500);
         ::tc8::sce::dhcpv4::scheduleDhcpReplyOnStateEntry(
-            scheduler, static_cast<int>(State::Listening_for_first_request),
-            iface, c.dhcpv4, /*message_type=*/2);
+            ctx.scheduler, static_cast<int>(State::Listening_for_first_request),
+            ctx.iface, c.dhcpv4, /*message_type=*/2);
         ::tc8::sce::dhcpv4::scheduleDhcpReplyOnStateEntry(
-            scheduler, static_cast<int>(State::Listening_for_arp_probe),
-            iface, c.dhcpv4, /*message_type=*/5);
+            ctx.scheduler, static_cast<int>(State::Listening_for_arp_probe),
+            ctx.iface, c.dhcpv4, /*message_type=*/5);
     }
 };
 

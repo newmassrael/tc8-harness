@@ -42,15 +42,14 @@ struct TestCaseTraits<cases::TcpHeader09SM>
     // against the actual one's-complement sum and drops.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpHeader09LocalOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpHeader09LocalOffset;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
 
@@ -73,7 +72,7 @@ struct TestCaseTraits<cases::TcpHeader09SM>
         // 0x0000, which Linux's tcp_checksum_complete rejects against
         // the actual non-zero pseudo-header sum.
         data.force_zero_tcp_checksum = true;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, data,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, data,
                      /*initial_wait=*/std::chrono::milliseconds(0));
         (void)tester_fd;
     }

@@ -38,8 +38,8 @@ struct TestCaseTraits<cases::SomeipEts168SM> : SomeIpAnyBase<cases::SomeipEts168
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 
@@ -49,7 +49,7 @@ struct TestCaseTraits<cases::SomeipEts168SM> : SomeIpAnyBase<cases::SomeipEts168
         // SomeIpReliableUnicastPort per ets.fdepl = the configured services[0]
         // TCP endpoint.
         const auto tcp_dest = ::tc8::sce::someipTcpMethodDest(cfg);
-        ::tc8::stimulus::emitMethodRequestTcpAfter(iface, get1,
+        ::tc8::stimulus::emitMethodRequestTcpAfter(ctx.iface, get1,
                                                    ::tc8::stimulus::MethodRequestTiming{},
                                                    tcp_dest);
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -58,7 +58,7 @@ struct TestCaseTraits<cases::SomeipEts168SM> : SomeIpAnyBase<cases::SomeipEts168
         ::tc8::stimulus::SomeIpRpcMessage set{};
         set.method_id = 0x002B;
         set.payload   = {0x99};
-        ::tc8::stimulus::emitMethodRequestTcpAfter(iface, set,
+        ::tc8::stimulus::emitMethodRequestTcpAfter(ctx.iface, set,
                                                    ::tc8::stimulus::MethodRequestTiming{},
                                                    tcp_dest);
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -66,7 +66,7 @@ struct TestCaseTraits<cases::SomeipEts168SM> : SomeIpAnyBase<cases::SomeipEts168
         // 3. getTestFieldUint8Reliable again — Response should echo 0x99.
         ::tc8::stimulus::SomeIpRpcMessage get2{};
         get2.method_id = 0x002A;
-        ::tc8::stimulus::emitMethodRequestTcpAfter(iface, get2,
+        ::tc8::stimulus::emitMethodRequestTcpAfter(ctx.iface, get2,
                                                    ::tc8::stimulus::MethodRequestTiming{},
                                                    tcp_dest);
     }

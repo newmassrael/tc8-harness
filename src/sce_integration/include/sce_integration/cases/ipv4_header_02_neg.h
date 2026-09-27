@@ -43,11 +43,11 @@ struct TestCaseTraits<cases::Ipv4Header02NegSM>
     // (the datagram the DUT must drop without replying).
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        emitIngressFlavorArm(cfg, iface, ::tc8::ut::kIcmpFaultSynthEchoReply);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitIngressFlavorArm(cfg, ctx.iface, ::tc8::ut::kIcmpFaultSynthEchoReply);
         ::tc8::sce::ipv4::StimulusOverrides ov{};
         ov.ihl = std::uint8_t{4};  // < 5 words → header-length < 20 bytes
-        ::tc8::sce::ipv4::emitStimulus(cfg, iface, ov);
+        ::tc8::sce::ipv4::emitStimulus(cfg, ctx.iface, ov);
     }
 };
 

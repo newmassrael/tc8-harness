@@ -32,15 +32,15 @@ struct TestCaseTraits<cases::SomeipEts005SM> : SomeIpAnyBase<cases::SomeipEts005
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = 0x001F;
         // CommonAPI default deployment serialises primitives back-to-back
         // with no alignment padding. UInt8 0x12 then UInt16 0x3456 BE.
         target.payload = {0x12, 0x34, 0x56};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 
     // Conformant checkByteOrder echo: UInt32 BE sum of 0x12 + 0x3456 = 0x3468.

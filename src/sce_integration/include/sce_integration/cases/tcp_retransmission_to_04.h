@@ -92,8 +92,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo04SM> {
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -106,7 +105,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo04SM> {
         // seam (CREATE_AND_BIND + CONNECT against the tester-side
         // listener). queryTcpSeqRange on the accepted tester fd doubles
         // as the prelude-success gate before the SCXML first cond.
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
 
@@ -137,7 +136,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo04SM> {
         // fire (state == TCP_ESTABLISHED — `tcp_syn_linear_timeouts`
         // applies only to TCP_SYN_SENT, see
         // [[linux-syn-data-rto-deviations]]).
-        seamSendTcp(dut, dut_sock, kSegPayload);
+        seamSendTcp(ctx.dut, dut_sock, kSegPayload);
 
         // Combined poll loop with per-phase deadline reset.
         // `phase_anchor` resets to `now()` each time a new phase
@@ -155,7 +154,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo04SM> {
         bool p1_valid = false, p2_valid = false, p3_valid = false;
         while (true) {
             std::this_thread::sleep_for(kPollInterval);
-            const auto probe = dut.tcpStateProbe()->queryInfo(dut_sock);
+            const auto probe = ctx.dut.tcpStateProbe()->queryInfo(dut_sock);
             const auto now = std::chrono::steady_clock::now();
             if (probe) {
                 if (!p1_valid && probe->retransmits >= 1) {

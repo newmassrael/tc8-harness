@@ -38,15 +38,13 @@ struct TestCaseTraits<cases::Ipv4AutoconfNetworkPartitions01Neg2SM>
     // (fail_periodic_gratuitous_arp) is reachable.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::linklocal::emitStartLLAutoconfBuggy(
-            dut,
+            ctx.dut,
             ::tc8::ut::kFlavorEmitPeriodicGratuitous);
         ::tc8::sce::linklocal::scheduleClaimConditionTesterRequest(
-            scheduler, static_cast<int>(State::Listening_post_claim),
-            cfg, iface, dut, c);
+            ctx.scheduler, static_cast<int>(State::Listening_post_claim),
+            cfg, ctx.iface, ctx.dut, c);
     }
 };
 

@@ -53,13 +53,12 @@ struct TestCaseTraits<cases::TcpUnacceptable06SM>
     // SCXML-side strict-pass conjunct value.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         auto open = driveSeamActiveOpen(
-            dut, cfg,
+            ctx.dut, cfg,
             kBasicsActiveLocalPort  + kTcpUnacceptable06LocalOffset,
             kBasicsActiveRemotePort + kTcpUnacceptable06LocalOffset);
 
@@ -78,7 +77,7 @@ struct TestCaseTraits<cases::TcpUnacceptable06SM>
                 syn.seq_num  = seq_range->snd_nxt + kOutOfWindowSeqOffset;
                 syn.ack_num  = seq_range->rcv_nxt;
                 syn.flags    = ::tc8::stimulus::kTcpFlagSyn;
-                emitTcpFrame(cfg, iface, cfg.dut.mac, syn,
+                emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, syn,
                              /*initial_wait=*/std::chrono::milliseconds(0));
             }
             // Connection cleanup deferred to process exit (same

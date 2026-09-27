@@ -41,18 +41,17 @@ struct TestCaseTraits<cases::TcpMssOptions12SM>
     // both cases on the same worker netns.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpMssOptions12LocalOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpMssOptions12LocalOffset;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         if (!open.conn) return;
 
-        dut.tcpControl()->closeTcp(open.conn->socket);
+        ctx.dut.tcpControl()->closeTcp(open.conn->socket);
     }
 };
 

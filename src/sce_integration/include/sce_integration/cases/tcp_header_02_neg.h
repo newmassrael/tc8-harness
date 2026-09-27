@@ -49,15 +49,14 @@ struct TestCaseTraits<cases::TcpHeader02NegSM>
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpHeader02LocalOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpHeader02LocalOffset;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) {
             return;
@@ -74,7 +73,7 @@ struct TestCaseTraits<cases::TcpHeader02NegSM>
 
         // Per-phase arm: the handshake third-leg ACK has already left (driveSeamActiveOpen
         // + acceptOne completed it), so arming now corrupts only the data-elicited ACK.
-        emitEgressFlavorArmMidStream(cfg, iface, ::tc8::ut::kTcpFaultPureAckNumWrong);
+        emitEgressFlavorArmMidStream(cfg, ctx.iface, ::tc8::ut::kTcpFaultPureAckNumWrong);
 
         ::tc8::stimulus::TcpSegmentSpec data{};
         data.src_port = remote_port;
@@ -85,7 +84,7 @@ struct TestCaseTraits<cases::TcpHeader02NegSM>
                       | ::tc8::stimulus::kTcpFlagAck;
         data.payload.assign(kDataPayload.begin(), kDataPayload.end());
         // Short pre-injection wait so the arm lands before the data elicits the ACK.
-        emitTcpFrame(cfg, iface, cfg.dut.mac, data,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, data,
                      /*initial_wait=*/kFlavorArmSettle);
         ::close(tester_fd);
     }

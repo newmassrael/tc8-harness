@@ -39,8 +39,8 @@ struct TestCaseTraits<cases::SomeipEts046SM> : SomeIpAnyBase<cases::SomeipEts046
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = 0x0014;
@@ -54,7 +54,7 @@ struct TestCaseTraits<cases::SomeipEts046SM> : SomeIpAnyBase<cases::SomeipEts046
         target.payload[4]  = 0x00;  // 'i' hi
         target.payload[5]  = 0x69;  // 'i' lo
         // [6..7] = 00 00 (UTF-16 null terminator), [8..63] = 0
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 
     // Conformant echoUTF16FIXED response: the 64-byte fixed frame echoed

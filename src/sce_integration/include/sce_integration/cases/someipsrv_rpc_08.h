@@ -34,8 +34,8 @@ struct TestCaseTraits<cases::Rpc08SM> : SomeIpAnyBase<cases::Rpc08SM> {
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         // First Request — return_code = 0x01 (E_NOT_OK). Payload is a
         // valid 1-byte UInt8 so the dispatcher does not emit
@@ -45,7 +45,7 @@ struct TestCaseTraits<cases::Rpc08SM> : SomeIpAnyBase<cases::Rpc08SM> {
         t1.return_code = ::tc8::someip::ReturnCode::E_NOT_OK;
         t1.session_id = 0x0001;
         t1.payload = {0x42};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, t1, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, t1, {}, ::tc8::sce::someipUdpMethodDest(cfg));
         // Second Request — return_code = 0x1F (top end of the
         // already-error range). Distinct session_id keeps the two
         // streams independent on the wire.
@@ -55,7 +55,7 @@ struct TestCaseTraits<cases::Rpc08SM> : SomeIpAnyBase<cases::Rpc08SM> {
         t2.payload = {0x42};
         ::tc8::stimulus::MethodRequestTiming timing{};
         timing.pre_emit_wait = std::chrono::milliseconds{200};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, t2, timing, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, t2, timing, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

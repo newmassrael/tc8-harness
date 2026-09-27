@@ -46,15 +46,14 @@ struct TestCaseTraits<cases::TcpHeader07NegSM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpHeader07LocalOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpHeader07LocalOffset;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
 
@@ -66,7 +65,7 @@ struct TestCaseTraits<cases::TcpHeader07NegSM>
 
         // Per-phase arm: the handshake has completed, so the synthesis fires only on the
         // malformed segment injected next.
-        emitIngressFlavorArmMidStream(cfg, iface, ::tc8::ut::kTcpSynthAck);
+        emitIngressFlavorArmMidStream(cfg, ctx.iface, ::tc8::ut::kTcpSynthAck);
 
         ::tc8::stimulus::TcpSegmentSpec data{};
         data.src_port             = remote_port;
@@ -77,7 +76,7 @@ struct TestCaseTraits<cases::TcpHeader07NegSM>
                                   | ::tc8::stimulus::kTcpFlagAck;
         data.payload.assign(kDataPayload.begin(), kDataPayload.end());
         data.data_offset_override = 0x04U;  // < RFC 793 minimum of 5
-        emitTcpFrame(cfg, iface, cfg.dut.mac, data,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, data,
                      /*initial_wait=*/std::chrono::milliseconds(0));
         (void)tester_fd;
     }

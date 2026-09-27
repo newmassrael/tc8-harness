@@ -50,12 +50,11 @@ struct TestCaseTraits<cases::TcpUnacceptable07SM>
     // (raw-inject + SCXML gate), unchanged.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        const auto listen = driveSeamListen(dut, kBasicsListenPort);
+        const auto listen = driveSeamListen(ctx.dut, kBasicsListenPort);
         if (!listen) return;
 
         ::tc8::stimulus::TcpSegmentSpec synack{};
@@ -65,10 +64,10 @@ struct TestCaseTraits<cases::TcpUnacceptable07SM>
         synack.ack_num  = kTesterInitialSeq + 1U;
         synack.flags    = ::tc8::stimulus::kTcpFlagSyn
                         | ::tc8::stimulus::kTcpFlagAck;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, synack);
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, synack);
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
-        dut.tcpControl()->closeTcp(*listen);
+        ctx.dut.tcpControl()->closeTcp(*listen);
     }
 };
 

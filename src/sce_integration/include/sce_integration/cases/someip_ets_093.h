@@ -40,13 +40,12 @@ struct TestCaseTraits<cases::SomeipEts093SM> : SomeIpAnyBase<cases::SomeipEts093
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         IStimulusScheduler& scheduler) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
 
         // Capture-by-value so the lambdas survive past kickStimulus return.
-        std::string iface_copy(iface);
+        std::string iface_copy(ctx.iface);
 
         // Helper: emit one FindService(mcast) + one Subscribe(unicast)
         // pair with the caller's `sid`. Both wire frames carry rb=1 so
@@ -71,15 +70,15 @@ struct TestCaseTraits<cases::SomeipEts093SM> : SomeIpAnyBase<cases::SomeipEts093
             ::tc8::stimulus::emitSubscribeEventgroupOnce(iface_copy, sub, sid, 0xC0);
         };
 
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_phase2_first_ack),
             [emit_pair]() { emit_pair(0x0004); });
 
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_phase3_second_ack),
             [emit_pair]() { emit_pair(0x0005); });
 
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_phase4_reboot_ack),
             [emit_pair]() { emit_pair(0x0001); });
     }

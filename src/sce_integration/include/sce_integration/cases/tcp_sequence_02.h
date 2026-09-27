@@ -43,8 +43,7 @@ struct TestCaseTraits<cases::TcpSequence02SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -65,17 +64,17 @@ struct TestCaseTraits<cases::TcpSequence02SM>
         TesterAutoRstDrop rst_drop(cfg);
 
         auto syn_snippet =
-            TcpFrameSnippet::forDutSyn(cfg, iface, local_port);
+            TcpFrameSnippet::forDutSyn(cfg, ctx.iface, local_port);
 
         // Seam active OPEN, no tester listener: the SYN stays unanswered so the
         // DUT remains in SYN-SENT, the state the custom SYN+ACK is injected
         // into. Synchronous connect, so no post-open RPC settle is needed.
-        auto open = driveSeamSynSentOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamSynSentOpen(ctx.dut, cfg, local_port, remote_port);
 
         const auto dut_syn = syn_snippet.tryCapture(
             std::chrono::milliseconds(2000));
         if (!dut_syn) {
-            if (open) dut.tcpControl()->closeTcp(open->socket);
+            if (open) ctx.dut.tcpControl()->closeTcp(open->socket);
             return;
         }
         const std::uint32_t dut_isn = dut_syn->seq_num;
@@ -87,12 +86,12 @@ struct TestCaseTraits<cases::TcpSequence02SM>
         syn_ack.ack_num  = dut_isn + 1U;
         syn_ack.flags    = ::tc8::stimulus::kTcpFlagSyn
                          | ::tc8::stimulus::kTcpFlagAck;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, syn_ack,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, syn_ack,
                      /*initial_wait=*/std::chrono::milliseconds(0));
 
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-        if (open) dut.tcpControl()->closeTcp(open->socket);
+        if (open) ctx.dut.tcpControl()->closeTcp(open->socket);
     }
 };
 

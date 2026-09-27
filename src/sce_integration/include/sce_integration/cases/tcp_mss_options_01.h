@@ -66,8 +66,7 @@ struct TestCaseTraits<cases::TcpMssOptions01SM>
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -77,7 +76,7 @@ struct TestCaseTraits<cases::TcpMssOptions01SM>
         // can resume on the next byte without prematurely terminating
         // the option list.
         injectMalformedSyn(
-            cfg, iface, dut,
+            cfg, ctx.iface, ctx.dut,
             kTcpMssOptionsListenPort01a,
             kTcpMssOptionsTesterSrcPort01a,
             std::vector<std::uint8_t>{0x02U, 0x00U, 0x01U, 0x01U});
@@ -87,7 +86,7 @@ struct TestCaseTraits<cases::TcpMssOptions01SM>
         // 793 RFC 793 §3.1 MSS encoding's 2). Options vector is 5 B; builder
         // pads with NOP×3 → 8 B. Data Offset becomes 7.
         injectMalformedSyn(
-            cfg, iface, dut,
+            cfg, ctx.iface, ctx.dut,
             kTcpMssOptionsListenPort01b,
             kTcpMssOptionsTesterSrcPort01b,
             std::vector<std::uint8_t>{0x02U, 0x05U, 0xAAU, 0xBBU, 0xCCU});
@@ -102,13 +101,13 @@ struct TestCaseTraits<cases::TcpMssOptions01SM>
             0x02U, 0x04U, 0x05U, 0xB4U};  // MSS = 0x05B4 = 1460
 
         auto verify = driveSeamRawPassiveAccept(
-            dut, cfg, iface,
+            ctx.dut, cfg, ctx.iface,
             kTcpMssOptionsListenPort01v,
             verify_options,
             kTcpMssOptionsTesterSrcPort01v);
         c.ut_established = verify.conn ? 0x01U : 0x00U;
         if (verify.conn) {
-            ::tc8::sce::seamTcpControl(dut).closeTcp(verify.conn->socket);
+            ::tc8::sce::seamTcpControl(ctx.dut).closeTcp(verify.conn->socket);
         }
     }
 };

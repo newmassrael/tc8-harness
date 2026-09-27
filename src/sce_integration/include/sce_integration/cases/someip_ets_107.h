@@ -34,8 +34,8 @@ struct TestCaseTraits<cases::SomeipEts107SM> : SomeIpAnyBase<cases::SomeipEts107
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 
@@ -44,7 +44,7 @@ struct TestCaseTraits<cases::SomeipEts107SM> : SomeIpAnyBase<cases::SomeipEts107
         sub1.target.eventgroup_id = 0x0005;
         sub1.target.ttl = 3;
         sub1.session_id = 0x0001;
-        ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, sub1);
+        ::tc8::stimulus::emitSubscribeEventgroupRaw(ctx.iface, sub1);
         std::this_thread::sleep_for(std::chrono::milliseconds(1500));
 
         // Multi-entry SD: Stop (ttl=0) + Subscribe (ttl=3) both on the
@@ -60,7 +60,7 @@ struct TestCaseTraits<cases::SomeipEts107SM> : SomeIpAnyBase<cases::SomeipEts107
         sub2.ttl = 3;
         entries.push_back(sub2);
         ::tc8::stimulus::emitMultiSubscribeEventgroup(
-            iface, entries, std::chrono::milliseconds(0));
+            ctx.iface, entries, std::chrono::milliseconds(0));
     }
 };
 

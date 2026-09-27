@@ -48,8 +48,7 @@ struct TestCaseTraits<cases::TcpControlFlags05NegSM>
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -58,7 +57,7 @@ struct TestCaseTraits<cases::TcpControlFlags05NegSM>
         const std::uint16_t remote_port =
             kBasicsActiveRemotePort + kTcpControlFlags05LocalOffset;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
 
@@ -74,7 +73,7 @@ struct TestCaseTraits<cases::TcpControlFlags05NegSM>
 
         // Per-phase arm: the handshake third-leg ACK has left, so this corrupts only
         // the URG-elicited pure ACK (the connection stays up).
-        emitEgressFlavorArmMidStream(cfg, iface, ::tc8::ut::kTcpFaultPureAckNumWrong);
+        emitEgressFlavorArmMidStream(cfg, ctx.iface, ::tc8::ut::kTcpFaultPureAckNumWrong);
 
         ::tc8::stimulus::TcpSegmentSpec urg_seg{};
         urg_seg.src_port       = remote_port;
@@ -87,7 +86,7 @@ struct TestCaseTraits<cases::TcpControlFlags05NegSM>
         urg_seg.urgent_pointer =
             static_cast<std::uint16_t>(kUrgPayload.size());
         urg_seg.payload.assign(kUrgPayload.begin(), kUrgPayload.end());
-        emitTcpFrame(cfg, iface, cfg.dut.mac, urg_seg,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, urg_seg,
                      /*initial_wait=*/kFlavorArmSettle);
         ::close(tester_fd);
     }

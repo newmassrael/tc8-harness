@@ -50,8 +50,7 @@ struct TestCaseTraits<cases::TcpClosing09SM>
     // FIN/RST so the absence window stays clean.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -59,7 +58,7 @@ struct TestCaseTraits<cases::TcpClosing09SM>
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kPortOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffset;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
         if (!open.conn) return;
@@ -76,7 +75,7 @@ struct TestCaseTraits<cases::TcpClosing09SM>
         // load-bearing part; the SCXML guard matches payload_len == 16U).
         std::array<std::uint8_t, kPayloadLen> payload;
         payload.fill(0x5AU);
-        seamSendTcp(dut, open.conn->socket, payload);
+        seamSendTcp(ctx.dut, open.conn->socket, payload);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
         // Silent tester disposal — TCP_REPAIR + close drops the

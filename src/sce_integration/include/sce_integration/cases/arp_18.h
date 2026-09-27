@@ -23,7 +23,8 @@ struct TestCaseTraits<cases::Arp18SM>
     static constexpr std::string_view kCaseId = "ARP_18";
     static constexpr std::string_view kDescription =
         "ARP Request reception with arbitrary target_hw — DUT must reply";
-    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
+    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg,
+                         ::tc8::sce::StimulusContext &ctx) {
         ::tc8::stimulus::ArpFrameSpec spec;
         spec.sender_ip_be = cfg.arp.tester_ip;
         spec.target_ip_be = cfg.dut.ip;
@@ -31,7 +32,7 @@ struct TestCaseTraits<cases::Arp18SM>
         // kTesterInjectedMac and the DUT MAC; any non-zero, non-broadcast
         // value works here, the spec only requires "arbitrary".
         spec.target_hw = {0x02, 0xDE, 0xAD, 0xBE, 0xEF, 0x42};
-        ::tc8::stimulus::emitArpFromTester(iface, spec);
+        ::tc8::stimulus::emitArpFromTester(ctx.iface, spec);
     }
 };
 

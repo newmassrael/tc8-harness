@@ -100,8 +100,7 @@ struct TestCaseTraits<cases::TcpChecksum04SM> {
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -115,8 +114,8 @@ struct TestCaseTraits<cases::TcpChecksum04SM> {
         // armed by the time the DUT emits SYN1. The seam connect is
         // synchronous (the SYN is on the wire by the time it returns), so
         // no post-open RPC settle is needed before the capture.
-        auto snippet1 = TcpFrameSnippet::forDutSyn(cfg, iface, local_port);
-        auto open1 = driveSeamSynSentOpen(dut, cfg, local_port, remote_port);
+        auto snippet1 = TcpFrameSnippet::forDutSyn(cfg, ctx.iface, local_port);
+        auto open1 = driveSeamSynSentOpen(ctx.dut, cfg, local_port, remote_port);
 
         if (auto syn1 = snippet1.tryCapture(kSnippetCaptureTimeout)) {
             c.cycle1_isn          = syn1->seq_num;
@@ -127,12 +126,12 @@ struct TestCaseTraits<cases::TcpChecksum04SM> {
         // `tcp_v4_send_reset` against an unbound destination port —
         // this IS spec step 3, the explicit RST,ACK to close cycle 1).
         std::this_thread::sleep_for(kCycleSettle);
-        if (open1) dut.tcpControl()->closeTcp(open1->socket);
+        if (open1) ctx.dut.tcpControl()->closeTcp(open1->socket);
         std::this_thread::sleep_for(kCycleSettle);
 
         // ------- Cycle 2 -------
-        auto snippet2 = TcpFrameSnippet::forDutSyn(cfg, iface, local_port);
-        auto open2 = driveSeamSynSentOpen(dut, cfg, local_port, remote_port);
+        auto snippet2 = TcpFrameSnippet::forDutSyn(cfg, ctx.iface, local_port);
+        auto open2 = driveSeamSynSentOpen(ctx.dut, cfg, local_port, remote_port);
 
         if (auto syn2 = snippet2.tryCapture(kSnippetCaptureTimeout)) {
             c.cycle2_isn          = syn2->seq_num;
@@ -140,7 +139,7 @@ struct TestCaseTraits<cases::TcpChecksum04SM> {
         }
 
         std::this_thread::sleep_for(kCycleSettle);
-        if (open2) dut.tcpControl()->closeTcp(open2->socket);
+        if (open2) ctx.dut.tcpControl()->closeTcp(open2->socket);
     }
 
     static void dispatch(Captured& /*c*/, SM& /*sm*/, const ::tc8::CapturedEvent& /*ev*/) {

@@ -29,9 +29,8 @@ struct TestCaseTraits<cases::UdpUserInterface01SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& /*cfg*/,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
-        ::tc8::sce::udp::emitCreateUdpReceivePorts(dut, /*count=*/10);
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::sce::udp::emitCreateUdpReceivePorts(ctx.dut, /*count=*/10);
     }
 };
 

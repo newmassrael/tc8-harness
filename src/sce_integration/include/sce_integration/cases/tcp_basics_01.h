@@ -50,15 +50,14 @@ struct TestCaseTraits<cases::TcpBasics01SM>
     // next case on the same worker starts clean.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        auto open = driveSeamPassiveOpen(dut, cfg, kBasicsListenPort);
+        auto open = driveSeamPassiveOpen(ctx.dut, cfg, kBasicsListenPort);
 
         if (open.tester_fd >= 0) ::close(open.tester_fd);
-        if (open.conn) dut.tcpControl()->closeTcp(open.conn->socket);
+        if (open.conn) ctx.dut.tcpControl()->closeTcp(open.conn->socket);
     }
 };
 

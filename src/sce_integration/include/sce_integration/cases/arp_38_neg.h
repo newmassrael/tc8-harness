@@ -33,22 +33,21 @@ struct TestCaseTraits<cases::Arp38NegSM>
     // drop), then provoke UDP egress.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         constexpr std::uint32_t kUnusedTargetIpBe =
             (static_cast<std::uint32_t>(99) << 24) |
             (static_cast<std::uint32_t>(0) << 16) |
             (static_cast<std::uint32_t>(16) << 8) |
             static_cast<std::uint32_t>(172);  // 172.16.0.99 in network byte order
-        emitIngressFlavorArm(cfg, iface, ::tc8::ut::kArpFaultLearnFromDropFrame);
+        emitIngressFlavorArm(cfg, ctx.iface, ::tc8::ut::kArpFaultLearnFromDropFrame);
         ::tc8::stimulus::ArpFrameSpec spec;
         spec.opcode = 0x0002;  // Response (non-gratuitous)
         spec.sender_ip_be = cfg.arp.tester_ip;
         spec.target_ip_be = kUnusedTargetIpBe;
-        ::tc8::stimulus::emitArpFromTester(iface, spec);
+        ::tc8::stimulus::emitArpFromTester(ctx.iface, spec);
         // Full provocation wait (mirrors the positive ARP_38): the gap lets the
         // ingress hook land the static entry before the UT-provoked UDP egress.
-        emitArpEgressProvocation(dut, cfg.stimulus_timing);
+        emitArpEgressProvocation(ctx.dut, cfg.stimulus_timing);
     }
 };
 

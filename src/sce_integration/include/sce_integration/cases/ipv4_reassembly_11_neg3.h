@@ -34,9 +34,9 @@ struct TestCaseTraits<cases::Ipv4Reassembly11Neg3SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        emitEgressFlavorArm(cfg, iface, ::tc8::ut::kIcmpFaultEchoSeqWrong);
-        ::tc8::sce::ipv4::reassembly::emitReassembly11PairBackToBack(cfg, iface);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitEgressFlavorArm(cfg, ctx.iface, ::tc8::ut::kIcmpFaultEchoSeqWrong);
+        ::tc8::sce::ipv4::reassembly::emitReassembly11PairBackToBack(cfg, ctx.iface);
     }
 };
 

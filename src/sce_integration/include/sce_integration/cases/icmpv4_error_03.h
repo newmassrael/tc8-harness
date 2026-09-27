@@ -51,7 +51,7 @@ struct TestCaseTraits<cases::Icmpv4Error03SM>
     // gate difference.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         // Frag 0 — MF=1, offset=0, length-12 Timestamp option
         // (well-formed under flag=0 mode: 4 B header + one filled
         // 4 B slot + one free 4 B slot). 8 B raw IP payload = first
@@ -65,7 +65,7 @@ struct TestCaseTraits<cases::Icmpv4Error03SM>
         f0.raw_ip_payload.assign(
             ::tc8::stimulus::kIcmpv4FragmentStimulusPacket.begin(),
             ::tc8::stimulus::kIcmpv4FragmentStimulusPacket.begin() + 8);
-        ::tc8::sce::icmpv4::emitStimulus(cfg, iface, f0);
+        ::tc8::sce::icmpv4::emitStimulus(cfg, ctx.iface, f0);
 
         // Frag 1 — MF=0, offset = first-fragment data size in 8-
         // octet units = 8 / 8 = 1. Malformed length-10 Timestamp
@@ -82,7 +82,7 @@ struct TestCaseTraits<cases::Icmpv4Error03SM>
         f1.raw_ip_payload.assign(
             ::tc8::stimulus::kIcmpv4FragmentStimulusPacket.begin() + 8,
             ::tc8::stimulus::kIcmpv4FragmentStimulusPacket.end());
-        ::tc8::sce::icmpv4::emitStimulus(cfg, iface, f1);
+        ::tc8::sce::icmpv4::emitStimulus(cfg, ctx.iface, f1);
     }
 };
 

@@ -55,8 +55,7 @@ struct TestCaseTraits<cases::TcpHeader04NegSM>
     // 4-tuple, which the watch would misread as the synthesized ACK (the positive keeps it open too).
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -66,7 +65,7 @@ struct TestCaseTraits<cases::TcpHeader04NegSM>
         // SSOT in tcp_pilot_common.h), shared with the positive.
         const std::uint16_t wrong_remote_port = kTcpHeader04WrongRemotePort;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
 
@@ -76,7 +75,7 @@ struct TestCaseTraits<cases::TcpHeader04NegSM>
             return;
         }
 
-        emitIngressFlavorArmMidStream(cfg, iface, ::tc8::ut::kTcpSynthAckSrcPortBlind);
+        emitIngressFlavorArmMidStream(cfg, ctx.iface, ::tc8::ut::kTcpSynthAckSrcPortBlind);
 
         ::tc8::stimulus::TcpSegmentSpec data{};
         data.src_port = wrong_remote_port;
@@ -86,7 +85,7 @@ struct TestCaseTraits<cases::TcpHeader04NegSM>
         data.flags    = ::tc8::stimulus::kTcpFlagPsh
                       | ::tc8::stimulus::kTcpFlagAck;
         data.payload.assign(kDataPayload.begin(), kDataPayload.end());
-        emitTcpFrame(cfg, iface, cfg.dut.mac, data, /*initial_wait=*/kFlavorArmSettle);
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, data, /*initial_wait=*/kFlavorArmSettle);
         std::this_thread::sleep_for(kSynthObserveHold);
         (void)tester_fd;
     }

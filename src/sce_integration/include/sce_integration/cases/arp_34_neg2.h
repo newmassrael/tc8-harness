@@ -36,15 +36,15 @@ struct TestCaseTraits<cases::Arp34Neg2SM>
     // stale-MAC negative's) and only the Response is swallowed, which is why this proves a
     // different final from its ARP_34_NEG sibling.
     static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg,
-                         std::string_view iface, ::tc8::sce::IDutControl &dut) {
-        emitIngressFlavorArm(cfg, iface, ::tc8::ut::kArpFaultIgnoreGratuitous);
+                         ::tc8::sce::StimulusContext &ctx) {
+        emitIngressFlavorArm(cfg, ctx.iface, ::tc8::ut::kArpFaultIgnoreGratuitous);
         ::tc8::stimulus::ArpFrameSpec spec1;
         spec1.opcode = 0x0001;  // Request
         spec1.sender_hw = ::tc8::stimulus::kTesterInjectedMac;
         spec1.eth_src = ::tc8::stimulus::kTesterInjectedMac;
         spec1.sender_ip_be = cfg.arp.tester_ip;
         spec1.target_ip_be = cfg.dut.ip;
-        ::tc8::stimulus::emitArpFromTester(iface, spec1);
+        ::tc8::stimulus::emitArpFromTester(ctx.iface, spec1);
 
         ::tc8::stimulus::ArpFrameSpec spec2;
         spec2.opcode = 0x0002;  // gratuitous Response
@@ -53,9 +53,9 @@ struct TestCaseTraits<cases::Arp34Neg2SM>
         spec2.target_hw = ::tc8::stimulus::kEthBroadcast;
         spec2.sender_ip_be = cfg.arp.tester_ip;
         spec2.target_ip_be = cfg.arp.tester_ip;
-        ::tc8::stimulus::emitArpFromTester(iface, spec2);
+        ::tc8::stimulus::emitArpFromTester(ctx.iface, spec2);
 
-        emitArpEgressProvocation(dut, cfg.stimulus_timing);
+        emitArpEgressProvocation(ctx.dut, cfg.stimulus_timing);
     }
 };
 

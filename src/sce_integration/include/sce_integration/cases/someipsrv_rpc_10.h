@@ -33,15 +33,15 @@ struct TestCaseTraits<cases::Rpc10SM> : SomeIpAnyBase<cases::Rpc10SM> {
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         ::tc8::stimulus::SomeIpRpcMessage target{};
         // METHOD-ID-FIRE-FORGET-SI-1: resetInterface (0x01) — declared
         // fireAndForget in ets.fidl. Tester drives it with msg_type =
         // 0x00 (Request) — the wrong shape per the spec note.
         target.method_id = 0x0001;
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

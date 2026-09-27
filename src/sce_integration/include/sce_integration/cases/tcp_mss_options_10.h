@@ -67,8 +67,7 @@ struct TestCaseTraits<cases::TcpMssOptions10SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -80,7 +79,7 @@ struct TestCaseTraits<cases::TcpMssOptions10SM>
         TesterAutoRstDrop rst_drop(cfg);
         (void)rst_drop;
 
-        runPhase(dut, cfg, iface);
+        runPhase(ctx.dut, cfg, ctx.iface);
     }
 };
 

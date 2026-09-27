@@ -28,15 +28,14 @@ struct TestCaseTraits<cases::UdpFields10SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         // (8 + payload + 1) overstates the actual length by one byte.
         constexpr std::uint16_t kPayload = static_cast<std::uint16_t>(
             ::tc8::sce::udp::kUdpDefaultData.size());
         ::tc8::sce::udp::UdpStimulusOverrides ov{};
         ov.udp.length_field = static_cast<std::uint16_t>(8U + kPayload + 1U);
         ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, iface, dut,
+            cfg, ctx.iface, ctx.dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size(),
             ::tc8::sce::udp::kDataPeerPort, ov);

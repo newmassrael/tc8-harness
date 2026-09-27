@@ -45,13 +45,12 @@ struct TestCaseTraits<cases::TcpAcknowledgement03NegSM>
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         auto open = driveSeamRawPassiveAccept(
-            dut, cfg, iface,
+            ctx.dut, cfg, ctx.iface,
             kTcpAck03ListenPort,
             std::vector<std::uint8_t>{},
             kTcpAck03TesterSrcPort);
@@ -65,7 +64,7 @@ struct TestCaseTraits<cases::TcpAcknowledgement03NegSM>
 
         // Per-phase arm: the handshake completed disarmed, so this corrupts only the
         // data-elicited ACK.
-        emitEgressFlavorArmMidStream(cfg, iface, ::tc8::ut::kTcpFaultPureAckNumWrong);
+        emitEgressFlavorArmMidStream(cfg, ctx.iface, ::tc8::ut::kTcpFaultPureAckNumWrong);
 
         ::tc8::stimulus::TcpSegmentSpec data{};
         data.src_port = kTcpAck03TesterSrcPort;
@@ -74,11 +73,11 @@ struct TestCaseTraits<cases::TcpAcknowledgement03NegSM>
         data.ack_num  = open.dut_isn + 1U;
         data.flags    = ::tc8::stimulus::kTcpFlagPsh | ::tc8::stimulus::kTcpFlagAck;
         data.payload.assign(kDataPayload.begin(), kDataPayload.end());
-        emitTcpFrame(cfg, iface, cfg.dut.mac, data,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, data,
                      /*initial_wait=*/kFlavorArmSettle);
         std::this_thread::sleep_for(kDelayedAckSettle);
         if (open.conn) {
-            ::tc8::sce::seamTcpControl(dut).closeTcp(open.conn->socket);
+            ::tc8::sce::seamTcpControl(ctx.dut).closeTcp(open.conn->socket);
         }
     }
 };

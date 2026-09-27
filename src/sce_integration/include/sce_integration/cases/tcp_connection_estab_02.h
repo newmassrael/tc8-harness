@@ -53,8 +53,7 @@ struct TestCaseTraits<cases::TcpConnectionEstab02SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -71,14 +70,14 @@ struct TestCaseTraits<cases::TcpConnectionEstab02SM>
         // tester-side.
         std::array<std::optional<::tc8::sce::DutSocket>, 3> handles;
         for (std::uint8_t i = 0; i < legs.size(); ++i) {
-            handles[i] = driveSeamListen(dut, legs[i].listen_port);
+            handles[i] = driveSeamListen(ctx.dut, legs[i].listen_port);
             if (!handles[i]) return;
         }
 
         TesterAutoRstDrop rst_drop(cfg);
 
         for (const auto& leg : legs) {
-            emitSyn(cfg, iface, leg);
+            emitSyn(cfg, ctx.iface, leg);
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
 
@@ -87,7 +86,7 @@ struct TestCaseTraits<cases::TcpConnectionEstab02SM>
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
         for (auto& handle : handles) {
-            dut.tcpControl()->closeTcp(*handle);
+            ctx.dut.tcpControl()->closeTcp(*handle);
         }
     }
 };

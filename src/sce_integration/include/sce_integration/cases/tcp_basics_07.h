@@ -55,13 +55,12 @@ struct TestCaseTraits<cases::TcpBasics07SM>
     // BEFORE the SCXML arms.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         auto open = driveSeamActiveOpen(
-            dut, cfg,
+            ctx.dut, cfg,
             kBasicsActiveLocalPort  + kTcpBasics07LocalOffset,
             kBasicsActiveRemotePort + kTcpBasics07LocalOffset);
 
@@ -70,9 +69,9 @@ struct TestCaseTraits<cases::TcpBasics07SM>
         // utEstablishedByte maps the tristate (and a nullopt open) onto the
         // ut_established byte (utEstablishedByte is the byte-encoding SSOT).
         c.ut_established = open.conn
-            ? utEstablishedByte(dut.tcpStateProbe()->isEstablished(open.conn->socket))
+            ? utEstablishedByte(ctx.dut.tcpStateProbe()->isEstablished(open.conn->socket))
             : 0xFFU;
-        if (open.conn) dut.tcpControl()->closeTcp(open.conn->socket);
+        if (open.conn) ctx.dut.tcpControl()->closeTcp(open.conn->socket);
     }
 };
 

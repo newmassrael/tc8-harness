@@ -42,15 +42,14 @@ struct TestCaseTraits<cases::TcpHeader07SM>
     // absence window confirms silent-drop.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpHeader07LocalOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpHeader07LocalOffset;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
 
@@ -72,7 +71,7 @@ struct TestCaseTraits<cases::TcpHeader07SM>
         // mandates >= 5; Linux gates this in tcp_v4_rcv before any
         // socket lookup, so the EST socket never sees the segment.
         data.data_offset_override = 0x04U;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, data,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, data,
                      /*initial_wait=*/std::chrono::milliseconds(0));
         (void)tester_fd;
     }

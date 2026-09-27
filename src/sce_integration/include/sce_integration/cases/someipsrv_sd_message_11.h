@@ -31,8 +31,8 @@ struct TestCaseTraits<cases::SdMessage11SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitSubscribeEventgroupBoot(iface,
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitSubscribeEventgroupBoot(ctx.iface,
             ::tc8::stimulus::SubscribeEventgroupTarget{},
             cfg.stimulus_timing);
     }

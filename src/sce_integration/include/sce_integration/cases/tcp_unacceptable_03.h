@@ -54,8 +54,7 @@ struct TestCaseTraits<cases::TcpUnacceptable03SM>
     // land before the pcap handle accepts it.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -71,14 +70,14 @@ struct TestCaseTraits<cases::TcpUnacceptable03SM>
         // LISTEN via driveSeamListen (ITcpControl::listenTcp, listen-only) so
         // the case runs on whichever backend `--dut-control` selected; the
         // SYN-RCVD drive and bad-ACK inject stay tester-side.
-        const auto listen = driveSeamListen(dut, kBasicsListenPort);
+        const auto listen = driveSeamListen(ctx.dut, kBasicsListenPort);
         if (!listen) return;
 
         // Snippet matches DUT-emitted SYN+ACK on the tester's
         // raw-inject source port — picks up the spec-asserted
         // SYN+ACK whose seq_num is the freshly-randomised ISN_d.
         auto snippet = TcpFrameSnippet::forDutSynAck(
-            cfg, iface, kBasicsTesterPort);
+            cfg, ctx.iface, kBasicsTesterPort);
 
         // Probe — drive DUT from LISTEN into SYN-RCVD.
         ::tc8::stimulus::TcpSegmentSpec syn{};
@@ -87,7 +86,7 @@ struct TestCaseTraits<cases::TcpUnacceptable03SM>
         syn.seq_num  = kTesterInitialSeq;
         syn.ack_num  = 0U;
         syn.flags    = ::tc8::stimulus::kTcpFlagSyn;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, syn);
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, syn);
 
         // Capture SYN+ACK to learn ISN_d. 500 ms covers the worst-
         // case kernel scheduling jitter; a same-host netns
@@ -106,12 +105,12 @@ struct TestCaseTraits<cases::TcpUnacceptable03SM>
             bad_ack.seq_num  = kTesterInitialSeq + 1U;
             bad_ack.ack_num  = synack->seq_num + kUnacceptableAckOffset;
             bad_ack.flags    = ::tc8::stimulus::kTcpFlagAck;
-            emitTcpFrame(cfg, iface, cfg.dut.mac, bad_ack,
+            emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, bad_ack,
                          /*initial_wait=*/std::chrono::milliseconds(0));
             std::this_thread::sleep_for(kTcpPilotPhaseGap);
         }
 
-        dut.tcpControl()->closeTcp(*listen);
+        ctx.dut.tcpControl()->closeTcp(*listen);
     }
 };
 

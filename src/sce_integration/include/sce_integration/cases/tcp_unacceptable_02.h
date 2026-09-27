@@ -60,8 +60,7 @@ struct TestCaseTraits<cases::TcpUnacceptable02SM>
     // case runs on whichever backend `--dut-control` selected.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -76,7 +75,7 @@ struct TestCaseTraits<cases::TcpUnacceptable02SM>
         TesterAutoRstDrop rst_drop(cfg);
         (void)rst_drop;
 
-        const auto listen = driveSeamListen(dut, kBasicsListenPort);
+        const auto listen = driveSeamListen(ctx.dut, kBasicsListenPort);
         if (!listen) return;
 
         // Probe — drive DUT from LISTEN into SYN-RCVD.
@@ -86,7 +85,7 @@ struct TestCaseTraits<cases::TcpUnacceptable02SM>
         syn.seq_num  = kTesterInitialSeq;
         syn.ack_num  = 0U;
         syn.flags    = ::tc8::stimulus::kTcpFlagSyn;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, syn);
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, syn);
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
         // Out-of-window RST — DUT's tcp_check_req rejects on
@@ -98,11 +97,11 @@ struct TestCaseTraits<cases::TcpUnacceptable02SM>
         rst.seq_num  = kOutOfWindowRstSeq;
         rst.ack_num  = 0U;
         rst.flags    = ::tc8::stimulus::kTcpFlagRst;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, rst,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, rst,
                      /*initial_wait=*/std::chrono::milliseconds(0));
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
-        dut.tcpControl()->closeTcp(*listen);
+        ctx.dut.tcpControl()->closeTcp(*listen);
     }
 };
 

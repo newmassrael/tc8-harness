@@ -53,9 +53,7 @@ struct TestCaseTraits<cases::TcpClosing03SM>
     // chaining. Port quad +71 reserves the §4.8.6.8 EST-RST slot.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -63,7 +61,7 @@ struct TestCaseTraits<cases::TcpClosing03SM>
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kPortOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffset;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
         if (!open.conn) return;
@@ -83,17 +81,17 @@ struct TestCaseTraits<cases::TcpClosing03SM>
         rst.flags    = ::tc8::stimulus::kTcpFlagRst
                      | ::tc8::stimulus::kTcpFlagAck;
         rst.payload  = payload;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, rst,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, rst,
                      /*initial_wait=*/std::chrono::milliseconds(0));
         silentlyCloseTesterFd(tester_fd);
 
-        std::string                 iface_copy(iface);
+        std::string                 iface_copy(ctx.iface);
         ::tc8::TestConfig           cfg_copy   = cfg;
         std::array<std::uint8_t, 6> dut_mac    = cfg.dut.mac;
         const std::uint32_t         probe_seq  = seq_range->snd_nxt + 5U;
         const std::uint32_t         probe_ack  = seq_range->rcv_nxt;
 
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_verify_rst),
             [iface_copy, cfg_copy, dut_mac,
              local_port, remote_port, probe_seq, probe_ack]() {

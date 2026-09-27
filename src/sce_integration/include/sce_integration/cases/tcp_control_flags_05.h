@@ -39,8 +39,7 @@ struct TestCaseTraits<cases::TcpControlFlags05SM>
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -49,7 +48,7 @@ struct TestCaseTraits<cases::TcpControlFlags05SM>
         const std::uint16_t remote_port =
             kBasicsActiveRemotePort + kTcpControlFlags05LocalOffset;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
 
@@ -81,7 +80,7 @@ struct TestCaseTraits<cases::TcpControlFlags05SM>
         urg_seg.urgent_pointer =
             static_cast<std::uint16_t>(kUrgPayload.size());
         urg_seg.payload.assign(kUrgPayload.begin(), kUrgPayload.end());
-        emitTcpFrame(cfg, iface, cfg.dut.mac, urg_seg,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, urg_seg,
                      /*initial_wait=*/std::chrono::milliseconds(0));
         (void)tester_fd;
     }

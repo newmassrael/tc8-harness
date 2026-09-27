@@ -37,8 +37,7 @@ struct TestCaseTraits<cases::TcpAcknowledgement04SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -47,16 +46,16 @@ struct TestCaseTraits<cases::TcpAcknowledgement04SM>
         const std::uint16_t remote_port =
             kBasicsActiveRemotePort + kTcpAck04LocalOffset;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0 || !open.conn) return;
 
-        seamSendTcp(dut, open.conn->socket, kDutPayload);
+        seamSendTcp(ctx.dut, open.conn->socket, kDutPayload);
 
         std::this_thread::sleep_for(std::chrono::seconds(3) +
                                      std::chrono::milliseconds(200));
 
-        dut.tcpControl()->closeTcp(open.conn->socket);
+        ctx.dut.tcpControl()->closeTcp(open.conn->socket);
         (void)tester_fd;
     }
 };

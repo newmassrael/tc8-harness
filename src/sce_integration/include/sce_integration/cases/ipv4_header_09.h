@@ -28,13 +28,13 @@ struct TestCaseTraits<cases::Ipv4Header09SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::ipv4::StimulusOverrides ov{};
         // Spec §4.4.4.1 p558: "IP Total Length field set to 48". Actual
         // on-wire L3 payload is 28 bytes; kernel detects skb->len <
         // iph->tot_len in ip_rcv_core and drops.
         ov.total_length = std::uint16_t{48};
-        ::tc8::sce::ipv4::emitStimulus(cfg, iface, ov);
+        ::tc8::sce::ipv4::emitStimulus(cfg, ctx.iface, ov);
     }
 };
 

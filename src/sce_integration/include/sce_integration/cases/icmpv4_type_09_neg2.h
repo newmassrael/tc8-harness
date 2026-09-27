@@ -34,9 +34,9 @@ struct TestCaseTraits<cases::Icmpv4Type09Neg2SM>
     // fail-final reachable.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        emitEgressFlavorArm(cfg, iface, ::tc8::ut::kIcmpFaultEchoSeqWrong);
-        ::tc8::sce::icmpv4::emitStimulus(cfg, iface);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitEgressFlavorArm(cfg, ctx.iface, ::tc8::ut::kIcmpFaultEchoSeqWrong);
+        ::tc8::sce::icmpv4::emitStimulus(cfg, ctx.iface);
     }
 };
 

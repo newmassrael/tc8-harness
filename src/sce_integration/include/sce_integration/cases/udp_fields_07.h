@@ -28,13 +28,12 @@ struct TestCaseTraits<cases::UdpFields07SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         // Empty payload — DUT kernel emits an 8 B UDP datagram. The
         // packet pipeline tolerates RawPDU absence (post-S15 fix), so
         // the SCXML observes the wire shape via UdpFrame.
         ::tc8::sce::udp::emitTriggerSendUdp(
-            dut,
+            ctx.dut,
             /*dut_src_port=*/20003,
             /*target_ip_be=*/cfg.tester.ip,
             /*target_port=*/::tc8::sce::udp::kDataPort,

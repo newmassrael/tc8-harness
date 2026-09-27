@@ -40,9 +40,8 @@ struct TestCaseTraits<cases::SomeipEts173SM> : SomeIpAnyBase<cases::SomeipEts173
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IBackgroundServiceOwner& owner) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 
@@ -54,7 +53,7 @@ struct TestCaseTraits<cases::SomeipEts173SM> : SomeIpAnyBase<cases::SomeipEts173
         // two options through DIFFERENT index/count configurations — the DUT must
         // Ack both regardless of how the entry partitions the option references.
         auto session = std::make_unique<::tc8::stimulus::SubscribeEventgroupTcpSession>(
-            iface, ::tc8::sce::someipTcpMethodDest(cfg));
+            ctx.iface, ::tc8::sce::someipTcpMethodDest(cfg));
         const ::tc8::stimulus::Ipv4Endpoint tcp_option = session->reliableEndpointOption();
         ::tc8::stimulus::SubscribeDestination sd_dest{};
         sd_dest.ipv4_be = cfg.dut.ip;
@@ -83,7 +82,7 @@ struct TestCaseTraits<cases::SomeipEts173SM> : SomeIpAnyBase<cases::SomeipEts173
         sub2.num_options_second_override = std::uint8_t{0};
         session->subscribeParams(sub2, sd_dest);
 
-        owner.adoptService(std::move(session));
+        ctx.services.adoptService(std::move(session));
     }
 };
 

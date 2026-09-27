@@ -30,13 +30,13 @@ struct TestCaseTraits<cases::SdMessage18SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::stimulus::SubscribeEventgroupTarget target{};
         // UNKNOWN-MAJOR-VERSION = SERVICE-ID-1-MAJ-VER + 1; the SCXML
         // cond mirrors this with `expected.major_version + 1` so both
         // sides follow whatever identity the operator passes.
         target.major_version = static_cast<std::uint8_t>(cfg.someip.major_version + 1);
-        ::tc8::stimulus::emitSubscribeEventgroupBoot(iface, target,
+        ::tc8::stimulus::emitSubscribeEventgroupBoot(ctx.iface, target,
             cfg.stimulus_timing);
     }
 };

@@ -38,13 +38,11 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection16SM>
     // the same helper from the AIFACE-LL Request angle of RFC 3927 §2.5.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
-        ::tc8::sce::linklocal::emitStartLLAutoconfFast(dut);
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::sce::linklocal::emitStartLLAutoconfFast(ctx.dut);
         ::tc8::sce::linklocal::scheduleClaimConditionTesterRequest(
-            scheduler, static_cast<int>(State::Listening_post_claim),
-            cfg, iface, dut, c);
+            ctx.scheduler, static_cast<int>(State::Listening_post_claim),
+            cfg, ctx.iface, ctx.dut, c);
     }
 };
 

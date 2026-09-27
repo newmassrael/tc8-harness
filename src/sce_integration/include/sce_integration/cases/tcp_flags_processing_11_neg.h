@@ -49,8 +49,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing11NegSM>
     // ESTABLISHED precondition, so it needs no kCapTcpStateProbe ut_established read.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -58,7 +57,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing11NegSM>
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kPortOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffset;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0 || !open.conn) return;
 
@@ -68,7 +67,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing11NegSM>
         // Per-phase arm: the handshake has completed, so the synthesis fires only on the
         // duplicate ACK injected next. The eliciting inject carries the arm settle so the
         // raw-injected arm reaches the DUT UT thread first.
-        emitIngressFlavorArmMidStream(cfg, iface, ::tc8::ut::kTcpSynthRst);
+        emitIngressFlavorArmMidStream(cfg, ctx.iface, ::tc8::ut::kTcpSynthRst);
 
         ::tc8::stimulus::TcpSegmentSpec dup_ack{};
         dup_ack.src_port = remote_port;
@@ -76,7 +75,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing11NegSM>
         dup_ack.seq_num  = seq_range->snd_nxt;
         dup_ack.ack_num  = seq_range->rcv_nxt;
         dup_ack.flags    = ::tc8::stimulus::kTcpFlagAck;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, dup_ack,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, dup_ack,
                      /*initial_wait=*/kFlavorArmSettle);
         (void)tester_fd;
     }

@@ -34,15 +34,14 @@ struct TestCaseTraits<cases::TcpConnectionEstab01SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         // LISTEN via driveSeamListen (ITcpControl::listenTcp, listen-only) so the
         // case runs on whichever backend `--dut-control` selected; the three
         // raw-inject SYNs and the SYN,ACK observations stay tester-side.
-        const auto listen = driveSeamListen(dut, kTcpConnEstab01ListenPort);
+        const auto listen = driveSeamListen(ctx.dut, kTcpConnEstab01ListenPort);
         if (!listen) return;
 
         const std::array<std::uint16_t, 3> src_ports{
@@ -59,14 +58,14 @@ struct TestCaseTraits<cases::TcpConnectionEstab01SM>
             syn.dst_port = kTcpConnEstab01ListenPort;
             syn.seq_num  = kTesterInitialSeq;
             syn.flags    = ::tc8::stimulus::kTcpFlagSyn;
-            emitTcpFrame(cfg, iface, cfg.dut.mac, syn,
+            emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, syn,
                          /*initial_wait=*/std::chrono::milliseconds(0));
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-        dut.tcpControl()->closeTcp(*listen);
+        ctx.dut.tcpControl()->closeTcp(*listen);
     }
 };
 

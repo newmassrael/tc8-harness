@@ -47,19 +47,18 @@ struct TestCaseTraits<cases::TcpConnectionEstab07SM>
     // closed only after both phases complete.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        auto open = driveSeamPassiveOpen(dut, cfg, kTcpConnEstab07ListenPort);
+        auto open = driveSeamPassiveOpen(ctx.dut, cfg, kTcpConnEstab07ListenPort);
 
         // Phase 1: tester FIN (write side only) → DUT auto-ACK observed by SCXML.
         if (open.tester_fd >= 0) ::shutdown(open.tester_fd, SHUT_WR);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
         // Phase 2: user Close → DUT close() → DUT FIN observed.
-        if (open.conn) dut.tcpControl()->closeTcp(open.conn->socket);
+        if (open.conn) ctx.dut.tcpControl()->closeTcp(open.conn->socket);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
         if (open.tester_fd >= 0) ::close(open.tester_fd);

@@ -35,9 +35,9 @@ struct TestCaseTraits<cases::Ipv4Header05NegSM>
     // reachable.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        emitEgressFlavorArm(cfg, iface, ::tc8::ut::kIcmpFaultEchoPayloadByteWrong);
-        ::tc8::sce::cases::emitHeader05Stimulus(cfg, iface);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitEgressFlavorArm(cfg, ctx.iface, ::tc8::ut::kIcmpFaultEchoPayloadByteWrong);
+        ::tc8::sce::cases::emitHeader05Stimulus(cfg, ctx.iface);
     }
 };
 

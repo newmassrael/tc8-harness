@@ -53,9 +53,7 @@ struct TestCaseTraits<cases::TcpProbingWindows06SM>
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -64,7 +62,7 @@ struct TestCaseTraits<cases::TcpProbingWindows06SM>
         const std::uint16_t remote_port =
             kBasicsActiveRemotePort + kTcpProbingWindows06LocalOffset;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0 || !open.conn) return;
 
@@ -83,7 +81,7 @@ struct TestCaseTraits<cases::TcpProbingWindows06SM>
 
         auto ack_drop = std::make_shared<TesterAutoAckDrop>(cfg);
 
-        seamSendTcp(dut, open.conn->socket, kSeg1Payload);
+        seamSendTcp(ctx.dut, open.conn->socket, kSeg1Payload);
         std::this_thread::sleep_for(kPostSendSettle);
 
         // Spec step 4: window=0 ACK.
@@ -95,13 +93,13 @@ struct TestCaseTraits<cases::TcpProbingWindows06SM>
             ack_seg.ack_num  = snd_una_post_ack;
             ack_seg.flags    = ::tc8::stimulus::kTcpFlagAck;
             ack_seg.window   = 0U;
-            emitTcpFrame(cfg, iface, cfg.dut.mac, ack_seg,
+            emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, ack_seg,
                          /*initial_wait=*/std::chrono::milliseconds(0));
         }
         std::this_thread::sleep_for(kPostInjectSettle);
 
         // Spec step 5: SEND 2 — bytes queue behind snd_wnd=0.
-        seamSendTcp(dut, open.conn->socket, kSeg2Payload);
+        seamSendTcp(ctx.dut, open.conn->socket, kSeg2Payload);
 
         // No per-probe ACK injection — Linux's `icsk_backoff`
         // increments on each probe-fire, so successive probes ship
@@ -111,7 +109,7 @@ struct TestCaseTraits<cases::TcpProbingWindows06SM>
         // STAY OPEN across acked probes; backoff continues
         // unaffected (snd_una never advances, so backoff is not
         // reset).
-        scheduler.schedule(kAckDropHold, [ack_drop]() {
+        ctx.scheduler.schedule(kAckDropHold, [ack_drop]() {
             (void)ack_drop;
         });
 

@@ -43,10 +43,9 @@ struct TestCaseTraits<cases::TcpCallReceive05Neg2SM>
     // into CLOSE-WAIT), with kTcpSynthFinOnDisruptive armed before the disruptive segment.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         cases::call_receive_05_neg::driveCwAndArm(
-            dut, cfg, iface, ::tc8::ut::kTcpSynthFinOnDisruptive,
+            ctx.dut, cfg, ctx.iface, ::tc8::ut::kTcpSynthFinOnDisruptive,
             ::tc8::sce::tcp::kTcpCallReceive05NegFinOffset);
     }
 };

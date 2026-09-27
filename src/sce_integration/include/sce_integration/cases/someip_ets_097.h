@@ -74,15 +74,15 @@ struct TestCaseTraits<cases::SomeipEts097SM> : SomeIpAnyBase<cases::SomeipEts097
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
 
         ::tc8::stimulus::SomeIpRpcMessage activate{};
         activate.method_id    = 0x002F;       // clientServiceActivate
         activate.message_type = ::tc8::someip::MessageType::REQUEST_NO_RETURN;         // Fire&Forget
         activate.payload      = {0x00};       // delay = 0
-        ::tc8::stimulus::emitMethodRequestAfter(iface, activate, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, activate, {}, ::tc8::sce::someipUdpMethodDest(cfg));
 
         // Give the DUT proxy buildProxy() time to register before triggering
         // the subscribe — without this gap vsomeip rejects the subscribe
@@ -96,7 +96,7 @@ struct TestCaseTraits<cases::SomeipEts097SM> : SomeIpAnyBase<cases::SomeipEts097
         // ignores duration; delay is consumed by std::this_thread::sleep_for.
         sub_trigger.payload      = {0x00, 0x00, 0x00, 0x00,
                                     0x00, 0x00, 0x00, 0x00};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, sub_trigger, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, sub_trigger, {}, ::tc8::sce::someipUdpMethodDest(cfg));
 
         // OfferService #1 — TCP endpoint advertised but tester listener not
         // up yet. Kernel sends RST to any DUT SYN → vsomeip ECONNREFUSED.
@@ -110,7 +110,7 @@ struct TestCaseTraits<cases::SomeipEts097SM> : SomeIpAnyBase<cases::SomeipEts097
         offer1.endpoint.port    = 30509;
         offer1.endpoint.l4proto = 0x06;          // TCP
         ::tc8::stimulus::emitOfferServiceMulticastWithEndpoint(
-            iface, offer1, std::chrono::milliseconds(500));
+            ctx.iface, offer1, std::chrono::milliseconds(500));
 
         // Give vsomeip's first connect attempt time to fire + fail.
         std::this_thread::sleep_for(std::chrono::milliseconds(1500));
@@ -118,12 +118,12 @@ struct TestCaseTraits<cases::SomeipEts097SM> : SomeIpAnyBase<cases::SomeipEts097
         // Open the TCP listener and immediately emit OfferService #2; vsomeip
         // reacts to the offer by re-attempting the TCP connect, which now
         // completes against the live listener.
-        const int listen_fd = ::tc8::stimulus::openTcpListener(iface, 30509);
+        const int listen_fd = ::tc8::stimulus::openTcpListener(ctx.iface, 30509);
 
         ::tc8::stimulus::OfferServiceWithEndpointTarget offer2 = offer1;
         offer2.service.session_id = 0x0002;
         ::tc8::stimulus::emitOfferServiceMulticastWithEndpoint(
-            iface, offer2, std::chrono::milliseconds(200));
+            ctx.iface, offer2, std::chrono::milliseconds(200));
 
         if (listen_fd >= 0) {
             const int accepted =

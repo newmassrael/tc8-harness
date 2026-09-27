@@ -46,9 +46,9 @@ struct TestCaseTraits<cases::Ipv4Reassembly04SM>
     // ICMP delivers the reassembled Echo Request → Echo Reply.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         // Spec wire order frag 0 -> 2 -> 1 -> 3, shared with the _NEG.
-        ::tc8::sce::ipv4::reassembly::emitReassembly04Fragments(cfg, iface);
+        ::tc8::sce::ipv4::reassembly::emitReassembly04Fragments(cfg, ctx.iface);
     }
 };
 

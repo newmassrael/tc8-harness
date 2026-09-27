@@ -27,12 +27,13 @@ struct TestCaseTraits<cases::Arp37SM>
     // /24 subnet not currently bound to DUT or tester. 10.99.99.99 is
     // outside 172.16.0.0/24 which guarantees Linux sees it as
     // "not one of mine" and drops the Request without reply.
-    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
+    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg,
+                         ::tc8::sce::StimulusContext &ctx) {
         ::tc8::stimulus::ArpFrameSpec spec;
         spec.sender_ip_be = cfg.arp.tester_ip;
         // 10.99.99.99 in network byte order: 0x0A 0x63 0x63 0x63.
         spec.target_ip_be = 0x6363630Au;
-        ::tc8::stimulus::emitArpFromTester(iface, spec);
+        ::tc8::stimulus::emitArpFromTester(ctx.iface, spec);
     }
 };
 

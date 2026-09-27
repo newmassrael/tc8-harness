@@ -38,8 +38,8 @@ struct TestCaseTraits<cases::SomeipEts034SM> : SomeIpAnyBase<cases::SomeipEts034
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = 0x000B;
@@ -55,7 +55,7 @@ struct TestCaseTraits<cases::SomeipEts034SM> : SomeIpAnyBase<cases::SomeipEts034
             // value = 0x42
             0x42,
         };
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 
     // Conformant echoUINT8E2E response: the 17-byte E2E payload echoed

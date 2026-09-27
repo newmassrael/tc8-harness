@@ -29,10 +29,10 @@ struct TestCaseTraits<cases::SdMessage14SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::stimulus::SubscribeEventgroupTarget target{};
         target.service_id = ::tc8::sd_test_unknown::kServiceId;
-        ::tc8::stimulus::emitSubscribeEventgroupBoot(iface, target,
+        ::tc8::stimulus::emitSubscribeEventgroupBoot(ctx.iface, target,
             cfg.stimulus_timing);
     }
 };

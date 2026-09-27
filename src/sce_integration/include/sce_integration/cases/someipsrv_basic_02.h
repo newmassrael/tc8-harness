@@ -32,13 +32,13 @@ struct TestCaseTraits<cases::Basic02SM> : SomeIpSdOnlyBase<cases::Basic02SM> {
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         // FindServiceTarget defaults to instance_id=0xFFFF (any-instance)
         // so the default ctor already encodes the BASIC_02 stimulus
         // shape; passing it explicitly self-documents the test intent.
         ::tc8::stimulus::FindServiceTarget target{};
         target.instance_id = 0xFFFF;
-        ::tc8::stimulus::emitFindServiceBoot(iface, target, cfg.stimulus_timing);
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, target, cfg.stimulus_timing);
     }
 };
 

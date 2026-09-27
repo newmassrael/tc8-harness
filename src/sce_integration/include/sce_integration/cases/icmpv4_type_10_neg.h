@@ -34,11 +34,11 @@ struct TestCaseTraits<cases::Icmpv4Type10NegSM>
     // Request the positive uses (the frame the DUT must drop without replying).
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        emitIngressFlavorArm(cfg, iface, ::tc8::ut::kIcmpFaultSynthEchoReply);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitIngressFlavorArm(cfg, ctx.iface, ::tc8::ut::kIcmpFaultSynthEchoReply);
         ::tc8::sce::icmpv4::StimulusOverrides ov{};
         ov.corrupt_icmp_checksum = true;
-        ::tc8::sce::icmpv4::emitStimulus(cfg, iface, ov);
+        ::tc8::sce::icmpv4::emitStimulus(cfg, ctx.iface, ov);
     }
 };
 

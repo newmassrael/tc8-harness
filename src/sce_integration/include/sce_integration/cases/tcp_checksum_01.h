@@ -64,13 +64,12 @@ struct TestCaseTraits<cases::TcpChecksum01SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         auto open = driveSeamActiveOpen(
-            dut, cfg,
+            ctx.dut, cfg,
             kBasicsActiveLocalPort  + kTcpChecksum01LocalOffset,
             kBasicsActiveRemotePort + kTcpChecksum01LocalOffset);
 
@@ -91,7 +90,7 @@ struct TestCaseTraits<cases::TcpChecksum01SM>
             ::close(tester_fd);
         }
 
-        if (open.conn) dut.tcpControl()->closeTcp(open.conn->socket);
+        if (open.conn) ctx.dut.tcpControl()->closeTcp(open.conn->socket);
     }
 };
 

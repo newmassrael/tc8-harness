@@ -52,13 +52,12 @@ struct TestCaseTraits<cases::TcpUnacceptable05SM>
     // non-zero literal.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         // -------- Phase 1: SYN+ACK to LISTEN --------
-        const auto listen1 = driveSeamListen(dut, kPhase1ListenPort);
+        const auto listen1 = driveSeamListen(ctx.dut, kPhase1ListenPort);
         if (!listen1) return;
 
         ::tc8::stimulus::TcpSegmentSpec synack{};
@@ -68,14 +67,14 @@ struct TestCaseTraits<cases::TcpUnacceptable05SM>
         synack.ack_num  = kTesterInitialSeq + 1U;
         synack.flags    = ::tc8::stimulus::kTcpFlagSyn
                         | ::tc8::stimulus::kTcpFlagAck;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, synack);
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, synack);
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
-        dut.tcpControl()->closeTcp(*listen1);
+        ctx.dut.tcpControl()->closeTcp(*listen1);
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
         // -------- Phase 2: bare ACK to LISTEN --------
-        const auto listen2 = driveSeamListen(dut, kPhase2ListenPort);
+        const auto listen2 = driveSeamListen(ctx.dut, kPhase2ListenPort);
         if (!listen2) return;
 
         ::tc8::stimulus::TcpSegmentSpec ack{};
@@ -84,11 +83,11 @@ struct TestCaseTraits<cases::TcpUnacceptable05SM>
         ack.seq_num  = kTesterInitialSeq + 0x100U;
         ack.ack_num  = kTesterInitialSeq + 1U;
         ack.flags    = ::tc8::stimulus::kTcpFlagAck;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, ack,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, ack,
                      /*initial_wait=*/std::chrono::milliseconds(0));
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
-        dut.tcpControl()->closeTcp(*listen2);
+        ctx.dut.tcpControl()->closeTcp(*listen2);
     }
 };
 

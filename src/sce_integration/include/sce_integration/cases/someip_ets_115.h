@@ -32,8 +32,8 @@ struct TestCaseTraits<cases::SomeipEts115SM> : SomeIpAnyBase<cases::SomeipEts115
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 
@@ -44,7 +44,7 @@ struct TestCaseTraits<cases::SomeipEts115SM> : SomeIpAnyBase<cases::SomeipEts115
         // Walker reads "2 options in run 1", advances 24 bytes (2 × 12),
         // overshoots the options array, fails to parse.
         params.num_options_first_override = std::uint8_t{2};
-        ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, params);
+        ::tc8::stimulus::emitSubscribeEventgroupRaw(ctx.iface, params);
     }
 };
 

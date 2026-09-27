@@ -29,8 +29,8 @@ struct TestCaseTraits<cases::Rpc13SM> : SomeIpSdOnlyBase<cases::Rpc13SM> {
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& /*cfg*/,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{});
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{});
     }
 };
 

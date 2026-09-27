@@ -36,12 +36,12 @@ struct TestCaseTraits<cases::SomeipEts150SM> : SomeIpAnyBase<cases::SomeipEts150
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         ::tc8::stimulus::SubscribeEventgroupTarget subscribe{};
         subscribe.eventgroup_id = 0x0006;
-        ::tc8::stimulus::emitSubscribeEventgroupBoot(iface, subscribe, cfg.stimulus_timing);
+        ::tc8::stimulus::emitSubscribeEventgroupBoot(ctx.iface, subscribe, cfg.stimulus_timing);
         // triggerEventUINT8Multicast(start=0 s, duration=3 s, debounceTime=200 ms):
         // 3x UInt32 big-endian, Fire&Forget (message_type 0x01).
         ::tc8::stimulus::SomeIpRpcMessage trigger{};
@@ -50,7 +50,7 @@ struct TestCaseTraits<cases::SomeipEts150SM> : SomeIpAnyBase<cases::SomeipEts150
         trigger.payload = {0x00, 0x00, 0x00, 0x00,
                            0x00, 0x00, 0x00, 0x03,
                            0x00, 0x00, 0x00, 0xC8};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, trigger, {},
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, trigger, {},
                                                 ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };

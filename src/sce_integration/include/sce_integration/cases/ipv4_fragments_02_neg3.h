@@ -38,10 +38,10 @@ struct TestCaseTraits<cases::Ipv4Fragments02Neg3SM>
     // nothing, so the reply IS the violation.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        emitIngressFlavorArm(cfg, iface, ::tc8::ut::kIpv4FaultNormaliseFragTuple);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitIngressFlavorArm(cfg, ctx.iface, ::tc8::ut::kIpv4FaultNormaliseFragTuple);
         ::tc8::sce::ipv4::fragments::emitFragmentPair(
-            iface, cfg, cfg.arp.dut_iface_mac,
+            ctx.iface, cfg, cfg.arp.dut_iface_mac,
             ::tc8::sce::ipv4::fragments::fragments02Phase1());
     }
 };

@@ -50,11 +50,11 @@ struct TestCaseTraits<cases::TcpBasics05SM>
     // loudly on the SEQ-num conjunct.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         // iter 1 — SYN+ACK
         emitTcpStimulus(
-            cfg, iface, cfg.dut.mac,
+            cfg, ctx.iface, cfg.dut.mac,
             /*dst_port=*/kBasicsClosedPort,
             /*flags=*/static_cast<std::uint8_t>(
                 ::tc8::stimulus::kTcpFlagSyn | ::tc8::stimulus::kTcpFlagAck),
@@ -64,7 +64,7 @@ struct TestCaseTraits<cases::TcpBasics05SM>
 
         // iter 2 — bare ACK
         emitTcpStimulus(
-            cfg, iface, cfg.dut.mac,
+            cfg, ctx.iface, cfg.dut.mac,
             /*dst_port=*/kBasicsClosedPort,
             /*flags=*/::tc8::stimulus::kTcpFlagAck,
             /*seq_num=*/kTesterInitialSeq + 0x100U,

@@ -64,10 +64,9 @@ struct TestCaseTraits<cases::Ipv4Addressing02SM> {
     // wire-level difference from ADDRESSING_01.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::udp::emitAddressingProbeAndQuery(
-            cfg, iface, dut, cases::kDirectedBroadcastBe);
+            cfg, ctx.iface, ctx.dut, cases::kDirectedBroadcastBe);
     }
 
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {

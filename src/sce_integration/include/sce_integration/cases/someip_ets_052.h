@@ -35,8 +35,8 @@ struct TestCaseTraits<cases::SomeipEts052SM> : SomeIpAnyBase<cases::SomeipEts052
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = 0x0015;
@@ -50,7 +50,7 @@ struct TestCaseTraits<cases::SomeipEts052SM> : SomeIpAnyBase<cases::SomeipEts052
             0x69,                    // 'i'
             0x00,                    // trailing null terminator
         };
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

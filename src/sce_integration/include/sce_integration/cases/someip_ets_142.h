@@ -34,9 +34,8 @@ struct TestCaseTraits<cases::SomeipEts142SM> : SomeIpAnyBase<cases::SomeipEts142
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IBackgroundServiceOwner& owner) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 
@@ -49,11 +48,11 @@ struct TestCaseTraits<cases::SomeipEts142SM> : SomeIpAnyBase<cases::SomeipEts142
         // Major-Version check — where the non-existing 0x09 triggers the Nack for
         // its OWN reason, not a missing reliable endpoint.
         auto session = std::make_unique<::tc8::stimulus::SubscribeEventgroupTcpSession>(
-            iface, ::tc8::sce::someipTcpMethodDest(cfg));
+            ctx.iface, ::tc8::sce::someipTcpMethodDest(cfg));
         ::tc8::stimulus::SubscribeDestination sd_dest{};
         sd_dest.ipv4_be = cfg.dut.ip;
         session->subscribeDualParams(params, sd_dest);
-        owner.adoptService(std::move(session));
+        ctx.services.adoptService(std::move(session));
     }
 };
 

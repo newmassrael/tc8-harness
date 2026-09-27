@@ -54,8 +54,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid03NegSM>
     // only, never the trigger's (deliberately unacceptable) ACK.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -65,12 +64,12 @@ struct TestCaseTraits<cases::TcpFlagsInvalid03NegSM>
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsInvalid03LocalOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsInvalid03LocalOffset;
 
-        auto snippet = TcpFrameSnippet::forDutSyn(cfg, iface, local_port);
+        auto snippet = TcpFrameSnippet::forDutSyn(cfg, ctx.iface, local_port);
 
         // Active OPEN routed through the backend-agnostic seam, no tester listener — the SYN
         // goes unanswered so the DUT stays in SYN-SENT, the state this case injects the ACK+RST
         // into. The handle is discarded (closing a SYN-SENT socket would abort the state).
-        (void)driveSeamSynSentOpen(dut, cfg, local_port, remote_port);
+        (void)driveSeamSynSentOpen(ctx.dut, cfg, local_port, remote_port);
 
         const auto syn = snippet.tryCapture(std::chrono::milliseconds(500));
         if (!syn.has_value()) return;
@@ -78,7 +77,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid03NegSM>
         // Per-phase arm: the DUT SYN has been observed (the SCXML precondition); arm so the
         // synthesis fires on the ACK+RST injected next. The eliciting inject carries the arm
         // settle so the raw-injected arm reaches the DUT UT thread first.
-        emitIngressFlavorArmMidStream(cfg, iface, ::tc8::ut::kTcpSynthRstOnDisruptive);
+        emitIngressFlavorArmMidStream(cfg, ctx.iface, ::tc8::ut::kTcpSynthRstOnDisruptive);
 
         ::tc8::stimulus::TcpSegmentSpec bad{};
         bad.src_port = remote_port;
@@ -87,7 +86,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid03NegSM>
         bad.ack_num  = syn->seq_num + kUnacceptableAckOffset;
         bad.flags    = ::tc8::stimulus::kTcpFlagAck
                      | ::tc8::stimulus::kTcpFlagRst;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, bad,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, bad,
                      /*initial_wait=*/kFlavorArmSettle);
     }
 };

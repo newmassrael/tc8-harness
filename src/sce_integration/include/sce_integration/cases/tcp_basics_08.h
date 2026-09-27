@@ -66,15 +66,14 @@ struct TestCaseTraits<cases::TcpBasics08SM>
     // tester-side accept/shutdown stays case-owned harness infrastructure.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         // -------- Phase 1: ESTABLISHED → CLOSE → FIN --------
         {
             auto open1 = driveSeamActiveOpen(
-                dut, cfg,
+                ctx.dut, cfg,
                 kBasicsActiveLocalPort  + kTcpBasics08Phase1LocalOffset,
                 kBasicsActiveRemotePort + kTcpBasics08Phase1LocalOffset);
 
@@ -83,7 +82,7 @@ struct TestCaseTraits<cases::TcpBasics08SM>
             // artifact of the spec-mandated CLOSE call. The matching SCXML
             // pass guard's `(flags & FIN)` conjunct fires on this segment.
             if (open1.conn) {
-                dut.tcpControl()->closeTcp(open1.conn->socket);
+                ctx.dut.tcpControl()->closeTcp(open1.conn->socket);
             }
             std::this_thread::sleep_for(kTcpPilotPhaseGap);
         }  // open1.listener destructed: its queued accepted connection
@@ -95,7 +94,7 @@ struct TestCaseTraits<cases::TcpBasics08SM>
         // -------- Phase 2: CLOSE-WAIT → CLOSE → FIN --------
         {
             auto open2 = driveSeamActiveOpen(
-                dut, cfg,
+                ctx.dut, cfg,
                 kBasicsActiveLocalPort  + kTcpBasics08Phase2LocalOffset,
                 kBasicsActiveRemotePort + kTcpBasics08Phase2LocalOffset);
 
@@ -118,7 +117,7 @@ struct TestCaseTraits<cases::TcpBasics08SM>
             }
 
             if (open2.conn) {
-                dut.tcpControl()->closeTcp(open2.conn->socket);
+                ctx.dut.tcpControl()->closeTcp(open2.conn->socket);
             }
 
             if (tester_fd >= 0) ::close(tester_fd);

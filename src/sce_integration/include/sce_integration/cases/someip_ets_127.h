@@ -33,12 +33,12 @@ struct TestCaseTraits<cases::SomeipEts127SM> : SomeIpAnyBase<cases::SomeipEts127
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& /*cfg*/,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::stimulus::BootTiming timing{};
         timing.initial_wait    = std::chrono::milliseconds(1500);
         timing.retry_interval  = std::chrono::milliseconds(100);
         timing.total_emits     = 10;
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{}, timing);
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{}, timing);
     }
 };
 

@@ -60,15 +60,14 @@ struct TestCaseTraits<cases::SdBehavior04SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& /*cfg*/,
-                         std::string_view iface,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         // Fire the multicast Find on entry to `listening_offer_reply`, which
         // the SCXML reaches on the observed anchor cyclic offer — so the whole
         // Find/reply window sits between two of the DUT's own offers. Captures
         // iface by value (the observer runs on the poll-loop thread long after
         // this returns).
-        const std::string iface_owned(iface);
-        scheduler.scheduleAfterStateEntry(
+        const std::string iface_owned(ctx.iface);
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_offer_reply),
             [iface_owned]() {
             // Multicast FindService with Unicast Flag = 0

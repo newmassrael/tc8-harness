@@ -43,8 +43,7 @@ struct TestCaseTraits<cases::TcpClosing06SM>
     // §4.8.6.8 active-OPEN block.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -52,11 +51,11 @@ struct TestCaseTraits<cases::TcpClosing06SM>
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kPortOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffset;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0 || !open.conn) return;
 
-        dut.tcpControl()->closeTcp(open.conn->socket);
+        ctx.dut.tcpControl()->closeTcp(open.conn->socket);
         (void)tester_fd;
     }
 };

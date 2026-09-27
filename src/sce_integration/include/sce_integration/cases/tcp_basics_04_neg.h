@@ -40,12 +40,12 @@ struct TestCaseTraits<cases::TcpBasics04NegSM>
     // RFC 793 §3.9 seq==0 guard, so a single corrupted RST self-validates it.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
-        emitEgressFlavorArm(cfg, iface, ::tc8::ut::kTcpFaultRstSeqWrong);
+        emitEgressFlavorArm(cfg, ctx.iface, ::tc8::ut::kTcpFaultRstSeqWrong);
 
-        emitTcpStimulus(cfg, iface, cfg.dut.mac,
+        emitTcpStimulus(cfg, ctx.iface, cfg.dut.mac,
                         /*dst_port=*/kBasicsClosedPort,
                         /*flags=*/::tc8::stimulus::kTcpFlagSyn,
                         /*seq_num=*/kTesterInitialSeq,

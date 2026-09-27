@@ -45,8 +45,7 @@ struct TestCaseTraits<cases::TcpOutOfOrder02SM>
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -55,7 +54,7 @@ struct TestCaseTraits<cases::TcpOutOfOrder02SM>
         const std::uint16_t remote_port =
             kBasicsActiveRemotePort + kTcpOutOfOrder02LocalOffset;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
 
@@ -85,10 +84,10 @@ struct TestCaseTraits<cases::TcpOutOfOrder02SM>
         // No inter-segment pacing — spec's "consecutively without any
         // delay" intent. Both segments hit the kernel back-to-back so
         // the delayed-ACK timer sees both before firing.
-        emitTcpFrame(cfg, iface, cfg.dut.mac,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac,
                      build_seg(injected_seq, std::uint8_t{'A'}),
                      /*initial_wait=*/std::chrono::milliseconds(0));
-        emitTcpFrame(cfg, iface, cfg.dut.mac,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac,
                      build_seg(injected_seq + kSegPayloadLen,
                                std::uint8_t{'B'}),
                      /*initial_wait=*/std::chrono::milliseconds(0));

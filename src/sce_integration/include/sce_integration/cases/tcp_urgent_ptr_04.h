@@ -51,8 +51,7 @@ struct TestCaseTraits<cases::TcpUrgentPtr04SM>
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -61,7 +60,7 @@ struct TestCaseTraits<cases::TcpUrgentPtr04SM>
         const std::uint16_t remote_port =
             kBasicsActiveRemotePort + kTcpUrgentPtr04LocalOffset;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
         if (!open.conn) return;
@@ -82,7 +81,7 @@ struct TestCaseTraits<cases::TcpUrgentPtr04SM>
                                | ::tc8::stimulus::kTcpFlagAck;
         urg_seg.urgent_pointer = kUrgentPointer;
         urg_seg.payload.assign(kUrgPayload.begin(), kUrgPayload.end());
-        emitTcpFrame(cfg, iface, cfg.dut.mac, urg_seg,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, urg_seg,
                      /*initial_wait=*/std::chrono::milliseconds(0));
 
         // Buffer-of-size-6 satisfies spec step 4 "data buffer having size equal
@@ -91,13 +90,13 @@ struct TestCaseTraits<cases::TcpUrgentPtr04SM>
         // structurally (the 5 non-urgent bytes stay queued for a separate normal
         // recv()). seamTcpRecvOob asserts non-null: the capability gate has
         // already skipped any backend lacking kCapTcpRecvOob.
-        const auto received = seamTcpRecvOob(dut).receiveTcpOob(
+        const auto received = seamTcpRecvOob(ctx.dut).receiveTcpOob(
             open.conn->socket, static_cast<std::uint16_t>(kUrgPayload.size()));
         if (received && received->size() == 1U && (*received)[0] == kExpectedUrgentByte) {
             c.ut_received_payload_len = 1U;
         }
 
-        seamTcpControl(dut).closeTcp(open.conn->socket);
+        seamTcpControl(ctx.dut).closeTcp(open.conn->socket);
         silentlyCloseTesterFd(tester_fd);
     }
 };

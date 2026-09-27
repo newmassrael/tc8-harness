@@ -38,9 +38,9 @@ struct TestCaseTraits<cases::Ipv4Reassembly10NegSM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        emitIngressFlavorArm(cfg, iface, ::tc8::ut::kIpv4FaultDropLastFragment);
-        ::tc8::sce::ipv4::reassembly::emitReassembly10PhaseA(cfg, iface);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitIngressFlavorArm(cfg, ctx.iface, ::tc8::ut::kIpv4FaultDropLastFragment);
+        ::tc8::sce::ipv4::reassembly::emitReassembly10PhaseA(cfg, ctx.iface);
     }
 };
 

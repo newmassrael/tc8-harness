@@ -52,11 +52,11 @@ struct TestCaseTraits<cases::Icmpv4Type18SM>
     // alone the override is cheaper than a new builder.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::icmpv4::StimulusOverrides ov{};
         ov.ip_protocol = std::uint8_t{253};  // RFC 3692 experimental
         ov.dst_mac     = cfg.arp.dut_iface_mac;
-        ::tc8::sce::icmpv4::emitStimulus(cfg, iface, ov);
+        ::tc8::sce::icmpv4::emitStimulus(cfg, ctx.iface, ov);
     }
 };
 

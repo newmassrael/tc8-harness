@@ -71,20 +71,18 @@ struct TestCaseTraits<cases::Ipv4AutoconfIntro01NegSM> {
     // branch is the live conformant-DUT outcome, not a harness artifact.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& /*cfg*/,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::dhcpv4::emitStartDhcpClientBuggy(
-            dut,
+            ctx.dut,
             ::tc8::ut::kDhcpFlavorLeakLinkLocalAfterBind);
 
         ::tc8::sce::dhcpv4::scheduleDhcpReplyOnStateEntry(
-            scheduler, static_cast<int>(State::Listening_for_request),
-            iface, c.dhcpv4, /*message_type=*/2, kIntroParams);
+            ctx.scheduler, static_cast<int>(State::Listening_for_request),
+            ctx.iface, c.dhcpv4, /*message_type=*/2, kIntroParams);
 
         ::tc8::sce::dhcpv4::scheduleDhcpReplyOnStateEntry(
-            scheduler, static_cast<int>(State::Listening_for_ll_probe),
-            iface, c.dhcpv4, /*message_type=*/5, kIntroParams);
+            ctx.scheduler, static_cast<int>(State::Listening_for_ll_probe),
+            ctx.iface, c.dhcpv4, /*message_type=*/5, kIntroParams);
     }
 
     static void dispatch(Captured& c, SM& sm,

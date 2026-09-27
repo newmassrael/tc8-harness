@@ -50,8 +50,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing08Neg3SM>
     // the fault armed after the DUT SYN observation and before the FIN inject.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -61,14 +60,14 @@ struct TestCaseTraits<cases::TcpFlagsProcessing08Neg3SM>
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsProcessing08LocalOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsProcessing08LocalOffset;
 
-        auto snippet = TcpFrameSnippet::forDutSyn(cfg, iface, local_port);
+        auto snippet = TcpFrameSnippet::forDutSyn(cfg, ctx.iface, local_port);
 
-        (void)driveSeamSynSentOpen(dut, cfg, local_port, remote_port);
+        (void)driveSeamSynSentOpen(ctx.dut, cfg, local_port, remote_port);
 
         const auto syn = snippet.tryCapture(std::chrono::milliseconds(500));
         if (!syn.has_value()) return;
 
-        emitIngressFlavorArmMidStream(cfg, iface, ::tc8::ut::kTcpSynthRstOnDisruptive);
+        emitIngressFlavorArmMidStream(cfg, ctx.iface, ::tc8::ut::kTcpSynthRstOnDisruptive);
 
         ::tc8::stimulus::TcpSegmentSpec fin{};
         fin.src_port = remote_port;
@@ -76,7 +75,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing08Neg3SM>
         fin.seq_num  = kTesterInitialSeq;
         fin.ack_num  = 0U;
         fin.flags    = ::tc8::stimulus::kTcpFlagFin;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, fin, /*initial_wait=*/kFlavorArmSettle);
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, fin, /*initial_wait=*/kFlavorArmSettle);
         std::this_thread::sleep_for(kSynthObserveHold);
     }
 };

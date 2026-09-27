@@ -33,8 +33,8 @@ struct TestCaseTraits<cases::SomeipEts035SM> : SomeIpAnyBase<cases::SomeipEts035
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{});
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{});
 
         ::tc8::stimulus::SomeIpRpcMessage req{};
         req.method_id = 0x000A;  // METHOD-ID echoUINT8RELIABLE (TCP)
@@ -42,7 +42,7 @@ struct TestCaseTraits<cases::SomeipEts035SM> : SomeIpAnyBase<cases::SomeipEts035
 
         // tc8-dut SERVICE-ID-1 instance 0x0001 reliable endpoint — the
         // configured services[0] TCP port (vsomeip.json reliable.port).
-        ::tc8::stimulus::emitMethodRequestTcpAfter(iface, req,
+        ::tc8::stimulus::emitMethodRequestTcpAfter(ctx.iface, req,
                                                     ::tc8::stimulus::MethodRequestTiming{},
                                                     ::tc8::sce::someipTcpMethodDest(cfg));
     }

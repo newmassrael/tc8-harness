@@ -42,9 +42,7 @@ struct TestCaseTraits<cases::TcpNagle02SM>
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -53,7 +51,7 @@ struct TestCaseTraits<cases::TcpNagle02SM>
         const std::uint16_t remote_port =
             kBasicsActiveRemotePort + kTcpNagle02LocalOffset;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0 || !open.conn) return;
 
@@ -68,21 +66,21 @@ struct TestCaseTraits<cases::TcpNagle02SM>
 
         auto ack_drop = std::make_shared<TesterAutoAckDrop>(cfg);
 
-        seamSendTcp(dut, open.conn->socket, kFirstPayload);
+        seamSendTcp(ctx.dut, open.conn->socket, kFirstPayload);
         // Space the second SEND past seg1's RTO so the small segment is held by
         // Nagle rather than escaping at the RTO boundary — see
         // kTcpSeamInterSendRtoClearGap.
         std::this_thread::sleep_for(kTcpSeamInterSendRtoClearGap);
 
-        seamSendTcp(dut, open.conn->socket, kSecondPayload);
+        seamSendTcp(ctx.dut, open.conn->socket, kSecondPayload);
 
         const auto dut_mac = cfg.dut.mac;
-        const std::string iface_str(iface);
+        const std::string iface_str(ctx.iface);
         const std::uint32_t ack_num =
             first_seg_seq +
             static_cast<std::uint32_t>(kFirstPayload.size());
 
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_second_data),
             [cfg, iface_str, dut_mac, local_port, remote_port,
              tester_snd, ack_num, ack_drop]() {

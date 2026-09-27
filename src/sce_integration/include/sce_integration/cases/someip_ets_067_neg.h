@@ -43,15 +43,15 @@ struct TestCaseTraits<cases::SomeipEts067NegSM>
     // is non-empty (the violation the positive's empty-array guard forbids).
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        emitEtsFlavorArm(cfg, iface, ::tc8::ut::kEtsFaultEchoArrayWrong);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitEtsFlavorArm(cfg, ctx.iface, ::tc8::ut::kEtsFaultEchoArrayWrong);
 
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = 0x0009;
         target.payload   = {0x00, 0x00, 0x00, 0x00};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

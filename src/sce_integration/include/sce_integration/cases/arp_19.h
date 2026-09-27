@@ -24,13 +24,14 @@ struct TestCaseTraits<cases::Arp19SM>
     static constexpr std::string_view kDescription =
         "ARP Request reception with target_hw=DUT MAC, eth_dst=broadcast — "
         "DUT must reply";
-    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
+    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg,
+                         ::tc8::sce::StimulusContext &ctx) {
         ::tc8::stimulus::ArpFrameSpec spec;
         spec.sender_ip_be = cfg.arp.tester_ip;
         spec.target_ip_be = cfg.dut.ip;
         spec.target_hw = cfg.dut.mac;
         // eth_dst defaults to broadcast — explicit per ARP_19 spec text.
-        ::tc8::stimulus::emitArpFromTester(iface, spec);
+        ::tc8::stimulus::emitArpFromTester(ctx.iface, spec);
     }
 };
 

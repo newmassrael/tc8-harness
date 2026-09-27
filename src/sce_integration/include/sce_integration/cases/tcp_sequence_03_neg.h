@@ -41,21 +41,20 @@ struct TestCaseTraits<cases::TcpSequence03NegSM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
-        emitEgressFlavorArm(cfg, iface, ::tc8::ut::kTcpFaultSynAckAckWrong);
+        emitEgressFlavorArm(cfg, ctx.iface, ::tc8::ut::kTcpFaultSynAckAckWrong);
 
         auto open = driveSeamRawPassiveAccept(
-            dut, cfg, iface,
+            ctx.dut, cfg, ctx.iface,
             kTcpSequence03ListenPort,
             std::vector<std::uint8_t>{},
             kTcpSequence03TesterSrcPort,
             /*tester_isn=*/0U);
 
         if (open.conn) {
-            ::tc8::sce::seamTcpControl(dut).closeTcp(open.conn->socket);
+            ::tc8::sce::seamTcpControl(ctx.dut).closeTcp(open.conn->socket);
         }
     }
 };

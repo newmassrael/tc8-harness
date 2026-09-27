@@ -44,17 +44,16 @@ struct TestCaseTraits<cases::SdBehavior03SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         // Fire the Find on entry to `listening_offer_reply`, which the SCXML
         // reaches exactly 1300 ms (½ cyclic + margin) after it observes the
         // anchor cyclic offer — so the anchor delay is a real SCXML timing
         // promise, not a magic constant this trait measures. Captures iface
         // name + DUT IP by value because the observer runs on the poll-loop
         // thread long after this function returns.
-        const std::string iface_owned(iface);
+        const std::string iface_owned(ctx.iface);
         const std::uint32_t dut_ip_be = cfg.dut.ip;
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_offer_reply),
             [iface_owned, dut_ip_be]() {
             // Unicast FindService (Unicast Flag = 1, the default 0xC0

@@ -33,8 +33,8 @@ struct TestCaseTraits<cases::SomeipEts109SM> : SomeIpAnyBase<cases::SomeipEts109
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 
@@ -48,7 +48,7 @@ struct TestCaseTraits<cases::SomeipEts109SM> : SomeIpAnyBase<cases::SomeipEts109
         params.tester_endpoint.ipv4_be = 0x030010ACU;  // 172.16.0.3 (tester veth)
         params.tester_endpoint.port = 0;               // invalid: spec mandates non-zero
         params.tester_endpoint.l4proto = 0x11;         // UDP
-        ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, params);
+        ::tc8::stimulus::emitSubscribeEventgroupRaw(ctx.iface, params);
     }
 };
 

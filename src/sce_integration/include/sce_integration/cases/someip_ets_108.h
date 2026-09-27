@@ -33,8 +33,8 @@ struct TestCaseTraits<cases::SomeipEts108SM> : SomeIpAnyBase<cases::SomeipEts108
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 
@@ -43,7 +43,7 @@ struct TestCaseTraits<cases::SomeipEts108SM> : SomeIpAnyBase<cases::SomeipEts108
         sub.target.eventgroup_id = 0x0005;
         sub.target.ttl = 3;
         sub.session_id = 0x0001;
-        ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, sub);
+        ::tc8::stimulus::emitSubscribeEventgroupRaw(ctx.iface, sub);
         // Subscribe processed at t≈stim+2.5s; SCXML phase 2 → phase 3
         // grace timer (3 s) starts. Hold here long enough that Stop emit
         // lands inside the grace window — then by phase 4 entry (grace
@@ -56,7 +56,7 @@ struct TestCaseTraits<cases::SomeipEts108SM> : SomeIpAnyBase<cases::SomeipEts108
         stop.target.eventgroup_id = 0x0005;
         stop.target.ttl = 0;
         stop.session_id = 0x0002;
-        ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, stop);
+        ::tc8::stimulus::emitSubscribeEventgroupRaw(ctx.iface, stop);
     }
 };
 

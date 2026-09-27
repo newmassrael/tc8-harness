@@ -61,15 +61,14 @@ struct TestCaseTraits<cases::TcpFlagsInvalid14SM>
     // rcv_nxt pair feeds the corrupt segment's seq / ack base.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         // -------- Phase 1: OTW SEQ FIN in TIME-WAIT --------
         {
             const auto info = driveSeamTimeWaitFw2(
-                dut, cfg,
+                ctx.dut, cfg,
                 kBasicsActiveLocalPort  + kTcpFlagsInvalid14Phase1LocalOffset,
                 kBasicsActiveRemotePort + kTcpFlagsInvalid14Phase1LocalOffset);
             if (info.ok) {
@@ -86,7 +85,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid14SM>
                 probe.ack_num  = info.tester_ack_post_fin;
                 probe.flags    = ::tc8::stimulus::kTcpFlagFin
                                | ::tc8::stimulus::kTcpFlagAck;
-                emitTcpFrame(cfg, iface, cfg.dut.mac, probe,
+                emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, probe,
                              /*initial_wait=*/std::chrono::milliseconds(0));
             }
             std::this_thread::sleep_for(kTcpPilotPhaseGap);
@@ -98,7 +97,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid14SM>
             const std::uint16_t phase2_remote_port = kBasicsActiveRemotePort + kTcpFlagsInvalid14Phase2LocalOffset;
 
             const auto info = driveSeamTimeWaitFw2(
-                dut, cfg,
+                ctx.dut, cfg,
                 phase2_local_port, phase2_remote_port);
             if (info.ok) {
                 c.expected_ack_num_phase2 = info.tester_seq_post_fin;
@@ -111,7 +110,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid14SM>
                                | ::tc8::stimulus::kTcpFlagAck;
                 probe.payload.assign(kCorruptPayload.begin(),
                                      kCorruptPayload.end());
-                emitTcpFrame(cfg, iface, cfg.dut.mac, probe,
+                emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, probe,
                              /*initial_wait=*/std::chrono::milliseconds(0));
             }
             std::this_thread::sleep_for(kTcpPilotPhaseGap);

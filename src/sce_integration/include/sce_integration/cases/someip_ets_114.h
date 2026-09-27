@@ -35,8 +35,8 @@ struct TestCaseTraits<cases::SomeipEts114SM> : SomeIpAnyBase<cases::SomeipEts114
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 
@@ -53,7 +53,7 @@ struct TestCaseTraits<cases::SomeipEts114SM> : SomeIpAnyBase<cases::SomeipEts114
         // walker fails to align on the second entry boundary.
         params.entries_len_override = 24U;
         ::tc8::stimulus::emitMultiSubscribeEventgroupRaw(
-            iface, std::move(params), std::chrono::milliseconds(0));
+            ctx.iface, std::move(params), std::chrono::milliseconds(0));
     }
 };
 

@@ -50,14 +50,14 @@ struct TestCaseTraits<cases::UdpIntroduction03SM> {
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         // Linux's ICMP error-emit path requires PACKET_HOST L2 dst — see
         // `Ipv4FrameSpec::dst_mac` (stimulus/ipv4_frame_builder.h). Default Eth-broadcast
         // sets PACKET_BROADCAST and the kernel suppresses the error.
         ::tc8::sce::udp::UdpStimulusOverrides ov{};
         ov.eth_dst_override = cfg.dut.mac;
         ::tc8::sce::udp::emitUdpStimulus(
-            cfg, iface,
+            cfg, ctx.iface,
             cfg.ipv4.dut_iface_ip,
             ::tc8::sce::udp::kDataPeerPort,
             cases::kIntro03UnusedDstPort,

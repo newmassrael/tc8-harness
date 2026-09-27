@@ -28,16 +28,14 @@ struct TestCaseTraits<cases::Dhcpv4ClientAllocating04SM>
         "'secs' value (RFC 2131 §4.3.2, MUST)";
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& /*cfg*/,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::dhcpv4::emitStartDhcpClient(
-            dut);
+            ctx.dut);
         ::tc8::sce::dhcpv4::scheduleDiscoverSnapshotOnStateEntry(
-            scheduler, static_cast<int>(State::Listening_for_request), c);
+            ctx.scheduler, static_cast<int>(State::Listening_for_request), c);
         ::tc8::sce::dhcpv4::scheduleDhcpReplyOnStateEntry(
-            scheduler, static_cast<int>(State::Listening_for_request),
-            iface, c, /*message_type=*/2);
+            ctx.scheduler, static_cast<int>(State::Listening_for_request),
+            ctx.iface, c, /*message_type=*/2);
     }
 };
 

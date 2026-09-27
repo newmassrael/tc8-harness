@@ -35,15 +35,13 @@ struct TestCaseTraits<cases::Dhcpv4ClientRequest02NegSM>
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& /*cfg*/,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::dhcpv4::emitStartDhcpClientBuggy(
-            dut,
+            ctx.dut,
             ::tc8::ut::kDhcpFlavorRequestRequestedIpCorrupt);
         ::tc8::sce::dhcpv4::scheduleDhcpReplyOnStateEntry(
-            scheduler, static_cast<int>(State::Listening_for_request),
-            iface, c, /*message_type=*/2);
+            ctx.scheduler, static_cast<int>(State::Listening_for_request),
+            ctx.iface, c, /*message_type=*/2);
     }
 };
 

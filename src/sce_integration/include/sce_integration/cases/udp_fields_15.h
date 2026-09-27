@@ -28,15 +28,14 @@ struct TestCaseTraits<cases::UdpFields15SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::udp::UdpStimulusOverrides ov{};
         // Deliberately-wrong checksum value disjoint from any plausible
         // RFC 1071 sum over the (tester, DUT) pseudo-header / 8 B
         // payload region.
         ov.udp.checksum_field = std::uint16_t{0xDEAD};
         ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, iface, dut,
+            cfg, ctx.iface, ctx.dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size(),
             ::tc8::sce::udp::kDataPeerPort, ov);

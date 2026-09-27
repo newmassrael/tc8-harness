@@ -70,9 +70,7 @@ struct TestCaseTraits<cases::TcpClosing07SM>
     // removed.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -82,14 +80,14 @@ struct TestCaseTraits<cases::TcpClosing07SM>
 
         auto ack_drop = std::make_shared<TesterAutoAckDrop>(cfg);
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
         if (!open.conn) return;
         const auto seq_range = queryTcpSeqRange(tester_fd);
         if (!seq_range.has_value()) return;
 
-        auto& tcp = seamTcpControl(dut);
+        auto& tcp = seamTcpControl(ctx.dut);
 
         // Half-close: shutdown(SHUT_WR) → DUT emits FIN, socket EST→FW1, read
         // side stays open so the seam receive can still drain bytes.
@@ -111,7 +109,7 @@ struct TestCaseTraits<cases::TcpClosing07SM>
                 data.flags    = ::tc8::stimulus::kTcpFlagAck
                               | ::tc8::stimulus::kTcpFlagPsh;
                 data.payload  = payload;
-                emitTcpFrame(cfg, iface, cfg.dut.mac, data,
+                emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, data,
                              /*initial_wait=*/std::chrono::milliseconds(0));
             });
         if (received && *received == payload) {
@@ -126,7 +124,7 @@ struct TestCaseTraits<cases::TcpClosing07SM>
         // runner's dtor (at case end) releases the queued ScheduledStimulus →
         // shared_ptr release → iptables rule removed cleanly. 120 s is well past
         // any plausible case timeout (CASE_TIMEOUT_SEC for _07 = 30 s).
-        scheduler.schedule(
+        ctx.scheduler.schedule(
             std::chrono::seconds(120),
             [ack_drop]() { (void)ack_drop; });
 

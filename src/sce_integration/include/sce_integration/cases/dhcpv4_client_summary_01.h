@@ -26,7 +26,8 @@ struct TestCaseTraits<cases::Dhcpv4ClientSummary01SM>
     static constexpr std::string_view kDescription =
         "DUT-side DHCPv4 client listens on UDP port 68 — full DISCOVER "
         "→ OFFER → REQUEST lifecycle observed (RFC 2131 §4.1, MUST)";
-    // 4-arg stimulus: kick the tc8-dut DHCPv4 client lifecycle, then
+    // Stimulus (DUT + scheduler from the StimulusContext): kick the
+    // tc8-dut DHCPv4 client lifecycle, then
     // register the OFFER state-entry observer on Listening_for_request.
     // The observer fires after the SCXML transitions on the captured
     // DUT DISCOVER, reads `c.xid` + `c.chaddr` (just-populated by the
@@ -36,13 +37,11 @@ struct TestCaseTraits<cases::Dhcpv4ClientSummary01SM>
     // observes.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& /*cfg*/,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(dut);
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(ctx.dut);
         ::tc8::sce::dhcpv4::scheduleDhcpReplyOnStateEntry(
-            scheduler, static_cast<int>(State::Listening_for_request),
-            iface, c, /*message_type=*/2);
+            ctx.scheduler, static_cast<int>(State::Listening_for_request),
+            ctx.iface, c, /*message_type=*/2);
     }
 };
 

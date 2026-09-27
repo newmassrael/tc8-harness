@@ -34,9 +34,7 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation01NegSM>
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& /*cfg*/,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         // Same fast envelope + [1000, 10000] ms desync window as the positive
         // plus the NakRestartNoDelay flavor byte: only the random wait is
         // faulted (the DISCOVER shape and the lifecycle stay conformant).
@@ -44,9 +42,9 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation01NegSM>
         sc.nak_to_discover_min_ms = 1000;
         sc.nak_to_discover_max_ms = 10000;
         sc.flavor = ::tc8::ut::kDhcpFlavorNakRestartNoDelay;
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(dut, sc);
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(ctx.dut, sc);
         ::tc8::sce::dhcpv4::scheduleRenewingNakSchedule<SM>(
-            scheduler, iface, c);
+            ctx.scheduler, ctx.iface, c);
     }
 };
 

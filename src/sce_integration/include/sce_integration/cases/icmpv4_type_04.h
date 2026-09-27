@@ -61,7 +61,7 @@ struct TestCaseTraits<cases::Icmpv4Type04SM>
     // out L2-dispatch skew as a confounder).
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::icmpv4::StimulusOverrides ov{};
         ov.dst_mac         = cfg.arp.dut_iface_mac;
         ov.more_fragments  = false;
@@ -70,7 +70,7 @@ struct TestCaseTraits<cases::Icmpv4Type04SM>
             ::tc8::stimulus::kIcmpv4FragmentStimulusPacket.begin() + 8,
             ::tc8::stimulus::kIcmpv4FragmentStimulusPacket.end());
         ov.post_send_wait = std::chrono::milliseconds{4000};
-        ::tc8::sce::icmpv4::emitStimulus(cfg, iface, ov);
+        ::tc8::sce::icmpv4::emitStimulus(cfg, ctx.iface, ov);
     }
 };
 

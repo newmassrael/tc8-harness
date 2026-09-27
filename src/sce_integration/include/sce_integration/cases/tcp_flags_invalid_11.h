@@ -52,15 +52,14 @@ struct TestCaseTraits<cases::TcpFlagsInvalid11SM>
     // FLAGS_INVALID_08.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         for (std::uint16_t phase = 0; phase < 5U; ++phase) {
             const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsInvalid11BaseOffset + phase;
             const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsInvalid11BaseOffset + phase;
-            auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+            auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
             const int tester_fd = open.listener.acceptOne();
             if (tester_fd < 0) {
                 std::this_thread::sleep_for(kTcpPilotPhaseGap);
@@ -118,7 +117,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid11SM>
                                          kCorruptPayload.end());
                     break;
             }
-            emitTcpFrame(cfg, iface, cfg.dut.mac, probe,
+            emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, probe,
                          /*initial_wait=*/std::chrono::milliseconds(0));
             (void)tester_fd;
             std::this_thread::sleep_for(kTcpPilotPhaseGap);

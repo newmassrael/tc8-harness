@@ -33,8 +33,8 @@ struct TestCaseTraits<cases::SomeipEts178SM> : SomeIpAnyBase<cases::SomeipEts178
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 
@@ -45,7 +45,7 @@ struct TestCaseTraits<cases::SomeipEts178SM> : SomeIpAnyBase<cases::SomeipEts178
         // SD dispatcher gates on full Service+Method tuple (FFFF/8100); a
         // non-matching Method ID drops the frame at routing layer.
         params.method_id_override = std::uint16_t{0x0042};
-        ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, params);
+        ::tc8::stimulus::emitSubscribeEventgroupRaw(ctx.iface, params);
     }
 };
 

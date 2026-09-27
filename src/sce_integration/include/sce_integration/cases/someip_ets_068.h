@@ -41,8 +41,8 @@ struct TestCaseTraits<cases::SomeipEts068SM> : SomeIpAnyBase<cases::SomeipEts068
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         std::vector<::tc8::stimulus::SomeIpRpcMessage> bundle;
         bundle.reserve(3);
@@ -67,7 +67,7 @@ struct TestCaseTraits<cases::SomeipEts068SM> : SomeIpAnyBase<cases::SomeipEts068
 
         // tc8-dut SERVICE-ID-1 instance 0x0001 reliable endpoint — the
         // configured services[0] TCP port (vsomeip.json reliable.port).
-        ::tc8::stimulus::emitBundledMethodRequestsTcp(iface, bundle,
+        ::tc8::stimulus::emitBundledMethodRequestsTcp(ctx.iface, bundle,
                                                      std::chrono::milliseconds(500),
                                                      ::tc8::sce::someipTcpMethodDest(cfg),
                                                      std::chrono::milliseconds(800));

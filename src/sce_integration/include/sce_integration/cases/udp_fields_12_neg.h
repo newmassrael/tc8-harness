@@ -42,10 +42,9 @@ struct TestCaseTraits<cases::UdpFields12NegSM>
     // ut_recv_payload_len != 65507.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
-        emitAppFlavorArm(cfg, iface, ::tc8::ut::kAppFaultReportWrongLength);
-        cases::emitMaxLengthDatagramAndQuery(cfg, iface, dut);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitAppFlavorArm(cfg, ctx.iface, ::tc8::ut::kAppFaultReportWrongLength);
+        cases::emitMaxLengthDatagramAndQuery(cfg, ctx.iface, ctx.dut);
     }
 };
 

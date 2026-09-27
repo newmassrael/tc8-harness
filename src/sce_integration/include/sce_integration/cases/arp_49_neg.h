@@ -41,18 +41,18 @@ struct TestCaseTraits<cases::Arp49NegSM>
     // guard instead — one run reaches one final, which is why the per-final coverage map
     // exists. The settle after the arm is kFlavorArmSettle: the arm is a raw-injected UT
     // frame handled on the DUT's UT thread while the datagram leaves from the tcpip thread.
-    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface,
-                         ::tc8::sce::IDutControl &dut) {
-        ::tc8::stimulus::emitArpLearningBoot(iface, cfg.arp.tester_ip, cfg.dut.ip,
+    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg,
+                         ::tc8::sce::StimulusContext &ctx) {
+        ::tc8::stimulus::emitArpLearningBoot(ctx.iface, cfg.arp.tester_ip, cfg.dut.ip,
                                              ::tc8::stimulus::ArpLearningVariant::Request);
 
         ::tc8::stimulus::BootTiming ut1;
         ut1.initial_wait = std::chrono::milliseconds(1500);
         ut1.retry_interval = std::chrono::milliseconds(0);
         ut1.total_emits = 1;
-        emitArpEgressProvocation(dut, ut1);
+        emitArpEgressProvocation(ctx.dut, ut1);
 
-        emitEgressFlavorArmMidStream(cfg, iface, ::tc8::ut::kEthFaultUdpEgressDstWrong);
+        emitEgressFlavorArmMidStream(cfg, ctx.iface, ::tc8::ut::kEthFaultUdpEgressDstWrong);
         std::this_thread::sleep_for(kFlavorArmSettle);
 
         // The positive's step 8: half the timeout elapses and the entry must SURVIVE, which
@@ -60,7 +60,7 @@ struct TestCaseTraits<cases::Arp49NegSM>
         // so the frame this negative corrupts is the one the positive grades.
         const std::uint16_t timeout_s = cfg.arp_stimulus.ut_cache_conditioning_s;
         if (timeout_s > 0) {
-            emitArpCacheConditioning(dut, ::tc8::ut::kArpConditionAgeBySeconds,
+            emitArpCacheConditioning(ctx.dut, ::tc8::ut::kArpConditionAgeBySeconds,
                                      static_cast<std::uint16_t>(timeout_s / 2));
         }
 
@@ -68,7 +68,7 @@ struct TestCaseTraits<cases::Arp49NegSM>
         ut2.initial_wait = std::chrono::milliseconds(500);
         ut2.retry_interval = std::chrono::milliseconds(0);
         ut2.total_emits = 1;
-        emitArpEgressProvocation(dut, ut2);
+        emitArpEgressProvocation(ctx.dut, ut2);
     }
 };
 

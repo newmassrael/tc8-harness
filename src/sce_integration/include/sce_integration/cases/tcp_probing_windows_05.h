@@ -76,9 +76,7 @@ struct TestCaseTraits<cases::TcpProbingWindows05SM>
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -87,7 +85,7 @@ struct TestCaseTraits<cases::TcpProbingWindows05SM>
         const std::uint16_t remote_port =
             kBasicsActiveRemotePort + kTcpProbingWindows05LocalOffset;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0 || !open.conn) return;
 
@@ -109,7 +107,7 @@ struct TestCaseTraits<cases::TcpProbingWindows05SM>
         auto ack_drop = std::make_shared<TesterAutoAckDrop>(cfg);
 
         // Spec step 2/3: SEND 1 → DUT seg1.
-        seamSendTcp(dut, open.conn->socket, kSeg1Payload);
+        seamSendTcp(ctx.dut, open.conn->socket, kSeg1Payload);
         std::this_thread::sleep_for(kPostSendSettle);
 
         // Spec step 4: tester ACKs seg1 with `window=0`. snd_una
@@ -123,19 +121,19 @@ struct TestCaseTraits<cases::TcpProbingWindows05SM>
             ack_seg.ack_num  = snd_una_post_ack;
             ack_seg.flags    = ::tc8::stimulus::kTcpFlagAck;
             ack_seg.window   = 0U;
-            emitTcpFrame(cfg, iface, cfg.dut.mac, ack_seg,
+            emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, ack_seg,
                          /*initial_wait=*/std::chrono::milliseconds(0));
         }
         std::this_thread::sleep_for(kPostInjectSettle);
 
         // Spec step 5: SEND 2 — bytes queue behind snd_wnd=0; the
         // socket is now in persist state, awaiting the probe timer.
-        seamSendTcp(dut, open.conn->socket, kSeg2Payload);
+        seamSendTcp(ctx.dut, open.conn->socket, kSeg2Payload);
 
         // Defer ack_drop release to the runner's scheduler so the
         // iptables OUTPUT rule remains installed across the SCXML
         // listen window — see kAckDropHold comment.
-        scheduler.schedule(kAckDropHold, [ack_drop]() {
+        ctx.scheduler.schedule(kAckDropHold, [ack_drop]() {
             (void)ack_drop;
         });
 

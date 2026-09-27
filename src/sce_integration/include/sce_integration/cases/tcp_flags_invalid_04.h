@@ -56,8 +56,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid04SM>
     // branch.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -67,14 +66,14 @@ struct TestCaseTraits<cases::TcpFlagsInvalid04SM>
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsInvalid04LocalOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsInvalid04LocalOffset;
 
-        auto snippet = TcpFrameSnippet::forDutSyn(cfg, iface, local_port);
+        auto snippet = TcpFrameSnippet::forDutSyn(cfg, ctx.iface, local_port);
 
         // Active OPEN routed through the backend-agnostic seam, no tester
         // listener — the SYN goes unanswered so the DUT stays in SYN-SENT, the
         // state this case injects the bare RST into. The handle is discarded
         // (no closeTcp): closing a SYN-SENT socket would abort the state the
         // case observes; the leaked socket is reaped by DUT teardown.
-        (void)driveSeamSynSentOpen(dut, cfg, local_port, remote_port);
+        (void)driveSeamSynSentOpen(ctx.dut, cfg, local_port, remote_port);
 
         const auto syn = snippet.tryCapture(
             std::chrono::milliseconds(500));
@@ -85,7 +84,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid04SM>
             bad.seq_num  = syn->seq_num + 1U;
             bad.ack_num  = 0U;
             bad.flags    = ::tc8::stimulus::kTcpFlagRst;
-            emitTcpFrame(cfg, iface, cfg.dut.mac, bad,
+            emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, bad,
                          /*initial_wait=*/std::chrono::milliseconds(0));
         }
     }

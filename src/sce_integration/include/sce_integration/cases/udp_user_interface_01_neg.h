@@ -40,10 +40,9 @@ struct TestCaseTraits<cases::UdpUserInterface01NegSM>
     // uses (10 ports), so the Confirmation surfaces ut_create_actual_count != 10.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
-        emitAppFlavorArm(cfg, iface, ::tc8::ut::kAppFaultMiscountPorts);
-        ::tc8::sce::udp::emitCreateUdpReceivePorts(dut, /*count=*/10);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitAppFlavorArm(cfg, ctx.iface, ::tc8::ut::kAppFaultMiscountPorts);
+        ::tc8::sce::udp::emitCreateUdpReceivePorts(ctx.dut, /*count=*/10);
     }
 };
 

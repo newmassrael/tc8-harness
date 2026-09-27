@@ -36,8 +36,8 @@ struct TestCaseTraits<cases::SomeipEts047SM> : SomeIpAnyBase<cases::SomeipEts047
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = 0x0014;
@@ -52,7 +52,7 @@ struct TestCaseTraits<cases::SomeipEts047SM> : SomeIpAnyBase<cases::SomeipEts047
         // [6..7]   = 00 00 (UTF-16 null terminator)
         // [8..63]  = 0     (zero padding to 64 B fixed frame)
         target.payload[64] = 0xFF;  // 65th byte — past the fixed frame
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 
     // Conformant echoUTF16FIXED response: the DUT discards the 65th odd byte

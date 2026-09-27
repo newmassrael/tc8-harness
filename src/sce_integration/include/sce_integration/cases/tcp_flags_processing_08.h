@@ -83,14 +83,12 @@ struct TestCaseTraits<cases::TcpFlagsProcessing08SM>
     // predicate).
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         // Phase 1 — CLOSED state: bare FIN to closed DUT port.
-        emitTcpStimulus(cfg, iface, cfg.dut.mac,
+        emitTcpStimulus(cfg, ctx.iface, cfg.dut.mac,
                         /*dst_port=*/kBasicsClosedPort,
                         /*flags=*/::tc8::stimulus::kTcpFlagFin,
                         /*seq_num=*/kTesterInitialSeq,
@@ -106,7 +104,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing08SM>
         constexpr std::uint16_t kPhase2TesterPort =
             kBasicsTesterPort + 71U;
 
-        (void)driveSeamListen(dut, kPhase2ListenPort);
+        (void)driveSeamListen(ctx.dut, kPhase2ListenPort);
 
         ::tc8::stimulus::TcpSegmentSpec p2_fin{};
         p2_fin.src_port = kPhase2TesterPort;
@@ -114,7 +112,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing08SM>
         p2_fin.seq_num  = kTesterInitialSeq;
         p2_fin.ack_num  = 0U;
         p2_fin.flags    = ::tc8::stimulus::kTcpFlagFin;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, p2_fin,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, p2_fin,
                      /*initial_wait=*/std::chrono::milliseconds(0));
 
         // Phase 3 — deferred via scheduleAfterStateEntry(p3_dut_syn).
@@ -123,12 +121,12 @@ struct TestCaseTraits<cases::TcpFlagsProcessing08SM>
         constexpr std::uint16_t kPhase3RemotePort =
             kBasicsActiveRemotePort + kTcpFlagsProcessing08LocalOffset;
 
-        std::string                 iface_copy(iface);
+        std::string                 iface_copy(ctx.iface);
         ::tc8::TestConfig           cfg_copy = cfg;
         std::array<std::uint8_t, 6> dut_mac  = cfg.dut.mac;
-        ::tc8::sce::IDutControl*     dut_ptr  = &dut;
+        ::tc8::sce::IDutControl*     dut_ptr  = &ctx.dut;
 
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p3_dut_syn),
             [iface_copy, cfg_copy, dut_mac, dut_ptr]() {
                 TesterAutoRstDrop rst_drop(cfg_copy);

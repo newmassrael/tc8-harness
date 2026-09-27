@@ -38,8 +38,7 @@ struct TestCaseTraits<cases::Format26SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IBackgroundServiceOwner& owner) {
+                         ::tc8::sce::StimulusContext& ctx) {
         // §5.1.5.1.26 exercises the Ack path: subscribe to eventgroup
         // 0x0002 (declared under TestEventUINT8 in dut/ets/ets.fdepl +
         // dut/dut_service/vsomeip.json) so DUT replies with
@@ -49,10 +48,10 @@ struct TestCaseTraits<cases::Format26SM>
         // exercises the spec's primary case and the harness's
         // configured TTL value. eg 0x0002 is mixed-reliability, so the
         // Ack requires a dual UDP+TCP Subscribe over a held connection.
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         auto session = std::make_unique<::tc8::stimulus::SubscribeEventgroupTcpSession>(
-            iface, ::tc8::sce::someipTcpMethodDest(cfg));
+            ctx.iface, ::tc8::sce::someipTcpMethodDest(cfg));
         // Keep the default ttl (3): FORMAT_26 asserts the Ack entry's ttl round-
         // trips the request, so it must not be overridden here.
         ::tc8::stimulus::SubscribeEventgroupTarget subscribe{};
@@ -60,7 +59,7 @@ struct TestCaseTraits<cases::Format26SM>
         ::tc8::stimulus::SubscribeDestination sd_dest{};
         sd_dest.ipv4_be = cfg.dut.ip;
         session->subscribeDual(subscribe, sd_dest);
-        owner.adoptService(std::move(session));
+        ctx.services.adoptService(std::move(session));
     }
 };
 

@@ -28,15 +28,13 @@ struct TestCaseTraits<cases::Dhcpv4ClientReacquisition08SM>
         "requests network initialization parameters (RFC 2131 §4.4.5)";
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& /*cfg*/,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(dut);
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(ctx.dut);
         // OFFER + ACK only — no T1/T2 response from the tester emul,
         // so RFC 2131 §4.4.5 lease expiry trips the DUT runBoundPhase
         // machine's lease_end branch and INIT-restarts the lifecycle.
         ::tc8::sce::dhcpv4::scheduleRenewingFastEnvelopeReplies<SM>(
-            scheduler, iface, c);
+            ctx.scheduler, ctx.iface, c);
     }
 };
 

@@ -64,15 +64,14 @@ struct TestCaseTraits<cases::TcpBasics10SM>
     // is threaded from each phase's connection (no hardcoded id).
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         // -------- Phase 1: FINWAIT-1 entry --------
         {
             auto open1 = driveSeamActiveOpen(
-                dut, cfg,
+                ctx.dut, cfg,
                 kBasicsActiveLocalPort  + kTcpBasics10Phase1LocalOffset,
                 kBasicsActiveRemotePort + kTcpBasics10Phase1LocalOffset);
 
@@ -81,7 +80,7 @@ struct TestCaseTraits<cases::TcpBasics10SM>
             // Order: DUT close (enters FINWAIT-1, sends FIN) then
             // immediate tester FIN. No pre-FIN delay — phase 2 is
             // where we wait for the tester ACK to settle.
-            if (open1.conn) dut.tcpControl()->closeTcp(open1.conn->socket);
+            if (open1.conn) ctx.dut.tcpControl()->closeTcp(open1.conn->socket);
             if (tester_fd >= 0) {
                 ::shutdown(tester_fd, SHUT_WR);
                 ::close(tester_fd);
@@ -92,7 +91,7 @@ struct TestCaseTraits<cases::TcpBasics10SM>
         // -------- Phase 2: FINWAIT-2 entry --------
         {
             auto open2 = driveSeamActiveOpen(
-                dut, cfg,
+                ctx.dut, cfg,
                 kBasicsActiveLocalPort  + kTcpBasics10Phase2LocalOffset,
                 kBasicsActiveRemotePort + kTcpBasics10Phase2LocalOffset);
 
@@ -100,7 +99,7 @@ struct TestCaseTraits<cases::TcpBasics10SM>
 
             // Order: DUT close → wait 100 ms (DUT receives tester ACK,
             // moves FINWAIT-1 → FINWAIT-2) → tester FIN.
-            if (open2.conn) dut.tcpControl()->closeTcp(open2.conn->socket);
+            if (open2.conn) ctx.dut.tcpControl()->closeTcp(open2.conn->socket);
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             if (tester_fd >= 0) {
                 ::shutdown(tester_fd, SHUT_WR);

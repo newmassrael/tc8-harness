@@ -46,17 +46,16 @@ struct TestCaseTraits<cases::TcpFlagsProcessing08Neg2SM>
     // right after the listen open.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         constexpr std::uint16_t kListenPort = kBasicsListenPort + 14U;
         constexpr std::uint16_t kTesterPort = kBasicsTesterPort + 71U;
 
-        (void)driveSeamListen(dut, kListenPort);
+        (void)driveSeamListen(ctx.dut, kListenPort);
 
-        emitIngressFlavorArmMidStream(cfg, iface, ::tc8::ut::kTcpSynthRstOnDisruptive);
+        emitIngressFlavorArmMidStream(cfg, ctx.iface, ::tc8::ut::kTcpSynthRstOnDisruptive);
 
         ::tc8::stimulus::TcpSegmentSpec fin{};
         fin.src_port = kTesterPort;
@@ -64,7 +63,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing08Neg2SM>
         fin.seq_num  = kTesterInitialSeq;
         fin.ack_num  = 0U;
         fin.flags    = ::tc8::stimulus::kTcpFlagFin;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, fin, /*initial_wait=*/kFlavorArmSettle);
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, fin, /*initial_wait=*/kFlavorArmSettle);
         std::this_thread::sleep_for(kSynthObserveHold);
     }
 };

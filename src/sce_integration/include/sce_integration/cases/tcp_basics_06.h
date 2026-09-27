@@ -61,8 +61,7 @@ struct TestCaseTraits<cases::TcpBasics06SM>
     // case-specific teardown.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -70,12 +69,12 @@ struct TestCaseTraits<cases::TcpBasics06SM>
         // wire (and settled into the pcap ring), so the SCXML arms its listen
         // window with the spec-asserted edge already in pcap's kernel buffer.
         auto open = driveSeamActiveOpen(
-            dut, cfg,
+            ctx.dut, cfg,
             kBasicsActiveLocalPort  + kTcpBasics06LocalOffset,
             kBasicsActiveRemotePort + kTcpBasics06LocalOffset);
 
         if (open.conn) {
-            dut.tcpControl()->closeTcp(open.conn->socket);
+            ctx.dut.tcpControl()->closeTcp(open.conn->socket);
         }
     }
 };

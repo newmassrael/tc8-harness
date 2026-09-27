@@ -35,15 +35,13 @@ struct TestCaseTraits<cases::Ipv4AutoconfLinklocalPackets04NegSM>
     // variant carrying the ReplyToArbitraryTarget flavor.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::linklocal::emitStartLLAutoconfBuggy(
-            dut,
+            ctx.dut,
             ::tc8::ut::kFlavorReplyToArbitraryTarget);
         ::tc8::sce::linklocal::scheduleArbitraryTargetTesterRequest(
-            scheduler, static_cast<int>(State::Listening_post_claim),
-            cfg, iface,
+            ctx.scheduler, static_cast<int>(State::Listening_post_claim),
+            cfg, ctx.iface,
             ::tc8::sce::linklocal::kArbitraryReservedLinkLocalIpBe);
     }
 };

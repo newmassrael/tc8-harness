@@ -45,8 +45,7 @@ struct TestCaseTraits<cases::TcpNagle03SM>
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -57,7 +56,7 @@ struct TestCaseTraits<cases::TcpNagle03SM>
 
         // Active OPEN through the backend-agnostic seam; the tester listener
         // (the receiver the DUT's data lands on) lives on `open`.
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         if (!open.conn) return;
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
@@ -74,18 +73,18 @@ struct TestCaseTraits<cases::TcpNagle03SM>
 
         // Two small SENDs: seg1 ships immediately; seg2 is held by Nagle
         // while seg1 is unacked (ack_drop suppresses tester ACKs).
-        seamSendTcp(dut, open.conn->socket, kFirstPayload);
+        seamSendTcp(ctx.dut, open.conn->socket, kFirstPayload);
         // Space the second SEND past seg1's RTO so the small segment is held by
         // Nagle rather than escaping at the RTO boundary (the pcap showed seg2
         // released on its own at ~263 ms) — see kTcpSeamInterSendRtoClearGap.
         std::this_thread::sleep_for(kTcpSeamInterSendRtoClearGap);
 
-        seamSendTcp(dut, open.conn->socket, kSecondPayload);
+        seamSendTcp(ctx.dut, open.conn->socket, kSecondPayload);
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
         // Bulk SEND fills the remaining MSS room; Nagle releases one
         // aggregate segment (held seg2 + this fill) of MSS bytes.
-        seamSendTcpPattern(dut, open.conn->socket, kThirdPattern, kThirdPayloadLen);
+        seamSendTcpPattern(ctx.dut, open.conn->socket, kThirdPattern, kThirdPayloadLen);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
         (void)tester_fd;
     }

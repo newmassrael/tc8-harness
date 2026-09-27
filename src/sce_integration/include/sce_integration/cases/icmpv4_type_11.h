@@ -35,11 +35,11 @@ struct TestCaseTraits<cases::Icmpv4Type11SM>
     // is needed for those.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::icmpv4::StimulusOverrides ov{};
         ov.icmp_type = static_cast<std::uint8_t>(13);
         ov.timestamp_originate = ::tc8::stimulus::kIcmpTimestampOriginate;
-        ::tc8::sce::icmpv4::emitStimulus(cfg, iface, ov);
+        ::tc8::sce::icmpv4::emitStimulus(cfg, ctx.iface, ov);
     }
 };
 

@@ -42,11 +42,10 @@ struct TestCaseTraits<cases::UdpUserInterface03NegSM>
     // reported value), so the Confirmation surfaces a src port != 20019.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
-        emitAppFlavorArm(cfg, iface, ::tc8::ut::kAppFaultReportWrongSrcPort);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitAppFlavorArm(cfg, ctx.iface, ::tc8::ut::kAppFaultReportWrongSrcPort);
         ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, iface, dut,
+            cfg, ctx.iface, ctx.dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size(),
             cases::kUserInterface03SrcPort);

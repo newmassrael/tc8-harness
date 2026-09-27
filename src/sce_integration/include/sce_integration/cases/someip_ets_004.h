@@ -34,8 +34,8 @@ struct TestCaseTraits<cases::SomeipEts004SM> : SomeIpAnyBase<cases::SomeipEts004
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = 0x0008;
@@ -48,7 +48,7 @@ struct TestCaseTraits<cases::SomeipEts004SM> : SomeIpAnyBase<cases::SomeipEts004
         // chain readable.
         timing.total_emits = 3;
         timing.retry_interval = std::chrono::milliseconds(50);
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target, timing, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, target, timing, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

@@ -45,9 +45,7 @@ struct TestCaseTraits<cases::TcpCallAbort02SM>
     // close (opcode SO_LINGER {1,0} / testability CLOSE_SOCKET abort).
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -55,14 +53,14 @@ struct TestCaseTraits<cases::TcpCallAbort02SM>
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kPortOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffset;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
         if (!open.conn) return;
 
         // Abort — the DUT closes the socket immediately with a RST and disposes
         // it. The DUT-side socket is gone; no further seam calls on it are made.
-        seamTcpControl(dut).abortTcp(open.conn->socket);
+        seamTcpControl(ctx.dut).abortTcp(open.conn->socket);
         std::this_thread::sleep_for(std::chrono::milliseconds(150));
 
         // Dispose tester fd silently — the DUT RST has already
@@ -78,11 +76,11 @@ struct TestCaseTraits<cases::TcpCallAbort02SM>
         // back. Same scheduleAfterStateEntry shape as TCP_CLOSING_03
         // / FLAGS_PROCESSING_02 — phasing is wired to the SCXML
         // observation state, not wall clock.
-        std::string                 iface_copy(iface);
+        std::string                 iface_copy(ctx.iface);
         ::tc8::TestConfig           cfg_copy   = cfg;
         std::array<std::uint8_t, 6> dut_mac    = cfg.dut.mac;
 
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_verify_rst),
             [iface_copy, cfg_copy, dut_mac,
              local_port, remote_port]() {

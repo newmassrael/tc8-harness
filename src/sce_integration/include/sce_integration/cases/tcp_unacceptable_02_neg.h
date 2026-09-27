@@ -48,8 +48,7 @@ struct TestCaseTraits<cases::TcpUnacceptable02NegSM>
     // is bare (no ACK), SEQ far outside the receive window, exactly as the positive sends it.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -58,9 +57,9 @@ struct TestCaseTraits<cases::TcpUnacceptable02NegSM>
 
         const std::uint16_t listen_port = kBasicsListenPort;
         const std::uint16_t tester_port = kBasicsTesterPort;
-        if (!driveSeamListen(dut, listen_port)) return;
+        if (!driveSeamListen(ctx.dut, listen_port)) return;
 
-        auto snippet = TcpFrameSnippet::forDutSynAck(cfg, iface, tester_port);
+        auto snippet = TcpFrameSnippet::forDutSynAck(cfg, ctx.iface, tester_port);
 
         ::tc8::stimulus::TcpSegmentSpec syn{};
         syn.src_port = tester_port;
@@ -68,11 +67,11 @@ struct TestCaseTraits<cases::TcpUnacceptable02NegSM>
         syn.seq_num  = kTesterInitialSeq;
         syn.ack_num  = 0U;
         syn.flags    = ::tc8::stimulus::kTcpFlagSyn;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, syn);
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, syn);
 
         const auto synack = snippet.tryCapture(std::chrono::milliseconds(500));
         if (synack.has_value()) {
-            emitIngressFlavorArmMidStream(cfg, iface, ::tc8::ut::kTcpSynthRstOnDisruptive);
+            emitIngressFlavorArmMidStream(cfg, ctx.iface, ::tc8::ut::kTcpSynthRstOnDisruptive);
             ::tc8::stimulus::TcpSegmentSpec rst{};
             rst.src_port = tester_port;
             rst.dst_port = listen_port;
@@ -81,7 +80,7 @@ struct TestCaseTraits<cases::TcpUnacceptable02NegSM>
             rst.seq_num  = TestCaseTraits<cases::TcpUnacceptable02SM>::kOutOfWindowRstSeq;
             rst.ack_num  = 0U;
             rst.flags    = ::tc8::stimulus::kTcpFlagRst;
-            emitTcpFrame(cfg, iface, cfg.dut.mac, rst, /*initial_wait=*/kFlavorArmSettle);
+            emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, rst, /*initial_wait=*/kFlavorArmSettle);
             std::this_thread::sleep_for(kSynthObserveHold);
         }
     }

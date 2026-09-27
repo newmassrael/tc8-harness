@@ -61,10 +61,9 @@ struct TestCaseTraits<cases::Ipv4Fragments05SM> {
     // multicast).
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::udp::emitTriggerSendUdp(
-            dut,
+            ctx.dut,
             /*dut_src_port=*/::tc8::sce::udp::kDataPeerPort,  // 20001
             /*target_ip_be=*/cfg.tester.ip,
             /*target_port=*/::tc8::sce::udp::kDataPort,        // 20000

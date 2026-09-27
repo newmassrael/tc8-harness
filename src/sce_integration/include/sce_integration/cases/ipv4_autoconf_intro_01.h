@@ -69,7 +69,7 @@ struct TestCaseTraits<cases::Ipv4AutoconfIntro01SM> {
         return p;
     }();
 
-    // 4-arg stimulus: kick the DHCP client lifecycle, then register
+    // Stimulus (scheduler from the StimulusContext): kick the DHCP client lifecycle, then register
     // OFFER on Listening_for_request entry and ACK on
     // Listening_for_no_arp_probe entry. The composition Captured
     // requires `c.dhcpv4` (xid + chaddr live there) be passed to the
@@ -77,18 +77,16 @@ struct TestCaseTraits<cases::Ipv4AutoconfIntro01SM> {
     // `Captured = Dhcpv4Captured` from the sub-context reference.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& /*cfg*/,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(dut);
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(ctx.dut);
 
         ::tc8::sce::dhcpv4::scheduleDhcpReplyOnStateEntry(
-            scheduler, static_cast<int>(State::Listening_for_request),
-            iface, c.dhcpv4, /*message_type=*/2, kIntroParams);
+            ctx.scheduler, static_cast<int>(State::Listening_for_request),
+            ctx.iface, c.dhcpv4, /*message_type=*/2, kIntroParams);
 
         ::tc8::sce::dhcpv4::scheduleDhcpReplyOnStateEntry(
-            scheduler, static_cast<int>(State::Listening_for_no_arp_probe),
-            iface, c.dhcpv4, /*message_type=*/5, kIntroParams);
+            ctx.scheduler, static_cast<int>(State::Listening_for_no_arp_probe),
+            ctx.iface, c.dhcpv4, /*message_type=*/5, kIntroParams);
     }
 
     static void dispatch(Captured& c, SM& sm,

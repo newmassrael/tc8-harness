@@ -78,8 +78,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid07SM>
     // CASE iterations — populated once before the loop.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -94,11 +93,11 @@ struct TestCaseTraits<cases::TcpFlagsInvalid07SM>
             const std::uint16_t tester_port =
                 static_cast<std::uint16_t>(kBasicsTesterPort + phase);
 
-            const auto listen = driveSeamListen(dut, listen_port);
+            const auto listen = driveSeamListen(ctx.dut, listen_port);
             if (!listen) continue;
 
             auto snippet = TcpFrameSnippet::forDutSynAck(
-                cfg, iface, tester_port);
+                cfg, ctx.iface, tester_port);
 
             ::tc8::stimulus::TcpSegmentSpec syn{};
             syn.src_port = tester_port;
@@ -106,7 +105,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid07SM>
             syn.seq_num  = kTesterInitialSeq;
             syn.ack_num  = 0U;
             syn.flags    = ::tc8::stimulus::kTcpFlagSyn;
-            emitTcpFrame(cfg, iface, cfg.dut.mac, syn);
+            emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, syn);
 
             const auto synack = snippet.tryCapture(
                 std::chrono::milliseconds(500));
@@ -145,12 +144,12 @@ struct TestCaseTraits<cases::TcpFlagsInvalid07SM>
                                              kCorruptPayload.end());
                         break;
                 }
-                emitTcpFrame(cfg, iface, cfg.dut.mac, probe,
+                emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, probe,
                              /*initial_wait=*/std::chrono::milliseconds(0));
                 std::this_thread::sleep_for(kTcpPilotPhaseGap);
             }
 
-            dut.tcpControl()->closeTcp(*listen);
+            ctx.dut.tcpControl()->closeTcp(*listen);
             std::this_thread::sleep_for(kTcpPilotPhaseGap);
         }
     }

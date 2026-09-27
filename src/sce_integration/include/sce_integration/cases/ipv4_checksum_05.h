@@ -27,10 +27,10 @@ struct TestCaseTraits<cases::Ipv4Checksum05SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         // Pilot default — valid checksum, DUT replies, SCXML validates
         // the reply's own checksum via captured.header_checksum_valid().
-        ::tc8::sce::ipv4::emitStimulus(cfg, iface);
+        ::tc8::sce::ipv4::emitStimulus(cfg, ctx.iface);
     }
 };
 

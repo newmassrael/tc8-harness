@@ -35,27 +35,25 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation09NegSM>
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::dhcpv4::emitStartDhcpClientBuggy(
-            dut,
+            ctx.dut,
             ::tc8::ut::kDhcpFlavorDeclineRequestedIpWrong,
             /*apply_initial_wait=*/true,
             /*arp_probe_listen_ms=*/1500);
         ::tc8::sce::dhcpv4::scheduleDhcpReplyOnStateEntry(
-            scheduler, static_cast<int>(State::Listening_for_first_request),
-            iface, c.dhcpv4, /*message_type=*/2);
+            ctx.scheduler, static_cast<int>(State::Listening_for_first_request),
+            ctx.iface, c.dhcpv4, /*message_type=*/2);
         ::tc8::sce::dhcpv4::scheduleDhcpReplyOnStateEntry(
-            scheduler, static_cast<int>(State::Listening_for_arp_probe),
-            iface, c.dhcpv4, /*message_type=*/5);
+            ctx.scheduler, static_cast<int>(State::Listening_for_arp_probe),
+            ctx.iface, c.dhcpv4, /*message_type=*/5);
         // ARP conflict injection on listening_for_decline entry — mirrors the
         // positive _09: fires after the DUT's (conformant) ARP Probe so the
         // DUT's listener marks the address in use and emits the DHCPDECLINE,
         // which the flavor corrupts at Option 50.
         ::tc8::sce::dhcpv4::scheduleArpConflictReplyOnStateEntry(
-            scheduler, static_cast<int>(State::Listening_for_decline),
-            iface, cfg.dut.mac,
+            ctx.scheduler, static_cast<int>(State::Listening_for_decline),
+            ctx.iface, cfg.dut.mac,
             ::tc8::sce::dhcpv4::kDefaultOfferedIpBe);
     }
 };

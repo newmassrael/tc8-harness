@@ -47,8 +47,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing07Neg3SM>
     // AckDrop -> DUT LAST-ACK), with the fault armed AFTER the FINs and BEFORE the URG inject.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -58,7 +57,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing07Neg3SM>
         TesterAutoAckDrop ack_drop(cfg);
         (void)ack_drop;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0 || !open.conn) {
             silentlyCloseTesterFd(tester_fd);
@@ -66,18 +65,18 @@ struct TestCaseTraits<cases::TcpFlagsProcessing07Neg3SM>
         }
         ::shutdown(tester_fd, SHUT_WR);                       // tester FIN -> DUT CLOSE-WAIT
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        dut.tcpControl()->closeTcp(open.conn->socket);        // DUT FIN -> LAST-ACK (held by AckDrop)
+        ctx.dut.tcpControl()->closeTcp(open.conn->socket);        // DUT FIN -> LAST-ACK (held by AckDrop)
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         const auto seq_range = queryTcpSeqRange(tester_fd);
         if (seq_range.has_value()) {
-            emitIngressFlavorArmMidStream(cfg, iface, ::tc8::ut::kTcpSynthRstOnDisruptive);
+            emitIngressFlavorArmMidStream(cfg, ctx.iface, ::tc8::ut::kTcpSynthRstOnDisruptive);
             ::tc8::stimulus::TcpSegmentSpec urg{};
             urg.src_port = remote_port;
             urg.dst_port = local_port;
             urg.seq_num  = seq_range->snd_nxt;
             urg.ack_num  = 0U;
             urg.flags    = ::tc8::stimulus::kTcpFlagUrg;
-            emitTcpFrame(cfg, iface, cfg.dut.mac, urg, /*initial_wait=*/kFlavorArmSettle);
+            emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, urg, /*initial_wait=*/kFlavorArmSettle);
             std::this_thread::sleep_for(kSynthObserveHold);
         }
         silentlyCloseTesterFd(tester_fd);

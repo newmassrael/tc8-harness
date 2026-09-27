@@ -49,11 +49,10 @@ struct TestCaseTraits<cases::TcpSequence02NegSM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
-        emitEgressFlavorArm(cfg, iface, ::tc8::ut::kTcpFaultPureAckNumWrong);
+        emitEgressFlavorArm(cfg, ctx.iface, ::tc8::ut::kTcpFaultPureAckNumWrong);
 
         const std::uint16_t local_port  =
             kBasicsActiveLocalPort + kTcpSequence02LocalOffset;
@@ -61,12 +60,12 @@ struct TestCaseTraits<cases::TcpSequence02NegSM>
             kBasicsActiveRemotePort + kTcpSequence02LocalOffset;
 
         TesterAutoRstDrop rst_drop(cfg);
-        auto syn_snippet = TcpFrameSnippet::forDutSyn(cfg, iface, local_port);
-        auto open = driveSeamSynSentOpen(dut, cfg, local_port, remote_port);
+        auto syn_snippet = TcpFrameSnippet::forDutSyn(cfg, ctx.iface, local_port);
+        auto open = driveSeamSynSentOpen(ctx.dut, cfg, local_port, remote_port);
 
         const auto dut_syn = syn_snippet.tryCapture(std::chrono::milliseconds(2000));
         if (!dut_syn) {
-            if (open) dut.tcpControl()->closeTcp(open->socket);
+            if (open) ctx.dut.tcpControl()->closeTcp(open->socket);
             return;
         }
         const std::uint32_t dut_isn = dut_syn->seq_num;
@@ -77,11 +76,11 @@ struct TestCaseTraits<cases::TcpSequence02NegSM>
         syn_ack.seq_num  = kTesterInitialSeq;
         syn_ack.ack_num  = dut_isn + 1U;
         syn_ack.flags    = ::tc8::stimulus::kTcpFlagSyn | ::tc8::stimulus::kTcpFlagAck;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, syn_ack,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, syn_ack,
                      /*initial_wait=*/std::chrono::milliseconds(0));
 
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
-        if (open) dut.tcpControl()->closeTcp(open->socket);
+        if (open) ctx.dut.tcpControl()->closeTcp(open->socket);
     }
 };
 

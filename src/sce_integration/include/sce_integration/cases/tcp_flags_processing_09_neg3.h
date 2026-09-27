@@ -50,15 +50,14 @@ struct TestCaseTraits<cases::TcpFlagsProcessing09Neg3SM>
     // ack = rcv_nxt: a valid dup ACK; the DUT must absorb it without responding).
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsProc09NegCloseWaitOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsProc09NegCloseWaitOffset;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0 || !open.conn) {
             silentlyCloseTesterFd(tester_fd);
@@ -68,14 +67,14 @@ struct TestCaseTraits<cases::TcpFlagsProcessing09Neg3SM>
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         const auto seq_range = queryTcpSeqRange(tester_fd);
         if (seq_range.has_value()) {
-            emitIngressFlavorArmMidStream(cfg, iface, ::tc8::ut::kTcpSynthRstOnDisruptive);
+            emitIngressFlavorArmMidStream(cfg, ctx.iface, ::tc8::ut::kTcpSynthRstOnDisruptive);
             ::tc8::stimulus::TcpSegmentSpec dup{};
             dup.src_port = remote_port;
             dup.dst_port = local_port;
             dup.seq_num  = seq_range->snd_nxt - 1U;
             dup.ack_num  = seq_range->rcv_nxt;
             dup.flags    = ::tc8::stimulus::kTcpFlagFin | ::tc8::stimulus::kTcpFlagAck;
-            emitTcpFrame(cfg, iface, cfg.dut.mac, dup, /*initial_wait=*/kFlavorArmSettle);
+            emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, dup, /*initial_wait=*/kFlavorArmSettle);
             std::this_thread::sleep_for(kSynthObserveHold);
         }
         silentlyCloseTesterFd(tester_fd);

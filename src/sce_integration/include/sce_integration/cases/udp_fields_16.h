@@ -29,8 +29,7 @@ struct TestCaseTraits<cases::UdpFields16SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::udp::UdpStimulusOverrides ov{};
         // Override the conformantly-computed sum with the literal 0x0000
         // sentinel after compute. RFC 768 declares this signals "no
@@ -38,7 +37,7 @@ struct TestCaseTraits<cases::UdpFields16SM>
         // (default sysctl) does.
         ov.udp.checksum_field = std::uint16_t{0x0000};
         ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, iface, dut,
+            cfg, ctx.iface, ctx.dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size(),
             ::tc8::sce::udp::kDataPeerPort, ov);

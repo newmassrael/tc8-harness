@@ -48,15 +48,15 @@ struct TestCaseTraits<cases::Arp39SM>
     //
     // No second UT request needed — the queued frames from step 1 drain
     // exactly once when the ARP entry resolves.
-    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface,
-                         ::tc8::sce::IDutControl &dut) {
+    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg,
+                         ::tc8::sce::StimulusContext &ctx) {
         // Single UT request with full bootstrap initial_wait (tc8-dut
         // starts ~0.5 s after harness; 1500 ms gives ample margin).
         ::tc8::stimulus::BootTiming ut_timing;
         ut_timing.initial_wait = std::chrono::milliseconds(1500);
         ut_timing.retry_interval = std::chrono::milliseconds(0);
         ut_timing.total_emits = 1;
-        emitArpEgressProvocation(dut, ut_timing);
+        emitArpEgressProvocation(ctx.dut, ut_timing);
 
         // emitArpFromTester's default 200 ms settle gives the DUT's
         // own broadcast Request time to reach pcap before our injection.
@@ -66,7 +66,7 @@ struct TestCaseTraits<cases::Arp39SM>
         spec.eth_src = ::tc8::stimulus::kTesterInjectedMac2;
         spec.sender_ip_be = cfg.arp.tester_ip;
         spec.target_ip_be = cfg.dut.ip;
-        ::tc8::stimulus::emitArpFromTester(iface, spec);
+        ::tc8::stimulus::emitArpFromTester(ctx.iface, spec);
     }
 };
 

@@ -58,13 +58,12 @@ struct TestCaseTraits<cases::TcpChecksum03SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         auto open = driveSeamActiveOpen(
-            dut, cfg,
+            ctx.dut, cfg,
             kBasicsActiveLocalPort  + kTcpChecksum03LocalOffset,
             kBasicsActiveRemotePort + kTcpChecksum03LocalOffset);
 
@@ -72,8 +71,8 @@ struct TestCaseTraits<cases::TcpChecksum03SM>
             // seamSendTcp is a synchronous round trip, so the DATA
             // segment is on the wire before it returns and well inside
             // the SCXML listen window.
-            seamSendTcp(dut, open.conn->socket, kChecksumPayload);
-            dut.tcpControl()->closeTcp(open.conn->socket);
+            seamSendTcp(ctx.dut, open.conn->socket, kChecksumPayload);
+            ctx.dut.tcpControl()->closeTcp(open.conn->socket);
         }
     }
 };

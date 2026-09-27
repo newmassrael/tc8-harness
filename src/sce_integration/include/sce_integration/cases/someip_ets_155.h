@@ -35,9 +35,8 @@ struct TestCaseTraits<cases::SomeipEts155SM> : SomeIpAnyBase<cases::SomeipEts155
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IBackgroundServiceOwner& owner) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 
@@ -45,7 +44,7 @@ struct TestCaseTraits<cases::SomeipEts155SM> : SomeIpAnyBase<cases::SomeipEts155
         // Acks the dual-option Subscribes; the Sub_1 -> StopSubscribe -> Sub_2
         // sequence is exercised over that held connection.
         auto session = std::make_unique<::tc8::stimulus::SubscribeEventgroupTcpSession>(
-            iface, ::tc8::sce::someipTcpMethodDest(cfg));
+            ctx.iface, ::tc8::sce::someipTcpMethodDest(cfg));
         ::tc8::stimulus::SubscribeDestination sd_dest{};
         sd_dest.ipv4_be = cfg.dut.ip;
 
@@ -72,7 +71,7 @@ struct TestCaseTraits<cases::SomeipEts155SM> : SomeIpAnyBase<cases::SomeipEts155
         sub2.session_id = 0x0003;
         session->subscribeDualParams(sub2, sd_dest);
 
-        owner.adoptService(std::move(session));
+        ctx.services.adoptService(std::move(session));
     }
 };
 

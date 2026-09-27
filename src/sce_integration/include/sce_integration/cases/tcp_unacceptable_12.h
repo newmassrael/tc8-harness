@@ -68,8 +68,7 @@ struct TestCaseTraits<cases::TcpUnacceptable12SM>
     // UNACCEPTABLE_04 SCXML preamble).
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -91,7 +90,7 @@ struct TestCaseTraits<cases::TcpUnacceptable12SM>
             const std::uint16_t local_port  = kBasicsActiveLocalPort  + offset;
             const std::uint16_t remote_port = kBasicsActiveRemotePort + offset;
 
-            auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+            auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
             const int tester_fd = open.listener.acceptOne();
             if (tester_fd < 0) {
                 std::this_thread::sleep_for(kTcpPilotPhaseGap);
@@ -105,7 +104,7 @@ struct TestCaseTraits<cases::TcpUnacceptable12SM>
 
             ::shutdown(tester_fd, SHUT_WR);
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            seamTcpControl(dut).closeTcp(open.conn->socket);
+            seamTcpControl(ctx.dut).closeTcp(open.conn->socket);
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
             const auto seq_range = queryTcpSeqRange(tester_fd);
@@ -142,7 +141,7 @@ struct TestCaseTraits<cases::TcpUnacceptable12SM>
                          | ::tc8::stimulus::kTcpFlagAck;
             data.payload.assign(kCorruptPayload.begin(),
                                 kCorruptPayload.end());
-            emitTcpFrame(cfg, iface, cfg.dut.mac, data,
+            emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, data,
                          /*initial_wait=*/std::chrono::milliseconds(0));
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
 

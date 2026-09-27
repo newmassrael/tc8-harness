@@ -52,8 +52,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid13SM>
     // CASE 4 carrying ACK with rcv_nxt - 1.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -63,7 +62,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid13SM>
         for (std::uint16_t phase = 0; phase < 5U; ++phase) {
             const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsInvalid13BaseOffset + phase;
             const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsInvalid13BaseOffset + phase;
-            auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+            auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
             const int tester_fd = open.listener.acceptOne();
             if (tester_fd < 0) {
                 std::this_thread::sleep_for(kTcpPilotPhaseGap);
@@ -71,7 +70,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid13SM>
             }
             ::shutdown(tester_fd, SHUT_WR);
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            if (open.conn) dut.tcpControl()->closeTcp(open.conn->socket);
+            if (open.conn) ctx.dut.tcpControl()->closeTcp(open.conn->socket);
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             const auto seq_range = queryTcpSeqRange(tester_fd);
             if (!seq_range.has_value()) {
@@ -122,7 +121,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid13SM>
                                          kCorruptPayload.end());
                     break;
             }
-            emitTcpFrame(cfg, iface, cfg.dut.mac, probe,
+            emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, probe,
                          /*initial_wait=*/std::chrono::milliseconds(0));
             (void)tester_fd;
             std::this_thread::sleep_for(kTcpPilotPhaseGap);

@@ -73,8 +73,7 @@ struct TestCaseTraits<cases::TcpUnacceptable01SM>
     // selected; the raw injects stay tester-side.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -90,7 +89,7 @@ struct TestCaseTraits<cases::TcpUnacceptable01SM>
         TesterAutoRstDrop rst_drop(cfg);
         (void)rst_drop;
 
-        const auto listen = driveSeamListen(dut, kBasicsListenPort);
+        const auto listen = driveSeamListen(ctx.dut, kBasicsListenPort);
         if (!listen) return;
 
         // Probe 1 — drive DUT from LISTEN into SYN-RCVD.
@@ -100,7 +99,7 @@ struct TestCaseTraits<cases::TcpUnacceptable01SM>
         syn1.seq_num  = kTesterInitialSeq;
         syn1.ack_num  = 0U;
         syn1.flags    = ::tc8::stimulus::kTcpFlagSyn;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, syn1);
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, syn1);
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
         // Acceptable RST — tears down the embryonic SYN-RCVD socket
@@ -113,7 +112,7 @@ struct TestCaseTraits<cases::TcpUnacceptable01SM>
         rst.seq_num  = kAcceptableRstSeq;
         rst.ack_num  = 0U;
         rst.flags    = ::tc8::stimulus::kTcpFlagRst;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, rst,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, rst,
                      /*initial_wait=*/std::chrono::milliseconds(0));
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
@@ -126,11 +125,11 @@ struct TestCaseTraits<cases::TcpUnacceptable01SM>
         syn2.seq_num  = kTesterInitialSeq;
         syn2.ack_num  = 0U;
         syn2.flags    = ::tc8::stimulus::kTcpFlagSyn;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, syn2,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, syn2,
                      /*initial_wait=*/std::chrono::milliseconds(0));
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
-        dut.tcpControl()->closeTcp(*listen);
+        ctx.dut.tcpControl()->closeTcp(*listen);
     }
 };
 

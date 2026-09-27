@@ -94,53 +94,51 @@ struct TestCaseTraits<cases::TcpFlagsInvalid15SM>
     // AckDrop because driveSeamCloseToClosing requires caller scope.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         {
             TesterAutoRstDrop rst_drop(cfg);
             (void)rst_drop;
-            runPhase1SynRecv(cfg, iface, dut);
+            runPhase1SynRecv(cfg, ctx.iface, ctx.dut);
         }
 
         ::tc8::TestConfig cfg_copy = cfg;
-        std::string       iface_str(iface);
-        ::tc8::sce::IDutControl* dut_ptr = &dut;
+        std::string       iface_str(ctx.iface);
+        ::tc8::sce::IDutControl* dut_ptr = &ctx.dut;
 
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p2_handshake_ack),
             [cfg_copy, iface_str, dut_ptr]() {
                 runPhase2Established(cfg_copy, iface_str, *dut_ptr);
             });
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p3_handshake_ack),
             [cfg_copy, iface_str, dut_ptr]() {
                 runPhase3FinWait1(cfg_copy, iface_str, *dut_ptr);
             });
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p4_handshake_ack),
             [cfg_copy, iface_str, dut_ptr]() {
                 runPhase4FinWait2(cfg_copy, iface_str, *dut_ptr);
             });
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p5_handshake_ack),
             [cfg_copy, iface_str, dut_ptr]() {
                 runPhase5CloseWait(cfg_copy, iface_str, *dut_ptr);
             });
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p6_handshake_ack),
             [cfg_copy, iface_str, dut_ptr]() {
                 runPhase6Closing(cfg_copy, iface_str, *dut_ptr);
             });
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p7_handshake_ack),
             [cfg_copy, iface_str, dut_ptr]() {
                 runPhase7LastAck(cfg_copy, iface_str, *dut_ptr);
             });
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p8_handshake_ack),
             [cfg_copy, iface_str, dut_ptr]() {
                 runPhase8TimeWait(cfg_copy, iface_str, *dut_ptr);

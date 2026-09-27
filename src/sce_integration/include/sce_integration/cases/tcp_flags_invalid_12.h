@@ -73,8 +73,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid12SM>
     // _11 / _13.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -85,7 +84,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid12SM>
             const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsInvalid12BaseOffset + phase;
             const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsInvalid12BaseOffset + phase;
 
-            auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+            auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
             const int tester_fd = open.listener.acceptOne();
             if (tester_fd < 0 || !open.conn) {
                 silentlyCloseTesterFd(tester_fd);
@@ -94,7 +93,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid12SM>
             }
 
             const auto info = driveSeamCloseToClosing(
-                dut, cfg, iface, tester_fd, open.conn->socket,
+                ctx.dut, cfg, ctx.iface, tester_fd, open.conn->socket,
                 local_port, remote_port);
             if (!info.ok) {
                 silentlyCloseTesterFd(tester_fd);
@@ -147,7 +146,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid12SM>
                                          kCorruptPayload.end());
                     break;
             }
-            emitTcpFrame(cfg, iface, cfg.dut.mac, probe,
+            emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, probe,
                          /*initial_wait=*/std::chrono::milliseconds(0));
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
 

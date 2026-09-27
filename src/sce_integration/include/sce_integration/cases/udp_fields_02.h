@@ -28,13 +28,12 @@ struct TestCaseTraits<cases::UdpFields02SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         // Per-case unique src_port (20002) keeps observation distinct
         // from sibling FIELDS_01 (src_port=20001) under back-to-back
         // smoke-test runs sharing a netns.
         ::tc8::sce::udp::emitTriggerSendUdp(
-            dut,
+            ctx.dut,
             /*dut_src_port=*/20002,
             /*target_ip_be=*/cfg.tester.ip,
             /*target_port=*/20001,

@@ -35,11 +35,11 @@ struct TestCaseTraits<cases::Icmpv4Type18NegSM>
     // intact, so the filter still selects it) — the violation the positive forbids.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        emitEgressFlavorArm(cfg, iface, ::tc8::ut::kIcmpFaultDestUnreachCodeWrong);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitEgressFlavorArm(cfg, ctx.iface, ::tc8::ut::kIcmpFaultDestUnreachCodeWrong);
         ::tc8::sce::icmpv4::StimulusOverrides ov{};
         ov.ip_protocol = std::uint8_t{253};
-        ::tc8::sce::icmpv4::emitStimulus(cfg, iface, ov);
+        ::tc8::sce::icmpv4::emitStimulus(cfg, ctx.iface, ov);
     }
 };
 

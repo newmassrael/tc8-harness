@@ -51,17 +51,16 @@ struct TestCaseTraits<cases::TcpUnacceptable10NegSM>
     // and injecting one disruptive segment is sufficient to drive the phase-2 fail-final.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpUnacceptable10LocalOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpUnacceptable10LocalOffset;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
-        if (open.conn) dut.tcpControl()->closeTcp(open.conn->socket);
+        if (open.conn) ctx.dut.tcpControl()->closeTcp(open.conn->socket);
         // Settle: the tester kernel auto-ACKs the DUT FIN (FIN-WAIT-1 -> FIN-WAIT-2) and the tester
         // socket TCP state stabilises before the TCP_REPAIR seq query.
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
@@ -75,7 +74,7 @@ struct TestCaseTraits<cases::TcpUnacceptable10NegSM>
 
         // Per-phase arm before the disruptive segment; the inject carries the arm settle so the
         // raw-injected arm reaches the DUT UT thread before the segment hits the netif input hook.
-        emitIngressFlavorArmMidStream(cfg, iface, ::tc8::ut::kTcpSynthRstOnDisruptive);
+        emitIngressFlavorArmMidStream(cfg, ctx.iface, ::tc8::ut::kTcpSynthRstOnDisruptive);
 
         ::tc8::stimulus::TcpSegmentSpec unacc{};
         unacc.src_port = remote_port;
@@ -87,7 +86,7 @@ struct TestCaseTraits<cases::TcpUnacceptable10NegSM>
         // an SSOT dependency on the positive's kCorruptPayload (a per-case member, not a shared
         // invariant); 4 bytes mirror the positive's data-segment shape for fidelity.
         unacc.payload  = std::vector<std::uint8_t>{0xCAU, 0xFEU, 0xBAU, 0xBEU};
-        emitTcpFrame(cfg, iface, cfg.dut.mac, unacc, /*initial_wait=*/kFlavorArmSettle);
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, unacc, /*initial_wait=*/kFlavorArmSettle);
 
         std::this_thread::sleep_for(kSynthObserveHold);
         silentlyCloseTesterFd(tester_fd);

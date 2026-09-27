@@ -36,10 +36,10 @@ struct TestCaseTraits<cases::Ipv4Fragments02NegSM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        emitEgressFlavorArm(cfg, iface, ::tc8::ut::kIcmpFaultEchoSeqWrong);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitEgressFlavorArm(cfg, ctx.iface, ::tc8::ut::kIcmpFaultEchoSeqWrong);
         ::tc8::sce::ipv4::fragments::emitCompoundPhase1ThenRetry(
-            iface, cfg, ::tc8::sce::ipv4::fragments::fragments02Phase1());
+            ctx.iface, cfg, ::tc8::sce::ipv4::fragments::fragments02Phase1());
     }
 };
 

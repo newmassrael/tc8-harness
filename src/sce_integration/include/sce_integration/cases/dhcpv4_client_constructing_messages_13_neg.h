@@ -43,8 +43,7 @@ struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages13NegSM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& /*cfg*/,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         // Same retx envelope as the positive (cases::kCm13* SSOT) plus the
         // RetxNoBackoff flavor byte: only the schedule is faulted.
         ::tc8::sce::dhcpv4::Dhcpv4StartConfig sc;
@@ -54,7 +53,7 @@ struct TestCaseTraits<cases::Dhcpv4ClientConstructingMessages13NegSM>
         sc.retx_cap_ms = cases::kCm13RetxCapMs;
         sc.retx_jitter_ms = cases::kCm13RetxJitterMs;
         sc.flavor = ::tc8::ut::kDhcpFlavorRetxNoBackoff;
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(dut, sc);
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(ctx.dut, sc);
     }
 };
 

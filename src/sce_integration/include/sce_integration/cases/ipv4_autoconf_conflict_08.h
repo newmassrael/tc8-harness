@@ -29,14 +29,12 @@ struct TestCaseTraits<cases::Ipv4AutoconfConflict08SM>
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
-        ::tc8::sce::linklocal::emitStartLLAutoconfFast(dut);
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::sce::linklocal::emitStartLLAutoconfFast(ctx.dut);
         ::tc8::sce::linklocal::scheduleDefenderCeaseConflicts(
-            scheduler,
+            ctx.scheduler,
             static_cast<int>(State::Listening_post_claim),
-            iface, cfg, dut, c,
+            ctx.iface, cfg, ctx.dut, c,
             /*opcode1=*/0x0001,  // ARP Request
             /*opcode2=*/0x0002); // ARP Reply
     }

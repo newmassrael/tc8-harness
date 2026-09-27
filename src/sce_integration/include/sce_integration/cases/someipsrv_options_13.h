@@ -27,10 +27,10 @@ struct TestCaseTraits<cases::Options13SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::stimulus::SubscribeEventgroupTarget subscribe{};
         subscribe.eventgroup_id = 0x0008;
-        ::tc8::stimulus::emitSubscribeEventgroupBoot(iface, subscribe, cfg.stimulus_timing);
+        ::tc8::stimulus::emitSubscribeEventgroupBoot(ctx.iface, subscribe, cfg.stimulus_timing);
     }
 };
 

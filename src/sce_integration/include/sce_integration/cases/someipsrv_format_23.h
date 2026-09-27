@@ -30,7 +30,7 @@ struct TestCaseTraits<cases::Format23SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         // §5.1.5.1.23 exercises the Ack path: subscribe to eventgroup
         // 0x0002 (declared under TestEventUINT8 in dut/ets/ets.fdepl +
         // dut/dut_service/vsomeip.json) so DUT replies with
@@ -41,7 +41,7 @@ struct TestCaseTraits<cases::Format23SM>
         // configured TTL value.
         ::tc8::stimulus::SubscribeEventgroupTarget subscribe{};
         subscribe.eventgroup_id = 0x0002;
-        ::tc8::stimulus::emitSubscribeEventgroupBoot(iface, subscribe,
+        ::tc8::stimulus::emitSubscribeEventgroupBoot(ctx.iface, subscribe,
                                                      cfg.stimulus_timing);
     }
 };

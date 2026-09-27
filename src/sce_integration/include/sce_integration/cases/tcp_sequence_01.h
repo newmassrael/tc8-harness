@@ -33,8 +33,7 @@ struct TestCaseTraits<cases::TcpSequence01SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -44,14 +43,14 @@ struct TestCaseTraits<cases::TcpSequence01SM>
         // ack_num (== tester_isn + 1), captured by the SCXML during the
         // handshake — so this runs and PASSes on either backend.
         auto open = driveSeamRawPassiveAccept(
-            dut, cfg, iface,
+            ctx.dut, cfg, ctx.iface,
             kTcpSequence01ListenPort,
             std::vector<std::uint8_t>{},
             kTcpSequence01TesterSrcPort,
             /*tester_isn=*/kTesterInitialSeq);
 
         if (open.conn) {
-            ::tc8::sce::seamTcpControl(dut).closeTcp(open.conn->socket);
+            ::tc8::sce::seamTcpControl(ctx.dut).closeTcp(open.conn->socket);
         }
     }
 };

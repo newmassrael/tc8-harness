@@ -42,8 +42,8 @@ struct TestCaseTraits<cases::SomeipEts089SM> : SomeIpAnyBase<cases::SomeipEts089
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
 
         ::tc8::stimulus::SomeIpRpcMessage suspend{};
@@ -52,7 +52,7 @@ struct TestCaseTraits<cases::SomeipEts089SM> : SomeIpAnyBase<cases::SomeipEts089
         // Two big-endian UInt32 args: start_ms = 0, duration_ms = 2000.
         suspend.payload      = {0x00, 0x00, 0x00, 0x00,
                                 0x00, 0x00, 0x07, 0xD0};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, suspend, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, suspend, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

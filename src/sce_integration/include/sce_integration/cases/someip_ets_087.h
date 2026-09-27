@@ -31,12 +31,12 @@ struct TestCaseTraits<cases::SomeipEts087SM> : SomeIpAnyBase<cases::SomeipEts087
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         ::tc8::stimulus::SubscribeEventgroupTarget subscribe{};
         subscribe.eventgroup_id = 0x0005;
-        ::tc8::stimulus::emitSubscribeEventgroupBoot(iface, subscribe, cfg.stimulus_timing);
+        ::tc8::stimulus::emitSubscribeEventgroupBoot(ctx.iface, subscribe, cfg.stimulus_timing);
     }
 };
 

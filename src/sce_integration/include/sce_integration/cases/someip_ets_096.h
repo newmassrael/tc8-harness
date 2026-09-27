@@ -31,8 +31,8 @@ struct TestCaseTraits<cases::SomeipEts096SM> : SomeIpAnyBase<cases::SomeipEts096
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         // eg 0x0002 is mixed-reliability. Advertise a VALID UDP + TCP option pair
         // but do NOT open the TCP connection: the reliability check passes, so the
@@ -43,7 +43,7 @@ struct TestCaseTraits<cases::SomeipEts096SM> : SomeIpAnyBase<cases::SomeipEts096
         params.target.eventgroup_id = 0x0002;
         ::tc8::stimulus::setDualEndpointSubscribe(
             params, ::tc8::stimulus::Ipv4Endpoint{cfg.tester.ip, 30501, 0x06});
-        ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, params);
+        ::tc8::stimulus::emitSubscribeEventgroupRaw(ctx.iface, params);
     }
 };
 

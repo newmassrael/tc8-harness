@@ -60,12 +60,11 @@ struct TestCaseTraits<cases::TcpClosing08SM>
     // FIN → DUT FW2 → TIME-WAIT (breaks "remain in FW2"); silentlyCloseTesterFd
     // would dispose the socket so any DUT segment to the 4-tuple draws a
     // closed-port RST. The per-case harness process exits at case end, cleaning
-    // the fd up. Unlike _07 there is no long-life AckDrop to hold alive, so no
-    // IStimulusScheduler is taken.
+    // the fd up. Unlike _07 there is no long-life AckDrop to hold alive, so the
+    // StimulusContext's scheduler is not used.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -73,14 +72,14 @@ struct TestCaseTraits<cases::TcpClosing08SM>
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kPortOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffset;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
         if (!open.conn) return;
         const auto seq_range = queryTcpSeqRange(tester_fd);
         if (!seq_range.has_value()) return;
 
-        auto& tcp = seamTcpControl(dut);
+        auto& tcp = seamTcpControl(ctx.dut);
 
         // Half-close: shutdown(SHUT_WR) → DUT emits FIN, socket EST→FW1. The
         // tester kernel's auto-ACK (NOT suppressed) acks the FIN and drives the
@@ -103,7 +102,7 @@ struct TestCaseTraits<cases::TcpClosing08SM>
                 data.flags    = ::tc8::stimulus::kTcpFlagAck
                               | ::tc8::stimulus::kTcpFlagPsh;
                 data.payload  = payload;
-                emitTcpFrame(cfg, iface, cfg.dut.mac, data,
+                emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, data,
                              /*initial_wait=*/std::chrono::milliseconds(0));
             });
         if (received && *received == payload) {

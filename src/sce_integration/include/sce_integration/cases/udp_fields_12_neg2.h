@@ -38,10 +38,9 @@ struct TestCaseTraits<cases::UdpFields12Neg2SM>
     // GetReceivedUdp query the positive uses, so the Confirmation surfaces ut_received == 0.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
-        emitAppFlavorArm(cfg, iface, ::tc8::ut::kAppFaultReportNoReceipt);
-        cases::emitMaxLengthDatagramAndQuery(cfg, iface, dut);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitAppFlavorArm(cfg, ctx.iface, ::tc8::ut::kAppFaultReportNoReceipt);
+        cases::emitMaxLengthDatagramAndQuery(cfg, ctx.iface, ctx.dut);
     }
 };
 

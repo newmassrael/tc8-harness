@@ -43,10 +43,10 @@ struct TestCaseTraits<cases::SomeipEts104NegSM>
     // the positive uses. Only the final GetLastValueOfEventUDPMulticast readback flips.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        emitEtsFlavorArm(cfg, iface, ::tc8::ut::kEtsFaultFieldValueWrong);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitEtsFlavorArm(cfg, ctx.iface, ::tc8::ut::kEtsFaultFieldValueWrong);
 
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 
@@ -54,20 +54,20 @@ struct TestCaseTraits<cases::SomeipEts104NegSM>
         activate.method_id    = 0x002F;
         activate.message_type = ::tc8::someip::MessageType::REQUEST_NO_RETURN;
         activate.payload      = {0x00};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, activate, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, activate, {}, ::tc8::sce::someipUdpMethodDest(cfg));
         std::this_thread::sleep_for(std::chrono::milliseconds(800));
 
         ::tc8::stimulus::SomeIpRpcMessage subscribe{};
         subscribe.method_id    = 0x0032;
         subscribe.message_type = ::tc8::someip::MessageType::REQUEST_NO_RETURN;
         subscribe.payload      = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, subscribe, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, subscribe, {}, ::tc8::sce::someipUdpMethodDest(cfg));
         std::this_thread::sleep_for(std::chrono::milliseconds(1500));
 
         // GetLastValueOfEventUDPMulticast — Method 0x3D; armed getter returns 0x08 ^ 0xFF.
         ::tc8::stimulus::SomeIpRpcMessage get_last{};
         get_last.method_id = 0x003D;
-        ::tc8::stimulus::emitMethodRequestAfter(iface, get_last, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, get_last, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

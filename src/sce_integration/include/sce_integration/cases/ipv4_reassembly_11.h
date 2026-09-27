@@ -61,16 +61,15 @@ struct TestCaseTraits<cases::Ipv4Reassembly11SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         const auto pair = ::tc8::sce::ipv4::reassembly::buildReassembly11FragmentPair(cfg);
 
         ::tc8::stimulus::IpBootTiming t0{};
         t0.initial_wait = std::chrono::milliseconds{200};
-        ::tc8::stimulus::emitIpv4Frame(iface, pair.frag0_spec, pair.frag0_payload, t0);
+        ::tc8::stimulus::emitIpv4Frame(ctx.iface, pair.frag0_spec, pair.frag0_payload, t0);
 
-        std::string iface_copy(iface);
-        scheduler.schedule(kInterFragmentWait, [iface_copy, pair]() {
+        std::string iface_copy(ctx.iface);
+        ctx.scheduler.schedule(kInterFragmentWait, [iface_copy, pair]() {
             ::tc8::stimulus::IpBootTiming t1{};
             t1.initial_wait = std::chrono::milliseconds{0};
             ::tc8::stimulus::emitIpv4Frame(iface_copy, pair.frag1_spec, pair.frag1_payload, t1);

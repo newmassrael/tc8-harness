@@ -39,23 +39,22 @@ struct TestCaseTraits<cases::SomeipEts148SM> : SomeIpAnyBase<cases::SomeipEts148
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IBackgroundServiceOwner& owner) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         // eg 0x0002 is mixed-reliability (carries reliable 0x8003): vsomeip Acks
         // the Subscribe only if it advertises a UDP + TCP endpoint pair AND holds
         // an established TCP connection. The triggered event observed here is
         // UNRELIABLE (over UDP); the TCP connection is held solely for the Ack.
         auto session = std::make_unique<::tc8::stimulus::SubscribeEventgroupTcpSession>(
-            iface, ::tc8::sce::someipTcpMethodDest(cfg));
+            ctx.iface, ::tc8::sce::someipTcpMethodDest(cfg));
         ::tc8::stimulus::SubscribeEventgroupTarget subscribe{};
         subscribe.eventgroup_id = 0x0002;
         subscribe.ttl = ::tc8::stimulus::kSubscribeOutlastTtl;
         ::tc8::stimulus::SubscribeDestination sd_dest{};
         sd_dest.ipv4_be = cfg.dut.ip;
         session->subscribeDual(subscribe, sd_dest);
-        owner.adoptService(std::move(session));
+        ctx.services.adoptService(std::move(session));
         // triggerEventUINT8Array(start=0 s, duration=3 s, debounceTime=200 ms):
         // 3x UInt32 big-endian (SOME/IP network byte order). Fire&Forget
         // (message_type 0x01). Lands ~500 ms after the Subscribe Ack, so the
@@ -66,7 +65,7 @@ struct TestCaseTraits<cases::SomeipEts148SM> : SomeIpAnyBase<cases::SomeipEts148
         trigger.payload = {0x00, 0x00, 0x00, 0x00,   // start = 0 s
                            0x00, 0x00, 0x00, 0x03,   // duration = 3 s
                            0x00, 0x00, 0x00, 0xC8};  // debounceTime = 200 ms
-        ::tc8::stimulus::emitMethodRequestAfter(iface, trigger, {},
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, trigger, {},
                                                 ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };

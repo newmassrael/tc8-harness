@@ -40,15 +40,14 @@ struct TestCaseTraits<cases::TcpMssOptions09NegSM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
         TesterAutoRstDrop rst_drop(cfg);
         (void)rst_drop;
-        emitEgressFlavorArm(cfg, iface, ::tc8::ut::kTcpFaultDataSegTruncate);
+        emitEgressFlavorArm(cfg, ctx.iface, ::tc8::ut::kTcpFaultDataSegTruncate);
         TestCaseTraits<cases::TcpMssOptions09SM>::runPhase(
-            dut, cfg, iface, cfg.dut.mac,
+            ctx.dut, cfg, ctx.iface, cfg.dut.mac,
             kTcpMssOptions09Phase1LocalOffset, /*advertised_mss=*/200U);
     }
 };

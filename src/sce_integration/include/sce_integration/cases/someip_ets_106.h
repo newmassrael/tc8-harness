@@ -46,8 +46,8 @@ struct TestCaseTraits<cases::SomeipEts106SM> : SomeIpAnyBase<cases::SomeipEts106
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 
@@ -57,7 +57,7 @@ struct TestCaseTraits<cases::SomeipEts106SM> : SomeIpAnyBase<cases::SomeipEts106
         activate.method_id    = 0x002F;
         activate.message_type = ::tc8::someip::MessageType::REQUEST_NO_RETURN;  // RequestNoReturn (Fire&Forget).
         activate.payload      = {0x00};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, activate, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, activate, {}, ::tc8::sce::someipUdpMethodDest(cfg));
         std::this_thread::sleep_for(std::chrono::milliseconds(800));
 
         // 2. clientServiceSubscribeEventgroup (Method 0x32 Fire&Forget) —
@@ -66,7 +66,7 @@ struct TestCaseTraits<cases::SomeipEts106SM> : SomeIpAnyBase<cases::SomeipEts106
         subscribe.method_id    = 0x0032;
         subscribe.message_type = ::tc8::someip::MessageType::REQUEST_NO_RETURN;
         subscribe.payload      = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, subscribe, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, subscribe, {}, ::tc8::sce::someipUdpMethodDest(cfg));
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         // 3. emitOfferServiceMulticastWithEndpoint — advertise tester's
@@ -84,7 +84,7 @@ struct TestCaseTraits<cases::SomeipEts106SM> : SomeIpAnyBase<cases::SomeipEts106
         offer.endpoint.port         = 30510U;     // ets3 UDP unreliable port
         offer.endpoint.l4proto      = 0x11;       // UDP
         ::tc8::stimulus::emitOfferServiceMulticastWithEndpoint(
-            iface, offer, std::chrono::milliseconds(500));
+            ctx.iface, offer, std::chrono::milliseconds(500));
     }
 };
 

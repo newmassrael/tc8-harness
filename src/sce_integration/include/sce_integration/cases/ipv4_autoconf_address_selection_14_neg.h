@@ -34,10 +34,9 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection14NegSM>
     // from the base); only the buggy flavor differs.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& /*cfg*/,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::linklocal::emitStartLLAutoconfBuggyConflict(
-            dut,
+            ctx.dut,
             ::tc8::ut::kFlavorReprobeStaleCycle);
     }
 };

@@ -42,13 +42,12 @@ struct TestCaseTraits<cases::TcpFlagsInvalid02NegSM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
-        emitEgressFlavorArm(cfg, iface, ::tc8::ut::kTcpFaultRstSeqWrong);
+        emitEgressFlavorArm(cfg, ctx.iface, ::tc8::ut::kTcpFaultRstSeqWrong);
 
-        const auto listen = driveSeamListen(dut, kBasicsListenPort);
+        const auto listen = driveSeamListen(ctx.dut, kBasicsListenPort);
         if (!listen) {
             return;
         }
@@ -58,10 +57,10 @@ struct TestCaseTraits<cases::TcpFlagsInvalid02NegSM>
         syn_ack.seq_num  = kTesterInitialSeq;
         syn_ack.ack_num  = kFlagsInvalid02ProbeAck;
         syn_ack.flags    = ::tc8::stimulus::kTcpFlagSyn | ::tc8::stimulus::kTcpFlagAck;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, syn_ack);
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, syn_ack);
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
-        dut.tcpControl()->closeTcp(*listen);
+        ctx.dut.tcpControl()->closeTcp(*listen);
     }
 };
 

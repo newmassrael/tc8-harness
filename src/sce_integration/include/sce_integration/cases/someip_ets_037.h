@@ -50,8 +50,8 @@ struct TestCaseTraits<cases::SomeipEts037SM> : SomeIpAnyBase<cases::SomeipEts037
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
 
         ::tc8::stimulus::SomeIpRpcMessage tcp_target{};
@@ -59,7 +59,7 @@ struct TestCaseTraits<cases::SomeipEts037SM> : SomeIpAnyBase<cases::SomeipEts037
         tcp_target.payload = {0x42};
         const auto tcp_dest = ::tc8::sce::someipTcpMethodDest(cfg);
         const int fd = ::tc8::stimulus::emitMethodRequestTcpAndHold(
-            iface, tcp_target, tcp_dest,
+            ctx.iface, tcp_target, tcp_dest,
             std::chrono::milliseconds(500),    // pre-emit wait
             std::chrono::milliseconds(1000));  // dwell so DUT replies
         if (fd < 0) {
@@ -76,7 +76,7 @@ struct TestCaseTraits<cases::SomeipEts037SM> : SomeIpAnyBase<cases::SomeipEts037
         reset_target.message_type = ::tc8::someip::MessageType::REQUEST_NO_RETURN;    // RequestNoReturn — no Response expected.
         ::tc8::stimulus::MethodRequestTiming reset_timing{};
         reset_timing.pre_emit_wait = std::chrono::milliseconds(0);
-        ::tc8::stimulus::emitMethodRequestAfter(iface, reset_target, reset_timing,
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, reset_target, reset_timing,
                                                 ::tc8::sce::someipUdpMethodDest(cfg));
 
         // Observation window — the spec failure shape is the DUT

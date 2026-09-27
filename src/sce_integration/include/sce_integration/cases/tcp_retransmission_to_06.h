@@ -83,9 +83,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo06SM> {
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -107,9 +105,9 @@ struct TestCaseTraits<cases::TcpRetransmissionTo06SM> {
         // Active OPEN routed through the backend-agnostic seam, no tester
         // listener — the SYN goes unanswered so the DUT stays in SYN-SENT,
         // which is the initial-RTO window this case observes.
-        auto open_conn = driveSeamSynSentOpen(dut, cfg, local_port, remote_port);
+        auto open_conn = driveSeamSynSentOpen(ctx.dut, cfg, local_port, remote_port);
 
-        scheduler.schedule(kRstDropHold, [rst_drop]() {
+        ctx.scheduler.schedule(kRstDropHold, [rst_drop]() {
             (void)rst_drop;
         });
 
@@ -138,7 +136,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo06SM> {
         bool p1_valid = false;
         while (true) {
             std::this_thread::sleep_for(kPollInterval);
-            const auto probe = dut.tcpStateProbe()->queryInfo(dut_sock);
+            const auto probe = ctx.dut.tcpStateProbe()->queryInfo(dut_sock);
             if (probe) {
                 p1 = *probe;
                 p1_valid = true;

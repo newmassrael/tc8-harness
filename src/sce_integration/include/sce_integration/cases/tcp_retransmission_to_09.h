@@ -87,8 +87,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo09SM> {
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -112,7 +111,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo09SM> {
         // Active OPEN routed through the backend-agnostic seam, no tester
         // listener — the SYN goes unanswered so the DUT stays in SYN-SENT
         // and retransmits, which is what this case observes.
-        auto open_conn = driveSeamSynSentOpen(dut, cfg, local_port, remote_port);
+        auto open_conn = driveSeamSynSentOpen(ctx.dut, cfg, local_port, remote_port);
 
         // A nullopt open is an unreachable DUT: nothing to probe →
         // ut_handshake_completed stays false → SCXML verdicts
@@ -121,7 +120,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo09SM> {
         const ::tc8::sce::DutSocket dut_sock = open_conn->socket;
         c.ut_handshake_completed = true;
 
-        const auto obs = observeRtoCeiling(dut, dut_sock, kBudget, kPollInterval,
+        const auto obs = observeRtoCeiling(ctx.dut, dut_sock, kBudget, kPollInterval,
                                            kTwoMslRtoUpperUs);
 
         c.ut_rto_ceiling         = obs.outcome;
@@ -131,7 +130,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo09SM> {
         c.ut_tcpi_p1_retransmits = obs.last.retransmits;
         c.ut_tcpi_p1_unacked     = obs.last.unacked;
 
-        dut.tcpControl()->closeTcp(dut_sock);
+        ctx.dut.tcpControl()->closeTcp(dut_sock);
     }
 
     static void dispatch(Captured& /*c*/, SM& /*sm*/, const ::tc8::CapturedEvent& /*ev*/) {

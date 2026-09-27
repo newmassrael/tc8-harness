@@ -40,21 +40,20 @@ struct TestCaseTraits<cases::TcpSequence01NegSM>
     // captured with a wrong ack_num — the injected violation the positive forbids.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
-        emitEgressFlavorArm(cfg, iface, ::tc8::ut::kTcpFaultSynAckAckWrong);
+        emitEgressFlavorArm(cfg, ctx.iface, ::tc8::ut::kTcpFaultSynAckAckWrong);
 
         auto open = driveSeamRawPassiveAccept(
-            dut, cfg, iface,
+            ctx.dut, cfg, ctx.iface,
             kTcpSequence01ListenPort,
             std::vector<std::uint8_t>{},
             kTcpSequence01TesterSrcPort,
             /*tester_isn=*/kTesterInitialSeq);
 
         if (open.conn) {
-            ::tc8::sce::seamTcpControl(dut).closeTcp(open.conn->socket);
+            ::tc8::sce::seamTcpControl(ctx.dut).closeTcp(open.conn->socket);
         }
     }
 };

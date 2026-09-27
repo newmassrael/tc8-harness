@@ -33,8 +33,8 @@ struct TestCaseTraits<cases::SomeipEts123SM> : SomeIpAnyBase<cases::SomeipEts123
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         // Brief gap so the OfferService cyclic emit has landed before the
         // malformed Subscribe lands; mirrors emitSubscribeEventgroupBoot's
@@ -48,7 +48,7 @@ struct TestCaseTraits<cases::SomeipEts123SM> : SomeIpAnyBase<cases::SomeipEts123
         // any vsomeip parser reading EntriesLen and walking that many
         // bytes hits end-of-message and rejects.
         params.entries_len_override = 0xFFFFFF00U;
-        ::tc8::stimulus::emitSubscribeEventgroupRaw(iface, params);
+        ::tc8::stimulus::emitSubscribeEventgroupRaw(ctx.iface, params);
     }
 };
 

@@ -44,12 +44,12 @@ struct TestCaseTraits<cases::Ipv4Reassembly06SM>
     // offset=0 fragment cannot be delivered to upper layer.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         const std::vector<std::uint8_t> frag_payload_a(8, 0xAA);
         const std::vector<std::uint8_t> frag_payload_b(8, 0xBB);
 
         ::tc8::sce::ipv4::reassembly::emitIpv4Fragment(
-            iface, cfg, cfg.arp.dut_iface_mac,
+            ctx.iface, cfg, cfg.arp.dut_iface_mac,
             ::tc8::sce::ipv4::reassembly::kReassembly06IpId,
             /*fragment_offset=*/1,
             /*more_fragments=*/true,
@@ -57,7 +57,7 @@ struct TestCaseTraits<cases::Ipv4Reassembly06SM>
             frag_payload_a);
 
         ::tc8::sce::ipv4::reassembly::emitIpv4Fragment(
-            iface, cfg, cfg.arp.dut_iface_mac,
+            ctx.iface, cfg, cfg.arp.dut_iface_mac,
             ::tc8::sce::ipv4::reassembly::kReassembly06IpId,
             /*fragment_offset=*/2,
             /*more_fragments=*/false,

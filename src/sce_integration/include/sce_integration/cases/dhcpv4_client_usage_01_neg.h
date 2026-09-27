@@ -41,18 +41,16 @@ struct TestCaseTraits<cases::Dhcpv4ClientUsage01NegSM>
     // conformant so DISCOVER#1 + s1's chaddr_matches_dut_mac gate hold.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& /*cfg*/,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(dut);
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(ctx.dut);
 
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_for_d1_discover),
             [&c]() { c.snapshotDiscoverChaddr(); });
 
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_for_d1_discover),
-            [dut = &dut]() {
+            [dut = &ctx.dut]() {
                 ::tc8::sce::dhcpv4::Dhcpv4StartConfig sc;
                 sc.iface_index = 1;
                 sc.apply_initial_wait = false;

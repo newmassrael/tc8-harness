@@ -65,10 +65,9 @@ struct TestCaseTraits<cases::Ipv4Addressing01SM> {
     // `{$expected_received}` polarity.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::udp::emitAddressingProbeAndQuery(
-            cfg, iface, dut, cases::kLimitedBroadcastBe);
+            cfg, ctx.iface, ctx.dut, cases::kLimitedBroadcastBe);
     }
 
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {

@@ -41,8 +41,8 @@ struct TestCaseTraits<cases::SomeipEts061SM> : SomeIpAnyBase<cases::SomeipEts061
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         std::vector<::tc8::stimulus::SomeIpRpcMessage> bundle;
         bundle.reserve(2);
@@ -59,7 +59,7 @@ struct TestCaseTraits<cases::SomeipEts061SM> : SomeIpAnyBase<cases::SomeipEts061
         m2.payload    = {0x01};            // 1-byte EtsEnum (VALUE_B = 1).
         bundle.push_back(m2);
 
-        ::tc8::stimulus::emitBundledMethodRequestsUdp(iface, bundle,
+        ::tc8::stimulus::emitBundledMethodRequestsUdp(ctx.iface, bundle,
                                                      std::chrono::milliseconds(500),
                                                      ::tc8::sce::someipUdpMethodDest(cfg));
     }

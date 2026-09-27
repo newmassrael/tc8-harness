@@ -42,8 +42,8 @@ struct TestCaseTraits<cases::SomeipEts137SM> : SomeIpAnyBase<cases::SomeipEts137
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 
@@ -142,7 +142,7 @@ struct TestCaseTraits<cases::SomeipEts137SM> : SomeIpAnyBase<cases::SomeipEts137
         // port" gate; destination defaults to the tc8-dut SD endpoint
         // (172.16.0.2 : 30490).
         constexpr std::uint32_t kDutIpBe = 0x020010ACu;
-        ::tc8::stimulus::sendSdUnicast(d, iface, kDutIpBe);
+        ::tc8::stimulus::sendSdUnicast(d, ctx.iface, kDutIpBe);
     }
 };
 

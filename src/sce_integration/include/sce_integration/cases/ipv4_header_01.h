@@ -27,8 +27,8 @@ struct TestCaseTraits<cases::Ipv4Header01SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::sce::ipv4::emitStimulus(cfg, iface);
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::sce::ipv4::emitStimulus(cfg, ctx.iface);
     }
 };
 

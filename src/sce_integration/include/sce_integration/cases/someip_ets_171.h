@@ -38,7 +38,7 @@ struct TestCaseTraits<cases::SomeipEts171SM> : SomeIpAnyBase<cases::SomeipEts171
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& /*cfg*/,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         // Wait for DUT initial SD startup (vsomeip initial_delay_min/max
         // typically settles within ~1.5 s).
         std::this_thread::sleep_for(std::chrono::milliseconds(1500));
@@ -52,7 +52,7 @@ struct TestCaseTraits<cases::SomeipEts171SM> : SomeIpAnyBase<cases::SomeipEts171
             p.session_id = sid;
             p.sd_flags = 0xC0;
             const auto datagram = ::tc8::stimulus::buildFindService(p);
-            ::tc8::stimulus::sendSdUnicast(datagram, iface, dut_sd.ipv4_be, dut_sd.port);
+            ::tc8::stimulus::sendSdUnicast(datagram, ctx.iface, dut_sd.ipv4_be, dut_sd.port);
             std::this_thread::sleep_for(std::chrono::milliseconds(700));
         }
     }

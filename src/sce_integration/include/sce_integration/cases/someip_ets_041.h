@@ -44,8 +44,8 @@ struct TestCaseTraits<cases::SomeipEts041SM> : SomeIpAnyBase<cases::SomeipEts041
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
 
         // 132-byte UTF-16 BE payload: 4 B length prefix + 128 B inner
@@ -74,7 +74,7 @@ struct TestCaseTraits<cases::SomeipEts041SM> : SomeIpAnyBase<cases::SomeipEts041
         step1.payload[1] = 0x00;
         step1.payload[2] = 0x00;
         step1.payload[3] = 0x80;
-        ::tc8::stimulus::emitMethodRequestAfter(iface, step1, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, step1, {}, ::tc8::sce::someipUdpMethodDest(cfg));
 
         // Step 3: same wire bytes but string-length prefix corrupted
         // to 0x02 (claims 2 bytes follow), session_id 0x0002 -> DUT
@@ -93,7 +93,7 @@ struct TestCaseTraits<cases::SomeipEts041SM> : SomeIpAnyBase<cases::SomeipEts041
         step3.payload[3] = 0x02;
         ::tc8::stimulus::MethodRequestTiming step3_timing{};
         step3_timing.pre_emit_wait = std::chrono::milliseconds(0);
-        ::tc8::stimulus::emitMethodRequestAfter(iface, step3, step3_timing, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, step3, step3_timing, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

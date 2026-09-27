@@ -67,14 +67,12 @@ struct TestCaseTraits<cases::TcpUnacceptable04SM>
     // kept alive until process exit, same rationale as CHECKSUM_02).
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         auto open = driveSeamActiveOpen(
-            dut, cfg,
+            ctx.dut, cfg,
             kBasicsActiveLocalPort  + kTcpUnacceptable04LocalOffset,
             kBasicsActiveRemotePort + kTcpUnacceptable04LocalOffset);
 
@@ -93,12 +91,12 @@ struct TestCaseTraits<cases::TcpUnacceptable04SM>
                         | ::tc8::stimulus::kTcpFlagAck;
         phase1.payload.assign(kCorruptPayload.begin(),
                               kCorruptPayload.end());
-        emitTcpFrame(cfg, iface, cfg.dut.mac, phase1,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, phase1,
                      /*initial_wait=*/std::chrono::milliseconds(0));
 
         ::tc8::TestConfig cfg_copy = cfg;
-        std::string       iface_str(iface);
-        scheduler.scheduleAfterStateEntry(
+        std::string       iface_str(ctx.iface);
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_unacc_ack),
             [cfg_copy, iface_str, tester_fd]() {
                 using namespace ::tc8::sce::tcp;

@@ -34,8 +34,8 @@ struct TestCaseTraits<cases::SomeipEts058SM> : SomeIpAnyBase<cases::SomeipEts058
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = 0x0008;
@@ -45,7 +45,7 @@ struct TestCaseTraits<cases::SomeipEts058SM> : SomeIpAnyBase<cases::SomeipEts058
         // carries. Larger-magnitude variant of ETS_001 (0x100) /
         // ETS_002 (0x20); both lenient-verdict 4-path.
         target.length_override = 0x00010000u;
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

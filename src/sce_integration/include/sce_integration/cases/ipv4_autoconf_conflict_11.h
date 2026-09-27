@@ -27,7 +27,7 @@ struct TestCaseTraits<cases::Ipv4AutoconfConflict11SM>
         "DUT-emitted ARP Reply carrying a Link-Local sender IP "
         "is sent via link-layer broadcast (RFC 3927 §2.5, MUST)";
 
-    // Identical 4-arg shape to ADDRESS_SELECTION_16: emit
+    // Identical stimulus shape to ADDRESS_SELECTION_16: emit
     // OpStartLLAutoconf with the fast envelope, then delegate the
     // post-claim observer (UT-query → snapshot → AIFACE-LL Request)
     // to the shared scheduleClaimConditionTesterRequest helper. The
@@ -36,13 +36,11 @@ struct TestCaseTraits<cases::Ipv4AutoconfConflict11SM>
     // is broadcast alongside the IP / MAC fields.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
-        ::tc8::sce::linklocal::emitStartLLAutoconfFast(dut);
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::sce::linklocal::emitStartLLAutoconfFast(ctx.dut);
         ::tc8::sce::linklocal::scheduleClaimConditionTesterRequest(
-            scheduler, static_cast<int>(State::Listening_post_claim),
-            cfg, iface, dut, c);
+            ctx.scheduler, static_cast<int>(State::Listening_post_claim),
+            cfg, ctx.iface, ctx.dut, c);
     }
 };
 

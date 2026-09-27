@@ -58,19 +58,18 @@ struct TestCaseTraits<cases::TcpBasics03SM>
     // DUT kernel process the FIN and emit the ACK before teardown.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        auto open = driveSeamPassiveOpen(dut, cfg, kBasicsListenPort);
+        auto open = driveSeamPassiveOpen(ctx.dut, cfg, kBasicsListenPort);
 
         if (open.tester_fd >= 0) {
             ::shutdown(open.tester_fd, SHUT_WR);
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             ::close(open.tester_fd);
         }
-        if (open.conn) dut.tcpControl()->closeTcp(open.conn->socket);
+        if (open.conn) ctx.dut.tcpControl()->closeTcp(open.conn->socket);
     }
 };
 

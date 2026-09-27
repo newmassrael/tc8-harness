@@ -28,13 +28,14 @@ struct TestCaseTraits<cases::Arp42SM>
     // (Linux still processes broadcast-dst Responses but the spec says
     // unicast reply). eth_dst defaults to broadcast, which also works;
     // keep broadcast for simplicity, matching ARP_33's gratuitous frame.
-    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
+    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg,
+                         ::tc8::sce::StimulusContext &ctx) {
         ::tc8::stimulus::ArpFrameSpec spec;
         spec.opcode = 0x0002;  // Response
         spec.sender_ip_be = cfg.arp.tester_ip;
         spec.target_ip_be = cfg.dut.ip;
         spec.target_hw = cfg.dut.mac;  // addressed to DUT
-        ::tc8::stimulus::emitArpFromTester(iface, spec);
+        ::tc8::stimulus::emitArpFromTester(ctx.iface, spec);
     }
 };
 

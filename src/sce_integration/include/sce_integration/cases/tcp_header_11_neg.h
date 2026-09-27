@@ -50,20 +50,19 @@ struct TestCaseTraits<cases::TcpHeader11NegSM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpHeader11LocalOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpHeader11LocalOffset;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         (void)open;
 
         // Per-phase arm: the handshake has completed, so the synthesis fires only on the
         // multicast SYN injected next.
-        emitIngressFlavorArmMidStream(cfg, iface, ::tc8::ut::kTcpSynthAck);
+        emitIngressFlavorArmMidStream(cfg, ctx.iface, ::tc8::ut::kTcpSynthAck);
 
         const std::uint32_t multicast_dst_ip = ::inet_addr("224.0.0.1");
 
@@ -83,7 +82,7 @@ struct TestCaseTraits<cases::TcpHeader11NegSM>
         ip_spec.ip_protocol = ::tc8::stimulus::kIpProtoTcp;
         ::tc8::stimulus::IpBootTiming timing{};
         timing.initial_wait = std::chrono::milliseconds(0);
-        ::tc8::stimulus::emitIpv4Frame(iface, ip_spec, tcp_bytes, timing);
+        ::tc8::stimulus::emitIpv4Frame(ctx.iface, ip_spec, tcp_bytes, timing);
     }
 };
 

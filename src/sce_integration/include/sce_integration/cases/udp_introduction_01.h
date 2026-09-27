@@ -35,10 +35,9 @@ struct TestCaseTraits<cases::UdpIntroduction01SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::udp::emitAddressingProbeAndQuery(
-            cfg, iface, dut, cases::kIntro01DirectedBroadcastBe);
+            cfg, ctx.iface, ctx.dut, cases::kIntro01DirectedBroadcastBe);
     }
 };
 

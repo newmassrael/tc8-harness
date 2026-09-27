@@ -38,11 +38,10 @@ struct TestCaseTraits<cases::Ipv4Addressing01NegSM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
-        emitIngressFlavorArm(cfg, iface, ::tc8::ut::kUdpFaultRejectValid);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitIngressFlavorArm(cfg, ctx.iface, ::tc8::ut::kUdpFaultRejectValid);
         ::tc8::sce::udp::emitAddressingProbeAndQuery(
-            cfg, iface, dut, cases::kLimitedBroadcastBe);
+            cfg, ctx.iface, ctx.dut, cases::kLimitedBroadcastBe);
     }
 };
 

@@ -89,8 +89,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo08SM> {
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -101,7 +100,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo08SM> {
 
         // Active OPEN → ESTABLISHED routed through the backend-agnostic
         // seam; acceptOne() drains the tester accept queue.
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
         if (!open.conn) {
@@ -113,9 +112,9 @@ struct TestCaseTraits<cases::TcpRetransmissionTo08SM> {
 
         TesterAutoAckDrop ack_drop(cfg);
 
-        seamSendTcp(dut, dut_sock, kPayload);
+        seamSendTcp(ctx.dut, dut_sock, kPayload);
 
-        const auto obs = observeRtoCeiling(dut, dut_sock, kBudget, kPollInterval,
+        const auto obs = observeRtoCeiling(ctx.dut, dut_sock, kBudget, kPollInterval,
                                            kTwoMslRtoUpperUs);
 
         c.ut_rto_ceiling         = obs.outcome;

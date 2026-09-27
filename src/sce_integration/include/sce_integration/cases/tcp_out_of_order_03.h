@@ -63,8 +63,7 @@ struct TestCaseTraits<cases::TcpOutOfOrder03SM>
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -73,7 +72,7 @@ struct TestCaseTraits<cases::TcpOutOfOrder03SM>
         const std::uint16_t remote_port =
             kBasicsActiveRemotePort + kTcpOutOfOrder03LocalOffset;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
 
@@ -105,16 +104,16 @@ struct TestCaseTraits<cases::TcpOutOfOrder03SM>
             return spec;
         };
 
-        emitTcpFrame(cfg, iface, cfg.dut.mac,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac,
                      build_seg(injected_seq, kSeg0Payload),
                      /*initial_wait=*/std::chrono::milliseconds(0));
-        emitTcpFrame(cfg, iface, cfg.dut.mac,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac,
                      build_seg(injected_seq + 2U * seg_len, kSegGap1Payload),
                      kInterSegmentWait);
-        emitTcpFrame(cfg, iface, cfg.dut.mac,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac,
                      build_seg(injected_seq + 3U * seg_len, kSegGap2Payload),
                      kInterSegmentWait);
-        emitTcpFrame(cfg, iface, cfg.dut.mac,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac,
                      build_seg(injected_seq + seg_len, kSegFillPayload),
                      kInterSegmentWait);
         (void)tester_fd;

@@ -33,9 +33,7 @@ struct TestCaseTraits<cases::Dhcpv4ClientAllocating07SM>
     static constexpr int              kTopology   = 4;
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         // ALLOCATING_07 only verifies the MUST behaviour (restart). Keep
         // `decline_to_discover_*` at the [0, 0] default so the DUT
         // restarts immediately after the DECLINE. ALLOCATING_08 opts in
@@ -43,20 +41,20 @@ struct TestCaseTraits<cases::Dhcpv4ClientAllocating07SM>
         // timing assert.
         ::tc8::sce::dhcpv4::Dhcpv4StartConfig sc;
         sc.arp_probe_listen_ms = 1500;
-        ::tc8::sce::dhcpv4::emitStartDhcpClient(dut, sc);
+        ::tc8::sce::dhcpv4::emitStartDhcpClient(ctx.dut, sc);
         ::tc8::sce::dhcpv4::scheduleDhcpReplyOnStateEntry(
-            scheduler, static_cast<int>(State::Listening_for_first_request),
-            iface, c.dhcpv4, /*message_type=*/2);
+            ctx.scheduler, static_cast<int>(State::Listening_for_first_request),
+            ctx.iface, c.dhcpv4, /*message_type=*/2);
         ::tc8::sce::dhcpv4::scheduleDhcpReplyOnStateEntry(
-            scheduler, static_cast<int>(State::Listening_for_arp_probe),
-            iface, c.dhcpv4, /*message_type=*/5);
+            ctx.scheduler, static_cast<int>(State::Listening_for_arp_probe),
+            ctx.iface, c.dhcpv4, /*message_type=*/5);
         // ARP conflict injection on listening_for_decline entry — fires
         // immediately after the DUT-emitted ARP Probe is observed,
         // triggering the DUT's listener to mark the address as in use.
         // Same MAC-UNUSED sentinel (02:00:DE:AD:00:01) as INIT_ALLOC_09.
         ::tc8::sce::dhcpv4::scheduleArpConflictReplyOnStateEntry(
-            scheduler, static_cast<int>(State::Listening_for_decline),
-            iface, cfg.dut.mac,
+            ctx.scheduler, static_cast<int>(State::Listening_for_decline),
+            ctx.iface, cfg.dut.mac,
             ::tc8::sce::dhcpv4::kDefaultOfferedIpBe);
     }
 };

@@ -45,10 +45,10 @@ struct TestCaseTraits<cases::SomeipEts168NegSM>
     // mirrors the positive), and only the post-set getter readback is bit-flipped (!= 0x99).
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        emitEtsFlavorArm(cfg, iface, ::tc8::ut::kEtsFaultFieldValueWrong);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitEtsFlavorArm(cfg, ctx.iface, ::tc8::ut::kEtsFaultFieldValueWrong);
 
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 
@@ -59,7 +59,7 @@ struct TestCaseTraits<cases::SomeipEts168NegSM>
         // 1. getTestFieldUint8Reliable (Method 0x2A) over TCP.
         ::tc8::stimulus::SomeIpRpcMessage get1{};
         get1.method_id = 0x002A;
-        ::tc8::stimulus::emitMethodRequestTcpAfter(iface, get1,
+        ::tc8::stimulus::emitMethodRequestTcpAfter(ctx.iface, get1,
                                                    ::tc8::stimulus::MethodRequestTiming{},
                                                    tcp_dest);
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -68,7 +68,7 @@ struct TestCaseTraits<cases::SomeipEts168NegSM>
         ::tc8::stimulus::SomeIpRpcMessage set{};
         set.method_id = 0x002B;
         set.payload   = {0x99};
-        ::tc8::stimulus::emitMethodRequestTcpAfter(iface, set,
+        ::tc8::stimulus::emitMethodRequestTcpAfter(ctx.iface, set,
                                                    ::tc8::stimulus::MethodRequestTiming{},
                                                    tcp_dest);
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -76,7 +76,7 @@ struct TestCaseTraits<cases::SomeipEts168NegSM>
         // 3. getTestFieldUint8Reliable again — the armed getter returns 0x99 ^ 0xFF = 0x66.
         ::tc8::stimulus::SomeIpRpcMessage get2{};
         get2.method_id = 0x002A;
-        ::tc8::stimulus::emitMethodRequestTcpAfter(iface, get2,
+        ::tc8::stimulus::emitMethodRequestTcpAfter(ctx.iface, get2,
                                                    ::tc8::stimulus::MethodRequestTiming{},
                                                    tcp_dest);
     }

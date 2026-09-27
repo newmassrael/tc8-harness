@@ -31,8 +31,8 @@ struct TestCaseTraits<cases::Rpc17SM> : SomeIpAnyBase<cases::Rpc17SM> {
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{});
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{});
 
         ::tc8::stimulus::SomeIpRpcMessage req{};
         req.service_id = 0xF4E7;
@@ -40,7 +40,7 @@ struct TestCaseTraits<cases::Rpc17SM> : SomeIpAnyBase<cases::Rpc17SM> {
         req.payload = {0x42};
 
         // instance 0x0001 reliable = the configured services[0] TCP endpoint.
-        ::tc8::stimulus::emitMethodRequestTcpAfter(iface, req, {},
+        ::tc8::stimulus::emitMethodRequestTcpAfter(ctx.iface, req, {},
                                                    ::tc8::sce::someipTcpMethodDest(cfg));
 
         ::tc8::stimulus::SomeIpRpcMessage req2 = req;
@@ -49,7 +49,7 @@ struct TestCaseTraits<cases::Rpc17SM> : SomeIpAnyBase<cases::Rpc17SM> {
         late.pre_emit_wait = std::chrono::milliseconds{500};
         // instance 0x0002 reliable — not the base services[0] endpoint, so
         // name the port explicitly.
-        ::tc8::stimulus::emitMethodRequestTcpAfter(iface, req2, late,
+        ::tc8::stimulus::emitMethodRequestTcpAfter(ctx.iface, req2, late,
                                                    ::tc8::sce::someipTcpMethodDest(cfg, ::tc8::sce::someip::kSi1Inst2TcpPort));
     }
 };

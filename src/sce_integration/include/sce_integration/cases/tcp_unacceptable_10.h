@@ -74,18 +74,16 @@ struct TestCaseTraits<cases::TcpUnacceptable10SM>
     //      UNACCEPTABLE_09 CASE 2.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         auto open = driveSeamActiveOpen(
-            dut, cfg,
+            ctx.dut, cfg,
             kBasicsActiveLocalPort  + kTcpUnacceptable10LocalOffset,
             kBasicsActiveRemotePort + kTcpUnacceptable10LocalOffset);
         const int tester_fd = open.listener.acceptOne();
-        if (open.conn) dut.tcpControl()->closeTcp(open.conn->socket);
+        if (open.conn) ctx.dut.tcpControl()->closeTcp(open.conn->socket);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
         if (tester_fd < 0) return;
 
@@ -101,12 +99,12 @@ struct TestCaseTraits<cases::TcpUnacceptable10SM>
                         | ::tc8::stimulus::kTcpFlagAck;
         phase1.payload.assign(kCorruptPayload.begin(),
                               kCorruptPayload.end());
-        emitTcpFrame(cfg, iface, cfg.dut.mac, phase1,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, phase1,
                      /*initial_wait=*/std::chrono::milliseconds(0));
 
         ::tc8::TestConfig cfg_copy = cfg;
-        std::string       iface_str(iface);
-        scheduler.scheduleAfterStateEntry(
+        std::string       iface_str(ctx.iface);
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_unacc_ack),
             [cfg_copy, iface_str, tester_fd]() {
                 using namespace ::tc8::sce::tcp;

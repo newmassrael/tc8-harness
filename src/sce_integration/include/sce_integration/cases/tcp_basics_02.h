@@ -59,23 +59,22 @@ struct TestCaseTraits<cases::TcpBasics02SM>
     // seam.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        auto open = driveSeamPassiveOpen(dut, cfg, kBasicsListenPort);
+        auto open = driveSeamPassiveOpen(ctx.dut, cfg, kBasicsListenPort);
 
         // tcpStateProbe() is non-null by contract: the capability gate skipped
         // this case before stimulus if the backend lacked kCapTcpStateProbe.
         // utEstablishedByte maps the tristate (and a nullopt open) onto the
         // ut_established byte (utEstablishedByte is the byte-encoding SSOT).
         c.ut_established = open.conn
-            ? utEstablishedByte(dut.tcpStateProbe()->isEstablished(open.conn->socket))
+            ? utEstablishedByte(ctx.dut.tcpStateProbe()->isEstablished(open.conn->socket))
             : 0xFFU;
 
         if (open.tester_fd >= 0) ::close(open.tester_fd);
-        if (open.conn) dut.tcpControl()->closeTcp(open.conn->socket);
+        if (open.conn) ctx.dut.tcpControl()->closeTcp(open.conn->socket);
     }
 };
 

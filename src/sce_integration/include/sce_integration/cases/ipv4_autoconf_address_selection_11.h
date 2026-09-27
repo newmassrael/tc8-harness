@@ -35,13 +35,11 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection11SM>
     // frame claims exactly the DUT's tentative LL.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& /*cfg*/,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         linklocal::IStimulusScheduler& scheduler) {
-        ::tc8::sce::linklocal::emitStartLLAutoconfFast(dut);
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::sce::linklocal::emitStartLLAutoconfFast(ctx.dut);
         ::tc8::sce::linklocal::scheduleConflictArpOnStateEntry(
-            scheduler, static_cast<int>(State::Await_repick),
-            iface, ::tc8::sce::linklocal::ConflictArpVariant::Request, c);
+            ctx.scheduler, static_cast<int>(State::Await_repick),
+            ctx.iface, ::tc8::sce::linklocal::ConflictArpVariant::Request, c);
     }
 };
 

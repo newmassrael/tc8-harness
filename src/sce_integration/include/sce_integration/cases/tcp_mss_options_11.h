@@ -43,18 +43,17 @@ struct TestCaseTraits<cases::TcpMssOptions11SM>
     // DUT's emitted SYN, observed before the handshake completes.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpMssOptions11LocalOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpMssOptions11LocalOffset;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         if (!open.conn) return;
 
-        dut.tcpControl()->closeTcp(open.conn->socket);
+        ctx.dut.tcpControl()->closeTcp(open.conn->socket);
     }
 };
 

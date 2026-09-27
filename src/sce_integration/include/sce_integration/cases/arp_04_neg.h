@@ -32,11 +32,11 @@ struct TestCaseTraits<cases::Arp04NegSM>
     // is live before the teaching Request arrives — arming after it would let the
     // teaching land and the fault would read as inert.
     static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg,
-                         std::string_view iface, ::tc8::sce::IDutControl &dut) {
-        emitIngressFlavorArm(cfg, iface, ::tc8::ut::kArpFaultIgnoreLearn);
-        ::tc8::stimulus::emitArpLearningBoot(iface, cfg.arp.tester_ip, cfg.dut.ip,
+                         ::tc8::sce::StimulusContext &ctx) {
+        emitIngressFlavorArm(cfg, ctx.iface, ::tc8::ut::kArpFaultIgnoreLearn);
+        ::tc8::stimulus::emitArpLearningBoot(ctx.iface, cfg.arp.tester_ip, cfg.dut.ip,
                                              ::tc8::stimulus::ArpLearningVariant::Request);
-        emitArpEgressProvocation(dut, cfg.stimulus_timing);
+        emitArpEgressProvocation(ctx.dut, cfg.stimulus_timing);
     }
 };
 

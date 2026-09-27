@@ -36,15 +36,14 @@ struct TestCaseTraits<cases::TcpControlFlags08SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         // LISTEN via driveSeamListen (ITcpControl::listenTcp, listen-only) so
         // the case runs on whichever backend `--dut-control` selected; the
         // stale-SYN / recovery-RST / fresh-SYN injects stay tester-side.
-        const auto listen = driveSeamListen(dut, kTcpControlFlags08ListenPort);
+        const auto listen = driveSeamListen(ctx.dut, kTcpControlFlags08ListenPort);
         if (!listen) return;
 
         // Suppress tester-kernel auto-RST against DUT-emitted SYN,ACK
@@ -61,7 +60,7 @@ struct TestCaseTraits<cases::TcpControlFlags08SM>
         syn1.dst_port = kTcpControlFlags08ListenPort;
         syn1.seq_num  = kTcpControlFlags08Seq1;
         syn1.flags    = ::tc8::stimulus::kTcpFlagSyn;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, syn1,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, syn1,
                      /*initial_wait=*/std::chrono::milliseconds(0));
 
         // Settle so the DUT egress SYN,ACK is in pcap and the
@@ -85,7 +84,7 @@ struct TestCaseTraits<cases::TcpControlFlags08SM>
         rst.seq_num  = kTcpControlFlags08Seq1 + 1U;
         rst.flags    = ::tc8::stimulus::kTcpFlagSyn
                      | ::tc8::stimulus::kTcpFlagRst;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, rst,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, rst,
                      /*initial_wait=*/std::chrono::milliseconds(0));
 
         std::this_thread::sleep_for(std::chrono::milliseconds(300));
@@ -97,12 +96,12 @@ struct TestCaseTraits<cases::TcpControlFlags08SM>
         syn2.dst_port = kTcpControlFlags08ListenPort;
         syn2.seq_num  = kTcpControlFlags08Seq2;
         syn2.flags    = ::tc8::stimulus::kTcpFlagSyn;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, syn2,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, syn2,
                      /*initial_wait=*/std::chrono::milliseconds(0));
 
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-        dut.tcpControl()->closeTcp(*listen);
+        ctx.dut.tcpControl()->closeTcp(*listen);
         (void)rst_drop;
     }
 };

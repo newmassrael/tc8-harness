@@ -35,13 +35,13 @@ struct TestCaseTraits<cases::Icmpv4Error04NegSM>
     // forbids the Parameter Problem reply because the destination is broadcast).
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        emitIngressFlavorArm(cfg, iface, ::tc8::ut::kIcmpFaultSynthParamProblem);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitIngressFlavorArm(cfg, ctx.iface, ::tc8::ut::kIcmpFaultSynthParamProblem);
         ::tc8::sce::icmpv4::StimulusOverrides ov{};
         ov.dst_ip = std::uint32_t{0xFFFFFFFFU};  // 255.255.255.255 (NBO-invariant)
         ov.ip_options.assign(::tc8::stimulus::kIcmpv4TimestampOptionMalformed.begin(),
                              ::tc8::stimulus::kIcmpv4TimestampOptionMalformed.end());
-        ::tc8::sce::icmpv4::emitStimulus(cfg, iface, ov);
+        ::tc8::sce::icmpv4::emitStimulus(cfg, ctx.iface, ov);
     }
 };
 

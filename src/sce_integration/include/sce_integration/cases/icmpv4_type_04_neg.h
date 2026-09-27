@@ -45,8 +45,8 @@ struct TestCaseTraits<cases::Icmpv4Type04NegSM>
     // positive uses (fragment zero never sent). No post_send_wait: the synth fires on arrival.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        emitIngressFlavorArm(cfg, iface, ::tc8::ut::kIcmpFaultSynthTimeExceeded);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitIngressFlavorArm(cfg, ctx.iface, ::tc8::ut::kIcmpFaultSynthTimeExceeded);
         ::tc8::sce::icmpv4::StimulusOverrides ov{};
         ov.dst_mac         = cfg.arp.dut_iface_mac;
         ov.more_fragments  = false;
@@ -54,7 +54,7 @@ struct TestCaseTraits<cases::Icmpv4Type04NegSM>
         ov.raw_ip_payload.assign(
             ::tc8::stimulus::kIcmpv4FragmentStimulusPacket.begin() + 8,
             ::tc8::stimulus::kIcmpv4FragmentStimulusPacket.end());
-        ::tc8::sce::icmpv4::emitStimulus(cfg, iface, ov);
+        ::tc8::sce::icmpv4::emitStimulus(cfg, ctx.iface, ov);
     }
 };
 

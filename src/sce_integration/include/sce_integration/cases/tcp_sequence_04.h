@@ -34,8 +34,7 @@ struct TestCaseTraits<cases::TcpSequence04SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -44,14 +43,14 @@ struct TestCaseTraits<cases::TcpSequence04SM>
         // handshake. rawPassiveThreeWayHandshake's third-leg ACK seq is
         // tester_isn + 1 == 0, exercising the same wraparound on the tester side.
         auto open = driveSeamRawPassiveAccept(
-            dut, cfg, iface,
+            ctx.dut, cfg, ctx.iface,
             kTcpSequence04ListenPort,
             std::vector<std::uint8_t>{},
             kTcpSequence04TesterSrcPort,
             /*tester_isn=*/0xFFFFFFFFU);
 
         if (open.conn) {
-            ::tc8::sce::seamTcpControl(dut).closeTcp(open.conn->socket);
+            ::tc8::sce::seamTcpControl(ctx.dut).closeTcp(open.conn->socket);
         }
     }
 };

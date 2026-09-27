@@ -38,16 +38,17 @@ struct TestCaseTraits<cases::Arp45NegSM>
     // The settle after the arm is the same kFlavorArmSettle the ingress arms use: the arm
     // is a raw-injected UT frame handled on the DUT's UT thread, while the Reply is emitted
     // from the tcpip thread, so the two need a gap rather than an ordering guarantee.
-    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
+    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg,
+                         ::tc8::sce::StimulusContext &ctx) {
         ::tc8::stimulus::ArpFrameSpec spec1;
         spec1.opcode = 0x0001;  // Request
         spec1.sender_hw = ::tc8::stimulus::kTesterInjectedMac;
         spec1.eth_src = ::tc8::stimulus::kTesterInjectedMac;
         spec1.sender_ip_be = cfg.arp.tester_ip;
         spec1.target_ip_be = cfg.dut.ip;
-        ::tc8::stimulus::emitArpFromTester(iface, spec1);
+        ::tc8::stimulus::emitArpFromTester(ctx.iface, spec1);
 
-        emitEgressFlavorArmMidStream(cfg, iface, ::tc8::ut::kArpFaultResponseTargetHwWrong);
+        emitEgressFlavorArmMidStream(cfg, ctx.iface, ::tc8::ut::kArpFaultResponseTargetHwWrong);
         std::this_thread::sleep_for(kFlavorArmSettle);
 
         ::tc8::stimulus::ArpFrameSpec spec2;
@@ -56,7 +57,7 @@ struct TestCaseTraits<cases::Arp45NegSM>
         spec2.eth_src = ::tc8::stimulus::kTesterInjectedMac2;
         spec2.sender_ip_be = cfg.arp.tester_ip;
         spec2.target_ip_be = cfg.dut.ip;
-        ::tc8::stimulus::emitArpFromTester(iface, spec2);
+        ::tc8::stimulus::emitArpFromTester(ctx.iface, spec2);
     }
 };
 

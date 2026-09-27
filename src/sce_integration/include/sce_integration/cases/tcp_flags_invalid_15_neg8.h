@@ -43,24 +43,23 @@ struct TestCaseTraits<cases::TcpFlagsInvalid15Neg8SM>
     // Mirrors the positive's phase-8 seam: FIN-WAIT-2 TIME-WAIT prelude (closes tester fd).
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsInvalid15Phase7LocalOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsInvalid15Phase7LocalOffset;
 
-        const auto info = driveSeamTimeWaitFw2(dut, cfg, local_port, remote_port);
+        const auto info = driveSeamTimeWaitFw2(ctx.dut, cfg, local_port, remote_port);
         if (info.ok) {
-            emitIngressFlavorArmMidStream(cfg, iface, ::tc8::ut::kTcpSynthRstOnDisruptive);
+            emitIngressFlavorArmMidStream(cfg, ctx.iface, ::tc8::ut::kTcpSynthRstOnDisruptive);
             ::tc8::stimulus::TcpSegmentSpec rst{};
             rst.src_port = remote_port;
             rst.dst_port = local_port;
             rst.seq_num  = info.tester_seq_post_fin + kOutOfWindowSeqOffset;
             rst.ack_num  = info.tester_ack_post_fin;
             rst.flags    = ::tc8::stimulus::kTcpFlagRst | ::tc8::stimulus::kTcpFlagAck;
-            emitTcpFrame(cfg, iface, cfg.dut.mac, rst, /*initial_wait=*/kFlavorArmSettle);
+            emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, rst, /*initial_wait=*/kFlavorArmSettle);
             std::this_thread::sleep_for(kSynthObserveHold);
         }
     }

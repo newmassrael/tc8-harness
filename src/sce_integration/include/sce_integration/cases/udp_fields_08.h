@@ -28,12 +28,11 @@ struct TestCaseTraits<cases::UdpFields08SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::udp::UdpStimulusOverrides ov{};
         ov.udp.truncate_to = std::size_t{4};
         ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, iface, dut,
+            cfg, ctx.iface, ctx.dut,
             /*payload=*/nullptr, /*payload_len=*/0,
             ::tc8::sce::udp::kDataPeerPort, ov);
     }

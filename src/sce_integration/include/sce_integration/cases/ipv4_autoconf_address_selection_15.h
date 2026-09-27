@@ -33,9 +33,8 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection15SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& /*cfg*/,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
-        ::tc8::sce::linklocal::emitStartLLAutoconfFastConflict(dut);
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::sce::linklocal::emitStartLLAutoconfFastConflict(ctx.dut);
     }
 
     // Override the base's cycle-only dispatch with the post-silence

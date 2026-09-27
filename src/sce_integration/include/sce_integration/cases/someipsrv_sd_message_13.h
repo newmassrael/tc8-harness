@@ -34,7 +34,7 @@ struct TestCaseTraits<cases::SdMessage13SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::stimulus::SubscribeEventgroupTarget subscribe{};
         subscribe.eventgroup_id = 0x0008;
         // 24-bit TTL max — SOMEIP-SD SOMEIPSD §6.7.4.2 "TTL field shall be the
@@ -42,7 +42,7 @@ struct TestCaseTraits<cases::SdMessage13SM>
         // pass criterion verifies the DUT echoes this exact value back
         // in the Ack.
         subscribe.ttl = 0xFFFFFF;
-        ::tc8::stimulus::emitSubscribeEventgroupBoot(iface, subscribe, cfg.stimulus_timing);
+        ::tc8::stimulus::emitSubscribeEventgroupBoot(ctx.iface, subscribe, cfg.stimulus_timing);
     }
 };
 

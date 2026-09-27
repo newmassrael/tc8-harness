@@ -27,10 +27,10 @@ struct TestCaseTraits<cases::Ipv4Checksum02SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::ipv4::StimulusOverrides ov{};
         ov.corrupt_ip_checksum = true;
-        ::tc8::sce::ipv4::emitStimulus(cfg, iface, ov);
+        ::tc8::sce::ipv4::emitStimulus(cfg, ctx.iface, ov);
     }
 };
 

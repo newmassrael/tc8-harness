@@ -38,8 +38,7 @@ struct TestCaseTraits<cases::TcpConnectionEstab03SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -57,16 +56,16 @@ struct TestCaseTraits<cases::TcpConnectionEstab03SM>
         // handshake. Holding all three SeamActiveOpen results alive through the
         // stimulus keeps every listener up — drop one and the tester kernel
         // sends FIN-RST on that leg's connection.
-        auto open1 = driveSeamActiveOpen(dut, cfg, legs[0].local_port, legs[0].remote_port);
-        auto open2 = driveSeamActiveOpen(dut, cfg, legs[1].local_port, legs[1].remote_port);
-        auto open3 = driveSeamActiveOpen(dut, cfg, legs[2].local_port, legs[2].remote_port);
+        auto open1 = driveSeamActiveOpen(ctx.dut, cfg, legs[0].local_port, legs[0].remote_port);
+        auto open2 = driveSeamActiveOpen(ctx.dut, cfg, legs[1].local_port, legs[1].remote_port);
+        auto open3 = driveSeamActiveOpen(ctx.dut, cfg, legs[2].local_port, legs[2].remote_port);
 
         // Settle so all 3 third-leg ACKs land in pcap before close.
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-        if (open1.conn) dut.tcpControl()->closeTcp(open1.conn->socket);
-        if (open2.conn) dut.tcpControl()->closeTcp(open2.conn->socket);
-        if (open3.conn) dut.tcpControl()->closeTcp(open3.conn->socket);
+        if (open1.conn) ctx.dut.tcpControl()->closeTcp(open1.conn->socket);
+        if (open2.conn) ctx.dut.tcpControl()->closeTcp(open2.conn->socket);
+        if (open3.conn) ctx.dut.tcpControl()->closeTcp(open3.conn->socket);
     }
 };
 

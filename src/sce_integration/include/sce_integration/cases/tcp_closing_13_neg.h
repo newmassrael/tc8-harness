@@ -47,13 +47,13 @@ struct TestCaseTraits<cases::TcpClosing13NegSM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         // Arm before the inject; the eliciting RST carries the arm settle so the raw-injected arm
         // lands first.
-        emitIngressFlavorArmMidStream(cfg, iface, ::tc8::ut::kTcpSynthRstOnDisruptive);
+        emitIngressFlavorArmMidStream(cfg, ctx.iface, ::tc8::ut::kTcpSynthRstOnDisruptive);
 
         ::tc8::stimulus::TcpSegmentSpec rst{};
         rst.src_port = kBasicsTesterPort + 80U;
@@ -61,7 +61,7 @@ struct TestCaseTraits<cases::TcpClosing13NegSM>
         rst.seq_num  = kTesterInitialSeq;
         rst.ack_num  = 0U;
         rst.flags    = ::tc8::stimulus::kTcpFlagRst;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, rst, /*initial_wait=*/kFlavorArmSettle);
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, rst, /*initial_wait=*/kFlavorArmSettle);
 
         std::this_thread::sleep_for(kSynthObserveHold);
     }

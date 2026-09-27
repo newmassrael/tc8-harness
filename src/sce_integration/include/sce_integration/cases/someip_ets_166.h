@@ -41,28 +41,28 @@ struct TestCaseTraits<cases::SomeipEts166SM> : SomeIpAnyBase<cases::SomeipEts166
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 
         // 1. getFieldA — Method 0x40, no payload.
         ::tc8::stimulus::SomeIpRpcMessage get1{};
         get1.method_id = 0x0040;
-        ::tc8::stimulus::emitMethodRequestAfter(iface, get1, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, get1, {}, ::tc8::sce::someipUdpMethodDest(cfg));
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         // 2. setFieldA(0x55) — Method 0x42, payload [0x55].
         ::tc8::stimulus::SomeIpRpcMessage set{};
         set.method_id = 0x0042;
         set.payload   = {0x55};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, set, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, set, {}, ::tc8::sce::someipUdpMethodDest(cfg));
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         // 3. getFieldA again — should now return 0x55.
         ::tc8::stimulus::SomeIpRpcMessage get2{};
         get2.method_id = 0x0040;
-        ::tc8::stimulus::emitMethodRequestAfter(iface, get2, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, get2, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

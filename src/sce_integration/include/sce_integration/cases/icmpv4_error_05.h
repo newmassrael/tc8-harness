@@ -37,11 +37,11 @@ struct TestCaseTraits<cases::Icmpv4Error05SM>
     // rejected before code-dispatch.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::icmpv4::StimulusOverrides ov{};
         ov.icmp_type = std::uint8_t{202};
         ov.icmp_code = std::uint8_t{0};
-        ::tc8::sce::icmpv4::emitStimulus(cfg, iface, ov);
+        ::tc8::sce::icmpv4::emitStimulus(cfg, ctx.iface, ov);
     }
 };
 

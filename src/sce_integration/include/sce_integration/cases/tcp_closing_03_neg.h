@@ -54,8 +54,7 @@ struct TestCaseTraits<cases::TcpClosing03NegSM>
     // RST is injected with an in-window seq (snd_nxt) acking rcv_nxt, exactly as the positive.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -63,7 +62,7 @@ struct TestCaseTraits<cases::TcpClosing03NegSM>
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kPortOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffset;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0 || !open.conn) return;
         const auto seq_range = queryTcpSeqRange(tester_fd);
@@ -76,7 +75,7 @@ struct TestCaseTraits<cases::TcpClosing03NegSM>
         // SYN,ACK carries no disruptive flag, so the gate would not trip on the handshake anyway;
         // arming here scopes it cleanly). The eliciting RST inject carries the arm settle so the
         // raw-injected arm lands first.
-        emitIngressFlavorArmMidStream(cfg, iface, ::tc8::ut::kTcpSynthRstOnDisruptive);
+        emitIngressFlavorArmMidStream(cfg, ctx.iface, ::tc8::ut::kTcpSynthRstOnDisruptive);
 
         ::tc8::stimulus::TcpSegmentSpec rst{};
         rst.src_port = remote_port;
@@ -85,7 +84,7 @@ struct TestCaseTraits<cases::TcpClosing03NegSM>
         rst.ack_num  = seq_range->rcv_nxt;
         rst.flags    = ::tc8::stimulus::kTcpFlagRst | ::tc8::stimulus::kTcpFlagAck;
         rst.payload.assign(kRstPayloadLen, 0xA5U);
-        emitTcpFrame(cfg, iface, cfg.dut.mac, rst, /*initial_wait=*/kFlavorArmSettle);
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, rst, /*initial_wait=*/kFlavorArmSettle);
 
         std::this_thread::sleep_for(kSynthObserveHold);
         silentlyCloseTesterFd(tester_fd);

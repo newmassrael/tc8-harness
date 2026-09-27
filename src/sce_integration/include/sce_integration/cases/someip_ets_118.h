@@ -33,7 +33,7 @@ struct TestCaseTraits<cases::SomeipEts118SM> : SomeIpAnyBase<cases::SomeipEts118
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& /*cfg*/,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1500));
 
         ::tc8::stimulus::Ipv4Endpoint endpoint{};
@@ -46,7 +46,7 @@ struct TestCaseTraits<cases::SomeipEts118SM> : SomeIpAnyBase<cases::SomeipEts118
             p.session_id = sid;
             p.sd_flags = 0xC0;
             const auto datagram = ::tc8::stimulus::buildFindServiceWithOption(p, endpoint);
-            ::tc8::stimulus::sendSdMulticast(datagram, iface);
+            ::tc8::stimulus::sendSdMulticast(datagram, ctx.iface);
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
     }

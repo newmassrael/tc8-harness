@@ -47,24 +47,23 @@ struct TestCaseTraits<cases::TcpFlagsProcessing07Neg4SM>
     // prelude's FINs and BEFORE the URG inject.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsProcessing07Phase4LocalOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsProcessing07Phase4LocalOffset;
 
-        const auto info = driveSeamTimeWaitFw2(dut, cfg, local_port, remote_port);
+        const auto info = driveSeamTimeWaitFw2(ctx.dut, cfg, local_port, remote_port);
         if (info.ok) {
-            emitIngressFlavorArmMidStream(cfg, iface, ::tc8::ut::kTcpSynthRstOnDisruptive);
+            emitIngressFlavorArmMidStream(cfg, ctx.iface, ::tc8::ut::kTcpSynthRstOnDisruptive);
             ::tc8::stimulus::TcpSegmentSpec urg{};
             urg.src_port = remote_port;
             urg.dst_port = local_port;
             urg.seq_num  = info.tester_seq_post_fin;
             urg.ack_num  = 0U;
             urg.flags    = ::tc8::stimulus::kTcpFlagUrg;
-            emitTcpFrame(cfg, iface, cfg.dut.mac, urg, /*initial_wait=*/kFlavorArmSettle);
+            emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, urg, /*initial_wait=*/kFlavorArmSettle);
             std::this_thread::sleep_for(kSynthObserveHold);
         }
     }

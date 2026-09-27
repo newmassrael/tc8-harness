@@ -41,22 +41,21 @@ struct TestCaseTraits<cases::Ipv4Fragments03SM>
     // tuple-mismatch rejection, not rp_filter.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         // frag 0: tester src (default — std::nullopt resolves to
         // cfg.icmpv4.tester_ip inside emitFragmentPair).
         // frag 1: host2 src (mismatched — this is the test invariant).
         // Shared with the _NEG siblings.
         ::tc8::sce::ipv4::fragments::emitFragmentPair(
-            iface, cfg, cfg.arp.dut_iface_mac,
+            ctx.iface, cfg, cfg.arp.dut_iface_mac,
             ::tc8::sce::ipv4::fragments::fragments03Phase1());
 
         // Phase 2 — re-send frag 1 with tester src (matching frag 0's
         // bucket). The helper defaults to tester_ip on the retry.
         ::tc8::sce::ipv4::fragments::schedulePhase2FragmentOneOnStateEntry(
-            scheduler,
+            ctx.scheduler,
             static_cast<int>(State::Listening_phase2),
-            iface, cfg, cfg.arp.dut_iface_mac);
+            ctx.iface, cfg, cfg.arp.dut_iface_mac);
     }
 };
 

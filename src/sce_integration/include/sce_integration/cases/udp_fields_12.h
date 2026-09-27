@@ -77,9 +77,8 @@ struct TestCaseTraits<cases::UdpFields12SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
-        cases::emitMaxLengthDatagramAndQuery(cfg, iface, dut);
+                         ::tc8::sce::StimulusContext& ctx) {
+        cases::emitMaxLengthDatagramAndQuery(cfg, ctx.iface, ctx.dut);
     }
 };
 

@@ -58,26 +58,24 @@ struct TestCaseTraits<cases::TcpBasics11SM>
     // observation stay tester-side / SCXML-driven.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         const auto info = driveSeamTimeWaitFw2(
-            dut, cfg,
+            ctx.dut, cfg,
             kBasicsActiveLocalPort  + kTcpBasics11LocalOffset,
             kBasicsActiveRemotePort + kTcpBasics11LocalOffset);
         if (!info.ok) return;
 
-        std::string                 iface_copy(iface);
+        std::string                 iface_copy(ctx.iface);
         ::tc8::TestConfig           cfg_copy   = cfg;
         std::array<std::uint8_t, 6> dut_mac    = cfg.dut.mac;
         const std::uint32_t         tester_seq = info.tester_seq_post_fin;
         const std::uint32_t         tester_ack = info.tester_ack_post_fin;
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_replay_rst),
-            [&scheduler, iface_copy, cfg_copy, dut_mac,
+            [&scheduler = ctx.scheduler, iface_copy, cfg_copy, dut_mac,
              tester_seq, tester_ack]() {
                 scheduler.schedule(
                     kTimeWaitFullWait,

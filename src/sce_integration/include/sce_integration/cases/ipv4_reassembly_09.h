@@ -42,10 +42,10 @@ struct TestCaseTraits<cases::Ipv4Reassembly09SM>
     // throughout the listen window.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         const auto body = ::tc8::sce::ipv4::reassembly::buildReassembly16BEchoBody();
         ::tc8::sce::ipv4::reassembly::emitIpv4Fragment(
-            iface, cfg, cfg.arp.dut_iface_mac,
+            ctx.iface, cfg, cfg.arp.dut_iface_mac,
             ::tc8::sce::ipv4::reassembly::kReassembly09IpId,
             /*fragment_offset=*/0,
             /*more_fragments=*/true,

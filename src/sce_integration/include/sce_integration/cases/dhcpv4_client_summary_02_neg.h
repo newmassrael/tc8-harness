@@ -39,24 +39,22 @@ struct TestCaseTraits<cases::Dhcpv4ClientSummary02NegSM>
     // REQUEST carries SERVER-1's Option 54 instead of SERVER-2's.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& /*cfg*/,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::dhcpv4::emitStartDhcpClientBuggy(
-            dut,
+            ctx.dut,
             ::tc8::ut::kDhcpFlavorAcceptMismatchedXidOffer);
 
         ::tc8::sce::dhcpv4::ServerEmulParams server1{};
         server1.xid_offset = 1;
         ::tc8::sce::dhcpv4::scheduleDhcpReplyOnStateEntry(
-            scheduler, static_cast<int>(State::Listening_for_request),
-            iface, c, /*message_type=*/2, server1);
+            ctx.scheduler, static_cast<int>(State::Listening_for_request),
+            ctx.iface, c, /*message_type=*/2, server1);
 
         ::tc8::sce::dhcpv4::ServerEmulParams server2{};
         server2.server_id_be = ::tc8::sce::dhcpv4::kSecondServerIdBe;
         ::tc8::sce::dhcpv4::scheduleDhcpReplyOnStateEntry(
-            scheduler, static_cast<int>(State::Listening_for_request),
-            iface, c, /*message_type=*/2, server2);
+            ctx.scheduler, static_cast<int>(State::Listening_for_request),
+            ctx.iface, c, /*message_type=*/2, server2);
     }
 };
 

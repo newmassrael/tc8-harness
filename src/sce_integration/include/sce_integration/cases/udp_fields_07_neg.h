@@ -30,11 +30,10 @@ struct TestCaseTraits<cases::UdpFields07NegSM>
         "flavor rewrites the DUT zero-payload egress UDP Length; conformant emits 8";
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
-        emitEgressFlavorArm(cfg, iface, ::tc8::ut::kUdpFaultLengthWrong);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitEgressFlavorArm(cfg, ctx.iface, ::tc8::ut::kUdpFaultLengthWrong);
         ::tc8::sce::udp::emitTriggerSendUdp(
-            dut,
+            ctx.dut,
             /*dut_src_port=*/20003,
             /*target_ip_be=*/cfg.tester.ip,
             /*target_port=*/::tc8::sce::udp::kDataPort,

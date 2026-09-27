@@ -30,15 +30,15 @@ struct TestCaseTraits<cases::Rpc02SM> : SomeIpAnyBase<cases::Rpc02SM> {
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& /*cfg*/,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::stimulus::FindServiceTarget find{};
         find.service_id = ::tc8::someipsrv_si2::kServiceId;
-        ::tc8::stimulus::emitFindServiceBoot(iface, find);
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, find);
 
         ::tc8::stimulus::SubscribeEventgroupTarget sub{};
         sub.service_id = ::tc8::someipsrv_si2::kServiceId;
         sub.eventgroup_id = ::tc8::someipsrv_si2::kEventGroupId;
-        ::tc8::stimulus::emitSubscribeEventgroupBoot(iface, sub);
+        ::tc8::stimulus::emitSubscribeEventgroupBoot(ctx.iface, sub);
     }
 };
 

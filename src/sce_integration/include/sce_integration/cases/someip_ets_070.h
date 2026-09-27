@@ -35,8 +35,8 @@ struct TestCaseTraits<cases::SomeipEts070SM> : SomeIpAnyBase<cases::SomeipEts070
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id = 0x0019;
@@ -51,7 +51,7 @@ struct TestCaseTraits<cases::SomeipEts070SM> : SomeIpAnyBase<cases::SomeipEts070
         // SOME/IP Length lies: claims 256 bytes follow Request ID while
         // UDP only carries 17 (8 Request-ID-tail + 9 union payload).
         target.length_override = 0x100u;
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

@@ -48,16 +48,15 @@ struct TestCaseTraits<cases::TcpMssOptions10NegSM>
     // drops to 64 (!= 536).
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         TesterAutoRstDrop rst_drop(cfg);
         (void)rst_drop;
 
-        emitEgressFlavorArm(cfg, iface, ::tc8::ut::kTcpFaultDataSegTruncate);
-        TestCaseTraits<cases::TcpMssOptions10SM>::runPhase(dut, cfg, iface);
+        emitEgressFlavorArm(cfg, ctx.iface, ::tc8::ut::kTcpFaultDataSegTruncate);
+        TestCaseTraits<cases::TcpMssOptions10SM>::runPhase(ctx.dut, cfg, ctx.iface);
     }
 };
 

@@ -85,9 +85,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing06SM>
     // for both replay rounds.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -96,12 +94,12 @@ struct TestCaseTraits<cases::TcpFlagsProcessing06SM>
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffset;
 
         const auto info = driveSeamTimeWaitFw2(
-            dut, cfg, local_port, remote_port);
+            ctx.dut, cfg, local_port, remote_port);
         if (!info.ok) return;
 
         auto rst_drop = std::make_shared<TesterAutoRstDrop>(cfg);
 
-        std::string                 iface_copy(iface);
+        std::string                 iface_copy(ctx.iface);
         ::tc8::TestConfig           cfg_copy   = cfg;
         std::array<std::uint8_t, 6> dut_mac    = cfg.dut.mac;
         const std::uint32_t         tester_seq = info.tester_seq_post_fin;
@@ -121,16 +119,16 @@ struct TestCaseTraits<cases::TcpFlagsProcessing06SM>
                              /*initial_wait=*/std::chrono::milliseconds(0));
             };
 
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_first_replay_ack),
             [inject_replay_fin, rst_drop]() {
                 (void)rst_drop;
                 inject_replay_fin();
             });
 
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_second_replay_ack),
-            [&scheduler, inject_replay_fin, rst_drop]() {
+            [&scheduler = ctx.scheduler, inject_replay_fin, rst_drop]() {
                 scheduler.schedule(
                     kHalfMslWait,
                     [inject_replay_fin, rst_drop]() {

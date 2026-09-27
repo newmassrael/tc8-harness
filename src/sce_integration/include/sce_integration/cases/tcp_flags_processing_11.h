@@ -54,8 +54,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing11SM>
     // budget.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -66,7 +65,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing11SM>
         // Active OPEN routed through the backend-agnostic seam; the helper's
         // tester listener (held in `open`) is accepted here for the tester-side
         // seq snapshot below.
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
 
@@ -77,7 +76,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing11SM>
         // testability is capability-skipped). utEstablishedByte owns the
         // tristate-to-byte encoding.
         c.ut_established = open.conn
-            ? utEstablishedByte(dut.tcpStateProbe()->isEstablished(open.conn->socket))
+            ? utEstablishedByte(ctx.dut.tcpStateProbe()->isEstablished(open.conn->socket))
             : 0xFFU;
 
         ::tc8::stimulus::TcpSegmentSpec dup_ack{};
@@ -86,7 +85,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing11SM>
         dup_ack.seq_num  = seq_range->snd_nxt;
         dup_ack.ack_num  = seq_range->rcv_nxt;
         dup_ack.flags    = ::tc8::stimulus::kTcpFlagAck;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, dup_ack,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, dup_ack,
                      /*initial_wait=*/std::chrono::milliseconds(0));
         (void)tester_fd;
     }

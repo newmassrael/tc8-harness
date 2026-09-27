@@ -40,7 +40,7 @@ struct TestCaseTraits<cases::TcpClosing13SM>
     // side — RstDrop/AckDrop scaffolding not needed.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -50,7 +50,7 @@ struct TestCaseTraits<cases::TcpClosing13SM>
         rst.seq_num  = kTesterInitialSeq;
         rst.ack_num  = 0U;
         rst.flags    = ::tc8::stimulus::kTcpFlagRst;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, rst,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, rst,
                      /*initial_wait=*/std::chrono::milliseconds(0));
     }
 };

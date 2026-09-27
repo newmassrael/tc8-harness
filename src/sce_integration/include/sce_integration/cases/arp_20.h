@@ -23,12 +23,13 @@ struct TestCaseTraits<cases::Arp20SM>
     static constexpr std::string_view kCaseId = "ARP_20";
     static constexpr std::string_view kDescription =
         "ARP Request reception with hw_type=Ethernet (correct) — DUT must reply";
-    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
+    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg,
+                         ::tc8::sce::StimulusContext &ctx) {
         ::tc8::stimulus::ArpFrameSpec spec;
         spec.sender_ip_be = cfg.arp.tester_ip;
         spec.target_ip_be = cfg.dut.ip;
         spec.hw_type = 0x0001;  // ARP_HARDWARE_ETHERNET
-        ::tc8::stimulus::emitArpFromTester(iface, spec);
+        ::tc8::stimulus::emitArpFromTester(ctx.iface, spec);
     }
 };
 

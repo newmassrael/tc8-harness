@@ -61,12 +61,11 @@ struct TestCaseTraits<cases::TcpFlagsInvalid02SM>
     // SYNs after the RST emission.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        const auto listen = driveSeamListen(dut, kBasicsListenPort);
+        const auto listen = driveSeamListen(ctx.dut, kBasicsListenPort);
         if (!listen) return;
 
         // Phase 1 — spec-asserted invalid segment. ack_num planted
@@ -79,7 +78,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid02SM>
         syn_ack.ack_num  = kFlagsInvalid02ProbeAck;
         syn_ack.flags    = ::tc8::stimulus::kTcpFlagSyn
                          | ::tc8::stimulus::kTcpFlagAck;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, syn_ack);
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, syn_ack);
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
         // Phase 2 — LISTEN-survival post-probe. Fresh tester source
@@ -95,11 +94,11 @@ struct TestCaseTraits<cases::TcpFlagsInvalid02SM>
         syn.seq_num  = kTesterInitialSeq;
         syn.ack_num  = 0U;
         syn.flags    = ::tc8::stimulus::kTcpFlagSyn;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, syn,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, syn,
                      /*initial_wait=*/std::chrono::milliseconds(0));
         std::this_thread::sleep_for(kTcpPilotPhaseGap);
 
-        dut.tcpControl()->closeTcp(*listen);
+        ctx.dut.tcpControl()->closeTcp(*listen);
     }
 };
 

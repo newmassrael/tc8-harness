@@ -49,8 +49,7 @@ struct TestCaseTraits<cases::TcpMssOptions02SM>
     // pattern BASICS_02 uses with connectToDutTcp.
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -60,14 +59,14 @@ struct TestCaseTraits<cases::TcpMssOptions02SM>
         const std::vector<std::uint8_t> syn_options{0x01U, 0x01U, 0x01U, 0x00U};
 
         auto open = driveSeamRawPassiveAccept(
-            dut, cfg, iface,
+            ctx.dut, cfg, ctx.iface,
             kTcpMssOptionsListenPort02,
             syn_options,
             kTcpMssOptionsTesterSrcPort02);
         c.ut_established = open.conn ? 0x01U : 0x00U;
 
         if (open.conn) {
-            ::tc8::sce::seamTcpControl(dut).closeTcp(open.conn->socket);
+            ::tc8::sce::seamTcpControl(ctx.dut).closeTcp(open.conn->socket);
         }
     }
 };

@@ -36,8 +36,8 @@ struct TestCaseTraits<cases::Icmpv4Error03NegSM>
     // Parameter Problem on the first ICMP-protocol fragment.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        emitIngressFlavorArm(cfg, iface, ::tc8::ut::kIcmpFaultSynthParamProblem);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitIngressFlavorArm(cfg, ctx.iface, ::tc8::ut::kIcmpFaultSynthParamProblem);
 
         // Frag 0 — MF=1, offset=0, well-formed length-12 Timestamp option.
         ::tc8::sce::icmpv4::StimulusOverrides f0{};
@@ -49,7 +49,7 @@ struct TestCaseTraits<cases::Icmpv4Error03NegSM>
         f0.raw_ip_payload.assign(
             ::tc8::stimulus::kIcmpv4FragmentStimulusPacket.begin(),
             ::tc8::stimulus::kIcmpv4FragmentStimulusPacket.begin() + 8);
-        ::tc8::sce::icmpv4::emitStimulus(cfg, iface, f0);
+        ::tc8::sce::icmpv4::emitStimulus(cfg, ctx.iface, f0);
 
         // Frag 1 — MF=0, offset=1, malformed length-10 Timestamp option (skipped by the
         // parser because the fragment offset is non-zero).
@@ -62,7 +62,7 @@ struct TestCaseTraits<cases::Icmpv4Error03NegSM>
         f1.raw_ip_payload.assign(
             ::tc8::stimulus::kIcmpv4FragmentStimulusPacket.begin() + 8,
             ::tc8::stimulus::kIcmpv4FragmentStimulusPacket.end());
-        ::tc8::sce::icmpv4::emitStimulus(cfg, iface, f1);
+        ::tc8::sce::icmpv4::emitStimulus(cfg, ctx.iface, f1);
     }
 };
 

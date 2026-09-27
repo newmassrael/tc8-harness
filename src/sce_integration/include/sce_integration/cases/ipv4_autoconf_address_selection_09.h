@@ -33,9 +33,8 @@ struct TestCaseTraits<cases::Ipv4AutoconfAddressSelection09SM>
     // spec-mandated rates.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& /*cfg*/,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
-        ::tc8::sce::linklocal::emitStartLLAutoconfRfcDefaults(dut);
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::sce::linklocal::emitStartLLAutoconfRfcDefaults(ctx.dut);
     }
 };
 

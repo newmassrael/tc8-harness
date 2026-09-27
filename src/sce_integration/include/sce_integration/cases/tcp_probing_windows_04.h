@@ -54,9 +54,7 @@ struct TestCaseTraits<cases::TcpProbingWindows04SM>
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -65,7 +63,7 @@ struct TestCaseTraits<cases::TcpProbingWindows04SM>
         const std::uint16_t remote_port =
             kBasicsActiveRemotePort + kTcpProbingWindows04LocalOffset;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0 || !open.conn) return;
 
@@ -84,7 +82,7 @@ struct TestCaseTraits<cases::TcpProbingWindows04SM>
 
         auto ack_drop = std::make_shared<TesterAutoAckDrop>(cfg);
 
-        seamSendTcp(dut, open.conn->socket, kSeg1Payload);
+        seamSendTcp(ctx.dut, open.conn->socket, kSeg1Payload);
         std::this_thread::sleep_for(kPostSendSettle);
 
         // Spec step 4: tester ACKs seg1 with `window=0`.
@@ -96,13 +94,13 @@ struct TestCaseTraits<cases::TcpProbingWindows04SM>
             ack_seg.ack_num  = snd_una_post_ack;
             ack_seg.flags    = ::tc8::stimulus::kTcpFlagAck;
             ack_seg.window   = 0U;
-            emitTcpFrame(cfg, iface, cfg.dut.mac, ack_seg,
+            emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, ack_seg,
                          /*initial_wait=*/std::chrono::milliseconds(0));
         }
         std::this_thread::sleep_for(kPostInjectSettle);
 
         // Spec step 5: SEND 2 — bytes queue behind snd_wnd=0.
-        seamSendTcp(dut, open.conn->socket, kSeg2Payload);
+        seamSendTcp(ctx.dut, open.conn->socket, kSeg2Payload);
 
         // Spec step 7: acknowledge each probe maintaining zero
         // window. State-entry observers fire their lambda when SCXML
@@ -117,7 +115,7 @@ struct TestCaseTraits<cases::TcpProbingWindows04SM>
         // snd_una does not advance), and probe 2 fires after the
         // doubled interval. Same shape for Listening_probe3.
         const auto dut_mac = cfg.dut.mac;
-        const std::string iface_str(iface);
+        const std::string iface_str(ctx.iface);
         const auto inject_zero_window_ack =
             [cfg, iface_str, dut_mac, local_port, remote_port,
              tester_snd, snd_una_post_ack, ack_drop]() {
@@ -134,17 +132,17 @@ struct TestCaseTraits<cases::TcpProbingWindows04SM>
                 (void)ack_drop;
             };
 
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_probe2),
             inject_zero_window_ack);
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_probe3),
             inject_zero_window_ack);
 
         // Backstop holder so ack_drop survives the full probe
         // sequence even if state-entry observers have already fired
         // and dropped their captures.
-        scheduler.schedule(kAckDropHold, [ack_drop]() {
+        ctx.scheduler.schedule(kAckDropHold, [ack_drop]() {
             (void)ack_drop;
         });
 

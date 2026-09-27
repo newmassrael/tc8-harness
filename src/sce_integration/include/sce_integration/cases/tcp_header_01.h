@@ -49,19 +49,18 @@ struct TestCaseTraits<cases::TcpHeader01SM>
     // returns and no post-send RPC settle is needed.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view /*iface*/,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         auto open = driveSeamActiveOpen(
-            dut, cfg,
+            ctx.dut, cfg,
             kBasicsActiveLocalPort  + kTcpHeader01LocalOffset,
             kBasicsActiveRemotePort + kTcpHeader01LocalOffset);
 
         if (open.conn) {
-            seamSendTcp(dut, open.conn->socket, kHeaderPayload);
-            dut.tcpControl()->closeTcp(open.conn->socket);
+            seamSendTcp(ctx.dut, open.conn->socket, kHeaderPayload);
+            ctx.dut.tcpControl()->closeTcp(open.conn->socket);
         }
     }
 };

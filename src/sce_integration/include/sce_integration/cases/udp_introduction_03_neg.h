@@ -43,12 +43,12 @@ struct TestCaseTraits<cases::UdpIntroduction03NegSM>
     // keeps Linux's ICMP error path on the PACKET_HOST gate; harmless on lwIP.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        emitEgressFlavorArm(cfg, iface, ::tc8::ut::kIcmpFaultDestUnreachCodeWrong);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitEgressFlavorArm(cfg, ctx.iface, ::tc8::ut::kIcmpFaultDestUnreachCodeWrong);
         ::tc8::sce::udp::UdpStimulusOverrides ov{};
         ov.eth_dst_override = cfg.dut.mac;
         ::tc8::sce::udp::emitUdpStimulus(
-            cfg, iface,
+            cfg, ctx.iface,
             cfg.ipv4.dut_iface_ip,
             ::tc8::sce::udp::kDataPeerPort,
             cases::kIntro03UnusedDstPort,

@@ -35,9 +35,9 @@ struct TestCaseTraits<cases::Icmpv4Type09NegSM>
     // echo_seq_mismatch.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        emitEgressFlavorArm(cfg, iface, ::tc8::ut::kIcmpFaultEchoIdWrong);
-        ::tc8::sce::icmpv4::emitStimulus(cfg, iface);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitEgressFlavorArm(cfg, ctx.iface, ::tc8::ut::kIcmpFaultEchoIdWrong);
+        ::tc8::sce::icmpv4::emitStimulus(cfg, ctx.iface);
     }
 };
 

@@ -30,14 +30,15 @@ struct TestCaseTraits<cases::Arp45SM>
     // before the second Request hits — order of wire events is therefore
     // deterministic: Req1 → Resp1 → Req2 → Resp2. SCXML walks the two
     // Response events sequentially.
-    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
+    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg,
+                         ::tc8::sce::StimulusContext &ctx) {
         ::tc8::stimulus::ArpFrameSpec spec1;
         spec1.opcode = 0x0001;  // Request
         spec1.sender_hw = ::tc8::stimulus::kTesterInjectedMac;
         spec1.eth_src = ::tc8::stimulus::kTesterInjectedMac;
         spec1.sender_ip_be = cfg.arp.tester_ip;
         spec1.target_ip_be = cfg.dut.ip;
-        ::tc8::stimulus::emitArpFromTester(iface, spec1);
+        ::tc8::stimulus::emitArpFromTester(ctx.iface, spec1);
 
         ::tc8::stimulus::ArpFrameSpec spec2;
         spec2.opcode = 0x0001;  // Request
@@ -45,7 +46,7 @@ struct TestCaseTraits<cases::Arp45SM>
         spec2.eth_src = ::tc8::stimulus::kTesterInjectedMac2;
         spec2.sender_ip_be = cfg.arp.tester_ip;
         spec2.target_ip_be = cfg.dut.ip;
-        ::tc8::stimulus::emitArpFromTester(iface, spec2);
+        ::tc8::stimulus::emitArpFromTester(ctx.iface, spec2);
     }
 };
 

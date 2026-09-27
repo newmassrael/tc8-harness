@@ -106,8 +106,7 @@ struct TestCaseTraits<cases::TcpMssOptions09SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -119,13 +118,13 @@ struct TestCaseTraits<cases::TcpMssOptions09SM>
 
         // Phase 1: Mv=200 < DUT MSS=1460. Expected first DUT segment
         // size = 200.
-        runPhase(dut, cfg, iface, cfg.dut.mac,
+        runPhase(ctx.dut, cfg, ctx.iface, cfg.dut.mac,
                  kTcpMssOptions09Phase1LocalOffset,
                  /*advertised_mss=*/200U);
 
         // Phase 2: Mv=2000 > DUT MSS. Expected first segment clamped
         // to DUT MSS = 1460.
-        runPhase(dut, cfg, iface, cfg.dut.mac,
+        runPhase(ctx.dut, cfg, ctx.iface, cfg.dut.mac,
                  kTcpMssOptions09Phase2LocalOffset,
                  /*advertised_mss=*/2000U);
     }

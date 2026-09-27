@@ -43,16 +43,15 @@ struct TestCaseTraits<cases::SomeipEts082SM> : SomeIpAnyBase<cases::SomeipEts082
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         IStimulusScheduler& scheduler) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
 
         ::tc8::stimulus::SomeIpRpcMessage activate{};
         activate.method_id    = 0x002F;       // clientServiceActivate
         activate.message_type = ::tc8::someip::MessageType::REQUEST_NO_RETURN;         // Fire&Forget
         activate.payload      = {0x00};       // delay = 0
-        ::tc8::stimulus::emitMethodRequestAfter(iface, activate, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, activate, {}, ::tc8::sce::someipUdpMethodDest(cfg));
 
         // Proxy buildProxy() registration delay — same gap as ETS_081/_084/_097.
         std::this_thread::sleep_for(std::chrono::milliseconds(800));
@@ -62,7 +61,7 @@ struct TestCaseTraits<cases::SomeipEts082SM> : SomeIpAnyBase<cases::SomeipEts082
         sub_trigger.message_type = ::tc8::someip::MessageType::REQUEST_NO_RETURN;      // Fire&Forget
         sub_trigger.payload      = {0x00, 0x00, 0x00, 0x00,
                                     0x00, 0x00, 0x00, 0x00};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, sub_trigger, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, sub_trigger, {}, ::tc8::sce::someipUdpMethodDest(cfg));
 
         // Tester-side OfferService #1 for ets3 with UDP endpoint at
         // port 30510. session_id = 0x000A high enough that the
@@ -77,7 +76,7 @@ struct TestCaseTraits<cases::SomeipEts082SM> : SomeIpAnyBase<cases::SomeipEts082
         offer1.endpoint.port         = 30510;
         offer1.endpoint.l4proto      = 0x11;     // UDP
         ::tc8::stimulus::emitOfferServiceMulticastWithEndpoint(
-            iface, offer1, std::chrono::milliseconds(500));
+            ctx.iface, offer1, std::chrono::milliseconds(500));
 
         // Schedule the reboot OfferService on phase 3 entry — fired
         // immediately after the harness observes DUT's first wire
@@ -85,8 +84,8 @@ struct TestCaseTraits<cases::SomeipEts082SM> : SomeIpAnyBase<cases::SomeipEts082
         // >= new_sid=5, both rb=1) triggers expire_subscriptions on the
         // sender → DUT re-subscribes with the new tester endpoint info
         // (port 30511) embedded by reference in offer #2.
-        std::string iface_copy(iface);
-        scheduler.scheduleAfterStateEntry(
+        std::string iface_copy(ctx.iface);
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_phase3_second_subscribe),
             [iface_copy]() {
                 ::tc8::stimulus::OfferServiceWithEndpointTarget offer2{};

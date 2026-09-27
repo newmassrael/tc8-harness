@@ -44,11 +44,10 @@ struct TestCaseTraits<cases::Ipv4Addressing02NegSM>
     // listener skips its discard so ut_received == 1.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
-        emitAppFlavorArm(cfg, iface, ::tc8::ut::kAppFaultAcceptDirectedBroadcast);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitAppFlavorArm(cfg, ctx.iface, ::tc8::ut::kAppFaultAcceptDirectedBroadcast);
         ::tc8::sce::udp::emitAddressingProbeAndQuery(
-            cfg, iface, dut, cases::kDirectedBroadcastBe);
+            cfg, ctx.iface, ctx.dut, cases::kDirectedBroadcastBe);
     }
 };
 

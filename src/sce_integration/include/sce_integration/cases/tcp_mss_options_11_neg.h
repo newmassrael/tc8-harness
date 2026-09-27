@@ -39,19 +39,18 @@ struct TestCaseTraits<cases::TcpMssOptions11NegSM>
     // observed on the SYN before the handshake completes.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
-        emitEgressFlavorArm(cfg, iface, ::tc8::ut::kTcpFaultSynMssZero);
+        emitEgressFlavorArm(cfg, ctx.iface, ::tc8::ut::kTcpFaultSynMssZero);
 
         auto open = driveSeamActiveOpen(
-            dut, cfg,
+            ctx.dut, cfg,
             kBasicsActiveLocalPort  + kTcpMssOptions11LocalOffset,
             kBasicsActiveRemotePort + kTcpMssOptions11LocalOffset);
         if (!open.conn) return;
 
-        dut.tcpControl()->closeTcp(open.conn->socket);
+        ctx.dut.tcpControl()->closeTcp(open.conn->socket);
     }
 };
 

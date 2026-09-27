@@ -45,12 +45,12 @@ struct TestCaseTraits<cases::TcpBasics04Neg3SM>
     // `dut_rst_seq_not_zero_after_data` fail-final reachable.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
-        emitEgressFlavorArm(cfg, iface, ::tc8::ut::kTcpFaultRstSeqWrong);
+        emitEgressFlavorArm(cfg, ctx.iface, ::tc8::ut::kTcpFaultRstSeqWrong);
 
-        emitTcpStimulus(cfg, iface, cfg.dut.mac,
+        emitTcpStimulus(cfg, ctx.iface, cfg.dut.mac,
                         /*dst_port=*/kBasicsClosedPort,
                         /*flags=*/0U,
                         /*seq_num=*/kTesterInitialSeq + 0x200U,

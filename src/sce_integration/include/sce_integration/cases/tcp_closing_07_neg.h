@@ -50,8 +50,7 @@ struct TestCaseTraits<cases::TcpClosing07NegSM>
     // the synth fires at the netif hook on the inbound PSH regardless of the DUT's receive.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -62,19 +61,19 @@ struct TestCaseTraits<cases::TcpClosing07NegSM>
         TesterAutoAckDrop ack_drop(cfg);
         (void)ack_drop;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0 || !open.conn) return;
         const auto seq_range = queryTcpSeqRange(tester_fd);
         if (!seq_range.has_value()) return;
 
         // Half-close: shutdown(SHUT_WR) -> DUT FIN, EST->FW1; AckDrop holds FW1.
-        seamTcpControl(dut).shutdownTcpWr(open.conn->socket);
+        seamTcpControl(ctx.dut).shutdownTcpWr(open.conn->socket);
         std::this_thread::sleep_for(std::chrono::milliseconds(150));
 
         // Per-phase arm after the DUT FIN (egress, excluded by the gate); the eliciting data
         // inject carries the arm settle so the raw-injected arm lands first.
-        emitIngressFlavorArmMidStream(cfg, iface, ::tc8::ut::kTcpSynthRstOnDisruptive);
+        emitIngressFlavorArmMidStream(cfg, ctx.iface, ::tc8::ut::kTcpSynthRstOnDisruptive);
 
         ::tc8::stimulus::TcpSegmentSpec data{};
         data.src_port = remote_port;
@@ -83,7 +82,7 @@ struct TestCaseTraits<cases::TcpClosing07NegSM>
         data.ack_num  = seq_range->rcv_nxt;          // ISN_d + 1, doesn't ack DUT FIN
         data.flags    = ::tc8::stimulus::kTcpFlagAck | ::tc8::stimulus::kTcpFlagPsh;
         data.payload.assign(kPayloadLen, 0x69U);
-        emitTcpFrame(cfg, iface, cfg.dut.mac, data, /*initial_wait=*/kFlavorArmSettle);
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, data, /*initial_wait=*/kFlavorArmSettle);
 
         // Hold FW1 (AckDrop alive) while the synthesized RST is observed.
         std::this_thread::sleep_for(kSynthObserveHold);

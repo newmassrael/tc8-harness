@@ -32,8 +32,8 @@ struct TestCaseTraits<cases::Icmpv4Type09SM>
     // (CLI-injected via `--expect icmpv4.echo_id/seq`).
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::sce::icmpv4::emitStimulus(cfg, iface);
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::sce::icmpv4::emitStimulus(cfg, ctx.iface);
     }
 };
 

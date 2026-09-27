@@ -59,21 +59,19 @@ struct TestCaseTraits<cases::TcpFlagsProcessing05SM>
     //      to next phase / pass.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        runPhase1SynInWindow(cfg, iface, dut);
+        runPhase1SynInWindow(cfg, ctx.iface, ctx.dut);
 
-        std::string              iface_copy(iface);
+        std::string              iface_copy(ctx.iface);
         ::tc8::TestConfig        cfg_copy = cfg;
-        // dut outlives the poll loop (CLI-owned), so capturing &dut for the
-        // deferred phase 2 is lifetime-safe (FLAGS_PROCESSING_09 idiom).
-        ::tc8::sce::IDutControl* dut_ptr = &dut;
+        // ctx.dut outlives the poll loop (CLI-owned), so capturing &ctx.dut for
+        // the deferred phase 2 is lifetime-safe (FLAGS_PROCESSING_09 idiom).
+        ::tc8::sce::IDutControl* dut_ptr = &ctx.dut;
 
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p2_prelude_synack),
             [iface_copy, cfg_copy, dut_ptr]() {
                 runPhase2SynAckInWindow(cfg_copy, iface_copy, *dut_ptr);

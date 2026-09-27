@@ -66,13 +66,12 @@ struct TestCaseTraits<cases::TcpChecksum02SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         auto open = driveSeamActiveOpen(
-            dut, cfg,
+            ctx.dut, cfg,
             kBasicsActiveLocalPort  + kTcpChecksum02LocalOffset,
             kBasicsActiveRemotePort + kTcpChecksum02LocalOffset);
 
@@ -105,7 +104,7 @@ struct TestCaseTraits<cases::TcpChecksum02SM>
                 ip_spec.ip_protocol = ::tc8::stimulus::kIpProtoTcp;
                 ::tc8::stimulus::IpBootTiming timing{};
                 timing.initial_wait = std::chrono::milliseconds(0);
-                ::tc8::stimulus::emitIpv4Frame(iface, ip_spec, tcp_bytes,
+                ::tc8::stimulus::emitIpv4Frame(ctx.iface, ip_spec, tcp_bytes,
                                                 timing);
             }
             // Intentionally do NOT close tester_fd or send UT

@@ -31,8 +31,8 @@ struct TestCaseTraits<cases::Icmpv4Type22SM>
     // stimulus stays at the pilot default.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::sce::icmpv4::emitStimulus(cfg, iface);
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::sce::icmpv4::emitStimulus(cfg, ctx.iface);
     }
 };
 

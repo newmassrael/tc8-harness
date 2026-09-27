@@ -58,8 +58,7 @@ struct TestCaseTraits<cases::TcpProbingWindows02SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -68,7 +67,7 @@ struct TestCaseTraits<cases::TcpProbingWindows02SM>
         const std::uint16_t remote_port =
             kBasicsActiveRemotePort + kTcpProbingWindows02LocalOffset;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0 || !open.conn) return;
 
@@ -93,12 +92,12 @@ struct TestCaseTraits<cases::TcpProbingWindows02SM>
         spec.payload.assign(kWindowSettlerByte.begin(),
                             kWindowSettlerByte.end());
 
-        emitTcpFrame(cfg, iface, cfg.dut.mac, spec,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, spec,
                      /*initial_wait=*/std::chrono::milliseconds(0));
 
         std::this_thread::sleep_for(kPostInjectSettle);
 
-        seamSendTcp(dut, open.conn->socket, kSendPayload);
+        seamSendTcp(ctx.dut, open.conn->socket, kSendPayload);
 
         (void)tester_fd;
     }

@@ -35,15 +35,15 @@ struct TestCaseTraits<cases::SomeipEts167SM> : SomeIpAnyBase<cases::SomeipEts167
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 
         // 1. getTestFieldUint8Array (Method 0x28) — empty Request payload.
         ::tc8::stimulus::SomeIpRpcMessage get1{};
         get1.method_id = 0x0028;
-        ::tc8::stimulus::emitMethodRequestAfter(iface, get1, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, get1, {}, ::tc8::sce::someipUdpMethodDest(cfg));
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         // 2. setTestFieldUint8Array (Method 0x29) — payload = 32-bit BE
@@ -52,14 +52,14 @@ struct TestCaseTraits<cases::SomeipEts167SM> : SomeIpAnyBase<cases::SomeipEts167
         set.method_id = 0x0029;
         set.payload   = {0x00, 0x00, 0x00, 0x04,         // length 4 (BE)
                          0x11, 0x22, 0x33, 0x44};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, set, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, set, {}, ::tc8::sce::someipUdpMethodDest(cfg));
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         // 3. getTestFieldUint8Array again — Response should echo the set
         // array (4 bytes 0x11..0x44 with the 4-byte length prefix).
         ::tc8::stimulus::SomeIpRpcMessage get2{};
         get2.method_id = 0x0028;
-        ::tc8::stimulus::emitMethodRequestAfter(iface, get2, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, get2, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
 

@@ -44,18 +44,18 @@ struct TestCaseTraits<cases::SomeipEts098SM> : SomeIpAnyBase<cases::SomeipEts098
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
-        ::tc8::stimulus::emitFindServiceBoot(iface, ::tc8::stimulus::FindServiceTarget{},
+                         ::tc8::sce::StimulusContext& ctx) {
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
         ::tc8::stimulus::SomeIpRpcMessage target{};
         target.method_id    = 0x002F;
         target.message_type = ::tc8::someip::MessageType::REQUEST_NO_RETURN;
         target.payload      = {0x00};
-        ::tc8::stimulus::emitMethodRequestAfter(iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, target, {}, ::tc8::sce::someipUdpMethodDest(cfg));
         ::tc8::stimulus::OfferServiceTarget offer{};
         offer.ttl        = 3;        // OfferService (vs StopOfferService when ttl=0).
         offer.session_id = 0x0001;
-        ::tc8::stimulus::emitOfferServiceMulticast(iface, offer,
+        ::tc8::stimulus::emitOfferServiceMulticast(ctx.iface, offer,
                                                    std::chrono::milliseconds(500));
     }
 };

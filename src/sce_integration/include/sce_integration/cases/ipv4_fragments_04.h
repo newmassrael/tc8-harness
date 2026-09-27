@@ -37,19 +37,18 @@ struct TestCaseTraits<cases::Ipv4Fragments04SM>
     // state-entry phasing as FRAGMENTS_02.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         // Mismatched protocol on frag 1 — test invariant. Shared with the
         // _NEG siblings.
         ::tc8::sce::ipv4::fragments::emitFragmentPair(
-            iface, cfg, cfg.arp.dut_iface_mac,
+            ctx.iface, cfg, cfg.arp.dut_iface_mac,
             ::tc8::sce::ipv4::fragments::fragments04Phase1());
 
         // Phase 2 — re-send frag 1 with proto=ICMP.
         ::tc8::sce::ipv4::fragments::schedulePhase2FragmentOneOnStateEntry(
-            scheduler,
+            ctx.scheduler,
             static_cast<int>(State::Listening_phase2),
-            iface, cfg, cfg.arp.dut_iface_mac);
+            ctx.iface, cfg, cfg.arp.dut_iface_mac);
     }
 };
 

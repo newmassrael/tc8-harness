@@ -23,12 +23,13 @@ struct TestCaseTraits<cases::Arp26SM>
     static constexpr std::string_view kCaseId = "ARP_26";
     static constexpr std::string_view kDescription =
         "ARP Request reception with proto_type=IPv4 (correct) — DUT must reply";
-    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg, std::string_view iface) {
+    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg,
+                         ::tc8::sce::StimulusContext &ctx) {
         ::tc8::stimulus::ArpFrameSpec spec;
         spec.sender_ip_be = cfg.arp.tester_ip;
         spec.target_ip_be = cfg.dut.ip;
         spec.proto_type = 0x0800;  // ARP_PROTOCOL_IP
-        ::tc8::stimulus::emitArpFromTester(iface, spec);
+        ::tc8::stimulus::emitArpFromTester(ctx.iface, spec);
     }
 };
 

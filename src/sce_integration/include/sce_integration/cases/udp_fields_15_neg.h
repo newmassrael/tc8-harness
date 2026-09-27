@@ -35,13 +35,12 @@ struct TestCaseTraits<cases::UdpFields15NegSM>
     // (ut_received == 1).
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
-        emitIngressFlavorArm(cfg, iface, ::tc8::ut::kUdpFaultAcceptBadChecksum);
+                         ::tc8::sce::StimulusContext& ctx) {
+        emitIngressFlavorArm(cfg, ctx.iface, ::tc8::ut::kUdpFaultAcceptBadChecksum);
         ::tc8::sce::udp::UdpStimulusOverrides ov{};
         ov.udp.checksum_field = std::uint16_t{0xDEAD};
         ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, iface, dut,
+            cfg, ctx.iface, ctx.dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size(),
             ::tc8::sce::udp::kDataPeerPort, ov);

@@ -48,15 +48,14 @@ struct TestCaseTraits<cases::TcpChecksum02NegSM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpChecksum02NegLocalOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpChecksum02NegLocalOffset;
 
-        auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
 
@@ -68,7 +67,7 @@ struct TestCaseTraits<cases::TcpChecksum02NegSM>
 
         // Per-phase arm: the handshake has completed, so the synthesis fires only on the
         // corrupt-checksum segment injected next.
-        emitIngressFlavorArmMidStream(cfg, iface, ::tc8::ut::kTcpSynthAck);
+        emitIngressFlavorArmMidStream(cfg, ctx.iface, ::tc8::ut::kTcpSynthAck);
 
         ::tc8::stimulus::TcpSegmentSpec data{};
         data.src_port             = remote_port;
@@ -79,7 +78,7 @@ struct TestCaseTraits<cases::TcpChecksum02NegSM>
                                   | ::tc8::stimulus::kTcpFlagAck;
         data.payload.assign(kDataPayload.begin(), kDataPayload.end());
         data.corrupt_tcp_checksum = true;
-        emitTcpFrame(cfg, iface, cfg.dut.mac, data,
+        emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, data,
                      /*initial_wait=*/std::chrono::milliseconds(0));
         (void)tester_fd;
     }

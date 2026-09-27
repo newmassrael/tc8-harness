@@ -27,9 +27,9 @@ struct TestCaseTraits<cases::Ipv4Version01SM>
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         // No override — the pilot default already sends Version=4.
-        ::tc8::sce::ipv4::emitStimulus(cfg, iface);
+        ::tc8::sce::ipv4::emitStimulus(cfg, ctx.iface);
     }
 };
 

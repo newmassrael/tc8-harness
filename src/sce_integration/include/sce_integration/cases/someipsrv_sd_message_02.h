@@ -75,17 +75,16 @@ struct TestCaseTraits<cases::SdMessage02SM>
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         IStimulusScheduler& scheduler) {
+                         ::tc8::sce::StimulusContext& ctx) {
         // Phase 1: emit Find(instance_id=0xFFFF). Boot envelope absorbs
         // the DUT SD startup window and ensures at least one Find lands
         // during the DUT's Repetition Phase.
         ::tc8::stimulus::FindServiceTarget find_all{};
         find_all.service_id = cfg.someip_dut.service_id;
         find_all.instance_id = 0xFFFF;
-        ::tc8::stimulus::emitFindServiceBoot(iface, find_all);
+        ::tc8::stimulus::emitFindServiceBoot(ctx.iface, find_all);
 
-        const std::string iface_owned(iface);
+        const std::string iface_owned(ctx.iface);
         const std::uint16_t service_id = cfg.someip_dut.service_id;
 
         // Phase 2 entry → emit Find(extractedInstID1). State entry
@@ -93,7 +92,7 @@ struct TestCaseTraits<cases::SdMessage02SM>
         // start, so the DUT's solicited 1-entry reply lands inside the
         // phase 2 deadline. Captured-by-reference `c` ensures the
         // callback reads the just-extracted instance ID.
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_phase2_find_inst1),
             [&c, iface_owned, service_id]() {
                 ::tc8::stimulus::FindServiceTarget find_inst1{};
@@ -107,7 +106,7 @@ struct TestCaseTraits<cases::SdMessage02SM>
             });
 
         // Phase 3 entry → emit Find(extractedInstID2).
-        scheduler.scheduleAfterStateEntry(
+        ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_phase3_find_inst2),
             [&c, iface_owned, service_id]() {
                 ::tc8::stimulus::FindServiceTarget find_inst2{};

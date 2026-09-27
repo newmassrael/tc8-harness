@@ -43,8 +43,7 @@ struct TestCaseTraits<cases::TcpBasics17SM>
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface,
-                         ::tc8::sce::IDutControl& dut) {
+                         ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
@@ -60,12 +59,12 @@ struct TestCaseTraits<cases::TcpBasics17SM>
         // the simultaneous-SYN inject — needed because the third-leg
         // ACK's seq/ack must reference the DUT's actual ISN, not a
         // guess.
-        auto snippet = TcpFrameSnippet::forDutSyn(cfg, iface, local_port);
+        auto snippet = TcpFrameSnippet::forDutSyn(cfg, ctx.iface, local_port);
 
         // Seam active OPEN, no tester listener: the DUT starts in SYN-SENT and
         // reaches ESTABLISHED only via the simultaneous-open SYN+ACK injected
         // below (a tester listener would complete a normal handshake instead).
-        auto open = driveSeamSynSentOpen(dut, cfg, local_port, remote_port);
+        auto open = driveSeamSynSentOpen(ctx.dut, cfg, local_port, remote_port);
 
         const auto dut_syn = snippet.tryCapture(
             std::chrono::milliseconds(1000));
@@ -79,7 +78,7 @@ struct TestCaseTraits<cases::TcpBasics17SM>
             syn.dst_port = local_port;
             syn.seq_num  = kTesterInitialSeq;
             syn.flags    = ::tc8::stimulus::kTcpFlagSyn;
-            emitTcpFrame(cfg, iface, cfg.dut.mac, syn,
+            emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, syn,
                          /*initial_wait=*/std::chrono::milliseconds(0));
 
             // 200 ms covers the kernel's SYN-RCVD entry and SYN+ACK
@@ -95,7 +94,7 @@ struct TestCaseTraits<cases::TcpBasics17SM>
             ack.seq_num  = kTesterInitialSeq + 1U;
             ack.ack_num  = dut_syn->seq_num + 1U;
             ack.flags    = ::tc8::stimulus::kTcpFlagAck;
-            emitTcpFrame(cfg, iface, cfg.dut.mac, ack,
+            emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, ack,
                          /*initial_wait=*/std::chrono::milliseconds(0));
 
             // 200 ms covers SYN-RCVD → ESTABLISHED transition + the
@@ -110,10 +109,10 @@ struct TestCaseTraits<cases::TcpBasics17SM>
         // backend lacks kCapTcpStateProbe. utEstablishedByte owns the
         // tristate-to-byte encoding.
         c.ut_established = open
-            ? utEstablishedByte(dut.tcpStateProbe()->isEstablished(open->socket))
+            ? utEstablishedByte(ctx.dut.tcpStateProbe()->isEstablished(open->socket))
             : 0xFFU;
 
-        if (open) dut.tcpControl()->closeTcp(open->socket);
+        if (open) ctx.dut.tcpControl()->closeTcp(open->socket);
     }
 };
 

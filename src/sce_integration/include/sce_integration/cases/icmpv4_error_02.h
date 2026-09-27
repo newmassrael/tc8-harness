@@ -50,14 +50,14 @@ struct TestCaseTraits<cases::Icmpv4Error02SM>
     // MAC is an L2 identity threaded via `cfg.arp.dut_iface_mac`.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::icmpv4::StimulusOverrides ov{};
         ov.dst_mac        = cfg.arp.dut_iface_mac;
         ov.more_fragments = true;
         ov.fragment_offset = 0;
         ov.ip_options.assign(::tc8::stimulus::kIcmpv4TimestampOptionMalformed.begin(),
                              ::tc8::stimulus::kIcmpv4TimestampOptionMalformed.end());
-        ::tc8::sce::icmpv4::emitStimulus(cfg, iface, ov);
+        ::tc8::sce::icmpv4::emitStimulus(cfg, ctx.iface, ov);
     }
 };
 
