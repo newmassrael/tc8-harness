@@ -29,6 +29,10 @@ class IBackgroundServiceOwner;
 // `dut_control.h` itself.
 class IDutControl;
 
+// Forward declaration — full definition in `stimulus_context.h`, which a case that
+// takes the context includes itself.
+struct StimulusContext;
+
 // Per-case metadata plugged into TestRunner<StateMachine> and
 // CaseRegistry. The primary template is left undefined on purpose: an
 // unspecialized instantiation must be a compile-time error, not a
@@ -83,7 +87,18 @@ class IDutControl;
 //   into CI (build-test.yml) and the pre-commit hook. (A legacy
 //   `verdictFor(State)` switch was the source before the SSOT migration.)
 //
-//   Optional stimulus hook — receives the captured context by reference so
+//   Optional stimulus hook, in its context form — the one to write for a new
+//   case. The context carries every capability a stimulus can act through
+//   (the capture interface, the DUT-control backend, the scheduler, the
+//   service owner, and the observer that awaits the DUT on the case's own
+//   capture); see stimulus_context.h:
+//     static void stimulus(Captured& captured,
+//                          const ::tc8::TestConfig& cfg,
+//                          ::tc8::sce::StimulusContext& ctx);
+//
+//   The forms below predate it and are each a subset of it.
+//
+//   Plain stimulus hook — receives the captured context by reference so
 //   it can seed fields alongside the packet emit, the TestConfig so it can
 //   forward CLI knobs like `--stimulus-wait`, and the egress interface name
 //   threaded down from `--interface`:
@@ -148,6 +163,23 @@ struct has_stimulus<Traits, std::void_t<decltype(Traits::stimulus(std::declval<t
     : std::true_type {};
 
 template <typename Traits> inline constexpr bool has_stimulus_v = has_stimulus<Traits>::value;
+
+// Detects the context form `static void stimulus(Captured&, const TestConfig&,
+// StimulusContext&)` — the single signature that carries every stimulus
+// capability (stimulus_context.h). Told apart from the plain three-argument form
+// by its third parameter: a StimulusContext& does not convert to string_view, so
+// neither probe matches the other's signature. A case declares exactly one.
+template <typename Traits, typename = void> struct has_context_stimulus : std::false_type {};
+
+template <typename Traits>
+struct has_context_stimulus<
+    Traits, std::void_t<decltype(Traits::stimulus(std::declval<typename Traits::Captured &>(),
+                                                  std::declval<const ::tc8::TestConfig &>(),
+                                                  std::declval<StimulusContext &>()))>>
+    : std::true_type {};
+
+template <typename Traits>
+inline constexpr bool has_context_stimulus_v = has_context_stimulus<Traits>::value;
 
 // Detects whether TestCaseTraits<SM> provides a per-case
 // `static void applyExpectedDefaults(Expected&)` hook. The runner applies it

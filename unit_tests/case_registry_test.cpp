@@ -21,7 +21,7 @@ namespace {
 // ITestRunner contract, not the underlying state machine.
 class DummyRunner : public ITestRunner {
 public:
-    void kickStimulus(std::string_view, IDutControl &) override {}
+    void kickStimulus(std::string_view, IDutControl &, ICapturePump &) override {}
 
     void start() override {}
 

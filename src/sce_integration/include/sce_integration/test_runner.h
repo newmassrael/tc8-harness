@@ -17,6 +17,8 @@
 #include "stimulus/site_target.h"  // setSiteDutIpv4 — published once in kickStimulus
 
 #include "adopted_services.h"
+#include "stimulus_context.h"
+#include "stimulus_observation.h"
 #include "captured_frame_observer.h"
 #include "captured_frame_timing.h"
 #include "captured_trace.h"
@@ -134,21 +136,26 @@ public:
 //
 // Lifecycle contract:
 //   1. Factory constructs the runner and applies configuration.
-//   2. `kickStimulus(iface)` — tester-side packet emit (may block).
-//      May enqueue scheduled-stimulus actions via `IStimulusScheduler`
-//      that fire later from `tick()`.
+//   2. `kickStimulus(iface, dut, pump)` — tester-side packet emit (may
+//      block). May enqueue scheduled-stimulus actions via
+//      `IStimulusScheduler` that fire later from `tick()`, and may await
+//      an observation (`IStimulusObserver`), which drains the capture
+//      through `pump`; frames drained that way are HELD, not dispatched.
 //   3. `start()` — initializes the state machine. SCXML <send delay=...>
 //      timers arm only here, so the listen window begins AFTER any
 //      stimulus wall-time. Without this split, a 5 s deadline would
 //      shrink by the stimulus's 2.5 s block, making the effective
-//      window 2.5 s and sensitive to DUT bootstrap jitter.
+//      window 2.5 s and sensitive to DUT bootstrap jitter. Frames held
+//      during the stimulus are then delivered in capture order, before
+//      the first tick — as the loop would have read them from the ring.
 //   4. Poll loop: the CLI alternates `onCaptured` (when wire frames
 //      arrive) with `tick()` (at every loop iteration, including idle
 //      iterations when no frames arrived) until `isDone()` or the
 //      harness deadline fires. `tick()` also drains any
 //      scheduled-stimulus actions whose deadline has elapsed.
-// `isDone()` / `verdict()` / `onCaptured()` must not be called before
-// `start()` — behaviour is undefined (the underlying SM has no state).
+// `isDone()` / `verdict()` must not be called before `start()` — behaviour
+// is undefined (the underlying SM has no state). `onCaptured()` and
+// `onStimulusApplied()` before `start()` hold what they are given.
 //
 // Event-flow division of labour:
 //   - External wire events → `onCaptured` → Traits::dispatch raises the
@@ -194,7 +201,11 @@ public:
     // owns exactly one backend for the run, so there is no "no backend"
     // state to model; cases that drive the opcode builders directly ignore
     // it (as they ignore `iface` when they don't emit on it).
-    virtual void kickStimulus(std::string_view iface, IDutControl &dut_control) = 0;
+    //
+    // `pump` drains the run's capture on behalf of a stimulus that awaits an
+    // observation (stimulus_observation.h). Borrowed for this call only.
+    virtual void kickStimulus(std::string_view iface, IDutControl &dut_control,
+                              ICapturePump &pump) = 0;
 
     // Initializes the underlying state machine. Separate from the ctor
     // so SCXML deadline timers do not arm until after `kickStimulus`
@@ -204,6 +215,7 @@ public:
 
     // Deliver a wire-captured event to `Traits::dispatch`, which raises
     // the corresponding SCXML event and runs one synchronous macrostep.
+    // Before `start()` the event is held instead (see `kickStimulus`).
     virtual void onCaptured(const ::tc8::CapturedEvent &ev) = 0;
 
     // A stimulus step's acknowledgement, delivered at its position among the
@@ -343,7 +355,16 @@ public:
         applyTestConfig(expected_, cfg_);
     }
 
-    void kickStimulus(std::string_view iface, IDutControl &dut_control) override {
+    void kickStimulus(std::string_view iface, IDutControl &dut_control,
+                      ICapturePump &pump) override {
+        // The observer may drain the capture only while the stimulus runs; the
+        // pump is unbound on every way out of this call, so an await attempted
+        // from a scheduled action after the window opens is refused, not served.
+        struct PumpBinding {
+            StimulusObservation &obs;
+            ~PumpBinding() { obs.bindPump(nullptr); }
+        } binding{observation_};
+        observation_.bindPump(&pump);
         // Pin the iface name for any later dispatch path that opted
         // into the 4-arg overload. Held by value (not string_view) so
         // the buffer outlives the kickStimulus caller's string — the
@@ -361,7 +382,11 @@ public:
         // it at the one seam every stimulus is dispatched through leaves no
         // case, in-tree or out, able to miss it.
         ::tc8::stimulus::setSiteDutIpv4(cfg_.dut.ip);
-        if constexpr (has_dut_scheduled_stimulus_v<Traits>) {
+        if constexpr (has_context_stimulus_v<Traits>) {
+            // The single context signature: every capability in one argument.
+            StimulusContext ctx{iface, dut_control, *this, *this, observation_};
+            Traits::stimulus(captured_, cfg_, ctx);
+        } else if constexpr (has_dut_scheduled_stimulus_v<Traits>) {
             // Tier-2 seam + scheduler: drive the DUT through the backend
             // selected by `--dut-control` AND let the case enqueue actions
             // that outlive this call (e.g. a deferred tester-side iptables
@@ -423,61 +448,35 @@ public:
         // no-op (the SM is never observed to "enter" it from
         // somewhere else — initialize() lands directly).
         last_state_id_ = static_cast<int>(sm_.getCurrentState());
+        started_ = true;
+
+        // Deliver what the stimulus drained while it waited, in capture order and
+        // under each item's own saved-pcap index — the sequence the first loop
+        // iteration would have read from the ring had nothing drained it early.
+        // Adopted observers are NOT notified again: they saw each frame live, when
+        // it was drained, which is when a reaction responder has to see it.
+        observation_.release([this](const StimulusObservation::Held &held) {
+            next_pcap_frame_idx_ = held.pcap_frame_idx;
+            if (const auto *ev = std::get_if<OwnedCapturedEvent>(&held.item)) {
+                dispatchToMachine(ev->view());
+            } else {
+                applyStimulusMarker(std::get<StimulusObservation::Marker>(held.item).name);
+            }
+        });
+        // The CLI sets the slot before every frame it dispatches; clear it so no
+        // transition can inherit a replayed frame's index.
+        next_pcap_frame_idx_ = -1;
     }
 
     void onCaptured(const ::tc8::CapturedEvent &ev) override {
-        const State before = sm_.getCurrentState();
-        if constexpr (has_iface_dispatch_v<Traits>) {
-            // Cases that emit follow-up stimulus inside dispatch (e.g.
-            // §4.5.6.2 ADDRESS_SELECTION_14's self-loop conflict cycle)
-            // need the bound interface name. Threaded through by value
-            // out of `iface_` so dispatch never depends on a string
-            // reference held by the CLI poll loop.
-            Traits::dispatch(captured_, sm_, ev, std::string_view{iface_});
-        } else {
-            Traits::dispatch(captured_, sm_, ev);
+        if (!started_) {
+            // Drained by an awaiting stimulus: held for the state machine, seen now
+            // by any adopted observer (which reacts on the wire, not on SM state).
+            observation_.hold(ev, next_pcap_frame_idx_);
+            adopted_.fanOutCapturedFrame(ev);
+            return;
         }
-        const State after = sm_.getCurrentState();
-        if (before != after) {
-            // Frame-driven transition fired. Record the step before any
-            // subsequent `tick()` mutates state further, so a later frame
-            // cannot overwrite this step's wire observation.
-            //
-            // For the wire-derived fields, the post-dispatch values ARE the
-            // ground truth the SCXML cond evaluated against: dispatch fills
-            // them before `step()` and does not touch them after. That is NOT
-            // a general invariant over `captured_`, though — it fails for the
-            // fired-transition LANDMARKS, which dispatch rewrites on the way
-            // OUT under the very same state-advanced condition that brought us
-            // here (`prev_observed_ts_us`, the SOME/IP `prev_sd_session_id` /
-            // `prev_tp_more_segments`, the link-local probe pins). A cond read
-            // their pre-advance values; by now they hold post-advance ones.
-            //
-            // Only `prev_observed_ts_us` currently leaks that skew into the
-            // trace, because only it feeds a SERIALISED value
-            // (`frame_delta_us`) — which is why the trace reads the
-            // `fired_frame_delta_us` latch instead of recomputing the accessor
-            // (see `appendTimingJson`). The other landmarks are not emitted by
-            // any `appendCapturedJson`, so their skew is currently invisible
-            // rather than absent. Serialising one, or deriving an emitted
-            // value from it, inherits the same trap: latch the pre-advance
-            // value in `snapshotFired()` alongside the existing one.
-            recordTransition(before, after,
-                             /*event_name=*/eventNameForFrame(ev),
-                             /*pcap_frame_idx=*/next_pcap_frame_idx_);
-        }
-        // Do NOT clear ``next_pcap_frame_idx_`` here. One physical pcap
-        // frame can fan out into multiple ``CapturedEvent`` sub-events in
-        // ``PacketPipeline::processFrame`` (e.g. a TCP packet emits both
-        // an ``Ipv4Frame`` and a ``TcpFrame``); a case's dispatch may
-        // ignore the first sub-event (no transition) and consume the
-        // second (transition fires). Clearing on the first dispatch
-        // would mis-attribute the real transition to ``-1`` — the
-        // pre-fix bug that left ~99.9% of trace steps null in
-        // ICMPv4 / TCP / UDP / SOMEIP* cases. The CLI owns the slot:
-        // every physical frame calls ``setNextPcapFrameIdx`` before
-        // ``processFrame``, which is the SSOT.
-
+        dispatchToMachine(ev);
         // Fan the frame out to any adopted frame-observing services AFTER dispatch,
         // so a reaction responder reacts on the post-dispatch ground truth and on
         // this same single thread (no concurrency).
@@ -485,19 +484,13 @@ public:
     }
 
     void onStimulusApplied(std::string_view name) override {
-        if constexpr (has_stimulus_applied_hook_v<StateMachine>) {
-            const State before = sm_.getCurrentState();
-            Traits::onStimulusApplied(captured_, sm_, name);
-            const State after = sm_.getCurrentState();
-            if (before != after) {
-                // Attributed to the acknowledgement frame the marker was cut
-                // from: the CLI set the slot for that frame before processing it.
-                recordTransition(before, after, /*event_name=*/"stimulus_applied",
-                                 /*pcap_frame_idx=*/next_pcap_frame_idx_);
-            }
-        } else {
-            (void)name;
+        if (!started_) {
+            // A marker's meaning is its position among the frames, so it is held
+            // with them and replayed between the same two.
+            observation_.holdMarker(name, next_pcap_frame_idx_);
+            return;
         }
+        applyStimulusMarker(name);
     }
 
     bool observesStimulusMarkers() const override {
@@ -693,6 +686,81 @@ public:
     }
 
 private:
+    // One captured event into the state machine, and the transition it caused
+    // into the trace. The live path and the replay of held frames share it, so a
+    // held frame is graded exactly as a live one is.
+    void dispatchToMachine(const ::tc8::CapturedEvent &ev) {
+        const State before = sm_.getCurrentState();
+        if constexpr (has_iface_dispatch_v<Traits>) {
+            // Cases that emit follow-up stimulus inside dispatch (e.g.
+            // §4.5.6.2 ADDRESS_SELECTION_14's self-loop conflict cycle)
+            // need the bound interface name. Threaded through by value
+            // out of `iface_` so dispatch never depends on a string
+            // reference held by the CLI poll loop.
+            Traits::dispatch(captured_, sm_, ev, std::string_view{iface_});
+        } else {
+            Traits::dispatch(captured_, sm_, ev);
+        }
+        const State after = sm_.getCurrentState();
+        if (before != after) {
+            // Frame-driven transition fired. Record the step before any
+            // subsequent `tick()` mutates state further, so a later frame
+            // cannot overwrite this step's wire observation.
+            //
+            // For the wire-derived fields, the post-dispatch values ARE the
+            // ground truth the SCXML cond evaluated against: dispatch fills
+            // them before `step()` and does not touch them after. That is NOT
+            // a general invariant over `captured_`, though — it fails for the
+            // fired-transition LANDMARKS, which dispatch rewrites on the way
+            // OUT under the very same state-advanced condition that brought us
+            // here (`prev_observed_ts_us`, the SOME/IP `prev_sd_session_id` /
+            // `prev_tp_more_segments`, the link-local probe pins). A cond read
+            // their pre-advance values; by now they hold post-advance ones.
+            //
+            // Only `prev_observed_ts_us` currently leaks that skew into the
+            // trace, because only it feeds a SERIALISED value
+            // (`frame_delta_us`) — which is why the trace reads the
+            // `fired_frame_delta_us` latch instead of recomputing the accessor
+            // (see `appendTimingJson`). The other landmarks are not emitted by
+            // any `appendCapturedJson`, so their skew is currently invisible
+            // rather than absent. Serialising one, or deriving an emitted
+            // value from it, inherits the same trap: latch the pre-advance
+            // value in `snapshotFired()` alongside the existing one.
+            recordTransition(before, after,
+                             /*event_name=*/eventNameForFrame(ev),
+                             /*pcap_frame_idx=*/next_pcap_frame_idx_);
+        }
+        // Do NOT clear ``next_pcap_frame_idx_`` here. One physical pcap
+        // frame can fan out into multiple ``CapturedEvent`` sub-events in
+        // ``PacketPipeline::processFrame`` (e.g. a TCP packet emits both
+        // an ``Ipv4Frame`` and a ``TcpFrame``); a case's dispatch may
+        // ignore the first sub-event (no transition) and consume the
+        // second (transition fires). Clearing on the first dispatch
+        // would mis-attribute the real transition to ``-1`` — the
+        // pre-fix bug that left ~99.9% of trace steps null in
+        // ICMPv4 / TCP / UDP / SOMEIP* cases. The CLI owns the slot:
+        // every physical frame calls ``setNextPcapFrameIdx`` before
+        // ``processFrame``, which is the SSOT.
+    }
+
+    // A stimulus marker into the case's optional hook; shared by the live path and
+    // the replay for the same reason as dispatchToMachine.
+    void applyStimulusMarker(std::string_view name) {
+        if constexpr (has_stimulus_applied_hook_v<StateMachine>) {
+            const State before = sm_.getCurrentState();
+            Traits::onStimulusApplied(captured_, sm_, name);
+            const State after = sm_.getCurrentState();
+            if (before != after) {
+                // Attributed to the acknowledgement frame the marker was cut
+                // from: the CLI set the slot for that frame before processing it.
+                recordTransition(before, after, /*event_name=*/"stimulus_applied",
+                                 /*pcap_frame_idx=*/next_pcap_frame_idx_);
+            }
+        } else {
+            (void)name;
+        }
+    }
+
     struct ScheduledStimulus {
         std::chrono::steady_clock::time_point fire_at;
         std::function<void()>                 action;
@@ -817,6 +885,11 @@ private:
     std::vector<StateEntryObserver>    state_entry_observers_;
     int                                last_state_id_ = -1;
     std::string                        iface_;
+    // Frames and markers an awaiting stimulus drained before the listen window
+    // opened, and the waits over them; released into the SM by `start()`.
+    StimulusObservation                observation_;
+    // Whether `start()` has run: before it, a delivered frame is held.
+    bool                               started_ = false;
     // Evidence Export ledger — appended-to on every state change observed
     // in onCaptured / tick. The walker reads this from the saved pcap's
     // sidecar JSON to render the timeline (single source of truth for

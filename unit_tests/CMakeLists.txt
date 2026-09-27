@@ -123,6 +123,11 @@ tc8_add_unit_test(unperformed_stimulus_test)
 # WRITER. Header-only, so no extra link deps.
 tc8_add_unit_test(dut_ready_signal_test)
 
+# A stimulus awaiting an observation: the hold-and-replay that keeps capture order
+# intact for the state machine, the unperformed record of an unmet wait, and the
+# owning copy of a captured event that holding depends on.
+tc8_add_unit_test(stimulus_observation_test)
+
 tc8_add_unit_test(case_registry_test)
 # AES-CMAC engine: the RFC 4493 published vectors (the four example MACs plus the
 # key-length guard) pin FIPS-197 AES-128 and the CMAC construction. Pure byte
