@@ -4068,3 +4068,106 @@ appeared. This change turns nothing green into red today.
 `a_single_undispatched_case_reds_the_run_below_any_ceiling` (1 of 261, the consumer's shape),
 `non_conclusions_below_the_ceiling_still_pass`, and
 `an_undispatched_case_renders_as_an_error_not_a_skip`.
+
+## TD-60 — TCP cases wait for a DUT segment on a second capture of their own
+
+**Status:** OPEN. **Logged:** 2026-09-28, when the stimulus observer (`stimulus_observation.h`)
+landed and made the older mechanism a duplicate.
+
+**What it is.** `TcpFrameSnippet` (`tcp_pilot_common.h`) opens its own libpcap handle, with its
+own filter, so a stimulus can block until the DUT emits a given segment — typically the DUT's
+SYN, whose sequence number the next tester segment must acknowledge. 25 case headers use it, at 28
+`tryCapture` sites.
+
+**Why it exists.** Until 2026-09-28 a stimulus had no other way to see the DUT: nothing drained the
+case's capture until the stimulus returned. A second handle was the only way in.
+
+**Risk if left.** Two captures of one wire can disagree, and nothing reconciles them. The snippet's
+filter is not the case's, its ring is not the case's, and it has no saved pcap and no loss counter,
+so a segment it waited on is not attributable to any frame the evidence records. A snippet that
+misses the SYN leaves the case to report on a stimulus built from a zero sequence number, with no
+unperformed record. `IStimulusObserver::awaitObservation` answers the same question on the case's
+own capture, returns the matched frame, and records an unmet wait by name.
+
+**Done when:** every `tryCapture` site awaits through the observer, each case moves to the context
+signature it needs for that, `TcpFrameSnippet` is deleted, and the affected cases' verdicts match
+a smoke run from before the move.
+
+## TD-61 — 177 TCP stimuli sleep for a DUT bind the start-order barrier already proves
+
+**Status:** OPEN. **Logged:** 2026-09-28. The owner has a decision to make before this can close.
+
+**What it is.** `kTcpUtBootWait` (1500 ms, `tcp_pilot_common.h`) opens 177 stimulus bodies. Its
+comment says it covers "vsomeip bootstrap + UT bind", and that shortening it makes TCP_BASICS_01..03
+lose the UT bind. Since `2f7fcc85` the orchestrator's `--go-file` barrier holds the stimulus until
+the DUT announces every endpoint bound, and since `7773da4c` every topology that can know readiness
+publishes it. So under the orchestrator this sleep waits for something that has already happened,
+on every one of the 177.
+
+**Why it exists.** It predates the barrier, and it still protects a run that has no barrier: a hand
+run, a lane that spawns the harness directly, or a DUT whose readiness nothing can know (the
+`command` lifecycle).
+
+**Open question, the owner's to decide.** Converting means declaring
+`kDutReadyBarrier = DutReadyBarrier::kRequired` on those cases and deleting the sleep. A run
+without the barrier would then report `inconclusive:stimulus_dut_ready_barrier_unarmed_not_performed`
+instead of passing after a 1.5 s guess. That is more honest, and it is also a behaviour change. It
+hits hand runs and every site whose DUT uses the `command` lifecycle. The same question applies
+to `BootTiming::initial_wait` (1500 ms before the first emit of `emitFindServiceBoot`, 182 call
+sites), which stands for the same bring-up.
+
+**Done when:** the owner has chosen. If the answer is to convert, the 177 cases declare the
+requirement, the sleep is gone, and a smoke run shows no verdict change on single-pc or lwip-tap.
+If the answer is to keep the sleeps, this entry records why and is accepted.
+
+## TD-62 — 758 cases use stimulus signatures the context form replaces
+
+**Status:** OPEN. **Logged:** 2026-09-28.
+
+**What it is.** A case's stimulus can take one of seven signatures. The runner tells them apart by
+arity and by the type of the fourth parameter (`test_case_traits.h`). The context form
+(`StimulusContext`, `stimulus_context.h`) carries every capability the other six do, plus the
+observer. One case uses it (SOMEIP_ETS_101). 758 use the other six.
+
+**Why it exists.** Each overload was added when a capability was. The context form was added so
+the next capability does not double the set again.
+
+**Risk if left.** Every capability added from now on reaches only cases written in the context
+form, so an old case that needs one has to change its signature first. The six detectors and six
+dispatch branches in `TestRunner::kickStimulus` stay. And the set's rule that "a case declares
+exactly one" is enforced by nothing.
+
+**Constraint.** An injected consumer suite compiles its own cases against these headers. Deleting a
+legacy form breaks that suite's build, so deletion needs a deprecation window the consumer agrees
+to. It cannot be done in one commit.
+
+**Done when:** every in-tree case uses the context form, the legacy forms are deprecated with a
+compile-time diagnostic, and after the consumer has migrated they are deleted together with their
+detectors.
+
+## TD-63 — the DUT-control vocabulary cannot say "I am now in state X"
+
+**Status:** OPEN. **Logged:** 2026-09-28, from a consumer suite's request for stimuli that
+wait on events rather than durations.
+
+**What it is.** A stimulus can now wait for a frame (`awaitObservation`), but not for a DUT state
+that puts nothing on the wire. The consumer has one such wait. At run start it waits for "the DUT
+advanced its SD session in response to the boot FindService", in a role where the DUT is a client
+and answers nothing. The same gap appears on the TCP side. `TestabilityTcpControl::connectTcp`
+reports only CONNECT's result, so "the DUT is in SYN-SENT" cannot be expressed on that backend. The
+opcode backend already can: its `connectTcp` returns while the socket is in SYN-SENT, and
+`ITcpStateProbe::queryInfo` reports `tcpi_state`.
+
+**Why it exists.** The reply vocabulary has "done" and "failed" and nothing in between. The
+AUTOSAR testability vocabulary is fixed by its standard. So whatever is added belongs to the
+opcode Upper Tester and is capability-gated, as `kCapTcpSynSentOpen` is.
+
+**Not built yet, deliberately.** A generic "await a DUT state" (a probe polled under a bound, with
+the same unperformed record as an unmet observation) has no in-tree consumer. Its first real
+consumer needs a state the consumer has not yet defined precisely: which DUT-internal fact "SD
+session advanced" is, and which DUT reports it. Building the await before that state exists would
+fix its shape without a consumer.
+
+**Done when:** the consumer's state is defined, the opcode Upper Tester reports it behind a
+capability bit, the reference DUT implements it, and `IStimulusObserver` gains the await that
+polls it, with the consumer's wait converted.
