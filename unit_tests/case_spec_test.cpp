@@ -204,6 +204,23 @@ TEST_F(CaseSpecTest, TheDigestMovesWithExecutionAndNotWithProse) {
     // ...and so does the target losing its inventory axes (stimulus override,
     // negative row, DUT flavor) — what an alias inherits from them.
     EXPECT_NE(executionSurface(e, CaseSpec{}), base);
+
+    // Requiring the DUT-ready barrier changes how the case runs, so it moves too.
+    CaseEntry barriered = e;
+    barriered.dut_ready_barrier = DutReadyBarrier::kRequired;
+    EXPECT_NE(executionSurface(barriered, spec), base);
+}
+
+// A traits field added after consumers began pinning digests must leave every
+// case that does not use it on the digest it already had; otherwise each
+// consumer's every alias reports CHANGED for a change none of them runs. Pinned
+// as a literal because "equal to itself" cannot catch a field that moves every
+// digest at once — the value is this case's surface from before the DUT-ready
+// barrier field existed.
+TEST_F(CaseSpecTest, AFieldAtItsDefaultLeavesAnExistingDigestUnmoved) {
+    const auto inv = load("");
+    const CaseEntry e = entryIn(kDefaultSuite, "SOMEIPSRV_OPTIONS_11");
+    EXPECT_EQ(executionSurface(e, resolveCaseSpec(inv, e)), "50f7890fd788c9df");
 }
 
 // The consumer's pin travels with the alias entry; the target carries none.

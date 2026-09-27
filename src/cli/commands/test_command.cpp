@@ -78,6 +78,12 @@ constexpr int kGoFileMaxPolls = 750;  // 15 s = the launcher's 10 s + 5 s of gra
 /// honoured. It reaches a report as `inconclusive:stimulus_<name>_not_performed`.
 constexpr const char *kDutReadyBarrierStimulus = "dut_ready_barrier";
 
+/// The name recorded when a case that REQUIRES the barrier runs without one
+/// (`DutReadyBarrier::kRequired`, no `--go-file`). Distinct from the one above so
+/// the report says which half failed: the launcher could not prove the DUT ready,
+/// versus nobody asked it to.
+constexpr const char *kDutReadyBarrierUnarmedStimulus = "dut_ready_barrier_unarmed";
+
 /// Block until the launcher signals what happened to the DUT, then let the caller
 /// proceed. Returns whether the DUT was proven bound.
 ///
@@ -1161,6 +1167,21 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // harness run behaves exactly as it always did.
     if (!go_file_path_.empty()) {
         waitForDutReady(go_file_path_);
+    }
+    // A case whose stimulus is lost silently when it outruns the DUT declares the
+    // barrier REQUIRED (TestCaseTraits<>::kDutReadyBarrier). Without --go-file this
+    // run has no proof the DUT was ready, so it is marked as one whose stimulus
+    // could not be performed — same ledger, same verdict-site guard as the barrier's
+    // own NotBound arm, and for the same reason it still runs.
+    if (!::tc8::sce::dutReadyBarrierPremiseHeld(entry->dut_ready_barrier,
+                                                !go_file_path_.empty())) {
+        std::fprintf(stderr,
+                     "warning: case %.*s requires the DUT-ready barrier and no --go-file was "
+                     "given, so nothing proves the DUT was listening when the stimulus was "
+                     "sent. The run proceeds for its evidence but cannot conclude about the "
+                     "DUT.\n",
+                     static_cast<int>(entry->id.size()), entry->id.data());
+        ::tc8::UnperformedStimulus::record(kDutReadyBarrierUnarmedStimulus);
     }
 
     std::unique_ptr<sce::ITestRunner> runner = entry->factory(config);

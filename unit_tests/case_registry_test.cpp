@@ -59,7 +59,7 @@ CaseEntry makeEntry(std::string_view id, bool deprecated = false) {
         id, deriveCategory(id), "desc", deprecated, 1, ::tc8::BpfGroup::SomeIp,
         /*bpf_expression=*/{}, /*extra_capture_udp_ports=*/nullptr,
         /*extra_capture_udp_port_count=*/0U, /*required_capabilities=*/0U,
-        ControlPlaneRole::kScaffolding,
+        ControlPlaneRole::kScaffolding, DutReadyBarrier::kOptional,
         [](const ::tc8::TestConfig &) {
             return std::unique_ptr<ITestRunner>(new DummyRunner());
         }};
@@ -440,6 +440,27 @@ TEST(BpfExpression, SfinaeReadsOptionalMember) {
     EXPECT_TRUE(bpfExpressionOf<TraitsWithoutBpfExpr>().empty());
     static_assert(has_bpf_expression_v<TraitsWithBpfExpr>);
     static_assert(!has_bpf_expression_v<TraitsWithoutBpfExpr>);
+}
+
+// kDutReadyBarrier is optional in the same way: undeclared reads as kOptional,
+// so the overwhelming majority of cases keep running unchanged without the flag.
+struct TraitsRequiringBarrier {
+    static constexpr DutReadyBarrier kDutReadyBarrier = DutReadyBarrier::kRequired;
+};
+
+TEST(DutReadyBarrier, SfinaeReadsOptionalMember) {
+    static_assert(dutReadyBarrierOf<TraitsRequiringBarrier>() == DutReadyBarrier::kRequired);
+    static_assert(dutReadyBarrierOf<TraitsWithoutBpfExpr>() == DutReadyBarrier::kOptional);
+}
+
+// The premise fails in exactly one cell: the case requires the barrier and the
+// run was not given one. A case that does not require it is never marked, with or
+// without the flag — the flag's absence is not by itself a defect.
+TEST(DutReadyBarrier, PremiseFailsOnlyWhenRequiredAndUnarmed) {
+    EXPECT_TRUE(dutReadyBarrierPremiseHeld(DutReadyBarrier::kOptional, false));
+    EXPECT_TRUE(dutReadyBarrierPremiseHeld(DutReadyBarrier::kOptional, true));
+    EXPECT_TRUE(dutReadyBarrierPremiseHeld(DutReadyBarrier::kRequired, true));
+    EXPECT_FALSE(dutReadyBarrierPremiseHeld(DutReadyBarrier::kRequired, false));
 }
 
 }  // namespace

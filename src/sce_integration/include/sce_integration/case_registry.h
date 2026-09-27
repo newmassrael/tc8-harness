@@ -87,6 +87,9 @@ struct CaseEntry {
     // `controlPlaneRoleOf` for why the SCXML's own `has_ut_response` gates are
     // not a substitute.
     ControlPlaneRole control_plane_role = ControlPlaneRole::kScaffolding;
+    // Whether the case's stimulus needs the start-order barrier to be sound
+    // (from TestCaseTraits<>::kDutReadyBarrier). See `DutReadyBarrier`.
+    DutReadyBarrier dut_ready_barrier = DutReadyBarrier::kOptional;
     std::function<std::unique_ptr<ITestRunner>(const ::tc8::TestConfig &)> factory;
     // Catalog this case belongs to. Defaults to kDefaultSuite so every existing
     // construction (which omits it) stays in the in-tree suite; the OEM-suite
@@ -173,6 +176,7 @@ template <typename StateMachine> struct CaseRegistrar {
                       T::kTopology, T::kBpfGroup, bpfExpressionOf<T>(),
                       extraCaptureUdpPortsData<T>(), extraCaptureUdpPortsCount<T>(),
                       requiredCapabilitiesOf<T>(), controlPlaneRoleOf<T>(),
+                      dutReadyBarrierOf<T>(),
                       [](const ::tc8::TestConfig &cfg) {
                           return std::unique_ptr<ITestRunner>(new TestRunner<StateMachine>(cfg));
                       },

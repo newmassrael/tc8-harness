@@ -520,4 +520,63 @@ constexpr ControlPlaneRole controlPlaneRoleOf() {
     }
 }
 
+// Whether a case's stimulus is sound only once the DUT has PROVEN it is ready —
+// the start-order barrier (`--go-file`, tc8/dut_ready_signal.h) — as opposed to
+// merely being likely to be ready by the time the stimulus lands.
+//
+// The barrier is opt-in at the command line, and that is where it leaks. The
+// orchestrator passes `--go-file` whenever the DUT announces readiness, so every
+// run it launches is protected; a harness spawned any other way (by hand, or by a
+// lane that drives the binary directly) waits for nothing. For most cases that
+// costs nothing, because their stimulus is re-driven or solicits a response. For
+// a fire-and-forget datagram it is the whole race the barrier exists to close,
+// and it is SILENT: the datagram is on the wire, the DUT's kernel answers it with
+// an ICMP port-unreachable the case's filter never admits, and the case reports
+// on a stimulus the DUT never processed. Measured by a consumer suite — the DUT's
+// log announced its receive port bound, the orchestrator created the go-file
+// after that line, and the case's own fixed holdoff was therefore redundant
+// under the orchestrator and load-bearing everywhere else.
+//
+// A case that declares kRequired turns "run without the barrier" from a silent
+// race into a named non-conclusion: the CLI records the stimulus as unperformed
+// when no `--go-file` was given, so the verdict cannot be read as being about the
+// DUT. The case still runs, for the same reason the barrier's own NotBound arm
+// runs it — the capture and logs are the evidence an operator needs.
+//
+// A scoped enum rather than a bool for the reason `ControlPlaneRole` gives: the
+// field sits before a std::function in CaseEntry's positional initialiser.
+enum class DutReadyBarrier : bool {
+    // The stimulus tolerates a DUT that is not yet ready (it retries, or the
+    // case's own timing absorbs bring-up). The default.
+    kOptional = false,
+    // The stimulus is lost, silently, if it lands before the DUT is ready.
+    kRequired = true,
+};
+
+template <typename Traits, typename = void>
+struct has_dut_ready_barrier : std::false_type {};
+
+template <typename Traits>
+struct has_dut_ready_barrier<Traits, std::void_t<decltype(Traits::kDutReadyBarrier)>>
+    : std::true_type {};
+
+template <typename Traits>
+inline constexpr bool has_dut_ready_barrier_v = has_dut_ready_barrier<Traits>::value;
+
+template <typename Traits>
+constexpr DutReadyBarrier dutReadyBarrierOf() {
+    if constexpr (has_dut_ready_barrier_v<Traits>) {
+        return Traits::kDutReadyBarrier;
+    } else {
+        return DutReadyBarrier::kOptional;
+    }
+}
+
+// The premise check the CLI applies before the stimulus: false exactly when the
+// case requires the barrier and the run was not given one. Pure, so the rule has
+// a tested home apart from the command that acts on it.
+constexpr bool dutReadyBarrierPremiseHeld(DutReadyBarrier requirement, bool barrier_armed) {
+    return requirement == DutReadyBarrier::kOptional || barrier_armed;
+}
+
 }  // namespace tc8::sce

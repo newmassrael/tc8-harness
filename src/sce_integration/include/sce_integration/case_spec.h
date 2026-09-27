@@ -41,7 +41,7 @@ CaseSpec resolveCaseSpec(const SpecInventory &inventory, const CaseEntry &entry)
 
 // A 16-hex-digit digest of what a case EXECUTES as: the traits fields CaseEntry
 // copies from TestCaseTraits (topology, capture filter, capabilities, control
-// plane role, deprecation) plus the execution axes `spec.execution` resolves.
+// plane role, DUT-ready barrier requirement, deprecation) plus the execution axes `spec.execution` resolves.
 // `spec` may be empty (no inventory), and then only the traits contribute.
 //
 // It exists for aliases. An alias asserts "this IS the in-tree case", and the

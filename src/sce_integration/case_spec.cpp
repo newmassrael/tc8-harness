@@ -52,6 +52,15 @@ std::string executionSurface(const CaseEntry &entry, const CaseSpec &spec) {
     line("extra_capture_udp_ports", ports);
     line("required_capabilities", std::to_string(entry.required_capabilities));
     line("control_plane_role", std::to_string(static_cast<int>(entry.control_plane_role)));
+    // Emitted only when set. A field added after aliases began pinning digests
+    // must leave every case that does not use it with the digest it had, or each
+    // consumer's every alias reports CHANGED at once for a change none of them
+    // runs — the noise that gets this report ignored. A case that does declare it
+    // runs differently (its run is marked unperformed without --go-file), so its
+    // digest moves, which is the report working.
+    if (entry.dut_ready_barrier == DutReadyBarrier::kRequired) {
+        line("dut_ready_barrier", "required");
+    }
     if (const SpecCase *sc = spec.execution) {
         appendList(text, "expect_overrides", sc->expect_overrides);
         line("timing_serial", sc->timing_serial ? "1" : "0");
