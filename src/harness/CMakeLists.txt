@@ -337,6 +337,11 @@ function(tc8_add_case case_dir origin suite)
     set_property(GLOBAL PROPERTY TC8_CASEHASH_${_skey}_${case_id} "${_case_md5}")
     set_property(GLOBAL APPEND PROPERTY TC8_CASE_SUITES "${_skey}")
     set_property(GLOBAL PROPERTY TC8_CASE_STUBDIR_${_skey} "${stub_dir}")
+    # Whether this tree owns the case's source; decides the diagnostics its
+    # registration TU is compiled under (tc8_emit_case_registration_tus).
+    if(NOT origin STREQUAL "in-tree")
+        set_property(GLOBAL PROPERTY TC8_CASEFOREIGN_${_skey}_${case_id} TRUE)
+    endif()
 endfunction()
 
 # How many cases one registration TU should carry.
@@ -399,50 +404,70 @@ function(tc8_emit_case_registration_tus)
         # flavour-naming case headers is a `_neg` and no positive names a flavour
         # outside a comment, so the filename is the honest discriminator and needs no
         # source scan at configure time.
-        set(_neg_ids)
-        set(_pos_ids)
+        #
+        # PARTITION BY ORIGIN as well, for a different reason: the diagnostics a TU is
+        # compiled under. A case this tree owns is held to -Werror in full, which is
+        # what makes a deprecated interface an error the moment an in-tree case uses
+        # it. A case a consumer injects (`extra`, or an `override` of an in-tree id)
+        # is built from source this tree does not control, so a deprecation must
+        # reach it as a WARNING — the migration window TD-62 promises — rather than
+        # as a broken build on the day the interface is deprecated. Flags are per TU,
+        # so the two must never share one. With no injected cases the foreign
+        # partitions are empty and the chunk layout is exactly what it was.
+        set(_own_pos)
+        set(_own_neg)
+        set(_foreign_pos)
+        set(_foreign_neg)
         foreach(_id IN LISTS _ids)
-            if(_id MATCHES "_neg[0-9]*$")
-                list(APPEND _neg_ids ${_id})
+            get_property(_foreign GLOBAL PROPERTY TC8_CASEFOREIGN_${_skey}_${_id})
+            if(_foreign)
+                set(_side foreign)
             else()
-                list(APPEND _pos_ids ${_id})
+                set(_side own)
+            endif()
+            if(_id MATCHES "_neg[0-9]*$")
+                list(APPEND _${_side}_neg ${_id})
+            else()
+                list(APPEND _${_side}_pos ${_id})
             endif()
         endforeach()
-        list(LENGTH _pos_ids _n_pos)
-        list(LENGTH _neg_ids _n_neg)
-        # ceil(n / cases-per-TU) per partition; a partition with no cases gets no
-        # chunks at all rather than an empty one.
-        math(EXPR _pos_buckets "(${_n_pos} + ${TC8_CASES_PER_TU} - 1) / ${TC8_CASES_PER_TU}")
-        math(EXPR _neg_buckets "(${_n_neg} + ${TC8_CASES_PER_TU} - 1) / ${TC8_CASES_PER_TU}")
-        math(EXPR _buckets "${_pos_buckets} + ${_neg_buckets}")
-        if(_buckets LESS 1)
-            set(_buckets 1)
-            set(_pos_buckets 1)
-        endif()
         # Accumulated in global properties rather than a CMake list of bodies: a
         # body is multi-line text, and a list whose elements are text is exactly
         # where CMake's separator and empty-element rules bite. APPEND_STRING has
         # neither problem.
-        math(EXPR _last "${_buckets} - 1")
-        foreach(_idx RANGE 0 ${_last})
-            set_property(GLOBAL PROPERTY TC8_BUCKETBODY_${_skey}_${_idx} "")
+        #
+        # Each partition takes a contiguous index range above the previous one, so a
+        # chunk's index alone says which partition it belongs to; ceil(n / cases-per-
+        # TU) chunks per partition, and none at all for an empty one.
+        set(_base 0)
+        set(_foreign_indices)
+        foreach(_part own_pos own_neg foreign_pos foreign_neg)
+            list(LENGTH _${_part} _n)
+            if(_n EQUAL 0)
+                continue()
+            endif()
+            math(EXPR _nb "(${_n} + ${TC8_CASES_PER_TU} - 1) / ${TC8_CASES_PER_TU}")
+            math(EXPR _top "${_base} + ${_nb} - 1")
+            foreach(_idx RANGE ${_base} ${_top})
+                set_property(GLOBAL PROPERTY TC8_BUCKETBODY_${_skey}_${_idx} "")
+                if(_part MATCHES "^foreign_")
+                    list(APPEND _foreign_indices ${_idx})
+                endif()
+            endforeach()
+            foreach(_id IN LISTS _${_part})
+                get_property(_h GLOBAL PROPERTY TC8_CASEHASH_${_skey}_${_id})
+                get_property(_b GLOBAL PROPERTY TC8_CASEBLOCK_${_skey}_${_id})
+                math(EXPR _idx "${_base} + (0x${_h} % ${_nb})")
+                set_property(GLOBAL APPEND_STRING
+                             PROPERTY TC8_BUCKETBODY_${_skey}_${_idx} "${_b}")
+            endforeach()
+            math(EXPR _base "${_base} + ${_nb}")
         endforeach()
-        # Positives take indices [0, _pos_buckets), negatives the range above them, so
-        # a chunk's index alone says which partition it belongs to.
-        foreach(_id IN LISTS _pos_ids)
-            get_property(_h GLOBAL PROPERTY TC8_CASEHASH_${_skey}_${_id})
-            get_property(_b GLOBAL PROPERTY TC8_CASEBLOCK_${_skey}_${_id})
-            math(EXPR _idx "0x${_h} % ${_pos_buckets}")
-            set_property(GLOBAL APPEND_STRING
-                         PROPERTY TC8_BUCKETBODY_${_skey}_${_idx} "${_b}")
-        endforeach()
-        foreach(_id IN LISTS _neg_ids)
-            get_property(_h GLOBAL PROPERTY TC8_CASEHASH_${_skey}_${_id})
-            get_property(_b GLOBAL PROPERTY TC8_CASEBLOCK_${_skey}_${_id})
-            math(EXPR _idx "${_pos_buckets} + (0x${_h} % ${_neg_buckets})")
-            set_property(GLOBAL APPEND_STRING
-                         PROPERTY TC8_BUCKETBODY_${_skey}_${_idx} "${_b}")
-        endforeach()
+        if(_base EQUAL 0)
+            set(_base 1)
+            set_property(GLOBAL PROPERTY TC8_BUCKETBODY_${_skey}_0 "")
+        endif()
+        math(EXPR _last "${_base} - 1")
         foreach(_idx RANGE 0 ${_last})
             get_property(_body GLOBAL PROPERTY TC8_BUCKETBODY_${_skey}_${_idx})
             if(_body STREQUAL "")
@@ -462,6 +487,12 @@ ${_body}")
             endif()
             if(NOT "${_existing}" STREQUAL "${_text}")
                 file(WRITE ${_path} "${_text}")
+            endif()
+            # An injected case's TU reports a deprecated interface as a warning (see
+            # the origin partition above); every other diagnostic stays an error.
+            if(_idx IN_LIST _foreign_indices)
+                set_source_files_properties(${_path} PROPERTIES
+                    COMPILE_OPTIONS "-Wno-error=deprecated-declarations")
             endif()
             list(APPEND _stubs ${_path})
         endforeach()

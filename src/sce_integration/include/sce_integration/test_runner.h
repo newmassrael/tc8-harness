@@ -386,37 +386,9 @@ public:
             // The single context signature: every capability in one argument.
             StimulusContext ctx{iface, dut_control, *this, *this, observation_};
             Traits::stimulus(captured_, cfg_, ctx);
-        } else if constexpr (has_dut_scheduled_stimulus_v<Traits>) {
-            // Tier-2 seam + scheduler: drive the DUT through the backend
-            // selected by `--dut-control` AND let the case enqueue actions
-            // that outlive this call (e.g. a deferred tester-side iptables
-            // RAII release). Checked first — a 5-arg signature matches
-            // neither 4-arg concept below.
-            Traits::stimulus(captured_, cfg_, iface, dut_control,
-                             static_cast<IStimulusScheduler &>(*this));
-        } else if constexpr (has_scheduled_service_owning_stimulus_v<Traits>) {
-            // Scheduler + service-owner: the case holds a run-scoped service
-            // (e.g. a reliable SubscribeEventgroupTcpSession for a mixed
-            // eventgroup) AND enqueues a deferred scheduler action (e.g. a
-            // reboot FindService). The runner is both roles; forward both.
-            Traits::stimulus(captured_, cfg_, iface,
-                             static_cast<IStimulusScheduler &>(*this),
-                             static_cast<IBackgroundServiceOwner &>(*this));
-        } else if constexpr (has_dut_stimulus_v<Traits>) {
-            // Tier-2 seam: drive the DUT through the backend selected by
-            // `--dut-control` (opcode UT or AUTOSAR testability).
-            Traits::stimulus(captured_, cfg_, iface, dut_control);
-        } else if constexpr (has_scheduled_stimulus_v<Traits>) {
-            Traits::stimulus(captured_, cfg_, iface,
-                             static_cast<IStimulusScheduler &>(*this));
-        } else if constexpr (has_service_owning_stimulus_v<Traits>) {
-            // The case arms a run-scoped tc8::IPollableService (e.g. an
-            // ArpResponder) and hands it to the runner to own across the capture
-            // window. Distinct from the scheduler/dut overloads by the 4th param.
-            Traits::stimulus(captured_, cfg_, iface,
-                             static_cast<IBackgroundServiceOwner &>(*this));
-        } else if constexpr (has_stimulus_v<Traits>) {
-            Traits::stimulus(captured_, cfg_, iface);
+        } else if constexpr (has_legacy_stimulus_v<Traits>) {
+            legacyStimulusSignature<Traits>();
+            dispatchLegacyStimulus(iface, dut_control);
         }
     }
 
@@ -686,6 +658,31 @@ public:
     }
 
 private:
+    // The six signatures the context form replaced (TD-62), kept for an injected
+    // suite's migration window and deprecated at the call site above. Deleted, with
+    // their detectors, when the window closes.
+    void dispatchLegacyStimulus(std::string_view iface, IDutControl &dut_control) {
+        if constexpr (has_dut_scheduled_stimulus_v<Traits>) {
+            // Checked first — a 5-arg signature matches neither 4-arg concept below.
+            Traits::stimulus(captured_, cfg_, iface, dut_control,
+                             static_cast<IStimulusScheduler &>(*this));
+        } else if constexpr (has_scheduled_service_owning_stimulus_v<Traits>) {
+            Traits::stimulus(captured_, cfg_, iface,
+                             static_cast<IStimulusScheduler &>(*this),
+                             static_cast<IBackgroundServiceOwner &>(*this));
+        } else if constexpr (has_dut_stimulus_v<Traits>) {
+            Traits::stimulus(captured_, cfg_, iface, dut_control);
+        } else if constexpr (has_scheduled_stimulus_v<Traits>) {
+            Traits::stimulus(captured_, cfg_, iface,
+                             static_cast<IStimulusScheduler &>(*this));
+        } else if constexpr (has_service_owning_stimulus_v<Traits>) {
+            Traits::stimulus(captured_, cfg_, iface,
+                             static_cast<IBackgroundServiceOwner &>(*this));
+        } else {
+            Traits::stimulus(captured_, cfg_, iface);
+        }
+    }
+
     // One captured event into the state machine, and the transition it caused
     // into the trace. The live path and the replay of held frames share it, so a
     // held frame is graded exactly as a live one is.

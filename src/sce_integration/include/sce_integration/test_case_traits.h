@@ -181,6 +181,24 @@ struct has_context_stimulus<
 template <typename Traits>
 inline constexpr bool has_context_stimulus_v = has_context_stimulus<Traits>::value;
 
+// Called by the runner on every path that dispatches a stimulus in one of the six
+// signatures the context form replaced (docs/tech-debt.md TD-62). Every in-tree
+// case has moved; this is what keeps it that way and tells an injected suite what
+// to move. An in-tree registration TU compiles under -Werror, so a legacy form
+// there fails the build. An injected suite's TUs demote exactly this diagnostic to
+// a warning (src/harness/CMakeLists.txt, the origin partition), which is the
+// migration window: the forms keep working there until the window closes and they
+// are deleted.
+//
+// A template on the case's traits, so the diagnostic fires at each case's
+// instantiation and names that case, rather than once at this definition.
+template <typename Traits>
+[[deprecated("this case's stimulus uses a legacy signature; take "
+             "::tc8::sce::StimulusContext& instead (sce_integration/stimulus_context.h). "
+             "The legacy forms are removed when the migration window in "
+             "docs/tech-debt.md TD-62 closes.")]]
+constexpr void legacyStimulusSignature() {}
+
 // Detects whether TestCaseTraits<SM> provides a per-case
 // `static void applyExpectedDefaults(Expected&)` hook. The runner applies it
 // BEFORE `--expect`, so a positive run needs no external value feed and
@@ -333,6 +351,14 @@ struct has_scheduled_service_owning_stimulus<
 template <typename Traits>
 inline constexpr bool has_scheduled_service_owning_stimulus_v =
     has_scheduled_service_owning_stimulus<Traits>::value;
+
+// Whether the case declares its stimulus in any of the six signatures the context
+// form replaced (TD-62; see legacyStimulusSignature).
+template <typename Traits>
+inline constexpr bool has_legacy_stimulus_v =
+    has_stimulus_v<Traits> || has_scheduled_stimulus_v<Traits> ||
+    has_service_owning_stimulus_v<Traits> || has_dut_stimulus_v<Traits> ||
+    has_dut_scheduled_stimulus_v<Traits> || has_scheduled_service_owning_stimulus_v<Traits>;
 
 // Detects whether TestCaseTraits<SM> specializes the 4-arg
 // `static void dispatch(Captured&, StateMachine&, const CapturedEvent&,

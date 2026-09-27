@@ -49,6 +49,15 @@ struct TestCaseTraits<cases::DemoOptions01SM>
     static constexpr std::string_view kCaseId      = "SOMEIPSRV_OPTIONS_01";
     static constexpr std::string_view kDescription =
         "Demo suite — proves (suite, id) coexistence with the in-tree case";
+
+    // DELIBERATELY in a legacy stimulus signature (docs/tech-debt.md TD-62). An
+    // injected suite may still use one during the migration window, and this is
+    // the standing proof that it can: scripts/check-suite-producer.sh asserts the
+    // harness builds with it AND that the build warned about it. The in-tree
+    // cases may not — their registration TUs turn the same diagnostic into an
+    // error. Delete this, and that assertion, when the window closes.
+    static void stimulus(Captured& /*c*/, const ::tc8::TestConfig& /*cfg*/,
+                         std::string_view /*iface*/) {}
 };
 
 }  // namespace tc8::sce

@@ -4149,6 +4149,24 @@ use the observer migrate first, since they are the only ones whose verdicts gain
 compile-time diagnostic, and after the consumer has migrated they are deleted together with their
 detectors.
 
+**Progress (2026-09-28).** The first two conditions hold.
+
+- All 759 in-tree stimulus definitions take the context form. The move was checked, not assumed.
+  Each migrated body was compared with its pre-migration text after undoing the renames (`ctx.iface`
+  back to `iface`, and so on). 757 matched byte for byte. The one intentional difference is a
+  comment that named the old parameter. The first pass had dropped a space after a comma on 349
+  lines; the check found them, and they were restored before the build.
+- `legacyStimulusSignature<Traits>()` is `[[deprecated]]`, and the runner calls it on every legacy
+  dispatch path, so the diagnostic names the case. The harness's registration TUs are now also
+  partitioned by the case's origin. An in-tree case's TU keeps `-Werror`. Measured by reverting one
+  case (ARP_16) to a legacy form: the build failed with `-Werror=deprecated-declarations` naming
+  `TestCaseTraits<…arp_16…>`. An injected case's TU demotes that one diagnostic to a warning. The
+  demo suite keeps a deliberately legacy stimulus, and `scripts/check-suite-producer.sh` asserts that
+  it builds and that its build warned. With no injected cases the registration layout is unchanged
+  (25 TUs).
+
+Still open: deleting the six forms and their detectors when the consumer's window closes.
+
 ## TD-63 — the DUT-control vocabulary cannot say "I am now in state X"
 
 **Status:** RESOLVED (2026-09-28), with no consumer. **Logged:** 2026-09-28, from a consumer
