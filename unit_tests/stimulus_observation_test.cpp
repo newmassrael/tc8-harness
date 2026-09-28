@@ -11,6 +11,7 @@
 #include <chrono>
 #include <cstdint>
 #include <deque>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -204,6 +205,84 @@ TEST(StimulusObservationDeathTest, AWaitOutsideTheStimulusIsRefused) {
     StimulusObservation obs;  // no pump bound: the stimulus has returned
     EXPECT_DEATH((void)obs.awaitObservation("late", fromPort(1), 10ms),
                  "requested outside the stimulus");
+}
+
+// --- ObservationReactions: a scheduled step inside the listen window ----------
+
+class ObservationReactionsTest : public ::testing::Test {
+protected:
+    void SetUp() override { ::tc8::UnperformedStimulus::reset(); }
+    void TearDown() override { ::tc8::UnperformedStimulus::reset(); }
+
+    std::chrono::steady_clock::time_point now{};
+    ObservationReactions reactions{[this] { return now; }};
+};
+
+TEST_F(ObservationReactionsTest, FiresOnceWithTheFirstMatchingFrame) {
+    std::vector<std::uint16_t> seen;
+    reactions.add("x", fromPort(2), 100ms,
+                  [&](const ::tc8::CapturedEvent &ev) { seen.push_back(srcPortOf(ev)); });
+
+    reactions.onFrame(udpFrom(1), 0);
+    reactions.onFrame(udpFrom(2), 1);
+    reactions.onFrame(udpFrom(2), 2);  // a second match: the reaction is already spent
+
+    EXPECT_EQ(seen, (std::vector<std::uint16_t>{2}));
+    EXPECT_TRUE(reactions.empty());
+    EXPECT_FALSE(::tc8::UnperformedStimulus::any());
+}
+
+TEST_F(ObservationReactionsTest, AnElapsedBoundIsRecordedAndTheActionNeverRuns) {
+    bool fired = false;
+    reactions.add("dut_syn_phase2", fromPort(2), 100ms,
+                  [&](const ::tc8::CapturedEvent &) { fired = true; });
+
+    now += 99ms;
+    reactions.expire();
+    EXPECT_FALSE(::tc8::UnperformedStimulus::any()) << "not yet: the bound has not elapsed";
+
+    now += 1ms;
+    reactions.expire();
+    EXPECT_EQ(::tc8::UnperformedStimulus::reason(), "stimulus_dut_syn_phase2_not_performed");
+    reactions.onFrame(udpFrom(2), 0);
+    EXPECT_FALSE(fired) << "a reaction that expired must not fire on a late frame";
+}
+
+// What the in-window TCP phases rely on: the action's closure owns the RAII
+// guards (auto-RST suppression, the DUT connection), so they are released when
+// the reaction is spent — after firing, or when it is dropped unmet.
+TEST_F(ObservationReactionsTest, TheClosureIsReleasedAfterFiringAndAfterExpiry) {
+    auto fired_guard = std::make_shared<int>(0);
+    auto unmet_guard = std::make_shared<int>(0);
+    std::weak_ptr<int> fired_watch = fired_guard;
+    std::weak_ptr<int> unmet_watch = unmet_guard;
+    reactions.add("fires", fromPort(1), 100ms,
+                  [g = std::move(fired_guard)](const ::tc8::CapturedEvent &) {});
+    reactions.add("unmet", fromPort(9), 100ms,
+                  [g = std::move(unmet_guard)](const ::tc8::CapturedEvent &) {});
+
+    reactions.onFrame(udpFrom(1), 0);
+    EXPECT_TRUE(fired_watch.expired());
+    EXPECT_FALSE(unmet_watch.expired());
+
+    now += 100ms;
+    reactions.expire();
+    EXPECT_TRUE(unmet_watch.expired());
+}
+
+// A step that chains (react, then react again) registers from inside an action;
+// the new reaction must wait for the NEXT frame, not consume this one.
+TEST_F(ObservationReactionsTest, AReactionRegisteredByAnActionSeesOnlyLaterFrames) {
+    int second = 0;
+    reactions.add("first", fromPort(1), 100ms, [&](const ::tc8::CapturedEvent &) {
+        reactions.add("second", fromPort(1), 100ms,
+                      [&](const ::tc8::CapturedEvent &) { ++second; });
+    });
+
+    reactions.onFrame(udpFrom(1), 0);
+    EXPECT_EQ(second, 0);
+    reactions.onFrame(udpFrom(1), 1);
+    EXPECT_EQ(second, 1);
 }
 
 // --- OwnedCapturedEvent -------------------------------------------------------

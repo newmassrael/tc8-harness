@@ -25,6 +25,55 @@ long long msBetween(std::chrono::steady_clock::time_point a,
 
 }  // namespace
 
+ObservationReactions::ObservationReactions(Clock clock) : clock_(std::move(clock)) {}
+
+void ObservationReactions::add(std::string_view name, ObservationPredicate predicate,
+                               std::chrono::milliseconds bound, Action action) {
+    const auto now = clock_();
+    pending_.push_back(Pending{std::string(name), std::move(predicate), now, now + bound,
+                               std::move(action)});
+}
+
+void ObservationReactions::onFrame(const ::tc8::CapturedEvent &ev, int pcap_frame_idx) {
+    if (pending_.empty()) {
+        return;
+    }
+    std::vector<Pending> due;
+    auto it = pending_.begin();
+    while (it != pending_.end()) {
+        if (it->predicate(ev)) {
+            due.push_back(std::move(*it));
+            it = pending_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    const auto now = clock_();
+    for (Pending &p : due) {
+        std::printf("stimulus : reaction '%s' observed after %lld ms (pcap frame %d)\n",
+                    p.name.c_str(), msBetween(p.registered, now), pcap_frame_idx);
+        p.action(ev);
+    }
+}
+
+void ObservationReactions::expire() {
+    if (pending_.empty()) {
+        return;
+    }
+    const auto now = clock_();
+    auto it = pending_.begin();
+    while (it != pending_.end()) {
+        if (now >= it->deadline) {
+            std::printf("stimulus : reaction '%s' NOT observed (bound elapsed, %lld ms)\n",
+                        it->name.c_str(), msBetween(it->registered, now));
+            ::tc8::UnperformedStimulus::record(it->name);
+            it = pending_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
 StimulusObservation::StimulusObservation(Clock clock) : clock_(std::move(clock)) {}
 
 void StimulusObservation::hold(const ::tc8::CapturedEvent &ev, int pcap_frame_idx) {

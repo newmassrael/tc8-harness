@@ -119,6 +119,58 @@ public:
     }
 };
 
+// --- Reacting to an observation once the listen window is open ---------------
+//
+// The awaiting half above serves a stimulus that runs BEFORE the window. A step
+// scheduled INTO the window (IStimulusScheduler) cannot block the same way: the
+// capture it would drain is the one feeding the live state machine, and every
+// frame it read would have to reach the machine anyway, in order, while the
+// machine's own deadlines ran. So a scheduled step does not wait — it REACTS. It
+// registers "when the capture delivers a frame satisfying this, do that", the
+// capture loop delivers every frame to the state machine as usual and then to the
+// pending reactions, and a reaction whose bound elapses first is recorded as an
+// unperformed stimulus under its name, exactly as an unmet wait is.
+//
+// Register the reaction BEFORE the step that provokes the frame. A frame the DUT
+// sends while that step is still running is delivered afterwards, in order, and
+// the reaction sees it.
+class ObservationReactions {
+public:
+    using Clock = std::function<std::chrono::steady_clock::time_point()>;
+    // Runs on the capture-loop thread with the matching frame. The frame is a view
+    // valid for the call only; keep an OwnedCapturedEvent of it to hold it longer.
+    using Action = std::function<void(const ::tc8::CapturedEvent &)>;
+
+    explicit ObservationReactions(Clock clock = &std::chrono::steady_clock::now);
+
+    void add(std::string_view name, ObservationPredicate predicate,
+             std::chrono::milliseconds bound, Action action);
+
+    // Offer one delivered frame to every pending reaction; each one it satisfies
+    // fires, once, and is removed. Collected before firing, so an action that
+    // registers a further reaction does not see this same frame.
+    void onFrame(const ::tc8::CapturedEvent &ev, int pcap_frame_idx);
+
+    // Record every reaction whose bound has elapsed as an unperformed stimulus.
+    void expire();
+
+    bool empty() const {
+        return pending_.empty();
+    }
+
+private:
+    struct Pending {
+        std::string                           name;
+        ObservationPredicate                  predicate;
+        std::chrono::steady_clock::time_point registered;
+        std::chrono::steady_clock::time_point deadline;
+        Action                                action;
+    };
+
+    Clock                clock_;
+    std::vector<Pending> pending_;
+};
+
 // The held capture and the waits over it. Not a template, so the rules live in
 // one tested place; `TestRunner<SM>` holds one and forwards to it.
 class StimulusObservation final : public IStimulusObserver {

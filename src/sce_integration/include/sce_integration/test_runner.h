@@ -100,6 +100,18 @@ public:
     // post-initial state instead.
     virtual void scheduleAfterStateEntry(int state_id,
                                          std::function<void()> action) = 0;
+
+    // Run `action` with the first frame the capture delivers after this call that
+    // satisfies `predicate` — for a step inside the listen window that needs a
+    // frame the DUT sends in answer to it (the DUT's SYN whose sequence number the
+    // next tester segment must acknowledge). Every frame still reaches the state
+    // machine first, in order; the reaction only observes it. When `bound`
+    // elapses first the step is recorded as an unperformed stimulus named `name`.
+    // Register it BEFORE the step that provokes the frame
+    // (stimulus_observation.h, ObservationReactions).
+    virtual void reactToObservation(std::string_view name, ObservationPredicate predicate,
+                                    std::chrono::milliseconds bound,
+                                    std::function<void(const ::tc8::CapturedEvent &)> action) = 0;
 };
 
 // A run-scoped service owner: a case hands the runner a `tc8::IPollableService`
@@ -431,6 +443,7 @@ public:
             next_pcap_frame_idx_ = held.pcap_frame_idx;
             if (const auto *ev = std::get_if<OwnedCapturedEvent>(&held.item)) {
                 dispatchToMachine(ev->view());
+                reactions_.onFrame(ev->view(), held.pcap_frame_idx);
             } else {
                 applyStimulusMarker(std::get<StimulusObservation::Marker>(held.item).name);
             }
@@ -449,6 +462,8 @@ public:
             return;
         }
         dispatchToMachine(ev);
+        // A scheduled step's reaction sees the frame after the state machine has.
+        reactions_.onFrame(ev, next_pcap_frame_idx_);
         // Fan the frame out to any adopted frame-observing services AFTER dispatch,
         // so a reaction responder reacts on the post-dispatch ground truth and on
         // this same single thread (no concurrency).
@@ -471,6 +486,7 @@ public:
 
     void tick() override {
         drainDueStimulus();
+        reactions_.expire();
 
         const State before = sm_.getCurrentState();
         // Use tick() (not step()) so the SCE scheduler pumps ready timers
@@ -639,6 +655,12 @@ public:
             state_id,
             std::move(action),
         });
+    }
+
+    void reactToObservation(std::string_view name, ObservationPredicate predicate,
+                            std::chrono::milliseconds bound,
+                            std::function<void(const ::tc8::CapturedEvent &)> action) override {
+        reactions_.add(name, std::move(predicate), bound, std::move(action));
     }
 
     // IBackgroundServiceOwner — take ownership of a case-armed pollable service.
@@ -885,6 +907,8 @@ private:
     // Frames and markers an awaiting stimulus drained before the listen window
     // opened, and the waits over them; released into the SM by `start()`.
     StimulusObservation                observation_;
+    // Scheduled steps waiting on a frame inside the listen window.
+    ObservationReactions               reactions_;
     // Whether `start()` has run: before it, a delivered frame is held.
     bool                               started_ = false;
     // Evidence Export ledger — appended-to on every state change observed
