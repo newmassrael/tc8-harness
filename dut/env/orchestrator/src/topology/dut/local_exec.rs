@@ -29,18 +29,25 @@ pub(crate) struct LocalExec<'a> {
     /// Whether `bin` is the in-tree reference implementation. Only that one may be
     /// held to the curated negative rows' deliberately wrong expectations.
     is_reference: bool,
+    /// The readiness line a site declared for its binary (`[dut] ready_marker`).
+    site_ready_marker: Option<String>,
 }
 
 impl<'a> LocalExec<'a> {
     /// The in-tree reference tc8-dut — the default when no `[dut]` section selects
     /// anything else, i.e. every existing site and CI lane.
     pub(crate) fn reference(cfg: &'a Config) -> Self {
-        LocalExec { cfg, bin: cfg.dut_bin.clone(), is_reference: true }
+        LocalExec { cfg, bin: cfg.dut_bin.clone(), is_reference: true, site_ready_marker: None }
     }
 
-    /// A site-named DUT executable.
-    pub(crate) fn site_binary(cfg: &'a Config, bin: impl Into<PathBuf>) -> Self {
-        LocalExec { cfg, bin: bin.into(), is_reference: false }
+    /// A site-named DUT executable, with the readiness line the site declares it
+    /// prints, if any.
+    pub(crate) fn site_binary(
+        cfg: &'a Config,
+        bin: impl Into<PathBuf>,
+        ready_marker: Option<String>,
+    ) -> Self {
+        LocalExec { cfg, bin: bin.into(), is_reference: false, site_ready_marker: ready_marker }
     }
 }
 
@@ -84,14 +91,19 @@ impl DutLifecycle for LocalExec<'_> {
     }
 
     fn readiness(&self) -> crate::dispatch::DutReadiness {
-        // Only the reference tc8-dut prints it. A site-named binary may well bind its
-        // ports just as carefully, but we did not build it and cannot promise it says
-        // so — and a barrier that waits for an announcement that will never come is
-        // worse than no barrier: it would add its whole ceiling to every case before
-        // giving up. Same discriminator, and the same reasoning, as the negative rows
-        // just above: what OUR implementation guarantees is not what any DUT does.
+        // Only the reference tc8-dut is KNOWN to print our marker. A site-named
+        // binary may well bind its ports just as carefully, but we did not build it
+        // and cannot promise what it says — and a barrier that waits for an
+        // announcement that will never come is worse than no barrier: it would add
+        // its whole ceiling to every case before giving up. So a site binary gets the
+        // barrier only when the SITE names the line its DUT prints (`[dut]
+        // ready_marker`), and is Unknown otherwise. Same discriminator, and the same
+        // reasoning, as the negative rows just above: what OUR implementation
+        // guarantees is not what any DUT does.
         if self.is_reference {
-            crate::dispatch::DutReadiness::Announced(crate::dispatch::DUT_READY_MARKER)
+            crate::dispatch::DutReadiness::Announced(crate::dispatch::DUT_READY_MARKER.to_string())
+        } else if let Some(m) = &self.site_ready_marker {
+            crate::dispatch::DutReadiness::Announced(m.clone())
         } else {
             crate::dispatch::DutReadiness::Unknown
         }

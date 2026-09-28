@@ -28,11 +28,20 @@ pub(crate) struct CommandDut<'a> {
     start: Vec<String>,
     stop: Vec<String>,
     max_workers: u32,
+    /// The readiness line the site declared its launched DUT prints (`[dut]
+    /// ready_marker`), if any.
+    ready_marker: Option<String>,
 }
 
 impl<'a> CommandDut<'a> {
     pub(crate) fn new(cfg: &'a Config, start: Vec<String>, stop: Vec<String>, max_workers: u32) -> Self {
-        CommandDut { cfg, start, stop, max_workers }
+        CommandDut { cfg, start, stop, max_workers, ready_marker: None }
+    }
+
+    /// Declare the line the launched DUT prints once every endpoint is bound.
+    pub(crate) fn with_ready_marker(mut self, ready_marker: Option<String>) -> Self {
+        self.ready_marker = ready_marker;
+        self
     }
 
     /// The value of one per-case placeholder. `None` for a name this renderer does
@@ -117,8 +126,12 @@ impl DutLifecycle for CommandDut<'_> {
         // like every other lifecycle's, so the day a site's launcher wants the barrier
         // the transport is already there; what is missing is a marker to agree on, and
         // inventing one on the site's behalf would be a guess that costs every case the
-        // barrier's full ceiling when it turns out wrong.
-        crate::dispatch::DutReadiness::Unknown
+        // barrier's full ceiling when it turns out wrong. So the SITE names it
+        // (`[dut] ready_marker`), and without that the readiness is Unknown.
+        match &self.ready_marker {
+            Some(m) => crate::dispatch::DutReadiness::Announced(m.clone()),
+            None => crate::dispatch::DutReadiness::Unknown,
+        }
     }
 
     fn start_dut(
@@ -216,6 +229,18 @@ mod tests {
     fn a_launched_dut_offers_no_readiness_proof() {
         let cfg = fake_cfg();
         assert_eq!(dut(&cfg).readiness(), crate::dispatch::DutReadiness::Unknown);
+    }
+
+    /// ...unless the site names the line its DUT prints, and then that line is what
+    /// dispatch waits for — the reference DUT's barrier, on a DUT we did not build.
+    #[test]
+    fn a_site_declared_marker_gives_a_launched_dut_the_barrier() {
+        let cfg = fake_cfg();
+        let d = dut(&cfg).with_ready_marker(Some("vendor-dut: listening".into()));
+        assert_eq!(
+            d.readiness(),
+            crate::dispatch::DutReadiness::Announced("vendor-dut: listening".into())
+        );
     }
 
     #[test]

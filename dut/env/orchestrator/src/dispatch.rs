@@ -230,8 +230,9 @@ pub(crate) enum DutReady {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum DutReadiness {
     /// The DUT prints this line once every endpoint is bound; dispatch waits for it
-    /// in the case's DUT log ([`wait_for_dut_ready`]).
-    Announced(&'static str),
+    /// in the case's DUT log ([`wait_for_dut_ready`]). Owned because a site may
+    /// declare it (`[dut] ready_marker`).
+    Announced(String),
     /// The topology has already decided, before this case's harness starts; dispatch
     /// publishes that decision as it stands.
     Established(DutReady),

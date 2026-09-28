@@ -145,6 +145,16 @@ pub struct DutSpec {
     /// it. Raise it only when the launcher is genuinely worker-scoped (it is handed
     /// `${WORKER}` for exactly that purpose).
     pub max_workers: Option<u32>,
+    /// The line this site's DUT prints (into the per-case DUT log) once every
+    /// endpoint a stimulus can arrive on is bound — `bin` or `start` form only.
+    ///
+    /// Without it such a DUT's readiness is UNKNOWN, so no start-order barrier is
+    /// offered, and every case that requires one (`kDutReadyBarrier`) reports that
+    /// it ran without proof. With it, dispatch holds each case's stimulus until the
+    /// line appears, exactly as it does for the in-tree reference DUT. Name it only
+    /// if the DUT prints it AFTER its last bind; a line printed earlier would make
+    /// the barrier pass while the race it exists for is still open.
+    pub ready_marker: Option<String>,
 }
 
 /// The per-case placeholders a `[dut]` `start`/`stop` argv may carry.
@@ -170,14 +180,15 @@ pub(crate) const DUT_ARGV_PLACEHOLDERS: [&str; 6] = [
 pub enum DutLaunch {
     /// A local executable exec'd into the prepared namespace; `None` = the in-tree
     /// reference tc8-dut (the default when no `[dut]` section is present).
-    Local { bin: Option<String> },
+    /// `ready_marker` is the site's declared readiness line, for a site binary only.
+    Local { bin: Option<String>, ready_marker: Option<String> },
     /// An operator-supplied launcher and its matching stop command.
-    Command { start: Vec<String>, stop: Vec<String>, max_workers: u32 },
+    Command { start: Vec<String>, stop: Vec<String>, max_workers: u32, ready_marker: Option<String> },
 }
 
 impl Default for DutLaunch {
     fn default() -> Self {
-        DutLaunch::Local { bin: None }
+        DutLaunch::Local { bin: None, ready_marker: None }
     }
 }
 
@@ -189,6 +200,7 @@ impl DutSpec {
         let bin = ne(self.bin);
         let start = nev(self.start);
         let stop = nev(self.stop);
+        let ready_marker = ne(self.ready_marker);
         match (bin, start) {
             (Some(_), Some(_)) => bail!(
                 "[dut] sets both 'bin' and 'start' — they are alternative ways to launch the same DUT; keep exactly one"
@@ -197,7 +209,7 @@ impl DutSpec {
                 if stop.is_some() || self.max_workers.is_some() {
                     bail!("[dut] 'stop'/'max_workers' belong to the 'start' launcher form, not 'bin'");
                 }
-                Ok(DutLaunch::Local { bin: Some(b) })
+                Ok(DutLaunch::Local { bin: Some(b), ready_marker })
             }
             (None, Some(s)) => {
                 let stop = stop.ok_or_else(|| anyhow::anyhow!(
@@ -207,13 +219,18 @@ impl DutSpec {
                 if max_workers == 0 {
                     bail!("[dut] max_workers must be at least 1");
                 }
-                Ok(DutLaunch::Command { start: s, stop, max_workers })
+                Ok(DutLaunch::Command { start: s, stop, max_workers, ready_marker })
             }
             (None, None) => {
                 if stop.is_some() || self.max_workers.is_some() {
                     bail!("[dut] sets 'stop'/'max_workers' without 'start'");
                 }
-                Ok(DutLaunch::Local { bin: None })
+                if ready_marker.is_some() {
+                    bail!(
+                        "[dut] sets 'ready_marker' for the in-tree reference DUT, which already announces its own readiness; the key is for a 'bin' or 'start' DUT"
+                    );
+                }
+                Ok(DutLaunch::Local { bin: None, ready_marker: None })
             }
         }
     }
@@ -509,7 +526,9 @@ impl SiteConf {
         // environment). Destructured for the same compile-time completeness. The
         // per-worker `${WORKER}` / `${DUT_NETNS}` placeholders are NOT resolved here —
         // they are not environment values and are rendered per case at spawn time.
-        if let Some(DutSpec { bin, start, stop, max_workers: _ }) = dut {
+        // `ready_marker` is NOT expanded: it is a line matched verbatim against the
+        // DUT's own output, and a `$` in it belongs to the DUT, not to this conf.
+        if let Some(DutSpec { bin, start, stop, max_workers: _, ready_marker: _ }) = dut {
             if let Some(b) = bin {
                 *b = expand_env(b, root)?;
             }
@@ -1177,7 +1196,7 @@ mod tests {
         // site and CI lane omits the section entirely.
         match SiteConf::default().resolve(TopologyKind::SinglePc).unwrap().conf {
             TopologyConf::SinglePc { dut, .. } => {
-                assert!(matches!(dut, DutLaunch::Local { bin: None }));
+                assert!(matches!(dut, DutLaunch::Local { bin: None, ready_marker: None }));
             }
             other => panic!("expected SinglePc, got {other:?}"),
         }
@@ -1187,7 +1206,7 @@ mod tests {
     fn dut_bin_selects_a_site_binary() {
         let conf = with_dut(DutSpec { bin: Some("/mnt/dut/tc8-dut".into()), ..DutSpec::default() });
         match conf.resolve(TopologyKind::SinglePc).unwrap().conf {
-            TopologyConf::SinglePc { dut: DutLaunch::Local { bin: Some(b) }, .. } => {
+            TopologyConf::SinglePc { dut: DutLaunch::Local { bin: Some(b), .. }, .. } => {
                 assert_eq!(b, "/mnt/dut/tc8-dut");
             }
             other => panic!("expected a site binary, got {other:?}"),
@@ -1223,7 +1242,7 @@ mod tests {
             ..DutSpec::default()
         });
         match conf.resolve(TopologyKind::SinglePc).unwrap().conf {
-            TopologyConf::SinglePc { dut: DutLaunch::Command { start, stop, max_workers }, .. } => {
+            TopologyConf::SinglePc { dut: DutLaunch::Command { start, stop, max_workers, .. }, .. } => {
                 // ${WORKER} is per-case, so it must survive resolution unexpanded.
                 assert_eq!(start, vec!["/launch.sh", "${WORKER}"]);
                 assert_eq!(stop, vec!["/stop.sh"]);
@@ -1231,6 +1250,44 @@ mod tests {
             }
             other => panic!("expected a command launcher, got {other:?}"),
         }
+    }
+
+    /// A site-supplied DUT carries its declared readiness line through resolution,
+    /// in either launch form.
+    #[test]
+    fn dut_ready_marker_rides_on_either_site_form() {
+        let start = with_dut(DutSpec {
+            start: Some(vec!["/launch.sh".into()]),
+            stop: Some(vec!["/stop.sh".into()]),
+            ready_marker: Some("vendor-dut: listening".into()),
+            ..DutSpec::default()
+        });
+        match start.resolve(TopologyKind::SinglePc).unwrap().conf {
+            TopologyConf::SinglePc { dut: DutLaunch::Command { ready_marker, .. }, .. } => {
+                assert_eq!(ready_marker.as_deref(), Some("vendor-dut: listening"));
+            }
+            other => panic!("expected a command launcher, got {other:?}"),
+        }
+        let bin = with_dut(DutSpec {
+            bin: Some("/opt/dut".into()),
+            ready_marker: Some("ready".into()),
+            ..DutSpec::default()
+        });
+        match bin.resolve(TopologyKind::SinglePc).unwrap().conf {
+            TopologyConf::SinglePc { dut: DutLaunch::Local { ready_marker, .. }, .. } => {
+                assert_eq!(ready_marker.as_deref(), Some("ready"));
+            }
+            other => panic!("expected a site binary, got {other:?}"),
+        }
+    }
+
+    /// The reference DUT announces its own readiness; a site marker there would be
+    /// a second, possibly wrong, claim about a DUT the site did not build.
+    #[test]
+    fn dut_ready_marker_is_refused_for_the_reference_dut() {
+        let conf = with_dut(DutSpec { ready_marker: Some("x".into()), ..DutSpec::default() });
+        let err = conf.resolve(TopologyKind::SinglePc).unwrap_err().to_string();
+        assert!(err.contains("ready_marker"), "{err}");
     }
 
     #[test]

@@ -44,11 +44,14 @@ impl<'a> SinglePc<'a> {
     /// in-tree reference tc8-dut, so every existing site and CI lane is unaffected.
     pub fn new(cfg: &'a Config, secondary_iface: bool, launch: &'a DutLaunch) -> Self {
         let dut: Box<dyn DutLifecycle + Sync + 'a> = match launch {
-            DutLaunch::Local { bin: None } => Box::new(LocalExec::reference(cfg)),
-            DutLaunch::Local { bin: Some(b) } => Box::new(LocalExec::site_binary(cfg, b)),
-            DutLaunch::Command { start, stop, max_workers } => {
-                Box::new(CommandDut::new(cfg, start.clone(), stop.clone(), *max_workers))
+            DutLaunch::Local { bin: None, .. } => Box::new(LocalExec::reference(cfg)),
+            DutLaunch::Local { bin: Some(b), ready_marker } => {
+                Box::new(LocalExec::site_binary(cfg, b, ready_marker.clone()))
             }
+            DutLaunch::Command { start, stop, max_workers, ready_marker } => Box::new(
+                CommandDut::new(cfg, start.clone(), stop.clone(), *max_workers)
+                    .with_ready_marker(ready_marker.clone()),
+            ),
         };
         SinglePc { cfg, wire: NetnsPair::new(cfg, secondary_iface), dut }
     }

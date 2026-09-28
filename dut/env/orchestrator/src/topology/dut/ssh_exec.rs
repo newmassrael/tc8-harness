@@ -310,7 +310,7 @@ impl DutLifecycle for SshExecDut<'_> {
         //
         // Its stdout is streamed straight into the per-case DUT log by `start_dut`, so
         // the reader on this side needs no second ssh round trip to see the line.
-        crate::dispatch::DutReadiness::Announced(crate::dispatch::DUT_READY_MARKER)
+        crate::dispatch::DutReadiness::Announced(crate::dispatch::DUT_READY_MARKER.to_string())
     }
 
     fn bring_up_worker(&self, _w: u32) -> Result<()> {
