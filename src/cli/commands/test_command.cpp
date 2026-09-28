@@ -1286,21 +1286,6 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     if (!go_file_path_.empty()) {
         waitForDutReady(go_file_path_);
     }
-    // A case whose stimulus is lost silently when it outruns the DUT declares the
-    // barrier REQUIRED (TestCaseTraits<>::kDutReadyBarrier). Without --go-file this
-    // run has no proof the DUT was ready, so it is marked as one whose stimulus
-    // could not be performed — same ledger, same verdict-site guard as the barrier's
-    // own NotBound arm, and for the same reason it still runs.
-    if (!::tc8::sce::dutReadyBarrierPremiseHeld(entry->dut_ready_barrier,
-                                                !go_file_path_.empty())) {
-        std::fprintf(stderr,
-                     "warning: case %.*s requires the DUT-ready barrier and no --go-file was "
-                     "given, so nothing proves the DUT was listening when the stimulus was "
-                     "sent. The run proceeds for its evidence but cannot conclude about the "
-                     "DUT.\n",
-                     static_cast<int>(entry->id.size()), entry->id.data());
-        ::tc8::UnperformedStimulus::record(kDutReadyBarrierUnarmedStimulus);
-    }
 
     std::unique_ptr<sce::ITestRunner> runner = entry->factory(config);
 
@@ -1358,6 +1343,26 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
                         static_cast<unsigned>(missing), dut_control->backendName());
             return 2;  // distinct from 0 (pass) / 1 (fail): capability-skip
         }
+    }
+
+    // A case whose stimulus is lost silently when it outruns the DUT declares the
+    // barrier REQUIRED (TestCaseTraits<>::kDutReadyBarrier). Without --go-file this
+    // run has no proof the DUT was ready, so it is marked as one whose stimulus
+    // could not be performed — same ledger, same verdict-site guard as the barrier's
+    // own NotBound arm, and for the same reason it still runs.
+    //
+    // Checked AFTER the capability gate: a case skipped there sends no stimulus, so
+    // it has no premise to fail, and a barrier warning on it would be noise over a
+    // correct skip.
+    if (!::tc8::sce::dutReadyBarrierPremiseHeld(entry->dut_ready_barrier,
+                                                !go_file_path_.empty())) {
+        std::fprintf(stderr,
+                     "warning: case %.*s requires the DUT-ready barrier and no --go-file was "
+                     "given, so nothing proves the DUT was listening when the stimulus was "
+                     "sent. The run proceeds for its evidence but cannot conclude about the "
+                     "DUT.\n",
+                     static_cast<int>(entry->id.size()), entry->id.data());
+        ::tc8::UnperformedStimulus::record(kDutReadyBarrierUnarmedStimulus);
     }
 
     dissect::PacketPipeline pipeline([&runner](const ::tc8::CapturedEvent &ev) { runner->onCaptured(ev); });
