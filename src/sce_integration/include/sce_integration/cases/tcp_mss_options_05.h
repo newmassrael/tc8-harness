@@ -107,7 +107,6 @@ struct TestCaseTraits<cases::TcpMssOptions05SM>
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
 
         // Iteration 1: ilen=0 (less than RFC 793 §3.1 MSS opsize=4).
         // Wire bytes [0x02 0x00] padded with NOP×2 → 4 B. Linux's

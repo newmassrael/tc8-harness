@@ -40,7 +40,6 @@ struct TestCaseTraits<cases::TcpBasics04Neg2SM>
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
         emitEgressFlavorArm(cfg, ctx.iface, ::tc8::ut::kTcpFaultRstSeqWrong);
 
         emitTcpStimulus(cfg, ctx.iface, cfg.dut.mac,

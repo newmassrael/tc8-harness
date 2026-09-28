@@ -56,7 +56,6 @@ struct TestCaseTraits<cases::TcpUnacceptable03SM>
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
 
         // Suppress tester-kernel auto-RST: when our raw-injected SYN
         // elicits the DUT's SYN+ACK, the tester kernel sees a SYN+ACK

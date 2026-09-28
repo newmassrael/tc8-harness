@@ -44,7 +44,6 @@ struct TestCaseTraits<cases::TcpFlagsInvalid02NegSM>
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
         emitEgressFlavorArm(cfg, ctx.iface, ::tc8::ut::kTcpFaultRstSeqWrong);
 
         const auto listen = driveSeamListen(ctx.dut, kBasicsListenPort);

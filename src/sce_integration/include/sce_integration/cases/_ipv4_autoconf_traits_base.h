@@ -64,6 +64,13 @@ struct LinklocalAutoconfBase {
     static constexpr int              kTopology   = 1;
     static constexpr ::tc8::BpfGroup  kBpfGroup   = ::tc8::BpfGroup::Arp;
 
+    // Every link-local case starts by asking the DUT's Upper Tester to run
+    // autoconfiguration, and an ask that outruns the DUT's bring-up is lost. So
+    // the family requires the start-order barrier, in place of the 1.5 s settle
+    // its helper used to sleep (docs/tech-debt.md TD-61).
+    static constexpr ::tc8::sce::DutReadyBarrier kDutReadyBarrier =
+        ::tc8::sce::DutReadyBarrier::kRequired;
+
     // Every case on this base starts the DUT's link-local autoconf state
     // machine, and nothing on the wire can provoke that — the DUT probes because
     // it was told to. Declared on the base so the next case here cannot forget
@@ -105,6 +112,11 @@ struct LinklocalRepeatedConflictBase {
     static constexpr bool             kDeprecated = false;
     static constexpr int              kTopology   = 1;
     static constexpr ::tc8::BpfGroup  kBpfGroup   = ::tc8::BpfGroup::Arp;
+
+    // As LinklocalAutoconfBase: the procedure starts with an Upper Tester ask the
+    // start-order barrier must precede (docs/tech-debt.md TD-61).
+    static constexpr ::tc8::sce::DutReadyBarrier kDutReadyBarrier =
+        ::tc8::sce::DutReadyBarrier::kRequired;
 
     // As LinklocalAutoconfBase: these cases start the autoconf machine too, so
     // they are only measurable on a backend that can.

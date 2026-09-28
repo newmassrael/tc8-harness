@@ -54,7 +54,6 @@ struct TestCaseTraits<cases::TcpUnacceptable05SM>
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
 
         // -------- Phase 1: SYN+ACK to LISTEN --------
         const auto listen1 = driveSeamListen(ctx.dut, kPhase1ListenPort);

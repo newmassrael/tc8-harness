@@ -40,7 +40,6 @@ struct TestCaseTraits<cases::TcpConnectionEstab03SM>
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
 
         const std::array<Leg, 3> legs{
             Leg{static_cast<std::uint16_t>(kBasicsActiveLocalPort  + kTcpConnEstab03LocalOffset1),

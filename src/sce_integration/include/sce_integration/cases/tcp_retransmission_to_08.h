@@ -91,7 +91,6 @@ struct TestCaseTraits<cases::TcpRetransmissionTo08SM> {
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
 
         const std::uint16_t local_port  = static_cast<std::uint16_t>(
             kBasicsActiveLocalPort  + kTcpRetransmissionTo08LocalOffset);

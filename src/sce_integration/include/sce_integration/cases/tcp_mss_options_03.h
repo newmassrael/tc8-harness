@@ -44,7 +44,6 @@ struct TestCaseTraits<cases::TcpMssOptions03SM>
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
 
         // RFC 4727 kind 253 with 2-byte payload, length=4, padded to 4.
         const std::vector<std::uint8_t> syn_options{0xFDU, 0x04U, 0xAAU, 0xBBU};

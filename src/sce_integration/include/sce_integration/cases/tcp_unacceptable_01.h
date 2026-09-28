@@ -75,7 +75,6 @@ struct TestCaseTraits<cases::TcpUnacceptable01SM>
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
 
         // Without RST suppression the tester kernel emits an auto-
         // RST microseconds after the DUT's SYN+ACK lands on

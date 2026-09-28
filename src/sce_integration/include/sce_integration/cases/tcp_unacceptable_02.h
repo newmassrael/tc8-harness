@@ -62,7 +62,6 @@ struct TestCaseTraits<cases::TcpUnacceptable02SM>
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
 
         // Suppress tester-kernel auto-RST so DUT's syn-recv state
         // remains live for the OTW-RST inject. Without this the

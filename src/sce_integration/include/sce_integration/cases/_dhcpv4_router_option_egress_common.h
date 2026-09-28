@@ -110,8 +110,7 @@ inline void wireRouterOverloadStimulus(
                         ::tc8::sce::dhcpv4::kUnusedRoutedIpBe,
                         /*target_port=*/::tc8::ut::kDataPort,
                         /*payload=*/&kProbePayload,
-                        /*payload_len=*/1U,
-                        /*initial_wait=*/std::chrono::milliseconds(0));
+                        /*payload_len=*/1U);
                 });
         });
 }

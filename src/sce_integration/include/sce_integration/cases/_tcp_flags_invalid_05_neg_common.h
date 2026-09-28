@@ -33,7 +33,6 @@ inline void driveSynSentRstDrop(::tc8::sce::IDutControl& dut,
                                 std::uint16_t port_offset,
                                 std::uint8_t  probe_flags) {
     using namespace ::tc8::sce::tcp;
-    std::this_thread::sleep_for(kTcpUtBootWait);
 
     TesterAutoRstDrop rst_drop(cfg);
     (void)rst_drop;

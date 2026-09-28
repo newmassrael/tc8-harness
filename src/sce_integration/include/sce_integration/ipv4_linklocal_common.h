@@ -95,15 +95,6 @@ inline constexpr std::uint16_t kRfcProbeMaxMs          = 2000;
 inline constexpr std::uint16_t kRfcAnnounceWaitMs      = 2000;
 inline constexpr std::uint16_t kRfcAnnounceIntervalMs  = 2000;
 
-// Default initial wait before kicking the LL state machine. tc8-dut
-// UT socket bind lags vsomeip startup by several hundred ms on
-// smoke-test workers — same value used by udp_pilot_common's
-// kUdpPilotInitialWait, kept as a separate constant so future
-// pilot-specific tuning is independent.
-inline constexpr auto kLLPilotInitialWait =
-    std::chrono::milliseconds(1500);
-
-
 // Ask the DUT to run IPv4 link-local autoconfiguration, over the Tier-2 seam.
 //
 // The verdict still comes from observing the DUT's own DHCPDISCOVER + ARP
@@ -112,14 +103,15 @@ inline constexpr auto kLLPilotInitialWait =
 // have applied before the phase under test begins, and a flavor-set racing its
 // own stimulus is a false pass this tree has already paid for once.
 //
+// No settle before the ask: the 1.5 s this helper used to sleep stood for "the
+// DUT's Upper Tester has bound", which the start-order barrier now proves (the
+// link-local traits bases declare it required, _ipv4_autoconf_traits_base.h).
+//
 // Returns false when the backend cannot start autoconf, or when the DUT
 // declined — the stimulus did not happen, which is a non-conclusion rather than
 // a DUT verdict.
 inline bool emitStartLLAutoconf(::tc8::sce::IDutControl& dut,
                                  const linklocal::LinkLocalStartConfig& c) {
-    if (c.apply_initial_wait) {
-        std::this_thread::sleep_for(kLLPilotInitialWait);
-    }
     auto *ll = dut.linkLocalControl();
     if (ll == nullptr) {
         // See the same branch in udp_pilot_common: a stimulus the selected
@@ -181,11 +173,9 @@ inline bool emitStartLLAutoconfFastConflict(::tc8::sce::IDutControl& dut) {
 // per-flavor Probe-field mutation. Used by the cluster A negative
 // cases (`*_neg`) so each fail_state branch in the SCXML is reached
 // by a deterministic stimulus, closing the self-reference trap.
-inline bool emitStartLLAutoconfBuggy(::tc8::sce::IDutControl& dut, std::uint8_t flavor,
-                                     bool apply_initial_wait = true) {
+inline bool emitStartLLAutoconfBuggy(::tc8::sce::IDutControl& dut, std::uint8_t flavor) {
     auto c = fastEnvelope();
     c.flavor             = flavor;
-    c.apply_initial_wait = apply_initial_wait;
     return emitStartLLAutoconf(dut, c);
 }
 
@@ -195,12 +185,10 @@ inline bool emitStartLLAutoconfBuggy(::tc8::sce::IDutControl& dut, std::uint8_t 
 // byte that drives tc8-dut's rate-limit conflict mutation. The 3 s
 // silence window fits the _14/_15 SCXML 12-15 s deadline; the 60 s
 // default would overrun it.
-inline bool emitStartLLAutoconfBuggyConflict(::tc8::sce::IDutControl& dut, std::uint8_t flavor,
-                                             bool apply_initial_wait = true) {
+inline bool emitStartLLAutoconfBuggyConflict(::tc8::sce::IDutControl& dut, std::uint8_t flavor) {
     auto c = fastEnvelope();
     c.rate_limit_interval_ms = kFastRateLimitMs;
     c.flavor                 = flavor;
-    c.apply_initial_wait     = apply_initial_wait;
     return emitStartLLAutoconf(dut, c);
 }
 

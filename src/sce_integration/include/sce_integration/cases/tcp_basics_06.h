@@ -63,7 +63,6 @@ struct TestCaseTraits<cases::TcpBasics06SM>
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
 
         // By the time driveSeamActiveOpen returns, the DUT's SYN is on the
         // wire (and settled into the pcap ring), so the SCXML arms its listen

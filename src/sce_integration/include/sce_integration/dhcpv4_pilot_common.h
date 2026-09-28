@@ -15,12 +15,6 @@
 
 namespace tc8::sce::dhcpv4 {
 
-// §4.7 lifecycle pilot initial wait — same 1500 ms floor as the §4.5
-// LL pilot (`kLLPilotInitialWait`) so vsomeip bootstrap + UT bind
-// have time to complete before the OpStartDhcpClient request lands.
-inline constexpr auto kDhcpv4PilotInitialWait =
-    std::chrono::milliseconds(1500);
-
 // §4.7.6.8 RENEWING/REBINDING REQUEST cluster fast-envelope lease length.
 // 6 s lease → T1 = 3 s, T2 = lease * 7/8 = 5 s integer-floor (RFC 2131
 // §4.4.5). The DUT's BOUND/RENEWING/REBINDING phase machine reads
@@ -57,18 +51,16 @@ inline constexpr std::uint32_t kRetransmissionLeaseSeconds = 12U;
 // retransmission (retry_count=2 + retry_interval_ms=1000).
 //
 // Routed over the Tier-2 seam, so the ask reaches whichever backend
-// `--dut-control` selected and the transport is the backend's business. The
-// 1.5 s pilot wait stays here: it is a TESTER-side settle before the ask, not
-// part of what the DUT is being told to do.
+// `--dut-control` selected and the transport is the backend's business. No
+// settle before the ask: the 1.5 s this helper used to sleep stood for "the DUT's
+// Upper Tester has bound", which the start-order barrier now proves (the DHCPv4
+// traits base declares it required, _dhcpv4_traits_base.h).
 //
 // Returns false when the backend cannot drive a DHCP client, or when the DUT
 // declined — the stimulus did not happen, which is a non-conclusion rather than
 // a DUT verdict.
 inline bool emitStartDhcpClient(::tc8::sce::IDutControl& dut,
                                  const Dhcpv4StartConfig& c = {}) {
-    if (c.apply_initial_wait) {
-        std::this_thread::sleep_for(kDhcpv4PilotInitialWait);
-    }
     auto *dhcp = dut.dhcpClientControl();
     if (dhcp == nullptr) {
         // See the same branch in udp_pilot_common: a stimulus the selected
@@ -95,11 +87,9 @@ inline bool emitStartDhcpClient(::tc8::sce::IDutControl& dut,
 // remains the single source of that wire layout.
 inline bool emitStartDhcpClientBuggy(::tc8::sce::IDutControl& dut,
                                      std::uint8_t flavor,
-                                     bool apply_initial_wait = true,
                                      std::uint16_t arp_probe_listen_ms = 0) {
     Dhcpv4StartConfig c;
     c.flavor              = flavor;
-    c.apply_initial_wait  = apply_initial_wait;
     c.arp_probe_listen_ms = arp_probe_listen_ms;
     return emitStartDhcpClient(dut, c);
 }

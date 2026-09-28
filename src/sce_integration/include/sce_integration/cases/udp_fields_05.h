@@ -58,8 +58,7 @@ struct TestCaseTraits<cases::UdpFields05SM>
                     ::tc8::sce::udp::kUdpDefaultData.data(),
                     ::tc8::sce::udp::kUdpDefaultData.size(),
                     ::tc8::sce::udp::kDataPeerPort,
-                    ov,
-                    /*initial_wait=*/std::chrono::milliseconds(0));
+                    ov);
             });
     }
 };

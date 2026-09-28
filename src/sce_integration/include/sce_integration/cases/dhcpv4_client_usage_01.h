@@ -37,8 +37,7 @@ struct TestCaseTraits<cases::Dhcpv4ClientUsage01SM>
     //      transition guard can compare DISCOVER#2 against it.
     //
     //   2. `emitStartDhcpClient(iface_index=1)` — kicks the secondary
-    //      `Dhcpv4Client` instance on tc8-dut. Skips
-    //      `kDhcpv4PilotInitialWait` (already paid by the first call)
+    //      `Dhcpv4Client` instance on tc8-dut, with no settle before it,
     //      so DISCOVER#2 lands within the 6 s s2 deadline; the second
     //      DUT instance binds AF_PACKET on the secondary iface
     //      (veth-dut2-W) within ~milliseconds.
@@ -61,7 +60,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientUsage01SM>
             [dut = &ctx.dut]() {
                 ::tc8::sce::dhcpv4::Dhcpv4StartConfig sc;
                 sc.iface_index = 1;
-                sc.apply_initial_wait = false;
                 ::tc8::sce::dhcpv4::emitStartDhcpClient(*dut, sc);
             });
     }

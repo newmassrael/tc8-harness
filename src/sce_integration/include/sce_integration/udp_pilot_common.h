@@ -85,17 +85,6 @@ inline constexpr std::uint32_t kUdpHost2IpBe = 0x030010ACU;  // 172.16.0.3 NBO
 inline constexpr std::uint32_t kDutAliasIp4Be    = 0x050010ACU;  // 172.16.0.5 NBO
 inline constexpr std::uint32_t kTesterAliasIp4Be = 0x040010ACU;  // 172.16.0.4 NBO
 
-// Default initial-wait before the first UDP-pilot stimulus emission.
-// tc8-dut's Upper Tester sockets bind after vsomeip has initialised,
-// which lags the harness's pcap-open by several hundred ms on
-// smoke-test workers (harness-first order + 500 ms dut-start grace).
-// 1500 ms is enough for vsomeip bootstrap + UT bind + a margin of
-// safety under parallel smoke-test workers on loaded CI scheduler.
-// A shorter value race-loses against the UT server binding, dropping
-// the probe onto a kernel ICMP port-unreachable path and starving
-// the SCXML into fail_timeout despite full DUT conformance.
-inline constexpr auto kUdpPilotInitialWait = std::chrono::milliseconds(1500);
-
 // §4.6 stimulus override knobs that span both the IPv4 layer (src_ip
 // override for INVALID_ADDRESSES_01/_02) and the UDP layer (length /
 // checksum / truncate-to for FIELDS_08..10/15/16). Default-constructed
@@ -121,6 +110,11 @@ struct UdpStimulusOverrides {
 // Caller controls `dst_ip` so the same helper emits to limited
 // broadcast (ADDRESSING_01), directed broadcast (ADDRESSING_02), or
 // unicast.
+//
+// No wait before the emission. The 1.5 s this family used to sleep here stood for
+// "the DUT's Upper Tester has bound", which the start-order barrier now proves:
+// the UDP traits base declares it required (kDutReadyBarrier, _udp_traits_base.h),
+// so a run without that proof is reported as unperformed instead of racing.
 inline void emitUdpStimulus(const ::tc8::TestConfig& cfg,
                              std::string_view iface,
                              std::uint32_t dst_ip_be,
@@ -128,8 +122,6 @@ inline void emitUdpStimulus(const ::tc8::TestConfig& cfg,
                              std::uint16_t dst_port,
                              const std::uint8_t *payload,
                              std::size_t payload_len,
-                             std::chrono::milliseconds initial_wait =
-                                 kUdpPilotInitialWait,
                              const UdpStimulusOverrides &ov =
                                  UdpStimulusOverrides{}) {
     const std::uint32_t src_ip_be = ov.src_ip_override.has_value()
@@ -150,7 +142,7 @@ inline void emitUdpStimulus(const ::tc8::TestConfig& cfg,
     spec.dst_ip      = dst_ip_be;
     spec.ip_protocol = ::tc8::stimulus::kIpProtoUdp;
     ::tc8::stimulus::IpBootTiming timing{};
-    timing.initial_wait = initial_wait;
+    timing.initial_wait = std::chrono::milliseconds{0};
     ::tc8::stimulus::emitIpv4Frame(iface, spec, udp, timing);
 }
 
@@ -175,19 +167,13 @@ inline int emitFragmentedUdpStimulus(const ::tc8::TestConfig& cfg,
                                       std::uint16_t dst_port,
                                       const std::uint8_t *payload,
                                       std::size_t        payload_len,
-                                      const std::array<std::uint8_t, 6>& dut_mac,
-                                      std::chrono::milliseconds initial_wait =
-                                          kUdpPilotInitialWait) {
+                                      const std::array<std::uint8_t, 6>& dut_mac) {
     constexpr std::size_t   kFragmentChunkBytes = 1480U;
     constexpr std::uint16_t kFragmentedUdpIpId  = 0xFE12U;
 
     const std::uint32_t src_ip_be = cfg.tester.ip;
     const auto udp = ::tc8::stimulus::buildUdpDatagram(
         src_ip_be, dst_ip_be, src_port, dst_port, payload, payload_len);
-
-    if (initial_wait.count() > 0) {
-        std::this_thread::sleep_for(initial_wait);
-    }
 
     std::size_t off = 0;
     while (off < udp.size()) {
@@ -260,12 +246,7 @@ inline bool emitGetReceivedUdp(::tc8::sce::IDutControl& dut,
 // UDP_USER_INTERFACE_01 procedure step 1.
 // Have the DUT open `count` UDP receive ports, over the Tier-2 seam.
 inline bool emitCreateUdpReceivePorts(::tc8::sce::IDutControl& dut,
-                                       std::uint8_t count,
-                                       std::chrono::milliseconds initial_wait =
-                                           kUdpPilotInitialWait) {
-    if (initial_wait.count() > 0) {
-        std::this_thread::sleep_for(initial_wait);
-    }
+                                       std::uint8_t count) {
     auto *rx = dut.udpReceiveControl();
     if (rx == nullptr) {
         ::tc8::UnperformedStimulus::record("dut_udp_receive_control_absent");
@@ -294,12 +275,7 @@ inline bool emitTriggerSendUdp(::tc8::sce::IDutControl& dut,
                                 std::uint16_t target_port,
                                 const std::uint8_t *payload,
                                 std::uint16_t payload_len,
-                                std::chrono::milliseconds initial_wait =
-                                    kUdpPilotInitialWait,
                                 std::uint32_t dut_src_ip_override_be = 0) {
-    if (initial_wait.count() > 0) {
-        std::this_thread::sleep_for(initial_wait);
-    }
     auto *udp = dut.udpControl();
     if (udp == nullptr) {
         ::tc8::UnperformedStimulus::record("dut_udp_control_absent");
@@ -362,9 +338,7 @@ inline void emitIngressProbeAndQuery(const ::tc8::TestConfig& cfg,
                                       std::size_t payload_len,
                                       std::uint16_t src_port = kDataPeerPort,
                                       const UdpStimulusOverrides &ov =
-                                          UdpStimulusOverrides{},
-                                      std::chrono::milliseconds initial_wait =
-                                          kUdpPilotInitialWait) {
+                                          UdpStimulusOverrides{}) {
     emitUdpStimulus(
         cfg, iface,
         cfg.ipv4.dut_iface_ip,
@@ -372,7 +346,6 @@ inline void emitIngressProbeAndQuery(const ::tc8::TestConfig& cfg,
         kDataPort,
         payload,
         payload_len,
-        initial_wait,
         ov);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(200));

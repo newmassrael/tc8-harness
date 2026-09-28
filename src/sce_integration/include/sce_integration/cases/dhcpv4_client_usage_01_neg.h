@@ -53,7 +53,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientUsage01NegSM>
             [dut = &ctx.dut]() {
                 ::tc8::sce::dhcpv4::Dhcpv4StartConfig sc;
                 sc.iface_index = 1;
-                sc.apply_initial_wait = false;
                 sc.flavor = ::tc8::ut::kDhcpFlavorShareChaddrAcrossIface;
                 ::tc8::sce::dhcpv4::emitStartDhcpClient(*dut, sc);
             });

@@ -55,7 +55,6 @@ struct TestCaseTraits<cases::TcpConnectionEstab02SM>
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
 
         const std::array<Leg, 3> legs{
             Leg{kTcpConnEstab02ListenPort1, kTcpConnEstab02TesterSrcPort1},

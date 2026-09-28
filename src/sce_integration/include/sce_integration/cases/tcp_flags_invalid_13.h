@@ -54,7 +54,6 @@ struct TestCaseTraits<cases::TcpFlagsInvalid13SM>
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
 
         TesterAutoAckDrop ack_drop(cfg);
         (void)ack_drop;

@@ -49,7 +49,6 @@ struct TestCaseTraits<cases::TcpCallReceive04SM>
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
 
         runPhase1Established(c, cfg, ctx.iface, ctx.dut);
 

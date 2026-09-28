@@ -54,7 +54,6 @@ struct TestCaseTraits<cases::UdpIntroduction03NegSM>
             cases::kIntro03UnusedDstPort,
             cases::kIntro03Probe.data(),
             cases::kIntro03Probe.size(),
-            ::tc8::sce::udp::kUdpPilotInitialWait,
             ov);
     }
 };

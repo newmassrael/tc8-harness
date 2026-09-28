@@ -35,7 +35,6 @@ struct TestCaseTraits<cases::TcpSequence01SM>
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
 
         // Seam raw-passive ACCEPT: DUT LISTEN, tester injects a SYN with
         // ISN = kTesterInitialSeq, the 3-way completes, and the accepted

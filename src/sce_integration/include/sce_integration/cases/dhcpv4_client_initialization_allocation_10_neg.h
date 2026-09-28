@@ -39,7 +39,6 @@ struct TestCaseTraits<cases::Dhcpv4ClientInitializationAllocation10NegSM>
         ::tc8::sce::dhcpv4::emitStartDhcpClientBuggy(
             ctx.dut,
             ::tc8::ut::kDhcpFlavorAnnounceSenderIpWrong,
-            /*apply_initial_wait=*/true,
             /*arp_probe_listen_ms=*/1500);
         ::tc8::sce::dhcpv4::scheduleDhcpReplyOnStateEntry(
             ctx.scheduler, static_cast<int>(State::Listening_for_first_request),

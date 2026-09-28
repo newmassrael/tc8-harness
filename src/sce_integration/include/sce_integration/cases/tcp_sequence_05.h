@@ -43,7 +43,6 @@ struct TestCaseTraits<cases::TcpSequence05SM>
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
 
         // The raw-injected tester source 4-tuple has no real kernel
         // socket, so any post-handshake DUT-origin ACK landing on

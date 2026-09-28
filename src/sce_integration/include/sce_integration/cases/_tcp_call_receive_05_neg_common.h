@@ -32,7 +32,6 @@ inline void driveCwAndArm(::tc8::sce::IDutControl& dut,
                           std::uint8_t flavor,
                           std::uint16_t port_offset) {
     using namespace ::tc8::sce::tcp;
-    std::this_thread::sleep_for(kTcpUtBootWait);
 
     const std::uint16_t local_port  = kBasicsActiveLocalPort  + port_offset;
     const std::uint16_t remote_port = kBasicsActiveRemotePort + port_offset;

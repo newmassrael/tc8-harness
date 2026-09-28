@@ -44,9 +44,6 @@ struct Dhcpv4StartConfig {
     std::uint16_t retx_jitter_ms             = 0;
     // Selects which DHCP client instance runs, for the dual-interface topology.
     std::uint8_t  iface_index                = 0;
-    // False when the 1.5 s pilot wait was already paid by an earlier call. A
-    // tester-side delay, honoured by the caller rather than the backend.
-    bool          apply_initial_wait         = true;
     // Phase F fault-injection flavor byte (kDhcpFlavor*). The wire shape is
     // identical for a positive and a `_neg`; only this value differs, which is
     // why one seam operation covers both.

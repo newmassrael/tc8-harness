@@ -52,7 +52,6 @@ struct TestCaseTraits<cases::TcpClosing09SM>
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
 
         constexpr std::uint16_t kPortOffset = kTcpClosing09LocalOffset;
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kPortOffset;

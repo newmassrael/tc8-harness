@@ -69,7 +69,6 @@ struct TestCaseTraits<cases::TcpUnacceptable04SM>
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
 
         auto open = driveSeamActiveOpen(
             ctx.dut, cfg,

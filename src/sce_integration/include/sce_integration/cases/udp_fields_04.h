@@ -62,8 +62,7 @@ struct TestCaseTraits<cases::UdpFields04SM>
                     /*target_ip_be=*/::tc8::sce::udp::kUdpHost2IpBe,
                     /*target_port=*/::tc8::sce::udp::kDataPort,
                     ::tc8::sce::udp::kUdpDefaultData.data(),
-                    static_cast<std::uint16_t>(::tc8::sce::udp::kUdpDefaultData.size()),
-                    /*initial_wait=*/std::chrono::milliseconds(0));
+                    static_cast<std::uint16_t>(::tc8::sce::udp::kUdpDefaultData.size()));
             });
     }
 };

@@ -40,7 +40,6 @@ struct TestCaseTraits<cases::TcpAcknowledgement03SM>
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
 
         const auto open = driveSeamRawPassiveAccept(
             ctx.dut, cfg, ctx.iface, ctx.observer,

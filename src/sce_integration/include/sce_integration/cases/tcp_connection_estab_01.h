@@ -36,7 +36,6 @@ struct TestCaseTraits<cases::TcpConnectionEstab01SM>
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
 
         // LISTEN via driveSeamListen (ITcpControl::listenTcp, listen-only) so the
         // case runs on whichever backend `--dut-control` selected; the three

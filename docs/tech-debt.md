@@ -4122,7 +4122,8 @@ none unmet.
 
 ## TD-61 — 177 TCP stimuli sleep for a DUT bind the start-order barrier already proves
 
-**Status:** OPEN. **Logged:** 2026-09-28. The owner has a decision to make before this can close.
+**Status:** RESOLVED (2026-09-28). **Logged:** 2026-09-28. The entry below is the debt as logged;
+**Resolution** at its end records what closed it.
 
 **What it is.** `kTcpUtBootWait` (1500 ms, `tcp_pilot_common.h`) opens 177 stimulus bodies. Its
 comment says it covers "vsomeip bootstrap + UT bind", and that shortening it makes TCP_BASICS_01..03
@@ -4146,6 +4147,43 @@ sites), which stands for the same bring-up.
 **Done when:** the owner has chosen. If the answer is to convert, the 177 cases declare the
 requirement, the sleep is gone, and a smoke run shows no verdict change on single-pc or lwip-tap.
 If the answer is to keep the sleeps, this entry records why and is accepted.
+
+**Resolution.** The owner chose to convert, and the scope turned out wider than logged. The same
+1.5 s "Upper Tester has bound" settle had four homes, not one:
+- `kTcpUtBootWait`, in 177 TCP stimuli;
+- `kUdpPilotInitialWait`, the default of five UDP pilot helpers;
+- `kDhcpv4PilotInitialWait`, in `emitStartDhcpClient`;
+- `kLLPilotInitialWait`, in `emitStartLLAutoconf`.
+
+All four are deleted, together with the parameters and `apply_initial_wait` flags that existed only
+to skip them. The families' traits roots now declare `kDutReadyBarrier = kRequired`: `TcpAnyBase`,
+`UdpAnyBase`, `Dhcpv4AnyBase`, `LinklocalAutoconfBase` and `LinklocalRepeatedConflictBase`. They
+declare it on the root because every case in these families drives the DUT before its first
+observation, including the few that inject into the stack without the Upper Tester (TCP_BASICS_04:
+on lwIP, a FIN that lands before the stack is up draws nothing, and "nothing" is what a false FAIL
+looks like).
+
+`BootTiming::initial_wait` (182 `emitFindServiceBoot` sites) is deliberately left alone. That
+stimulus is re-driven: two emits, one second apart. So it is not exposed to the silent race, and its
+wait stands for the SD stack's own start-up rather than a bind.
+
+Two changes this depended on landed first:
+- `7773da4c`: every topology that knows its DUT is ready publishes the barrier (lwip-tap and
+  persistent by probe).
+- `654d7eff`: a site-supplied DUT can declare the line it prints (`[dut] ready_marker`), so it is not
+  permanently Unknown.
+
+`c69808dc` moved the premise check after the capability gate. A capability-skipped case sends no
+stimulus, so it carries no barrier record. The consumer measured beforehand that its injected cases
+use none of the removed helpers or constants.
+
+**Runs (2026-09-28).** All 333 cases of the four families were run on single-pc (`--workers 4`) and
+on lwip-tap, both with the tree just before this change and after it. Verdict class and reason are
+identical for every case on both topologies. No run reported `dut_ready_barrier_unarmed`, because
+the orchestrator supplies the barrier on both. What a run without the barrier reports now is the
+intended change: a hand run, or a site DUT without `ready_marker`, reports
+`inconclusive:stimulus_dut_ready_barrier_unarmed_not_performed` for these families instead of
+passing on a 1.5 s guess.
 
 ## TD-62 — 758 cases use stimulus signatures the context form replaces
 

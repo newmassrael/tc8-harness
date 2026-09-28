@@ -36,7 +36,6 @@ struct TestCaseTraits<cases::TcpSequence04SM>
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
 
         // Tester SYN ISN = SeqMaxVal (0xFFFFFFFF); the DUT SYN+ACK ack_num
         // must wrap modulo-32 to 0, which the SCXML asserts during the

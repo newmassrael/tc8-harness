@@ -70,7 +70,6 @@ struct TestCaseTraits<cases::TcpMssOptions06SM>
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
 
         TesterAutoRstDrop rst_drop(cfg);
         (void)rst_drop;

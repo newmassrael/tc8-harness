@@ -60,7 +60,6 @@ struct TestCaseTraits<cases::TcpBasics11SM>
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
 
         const auto info = driveSeamTimeWaitFw2(
             ctx.dut, cfg,

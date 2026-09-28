@@ -38,10 +38,6 @@ struct LinkLocalStartConfig {
     // "use the fault opcode, with this flavor, zero included"; disengaged means
     // the plain 16-byte request.
     std::optional<std::uint8_t> flavor{};
-
-    // False when the 1.5 s pilot wait was already paid by an earlier call. A
-    // tester-side delay, honoured by the caller rather than the backend.
-    bool apply_initial_wait = true;
 };
 
 }  // namespace tc8::sce::linklocal

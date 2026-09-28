@@ -35,7 +35,6 @@ struct TestCaseTraits<cases::TcpSequence03SM>
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
 
         // Tester SYN ISN = 0 (the zero-sequence case); the DUT
         // SYN+ACK ack_num is asserted == 1 by the SCXML during the handshake.

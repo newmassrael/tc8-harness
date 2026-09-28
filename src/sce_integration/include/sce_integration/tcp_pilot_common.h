@@ -45,7 +45,8 @@ namespace tc8::sce::tcp {
 // inject port with a kernel-connect call site (or vice versa).
 
 // **kernel-connect path** (BASICS_01/02/03). The Upper Tester opens a
-// passive listener on this DUT-side port (OpOpenTcpSocket); the tester
+// passive listener on this DUT-side port (OpOpenTcpSocket, one of the
+// §4.8.5 TCP Upper Tester opcodes, each binding a fresh SOCK_STREAM); the tester
 // then issues a normal `connect()` from its netns and the kernel
 // completes the 3-way handshake end-to-end. SCXML observes the DUT-
 // emitted SYN,ACK / plain ACK that fall out of the handshake. Value
@@ -102,9 +103,9 @@ inline constexpr int kBasicsTesterListenBacklog = 1;
 // the kernel-connect path explicitly synchronises through the UT
 // Confirmation before emitting the TCP segment. 200 ms gives pcap
 // headroom to open and the tester netns arp-neigh path to be ready
-// without burning smoke-test wall time. UT-channel boot wait
-// (kTcpUtBootWait, 1500 ms) is a separate constant — see the
-// kernel-connect helpers below.
+// without burning smoke-test wall time. It is NOT a wait for the DUT's
+// Upper Tester to bind: that is the start-order barrier's job, which every
+// TCP case requires (kDutReadyBarrier on TcpAnyBase, _tcp_traits_base.h).
 inline constexpr auto kTcpPilotInitialWait = std::chrono::milliseconds(200);
 
 // Inter-phase gap for compound raw-inject stimuli (BASICS_04 with 3
@@ -457,15 +458,6 @@ inline void dispatchTcpFrame(typename SM::CapturedType &c, SM &sm,
         c.snapshotFired();
     }
 }
-
-// Boot-time UT initial wait. §4.8.5 TCP opcodes bind a fresh
-// SOCK_STREAM per call, so the tc8-dut must have already completed
-// its UT RPC bind (port 30600) before the tester's OpOpenTcpSocket
-// reaches it. Same 1500 ms rationale as `kUdpPilotInitialWait`:
-// vsomeip bootstrap + UT bind + harness-first smoke-test 500 ms
-// grace. Shortening this makes BASICS_01..03 race-lose the UT bind
-// and land on `fail_timeout` despite full DUT conformance.
-inline constexpr auto kTcpUtBootWait = std::chrono::milliseconds(1500);
 
 // Short wait between a UT TCP request and the follow-on tester action
 // (connect / close / query). The tc8-dut processes the request

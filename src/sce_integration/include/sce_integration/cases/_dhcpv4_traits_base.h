@@ -47,6 +47,13 @@ struct Dhcpv4AnyBase {
     static constexpr int              kTopology   = 1;
     static constexpr ::tc8::BpfGroup  kBpfGroup   = ::tc8::BpfGroup::Dhcpv4;
 
+    // Every DHCPv4 case starts by asking the DUT's Upper Tester to run a client,
+    // and an ask that outruns the DUT's bring-up is lost. So the family requires
+    // the start-order barrier, in place of the 1.5 s settle its helper used to
+    // sleep (docs/tech-debt.md TD-61).
+    static constexpr ::tc8::sce::DutReadyBarrier kDutReadyBarrier =
+        ::tc8::sce::DutReadyBarrier::kRequired;
+
     // A DHCPv4 case's procedure starts by telling the DUT to run a DHCP client;
     // the harness cannot provoke that from the wire. Declared on the family base
     // rather than 75 times, so the next case added here cannot forget it and sit

@@ -42,7 +42,6 @@ struct TestCaseTraits<cases::TcpClosing13SM>
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
 
         ::tc8::stimulus::TcpSegmentSpec rst{};
         rst.src_port = kBasicsTesterPort + 80U;

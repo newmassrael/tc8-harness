@@ -46,7 +46,6 @@ struct TestCaseTraits<cases::TcpFlagsInvalid15Neg7SM>
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
 
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsInvalid15Phase6LocalOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsInvalid15Phase6LocalOffset;

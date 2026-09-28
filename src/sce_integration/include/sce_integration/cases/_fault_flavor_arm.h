@@ -38,8 +38,8 @@ inline constexpr auto kFlavorArmSettle = std::chrono::milliseconds(200);
 // The window a synthesis `_neg` holds open AFTER injecting its trigger, so the lwIP-synthesized
 // response (a RST, FIN+ACK, or pure ACK, per the armed flavor) lands and is captured before the
 // stimulus returns and any fault resource (a stack TesterAutoAckDrop, the tester fd) tears down.
-// Must stay <= the SCXML synth-watch deadline. Named to avoid aliasing kTcpUtBootWait (also
-// 1500 ms, but the boot bring-up wait — an unrelated meaning that happens to share the value).
+// Must stay <= the SCXML synth-watch deadline. A hold after the trigger, not a settle for the
+// DUT's bring-up: that wait is gone, replaced by the start-order barrier (kDutReadyBarrier).
 inline constexpr auto kSynthObserveHold = std::chrono::milliseconds(1500);
 
 // emitEgressFlavorArm (UT 0x18 OpSetEgressFlavor): a non-None flavor makes the netif

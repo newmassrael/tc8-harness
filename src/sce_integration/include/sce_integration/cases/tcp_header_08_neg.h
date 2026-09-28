@@ -46,7 +46,6 @@ struct TestCaseTraits<cases::TcpHeader08NegSM>
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
 
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpHeader08LocalOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpHeader08LocalOffset;

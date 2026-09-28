@@ -48,7 +48,6 @@ struct TestCaseTraits<cases::TcpFlagsProcessing08Neg2SM>
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
 
         constexpr std::uint16_t kListenPort = kBasicsListenPort + 14U;
         constexpr std::uint16_t kTesterPort = kBasicsTesterPort + 71U;

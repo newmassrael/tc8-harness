@@ -39,6 +39,14 @@ struct TcpAnyBase {
     static constexpr int              kTopology   = 1;
     static constexpr ::tc8::BpfGroup  kBpfGroup   = ::tc8::BpfGroup::Tcp;
 
+    // Every TCP case drives the DUT — through its Upper Tester, or its stack
+    // directly — before its first observation, and a stimulus that outruns the
+    // DUT's bring-up is lost without a trace. So the family requires the
+    // start-order barrier, in place of the 1.5 s settle its stimuli used to
+    // sleep (docs/tech-debt.md TD-61).
+    static constexpr ::tc8::sce::DutReadyBarrier kDutReadyBarrier =
+        ::tc8::sce::DutReadyBarrier::kRequired;
+
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {
         ::tc8::sce::tcp::dispatchTcpFrame<SM>(c, sm, ev);
     }

@@ -85,7 +85,6 @@ struct TestCaseTraits<cases::TcpFlagsProcessing08SM>
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
 
         // Phase 1 — CLOSED state: bare FIN to closed DUT port.
         emitTcpStimulus(cfg, ctx.iface, cfg.dut.mac,

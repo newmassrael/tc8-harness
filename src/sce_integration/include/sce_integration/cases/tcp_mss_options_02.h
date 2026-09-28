@@ -51,7 +51,6 @@ struct TestCaseTraits<cases::TcpMssOptions02SM>
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
 
         // RFC 793 §3.1 kind 1 (NOP) ×3 + kind 0 (EOL). 4 bytes total —
         // already 4-byte aligned so buildTcpSegment adds no padding;

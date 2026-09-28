@@ -72,7 +72,6 @@ struct TestCaseTraits<cases::UdpUserInterface07SM>
             /*target_port=*/::tc8::sce::udp::kDataPort,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             static_cast<std::uint16_t>(::tc8::sce::udp::kUdpDefaultData.size()),
-            ::tc8::sce::udp::kUdpPilotInitialWait,
             /*dut_src_ip_override_be=*/cfg.dut.secondary_ip);
     }
 };

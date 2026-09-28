@@ -81,7 +81,6 @@ struct TestCaseTraits<cases::TcpUnacceptable09SM>
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
-        std::this_thread::sleep_for(kTcpUtBootWait);
 
         // -------- Phase 1: OTW SEQ in FIN-WAIT-1 --------
         {
