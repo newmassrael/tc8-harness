@@ -40,13 +40,14 @@ struct TestCaseTraits<cases::TcpMssOptions10SM>
     // scope is the caller's (held across the post-handshake data window).
     static void runPhase(::tc8::sce::IDutControl& dut,
                          const ::tc8::TestConfig& cfg,
-                         std::string_view iface) {
+                         std::string_view iface,
+                         ::tc8::sce::IStimulusObserver& observer) {
         using namespace ::tc8::sce::tcp;
         // Empty SYN options: Linux defaults `tp->rx_opt.mss_clamp` to
         // 536 when no kind=2 MSS arrived at handshake (RFC 1122
         // §4.2.2.6). Subsequent ::send() segments cap at 536 B.
         auto open = driveSeamRawPassiveAccept(
-            dut, cfg, iface,
+            dut, cfg, iface, observer,
             kTcpMssOptionsListenPort10,
             std::vector<std::uint8_t>{},  // no MSS option
             kTcpMssOptionsTesterSrcPort10);
@@ -79,7 +80,7 @@ struct TestCaseTraits<cases::TcpMssOptions10SM>
         TesterAutoRstDrop rst_drop(cfg);
         (void)rst_drop;
 
-        runPhase(ctx.dut, cfg, ctx.iface);
+        runPhase(ctx.dut, cfg, ctx.iface, ctx.observer);
     }
 };
 

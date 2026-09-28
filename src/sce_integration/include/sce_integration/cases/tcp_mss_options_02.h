@@ -59,7 +59,7 @@ struct TestCaseTraits<cases::TcpMssOptions02SM>
         const std::vector<std::uint8_t> syn_options{0x01U, 0x01U, 0x01U, 0x00U};
 
         auto open = driveSeamRawPassiveAccept(
-            ctx.dut, cfg, ctx.iface,
+            ctx.dut, cfg, ctx.iface, ctx.observer,
             kTcpMssOptionsListenPort02,
             syn_options,
             kTcpMssOptionsTesterSrcPort02);

@@ -12,6 +12,7 @@
 #include "sce_integration/cases/_tcp_seam.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
 #include "sce_integration/dut_control.h"
+#include "sce_integration/tcp_observation.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -62,14 +63,16 @@ struct TestCaseTraits<cases::TcpFlagsInvalid04NegSM>
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsInvalid04LocalOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsInvalid04LocalOffset;
 
-        auto snippet = TcpFrameSnippet::forDutSyn(cfg, ctx.iface, local_port);
+        const ::tc8::sce::ObservationCursor armed = ctx.observer.mark();
 
         // Active OPEN routed through the backend-agnostic seam, no tester listener — the SYN
         // goes unanswered so the DUT stays in SYN-SENT, the state this case injects the bare
         // RST into. The handle is discarded (closing a SYN-SENT socket would abort the state).
         (void)driveSeamSynSentOpen(ctx.dut, cfg, local_port, remote_port);
 
-        const auto syn = snippet.tryCapture(std::chrono::milliseconds(500));
+        const auto syn = ctx.observer.awaitObservation(
+            "dut_syn", armed, dutSynFrom(cfg.dut.ip, local_port),
+            std::chrono::milliseconds(500));
         if (!syn.has_value()) return;
 
         // Per-phase arm: the DUT SYN has been observed (the SCXML precondition); arm so the
@@ -80,7 +83,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid04NegSM>
         ::tc8::stimulus::TcpSegmentSpec bad{};
         bad.src_port = remote_port;
         bad.dst_port = local_port;
-        bad.seq_num  = syn->seq_num + 1U;
+        bad.seq_num  = segmentOf(syn->view()).seq_num + 1U;
         bad.ack_num  = 0U;
         bad.flags    = ::tc8::stimulus::kTcpFlagRst;
         emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, bad,

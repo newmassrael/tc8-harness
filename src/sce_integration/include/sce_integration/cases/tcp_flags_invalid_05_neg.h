@@ -49,7 +49,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid05NegSM>
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         cases::flags_invalid_05_neg::driveSynSentRstDrop(
-            ctx.dut, cfg, ctx.iface,
+            ctx.dut, cfg, ctx.iface, ctx.observer,
             ::tc8::sce::tcp::kTcpFlagsInvalid05Phase1LocalOffset,
             ::tc8::stimulus::kTcpFlagSyn | ::tc8::stimulus::kTcpFlagAck
                 | ::tc8::stimulus::kTcpFlagRst);

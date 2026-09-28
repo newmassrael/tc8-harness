@@ -40,6 +40,7 @@ struct TestCaseTraits<cases::TcpMssOptions06SM>
     static void runPhase(::tc8::sce::IDutControl& dut,
                          const ::tc8::TestConfig &cfg,
                          std::string_view iface,
+                         ::tc8::sce::IStimulusObserver& observer,
                          std::uint16_t listen_port,
                          std::uint16_t tester_src_port,
                          std::uint16_t advertised_mss) {
@@ -51,7 +52,7 @@ struct TestCaseTraits<cases::TcpMssOptions06SM>
             static_cast<std::uint8_t>(advertised_mss & 0xFFU)};
 
         auto open = driveSeamRawPassiveAccept(
-            dut, cfg, iface, listen_port, syn_options, tester_src_port);
+            dut, cfg, iface, observer, listen_port, syn_options, tester_src_port);
         if (!open.conn) return;
 
         // 4000 B > 2 × 1460 (max DUT MSS) ensures Linux always
@@ -76,14 +77,14 @@ struct TestCaseTraits<cases::TcpMssOptions06SM>
 
         // Phase 1: Mv = 200 (< DUT MSS=1460). First DUT data segment
         // size = 200.
-        runPhase(ctx.dut, cfg, ctx.iface,
+        runPhase(ctx.dut, cfg, ctx.iface, ctx.observer,
                  kTcpMssOptionsListenPort06a,
                  kTcpMssOptionsTesterSrcPort06a,
                  /*advertised_mss=*/200U);
 
         // Phase 2: Mv = 2000 (> DUT MSS). First DUT segment clamped
         // to DUT MSS = 1460.
-        runPhase(ctx.dut, cfg, ctx.iface,
+        runPhase(ctx.dut, cfg, ctx.iface, ctx.observer,
                  kTcpMssOptionsListenPort06b,
                  kTcpMssOptionsTesterSrcPort06b,
                  /*advertised_mss=*/2000U);

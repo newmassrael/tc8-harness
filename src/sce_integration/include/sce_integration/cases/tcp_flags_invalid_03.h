@@ -9,6 +9,7 @@
 #include "sce_integration/cases/_tcp_seam.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
 #include "sce_integration/dut_control.h"
+#include "sce_integration/tcp_observation.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -48,8 +49,8 @@ struct TestCaseTraits<cases::TcpFlagsInvalid03SM>
     //      a kernel RST that would race-kill DUT's SYN-SENT before the
     //      ACK+RST inject lands.
     //   2. Seam active OPEN drives DUT to SYN-SENT.
-    //   3. TcpFrameSnippet captures the DUT-emitted pure SYN to learn
-    //      ISN_d.
+    //   3. The stimulus awaits the DUT-emitted pure SYN on the case's
+    //      own capture to learn ISN_d.
     //   4. Raw-inject ACK+RST with seq=kTesterInitialSeq and
     //      ack=ISN_d + kUnacceptableAckOffset (NOT in {ISN_d + 1}).
     //   5. SCXML observes DUT SYN (positive trigger) then 3 s absence
@@ -73,7 +74,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid03SM>
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsInvalid03LocalOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsInvalid03LocalOffset;
 
-        auto snippet = TcpFrameSnippet::forDutSyn(cfg, ctx.iface, local_port);
+        const ::tc8::sce::ObservationCursor armed = ctx.observer.mark();
 
         // Active OPEN routed through the backend-agnostic seam, no tester
         // listener — the SYN goes unanswered so the DUT stays in SYN-SENT, the
@@ -82,14 +83,15 @@ struct TestCaseTraits<cases::TcpFlagsInvalid03SM>
         // case observes; the leaked socket is reaped by DUT teardown.
         (void)driveSeamSynSentOpen(ctx.dut, cfg, local_port, remote_port);
 
-        const auto syn = snippet.tryCapture(
+        const auto syn = ctx.observer.awaitObservation(
+            "dut_syn", armed, dutSynFrom(cfg.dut.ip, local_port),
             std::chrono::milliseconds(500));
         if (syn.has_value()) {
             ::tc8::stimulus::TcpSegmentSpec bad{};
             bad.src_port = remote_port;
             bad.dst_port = local_port;
             bad.seq_num  = kTesterInitialSeq;
-            bad.ack_num  = syn->seq_num + kUnacceptableAckOffset;
+            bad.ack_num  = segmentOf(syn->view()).seq_num + kUnacceptableAckOffset;
             bad.flags    = ::tc8::stimulus::kTcpFlagAck
                          | ::tc8::stimulus::kTcpFlagRst;
             emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, bad,

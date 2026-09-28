@@ -43,7 +43,7 @@ struct TestCaseTraits<cases::TcpSequence01SM>
         // ack_num (== tester_isn + 1), captured by the SCXML during the
         // handshake — so this runs and PASSes on either backend.
         auto open = driveSeamRawPassiveAccept(
-            ctx.dut, cfg, ctx.iface,
+            ctx.dut, cfg, ctx.iface, ctx.observer,
             kTcpSequence01ListenPort,
             std::vector<std::uint8_t>{},
             kTcpSequence01TesterSrcPort,

@@ -53,7 +53,7 @@ struct TestCaseTraits<cases::TcpMssOptions03SM>
         // unimplemented option — a confirmed accept is the both-backend
         // "reached ESTABLISHED" verdict (see MSS_OPTIONS_02).
         auto open = driveSeamRawPassiveAccept(
-            ctx.dut, cfg, ctx.iface,
+            ctx.dut, cfg, ctx.iface, ctx.observer,
             kTcpMssOptionsListenPort03,
             syn_options,
             kTcpMssOptionsTesterSrcPort03);

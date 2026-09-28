@@ -47,7 +47,7 @@ struct TestCaseTraits<cases::TcpMssOptions09NegSM>
         (void)rst_drop;
         emitEgressFlavorArm(cfg, ctx.iface, ::tc8::ut::kTcpFaultDataSegTruncate);
         TestCaseTraits<cases::TcpMssOptions09SM>::runPhase(
-            ctx.dut, cfg, ctx.iface, cfg.dut.mac,
+            ctx.dut, cfg, ctx.iface, ctx.observer, cfg.dut.mac,
             kTcpMssOptions09Phase1LocalOffset, /*advertised_mss=*/200U);
     }
 };

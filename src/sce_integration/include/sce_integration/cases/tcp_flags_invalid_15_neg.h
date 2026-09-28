@@ -13,6 +13,7 @@
 #include "sce_integration/cases/_tcp_seam_passive_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
 #include "sce_integration/dut_control.h"
+#include "sce_integration/tcp_observation.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -55,7 +56,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid15NegSM>
         const std::uint16_t tester_port = kBasicsTesterPort;
         if (!driveSeamListen(ctx.dut, listen_port)) return;
 
-        auto snippet = TcpFrameSnippet::forDutSynAck(cfg, ctx.iface, tester_port);
+        const ::tc8::sce::ObservationCursor armed = ctx.observer.mark();
 
         ::tc8::stimulus::TcpSegmentSpec syn{};
         syn.src_port = tester_port;
@@ -65,14 +66,16 @@ struct TestCaseTraits<cases::TcpFlagsInvalid15NegSM>
         syn.flags    = ::tc8::stimulus::kTcpFlagSyn;
         emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, syn);
 
-        const auto synack = snippet.tryCapture(std::chrono::milliseconds(500));
+        const auto synack = ctx.observer.awaitObservation(
+            "dut_syn_ack", armed, dutSynAckTo(cfg.dut.ip, tester_port),
+            std::chrono::milliseconds(500));
         if (synack.has_value()) {
             emitIngressFlavorArmMidStream(cfg, ctx.iface, ::tc8::ut::kTcpSynthRstOnDisruptive);
             ::tc8::stimulus::TcpSegmentSpec rst{};
             rst.src_port = tester_port;
             rst.dst_port = listen_port;
             rst.seq_num  = kTesterInitialSeq + 1U + kOutOfWindowSeqOffset;
-            rst.ack_num  = synack->seq_num + 1U;
+            rst.ack_num  = segmentOf(synack->view()).seq_num + 1U;
             rst.flags    = ::tc8::stimulus::kTcpFlagRst | ::tc8::stimulus::kTcpFlagAck;
             emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, rst, /*initial_wait=*/kFlavorArmSettle);
             std::this_thread::sleep_for(kSynthObserveHold);

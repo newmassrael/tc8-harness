@@ -9,6 +9,7 @@
 #include "sce_integration/cases/_tcp_seam_passive_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
 #include "sce_integration/dut_control.h"
+#include "sce_integration/tcp_observation.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -41,17 +42,16 @@ struct TestCaseTraits<cases::TcpUnacceptable03SM>
     //
     // The "unacceptable ACK" requires the tester to know ISN_d (the
     // DUT's chosen initial sequence number, randomised per
-    // connection by Linux's secure ISN generator). TcpFrameSnippet
-    // captures the DUT-emitted SYN+ACK via libpcap to extract
+    // connection by Linux's secure ISN generator). The stimulus awaits
+    // the DUT-emitted SYN+ACK on the case's own capture to extract
     // ISN_d, then the tester injects an ACK with
     // ack_num = ISN_d + LARGE_OFFSET — which acknowledges a byte
     // the DUT has not sent — and DUT responds RST per RFC 793
     // RFC 793 §3.4 p35.
     //
-    // The pcap snippet is opened BEFORE the upstream SYN inject so
-    // the kernel pcap ring has already armed when the SYN+ACK
-    // arrives; otherwise scheduler jitter could let the SYN+ACK
-    // land before the pcap handle accepts it.
+    // The capture is marked BEFORE the upstream SYN inject, so a
+    // SYN+ACK that arrives while the inject is still being emitted
+    // counts.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
@@ -73,11 +73,10 @@ struct TestCaseTraits<cases::TcpUnacceptable03SM>
         const auto listen = driveSeamListen(ctx.dut, kBasicsListenPort);
         if (!listen) return;
 
-        // Snippet matches DUT-emitted SYN+ACK on the tester's
-        // raw-inject source port — picks up the spec-asserted
-        // SYN+ACK whose seq_num is the freshly-randomised ISN_d.
-        auto snippet = TcpFrameSnippet::forDutSynAck(
-            cfg, ctx.iface, kBasicsTesterPort);
+        // The wait below matches the DUT-emitted SYN+ACK on the tester's
+        // raw-inject source port — the spec-asserted SYN+ACK whose seq_num
+        // is the freshly-randomised ISN_d.
+        const ::tc8::sce::ObservationCursor armed = ctx.observer.mark();
 
         // Probe — drive DUT from LISTEN into SYN-RCVD.
         ::tc8::stimulus::TcpSegmentSpec syn{};
@@ -91,7 +90,8 @@ struct TestCaseTraits<cases::TcpUnacceptable03SM>
         // Capture SYN+ACK to learn ISN_d. 500 ms covers the worst-
         // case kernel scheduling jitter; a same-host netns
         // typically responds in single-digit milliseconds.
-        const auto synack = snippet.tryCapture(
+        const auto synack = ctx.observer.awaitObservation(
+            "dut_syn_ack", armed, dutSynAckTo(cfg.dut.ip, kBasicsTesterPort),
             std::chrono::milliseconds(500));
         if (synack.has_value()) {
             // Unacceptable ACK = DUT's ISN_d + LARGE_OFFSET. ISN_d
@@ -103,7 +103,7 @@ struct TestCaseTraits<cases::TcpUnacceptable03SM>
             bad_ack.src_port = kBasicsTesterPort;
             bad_ack.dst_port = kBasicsListenPort;
             bad_ack.seq_num  = kTesterInitialSeq + 1U;
-            bad_ack.ack_num  = synack->seq_num + kUnacceptableAckOffset;
+            bad_ack.ack_num  = segmentOf(synack->view()).seq_num + kUnacceptableAckOffset;
             bad_ack.flags    = ::tc8::stimulus::kTcpFlagAck;
             emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, bad_ack,
                          /*initial_wait=*/std::chrono::milliseconds(0));

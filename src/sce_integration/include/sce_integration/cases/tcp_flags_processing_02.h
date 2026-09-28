@@ -14,6 +14,7 @@
 #include "sce_integration/cases/_tcp_seam_passive_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
 #include "sce_integration/dut_control.h"
+#include "sce_integration/tcp_observation.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -72,7 +73,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing02SM>
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        runPhase1SynRecv(cfg, ctx.iface, ctx.dut);
+        runPhase1SynRecv(cfg, ctx.iface, ctx.dut, ctx.observer);
 
         std::string       iface_copy(ctx.iface);
         ::tc8::TestConfig cfg_copy = cfg;
@@ -145,7 +146,8 @@ private:
 
     static void runPhase1SynRecv(const ::tc8::TestConfig& cfg,
                                  std::string_view iface,
-                                 ::tc8::sce::IDutControl& dut) {
+                                 ::tc8::sce::IDutControl& dut,
+                                 ::tc8::sce::IStimulusObserver& observer) {
         using namespace ::tc8::sce::tcp;
         constexpr std::uint16_t kListenPort = kBasicsListenPort + 12U;
         constexpr std::uint16_t kTesterPort = kBasicsTesterPort + 76U;
@@ -159,8 +161,7 @@ private:
         TesterAutoRstDrop rst_drop(cfg);
         (void)rst_drop;
 
-        auto snippet = TcpFrameSnippet::forDutSynAck(
-            cfg, iface, kTesterPort);
+        const ::tc8::sce::ObservationCursor armed = observer.mark();
 
         ::tc8::stimulus::TcpSegmentSpec syn{};
         syn.src_port = kTesterPort;
@@ -170,7 +171,8 @@ private:
         emitTcpFrame(cfg, iface, cfg.dut.mac, syn,
                      /*initial_wait=*/std::chrono::milliseconds(0));
 
-        const auto synack = snippet.tryCapture(
+        const auto synack = observer.awaitObservation(
+            "dut_syn_ack", armed, dutSynAckTo(cfg.dut.ip, kTesterPort),
             std::chrono::milliseconds(500));
         if (!synack.has_value()) return;
 
@@ -179,14 +181,14 @@ private:
         // ISN_d + 1 (acceptable). Linux's tcp_check_req drops the
         // req_sock for an in-seq RST.
         emitRst(cfg, iface, kTesterPort, kListenPort,
-                kTesterInitialSeq + 1U, synack->seq_num + 1U);
+                kTesterInitialSeq + 1U, segmentOf(synack->view()).seq_num + 1U);
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
         // Verify-probe ACK. Routes to LISTEN; tcp_rcv_state_process
         // returns 1 → DUT RST.
         emitVerifyAck(cfg, iface, kTesterPort, kListenPort,
                       kTesterInitialSeq + 5U,
-                      synack->seq_num + 1U);
+                      segmentOf(synack->view()).seq_num + 1U);
     }
 
     static void runPhase2Established(const ::tc8::TestConfig& cfg,

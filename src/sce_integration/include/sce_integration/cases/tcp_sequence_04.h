@@ -43,7 +43,7 @@ struct TestCaseTraits<cases::TcpSequence04SM>
         // handshake. rawPassiveThreeWayHandshake's third-leg ACK seq is
         // tester_isn + 1 == 0, exercising the same wraparound on the tester side.
         auto open = driveSeamRawPassiveAccept(
-            ctx.dut, cfg, ctx.iface,
+            ctx.dut, cfg, ctx.iface, ctx.observer,
             kTcpSequence04ListenPort,
             std::vector<std::uint8_t>{},
             kTcpSequence04TesterSrcPort,

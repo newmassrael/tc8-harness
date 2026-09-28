@@ -16,6 +16,7 @@
 #include "sce_integration/cases/_tcp_seam_time_wait_prelude.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
 #include "sce_integration/dut_control.h"
+#include "sce_integration/tcp_observation.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -101,7 +102,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid15SM>
         {
             TesterAutoRstDrop rst_drop(cfg);
             (void)rst_drop;
-            runPhase1SynRecv(cfg, ctx.iface, ctx.dut);
+            runPhase1SynRecv(cfg, ctx.iface, ctx.dut, ctx.observer);
         }
 
         ::tc8::TestConfig cfg_copy = cfg;
@@ -164,7 +165,8 @@ private:
 
     static void runPhase1SynRecv(const ::tc8::TestConfig& cfg,
                                  std::string_view iface,
-                                 ::tc8::sce::IDutControl& dut) {
+                                 ::tc8::sce::IDutControl& dut,
+                                 ::tc8::sce::IStimulusObserver& observer) {
         using namespace ::tc8::sce::tcp;
         const std::uint16_t listen_port = kBasicsListenPort;
         const std::uint16_t tester_port = kBasicsTesterPort;
@@ -175,7 +177,7 @@ private:
         // close — the listen socket is reclaimed at END_TEST.
         if (!driveSeamListen(dut, listen_port)) return;
 
-        auto snippet = TcpFrameSnippet::forDutSynAck(cfg, iface, tester_port);
+        const ::tc8::sce::ObservationCursor armed = observer.mark();
 
         ::tc8::stimulus::TcpSegmentSpec syn{};
         syn.src_port = tester_port;
@@ -185,11 +187,13 @@ private:
         syn.flags    = ::tc8::stimulus::kTcpFlagSyn;
         emitTcpFrame(cfg, iface, cfg.dut.mac, syn);
 
-        const auto synack = snippet.tryCapture(std::chrono::milliseconds(500));
+        const auto synack = observer.awaitObservation(
+            "dut_syn_ack", armed, dutSynAckTo(cfg.dut.ip, tester_port),
+            std::chrono::milliseconds(500));
         if (synack.has_value()) {
             emitOtwRst(cfg, iface, tester_port, listen_port,
                        /*seq_base=*/kTesterInitialSeq + 1U,
-                       /*ack_value=*/synack->seq_num + 1U);
+                       /*ack_value=*/segmentOf(synack->view()).seq_num + 1U);
         }
     }
 

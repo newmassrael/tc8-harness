@@ -4071,8 +4071,9 @@ appeared. This change turns nothing green into red today.
 
 ## TD-60 — TCP cases wait for a DUT segment on a second capture of their own
 
-**Status:** OPEN. **Logged:** 2026-09-28, when the stimulus observer (`stimulus_observation.h`)
-landed and made the older mechanism a duplicate.
+**Status:** RESOLVED (2026-09-28). **Logged:** 2026-09-28, when the stimulus observer
+(`stimulus_observation.h`) landed and made the older mechanism a duplicate. The entry below is the
+debt as logged; **Resolution** at its end records what closed it.
 
 **What it is.** `TcpFrameSnippet` (`tcp_pilot_common.h`) opens its own libpcap handle, with its
 own filter, so a stimulus can block until the DUT emits a given segment — typically the DUT's
@@ -4092,6 +4093,32 @@ own capture, returns the matched frame, and records an unmet wait by name.
 **Done when:** every `tryCapture` site awaits through the observer, each case moves to the context
 signature it needs for that, `TcpFrameSnippet` is deleted, and the affected cases' verdicts match
 a smoke run from before the move.
+
+**Resolution.** `TcpFrameSnippet` and `CapturedTcpHeader` are deleted. The count logged above was
+too small. The snippet also sat under `rawPassiveThreeWayHandshake`, and the seam verb
+`driveSeamRawPassiveAccept` reaches that from 14 more cases. Helpers reused by `_NEG` twins added
+7 more. So 43 cases were affected in all.
+
+- **Before the listen window** (the stimulus body and its helpers): the step marks the case's own
+  capture where the snippet used to be opened, and awaits the segment with
+  `IStimulusObserver::awaitObservation`. The snippet's timeout is kept as the bound.
+- **Inside the window** (phase 2 of TCP_FLAGS_INVALID_05/06, TCP_FLAGS_PROCESSING_05 and
+  TCP_UNACCEPTABLE_08): these steps ran from the scheduler and blocked the capture loop while they
+  polled the second handle. They now register `IStimulusScheduler::reactToObservation`
+  (`ObservationReactions`), and every frame still reaches the state machine first. The guards the
+  blocking form held by scope now live in the reaction's closure: the auto-RST suppression and,
+  in UNACCEPTABLE_08, a `HeldDutConnection`. So they are released when the reaction is spent or
+  dropped unmet, the same two points as before. A sleep inside the window became a scheduled
+  action.
+- **The DUT is identified by `cfg.dut.ip`** (the stimulus target) in `tcp_observation.h`. The
+  snippet used `cfg.ipv4.dut_iface_ip`, which is an expectation that negative rows flip.
+
+**Runs (2026-09-28).** The 43 cases were run on single-pc and lwip-tap before the change (from the
+same tree without it) and after. Verdict class and reason are identical for every case on both
+topologies. The pre-existing lwIP known-fails (TCP_BASICS_17, TCP_FLAGS_INVALID_06/07) and the Linux
+one (TCP_FLAGS_INVALID_15) carry their registered verdicts. The `_NEG` cases skip on single-pc and
+pass on lwip-tap, as before. Every wait and reaction in the after-run logs reports observed, with
+none unmet.
 
 ## TD-61 — 177 TCP stimuli sleep for a DUT bind the start-order barrier already proves
 

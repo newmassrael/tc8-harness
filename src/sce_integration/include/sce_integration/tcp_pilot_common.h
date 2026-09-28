@@ -15,7 +15,6 @@
 #include <arpa/inet.h>
 #include <netinet/tcp.h>
 #include <optional>
-#include <pcap/pcap.h>
 #include <poll.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -23,7 +22,9 @@
 #include "tc8/captured_event.h"
 #include "tc8/unperformed_stimulus.h"  // record a filter that would not install.
 #include "tc8/upper_tester_protocol.h"
+#include "sce_integration/stimulus_observation.h"
 #include "sce_integration/tcp_captured.h"
+#include "sce_integration/tcp_observation.h"
 #include "sce_integration/test_config.h"
 #include "sce_integration/tester_stimulus_chain.h"  // kTesterStimulusChain / ensureTesterStimulusChain (SSOT).
 #include "stimulus/endpoint.h"                       // Endpoint — per-connection 4-tuple.
@@ -1034,173 +1035,6 @@ private:
     std::string dut_ip_;
 };
 
-// Subset of the TCP header fields a stimulus-side capture snippet
-// commonly needs. SEQ/ACK are the DUT-emitted values UNACCEPTABLE_03
-// learns from the SYN+ACK to compute an "unacceptable ACK" inject;
-// flags + ports surface so the caller can sanity-check the BPF
-// match before relying on SEQ/ACK.
-struct CapturedTcpHeader {
-    std::uint32_t seq_num  = 0;
-    std::uint32_t ack_num  = 0;
-    std::uint16_t src_port = 0;
-    std::uint16_t dst_port = 0;
-    std::uint8_t  flags    = 0;
-};
-
-// Stimulus-side single-frame TCP capture. Opens a libpcap handle on
-// `iface`, arms a BPF filter, and lets the caller block-pump for
-// the next matching frame. Used by §4.8.6.3 UNACCEPTABLE_03 (and
-// any case that needs to learn DUT-emitted SEQ/ACK before
-// constructing a dependent raw-inject) — open the snippet BEFORE
-// emitting the upstream stimulus, then `tryCapture` after, so the
-// pcap kernel ring buffers the DUT segment regardless of how
-// quickly it arrives.
-//
-// Independent of the harness's main pcap source (TestRunner's
-// PcapSource) — the BPF filter and consumption are stimulus-private.
-class TcpFrameSnippet {
-public:
-    TcpFrameSnippet(std::string_view iface, std::string_view bpf_filter)
-        : handle_(nullptr) {
-        char errbuf[PCAP_ERRBUF_SIZE] = {};
-        // 100 ms libpcap read timeout matches `PcapSource::openLive`'s
-        // budget — long enough to absorb scheduler jitter, short
-        // enough that tryCapture can poll cleanly.
-        handle_ = pcap_open_live(std::string(iface).c_str(),
-                                  /*snaplen=*/65535,
-                                  /*promisc=*/1,
-                                  /*to_ms=*/100, errbuf);
-        if (handle_ == nullptr) {
-            std::fprintf(stderr,
-                         "tcp-pilot: snippet pcap_open_live(%.*s) failed: %s\n",
-                         static_cast<int>(iface.size()), iface.data(), errbuf);
-            return;
-        }
-        pcap_setnonblock(handle_, 1, errbuf);
-        bpf_program prog{};
-        if (pcap_compile(handle_, &prog,
-                          std::string(bpf_filter).c_str(),
-                          /*optimize=*/1, PCAP_NETMASK_UNKNOWN) < 0) {
-            std::fprintf(stderr,
-                         "tcp-pilot: snippet pcap_compile(%.*s) failed: %s\n",
-                         static_cast<int>(bpf_filter.size()),
-                         bpf_filter.data(), pcap_geterr(handle_));
-            pcap_close(handle_);
-            handle_ = nullptr;
-            return;
-        }
-        const int set_rc = pcap_setfilter(handle_, &prog);
-        pcap_freecode(&prog);
-        if (set_rc < 0) {
-            std::fprintf(stderr,
-                         "tcp-pilot: snippet pcap_setfilter failed: %s\n",
-                         pcap_geterr(handle_));
-            pcap_close(handle_);
-            handle_ = nullptr;
-        }
-    }
-
-    ~TcpFrameSnippet() {
-        if (handle_ != nullptr) pcap_close(handle_);
-    }
-
-    TcpFrameSnippet(const TcpFrameSnippet &)            = delete;
-    TcpFrameSnippet &operator=(const TcpFrameSnippet &) = delete;
-    TcpFrameSnippet(TcpFrameSnippet &&other) noexcept : handle_(other.handle_) {
-        other.handle_ = nullptr;
-    }
-
-    bool ok() const { return handle_ != nullptr; }
-
-    // Factory: snippet matching the DUT-emitted SYN on
-    // `dut_local_port` (the source port the active-OPEN flavor
-    // tc8-dut binds to). Used by §4.8.6.3 UNACCEPTABLE_08 to learn
-    // ISN_d before crafting the bad-ACK inject. The BPF mask
-    // (`0x12 == 0x02`) selects SYN-only segments, excluding the
-    // SYN+ACK any tester listener would emit.
-    static TcpFrameSnippet forDutSyn(const ::tc8::TestConfig &cfg,
-                                      std::string_view iface,
-                                      std::uint16_t dut_local_port) {
-        char dut_ip[INET_ADDRSTRLEN] = {};
-        ::inet_ntop(AF_INET, &cfg.ipv4.dut_iface_ip, dut_ip, sizeof(dut_ip));
-        char bpf[160];
-        std::snprintf(bpf, sizeof(bpf),
-                      "src host %s and tcp src port %u and "
-                      "(tcp[13] & 0x12) == 0x02",
-                      dut_ip, static_cast<unsigned>(dut_local_port));
-        return TcpFrameSnippet(iface, bpf);
-    }
-
-    // Factory: snippet matching the DUT-emitted SYN+ACK whose
-    // dst_port equals `tester_src_port` (the source port the
-    // tester's raw-inject SYN used). Used by §4.8.6.3
-    // UNACCEPTABLE_03 to learn ISN_d before crafting the bad-ACK
-    // inject. The BPF mask (`0x12 == 0x12`) selects SYN+ACK
-    // exactly, ruling out plain ACK retransmits or stray RST+ACK
-    // frames that share the port quad.
-    static TcpFrameSnippet forDutSynAck(const ::tc8::TestConfig &cfg,
-                                         std::string_view iface,
-                                         std::uint16_t tester_src_port) {
-        char dut_ip[INET_ADDRSTRLEN] = {};
-        ::inet_ntop(AF_INET, &cfg.ipv4.dut_iface_ip, dut_ip, sizeof(dut_ip));
-        char bpf[160];
-        std::snprintf(bpf, sizeof(bpf),
-                      "src host %s and tcp dst port %u and "
-                      "(tcp[13] & 0x12) == 0x12",
-                      dut_ip, static_cast<unsigned>(tester_src_port));
-        return TcpFrameSnippet(iface, bpf);
-    }
-
-    // Poll for the next BPF-matching frame up to `timeout`. Parses
-    // the Ethernet (14 B) + IPv4 (variable IHL) + TCP header on hit
-    // and returns the captured SEQ/ACK/flags/ports. Returns nullopt
-    // on timeout, malformed frame (caplen too small for parse), or
-    // handle init failure.
-    std::optional<CapturedTcpHeader> tryCapture(std::chrono::milliseconds timeout) {
-        if (handle_ == nullptr) return std::nullopt;
-        const auto deadline = std::chrono::steady_clock::now() + timeout;
-        while (std::chrono::steady_clock::now() < deadline) {
-            pcap_pkthdr *hdr = nullptr;
-            const u_char *data = nullptr;
-            const int rc = pcap_next_ex(handle_, &hdr, &data);
-            if (rc == 1 && hdr != nullptr && data != nullptr) {
-                if (hdr->caplen < 14 + 20 + 20) continue;
-                // Ethernet → IPv4 → TCP. Assume Ethernet II (14 B
-                // L2) — fine for veth. IHL is the low nibble of
-                // byte 0 in the IPv4 header; multiply by 4 for
-                // bytes.
-                const std::uint8_t ip_ihl = (data[14] & 0x0F) * 4U;
-                if (ip_ihl < 20U) continue;
-                const std::size_t tcp_off = 14U + ip_ihl;
-                if (hdr->caplen < tcp_off + 20U) continue;
-                const std::uint8_t *tcp = data + tcp_off;
-                CapturedTcpHeader h{};
-                h.src_port = static_cast<std::uint16_t>(
-                    (static_cast<std::uint16_t>(tcp[0]) << 8) | tcp[1]);
-                h.dst_port = static_cast<std::uint16_t>(
-                    (static_cast<std::uint16_t>(tcp[2]) << 8) | tcp[3]);
-                h.seq_num =
-                      (static_cast<std::uint32_t>(tcp[4])  << 24)
-                    | (static_cast<std::uint32_t>(tcp[5])  << 16)
-                    | (static_cast<std::uint32_t>(tcp[6])  <<  8)
-                    |  static_cast<std::uint32_t>(tcp[7]);
-                h.ack_num =
-                      (static_cast<std::uint32_t>(tcp[8])  << 24)
-                    | (static_cast<std::uint32_t>(tcp[9])  << 16)
-                    | (static_cast<std::uint32_t>(tcp[10]) <<  8)
-                    |  static_cast<std::uint32_t>(tcp[11]);
-                h.flags = tcp[13];
-                return h;
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(5));
-        }
-        return std::nullopt;
-    }
-
-private:
-    pcap_t *handle_;
-};
-
 // Linux's TIME-WAIT timer is hardcoded as `TCP_TIMEWAIT_LEN = 60 * HZ`
 // in net/ipv4/tcp.h — a runtime sysctl knob does not exist. The §4.8
 // TC8 v3.0 spec parameter table (p291 glossary) defines `msl` as
@@ -1246,26 +1080,27 @@ struct TcpTimeWaitInfo {
 // (cases/_tcp_seam_passive_open.h) composes — kept a named function so the seq
 // arithmetic lives in exactly one place, separate from the verb's seam
 // LISTEN+ACCEPT orchestration.
-// Open the SYN+ACK snippet, suppress the tester-kernel RST (the DUT SYN+ACK lands
-// on an unbound tester port), raw-inject the tester SYN with caller-controlled
-// options bytes, capture the DUT SYN+ACK, raw-inject the acceptable third-leg
-// ACK, and settle so the kernel's accept queue drains.
+// Suppress the tester-kernel RST (the DUT SYN+ACK lands on an unbound tester
+// port), mark the case's own capture, raw-inject the tester SYN with
+// caller-controlled options bytes, await the DUT SYN+ACK there, raw-inject the
+// acceptable third-leg ACK, and settle so the kernel's accept queue drains. Runs
+// in the stimulus, before the listen window (IStimulusObserver).
 //
-// Returns the DUT ISN (SYN+ACK seq_num) or nullopt if the snippet could not open
-// or the DUT SYN+ACK never arrived. `tester_isn` lets the §4.8.6.17 SEQUENCE cases
+// Returns the DUT ISN (SYN+ACK seq_num) or nullopt if the DUT SYN+ACK never
+// arrived (recorded as the unperformed stimulus "dut_syn_ack"). `tester_isn` lets the §4.8.6.17 SEQUENCE cases
 // pin the tester's SYN seq (uint32 wraparound is the intended SEQUENCE_04
 // semantics: tester_isn == 0xFFFFFFFF ⇒ post-SYN snd_nxt == 0). The
 // TesterAutoRstDrop is scoped to the handshake it protects; a post-handshake UT /
 // state query needs no RST suppression (the connection is ESTABLISHED and idle).
 inline std::optional<std::uint32_t> rawPassiveThreeWayHandshake(
     const ::tc8::TestConfig &cfg, std::string_view iface,
+    ::tc8::sce::IStimulusObserver &observer,
     std::uint16_t listen_port, std::vector<std::uint8_t> syn_options,
     std::uint16_t tester_src_port, std::uint32_t tester_isn,
     std::chrono::milliseconds capture_timeout) {
-    auto snippet = TcpFrameSnippet::forDutSynAck(cfg, iface, tester_src_port);
-    if (!snippet.ok()) return std::nullopt;
-
     TesterAutoRstDrop rst_drop(cfg);
+
+    const ::tc8::sce::ObservationCursor armed = observer.mark();
 
     ::tc8::stimulus::TcpSegmentSpec syn_spec{};
     syn_spec.src_port = tester_src_port;
@@ -1275,8 +1110,10 @@ inline std::optional<std::uint32_t> rawPassiveThreeWayHandshake(
     syn_spec.options  = std::move(syn_options);
     emitTcpFrame(cfg, iface, cfg.dut.mac, syn_spec);
 
-    const auto syn_ack = snippet.tryCapture(capture_timeout);
-    if (!syn_ack) return std::nullopt;
+    const auto syn_ack_event = observer.awaitObservation(
+        "dut_syn_ack", armed, dutSynAckTo(cfg.dut.ip, tester_src_port), capture_timeout);
+    if (!syn_ack_event) return std::nullopt;
+    const ::tc8::TcpFrame &syn_ack = segmentOf(syn_ack_event->view());
 
     // SYN consumes 1 sequence number per RFC 793 §3.3 — the tester's post-SYN
     // snd_nxt is tester_isn + 1U; ack the DUT ISN + 1 (acceptable third leg).
@@ -1284,12 +1121,12 @@ inline std::optional<std::uint32_t> rawPassiveThreeWayHandshake(
     ack_spec.src_port = tester_src_port;
     ack_spec.dst_port = listen_port;
     ack_spec.seq_num  = tester_isn + 1U;
-    ack_spec.ack_num  = syn_ack->seq_num + 1U;
+    ack_spec.ack_num  = syn_ack.seq_num + 1U;
     ack_spec.flags    = ::tc8::stimulus::kTcpFlagAck;
     emitTcpFrame(cfg, iface, cfg.dut.mac, ack_spec);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    return syn_ack->seq_num;
+    return syn_ack.seq_num;
 }
 
 // ---- Backend-agnostic TIME-WAIT prelude cores ----------------------------

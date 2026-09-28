@@ -12,6 +12,7 @@
 #include "sce_integration/cases/_tcp_seam.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
 #include "sce_integration/dut_control.h"
+#include "sce_integration/tcp_observation.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -55,6 +56,7 @@ struct TestCaseTraits<cases::TcpMssOptions05SM>
     static void runPhase(::tc8::sce::IDutControl& dut,
                          const ::tc8::TestConfig &cfg,
                          std::string_view iface,
+                         ::tc8::sce::IStimulusObserver& observer,
                          const std::array<std::uint8_t, 6> &dut_mac,
                          std::uint16_t port_offset,
                          const std::vector<std::uint8_t> &bad_options) {
@@ -64,7 +66,7 @@ struct TestCaseTraits<cases::TcpMssOptions05SM>
         const std::uint16_t remote_port =
             static_cast<std::uint16_t>(kBasicsActiveRemotePort + port_offset);
 
-        auto snippet = TcpFrameSnippet::forDutSyn(cfg, iface, local_port);
+        const ::tc8::sce::ObservationCursor armed = observer.mark();
 
         std::optional<::tc8::sce::DutConnection> open;
         {
@@ -75,14 +77,15 @@ struct TestCaseTraits<cases::TcpMssOptions05SM>
             // the DUT remains in SYN-SENT until the SYN+ACK injection below.
             open = driveSeamSynSentOpen(dut, cfg, local_port, remote_port);
 
-            const auto syn = snippet.tryCapture(
+            const auto syn = observer.awaitObservation(
+                "dut_syn", armed, dutSynFrom(cfg.dut.ip, local_port),
                 std::chrono::milliseconds(1000));
             if (syn.has_value()) {
                 ::tc8::stimulus::TcpSegmentSpec synack{};
                 synack.src_port = remote_port;
                 synack.dst_port = local_port;
                 synack.seq_num  = kTesterInitialSeq;
-                synack.ack_num  = syn->seq_num + 1U;
+                synack.ack_num  = segmentOf(syn->view()).seq_num + 1U;
                 synack.flags    = ::tc8::stimulus::kTcpFlagSyn
                                 | ::tc8::stimulus::kTcpFlagAck;
                 synack.options  = bad_options;
@@ -110,7 +113,7 @@ struct TestCaseTraits<cases::TcpMssOptions05SM>
         // Wire bytes [0x02 0x00] padded with NOP×2 → 4 B. Linux's
         // `tcp_parse_options` aborts further option parsing at
         // `opsize < 2` and proceeds with the rest of the SYN+ACK.
-        runPhase(ctx.dut, cfg, ctx.iface, cfg.dut.mac,
+        runPhase(ctx.dut, cfg, ctx.iface, ctx.observer, cfg.dut.mac,
                  kTcpMssOptions05Phase1LocalOffset,
                  std::vector<std::uint8_t>{0x02U, 0x00U, 0x01U, 0x01U});
 
@@ -119,7 +122,7 @@ struct TestCaseTraits<cases::TcpMssOptions05SM>
         // bytes, one more than the RFC encoding's 2). Builder pads
         // with NOP×3 → 8 B options region; Data Offset = 7. Linux
         // skips the option per `opsize > TCPOLEN_MSS` and continues.
-        runPhase(ctx.dut, cfg, ctx.iface, cfg.dut.mac,
+        runPhase(ctx.dut, cfg, ctx.iface, ctx.observer, cfg.dut.mac,
                  kTcpMssOptions05Phase2LocalOffset,
                  std::vector<std::uint8_t>{0x02U, 0x05U, 0xAAU, 0xBBU, 0xCCU});
     }

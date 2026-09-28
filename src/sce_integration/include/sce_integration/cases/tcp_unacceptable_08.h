@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -10,6 +11,7 @@
 #include "sce_integration/cases/_tcp_seam.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
 #include "sce_integration/dut_control.h"
+#include "sce_integration/tcp_observation.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -67,24 +69,25 @@ struct TestCaseTraits<cases::TcpUnacceptable08SM>
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         runPhaseSynSentRst(
-            ctx.dut, cfg, ctx.iface,
+            ctx.dut, ctx.observer, cfg, ctx.iface,
             /*local_port=*/static_cast<std::uint16_t>(kBasicsActiveLocalPort + kTcpUnacceptable08Phase1LocalOffset),
             /*remote_port=*/static_cast<std::uint16_t>(kBasicsActiveRemotePort + kTcpUnacceptable08Phase1LocalOffset),
             /*bad_inject_flags=*/static_cast<std::uint8_t>(
                 ::tc8::stimulus::kTcpFlagSyn | ::tc8::stimulus::kTcpFlagAck));
 
         // Phase 2 runs in a deferred scheduler callback that outlives this
-        // stimulus frame; capture the DUT control by pointer (CLI-owned, lives
-        // past the callback) per the deferred-lambda idiom.
-        ::tc8::sce::IDutControl* dut_ptr = &ctx.dut;
+        // stimulus frame; capture the DUT control and the scheduler by pointer
+        // (both live for the run, past the callback) per the deferred-lambda idiom.
+        ::tc8::sce::IDutControl*        dut_ptr   = &ctx.dut;
+        ::tc8::sce::IStimulusScheduler* sched_ptr = &ctx.scheduler;
         ::tc8::TestConfig cfg_copy = cfg;
         std::string       iface_str(ctx.iface);
         ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p2_dut_rst),
-            [dut_ptr, cfg_copy, iface_str]() {
+            [dut_ptr, sched_ptr, cfg_copy, iface_str]() {
                 using namespace ::tc8::sce::tcp;
-                runPhaseSynSentRst(
-                    *dut_ptr, cfg_copy, iface_str,
+                armPhaseSynSentRst(
+                    *dut_ptr, *sched_ptr, cfg_copy, iface_str,
                     /*local_port=*/static_cast<std::uint16_t>(kBasicsActiveLocalPort + kTcpUnacceptable08Phase2LocalOffset),
                     /*remote_port=*/static_cast<std::uint16_t>(kBasicsActiveRemotePort + kTcpUnacceptable08Phase2LocalOffset),
                     /*bad_inject_flags=*/::tc8::stimulus::kTcpFlagAck);
@@ -92,7 +95,68 @@ struct TestCaseTraits<cases::TcpUnacceptable08SM>
     }
 
 private:
+    // The unacceptable-ACK segment: ack = ISN_d + a large offset, acknowledging
+    // bytes the DUT never sent.
+    static void emitUnacceptableAck(const ::tc8::TestConfig& cfg,
+                                    std::string_view iface,
+                                    std::uint16_t local_port,
+                                    std::uint16_t remote_port,
+                                    std::uint32_t isn_d,
+                                    std::uint8_t  bad_inject_flags) {
+        using namespace ::tc8::sce::tcp;
+        ::tc8::stimulus::TcpSegmentSpec bad{};
+        bad.src_port = remote_port;
+        bad.dst_port = local_port;
+        bad.seq_num  = kTesterInitialSeq;
+        bad.ack_num  = isn_d + kUnacceptableAckOffset;
+        bad.flags    = bad_inject_flags;
+        emitTcpFrame(cfg, iface, cfg.dut.mac, bad,
+                     /*initial_wait=*/std::chrono::milliseconds(0));
+    }
+
+    // Phase 2, inside the listen window: registers a reaction to the DUT's SYN and
+    // then provokes it, rather than blocking the capture loop for it. The
+    // auto-RST suppression and the DUT connection are owned by the closures:
+    // after the inject they are held through the phase gap by a scheduled
+    // action, and an unmet reaction releases them when it is dropped — the two
+    // points at which the blocking form of this step let them go.
+    static void armPhaseSynSentRst(::tc8::sce::IDutControl& dut,
+                                   ::tc8::sce::IStimulusScheduler& scheduler,
+                                   const ::tc8::TestConfig& cfg,
+                                   std::string_view iface,
+                                   std::uint16_t local_port,
+                                   std::uint16_t remote_port,
+                                   std::uint8_t  bad_inject_flags) {
+        using namespace ::tc8::sce::tcp;
+
+        auto rst_drop = std::make_shared<TesterAutoRstDrop>(cfg);
+        auto conn     = std::make_shared<HeldDutConnection>(dut);
+        ::tc8::sce::IStimulusScheduler* sched_ptr = &scheduler;
+        scheduler.reactToObservation(
+            "dut_syn_phase2", dutSynFrom(cfg.dut.ip, local_port),
+            std::chrono::milliseconds(500),
+            [rst_drop, conn, sched_ptr, cfg, iface_str = std::string(iface), local_port,
+             remote_port, bad_inject_flags](const ::tc8::CapturedEvent& syn) {
+                emitUnacceptableAck(cfg, iface_str, local_port, remote_port,
+                                    segmentOf(syn).seq_num, bad_inject_flags);
+                // Close first, then lift the suppression — the order the blocking
+                // form's scope exit gave — once the phase gap has passed.
+                sched_ptr->schedule(kTcpPilotPhaseGap, [rst_drop, conn]() mutable {
+                    conn.reset();
+                    rst_drop.reset();
+                });
+            });
+
+        // Seam active OPEN, no tester listener: the SYN stays unanswered so the
+        // DUT remains in SYN-SENT, the state the unacceptable-ACK segment is
+        // injected into.
+        conn->hold(driveSeamSynSentOpen(dut, cfg, local_port, remote_port));
+    }
+
+    // Phase 1, in the stimulus before the listen window: waits for the DUT's SYN
+    // on the case's own capture.
     static void runPhaseSynSentRst(::tc8::sce::IDutControl& dut,
+                                   ::tc8::sce::IStimulusObserver& observer,
                                    const ::tc8::TestConfig& cfg,
                                    std::string_view iface,
                                    std::uint16_t local_port,
@@ -103,23 +167,19 @@ private:
         TesterAutoRstDrop rst_drop(cfg);
         (void)rst_drop;
 
-        auto snippet = TcpFrameSnippet::forDutSyn(cfg, iface, local_port);
+        const ::tc8::sce::ObservationCursor armed = observer.mark();
 
         // Seam active OPEN, no tester listener: the SYN stays unanswered so the
         // DUT remains in SYN-SENT, the state the unacceptable-ACK segment is
         // injected into.
         auto open = driveSeamSynSentOpen(dut, cfg, local_port, remote_port);
 
-        const auto syn = snippet.tryCapture(std::chrono::milliseconds(500));
+        const auto syn = observer.awaitObservation("dut_syn_phase1", armed,
+                                                   dutSynFrom(cfg.dut.ip, local_port),
+                                                   std::chrono::milliseconds(500));
         if (syn.has_value()) {
-            ::tc8::stimulus::TcpSegmentSpec bad{};
-            bad.src_port = remote_port;
-            bad.dst_port = local_port;
-            bad.seq_num  = kTesterInitialSeq;
-            bad.ack_num  = syn->seq_num + kUnacceptableAckOffset;
-            bad.flags    = bad_inject_flags;
-            emitTcpFrame(cfg, iface, cfg.dut.mac, bad,
-                         /*initial_wait=*/std::chrono::milliseconds(0));
+            emitUnacceptableAck(cfg, iface, local_port, remote_port,
+                                segmentOf(syn->view()).seq_num, bad_inject_flags);
             std::this_thread::sleep_for(kTcpPilotPhaseGap);
         }
 

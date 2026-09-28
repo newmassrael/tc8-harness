@@ -56,7 +56,7 @@ struct TestCaseTraits<cases::TcpMssOptions10NegSM>
         (void)rst_drop;
 
         emitEgressFlavorArm(cfg, ctx.iface, ::tc8::ut::kTcpFaultDataSegTruncate);
-        TestCaseTraits<cases::TcpMssOptions10SM>::runPhase(ctx.dut, cfg, ctx.iface);
+        TestCaseTraits<cases::TcpMssOptions10SM>::runPhase(ctx.dut, cfg, ctx.iface, ctx.observer);
     }
 };
 

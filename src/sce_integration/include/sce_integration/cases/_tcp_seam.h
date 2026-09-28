@@ -176,4 +176,26 @@ inline std::optional<::tc8::sce::DutConnection> driveSeamSynSentOpen(
     return seamConnectTcp(dut, cfg, local_port, remote_port, "SYN-SENT open");
 }
 
+// A seam-opened DUT connection closed when its last owner lets go — for a step
+// inside the listen window, which reacts to the DUT rather than blocking for it
+// (IStimulusScheduler::reactToObservation), so the connection must outlive the
+// call that opened it. Shared by the reaction and any action it schedules; the
+// close happens after whichever of them finishes last, and also when the reaction
+// is dropped unmet, which is where a blocking step used to close it on timeout.
+class HeldDutConnection {
+public:
+    explicit HeldDutConnection(::tc8::sce::IDutControl &dut) : dut_(&dut) {}
+    ~HeldDutConnection() {
+        if (conn_) dut_->tcpControl()->closeTcp(conn_->socket);
+    }
+    HeldDutConnection(const HeldDutConnection &)            = delete;
+    HeldDutConnection &operator=(const HeldDutConnection &) = delete;
+
+    void hold(std::optional<::tc8::sce::DutConnection> conn) { conn_ = std::move(conn); }
+
+private:
+    ::tc8::sce::IDutControl                 *dut_;
+    std::optional<::tc8::sce::DutConnection> conn_;
+};
+
 }  // namespace tc8::sce::tcp

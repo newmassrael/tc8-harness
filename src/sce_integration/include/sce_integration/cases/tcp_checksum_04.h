@@ -14,6 +14,7 @@
 #include "sce_integration/dut_control.h"
 #include "sce_integration/ipv4_expected.h"
 #include "sce_integration/tcp_captured.h"
+#include "sce_integration/tcp_observation.h"
 #include "sce_integration/tcp_pilot_common.h"
 #include "sce_integration/test_case_traits.h"
 #include "sce_integration/test_runner.h"
@@ -51,7 +52,8 @@ struct TestCaseTraits<cases::TcpChecksum04SM> {
     // SYN-SENT, while the opcode non-blocking worker can — kCapTcpSynSentOpen
     // makes the CLI capability gate honestly SKIP this case on a testability
     // backend (Tier 2 2b#4) instead of failing it. The ISNs are read from
-    // pcap snippets, so no state probe is required.
+    // the DUT SYNs the stimulus awaits on the case's own capture, so no
+    // state probe is required.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
         ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpSynSentOpen;
 
@@ -78,9 +80,9 @@ struct TestCaseTraits<cases::TcpChecksum04SM> {
     // `prior_isn` already populated, so `seq == prior_isn` triggers
     // `fail_isn_unchanged` on the cycle-1 SYN itself.
     //
-    // Mirroring RETRANSMISSION_TO_03's pattern instead: stimulus uses
-    // TWO TcpFrameSnippets (private libpcap handles, drained
-    // synchronously) to capture cycle-1 and cycle-2 SYNs directly,
+    // Mirroring RETRANSMISSION_TO_03's pattern instead: stimulus
+    // awaits the cycle-1 and cycle-2 SYNs synchronously on the case's
+    // own capture (two marks, two waits),
     // populates Captured fields, and `dispatch()` is a no-op so wire
     // frames never drive transitions. SCXML uses the evaluate-pattern
     // (an immediate `<send event="evaluate" delay="0ms"/>` from
@@ -110,15 +112,17 @@ struct TestCaseTraits<cases::TcpChecksum04SM> {
             kBasicsActiveRemotePort + kTcpChecksum04LocalOffset);
 
         // ------- Cycle 1 -------
-        // Open snippet BEFORE the active open so libpcap's kernel ring is
-        // armed by the time the DUT emits SYN1. The seam connect is
-        // synchronous (the SYN is on the wire by the time it returns), so
-        // no post-open RPC settle is needed before the capture.
-        auto snippet1 = TcpFrameSnippet::forDutSyn(cfg, ctx.iface, local_port);
+        // Mark the case's own capture BEFORE the active open, so a SYN1
+        // the DUT emits while the open is still in progress counts. The
+        // seam connect is synchronous (the SYN is on the wire by the time
+        // it returns), so no post-open RPC settle is needed before the wait.
+        const ::tc8::sce::ObservationCursor armed1 = ctx.observer.mark();
         auto open1 = driveSeamSynSentOpen(ctx.dut, cfg, local_port, remote_port);
 
-        if (auto syn1 = snippet1.tryCapture(kSnippetCaptureTimeout)) {
-            c.cycle1_isn          = syn1->seq_num;
+        if (auto syn1 = ctx.observer.awaitObservation(
+                "dut_syn_cycle1", armed1, dutSynFrom(cfg.dut.ip, local_port),
+                kSnippetCaptureTimeout)) {
+            c.cycle1_isn          = segmentOf(syn1->view()).seq_num;
             c.cycle1_isn_captured = true;
         }
 
@@ -130,11 +134,13 @@ struct TestCaseTraits<cases::TcpChecksum04SM> {
         std::this_thread::sleep_for(kCycleSettle);
 
         // ------- Cycle 2 -------
-        auto snippet2 = TcpFrameSnippet::forDutSyn(cfg, ctx.iface, local_port);
+        const ::tc8::sce::ObservationCursor armed2 = ctx.observer.mark();
         auto open2 = driveSeamSynSentOpen(ctx.dut, cfg, local_port, remote_port);
 
-        if (auto syn2 = snippet2.tryCapture(kSnippetCaptureTimeout)) {
-            c.cycle2_isn          = syn2->seq_num;
+        if (auto syn2 = ctx.observer.awaitObservation(
+                "dut_syn_cycle2", armed2, dutSynFrom(cfg.dut.ip, local_port),
+                kSnippetCaptureTimeout)) {
+            c.cycle2_isn          = segmentOf(syn2->view()).seq_num;
             c.cycle2_isn_captured = true;
         }
 
@@ -143,7 +149,7 @@ struct TestCaseTraits<cases::TcpChecksum04SM> {
     }
 
     static void dispatch(Captured& /*c*/, SM& /*sm*/, const ::tc8::CapturedEvent& /*ev*/) {
-        // Verdict is computed from snippet-captured ISNs populated
+        // Verdict is computed from the awaited ISNs populated
         // synchronously in `stimulus()` — wire frames are not consulted,
         // so frame ingress is intentionally a no-op. The SM advances
         // purely on the `<send event="evaluate" delay="0ms"/>` raise in

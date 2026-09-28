@@ -9,6 +9,7 @@
 #include "sce_integration/cases/_tcp_seam.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
 #include "sce_integration/dut_control.h"
+#include "sce_integration/tcp_observation.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -57,27 +58,27 @@ struct TestCaseTraits<cases::TcpSequence02SM>
         // listener would replace with a kernel-chosen ISN. The
         // TesterAutoRstDrop suppresses the kernel's auto-RST against
         // the unbound (tester_ip, remote_port) tuple so the DUT-
-        // emitted SYN is not race-killed before the snippet captures
-        // it. The tester kernel never sees DUT's pure-ACK landing on
+        // emitted SYN is not race-killed before the stimulus observes
+        // it on the case's own capture. The tester kernel never sees DUT's pure-ACK landing on
         // an unknown 4-tuple either; iptables still drops any auto-
         // RST it would emit.
         TesterAutoRstDrop rst_drop(cfg);
 
-        auto syn_snippet =
-            TcpFrameSnippet::forDutSyn(cfg, ctx.iface, local_port);
+        const ::tc8::sce::ObservationCursor armed = ctx.observer.mark();
 
         // Seam active OPEN, no tester listener: the SYN stays unanswered so the
         // DUT remains in SYN-SENT, the state the custom SYN+ACK is injected
         // into. Synchronous connect, so no post-open RPC settle is needed.
         auto open = driveSeamSynSentOpen(ctx.dut, cfg, local_port, remote_port);
 
-        const auto dut_syn = syn_snippet.tryCapture(
+        const auto dut_syn = ctx.observer.awaitObservation(
+            "dut_syn", armed, dutSynFrom(cfg.dut.ip, local_port),
             std::chrono::milliseconds(2000));
         if (!dut_syn) {
             if (open) ctx.dut.tcpControl()->closeTcp(open->socket);
             return;
         }
-        const std::uint32_t dut_isn = dut_syn->seq_num;
+        const std::uint32_t dut_isn = segmentOf(dut_syn->view()).seq_num;
 
         ::tc8::stimulus::TcpSegmentSpec syn_ack{};
         syn_ack.src_port = remote_port;

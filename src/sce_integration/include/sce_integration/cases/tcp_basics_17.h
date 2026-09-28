@@ -10,6 +10,7 @@
 #include "sce_integration/cases/_tcp_seam.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
 #include "sce_integration/dut_control.h"
+#include "sce_integration/tcp_observation.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -55,18 +56,19 @@ struct TestCaseTraits<cases::TcpBasics17SM>
         TesterAutoRstDrop rst_drop(cfg);
         (void)rst_drop;
 
-        // Snippet captures DUT's active-OPEN SYN to learn ISN_d before
-        // the simultaneous-SYN inject — needed because the third-leg
-        // ACK's seq/ack must reference the DUT's actual ISN, not a
-        // guess.
-        auto snippet = TcpFrameSnippet::forDutSyn(cfg, ctx.iface, local_port);
+        // The stimulus awaits DUT's active-OPEN SYN on the case's own
+        // capture to learn ISN_d before the simultaneous-SYN inject —
+        // needed because the third-leg ACK's seq/ack must reference the
+        // DUT's actual ISN, not a guess.
+        const ::tc8::sce::ObservationCursor armed = ctx.observer.mark();
 
         // Seam active OPEN, no tester listener: the DUT starts in SYN-SENT and
         // reaches ESTABLISHED only via the simultaneous-open SYN+ACK injected
         // below (a tester listener would complete a normal handshake instead).
         auto open = driveSeamSynSentOpen(ctx.dut, cfg, local_port, remote_port);
 
-        const auto dut_syn = snippet.tryCapture(
+        const auto dut_syn = ctx.observer.awaitObservation(
+            "dut_syn", armed, dutSynFrom(cfg.dut.ip, local_port),
             std::chrono::milliseconds(1000));
         if (dut_syn.has_value()) {
             // Inject tester SYN to trigger simultaneous-OPEN. DUT in
@@ -92,7 +94,7 @@ struct TestCaseTraits<cases::TcpBasics17SM>
             ack.src_port = remote_port;
             ack.dst_port = local_port;
             ack.seq_num  = kTesterInitialSeq + 1U;
-            ack.ack_num  = dut_syn->seq_num + 1U;
+            ack.ack_num  = segmentOf(dut_syn->view()).seq_num + 1U;
             ack.flags    = ::tc8::stimulus::kTcpFlagAck;
             emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, ack,
                          /*initial_wait=*/std::chrono::milliseconds(0));

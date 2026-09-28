@@ -142,7 +142,8 @@ struct SeamRawPassiveAccept {
 // confirmed) is the caller's failure / teardown gate.
 inline SeamRawPassiveAccept driveSeamRawPassiveAccept(
     ::tc8::sce::IDutControl &dut, const ::tc8::TestConfig &cfg,
-    std::string_view iface, std::uint16_t listen_port,
+    std::string_view iface, ::tc8::sce::IStimulusObserver &observer,
+    std::uint16_t listen_port,
     std::vector<std::uint8_t> syn_options, std::uint16_t tester_src_port,
     std::uint32_t tester_isn = kTesterInitialSeq,
     std::chrono::milliseconds capture_timeout = std::chrono::milliseconds(2000)) {
@@ -156,7 +157,7 @@ inline SeamRawPassiveAccept driveSeamRawPassiveAccept(
         ::tc8::sce::BindSpec{/*do_bind=*/true, listen_port, /*local_addr_be=*/0},
         [&] {
             dut_isn = rawPassiveThreeWayHandshake(
-                cfg, iface, listen_port, std::move(syn_options), tester_src_port,
+                cfg, iface, observer, listen_port, std::move(syn_options), tester_src_port,
                 tester_isn, capture_timeout);
         });
 

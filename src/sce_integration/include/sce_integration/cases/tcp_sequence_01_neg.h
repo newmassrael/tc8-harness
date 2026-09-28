@@ -46,7 +46,7 @@ struct TestCaseTraits<cases::TcpSequence01NegSM>
         emitEgressFlavorArm(cfg, ctx.iface, ::tc8::ut::kTcpFaultSynAckAckWrong);
 
         auto open = driveSeamRawPassiveAccept(
-            ctx.dut, cfg, ctx.iface,
+            ctx.dut, cfg, ctx.iface, ctx.observer,
             kTcpSequence01ListenPort,
             std::vector<std::uint8_t>{},
             kTcpSequence01TesterSrcPort,

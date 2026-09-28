@@ -225,12 +225,12 @@ struct TcpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     // §4.8.6.2 TCP_CHECKSUM_04 stimulus-populated fields. The case
     // drives two consecutive active-OPEN cycles on the same 4-tuple
     // (each aborted by tester-kernel auto-RST against an unbound
-    // destination port); stimulus uses two TcpFrameSnippets to capture
-    // each cycle's SYN seq directly, then verdicts in SCXML via the
+    // destination port); the stimulus awaits each cycle's SYN on the case's
+    // own capture to read its seq directly, then verdicts in SCXML via the
     // evaluate-pattern (mirrors RETRANSMISSION_TO_03's kernel-side
     // observation shape — `dispatch` is a no-op for the case so wire
     // frames buffered during stimulus do not race the SCXML's first
-    // tick). `_captured` sentinels distinguish "snippet timed out" from
+    // tick). `_captured` sentinels distinguish "wait timed out" from
     // "captured ISN happened to equal 0", which is a vanishingly rare
     // 1-in-2^32 outcome of Linux's RFC 6528 secure_tcp_seq generator.
     bool          cycle1_isn_captured = false;

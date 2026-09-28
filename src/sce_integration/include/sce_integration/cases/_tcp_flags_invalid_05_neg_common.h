@@ -10,6 +10,7 @@
 #include "sce_integration/cases/_fault_flavor_arm.h"
 #include "sce_integration/cases/_tcp_seam.h"
 #include "sce_integration/dut_control.h"
+#include "sce_integration/tcp_observation.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -28,6 +29,7 @@ namespace tc8::sce::cases::flags_invalid_05_neg {
 inline void driveSynSentRstDrop(::tc8::sce::IDutControl& dut,
                                 const ::tc8::TestConfig& cfg,
                                 std::string_view iface,
+                                ::tc8::sce::IStimulusObserver& observer,
                                 std::uint16_t port_offset,
                                 std::uint8_t  probe_flags) {
     using namespace ::tc8::sce::tcp;
@@ -39,14 +41,15 @@ inline void driveSynSentRstDrop(::tc8::sce::IDutControl& dut,
     const std::uint16_t local_port  = kBasicsActiveLocalPort  + port_offset;
     const std::uint16_t remote_port = kBasicsActiveRemotePort + port_offset;
 
-    auto snippet = TcpFrameSnippet::forDutSyn(cfg, iface, local_port);
+    const ::tc8::sce::ObservationCursor armed = observer.mark();
 
     // Active OPEN routed through the backend-agnostic seam, no tester listener — the SYN goes
     // unanswered so the DUT stays in SYN-SENT, the state this case injects the RST into. The
     // handle is discarded (closing a SYN-SENT socket would abort the state under test).
     (void)driveSeamSynSentOpen(dut, cfg, local_port, remote_port);
 
-    const auto syn = snippet.tryCapture(std::chrono::milliseconds(500));
+    const auto syn = observer.awaitObservation("dut_syn", armed, dutSynFrom(cfg.dut.ip, local_port),
+                                               std::chrono::milliseconds(500));
     if (!syn.has_value()) return;
 
     // Per-phase arm: the DUT SYN has been observed (the SCXML precondition); arm so the drop
@@ -60,7 +63,7 @@ inline void driveSynSentRstDrop(::tc8::sce::IDutControl& dut,
     probe.src_port = remote_port;
     probe.dst_port = local_port;
     probe.seq_num  = kTesterInitialSeq;
-    probe.ack_num  = syn->seq_num + 1U;
+    probe.ack_num  = segmentOf(syn->view()).seq_num + 1U;
     probe.flags    = probe_flags;
     emitTcpFrame(cfg, iface, cfg.dut.mac, probe, /*initial_wait=*/kFlavorArmSettle);
 }

@@ -101,7 +101,7 @@ struct TestCaseTraits<cases::TcpMssOptions01SM>
             0x02U, 0x04U, 0x05U, 0xB4U};  // MSS = 0x05B4 = 1460
 
         auto verify = driveSeamRawPassiveAccept(
-            ctx.dut, cfg, ctx.iface,
+            ctx.dut, cfg, ctx.iface, ctx.observer,
             kTcpMssOptionsListenPort01v,
             verify_options,
             kTcpMssOptionsTesterSrcPort01v);

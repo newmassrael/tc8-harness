@@ -11,6 +11,7 @@
 #include "sce_integration/cases/_tcp_seam_passive_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
 #include "sce_integration/dut_control.h"
+#include "sce_integration/tcp_observation.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -44,8 +45,8 @@ struct TestCaseTraits<cases::TcpFlagsInvalid07SM>
 
     // Per phase: independent passive-listener on (kBasicsListenPort+N) +
     // raw-inject SYN from (kBasicsTesterPort+N) to drive DUT into
-    // SYN-RCVD + TcpFrameSnippet capture of the DUT-emitted SYN+ACK to
-    // learn ISN_d + CASE-distinct OTW probe with ack_num = ISN_d + 1
+    // SYN-RCVD + a wait on the case's own capture for the DUT-emitted
+    // SYN+ACK to learn ISN_d + CASE-distinct OTW probe with ack_num = ISN_d + 1
     // (acceptable per RFC 793 §3.4 even though SEQ is unacceptable;
     // isolates the spec assertion to the OTW-SEQ challenge-ACK path)
     // + DUT challenge ACK observation + seam close of that phase's
@@ -96,8 +97,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid07SM>
             const auto listen = driveSeamListen(ctx.dut, listen_port);
             if (!listen) continue;
 
-            auto snippet = TcpFrameSnippet::forDutSynAck(
-                cfg, ctx.iface, tester_port);
+            const ::tc8::sce::ObservationCursor armed = ctx.observer.mark();
 
             ::tc8::stimulus::TcpSegmentSpec syn{};
             syn.src_port = tester_port;
@@ -107,10 +107,11 @@ struct TestCaseTraits<cases::TcpFlagsInvalid07SM>
             syn.flags    = ::tc8::stimulus::kTcpFlagSyn;
             emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, syn);
 
-            const auto synack = snippet.tryCapture(
+            const auto synack = ctx.observer.awaitObservation(
+                "dut_syn_ack", armed, dutSynAckTo(cfg.dut.ip, tester_port),
                 std::chrono::milliseconds(500));
             if (synack.has_value()) {
-                const std::uint32_t isn_d = synack->seq_num;
+                const std::uint32_t isn_d = segmentOf(synack->view()).seq_num;
 
                 ::tc8::stimulus::TcpSegmentSpec probe{};
                 probe.src_port = tester_port;

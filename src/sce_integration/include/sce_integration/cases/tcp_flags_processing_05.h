@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -10,6 +11,7 @@
 #include "sce_integration/cases/_tcp_seam_passive_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
 #include "sce_integration/dut_control.h"
+#include "sce_integration/tcp_observation.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -40,14 +42,14 @@ struct TestCaseTraits<cases::TcpFlagsProcessing05SM>
     //
     // Each phase:
     //   1. seam passive open (driveSeamListen, listen-only) on listen_port.
-    //   2. snippet on (tester_prelude_port → listen_port) for DUT
-    //      SYN+ACK observation.
+    //   2. the DUT's SYN+ACK to tester_prelude_port observed on the
+    //      case's own capture (awaited in phase 1, reacted to in phase 2).
     //   3. TesterAutoRstDrop alive throughout (otherwise tester
     //      kernel auto-RSTs the DUT SYN+ACK landing on the unbound
     //      tester source port and the SYN-RCVD socket dies before
     //      the spec inject lands).
     //   4. Tester SYN at seq = kTesterInitialSeq → DUT SYN+ACK
-    //      learned via snippet → ISN_d.
+    //      observed → ISN_d.
     //   5. Spec-prescribed inject:
     //        Phase 1: SYN with seq = ISN_t + 1 (in-window past
     //                 SYN consumption).
@@ -63,18 +65,20 @@ struct TestCaseTraits<cases::TcpFlagsProcessing05SM>
         using namespace ::tc8::sce::tcp;
         std::this_thread::sleep_for(kTcpUtBootWait);
 
-        runPhase1SynInWindow(cfg, ctx.iface, ctx.dut);
+        runPhase1SynInWindow(cfg, ctx.iface, ctx.dut, ctx.observer);
 
         std::string              iface_copy(ctx.iface);
         ::tc8::TestConfig        cfg_copy = cfg;
-        // ctx.dut outlives the poll loop (CLI-owned), so capturing &ctx.dut for
-        // the deferred phase 2 is lifetime-safe (FLAGS_PROCESSING_09 idiom).
-        ::tc8::sce::IDutControl* dut_ptr = &ctx.dut;
+        // ctx.dut and ctx.scheduler outlive the poll loop (CLI- and runner-owned),
+        // so capturing their addresses for the deferred phase 2 is lifetime-safe
+        // (FLAGS_PROCESSING_09 idiom).
+        ::tc8::sce::IDutControl*        dut_ptr   = &ctx.dut;
+        ::tc8::sce::IStimulusScheduler* sched_ptr = &ctx.scheduler;
 
         ctx.scheduler.scheduleAfterStateEntry(
             static_cast<int>(State::Listening_p2_prelude_synack),
-            [iface_copy, cfg_copy, dut_ptr]() {
-                runPhase2SynAckInWindow(cfg_copy, iface_copy, *dut_ptr);
+            [iface_copy, cfg_copy, dut_ptr, sched_ptr]() {
+                runPhase2SynAckInWindow(cfg_copy, iface_copy, *dut_ptr, *sched_ptr);
             });
     }
 
@@ -113,9 +117,12 @@ private:
             /*initial_wait=*/std::chrono::milliseconds(0));
     }
 
+    // Phase 1 runs in the stimulus, before the listen window: it waits for the
+    // DUT's SYN+ACK on the case's own capture.
     static void runPhase1SynInWindow(const ::tc8::TestConfig& cfg,
                                      std::string_view iface,
-                                     ::tc8::sce::IDutControl& dut) {
+                                     ::tc8::sce::IDutControl& dut,
+                                     ::tc8::sce::IStimulusObserver& observer) {
         using namespace ::tc8::sce::tcp;
         constexpr std::uint16_t kListenPort   = kBasicsListenPort + 10U;
         constexpr std::uint16_t kPreludeTester = kBasicsTesterPort + 72U;
@@ -126,13 +133,13 @@ private:
         TesterAutoRstDrop rst_drop(cfg);
         (void)rst_drop;
 
-        auto snippet = TcpFrameSnippet::forDutSynAck(
-            cfg, iface, kPreludeTester);
+        const ::tc8::sce::ObservationCursor armed = observer.mark();
 
         emitTesterSyn(cfg, iface, kPreludeTester, kListenPort,
                       kTesterInitialSeq);
 
-        const auto synack = snippet.tryCapture(
+        const auto synack = observer.awaitObservation(
+            "dut_syn_ack_phase1", armed, dutSynAckTo(cfg.dut.ip, kPreludeTester),
             std::chrono::milliseconds(500));
         if (!synack.has_value()) return;
 
@@ -151,9 +158,16 @@ private:
                       kTesterInitialSeq);
     }
 
+    // Phase 2 runs inside the listen window, from the scheduler, so it does not
+    // block the capture loop: it registers a reaction to the DUT's SYN+ACK, then
+    // provokes it, and the 100 ms gap before the verify SYN is a scheduled action
+    // rather than a sleep. The auto-RST suppression is owned by the closures, so
+    // it lasts from before the prelude SYN until the verify SYN is out, as it did
+    // when this step blocked.
     static void runPhase2SynAckInWindow(const ::tc8::TestConfig& cfg,
                                         std::string_view iface,
-                                        ::tc8::sce::IDutControl& dut) {
+                                        ::tc8::sce::IDutControl& dut,
+                                        ::tc8::sce::IStimulusScheduler& scheduler) {
         using namespace ::tc8::sce::tcp;
         constexpr std::uint16_t kListenPort   = kBasicsListenPort + 11U;
         constexpr std::uint16_t kPreludeTester = kBasicsTesterPort + 74U;
@@ -161,31 +175,30 @@ private:
 
         if (!driveSeamListen(dut, kListenPort)) return;
 
-        TesterAutoRstDrop rst_drop(cfg);
-        (void)rst_drop;
-
-        auto snippet = TcpFrameSnippet::forDutSynAck(
-            cfg, iface, kPreludeTester);
+        auto rst_drop = std::make_shared<TesterAutoRstDrop>(cfg);
+        ::tc8::sce::IStimulusScheduler* sched_ptr = &scheduler;
+        scheduler.reactToObservation(
+            "dut_syn_ack_phase2", dutSynAckTo(cfg.dut.ip, kPreludeTester),
+            std::chrono::milliseconds(500),
+            [rst_drop, sched_ptr, cfg, iface_str = std::string(iface)](
+                const ::tc8::CapturedEvent& synack) {
+                // CASE 2: SYN+ACK in window — seq = ISN_t + 1, ack = ISN_d
+                // + 1. Linux tcp_check_req may treat this as the third-leg
+                // and complete the handshake to ESTABLISHED, OR may handle
+                // as anomaly. Either way the LISTEN socket survives — the
+                // verify SYN from a different source port still elicits
+                // SYN+ACK.
+                emitTesterSynAck(cfg, iface_str, kPreludeTester, kListenPort,
+                                 kTesterInitialSeq + 1U,
+                                 segmentOf(synack).seq_num + 1U);
+                sched_ptr->schedule(
+                    std::chrono::milliseconds(100), [rst_drop, cfg, iface_str]() {
+                        emitTesterSyn(cfg, iface_str, kVerifyTester, kListenPort,
+                                      kTesterInitialSeq);
+                    });
+            });
 
         emitTesterSyn(cfg, iface, kPreludeTester, kListenPort,
-                      kTesterInitialSeq);
-
-        const auto synack = snippet.tryCapture(
-            std::chrono::milliseconds(500));
-        if (!synack.has_value()) return;
-
-        // CASE 2: SYN+ACK in window — seq = ISN_t + 1, ack = ISN_d
-        // + 1. Linux tcp_check_req may treat this as the third-leg
-        // and complete the handshake to ESTABLISHED, OR may handle
-        // as anomaly. Either way the LISTEN socket survives — the
-        // verify SYN from a different source port still elicits
-        // SYN+ACK.
-        emitTesterSynAck(cfg, iface, kPreludeTester, kListenPort,
-                         kTesterInitialSeq + 1U,
-                         synack->seq_num + 1U);
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-        emitTesterSyn(cfg, iface, kVerifyTester, kListenPort,
                       kTesterInitialSeq);
     }
 };

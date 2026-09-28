@@ -11,6 +11,7 @@
 #include "sce_integration/cases/_tcp_seam.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
 #include "sce_integration/dut_control.h"
+#include "sce_integration/tcp_observation.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -53,6 +54,7 @@ struct TestCaseTraits<cases::TcpMssOptions09SM>
     static void runPhase(::tc8::sce::IDutControl& dut,
                          const ::tc8::TestConfig &cfg,
                          std::string_view iface,
+                         ::tc8::sce::IStimulusObserver& observer,
                          const std::array<std::uint8_t, 6> &dut_mac,
                          std::uint16_t port_offset,
                          std::uint16_t advertised_mss) {
@@ -62,13 +64,15 @@ struct TestCaseTraits<cases::TcpMssOptions09SM>
         const std::uint16_t remote_port =
             static_cast<std::uint16_t>(kBasicsActiveRemotePort + port_offset);
 
-        auto snippet = TcpFrameSnippet::forDutSyn(cfg, iface, local_port);
+        const ::tc8::sce::ObservationCursor armed = observer.mark();
 
         // Seam active OPEN, no tester listener: the SYN stays unanswered so the
         // DUT remains in SYN-SENT until the crafted SYN+ACK injection below.
         auto open = driveSeamSynSentOpen(dut, cfg, local_port, remote_port);
 
-        const auto syn = snippet.tryCapture(std::chrono::milliseconds(1000));
+        const auto syn = observer.awaitObservation("dut_syn", armed,
+                                                   dutSynFrom(cfg.dut.ip, local_port),
+                                                   std::chrono::milliseconds(1000));
         if (syn.has_value()) {
             // RFC 793 §3.1 kind=2 length=4 MSS option, BE 16-bit value.
             const std::vector<std::uint8_t> mss_option{
@@ -80,7 +84,7 @@ struct TestCaseTraits<cases::TcpMssOptions09SM>
             synack.src_port = remote_port;
             synack.dst_port = local_port;
             synack.seq_num  = kTesterInitialSeq;
-            synack.ack_num  = syn->seq_num + 1U;
+            synack.ack_num  = segmentOf(syn->view()).seq_num + 1U;
             synack.flags    = ::tc8::stimulus::kTcpFlagSyn
                             | ::tc8::stimulus::kTcpFlagAck;
             synack.options  = mss_option;
@@ -118,13 +122,13 @@ struct TestCaseTraits<cases::TcpMssOptions09SM>
 
         // Phase 1: Mv=200 < DUT MSS=1460. Expected first DUT segment
         // size = 200.
-        runPhase(ctx.dut, cfg, ctx.iface, cfg.dut.mac,
+        runPhase(ctx.dut, cfg, ctx.iface, ctx.observer, cfg.dut.mac,
                  kTcpMssOptions09Phase1LocalOffset,
                  /*advertised_mss=*/200U);
 
         // Phase 2: Mv=2000 > DUT MSS. Expected first segment clamped
         // to DUT MSS = 1460.
-        runPhase(ctx.dut, cfg, ctx.iface, cfg.dut.mac,
+        runPhase(ctx.dut, cfg, ctx.iface, ctx.observer, cfg.dut.mac,
                  kTcpMssOptions09Phase2LocalOffset,
                  /*advertised_mss=*/2000U);
     }

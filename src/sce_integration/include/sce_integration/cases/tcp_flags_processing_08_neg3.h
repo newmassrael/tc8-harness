@@ -12,6 +12,7 @@
 #include "sce_integration/cases/_tcp_seam.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
 #include "sce_integration/dut_control.h"
+#include "sce_integration/tcp_observation.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -60,11 +61,13 @@ struct TestCaseTraits<cases::TcpFlagsProcessing08Neg3SM>
         const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsProcessing08LocalOffset;
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsProcessing08LocalOffset;
 
-        auto snippet = TcpFrameSnippet::forDutSyn(cfg, ctx.iface, local_port);
+        const ::tc8::sce::ObservationCursor armed = ctx.observer.mark();
 
         (void)driveSeamSynSentOpen(ctx.dut, cfg, local_port, remote_port);
 
-        const auto syn = snippet.tryCapture(std::chrono::milliseconds(500));
+        const auto syn = ctx.observer.awaitObservation(
+            "dut_syn", armed, dutSynFrom(cfg.dut.ip, local_port),
+            std::chrono::milliseconds(500));
         if (!syn.has_value()) return;
 
         emitIngressFlavorArmMidStream(cfg, ctx.iface, ::tc8::ut::kTcpSynthRstOnDisruptive);

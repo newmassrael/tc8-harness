@@ -40,7 +40,7 @@ struct TestCaseTraits<cases::TcpSequence03SM>
         // Tester SYN ISN = 0 (the zero-sequence case); the DUT
         // SYN+ACK ack_num is asserted == 1 by the SCXML during the handshake.
         auto open = driveSeamRawPassiveAccept(
-            ctx.dut, cfg, ctx.iface,
+            ctx.dut, cfg, ctx.iface, ctx.observer,
             kTcpSequence03ListenPort,
             std::vector<std::uint8_t>{},
             kTcpSequence03TesterSrcPort,

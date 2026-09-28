@@ -43,7 +43,7 @@ struct TestCaseTraits<cases::TcpAcknowledgement03SM>
         std::this_thread::sleep_for(kTcpUtBootWait);
 
         const auto open = driveSeamRawPassiveAccept(
-            ctx.dut, cfg, ctx.iface,
+            ctx.dut, cfg, ctx.iface, ctx.observer,
             kTcpAck03ListenPort,
             std::vector<std::uint8_t>{},
             kTcpAck03TesterSrcPort);

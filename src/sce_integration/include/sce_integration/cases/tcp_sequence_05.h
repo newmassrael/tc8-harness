@@ -56,7 +56,7 @@ struct TestCaseTraits<cases::TcpSequence05SM>
         TesterAutoRstDrop rst_drop(cfg);
 
         const auto open = driveSeamRawPassiveAccept(
-            ctx.dut, cfg, ctx.iface,
+            ctx.dut, cfg, ctx.iface, ctx.observer,
             kTcpSequence05ListenPort,
             std::vector<std::uint8_t>{},
             kTcpSequence05TesterSrcPort,
