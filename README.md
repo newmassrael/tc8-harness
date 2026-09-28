@@ -582,7 +582,10 @@ installed the patched vsomeip:
 
 The Rust **orchestrator** (`tc8-orchestrator`) is the sole driver — the bash
 `smoke-test.sh` was retired once the orchestrator reached full parity. Build it
-once, then run:
+once, then run. `cmake --build` does not rebuild it, so after pulling or bumping a
+pin, rebuild it too. A binary older than its sources refuses to start and prints
+the commit it was built from, the commit its sources are at now, and the
+`cargo build` command that rebuilds it.
 
 ```sh
 ( cd dut/env/orchestrator && cargo build )

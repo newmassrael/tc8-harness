@@ -37,6 +37,7 @@ mod junit;
 mod netns;
 mod proc;
 mod site;
+mod source_digest;
 mod topology;
 mod worker;
 
@@ -157,7 +158,68 @@ fn apply_alias_overrides(cfg: &mut Config, wire: &site::WireSite) {
     }
 }
 
+/// The source tree this binary was compiled from, and what `build.rs` recorded
+/// about it (the `source_digest` module says why the binary checks it).
+const SOURCE_DIR: &str = env!("CARGO_MANIFEST_DIR");
+const BUILT_DIGEST: &str = env!("TC8_ORCH_SOURCE_DIGEST");
+const BUILT_COMMIT: &str = env!("TC8_ORCH_BUILD_COMMIT");
+
+/// Refuses to run a binary that is older than the sources it was built from.
+///
+/// The tree checked is the one the binary was compiled in, so the rebuild
+/// command names the consumer's own path when the consumer built it. A binary
+/// copied away from its tree has nothing to compare against; that is said, and
+/// the check is skipped rather than guessed.
+fn refuse_a_stale_binary() -> Result<()> {
+    let dir = Path::new(SOURCE_DIR);
+    if !dir.join("Cargo.toml").is_file() {
+        eprintln!(
+            "note: the orchestrator's source tree {SOURCE_DIR} is not here, so whether \
+             this binary matches it is not checked"
+        );
+        return Ok(());
+    }
+    let now = source_digest::digest(dir)
+        .with_context(|| format!("digesting the orchestrator's sources in {SOURCE_DIR}"))?;
+    match stale_binary_refusal(&now, &source_head(dir)) {
+        Some(refusal) => bail!("{refusal}"),
+        None => Ok(()),
+    }
+}
+
+/// The commit the source tree is at now. The orchestrator runs under sudo, and
+/// git refuses a repository owned by another user unless told it is safe; this
+/// only reads HEAD.
+fn source_head(dir: &Path) -> String {
+    std::process::Command::new("git")
+        .args(["-c", "safe.directory=*", "-C"])
+        .arg(dir)
+        .args(["rev-parse", "--short=12", "HEAD"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_else(|| "unknown".to_string())
+}
+
+/// The refusal for a binary whose baked digest differs from `now`, naming both
+/// commits (a pin bump shows up as exactly that difference) and the command
+/// that rebuilds this binary in this tree with this profile.
+fn stale_binary_refusal(now: &str, head: &str) -> Option<String> {
+    if now == BUILT_DIGEST {
+        return None;
+    }
+    let profile = if cfg!(debug_assertions) { "" } else { " --release" };
+    Some(format!(
+        "this tc8-orchestrator binary is older than its sources, so it does not do what \
+         they say\n  sources:     {SOURCE_DIR}\n  built from:  {BUILT_COMMIT}\n  \
+         sources now: {head}\n  rebuild:     cargo build{profile} --manifest-path \
+         {SOURCE_DIR}/Cargo.toml"
+    ))
+}
+
 fn main() -> Result<()> {
+    refuse_a_stale_binary()?;
     let cli = Cli::parse();
     let mut cases: Vec<String> = if cli.cases.is_empty() {
         vec!["SOMEIPSRV_FORMAT_01".to_string()]
@@ -643,5 +705,28 @@ mod tests {
             ..Default::default()
         };
         summarize(TopologyKind::SinglePc, 261, 1, &[r]).expect("under the ceiling");
+    }
+
+    /// `cargo test` has just built this binary from this tree, so the digest
+    /// `build.rs` baked and the one computed now must agree. If the two sides
+    /// computed it differently, every binary would refuse itself.
+    #[test]
+    fn a_binary_built_from_this_tree_is_not_refused() {
+        let now = source_digest::digest(Path::new(SOURCE_DIR)).expect("digesting this crate");
+        assert_eq!(now, BUILT_DIGEST);
+        assert_eq!(stale_binary_refusal(&now, "any"), None);
+    }
+
+    /// A consumer bumped its pin without rebuilding: the refusal names both
+    /// commits and the command that rebuilds this binary where it was built.
+    #[test]
+    fn a_stale_binary_is_refused_with_both_commits_and_its_rebuild_command() {
+        let refusal = stale_binary_refusal("0000000000000000", "abc123def456").expect("refused");
+        assert!(refusal.contains(&format!("built from:  {BUILT_COMMIT}")), "{refusal}");
+        assert!(refusal.contains("sources now: abc123def456"), "{refusal}");
+        assert!(
+            refusal.contains(&format!("--manifest-path {SOURCE_DIR}/Cargo.toml")),
+            "{refusal}"
+        );
     }
 }
