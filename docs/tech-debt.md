@@ -4246,8 +4246,13 @@ first; that is the decision, recorded here rather than hidden.
 - The demo suite no longer carries a legacy stimulus, and `scripts/check-suite-producer.sh` no
   longer asserts a deprecation warning.
 - The consumer's 366 stimulus-declaring cases stop compiling with that message until they take the
-  context form. The migration is mechanical (the parameter becomes `ctx`, `iface` becomes
-  `ctx.iface`, `dut` becomes `ctx.dut`).
+  context form. The consumer migrated all 367 of its stimuli the same day at this pin, with no
+  build errors and per-case identical verdicts.
+- The migration shape first given here was wrong. It said to rename at use sites (`dut` becomes
+  `ctx.dut`), but a body that captures a parameter in a lambda then has a capture list like
+  `[&ctx.dut]`, which is ill-formed. The shape that compiles keeps the old names as local aliases
+  at the top of the body (`auto &dut = ctx.dut;`), with a line continuation when the body sits
+  inside a macro.
 
 ## TD-63 — the DUT-control vocabulary cannot say "I am now in state X"
 
