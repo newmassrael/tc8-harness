@@ -13,11 +13,11 @@ class IStimulusObserver;
 //
 //   static void stimulus(Captured&, const ::tc8::TestConfig&, StimulusContext&);
 //
-// The alternative — one more `stimulus` overload for each new capability — is
-// what this replaces. Six overloads were already told apart by arity and by the
-// type of their fourth parameter, and two of them exist only as unions of two
-// others; a seventh capability would have doubled the set. With one argument a
-// new capability is a new member, and a case asks for what it uses by using it.
+// It is the only stimulus signature. It replaced six overloads told apart by
+// arity and by the type of their fourth parameter, two of which were only unions
+// of two others (docs/tech-debt.md TD-62); a seventh capability would have
+// doubled the set. With one argument a new capability is a new member, and a
+// case asks for what it uses by using it.
 //
 // Every member is a borrowed reference that is valid for the duration of the
 // `stimulus()` call. The scheduler and the service owner may be handed work that

@@ -45,25 +45,7 @@ cmake -S "${repo_root}" -B "${build_dir}" \
     ${CMAKE_EXTRA_ARGS:-}
 
 echo "[suite-producer] building tc8-harness (-j${jobs})"
-# The build log is kept: the migration-window assertion below reads it. ccache
-# replays a cached compile's diagnostics, so a warm build still carries it.
-build_log="${build_dir}/suite-producer-build.log"
-if ! cmake --build "${build_dir}" --target tc8-harness -j"${jobs}" >"${build_log}" 2>&1; then
-    cat "${build_log}"
-    echo "[suite-producer] FAIL: the harness did not build with the injected suite" >&2
-    exit 1
-fi
-cat "${build_log}"
-
-# TD-62 migration window: the demo case declares its stimulus in a legacy
-# signature on purpose. It built (above), and the build must have SAID so — a
-# window that stops warning is one a consumer learns has closed only when its
-# build breaks.
-if ! grep -q "legacy signature" "${build_log}"; then
-    echo "[suite-producer] FAIL: the injected legacy stimulus signature built without" \
-         "its deprecation warning (TD-62)" >&2
-    exit 1
-fi
+cmake --build "${build_dir}" --target tc8-harness -j"${jobs}"
 
 echo "[suite-producer] asserting (suite, id) coexistence via --list-cases"
 listing="$("${build_dir}/tc8-harness" test --list-cases)"

@@ -453,6 +453,31 @@ TEST(DutReadyBarrier, SfinaeReadsOptionalMember) {
     static_assert(dutReadyBarrierOf<TraitsWithoutBpfExpr>() == DutReadyBarrier::kOptional);
 }
 
+// The runner refuses (static_assert) a `stimulus` member that is not the context
+// form, because such a member would otherwise compile and never be called. These
+// pin the two detectors that decision rests on.
+struct TraitsWithLegacyStimulus {
+    using Captured = int;
+    static void stimulus(Captured &, const ::tc8::TestConfig &, std::string_view) {}
+};
+struct TraitsWithContextStimulus {
+    using Captured = int;
+    static void stimulus(Captured &, const ::tc8::TestConfig &, StimulusContext &) {}
+};
+struct TraitsWithoutStimulus {
+    using Captured = int;
+};
+
+TEST(StimulusSignature, OnlyTheContextFormIsCallableAndAnyOtherIsSeen) {
+    static_assert(has_stimulus_member_v<TraitsWithLegacyStimulus>);
+    static_assert(!has_context_stimulus_v<TraitsWithLegacyStimulus>,
+                  "a legacy signature must not pass for the context form");
+    static_assert(has_stimulus_member_v<TraitsWithContextStimulus>);
+    static_assert(has_context_stimulus_v<TraitsWithContextStimulus>);
+    static_assert(!has_stimulus_member_v<TraitsWithoutStimulus>);
+    static_assert(!has_context_stimulus_v<TraitsWithoutStimulus>);
+}
+
 // The premise fails in exactly one cell: the case requires the barrier and the
 // run was not given one. A case that does not require it is never marked, with or
 // without the flag — the flag's absence is not by itself a defect.

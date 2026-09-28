@@ -12,25 +12,9 @@
 
 namespace tc8::sce {
 
-// Forward declaration — full definition in `test_runner.h`. Declared
-// here so `has_scheduled_stimulus` (below) can refer to the type
-// inside its SFINAE probe without pulling the runner include.
-class IStimulusScheduler;
-
-// Forward declaration — full definition in `test_runner.h`. Declared here so
-// `has_service_owning_stimulus` (below) can probe the service-owning overload
-// without pulling the runner include.
-class IBackgroundServiceOwner;
-
-// Forward declaration — full definition in `dut_control.h`. Declared here so
-// `has_dut_stimulus` (below) can probe the Tier-2 seam overload without pulling
-// the concrete backends (and their testability/upper-tester client includes)
-// into every case TU. The case TU that opts into the overload includes
-// `dut_control.h` itself.
-class IDutControl;
-
-// Forward declaration — full definition in `stimulus_context.h`, which a case that
-// takes the context includes itself.
+// Forward declaration — full definition in `stimulus_context.h`. Declared here so
+// `has_context_stimulus` (below) can probe the stimulus signature without pulling
+// the context's own includes into every translation unit that reads a trait.
 struct StimulusContext;
 
 // Per-case metadata plugged into TestRunner<StateMachine> and
@@ -87,38 +71,16 @@ struct StimulusContext;
 //   into CI (build-test.yml) and the pre-commit hook. (A legacy
 //   `verdictFor(State)` switch was the source before the SSOT migration.)
 //
-//   Optional stimulus hook, in its context form — the one to write for a new
-//   case. The context carries every capability a stimulus can act through
-//   (the capture interface, the DUT-control backend, the scheduler, the
-//   service owner, and the observer that awaits the DUT on the case's own
-//   capture); see stimulus_context.h:
+//   Optional stimulus hook. It has exactly one signature, and the context
+//   carries every capability a stimulus can act through (the capture
+//   interface, the DUT-control backend, the scheduler, the service owner, and
+//   the observer that awaits the DUT on the case's own capture); see
+//   stimulus_context.h:
 //     static void stimulus(Captured& captured,
 //                          const ::tc8::TestConfig& cfg,
 //                          ::tc8::sce::StimulusContext& ctx);
-//
-//   The forms below predate it and are each a subset of it.
-//
-//   Plain stimulus hook — receives the captured context by reference so
-//   it can seed fields alongside the packet emit, the TestConfig so it can
-//   forward CLI knobs like `--stimulus-wait`, and the egress interface name
-//   threaded down from `--interface`:
-//     static void stimulus(Captured& captured,
-//                          const ::tc8::TestConfig& cfg,
-//                          std::string_view iface);
-//
-//   Optional scheduled-stimulus hook (4-arg overload) — same as above
-//   plus an `IStimulusScheduler&` the trait uses to enqueue
-//   poll-loop-driven phase emits AFTER `kickStimulus` returns. Compound
-//   shapes with an absence window followed by a positive phase opt
-//   into this overload (e.g. §4.4.4.6 FRAGMENTS_02/03/04, §4.8.6.6
-//   FLAGS_INVALID_01); the legacy 3-arg signature continues to work
-//   for purely-synchronous stimulus. Cases that specialize BOTH
-//   overloads will have the 4-arg one preferred — there is no
-//   well-defined use for declaring both, so do not.
-//     static void stimulus(Captured& captured,
-//                          const ::tc8::TestConfig& cfg,
-//                          std::string_view iface,
-//                          ::tc8::sce::IStimulusScheduler& scheduler);
+//   Any other `stimulus` signature is a compile error (has_stimulus_member,
+//   below), never a stimulus that is silently not called.
 //
 // `dispatch` is the single hand-off point from the capture pipeline. It
 // inspects the variant, copies the relevant fields into `captured`, and
@@ -146,29 +108,13 @@ struct StimulusContext;
 // TC8 Test Procedure begins with a tester-initiated request (e.g.
 // FORMAT_12/13 start with a FindService so the DUT emits a solicited
 // OfferService). The TestRunner detects the presence of this member via
-// `has_stimulus` and calls it once after initialize() and after the
-// capture pipeline has been opened — cases without a stimulus hook
-// compile unchanged.
+// `has_context_stimulus` and calls it once, after the capture pipeline has
+// been opened and before the listen window opens — cases without a stimulus
+// hook compile unchanged.
 template <typename StateMachine> struct TestCaseTraits;
 
-// Detects whether TestCaseTraits<SM> specializes a `static void stimulus(Captured&, ...)`
-// hook. Kept here (not in TestRunner) so both the runner and unit tests
-// can probe the same surface uniformly.
-template <typename Traits, typename = void> struct has_stimulus : std::false_type {};
-
-template <typename Traits>
-struct has_stimulus<Traits, std::void_t<decltype(Traits::stimulus(std::declval<typename Traits::Captured &>(),
-                                                                  std::declval<const ::tc8::TestConfig &>(),
-                                                                  std::declval<std::string_view>()))>>
-    : std::true_type {};
-
-template <typename Traits> inline constexpr bool has_stimulus_v = has_stimulus<Traits>::value;
-
-// Detects the context form `static void stimulus(Captured&, const TestConfig&,
-// StimulusContext&)` — the single signature that carries every stimulus
-// capability (stimulus_context.h). Told apart from the plain three-argument form
-// by its third parameter: a StimulusContext& does not convert to string_view, so
-// neither probe matches the other's signature. A case declares exactly one.
+// Detects `static void stimulus(Captured&, const TestConfig&, StimulusContext&)`
+// — the one stimulus signature (stimulus_context.h).
 template <typename Traits, typename = void> struct has_context_stimulus : std::false_type {};
 
 template <typename Traits>
@@ -181,23 +127,23 @@ struct has_context_stimulus<
 template <typename Traits>
 inline constexpr bool has_context_stimulus_v = has_context_stimulus<Traits>::value;
 
-// Called by the runner on every path that dispatches a stimulus in one of the six
-// signatures the context form replaced (docs/tech-debt.md TD-62). Every in-tree
-// case has moved; this is what keeps it that way and tells an injected suite what
-// to move. An in-tree registration TU compiles under -Werror, so a legacy form
-// there fails the build. An injected suite's TUs demote exactly this diagnostic to
-// a warning (src/harness/CMakeLists.txt, the origin partition), which is the
-// migration window: the forms keep working there until the window closes and they
-// are deleted.
+// Detects a member named `stimulus` whatever its signature. The runner requires
+// that any such member be the context form (has_context_stimulus).
 //
-// A template on the case's traits, so the diagnostic fires at each case's
-// instantiation and names that case, rather than once at this definition.
+// The reason this exists: the runner calls `stimulus` only when the context
+// probe above matches, so a member in any other shape — one of the six
+// signatures the context form replaced (docs/tech-debt.md TD-62), or a typo in
+// its parameter list — would otherwise compile cleanly and never be called. The
+// case would run with no stimulus and report a verdict about a DUT it never
+// provoked. Taking the member's address works for exactly one declared
+// `stimulus`, which is the rule anyway.
+template <typename Traits, typename = void> struct has_stimulus_member : std::false_type {};
+
 template <typename Traits>
-[[deprecated("this case's stimulus uses a legacy signature; take "
-             "::tc8::sce::StimulusContext& instead (sce_integration/stimulus_context.h). "
-             "The legacy forms are removed when the migration window in "
-             "docs/tech-debt.md TD-62 closes.")]]
-constexpr void legacyStimulusSignature() {}
+struct has_stimulus_member<Traits, std::void_t<decltype(&Traits::stimulus)>> : std::true_type {};
+
+template <typename Traits>
+inline constexpr bool has_stimulus_member_v = has_stimulus_member<Traits>::value;
 
 // Detects whether TestCaseTraits<SM> provides a per-case
 // `static void applyExpectedDefaults(Expected&)` hook. The runner applies it
@@ -226,139 +172,6 @@ struct has_expected_defaults<
     : std::true_type {};
 
 template <typename Traits> inline constexpr bool has_expected_defaults_v = has_expected_defaults<Traits>::value;
-
-// Detects whether TestCaseTraits<SM> specializes the 4-arg
-// `static void stimulus(Captured&, const TestConfig&, string_view,
-// IStimulusScheduler&)` overload. TestRunner prefers the 4-arg form
-// when both are defined; cases should pick exactly one signature.
-template <typename Traits, typename = void>
-struct has_scheduled_stimulus : std::false_type {};
-
-template <typename Traits>
-struct has_scheduled_stimulus<
-    Traits,
-    std::void_t<decltype(Traits::stimulus(
-        std::declval<typename Traits::Captured &>(),
-        std::declval<const ::tc8::TestConfig &>(),
-        std::declval<std::string_view>(),
-        std::declval<IStimulusScheduler &>()))>>
-    : std::true_type {};
-
-template <typename Traits>
-inline constexpr bool has_scheduled_stimulus_v =
-    has_scheduled_stimulus<Traits>::value;
-
-// Detects the 4-arg service-owning overload `static void stimulus(Captured&,
-// const TestConfig&, string_view, IBackgroundServiceOwner&)`. A case picks this
-// when it arms a run-scoped `tc8::IPollableService` (e.g. an ArpResponder) and
-// must hand it to the runner to own across the capture window. Distinct from the
-// other 4-arg overloads purely by the 4th parameter type; a case declares exactly
-// one stimulus signature.
-template <typename Traits, typename = void>
-struct has_service_owning_stimulus : std::false_type {};
-
-template <typename Traits>
-struct has_service_owning_stimulus<
-    Traits,
-    std::void_t<decltype(Traits::stimulus(
-        std::declval<typename Traits::Captured &>(),
-        std::declval<const ::tc8::TestConfig &>(),
-        std::declval<std::string_view>(),
-        std::declval<IBackgroundServiceOwner &>()))>>
-    : std::true_type {};
-
-template <typename Traits>
-inline constexpr bool has_service_owning_stimulus_v =
-    has_service_owning_stimulus<Traits>::value;
-
-// Detects whether TestCaseTraits<SM> specializes the 4-arg Tier-2 seam
-// overload `static void stimulus(Captured&, const TestConfig&, string_view,
-// ::tc8::sce::IDutControl&)`. A case routed over the backend-agnostic seam
-// (opcode UT or AUTOSAR testability, selected by `--dut-control`) picks this
-// signature; `kickStimulus` forwards the resolved `IDutControl&`. Distinct
-// from `has_scheduled_stimulus` purely by the 4th parameter type — a case
-// declares exactly one stimulus signature. TestRunner prefers this form when
-// present (see the dispatch order in `kickStimulus`).
-template <typename Traits, typename = void>
-struct has_dut_stimulus : std::false_type {};
-
-template <typename Traits>
-struct has_dut_stimulus<
-    Traits,
-    std::void_t<decltype(Traits::stimulus(
-        std::declval<typename Traits::Captured &>(),
-        std::declval<const ::tc8::TestConfig &>(),
-        std::declval<std::string_view>(),
-        std::declval<IDutControl &>()))>>
-    : std::true_type {};
-
-template <typename Traits>
-inline constexpr bool has_dut_stimulus_v = has_dut_stimulus<Traits>::value;
-
-// Detects whether TestCaseTraits<SM> specializes the 5-arg Tier-2 seam +
-// scheduler overload `static void stimulus(Captured&, const TestConfig&,
-// string_view, ::tc8::sce::IDutControl&, IStimulusScheduler&)`. A case
-// needs this when it both drives the DUT through the backend-agnostic seam
-// AND must enqueue an action that outlives `kickStimulus` (e.g. holding a
-// tester-side iptables RAII alive past stimulus return via a deferred
-// `scheduler.schedule`). It is the union of `has_dut_stimulus` and
-// `has_scheduled_stimulus`, not a third independent axis; a 5-arg signature
-// matches neither 4-arg concept (arity differs), so `kickStimulus` checks
-// this form FIRST and forwards both the resolved `IDutControl&` and the
-// runner-as-scheduler. A case declares exactly one stimulus signature.
-template <typename Traits, typename = void>
-struct has_dut_scheduled_stimulus : std::false_type {};
-
-template <typename Traits>
-struct has_dut_scheduled_stimulus<
-    Traits,
-    std::void_t<decltype(Traits::stimulus(
-        std::declval<typename Traits::Captured &>(),
-        std::declval<const ::tc8::TestConfig &>(),
-        std::declval<std::string_view>(),
-        std::declval<IDutControl &>(),
-        std::declval<IStimulusScheduler &>()))>>
-    : std::true_type {};
-
-template <typename Traits>
-inline constexpr bool has_dut_scheduled_stimulus_v =
-    has_dut_scheduled_stimulus<Traits>::value;
-
-// Detects the 5-arg scheduler + service-owning overload `static void
-// stimulus(Captured&, const TestConfig&, string_view, IStimulusScheduler&,
-// IBackgroundServiceOwner&)`. A case needs this when it BOTH holds a run-scoped
-// tc8::IPollableService across the capture window (e.g. a reliable
-// SubscribeEventgroupTcpSession for a mixed-eventgroup Subscribe) AND enqueues a
-// deferred scheduler action (e.g. a post-subscribe reboot FindService that
-// makes the DUT expire the subscription). The union of has_scheduled_stimulus and
-// has_service_owning_stimulus, not a third axis; the 5-arg arity matches neither
-// 4-arg concept, so kickStimulus checks it early. A case declares exactly one
-// stimulus signature.
-template <typename Traits, typename = void>
-struct has_scheduled_service_owning_stimulus : std::false_type {};
-
-template <typename Traits>
-struct has_scheduled_service_owning_stimulus<
-    Traits,
-    std::void_t<decltype(Traits::stimulus(
-        std::declval<typename Traits::Captured &>(),
-        std::declval<const ::tc8::TestConfig &>(),
-        std::declval<std::string_view>(),
-        std::declval<IStimulusScheduler &>(),
-        std::declval<IBackgroundServiceOwner &>()))>>
-    : std::true_type {};
-
-template <typename Traits>
-inline constexpr bool has_scheduled_service_owning_stimulus_v =
-    has_scheduled_service_owning_stimulus<Traits>::value;
-
-// Whether the case declares its stimulus in any of the six signatures the context
-// form replaced (TD-62; see legacyStimulusSignature).
-template <typename Traits>
-inline constexpr bool has_legacy_stimulus_v =
-    has_stimulus_v<Traits> || has_scheduled_stimulus_v<Traits> ||
-    has_service_owning_stimulus_v<Traits> || has_dut_stimulus_v<Traits> ||
-    has_dut_scheduled_stimulus_v<Traits> || has_scheduled_service_owning_stimulus_v<Traits>;
 
 // Detects whether TestCaseTraits<SM> specializes the 4-arg
 // `static void dispatch(Captured&, StateMachine&, const CapturedEvent&,

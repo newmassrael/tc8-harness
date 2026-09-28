@@ -4187,7 +4187,8 @@ passing on a 1.5 s guess.
 
 ## TD-62 — 758 cases use stimulus signatures the context form replaces
 
-**Status:** OPEN. **Logged:** 2026-09-28.
+**Status:** RESOLVED (2026-09-28). **Logged:** 2026-09-28. The entry below is the debt as logged;
+**Resolution** at its end records what closed it.
 
 **What it is.** A case's stimulus can take one of seven signatures. The runner tells them apart by
 arity and by the type of the fourth parameter (`test_case_traits.h`). The context form
@@ -4230,7 +4231,23 @@ detectors.
   it builds and that its build warned. With no injected cases the registration layout is unchanged
   (25 TUs).
 
-Still open: deleting the six forms and their detectors when the consumer's window closes.
+**Resolution (2026-09-28).** The owner closed the window early and accepted that the consumer's
+build breaks until its cases migrate. The third condition is met without the consumer migrating
+first; that is the decision, recorded here rather than hidden.
+
+- The six legacy forms, their detectors, the dispatch branches in `TestRunner::kickStimulus`, the
+  `[[deprecated]]` marker and the origin partition of the registration TUs are deleted. The
+  registration layout is back to its `pos`/`neg` split.
+- A stimulus with any other signature is now a compile error rather than a stimulus the runner
+  silently never calls. `has_stimulus_member` sees any `stimulus` member, and a `static_assert` in
+  the runner refuses one that is not the context form. The message names the required signature
+  and this entry. Measured by reverting ARP_16 to the `iface` form: the build failed on that
+  assertion, naming `TestCaseTraits<…arp_16…>`. A unit test pins the detectors at compile time.
+- The demo suite no longer carries a legacy stimulus, and `scripts/check-suite-producer.sh` no
+  longer asserts a deprecation warning.
+- The consumer's 366 stimulus-declaring cases stop compiling with that message until they take the
+  context form. The migration is mechanical (the parameter becomes `ctx`, `iface` becomes
+  `ctx.iface`, `dut` becomes `ctx.dut`).
 
 ## TD-63 — the DUT-control vocabulary cannot say "I am now in state X"
 

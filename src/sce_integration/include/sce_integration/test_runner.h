@@ -51,10 +51,8 @@ namespace tc8::sce {
 //     runs on the same thread as `tick()` / `onCaptured` so there is
 //     no concurrent capture/emit interleaving.
 //
-// Cases opt in by adding a 4-arg `stimulus(Captured&, const TestConfig&,
-// std::string_view, IStimulusScheduler&)` overload. The 3-arg legacy
-// signature continues to work unchanged for the ~110 cases that emit
-// purely synchronously inside `kickStimulus`.
+// A case reaches it as `StimulusContext::scheduler` (stimulus_context.h); a
+// case that emits purely synchronously inside its stimulus never uses it.
 class IStimulusScheduler {
 public:
     virtual ~IStimulusScheduler() = default;
@@ -398,9 +396,15 @@ public:
             // The single context signature: every capability in one argument.
             StimulusContext ctx{iface, dut_control, *this, *this, observation_};
             Traits::stimulus(captured_, cfg_, ctx);
-        } else if constexpr (has_legacy_stimulus_v<Traits>) {
-            legacyStimulusSignature<Traits>();
-            dispatchLegacyStimulus(iface, dut_control);
+        } else {
+            // A `stimulus` in any other shape would compile and never be called,
+            // and the case would report on a DUT it never provoked. Refused here,
+            // at the one place that decides whether a stimulus runs.
+            static_assert(!has_stimulus_member_v<Traits>,
+                          "TestCaseTraits::stimulus must have the signature "
+                          "(Captured&, const ::tc8::TestConfig&, ::tc8::sce::StimulusContext&) "
+                          "— see sce_integration/stimulus_context.h. The earlier signatures "
+                          "were removed (docs/tech-debt.md TD-62).");
         }
     }
 
@@ -680,31 +684,6 @@ public:
     }
 
 private:
-    // The six signatures the context form replaced (TD-62), kept for an injected
-    // suite's migration window and deprecated at the call site above. Deleted, with
-    // their detectors, when the window closes.
-    void dispatchLegacyStimulus(std::string_view iface, IDutControl &dut_control) {
-        if constexpr (has_dut_scheduled_stimulus_v<Traits>) {
-            // Checked first — a 5-arg signature matches neither 4-arg concept below.
-            Traits::stimulus(captured_, cfg_, iface, dut_control,
-                             static_cast<IStimulusScheduler &>(*this));
-        } else if constexpr (has_scheduled_service_owning_stimulus_v<Traits>) {
-            Traits::stimulus(captured_, cfg_, iface,
-                             static_cast<IStimulusScheduler &>(*this),
-                             static_cast<IBackgroundServiceOwner &>(*this));
-        } else if constexpr (has_dut_stimulus_v<Traits>) {
-            Traits::stimulus(captured_, cfg_, iface, dut_control);
-        } else if constexpr (has_scheduled_stimulus_v<Traits>) {
-            Traits::stimulus(captured_, cfg_, iface,
-                             static_cast<IStimulusScheduler &>(*this));
-        } else if constexpr (has_service_owning_stimulus_v<Traits>) {
-            Traits::stimulus(captured_, cfg_, iface,
-                             static_cast<IBackgroundServiceOwner &>(*this));
-        } else {
-            Traits::stimulus(captured_, cfg_, iface);
-        }
-    }
-
     // One captured event into the state machine, and the transition it caused
     // into the trace. The live path and the replay of held frames share it, so a
     // held frame is graded exactly as a live one is.

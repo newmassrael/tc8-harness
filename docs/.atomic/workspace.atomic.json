@@ -1676,10 +1676,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/sce_integration/include/sce_integration/test_case_traits.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/include/sce_integration/udp_captured.h",
           "kind": "implements"
         },
@@ -5365,10 +5361,6 @@
         },
         {
           "file": "src/sce_integration/include/sce_integration/tcp_pilot_common.h",
-          "kind": "implements"
-        },
-        {
-          "file": "src/sce_integration/include/sce_integration/test_case_traits.h",
           "kind": "implements"
         },
         {

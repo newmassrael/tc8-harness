@@ -337,11 +337,6 @@ function(tc8_add_case case_dir origin suite)
     set_property(GLOBAL PROPERTY TC8_CASEHASH_${_skey}_${case_id} "${_case_md5}")
     set_property(GLOBAL APPEND PROPERTY TC8_CASE_SUITES "${_skey}")
     set_property(GLOBAL PROPERTY TC8_CASE_STUBDIR_${_skey} "${stub_dir}")
-    # Whether this tree owns the case's source; decides the diagnostics its
-    # registration TU is compiled under (tc8_emit_case_registration_tus).
-    if(NOT origin STREQUAL "in-tree")
-        set_property(GLOBAL PROPERTY TC8_CASEFOREIGN_${_skey}_${case_id} TRUE)
-    endif()
 endfunction()
 
 # How many cases one registration TU should carry.
@@ -404,31 +399,13 @@ function(tc8_emit_case_registration_tus)
         # flavour-naming case headers is a `_neg` and no positive names a flavour
         # outside a comment, so the filename is the honest discriminator and needs no
         # source scan at configure time.
-        #
-        # PARTITION BY ORIGIN as well, for a different reason: the diagnostics a TU is
-        # compiled under. A case this tree owns is held to -Werror in full, which is
-        # what makes a deprecated interface an error the moment an in-tree case uses
-        # it. A case a consumer injects (`extra`, or an `override` of an in-tree id)
-        # is built from source this tree does not control, so a deprecation must
-        # reach it as a WARNING — the migration window TD-62 promises — rather than
-        # as a broken build on the day the interface is deprecated. Flags are per TU,
-        # so the two must never share one. With no injected cases the foreign
-        # partitions are empty and the chunk layout is exactly what it was.
-        set(_own_pos)
-        set(_own_neg)
-        set(_foreign_pos)
-        set(_foreign_neg)
+        set(_pos)
+        set(_neg)
         foreach(_id IN LISTS _ids)
-            get_property(_foreign GLOBAL PROPERTY TC8_CASEFOREIGN_${_skey}_${_id})
-            if(_foreign)
-                set(_side foreign)
-            else()
-                set(_side own)
-            endif()
             if(_id MATCHES "_neg[0-9]*$")
-                list(APPEND _${_side}_neg ${_id})
+                list(APPEND _neg ${_id})
             else()
-                list(APPEND _${_side}_pos ${_id})
+                list(APPEND _pos ${_id})
             endif()
         endforeach()
         # Accumulated in global properties rather than a CMake list of bodies: a
@@ -440,8 +417,7 @@ function(tc8_emit_case_registration_tus)
         # chunk's index alone says which partition it belongs to; ceil(n / cases-per-
         # TU) chunks per partition, and none at all for an empty one.
         set(_base 0)
-        set(_foreign_indices)
-        foreach(_part own_pos own_neg foreign_pos foreign_neg)
+        foreach(_part pos neg)
             list(LENGTH _${_part} _n)
             if(_n EQUAL 0)
                 continue()
@@ -450,9 +426,6 @@ function(tc8_emit_case_registration_tus)
             math(EXPR _top "${_base} + ${_nb} - 1")
             foreach(_idx RANGE ${_base} ${_top})
                 set_property(GLOBAL PROPERTY TC8_BUCKETBODY_${_skey}_${_idx} "")
-                if(_part MATCHES "^foreign_")
-                    list(APPEND _foreign_indices ${_idx})
-                endif()
             endforeach()
             foreach(_id IN LISTS _${_part})
                 get_property(_h GLOBAL PROPERTY TC8_CASEHASH_${_skey}_${_id})
@@ -487,12 +460,6 @@ ${_body}")
             endif()
             if(NOT "${_existing}" STREQUAL "${_text}")
                 file(WRITE ${_path} "${_text}")
-            endif()
-            # An injected case's TU reports a deprecated interface as a warning (see
-            # the origin partition above); every other diagnostic stays an error.
-            if(_idx IN_LIST _foreign_indices)
-                set_source_files_properties(${_path} PROPERTIES
-                    COMPILE_OPTIONS "-Wno-error=deprecated-declarations")
             endif()
             list(APPEND _stubs ${_path})
         endforeach()

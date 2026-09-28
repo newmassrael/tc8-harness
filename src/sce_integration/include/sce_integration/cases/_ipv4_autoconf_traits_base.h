@@ -45,10 +45,9 @@
 //
 // Stimulus is intentionally NOT provided here — every §4.5 case has its
 // own per-case stimulus (StartLLAutoconf with case-specific timing
-// envelope, conflict-injection probes, ...) and `has_stimulus_v` /
-// `has_scheduled_stimulus_v` SFINAE in test_case_traits.h would pick up
-// an inherited base member, forcing kickStimulus() to fire on every case
-// unconditionally.
+// envelope, conflict-injection probes, ...) and `has_context_stimulus_v`
+// SFINAE in test_case_traits.h would pick up an inherited base member,
+// forcing kickStimulus() to fire on every case unconditionally.
 
 namespace tc8::sce {
 
