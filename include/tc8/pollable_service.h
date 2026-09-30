@@ -24,14 +24,18 @@ namespace tc8 {
 // happens has changed once already. A service that stamped "the window opened" on
 // its first onReadable() fired 1.5 s early once a stimulus began to await, and it
 // graded a reply to a question the case had not yet asked. Anchor a reaction on the
-// DUT's action itself: input on the service's own fd, or, for traffic that never
-// reaches that fd, a captured frame (adopt the service as an IFrameObservingService,
-// sce_integration/captured_frame_observer.h). A follow-up a fixed time after that
-// anchor can be checked in onReadable(), which the drains call at the capture
-// loop's cadence. There is deliberately no "window opened" callback. The window is
-// the harness's bookkeeping, not something the DUT does, so anchoring on it is the
-// same proxy one step removed. A step timed against the case itself belongs to
-// IStimulusScheduler.
+// event it reacts to, and take that event from whoever witnesses it:
+//   - The DUT did something: input on the service's own fd, or, for traffic that
+//     never reaches that fd, a captured frame (adopt the service as an
+//     IFrameObservingService, sce_integration/captured_frame_observer.h).
+//   - The stimulus did something (sent the Offer that puts a value in place): the
+//     case knows when, so the case says so. It arms the service at that step and
+//     the service counts from being armed, or it schedules the follow-up itself
+//     (IStimulusScheduler). The service is told, not left to guess.
+// A follow-up a fixed time after the anchor can be checked in onReadable(), which
+// the drains call at the capture loop's cadence. There is deliberately no "window
+// opened" callback. The window is the harness's bookkeeping, not something the DUT
+// or the case does, so anchoring on it is the same proxy one step removed.
 //
 // The DUT side reuses this same seam: an ETS extension adopts a pollable receiver
 // via IEtsIoHost (dut/dut_service/ets_io_host.h) and the DUT main loop's
