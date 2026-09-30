@@ -131,11 +131,15 @@ private:
         auto rst_drop = std::make_shared<TesterAutoRstDrop>(cfg);
         auto conn     = std::make_shared<HeldDutConnection>(dut);
         ::tc8::sce::IStimulusScheduler* sched_ptr = &scheduler;
+        // `mutable` so the scheduled action below can release its own copies.
+        // Copied from a non-mutable lambda's captures, GCC 11 types them const
+        // and `reset()` does not compile; GCC 13 accepts it, so only the hosted
+        // CI build saw it.
         scheduler.reactToObservation(
             "dut_syn_phase2", dutSynFrom(cfg.dut.ip, local_port),
             std::chrono::milliseconds(500),
             [rst_drop, conn, sched_ptr, cfg, iface_str = std::string(iface), local_port,
-             remote_port, bad_inject_flags](const ::tc8::CapturedEvent& syn) {
+             remote_port, bad_inject_flags](const ::tc8::CapturedEvent& syn) mutable {
                 emitUnacceptableAck(cfg, iface_str, local_port, remote_port,
                                     segmentOf(syn).seq_num, bad_inject_flags);
                 // Close first, then lift the suppression — the order the blocking
