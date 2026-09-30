@@ -6,9 +6,15 @@
 namespace tc8::sce {
 
 // A run-scoped observer of captured wire frames. The runner calls onCapturedFrame
-// for every CapturedEvent AFTER it has dispatched that event into the SCXML state
-// machine, so an adopted service can sequence its NEXT emit on an OBSERVED frame
-// rather than a wall-clock delay (the brittle "wait N ms then read back" shape).
+// for every CapturedEvent once, when the capture delivers it, so an adopted service
+// can sequence its NEXT emit on an OBSERVED frame rather than a wall-clock delay
+// (the brittle "wait N ms then read back" shape). Inside the listen window that is
+// after the event has been dispatched into the SCXML state machine. A frame drained
+// while the stimulus awaits an observation reaches the observer then, and the state
+// machine only when the window opens and the held frames are replayed; the observer
+// is not called again at the replay. So a reaction keys on the frame, never on
+// the state machine's state (tc8/pollable_service.h says why a service must not
+// infer the run's phase).
 // Runs on the single capture-loop thread (same as onCaptured / tick), so it must
 // not block. One physical pcap frame can fan out into several CapturedEvent
 // sub-events (e.g. a TCP packet yields both an Ipv4Frame and a TcpFrame), so a

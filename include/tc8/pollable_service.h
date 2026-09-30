@@ -5,12 +5,33 @@ namespace tc8 {
 // A run-scoped service the conformance capture loop polls inline on its single
 // thread. A case builds one during stimulus(), hands ownership to the runner via
 // IBackgroundServiceOwner::adoptService (see sce_integration/test_runner.h), and
-// the runner keeps it for the whole post-stimulus capture window, destroying it
-// (RAII) at run teardown. The CLI capture loop folds pollFd() into its drain set
-// and calls onReadable() each iteration — so the service runs on the SAME thread
-// as frame dispatch and tick(), with no worker thread and no capture/emit
-// concurrency (the single-thread model IStimulusScheduler::schedule and
-// testability::Reactor both follow).
+// the runner keeps it from then until run teardown, destroying it (RAII) there.
+// The service runs on the SAME thread as frame dispatch and tick(), with no worker
+// thread and no capture/emit concurrency (the single-thread model
+// IStimulusScheduler::schedule and testability::Reactor both follow).
+//
+// WHEN onReadable() IS CALLED. On every drain of the capture after the service is
+// adopted: while the stimulus that adopted it awaits an observation
+// (IStimulusObserver::awaitObservation), then on each iteration of the listen
+// window, then through the post-verdict drain when the run saves a pcap. A
+// stimulus that blocks any other way (a sleep) drains nothing, so input queues on
+// the fd until the next drain. The CLI capture loop also folds pollFd() into the
+// set it waits on, so input wakes it.
+//
+// A SERVICE DOES NOT KNOW THE RUN'S PHASE, AND MUST NOT INFER IT. Being polled says
+// only that the capture was drained. It says nothing about whether the listen window
+// is open or whether the case has done what the service reacts to, and when that
+// happens has changed once already. A service that stamped "the window opened" on
+// its first onReadable() fired 1.5 s early once a stimulus began to await, and it
+// graded a reply to a question the case had not yet asked. Anchor a reaction on the
+// DUT's action itself: input on the service's own fd, or, for traffic that never
+// reaches that fd, a captured frame (adopt the service as an IFrameObservingService,
+// sce_integration/captured_frame_observer.h). A follow-up a fixed time after that
+// anchor can be checked in onReadable(), which the drains call at the capture
+// loop's cadence. There is deliberately no "window opened" callback. The window is
+// the harness's bookkeeping, not something the DUT does, so anchoring on it is the
+// same proxy one step removed. A step timed against the case itself belongs to
+// IStimulusScheduler.
 //
 // The DUT side reuses this same seam: an ETS extension adopts a pollable receiver
 // via IEtsIoHost (dut/dut_service/ets_io_host.h) and the DUT main loop's
@@ -25,6 +46,8 @@ namespace tc8 {
 // IP so the DUT's unicast Response returns) must stay alive across the capture
 // window, which opens only after kickStimulus returns. A stimulus() local is
 // destroyed before that window; adoptService transfers it to the runner instead.
+// The same service answers while the stimulus awaits, so a stimulus can await a
+// DUT frame that only arrives once the service has answered.
 //
 // This header is the canonical description of the seam; arp_responder.h and
 // test_runner.h reference it rather than restate it.
