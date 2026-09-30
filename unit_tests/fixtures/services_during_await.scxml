@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Test-only machine for run_capture_test: it passes on the first ARP Reply it is
+  handed. The test's stimulus awaits that Reply before the listen window opens,
+  so the machine sees it only if the runner replays the held frames at start().
+  Not a conformance case and not registered as one.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="services_during_await"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="arp_observed" cond="cpp:captured.opcode == 2" target="pass"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_reply"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_reply">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_arp_reply_replayed","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+</scxml>

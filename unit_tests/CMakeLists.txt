@@ -465,6 +465,27 @@ target_sources(packet_pipeline_test PRIVATE ${PROJECT_SOURCE_DIR}/src/harness/pa
 target_include_directories(packet_pipeline_test PRIVATE ${LIBTINS_INCLUDE_DIR})
 target_link_libraries(packet_pipeline_test PRIVATE ${LIBTINS_LIBRARY})
 
+# What an adopted background service sees while a stimulus awaits an observation
+# (tc8/pollable_service.h), through the production path: the CLI capture pump, the
+# real packet pipeline and a TestRunner over a test-only machine, fed by the
+# committed decode fixture. The pump and the pipeline are tester TUs, not
+# tc8_harness_core, so they are compiled in as packet_pipeline_test does.
+tc8_add_unit_test(run_capture_test)
+sce_add_state_machine(
+    TARGET     run_capture_test
+    SCXML_FILE ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/services_during_await.scxml)
+target_sources(run_capture_test PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/cli/commands/run_capture.cpp
+    ${PROJECT_SOURCE_DIR}/src/cli/commands/signal_handler.cpp
+    ${PROJECT_SOURCE_DIR}/src/harness/packet_pipeline.cpp)
+target_include_directories(run_capture_test PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/cli/commands/include
+    ${LIBTINS_INCLUDE_DIR}
+    ${PCAP_INCLUDE_DIR})
+target_compile_definitions(run_capture_test PRIVATE
+    TC8_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+target_link_libraries(run_capture_test PRIVATE sce_base ${LIBTINS_LIBRARY} ${PCAP_LIBRARY})
+
 # IEtsExtension / IEtsEventSink seam: a fake sink drives the in-tree demo
 # extension hermetically (no vsomeip, no DUT), proving the offer/notify/onMethod
 # contract. Compiles the demo's TC8_ETS_EXTENSION_SRC slot file too, so the OEM

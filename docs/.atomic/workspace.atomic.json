@@ -3604,6 +3604,10 @@
         {
           "file": "src/cli/commands/test_command.cpp",
           "kind": "implements"
+        },
+        {
+          "file": "src/cli/commands/run_capture.cpp",
+          "kind": "implements"
         }
       ]
     },

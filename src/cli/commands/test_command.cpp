@@ -13,7 +13,6 @@
 #include <thread>
 #include <vector>
 
-#include <poll.h>
 
 #include <pcap/pcap.h>
 
@@ -29,6 +28,7 @@
 #include "tc8/dut_config.h"  // kSdMcastGroup — the SD group's compiled-in default
 #include "tc8/net/link_control.h"  // captureSnaplenFor
 #include "cli/expect_parser.h"
+#include "cli/run_capture.h"
 #include "cli/signal_handler.h"
 #include "dissect/packet_pipeline.h"
 #include "sce_integration/case_registry.h"
@@ -123,123 +123,6 @@ bool waitForDutReady(const std::string &go_file) {
     ::tc8::UnperformedStimulus::record(kDutReadyBarrierStimulus);
     return false;
 }
-
-// The run's capture as seen by everything that reads it: the one path by which a
-// frame leaves a capture source, is appended to the saved pcap under the next
-// index, and goes through the packet pipeline to the runner. Both the capture loop
-// and a stimulus awaiting an observation (ICapturePump) drain it, so a frame read
-// early for a stimulus is recorded exactly as the loop would have recorded it —
-// same pcap index, same pipeline state, same withholding of control traffic.
-class RunCapture final : public sce::ICapturePump {
-public:
-    RunCapture(capture::PcapSource &src, int dlt, capture::PcapSource *src2, int dlt2,
-               pcap_dumper_t *dumper, dissect::PacketPipeline &pipeline,
-               sce::ITestRunner &runner)
-        : src_(src), dlt_(dlt), src2_(src2), dlt2_(dlt2), dumper_(dumper),
-          pipeline_(pipeline), runner_(runner) {}
-
-    Drained drain() override {
-        if (SignalGuard::stopRequested()) {
-            return Drained{Status::kStopped, 0};
-        }
-        const int n = dispatchFrom(src_, dlt_);
-        if (n == -2) {
-            return Drained{Status::kEndOfCapture, 0};
-        }
-        if (n < 0) {
-            error_ = std::string("dispatch error: ") + src_.lastError();
-            return Drained{Status::kError, 0};
-        }
-        // §4.7.6.5 USAGE_01: drain the secondary source within the same pass so
-        // frames arriving on TIface-1 interleave with primary-iface frames in the
-        // order they hit the wire. The kernel ring is per-handle, so each call
-        // picks up only its iface's queue; round-robin per pass is the simplest
-        // serialiser, and the SCXML's time-ordered guards tolerate the ~20 ms
-        // quanta cleanly.
-        int n2 = 0;
-        if (src2_ != nullptr) {
-            n2 = dispatchFrom(*src2_, dlt2_);
-            if (n2 == -2) {
-                return Drained{Status::kEndOfCapture, static_cast<std::size_t>(n)};
-            }
-            if (n2 < 0) {
-                error_ = std::string("dispatch error (secondary): ") + src2_->lastError();
-                return Drained{Status::kError, static_cast<std::size_t>(n)};
-            }
-        }
-        // Answer any pending ARP (and future background-service input) inline on
-        // this thread — a tester-spoofed source IP the DUT is resolving gets its
-        // Reply within this pass. Asked each time: a stimulus may adopt a service
-        // part-way through.
-        for (::tc8::IPollableService *svc : runner_.pollableServices()) {
-            svc->onReadable();
-        }
-        return Drained{Status::kOk, static_cast<std::size_t>(n + n2)};
-    }
-
-    // Block up to `max` in poll() on the capture fd(s) plus every background
-    // service's fd, returning the instant one is readable, so a frame arriving
-    // mid-wait is dispatched within ~1 ms rather than after the full quantum. An
-    // empty set (offline source, no services) degrades to a plain sleep.
-    void waitForInput(std::chrono::milliseconds max) override {
-        std::vector<pollfd> pfds;
-        const auto add = [&pfds](int fd) {
-            if (fd >= 0) {
-                pollfd pfd{};
-                pfd.fd = fd;
-                pfd.events = POLLIN;
-                pfds.push_back(pfd);
-            }
-        };
-        add(src_.selectableFd());
-        if (src2_ != nullptr) {
-            add(src2_->selectableFd());
-        }
-        for (::tc8::IPollableService *svc : runner_.pollableServices()) {
-            add(svc->pollFd());
-        }
-        if (pfds.empty()) {
-            std::this_thread::sleep_for(max);
-            return;
-        }
-        // Readable, error or EINTR alike just return to the caller, which
-        // re-drains; the return value needs no inspection.
-        poll(pfds.data(), static_cast<nfds_t>(pfds.size()), static_cast<int>(max.count()));
-    }
-
-    const std::string &error() const {
-        return error_;
-    }
-
-private:
-    // Evidence Export (Option 3): every frame appended to the saved pcap gets a
-    // monotonic index, surfaced to the runner BEFORE pipeline.processFrame so the
-    // resulting transition (if any) can be correlated back. -1 when there is no
-    // dumper; a transition recorded at -1 surfaces as a verdict-decider-not-
-    // retained note via the site walker.
-    int dispatchFrom(capture::PcapSource &source, int dlt) {
-        return source.dispatch(
-            /*max_frames=*/-1, [this, dlt](const pcap_pkthdr &hdr, const u_char *data) {
-                int this_frame_idx = -1;
-                if (dumper_ != nullptr) {
-                    pcap_dump(reinterpret_cast<u_char *>(dumper_), &hdr, data);
-                    this_frame_idx = next_pcap_frame_idx_++;
-                }
-                runner_.setNextPcapFrameIdx(this_frame_idx);
-                pipeline_.processFrame(hdr, data, dlt);
-            });
-    }
-
-    capture::PcapSource     &src_;
-    int                      dlt_;
-    capture::PcapSource     *src2_;
-    int                      dlt2_;
-    pcap_dumper_t           *dumper_;
-    dissect::PacketPipeline &pipeline_;
-    sce::ITestRunner        &runner_;
-    int                      next_pcap_frame_idx_ = 0;
-    std::string              error_;
-};
 
 // Resolve a case's spec section from the loaded inventory — the SSOT
 // (docs/spec/case_inventory.json, mined from the TC8 spec PDF). The
