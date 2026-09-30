@@ -10,6 +10,7 @@
 
 #include <memory>
 #include <type_traits>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -17,6 +18,7 @@
 
 #include "sce_integration/adopted_services.h"
 #include "sce_integration/captured_frame_observer.h"
+#include "sce_integration/test_runner.h"
 #include "tc8/captured_event.h"
 #include "tc8/pollable_service.h"
 
@@ -100,6 +102,25 @@ public:
 private:
     bool& destroyed_;
 };
+
+// Whether `owner.adoptService(std::unique_ptr<Service>)` compiles for a case.
+template <typename Service, typename = void>
+struct AdoptServiceAccepts : std::false_type {};
+template <typename Service>
+struct AdoptServiceAccepts<
+    Service, std::void_t<decltype(std::declval<tc8::sce::IBackgroundServiceOwner&>().adoptService(
+                 std::declval<std::unique_ptr<Service>>()))>> : std::true_type {};
+
+// A frame-observing service handed to adoptService would be polled and never shown a
+// frame. That is refused at compile time; a plain pollable and a null adopt are not.
+static_assert(!AdoptServiceAccepts<FakeFrameObservingService>::value,
+              "adoptService must refuse a frame-observing service");
+static_assert(!AdoptServiceAccepts<IFrameObservingService>::value,
+              "adoptService must refuse a frame-observing service held by its interface");
+static_assert(AdoptServiceAccepts<FakePollableService>::value,
+              "adoptService must still accept a pollable that observes nothing");
+static_assert(AdoptServiceAccepts<::tc8::IPollableService>::value,
+              "adoptService must still accept a service held by its pollable interface");
 
 // adoptObserving registers BOTH roles from one owned object: the service appears in
 // the pollable() view AND receives fanned-out frames — the dual-registration the

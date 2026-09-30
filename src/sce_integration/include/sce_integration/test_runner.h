@@ -129,13 +129,24 @@ public:
     // surface a failed arm (e.g. as an inconclusive verdict).
     virtual void adoptService(std::unique_ptr<::tc8::IPollableService> service) = 0;
 
+    // Refused: an IFrameObservingService handed to adoptService. It would compile,
+    // because it IS-A pollable, and the runner would poll it but never show it a
+    // frame, so a responder that anchors on a captured frame waits for one that
+    // never comes. A consumer lost every frame that way on three of its four arm
+    // paths and read it as a delivery gap in the runner. Adopt it with
+    // adoptObservingService below; a pollable that observes nothing is unaffected.
+    template <typename Service,
+              std::enable_if_t<std::is_base_of_v<IFrameObservingService, Service>, int> = 0>
+    void adoptService(std::unique_ptr<Service> service) = delete;
+
     // Like adoptService, but the service ALSO observes captured frames: the runner
     // owns and polls it exactly as adoptService does AND calls its onCapturedFrame
-    // for every CapturedEvent (post-dispatch). The one owned object plays both roles
-    // — its own fd is drained by the capture loop, and it reacts to observed wire
-    // frames — so a reaction responder can emit on an observed reply instead of a
-    // wall-clock settle. The combined IFrameObservingService type registers both
-    // roles with no run-time type query.
+    // for every CapturedEvent, once, when the capture delivers it
+    // (captured_frame_observer.h says when that is). The one owned object plays
+    // both roles — its own fd is drained by the capture loop, and it reacts to
+    // observed wire frames — so a reaction responder can emit on an observed reply
+    // instead of a wall-clock settle. The combined IFrameObservingService type
+    // registers both roles with no run-time type query.
     virtual void adoptObservingService(
         std::unique_ptr<IFrameObservingService> service) = 0;
 };
