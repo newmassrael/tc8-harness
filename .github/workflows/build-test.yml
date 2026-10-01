@@ -48,6 +48,23 @@ jobs:
           cargo build
           cargo test
 
+  sce-pin:
+    name: SCE pin is reachable from upstream
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Pinned SCE revision is an ancestor of upstream's default branch
+        # WHY THIS IS NOT LEFT TO THE JOBS THAT USE THE PIN: `build` and
+        # `container` both do `git clone` + `git checkout $(cat VERSION)`, and
+        # both sit behind a cache (actions/cache keyed on the hash of VERSION;
+        # the docker layer cache). A pin that upstream's history no longer holds
+        # stays green until a cache misses, then fails inside a 10-minute image
+        # build as "pathspec did not match". Judging it here, every run, fails
+        # in seconds and names the cause. Network-only, so it is a CI job and
+        # not a .githooks/ check (see the script header).
+        run: scripts/check-sce-pin-reachable.sh
+
   build:
     name: build + ctest + spec-coverage gate
     runs-on: ubuntu-22.04
