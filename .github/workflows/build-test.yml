@@ -19,13 +19,16 @@ on:
       - '.github/workflows/pcap-refresh.yml'
       - 'docs/spec/deprecated_cases.json'
 
-# A newer push/PR-update to the same ref cancels an older in-flight run of THIS
-# workflow — the verdict only cares about HEAD, and a superseded run would
-# otherwise pin a runner (the self-hosted smoke host for ~1 h). Per-workflow
-# group (github.workflow) so build-test never cancels smoke-test or mnemosyne.
+# A newer push/PR-update to the same ref does NOT cancel a run of THIS workflow
+# that is already in flight. GitHub keeps one running and at most one pending
+# run per group, and a newer pending run replaces the older pending one, so when
+# the run in flight ends only the latest commit pushed meanwhile is built — not
+# every commit in between. The cost is that a superseded run in flight still
+# holds its runner until it ends. Per-workflow group (github.workflow) so
+# build-test never queues behind smoke-test or mnemosyne.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read

@@ -24,9 +24,12 @@ on:
       - 'tools/workflow_runner_audit.py'
   workflow_dispatch: {}
 
+# A newer push/PR-update to the same ref does not cancel a run in flight; one
+# pending run is kept per group and replaced by each newer one, so when the run
+# in flight ends only the latest commit pushed meanwhile is audited.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read

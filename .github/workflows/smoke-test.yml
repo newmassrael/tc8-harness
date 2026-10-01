@@ -24,23 +24,27 @@ on:
   schedule:
     - cron: '0 19 * * *'
 
-# A newer push to the same ref cancels an older in-flight run of THIS workflow —
-# the conformance verdict only cares about HEAD, and on the single self-hosted
-# netns runner a superseded run would otherwise pin the host for ~1 h (exactly
-# the 117b4c70-vs-688a843d pile-up that motivated this). Per-workflow group
-# (github.workflow) so smoke-test never cancels build-test or mnemosyne.
-# workflow_dispatch runs share the group too (a manual re-run supersedes).
+# A newer push to the same ref does NOT cancel a run of THIS workflow that is
+# already in flight. GitHub keeps one running and at most one pending run per
+# group, and a newer pending run replaces the older pending one, so when the run
+# in flight ends only the latest commit pushed meanwhile is judged — not every
+# commit in between. The pile-up that motivated cancelling (117b4c70 vs
+# 688a843d, each pinning the single self-hosted netns runner for ~1 h) is
+# bounded by that one pending slot instead of by killing work; the cost is that
+# a superseded run in flight still holds the host until it ends. Per-workflow
+# group (github.workflow) so smoke-test never queues behind build-test or
+# mnemosyne. workflow_dispatch runs share the group too (a manual run takes the
+# pending slot and replaces a pending push run).
 #
 # The NIGHTLY run is deliberately in a group of its own. It carries the steps no
-# push re-proves, so letting a push cancel it would mean those steps run only on
-# the nights nobody pushed -- which on this repository is few nights. Push and
-# dispatch keep sharing one group, so the supersede behaviour above is unchanged
-# for both. The single self-hosted runner serialises the two groups anyway: a
-# nightly already running makes a push QUEUE, which is the right order (a queued
-# verdict is late, a cancelled one never arrives).
+# push re-proves, so putting it in the push group would let a later push take its
+# pending slot and the steps would run only on the nights nobody pushed -- which
+# on this repository is few nights. The single self-hosted runner serialises the
+# two groups anyway: a nightly already running makes a push QUEUE, which is the
+# right order (a queued verdict is late, a cancelled one never arrives).
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'schedule' && 'nightly' || 'interactive' }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read

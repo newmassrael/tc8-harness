@@ -24,13 +24,16 @@ on:
       - '.github/workflows/site.yml'
       - '.github/workflows/pcap-refresh.yml'
 
-# A newer push/PR-update to the same ref cancels an older in-flight run of THIS
-# workflow — the verdict only cares about HEAD, and a superseded run would
-# otherwise pin a runner (the self-hosted smoke host for ~1 h). Per-workflow
-# group (github.workflow) so mnemosyne never cancels build-test or smoke-test.
+# A newer push/PR-update to the same ref does NOT cancel a run of THIS workflow
+# that is already in flight. GitHub keeps one running and at most one pending
+# run per group, and a newer pending run replaces the older pending one, so when
+# the run in flight ends only the latest commit pushed meanwhile is checked —
+# not every commit in between. The cost is that a superseded run in flight
+# still holds its runner until it ends. Per-workflow group (github.workflow) so
+# mnemosyne never queues behind build-test or smoke-test.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read
