@@ -18,6 +18,7 @@
 
 #include "adopted_services.h"
 #include "stimulus_context.h"
+#include "state_stream.h"
 #include "stimulus_observation.h"
 #include "captured_frame_observer.h"
 #include "captured_frame_timing.h"
@@ -309,6 +310,21 @@ public:
     // decide anything, which must not read as "a frame decided it".
     virtual bool finalTransitionWasFrameDriven() const = 0;
 
+    // Live progress stream (state_stream.h). Borrowed: the CLI owns the stream and
+    // keeps it alive past the last call into the runner. Not pure: a runner with
+    // nothing to stream (every test double) needs no override, and a run that never
+    // sets one behaves exactly as it did before the stream existed.
+    //
+    // Set before `start()` so the `start` line carries the initial state and no
+    // transition precedes it. The stream observes the trace and never feeds it:
+    // nothing it does can change a transition, a verdict or an exit code.
+    virtual void setStateStream(StateStream * /*stream*/) {}
+
+    // Closes the stream's record of the run with the state the machine ended in.
+    // Called once by the CLI when the run loop exits, whatever the reason; a run
+    // that never reaches it (the process died) leaves a file with no `end` line.
+    virtual void endStateStream() {}
+
     // Serialize the recorded transition trace as a JSON object compatible
     // with site/scripts/generate_messages.py's ``captured_trace`` schema.
     // Always returns valid JSON — at minimum
@@ -448,6 +464,11 @@ public:
         // somewhere else — initialize() lands directly).
         last_state_id_ = static_cast<int>(sm_.getCurrentState());
         started_ = true;
+        // Before the held frames are replayed below: a replayed frame can fire a
+        // transition, and that line must follow the `start` it departs from.
+        if (state_stream_ != nullptr) {
+            state_stream_->start(StateMachine::PolicyType::getStateName(sm_.getCurrentState()));
+        }
 
         // Deliver what the stimulus drained while it waited, in capture order and
         // under each item's own saved-pcap index — the sequence the first loop
@@ -538,6 +559,16 @@ public:
 
     void setCaptureStats(std::vector<::tc8::CaptureStats> stats) override {
         capture_stats_ = std::move(stats);
+    }
+
+    void setStateStream(StateStream *stream) override {
+        state_stream_ = stream;
+    }
+
+    void endStateStream() override {
+        if (state_stream_ != nullptr) {
+            state_stream_->end(StateMachine::PolicyType::getStateName(sm_.getCurrentState()));
+        }
     }
 
     bool finalTransitionWasFrameDriven() const override {
@@ -884,6 +915,14 @@ private:
         step.pcap_frame_idx = pcap_frame_idx;
         appendCapturedJson(step.captured_json, captured_);  // ADL
         trace_.push_back(std::move(step));
+        // The one place a state change is recorded, so the one place it is streamed:
+        // the stream and `trace.json` cannot disagree about what happened.
+        if (state_stream_ != nullptr) {
+            const auto &recorded = trace_.back();
+            state_stream_->transition(recorded.step_idx, recorded.event_name,
+                                      recorded.from_state_name, recorded.to_state_name,
+                                      recorded.pcap_frame_idx);
+        }
     }
 
     ::tc8::TestConfig                  cfg_;
@@ -906,6 +945,8 @@ private:
     // sidecar JSON to render the timeline (single source of truth for
     // verdict-deciding evidence).
     std::vector<::tc8::sce::TransitionStep> trace_;
+    // Live progress sink (setStateStream); null = no stream. Borrowed, not owned.
+    StateStream                            *state_stream_ = nullptr;
     // Buffer for the CLI dispatch loop's "the NEXT incoming captured
     // event corresponds to frame index N in the saved pcap" hint. The
     // CLI owns the slot — it calls ``setNextPcapFrameIdx`` before every

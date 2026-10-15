@@ -94,6 +94,9 @@ target_link_libraries(reactor_single_thread_test PRIVATE GTest::gtest GTest::gte
 add_test(NAME reactor_single_thread_test COMMAND reactor_single_thread_test)
 
 tc8_add_unit_test(captured_frame_observer_test)
+# The live state stream's file contract (`test --state-stream`); the runner wiring
+# that feeds it is pinned in run_capture_test below.
+tc8_add_unit_test(state_stream_test)
 tc8_add_unit_test(bpf_filter_test)
 # bpf_filter_test pcap_compiles every group filter to prove the VLAN-aware
 # wrap is valid libpcap syntax, so it links libpcap.

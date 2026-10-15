@@ -154,6 +154,12 @@ private:
     // debugging of flaky cases. Empty = off. Must be a writable path.
     std::string pcap_dump_path_;
 
+    // Optional live state-transition stream (sce_integration/state_stream.h).
+    // Empty = off, and a run without it is unchanged. Progress only: it never
+    // reaches the verdict, and a path that cannot be opened is warned about and
+    // skipped rather than failing the case.
+    std::string state_stream_path_;
+
     // Optional "capture is live" barrier signal. When set, the file at this
     // path is created once the live capture is armed (kernel ring bound, BPF
     // applied, multicast groups held) and before any DUT-driving stimulus. A

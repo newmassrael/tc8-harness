@@ -11,11 +11,16 @@
 
 #include <chrono>
 #include <cstddef>
+#include <filesystem>
+#include <fstream>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <variant>
+#include <vector>
 
 #include <gtest/gtest.h>
+#include <unistd.h>
 
 #include "capture/pcap_source.h"
 #include "cli/run_capture.h"
@@ -23,6 +28,7 @@
 #include "sce_integration/captured_frame_observer.h"
 #include "sce_integration/cases/_arp_traits_base.h"
 #include "sce_integration/dut_control.h"
+#include "sce_integration/state_stream.h"
 #include "sce_integration/stimulus_context.h"
 #include "sce_integration/stimulus_observation.h"
 #include "sce_integration/test_runner.h"
@@ -140,6 +146,100 @@ TEST(RunCaptureDuringAwait, AServiceIsDrainedAndSeesFramesBeforeTheWindowOpens) 
     // and must not be told again, or a reaction would fire twice.
     EXPECT_EQ(g_probe.service->arpFrames(), 2u);
     EXPECT_FALSE(::tc8::UnperformedStimulus::any()) << ::tc8::UnperformedStimulus::reason();
+}
+
+// followPcap(): the saved pcap reaches the disk while the run is going, not at close.
+// The fixture is far below the stdio buffer, so without a flush nothing of its frames
+// would be readable until the dumper is closed.
+TEST(RunCaptureDuringAwait, FollowPcapPutsDumpedFramesOnDiskBeforeClose) {
+    ::tc8::UnperformedStimulus::reset();
+    g_probe = Probe{};
+
+    const auto dump_path = std::filesystem::temp_directory_path() /
+                           ("run_capture_follow_" + std::to_string(::getpid()) + ".pcap");
+    pcap_t *dead = pcap_open_dead(DLT_EN10MB, 65535);
+    ASSERT_NE(dead, nullptr);
+    pcap_dumper_t *dumper = pcap_dump_open(dead, dump_path.c_str());
+    ASSERT_NE(dumper, nullptr);
+
+    auto src = ::tc8::capture::PcapSource::openOffline(TC8_FIXTURE_DIR "/decode_pcap_sample.pcap");
+    ASSERT_NE(src, nullptr);
+    ::tc8::sce::TestRunner<ServicesDuringAwaitSM> runner;
+    ::tc8::dissect::PacketPipeline pipeline(
+        [&runner](const ::tc8::CapturedEvent &ev) { runner.onCaptured(ev); });
+    ::tc8::cli::RunCapture capture(*src, src->datalink(), nullptr, 0, dumper, pipeline, runner);
+    capture.followPcap(std::chrono::milliseconds(1));
+
+    const auto drained = capture.drain();
+    ASSERT_GT(drained.frames, 0u);
+
+    std::error_code ec;
+    const auto before_close = std::filesystem::file_size(dump_path, ec);
+    pcap_dump_close(dumper);
+    pcap_close(dead);
+    const auto after_close = std::filesystem::file_size(dump_path, ec);
+    std::filesystem::remove(dump_path, ec);
+
+    // 24 bytes is the file header alone.
+    EXPECT_GT(before_close, 24u) << "no frame reached the disk before the dumper was closed";
+    EXPECT_EQ(before_close, after_close) << "the close still had frames left to write";
+}
+
+// The live state stream (`test --state-stream`) through the same production path: a
+// transition fired by a frame replayed at start() is streamed, after the `start`
+// line it departs from, and the run's verdict is what it is without a stream.
+TEST(RunCaptureDuringAwait, TheStateStreamFollowsTheTraceAndLeavesTheVerdictAlone) {
+    ::tc8::UnperformedStimulus::reset();
+    g_probe = Probe{};
+
+    const auto stream_path = std::filesystem::temp_directory_path() /
+                             ("run_capture_state_stream_" + std::to_string(::getpid()) + ".ndjson");
+    auto stream = ::tc8::sce::StateStream::open(stream_path.string(), "SERVICES_DURING_AWAIT");
+    ASSERT_NE(stream, nullptr);
+
+    auto src = ::tc8::capture::PcapSource::openOffline(TC8_FIXTURE_DIR "/decode_pcap_sample.pcap");
+    ASSERT_NE(src, nullptr);
+    ::tc8::sce::TestRunner<ServicesDuringAwaitSM> runner;
+    runner.setStateStream(stream.get());
+    ::tc8::dissect::PacketPipeline pipeline(
+        [&runner](const ::tc8::CapturedEvent &ev) { runner.onCaptured(ev); });
+    ::tc8::cli::RunCapture capture(*src, src->datalink(), nullptr, 0, nullptr, pipeline, runner);
+    NoDutControl dut;
+
+    runner.kickStimulus("unit-test", dut, capture);
+    // The stimulus has run but the machine has not started: nothing to report yet.
+    {
+        std::ifstream in(stream_path);
+        std::string first;
+        EXPECT_FALSE(std::getline(in, first)) << "a line before start(): " << first;
+    }
+    runner.start();
+    runner.endStateStream();
+
+    std::vector<std::string> lines;
+    {
+        std::ifstream in(stream_path);
+        for (std::string l; std::getline(in, l);) lines.push_back(l);
+    }
+    std::error_code ec;
+    std::filesystem::remove(stream_path, ec);
+
+    ASSERT_EQ(lines.size(), 3u);
+    EXPECT_NE(lines[0].find(R"("event":"start","case":"SERVICES_DURING_AWAIT","initial":"listening")"),
+              std::string::npos)
+        << lines[0];
+    EXPECT_NE(lines[1].find(R"("event":"transition","step":0,"trigger":"arp_observed",)"
+                            R"("from":"listening","to":"pass")"),
+              std::string::npos)
+        << lines[1];
+    EXPECT_NE(lines[2].find(R"("event":"end","final_state":"pass")"), std::string::npos) << lines[2];
+
+    // The stream and the trace are one record: the same step, the same names.
+    const std::string trace = runner.dumpTraceJson();
+    EXPECT_NE(trace.find(R"("event":"arp_observed","from_state":"listening","to_state":"pass")"),
+              std::string::npos)
+        << trace;
+    EXPECT_EQ(runner.verdict().cls, ::tc8::sce::VerdictClass::Pass) << runner.verdict().str();
 }
 
 }  // namespace

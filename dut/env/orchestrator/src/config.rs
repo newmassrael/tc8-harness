@@ -106,7 +106,8 @@ pub struct Config {
     pub backstop_sec: u32,
     /// `--log-dir DIR` (bash smoke-test.sh): when set, per-case harness/dut logs go
     /// here and are KEPT (not scratch removed with work_root), and each case also
-    /// dumps its pcap to `DIR/<case>.pcap`. None = scratch logs, removed at run end.
+    /// dumps its pcap to `DIR/<case>.pcap` and streams its state transitions to
+    /// `DIR/<case>.states.ndjson`. None = scratch logs, removed at run end.
     /// Populated by main() from the CLI, parallel to extra_expect.
     pub log_dir: Option<PathBuf>,
     /// `--dut-control opcode|testability` (bash smoke-test.sh): passed through to the

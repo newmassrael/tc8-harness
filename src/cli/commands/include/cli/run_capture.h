@@ -49,7 +49,20 @@ public:
         return error_;
     }
 
+    // Make the saved pcap followable while the run is going: flush it to disk at
+    // most once per `interval`, and only when frames were appended since the last
+    // flush. The default (never called) leaves the stdio buffer to fill and flush
+    // on its own, exactly as before. A time bound rather than a flush per frame
+    // keeps a write syscall off every frame of the capture loop; the saved file's
+    // contents and indices are unaffected either way, only WHEN they reach the disk.
+    // Checked once per drain(), so the bound is `interval` plus one loop quantum.
+    void followPcap(std::chrono::milliseconds interval) {
+        pcap_flush_interval_ = interval;
+    }
+
 private:
+    void flushPcapIfDue();
+
     // Evidence Export (Option 3): every frame appended to the saved pcap gets a
     // monotonic index, surfaced to the runner BEFORE pipeline.processFrame so the
     // resulting transition (if any) can be correlated back. -1 when there is no
@@ -66,6 +79,10 @@ private:
     sce::ITestRunner        &runner_;
     int                      next_pcap_frame_idx_ = 0;
     std::string              error_;
+    // followPcap(): 0 = off. `pcap_dirty_` is set by a dump and cleared by a flush.
+    std::chrono::milliseconds             pcap_flush_interval_{0};
+    std::chrono::steady_clock::time_point pcap_last_flush_{};
+    bool                                  pcap_dirty_ = false;
 };
 
 }  // namespace tc8::cli

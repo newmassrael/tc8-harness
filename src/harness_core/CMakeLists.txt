@@ -25,6 +25,7 @@ add_library(tc8_harness_core STATIC
     ${PROJECT_SOURCE_DIR}/src/sce_integration/owned_captured_event.cpp
     ${PROJECT_SOURCE_DIR}/src/sce_integration/spec_coverage.cpp
     ${PROJECT_SOURCE_DIR}/src/sce_integration/spec_inventory.cpp
+    ${PROJECT_SOURCE_DIR}/src/sce_integration/state_stream.cpp
     ${PROJECT_SOURCE_DIR}/src/sce_integration/stimulus_observation.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/responders/arp_responder.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/responders/method_responder.cpp

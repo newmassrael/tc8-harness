@@ -37,6 +37,7 @@
 #include "sce_integration/dut_control_factory.h"
 #include "sce_integration/spec_coverage.h"
 #include "sce_integration/spec_inventory.h"
+#include "sce_integration/state_stream.h"
 #include "sce_integration/stimulus_observation.h"
 #include "sce_integration/test_config.h"
 #include "sce_integration/verdict.h"
@@ -344,6 +345,12 @@ TestCommand::TestCommand(CLI::App &app) {
     sub_->add_option("--pcap-dump", pcap_dump_path_,
                      "Write every captured frame to the given pcap file "
                      "(debug only). Empty = disabled.");
+    sub_->add_option("--state-stream", state_stream_path_,
+                     "Append the case's state transitions to this file while it runs, "
+                     "one JSON object per line: a start line (initial state), one "
+                     "line per transition, an end line (final state). Progress for a "
+                     "watcher, never the verdict: a missing or truncated file changes "
+                     "no result. Must be a regular file path. Empty = disabled.");
     sub_->add_option("--ready-file", ready_file_path_,
                      "Create this file once the live capture is armed and its "
                      "multicast memberships are held (before any DUT-driving "
@@ -875,6 +882,23 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
         return 2;
     }
 
+    // Live progress stream. Opened as soon as the case is resolved, well before the
+    // stimulus, so the file's existence already tells a watcher the case has begun;
+    // the `start` line follows when the machine is initialised. Declared before the
+    // runner so it outlives every call into it. A path that cannot be opened costs
+    // the watcher its progress and the run nothing: this is not the verdict's input.
+    std::unique_ptr<sce::StateStream> state_stream;
+    if (!state_stream_path_.empty()) {
+        state_stream = sce::StateStream::open(state_stream_path_,
+                                              sce::qualifiedCaseId(entry->suite, entry->id));
+        if (!state_stream) {
+            std::fprintf(stderr,
+                         "warning: --state-stream '%s' is not a writable regular file; "
+                         "continuing without it\n",
+                         state_stream_path_.c_str());
+        }
+    }
+
     const std::string bpf = capture::bpf::resolveCaptureFilter(
         bpf_override, entry->bpf_expression, entry->bpf_group,
         entry->extra_capture_udp_ports, entry->extra_capture_udp_port_count);
@@ -1171,6 +1195,7 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     }
 
     std::unique_ptr<sce::ITestRunner> runner = entry->factory(config);
+    runner->setStateStream(state_stream.get());
 
     // Tier-2 DUT-control backend (--dut-control). Owned here for the run's
     // lifetime and forwarded to seam-routed stimulus; cases that drive the
@@ -1315,6 +1340,13 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // capture through it, and must record each frame exactly as the loop below
     // would (the saved pcap and its indices, the pipeline, the held delivery).
     RunCapture capture(*src, dlt, src2.get(), dlt2, dumper, pipeline, *runner);
+    // A watcher of the state stream follows the saved pcap alongside it, so the
+    // frames behind a transition are readable when the transition is. Tied to the
+    // stream: without --state-stream the dump is buffered exactly as it always was.
+    if (state_stream) {
+        constexpr std::chrono::milliseconds kPcapFollowInterval{100};
+        capture.followPcap(kPcapFollowInterval);
+    }
 
     // Tester-side stimulus for cases whose Test Procedure starts with a
     // TESTER-initiated request (e.g. FORMAT_12/13 FindService). Called
@@ -1401,6 +1433,10 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
             }
         }
     }
+
+    // Close the live stream with the state the run ended in, before the verdict is
+    // derived: the stream records where the machine was, not what that means.
+    runner->endStateStream();
 
     // If the run loop exited without the state machine reaching a final state,
     // the assertion was never concluded. Two distinct causes, two classes

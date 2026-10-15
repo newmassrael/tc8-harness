@@ -49,7 +49,23 @@ sce::ICapturePump::Drained RunCapture::drain() {
     for (::tc8::IPollableService *svc : runner_.pollableServices()) {
         svc->onReadable();
     }
+    flushPcapIfDue();
     return Drained{Status::kOk, static_cast<std::size_t>(n + n2)};
+}
+
+void RunCapture::flushPcapIfDue() {
+    if (pcap_flush_interval_.count() <= 0 || dumper_ == nullptr || !pcap_dirty_) {
+        return;
+    }
+    const auto now = std::chrono::steady_clock::now();
+    if (now - pcap_last_flush_ < pcap_flush_interval_) {
+        return;
+    }
+    // A failed flush loses nothing the close would not also lose; the saved pcap is
+    // evidence, and following it is a convenience that must not end the run.
+    pcap_dump_flush(dumper_);
+    pcap_last_flush_ = now;
+    pcap_dirty_ = false;
 }
 
 void RunCapture::waitForInput(std::chrono::milliseconds max) {
@@ -84,6 +100,7 @@ int RunCapture::dispatchFrom(capture::PcapSource &source, int dlt) {
             int this_frame_idx = -1;
             if (dumper_ != nullptr) {
                 pcap_dump(reinterpret_cast<u_char *>(dumper_), &hdr, data);
+                pcap_dirty_ = true;
                 this_frame_idx = next_pcap_frame_idx_++;
             }
             runner_.setNextPcapFrameIdx(this_frame_idx);

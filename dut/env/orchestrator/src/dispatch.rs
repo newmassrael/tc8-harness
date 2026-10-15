@@ -747,6 +747,12 @@ fn run_case_impl_row(
     if let Some(dir) = &cfg.log_dir {
         args.push("--pcap-dump".to_string());
         args.push(dir.join(format!("{case_id}.pcap")).to_string_lossy().into_owned());
+        // The live state stream beside it: a watcher tailing --log-dir learns that a
+        // case has begun and which state it is in, where the pcap and the trace exist
+        // only once it ends. One file per case, so concurrent workers never share one.
+        // Progress only — the verdict is still read from the harness log (hlog).
+        args.push("--state-stream".to_string());
+        args.push(dir.join(format!("{case_id}.states.ndjson")).to_string_lossy().into_owned());
     }
 
     // Spawn order: harness first so its pcap is open before the DUT's first
