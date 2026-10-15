@@ -97,6 +97,53 @@ void StateStream::onTx(const ::tc8::stimulus::TxEvent &ev) {
     emit(std::move(line));
 }
 
+void StateStream::frame(const ::tc8::FrameSummary &f) {
+    // Bounded like the tx lines, for the same reason: a busy wire must not turn a
+    // progress file into a per-packet log, nor put a write on the observer's thread
+    // for every frame of a burst.
+    const unsigned seq = frame_lines_.fetch_add(1, std::memory_order_relaxed);
+    if (seq > kMaxFrameLines) {
+        return;
+    }
+    if (seq == kMaxFrameLines) {
+        emit("{\"event\":\"frame_suppressed\",\"after\":" + std::to_string(kMaxFrameLines));
+        return;
+    }
+    char num[64];
+    std::string line = "{\"event\":\"frame\"";
+    if (f.has_ips) {
+        // Network byte order: the first octet is the lowest byte in memory.
+        const auto *s = reinterpret_cast<const unsigned char *>(&f.src_ip_be);
+        const auto *d = reinterpret_cast<const unsigned char *>(&f.dst_ip_be);
+        std::snprintf(num, sizeof(num), ",\"src_ip\":\"%u.%u.%u.%u\",\"dst_ip\":\"%u.%u.%u.%u\"",
+                      s[0], s[1], s[2], s[3], d[0], d[1], d[2], d[3]);
+        line.append(num);
+    }
+    switch (f.proto) {
+        case ::tc8::FrameSummary::Proto::kUdp: line.append(",\"proto\":\"udp\""); break;
+        case ::tc8::FrameSummary::Proto::kTcp: line.append(",\"proto\":\"tcp\""); break;
+        case ::tc8::FrameSummary::Proto::kOther: line.append(",\"proto\":\"other\""); break;
+    }
+    if (f.has_ports) {
+        std::snprintf(num, sizeof(num), ",\"src_port\":%u,\"dst_port\":%u",
+                      static_cast<unsigned>(f.src_port), static_cast<unsigned>(f.dst_port));
+        line.append(num);
+    }
+    std::snprintf(num, sizeof(num), ",\"len\":%u", static_cast<unsigned>(f.wire_len));
+    line.append(num);
+    emitAt(std::move(line), f.t_us);
+}
+
+void StateStream::observerUnavailable(std::string_view reason) {
+    if (observer_unavailable_written_.exchange(true, std::memory_order_relaxed)) {
+        return;
+    }
+    std::string line = "{\"event\":\"observer_unavailable\",\"reason\":\"";
+    appendJsonEscaped(line, reason);
+    line.push_back('"');
+    emit(std::move(line));
+}
+
 void StateStream::start(std::string_view initial_state) {
     std::string line = "{\"event\":\"start\",\"case\":\"";
     appendJsonEscaped(line, case_label_);
@@ -142,8 +189,15 @@ void StateStream::emit(std::string line) {
     const auto now_us = std::chrono::duration_cast<std::chrono::microseconds>(
                             std::chrono::system_clock::now().time_since_epoch())
                             .count();
+    emitAt(std::move(line), now_us);
+}
+
+void StateStream::emitAt(std::string line, std::int64_t t_us) {
+    if (failed_.load(std::memory_order_relaxed)) {
+        return;
+    }
     char tail[48];
-    std::snprintf(tail, sizeof(tail), ",\"t_us\":%lld}\n", static_cast<long long>(now_us));
+    std::snprintf(tail, sizeof(tail), ",\"t_us\":%lld}\n", static_cast<long long>(t_us));
     line.append(tail);
 
     ssize_t n;

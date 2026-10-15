@@ -115,6 +115,15 @@ target_compile_definitions(capture_stats_test PRIVATE
     TC8_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 target_link_libraries(capture_stats_test PRIVATE ${PCAP_LIBRARY})
 
+# The state stream's passive frame observer: the header reader and the tap thread, over
+# the committed decode fixture (a live handle needs a privilege this suite lacks; the
+# on/off comparison against a real run covers the rest).
+tc8_add_unit_test(frame_tap_test)
+target_include_directories(frame_tap_test PRIVATE ${PCAP_INCLUDE_DIR})
+target_compile_definitions(frame_tap_test PRIVATE
+    TC8_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+target_link_libraries(frame_tap_test PRIVATE ${PCAP_LIBRARY})
+
 # The stimulus-axis twin of capture_stats_test above: a verdict rests on both
 # "could we have observed it" and "did the stimulus actually happen", and this
 # covers the second. Header-only, so no extra link deps.

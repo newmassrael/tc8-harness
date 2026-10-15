@@ -1,11 +1,13 @@
 #pragma once
 
 #include <atomic>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
 
 #include "stimulus/tx_observer.h"
+#include "tc8/frame_summary.h"
 
 // Live state-transition stream (`test --state-stream <path>`).
 //
@@ -36,10 +38,30 @@
 // decodes it there. It is reported after the send, so it may follow the frame's own
 // pcap record by a moment and must not be used to order the two.
 // A stimulus runs before the machine starts, so tx lines come between `stimulus_begin`
-// and `stimulus_end`, before the `start` line; they are the only lines a watcher sees
-// while a stimulus is in progress. At most 1000 tx lines are written per run, then one
-// {"event":"tx_suppressed","after":1000}: a looping route must not make a progress file
-// a per-packet log.
+// and `stimulus_end`, before the `start` line; they are, with the frame lines below,
+// the only lines a watcher sees while a stimulus is in progress. At most 1000 tx lines
+// are written per run, then one {"event":"tx_suppressed","after":1000}: a looping route
+// must not make a progress file a per-packet log.
+//
+// The DUT's side comes from a passive observer (capture/passive_tap.h): a separate
+// read-only capture handle on the interface, so a frame is reported as the kernel
+// delivers it, not when the capture the verdict rests on is next drained:
+//
+//   {"event":"frame","src_ip":"a.b.c.d","dst_ip":"a.b.c.d","proto":"udp"|"tcp"|"other",
+//    "src_port":N,"dst_port":N,"len":N,"t_us":N}
+//
+// Here `t_us` is the frame's KERNEL CAPTURE time (the pcap record header's clock and
+// precision), not the time the line was written, so a frame line can sit after lines
+// with a later `t_us`; order frames by it. `len` is the length on the wire. The ips are
+// absent for a frame that is neither IPv4 nor IPv4 ARP (for ARP they are the sender and
+// target protocol addresses, proto "other"); the ports are absent where the transport
+// header is not in the captured bytes. Nothing of the payload is decoded: a reader takes
+// a frame's meaning from the saved pcap. Frames are those the case's own capture filter
+// admits, on the primary interface. At most 5000 are written per run, then one
+// {"event":"frame_suppressed","after":5000}. If the observer cannot be set up (no
+// privilege, interface gone) the run goes on without it and at most one
+// {"event":"observer_unavailable","reason":"<text>"} is written, never a verdict change.
+// The observer ends before the `end` line, which stays the last of the run.
 //
 // State and trigger names are the SCXML ids `trace.json` carries (same source,
 // same strings). `pcap_frame_idx` is null where `trace.json` has null: a step with
@@ -97,18 +119,32 @@ public:
     // ITxObserver: the `tx` line.
     void onTx(const ::tc8::stimulus::TxEvent &ev) override;
 
+    // The `frame` line, stamped with the frame's own capture time. Called from the
+    // passive observer's thread.
+    void frame(const ::tc8::FrameSummary &f);
+
+    // The observer could not be set up. At most one line is written, however often
+    // this is called.
+    void observerUnavailable(std::string_view reason);
+
 private:
     StateStream(int fd, std::string_view case_label);
 
-    // Appends the `,"t_us":N}` tail and newline, then writes the whole line.
+    // Appends the `,"t_us":N}` tail and newline, then writes the whole line. The
+    // first form stamps the time of writing, the second a time the caller supplies.
     void emit(std::string line);
+    void emitAt(std::string line, std::int64_t t_us);
 
     // Upper bound on tx lines in one run (see onTx).
     static constexpr unsigned kMaxTxLines = 1000;
+    // Upper bound on frame lines in one run (see frame).
+    static constexpr unsigned kMaxFrameLines = 5000;
 
     const int           fd_;
     std::atomic<bool>   failed_{false};
     std::atomic<unsigned> tx_lines_{0};
+    std::atomic<unsigned> frame_lines_{0};
+    std::atomic<bool>   observer_unavailable_written_{false};
     std::string       case_label_;
 };
 

@@ -5,7 +5,8 @@
 
 namespace tc8::capture {
 
-std::unique_ptr<PcapSource> PcapSource::openLive(std::string_view iface, int snaplen, int read_timeout_ms) {
+std::unique_ptr<PcapSource> PcapSource::openLive(std::string_view iface, int snaplen,
+                                                 int read_timeout_ms, int buffer_bytes) {
     char errbuf[PCAP_ERRBUF_SIZE] = {};
     // pcap_create + buffer-size + activate path so the TPACKET kernel
     // ring is provisioned large enough to absorb the entire stimulus
@@ -34,7 +35,7 @@ std::unique_ptr<PcapSource> PcapSource::openLive(std::string_view iface, int sna
     // stimulus bursts; immediate mode only changes when frames are surfaced,
     // not whether they are buffered.
     pcap_set_immediate_mode(h, 1);
-    pcap_set_buffer_size(h, 16 * 1024 * 1024);
+    pcap_set_buffer_size(h, buffer_bytes);
     if (pcap_activate(h) < 0) {
         const std::string msg = "pcap_activate failed: " + std::string(pcap_geterr(h));
         pcap_close(h);

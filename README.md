@@ -729,6 +729,14 @@ Two ways:
   carries. It is progress, never the verdict: a missing or truncated file
   changes no result, and the file may stop without an `end` line. The path
   must be a regular file.
+  The DUT's side comes from a passive observer: a separate read-only capture
+  handle on the interface, under the case's own filter, so it needs no help
+  from the capture the verdict rests on. Each frame it sees is one `frame`
+  line (`src_ip`, `dst_ip`, `proto` udp/tcp/other, `src_port`, `dst_port`,
+  `len`; `t_us` is the kernel capture time, not the write time; at most 5000,
+  then `frame_suppressed`). Only the headers are read; a frame's meaning is in
+  the saved pcap. If the handle cannot be opened the run goes on and the
+  stream says so once with `observer_unavailable`.
 
 ### JUnit XML for CI consumers
 

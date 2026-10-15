@@ -173,6 +173,64 @@ TEST_F(StateStreamTest, StimulusIsBracketedAndTxLinesAreBounded) {
     EXPECT_EQ(withoutTime(got[1003]), R"({"event":"stimulus_end"})");
 }
 
+TEST_F(StateStreamTest, FrameLineCarriesTheCaptureTimeAndWhatTheHeadersHold) {
+    const std::string p = path("frame.ndjson");
+    auto s = ::tc8::sce::StateStream::open(p, "X");
+    ASSERT_NE(s, nullptr);
+
+    ::tc8::FrameSummary udp;
+    udp.t_us = 1700000000123456LL;
+    udp.wire_len = 98;
+    udp.proto = ::tc8::FrameSummary::Proto::kUdp;
+    udp.has_ips = true;
+    const unsigned char src[4] = {172, 16, 0, 2};
+    const unsigned char dst[4] = {224, 244, 224, 245};
+    std::memcpy(&udp.src_ip_be, src, sizeof(src));
+    std::memcpy(&udp.dst_ip_be, dst, sizeof(dst));
+    udp.has_ports = true;
+    udp.src_port = 30490;
+    udp.dst_port = 30490;
+    s->frame(udp);
+
+    // A frame the readers cannot address: kept, with only what is known.
+    ::tc8::FrameSummary raw;
+    raw.t_us = 1700000000123999LL;
+    raw.wire_len = 60;
+    s->frame(raw);
+
+    const auto got = lines(p);
+    ASSERT_EQ(got.size(), 3u);
+    // The line's t_us is the frame's capture time, not the time of writing.
+    EXPECT_EQ(got[1],
+              R"({"event":"frame","src_ip":"172.16.0.2","dst_ip":"224.244.224.245",)"
+              R"("proto":"udp","src_port":30490,"dst_port":30490,"len":98,)"
+              R"("t_us":1700000000123456})");
+    EXPECT_EQ(got[2],
+              R"({"event":"frame","proto":"other","len":60,"t_us":1700000000123999})");
+}
+
+TEST_F(StateStreamTest, FrameLinesAreBoundedAndTheObserverSaysOnceThatItIsGone) {
+    const std::string p = path("frame_bound.ndjson");
+    auto s = ::tc8::sce::StateStream::open(p, "X");
+    ASSERT_NE(s, nullptr);
+
+    s->observerUnavailable("pcap_activate failed: \"Operation not permitted\"");
+    s->observerUnavailable("again");  // at most one line
+
+    ::tc8::FrameSummary f;
+    f.t_us = 1;
+    for (int i = 0; i < 6000; ++i) s->frame(f);
+
+    const auto got = lines(p);
+    // case_begin + observer_unavailable + 5000 frame + frame_suppressed
+    ASSERT_EQ(got.size(), 5003u);
+    EXPECT_EQ(withoutTime(got[1]),
+              R"({"event":"observer_unavailable","reason":)"
+              R"("pcap_activate failed: \"Operation not permitted\""})");
+    EXPECT_EQ(withoutTime(got[5001]), R"({"event":"frame","proto":"other","len":0})");
+    EXPECT_EQ(withoutTime(got[5002]), R"({"event":"frame_suppressed","after":5000})");
+}
+
 TEST(TxObserver, TheOutermostScopeNamesTheSendAndNoObserverMeansNoReport) {
     struct Capture final : ::tc8::stimulus::ITxObserver {
         std::vector<std::string> emitters;

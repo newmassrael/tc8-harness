@@ -16,8 +16,11 @@ class PcapSource {
 public:
     using FrameCallback = std::function<void(const pcap_pkthdr &, const u_char *)>;
 
+    // `buffer_bytes` is the kernel ring behind this handle. The default is sized for the
+    // capture a verdict rests on (see openLive); a handle that only watches may take less.
     static std::unique_ptr<PcapSource> openLive(std::string_view interface, int snaplen = 65535,
-                                                int read_timeout_ms = 100);
+                                                int read_timeout_ms = 100,
+                                                int buffer_bytes = 16 * 1024 * 1024);
     static std::unique_ptr<PcapSource> openOffline(const std::filesystem::path &file);
 
     ~PcapSource();

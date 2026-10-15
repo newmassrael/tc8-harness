@@ -3,8 +3,10 @@
 #include <algorithm>
 #include <cctype>
 #include <chrono>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <exception>
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -23,7 +25,9 @@
 #include "tc8/pollable_service.h"
 
 #include "capture/bpf_filter.h"
+#include "capture/frame_summary.h"
 #include "capture/multicast_membership.h"
+#include "capture/passive_tap.h"
 #include "capture/pcap_source.h"
 #include "tc8/dut_config.h"  // kSdMcastGroup — the SD group's compiled-in default
 #include "tc8/net/link_control.h"  // captureSnaplenFor
@@ -205,6 +209,43 @@ bool flipIsNoOp(const std::string &flip, const std::vector<std::string> &base_to
     return false;
 }
 
+// The state stream's passive frame observer (capture/passive_tap.h): a second, read-only
+// libpcap handle on `iface` under the capture's own filter, each frame reduced to its
+// addressing and written to the stream as the kernel delivers it. Returns null, after
+// saying so once in the stream, when it cannot be set up; the run is not told, because
+// the observer is progress for a watcher and no input to a verdict.
+std::unique_ptr<capture::PassiveTap> startFrameObserver(sce::StateStream &stream,
+                                                        const std::string &iface,
+                                                        const std::string &bpf, int primary_dlt) {
+    // Headers only: Ethernet, two VLAN tags, an IPv4 header with options, and the ports
+    // reach about 90 bytes. The payload is never read, so none is copied.
+    constexpr int kSnaplen = 128;
+    // Enough for a stimulus burst's headers; the capture the verdict rests on keeps its
+    // own, larger ring, and this one losing a frame costs the watcher an arrow, no more.
+    constexpr int kRingBytes = 4 * 1024 * 1024;
+    if (primary_dlt != DLT_EN10MB) {
+        stream.observerUnavailable("capture link type is not Ethernet");
+        return nullptr;
+    }
+    try {
+        auto source = capture::PcapSource::openLive(iface, kSnaplen, /*read_timeout_ms=*/100,
+                                                    kRingBytes);
+        source->applyBpf(bpf);
+        // The handle's own timestamp, so a frame can be matched to its record in the
+        // saved pcap by time.
+        const bool nano = source->tstampPrecision() == PCAP_TSTAMP_PRECISION_NANO;
+        auto tap = std::make_unique<capture::PassiveTap>(
+            std::move(source), [&stream, nano](const pcap_pkthdr &hdr, const u_char *bytes) {
+                stream.frame(capture::summarizePcapRecord(hdr, bytes, nano));
+            });
+        tap->start();
+        return tap;
+    } catch (const std::exception &e) {
+        stream.observerUnavailable(e.what());
+        return nullptr;
+    }
+}
+
 }  // namespace
 
 TestCommand::TestCommand(CLI::App &app) {
@@ -349,7 +390,9 @@ TestCommand::TestCommand(CLI::App &app) {
     sub_->add_option("--state-stream", state_stream_path_,
                      "Append the case's state transitions to this file while it runs, "
                      "one JSON object per line: a start line (initial state), one "
-                     "line per transition, an end line (final state). Progress for a "
+                     "line per transition, an end line (final state), a tx line per "
+                     "tester send, and frame lines for the wire seen through a "
+                     "separate read-only capture handle. Progress for a "
                      "watcher, never the verdict: a missing or truncated file changes "
                      "no result. Must be a regular file path. Empty = disabled.");
     sub_->add_option("--ready-file", ready_file_path_,
@@ -913,6 +956,10 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     const std::string bpf = capture::bpf::resolveCaptureFilter(
         bpf_override, entry->bpf_expression, entry->bpf_group,
         entry->extra_capture_udp_ports, entry->extra_capture_udp_port_count);
+    // The filter the capture ends up with, which the passive frame observer must share
+    // so its lines match the saved pcap. Widened below when stimulus markers need the
+    // DUT-control port admitted.
+    std::string effective_bpf = bpf;
 
     // Spec section is derived from the inventory (the SSOT), not stored on
     // the case — see runListCases() / case_registry.h. Best-effort here: a
@@ -1332,6 +1379,7 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
         const std::string marked_bpf = capture::bpf::resolveCaptureFilter(
             bpf_override, entry->bpf_expression, entry->bpf_group, ports.data(), ports.size());
         if (marked_bpf != bpf) {
+            effective_bpf = marked_bpf;
             src->applyBpf(marked_bpf);
             if (src2) {
                 src2->applyBpf(marked_bpf);
@@ -1357,6 +1405,15 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     if (state_stream) {
         constexpr std::chrono::milliseconds kPcapFollowInterval{100};
         capture.followPcap(kPcapFollowInterval);
+    }
+    // The DUT's side of the wire while the stimulus runs, for the same watcher: the
+    // capture above is not drained while a stimulus merely sends, so it cannot show it.
+    // A separate read-only handle (capture/passive_tap.h) on the primary interface,
+    // sharing nothing with that capture, the runner or the held frames. Declared after
+    // the stream it writes to, so it ends first on every way out.
+    std::unique_ptr<capture::PassiveTap> frame_observer;
+    if (state_stream) {
+        frame_observer = startFrameObserver(*state_stream, iface_, effective_bpf, dlt);
     }
 
     // Tester-side stimulus for cases whose Test Procedure starts with a
@@ -1445,6 +1502,10 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
         }
     }
 
+    // The observer ends first, so that `end` stays the last line of the run.
+    if (frame_observer) {
+        frame_observer->stop();
+    }
     // Close the live stream with the state the run ended in, before the verdict is
     // derived: the stream records where the machine was, not what that means.
     runner->endStateStream();
