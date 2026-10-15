@@ -7,6 +7,7 @@
 #include <thread>
 
 #include "stimulus/arp_builder.h"
+#include "stimulus/tx_observer.h"
 
 namespace tc8::stimulus {
 
@@ -138,6 +139,7 @@ int emitIpv4Frame(std::string_view iface,
                   const Ipv4FrameSpec &spec,
                   const std::vector<std::uint8_t> &ip_payload,
                   const IpBootTiming &timing) {
+    TC8_TX_SCOPE();
     if (timing.initial_wait.count() > 0) {
         std::this_thread::sleep_for(timing.initial_wait);
     }

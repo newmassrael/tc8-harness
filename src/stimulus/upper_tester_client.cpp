@@ -25,6 +25,7 @@
 
 #include "stimulus/arp_builder.h"  // sendRawEthernet
 #include "stimulus/ipv4_frame_builder.h"
+#include "stimulus/tx_observer.h"
 #include "stimulus/udp_datagram_builder.h"
 
 namespace tc8::stimulus {
@@ -670,6 +671,7 @@ int sendUpperTesterRequest(std::string_view iface,
                            const std::array<std::uint8_t, 6> &dut_mac,
                            std::uint16_t tester_src_port,
                            const std::vector<std::uint8_t> &ut_payload) {
+    TC8_TX_SCOPE();
     const auto udp = buildUdpDatagram(tester_ip_be, dut_ip_be,
                                        tester_src_port, ut::kPort,
                                        ut_payload.data(), ut_payload.size());
@@ -691,6 +693,7 @@ int sendUpperTesterRequestAwaited(std::string_view iface,
                                   const std::vector<std::uint8_t> &ut_payload,
                                   int timeout_ms,
                                   std::string_view stimulus_name) {
+    TC8_TX_SCOPE();
     if (ut_payload.size() < 2) {
         return -4;  // no opcode/req_id to correlate a reply against
     }
@@ -796,6 +799,7 @@ int emitTriggerSendUdpBoot(std::string_view iface,
                            std::uint32_t dut_ip_be,
                            const std::array<std::uint8_t, 6> &dut_mac,
                            const BootTiming &timing) {
+    TC8_TX_SCOPE();
     // Payload content carries no verdict weight (§4.2 guards compare
     // dst_ip + Eth-dst only); a recognisable literal helps pcap readers.
     static constexpr std::uint8_t kPayload[] = {'T', 'C', '8', '-', 'E', 'G',
@@ -817,6 +821,7 @@ int emitConditionArpCache(std::string_view iface,
                           const std::array<std::uint8_t, 6> &dut_mac,
                           std::uint8_t action,
                           std::uint16_t param) {
+    TC8_TX_SCOPE();
     const auto req = buildConditionArpCacheRequest(nextUtReqId(), action, param);
     return sendUpperTesterRequest(iface, tester_ip_be, dut_ip_be, dut_mac,
                                   ut::kTesterSrcPort, req);
@@ -828,6 +833,7 @@ int emitArpAddStatic(std::string_view iface,
                      const std::array<std::uint8_t, 6> &dut_mac,
                      std::uint32_t entry_ip_be,
                      const std::array<std::uint8_t, 6> &entry_mac) {
+    TC8_TX_SCOPE();
     return sendUpperTesterRequestAwaited(iface, tester_ip_be, dut_ip_be, dut_mac,
                                          ut::kTesterSrcPort,
                                          buildArpAddStaticRequest(nextUtReqId(), entry_ip_be,
@@ -840,6 +846,7 @@ int emitArpRemoveStatic(std::string_view iface,
                         std::uint32_t dut_ip_be,
                         const std::array<std::uint8_t, 6> &dut_mac,
                         std::uint32_t entry_ip_be) {
+    TC8_TX_SCOPE();
     return sendUpperTesterRequestAwaited(iface, tester_ip_be, dut_ip_be, dut_mac,
                                          ut::kTesterSrcPort,
                                          buildArpRemoveStaticRequest(nextUtReqId(), entry_ip_be),
@@ -851,6 +858,7 @@ int emitSetEgressFlavor(std::string_view iface,
                         std::uint32_t dut_ip_be,
                         const std::array<std::uint8_t, 6> &dut_mac,
                         std::uint8_t flavor) {
+    TC8_TX_SCOPE();
     const auto req = buildSetFlavorRequest(ut::OpSetEgressFlavor, nextUtReqId(), flavor);
     // Named for the ledger: a `_neg` mutant whose fault never armed observes a
     // COMPLIANT DUT and would otherwise report the harness's own self-validation
@@ -866,6 +874,7 @@ int emitSetIngressFlavor(std::string_view iface,
                          std::uint32_t dut_ip_be,
                          const std::array<std::uint8_t, 6> &dut_mac,
                          std::uint8_t flavor) {
+    TC8_TX_SCOPE();
     const auto req = buildSetFlavorRequest(ut::OpSetIngressFlavor, nextUtReqId(), flavor);
     return sendUpperTesterRequestAwaited(iface, tester_ip_be, dut_ip_be, dut_mac,
                                   ut::kTesterSrcPort, req, kAwaitedUtTimeoutMs,
@@ -877,6 +886,7 @@ int emitSetAppFlavor(std::string_view iface,
                      std::uint32_t dut_ip_be,
                      const std::array<std::uint8_t, 6> &dut_mac,
                      std::uint8_t flavor) {
+    TC8_TX_SCOPE();
     const auto req = buildSetFlavorRequest(ut::OpSetAppFlavor, nextUtReqId(), flavor);
     return sendUpperTesterRequestAwaited(iface, tester_ip_be, dut_ip_be, dut_mac,
                                   ut::kTesterSrcPort, req, kAwaitedUtTimeoutMs,
@@ -888,6 +898,7 @@ int emitSetEtsFlavor(std::string_view iface,
                      std::uint32_t dut_ip_be,
                      const std::array<std::uint8_t, 6> &dut_mac,
                      std::uint8_t flavor) {
+    TC8_TX_SCOPE();
     const auto req = buildSetFlavorRequest(ut::OpSetEtsFlavor, nextUtReqId(), flavor);
     return sendUpperTesterRequestAwaited(iface, tester_ip_be, dut_ip_be, dut_mac,
                                   ut::kTesterSrcPort, req, kAwaitedUtTimeoutMs,

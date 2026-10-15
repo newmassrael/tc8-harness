@@ -5,6 +5,7 @@
 
 #include "stimulus/arp_builder.h"
 #include "stimulus/ipv4_frame_builder.h"
+#include "stimulus/tx_observer.h"
 #include "tc8/wire/icmp_echo.h"
 
 namespace tc8::stimulus {
@@ -68,6 +69,7 @@ std::vector<std::uint8_t> buildIcmpMessage(const IcmpMessageSpec &spec) {
 int emitIcmpMessage(std::string_view iface,
                         const IcmpMessageSpec &spec,
                         const IcmpBootTiming &timing) {
+    TC8_TX_SCOPE();
     std::this_thread::sleep_for(timing.initial_wait);
     const auto frame = buildIcmpMessage(spec);
     const int rc = sendRawEthernet(frame, iface);

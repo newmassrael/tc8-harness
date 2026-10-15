@@ -1,6 +1,7 @@
 #include "tc8/net/raw_packet_socket.h"
 
 #include "stimulus/arp_builder.h"
+#include "stimulus/tx_observer.h"
 
 #include <cerrno>
 #include <cstdio>
@@ -117,12 +118,15 @@ int sendRawEthernet(const std::vector<std::uint8_t> &frame, std::string_view ifa
         std::fprintf(stderr, "stimulus: raw emit on '%.*s' failed at step %d: %s (%zu B)\n",
                      static_cast<int>(iface.size()), iface.data(), rc, std::strerror(errno),
                      frame.size());
+    } else {
+        reportTx("ethernet", iface, /*dst_ip_be=*/0, /*dst_port=*/0, frame.size());
     }
     return rc;
 }
 
 int emitArpLearningBoot(std::string_view iface, std::uint32_t tester_ip_be, std::uint32_t dut_ip_be,
                         ArpLearningVariant variant, const ArpBootTiming &timing) {
+    TC8_TX_SCOPE();
     std::this_thread::sleep_for(timing.initial_wait);
 
     std::vector<std::uint8_t> frame;
@@ -138,6 +142,7 @@ int emitArpLearningBoot(std::string_view iface, std::uint32_t tester_ip_be, std:
 }
 
 int emitArpFromTester(std::string_view iface, const ArpFrameSpec &spec, const ArpBootTiming &timing) {
+    TC8_TX_SCOPE();
     std::this_thread::sleep_for(timing.initial_wait);
     const auto frame = buildArpFrame(spec);
     return sendRawEthernet(frame, iface);

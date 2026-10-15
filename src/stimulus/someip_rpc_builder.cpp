@@ -13,6 +13,7 @@
 #include "tc8/someip/wire.h"
 #include "stimulus/iface_addr.h"
 #include "stimulus/tcp_client.h"
+#include "stimulus/tx_observer.h"
 #include "stimulus/udp_emit.h"
 
 namespace tc8::stimulus {
@@ -59,6 +60,7 @@ std::vector<std::uint8_t> buildEventNotification(SomeIpRpcMessage t) {
 
 int emitMethodReply(std::string_view iface, const std::vector<std::uint8_t> &reply,
                     std::uint16_t service_src_port, const MethodEndpoint &client_dest) {
+    TC8_TX_SCOPE();
     // Server reply: source = the tester's service port (not ephemeral), dest =
     // the DUT client endpoint. Generic UDP mechanics live in sendUdpUnicast.
     return sendUdpUnicast(reply, iface, service_src_port, client_dest.ipv4_be, client_dest.port);
@@ -66,6 +68,7 @@ int emitMethodReply(std::string_view iface, const std::vector<std::uint8_t> &rep
 
 int emitEventNotification(std::string_view iface, const std::vector<std::uint8_t> &notification,
                           std::uint16_t service_src_port, const MethodEndpoint &client_dest) {
+    TC8_TX_SCOPE();
     // Unicast event delivery is the same server->client transport as a method
     // reply (source = the tester's offered port, dest = the subscribed DUT
     // endpoint), so it delegates to the one transport function rather than
@@ -137,6 +140,7 @@ int requestOnce(const SomeIpRpcMessage &target, std::uint16_t session_id, std::s
                      std::strerror(saved_errno), n, datagram.size());
         return -4;
     }
+    reportTx("udp_unicast", iface, dest.ipv4_be, dest.port, datagram.size());
     return 0;
 }
 
@@ -144,6 +148,7 @@ int requestOnce(const SomeIpRpcMessage &target, std::uint16_t session_id, std::s
 
 int emitMethodRequestAfter(std::string_view iface, const SomeIpRpcMessage &target,
                            const MethodRequestTiming &timing, const MethodEndpoint &dest) {
+    TC8_TX_SCOPE();
     std::this_thread::sleep_for(timing.pre_emit_wait);
 
     for (int i = 0; i < timing.total_emits; ++i) {
@@ -164,6 +169,7 @@ int emitMethodRequestFromSourceIp(std::string_view iface, const SomeIpRpcMessage
                                   const MethodEndpoint &dest,
                                   const std::array<std::uint8_t, 6> &dut_mac,
                                   const std::array<std::uint8_t, 6> &src_mac) {
+    TC8_TX_SCOPE();
     const std::vector<std::uint8_t> payload = buildMethodRequest(target);
     return sendUdpFromSourceIp(payload, iface, src_ip_be, src_port, dest.ipv4_be, dest.port,
                                dut_mac, src_mac);
@@ -190,6 +196,7 @@ int requestOnceTcp(const SomeIpRpcMessage &target, std::uint16_t session_id, std
         ::close(sock);
         return -5;
     }
+    reportTx("tcp", iface, dest.ipv4_be, dest.port, datagram.size());
 
     // Dwell so vsomeip's tcp_server_endpoint can handle the Request and
     // queue a Response back on the same socket before close() tears
@@ -206,6 +213,7 @@ int requestOnceTcp(const SomeIpRpcMessage &target, std::uint16_t session_id, std
 int emitMethodRequestTcpAfter(std::string_view iface, const SomeIpRpcMessage &target,
                               const MethodRequestTiming &timing, const MethodEndpoint &dest,
                               const MethodRequestTcpDwell &dwell) {
+    TC8_TX_SCOPE();
     std::this_thread::sleep_for(timing.pre_emit_wait);
 
     for (int i = 0; i < timing.total_emits; ++i) {
@@ -225,6 +233,7 @@ int emitMethodRequestTcpAndHold(std::string_view iface, const SomeIpRpcMessage &
                                 const MethodEndpoint &dest,
                                 std::chrono::milliseconds pre_emit_wait,
                                 std::chrono::milliseconds dwell_after_send) {
+    TC8_TX_SCOPE();
     std::this_thread::sleep_for(pre_emit_wait);
 
     const int sock = connectTcpFromIface(iface, dest);
@@ -241,6 +250,7 @@ int emitMethodRequestTcpAndHold(std::string_view iface, const SomeIpRpcMessage &
         ::close(sock);
         return -5;
     }
+    reportTx("tcp", iface, dest.ipv4_be, dest.port, datagram.size());
 
     // Hold the socket open across the dwell so vsomeip's tcp_server_endpoint
     // delivers the Response on the same connection and the kernel records
@@ -273,6 +283,7 @@ int emitBundledMethodRequestsUdp(std::string_view iface,
                                  const std::vector<SomeIpRpcMessage> &targets,
                                  std::chrono::milliseconds pre_emit_wait,
                                  const MethodEndpoint &dest) {
+    TC8_TX_SCOPE();
     std::this_thread::sleep_for(pre_emit_wait);
 
     if (targets.empty()) {
@@ -321,6 +332,7 @@ int emitBundledMethodRequestsUdp(std::string_view iface,
                      dest.port, std::strerror(saved_errno), n, bundle.size());
         return -4;
     }
+    reportTx("udp_unicast", iface, dest.ipv4_be, dest.port, bundle.size());
     return 0;
 }
 
@@ -329,6 +341,7 @@ int emitBundledMethodRequestsTcp(std::string_view iface,
                                  std::chrono::milliseconds pre_emit_wait,
                                  const MethodEndpoint &dest,
                                  std::chrono::milliseconds linger) {
+    TC8_TX_SCOPE();
     std::this_thread::sleep_for(pre_emit_wait);
 
     if (targets.empty()) {
@@ -349,6 +362,7 @@ int emitBundledMethodRequestsTcp(std::string_view iface,
         ::close(sock);
         return -5;
     }
+    reportTx("tcp", iface, dest.ipv4_be, dest.port, bundle.size());
 
     // Hold the socket open across the dwell so vsomeip's
     // tcp_server_endpoint can walk the bundle, dispatch each Request

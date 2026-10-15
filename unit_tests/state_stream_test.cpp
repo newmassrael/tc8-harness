@@ -3,6 +3,7 @@
 // through the production path in run_capture_test.cpp.
 
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -13,6 +14,7 @@
 #include <unistd.h>
 
 #include "sce_integration/state_stream.h"
+#include "stimulus/tx_observer.h"
 
 namespace {
 
@@ -108,6 +110,70 @@ TEST_F(StateStreamTest, OpenTruncatesAPreviousRun) {
     auto s = ::tc8::sce::StateStream::open(p, "X");
     ASSERT_NE(s, nullptr);
     EXPECT_TRUE(lines(p).empty()) << "a re-run must not append to the previous run's record";
+}
+
+TEST_F(StateStreamTest, TxLineNamesTheEmitterTheTransportAndWhereItWent) {
+    const std::string p = path("tx.ndjson");
+    auto s = ::tc8::sce::StateStream::open(p, "X");
+    ASSERT_NE(s, nullptr);
+
+    ::tc8::stimulus::TxEvent ev;
+    ev.emitter = "emitFindServiceBoot";
+    ev.transport = "udp_multicast";
+    ev.iface = "veth-tester";
+    // 224.244.224.245 in network byte order: the first octet is the lowest byte.
+    const unsigned char group[4] = {224, 244, 224, 245};
+    std::memcpy(&ev.dst_ip_be, group, sizeof(group));
+    ev.dst_port = 30490;
+    ev.bytes = 56;
+    s->onTx(ev);
+
+    // A raw frame is opaque to its sender: no destination, no emitter when no entry
+    // point named it, and no interface when the primitive takes none.
+    ::tc8::stimulus::TxEvent raw;
+    raw.transport = "ethernet";
+    raw.bytes = 42;
+    s->onTx(raw);
+
+    const auto got = lines(p);
+    ASSERT_EQ(got.size(), 2u);
+    EXPECT_EQ(withoutTime(got[0]),
+              R"({"event":"tx","emitter":"emitFindServiceBoot","transport":"udp_multicast",)"
+              R"("iface":"veth-tester","dst":"224.244.224.245:30490","bytes":56})");
+    EXPECT_EQ(withoutTime(got[1]), R"({"event":"tx","transport":"ethernet","bytes":42})");
+}
+
+TEST(TxObserver, TheOutermostScopeNamesTheSendAndNoObserverMeansNoReport) {
+    struct Capture final : ::tc8::stimulus::ITxObserver {
+        std::vector<std::string> emitters;
+        void onTx(const ::tc8::stimulus::TxEvent &ev) override {
+            emitters.emplace_back(ev.emitter);
+        }
+    } capture;
+
+    // No observer: a send reports nothing and costs nothing.
+    ::tc8::stimulus::reportTx("udp_unicast", "", 0, 0, 1);
+
+    ::tc8::stimulus::setTxObserver(&capture);
+    {
+        // A case calls the outer emitter, which calls another underneath it.
+        ::tc8::stimulus::TxScope outer("emitOuter");
+        {
+            ::tc8::stimulus::TxScope inner("emitInner");
+            ::tc8::stimulus::reportTx("udp_unicast", "", 0, 0, 1);
+        }
+        // Leaving the inner scope must not drop the outer name.
+        ::tc8::stimulus::reportTx("udp_unicast", "", 0, 0, 1);
+    }
+    // Outside every scope the send names no emitter.
+    ::tc8::stimulus::reportTx("udp_unicast", "", 0, 0, 1);
+    ::tc8::stimulus::setTxObserver(nullptr);
+    ::tc8::stimulus::reportTx("udp_unicast", "", 0, 0, 1);
+
+    ASSERT_EQ(capture.emitters.size(), 3u);
+    EXPECT_EQ(capture.emitters[0], "emitOuter");
+    EXPECT_EQ(capture.emitters[1], "emitOuter");
+    EXPECT_EQ(capture.emitters[2], "");
 }
 
 TEST_F(StateStreamTest, RefusesAPathItCannotWriteAsARegularFile) {

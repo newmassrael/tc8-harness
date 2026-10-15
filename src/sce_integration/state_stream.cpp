@@ -35,9 +35,37 @@ StateStream::StateStream(int fd, std::string_view case_label)
     : fd_(fd), case_label_(case_label) {}
 
 StateStream::~StateStream() {
-    if (fd_ >= 0) {
-        ::close(fd_);
+    ::close(fd_);
+}
+
+void StateStream::onTx(const ::tc8::stimulus::TxEvent &ev) {
+    std::string line = "{\"event\":\"tx\"";
+    if (!ev.emitter.empty()) {
+        line.append(",\"emitter\":\"");
+        appendJsonEscaped(line, ev.emitter);
+        line.push_back('"');
     }
+    line.append(",\"transport\":\"");
+    appendJsonEscaped(line, ev.transport);
+    line.push_back('"');
+    if (!ev.iface.empty()) {
+        line.append(",\"iface\":\"");
+        appendJsonEscaped(line, ev.iface);
+        line.push_back('"');
+    }
+    char num[48];
+    if (ev.dst_ip_be != 0) {
+        // Network byte order: the first octet is the lowest byte in memory.
+        const auto *o = reinterpret_cast<const unsigned char *>(&ev.dst_ip_be);
+        std::snprintf(num, sizeof(num), "%u.%u.%u.%u:%u", o[0], o[1], o[2], o[3],
+                      static_cast<unsigned>(ev.dst_port));
+        line.append(",\"dst\":\"");
+        line.append(num);
+        line.push_back('"');
+    }
+    std::snprintf(num, sizeof(num), ",\"bytes\":%zu", ev.bytes);
+    line.append(num);
+    emit(std::move(line));
 }
 
 void StateStream::start(std::string_view initial_state) {
@@ -79,7 +107,7 @@ void StateStream::end(std::string_view final_state) {
 }
 
 void StateStream::emit(std::string line) {
-    if (fd_ < 0) {
+    if (failed_.load(std::memory_order_relaxed)) {
         return;
     }
     const auto now_us = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -97,10 +125,10 @@ void StateStream::emit(std::string line) {
     // The stream never decides anything, so a failure is dropped, not reported.
     // But it is also final: after a short write the file ends mid-record, and the
     // next line would be appended to that fragment, turning two records into one
-    // unparseable line. Stopping leaves a file that merely ends early.
+    // unparseable line. Stopping leaves a file that merely ends early. The fd stays
+    // open until the destructor: another thread may be inside its own write.
     if (n != static_cast<ssize_t>(line.size())) {
-        ::close(fd_);
-        fd_ = -1;
+        failed_.store(true, std::memory_order_relaxed);
     }
 }
 

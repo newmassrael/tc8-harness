@@ -9,6 +9,7 @@
 #include <thread>
 #include <utility>
 
+#include "stimulus/tx_observer.h"
 #include "tc8/someip/protocol.h"  // tc8::someip::kSdServiceId / kSdMethodId (SD Message ID SSOT)
 #include "tc8/someip/sd_wire_constants.h"  // sd_option_type / sd_l4_proto / sd_entry_type (wire values SSOT)
 #include "tc8/someip/wire.h"
@@ -345,6 +346,7 @@ std::vector<std::uint8_t> buildOfferService(const OfferServiceTarget &t) {
 
 int emitOfferServiceMulticast(std::string_view iface, const OfferServiceTarget &target,
                               std::chrono::milliseconds pre_emit_wait) {
+    TC8_TX_SCOPE();
     if (pre_emit_wait.count() > 0) {
         std::this_thread::sleep_for(pre_emit_wait);
     }
@@ -454,6 +456,7 @@ buildOfferServiceWithEndpointAndConfigOption(const OfferServiceWithEndpointTarge
 int emitOfferServiceMulticastWithEndpoint(std::string_view iface,
                                           const OfferServiceWithEndpointTarget &t,
                                           std::chrono::milliseconds pre_emit_wait) {
+    TC8_TX_SCOPE();
     if (pre_emit_wait.count() > 0) {
         std::this_thread::sleep_for(pre_emit_wait);
     }
@@ -494,6 +497,7 @@ std::vector<std::uint8_t> buildMultiOfferService(const MultiOfferServiceParams &
 
 int sendSdMulticast(const std::vector<std::uint8_t> &datagram, std::string_view iface_name,
                     std::string_view mcast_group, std::uint16_t mcast_port) {
+    TC8_TX_SCOPE();
     // vsomeip enforces "SD source port must equal the SD port" and silently
     // drops SD messages from ephemeral ports (`Ignored SD message from unknown
     // port`), so the source port is the SD port (= mcast_port). The generic
@@ -504,6 +508,7 @@ int sendSdMulticast(const std::vector<std::uint8_t> &datagram, std::string_view 
 int sendSdMulticastFromSourceIp(const std::vector<std::uint8_t> &datagram, std::string_view iface,
                                 std::uint32_t src_ip_be, const std::array<std::uint8_t, 6> &src_mac,
                                 std::string_view mcast_group, std::uint16_t mcast_port) {
+    TC8_TX_SCOPE();
     in_addr group_addr{};
     if (::inet_pton(AF_INET, std::string(mcast_group).c_str(), &group_addr) != 1) {
         std::fprintf(stderr, "stimulus: sendSdMulticastFromSourceIp inet_pton('%.*s') failed\n",
@@ -521,6 +526,7 @@ int sendSdMulticastFromSourceIp(const std::vector<std::uint8_t> &datagram, std::
 
 int sendSdUnicast(const std::vector<std::uint8_t> &datagram, std::string_view iface_name,
                   std::uint32_t dst_ip_be, std::uint16_t dst_port) {
+    TC8_TX_SCOPE();
     // Source port bound to the SD port so vsomeip's "SD source port must equal
     // SD port" check accepts the message (else it logs `Ignored SD message from
     // unknown port`). The generic emit mechanics live in sendUdpUnicast.
@@ -528,6 +534,7 @@ int sendSdUnicast(const std::vector<std::uint8_t> &datagram, std::string_view if
 }
 
 int emitFindServiceBoot(std::string_view iface, const FindServiceTarget &target, const BootTiming &timing) {
+    TC8_TX_SCOPE();
     // SD §4.2.1: Reboot=1 stays set until Session ID wraps 0xFFFF -> 0x0000.
     // This helper only runs the pre-wrap boot window (session 0x0001 up to
     // timing.total_emits, always < 0xFFFF in practice), so Reboot stays 1 on
@@ -835,6 +842,7 @@ int emitMultiSubscribeEventgroup(std::string_view iface,
                                  const std::vector<SubscribeEventgroupTarget> &entries,
                                  std::chrono::milliseconds pre_emit_wait,
                                  const SubscribeDestination &dest) {
+    TC8_TX_SCOPE();
     std::this_thread::sleep_for(pre_emit_wait);
 
     if (entries.empty()) {
@@ -869,6 +877,7 @@ int emitMultiSubscribeEventgroupRaw(std::string_view iface,
                                     MultiSubscribeEventgroupParams params,
                                     std::chrono::milliseconds pre_emit_wait,
                                     const SubscribeDestination &dest) {
+    TC8_TX_SCOPE();
     std::this_thread::sleep_for(pre_emit_wait);
 
     if (params.entries.empty()) {
@@ -902,6 +911,7 @@ int emitMultiSubscribeEventgroupRaw(std::string_view iface,
 
 int emitSubscribeEventgroupBoot(std::string_view iface, const SubscribeEventgroupTarget &target,
                                 const BootTiming &timing, const SubscribeDestination &dest) {
+    TC8_TX_SCOPE();
     constexpr std::uint8_t kSdFlagsBoot = ::tc8::sd_flags::kRebootUnicast;
 
     return runBootCadence(timing, [&](int i) {
@@ -912,6 +922,7 @@ int emitSubscribeEventgroupBoot(std::string_view iface, const SubscribeEventgrou
 
 int emitSubscribeEventgroupBootTcpOption(std::string_view iface, const SubscribeEventgroupTarget &target,
                                          const BootTiming &timing, const SubscribeDestination &dest) {
+    TC8_TX_SCOPE();
     constexpr std::uint8_t kSdFlagsBoot = ::tc8::sd_flags::kRebootUnicast;
     constexpr std::uint8_t kL4ProtoTcp = 0x06;
 
@@ -926,6 +937,7 @@ int emitSubscribeEventgroupOnce(std::string_view iface,
                                 const SubscribeEventgroupTarget &target,
                                 std::uint16_t session_id, std::uint8_t sd_flags,
                                 std::uint8_t l4proto, const SubscribeDestination &dest) {
+    TC8_TX_SCOPE();
     return subscribeOnce(target, sd_flags, session_id, iface, dest, l4proto);
 }
 
@@ -990,6 +1002,7 @@ std::vector<std::uint8_t> buildSubscribeEventgroupAck(const SubscribeEventgroupA
 
 int emitSubscribeEventgroupAck(std::string_view iface, const SubscribeEventgroupAckParams &p,
                                const SubscribeDestination &client_sd_dest) {
+    TC8_TX_SCOPE();
     // Server answer: source port = SD port (the tester's server SD endpoint),
     // destination = the DUT client's SD endpoint. sendSdUnicast binds the SD
     // source port so the DUT accepts the message as valid SD.
@@ -1006,6 +1019,7 @@ int emitSubscribeEventgroupRaw(std::string_view iface,
                                SubscribeEventgroupParams params,
                                const SubscribeDestination &dest,
                                std::uint32_t source_ip_be) {
+    TC8_TX_SCOPE();
     const std::uint32_t if_addr = ipv4OfInterface(iface);
     if (if_addr == 0) {
         std::fprintf(stderr,

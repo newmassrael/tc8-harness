@@ -41,6 +41,7 @@
 #include "sce_integration/stimulus_observation.h"
 #include "sce_integration/test_config.h"
 #include "sce_integration/verdict.h"
+#include "stimulus/tx_observer.h"
 
 namespace tc8::cli {
 
@@ -898,6 +899,16 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
                          state_stream_path_.c_str());
         }
     }
+    // Also the process's tx observer, so the tester's own sends reach the stream while
+    // a stimulus runs (the machine reports nothing then). Declared after the stream so
+    // it is cleared first on every way out: the stimulus library must never hold a
+    // pointer to a stream that no longer exists.
+    struct TxBinding {
+        explicit TxBinding(stimulus::ITxObserver *o) { stimulus::setTxObserver(o); }
+        ~TxBinding() { stimulus::setTxObserver(nullptr); }
+        TxBinding(const TxBinding &) = delete;
+        TxBinding &operator=(const TxBinding &) = delete;
+    } tx_binding{state_stream.get()};
 
     const std::string bpf = capture::bpf::resolveCaptureFilter(
         bpf_override, entry->bpf_expression, entry->bpf_group,

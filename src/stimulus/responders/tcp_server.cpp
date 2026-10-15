@@ -12,6 +12,7 @@
 #include <cstring>
 
 #include "stimulus/iface_addr.h"  // ipv4OfInterface — the bind address for the listener.
+#include "stimulus/tx_observer.h"
 
 namespace tc8::stimulus {
 
@@ -107,6 +108,7 @@ int TcpConnection::send(const std::vector<std::uint8_t> &bytes) {
         }
         off += static_cast<std::size_t>(n);
     }
+    reportTx("tcp", /*iface=*/{}, peer_.ipv4_be, peer_.port, bytes.size());
     return 0;
 }
 

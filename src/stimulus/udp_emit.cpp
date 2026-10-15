@@ -12,6 +12,7 @@
 
 #include "stimulus/iface_addr.h"
 #include "stimulus/ipv4_frame_builder.h"
+#include "stimulus/tx_observer.h"
 #include "stimulus/udp_datagram_builder.h"
 
 namespace tc8::stimulus {
@@ -74,6 +75,7 @@ BoundSocket openBoundUdpSocket(std::string_view iface_name, std::uint16_t src_po
 int sendUdpUnicast(const std::vector<std::uint8_t> &datagram, std::string_view iface_name,
                    std::uint16_t src_port, std::uint32_t dst_ip_be, std::uint16_t dst_port,
                    std::uint32_t source_ip_be) {
+    TC8_TX_SCOPE();
     const BoundSocket bs = openBoundUdpSocket(iface_name, src_port, source_ip_be);
     if (bs.fd < 0) {
         return bs.fd;
@@ -95,12 +97,14 @@ int sendUdpUnicast(const std::vector<std::uint8_t> &datagram, std::string_view i
                      (dst_ip_be >> 24) & 0xFFU, dst_port, std::strerror(saved_errno), n, datagram.size());
         return -6;
     }
+    reportTx("udp_unicast", iface_name, dst_ip_be, dst_port, datagram.size());
     return 0;
 }
 
 int sendUdpMulticast(const std::vector<std::uint8_t> &datagram, std::string_view iface_name,
                      std::uint16_t src_port, std::string_view mcast_group, std::uint16_t mcast_port,
                      std::uint8_t ttl) {
+    TC8_TX_SCOPE();
     const BoundSocket bs = openBoundUdpSocket(iface_name, src_port);
     if (bs.fd < 0) {
         return bs.fd;
@@ -143,6 +147,7 @@ int sendUdpMulticast(const std::vector<std::uint8_t> &datagram, std::string_view
                      std::strerror(saved_errno), n, datagram.size());
         return -6;
     }
+    reportTx("udp_multicast", iface_name, dst.sin_addr.s_addr, mcast_port, datagram.size());
     return 0;
 }
 
@@ -165,6 +170,7 @@ int sendUdpFromSourceIp(const std::vector<std::uint8_t> &payload, std::string_vi
                         std::uint32_t src_ip_be, std::uint16_t src_port, std::uint32_t dst_ip_be,
                         std::uint16_t dst_port, const std::array<std::uint8_t, 6> &dst_mac,
                         const std::array<std::uint8_t, 6> &src_mac) {
+    TC8_TX_SCOPE();
     const std::vector<std::uint8_t> frame = buildUdpFromSourceIpFrame(
         payload, src_ip_be, src_port, dst_ip_be, dst_port, dst_mac, src_mac);
     return sendRawEthernet(frame, iface);
