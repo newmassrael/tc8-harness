@@ -719,9 +719,12 @@ Two ways:
   keeps each case's `<case>.{harness,dut}.log`, and forwards a per-case
   `--pcap-dump` (`<case>.pcap`) and `--state-stream` (`<case>.states.ndjson`).
 - Watching a case run: `tc8-harness test --case <ID> --state-stream <file>`
-  appends one JSON object per line as the case's state machine moves: a
+  appends one JSON object per line as the case runs: `case_begin` at setup,
+  `stimulus_begin` / `stimulus_end` around the tester's stimulus with one `tx`
+  line per frame the tester sent between them (`emitter` or null, `transport`,
+  `dst`, `bytes`; at most 1000, then `tx_suppressed`), then the machine's
   `start` line (initial state), one `transition` line per step (`step`,
-  `trigger`, `from`, `to`, `pcap_frame_idx`, `t_us`), an `end` line
+  `trigger`, `from`, `to`, `pcap_frame_idx`, `t_us`), and an `end` line
   (`final_state`). State and trigger names are the SCXML ids `trace.json`
   carries. It is progress, never the verdict: a missing or truncated file
   changes no result, and the file may stop without an `end` line. The path

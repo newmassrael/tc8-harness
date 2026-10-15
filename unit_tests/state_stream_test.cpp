@@ -61,17 +61,19 @@ TEST_F(StateStreamTest, WritesOneRecordPerLineInOrder) {
     s->end("inconclusive");
 
     const auto got = lines(p);
-    ASSERT_EQ(got.size(), 4u);
+    ASSERT_EQ(got.size(), 5u);
     EXPECT_EQ(withoutTime(got[0]),
-              R"({"event":"start","case":"hkmc:SOMEIPSRV_SD_BEHAVIOR_21","initial":"listening_phase1"})");
+              R"({"event":"case_begin","case":"hkmc:SOMEIPSRV_SD_BEHAVIOR_21"})");
     EXPECT_EQ(withoutTime(got[1]),
+              R"({"event":"start","case":"hkmc:SOMEIPSRV_SD_BEHAVIOR_21","initial":"listening_phase1"})");
+    EXPECT_EQ(withoutTime(got[2]),
               R"({"event":"transition","step":0,"trigger":"someip_notification",)"
               R"("from":"listening_phase1","to":"listening_phase2","pcap_frame_idx":0})");
     // No retained frame behind a timer firing: null, as trace.json has it.
-    EXPECT_EQ(withoutTime(got[2]),
+    EXPECT_EQ(withoutTime(got[3]),
               R"({"event":"transition","step":1,"trigger":"deadline_exceeded",)"
               R"("from":"listening_phase2","to":"inconclusive","pcap_frame_idx":null})");
-    EXPECT_EQ(withoutTime(got[3]), R"({"event":"end","final_state":"inconclusive"})");
+    EXPECT_EQ(withoutTime(got[4]), R"({"event":"end","final_state":"inconclusive"})");
     for (const auto &l : got) {
         EXPECT_NE(l.find(",\"t_us\":"), std::string::npos) << l;
     }
@@ -83,8 +85,9 @@ TEST_F(StateStreamTest, EscapesNamesLikeTheTrace) {
     ASSERT_NE(s, nullptr);
     s->start("a\\b");
     const auto got = lines(p);
-    ASSERT_EQ(got.size(), 1u);
-    EXPECT_EQ(withoutTime(got[0]), R"({"event":"start","case":"c\"x","initial":"a\\b"})");
+    ASSERT_EQ(got.size(), 2u);
+    EXPECT_EQ(withoutTime(got[0]), R"({"event":"case_begin","case":"c\"x"})");
+    EXPECT_EQ(withoutTime(got[1]), R"({"event":"start","case":"c\"x","initial":"a\\b"})");
 }
 
 TEST_F(StateStreamTest, EachRecordIsOnDiskBeforeTheNextIsWritten) {
@@ -93,10 +96,11 @@ TEST_F(StateStreamTest, EachRecordIsOnDiskBeforeTheNextIsWritten) {
     const std::string p = path("c.ndjson");
     auto s = ::tc8::sce::StateStream::open(p, "X");
     ASSERT_NE(s, nullptr);
+    EXPECT_EQ(lines(p).size(), 1u);  // case_begin, already readable
     s->start("s0");
-    EXPECT_EQ(lines(p).size(), 1u);
-    s->transition(0, "e", "s0", "s1", 3);
     EXPECT_EQ(lines(p).size(), 2u);
+    s->transition(0, "e", "s0", "s1", 3);
+    EXPECT_EQ(lines(p).size(), 3u);
 }
 
 TEST_F(StateStreamTest, OpenTruncatesAPreviousRun) {
@@ -109,7 +113,10 @@ TEST_F(StateStreamTest, OpenTruncatesAPreviousRun) {
     }
     auto s = ::tc8::sce::StateStream::open(p, "X");
     ASSERT_NE(s, nullptr);
-    EXPECT_TRUE(lines(p).empty()) << "a re-run must not append to the previous run's record";
+    // Only the new run's own case_begin: nothing of the previous run's start/end.
+    const auto got = lines(p);
+    ASSERT_EQ(got.size(), 1u) << "a re-run must not append to the previous run's record";
+    EXPECT_EQ(withoutTime(got[0]), R"({"event":"case_begin","case":"X"})");
 }
 
 TEST_F(StateStreamTest, TxLineNamesTheEmitterTheTransportAndWhereItWent) {
@@ -136,11 +143,34 @@ TEST_F(StateStreamTest, TxLineNamesTheEmitterTheTransportAndWhereItWent) {
     s->onTx(raw);
 
     const auto got = lines(p);
-    ASSERT_EQ(got.size(), 2u);
-    EXPECT_EQ(withoutTime(got[0]),
+    ASSERT_EQ(got.size(), 3u);  // case_begin, then the two tx lines
+    EXPECT_EQ(withoutTime(got[1]),
               R"({"event":"tx","emitter":"emitFindServiceBoot","transport":"udp_multicast",)"
               R"("iface":"veth-tester","dst":"224.244.224.245:30490","bytes":56})");
-    EXPECT_EQ(withoutTime(got[1]), R"({"event":"tx","transport":"ethernet","bytes":42})");
+    // No entry point named it: kept, with a null name, so the gap is visible.
+    EXPECT_EQ(withoutTime(got[2]),
+              R"({"event":"tx","emitter":null,"transport":"ethernet","bytes":42})");
+}
+
+TEST_F(StateStreamTest, StimulusIsBracketedAndTxLinesAreBounded) {
+    const std::string p = path("bound.ndjson");
+    auto s = ::tc8::sce::StateStream::open(p, "X");
+    ASSERT_NE(s, nullptr);
+    s->stimulusBegin();
+    ::tc8::stimulus::TxEvent ev;
+    ev.emitter = "emitBurst";
+    ev.transport = "udp_unicast";
+    for (int i = 0; i < 1500; ++i) s->onTx(ev);
+    s->stimulusEnd();
+
+    const auto got = lines(p);
+    // case_begin + stimulus_begin + 1000 tx + tx_suppressed + stimulus_end
+    ASSERT_EQ(got.size(), 1004u);
+    EXPECT_EQ(withoutTime(got[1]), R"({"event":"stimulus_begin"})");
+    EXPECT_EQ(withoutTime(got[1001]),
+              R"({"event":"tx","emitter":"emitBurst","transport":"udp_unicast","bytes":0})");
+    EXPECT_EQ(withoutTime(got[1002]), R"({"event":"tx_suppressed","after":1000})");
+    EXPECT_EQ(withoutTime(got[1003]), R"({"event":"stimulus_end"})");
 }
 
 TEST(TxObserver, TheOutermostScopeNamesTheSendAndNoObserverMeansNoReport) {

@@ -28,7 +28,22 @@ std::unique_ptr<StateStream> StateStream::open(const std::string &path,
         ::close(fd);
         return nullptr;
     }
-    return std::unique_ptr<StateStream>(new StateStream(fd, case_label));
+    std::unique_ptr<StateStream> stream(new StateStream(fd, case_label));
+    // The file's first line, so "started, in the stimulus" is distinguishable from
+    // "not started" before the machine exists.
+    std::string line = "{\"event\":\"case_begin\",\"case\":\"";
+    appendJsonEscaped(line, case_label);
+    line.push_back('"');
+    stream->emit(std::move(line));
+    return stream;
+}
+
+void StateStream::stimulusBegin() {
+    emit("{\"event\":\"stimulus_begin\"");
+}
+
+void StateStream::stimulusEnd() {
+    emit("{\"event\":\"stimulus_end\"");
 }
 
 StateStream::StateStream(int fd, std::string_view case_label)
@@ -39,11 +54,25 @@ StateStream::~StateStream() {
 }
 
 void StateStream::onTx(const ::tc8::stimulus::TxEvent &ev) {
-    std::string line = "{\"event\":\"tx\"";
+    // A bounded number of tx lines per run. A route that loops (a burst of datagrams)
+    // would otherwise turn a progress file into a per-packet log and put a write on the
+    // stimulus's own cadence for every one. The line that says so is the last tx line.
+    const unsigned seq = tx_lines_.fetch_add(1, std::memory_order_relaxed);
+    if (seq > kMaxTxLines) {
+        return;
+    }
+    if (seq == kMaxTxLines) {
+        emit("{\"event\":\"tx_suppressed\",\"after\":" + std::to_string(kMaxTxLines));
+        return;
+    }
+    std::string line = "{\"event\":\"tx\",\"emitter\":";
     if (!ev.emitter.empty()) {
-        line.append(",\"emitter\":\"");
+        line.push_back('"');
         appendJsonEscaped(line, ev.emitter);
         line.push_back('"');
+    } else {
+        // Not dropped: a send no entry point named is visible as a missing name.
+        line.append("null");
     }
     line.append(",\"transport\":\"");
     appendJsonEscaped(line, ev.transport);

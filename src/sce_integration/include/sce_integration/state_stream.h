@@ -15,6 +15,9 @@
 // state its machine is in. This is the other half: the same events, appended to a
 // file as they happen, one JSON object per line.
 //
+//   {"event":"case_begin","case":"<suite:ID>","t_us":N}      first line, at case setup
+//   {"event":"stimulus_begin","t_us":N}                      around kickStimulus,
+//   {"event":"stimulus_end","t_us":N}                        always a pair
 //   {"event":"start","case":"<suite:ID>","initial":"<state>","t_us":N}
 //   {"event":"transition","step":N,"trigger":"<event>","from":"<state>",
 //    "to":"<state>","pcap_frame_idx":N|null,"t_us":N}
@@ -23,17 +26,20 @@
 // and, once the stream is bound as the process's tx observer (stimulus/tx_observer.h),
 // one line per frame or datagram the TESTER successfully sent:
 //
-//   {"event":"tx","emitter":"<emit* name>","transport":"udp_unicast","iface":"<if>",
+//   {"event":"tx","emitter":"<emit* name>"|null,"transport":"udp_unicast","iface":"<if>",
 //    "dst":"a.b.c.d:port","bytes":N,"t_us":N}
 //
-// `emitter` is absent when the send was reached by a route no emit*/send* entry point
-// names; `iface` is absent when the primitive takes none; `dst` is absent when the
+// `emitter` is null when the send was reached by a route no emit*/send* entry point
+// names (kept, so a missing name is visible); `iface` is absent when the primitive takes none; `dst` is absent when the
 // sender does not know it (a raw Ethernet frame is opaque to it). A tx line says THAT
 // the tester sent and where, never WHAT: the saved pcap holds the frame, and a reader
 // decodes it there. It is reported after the send, so it may follow the frame's own
 // pcap record by a moment and must not be used to order the two.
-// A stimulus runs before the machine starts, so tx lines can precede the `start` line;
-// they are the only lines a watcher sees while a stimulus is in progress.
+// A stimulus runs before the machine starts, so tx lines come between `stimulus_begin`
+// and `stimulus_end`, before the `start` line; they are the only lines a watcher sees
+// while a stimulus is in progress. At most 1000 tx lines are written per run, then one
+// {"event":"tx_suppressed","after":1000}: a looping route must not make a progress file
+// a per-packet log.
 //
 // State and trigger names are the SCXML ids `trace.json` carries (same source,
 // same strings). `pcap_frame_idx` is null where `trace.json` has null: a step with
@@ -52,9 +58,9 @@
 //     trace does: a step that passes through an intermediate state to a later one
 //     is one line, from the first to the last. A reader drawing the machine must
 //     not assume `from` is adjacent to `to` in the static graph.
-//   - The file is created when the case is set up, before the stimulus runs, so its
-//     existence says the case has begun; the `start` line follows once the state
-//     machine is initialised (after the stimulus, because deadlines arm there).
+//   - The file is created, and `case_begin` written, when the case is set up, before
+//     the stimulus runs; the `start` line follows once the state machine is
+//     initialised (after the stimulus, because deadlines arm there).
 //
 // Off the capture path: the sink is a regular file (anything else is refused at
 // open), so a write is a page-cache copy of ~150 bytes, never a wait on a reader.
@@ -78,6 +84,11 @@ public:
     StateStream(const StateStream &) = delete;
     StateStream &operator=(const StateStream &) = delete;
 
+    // Bracket the case's stimulus (kickStimulus). Always a pair, also for a case with
+    // none; `start` follows `stimulus_end`.
+    void stimulusBegin();
+    void stimulusEnd();
+
     void start(std::string_view initial_state);
     void transition(int step, std::string_view trigger, std::string_view from,
                     std::string_view to, int pcap_frame_idx);
@@ -92,8 +103,12 @@ private:
     // Appends the `,"t_us":N}` tail and newline, then writes the whole line.
     void emit(std::string line);
 
-    const int         fd_;
-    std::atomic<bool> failed_{false};
+    // Upper bound on tx lines in one run (see onTx).
+    static constexpr unsigned kMaxTxLines = 1000;
+
+    const int           fd_;
+    std::atomic<bool>   failed_{false};
+    std::atomic<unsigned> tx_lines_{0};
     std::string       case_label_;
 };
 

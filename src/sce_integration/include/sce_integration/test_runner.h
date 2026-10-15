@@ -402,6 +402,17 @@ public:
             ~PumpBinding() { obs.bindPump(nullptr); }
         } binding{observation_};
         observation_.bindPump(&pump);
+        // Bracket the stimulus in the live stream, ended on every way out. The tester's
+        // own sends are reported between the two (stimulus/tx_observer.h).
+        struct StimulusBracket {
+            StateStream *stream;
+            explicit StimulusBracket(StateStream *s) : stream(s) {
+                if (stream != nullptr) stream->stimulusBegin();
+            }
+            ~StimulusBracket() {
+                if (stream != nullptr) stream->stimulusEnd();
+            }
+        } bracket{state_stream_};
         // Pin the iface name for any later dispatch path that opted
         // into the 4-arg overload. Held by value (not string_view) so
         // the buffer outlives the kickStimulus caller's string — the

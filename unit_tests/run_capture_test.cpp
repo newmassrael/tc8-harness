@@ -207,11 +207,16 @@ TEST(RunCaptureDuringAwait, TheStateStreamFollowsTheTraceAndLeavesTheVerdictAlon
     NoDutControl dut;
 
     runner.kickStimulus("unit-test", dut, capture);
-    // The stimulus has run but the machine has not started: nothing to report yet.
+    // The stimulus has run but the machine has not started: the file says the case
+    // began and the stimulus ran, and nothing yet about the machine.
     {
         std::ifstream in(stream_path);
-        std::string first;
-        EXPECT_FALSE(std::getline(in, first)) << "a line before start(): " << first;
+        std::vector<std::string> before;
+        for (std::string l; std::getline(in, l);) before.push_back(l);
+        ASSERT_EQ(before.size(), 3u);
+        EXPECT_NE(before[0].find(R"("event":"case_begin")"), std::string::npos) << before[0];
+        EXPECT_NE(before[1].find(R"("event":"stimulus_begin")"), std::string::npos) << before[1];
+        EXPECT_NE(before[2].find(R"("event":"stimulus_end")"), std::string::npos) << before[2];
     }
     runner.start();
     runner.endStateStream();
@@ -224,15 +229,16 @@ TEST(RunCaptureDuringAwait, TheStateStreamFollowsTheTraceAndLeavesTheVerdictAlon
     std::error_code ec;
     std::filesystem::remove(stream_path, ec);
 
-    ASSERT_EQ(lines.size(), 3u);
-    EXPECT_NE(lines[0].find(R"("event":"start","case":"SERVICES_DURING_AWAIT","initial":"listening")"),
+    // case_begin, stimulus_begin, stimulus_end, then the machine's own three lines.
+    ASSERT_EQ(lines.size(), 6u);
+    EXPECT_NE(lines[3].find(R"("event":"start","case":"SERVICES_DURING_AWAIT","initial":"listening")"),
               std::string::npos)
-        << lines[0];
-    EXPECT_NE(lines[1].find(R"("event":"transition","step":0,"trigger":"arp_observed",)"
+        << lines[3];
+    EXPECT_NE(lines[4].find(R"("event":"transition","step":0,"trigger":"arp_observed",)"
                             R"("from":"listening","to":"pass")"),
               std::string::npos)
-        << lines[1];
-    EXPECT_NE(lines[2].find(R"("event":"end","final_state":"pass")"), std::string::npos) << lines[2];
+        << lines[4];
+    EXPECT_NE(lines[5].find(R"("event":"end","final_state":"pass")"), std::string::npos) << lines[5];
 
     // The stream and the trace are one record: the same step, the same names.
     const std::string trace = runner.dumpTraceJson();
