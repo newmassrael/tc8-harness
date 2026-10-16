@@ -1,19 +1,42 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {# W3C SCXML: Common action dispatcher for entry/exit/transition contexts.
    Expects `action` and `machine_name` variables in scope.
-   Three-way pattern: script engine | static Kotlin | fallback. #}
-{% if action.type == 'raise' %}
+   Three-way pattern: script engine | static Kotlin | fallback.
+   A statement lowered at generate time (`action.native_code`, written by
+   `forge::static_lowering` for a sce-static document) is emitted as it is,
+   ahead of every spelling of its kind — unless it can fail
+   (`action.native_fails`), when it arrives as an expression that is `true`
+   when it failed, `error.execution` already raised, and the block ends
+   (W3C SCXML 4.9) as it does for any element that raised. #}
+{% import 'block_exit.kt.jinja2' as block_exit %}
+{% if action.native_code and action.native_fails %}
+            if ({{ action.native_code }}) {
+                {{ block_exit.stmt(_in_foreach_body is defined and _in_foreach_body, in_run_block is defined and in_run_block) }}
+            }
+{% elif action.native_code %}
+            {{ action.native_code }}
+{% elif action.type == 'raise' %}
             raiseInternal({{ machine_name }}Event.{{ action.event | to_event_ref }})
 {% elif action.type == 'assign' %}
 {% include 'actions/assign.kt.jinja2' with context %}
 {% elif action.type == 'log' and action.expr %}
 {% if model.needs_script_engine %}
-            // W3C SCXML 4.7: Log expression evaluation (non-fatal on error, C++ pattern)
-            try {
-                println({% if action.label %}"{{ action.label | escape_kotlin }}: " + {% endif %}(scriptEngine?.evaluateExpr(scriptSessionId ?: "", {{ action.expr | to_script_source_expr }})?.toString() ?: ""))
-            } catch (_: Exception) {}
+            // W3C SCXML 4.7: Log expression evaluation. An expression that fails
+            // raises error.execution (W3C SCXML 5.9), and the error ends the
+            // block (W3C SCXML 4.9).
+            if (run log@{
+                try {
+                    println({% if action.label %}"{{ action.label | escape_kotlin }}: " + {% endif %}(scriptEngine?.evaluateExpr(scriptSessionId ?: "", {{ action.expr | to_script_source_expr }})?.toString() ?: ""))
+                    false
+                } catch (_: Exception) {
+                    raisePlatformError({{ machine_name }}Event.Error.Execution, "<log> expr failed to evaluate")
+                    true
+                }
+            }) {
+                {{ block_exit.stmt(_in_foreach_body is defined and _in_foreach_body, in_run_block is defined and in_run_block) }}
+            }
 {% else %}
             println({% if action.label %}"{{ action.label | escape_kotlin }}: " + {% endif %}{{ action.expr | to_kotlin_string_expr }})
 {% endif %}
@@ -38,3 +61,6 @@
             // W3C SCXML G.7: <sce:action name="{{ action.native_action_name }}">
             {{ action.native_action_rendered }}
 {% endif %}
+{# SCE Accepted Subset §2.15: `<sce:append>` / `<sce:clear>` exist only under
+   sce-static, whose every statement — a list's bound check and error arm
+   included — arrives in `action.native_code` above. #}

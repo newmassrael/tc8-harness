@@ -1,7 +1,25 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
+{#- One field of the positional prefix, bound to its own local. An
+    enum-typed field travels on the wire as the enum's carrier, so
+    `decode_expr` reads that carrier and the enum's own conversion
+    turns it into a value of the type; a closed set's conversion is
+    partial, and a carrier value it does not declare is not a value of
+    that type, so the frame does not decode. The statement carries its
+    own indentation because the three call sites below share it. #}
+{% macro decode_field(field) %}
+{% if field.is_enum and field.enum_is_open %}
+        {{ field.local }} = {{ field.enum_from_underlying }}({{ field.decode_expr }})
+{%- elif field.is_enum %}
+        {{ field.local }} = {{ field.enum_from_underlying }}({{ field.decode_expr }})
+        if {{ field.local }} is None:
+            raise UndeclaredEnumValue("{{ field.id }}")
+{%- else %}
+        {{ field.local }} = {{ field.decode_expr }}
+{%- endif %}
+{% endmacro %}
 {{ sce_map.source_marker(source_location, "python", module_level=true, symbol_artifact=sce_artifact.forge_body) }}
 
 # SCE Forge: Auto-generated from Extended SCXML (sce:kind="codec")
@@ -10,7 +28,7 @@
 
 from __future__ import annotations
 
-from sce_forge_runtime.codec import BytearraySink, CodecError, {{ "InvalidUtf8, " if has_string_fields else "" }}NeedMoreBytes, SceCursor, SceSink{{ ", TlvChainOverflow" if has_tlv_chain_fields else "" }}
+from sce_forge_runtime.codec import BytearraySink, CodecError, {{ "InvalidUtf8, " if has_string_fields else "" }}NeedMoreBytes, {{ "PresentIfMismatch, " if encode_can_refuse else "" }}SceCursor, SceSink{{ ", TlvChainOverflow" if has_tlv_chain_fields else "" }}{{ ", UndeclaredEnumValue" if has_closed_enum_fields else "" }}
 {% if all_imports %}
 {% for imp in all_imports %}
 {{ imp.include_stmt }}
@@ -138,7 +156,7 @@ class {{ struct_name }}:
         except NeedMoreBytes:
             return None
 {% for field in fields %}
-        {{ field.id }} = {{ field.decode_expr }}
+{{ decode_field(field) }}
 {% endfor %}
         try:
             cursor.advance({{ min_bytes }})
@@ -173,7 +191,7 @@ class {{ struct_name }}:
 {% endif %}
         return cls(
 {% for field in fields %}
-            {{ field.id }}={{ field.id }},
+            {{ field.id }}={{ field.local }},
 {% endfor %}
             body=body,
         )
@@ -207,7 +225,7 @@ class {{ struct_name }}:
             return None
         return cls(
 {% for field in fields %}
-            {{ field.id }}={{ field.id }},
+            {{ field.id }}={{ field.local }},
 {% endfor %}
         )
 {% elif has_variable_fields %}
@@ -219,11 +237,11 @@ class {{ struct_name }}:
         except NeedMoreBytes:
             return None
 {% for field in fields %}
-        {{ field.id }} = {{ field.decode_expr }}
+{{ decode_field(field) }}
 {% endfor %}
         value = cls(
 {% for field in fields %}
-            {{ field.id }}={{ field.id }},
+            {{ field.id }}={{ field.local }},
 {% endfor %}
         )
         try:
@@ -237,11 +255,11 @@ class {{ struct_name }}:
         except NeedMoreBytes:
             return None
 {% for field in fields %}
-        {{ field.id }} = {{ field.decode_expr }}
+{{ decode_field(field) }}
 {% endfor %}
         value = cls(
 {% for field in fields %}
-            {{ field.id }}={{ field.id }},
+            {{ field.id }}={{ field.local }},
 {% endfor %}
         )
         try:
@@ -326,6 +344,7 @@ class {{ struct_name }}:
         # carrier's encode site.
 {{ parent_tag_derivation_block }}
 {% endif %}
+{% if present_if_encode_prologue %}{{ present_if_encode_prologue }}{% endif %}
 {% if has_no_fields %}
         # RFC §synth-5-B empty body — zero-byte payload.
         _ = w

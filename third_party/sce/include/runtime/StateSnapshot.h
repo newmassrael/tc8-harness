@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
+// SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
 // SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael
 
 #pragma once
@@ -144,6 +144,18 @@ struct StateSnapshot {
     // Zero Duplication: Enables complete state restoration without side effects
     std::vector<InvokeSnapshot> activeInvokes;
 
+    // Whether the machine was still running when the step was recorded. A
+    // restore gives it back as recorded rather than as running: an invoked
+    // child whose session had ended must come back ended, because its parent's
+    // cancel treats the two apart (see StateMachine::restoreActiveStatesDirectly).
+    bool running;
+
+    // The top-level <final> the run had ended in, if it had. Recorded rather
+    // than read back from `activeStates`: an ended run's configuration is
+    // empty (§scxml-D-exitInterpreter), so the states cannot say where it
+    // ended (see StateMachine::terminalState).
+    std::optional<std::string> terminalState;
+
     // Execution metadata
     int stepNumber;
     std::string lastEventName;
@@ -165,7 +177,7 @@ struct StateSnapshot {
     std::string outgoingTransitionTarget;
     std::string outgoingTransitionEvent;
 
-    StateSnapshot() : stepNumber(0), schedulerLogicalTimeMs(0) {}
+    StateSnapshot() : running(true), stepNumber(0), schedulerLogicalTimeMs(0) {}
 };
 
 /**
@@ -189,6 +201,8 @@ public:
      * @param scheduledEvents Scheduled events for step backward restoration
      * @param activeInvokes Active invocations
      * @param executedEvents Event execution history
+     * @param running Whether the machine was still running (see StateSnapshot::running)
+     * @param terminalState The final the run had ended in (see StateSnapshot::terminalState)
      * @param stepNumber Current execution step number
      * @param lastEvent Last processed event name
      * @param transitionSource Source state of last transition
@@ -200,7 +214,8 @@ public:
                     const std::vector<EventSnapshot> &pendingUIEvents,
                     const std::vector<ScheduledEventSnapshot> &scheduledEvents,
                     const std::vector<InvokeSnapshot> &activeInvokes, const std::vector<EventSnapshot> &executedEvents,
-                    int stepNumber, const std::string &lastEvent = "", const std::string &transitionSource = "",
+                    bool running, const std::optional<std::string> &terminalState, int stepNumber,
+                    const std::string &lastEvent = "", const std::string &transitionSource = "",
                     const std::string &transitionTarget = "", int64_t schedulerLogicalTimeMs = 0);
 
     /**

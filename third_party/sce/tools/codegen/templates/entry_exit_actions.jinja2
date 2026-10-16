@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {#
@@ -9,9 +9,11 @@
 
     W3C SCXML 3.7/3.8/3.9: Entry and exit action execution.
 
-    Generates:
-    - executeEntryActions(state, engine)
+    Generates, each for ONE state — which states a microstep enters and exits
+    is the engine's Appendix D entry and exit set:
+    - executeEntryActions(state, engine, defaultEntry)
     - executeExitActions(state, engine, preTransitionActive)
+    - executeHistoryDefaultContent(history, engine)
 
     Invoke lifecycle methods (executePendingInvokes, tickChildren, forwardToAutoforward,
     executeFinalizeForChildEvent) are in invoke_methods.jinja2.
@@ -32,8 +34,9 @@
     - SendSchedulingHelper: W3C SCXML 6.2 (ARCHITECTURE.md lines 873-884)
 
     Features Implemented:
-    - W3C SCXML 3.4: Parallel state auto-entry (enter all child regions)
+    - W3C SCXML 3.3.2: <initial> content, on default entry only
     - W3C SCXML 3.7.1: Parallel state done.state event generation
+    - W3C SCXML 3.10.2: <history> default content
     - W3C SCXML 3.8: Onexit handlers with datamodel updates
     - W3C SCXML 3.9: Entry/exit action execution
     - W3C SCXML 6.4: Static invoke lifecycle management
@@ -48,6 +51,24 @@
 #}
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
 {%- import '_macros/sce_annotation_marker.jinja2' as annot %}
+{#- W3C SCXML 6.4.1: an invoke's generated id goes to `idlocation` when the
+    element is evaluated, as an assignment to a location expression — the one
+    `<assign>` makes, so a member path lands. A location that cannot take it
+    raises error.execution and the invocation is not started (W3C SCXML
+    5.9.2); `flag` names the bool the caller guards the start with. #}
+{%- macro store_invoke_idlocation(invoke_info, id_expr, flag, indent) %}
+{{ indent }}bool {{ flag }} = true;
+{%- if invoke_info.idlocation %}
+{{ indent }}{
+{{ indent }}    ensureScriptEngine();
+{{ indent }}    {{ flag }} = ::SCE::AssignmentExecutionHelper::storeIdInLocation(
+{{ indent }}        getScriptEngine(), sessionId_.value(), {{ invoke_info.idlocation | to_script_source_location }}, {{ id_expr }},
+{{ indent }}        [&engine](const std::string &error) {
+{{ indent }}            engine.raise(typename Engine::EventWithMetadata(Event::Error_execution, error));
+{{ indent }}        });
+{{ indent }}}
+{%- endif %}
+{%- endmacro %}
 
 {# SCE Protocol-Synthesis RFC §synth-5-O — function-scope SCE-MAP marker
    above `executeEntryActions`. `#line N "file"` inside a function
@@ -56,14 +77,13 @@
    directive's effect for the rest of the translation unit. #}
     {{ sce_map.source_marker(model.source_location, "cpp", symbol_artifact=sce_artifact.machine) }}
     template <typename Engine>
-{# §scxml-D: `pathChild` is what tells addDescendantStatesToEnter (nullopt —
-   `state` is the entry TARGET and takes its defaults) from
-   addAncestorStatesToEnter (the child of `state` the entry set already holds,
-   so `state` takes none — except that a `<parallel>` still gives its OTHER
-   regions theirs). Defaulted so the target-entry call sites, which are every
-   other one, read exactly as they did. #}
-{% if not model.execute_entry_actions_needs_this %}    [[gnu::hot]] static void executeEntryActions([[maybe_unused]] State state, [[maybe_unused]] Engine& engine, [[maybe_unused]] ::std::optional<State> pathChild = ::std::nullopt) {
-{% else %}    [[gnu::hot]] void executeEntryActions([[maybe_unused]] State state, [[maybe_unused]] Engine& engine, [[maybe_unused]] ::std::optional<State> pathChild = ::std::nullopt) {
+{# One state's entry, and nothing below it: which states a microstep enters is
+   the engine's Appendix D entry set, entered front to back, so this neither
+   enters regions nor descends to an initial child. `defaultEntry` is the entry
+   set's statesForDefaultEntry answer — whether this state's initial transition
+   content runs. #}
+{% if not model.execute_entry_actions_needs_this %}    [[gnu::hot]] static void executeEntryActions([[maybe_unused]] State state, [[maybe_unused]] Engine& engine, [[maybe_unused]] bool defaultEntry) {
+{% else %}    [[gnu::hot]] void executeEntryActions([[maybe_unused]] State state, [[maybe_unused]] Engine& engine, [[maybe_unused]] bool defaultEntry) {
 {% endif %}
 {% if model.has_parallel_states or model.uses_in_predicate %}
         // W3C SCXML 3.4/3.12.1: Add state to active configuration for parallel states and In() predicate
@@ -94,15 +114,17 @@
 {% if state.datamodel or state.on_entry_blocks or state.invokes | scxml or state.invokes | scxml_remote or state.invokes | hybrid or state.invokes | mesh_rpc or state.invokes | unsupported or (state.is_final and state.donedata) or (state.is_final and state.parent) %}
                 {
 {% if state.datamodel and model.binding == 'late' %}
-                // ============================================================
-                // W3C SCXML 5.9: LATE BINDING - Initialize datamodel on state entry
-                // ARCHITECTURE.md Zero Duplication: DataModelInitHelper shared with Interpreter
-                // ARCHITECTURE.md DRY Principle: Uses datamodel_macros.jinja2
-                // ============================================================
+                // §scxml-D-enterStates, late binding: the state's `<data>` is
+                // bound on its FIRST entry only (`s.isFirstEntry`), after it
+                // joins the configuration and before its <onentry>. The engine
+                // owns the first-entry rule; this is only what binding means
+                // for this state.
+                if (engine.claimLateBindingFirstEntry(State::{{ state_id | capitalize }})) {
                 ensureScriptEngine();
                 auto& scriptEngine = getScriptEngine();
 {% import 'datamodel_macros.jinja2' as dm %}
 {{ dm.initialize_state_datamodel(state, state_id, "AOT executeEntryActions: Late binding initialized", base_path) }}
+                }
 
 {% endif %}
 {% if state.invokes | unsupported %}
@@ -125,10 +147,13 @@
                 // W3C outcome (an invoke that never ran raises nothing).
                 // ============================================================
 {% for invoke_info in state.invokes | unsupported %}
-                std::string generatedInvokeId_{{ invoke_info.invoke_id }} = "{{ state_id }}." + std::to_string(reinterpret_cast<uintptr_t>(this)) + ".{{ invoke_info.invoke_id }}";
+                {# Named by position rather than by id: an id generated for an
+                   `idlocation` (`<state>._invoke_N`, §scxml-6.4.1) is not a C++
+                   identifier, and the variable lives only in this block. #}
+                std::string generatedUnsupportedInvokeId_{{ loop.index0 }} = "{{ state_id }}." + std::to_string(reinterpret_cast<uintptr_t>(this)) + ".{{ invoke_info.invoke_id | escape_cpp }}";
                 ::SCE::Core::InvokeHelper::deferInvoke(pendingInvokes_,
-                    PendingInvoke{generatedInvokeId_{{ invoke_info.invoke_id }}, State::{{ state_id | capitalize }}});
-                AOT_DEBUG("Deferred {{ 'host-served' if invoke_info.host_served is defined and invoke_info.host_served else 'unsupported-type' }} invoke: {} in state {{ state_id }}", generatedInvokeId_{{ invoke_info.invoke_id }});
+                    PendingInvoke{generatedUnsupportedInvokeId_{{ loop.index0 }}, State::{{ state_id | capitalize }}, "{{ invoke_info.invoke_id | escape_cpp }}"});
+                AOT_DEBUG("Deferred {{ 'host-served' if invoke_info.host_served is defined and invoke_info.host_served else 'unsupported-type' }} invoke: {} in state {{ state_id }}", generatedUnsupportedInvokeId_{{ loop.index0 }});
 {% endfor %}
 {% endif %}
 {% if state.invokes | scxml %}
@@ -141,21 +166,14 @@
                 // W3C SCXML 3.12.1: Generate invoke ID in "stateid.platformid.index" format
                 // Include invoke index to ensure uniqueness for multiple invokes in same state
                 std::string generatedInvokeId_{{ invoke_info.invoke_id }} = "{{ state_id }}." + std::to_string(reinterpret_cast<uintptr_t>(this)) + ".{{ invoke_info.invoke_id }}";
-
-                {% if invoke_info.idlocation %}
-                // W3C SCXML 6.4.1: Store generated invokeId in parent datamodel via idlocation (at defer time)
-                {
-                    ensureScriptEngine();
-                    auto& scriptEngine = getScriptEngine();
-                    scriptEngine.setVariable(sessionId_.value(), "{{ invoke_info.idlocation | escape_cpp }}", generatedInvokeId_{{ invoke_info.invoke_id }}).get();
-                    AOT_DEBUG("Set idlocation {{ invoke_info.idlocation | escape_cpp_format }} = {}", generatedInvokeId_{{ invoke_info.invoke_id }});
-                }
-                {% endif %}
+{{ store_invoke_idlocation(invoke_info, "generatedInvokeId_" ~ invoke_info.invoke_id, "scxmlIdStored_" ~ loop.index0, "                ") }}
 
                 // Defer invoke: {{ invoke_info.invoke_id }} ({{ invoke_info.src }})
-                ::SCE::Core::InvokeHelper::deferInvoke(pendingInvokes_,
-                    PendingInvoke{generatedInvokeId_{{ invoke_info.invoke_id }}, State::{{ state_id | capitalize }}});
-                AOT_DEBUG("Deferred invoke: {} in state {{ state_id }}", generatedInvokeId_{{ invoke_info.invoke_id }});
+                if (scxmlIdStored_{{ loop.index0 }}) {
+                    ::SCE::Core::InvokeHelper::deferInvoke(pendingInvokes_,
+                        PendingInvoke{generatedInvokeId_{{ invoke_info.invoke_id }}, State::{{ state_id | capitalize }}, "{{ invoke_info.invoke_id }}"});
+                    AOT_DEBUG("Deferred invoke: {} in state {{ state_id }}", generatedInvokeId_{{ invoke_info.invoke_id }});
+                }
 {% endfor %}
 {% endif %}
 {% if state.invokes | scxml_remote %}
@@ -176,21 +194,18 @@
                 // ============================================================
 {% for invoke_info in state.invokes | scxml_remote %}
                 {
-                    {% if invoke_info.idlocation %}
                     // W3C SCXML 6.4.1: idlocation — expose the static invoke
                     // id to the parent datamodel so transitions can match on it.
-                    {
-                        ensureScriptEngine();
-                        auto& scriptEngine = getScriptEngine();
-                        scriptEngine.setVariable(sessionId_.value(), "{{ invoke_info.idlocation | escape_cpp }}", std::string("{{ invoke_info.invoke_id }}")).get();
-                    }
-                    {% endif %}
+{{ store_invoke_idlocation(invoke_info, '"' ~ invoke_info.invoke_id ~ '"', "remoteIdStored_" ~ loop.index0, "                    ") }}
                     // SCE_MESH.md §9.6.2 inner payload. Currently empty —
                     // `<param>` / `<content>` / `<namelist>` serialization
                     // into a CBOR map is a parallel landing shared with the
                     // local-invoke path once a consumer lands.
                     std::string _scxml_remote_data_{{ invoke_info.invoke_id }};
-                    if (engine.performScxmlInvokeStart(
+                    if (!remoteIdStored_{{ loop.index0 }}) {
+                        // error.execution was raised by the store; the
+                        // invocation is not started (W3C SCXML 5.9.2).
+                    } else if (engine.performScxmlInvokeStart(
                             "{{ invoke_info.remote_mesh_target }}",
                             "{{ invoke_info.invoke_id }}",
                             _scxml_remote_data_{{ invoke_info.invoke_id }})) {
@@ -238,15 +253,12 @@
                     std::string _mesh_invoke_id_{{ invoke_info.invoke_id }} =
                         "{{ state_id }}." + std::to_string(reinterpret_cast<uintptr_t>(this)) + ".{{ invoke_info.invoke_id }}";
 
-                    {% if invoke_info.idlocation %}
                     // W3C SCXML 6.4.1: idlocation — store generated invoke id
                     // into the parent datamodel so transitions can match on it.
-                    {
-                        ensureScriptEngine();
-                        auto& scriptEngine = getScriptEngine();
-                        scriptEngine.setVariable(sessionId_.value(), "{{ invoke_info.idlocation | escape_cpp }}", _mesh_invoke_id_{{ invoke_info.invoke_id }}).get();
-                    }
-                    {% endif %}
+{{ store_invoke_idlocation(invoke_info, "_mesh_invoke_id_" ~ invoke_info.invoke_id, "meshIdStored_" ~ loop.index0, "                    ") }}
+                    // A location that could not take the id has raised
+                    // error.execution, and the request is not sent.
+                    if (meshIdStored_{{ loop.index0 }}) {
 
 {% if invoke_info.params %}
                     // SCE_MESH.md §9.5 wire mapping: `data` = JSON payload of
@@ -254,23 +266,69 @@
                     // have already been stripped by parse_mesh_rpc_invoke.
                     std::map<std::string, std::vector<std::string>> _mesh_params_{{ invoke_info.invoke_id }};
                     std::map<std::string, std::vector<ScriptValue>> _mesh_typed_params_{{ invoke_info.invoke_id }};
-{% set mesh_needs_scripts = invoke_info.params | selectattr('is_static_literal', 'equalto', False) | list | length > 0 %}
-{% if mesh_needs_scripts %}
+{% set mesh_eval_ns = namespace(needed=false) %}
+{% for param in invoke_info.params %}
+{% if not param.is_static_literal and not param.native_value and (param.expr or param.location) %}
+{% set mesh_eval_ns.needed = true %}
+{% endif %}
+{% endfor %}
+{% if mesh_eval_ns.needed %}
                     this->ensureScriptEngine();
                     auto& scriptEngine_mesh_{{ invoke_info.invoke_id }} = getScriptEngine();
 {% endif %}
 {% for param in invoke_info.params %}
 {% if param.is_static_literal %}
-                    _mesh_params_{{ invoke_info.invoke_id }}["{{ param.name | escape_cpp }}"].push_back("{{ param.static_value }}");
+                    _mesh_params_{{ invoke_info.invoke_id }}["{{ param.name | escape_cpp }}"].push_back("{{ param.static_value | escape_cpp }}");
+{% elif param.native_value %}
+                    {
+                        // `datamodel="sce-static"` (SCE Accepted Subset §2.15):
+                        // the value is native code over the machine's own
+                        // fields, read now, with no script engine to ask. A
+                        // checked operation that fails is the evaluation that
+                        // failed (§scxml-5.7.1): reported and its pair left out,
+                        // while the request still goes, as a failing `<param>`
+                        // costs it below.
+{% if param.native_fails %}
+                        SCE::Forge::AlgorithmFailure sce_failure_;
+{% endif %}
+                        ScriptValue paramValue = {{ param.native_value }};
+{% if param.native_fails %}
+                        if (sce_failure_.failed()) SCE_UNLIKELY {
+                            engine.raise(typename Engine::EventWithMetadata(Event::Error_execution,
+                                "<invoke type='sce:mesh-rpc'> <param name='{{ param.name | escape_cpp }}'> could not be read"));
+                        } else
+{% endif %}
+                        {
+                            _mesh_params_{{ invoke_info.invoke_id }}["{{ param.name | escape_cpp }}"].push_back(
+                                ::SCE::ScriptResultUtils::valueText(paramValue));
+                            _mesh_typed_params_{{ invoke_info.invoke_id }}["{{ param.name | escape_cpp }}"].push_back(std::move(paramValue));
+                        }
+                    }
+{% elif not (param.expr or param.location) %}
+                    // §scxml-5.7.1: an empty location names no location in the
+                    // data model — reported, and the pair left out.
+                    engine.raise(typename Engine::EventWithMetadata(Event::Error_execution,
+                        "<invoke type='sce:mesh-rpc'> <param name='{{ param.name | escape_cpp }}'> names no location"));
 {% else %}
                     {
-                        auto paramResult = scriptEngine_mesh_{{ invoke_info.invoke_id }}.evaluateExpression(sessionId_.value(), {{ param.expr | to_script_source_expr }}).get();
+                        auto paramResult = scriptEngine_mesh_{{ invoke_info.invoke_id }}.evaluateExpression(sessionId_.value(), {{ (param.expr if param.expr else param.location) | to_script_source_expr }}).get();
                         if (::SCE::ScriptResultUtils::isSuccess(paramResult)) {
                             _mesh_params_{{ invoke_info.invoke_id }}["{{ param.name | escape_cpp }}"].push_back(::SCE::ScriptResultUtils::resultToString(paramResult));
                             _mesh_typed_params_{{ invoke_info.invoke_id }}["{{ param.name | escape_cpp }}"].push_back(paramResult.getInternalValue());
                         } else {
-                            SCE_LOG_ERROR("mesh-rpc invoke {{ invoke_info.invoke_id }} param '{{ param.name | escape_cpp }}' expr evaluation failed: {}", "{{ param.expr | escape_cpp }}");
-                            _mesh_params_{{ invoke_info.invoke_id }}["{{ param.name | escape_cpp }}"].push_back("");
+                            // §scxml-5.7.1: BOTH halves — `error.execution` on
+                            // the internal queue AND the name and value left
+                            // out. The request still goes, one pair short: the
+                            // clause delegates only the SUCCESSFUL pair to the
+                            // context, so §scxml-6.4.2's "terminate the element"
+                            // is not what a failing `<param>` costs — the same
+                            // reading the local invoke path takes
+                            // (invoke_methods.jinja2). This pushed an empty
+                            // string under the name and raised nothing, so the
+                            // server received a field the document never
+                            // computed and the document had no event to act on.
+                            engine.raise(typename Engine::EventWithMetadata(Event::Error_execution,
+                                "<invoke type='sce:mesh-rpc'> <param name='{{ param.name | escape_cpp }}'> could not be read"));
                         }
                     }
 {% endif %}
@@ -295,6 +353,32 @@
                     // could pick a different machine than the correlation
                     // entry was registered against).
                     {
+{% if invoke_info.native_src %}
+                        // `datamodel="sce-static"` (docs/adr/0005, decision 7): the
+                        // peer is a string computed from the machine's own
+                        // fields now, with no script engine to ask. One that
+                        // cannot be computed is an attribute that cannot be
+                        // evaluated: error.execution, and nothing is sent.
+                        std::string _resolved_src_{{ invoke_info.invoke_id }};
+                        bool _srcexpr_read_{{ invoke_info.invoke_id }} = true;
+                        {
+{% if invoke_info.native_src_fails %}
+                            SCE::Forge::AlgorithmFailure sce_failure_;
+{% endif %}
+                            _resolved_src_{{ invoke_info.invoke_id }} = {{ invoke_info.native_src }};
+{% if invoke_info.native_src_fails %}
+                            if (sce_failure_.failed()) SCE_UNLIKELY {
+                                _srcexpr_read_{{ invoke_info.invoke_id }} = false;
+                            }
+{% endif %}
+                        }
+                        if (!_srcexpr_read_{{ invoke_info.invoke_id }}) {
+                            engine.raise(typename Engine::EventWithMetadata(
+                                Event::Error_execution,
+                                "mesh-rpc invoke '{{ invoke_info.invoke_id }}' srcexpr evaluation failed: {{ invoke_info.srcexpr | escape_cpp }}"));
+                            this->_mesh_resolved_src_{{ invoke_info.field_suffix }}_.clear();
+                        } else {
+{% else %}
                         this->ensureScriptEngine();
                         auto& _srcexpr_engine_{{ invoke_info.invoke_id }} = getScriptEngine();
                         auto _srcexpr_result_{{ invoke_info.invoke_id }} =
@@ -309,6 +393,7 @@
                         } else {
                             std::string _resolved_src_{{ invoke_info.invoke_id }} =
                                 ::SCE::ScriptResultUtils::resultToString(_srcexpr_result_{{ invoke_info.invoke_id }});
+{% endif %}
                             static const std::regex _srcexpr_shape_{{ invoke_info.invoke_id }}(
                                 R"(^#[A-Za-z_][A-Za-z0-9_]*$)");
                             if (!std::regex_match(_resolved_src_{{ invoke_info.invoke_id }},
@@ -351,6 +436,15 @@
                             "mesh-rpc invoke '{{ invoke_info.invoke_id }}' to '{{ invoke_info.src }}' failed: setup fault (INVOKE_SRC_NOT_FOUND per SCE_MESH.md §9.5/§10.7.1 — no transport wired, pool instance out-of-set, or key-substitution miss)"));
                     }
 {% endif %}
+{% if invoke_info.srcexpr %}
+                    } else {
+                        // Nothing was sent, so the paired <cancel> at exit
+                        // has no correlation entry to name.
+                        this->_mesh_resolved_src_{{ invoke_info.field_suffix }}_.clear();
+                    }
+{% else %}
+                    }  // meshIdStored_{{ loop.index0 }}
+{% endif %}
                 }
 {% endfor %}
 {% endif %}
@@ -364,22 +458,15 @@
                 // W3C SCXML 3.12.1: Generate invoke ID in "stateid.platformid.index" format
                 // Include invoke index to ensure uniqueness for multiple invokes in same state
                 std::string generatedInvokeId_{{ invoke_info.invoke_id }} = "{{ state_id }}." + std::to_string(reinterpret_cast<uintptr_t>(this)) + ".{{ invoke_info.invoke_id }}";
-
-                {% if invoke_info.idlocation %}
-                // W3C SCXML 6.4.1: Store generated invokeId in parent datamodel via idlocation (at defer time)
-                {
-                    ensureScriptEngine();
-                    auto& scriptEngine = getScriptEngine();
-                    scriptEngine.setVariable(sessionId_.value(), "{{ invoke_info.idlocation | escape_cpp }}", generatedInvokeId_{{ invoke_info.invoke_id }}).get();
-                    AOT_DEBUG("Set idlocation {{ invoke_info.idlocation | escape_cpp_format }} = {}", generatedInvokeId_{{ invoke_info.invoke_id }});
-                }
-                {% endif %}
+{{ store_invoke_idlocation(invoke_info, "generatedInvokeId_" ~ invoke_info.invoke_id, "hybridIdStored_" ~ loop.index0, "                ") }}
 
                 // Defer hybrid invoke: {{ invoke_info.invoke_id }} {% if invoke_info.srcexpr %}(srcexpr: {{ invoke_info.srcexpr }}){% elif invoke_info.contentexpr %}(contentexpr: {{ invoke_info.contentexpr }}){% endif %}
 
-                ::SCE::Core::InvokeHelper::deferInvoke(pendingInvokes_,
-                    PendingInvoke{generatedInvokeId_{{ invoke_info.invoke_id }}, State::{{ state_id | capitalize }}});
-                AOT_DEBUG("Deferred hybrid invoke: {} in state {{ state_id }}", generatedInvokeId_{{ invoke_info.invoke_id }});
+                if (hybridIdStored_{{ loop.index0 }}) {
+                    ::SCE::Core::InvokeHelper::deferInvoke(pendingInvokes_,
+                        PendingInvoke{generatedInvokeId_{{ invoke_info.invoke_id }}, State::{{ state_id | capitalize }}, "{{ invoke_info.invoke_id }}"});
+                    AOT_DEBUG("Deferred hybrid invoke: {} in state {{ state_id }}", generatedInvokeId_{{ invoke_info.invoke_id }});
+                }
 {% endfor %}
 {% endif %}
 {% if state.on_entry_blocks %}
@@ -400,7 +487,7 @@
 {%- if action.req or action.unresolved %}
 {{ annot.annotation_block(action, "cpp", "                        ") -}}
 {%- endif %}
-                        {% set in_entry_exit = true %}
+                        {% set block_exit = 'return;' %}
                         {% include 'actions/' + action.type + '.jinja2' %}
 
 {% endfor %}
@@ -415,26 +502,20 @@
 {% endif %}
 {% endif %}
 {% if state.initial_transition_actions %}
-                // W3C SCXML 3.3.2: Execute <initial> transition executable content
-                // This content executes AFTER parent onentry and BEFORE child state entry
+                // §scxml-D-enterStates: the <initial> transition's content runs
+                // after this state's onentry, and only when its initial state is
+                // entered by DEFAULT — not when the state is entered on the way
+                // to a deeper target. Its own scope, so an error that stops the
+                // block (§scxml-4.9) stops this block and not the rest of the
+                // state's entry.
+                if (defaultEntry) {
+                    [&]() {
 {% for action in state.initial_transition_actions %}
-                {% set in_entry_exit = true %}
-                {% include 'actions/' + action.type + '.jinja2' %}
+                        {% set block_exit = 'return;' %}
+                        {% include 'actions/' + action.type + '.jinja2' %}
 
 {% endfor %}
-{% endif %}
-{% if state.initial_history_id %}
-                // W3C SCXML 3.11: Initial transition targets history state {{ state.initial_history_id }}
-                // Execute history default transition executable content if no history is stored
-                if (!history_{{ state.initial_history_id }}.has_value() || history_{{ state.initial_history_id }}->empty()) {
-                    AOT_DEBUG("AOT history: No stored history for {{ state.initial_history_id }}, executing default transition actions");
-{% for action in state.initial_history_default_actions %}
-                    {% set in_entry_exit = true %}
-                    {% include 'actions/' + action.type + '.jinja2' %}
-
-{% endfor %}
-                } else {
-                    AOT_DEBUG("AOT history: Found stored history for {{ state.initial_history_id }}, skipping default transition actions");
+                    }();
                 }
 {% endif %}
 {% if state.is_final and state.donedata %}
@@ -443,6 +524,44 @@
                     std::string eventData;
                     std::optional<ScriptValue> typedData;
 {% if state.donedata.params %}
+{# `datamodel="sce-static"`: each param's value is native code
+   (`DoneDataParam::native_value`), read from the machine's own fields, so no
+   script engine is asked for any of them. #}
+{% set done_native = state.donedata.params | selectattr("native_value") | list | length > 0 %}
+{% if done_native %}
+                    // W3C SCXML 5.5 (SCE Accepted Subset 2.15): the <param>s of a
+                    // sce-static machine are computed here, from its own fields.
+                    // §scxml-5.7.1: a value that cannot be computed (a checked
+                    // operation that overflows) raises error.execution and its pair
+                    // is left out; the done event is raised with the pairs that
+                    // survive.
+                    std::vector<std::pair<std::string, ScriptValue>> doneValues;
+{% for param in state.donedata.params %}
+{% if param.native_value %}
+                    {
+{% if param.native_fails %}
+                        SCE::Forge::AlgorithmFailure sce_failure_;
+{% endif %}
+                        ScriptValue doneValue = {{ param.native_value }};
+{% if param.native_fails %}
+                        if (sce_failure_.failed()) SCE_UNLIKELY {
+                            SCE_LOG_WARN("Donedata param '{{ param.name | escape_cpp }}' overflowed or failed");
+                            engine.raise(typename Engine::EventWithMetadata(Event::Error_execution, "<donedata> <param name='{{ param.name | escape_cpp }}'> failed to evaluate"));
+                        } else {
+                            doneValues.emplace_back("{{ param.name | escape_cpp }}", std::move(doneValue));
+                        }
+{% else %}
+                        doneValues.emplace_back("{{ param.name | escape_cpp }}", std::move(doneValue));
+{% endif %}
+                    }
+{% else %}
+                    // §scxml-5.7: an empty location names no location —
+                    // error.execution, and this pair is ignored.
+                    engine.raise(typename Engine::EventWithMetadata(Event::Error_execution, "<donedata> <param name='{{ param.name | escape_cpp }}'> has an empty location"));
+{% endif %}
+{% endfor %}
+                    ::SCE::DoneDataHelper::collectParams(doneValues, eventData, &typedData);
+{% else %}
                     // W3C SCXML 5.5: Evaluate <param> elements
                     this->ensureScriptEngine();
                     auto& scriptEngine = getScriptEngine();
@@ -457,14 +576,18 @@
                     // which under `--script-engine lua` would have emitted
                     // ECMAScript here while everything around it emitted Lua.
                     std::vector<std::pair<std::string, ::SCE::ScriptSource>> params = {
+{# §scxml-5.7: the parser admits exactly one of the two attributes, so the
+   one that is PRESENT is the value — tested for presence, not truth, or a
+   `location=""` would fall through to an absent `expr`. #}
 {% for param in state.donedata.params %}
-                        {"{{ param.name | escape_cpp }}", {{ (param.location if param.location else param.expr) | to_script_source_expr }}}{{ "," if not loop.last }}
+                        {"{{ param.name | escape_cpp }}", {{ (param.location if param.location is not none else param.expr) | to_script_source_expr }}}{{ "," if not loop.last }}
 {% endfor %}
                     };
 
-                    // W3C SCXML 5.7: "If the location expression does not denote a valid location in the data model..."
-                    // Empty param location raises error.execution and prevents done.state event generation
-                    bool success = ::SCE::DoneDataHelper::evaluateParams(
+                    // §scxml-5.7: a pair whose location is not valid (an empty
+                    // one included) or whose expr fails raises error.execution
+                    // and is ignored; the done event is raised all the same.
+                    ::SCE::DoneDataHelper::evaluateParams(
                         scriptEngine,
                         sessionId_.value(),
                         params,
@@ -475,11 +598,38 @@
                         },
                         &typedData
                     );
-
-                    // W3C SCXML 5.7: If structural error (empty location), skip done.state event
-                    if (!success) {
-                        AOT_DEBUG("Skipping done.state event due to structural donedata error");
-                        break;
+{% endif %}
+{% elif state.donedata.native_content %}
+{# `datamodel="sce-static"` (`DoneData::native_content`): the data is the wire
+   text the build finished — the JSON string the inline `<content>` spells, or
+   the XML as written — so no script engine is asked for it (SCE Accepted
+   Subset §2.15). The typed value is what that text parses as, which the
+   engine's own dequeue reads it back as when it is not given. #}
+                    // W3C SCXML 5.5: inline text is the content value, finished at build time.
+                    eventData = "{{ state.donedata.native_content | escape_cpp }}";
+                    typedData = ::SCE::EventDataHelper::jsonStringToScriptValue(eventData);
+{% elif state.donedata.native_content_value %}
+{# `datamodel="sce-static"` (`DoneData::native_content_value`): the `<content
+   expr>` names one value, lowered to native code and read from the machine's
+   own fields as the state is entered; it is the done event's whole data, as the
+   JSON `scriptValueToJsonString` writes (SCE Accepted Subset §2.15). One that
+   cannot be computed is the evaluation that failed: error.execution, and the
+   empty string as the value. #}
+                    // W3C SCXML 5.5: the value of <content expr> is the done event's data.
+                    {
+{% if state.donedata.native_content_value_fails %}
+                        SCE::Forge::AlgorithmFailure sce_failure_;
+{% endif %}
+                        ScriptValue contentValue = {{ state.donedata.native_content_value }};
+{% if state.donedata.native_content_value_fails %}
+                        if (sce_failure_.failed()) SCE_UNLIKELY {
+                            SCE_LOG_WARN("Donedata content expr overflowed or failed");
+                            engine.raise(typename Engine::EventWithMetadata(Event::Error_execution, "<donedata> <content expr> failed to evaluate"));
+                            contentValue = ScriptValue(std::string());
+                        }
+{% endif %}
+                        eventData = ::SCE::EventDataHelper::scriptValueToJsonString(contentValue);
+                        typedData = std::move(contentValue);
                     }
 {% elif state.donedata.content.kind == "expression" or state.donedata.content.kind == "inline_text" %}
 {% if state.donedata.content.kind == "expression" %}
@@ -583,70 +733,29 @@
             break;
         }
 {% endif %}{# model.has_entry_actions #}
-{% if model.has_parallel_states %}
+    }
 
-        // W3C SCXML 3.4: If entering parallel state, enter all child regions and their initial children
-        // This ensures parallel states behave like Interpreter (auto-enter all regions)
-        //
-        // §scxml-D-addDescendantStatesToEnter: a `<parallel>` hands out defaults
-        // even when it is only an ancestor — that is Appendix D's one exception
-        // to the ancestor rule. The exception has its own exception: not the
-        // region the entry set is already descending into. `pathChild` names it,
-        // and giving that one its default too is what leaves two children of it
-        // active at once.
-        if (isParallelState(state)) {
-            AOT_DEBUG("AOT executeEntryActions: State {} is parallel, entering child regions", static_cast<int>(state));
-            auto regions = getParallelRegions(state);
-            for (const auto& region : regions) {
-                if (pathChild.has_value() && pathChild.value() == region) {
-                    AOT_DEBUG("AOT executeEntryActions: Region {} is on the entry path, no default", static_cast<int>(region));
-                    continue;
-                }
-                AOT_DEBUG("AOT executeEntryActions: Entering parallel region {}", static_cast<int>(region));
-                executeEntryActions(region, engine);
+    {{ sce_map.source_marker(model.source_location, "cpp", symbol_artifact=sce_artifact.machine) }}
+    // §scxml-3.10.2: a <history>'s default transition content, run after its
+    // parent's onentry (and after the parent's own <initial> content) when the
+    // history was taken with nothing recorded. The engine asks for it by the
+    // entry set's defaultHistoryContent answer; a history that restored what it
+    // recorded runs nothing.
+    template <typename Engine>
+    void executeHistoryDefaultContent([[maybe_unused]] History history, [[maybe_unused]] Engine& engine) {
+{% for history_id, history_info in model.history_states | dictsort %}
+{% if history_info.default_actions %}
+        if (history == History::{{ history_id | capitalize }}) {
+            AOT_DEBUG("AOT executeHistoryDefaultContent: {{ history_id }}");
+{% for action in history_info.default_actions %}
+            {% set block_exit = 'return;' %}
+            {% include 'actions/' + action.type + '.jinja2' %}
 
-                // W3C SCXML 3.3: If region is compound, enter initial child
-                if (isCompoundState(region)) {
-                    State initialChild = getInitialChild(region);
-                    if (initialChild != region) {
-                        AOT_DEBUG("AOT executeEntryActions: Entering initial child {} of region {}",
-                                 static_cast<int>(initialChild), static_cast<int>(region));
-                        executeEntryActions(initialChild, engine);
-                    }
-                }
-            }
-        }
-
-        // W3C SCXML 3.3: If entering compound state (non-parallel), enter initial child
-        // W3C SCXML 3.6: Support deep initial targets (space-separated descendant state IDs)
-        //
-        // §scxml-D-addAncestorStatesToEnter: not when `state` is merely on the
-        // way to a deeper target. The entry set already holds `pathChild`, and a
-        // compound state holds one child at a time.
-        if (isCompoundState(state) && !isParallelState(state) && !pathChild.has_value()) {
-            // W3C SCXML 3.6: Check if state has multiple or deep initial targets
-            switch (state) {
-            {% for state_id, state in model.states | dictsort %}
-            {% if state.initial_children and state.initial_children|length > 0 %}
-            case State::{{ state_id | capitalize }}:
-                AOT_DEBUG("AOT executeEntryActions: State {} has initial children, delegating to StateEntryHelper",
-                         static_cast<int>(state));
-                enterDeepInitialTargets_{{ state_id | capitalize }}(engine);
-                break;
-            {% endif %}
-            {% endfor %}
-            default:
-                    // No explicit initial children - use single initial child
-                    State initialChild = getInitialChild(state);
-                    if (initialChild != state) {
-                        AOT_DEBUG("AOT executeEntryActions: State {} is compound, entering initial child {}",
-                                 static_cast<int>(state), static_cast<int>(initialChild));
-                        executeEntryActions(initialChild, engine);
-                    }
-                    break;
-            }
+{% endfor %}
+            return;
         }
 {% endif %}
+{% endfor %}
     }
 
     {{ sce_map.source_marker(model.source_location, "cpp", symbol_artifact=sce_artifact.machine) }}
@@ -682,63 +791,21 @@
    several of them are the `invokes | …` filters, and re-deriving those in Rust
    would be a second definition of "is this a local scxml invoke" that could
    drift from the one the rest of this file uses. #}
-{% set exit_actions_needs_this = model.needs_script_engine or model.invokes | scxml or model.invokes | scxml_remote or model.invokes | unsupported or model.invokes | host_invoker or model.needs_parent_template or model.needs_event_scheduler or model.has_parallel_states or model.context_objects or model.has_history_states or has_native_actions %}
+{% set exit_actions_needs_this = model.needs_script_engine or model.invokes | scxml or model.invokes | scxml_remote or model.invokes | unsupported or model.invokes | host_invoker or model.needs_parent_template or model.needs_event_scheduler or model.has_parallel_states or model.context_objects or model.has_history_states or has_native_actions or static_fields or model.uses_in_predicate %}
 {% if not exit_actions_needs_this %}    [[gnu::hot]] static void executeExitActions([[maybe_unused]] State state, [[maybe_unused]] Engine& engine, [[maybe_unused]] const std::vector<State>& activeStatesBeforeTransition) {
 {% else %}    [[gnu::hot]] void executeExitActions([[maybe_unused]] State state, [[maybe_unused]] Engine& engine, [[maybe_unused]] const std::vector<State>& activeStatesBeforeTransition) {
 {% endif %}
 
-{% if model.has_parallel_states %}
-        // W3C SCXML 3.4 + 3.13: Parallel state exit order
-        // Matches Interpreter's exitParallelStateAndDescendants() logic
-        AOT_DEBUG("AOT executeExitActions: Checking if state {} is parallel", static_cast<int>(state));
-        if (isParallelState(state)) {
-            AOT_DEBUG("AOT executeExitActions: State {} IS parallel, collecting active descendants", static_cast<int>(state));
-
-            // W3C SCXML 3.4: Collect all active descendants of this parallel state
-            // Matches Interpreter's collectDescendantStates() - exit ALL active descendants, not just direct regions
-            ::std::vector<State> descendantsToExit;
-            for (State activeState : activeStates_) {
-                if (activeState != state && isDescendantOf(activeState, state)) {
-                    descendantsToExit.push_back(activeState);
-                    AOT_DEBUG("AOT executeExitActions: Found active descendant {} of parallel state {}",
-                             static_cast<int>(activeState), static_cast<int>(state));
-                }
-            }
-
-            AOT_DEBUG("AOT executeExitActions: Found {} active descendants to exit", descendantsToExit.size());
-
-            // W3C SCXML 3.13: Sort descendants by reverse document order (deepest states exit first)
-            ::std::sort(descendantsToExit.begin(), descendantsToExit.end(),
-                       [](State a, State b) {
-                           return getDocumentOrder(a) > getDocumentOrder(b);
-                       });
-
-            // Exit each active descendant (deepest first)
-            for (State descendant : descendantsToExit) {
-                AOT_DEBUG("AOT executeExitActions: Exiting active descendant {}", static_cast<int>(descendant));
-                executeExitActions(descendant, engine, activeStatesBeforeTransition);
-            }
-
-            AOT_DEBUG("AOT executeExitActions: All active descendants exited, now exiting parallel state {} itself", static_cast<int>(state));
-            // After exiting all descendants, fall through to exit parallel state itself
-        } else {
-            AOT_DEBUG("AOT executeExitActions: State {} is NOT parallel, proceeding to switch", static_cast<int>(state));
-        }
-{% endif %}
-{% if model.has_parallel_states or model.uses_in_predicate %}
-        // W3C SCXML 3.4/3.12.1: Remove state from active configuration (parallel states and In() predicate)
-        AOT_DEBUG("AOT executeExitActions: Removing state {} from activeStates", static_cast<int>(state));
-        {
-            ::std::lock_guard<::std::mutex> lock(activeStatesMutex_);
-            activeStates_.erase(
-                std::remove(activeStates_.begin(), activeStates_.end(), state),
-                activeStates_.end()
-            );
-        }
-{% endif %}
+{# One state's exit, and nothing below it: the engine's Appendix D exit set
+   already holds every active descendant, in exit order, ahead of this state.
+   §scxml-D-exitStates orders one state's exit as onexit, then cancelInvoke,
+   then configuration.delete(s), so `In(s)` inside s's own handler is true:
+   the removal from `activeStates_` is the LAST thing this function does. #}
         {% if model.history_states %}
-        // W3C SCXML 3.11: Record history before exiting compound states (matches Interpreter logic)
-        // Use pre-transition active states (captured before processTransition modified currentState_)
+        // W3C SCXML 3.10: Record history as this state exits, from the
+        // configuration the microstep started from — the engine snapshots it
+        // before the first exit, so every history in one microstep reads the
+        // same configuration.
         const std::vector<State>& activeStates = activeStatesBeforeTransition;
         
         {% for history_id, history_info in model.history_states | dictsort %}
@@ -768,6 +835,41 @@
                 AOT_DEBUG("AOT executeExitActions: Processing exit actions for state {} ({{ state_id }})", static_cast<int>(state));
 {% if state.on_exit_blocks or state.invokes | scxml or state.invokes | hybrid or state.invokes | mesh_rpc or state.invokes | scxml_remote or state.invokes | unsupported or state.invokes | host_invoker %}
                 {
+{% if state.on_exit_blocks %}
+                // §scxml-D-exitStates: the state's onexit runs first, while the
+                // state and its invocations are still live; cancelInvoke and
+                // the configuration.delete(s) step follow it.
+{% set single_cpp_exit_action = (state.on_exit_blocks|length == 1 and state.on_exit_blocks[0]|length == 1 and state.on_exit_blocks[0][0].type == 'script' and state.on_exit_blocks[0][0].is_cpp_function) %}
+{% if single_cpp_exit_action %}
+                // W3C SCXML 3.9: Single <cpp> action - direct call (true Zero Overhead)
+                // Optimization: No std::vector, std::function, or EntryExitHelper overhead
+                {{ state.on_exit_blocks[0][0].content_transformed | trim }};
+{% else %}
+                {
+                    // W3C SCXML 3.9: Build onexit block lambdas for EntryExitHelper
+                    // ARCHITECTURE.md Zero Duplication: Delegate to shared Helper (lines 311-373)
+                    std::vector<std::function<void()>> exitBlocks;
+{% for block in state.on_exit_blocks %}
+                    exitBlocks.push_back([{% if model.needs_nonstatic_method %}this, {% endif %}&engine]() {
+                        // Onexit block {{ loop.index }}/{{ state.on_exit_blocks|length }}
+{% for action in block %}
+{%- if action.req or action.unresolved %}
+{{ annot.annotation_block(action, "cpp", "                        ") -}}
+{%- endif %}
+                        {% set block_exit = 'return;' %}
+                        {% include 'actions/' + action.type + '.jinja2' %}
+
+{% endfor %}
+                    });
+{% endfor %}
+                    // W3C SCXML 3.9: Delegate to EntryExitHelper (Single Source of Truth)
+                    // This achieves ARCHITECTURE.md Zero Duplication between Interpreter and AOT engines
+                    ::SCE::Core::EntryExitHelper<{{ model.name }}Policy, Engine>::executeExitBlocks(
+                        exitBlocks, engine, "{{ state_id }}"
+                    );
+                }
+{% endif %}
+{% endif %}
 {% if state.invokes | scxml or state.invokes | hybrid or state.invokes | unsupported %}
                 // W3C SCXML 6.4: Cancel pending invokes for exited state (ARCHITECTURE.md Zero Duplication)
                 // Covers §scxml-6.4.1 unsupported-type entries too: an invoke
@@ -784,12 +886,10 @@
 {% endfor %}
 {% if state.invokes | scxml or state.invokes | hybrid %}
                 {% for invoke_info in state.invokes | scxml %}
+                // §scxml-6.4: cancelling raises nothing in this session —
+                // the spec defines no `cancel.invoke` event, and a document
+                // that named one used to receive it here.
                 if (child_{{ invoke_info.field_suffix }}_) {
-{% if 'cancel.invoke' in model.events %}
-                    if (!pendingDoneInvoke_{{ invoke_info.invoke_id }}_) {
-                        engine.raise(typename Engine::EventWithMetadata(Event::Cancel_invoke));
-                    }
-{% endif %}
                     child_{{ invoke_info.field_suffix }}_.reset();
                 }
                 // SCE_MESH.md §16.7 row 5 sub-atomic C — erase is shared
@@ -800,14 +900,20 @@
                 }
 {% endfor %}
                 {% for invoke_info in state.invokes | hybrid %}
+{% if invoke_info.candidates %}
+{# §scxml-6.4: at most one candidate slot is filled, so this cancels the
+   one that started and steps over the rest — the same null guard the
+   single-slot shape used. #}
+{% for candidate in invoke_info.candidates %}
+                if (child_{{ invoke_info.field_suffix }}_{{ candidate.stem }}_) {
+                    child_{{ invoke_info.field_suffix }}_{{ candidate.stem }}_.reset();
+                }
+{% endfor %}
+{% else %}
                 if (child_{{ invoke_info.field_suffix }}_) {
-{% if 'cancel.invoke' in model.events %}
-                    if (!pendingDoneInvoke_{{ invoke_info.invoke_id }}_) {
-                        engine.raise(typename Engine::EventWithMetadata(Event::Cancel_invoke));
-                    }
-{% endif %}
                     child_{{ invoke_info.field_suffix }}_.reset();
                 }
+{% endif %}
                 // SCE_MESH.md §16.7 row 5 sub-atomic C — see comment above.
                 {
                     std::lock_guard<std::mutex> __sce_active_invokes_lk(activeInvokesMutex_);
@@ -873,38 +979,6 @@
 {% endif %}
                 {% endfor %}
 {% endif %}
-{% if state.on_exit_blocks %}
-{% set single_cpp_exit_action = (state.on_exit_blocks|length == 1 and state.on_exit_blocks[0]|length == 1 and state.on_exit_blocks[0][0].type == 'script' and state.on_exit_blocks[0][0].is_cpp_function) %}
-{% if single_cpp_exit_action %}
-                // W3C SCXML 3.9: Single <cpp> action - direct call (true Zero Overhead)
-                // Optimization: No std::vector, std::function, or EntryExitHelper overhead
-                {{ state.on_exit_blocks[0][0].content_transformed | trim }};
-{% else %}
-                {
-                    // W3C SCXML 3.9: Build onexit block lambdas for EntryExitHelper
-                    // ARCHITECTURE.md Zero Duplication: Delegate to shared Helper (lines 311-373)
-                    std::vector<std::function<void()>> exitBlocks;
-{% for block in state.on_exit_blocks %}
-                    exitBlocks.push_back([{% if model.needs_nonstatic_method %}this, {% endif %}&engine]() {
-                        // Onexit block {{ loop.index }}/{{ state.on_exit_blocks|length }}
-{% for action in block %}
-{%- if action.req or action.unresolved %}
-{{ annot.annotation_block(action, "cpp", "                        ") -}}
-{%- endif %}
-                        {% set in_entry_exit = true %}
-                        {% include 'actions/' + action.type + '.jinja2' %}
-
-{% endfor %}
-                    });
-{% endfor %}
-                    // W3C SCXML 3.9: Delegate to EntryExitHelper (Single Source of Truth)
-                    // This achieves ARCHITECTURE.md Zero Duplication between Interpreter and AOT engines
-                    ::SCE::Core::EntryExitHelper<{{ model.name }}Policy, Engine>::executeExitBlocks(
-                        exitBlocks, engine, "{{ state_id }}"
-                    );
-                }
-{% endif %}
-{% endif %}
                 }
 {% endif %}
                 break;
@@ -914,4 +988,16 @@
             break;
         }
 {% endif %}{# model.has_exit_actions #}
+{% if model.has_parallel_states or model.uses_in_predicate %}
+        // §scxml-D-exitStates: out of the configuration only after its onexit
+        // and invoke cancellation — the configuration.delete(s) step.
+        AOT_DEBUG("AOT executeExitActions: Removing state {} from activeStates", static_cast<int>(state));
+        {
+            ::std::lock_guard<::std::mutex> lock(activeStatesMutex_);
+            activeStates_.erase(
+                std::remove(activeStates_.begin(), activeStates_.end(), state),
+                activeStates_.end()
+            );
+        }
+{% endif %}
     }

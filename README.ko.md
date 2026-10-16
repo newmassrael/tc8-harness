@@ -53,7 +53,7 @@ CMake가 SCE의 `--write-deps`를 통해 자동으로 처리합니다.
 | 레이어 | 선택 | 이유 |
 |--------|------|------|
 | 캡처 | **libpcap** (libtins 래퍼) | 성숙도, 이식성, 커널 내 BPF. L3-7에서는 하드웨어 타임스탬프 불필요. |
-| SOME/IP 파싱 | **자체 C++ 파서** | Wireshark dissector는 GPL → Apache-2.0 + SCE LGPL 스택과 라이선스 비호환. 헤더는 50-100 LoC 수준으로 작음. |
+| SOME/IP 파싱 | **자체 C++ 파서** | Wireshark dissector는 GPL → Apache-2.0 + SCE AGPL(링크 예외 포함) 스택과 라이선스 비호환. 헤더는 50-100 LoC 수준으로 작음. |
 | SOME/IP 페이로드 | **CommonAPI 생성 InputStream** | `.fidl` / `.fdepl`로 생성된 proxy 코드의 TLV / endian / alignment 로직 재사용. |
 | 자극(stimulus) | **vsomeip C++ API 직접 사용** | mesh 추상화는 테스트 맥락에서 마찰 발생. vsomeip가 표준 클라이언트. |
 | 오케스트레이션 | **W3C SCXML (SCE 정적 AOT)** | 케이스별 상태기계를 표준 포맷으로 작성 → C++로 AOT 컴파일. mesh 독립적. |
@@ -1054,7 +1054,7 @@ Wall-time 이연 케이스(`TCP_RETRANSMISSION_TO_08/_09`)는 이미
 
 | 컴포넌트 | 위치 | 라이선스 |
 | --------- | ---- | -------- |
-| SCE (SCXML Core Engine) | `third_party/sce/` | LGPL-2.1+ WITH SCE-Linking-Exception OR SCE-Commercial (`third_party/sce/LICENSE*`) |
+| SCE (SCXML Core Engine) | `third_party/sce/` | AGPL-3.0-only WITH SCE-Linking-Exception OR SCE-Commercial (`third_party/sce/LICENSE*`); [LICENSE-SCE-GRANT.md](LICENSE-SCE-GRANT.md) 참고 |
 | pugixml (SCE 경유 vendored) | `third_party/sce/third_party/pugixml/` | MIT (`LICENSE.md`) |
 | nlohmann/json (SCE 경유 vendored) | `third_party/sce/third_party/nlohmann_json/` | MIT (`third_party/sce/LICENSE-THIRD-PARTY.md`로 커버) |
 | CLI11 | `third_party/CLI11/` | BSD-3-Clause (`LICENSE`) |

@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
@@ -15,6 +15,15 @@
 # contract that `<sce:foreach item>` is `uint8`. Numeric arithmetic
 # in Python is arbitrary-precision so unsigned-narrow truncation is
 # the body author's responsibility (e.g. `crc & 0xFFFF`).
+{% if may_fail %}
+#
+# SCE_FORGE.md §3.4.1: this algorithm declares may-fail. Each integer
+# operation goes through `sce_algorithm`, which holds it to its declared
+# width, and a failure raises `sce_algorithm.AlgorithmFailure` to the caller
+# in place of a value.
+
+from sce_forge_runtime import algorithm as sce_algorithm
+{% endif %}
 {% if all_imports %}
 
 {% for imp in all_imports %}

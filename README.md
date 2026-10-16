@@ -55,7 +55,7 @@ the rest (codegen, registration, BPF group, build dependency on
 | Layer | Choice | Why |
 |-------|--------|-----|
 | Capture | **libpcap** (libtins thin wrapper) | mature, portable, in-kernel BPF; hardware timestamps not needed at L3-7. |
-| SOME/IP dissect | **direct C++ parser** | Wireshark dissector is GPL → incompatible with our Apache-2.0 + SCE LGPL-with-linking-exception stack. Header is small (50-100 LoC). |
+| SOME/IP dissect | **direct C++ parser** | Wireshark dissector is GPL → incompatible with our Apache-2.0 + SCE AGPL-with-linking-exception stack. Header is small (50-100 LoC). |
 | SOME/IP payload | **CommonAPI generated InputStream** | reuses TLV/endian/alignment baked into `.fidl`/`.fdepl`-driven proxy code. |
 | Stimulus | **vsomeip C++ API directly** | mesh abstraction adds friction in test context; vsomeip is the canonical client. |
 | Orchestration | **W3C SCXML via SCE static AOT** | per-case state machine in standard format, AOT-compiled to C++; mesh-independent. |
@@ -1372,7 +1372,7 @@ Third-party components ship under their own licenses, retained in tree:
 
 | Component | Location | License |
 | --------- | -------- | ------- |
-| SCE (SCXML Core Engine) | `third_party/sce/` | LGPL-2.1+ WITH SCE-Linking-Exception OR SCE-Commercial (`third_party/sce/LICENSE*`) |
+| SCE (SCXML Core Engine) | `third_party/sce/` | AGPL-3.0-only WITH SCE-Linking-Exception OR SCE-Commercial (`third_party/sce/LICENSE*`); see also [LICENSE-SCE-GRANT.md](LICENSE-SCE-GRANT.md) |
 | pugixml (vendored via SCE) | `third_party/sce/third_party/pugixml/` | MIT (`LICENSE.md`) |
 | nlohmann/json (vendored via SCE) | `third_party/sce/third_party/nlohmann_json/` | MIT (covered by `third_party/sce/LICENSE-THIRD-PARTY.md`) |
 | CLI11 | `third_party/CLI11/` | BSD-3-Clause (`LICENSE`) |

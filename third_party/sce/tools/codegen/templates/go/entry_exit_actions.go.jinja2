@@ -1,11 +1,22 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {#
     Entry/Exit Actions Template (Go Jinja2)
 
-    W3C SCXML 3.8/3.9: Entry and exit action execution.
-    Renders onEntry/onExit action blocks per state.
+    W3C SCXML 3.7/3.8/3.9: Entry and exit action execution.
+
+    Generates:
+    - ExecuteEntryActions(state, engine, isDefaultEntry)
+    - ExecuteExitActions(state, engine, configurationBeforeExit)
+    - ExecuteHistoryDefaultContent(history, engine)
+
+    Each answers for ONE state. Which states a microstep enters and exits, and
+    in which order, is the runtime's Appendix D procedure (microstep.go): it
+    enters its entry set front to back and exits its exit set in exit order,
+    so nothing here enters a region, descends to an initial child, or exits a
+    descendant. `isDefaultEntry` is the entry set's statesForDefaultEntry
+    answer — whether this state's initial transition content runs.
 
     NOTE: Uses dynamic {% include %} like the Rust templates to avoid
     minijinja macro+include limitation. Action field is `action.type`
@@ -13,24 +24,44 @@
 #}
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
 {%- import '_macros/sce_annotation_marker.jinja2' as annot %}
+{# W3C SCXML 6.4.1: an invoke's generated id goes to its `idlocation` when the
+   element is evaluated, then the invoke is deferred. The write is the
+   assignment `<assign>` makes — the location is lowered, so a member path
+   lands, and one that cannot take the id raises error.execution and the
+   invocation does not start, as any argument of the element that cannot be
+   evaluated does. `model`, `machine_name` and `state_id` are parameters
+   because a macro body does not see the render context. #}
+{% macro defer_with_idlocation(invoke_info, model, machine_name, state_id) %}
+{% if invoke_info.idlocation %}
+			if err := p.storeIDInLocation(`{{ invoke_info.idlocation | to_lua_location }}`, generatedInvokeID); err != nil {
+{% if 'error.execution' in model.events %}
+				engine.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<invoke idlocation='{{ invoke_info.idlocation | escape_go }}'> could not take the invoke id"))
+{% endif %}
+			} else {
+				sce.DeferInvoke(&p.pendingInvokes, sce.PendingInvoke[{{ machine_name }}State]{
+					InvokeID:   generatedInvokeID,
+					State:      {{ machine_name }}State{{ state_id | to_state_variant }},
+					DocumentID: "{{ invoke_info.invoke_id }}",
+				})
+			}
+{%- else %}
+			sce.DeferInvoke(&p.pendingInvokes, sce.PendingInvoke[{{ machine_name }}State]{
+				InvokeID:   generatedInvokeID,
+				State:      {{ machine_name }}State{{ state_id | to_state_variant }},
+				DocumentID: "{{ invoke_info.invoke_id }}",
+			})
+{%- endif %}
+{%- endmacro %}
 
-// ExecuteEntryActions executes onentry actions for a state (W3C SCXML 3.8).
+// ExecuteEntryActions enters one state (W3C SCXML 3.8): adds it to the
+// configuration, runs its <onentry>, and its <initial> transition's content when
+// its initial state is entered by default.
 {# SCE Protocol-Synthesis RFC §synth-5-O — function-scope SCE-MAP marker
    above `ExecuteEntryActions`. `//line file:N` is a Go compiler
    directive recognized by panic stack traces and `go vet`; it must
    start at column 0 (no leading indent). #}
 {{ sce_map.source_marker(model.source_location, "go", symbol_artifact=sce_artifact.machine) }}
-{# §scxml-D: `pathChild` tells addDescendantStatesToEnter (nil — `state` is the
-   entry TARGET and takes its defaults) from addAncestorStatesToEnter (the child
-   of `state` the entry set already holds, so `state` takes none — except that a
-   `<parallel>` still gives its OTHER regions theirs). See the runtime's
-   StatePolicy.ExecuteEntryActions. #}
-func (p *{{ machine_name }}Policy) ExecuteEntryActions(state {{ machine_name }}State, engine *sce.Engine[{{ machine_name }}State, {{ machine_name }}Event], pathChild *{{ machine_name }}State) {
-{% if not model.has_parallel_states %}
-	// Only a `<parallel>` machine descends into defaults here, so a machine
-	// without one has nothing to tell an ancestor entry from a target entry.
-	_ = pathChild
-{% endif %}
+func (p *{{ machine_name }}Policy) ExecuteEntryActions(state {{ machine_name }}State, engine *sce.Engine[{{ machine_name }}State, {{ machine_name }}Event], isDefaultEntry bool) {
 {% if model.needs_script_engine %}
 	p.ensureScriptEngine()
 {% endif %}
@@ -45,62 +76,94 @@ func (p *{{ machine_name }}Policy) ExecuteEntryActions(state {{ machine_name }}S
 {% endif %}
 	switch state {
 {% for state_id, state in model.states | dictsort %}
-{% if state.on_entry_blocks or state.initial_transition_actions or state.initial_history_id or (state.is_final and state.parent) or (state.is_final and state.donedata) or state.invokes | scxml or state.invokes | hybrid or state.invokes | unsupported %}
+{% if state.on_entry_blocks or state.initial_transition_actions or (state.is_final and state.parent) or (state.is_final and state.donedata) or (state.datamodel and model.binding == 'late') or state.invokes | scxml or state.invokes | hybrid or state.invokes | unsupported %}
 	case {{ machine_name }}State{{ state_id | to_state_variant }}:{{ annot.annotation_comment(state, "go", "		") }}
 {% if state.source_location %}
 		{{ sce_map.source_marker(state.source_location, "go", stmt_level=true, symbol_state=state_id, symbol_artifact=sce_artifact.state_body) | trim }}
 {% endif %}
+{% if state.datamodel and model.binding == 'late' %}
+		// §scxml-D-enterStates, late binding: the state's <data> is bound on
+		// its FIRST entry only (s.isFirstEntry), before its <onentry>. The
+		// engine owns the first-entry rule; this is only what binding means
+		// for this state.
+		if engine.ClaimLateBindingFirstEntry(state) {
+			p.bindStateData(state, engine)
+		}
+{% endif %}
 {% for block in state.on_entry_blocks %}
-		// W3C SCXML 3.8: onentry block {{ loop.index0 }} (break on error stops subsequent actions)
-		for actionBlock{{ loop.index0 }} := 0; actionBlock{{ loop.index0 }} < 1; actionBlock{{ loop.index0 }}++ {
-			_ = actionBlock{{ loop.index0 }}
+		// W3C SCXML 3.8 + 4.9: onentry block {{ loop.index0 }}, its own function so an
+		// error ends it with `return` from however deep a <foreach> it came.
+		func() {
 {% for action in block %}
 {%- if action.req or action.unresolved %}
 {{ annot.annotation_block(action, "go", "			") -}}
 {%- endif %}
-			{% with in_entry_exit=true %}{% include 'actions/' ~ action.type ~ '.go.jinja2' %}{% endwith %}
+			{% with in_action_block=true %}{% include 'actions/' ~ action.type ~ '.go.jinja2' %}{% endwith %}
 
 {% endfor %}
-		}
+		}()
 {% endfor %}
 {% if state.initial_transition_actions %}
-		// W3C SCXML 3.3.2: Execute <initial> transition executable content
-		for initialBlock := 0; initialBlock < 1; initialBlock++ {
-			_ = initialBlock
+		// W3C SCXML 3.3.2 / §scxml-D-enterStates: the <initial> transition's
+		// content runs when this state's initial state is entered by DEFAULT —
+		// not when the state is entered only as an ancestor of a deeper target.
+		if isDefaultEntry {
+			func() {
 {% for action in state.initial_transition_actions %}
-			{% with in_entry_exit=true %}{% include 'actions/' ~ action.type ~ '.go.jinja2' %}{% endwith %}
+				{% with in_action_block=true %}{% include 'actions/' ~ action.type ~ '.go.jinja2' %}{% endwith %}
 
 {% endfor %}
-		}
-{% endif %}
-{% if state.initial_history_id %}
-		// W3C SCXML 3.11: Initial transition targets history state {{ state.initial_history_id }}
-		if p.history{{ state.initial_history_id | to_pascal_case }} == nil || len(p.history{{ state.initial_history_id | to_pascal_case }}) == 0 {
-			// No stored history, execute default transition actions
-{% for action in state.initial_history_default_actions %}
-			{% include 'actions/' ~ action.type ~ '.go.jinja2' %}
-
-{% endfor %}
+			}()
 		}
 {% endif %}
 {% if state.is_final and state.donedata %}
 		// W3C SCXML 5.5: Evaluate donedata for final state
 		doneEventData := ""
-		doneDataOk := true
 {% if state.donedata.params %}
+{# `datamodel="sce-static"`: each param's value is native code
+   (`DoneDataParam::native_value`), read from the machine's own fields, so no
+   script engine is asked for any of them. #}
+{% set done_native = state.donedata.params | selectattr("native_value") | list | length > 0 %}
 		{
+{% if not done_native %}
 			p.ensureScriptEngine()
 			se := p.ScriptEngine
 			if se != nil {
+{% else %}
+			{
+{% endif %}
 				var jsonParts []string
 {% for param in state.donedata.params %}
-{% set param_expr = param.expr if param.expr else param.location %}
-{% if not param_expr %}
-				// W3C SCXML 5.7: Empty location raises error.execution (structural error)
+{# §scxml-5.7: the parser admits exactly one of the two attributes, so the
+   one that is PRESENT is the value — tested for presence, not truth. #}
+{% set param_expr = param.expr if param.expr is not none else param.location %}
+{% if param.native_value %}
+{# The value is what `ScriptValueToJSON` writes as the pair's JSON value. A
+   checked operation that overflows records its failure and answers a zero: the
+   evaluation that failed, reported, and the pair left out (§scxml-5.7.1). #}
+				{
+{% if param.native_fails %}
+					var sceFailure scealgorithm.Failure
+{% endif %}
+					sceValue := {{ param.native_value }}
+{% if param.native_fails %}
+					if !sceFailure.Failed() {
+{% else %}
+					{
+{% endif %}
+						jsonParts = append(jsonParts, "\"{{ param.name | escape_json_string | escape_go }}\":" + sce.ScriptValueToJSON(sceValue))
+{% if param.native_fails and 'error.execution' in model.events %}
+					} else {
+						engine.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<donedata> <param name='{{ param.name | escape_go }}'> failed to evaluate"))
+{% endif %}
+					}
+				}
+{% elif not param_expr %}
+				// §scxml-5.7: an empty location names no location —
+				// error.execution, and this pair is ignored.
 {% if 'error.execution' in model.events %}
 				engine.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<donedata> <param name='{{ param.name | escape_go }}'> has an empty location"))
 {% endif %}
-				doneDataOk = false
 {% else %}
 {# A Go raw string cannot escape its own terminator, so author text in
    one is unfixable by any filter. Interpreted strings take the same
@@ -118,10 +181,41 @@ func (p *{{ machine_name }}Policy) ExecuteEntryActions(state {{ machine_name }}S
 				}
 {% endif %}
 {% endfor %}
-				if doneDataOk {
-					doneEventData = "{" + strings.Join(jsonParts, ",") + "}"
-				}
+				// §scxml-5.5: the pairs that survived, `{}` when none did.
+				doneEventData = "{" + strings.Join(jsonParts, ",") + "}"
 			}
+		}
+{% elif state.donedata.native_content %}
+		{
+{# `datamodel="sce-static"` (`DoneData::native_content`): the data is the wire
+   text the build finished — the JSON string the inline `<content>` spells, or
+   the XML as written — so no script engine is asked for it (SCE Accepted
+   Subset §2.15). #}
+			// W3C SCXML 5.5: inline text is the content value, finished at build time.
+			doneEventData = "{{ state.donedata.native_content | escape_go }}"
+		}
+{% elif state.donedata.native_content_value %}
+		{
+{# `datamodel="sce-static"` (`DoneData::native_content_value`): the `<content
+   expr>` names one value, lowered to native code and read from the machine's
+   own fields as the state is entered; it is the done event's whole data, as the
+   JSON `ScriptValueToJSON` writes (SCE Accepted Subset §2.15). One that cannot
+   be computed is the evaluation that failed: error.execution, and the empty
+   string as the value. #}
+			// W3C SCXML 5.5: the value of <content expr> is the done event's data.
+{% if state.donedata.native_content_value_fails %}
+			var sceFailure scealgorithm.Failure
+			var contentValue interface{} = {{ state.donedata.native_content_value }}
+			if sceFailure.Failed() {
+{% if 'error.execution' in model.events %}
+				engine.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<donedata> <content expr> failed to evaluate"))
+{% endif %}
+				contentValue = ""
+			}
+{% else %}
+			var contentValue interface{} = {{ state.donedata.native_content_value }}
+{% endif %}
+			doneEventData = sce.ScriptValueToJSON(contentValue)
 		}
 {% elif state.donedata.content.kind == "expression" or state.donedata.content.kind == "inline_text" %}
 		{
@@ -162,7 +256,6 @@ func (p *{{ machine_name }}Policy) ExecuteEntryActions(state {{ machine_name }}S
 		}
 {% endif %}
 		_ = doneEventData
-		_ = doneDataOk
 {% endif %}
 {% if state.is_final and state.donedata and not state.parent %}
 		// W3C SCXML 5.5 + 6.3.1: Top-level <final> — stash donedata so the
@@ -170,48 +263,29 @@ func (p *{{ machine_name }}Policy) ExecuteEntryActions(state {{ machine_name }}S
 		// done.invoke.<id>._event.data. Mirrors the C++ AOT
 		// stashDonedataAtFinal contract and Rust
 		// Engine::stash_donedata_at_final.
-		if doneDataOk {
-			engine.StashDonedataAtFinal(doneEventData)
-		}
+		engine.StashDonedataAtFinal(doneEventData)
 {% endif %}
 {% if state.is_final and state.parent %}
 {% set done_event = ("done.state." ~ state.parent) | to_event_variant %}
 {% if state.donedata %}
 		// W3C SCXML 5.5: Carry evaluated donedata in done.state.{{ state.parent }} event
-		if doneDataOk {
-			doneMeta := sce.NewEventWithMetadata({{ machine_name }}Event{{ done_event }})
-			doneMeta.Metadata.Data = doneEventData
-			engine.Raise(doneMeta)
-		}
+		doneMeta := sce.NewEventWithMetadata({{ machine_name }}Event{{ done_event }})
+		doneMeta.Metadata.Data = doneEventData
+		engine.Raise(doneMeta)
 {% else %}
 		// W3C SCXML 3.7: Final state reached — raise done.state.{{ state.parent }}
 		engine.Raise(sce.NewEventWithMetadata({{ machine_name }}Event{{ done_event }}))
 {% endif %}
 {% if model.has_parallel_states and state.parent in model.states and model.states[state.parent].parent %}
 {% set grandparent_id = model.states[state.parent].parent %}
-{% if grandparent_id in model.states and model.states[grandparent_id].is_parallel %}
-		// W3C SCXML 3.4: Check if parallel grandparent {{ grandparent_id }} has all regions complete
-		{
-			regions := p.GetParallelRegions({{ machine_name }}State{{ grandparent_id | to_state_variant }})
-			allComplete := true
-			for _, region := range regions {
-				regionDone := false
-				for _, s := range p.activeStates {
-					if p.IsFinalState(s) && p.IsDescendantOf(s, region) {
-						regionDone = true
-						break
-					}
-				}
-				if !regionDone {
-					allComplete = false
-					break
-				}
-			}
-			if allComplete {
-{% if 'done.state.' ~ grandparent_id in model.events %}
-				engine.Raise(sce.NewEventWithMetadata({{ machine_name }}Event{{ ('done.state.' ~ grandparent_id) | to_event_variant }}))
-{% endif %}
-			}
+{% if grandparent_id in model.states and model.states[grandparent_id].is_parallel and ('done.state.' ~ grandparent_id) in model.events %}
+		// W3C SCXML 3.4 / §scxml-D-enterStates: a region of {{ grandparent_id }}
+		// has reached a final state, and the <parallel> completes when every one
+		// of its child states is in one — Appendix D's isInFinalState, which
+		// counts a region that is itself a <parallel> only once all of ITS
+		// regions are.
+		if (sce.PolicyDocument[{{ machine_name }}State, {{ machine_name }}Event]{Policy: p}).IsInFinalState({{ machine_name }}State{{ grandparent_id | to_state_variant }}, p.activeStates) {
+			engine.Raise(sce.NewEventWithMetadata({{ machine_name }}Event{{ ('done.state.' ~ grandparent_id) | to_event_variant }}))
 		}
 {% endif %}
 {% endif %}
@@ -226,8 +300,9 @@ func (p *{{ machine_name }}Policy) ExecuteEntryActions(state {{ machine_name }}S
 		{
 			generatedInvokeID := fmt.Sprintf("%s.%d.{{ invoke_info.invoke_id }}", "{{ state_id }}", sce.NextInvokeCounter())
 			sce.DeferInvoke(&p.pendingInvokes, sce.PendingInvoke[{{ machine_name }}State]{
-				InvokeID: generatedInvokeID,
-				State:    {{ machine_name }}State{{ state_id | to_state_variant }},
+				InvokeID:   generatedInvokeID,
+				State:      {{ machine_name }}State{{ state_id | to_state_variant }},
+				DocumentID: "{{ invoke_info.invoke_id }}",
 			})
 		}
 {% endfor %}
@@ -237,34 +312,13 @@ func (p *{{ machine_name }}Policy) ExecuteEntryActions(state {{ machine_name }}S
 {% for invoke_info in state.invokes | scxml %}
 		{  {{- annot.annotation_comment(invoke_info, "go", "			") }}
 			generatedInvokeID := fmt.Sprintf("%s.%d.{{ invoke_info.invoke_id }}", "{{ state_id }}", sce.NextInvokeCounter())
-{% if invoke_info.idlocation %}
-			// W3C SCXML 6.4.1: Store generated invokeId in datamodel via idlocation
-			p.ensureScriptEngine()
-			se := p.ScriptEngine
-			if se != nil {
-				_ = se.SetVariable(p.SessionID, "{{ invoke_info.idlocation }}", generatedInvokeID)
-			}
-{% endif %}
-			sce.DeferInvoke(&p.pendingInvokes, sce.PendingInvoke[{{ machine_name }}State]{
-				InvokeID: generatedInvokeID,
-				State:    {{ machine_name }}State{{ state_id | to_state_variant }},
-			})
+{{ defer_with_idlocation(invoke_info, model, machine_name, state_id) }}
 		}
 {% endfor %}
 {% for invoke_info in state.invokes | hybrid %}
 		{  {{- annot.annotation_comment(invoke_info, "go", "			") }}
 			generatedInvokeID := fmt.Sprintf("%s.%d.{{ invoke_info.invoke_id }}", "{{ state_id }}", sce.NextInvokeCounter())
-{% if invoke_info.idlocation %}
-			p.ensureScriptEngine()
-			se := p.ScriptEngine
-			if se != nil {
-				_ = se.SetVariable(p.SessionID, "{{ invoke_info.idlocation }}", generatedInvokeID)
-			}
-{% endif %}
-			sce.DeferInvoke(&p.pendingInvokes, sce.PendingInvoke[{{ machine_name }}State]{
-				InvokeID: generatedInvokeID,
-				State:    {{ machine_name }}State{{ state_id | to_state_variant }},
-			})
+{{ defer_with_idlocation(invoke_info, model, machine_name, state_id) }}
 		}
 {% endfor %}
 {% endif %}
@@ -272,110 +326,93 @@ func (p *{{ machine_name }}Policy) ExecuteEntryActions(state {{ machine_name }}S
 	default:
 		// No entry actions
 	}
-{% if model.has_parallel_states %}
-
-	// W3C SCXML 3.4: If entering parallel state, enter all child regions
-	//
-	// §scxml-D-addDescendantStatesToEnter: a <parallel> hands out defaults even
-	// when it is only an ancestor — Appendix D's one exception to the ancestor
-	// rule. The exception has its own exception: not the region the entry set is
-	// already descending into. pathChild names it, and giving that one its
-	// default too is what leaves two children of it active at once.
-	if p.IsParallelState(state) {
-		regions := p.GetParallelRegions(state)
-		for _, region := range regions {
-			if pathChild != nil && *pathChild == region {
-				continue
-			}
-			p.ExecuteEntryActions(region, engine, nil)
-
-			// W3C SCXML 3.3: If region is compound, enter initial child
-			if p.IsCompoundState(region) {
-				initialChild := p.GetInitialOrHistoryChild(region)
-				if initialChild != region {
-					p.ExecuteEntryActions(initialChild, engine, nil)
-				}
-			}
-		}
-	}
-
-	// W3C SCXML 3.3: If entering compound state (non-parallel), enter initial child
-	//
-	// §scxml-D-addAncestorStatesToEnter: not when `state` is merely on the way
-	// to a deeper target. The entry set already holds pathChild, and a compound
-	// state holds one child at a time.
-	if p.IsCompoundState(state) && !p.IsParallelState(state) && pathChild == nil {
-		initialChildren := p.GetInitialChildren(state)
-		if len(initialChildren) > 0 {
-			// W3C SCXML 3.6: Enter through hierarchy to reach initial target(s)
-			for _, target := range initialChildren {
-				var chain []{{ machine_name }}State
-				current := target
-				for current != state {
-					chain = append([]{{ machine_name }}State{current}, chain...)
-					parent, hasParent := p.GetParent(current)
-					if !hasParent {
-						break
-					}
-					current = parent
-				}
-				// Each link but the last is an ancestor of the initial target,
-				// so it takes no default of its own — the chain already names
-				// the child that is entering.
-				for i := range chain {
-					var next *{{ machine_name }}State
-					if i+1 < len(chain) {
-						next = &chain[i+1]
-					}
-					p.ExecuteEntryActions(chain[i], engine, next)
-				}
-			}
-		} else {
-			initialChild := p.GetInitialOrHistoryChild(state)
-			if initialChild != state {
-				p.ExecuteEntryActions(initialChild, engine, nil)
-			}
-		}
-	}
-{% endif %}
 }
 
-// ExecuteExitActions executes onexit actions for a state (W3C SCXML 3.9).
+// ExecuteHistoryDefaultContent runs a <history>'s default transition content
+// (W3C SCXML 3.10.2), after its parent's onentry (and after the parent's own
+// <initial> content) when the history was taken with nothing recorded. The
+// engine asks for it by the entry set's defaultHistoryContent answer; a history
+// that restored what it recorded runs nothing.
+{% set _history_content = namespace(any=false) %}
+{% for _history_id, _history_info in model.history_states | dictsort %}
+{% if _history_info.default_actions %}
+{% set _history_content.any = true %}
+{% endif %}
+{% endfor %}
 {{ sce_map.source_marker(model.source_location, "go", symbol_artifact=sce_artifact.machine) }}
-func (p *{{ machine_name }}Policy) ExecuteExitActions(state {{ machine_name }}State, engine *sce.Engine[{{ machine_name }}State, {{ machine_name }}Event], preTransitionActive []{{ machine_name }}State) {
+func (p *{{ machine_name }}Policy) ExecuteHistoryDefaultContent(history sce.HistoryID, engine *sce.Engine[{{ machine_name }}State, {{ machine_name }}Event]) {
+{% if _history_content.any %}
 {% if model.needs_script_engine %}
 	p.ensureScriptEngine()
 {% endif %}
-{% if model.has_parallel_states %}
-	// W3C SCXML 3.4 + 3.13: Parallel state exit order — exit all active descendants first
-	if p.IsParallelState(state) {
-		var descendantsToExit []{{ machine_name }}State
-		for _, s := range p.activeStates {
-			if s != state && p.IsDescendantOf(s, state) {
-				descendantsToExit = append(descendantsToExit, s)
-			}
-		}
-		// W3C SCXML 3.13: Sort descendants by reverse document order (deepest first)
-		sort.Slice(descendantsToExit, func(i, j int) bool {
-			return p.GetDocumentOrder(descendantsToExit[i]) > p.GetDocumentOrder(descendantsToExit[j])
-		})
-		for _, descendant := range descendantsToExit {
-			p.ExecuteExitActions(descendant, engine, preTransitionActive)
-		}
+	switch history {
+{% for history_id, history_info in model.history_states | dictsort %}
+{% if history_info.default_actions %}
+	case {{ machine_name }}History{{ history_id | to_state_variant }}:
+		// W3C SCXML 4.9: the default content is one block; an error ends it.
+		func() {
+{% for action in history_info.default_actions %}
+		{% with in_action_block=true %}{% include 'actions/' ~ action.type ~ '.go.jinja2' %}{% endwith %}
+
+{% endfor %}
+		}()
+{% endif %}
+{% endfor %}
 	}
+{% else %}
+	// W3C SCXML 3.10.2: no <history> in this document has default content.
 {% endif %}
-{% if model.has_parallel_states or model.uses_in_predicate %}
-	// W3C SCXML 3.4/3.12.1: Remove state from active configuration
-	p.activeStates = func() []{{ machine_name }}State {
-		var result []{{ machine_name }}State
-		for _, s := range p.activeStates {
-			if s != state {
-				result = append(result, s)
-			}
-		}
-		return result
-	}()
+}
+
+// ExecuteExitActions exits one state (W3C SCXML 3.9): records its histories,
+// runs its <onexit>, cancels its invocations and removes it from the
+// configuration — §scxml-D-exitStates's order.
+{{ sce_map.source_marker(model.source_location, "go", symbol_artifact=sce_artifact.machine) }}
+func (p *{{ machine_name }}Policy) ExecuteExitActions(state {{ machine_name }}State, engine *sce.Engine[{{ machine_name }}State, {{ machine_name }}Event], configurationBeforeExit []{{ machine_name }}State) {
+{% if model.needs_script_engine %}
+	p.ensureScriptEngine()
 {% endif %}
+{% if model.history_states %}
+	// W3C SCXML 3.10 / §scxml-D-exitStates: record the histories of this state
+	// from the configuration the microstep started from — the engine hands
+	// every exit the configuration as it stood before the first one, so every
+	// history in one microstep reads the same configuration.
+{% for history_id, history_info in model.history_states | dictsort %}
+	if state == {{ machine_name }}State{{ history_info.parent | to_state_variant }} {
+		// W3C SCXML 3.10: {{ history_info.type }} history {{ history_id }}
+		p.history{{ history_id | to_pascal_case }} = (sce.PolicyDocument[{{ machine_name }}State, {{ machine_name }}Event]{Policy: p}).RecordedHistory({{ machine_name }}State{{ history_info.parent | to_state_variant }}, {{ 'true' if history_info.type == 'deep' else 'false' }}, configurationBeforeExit)
+	}
+{% endfor %}
+{% endif %}
+	// §scxml-D-exitStates orders one state's exit as onexit, then
+	// cancelInvoke, then configuration.delete(s), so `In(s)` inside s's own
+	// handler is true: the <onexit> switch comes first and the removal from
+	// the configuration last.
+	switch state {
+{% for state_id, state in model.states | dictsort %}
+{% if state.on_exit_blocks %}
+	case {{ machine_name }}State{{ state_id | to_state_variant }}:{{ annot.annotation_comment(state, "go", "		") }}
+{% if state.source_location %}
+		{{ sce_map.source_marker(state.source_location, "go", stmt_level=true, symbol_state=state_id, symbol_artifact=sce_artifact.state_body) | trim }}
+{% endif %}
+{% for block in state.on_exit_blocks %}
+		// W3C SCXML 3.9 + 4.9: onexit block {{ loop.index0 }}, its own function so an
+		// error ends it with `return`.
+		func() {
+{% for action in block %}
+{%- if action.req or action.unresolved %}
+{{ annot.annotation_block(action, "go", "			") -}}
+{%- endif %}
+			{% with in_action_block=true %}{% include 'actions/' ~ action.type ~ '.go.jinja2' %}{% endwith %}
+
+{% endfor %}
+		}()
+{% endfor %}
+{% endif %}
+{% endfor %}
+	default:
+		// No exit actions
+	}
 {# W3C SCXML 6.4: `host_invoker` is named here as well as inside the loop, and
    that is load-bearing rather than belt-and-braces — the Rust template records
    the measurement. `unsupported` covers a host-served invoke today, but a
@@ -400,6 +437,10 @@ func (p *{{ machine_name }}Policy) ExecuteExitActions(state {{ machine_name }}St
 {% endfor %}
 {% for invoke_info in state.invokes | scxml %}
 		if p.child{{ invoke_info.invoke_id | to_pascal_case }} != nil {
+			// §scxml-D-exitInterpreter: a cancelled session is exited -- its
+			// states' <onexit> run -- before it is dropped; what that exit
+			// sends to #_parent is dropped with it (§scxml-6.4, test252).
+			p.child{{ invoke_info.invoke_id | to_pascal_case }}.Stop()
 			p.child{{ invoke_info.invoke_id | to_pascal_case }} = nil
 		}
 		delete(p.activeInvokes, "{{ invoke_info.invoke_id }}")
@@ -417,43 +458,17 @@ func (p *{{ machine_name }}Policy) ExecuteExitActions(state {{ machine_name }}St
 	default:
 	}
 {% endif %}
-	switch state {
-{% for state_id, state in model.states | dictsort %}
-{% if state.on_exit_blocks %}
-	case {{ machine_name }}State{{ state_id | to_state_variant }}:{{ annot.annotation_comment(state, "go", "		") }}
-{% if state.source_location %}
-		{{ sce_map.source_marker(state.source_location, "go", stmt_level=true, symbol_state=state_id, symbol_artifact=sce_artifact.state_body) | trim }}
-{% endif %}
-{% for block in state.on_exit_blocks %}
-		// W3C SCXML 3.9: onexit block {{ loop.index0 }}
-		for exitBlock{{ loop.index0 }} := 0; exitBlock{{ loop.index0 }} < 1; exitBlock{{ loop.index0 }}++ {
-			_ = exitBlock{{ loop.index0 }}
-{% for action in block %}
-{%- if action.req or action.unresolved %}
-{{ annot.annotation_block(action, "go", "			") -}}
-{%- endif %}
-			{% with in_entry_exit=true %}{% include 'actions/' ~ action.type ~ '.go.jinja2' %}{% endwith %}
-
-{% endfor %}
+{% if model.has_parallel_states or model.uses_in_predicate %}
+	// §scxml-D-exitStates: out of the configuration only after its onexit
+	// and invoke cancellation — the configuration.delete(s) step.
+	p.activeStates = func() []{{ machine_name }}State {
+		var result []{{ machine_name }}State
+		for _, s := range p.activeStates {
+			if s != state {
+				result = append(result, s)
+			}
 		}
-{% endfor %}
-{% endif %}
-{% endfor %}
-	default:
-		// No exit actions
-	}
-{% if model.history_states %}
-	// W3C SCXML 3.11: Record history before exiting compound states
-{% for history_id, history_info in model.history_states | dictsort %}
-	if state == {{ machine_name }}State{{ history_info.parent | to_state_variant }} {
-{% if history_info.type == 'deep' %}
-		// W3C SCXML 3.11: Deep history — record all active leaf descendants
-		p.history{{ history_id | to_pascal_case }} = sce.FilterDeepHistory(preTransitionActive, {{ machine_name }}State{{ history_info.parent | to_state_variant }}, func(s {{ machine_name }}State) ({{ machine_name }}State, bool) { return p.GetParent(s) }, func(s {{ machine_name }}State) bool { return p.IsCompoundState(s) || p.IsParallelState(s) })
-{% else %}
-		// W3C SCXML 3.11: Shallow history — record direct children only
-		p.history{{ history_id | to_pascal_case }} = sce.FilterShallowHistory(preTransitionActive, {{ machine_name }}State{{ history_info.parent | to_state_variant }}, func(s {{ machine_name }}State) ({{ machine_name }}State, bool) { return p.GetParent(s) })
-{% endif %}
-	}
-{% endfor %}
+		return result
+	}()
 {% endif %}
 }

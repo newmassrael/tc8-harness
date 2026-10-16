@@ -1,0 +1,66 @@
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2026 newmassrael #}
+
+{# Event-schema kind — a payload SHAPE, not a computation.
+
+   The kind emits a struct and nothing else: no behaviour, and in C++ no
+   event-name constant either. So what the six arms are held to is the field
+   set — names, order, and that a value written reads back unchanged.
+
+   ⚠ NOT a width claim. The same `uint8` is `uint8_t` here and a plain `int`
+   in Python's dataclass, so a boundary value would wrap in some arms and not
+   others. Every manifest value is in range for every arm; see
+   `EventSchemaFieldFixture` for why that is the right line to draw.
+
+   ⚠⚠ The round-trip is what makes this more than a compile check. A struct
+   whose fields exist but are declared in the wrong ORDER still compiles, and
+   aggregate initialisation below would then put each value in the wrong
+   field — which is exactly what the per-field read-back catches. #}
+    const auto &spec = ref["{{ f.ref_section }}"]["{{ f.name }}"];
+    {
+        namespace G = SCE::Generated::{{ f.name | to_pascal_case }};
+
+        // Count first: a payload that gained or lost a field without the
+        // manifest moving would otherwise satisfy every assertion below.
+        CHECK(spec["fields"].size() == {{ f.fields | length }},
+              "{{ f.name }}: oracle has %zu fields, manifest has {{ f.fields | length }}",
+              static_cast<std::size_t>(spec["fields"].size()));
+
+        // Positional initialisation on purpose: it binds each value to a
+        // field BY ORDER, so a reordered struct puts the values in the wrong
+        // places and the read-backs below disagree.
+        G::{{ f.name | to_pascal_case }}Payload payload{
+{% for field in f.fields %}
+{% if field.sce_type == "string" %}
+            std::string("{{ field.value }}"){{ "," if not loop.last }}
+{% else %}
+            static_cast<decltype(G::{{ f.name | to_pascal_case }}Payload::{{ field.name }})>({{ field.value }}){{ "," if not loop.last }}
+{% endif %}
+{% endfor %}
+        };
+
+{% for field in f.fields %}
+        {
+            const auto &o = spec["fields"][{{ loop.index0 }}];
+            CHECK(o["name"].get<std::string>() == "{{ field.name }}",
+                  "{{ f.name }} field {{ loop.index0 }}: oracle names '%s', manifest '{{ field.name }}'",
+                  o["name"].get<std::string>().c_str());
+{% if field.sce_type == "bool" %}
+            CHECK(payload.{{ field.name }} == o["value"].get<bool>(),
+                  "{{ f.name }}.{{ field.name }} = %d, expected %d",
+                  static_cast<int>(payload.{{ field.name }}),
+                  static_cast<int>(o["value"].get<bool>()));
+{% elif field.sce_type == "string" %}
+            CHECK(payload.{{ field.name }} == o["value"].get<std::string>(),
+                  "{{ f.name }}.{{ field.name }} = '%s', expected '%s'",
+                  payload.{{ field.name }}.c_str(),
+                  o["value"].get<std::string>().c_str());
+{% else %}
+            CHECK(static_cast<long long>(payload.{{ field.name }}) == o["value"].get<long long>(),
+                  "{{ f.name }}.{{ field.name }} = %lld, expected %lld",
+                  static_cast<long long>(payload.{{ field.name }}),
+                  o["value"].get<long long>());
+{% endif %}
+        }
+{% endfor %}
+    }

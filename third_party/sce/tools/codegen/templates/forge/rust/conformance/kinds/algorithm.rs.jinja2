@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {# Algorithm kind (RFC §synth-5-A) — single-output free function. Cross-(Rust,
@@ -9,20 +9,138 @@
 
    Single-output only — RFC §synth-5-A defines algorithms as one-return-value
    bodies. Compound outputs would require structuring the return type,
-   which is Transform's territory. #}
+   which is Transform's territory.
+
+   A `list<T>` return (SCE_FORGE.md §4.12) is `Result<SceOwnedList<T, N>,
+   CapacityExceeded>`; the oracle's cases stay within N, so the harness
+   unwraps it and compares the slice element by element. A `bytes` return
+   is the same bounded storage (`SceBytes<N>`), its `expected` a JSON array
+   of byte values.
+
+   A record argument or output (SCE_FORGE.md §4.12) is the event-schema's
+   payload struct, built from and compared against a JSON object keyed by
+   the schema's field ids; `fields` carries each field's Rust identifier,
+   derived from the schema document when the harness renders. A list of
+   records is a JSON array of such objects.
+
+   A `may-fail` algorithm (SCE_FORGE.md §3.4.1) returns `Result<T,
+   AlgorithmError>`. A case that names a failure (`"fails": "overflow"`)
+   carries no `expected`; it is judged by the error's contract name before
+   anything reads `expected`, and every other case unwraps the value. #}
+{# A record's `string` field is the runtime's bounded text, `SceString<N>` with
+   the schema's `max-size`; the oracle's text is built into it with the fallible
+   copy a host uses, and read back as the `&str` it compares as. #}
+{% macro field_value(fld, raw, fixture) %}{% if fld.type == "string" %}::sce_portable_bytes::SceString::<{{ fld.max_size }}>::from_text({{ raw | rust_unmarshal("string") }}).expect("{{ fixture }}.{{ fld.name }}: the case text fits the schema's bound"){% else %}{{ raw | rust_unmarshal(fld.type) }}{% endif %}{% endmacro %}
+{% set call %}fixtures::{{ f.name }}::{{ f.function }}({% for arg_ty in f.args %}{% if arg_ty == "bytes" or arg_ty.list_of is defined %}&arg{{ loop.index0 }}{% else %}arg{{ loop.index0 }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}){% endset %}
 {% if f.output.compare == "tolerance" %}
     let tol = tolerance(&reference);
 {% endif %}
     let spec = &reference["{{ f.ref_section }}"]["{{ f.name }}"];
     for case in spec["cases"].as_array().expect("cases must be array") {
 {% for arg_ty in f.args %}
-        let arg{{ loop.index0 }} = {{ ("case[\"args\"][" ~ loop.index0 ~ "]") | rust_unmarshal(arg_ty) }};
+{% set i = loop.index0 %}
+{% if arg_ty.record is defined %}
+        let arg{{ i }} = fixtures::{{ arg_ty.record }}::{{ arg_ty.record | to_pascal_case }}Payload {
+{% for fld in arg_ty.fields %}
+            {{ fld.ident }}: {{ field_value(fld, "case[\"args\"][" ~ i ~ "][\"" ~ fld.name ~ "\"]", f.name) }},
 {% endfor %}
+        };
+{% elif arg_ty.list_of is defined and arg_ty.list_of.record is defined %}
+{% set r = arg_ty.list_of %}
+        let arg{{ i }}: Vec<fixtures::{{ r.record }}::{{ r.record | to_pascal_case }}Payload> = case["args"][{{ i }}]
+            .as_array()
+            .expect("a list argument is an array")
+            .iter()
+            .map(|x| fixtures::{{ r.record }}::{{ r.record | to_pascal_case }}Payload {
+{% for fld in r.fields %}
+                {{ fld.ident }}: {{ field_value(fld, "x[\"" ~ fld.name ~ "\"]", f.name) }},
+{% endfor %}
+            })
+            .collect();
+{% elif arg_ty.list_of is defined %}
+        let arg{{ i }}: Vec<{{ arg_ty.list_of | rust_type }}> = case["args"][{{ i }}]
+            .as_array()
+            .expect("a list argument is an array")
+            .iter()
+            .map(|x| {{ "x" | rust_unmarshal(arg_ty.list_of) }})
+            .collect();
+{% else %}
+        let arg{{ i }} = {{ ("case[\"args\"][" ~ i ~ "]") | rust_unmarshal(arg_ty) }};
+{% endif %}
+{% endfor %}
+{% if f.may_fail %}
+        let result = {{ call }};
+        if let Some(kind) = case.get("fails").and_then(|v| v.as_str()) {
+            let err = result.expect_err("{{ f.name }}: the case expects a failure");
+            assert_eq!(err.contract_name(), kind, "{{ f.name }}");
+            continue;
+        }
+        let actual = result.expect("{{ f.name }}: the case expects a value");
+{% endif %}
+{% if f.output.record is defined %}
+{% if not f.may_fail %}
+        let actual = {{ call }};
+{% endif %}
+{% for fld in f.output.fields %}
+        assert_eq!(
+            actual.{{ fld.ident }}{% if fld.type == "string" %}.as_str(){% endif %},
+            {{ ("case[\"expected\"][\"" ~ fld.name ~ "\"]") | rust_unmarshal(fld.type) }},
+            "{{ f.name }}.{{ fld.name }}"
+        );
+{% endfor %}
+{% elif f.output.list_of is defined and f.output.list_of.record is defined %}
+        let expected = case["expected"].as_array().expect("expected must be array");
+{% if not f.may_fail %}
+        let actual = {{ call }}
+            .expect("{{ f.name }}: a case within the declared capacity");
+{% endif %}
+        let actual = actual.as_slice();
+        assert_eq!(actual.len(), expected.len(), "{{ f.name }} length");
+        for (a, e) in actual.iter().zip(expected.iter()) {
+{% for fld in f.output.list_of.fields %}
+            assert_eq!(
+                a.{{ fld.ident }}{% if fld.type == "string" %}.as_str(){% endif %},
+                {{ ("e[\"" ~ fld.name ~ "\"]") | rust_unmarshal(fld.type) }},
+                "{{ f.name }}.{{ fld.name }}"
+            );
+{% endfor %}
+        }
+{% elif f.output.list_of is defined %}
+        let expected: Vec<{{ f.output.list_of | rust_type }}> = case["expected"]
+            .as_array()
+            .expect("expected must be array")
+            .iter()
+            .map(|x| {{ "x" | rust_unmarshal(f.output.list_of) }})
+            .collect();
+{% if not f.may_fail %}
+        let actual = {{ call }}
+            .expect("{{ f.name }}: a case within the declared capacity");
+{% endif %}
+        let actual = actual.as_slice();
+{% if f.output.compare == "tolerance" %}
+        assert_eq!(actual.len(), expected.len(), "{{ f.name }} length");
+        for (a, e) in actual.iter().zip(expected.iter()) {
+            assert_close(*a as f64, *e as f64, tol, "{{ f.name }}");
+        }
+{% else %}
+        assert_eq!(actual, expected.as_slice(), "{{ f.name }}");
+{% endif %}
+{% elif f.output.type == "bytes" %}
+        let expected = {{ "case[\"expected\"]" | rust_unmarshal("bytes") }};
+{% if not f.may_fail %}
+        let actual = {{ call }}
+            .expect("{{ f.name }}: a case within the declared capacity");
+{% endif %}
+        assert_eq!(actual.as_slice(), expected.as_slice(), "{{ f.name }}");
+{% else %}
         let expected = {{ "case[\"expected\"]" | rust_unmarshal(f.output.type) }};
-        let actual = fixtures::{{ f.name }}::{{ f.function }}({% for arg_ty in f.args %}{% if arg_ty == "bytes" %}&arg{{ loop.index0 }}{% else %}arg{{ loop.index0 }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %});
+{% if not f.may_fail %}
+        let actual = {{ call }};
+{% endif %}
 {% if f.output.compare == "tolerance" %}
         assert_close(actual as f64, expected as f64, tol, "{{ f.name }}");
 {% else %}
         assert_eq!(actual, expected, "{{ f.name }}");
+{% endif %}
 {% endif %}
     }

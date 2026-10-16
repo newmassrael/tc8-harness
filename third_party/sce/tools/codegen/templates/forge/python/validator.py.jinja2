@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
@@ -47,20 +47,22 @@ class {{ struct_name }}:
 
     def validate(self, {{ params }}) -> ValidationResult:
 {% for rule in range_rules %}
-{% if rule.has_min and rule.has_max %}
+{# Which bounds carry a comparison is the generator's decision for all six
+   backends; a bound at the type's own extreme carries none. #}
+{% if rule.check_min and rule.check_max %}
         if {{ rule.id }} < {{ rule.min }} or {{ rule.id }} > {{ rule.max }}:
             return ValidationResult(False, "{{ rule.reason_id }}_out_of_range")
-{% elif rule.has_min %}
+{% elif rule.check_min %}
         if {{ rule.id }} < {{ rule.min }}:
             return ValidationResult(False, "{{ rule.reason_id }}_out_of_range")
-{% elif rule.has_max %}
+{% elif rule.check_max %}
         if {{ rule.id }} > {{ rule.max }}:
             return ValidationResult(False, "{{ rule.reason_id }}_out_of_range")
 {% endif %}
 {% endfor %}
 {% for rule in roc_rules %}
-        delta = abs({{ rule.id }} - self.{{ rule.prev_name }})
-        if delta > {{ rule.max_delta }}:
+        _delta = abs({{ rule.id }} - self.{{ rule.prev_name }})
+        if _delta > {{ rule.max_delta }}:
             return ValidationResult(False, "{{ rule.reason_id }}_rate_of_change_exceeded")
 {% endfor %}
 {% if plausibility_expr %}

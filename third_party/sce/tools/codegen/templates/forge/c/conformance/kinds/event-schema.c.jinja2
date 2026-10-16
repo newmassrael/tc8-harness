@@ -1,0 +1,75 @@
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2026 newmassrael #}
+
+{# Event-schema kind — a payload SHAPE; pre-baked oracle.
+
+   See the C++ fragment for why this is a shape claim and deliberately not a
+   width claim.
+
+   ⚠ THE SAME ASYMMETRY AS EVERY OTHER C11 FRAGMENT. The other five arms READ
+   `numerical_reference.json` at run time; this one BAKES from `fixtures.json`
+   at codegen time, because C11 has no zero-deps JSON parser under this
+   backend's dependency rule. So a mutation that edits only the reference
+   cannot reach this file — proving this arm means moving the MANIFEST. Drift
+   between the two sources is still caught, by the other five: their fragments
+   assert the oracle's field NAME equals the manifest's at each index, which
+   is a comparison this arm structurally cannot make.
+
+   ⚠⚠ Assertions are `fprintf(stderr, …) + ++g_failures`, the form every C11
+   fragment uses. The first version of this file called `CHECK(...)`, which is
+   the C++ harness's macro and does not exist here — `-Werror=implicit-
+   function-declaration` caught it, which is the compiler doing what the
+   suite's own conventions could not. #}
+static void test_{{ f.name }}(void) {
+    /* Designated initialisers, so a field that disappeared from the struct
+       fails to COMPILE rather than passing quietly, and a reordered struct
+       still binds each value to its own field — the order claim is carried
+       by the five arms that can compare against the oracle's field list. */
+    {{ f.name | to_pascal_case }}Payload_t payload = {
+{% for field in f.fields %}
+{% if field.sce_type == "string" %}
+{# A bounded text is the buffer `{ char data[N + 1]; }`, which a string literal
+   fills as the first member. #}
+        .{{ field.name }} = { "{{ field.value }}" }{{ "," if not loop.last }}
+{% else %}
+        .{{ field.name }} = {{ field.value }}{{ "," if not loop.last }}
+{% endif %}
+{% endfor %}
+    };
+
+    static const struct {
+        const char *name;
+        long long expected;
+    } fields[] = {
+{% for field in f.fields if field.sce_type != "string" %}
+{# A bool field compares as 0 or 1: `actual` below casts the field to
+   long long, and the expected side is written the same way. A text is not a
+   number and is compared with `strcmp` after the table. #}
+        { "{{ field.name }}", {% if field.sce_type == "bool" %}{{ 1 if field.value else 0 }}{% else %}{{ field.value }}{% endif %}LL }{{ "," if not loop.last }}
+{% endfor %}
+    };
+
+    const long long actual[] = {
+{% for field in f.fields if field.sce_type != "string" %}
+        (long long)payload.{{ field.name }}{{ "," if not loop.last }}
+{% endfor %}
+    };
+    const size_t n = sizeof(fields) / sizeof(fields[0]);
+
+    for (size_t i = 0; i < n; ++i) {
+        if (actual[i] != fields[i].expected) {
+            fprintf(stderr,
+                    "FAIL: {{ f.name }}.%s = %lld, expected %lld\n",
+                    fields[i].name, actual[i], fields[i].expected);
+            ++g_failures;
+        }
+    }
+{% for field in f.fields if field.sce_type == "string" %}
+    if (strcmp(payload.{{ field.name }}.data, "{{ field.value }}") != 0) {
+        fprintf(stderr,
+                "FAIL: {{ f.name }}.{{ field.name }} = '%s', expected '{{ field.value }}'\n",
+                payload.{{ field.name }}.data);
+        ++g_failures;
+    }
+{% endfor %}
+}

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
+// SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
 // SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael
 
 #pragma once
@@ -118,7 +118,11 @@ struct SCXML_API ExecutionResult {
  */
 class SCXML_API Event {
 public:
-    Event(const std::string &name, const std::string &type = "internal");
+    // Defined here like every other member: this header sits below every
+    // library tier, and a constructor defined in the interpreter's library
+    // made each tier that builds an Event depend on the interpreter.
+    Event(const std::string &name, const std::string &type = "internal") : name_(name), type_(type) {}
+
     virtual ~Event() = default;
 
     const std::string &getName() const {

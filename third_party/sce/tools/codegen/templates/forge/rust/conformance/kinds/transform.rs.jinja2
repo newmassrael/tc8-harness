@@ -1,17 +1,65 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
-{# Transform kind — pure free function(s), single or compound output. #}
-{% if f.output %}
+{# Transform kind — pure free function(s), single or compound output; or,
+   for a document that reads a field through previous(), its holder driven
+   through the oracle's sequence twice: from a new holder, then after
+   reset(). Both passes are held to the same oracle, which is what says
+   reset() restores every kept value. #}
+{% if f.holder %}
+{% set ns = namespace(needs_tol=false) %}
+{% for co in f.compound_outputs %}{% if co.compare == "tolerance" %}{% set ns.needs_tol = true %}{% endif %}{% endfor %}
+{% if ns.needs_tol %}
     let tol = tolerance(&reference);
+{% endif %}
+    let spec = &reference["{{ f.ref_section }}"]["{{ f.name }}"];
+    let steps = spec["sequence"].as_array().expect("sequence must be array");
+    let mut holder = fixtures::{{ f.name }}::{{ f.holder.holder }}::{{ f.holder.new }}();
+    for pass in 0..2 {
+        if pass == 1 {
+            holder.{{ f.holder.reset }}();
+        }
+        for (i, step) in steps.iter().enumerate() {
+{% for arg_ty in f.args %}
+            let arg{{ loop.index0 }} = {{ ("step[\"args\"][" ~ loop.index0 ~ "]") | rust_unmarshal(arg_ty) }};
+{% endfor %}
+            let out = holder.{{ f.holder.update }}({% for arg_ty in f.args %}arg{{ loop.index0 }}{% if not loop.last %}, {% endif %}{% endfor %});
+{% for co in f.compound_outputs %}
+            let expected_{{ co.key }} = {{ ("step[\"expected\"][\"" ~ co.key ~ "\"]") | rust_unmarshal(co["type"]) }};
+{% if co.compare == "tolerance" %}
+            assert_close(out.{{ co.field }}, expected_{{ co.key }}, tol, &format!("{{ f.name }} pass {pass} step {i} {{ co.key }}"));
+{% else %}
+            assert_eq!(out.{{ co.field }}, expected_{{ co.key }}, "{{ f.name }} pass {pass} step {i} {{ co.key }}");
+{% endif %}
+{% endfor %}
+        }
+    }
+{% elif f.output %}
+{# `tol` only exists for the tolerance comparison — Rust's `unused_variables`
+   is denied in this harness, so binding it for an equality fixture fails the
+   build. The compound arm below already gates it the same way. #}
+{% if f.output.compare == "tolerance" %}
+    let tol = tolerance(&reference);
+{% endif %}
     let spec = &reference["{{ f.ref_section }}"]["{{ f.name }}"];
     for case in spec["cases"].as_array().expect("cases must be array") {
 {% for arg_ty in f.args %}
         let arg{{ loop.index0 }} = {{ ("case[\"args\"][" ~ loop.index0 ~ "]") | rust_unmarshal(arg_ty) }};
 {% endfor %}
+{# ⚠ Honour `compare`, as the compound arm below already does. Every
+   single-output transform was `tolerance`/`f64` until `transform_rounding`
+   arrived with `equality`/`i32`; a float comparison of an exact integer is a
+   WEAKER assertion than the manifest asked for, and in Rust it does not even
+   compile — there is no implicit int→float conversion to hide behind. #}
+{% if f.output.compare == "tolerance" %}
         let expected = case["expected"].as_f64().expect("expected is number");
         let actual = fixtures::{{ f.name }}::{{ f.output.function }}({% for arg_ty in f.args %}arg{{ loop.index0 }}{% if not loop.last %}, {% endif %}{% endfor %});
         assert_close(actual, expected, tol, "{{ f.name }}");
+{% else %}
+        let expected = {{ "case[\"expected\"]" | rust_unmarshal(f.output["type"]) }};
+        let actual = fixtures::{{ f.name }}::{{ f.output.function }}({% for arg_ty in f.args %}arg{{ loop.index0 }}{% if not loop.last %}, {% endif %}{% endfor %});
+        assert_eq!(actual, expected, "{{ f.name }}");
+{% endif %}
     }
 {% else %}
 {% set ns = namespace(needs_tol=false) %}

@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
@@ -10,13 +10,17 @@
 // Do not edit — regenerate from the source SCXML file.
 
 package com.sce.generated.{{ package }}
-{% for imp_pkg in enum_kotlin_packages %}
-import com.sce.generated.{{ imp_pkg }}.*
+{% for imp in kotlin_enum_imports %}
+{{ imp }}
 {% endfor %}
 
+{% if fields %}
 data class {{ payload_struct_name }}(
 {%- for f in fields %}
     val {{ f.id }}: {{ f.kt_type }}{% if not loop.last %},{% endif %}
 
 {%- endfor %}
 )
+{% else %}
+// This schema declares no field: the event carries no data, so no payload type is generated.
+{% endif %}

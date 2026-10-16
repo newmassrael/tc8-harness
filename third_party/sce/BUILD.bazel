@@ -38,6 +38,7 @@ cc_library(
         "src/common/Logger.cpp",
         "src/common/UniqueIdGenerator.cpp",
         "src/common/Uuid.cpp",
+        "src/common/UrlEncodingHelper.cpp",
         "src/backends/DefaultBackend.cpp",
         "src/scripting/IScriptEngine.cpp",
         "src/scripting/ScriptResultUtils.cpp",

@@ -90,8 +90,8 @@ Project, free of charge and for as long as section 5 holds:
   is an additional permission under section 7 of AGPL-3.0, given by the
   copyright holder.
 - For SCE releases licensed under LGPL-2.1 with the Static Linking
-  Exception (the release vendored at the time of writing), it supplements
-  that Exception.
+  Exception (releases vendored before pin cfbb71522c), it supplements that
+  Exception.
 - It adds to the permissions SCE already gives and removes none of them. If
   a Downstream Project qualifies under the SCE license alone, it may rely
   on that instead.

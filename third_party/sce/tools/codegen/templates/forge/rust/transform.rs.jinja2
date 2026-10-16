@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
@@ -31,3 +31,93 @@ pub fn {{ func.name }}({{ func.params }}) -> {{ func.ret_type }} {
     {{ func.expr }}
 }
 {% endfor %}
+{% if holder %}
+
+/// Every output of one activation.
+{{ holder.outputs_derives_attr }}
+pub struct {{ holder.symbols.outputs }} {
+{% for o in holder.outputs %}
+    pub {{ o.field }}: {{ o.type }},
+{% endfor %}
+}
+
+/// The values `previous()` reads, kept from one activation to the next.
+///
+/// `{{ holder.symbols.update }}` is one activation: every output is computed
+/// from this activation's inputs and the kept values, and only then is each
+/// kept value replaced by what its field holds now.
+{{ holder.derives_attr }}
+pub struct {{ holder.symbols.holder }} {
+{% for c in holder.cells %}
+    {{ c.name }}: {{ c.type }},
+{% endfor %}
+}
+
+impl Default for {{ holder.symbols.holder }} {
+    fn default() -> Self {
+        Self::{{ holder.symbols.new }}()
+    }
+}
+
+impl {{ holder.symbols.holder }} {
+    /// Every kept value at its field's `sce:initial`.
+    pub fn {{ holder.symbols.new }}() -> Self {
+        Self {
+{% for c in holder.cells %}
+{% if c.is_string %}
+            {{ c.name }}: String::from("{{ c.initial_text }}"),
+{% else %}
+            {{ c.name }}: {{ c.initial }},
+{% endif %}
+{% endfor %}
+        }
+    }
+
+    /// Every kept value back to its field's `sce:initial`.
+    pub fn {{ holder.symbols.reset }}(&mut self) {
+        *self = Self::{{ holder.symbols.new }}();
+    }
+{% if holder.symbols.restored %}
+
+    /// A holder whose kept values of retained fields are the ones the host
+    /// stored, and every other at its field's `sce:initial`.
+    pub fn {{ holder.symbols.restored }}({{ holder.restore_params }}) -> Self {
+        let mut {{ holder.self_name }} = Self::{{ holder.symbols.new }}();
+{% for c in holder.cells %}
+{% if c.restored_arg %}
+        {{ holder.self_name }}.{{ c.name }} = {{ c.restored_arg }}{% if c.is_string %}.to_string(){% endif %};
+{% endif %}
+{% endfor %}
+        {{ holder.self_name }}
+    }
+{% endif %}
+
+    /// One activation.
+    pub fn {{ holder.symbols.update }}(&mut self{% if holder.input_params %}, {{ holder.input_params }}{% endif %}) -> {{ holder.symbols.outputs }} {
+{# The call is qualified: a function is named from an output (`compute_delta`)
+   and an author's input of that name, a parameter of this method, would hide an
+   unqualified one. #}
+{% for o in holder.outputs %}
+        let {{ o.name }} = self::{{ o.fn }}({{ holder.input_args }}{% for c in holder.cells %}{% if holder.input_args or not loop.first %}, {% endif %}{% if c.is_string %}&{% endif %}self.{{ c.name }}{% endfor %});
+{% endfor %}
+{% for c in holder.cells %}
+{% if c.is_string and c.from_output %}
+        self.{{ c.name }} = {{ c.source }}.clone();
+{% elif c.is_string %}
+        self.{{ c.name }} = {{ c.source }}.to_string();
+{% else %}
+        self.{{ c.name }} = {{ c.source }};
+{% endif %}
+{% endfor %}
+        {{ holder.symbols.outputs }} {
+{% for o in holder.outputs %}
+{% if o.field == o.name %}
+            {{ o.name }},
+{% else %}
+            {{ o.field }}: {{ o.name }},
+{% endif %}
+{% endfor %}
+        }
+    }
+}
+{% endif %}

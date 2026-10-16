@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {# Algorithm kind (RFC §synth-5-A) — single-output free function. Cross-language
@@ -9,18 +9,81 @@
    `bytes` args lower to Python's `bytes` (RFC §synth-5-J-5). Numeric scalar
    args route through Python's dynamic typing, so the JSON values are
    passed through directly. The oracle delivers `bytes` arguments as a
-   JSON array of integers, which we convert via `bytes(...)`. #}
+   JSON array of integers, which we convert via `bytes(...)`.
+
+   A `may-fail` algorithm (SCE_FORGE.md §3.4.1) raises `AlgorithmFailure` in
+   place of a value. A case that names a failure (`"fails": "overflow"`)
+   carries no `expected`; it is judged by the raised error's contract name
+   before anything reads `expected`. #}
+{% set call %}{{ f.name }}.{{ f.function }}({% for arg_ty in f.args %}arg{{ loop.index0 }}{% if not loop.last %}, {% endif %}{% endfor %}){% endset %}
         for case in spec["cases"]:
+{# A record argument or output (SCE_FORGE.md §4.12) is the event-schema's
+   dataclass, built by keyword from a JSON object keyed by the schema's
+   field ids and read back attribute by attribute; `fields` carries each
+   field's Python name, derived from the schema document when the harness
+   renders. #}
 {% for arg_ty in f.args %}
-{% if arg_ty == "bytes" %}
-            arg{{ loop.index0 }} = bytes(case["args"][{{ loop.index0 }}])
+{% set ai = loop.index0 %}
+{% if arg_ty.record is defined %}
+            arg{{ ai }} = {{ arg_ty.record }}.{{ arg_ty.record | to_pascal_case }}Payload(
+{% for fld in arg_ty.fields %}
+                {{ fld.ident }}=case["args"][{{ ai }}]["{{ fld.name }}"],
+{% endfor %}
+            )
+{% elif arg_ty == "bytes" %}
+            arg{{ ai }} = bytes(case["args"][{{ ai }}])
+{% elif arg_ty.list_of is defined and arg_ty.list_of.record is defined %}
+{% set r = arg_ty.list_of %}
+            arg{{ ai }} = [
+                {{ r.record }}.{{ r.record | to_pascal_case }}Payload(
+{% for fld in r.fields %}
+                    {{ fld.ident }}=e["{{ fld.name }}"],
+{% endfor %}
+                )
+                for e in case["args"][{{ ai }}]
+            ]
+{% elif arg_ty.list_of is defined %}
+            arg{{ ai }} = list(case["args"][{{ ai }}])
 {% else %}
-            arg{{ loop.index0 }} = case["args"][{{ loop.index0 }}]
+            arg{{ ai }} = case["args"][{{ ai }}]
 {% endif %}
 {% endfor %}
+{% if f.may_fail %}
+            if "fails" in case:
+                from sce_forge_runtime.algorithm import AlgorithmFailure
+                with self.assertRaises(AlgorithmFailure, msg="{{ f.name }}") as caught:
+                    {{ call }}
+                self.assertEqual(caught.exception.error.contract_name, case["fails"], "{{ f.name }}")
+                continue
+{% endif %}
             expected = case["expected"]
-            actual = {{ f.name }}.{{ f.function }}({% for arg_ty in f.args %}arg{{ loop.index0 }}{% if not loop.last %}, {% endif %}{% endfor %})
+            actual = {{ call }}
+{% if f.output.record is defined %}
+{% for fld in f.output.fields %}
+            self.assertEqual(actual.{{ fld.ident }}, expected["{{ fld.name }}"], "{{ f.name }}.{{ fld.name }}")
+{% endfor %}
+{% elif f.output.list_of is defined and f.output.list_of.record is defined %}
+{# A list of records: compared by length, then field by field. #}
+            self.assertEqual(len(actual), len(expected), "{{ f.name }} length")
+            for a, e in zip(actual, expected):
+{% for fld in f.output.list_of.fields %}
+                self.assertEqual(a.{{ fld.ident }}, e["{{ fld.name }}"], "{{ f.name }}.{{ fld.name }}")
+{% endfor %}
+{% elif f.output.list_of is defined %}
+{# A `list<T>` return (SCE_FORGE.md §4.12) is a `list`: compared by length,
+   then element by element. #}
+            self.assertEqual(len(actual), len(expected), "{{ f.name }} length")
 {% if f.output.compare == "tolerance" %}
+            for a, e in zip(actual, expected):
+                self.assert_close(a, e, "{{ f.name }}")
+{% else %}
+            self.assertEqual(list(actual), expected, "{{ f.name }}")
+{% endif %}
+{% elif f.output.type == "bytes" %}
+{# A `bytes` return is `bytes`; its `expected` is a JSON array of byte
+   values, read as a `bytes` argument is. #}
+            self.assertEqual(bytes(actual), bytes(expected), "{{ f.name }}")
+{% elif f.output.compare == "tolerance" %}
             self.assert_close(actual, expected, "{{ f.name }}")
 {% else %}
             self.assertEqual(actual, expected, "{{ f.name }}")

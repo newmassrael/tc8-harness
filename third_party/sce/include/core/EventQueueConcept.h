@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
+// SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
 // SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael
 
 #pragma once
@@ -11,9 +11,9 @@ namespace SCE::Core {
 /**
  * @brief §scxml-3.13: Event queue adapter contract
  *
- * Formalizes the duck-typed interface required by EventProcessingAlgorithms.
- * Both AOT (AOTEventQueue) and Interpreter (InterpreterEventQueue) adapters
- * must satisfy this concept.
+ * Formalizes the duck-typed interface required by EventProcessingAlgorithms;
+ * the AOT engine's `AOTEventQueue` satisfies it. The Interpreter's main event
+ * loop takes its events straight off the raiser instead.
  *
  * Required methods:
  * - bool hasEvents() const  : Check if queue has pending events

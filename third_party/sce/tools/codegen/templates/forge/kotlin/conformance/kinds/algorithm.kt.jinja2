@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {# Algorithm kind (RFC §synth-5-A) — single-output free function. Cross-language
@@ -11,18 +11,115 @@
    which produces `ByteArray`. The function-under-test takes the
    ByteArray directly. Numeric scalar args route through `kt_unmarshal`'s
    per-type narrow-cast (`.toUShort()` etc.) so the call boundary types
-   line up with the algorithm's signature. #}
+   line up with the algorithm's signature.
+
+   A `may-fail` algorithm (SCE_FORGE.md §3.4.1) returns an `AlgorithmResult`.
+   A case that names a failure (`"fails": "overflow"`) carries no `expected`;
+   it is judged by the error's contract name before anything reads
+   `expected`, and every other case unwraps the value. #}
+{% set call %}{{ f.function }}({% for arg_ty in f.args %}arg{{ loop.index0 }}{% if not loop.last %}, {% endif %}{% endfor %}){% endset %}
         val cases = ref["{{ f.ref_section }}"]!!.jsonObject["{{ f.name }}"]!!.jsonObject["cases"]!!.jsonArray
         for (case in cases) {
             val args = case.jsonObject["args"]!!.jsonArray
+{# A record argument or output (SCE_FORGE.md §4.12) is the event-schema's
+   data class, named fully qualified so this fragment needs no import of
+   its own; `fields` carries each field's Kotlin name, derived from the
+   schema document when the harness renders. #}
 {% for arg_ty in f.args %}
-            val arg{{ loop.index0 }} = {{ ("args[" ~ loop.index0 ~ "]") | kt_unmarshal(arg_ty) }}
+{% set i = loop.index0 %}
+{% if arg_ty.record is defined %}
+            val arg{{ i }} = com.sce.generated.{{ arg_ty.record }}.{{ arg_ty.record | to_pascal_case }}Payload(
+{% for fld in arg_ty.fields %}
+                {{ fld.ident }} = {{ ("args[" ~ i ~ "].jsonObject[\"" ~ fld.name ~ "\"]!!") | kt_unmarshal(fld.type) }},
 {% endfor %}
+            )
+{% elif arg_ty.list_of is defined and arg_ty.list_of.record is defined %}
+{# A list of records is a read-only `List` of the schema's data class. #}
+{% set r = arg_ty.list_of %}
+            val arg{{ i }} = args[{{ i }}].jsonArray.map { e ->
+                com.sce.generated.{{ r.record }}.{{ r.record | to_pascal_case }}Payload(
+{% for fld in r.fields %}
+                    {{ fld.ident }} = {{ ("e.jsonObject[\"" ~ fld.name ~ "\"]!!") | kt_unmarshal(fld.type) }},
+{% endfor %}
+                )
+            }
+{% elif arg_ty.list_of is defined %}
+{# A `list<T>` argument is the element's primitive array, the type the
+   algorithm's parameter declares; an unsigned array is still experimental,
+   which the harness opts into for the whole file. #}
+{% set to_array = {"i8": "toByteArray", "u8": "toUByteArray", "i16": "toShortArray", "u16": "toUShortArray", "i32": "toIntArray", "u32": "toUIntArray", "i64": "toLongArray", "u64": "toULongArray", "f32": "toFloatArray", "f64": "toDoubleArray", "bool": "toBooleanArray"} %}
+            val arg{{ i }} = args[{{ i }}].jsonArray.map { {{ "it" | kt_unmarshal(arg_ty.list_of) }} }.{{ to_array[arg_ty.list_of] }}()
+{% else %}
+            val arg{{ i }} = {{ ("args[" ~ i ~ "]") | kt_unmarshal(arg_ty) }}
+{% endif %}
+{% endfor %}
+{% if f.may_fail %}
+            val fails = case.jsonObject["fails"]?.jsonPrimitive?.content
+            val result = {{ call }}
+            if (fails != null) {
+                when (result) {
+                    is com.sce.forge.runtime.AlgorithmResult.Failed ->
+                        assertEquals(fails, result.error.contractName, "{{ f.name }}")
+                    is com.sce.forge.runtime.AlgorithmResult.Ok ->
+                        throw AssertionError("{{ f.name }}: the case expects a failure, got ${result.value}")
+                }
+                continue
+            }
+            val returned = when (result) {
+                is com.sce.forge.runtime.AlgorithmResult.Ok -> result.value
+                is com.sce.forge.runtime.AlgorithmResult.Failed ->
+                    throw AssertionError("{{ f.name }}: the case expects a value, failed with ${result.error.contractName}")
+            }
+{% endif %}
+{% if f.output.record is defined %}
+            val actual = {% if f.may_fail %}returned{% else %}{{ call }}{% endif %}
+
+            val expected = case.jsonObject["expected"]!!.jsonObject
+{% for fld in f.output.fields %}
+            assertEquals({{ ("expected[\"" ~ fld.name ~ "\"]!!") | kt_unmarshal(fld.type) }}, actual.{{ fld.ident }}, "{{ f.name }}.{{ fld.name }}")
+{% endfor %}
+{% elif f.output.list_of is defined and f.output.list_of.record is defined %}
+{# A list of records is a `List` of the schema's data class: compared by
+   length, then field by field. #}
+            val actual = {% if f.may_fail %}returned{% else %}{{ call }}{% endif %}
+
+            val expected = case.jsonObject["expected"]!!.jsonArray
+            assertEquals(expected.size, actual.size, "{{ f.name }} length")
+            for (k in expected.indices) {
+                val e = expected[k].jsonObject
+{% for fld in f.output.list_of.fields %}
+                assertEquals({{ ("e[\"" ~ fld.name ~ "\"]!!") | kt_unmarshal(fld.type) }}, actual[k].{{ fld.ident }}, "{{ f.name }}.{{ fld.name }}")
+{% endfor %}
+            }
+{% elif f.output.list_of is defined %}
+{# A `list<T>` return (SCE_FORGE.md §4.12) is the element's primitive array
+   (`LongArray`, `UIntArray`, ...). Both sides compare as `List<T>`, so
+   one spelling serves every element type; an unsigned array is still an
+   experimental type, which the harness opts into for the whole file. #}
+            val expected = case.jsonObject["expected"]!!.jsonArray.map { {{ "it" | kt_unmarshal(f.output.list_of) }} }
+            val actual = {% if f.may_fail %}returned{% else %}{{ call }}{% endif %}.toList()
+{% if f.output.compare == "tolerance" %}
+            assertEquals(expected.size, actual.size, "{{ f.name }} length")
+            for (i in expected.indices) {
+                assertClose(actual[i].toDouble(), expected[i].toDouble(), "{{ f.name }}")
+            }
+{% else %}
+            assertEquals(expected, actual, "{{ f.name }}")
+{% endif %}
+{% elif f.output.type == "bytes" %}
+{# A `bytes` return is a `ByteArray`, whose `equals` is identity: both
+   sides compare as `List<Byte>`. #}
+            val expected = {{ "case.jsonObject[\"expected\"]!!" | kt_unmarshal("bytes") }}.toList()
+            val actual = {% if f.may_fail %}returned{% else %}{{ call }}{% endif %}.toList()
+            assertEquals(expected, actual, "{{ f.name }}")
+{% else %}
             val expected = {{ "case.jsonObject[\"expected\"]!!" | kt_unmarshal(f.output.type) }}
-            val actual = {{ f.function }}({% for arg_ty in f.args %}arg{{ loop.index0 }}{% if not loop.last %}, {% endif %}{% endfor %})
+            val actual = {% if f.may_fail %}returned{% else %}{{ call }}{% endif %}
+
 {% if f.output.compare == "tolerance" %}
             assertClose(actual.toDouble(), expected.toDouble(), "{{ f.name }}")
 {% else %}
             assertEquals(expected, actual, "{{ f.name }}")
+{% endif %}
 {% endif %}
         }

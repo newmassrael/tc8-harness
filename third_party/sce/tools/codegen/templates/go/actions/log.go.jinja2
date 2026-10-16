@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {# W3C SCXML 4.7: Log action
@@ -14,11 +14,23 @@
    The default is hoisted once rather than restated at each of the three
    sites below, so the three cannot drift apart. #}
 {%- set label = action.label | default('') -%}
-{% if action.expr and model.needs_script_engine %}
+{% if action.native_code %}
+{# `datamodel="sce-static"`: the whole statement was lowered to Go. #}
+{% include 'actions/_native_statement.go.jinja2' %}
+{% elif action.expr and model.needs_script_engine %}
 	{
 		logResult, logErr := p.ScriptEngine.EvaluateExpression(p.SessionID, `{{ action.expr | to_lua_expr }}`)
 		if logErr == nil {
 			fmt.Printf("%s%v\n", "{{ label }}", logResult)
+		} else {
+			// W3C SCXML 5.9: an expression that fails raises error.execution,
+			// and (W3C SCXML 4.9) the error ends the block.
+{% if 'error.execution' in model.events %}
+			engine.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<log> expr failed to evaluate"))
+{% endif %}
+{% if in_action_block is defined and in_action_block %}
+			return
+{% endif %}
 		}
 	}
 {% elif action.expr %}

@@ -1,15 +1,14 @@
-// SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
+// SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
 // SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael
 //
 // This file is part of SCE (SCXML Core Engine).
 //
 // Dual Licensed:
-// 1. LGPL-2.1: Free for unmodified use (see LICENSE-LGPL-2.1.md)
+// 1. AGPL-3.0 + Linking Exception: Free for unmodified use (see LICENSE-EXCEPTION.md)
 // 2. Commercial: For modifications (contact newmassrael@gmail.com)
 //
 // Commercial License:
-//   Individual: $5000 cumulative
-//   Enterprise: Contact for pricing
+//   Pricing: contact newmassrael@gmail.com
 //   Contact: https://github.com/newmassrael
 //
 // Full terms: https://github.com/newmassrael/scxml-core-engine/blob/main/LICENSE
@@ -21,18 +20,26 @@
 #include "common/EventTypeHelper.h"
 #include "common/ForwardedEvent.h"
 #include "common/IOProcessorHelper.h"
+#include "common/NoParent.h"
 #include "common/SCXMLConstants.h"
 #include "common/SceClock.h"
 #include "common/SendHelper.h"
 #include "common/SendSchedulingHelper.h"
 #include "core/AOTEventQueue.h"
 #include "core/ConfigurationHelper.h"
+#include "core/ConflictResolutionHelper.h"
+#include "core/EntrySetHelper.h"
 #include "core/EventMatchingHelper.h"
 #include "core/EventMetadata.h"
+#include "core/EventNameResolver.h"
 #include "core/EventProcessingAlgorithms.h"
 #include "core/EventQueueManager.h"
+#include "core/ExternalEventBudget.h"
 #include "core/HierarchicalStateHelper.h"
 #include "core/HistoryHelper.h"
+#include "core/MacrostepCeilings.h"
+#include "core/MicrostepAlgorithms.h"
+#include "core/ParallelTransitionHelper.h"
 // §scxml-6.2.5: the request/reply shape a host-declared Event I/O Processor is
 // dispatched with. A `core/` header for the same reason `PayloadReading.h` is
 // one — it is a fact about a `<send>`, not about any engine's interface, and
@@ -51,6 +58,7 @@
 #include <chrono>
 #include <cstdint>
 #include <functional>
+#include <iterator>
 #include <map>
 #include <memory>
 #include <optional>
@@ -206,82 +214,26 @@ template <SCE::Core::EventNamingPolicy StatePolicy> class StaticExecutionEngine 
 #else
 template <typename StatePolicy> class StaticExecutionEngine {
 #endif
-    // ── Compile-time verification of required member variables ──
-    // StatePolicy is generated as a struct (public members), verified via requires expression.
-#if __cpp_concepts >= 202002L
-    static_assert(
-        requires(StatePolicy p) {
-            { p.lastTransitionIsInternal_ } -> std::convertible_to<bool>;
-        }, "StatePolicy must have member: mutable bool lastTransitionIsInternal_");
-    static_assert(
-        requires(StatePolicy p) {
-            { p.lastTransitionIsTargetless_ } -> std::convertible_to<bool>;
-        }, "StatePolicy must have member: mutable bool lastTransitionIsTargetless_");
-    static_assert(
-        requires(StatePolicy p) {
-            { p.lastTransitionSourceState_ } -> std::convertible_to<typename StatePolicy::State>;
-        }, "StatePolicy must have member: mutable State lastTransitionSourceState_");
-#endif
 
 public:
     using State = typename StatePolicy::State;
     using Event = typename StatePolicy::Event;
+    /// A `<history>` pseudo-state. Never a member of the configuration, only
+    /// of target lists, which is why it is not a State.
+    using History = typename StatePolicy::History;
+    /// One member of Appendix D's `enabledTransitions`, as the policy's
+    /// selection answers it.
+    using TransitionInfo = SCE::Core::EnabledTransition<State, History>;
 
-    /**
-     * @brief How many links an `error.*` chain may have before the engine
-     *        stops feeding it — see `errorCascadeEvents()`
-     *
-     * §scxml-3.12.2 says what to do with an error event nothing matches. It
-     * does not say what to do when something *does* match it and that handler
-     * fails too: the failure raises the same error, the same transition
-     * answers it, and the machine has no way out. Nothing in the specification
-     * bounds that, so the number is this engine's to choose, and it matches
-     * the ceiling `EventProcessingAlgorithms::checkEventlessTransitions` uses
-     * for the sibling case of a macrostep that cannot finish — decided the
-     * same way for the same reason.
-     *
-     * A hundred links is far past any repair strategy a document plausibly
-     * spells (a handler that tries a fallback, then a second one, is three)
-     * and far short of a number a host would wait through.
-     */
-    static constexpr uint32_t MAX_ERROR_CASCADE_DEPTH = 100;
+    /// How many links an `error.*` chain may have before the engine stops
+    /// feeding it — see `errorCascadeEvents()`. The number, and why it is that
+    /// one, is `Core::MAX_ERROR_CASCADE_DEPTH`, shared with the Interpreter.
+    static constexpr uint32_t MAX_ERROR_CASCADE_DEPTH = Core::MAX_ERROR_CASCADE_DEPTH;
 
-    /**
-     * @brief How many microsteps one macrostep may take before this engine
-     *        stops taking them — see `truncatedMacrosteps()`
-     *
-     * The specification defines a macrostep as a chain of microsteps ending in
-     * a configuration where nothing is enabled by NULL and the internal queue
-     * is empty, and its Principles and Constraints say in as many words that
-     * such a chain need not exist: *"A microstep always terminates. A
-     * macrostep may not. A macrostep that does not terminate may be said to
-     * consist of an infinitely long sequence of microsteps. This is currently
-     * allowed."*
-     *
-     * So the ceiling is not conformance — it is this engine declining a
-     * document the specification permits, which is exactly why the decline has
-     * to be visible.
-     *
-     * One budget for the whole inner loop, not one per branch. Appendix D's
-     * loop takes a microstep on an eventless transition *or* on an internal
-     * event, and a document alternating the two is one chain, not two:
-     * budgeting the branches separately leaves that chain unbounded, which is
-     * what a per-call counter on the eventless branch alone did here until
-     * 2026-08-20.
-     *
-     * Ten times `MAX_ERROR_CASCADE_DEPTH`, and deliberately not equal to it.
-     * This is the backstop; the cascade ceiling is a diagnostic that names the
-     * error a handler keeps failing on, and a backstop that fires first makes
-     * that diagnostic unreachable. Measured 2026-08-20: with both at a
-     * hundred, a handler that raises one event of its own per link — two
-     * microsteps a link, which is what a document that logs before it fails
-     * looks like — was cut at fifty links by this ceiling and
-     * `errorCascadeEvents()` never moved. The factor of ten is the headroom
-     * that keeps the specific report reachable for a handler raising up to
-     * eight events a link; a busier one is cut here instead, which is coarser
-     * but still reported.
-     */
-    static constexpr uint32_t MAX_MACROSTEP_MICROSTEPS = 1000;
+    /// How many microsteps one macrostep may take before this engine stops
+    /// taking them — see `truncatedMacrosteps()`. The number, and why it is that
+    /// one, is `Core::MAX_MACROSTEP_MICROSTEPS`, shared with the Interpreter.
+    static constexpr uint32_t MAX_MACROSTEP_MICROSTEPS = Core::MAX_MACROSTEP_MICROSTEPS;
 
     /**
      * @brief Event with metadata for §scxml-5.10 compliance
@@ -306,6 +258,13 @@ public:
      */
     struct EventWithMetadata {
         Event event;
+        // §scxml-5.10: `_event.name` is the name an event ARRIVED under. The event is
+        // carried as the enum member of a name the document writes, and §scxml-3.12.1
+        // lets `request.new` take a transition on `request`, so the member alone loses
+        // the longer name. Set by a door that resolved a name through a prefix; empty
+        // means the member's own name IS the name, which is every event the document
+        // itself raises or sends.
+        std::string name;
         std::string data;
         std::string origin;                    // §scxml-5.10.1: _event.origin
         std::string sendId;                    // §scxml-5.10.1: _event.sendid
@@ -326,6 +285,12 @@ public:
         // guards' tag check fails. The name↔type pairing is enforced at the
         // single generated raise<Event>() inject seam.
         std::any typedPayload;
+        // §scxml-6.4: the token of the host-run invocation this event
+        // completes, set only by completeHostInvoke() after it confirmed the
+        // invocation was still running. A host invoke's `done.invoke.<id>`
+        // that arrives without one did not come through that check, so the
+        // engine refuses it. Not script-visible: `_event` has no field for it.
+        std::optional<uint64_t> hostInvokeToken;
 
         // Default constructor for aggregate initialization
         EventWithMetadata() = default;
@@ -338,166 +303,170 @@ public:
     };
 
 private:
-    /**
-     * @brief Handle hierarchical exit and entry for state transition
-     *
-     * @details
-     * ARCHITECTURE.md: Extract duplicate code from the event-queue drains
-     * §scxml-3.13: Compute LCA and execute hierarchical exit/entry
-     *
-     * @param oldState State before transition
-     * @param newState State after transition
-     * @param preTransitionStates Active states before transition (for history recording)
-     */
-    // C++17-compatible named empty callable (replaces decltype([] {}))
-    struct NoOpAction {
-        void operator()() const {}
+    // ── Appendix D over the generated policy ─────────────────────────────
+    //
+    // The policy answers what only the document knows: which of a state's
+    // transitions an event enables, what a transition's content is, what a
+    // state's onentry and onexit do, what a history recorded. What Appendix D
+    // does with those answers is `SCE::Core::MicrostepAlgorithms`, written once
+    // for this engine and the Interpreter; `MicrostepHost` is how this engine
+    // hands it the policy. A machine with a `<parallel>` used to take a second
+    // microstep written into its generated code while every other machine took
+    // an LCA walk here, and the two disagreed about eventless selection, about
+    // the order transition content runs in, and about how many targets a
+    // transition has.
+
+    /// This engine as `SCE::Core::MicrostepAlgorithms` reads it — that struct
+    /// states what each member answers. The document is the policy's static
+    /// tables; the history values and the configuration are run-time state,
+    /// which is why this holds the engine.
+    struct MicrostepHost {
+        using State = typename StatePolicy::State;
+        using History = typename StatePolicy::History;
+
+        StaticExecutionEngine &engine;
+
+        std::optional<State> parentOf(const State &s) const {
+            return StatePolicy::getParent(s);
+        }
+
+        bool isCompound(const State &s) const {
+            return SCE::Core::HierarchicalStateHelper<StatePolicy>::isTransitionDomainCandidate(s);
+        }
+
+        bool isParallel(const State &s) const {
+            return StatePolicy::isParallelState(s);
+        }
+
+        std::vector<State> childStates(const State &s) const {
+            return StatePolicy::getChildStates(s);
+        }
+
+        std::vector<SCE::Core::EntryTarget<State, History>> initialTargets(const State &s) const {
+            return StatePolicy::getInitialTargets(s);
+        }
+
+        State historyParent(const History &h) const {
+            return StatePolicy::getHistoryParent(h);
+        }
+
+        std::optional<std::vector<State>> historyValue(const History &h) const {
+            return engine.policy_.historyValue(h);
+        }
+
+        std::vector<SCE::Core::EntryTarget<State, History>> historyDefaultTargets(const History &h) const {
+            return StatePolicy::getHistoryDefaultTargets(h);
+        }
+
+        int documentOrder(const State &s) const {
+            return StatePolicy::getDocumentOrder(s);
+        }
+
+        std::vector<State> configuration() const {
+            return engine.getActiveStates();
+        }
+
+        std::optional<TransitionInfo> firstEnabledTransition(const State &s, Event event) {
+            return engine.policy_.firstEnabledTransition(s, event, engine);
+        }
+
+        void exitState(const State &s, const std::vector<State> &configurationBeforeExit) {
+            engine.policy_.executeExitActions(s, engine, configurationBeforeExit);
+        }
+
+        void executeTransitionContent(const TransitionInfo &t) {
+            engine.policy_.executeTransitionActions(t.source, t.transitionIndex, engine);
+        }
+
+        void enterState(const State &s, bool isDefaultEntry) {
+            engine.policy_.executeEntryActions(s, engine, isDefaultEntry);
+            // §scxml-D-enterStates: a <final> whose parent is the <scxml>
+            // element ends the run. Recorded as the run's terminal state, so
+            // "where did it end" is a fact the engine keeps rather than a
+            // reading of the configuration.
+            if (StatePolicy::isFinalState(s) && !StatePolicy::getParent(s).has_value()) {
+                engine.terminalState_ = s;
+            }
+        }
+
+        void executeHistoryDefaultContent(const History &h) {
+            engine.policy_.executeHistoryDefaultContent(h, engine);
+        }
     };
 
-    template <typename TransitionActionFn = NoOpAction>
-    void handleHierarchicalTransition(State oldState, State newState, const std::vector<State> &preTransitionStates,
-                                      TransitionActionFn &&transitionAction = {}) {
-        SCE_LOG_DEBUG("AOT handleHierarchicalTransition: Transition {} -> {}", static_cast<int>(oldState),
-                      static_cast<int>(newState));
+    /**
+     * @brief Appendix D's selectTransitions, or its selectEventlessTransitions
+     *        when @p event is `Event()`
+     *
+     * @return The optimal enabled transition set, in selection order
+     */
+    std::vector<TransitionInfo> selectTransitions(Event event) {
+        policy_.bindCurrentEvent(event, *this);
+        MicrostepHost host{*this};
+        return SCE::Core::MicrostepAlgorithms::selectTransitions(host, event);
+    }
 
-        // §scxml-3.13: Determine LCA based on transition type
-        std::optional<State> lca;
-        if (policy_.lastTransitionIsInternal_) {
-            // §scxml-3.13: Internal transitions whose target is NOT a proper descendant behave as external
-            bool isSelfTransition = (oldState == newState);
-            bool isProperDescendant =
-                !isSelfTransition &&
-                SCE::Core::HierarchicalStateHelper<StatePolicy>::isDescendantOf(newState, oldState);
+    /**
+     * @brief Appendix D's microstep: exit, run the transitions' content, enter
+     */
+    void microstep(const std::vector<TransitionInfo> &transitions) {
+        MicrostepHost host{*this};
+        const auto entry = SCE::Core::MicrostepAlgorithms::microstep(host, transitions);
+        settleCurrentState(transitions, entry.statesToEnter);
+    }
 
-            // §scxml-3.13: Check if source is compound state (test 533)
-            // Parallel states and atomic states are NOT compound - internal transitions from them behave as external
-            bool isSourceCompound = StatePolicy::isCompoundState(oldState);
+    void enterStates(const std::vector<SCE::Core::EntryTransition<State, History>> &transitions) {
+        MicrostepHost host{*this};
+        const auto entry = SCE::Core::MicrostepAlgorithms::enterStates(host, transitions);
+        settleCurrentState(transitions, entry.statesToEnter);
+    }
 
-            if (isProperDescendant && isSourceCompound) {
-                // §scxml-3.13: Internal transition to proper descendant in compound state - source is LCA (don't
-                // exit source)
-                lca = oldState;  // Source is the LCA - don't exit it
-                SCE_LOG_DEBUG(
-                    "AOT handleHierarchicalTransition: Internal transition (proper descendant, compound source) "
-                    "- source {} is LCA",
-                    static_cast<int>(oldState));
-            } else {
-                // §scxml-3.13: Non-compound source or non-descendant - behaves as external
-                // Use normal LCA calculation, then target==LCA check handles exit/re-entry
-                lca = SCE::Core::HierarchicalStateHelper<StatePolicy>::findLCA(oldState, newState);
-                SCE_LOG_DEBUG("AOT handleHierarchicalTransition: Internal transition (non-compound source or "
-                              "non-descendant) - behaves as "
-                              "external, LCA={}",
-                              lca.has_value() ? static_cast<int>(lca.value()) : -1);
-            }
-        } else {
-            // §scxml-3.13: External transition - find LCA normally
-            lca = SCE::Core::HierarchicalStateHelper<StatePolicy>::findLCA(oldState, newState);
+    /**
+     * @brief Point `currentState_` at the atomic state the last transition
+     *        brought the machine into
+     *
+     * Without a `<parallel>` the configuration is one chain and the entry set
+     * ends on its atomic state. With one, `currentState_` is the first state
+     * the last transition names, dereferenced, then down through the
+     * configuration to an atomic state — the answer every backend gives.
+     *
+     * @tparam Transitions Anything whose elements carry `targets` as written:
+     *         the microstep's enabled set, or the initial transition
+     */
+    template <typename Transitions>
+    void settleCurrentState(const Transitions &transitions, const std::vector<State> &entered) {
+        if (entered.empty()) {
+            return;
         }
-
-        if (lca.has_value()) {
-            // §scxml-3.13: First exit any active descendants of oldState (deepest first)
-            std::vector<State> descendantsToExit;
-            for (const auto &activeState : preTransitionStates) {
-                if (activeState != oldState &&
-                    SCE::Core::HierarchicalStateHelper<StatePolicy>::isDescendantOf(activeState, oldState)) {
-                    descendantsToExit.push_back(activeState);
-                }
-            }
-            // Sort by state enum value (proxy for document order - deeper states have higher values)
-            std::sort(descendantsToExit.begin(), descendantsToExit.end(),
-                      [](State a, State b) { return static_cast<int>(a) > static_cast<int>(b); });
-
-            for (const auto &descendant : descendantsToExit) {
-                SCE_LOG_DEBUG("AOT handleHierarchicalTransition: Exit descendant {} of oldState {}",
-                              static_cast<int>(descendant), static_cast<int>(oldState));
-                executeOnExit(descendant, preTransitionStates);
-            }
-
-            // §scxml-3.13: Exit states from oldState up to (but not including) LCA
-            auto exitChain = SCE::Core::HierarchicalStateHelper<StatePolicy>::buildExitChain(oldState, lca.value());
-            for (const auto &state : exitChain) {
-                SCE_LOG_DEBUG("AOT handleHierarchicalTransition: Hierarchical exit state {}", static_cast<int>(state));
-                executeOnExit(state, preTransitionStates);
-            }
-
-            // §scxml-3.10 (test 579): Ancestor transition (target == LCA)
-            // When transitioning to self or ancestor, the target must also be exited and re-entered
-            // This is how Interpreter handles internal self-transitions to satisfy W3C 5.9.2
-            bool isTargetActive = std::find(preTransitionStates.begin(), preTransitionStates.end(), newState) !=
-                                  preTransitionStates.end();
-            if (newState == lca.value() && isTargetActive) {
-                SCE_LOG_DEBUG("AOT handleHierarchicalTransition: Ancestor/self transition - exit target {} (W3C 3.10)",
-                              static_cast<int>(newState));
-                executeOnExit(newState, preTransitionStates);
-            }
-
-            // §scxml-3.13: Execute transition actions AFTER exit, BEFORE entry
-            SCE_LOG_DEBUG("AOT handleHierarchicalTransition: Executing transition actions");
-            transitionAction();
-
-            // §scxml-3.13: Enter states from LCA down to newState (including initial children)
-            std::vector<State> entryChain;
-
-            // §scxml-3.10: If target == LCA (ancestor/self transition), enter full subtree from target
-            if (newState == lca.value()) {
-                SCE_LOG_DEBUG("AOT handleHierarchicalTransition: Ancestor/self transition - enter target {} and its "
-                              "initial children (W3C 3.10)",
-                              static_cast<int>(newState));
-                // Build full entry chain from root, then keep only states at/below LCA
-                auto fullChain = SCE::Core::HierarchicalStateHelper<StatePolicy>::buildEntryChain(newState, policy_);
-                for (const auto &s : fullChain) {
-                    // Include state if it's at or below LCA (check if LCA is ancestor of s or s == LCA)
-                    if (s == lca.value() ||
-                        SCE::Core::HierarchicalStateHelper<StatePolicy>::isDescendantOf(s, lca.value())) {
-                        entryChain.push_back(s);
-                    }
-                }
-            } else {
-                // Normal case: enter from LCA's child down to newState
-                entryChain =
-                    SCE::Core::HierarchicalStateHelper<StatePolicy>::buildEntryChainFromParent(newState, lca.value());
-            }
-
-            executeOnEntryChain(entryChain, newState);
-
-            // §scxml-3.11: Update currentState to deepest entered state
-            if (!entryChain.empty()) {
-                currentState_ = entryChain.back();
-                SCE_LOG_DEBUG("AOT handleHierarchicalTransition: Updated currentState_ to {}",
-                              static_cast<int>(currentState_));
-            }
+        if constexpr (!StatePolicy::HAS_PARALLEL_STATES) {
+            currentState_ = entered.back();
         } else {
-            // No LCA (top-level transition) - exit all ancestors of oldState
-            SCE_LOG_DEBUG("AOT handleHierarchicalTransition: No LCA (top-level transition)");
-
-            State current = oldState;
-            while (true) {
-                SCE_LOG_DEBUG("AOT handleHierarchicalTransition: Exit state {} (to root)", static_cast<int>(current));
-                executeOnExit(current, preTransitionStates);
-
-                auto parent = StatePolicy::getParent(current);
-                if (!parent.has_value()) {
-                    break;  // Reached root
+            for (auto it = transitions.rbegin(); it != transitions.rend(); ++it) {
+                const std::vector<State> targets =
+                    SCE::Core::EntrySetAlgorithms::getEffectiveTargetStates(it->targets, MicrostepHost{*this});
+                if (!targets.empty()) {
+                    currentState_ = targets.front();
+                    resolveCurrentStateToLeaf();
+                    return;
                 }
-                current = parent.value();
-            }
-
-            // §scxml-3.13: Execute transition actions AFTER exit, BEFORE entry
-            SCE_LOG_DEBUG("AOT handleHierarchicalTransition: Executing transition actions (no LCA)");
-            transitionAction();
-
-            // Enter full hierarchy from root to newState
-            auto entryChain = SCE::Core::HierarchicalStateHelper<StatePolicy>::buildEntryChain(newState, policy_);
-            executeOnEntryChain(entryChain, newState);
-
-            // §scxml-3.11: Update currentState to deepest entered state
-            if (!entryChain.empty()) {
-                currentState_ = entryChain.back();
-                SCE_LOG_DEBUG("AOT handleHierarchicalTransition: Updated currentState_ to {}",
-                              static_cast<int>(currentState_));
             }
         }
+    }
+
+    /**
+     * @brief Select, and take the microstep if anything was selected
+     *
+     * A delayed send to `#_parent` used to be drained here, from a queue of
+     * its own beside the engine's. It is an entry in the engine's queue now,
+     * delivered by `tick()` like every other delayed send (§scxml-6.2), so
+     * `<cancel>` reaches it and it carries its payload.
+     */
+    std::vector<TransitionInfo> selectAndTakeMicrostep(Event event) {
+        std::vector<TransitionInfo> enabled = selectTransitions(event);
+        if (!enabled.empty()) {
+            microstep(enabled);
+        }
+        return enabled;
     }
 
     /**
@@ -511,111 +480,65 @@ private:
     }
 
     /**
-     * @brief Execute a state transition with hierarchical exit/entry handling
+     * @brief Offer one event to the configuration and take the microstep it
+     *        selects
      *
      * §scxml-3.13: Single Source of Truth for transition execution across all
      * processing paths (event queues, direct processEvent, eventless transitions).
      *
      * Callers customize one axis of variation via a template callback:
-     * - postTransition: work after hierarchical handling, before eventless check
+     * - postTransition: work after the microstep, before the eventless check
      *   (queue path: nothing; direct path: runMainEventLoop)
      *
-     * W3C SCXML Appendix D: who performs exit/entry is *not* an axis of
-     * variation, because it is fixed by the document's shape rather than by the
-     * caller. A policy with parallel states routes every event — external and
-     * eventless alike — through `executeMicrostep`, which owns the whole
-     * exit → transition content → entry sequence and maintains `activeStates_`
-     * itself. Any exit/entry this function adds on top of that is a second
-     * application: `executeExitActions` removes its argument from the
-     * configuration, so re-exiting `oldState` after the microstep has already
-     * re-entered it drops that region's leaf while leaving the region's
-     * ancestors active. The region then holds no atomic state and can never
-     * fire again. `checkEventlessTransitions` already states this invariant for
-     * its own path; expressing it once, here, is what keeps the two paths from
-     * disagreeing.
-     *
-     * @tparam PostTransitionFn Callable() for post-hierarchical work
+     * @tparam PostTransitionFn Callable() for post-microstep work
      * @param event Event to process
-     * @param postTransition Post-hierarchical work before eventless check
-     * @return true if a hierarchical state change occurred
+     * @param postTransition Post-microstep work before the eventless check
+     * @return what the event did — see EventOutcome
      */
     template <typename PostTransitionFn>
     EventOutcome executeTransition(Event event, PostTransitionFn &&postTransition) {
-        State oldState = currentState_;
-        std::vector<State> preTransitionStates = getActiveStates();
-        if (!policy_.processTransition(currentState_, event, *this)) {
+        const State oldState = currentState_;
+        const std::vector<TransitionInfo> taken = selectAndTakeMicrostep(event);
+        if (taken.empty()) {
             return EventOutcome{};
         }
 
-        // §scxml-3.13: Self-transitions (target = source) exit and re-enter the state
-        // §scxml-3.13: Targetless transitions consume event only (no exit/enter)
-        bool isSelfTransition = (oldState == currentState_);
-        bool needsHierarchicalHandling =
-            (oldState != currentState_) || (isSelfTransition && !policy_.lastTransitionIsTargetless_);
-
-        if (!needsHierarchicalHandling) {
-            // §scxml-3.13: Targetless transition - execute actions without state change
-            policy_.executeTransitionActions(*this);
-            // W3C SCXML Appendix D's main event loop returns to
-            // `selectEventlessTransitions()` after EVERY microstep and drains
-            // the internal queue in the same inner loop, without asking whether
-            // the microstep moved the machine. Returning here instead ended the
-            // macrostep at a transition that ran content: whatever that content
-            // enabled was never walked, and whatever it raised stayed on the
-            // queue, so the host was handed a configuration the clause calls
-            // unstable with nothing anywhere saying so. This is the same work
-            // the state-changing path below does, in the same order.
-            postTransition();
-            checkEventlessTransitions();
-            // The transition itself moved nothing; the chain it opened may
-            // have. This asks the machine rather than the transition, so a
-            // chain that reaches a top-level `<final>` still notifies the
-            // parent — see this struct's contract for why the two facts are
-            // spelled apart.
-            return EventOutcome{/*selected=*/true, /*configurationChanged=*/currentState_ != oldState};
-        }
-
-        // §scxml-3.13: State transition requires hierarchical exit/entry
-        if constexpr (!StatePolicy::HAS_PARALLEL_STATES) {
-            handleHierarchicalTransition(oldState, currentState_, preTransitionStates,
-                                         [this] { policy_.executeTransitionActions(*this); });
-        }
-        // W3C SCXML Appendix D: a parallel policy needs no exit/entry here —
-        // `executeMicrostep` has already exited, run the transition content and
-        // entered. See this function's contract above for why adding to it
-        // costs a region its leaf. What it does not do is settle
-        // `currentState_`, which is the next statement's job.
-        else {
-            resolveCurrentStateToLeaf();
-        }
+        // W3C SCXML Appendix D's main event loop returns to
+        // `selectEventlessTransitions()` after EVERY microstep and drains the
+        // internal queue in the same inner loop, without asking whether the
+        // microstep moved the machine — a targetless transition that only ran
+        // content opens a chain as surely as one that entered a state.
         postTransition();
         checkEventlessTransitions();
-        return EventOutcome{/*selected=*/true, /*configurationChanged=*/true};
+
+        // A microstep of targetless transitions moved nothing itself; the chain
+        // it opened may have. This asks the machine rather than the transition,
+        // so a chain that reaches a top-level `<final>` still notifies the
+        // parent — see EventOutcome's contract for why the two facts are
+        // spelled apart.
+        const bool entered =
+            std::any_of(taken.begin(), taken.end(), [](const TransitionInfo &t) { return !t.isTargetless(); });
+        return EventOutcome{/*selected=*/true, /*configurationChanged=*/entered || currentState_ != oldState};
     }
 
     /**
      * @brief Settle `currentState_` on an atomic state
      *
-     * `executeMicrostep` leaves `currentState_` on the last transition target
-     * it processed, and a target may be a compound state. The configuration is
-     * then right and this one field is not: `getCurrentState()` names a state
-     * the machine is *within* rather than the atomic state it is *in*.
-     *
-     * Measured 2026-08-13 on a two-region `<parallel>` whose transition
-     * targets a compound state: the active set was
-     * `[run | counter | drive | within | outer | a]` and `getCurrentState()`
-     * answered `outer`. `sce_rust_runtime`'s `resolve_current_state_to_leaf`
-     * and the Go engine's `resolveCurrentStateToLeaf` both answer `a`, so C++
-     * was the one backend of three disagreeing on a public accessor that 105
-     * files in this repository read.
+     * A transition may target a compound state, or a `<parallel>`, and
+     * `getCurrentState()` must still name the atomic state the machine is
+     * *in* rather than one it is *within*. Measured 2026-08-13 on a two-region
+     * `<parallel>` whose transition targets a compound state: the active set
+     * was `[run | counter | drive | within | outer | a]` and
+     * `getCurrentState()` answered `outer`, while `sce_rust_runtime`'s
+     * `resolve_current_state_to_leaf` and the Go engine's
+     * `resolveCurrentStateToLeaf` both answer `a`.
      *
      * The descent reads the CONFIGURATION rather than recomputing initial or
-     * history children, which the other two backends do. That is deliberate:
-     * `activeStates_` is what the microstep actually entered, so a descent
-     * through it cannot disagree with what happened. Recomputing can — the
-     * generated microstep builds its entry chain from plain initial children
-     * while `getInitialOrHistoryChild` is history-aware, and the two answers
-     * part company exactly when a `<history>` is involved.
+     * history children: the configuration is what the microstep actually
+     * entered, so a descent through it cannot disagree with what happened.
+     * Under a `<parallel>` it takes the first region in document order, so
+     * the answer does not depend on the order states happened to become
+     * active.
      */
     void resolveCurrentStateToLeaf() {
         // A region holds one atomic state, so this descends once per level.
@@ -624,16 +547,16 @@ private:
         constexpr int MAX_DESCENTS = 50;
         const std::vector<State> active = getActiveStates();
         for (int depth = 0; depth < MAX_DESCENTS; ++depth) {
-            if (!StatePolicy::isCompoundState(currentState_)) {
+            if (!StatePolicy::isCompoundState(currentState_) && !StatePolicy::isParallelState(currentState_)) {
                 return;
             }
-            const auto child = std::find_if(active.begin(), active.end(), [this](State candidate) {
-                const auto parent = StatePolicy::getParent(candidate);
-                return parent.has_value() && parent.value() == currentState_;
+            const std::vector<State> children = StatePolicy::getChildStates(currentState_);
+            const auto child = std::find_if(children.begin(), children.end(), [&active](State candidate) {
+                return std::find(active.begin(), active.end(), candidate) != active.end();
             });
             // A compound state with no active child is not a configuration
             // this can repair, so it is left as it is rather than guessed at.
-            if (child == active.end()) {
+            if (child == children.end()) {
                 return;
             }
             currentState_ = *child;
@@ -680,7 +603,10 @@ private:
         const Event event = eventWithMeta.event;
         applyExternalEventPreamble(eventWithMeta);
 
-        const EventOutcome outcome = executeTransition(event, [this] { runMainEventLoop(); });
+        // The host's own event is the first of this invocation's budget: it is
+        // handled here, directly, and the loop that follows starts with one spent
+        // (ARCHITECTURE.md "External-Event Budget", rule 1).
+        const EventOutcome outcome = executeTransition(event, [this] { runMainEventLoop(1); });
         // §scxml-3.1.2: this entry point takes an event straight from the host,
         // so it is the same fact `processNextExternalEvent` records — unlike
         // the Rust and Go engines, whose `process_event` enqueues and lets the
@@ -753,6 +679,17 @@ private:
     }
 
     State currentState_;
+    // §scxml-D-enterStates: the top-level <final> the run ended in; set by
+    // MicrostepHost::enterState, cleared when a run starts.
+    std::optional<State> terminalState_;
+    // §scxml-D-exitInterpreter has run for this run: the configuration is
+    // empty. Cleared when a run starts.
+    bool interpreterExited_ = false;
+    // §scxml-D-enterStates, late binding: the states whose `<data>` this run
+    // has already bound — `s.isFirstEntry` is false for exactly these. The
+    // rule lives here, once, and the generated entry code asks it
+    // (claimLateBindingFirstEntry); cleared when a run starts.
+    std::set<State> lateBoundStates_;
     SCE::Core::EventQueueManager<EventWithMetadata>
         internalQueue_;  // §scxml-3.13: Internal event queue (high priority)
     SCE::Core::EventQueueManager<EventWithMetadata> externalQueue_;  // §scxml-3.13: External event queue (low priority)
@@ -815,6 +752,12 @@ private:
     bool hasTruncatedMacrostep_ = false;
     bool macrostepTruncated_ = false;
     uint32_t macrostepMicrostepsTaken_ = 0;
+    // The budget of one invocation of the main event loop, the invocations this
+    // engine handed back with an external event still queued, and the event at
+    // the head of the queue when that last happened — see
+    // `truncatedEventChains()`. The Interpreter holds the same class, so the
+    // number and the arithmetic are written once.
+    Core::ExternalEventBudget<Event> externalEventBudget_;
     std::function<void()> completionCallback_;                 // §scxml-6.4: Callback for done.invoke
     std::function<void(const HttpSendRequest &)> onHttpSend_;  // §scxml-C-2: BasicHTTP callback
     // §scxml-6.2.5: handlers for the Event I/O Processor types this host
@@ -827,13 +770,26 @@ private:
     // delivering an event is not the same capability as running a process with
     // a lifecycle — see `core/HostProcessor.h`'s invoker half.
     std::map<std::string, ::SCE::HostInvokeHandler> hostInvokers_;
-    // §scxml-6.4: every host-run invocation started and not yet cancelled, so
-    // the emitted exit chain can be an unconditional call — the engine knows
-    // whether there is anything to cancel. Held here rather than in the
-    // generated machine because "did this one start?" is the question the
-    // cancel path has to answer, and answering it in each backend's template
-    // would be the same bookkeeping written once per language.
-    std::set<std::pair<std::string, std::string>> startedHostInvokes_;
+    // §scxml-6.4: every host-run invocation started and neither completed nor
+    // cancelled, mapped to its start's token, so the emitted exit chain can be
+    // an unconditional call and a completion can be judged against the run it
+    // names. Held here rather than in the generated machine because "is this
+    // one still running?" is the question both paths have to answer, and
+    // answering it in each backend's template would be the same bookkeeping
+    // written once per language. One entry per key: an `<invoke>` belongs to
+    // one state and a state is in the configuration at most once, so the same
+    // id is never running twice; a restart replaces the entry, and its new
+    // token is what makes the first run's reply stale.
+    std::map<std::pair<std::string, std::string>, uint64_t> startedHostInvokes_;
+    // The token the next host-run start receives.
+    uint64_t nextHostInvokeToken_ = 0;
+    // How many ids this machine has generated for a `<send idlocation>`: the
+    // number the last one carried. Counted per machine, not per process, so a
+    // machine's ids do not depend on what else ran beside it. See
+    // nextAutoSendId().
+    uint64_t autoSendSeq_ = 0;
+    // See refusedHostInvokeCompletions().
+    uint64_t refusedHostInvokeCompletions_ = 0;
     MeshSendCallback onMeshSend_;      // SCE Mesh: cross-machine <send> callback
     MeshInvokeCallback onMeshInvoke_;  // SCE Mesh §mesh-9.5: <invoke type="sce:mesh-rpc"> entry hook
     MeshCancelCallback onMeshCancel_;  // SCE Mesh §mesh-9.5: mesh-rpc exit / cancel hook
@@ -855,7 +811,12 @@ private:
     std::function<void(const std::string &parallel_id, const std::string &region_id)> onParallelRegionLocalComplete_;
     std::function<void(const std::string &parallel_id, const std::string &region_id, const std::string &donedata)>
         onParallelRegionRemoteSend_;
-    std::string currentEventInvokeId_;     // SCE Mesh §mesh-9.5: invokeId of event being processed
+    std::string currentEventInvokeId_;  // SCE Mesh §mesh-9.5: invokeId of event being processed
+    // §scxml-5.10.1: whether the event being processed was taken off the
+    // external queue. Set where the event is dequeued — the one moment the
+    // queue is known — and read when `_event` is bound, so interleaved
+    // internal and external events each carry their own `_event.type`.
+    bool currentEventFromExternalQueue_ = false;
     SCE::PullScheduler<Event> scheduler_;  // §scxml-6.2: Delayed event scheduler
 
     /// §scxml-6.2.2: where this engine reads "now" from — see `ISceClock`.
@@ -1029,19 +990,46 @@ public:
      * @brief Raise external event by name (§scxml-6.4)
      *
      * Used for autoforward - converts event name string to Event enum and raises.
-     * If event name doesn't match any enum value, silently ignores (child may not have that event).
+     * The name is delivered as the event `resolveEventByName` answers (§scxml-3.12.1):
+     * the document's own name for it, or the longest of the document's names that is
+     * a token prefix of it. A name no transition could match is silently ignored
+     * (child may not have that event).
      *
      * @param eventName Event name string (e.g., "childToParent")
      * @param eventData Optional event data
      */
     void raiseExternal(const std::string &eventName, const std::string &eventData = "") {
-        // Convert event name to Event enum using Policy's getEventFromName() (O(n) if-chain)
-        // ARCHITECTURE.md: Generated code provides efficient event name lookup
-        if (auto event = policy_.getEventFromName(eventName)) {
-            raiseExternal(*event, eventData);
+        if (auto event = resolveEventByName(eventName)) {
+            EventWithMetadata meta(*event, eventData, "", "", "external", SCE::Constants::SCXML_EVENT_PROCESSOR_TYPE);
+            meta.name = arrivalNameOf(*event, eventName);
+            raiseExternal(meta);
         } else {
-            SCE_LOG_DEBUG("AOT raiseExternal: Event '{}' not found in Event enum, ignoring", eventName);
+            SCE_LOG_DEBUG("AOT raiseExternal: Event '{}' matches no event of the document, ignoring", eventName);
         }
+    }
+
+    /**
+     * @brief The event an event that arrives by name is delivered as (§scxml-3.12.1)
+     *
+     * `Policy::getEventFromName` is the exact table (O(n) if-chain) the generated code
+     * writes; the rule that an arriving name is the longest of the document's names that
+     * is a token prefix of it is written once, in `SCE::Core::resolveArrivingEventName`.
+     */
+    [[nodiscard]] std::optional<Event> resolveEventByName(const std::string &name) const {
+        return ::SCE::Core::resolveArrivingEventName(
+            name, [this](const std::string &exact) { return policy_.getEventFromName(exact); });
+    }
+
+    /**
+     * @brief What `EventWithMetadata::name` is for an event that arrived as `name` and was
+     *        delivered as `event` (§scxml-5.10)
+     *
+     * Empty when `event` is the document's own name for it, so an event the document
+     * raises or sends carries no copy of a name its member already holds; `name` when
+     * `resolveEventByName` had to cut it back to a shorter one.
+     */
+    [[nodiscard]] std::string arrivalNameOf(Event event, const std::string &name) const {
+        return name == policy_.getEventName(event) ? std::string() : name;
     }
 
     /**
@@ -1058,15 +1046,17 @@ public:
      * @param forwarded Source event's name and `_event` fields
      */
     void raiseExternal(const ::SCE::Common::ForwardedEvent &forwarded) {
-        auto event = policy_.getEventFromName(forwarded.name);
+        auto event = resolveEventByName(forwarded.name);
         if (!event) {
-            SCE_LOG_DEBUG("AOT raiseExternal: Forwarded event '{}' not in Event enum, ignoring", forwarded.name);
+            SCE_LOG_DEBUG("AOT raiseExternal: Forwarded event '{}' matches no event of the document, ignoring",
+                          forwarded.name);
             return;
         }
         // `target` stays default-constructed: the forwarded copy is delivered
         // to this machine, never re-routed to the original event's target.
         EventWithMetadata meta(*event, forwarded.data, forwarded.origin, forwarded.sendId, forwarded.type,
                                forwarded.originType, forwarded.invokeId);
+        meta.name = arrivalNameOf(*event, forwarded.name);
         raiseExternal(meta);
     }
 
@@ -1082,10 +1072,21 @@ public:
         // SCE Mesh: route cross-machine targets through the mesh callback before
         // they reach the external queue. Matches the §scxml-C-2 BasicHTTP
         // split — HTTP targets are dispatched via performHttpSend(), mesh
-        // targets via performMeshSend(). Applications that do not wire a mesh
-        // transport leave onMeshSend_ unset and the event falls through to
-        // the external queue (legacy behavior, preserves W3C conformance).
+        // targets via performMeshSend(). A machine whose host wired no mesh
+        // transport leaves onMeshSend_ unset; that is a configuration fault of
+        // the host and raises error.execution, as on every other backend
+        // (SCE_MESH.md, Errors) — it is not a send to the sender's own queue,
+        // which is a peer's event answered by the sender. No W3C test names a
+        // `#<peer>` target (`#_internal`, `#_parent` and the session and invoke
+        // addresses all start `#_`), so no conformance depends on the old route.
         if (::SCE::SendHelper::isMeshTarget(eventWithMetadata.target)) {
+            if (!onMeshSend_) {
+                if (auto error = policy_.getEventFromName("error.execution")) {
+                    raise(EventWithMetadata(*error, "<send target='" + eventWithMetadata.target +
+                                                        "'>: no Mesh router is registered for this peer"));
+                }
+                return;
+            }
             // SCE_MESH.md §mesh-9.5: the metadata's invokeId is authoritative
             // when set (send.jinja2 full-metadata path calls
             // engine.currentEventInvokeId() explicitly). The engine-level
@@ -1132,11 +1133,6 @@ public:
                       static_cast<int>(eventWithMetadata.event), eventWithMetadata.invokeId);
 
         externalQueue_.raise(eventWithMetadata);
-
-        // §scxml-5.10.1: Mark next event as external for _event.type (test331)
-        if constexpr (SCE::Core::HasExternalEventFlag<StatePolicy>) {
-            policy_.nextEventIsExternal_ = true;
-        }
     }
 
     /**
@@ -1148,12 +1144,255 @@ public:
      * @param delay Delay before delivery
      * @param sendId Optional sendid for cancellation
      * @param eventData Optional event data JSON
+     * @param origin The sending session, which `_event.origin` publishes when
+     *        the event arrives (§scxml-C-1) — this session for a `<send>`
      * @return The sendid assigned to this event
      */
     std::string scheduleEvent(Event event, std::chrono::milliseconds delay, const std::string &sendId = "",
-                              const std::string &eventData = "") {
+                              const std::string &eventData = "", const std::string &origin = "") {
         uint64_t fireTimeMs = schedNowMs() + static_cast<uint64_t>(delay.count());
-        return scheduler_.scheduleEventAt(event, fireTimeMs, sendId, eventData);
+        return scheduler_.scheduleEventAt(event, fireTimeMs, sendId, eventData, origin);
+    }
+
+    /**
+     * @brief Deliver a delayed event whose wait is over (§scxml-6.2)
+     *
+     * With the metadata the immediate send stamps — its sendid (§scxml-5.10.1)
+     * and its origin (§scxml-C-1) — which the simple `raiseExternal` overload
+     * would leave blank: a delayed send is the same event, only later.
+     */
+    void raiseScheduled(Event event, const std::string &eventData, const std::string &sendId,
+                        const std::string &origin) {
+        raiseExternal(EventWithMetadata(event, eventData, origin, sendId, "external",
+                                        SCE::Constants::SCXML_EVENT_PROCESSOR_TYPE));
+    }
+
+    /**
+     * @brief Schedule a delayed send whose target is not this session's own
+     *        external queue (§scxml-6.2)
+     *
+     * A `delay` postpones a send; it does not change where the send goes. The
+     * generated send site resolves the target when the send is made and hands
+     * it over here, so the delivery at the end of the delay reaches it — in
+     * the same queue as every other delayed send, which is what lets one
+     * `<cancel sendid>` (§scxml-6.3) reach it.
+     *
+     * @param event This machine's spelling of the event, used for the
+     *        internal queue; a child or a parent resolves `route.eventName`
+     * @return The sendid assigned to this event
+     */
+    std::string scheduleRoutedEvent(Event event, std::chrono::milliseconds delay, const std::string &sendId,
+                                    const std::string &eventData, const std::string &origin,
+                                    ::SCE::ScheduledRoute route) {
+        uint64_t fireTimeMs = schedNowMs() + static_cast<uint64_t>(delay.count());
+        return scheduler_.scheduleRoutedAt(event, fireTimeMs, sendId, eventData, origin, std::move(route));
+    }
+
+    /**
+     * @brief Deliver a delayed send whose wait is over to the target it named
+     *
+     * §scxml-C-1: "If the SCXML Processor cannot dispatch the event to the
+     * target, it MUST place the error error.communication on the internal
+     * event queue of the session that attempted to send the event." For a
+     * delayed send the dispatch is this delivery, so an invocation that has
+     * ended in the meantime is reported here, not when the send was made.
+     */
+    void deliverScheduled(Event event, const std::string &eventData, const std::string &sendId,
+                          const std::string &origin, const ::SCE::ScheduledRoute &route) {
+        if (!deliverRouted(event, eventData, sendId, origin, route)) {
+            if (auto communicationError = policy_.getEventFromName("error.communication")) {
+                raise(EventWithMetadata(*communicationError,
+                                        "<send> named a target that was no longer there when its delay elapsed", "",
+                                        sendId));
+            }
+        }
+    }
+
+    /**
+     * @brief Deliver a send to the target a route names, now
+     *
+     * The one delivery both a send made at once and a delayed send whose wait
+     * is over go through (§scxml-6.2.4: a delay postpones a send, it does not
+     * change where it goes). It answers whether the target was there to take
+     * the event; the caller reports a `false` as error.communication
+     * (§scxml-C-1).
+     */
+    bool deliverRouted(Event event, const std::string &eventData, const std::string &sendId, const std::string &origin,
+                       const ::SCE::ScheduledRoute &route) {
+        using Kind = ::SCE::ScheduledRoute::Kind;
+        if (route.kind == Kind::InternalQueue) {
+            EventWithMetadata meta(event, eventData, origin, sendId);
+            meta.name = arrivalNameOf(event, route.eventName);
+            raise(std::move(meta));
+            return true;
+        }
+        if (route.kind == Kind::ExternalQueue) {
+            // §scxml-5.10: this session's own external queue, for an event sent
+            // under a name that is not its member's own (a computed one).
+            EventWithMetadata meta(event, eventData, origin, sendId, "external",
+                                   SCE::Constants::SCXML_EVENT_PROCESSOR_TYPE);
+            meta.name = arrivalNameOf(event, route.eventName);
+            raiseExternal(std::move(meta));
+            return true;
+        }
+        if (route.kind == Kind::MeshPeer) {
+            // SCE_MESH.md §mesh-9.5: the delivery an immediate `#<peer>` send
+            // makes — raiseExternal hands a peer-named event to the Mesh router
+            // — with the invokeid captured when the send was made (§mesh-10.7).
+            // The router reports a peer it cannot reach itself (§mesh-16.7).
+            raiseExternal(EventWithMetadata(event, eventData, origin, sendId, "external",
+                                            SCE::Constants::SCXML_EVENT_PROCESSOR_TYPE, route.meshInvokeId,
+                                            route.address));
+            return true;
+        }
+        SCE::Common::ForwardedEvent forwarded{
+            route.eventName, eventData, origin, sendId, "external", SCE::Constants::SCXML_EVENT_PROCESSOR_TYPE, ""};
+        if (route.kind == Kind::Invocation) {
+            if constexpr (SCE::Core::HasInvocationDelivery<StatePolicy>) {
+                return policy_.deliverToInvocation(route.address, forwarded);
+            } else {
+                return false;
+            }
+        }
+        if (route.kind == Kind::Session) {
+            if constexpr (SCE::Core::HasChildSessionDelivery<StatePolicy>) {
+                return policy_.deliverToChildSession(route.address, forwarded);
+            } else {
+                return false;
+            }
+        }
+        if constexpr (SCE::Core::HasParentDelivery<StatePolicy>) {
+            return policy_.deliverToParent(forwarded);
+        } else {
+            return false;
+        }
+    }
+
+    /// What became of a `<send>` handed to [sendToTarget].
+    enum class TargetSendOutcome {
+        Sent,         ///< delivered, or scheduled to be when its delay elapses
+        Unsupported,  ///< the value is not a target: the caller raises error.execution
+        Unreachable,  ///< nothing the value names is there: the caller raises error.communication
+    };
+
+    /**
+     * @brief Send to a target value read at run time (§scxml-6.2.4, §scxml-C-1)
+     *
+     * A `targetexpr` is a target: whatever value it yields is routed as the same
+     * value written in `target` is — `SendHelper::classifyTarget` reads it, for
+     * the Interpreter as for this engine — sent at once or, with a delay, from
+     * the scheduler through [deliverRouted] when it comes due. A session the
+     * value names that is not there now is reported now; an invocation or a
+     * session that ends while a delayed send waits is reported when it comes
+     * due.
+     *
+     * @param event This machine's spelling of the event, for its own queues
+     * @param eventName The event's name, for another session to resolve
+     * @param ownSessionId The sending session, which a session target may name
+     */
+    TargetSendOutcome sendToTarget(Event event, const std::string &eventName, const std::string &target,
+                                   const std::string &ownSessionId, std::chrono::milliseconds delay,
+                                   const std::string &sendId, const std::string &eventData, const std::string &origin) {
+        using Kind = ::SCE::SendHelper::SendTarget::Kind;
+        using RouteKind = ::SCE::ScheduledRoute::Kind;
+        const auto resolved = ::SCE::SendHelper::classifyTarget(target, ownSessionId);
+        const bool delayed = delay.count() > 0;
+        std::optional<::SCE::ScheduledRoute> route;
+        switch (resolved.kind) {
+        case Kind::Unsupported:
+        case Kind::Uri:
+        case Kind::Http:
+            // A generated machine registers no target schemes: a URI of any
+            // scheme but its own locations — an http(s) URL included, which
+            // only a BasicHTTP send reaches — is one the SCXML Event I/O
+            // Processor cannot address here.
+            return TargetSendOutcome::Unsupported;
+        case Kind::Unreachable:
+            return TargetSendOutcome::Unreachable;
+        case Kind::SelfExternal:
+            // §scxml-5.10: `event` is the member the sender's name resolved to in
+            // THIS machine's document, so its own queues are told the name it was
+            // sent under when the member is not called that.
+            if (delayed) {
+                if (arrivalNameOf(event, eventName).empty()) {
+                    scheduleEvent(event, delay, sendId, eventData, origin);
+                } else {
+                    scheduleRoutedEvent(event, delay, sendId, eventData, origin,
+                                        ::SCE::ScheduledRoute{RouteKind::ExternalQueue, eventName});
+                }
+            } else {
+                EventWithMetadata meta(event, eventData, origin, sendId, "external",
+                                       SCE::Constants::SCXML_EVENT_PROCESSOR_TYPE);
+                meta.name = arrivalNameOf(event, eventName);
+                raiseExternal(std::move(meta));
+            }
+            return TargetSendOutcome::Sent;
+        case Kind::Mesh:
+            if (delayed) {
+                // SCE_MESH.md §mesh-9.5 + §mesh-10.7: the peer and the invokeid
+                // of the event being processed now are fixed at the send; the
+                // deadline delivers them through deliverRouted.
+                route = ::SCE::ScheduledRoute{RouteKind::MeshPeer, "", target, currentEventInvokeId_};
+                break;
+            }
+            // A Mesh peer: the external path hands it to the Mesh transport.
+            // (Built in place — `reader_names` reads `Type name(...)` in this
+            // header as a member the generated machine carries.)
+            raiseExternal(EventWithMetadata(event, eventData, origin, sendId, "external",
+                                            SCE::Constants::SCXML_EVENT_PROCESSOR_TYPE, "", target));
+            return TargetSendOutcome::Sent;
+        case Kind::Internal:
+            route = ::SCE::ScheduledRoute{RouteKind::InternalQueue, eventName, ""};
+            break;
+        case Kind::Parent:
+            // §scxml-C-1: a session nothing invoked has no parent to address,
+            // delayed or not.
+            // `hasParentSession` is emitted beside `deliverToParent`, so the
+            // concept that finds one finds both.
+            if constexpr (SCE::Core::HasParentDelivery<StatePolicy>) {
+                if (!policy_.hasParentSession()) {
+                    return TargetSendOutcome::Unreachable;
+                }
+            } else {
+                return TargetSendOutcome::Unreachable;
+            }
+            route = ::SCE::ScheduledRoute{RouteKind::Parent, eventName, ""};
+            break;
+        case Kind::Invocation:
+            // §scxml-6.4 + §scxml-C-1: an invocation that is not running now is
+            // not there to address, delayed or not.
+            // `isInvocationRunning` is emitted beside `deliverToInvocation`, so
+            // the concept that finds one finds both.
+            if constexpr (SCE::Core::HasInvocationDelivery<StatePolicy>) {
+                if (!policy_.isInvocationRunning(resolved.id)) {
+                    return TargetSendOutcome::Unreachable;
+                }
+            } else {
+                return TargetSendOutcome::Unreachable;
+            }
+            route = ::SCE::ScheduledRoute{RouteKind::Invocation, eventName, resolved.id};
+            break;
+        case Kind::Session:
+            // §scxml-C-1: a session that does not exist is reported when the
+            // send is made, delayed or not.
+            // `isChildSessionRunning` is emitted beside `deliverToChildSession`,
+            // so the concept that finds one finds both.
+            if constexpr (SCE::Core::HasChildSessionDelivery<StatePolicy>) {
+                if (!policy_.isChildSessionRunning(resolved.id)) {
+                    return TargetSendOutcome::Unreachable;
+                }
+            } else {
+                return TargetSendOutcome::Unreachable;
+            }
+            route = ::SCE::ScheduledRoute{RouteKind::Session, eventName, resolved.id};
+            break;
+        }
+        if (delayed) {
+            scheduleRoutedEvent(event, delay, sendId, eventData, origin, *route);
+            return TargetSendOutcome::Sent;
+        }
+        return deliverRouted(event, eventData, sendId, origin, *route) ? TargetSendOutcome::Sent
+                                                                       : TargetSendOutcome::Unreachable;
     }
 
     /**
@@ -1193,17 +1432,27 @@ public:
      *
      * The answer feeds a host loop directly — a `condition_variable::wait_for`,
      * an event-loop timeout, a frame budget.
+     *
+     * §scxml-6.4: the session's OWN scheduler is not the whole answer. This
+     * machine's `tick()` advances every running child, so a child's deadline is
+     * a deadline of this machine's clock, and the answer is the nearest of the
+     * two. Counting only the parent's own made a host that walked time by it
+     * step over a timer its child had armed — or, for a parent that arms
+     * nothing itself, be told there was nothing to wait for at all.
      */
     std::optional<std::chrono::milliseconds> timeUntilNextScheduled() const {
-        auto next = scheduler_.nextFireTime();
-        if (!next.has_value()) {
-            return std::nullopt;
+        std::optional<std::chrono::milliseconds> soonest;
+        if (auto next = scheduler_.nextFireTime(); next.has_value()) {
+            uint64_t now = schedNowMs();
+            soonest = (*next <= now) ? std::chrono::milliseconds::zero()
+                                     : std::chrono::milliseconds(static_cast<int64_t>(*next - now));
         }
-        uint64_t now = schedNowMs();
-        if (*next <= now) {
-            return std::chrono::milliseconds::zero();
+        if constexpr (SCE::Core::HasNextChildDeadline<StatePolicy>) {
+            if (auto child = policy_.nextChildDeadline(); child.has_value() && (!soonest || *child < *soonest)) {
+                soonest = child;
+            }
         }
-        return std::chrono::milliseconds(static_cast<int64_t>(*next - now));
+        return soonest;
     }
 
     // ════════════════════════════════════════
@@ -1609,6 +1858,67 @@ public:
     }
 
     /**
+     * @brief How many invocations of the main event loop this engine handed
+     *        back with an external event still queued, because the invocation
+     *        had already taken `maxExternalEventsPerCall()` of them
+     *        (ARCHITECTURE.md "External-Event Budget")
+     *
+     * `truncatedMacrosteps()` counts a macrostep that does not end; this counts
+     * the other way a call fails to return: every macrostep ends, and each one
+     * queues the event that starts the next (`<send event="again"/>`, no target,
+     * answered by a transition that sends it again). The specification bounds
+     * neither, and an engine that ran either to the letter would never return,
+     * with `getCurrentState()` answering, `isRunning()` true and no sign that
+     * anything went wrong. This is that sign.
+     *
+     * Counted when the loop still had work after the budget. A call that takes
+     * exactly the budget and empties the queue counts zero: a long backlog is
+     * ordinary, an endless one is not. The events left queued stay queued, so a
+     * host that calls again gets another budget and the machine goes on from
+     * where it was; what the host learns is that this call did not reach quiet.
+     *
+     * A cut of the same-instant bound on the scheduler counts here too (see
+     * `tick()`).
+     */
+    uint32_t truncatedEventChains() const {
+        return externalEventBudget_.cuts();
+    }
+
+    /**
+     * @brief The event at the head of the queue when this engine last handed a
+     *        call back that way
+     *
+     * `std::nullopt` while `truncatedEventChains()` is zero — and for a cut of
+     * the scheduler whose due entry delivers no event of this machine's. The
+     * generated `Event` enum's zero value is a real event and cannot stand in for
+     * "none". In a chain that sends itself an event it is that event: the count
+     * says a call did not reach quiet and this says what it was still taking.
+     */
+    std::optional<Event> lastTruncatedEvent() const {
+        return externalEventBudget_.lastCutHead();
+    }
+
+    /// @brief The most external events one invocation of the main event loop may take
+    uint32_t maxExternalEventsPerCall() const {
+        return externalEventBudget_.limit();
+    }
+
+    /**
+     * @brief Let a host choose the budget of one invocation
+     *
+     * A host that hands the machine a backlog it means the machine to work
+     * through in one call knows its size, and this engine does not. Settable at
+     * any time. The default is `Core::DEFAULT_MAX_EXTERNAL_EVENTS_PER_CALL`.
+     *
+     * Refused below one — returns false and changes nothing: a budget that takes
+     * no event is a machine that cannot run, not a stricter one, since every call
+     * would hand control back with the queue untouched and say it had been cut.
+     */
+    bool setMaxExternalEventsPerCall(uint32_t limit) {
+        return externalEventBudget_.setLimit(limit);
+    }
+
+    /**
      * @brief Run state machine until completion or timeout (§scxml-6.2)
      *
      * Convenience API for running state machines with delayed send operations.
@@ -1677,64 +1987,40 @@ public:
 
 protected:
     /**
-     * @brief Execute entry actions for a state (§scxml-3.8)
+     * @brief Appendix D's exitInterpreter (§scxml-D-exitInterpreter)
      *
-     * Entry actions are executable content that runs when entering a state.
-     * This includes <onentry> blocks which may contain <raise>, <assign>, etc.
+     * Every state still in the configuration is exited in exitOrder — onexit,
+     * then its invocations cancelled, then out of the configuration, the same
+     * per-state exit a microstep performs — so the configuration ends EMPTY
+     * and the machine stops running. Called once a run has entered a
+     * top-level `<final>` (the only state left by then is that final), and by
+     * `stop()` for a run the host ends early.
      *
-     * Supports both static (stateless) and non-static (stateful) policies.
-     * Static methods can also be called through an instance in C++.
+     * The run's terminal state is kept: it is recorded when the final is
+     * entered, and it is how a host learns where the run ended once the
+     * configuration is empty. The datamodel is kept too, so a host can still
+     * read what the run left behind.
      *
-     * @param state State being entered
-     * @param pathChild The child of @p state the entry set already holds, when
-     *        @p state is merely an ANCESTOR of the entry target. Such a state
-     *        is entered without its default initial child; `nullopt` means
-     *        @p state is the target itself and takes its defaults. See
-     *        `integration_resources/ancestor_entry_is_not_default_entry/`.
+     * Idempotent: a second call finds nothing to exit.
      */
-    void executeOnEntry(State state, std::optional<State> pathChild = std::nullopt) {
-        // Call through policy instance (works for both static and non-static)
-        policy_.executeEntryActions(state, *this, pathChild);
-    }
-
-    /// Enter a whole root-to-target chain, giving every link BEFORE the target
-    /// the next one as its `pathChild`. One place, because the entry-chain
-    /// walks in this engine owe the same rule and a chain walked with `nullopt`
-    /// throughout puts two children of one compound state in the configuration.
-    ///
-    /// The chain does not stop at @p target: `buildEntryChain` appends the
-    /// target's own default initial descendants, and names only
-    /// `getInitialChild`, leaving the intermediate levels of a DEEP `initial`
-    /// to `executeEntryActions`. Everything from the target onwards therefore
-    /// takes its defaults — treating that tail as an ancestor chain suppresses
-    /// exactly the descent it was appended to trigger.
-    template <typename Chain> void executeOnEntryChain(const Chain &entryChain, State target) {
-        bool reachedTarget = false;
-        for (std::size_t i = 0; i < entryChain.size(); ++i) {
-            if (entryChain[i] == target) {
-                reachedTarget = true;
-            }
-            const std::optional<State> pathChild =
-                (!reachedTarget && i + 1 < entryChain.size()) ? std::optional<State>(entryChain[i + 1]) : std::nullopt;
-            SCE_LOG_DEBUG("AOT executeOnEntryChain: entering {}", static_cast<int>(entryChain[i]));
-            executeOnEntry(entryChain[i], pathChild);
+    void exitInterpreter() {
+        if (interpreterExited_) {
+            return;
         }
-    }
-
-    /**
-     * @brief Execute exit actions for a state (§scxml-3.9)
-     *
-     * Exit actions are executable content that runs when exiting a state.
-     * This includes <onexit> blocks.
-     *
-     * Supports both static (stateless) and non-static (stateful) policies.
-     * Static methods can also be called through an instance in C++.
-     *
-     * @param state State being exited
-     */
-    void executeOnExit(State state, const std::vector<State> &activeStatesBeforeTransition) {
-        // Call through policy instance with pre-transition active states
-        policy_.executeExitActions(state, *this, activeStatesBeforeTransition);
+        const std::vector<State> configuration = getActiveStates();
+        std::vector<State> statesToExit = configuration;
+        // §scxml-D-exitInterpreter: `configuration.toList().sort(exitOrder)`
+        // — descendants before ancestors, reverse document order otherwise,
+        // which together are exactly reverse document order.
+        std::sort(statesToExit.begin(), statesToExit.end(), [](const State &a, const State &b) {
+            return StatePolicy::getDocumentOrder(a) > StatePolicy::getDocumentOrder(b);
+        });
+        MicrostepHost host{*this};
+        for (const State &s : statesToExit) {
+            host.exitState(s, configuration);
+        }
+        interpreterExited_ = true;
+        isRunning_ = false;
     }
 
     /**
@@ -1770,7 +2056,14 @@ protected:
      * priority over the external one — the inner loop drains it to exhaustion
      * before the outer loop looks at an external event at all.
      */
-    void runMainEventLoop() {
+    void runMainEventLoop(uint32_t alreadyTaken = 0) {
+        // External events this invocation has taken off the queue, against
+        // `externalEventBudget_`. A local, because the budget is one
+        // invocation's: a cut leaves the queue as it is and the next invocation
+        // gets a budget of its own (ARCHITECTURE.md "External-Event Budget"). The
+        // host's own event is the first of its invocation, so a door that handles
+        // it directly (`processEvent`) says so and starts with one spent.
+        uint32_t taken = alreadyTaken;
         while (true) {
             // §scxml-D-mainEventLoop: complete the macrostep on eventless
             // transitions and internal events alone.
@@ -1796,6 +2089,13 @@ protected:
                 // interpreter. Saying nothing about it is not the clause —
                 // see `unseenExternalEvents()`.
                 recordUnseenExternalEvents();
+                // §scxml-D-exitInterpreter: the loop is over because the run
+                // entered a top-level final, so every state left is exited —
+                // before any completion callback tells a parent (§scxml-6.4:
+                // done.invoke comes after the child's onexit).
+                if (isInFinalState()) {
+                    exitInterpreter();
+                }
                 break;
             }
 
@@ -1820,6 +2120,17 @@ protected:
                 continue;
             }
 
+            if (!externalQueue_.hasEvents()) {
+                break;
+            }
+            // Every macrostep this loop runs ends, so `MAX_MACROSTEP_MICROSTEPS`
+            // bounds none of this: a machine that sends itself an external event
+            // on every one never empties the queue. Past the budget the queue is
+            // left exactly as it is and the call hands back, counted.
+            if (!externalEventBudget_.admitNext(
+                    taken, [this] { return std::optional<Event>(externalQueue_.front().event); })) {
+                break;
+            }
             if (!processNextExternalEvent()) {
                 break;
             }
@@ -1849,8 +2160,10 @@ protected:
             [this](const EventWithMetadata &eventWithMeta) {
                 Event event = eventWithMeta.event;
                 currentEventInvokeId_ = eventWithMeta.invokeId;
+                currentEventFromExternalQueue_ = false;
                 SCE::Common::EventMetadataHelper::populatePolicyFromMetadata<StatePolicy, Event>(policy_,
                                                                                                  eventWithMeta);
+                bindTypedPayload(eventWithMeta);
 
                 SCE_LOG_DEBUG("AOT processInternalQueue: Processing internal event, currentState={}",
                               static_cast<int>(currentState_));
@@ -1976,7 +2289,9 @@ protected:
      */
     void applyExternalEventPreamble(const EventWithMetadata &eventWithMeta) {
         currentEventInvokeId_ = eventWithMeta.invokeId;
+        currentEventFromExternalQueue_ = true;
         SCE::Common::EventMetadataHelper::populatePolicyFromMetadata<StatePolicy, Event>(policy_, eventWithMeta);
+        bindTypedPayload(eventWithMeta);
 
         // §scxml-6.5: Execute finalize BEFORE processing child events
         if constexpr (SCE::Core::HasFinalize<StatePolicy, EventWithMetadata, StaticExecutionEngine<StatePolicy>>) {
@@ -2011,7 +2326,10 @@ protected:
         // instead of delivering it to the child) — see ForwardedEvent.h.
         if constexpr (SCE::Core::HasAutoforward<StatePolicy, StaticExecutionEngine>) {
             ::SCE::Common::ForwardedEvent forwarded;
-            forwarded.name = policy_.getEventName(eventWithMeta.event);
+            // §scxml-6.4 + §scxml-5.10: the copy is exact, so it is forwarded under the
+            // name the event arrived under, not the member it was matched through.
+            forwarded.name = eventWithMeta.name.empty() ? std::string(policy_.getEventName(eventWithMeta.event))
+                                                        : eventWithMeta.name;
             forwarded.data = eventWithMeta.data;
             forwarded.origin = eventWithMeta.origin;
             forwarded.sendId = eventWithMeta.sendId;
@@ -2038,6 +2356,20 @@ protected:
             return false;
         }
         const EventWithMetadata eventWithMeta = externalQueue_.pop();
+        // §scxml-6.4: a host-run invocation's `done.invoke` counts only when
+        // completeHostInvoke() confirmed the invocation was still running and
+        // stamped its token. Without the stamp it may be a cancelled run's late
+        // reply, which the processor ignores — so it is refused here, counted,
+        // and never reaches transition selection. Returns true because an
+        // event was taken.
+        if constexpr (SCE::Core::HasHostInvokeIds<StatePolicy>) {
+            if (!eventWithMeta.hostInvokeToken.has_value() &&
+                ::SCE::isHostInvokeCompletion(policy_.getEventName(eventWithMeta.event), eventWithMeta.invokeId,
+                                              StatePolicy::HOST_INVOKE_IDS, std::size(StatePolicy::HOST_INVOKE_IDS))) {
+                ++refusedHostInvokeCompletions_;
+                return true;
+            }
+        }
         // §scxml-D-mainEventLoop: taking an event off the external queue is
         // where a macrostep begins, so it is where the previous one's ceiling
         // stops applying. A machine left inside an endless chain gets a full
@@ -2107,127 +2439,84 @@ protected:
         // lives on the engine because the macrostep does — see
         // `macrostepMicrostepsTaken_`.
 
-        // §scxml-3.13: Use shared algorithm (Single Source of Truth)
-        // Note: Eventless transitions can raise new internal events, use internal queue
-        SCE::Core::AOTEventQueue<EventWithMetadata> adapter(internalQueue_);
-
         while (true) {
-            State oldState = currentState_;
-            std::vector<State> preTransitionStates = getActiveStates();  // §scxml-3.11: Capture before transition
             SCE_LOG_DEBUG("AOT checkEventlessTransitions: Microstep {}, currentState={}", macrostepMicrostepsTaken_,
                           static_cast<int>(currentState_));
 
-            // Call processTransition with default event for eventless transitions
-            if (policy_.processTransition(currentState_, Event(), *this)) {
-                if (macrostepMicrostepsTaken_ == MAX_MACROSTEP_MICROSTEPS) {
-                    // The chain is still going one microstep past the budget,
-                    // so this is the case the specification's Principles and
-                    // Constraints call a macrostep that does not terminate.
-                    // Refuse the microstep rather than take it, and publish
-                    // the refusal: the configuration left behind is not a
-                    // stable one and only this counter says so. The machine
-                    // keeps running — the specification allows the document, so
-                    // declining to run it forever is a fact to report, not
-                    // grounds to kill a session whose other states still work.
-                    //
-                    // `processTransition` only selects for a non-parallel
-                    // machine — the exit / body / entry chain is
-                    // `handleHierarchicalTransition`'s below — so putting
-                    // `currentState_` back is what makes the refusal exact.
-                    // A parallel policy runs `executeMicrostep` inside the
-                    // call instead, so there the microstep is already taken
-                    // and the ceiling holds one microstep later; the count
-                    // means the same thing either way.
-                    if constexpr (!StatePolicy::HAS_PARALLEL_STATES) {
-                        currentState_ = oldState;
-                    }
-                    recordTruncatedMacrostep(currentState_);
-                    SCE_LOG_ERROR(
-                        "StaticExecutionEngine: macrostep still going after {} microsteps; stopped taking them",
-                        MAX_MACROSTEP_MICROSTEPS);
-                    break;
-                }
-                ++macrostepMicrostepsTaken_;
-                // §scxml-3.4: For parallel states, use actual transition source state
-                State actualSourceState = policy_.lastTransitionSourceState_;
-                SCE_LOG_DEBUG("AOT checkEventlessTransitions: Transition taken from {} to {} (actual source: {})",
-                              static_cast<int>(oldState), static_cast<int>(currentState_),
-                              static_cast<int>(actualSourceState));
-                if (oldState != currentState_) {
-                    // W3C SCXML Appendix D: For parallel states, executeMicrostep already handled exit/transition/entry
-                    // Only call handleHierarchicalTransition for non-parallel state machines
-                    if constexpr (!StatePolicy::HAS_PARALLEL_STATES) {
-                        // ARCHITECTURE.MD: Zero Duplication - use shared helper
-                        // §scxml-3.13: Pass transition action callback for correct execution order
-                        // §scxml-3.4: Use actualSourceState for correct hierarchical exit/entry
-                        handleHierarchicalTransition(actualSourceState, currentState_, preTransitionStates,
-                                                     [this] { policy_.executeTransitionActions(*this); });
-                    } else {
-                        SCE_LOG_DEBUG(
-                            "AOT checkEventlessTransitions: Parallel state machine - executeMicrostep handled "
-                            "all transitions");
-                    }
-
-                    // §scxml-3.13: Internal events are processed AFTER stable configuration is reached
-                    // Continue loop to check for more eventless transitions first
-                } else if (policy_.lastTransitionIsTargetless_) {
-                    // §scxml-3.13: a transition with no `target` exits and
-                    // enters nothing and runs its content in place. The
-                    // configuration is unchanged by definition, so a loop that
-                    // continued only on a changed configuration selected this
-                    // transition and then dropped it — the content never ran,
-                    // and the chain ended one microstep early. Running it here
-                    // is the same decision `executeTransition` makes for the
-                    // event-driven case, read off the same policy flag.
-                    policy_.executeTransitionActions(*this);
-                } else {
-                    // §scxml-3.13: a self transition with a target exits and
-                    // re-enters its state, which is work even though the
-                    // configuration ends where it started. The ceiling above is
-                    // what stops the chain it can open; leaving early instead
-                    // skipped the exit and entry the clause requires.
-                    if constexpr (!StatePolicy::HAS_PARALLEL_STATES) {
-                        handleHierarchicalTransition(actualSourceState, currentState_, preTransitionStates,
-                                                     [this] { policy_.executeTransitionActions(*this); });
-                    }
-                }
-            } else {
-                // §scxml-3.13: No eventless transition available - stable configuration reached
-                // Internal events will be processed by caller (runMainEventLoop or step)
+            const std::vector<TransitionInfo> enabled = selectTransitions(Event());
+            if (enabled.empty()) {
+                // §scxml-3.13: nothing enabled by NULL — the configuration is
+                // stable. Internal events are the caller's to drain
+                // (runMainEventLoop or step).
                 break;
             }
+            if (macrostepMicrostepsTaken_ == MAX_MACROSTEP_MICROSTEPS) {
+                // The chain is still going one microstep past the budget, so
+                // this is the case the specification's Principles and
+                // Constraints call a macrostep that does not terminate. The
+                // microstep is refused rather than taken — selection moves
+                // nothing, so refusing it is exact — and the refusal is
+                // published: the configuration left behind is not a stable one
+                // and only this counter says so. The machine keeps running; the
+                // specification allows the document, so declining to run it
+                // forever is a fact to report, not grounds to kill a session
+                // whose other states still work.
+                recordTruncatedMacrostep(currentState_);
+                SCE_LOG_ERROR("StaticExecutionEngine: macrostep still going after {} microsteps; stopped taking them",
+                              MAX_MACROSTEP_MICROSTEPS);
+                break;
+            }
+            ++macrostepMicrostepsTaken_;
+            // A targetless transition takes a microstep too: it runs its
+            // content in place, and the chain it opens is walked like any other.
+            microstep(enabled);
         }
 
-        // §scxml-3.13: Check if we reached a top-level final state after eventless transitions
-        // For parallel states, check if any active state is a top-level final state
-        if constexpr (StatePolicy::HAS_PARALLEL_STATES) {
-            auto activeStates = getActiveStates();
-            for (const auto &state : activeStates) {
-                if (StatePolicy::isFinalState(state) && StatePolicy::getParent(state) == std::nullopt) {
-                    SCE_LOG_INFO(
-                        "AOT checkEventlessTransitions: Reached top-level final state {}, halting processing (W3C "
-                        "SCXML 3.13)",
-                        static_cast<int>(state));
-                    currentState_ = state;  // W3C SCXML: Update currentState_ for getCurrentState()
-                    SCE_LOG_DEBUG("AOT checkEventlessTransitions: After update, getCurrentState() = {}",
-                                  static_cast<int>(getCurrentState()));
-                    stop();
-                    break;
-                }
-            }
-        } else {
-            // For non-parallel states, check currentState_
-            if (StatePolicy::isFinalState(currentState_) && StatePolicy::getParent(currentState_) == std::nullopt) {
-                SCE_LOG_INFO("AOT checkEventlessTransitions: Reached top-level final state {}, halting processing (W3C "
-                             "SCXML 3.13)",
-                             static_cast<int>(currentState_));
-                stop();
-            }
+        // §scxml-3.13: a macrostep that entered a top-level final state halts
+        // the machine.
+        if (isInFinalState()) {
+            SCE_LOG_INFO("AOT checkEventlessTransitions: Reached top-level final state {}, halting processing (W3C "
+                         "SCXML 3.13)",
+                         static_cast<int>(currentState_));
+            stop();
         }
     }
 
 public:
     StaticExecutionEngine() : currentState_(StatePolicy::initialState()) {}
+
+    /**
+     * @brief Whether a host running this machine as a ROOT — started by the
+     *        host, not by an `<invoke>` — should refuse to start it, and why.
+     *
+     * §scxml-6.2.4: `#_parent` names the session that invoked this one, and a
+     * root has none. `initialize()` still runs such a machine — each such send
+     * then raises error.communication, which is the default. This answers for
+     * a host that would rather not start it at all, from the policy's
+     * `NEEDS_PARENT`, the manifest's `needs_parent`.
+     */
+    static std::optional<::SCE::Common::RootStartRefusal> rootStartRefusal() {
+        if constexpr (::SCE::Core::NeedsParent<StatePolicy>) {
+            return ::SCE::Common::RootStartRefusal::NeedsParent;
+        } else {
+            return std::nullopt;
+        }
+    }
+
+    /**
+     * @brief `initialize()`, for a host that refuses to start a machine needing
+     *        a parent as a root (`rootStartRefusal()`).
+     *
+     * A refusal starts nothing: no datamodel is declared and no state is
+     * entered, so the engine is as its constructor left it.
+     */
+    std::optional<::SCE::Common::RootStartRefusal> initializeAsRoot() {
+        if (auto refusal = rootStartRefusal()) {
+            return refusal;
+        }
+        initialize();
+        return std::nullopt;
+    }
 
     /**
      * @brief Initialize state machine (§scxml-3.2)
@@ -2246,6 +2535,9 @@ public:
         TurnGuard turn(*this);
 
         isRunning_ = true;
+        terminalState_.reset();
+        interpreterExited_ = false;
+        lateBoundStates_.clear();
 
         // §scxml-5.3: Initialize datamodel before any state entry
         // This ensures error.execution events are raised immediately if initialization fails
@@ -2253,20 +2545,14 @@ public:
             policy_.initializeDataModel(*this);
         }
 
-        // §scxml-3.3: Use HierarchicalStateHelper for correct entry order
-        auto entryChain = SCE::Core::HierarchicalStateHelper<StatePolicy>::buildEntryChain(currentState_);
-
-        // Execute entry actions from root to leaf (ancestor first).
-        //
-        // Every link here takes its defaults — this is deliberately NOT
-        // `executeOnEntryChain`. §scxml-D-addAncestorStatesToEnter is about a
-        // state on the way to a target somebody NAMED; this chain is the
-        // opposite, a default descent whose leaf the policy has already
-        // resolved. Measured 2026-08-15: passing the next link here suppressed
-        // `s1`'s deep `initial="s11p112 s11p122"` and W3C test364 failed.
-        for (const auto &state : entryChain) {
-            executeOnEntry(state);
-        }
+        // §scxml-D-interpret: enterStates([doc.initialTransition]) — the
+        // document's own initial transition, whose source is the <scxml>
+        // element and whose domain is therefore the whole document. A target
+        // set, a deep initial, an initial naming a <history>: the entry
+        // procedures answer all of them, so nothing here resolves a leaf
+        // first.
+        enterStates({SCE::Core::EntryTransition<State, History>{std::nullopt, StatePolicy::getDocumentInitialTargets(),
+                                                                /*isInternal=*/false}});
 
         // §scxml-D-mainEventLoop: hand over to the outer loop. The macrostep
         // completes on eventless transitions and internal events, then the
@@ -2287,9 +2573,9 @@ public:
         if (isInFinalState() && completionCallback_) {
             SCE_LOG_DEBUG(
                 "AOT initialize: Reached top-level final state during initialization, invoking completion callback");
-            // §scxml-3.9: Execute onexit actions for final state before notifying parent
-            std::vector<State> activeStates = getActiveStates();
-            executeOnExit(currentState_, activeStates);
+            // The final's onexit has already run: `runMainEventLoop` ran
+            // exitInterpreter when the run ended, on this path as on every
+            // other.
             completionCallback_();
         }
     }
@@ -2364,6 +2650,18 @@ public:
         }
 
         currentState_ = current;
+        // A configuration restored AT a top-level <final> is a run that has
+        // already ended there; any other is still running.
+        if (StatePolicy::isFinalState(current) && !StatePolicy::getParent(current).has_value()) {
+            terminalState_ = current;
+        } else {
+            terminalState_.reset();
+        }
+        interpreterExited_ = false;
+        // The restored states were entered by the run being resumed, so their
+        // late-bound `<data>` is that run's — the host restores it, and a later
+        // re-entry must not bind it again (§scxml-D-enterStates isFirstEntry).
+        lateBoundStates_ = std::set<State>(configuration.begin(), configuration.end());
 
         // §scxml-3.4: a machine that keeps its own active set is handed it
         // back. The condition is the one the generator emits `setActiveStates`
@@ -2535,6 +2833,14 @@ public:
             }
         }
 
+        // §scxml-D-exitInterpreter: a run that has ended has no configuration.
+        // (A machine that keeps its own active set emptied it state by state
+        // above; this one derives the set from `currentState_`, which still
+        // names the final, so the answer has to be given here.)
+        if (interpreterExited_) {
+            return {};
+        }
+
         // §scxml-3.11: For non-parallel, use shared HistoryHelper for full active hierarchy (Zero Duplication
         // Principle) Returns [currentState, parent, grandparent, ...] for proper history recording
         return ::SCE::Core::HistoryHelper::getActiveHierarchy(currentState_,
@@ -2544,8 +2850,9 @@ public:
     /**
      * @brief Check whether this session has ended (§scxml-3.7 / §scxml-6.4)
      *
-     * True only when `currentState_` is a `<final>` **and** has no parent,
-     * i.e. its parent is the `<scxml>` element. §scxml-D-enterStates sets
+     * True only once the run has entered a `<final>` that has no parent,
+     * i.e. whose parent is the `<scxml>` element — the same answer as
+     * `terminalState().has_value()`. §scxml-D-enterStates sets
      * `running = false` for a `<final>` only when `isSCXMLElement(s.parent)`;
      * a nested one queues `done.state.<parent>` and the machine carries on.
      * The structural question — "is this state a `<final>` element" — is
@@ -2562,10 +2869,48 @@ public:
      * regional `<final>` ahead of a remote sibling's wire-21 arrival still
      * needs the scheduler pumped so the barrier-timeout event can fire.
      *
-     * @return true if `currentState_` is a top-level `<final>`
+     * @return true once the run has entered a top-level `<final>`
      */
     bool isInFinalState() const {
-        return StatePolicy::isFinalState(currentState_) && !StatePolicy::getParent(currentState_).has_value();
+        return terminalState_.has_value();
+    }
+
+    /**
+     * @brief Whether the event being processed came off the external queue
+     *        (§scxml-5.10.1 `_event.type`)
+     *
+     * Decided where the event was dequeued, so an internal event raised while
+     * an external one waits — or the reverse — is typed by the queue it was
+     * taken from, not by whatever was enqueued last.
+     */
+    bool isCurrentEventExternal() const {
+        return currentEventFromExternalQueue_;
+    }
+
+    /**
+     * @brief The top-level `<final>` the run ended in (§scxml-D-enterStates),
+     *        or `std::nullopt` while it is still running or when it was never
+     *        started.
+     *
+     * The one answer to "where did this run end". It is recorded when the
+     * final is entered, so it does not depend on what the configuration holds
+     * afterwards — Appendix D's exitInterpreter leaves the configuration
+     * empty.
+     */
+    std::optional<State> terminalState() const {
+        return terminalState_;
+    }
+
+    /**
+     * @brief Appendix D's `s.isFirstEntry`, taken (§scxml-D-enterStates)
+     *
+     * True exactly once per run for @p s — the entry on which a late-binding
+     * document binds that state's `<data>` — and false on every entry after
+     * it. The generated entry code asks this rather than keeping its own flag,
+     * so the rule is written once for every machine.
+     */
+    bool claimLateBindingFirstEntry(State s) {
+        return lateBoundStates_.insert(s).second;
     }
 
     /**
@@ -2612,9 +2957,18 @@ public:
     }
 
     /**
-     * @brief Stop state machine execution
+     * @brief Stop state machine execution (§scxml-D-exitInterpreter)
+     *
+     * A host ending a run early ends it the way the appendix ends one: every
+     * active state's onexit runs and its invocations are cancelled, innermost
+     * first, and the configuration ends empty. The run has no terminal state —
+     * it was stopped, not completed. A machine that already ended, or never
+     * started, has nothing to exit.
      */
     void stop() {
+        if (isRunning_) {
+            exitInterpreter();
+        }
         isRunning_ = false;
     }
 
@@ -2651,9 +3005,11 @@ public:
     void pumpScheduledEvents() {
         TurnGuard turn(*this);
         std::string eventData;
+        std::string sendId;
+        std::string origin;
         Event event;
-        while (scheduler_.popReadyEvent(schedNowMs(), event, eventData)) {
-            raiseExternal(event, eventData);
+        while (scheduler_.popReadyEvent(schedNowMs(), event, eventData, sendId, origin)) {
+            raiseScheduled(event, eventData, sendId, origin);
         }
     }
 
@@ -2717,15 +3073,63 @@ public:
         // host cannot get between (see `beginTurn()`).
         {
             std::string eventData;
+            std::string sendId;
+            std::string origin;
             Event event;
             std::shared_ptr<const ::SCE::HostSendRequest> hostSend;
-            while (scheduler_.popReadyAct(schedNowMs(), event, eventData, hostSend)) {
+            std::shared_ptr<const ::SCE::HostInvokeDeadline> deadline;
+            std::shared_ptr<const ::SCE::ScheduledRoute> route;
+            // A scheduler that can deliver an entry due at the instant it is
+            // popping is a drain that refills itself: an entry a handler re-arms
+            // at that same reading (a `delay` of zero, which reaches this
+            // scheduler here, or a `delayexpr` that evaluates to zero) is due now,
+            // so this loop pops it in the same call, and each pass takes ONE
+            // event, so the budget on the external drain never trips. The pops of
+            // entries due AT the reading are bounded by the same budget, reset
+            // when the reading advances (ARCHITECTURE.md "External-Event
+            // Budget", rule 5).
+            //
+            // Entries due AT the reading, not every entry popped at it: the
+            // reading is latched for the whole tick, so a host that jumps the
+            // clock a long way pops every entry that came due on the way at ONE
+            // reading, and those are due at earlier instants. A handler arms
+            // relative to the latched reading, so what it arms is due at the
+            // reading itself or after it, and only the first kind can be popped
+            // by this tick. A clock the host moved is bounded by how far it moved
+            // and is not cut. The counter is this call's own, so a host that ticks
+            // again at the same reading gets a budget of its own, as it does for
+            // the external drain.
+            uint64_t reading = UINT64_MAX;
+            uint32_t poppedDueAtReading = 0;
+            while (true) {
+                const uint64_t now = schedNowMs();
+                if (const auto head = scheduler_.peekReady(now); head && head->fireTime == now) {
+                    if (reading != now) {
+                        reading = now;
+                        poppedDueAtReading = 0;
+                    }
+                    if (!externalEventBudget_.admitNext(poppedDueAtReading, [&head] {
+                            return head->ownEvent ? std::optional<Event>(*head->ownEvent) : std::nullopt;
+                        })) {
+                        break;
+                    }
+                }
+                if (!scheduler_.popReadyAct(now, event, eventData, sendId, origin, hostSend, deadline, route)) {
+                    break;
+                }
                 if (hostSend) {
                     // §scxml-6.2.4: the wait is over, so now the act happens.
                     performDeferredHostSend(*hostSend);
                     hostSend.reset();
+                } else if (deadline) {
+                    expireHostInvoke(*deadline);
+                    deadline.reset();
+                } else if (route) {
+                    // §scxml-6.2: to the target the send named when it was made.
+                    deliverScheduled(event, eventData, sendId, origin, *route);
+                    route.reset();
                 } else {
-                    raiseExternal(event, eventData);
+                    raiseScheduled(event, eventData, sendId, origin);
                 }
                 // The macrostep this act drives may `<cancel>` a later one,
                 // so the queue is re-consulted after it rather than before.
@@ -2789,6 +3193,32 @@ public:
     }
 
     /**
+     * @brief Dispatch a BasicHTTP send once its delay has elapsed (§scxml-C-2,
+     *        §scxml-6.2.4)
+     *
+     * A delay is a property of the send and not of the processor it named, so
+     * a delayed BasicHTTP send waits in the queue every delayed send does: one
+     * deadline order, one `<cancel sendid>` path (§scxml-6.3), one answer from
+     * the next-deadline query. Its entry is the host-served shape carrying
+     * the BasicHTTP type, and the deadline performs the POST through
+     * performHttpSend() — see performDeferredHostSend().
+     *
+     * @return The sendId used, generated when @p sendId is empty
+     */
+    std::string scheduleHttpSend(const std::string &target, const std::string &eventName, const std::string &content,
+                                 const std::map<std::string, std::vector<std::string>> &params,
+                                 std::chrono::milliseconds delay, const std::string &sendId) {
+        ::SCE::HostSendRequest request;
+        request.processorType = ::SCE::Constants::BASIC_HTTP_EVENT_PROCESSOR_URI;
+        request.eventName = eventName;
+        request.target = target;
+        request.content = content;
+        request.params = params;
+        request.sendId = sendId;
+        return scheduleHostSend(request, delay, sendId);
+    }
+
+    /**
      * @brief §scxml-6.2.5: serve `<send type="processorType">` from the host.
      *
      * The build must also have been told about the type
@@ -2796,9 +3226,28 @@ public:
      * whether a site dispatches or refuses, and a registration alone cannot
      * change emitted code. Registering an already-registered type replaces its
      * handler, which is what a host re-wiring one expects.
+     *
+     * @throws std::invalid_argument when `processorType` is under the `sce:`
+     * prefix SCE keeps for its own processors (`SendHelper::isReservedHostType`).
+     * C++ Mesh sends reach the generated TransportRouter, not a host processor,
+     * so there is no router to register here.
      */
     void registerEventProcessor(const std::string &processorType, ::SCE::HostSendHandler handler) {
+        refuseReservedHostType("registerEventProcessor", processorType);
         hostProcessors_[processorType] = std::move(handler);
+    }
+
+    /**
+     * @brief Refuse a registration under the reserved `sce:` prefix, naming the
+     * call and the type — the refusal both registrations share.
+     */
+    static void refuseReservedHostType(const char *call, const std::string &processorType) {
+        if (::SCE::SendHelper::isReservedHostType(processorType)) {
+            throw std::invalid_argument(std::string(call) + "(\"" + processorType + "\"): the `" +
+                                        ::SCE::SendHelper::RESERVED_HOST_TYPE_PREFIX +
+                                        "` prefix is reserved for the processors SCE defines itself; "
+                                        "give a host type another prefix, such as `x-`");
+        }
     }
 
     /**
@@ -2870,6 +3319,7 @@ public:
      * handler, which is what a host re-wiring one expects.
      */
     void registerInvoker(const std::string &processorType, ::SCE::HostInvokeHandler handler) {
+        refuseReservedHostType("registerInvoker", processorType);
         hostInvokers_[processorType] = std::move(handler);
     }
 
@@ -2888,14 +3338,22 @@ public:
      * into `error.execution` — an invoke nobody ran is the same fact whether
      * the type was undeclared or the handler was never wired up.
      *
-     * A started invocation is RECORDED here so the cancel path can find it;
-     * see `startedHostInvokes_` for why that bookkeeping is the engine's.
+     * A started invocation is RECORDED here; see `startedHostInvokes_` for why
+     * that bookkeeping is the engine's. The token is assigned and recorded
+     * BEFORE the handler runs, so a handler that completes synchronously
+     * completes an invocation the engine already knows is running.
      *
-     * §scxml-6.4: a completion the host reports NOW rides back as
-     * `done.invoke.<id>`, under the id the AUTHOR wrote a transition for. One
-     * it reports later arrives the same way, by raising the event itself — the
-     * engine does not distinguish the two, and never synthesises a completion
-     * the host did not report.
+     * §scxml-6.4: a completion the host reports NOW takes the same door as one
+     * it reports later, completeHostInvoke(), so the two cannot disagree about
+     * whether the invocation is over. The engine never synthesises a
+     * completion the host did not report.
+     *
+     * A `_sce_deadline_ms` param is the engine's, not the host's: it is taken
+     * out of the request and armed with the start. A value that is not a whole
+     * number of milliseconds raises `error.execution` and starts nothing — an
+     * argument of the element that cannot be evaluated (§scxml-6.4.1) — and
+     * the call answers `true` because the report has been made; `false` is
+     * kept for "no invoker ran it", asked first because it is the prior fact.
      */
     bool performHostInvoke(const ::SCE::HostInvokeRequest &request) {
         const auto it = hostInvokers_.find(request.processorType);
@@ -2904,35 +3362,236 @@ public:
         }
         ::SCE::HostInvokeEvent event;
         event.start = request;
+        std::optional<uint64_t> deadlineMs;
+        const auto deadlineParam = event.start->params.find(std::string(::SCE::HOST_INVOKE_DEADLINE_PARAM));
+        if (deadlineParam != event.start->params.end()) {
+            const std::vector<std::string> written = deadlineParam->second;
+            event.start->params.erase(deadlineParam);
+            if (written.size() == 1) {
+                deadlineMs = ::SCE::parseHostInvokeDeadlineMs(written.front());
+            }
+            if (!deadlineMs.has_value()) {
+                if (auto error = policy_.getEventFromName("error.execution")) {
+                    std::string joined;
+                    for (const auto &value : written) {
+                        joined += (joined.empty() ? "" : ",") + value;
+                    }
+                    raise(EventWithMetadata(*error, "<invoke type='" + request.processorType + "' id='" +
+                                                        request.invokeId +
+                                                        "'>: " + std::string(::SCE::HOST_INVOKE_DEADLINE_PARAM) + "='" +
+                                                        joined + "' is not a whole number of milliseconds"));
+                }
+                return true;
+            }
+        }
+        const uint64_t token = nextHostInvokeToken_++;
+        event.start->token = token;
+        startedHostInvokes_[std::make_pair(request.processorType, request.invokeId)] = token;
+        if (deadlineMs.has_value()) {
+            // Held at the clock's maximum: the largest deadline the grammar
+            // admits would otherwise wrap into the past and fire at once.
+            const uint64_t now = schedNowMs();
+            const uint64_t fireTimeMs = *deadlineMs > UINT64_MAX - now ? UINT64_MAX : now + *deadlineMs;
+            scheduler_.scheduleHostInvokeDeadlineAt(
+                token,
+                std::make_shared<const ::SCE::HostInvokeDeadline>(
+                    ::SCE::HostInvokeDeadline{request.processorType, request.invokeId, token}),
+                fireTimeMs);
+        }
         const auto response = it->second(event);
-        startedHostInvokes_.emplace(request.processorType, request.invokeId);
+        if (response.has_value() && response->refusal.has_value()) {
+            // §scxml-6.4.1: the host could not start it, so it never
+            // started — taken back out of the running set with its deadline
+            // dropped, and the element's error raised with what the host said.
+            startedHostInvokes_.erase(std::make_pair(request.processorType, request.invokeId));
+            scheduler_.dropHostInvokeDeadline(token);
+            if (auto error = policy_.getEventFromName("error.execution")) {
+                raise(EventWithMetadata(*error, *response->refusal));
+            }
+            return true;
+        }
         if (response.has_value() && response->doneData.has_value()) {
-            raiseExternal(std::string("done.invoke.") + request.invokeId, *response->doneData);
+            completeHostInvoke(request.processorType, request.invokeId, token, *response->doneData);
         }
         return true;
+    }
+
+    /**
+     * @brief §scxml-6.4: a host-run invocation finished; raise its
+     *        `done.invoke.<invokeId>` with `doneData` as `_event.data`
+     *
+     * `token` is the one the invocation's start request carried. The
+     * completion is accepted only while that start is still running, and
+     * accepting it ends the invocation, so it is accepted at most once and the
+     * state's exit no longer cancels it. Returns `false` — raising nothing —
+     * for a completion of an invocation that was cancelled, already completed,
+     * or restarted since (a stale token): §scxml-6.4 has the processor ignore
+     * what a cancelled process sends, and a restarted `<invoke>` is a
+     * different process under the same id.
+     *
+     * This is the only way a host-run invocation's `done.invoke` reaches the
+     * document. One raised through the ordinary external-event API skips the
+     * check above, so the engine refuses it when it is dequeued.
+     *
+     * `origin` and `originType` are the completion's `_event.origin` and
+     * `_event.origintype` (§scxml-5.10.1), for a host whose invocation stands
+     * for another party it can name — as a Mesh router's `sce:mesh-rpc` stands
+     * for the peer that answered (SCE_MESH.md §mesh-9.5). Empty keeps what
+     * every host completion has carried.
+     */
+    bool completeHostInvoke(const std::string &processorType, const std::string &invokeId, uint64_t token,
+                            const std::string &doneData, const std::string &origin = "",
+                            const std::string &originType = "") {
+        return endHostInvoke(processorType, invokeId, token, false, doneData, origin, originType);
+    }
+
+    /**
+     * @brief §scxml-6.4: a host-run invocation failed; raise its
+     *        `error.invoke.<invokeId>` — or the generic `error.invoke` — with
+     *        `errorData` as `_event.data`
+     *
+     * The same door as completeHostInvoke(), and the same rules: accepted only
+     * while start `token` is still running, ending the invocation, so a run
+     * ends once — by success, failure or deadline, whichever comes first.
+     * Returns `false`, raising nothing, for an invocation that was cancelled,
+     * already ended, or restarted since.
+     */
+    bool failHostInvoke(const std::string &processorType, const std::string &invokeId, uint64_t token,
+                        const std::string &errorData, const std::string &origin = "",
+                        const std::string &originType = "") {
+        return endHostInvoke(processorType, invokeId, token, true, errorData, origin, originType);
+    }
+
+private:
+    /// The one body behind a host-run invocation's completion and failure: the
+    /// token check, the deadline drop, and the event.
+    bool endHostInvoke(const std::string &processorType, const std::string &invokeId, uint64_t token, bool failed,
+                       const std::string &data, const std::string &origin, const std::string &originType) {
+        const auto key = std::make_pair(processorType, invokeId);
+        const auto running = startedHostInvokes_.find(key);
+        if (running == startedHostInvokes_.end() || running->second != token) {
+            return false;
+        }
+        startedHostInvokes_.erase(running);
+        scheduler_.dropHostInvokeDeadline(token);
+        // §scxml-5.10.1: the completion is an event of the invocation, so its
+        // `_event.invokeid` is the invocation's id — the one the event names and
+        // the host was handed.
+        // §scxml-3.12.1: the specific `done.invoke.<id>` / `error.invoke.<id>`
+        // when the document names it, and otherwise the generic event its
+        // descriptor matches — as an SCXML child's completion does.
+        const std::string name = failed ? std::string(::SCE::Core::InvokeHelper::ERROR_INVOKE_PREFIX) + invokeId
+                                        : ::SCE::Core::InvokeHelper::createDoneInvokeEventName(invokeId);
+        // §scxml-5.10: `_event.name` is the specific name, whichever descriptor of the
+        // document (`done.invoke.<id>`, `done.invoke`, `done`) it was matched through.
+        const auto ended = resolveEventByName(name);
+        if (ended) {
+            EventWithMetadata completion(*ended, data, origin, "", "external",
+                                         originType.empty() ? SCE::Constants::SCXML_EVENT_PROCESSOR_TYPE : originType,
+                                         invokeId);
+            completion.name = arrivalNameOf(*ended, name);
+            completion.hostInvokeToken = token;
+            raiseExternal(completion);
+        } else {
+            // The degradation raiseExternal(name) has: a document that wrote
+            // no transition on the completion declares no such event, and
+            // there is nothing to deliver it to.
+            SCE_LOG_DEBUG("AOT host invoke end: '{}' not in Event enum, ignoring", name);
+        }
+        return true;
+    }
+
+public:
+    /**
+     * @brief How many host-run invocations' `done.invoke` events the engine
+     *        refused because they did not arrive through completeHostInvoke()
+     *
+     * A refusal is correct — such an event may be a cancelled run's late
+     * reply — and saying it happened is not optional: a host that raised its
+     * completion the old way and saw the document never move would otherwise
+     * have nothing to find.
+     */
+    uint64_t refusedHostInvokeCompletions() const {
+        return refusedHostInvokeCompletions_;
     }
 
     /**
      * @brief §scxml-6.4: stop a host-run invocation whose state has exited
      *
      * Unconditional from the emitted exit chain; the engine knows whether the
-     * invocation ever started and stays silent when it did not.
+     * invocation is still running and stays silent when it never started or
+     * already completed.
      *
      * @return whether a cancel was delivered
      */
     bool cancelHostInvoke(const std::string &processorType, const std::string &invokeId) {
-        const auto key = std::make_pair(processorType, invokeId);
-        if (startedHostInvokes_.erase(key) == 0) {
+        const auto running = startedHostInvokes_.find(std::make_pair(processorType, invokeId));
+        if (running == startedHostInvokes_.end()) {
             return false;
         }
+        const uint64_t token = running->second;
+        startedHostInvokes_.erase(running);
+        scheduler_.dropHostInvokeDeadline(token);
+        return deliverHostInvokeCancel(processorType, invokeId, token);
+    }
+
+private:
+    /**
+     * @brief Tell the host to stop start `token` of `invokeId`
+     */
+    bool deliverHostInvokeCancel(const std::string &processorType, const std::string &invokeId, uint64_t token) {
         const auto it = hostInvokers_.find(processorType);
         if (it == hostInvokers_.end()) {
             return false;
         }
         ::SCE::HostInvokeEvent event;
-        event.cancel = ::SCE::HostInvokeCancel{processorType, invokeId};
+        event.cancel = ::SCE::HostInvokeCancel{processorType, invokeId, token};
         (void)it->second(event);
         return true;
+    }
+
+    /**
+     * @brief The deadline of a host-run invocation start came due
+     *
+     * If that start is still running, end it: the host is told to stop, and
+     * the document receives `error.invoke.<id>` — or the generic
+     * `error.invoke` when it names no specific one — with `_event.invokeid`
+     * set and `_event.data` the string `"deadline"`. Through the same door a
+     * completion takes, so exactly one of the two happens.
+     */
+    void expireHostInvoke(const ::SCE::HostInvokeDeadline &deadline) {
+        const auto running = startedHostInvokes_.find(std::make_pair(deadline.processorType, deadline.invokeId));
+        if (running == startedHostInvokes_.end() || running->second != deadline.token) {
+            return;
+        }
+        startedHostInvokes_.erase(running);
+        if (!deliverHostInvokeCancel(deadline.processorType, deadline.invokeId, deadline.token)) {
+            return;
+        }
+        // §scxml-5.10: `_event.name` is the specific name, whichever descriptor of the
+        // document (`error.invoke.<id>`, `error.invoke`, `error`) it was matched through.
+        const std::string name = std::string(::SCE::Core::InvokeHelper::ERROR_INVOKE_PREFIX) + deadline.invokeId;
+        const auto expired = resolveEventByName(name);
+        if (expired) {
+            // The JSON spelling of the string, as every other backend carries it.
+            EventWithMetadata raised(*expired, "\"deadline\"", "", "", "external", "", deadline.invokeId);
+            raised.name = arrivalNameOf(*expired, name);
+            raiseExternal(raised);
+        }
+    }
+
+public:
+    /**
+     * @brief The id for a `<send idlocation>`, which the document keeps and may
+     *        name in a `<cancel>` later
+     *
+     * `_auto_send_` and the number of ids this machine has generated, counted
+     * from one. Unique within the machine, as the send's id must be, and the
+     * same text on every backend (at most 31 bytes: the largest `uint64_t` is
+     * twenty digits).
+     */
+    std::string nextAutoSendId() {
+        return "_auto_send_" + std::to_string(++autoSendSeq_);
     }
 
     /**
@@ -2949,10 +3608,23 @@ public:
      * The act lands in the same queue as scheduleEvent(), so cancelEvent()
      * drops it (§scxml-6.3) and timeUntilNextScheduled() counts it.
      *
-     * @return The sendId used, generated when @p sendId is empty
+     * §scxml-6.2.4: a delay that is zero — written as `0s` or evaluated to it
+     * by a `delayexpr` — is no deferral. The act is performed here, before
+     * this call returns, exactly as the immediate site performs it: waiting
+     * for the next tick would make the same send take effect at one instant
+     * when the document wrote the wait as a literal and at another when it
+     * computed it. Nothing is queued, so there is nothing for `<cancel>` to
+     * reach and the id is the caller's own.
+     *
+     * @return The sendId used, generated when @p sendId is empty and the send
+     *         was queued
      */
     std::string scheduleHostSend(const ::SCE::HostSendRequest &request, std::chrono::milliseconds delay,
                                  const std::string &sendId = "") {
+        if (delay.count() <= 0) {
+            performDeferredHostSend(request);
+            return sendId;
+        }
         const uint64_t fireTimeMs = schedNowMs() + static_cast<uint64_t>(delay.count());
         return scheduler_.scheduleHostSendAt(std::make_shared<const ::SCE::HostSendRequest>(request), fireTimeMs,
                                              sendId);
@@ -3205,6 +3877,37 @@ public:
 
 private:
     /**
+     * @brief Bind the dequeued event's typed `_event.data` view (NL→IR Item C1 Path A)
+     *
+     * The generated policy's hook has two sources for that view. The type-erased
+     * carrier is filled by ONE producer, the generated `raise<Event>` inject
+     * seam; every other producer — `<send>` with `<param>`, an invoke forwarding
+     * either way, autoforward, BasicHTTP, mesh — fills `data`, so the fields are
+     * lifted out of that instead when no carrier arrived. That is what lets the
+     * same guard answer the same way whichever producer sent the event.
+     *
+     * A payload that does not read as its schema is `error.execution` and a
+     * guard that does not fire — §scxml-3.13's answer for a guard that cannot be
+     * evaluated, and the one the script engine gives for the same guard on the
+     * same data. The raise lives here rather than in each generated policy so
+     * every machine answers alike; a document that declares no `error.execution`
+     * transition has nothing to answer with (§scxml-3.12.2) and the guard still
+     * does not fire.
+     */
+    void bindTypedPayload(const EventWithMetadata &eventWithMeta) {
+        if constexpr (SCE::Common::detail::has_populateTypedPayload<StatePolicy, EventWithMetadata>::value) {
+            const std::string refusal = policy_.populateTypedPayload(eventWithMeta);
+            if (refusal.empty()) {
+                return;
+            }
+            if (auto errorEvent = policy_.getEventFromName("error.execution")) {
+                raise(EventWithMetadata(*errorEvent, std::string("`") + policy_.getEventName(eventWithMeta.event) +
+                                                         "` payload: " + refusal));
+            }
+        }
+    }
+
+    /**
      * @brief Perform a host-served send whose delay has elapsed, and report it
      *        if nobody did (§scxml-6.2 + §scxml-6.2.4)
      *
@@ -3222,6 +3925,14 @@ private:
      * a reply that has nobody left to come from.
      */
     void performDeferredHostSend(const ::SCE::HostSendRequest &request) {
+        // §scxml-C-2 + §scxml-6.2.4: a delayed BasicHTTP send waits in this
+        // queue as a host-served one does, and its deadline performs the POST
+        // the immediate send would have made — through the same callback, so
+        // the reply it draws comes back as it does from an immediate one.
+        if (request.processorType == ::SCE::Constants::BASIC_HTTP_EVENT_PROCESSOR_URI) {
+            performHttpSend(request.target, request.eventName, request.content, request.params, request.sendId);
+            return;
+        }
         const auto served = performHostSend(request);
         if (served.has_value() || hasEventProcessor(request.processorType)) {
             return;

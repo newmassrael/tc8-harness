@@ -1,16 +1,17 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {% include 'license_header.rs.jinja2' %}
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
+{%- import '_macros/rust_entry_target.jinja2' as et %}
 
 {% if no_std %}
 // SCE Protocol-Synthesis RFC §synth-5-J-2: no_std variant of the statechart
 // emitter. `sce-rust-runtime` ships a `no_std` feature gate, and
 // the generated crate omits `std::*` paths — Duration comes from
-// `core::time`, the microstep dedup set is `heapless::FnvIndexSet`,
-// and the parent-event queue field is elided (SCXML `<invoke>` is
-// rejected at codegen time under `--no-std` per the
+// `core::time`, the configuration and history records are the runtime's
+// capacity-bounded `StateChain`, and the parent-event queue field is elided
+// (SCXML `<invoke>` is rejected at codegen time under `--no-std` per the
 // `codegen/no-std-invoke-not-supported` diagnostic).
 #![no_std]
 {% endif %}
@@ -44,9 +45,11 @@
 // by fixtures that actually exercise the corresponding W3C feature.
 #![allow(dead_code)]
 #![allow(unused_variables)]
-// `let mut current_state = ...` in process_transition is mutated only by
-// internal-transition fixtures; pure-external-transition fixtures leave it
-// untouched after the let binding.
+// Bindings emitted `mut` for the documents that write them: `json_parts` in
+// `<donedata>` evaluation is pushed only by a param that evaluates (test298
+// pushes nothing), and a send's `err_meta` gets a `send_id` only when the
+// document has a datamodel (test194, test199). Measured 2026-09-24: removing
+// this allow reds those fixtures under `-D warnings`.
 #![allow(unused_mut)]
 // `'action_block:` early-exit label wraps every onentry block but is only
 // `break`-ed to from fixtures that emit error-on-action sequences.
@@ -56,10 +59,10 @@
 // variant is handled.
 #![allow(unreachable_patterns)]
 #![allow(unreachable_code)]
-// W3C SCXML 5.7 donedata pattern: `let mut done_data_ok = true;` then
-// per-param `done_data_ok = false;` on failure. Fixtures whose params
-// always fail structurally (test298, test343 — empty `location=""`) never
-// read the initial `true`.
+// W3C SCXML 5.5 donedata pattern: `let mut done_event_data = String::new();`
+// is declared once for every kind of `<donedata>`, and a `<param>` list
+// always overwrites it with the surviving pairs, so those documents never
+// read the initial empty string.
 #![allow(unused_assignments)]
 // Generated code is uniform across 200+ fixtures and intentionally avoids
 // per-fixture style optimisation passes. The `clippy::style` and
@@ -82,11 +85,9 @@
 
 use core::time::Duration;
 use sce_rust_runtime::{Engine, StatePolicy};
-{% if model.has_parallel_states %}
-// SCE Protocol-Synthesis RFC §synth-5-J-2: `.push_bounded()` on the microstep conflict-resolution
-// buffers (std `Vec` / no_std capacity-bounded `heapless::Vec`).
-use sce_rust_runtime::BoundedPush;
-{% endif %}
+{% for line in static_imports %}
+{{ line }}
+{% endfor %}
 {% if model.event_queue_capacity %}
 
 // SCE Protocol-Synthesis RFC §synth-5-J-2 + §synth-5-L (item C3): per-document
@@ -97,28 +98,6 @@ use sce_rust_runtime::BoundedPush;
 // for this machine's W3C Appendix D internal/external queues
 // (the policy-carried SSOT for the per-machine queue size).
 pub const EVENT_QUEUE_CAPACITY: usize = {{ model.event_queue_capacity }};
-{% endif %}
-
-{% if model.has_parallel_states %}
-// W3C SCXML Appendix D: Transition descriptor for parallel state microstep execution
-#[derive(Debug, Clone)]
-struct TransitionInfo {
-    source: {{ machine_name }}State,
-    target: {{ machine_name }}State,
-    transition_index: usize,
-    has_actions: bool,
-    is_internal: bool,
-    is_targetless: bool,
-}
-
-// Appendix D microstepProcedure: microstep conflict-resolution buffers. The runtime
-// owns the std-vs-heapless collection choice through the profile-resolving
-// `SceTransitionBuf` / `SceIndexBuf` aliases (single source of truth, like
-// `SceString` / `StateChain`), so this one emission compiles on both runtime
-// profiles: unbounded `Vec` under std, capacity-bounded `heapless::Vec` under
-// no_std. State-list buffers reuse the depth-bounded `StateChain` alias.
-type TransitionList = ::sce_rust_runtime::SceTransitionBuf<TransitionInfo>;
-type IndexList = ::sce_rust_runtime::SceIndexBuf;
 {% endif %}
 
 // ======================================================================
@@ -135,6 +114,23 @@ pub enum {{ machine_name }}State {
     {{ state_id | to_state_variant }},
 {% endfor %}
 }
+{% if model.history_states %}
+
+// ======================================================================
+// History enum (W3C SCXML 3.10)
+// ======================================================================
+
+/// The document's `<history>` pseudo-states. A history is not a state — it is
+/// never in a configuration — so it is named apart from `{{ machine_name }}State`,
+/// and a target list names one as `EntryTarget::History`: the engine
+/// dereferences it to what it recorded, or to its default.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum {{ machine_name }}History {
+{% for history_id in model.history_states | sort %}
+    {{ history_id | to_state_variant }},
+{% endfor %}
+}
+{% endif %}
 
 // ======================================================================
 // Event enum (W3C SCXML 3.12)
@@ -143,13 +139,53 @@ pub enum {{ machine_name }}State {
 {{ event_derives_attr }}
 pub enum {{ machine_name }}Event {
 {% for event_name in model.events | sort %}
-{% if event_name != 'Wildcard' %}
     {{ event_name | to_event_variant }},
-{% endif %}
 {% endfor %}
     /// W3C SCXML 3.13: Sentinel for eventless transition dispatch
     Null,
 }
+{% if model.emitted_transition_table %}
+{# emitted-transition-table:begin #}
+{% set _table = model.emitted_transition_table %}
+
+// ======================================================================
+// Transition table (§synth-6.2.6), because the build asked for it
+// ======================================================================
+
+/// One transition of this machine, as constant data. Nothing in the machine
+/// reads it: a host that draws the machine, or checks it against its own
+/// design, does. `from`, `to` and `event` are this module's own
+/// `{{ machine_name }}State` and `{{ machine_name }}Event`; `index` is the
+/// transition's position within its state in document order; `annotation` is
+/// the `sce:req` tokens as written, space-separated and uninterpreted. `to` and
+/// `event` are `None` where a transition has no single id in those enums: a
+/// targetless transition, a first target that is a `<history>`, an eventless
+/// transition, a wildcard or prefix descriptor, or several descriptors.
+/// `sce-codegen transition-table` lists the same transitions in the same order
+/// with the whole target set and every descriptor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct {{ machine_name }}Transition {
+    pub from: {{ machine_name }}State,
+    pub to: Option<{{ machine_name }}State>,
+    pub event: Option<{{ machine_name }}Event>,
+    pub index: u32,
+    pub annotation: &'static str,
+}
+
+impl {{ machine_name }}Transition {
+    /// The digest of the source set this machine was generated from: the
+    /// `source-hash` of the file's own header, as a value.
+    pub const SOURCE_HASH: &'static str = "{{ _table.source_hash }}";
+
+    /// Every transition of the machine.
+    pub const ALL: [{{ machine_name }}Transition; {{ _table.transitions | length }}] = [
+{% for t in _table.transitions %}
+        {{ machine_name }}Transition { from: {{ machine_name }}State::{{ t.from | to_state_variant }}, to: {% if t.to %}Some({{ machine_name }}State::{{ t.to | to_state_variant }}){% else %}None{% endif %}, event: {% if t.event %}Some({{ machine_name }}Event::{{ t.event | to_event_variant }}){% else %}None{% endif %}, index: {{ t.index }}, annotation: "{{ t.annotation | escape_rust }}" },
+{% endfor %}
+    ];
+}
+{# emitted-transition-table:end #}
+{% endif %}
 
 // ======================================================================
 // Externally-drivable event surface (W3C SCXML 3.12 / 5.10)
@@ -174,19 +210,334 @@ impl {{ machine_name }}Event {
     ];
 }
 
-{% if inline_kind_types %}
-// ── SCE Forge: Inline kind type definitions ──────────────
-{{ inline_kind_types }}
-
-{% endif %}
 {% if event_payload_defs %}
 // ── NL→IR Item C1 Path A: EventSchema typed `_event.data` payload ──
 {{ event_payload_defs }}
 {{ event_payload_entries }}
 {% endif %}
+{% if static_type_defs %}
+// ── SCE Accepted Subset §2.15: the enum and record types the sce-static variables hold ──
+{{ static_type_defs }}
+
+{% endif %}
+{% if static_adapter_defs %}
+// ── SCE Accepted Subset §2.15: calls of an algorithm that takes or returns state ──
+{{ static_adapter_defs }}
+
+{% endif %}
+{% if static_datamodel %}
+// ── SCE Accepted Subset §2.15: what a host observes of a sce-static machine ──
+{% if static_published %}
+
+/// The published variables (`sce:direction="out"`) as one owned value, in
+/// declaration order.
+#[derive(Debug, Clone, PartialEq)]
+#[allow(non_snake_case)]
+pub struct {{ machine_name }}Data {
+{% for field in static_published %}
+    pub {{ field.name }}: {{ field.ty }},
+{% endfor %}
+}
+{% endif %}
+
+/// What a host observes: the full active configuration — every active state,
+/// each region of a `<parallel>` included —{% if static_published %} and the published variables,{% endif %}
+
+/// taken together between two host calls, which is a macrostep boundary (W3C
+/// SCXML Appendix D). `truncated` is `true` when that macrostep was stopped at
+/// the microstep ceiling, so the configuration is not a stable one. Owned: a
+/// host holding one keeps what it saw whatever the machine does next.
+#[derive(Debug, Clone, PartialEq)]
+pub struct {{ machine_name }}Snapshot {
+    pub configuration: ::sce_rust_runtime::helpers::hierarchy::StateChain<{{ machine_name }}State>,
+{% if static_published %}
+    pub data: {{ machine_name }}Data,
+{% endif %}
+    pub truncated: bool,
+}
+
+/// The snapshot of a running machine, as an extension of the runtime's
+/// `Engine` (a foreign type, so a local trait — the `Inject` shape).
+pub trait {{ machine_name }}Observe {
+    /// The machine as the host sees it now: one [`{{ machine_name }}Snapshot`],
+    /// never a state between two microsteps.
+    fn snapshot(&self) -> {{ machine_name }}Snapshot;
+}
+
+impl{{ policy_generics_decl }} {{ machine_name }}Observe for Engine<{{ machine_name }}Policy{{ policy_generics_use }}> {
+    fn snapshot(&self) -> {{ machine_name }}Snapshot {
+{% if static_published %}
+        let policy = self.policy();
+{% endif %}
+        {{ machine_name }}Snapshot {
+            configuration: self.get_active_states(),
+{% if static_published %}
+            data: {{ machine_name }}Data {
+{% for field in static_published %}
+                {{ field.name }}: policy.{{ field.name }}{% if field.view %}.clone(){% endif %},
+{% endfor %}
+            },
+{% endif %}
+            truncated: self.last_macrostep_truncated(),
+        }
+    }
+}
+
+{% if static_saved_shape and not no_std %}
+{% set history_type = (machine_name ~ "History") if model.history_states else "::sce_rust_runtime::NoHistory" %}
+// ── SCE Accepted Subset §2.15: saving a sce-static machine and restoring it ──
+{% for enum in static_enums %}
+
+impl ::sce_rust_runtime::saved_state::SavedValue for {{ enum.ty }} {
+    fn to_saved(&self) -> ::sce_rust_runtime::json::Value {
+        ::sce_rust_runtime::json::Value::Text(
+            match self {
+{% for variant in enum.variants %}
+                Self::{{ variant.ident }} => "{{ variant.declared | escape_rust }}",
+{% endfor %}
+            }
+            .to_string(),
+        )
+    }
+
+    fn from_saved(
+        value: &::sce_rust_runtime::json::Value,
+        what: &str,
+    ) -> Result<Self, ::sce_rust_runtime::saved_state::StateRefusal> {
+        match value {
+            ::sce_rust_runtime::json::Value::Text(declared) => match declared.as_str() {
+{% for variant in enum.variants %}
+                "{{ variant.declared | escape_rust }}" => Ok(Self::{{ variant.ident }}),
+{% endfor %}
+                other => Err(::sce_rust_runtime::saved_state::StateRefusal::new(format!(
+                    "'{what}' ({other}) is not a variant of {{ enum.alias }}"
+                ))),
+            },
+            _ => Err(::sce_rust_runtime::saved_state::StateRefusal::new(format!(
+                "'{what}' is not a text"
+            ))),
+        }
+    }
+}
+{% endfor %}
+{% for record in static_records %}
+
+impl ::sce_rust_runtime::saved_state::SavedValue for {{ record.ty }} {
+    fn to_saved(&self) -> ::sce_rust_runtime::json::Value {
+        ::sce_rust_runtime::json::Value::Object(vec![
+{% for field in record.fields %}
+{% if field.saved_type == "bytes" %}
+            ("{{ field.id }}".to_string(), ::sce_rust_runtime::saved_state::bytes_to_saved(&self.{{ field.name }})),
+{% else %}
+            ("{{ field.id }}".to_string(), ::sce_rust_runtime::saved_state::SavedValue::to_saved(&self.{{ field.name }})),
+{% endif %}
+{% endfor %}
+        ])
+    }
+
+    fn from_saved(
+        value: &::sce_rust_runtime::json::Value,
+        what: &str,
+    ) -> Result<Self, ::sce_rust_runtime::saved_state::StateRefusal> {
+        Ok(Self {
+{% for field in record.fields %}
+{% if field.bound is not none and field.saved_type == "bytes" %}
+            {{ field.name }}: ::sce_rust_runtime::saved_state::record_bounded_bytes(value, what, "{{ field.id }}", {{ field.bound }})?,
+{% elif field.bound is not none %}
+            {{ field.name }}: ::sce_rust_runtime::saved_state::record_bounded_string(value, what, "{{ field.id }}", {{ field.bound }})?,
+{% else %}
+            {{ field.name }}: ::sce_rust_runtime::saved_state::record_field(value, what, "{{ field.id }}")?,
+{% endif %}
+{% endfor %}
+        })
+    }
+}
+{% endfor %}
+
+/// A running machine saved at a macrostep boundary, and restored into a new
+/// process in place of `initialize` — every variable, the machine's own
+/// included, and where the machine stands. The saved state is JSON
+/// (`SavedState::to_json`), the same on every backend.
+pub trait {{ machine_name }}Persist: Sized {
+    /// The policy a restored machine is built around, constructed by the host
+    /// as it would be for `initialize`.
+    type Policy;
+
+    /// The shape a saved state of this document is bound to: a state saved
+    /// from a document that renamed, re-typed or moved a state or a variable
+    /// is refused, one saved before a guard or an action changed is not.
+    const SHAPE: &'static str;
+
+    /// The document's `<history>` pseudo-states, by the id a saved state keys
+    /// them by — what a saved state records of each, and what a restore reads
+    /// back. Empty for a document that declares none.
+    const HISTORIES: &'static [::sce_rust_runtime::saved_state::HistoryDecl<{{ history_type }}>];
+
+    /// The machine's whole state, each delayed `<send>` still waiting written
+    /// as the moment it comes due on the wall clock whose reading now is
+    /// `wall_now_ms`, in milliseconds since the Unix epoch. Refused for a
+    /// machine that is not running, and for one whose last macrostep stopped
+    /// at the microstep ceiling.
+    fn save_at(&self, wall_now_ms: u64) -> Result<::sce_rust_runtime::saved_state::SavedState, ::sce_rust_runtime::saved_state::StateRefusal>;
+
+    /// [`save_at`](Self::save_at) at the host's wall clock now.
+    ///
+    /// Absent on `wasm32-unknown-unknown`, which provides no wall clock to read:
+    /// a host there says what time it is, through [`save_at`](Self::save_at).
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+    fn save(&self) -> Result<::sce_rust_runtime::saved_state::SavedState, ::sce_rust_runtime::saved_state::StateRefusal> {
+        self.save_at(::sce_rust_runtime::saved_state::wall_clock_ms())
+    }
+
+    /// A machine of `policy` standing where `saved` left one, measuring time
+    /// by `clock` and told by `wall_now_ms` what time it is on the wall clock
+    /// the saved `due`s were written against: a waiting send comes due when
+    /// its saved moment does, and one already due comes due now. No
+    /// `<onentry>` runs and no `<data>` is evaluated: the saved run already
+    /// did both.
+    fn restore_with(
+        policy: Self::Policy,
+        saved: &::sce_rust_runtime::saved_state::SavedState,
+        clock: ::sce_rust_runtime::SceClock,
+        wall_now_ms: u64,
+    ) -> Result<Self, ::sce_rust_runtime::saved_state::StateRefusal>;
+
+    /// [`restore_with`](Self::restore_with) on the engine's own clock, at the
+    /// host's wall clock now.
+    ///
+    /// Absent on `wasm32-unknown-unknown`, for the reason [`save`](Self::save)
+    /// is: a host there gives the clock and the wall time to
+    /// [`restore_with`](Self::restore_with).
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+    fn restore(
+        policy: Self::Policy,
+        saved: &::sce_rust_runtime::saved_state::SavedState,
+    ) -> Result<Self, ::sce_rust_runtime::saved_state::StateRefusal> {
+        Self::restore_with(
+            policy,
+            saved,
+            ::sce_rust_runtime::SceClock::default(),
+            ::sce_rust_runtime::saved_state::wall_clock_ms(),
+        )
+    }
+}
+
+impl{{ policy_generics_decl }} {{ machine_name }}Persist for Engine<{{ machine_name }}Policy{{ policy_generics_use }}> {
+    type Policy = {{ machine_name }}Policy{{ policy_generics_use }};
+
+    const SHAPE: &'static str = "{{ static_saved_shape }}";
+
+    const HISTORIES: &'static [::sce_rust_runtime::saved_state::HistoryDecl<{{ history_type }}>] = &[
+{% for history_id, info in model.history_states | dictsort %}
+        ::sce_rust_runtime::saved_state::HistoryDecl {
+            id: "{{ history_id }}",
+            history: {{ machine_name }}History::{{ history_id | to_state_variant }},
+            deep: {{ "true" if info.type == "deep" else "false" }},
+        },
+{% endfor %}
+    ];
+
+    fn save_at(&self, wall_now_ms: u64) -> Result<::sce_rust_runtime::saved_state::SavedState, ::sce_rust_runtime::saved_state::StateRefusal> {
+{% if static_fields %}
+        let policy = self.policy();
+{% endif %}
+        ::sce_rust_runtime::saved_state::save(
+            self,
+            Self::SHAPE,
+            vec![
+{% for field in static_fields %}
+{% if field.saved_type == "bytes" %}
+                ("{{ field.id }}".to_string(), ::sce_rust_runtime::saved_state::bytes_to_saved(&policy.{{ field.name }})),
+{% else %}
+                ("{{ field.id }}".to_string(), ::sce_rust_runtime::saved_state::SavedValue::to_saved(&policy.{{ field.name }})),
+{% endif %}
+{% endfor %}
+            ],
+            ::sce_rust_runtime::saved_state::save_history(self.policy(), Self::HISTORIES),
+            wall_now_ms,
+        )
+    }
+
+    fn restore_with(
+{% if static_fields or model.history_states %}
+        mut policy: {{ machine_name }}Policy{{ policy_generics_use }},
+{% else %}
+        policy: {{ machine_name }}Policy{{ policy_generics_use }},
+{% endif %}
+        saved: &::sce_rust_runtime::saved_state::SavedState,
+        clock: ::sce_rust_runtime::SceClock,
+        wall_now_ms: u64,
+    ) -> Result<Self, ::sce_rust_runtime::saved_state::StateRefusal> {
+        ::sce_rust_runtime::saved_state::check_shape(saved, Self::SHAPE)?;
+        // Judged with the configuration and before any value is written, so a
+        // refused restore holds no half of a state. A document with no
+        // `<history>` refuses any a saved state records.
+{% if model.history_states %}
+        let history = ::sce_rust_runtime::saved_state::restore_history::<{{ machine_name }}Policy{{ policy_generics_use }}>(saved, Self::HISTORIES)?;
+{% else %}
+        ::sce_rust_runtime::saved_state::restore_history::<{{ machine_name }}Policy{{ policy_generics_use }}>(saved, Self::HISTORIES)?;
+{% endif %}
+{% for field in static_fields %}
+{% if field.bound is not none and field.saved_type == "string" %}
+        policy.{{ field.name }} = ::sce_rust_runtime::saved_state::bounded_string(saved.variable("{{ field.id }}")?, "{{ field.id }}", {{ field.bound }})?;
+{% elif field.bound is not none and field.saved_type == "bytes" %}
+        policy.{{ field.name }} = ::sce_rust_runtime::saved_state::bounded_bytes(saved.variable("{{ field.id }}")?, "{{ field.id }}", {{ field.bound }})?;
+{% elif field.bound is not none %}
+        policy.{{ field.name }} = ::sce_rust_runtime::saved_state::bounded(saved.variable("{{ field.id }}")?, "{{ field.id }}", {{ field.bound }})?;
+{% else %}
+        policy.{{ field.name }} = ::sce_rust_runtime::saved_state::SavedValue::from_saved(saved.variable("{{ field.id }}")?, "{{ field.id }}")?;
+{% endif %}
+{% endfor %}
+{% if model.history_states %}
+        for (recorded, states) in history {
+            match recorded {
+{% for history_id in model.history_states | sort %}
+                {{ machine_name }}History::{{ history_id | to_state_variant }} => policy.history_{{ history_id }} = Some(states),
+{% endfor %}
+            }
+        }
+{% endif %}
+        ::sce_rust_runtime::saved_state::enter(policy, saved, clock, wall_now_ms)
+    }
+}
+
+{% endif %}
+{% endif %}
 {% if has_native_actions %}
 // ── W3C SCXML G.7: <sce:action> host-dispatch trait ──
 {{ native_actions_defs }}
+{% if native_actions_recording and not no_std %}
+{# The recording host keeps its calls in a `Vec`, so it exists only where
+   `alloc` does; a no_std host supplies its own. #}
+{{ native_actions_recording }}
+{% endif %}
+{% endif %}
+{% if host_invoker_interface %}
+// ── SCE Accepted Subset 2.12: typed host-run invoke interface ──
+{{ host_invoker_interface }}
+{% endif %}
+{# §scxml-6.4.1: a variable a parent may hand a value to — a bool, a string, an
+   integer or a real. A list, a record, an enum and bytes are not seeded; the
+   static judge refuses a value handed to one. #}
+{% set ns_seed = namespace(any=false) %}
+{% for field in static_fields %}
+{% if field.saved_kind == 'scalar' and field.saved_type != 'bytes' %}
+{% set ns_seed.any = true %}
+{% endif %}
+{% endfor %}
+{% if ns_seed.any %}
+/// §scxml-6.4.1: the values a parent's `<param>` and `namelist` give this
+/// machine's variables before it starts. A variable left `None` keeps the
+/// value its `<data>` gave it.
+#[derive(Default)]
+pub struct {{ machine_name }}InvokeParams {
+{% for field in static_fields %}
+{% if field.saved_kind == 'scalar' and field.saved_type != 'bytes' %}
+    pub {{ field.name }}: Option<{{ field.ty }}>,
+{% endif %}
+{% endfor %}
+}
+
 {% endif %}
 // ======================================================================
 // Policy struct
@@ -199,15 +550,6 @@ pub struct {{ machine_name }}Policy{{ policy_generics_decl }} {
     // (`self.actions.<op>(…)`) instead of a runtime script engine.
     actions: A,
 {% endif %}
-    // W3C SCXML 3.13: Last transition metadata
-    last_transition_is_internal: bool,
-    last_transition_is_targetless: bool,
-    last_transition_source_state: {{ machine_name }}State,
-{% if model.has_transition_actions %}
-    // W3C SCXML 3.13: Transition action tracking
-    last_transition_index: usize,
-    has_transition_actions: bool,
-{% endif %}
 {% if model.has_parallel_states or model.uses_in_predicate %}
     // W3C SCXML 3.4: Active state configuration for parallel states / In() predicate
     //
@@ -217,10 +559,6 @@ pub struct {{ machine_name }}Policy{{ policy_generics_decl }} {
     // the generated code allocator-free.
     active_states: ::sce_rust_runtime::helpers::hierarchy::StateChain<{{ machine_name }}State>,
 {% endif %}
-{% if model.needs_external_flag %}
-    // W3C SCXML 5.10.1: External event flag for _event.type classification
-    next_event_is_external: bool,
-{% endif %}
 {% if model.needs_event_name %}
     // W3C SCXML 5.10: Event name for _event.name binding
     //
@@ -228,6 +566,13 @@ pub struct {{ machine_name }}Policy{{ policy_generics_decl }} {
     // alias — `String` under std (unchanged ABI), `heapless::String<MAX_EVENT_STRING_LEN>`
     // under no_std — so the emitted field is allocator-free on MCU targets.
     pending_event_name: ::sce_rust_runtime::SceString,
+{% endif %}
+{% if model.needs_event_name and model.needs_script_engine %}
+    // W3C SCXML 5.10 + 3.12.1: the name the event arrived under when that is longer than
+    // the enum member it was matched through (`request.new` for a transition on
+    // `request`); empty when the member's own name is the name. Filled from the
+    // event's metadata before the event is bound, and read by `bind_current_event`.
+    pending_event_arrival_name: ::sce_rust_runtime::SceString,
 {% endif %}
 {% if model.needs_event_data and model.needs_script_engine %}
     // W3C SCXML 5.10: Event data for the script `_event.data` baseline (the
@@ -278,7 +623,16 @@ pub struct {{ machine_name }}Policy{{ policy_generics_decl }} {
    agrees again — so the machine reads the datamodel back out through
    `helpers::datamodel_read` (see the accessors below) instead of shadowing
    it. Kotlin's template already drew this line; the other backends now do
-   too. #}
+   too.
+
+   Under `datamodel="sce-static"` there is no script engine, and this struct
+   IS the datamodel's home: every expression was lowered to Rust reading and
+   writing these fields (`crate::forge::static_lowering`), and only the
+   machine's own statements write them. #}
+{% for field in static_fields %}
+    /// W3C SCXML 5.2: the `{{ field.id }}` datamodel variable{% if field.published %}, published (`sce:direction="out"`){% endif %}.
+    {{ field.name }}: {{ field.ty }},
+{% endfor %}
 {% if not no_std %}
     // W3C SCXML 5.10: Session ID (script engine + invoke tracking).
     //
@@ -299,7 +653,8 @@ pub struct {{ machine_name }}Policy{{ policy_generics_decl }} {
     // deployed, and no BasicHTTP entry is published in `_ioprocessors`.
     basic_http_access_uri: String,
 {% if model.has_parallel_states or model.uses_in_predicate %}
-    // W3C SCXML 5.9.2: Shared active state list for In() predicate callback
+    // W3C SCXML 5.9.2: the configuration as the script engine's In() reads it —
+    // a copy of `active_states` by name, republished on every change to it.
     in_predicate_states: Option<std::sync::Arc<std::sync::Mutex<Vec<String>>>>,
 {% endif %}
 {% endif %}
@@ -313,13 +668,25 @@ pub struct {{ machine_name }}Policy{{ policy_generics_decl }} {
 {% endif %}
 {% for invoke_info in model.invokes | scxml %}
     // W3C SCXML 6.4: Static invoke child '{{ invoke_info.invoke_id }}' ({{ invoke_info.child_name }})
-    child_{{ invoke_info.field_suffix }}: Option<Box<sce_rust_runtime::Engine<super::{{ invoke_info.child_name }}_sm::{{ invoke_info.child_name | to_machine_name }}Policy>>>,
+{# A child that declares acts is a policy generic over its host, so its type is
+   named with the type its parent's trait declares for that host
+   (docs/adr/0005, decision 6). #}
+    child_{{ invoke_info.field_suffix }}: Option<Box<sce_rust_runtime::Engine<super::{{ invoke_info.child_name }}_sm::{{ invoke_info.child_name | to_machine_name }}Policy{% if invoke_info.child_host_type %}<{{ invoke_info.child_host_type }}>{% endif %}>>>,
     pending_done_invoke_{{ invoke_info.field_suffix }}: bool,
 {% endfor %}
 {% for invoke_info in model.invokes | hybrid %}
+{% if invoke_info.candidates %}
+    // W3C SCXML 6.4 + SCE_ACCEPTED_SUBSET.md §2.13: one slot per declared
+    // candidate for '{{ invoke_info.invoke_id }}', at most one ever filled.
+{% for candidate in invoke_info.candidates %}
+    child_{{ invoke_info.field_suffix }}_{{ candidate.stem }}: Option<Box<sce_rust_runtime::Engine<super::{{ candidate.stem }}_sm::{{ candidate.stem | to_machine_name }}Policy{% if candidate.child_host_type %}<{{ candidate.child_host_type }}>{% endif %}>>>,
+{% endfor %}
+    pending_done_invoke_{{ invoke_info.field_suffix }}: bool,
+{% else %}
     // W3C SCXML 6.4: Hybrid invoke child '{{ invoke_info.invoke_id }}' ({{ invoke_info.child_name }})
     child_{{ invoke_info.field_suffix }}: Option<Box<sce_rust_runtime::Engine<super::{{ invoke_info.child_name }}_sm::{{ invoke_info.child_name | to_machine_name }}Policy>>>,
     pending_done_invoke_{{ invoke_info.field_suffix }}: bool,
+{% endif %}
 {% endfor %}
 {% if not no_std %}
     // W3C SCXML 6.4: Parent engine external queue for #_parent send routing
@@ -361,7 +728,7 @@ impl{{ policy_generics_decl }} {{ machine_name }}Policy{{ policy_generics_use }}
     /// The value as JSON text, serialized by the engine's own
     /// `JSON.stringify` (§scxml-B-2) so the key order is the document's.
 {% endif %}
-    pub fn {{ var.id | to_snake_case }}(&self) -> Option<{{ RUST_READ_TYPE[var.type] }}> {
+    pub fn {{ var.reader.rust }}(&self) -> Option<{{ RUST_READ_TYPE[var.type] }}> {
         ::sce_rust_runtime::helpers::datamodel_read::read_{{ var.type }}(
             self.script_engine.as_ref(),
             self.session_id.as_deref(),
@@ -384,29 +751,27 @@ impl{{ policy_generics_decl }} {{ machine_name }}Policy{{ policy_generics_use }}
             actions,
 {% endif %}
             script_engine,
-            last_transition_is_internal: false,
 {% else %}
     pub fn new({% if has_native_actions %}actions: A{% endif %}) -> Self {
+{# SCE Accepted Subset §2.15: each sce-static variable's initial value, in
+   declaration order — an initial value reads the variables declared before
+   it by these names. #}
+{% for field in static_fields %}
+        let {{ field.name }}: {{ field.ty }} = {{ field.init }};
+{% endfor %}
         Self {
 {% if has_native_actions %}
             actions,
 {% endif %}
-            last_transition_is_internal: false,
-{% endif %}
-            last_transition_is_targetless: false,
-            last_transition_source_state: {{ machine_name }}State::{{ model.initial_leaf | default(model.initial) | to_state_variant }},
-{% if model.has_transition_actions %}
-            last_transition_index: 0,
-            has_transition_actions: false,
 {% endif %}
 {% if model.has_parallel_states or model.uses_in_predicate %}
             active_states: ::sce_rust_runtime::helpers::hierarchy::new_chain(),
 {% endif %}
-{% if model.needs_external_flag %}
-            next_event_is_external: false,
-{% endif %}
 {% if model.needs_event_name %}
             pending_event_name: ::sce_rust_runtime::SceString::new(),
+{% endif %}
+{% if model.needs_event_name and model.needs_script_engine %}
+            pending_event_arrival_name: ::sce_rust_runtime::SceString::new(),
 {% endif %}
 {% if model.needs_event_data and model.needs_script_engine %}
             pending_event_data: ::sce_rust_runtime::SceString::new(),
@@ -432,6 +797,9 @@ impl{{ policy_generics_decl }} {{ machine_name }}Policy{{ policy_generics_use }}
 {% for history_id, _ in model.history_states | dictsort %}
             history_{{ history_id }}: None,
 {% endfor %}
+{% for field in static_fields %}
+            {{ field.name }},
+{% endfor %}
 {% if not no_std %}
             session_id: None,
 {% endif %}
@@ -451,8 +819,15 @@ impl{{ policy_generics_decl }} {{ machine_name }}Policy{{ policy_generics_use }}
             pending_done_invoke_{{ invoke_info.field_suffix }}: false,
 {% endfor %}
 {% for invoke_info in model.invokes | hybrid %}
+{% if invoke_info.candidates %}
+{% for candidate in invoke_info.candidates %}
+            child_{{ invoke_info.field_suffix }}_{{ candidate.stem }}: None,
+{% endfor %}
+            pending_done_invoke_{{ invoke_info.field_suffix }}: false,
+{% else %}
             child_{{ invoke_info.field_suffix }}: None,
             pending_done_invoke_{{ invoke_info.field_suffix }}: false,
+{% endif %}
 {% endfor %}
 {% if not no_std %}
             parent_external_queue: None,
@@ -461,12 +836,37 @@ impl{{ policy_generics_decl }} {{ machine_name }}Policy{{ policy_generics_use }}
 {% endif %}
         }
     }
+{% if has_native_actions %}
 
-{% if inline_kind_fns %}
-    // ── SCE Forge: Inline kind member functions ──────────────
-{{ inline_kind_fns }}
-
+    /// W3C SCXML G.7: the host the `<sce:action>` operations are dispatched
+    /// to — read back, e.g. a recording host's calls, since the machine owns it.
+    pub fn actions(&self) -> &A {
+        &self.actions
+    }
 {% endif %}
+{% if ns_seed.any %}
+
+    /// §scxml-6.4.1: give this machine the values `params` carries, in place of
+    /// the ones its `<data>` gave. Called before it initializes.
+    pub fn accept_params(&mut self, params: {{ machine_name }}InvokeParams) {
+{% for field in static_fields %}
+{% if field.saved_kind == 'scalar' and field.saved_type != 'bytes' %}
+        if let Some(value) = params.{{ field.name }} {
+            self.{{ field.name }} = value;
+        }
+{% endif %}
+{% endfor %}
+    }
+{% endif %}
+{% for field in static_published %}
+
+    /// W3C SCXML 5.2: what the published `{{ field.id }}` datamodel variable
+    /// holds now. Only the machine writes it.
+    pub fn {{ field.name }}(&self) -> {% if field.view %}&{{ field.view }}{% else %}{{ field.ty }}{% endif %} {
+        {% if field.view %}&{% endif %}self.{{ field.name }}
+    }
+{% endfor %}
+
 {% include 'utility_methods.rs.jinja2' %}
 {% include 'scriptengine_helpers.rs.jinja2' %}
 {% include 'invoke_methods.rs.jinja2' %}
@@ -487,6 +887,13 @@ impl Default for {{ machine_name }}Policy {
 impl{{ policy_generics_decl }} StatePolicy for {{ machine_name }}Policy{{ policy_generics_use }} {
     type State = {{ machine_name }}State;
     type Event = {{ machine_name }}Event;
+{% if model.history_states %}
+    type History = {{ machine_name }}History;
+{% else %}
+    // W3C SCXML 3.10: this document declares no <history>, so no target list
+    // can name one.
+    type History = sce_rust_runtime::NoHistory;
+{% endif %}
     // EventSchema native lowering: `()` = schemaless (dynamic
     // `_event.data` baseline); a `<Machine>Payload` sum is emitted when a
     // transition guard reads a typed `_event.data.<field>` (NL→IR C1 Path A).
@@ -539,11 +946,10 @@ impl{{ policy_generics_decl }} StatePolicy for {{ machine_name }}Policy{{ policy
     // `()` — so without this constant a host had no route to the knowledge that
     // its driving loop must call `tick()` rather than `step()`.
     const NEEDS_EVENT_SCHEDULER: bool = {{ 'true' if model.needs_tick_driving else 'false' }};
+    // The generate manifest's `needs_parent`: what a root-start policy reads.
+    const NEEDS_PARENT: bool = {{ 'true' if model.needs_parent else 'false' }};
 {% if model.has_parallel_states or model.uses_in_predicate %}
     const HAS_ACTIVE_STATES: bool = true;
-{% endif %}
-{% if model.needs_external_flag %}
-    const HAS_EXTERNAL_EVENT_FLAG: bool = true;
 {% endif %}
 {% if model.invokes | scxml or model.invokes | hybrid or model.invokes | unsupported %}
     // §scxml-6.4: gates the engine's macrostep-end call into
@@ -596,10 +1002,12 @@ impl{{ policy_generics_decl }} StatePolicy for {{ machine_name }}Policy{{ policy
         }
     }
 
+    // W3C SCXML 3.3: a <state> with child states — exactly the states that have
+    // an initial transition. A <parallel> is not compound.
     fn is_compound_state(state: Self::State) -> bool {
         match state {
 {% for state_id, state in model.states | dictsort %}
-{% if state.initial or state.initial_children %}
+{% if state.initial_targets %}
             {{ machine_name }}State::{{ state_id | to_state_variant }} => true,
 {% endif %}
 {% endfor %}
@@ -618,33 +1026,54 @@ impl{{ policy_generics_decl }} StatePolicy for {{ machine_name }}Policy{{ policy
             _ => false,
         }
     }
+{% endif %}
 
-    fn get_parallel_regions(state: Self::State) -> &'static [Self::State] {
+    // §scxml-D-getChildStates: a state's <state>, <parallel> and <final>
+    // children, in document order — for a <parallel>, its regions.
+    fn get_child_states(state: Self::State) -> &'static [Self::State] {
         match state {
-{% for parallel_id, regions in model.parallel_regions | dictsort %}
-            {{ machine_name }}State::{{ parallel_id | to_state_variant }} => &[
-{% for region in regions %}
-                {{ machine_name }}State::{{ region | to_state_variant }},
-{% endfor %}
-            ],
+{% for state_id, state in model.states | dictsort %}
+{% if state.children %}
+            {{ machine_name }}State::{{ state_id | to_state_variant }} => &[{% for child in state.children %}{{ machine_name }}State::{{ child | to_state_variant }}{{ ", " if not loop.last }}{% endfor %}],
+{% endif %}
 {% endfor %}
             _ => &[],
         }
     }
-{% endif %}
 
-    fn is_descendant_of(desc: Self::State, anc: Self::State) -> bool {
-        let mut current = desc;
-        loop {
-            match Self::get_parent(current) {
-                None => return false,
-                Some(parent) => {
-                    if parent == anc {
-                        return true;
-                    }
-                    current = parent;
-                }
-            }
+    // §scxml-3.3: a compound state's initial transition target, as written —
+    // the engine's entry procedures dereference a <history> among them.
+    fn get_initial_targets(state: Self::State) -> &'static [::sce_rust_runtime::EntryTarget<Self::State, Self::History>] {
+        match state {
+{% for state_id, state in model.states | dictsort %}
+{% if state.initial_targets %}
+            {{ machine_name }}State::{{ state_id | to_state_variant }} => {{ et.entry_targets(state.initial_targets, model.history_states, machine_name) }},
+{% endif %}
+{% endfor %}
+            _ => &[],
+        }
+    }
+
+    // §scxml-3.2: the target of the document's own initial transition, as written.
+    fn get_document_initial_targets() -> &'static [::sce_rust_runtime::EntryTarget<Self::State, Self::History>] {
+        {{ et.entry_targets(model.initial_targets, model.history_states, machine_name) }}
+    }
+
+    // §scxml-3.10: the state a <history> is declared in.
+    fn get_history_parent(history: Self::History) -> Self::State {
+        match history {
+{% for history_id, info in model.history_states | dictsort %}
+            {{ machine_name }}History::{{ history_id | to_state_variant }} => {{ machine_name }}State::{{ info.parent | to_state_variant }},
+{% endfor %}
+        }
+    }
+
+    // §scxml-3.10.2: a <history>'s default transition target, as written.
+    fn get_history_default_targets(history: Self::History) -> &'static [::sce_rust_runtime::EntryTarget<Self::State, Self::History>] {
+        match history {
+{% for history_id, info in model.history_states | dictsort %}
+            {{ machine_name }}History::{{ history_id | to_state_variant }} => {{ et.entry_targets(info.default_targets, model.history_states, machine_name) }},
+{% endfor %}
         }
     }
 
@@ -659,9 +1088,7 @@ impl{{ policy_generics_decl }} StatePolicy for {{ machine_name }}Policy{{ policy
     fn get_event_name(event: Self::Event) -> &'static str {
         match event {
 {% for event_name in model.events | sort %}
-{% if event_name != 'Wildcard' %}
-            {{ machine_name }}Event::{{ event_name | to_event_variant }} => "{{ event_name }}",
-{% endif %}
+            {{ machine_name }}Event::{{ event_name | to_event_variant }} => "{{ event_name | event_wire_name }}",
 {% endfor %}
             {{ machine_name }}Event::Null => "",
         }
@@ -670,13 +1097,21 @@ impl{{ policy_generics_decl }} StatePolicy for {{ machine_name }}Policy{{ policy
     fn get_event_from_name(name: &str) -> Option<Self::Event> {
         match name {
 {% for event_name in model.events | sort %}
-{% if event_name != 'Wildcard' %}
-            "{{ event_name }}" => Some({{ machine_name }}Event::{{ event_name | to_event_variant }}),
-{% endif %}
+            "{{ event_name | event_wire_name }}" => Some({{ machine_name }}Event::{{ event_name | to_event_variant }}),
 {% endfor %}
             _ => None,
         }
     }
+{% if model.host_invoker_types %}
+
+    // §scxml-6.4: these invokes are run by the host, so their `done.invoke`
+    // is accepted only through `Engine::complete_host_invoke`.
+    const HOST_INVOKE_IDS: &'static [&'static str] = &[
+{% for inv in model.invokes | host_invoker %}
+        "{{ inv.invoke_id }}",
+{% endfor %}
+    ];
+{% endif %}
 
     fn get_state_name(state: Self::State) -> &'static str {
         match state {
@@ -702,87 +1137,18 @@ impl{{ policy_generics_decl }} StatePolicy for {{ machine_name }}Policy{{ policy
         {{ machine_name }}Event::Null
     }
 
-    // W3C SCXML 3.6: Get initial children of a compound state
-    //
-    // SCE Protocol-Synthesis RFC §synth-5-J-2: return type is the runtime crate's
-    // [`StateChain`] alias and the body uses `state_chain_from_slice` instead of
-    // `vec![...]` so the emitted code compiles under `--no-std` (`vec!` is a
-    // std-only macro; heapless has no equivalent).
-    fn get_initial_children(state: Self::State) -> ::sce_rust_runtime::helpers::hierarchy::StateChain<Self::State> {
-        match state {
-{% for state_id, state in model.states | dictsort %}
-{% if state.initial_children %}
-            {{ machine_name }}State::{{ state_id | to_state_variant }} => ::sce_rust_runtime::helpers::hierarchy::state_chain_from_slice([
-{% for child in state.initial_children %}
-                {{ machine_name }}State::{{ child | to_state_variant }},
-{% endfor %}
-            ]),
-{% endif %}
-{% endfor %}
-            _ => ::sce_rust_runtime::helpers::hierarchy::new_chain(),
-        }
-    }
-
-    // W3C SCXML 3.11: Get initial or history-restored child
-    fn get_initial_or_history_child(&self, state: Self::State) -> Self::State {
-        match state {
-{% for state_id, state in model.states | dictsort %}
-{% if state.initial_history_id %}
-            {{ machine_name }}State::{{ state_id | to_state_variant }} => {
-                // W3C SCXML 3.11: Check history for {{ state.initial_history_id }}
-                if let Some(ref history) = self.history_{{ state.initial_history_id }} {
-                    if let Some(&first) = history.first() {
-                        return first;
-                    }
-                }
-{% if state.initial_children %}
-                // No history, use initial child
-                {{ machine_name }}State::{{ state.initial_children[0] | to_state_variant }}
-{% else %}
-                // No history and no initial children
-                state
-{% endif %}
-            }
-{% elif state.initial_children %}
-            {{ machine_name }}State::{{ state_id | to_state_variant }} => {
-                {{ machine_name }}State::{{ state.initial_children[0] | to_state_variant }}
-            }
-{% elif state.initial %}
-            {{ machine_name }}State::{{ state_id | to_state_variant }} => {
-                {{ machine_name }}State::{{ state.initial | to_state_variant }}
-            }
-{% endif %}
-{% endfor %}
-            _ => state,
-        }
-    }
-
     // ======================================================================
-    // Mutable field accessors
+    // Run-time state the entry procedures read
     // ======================================================================
 
-    fn last_transition_is_internal(&self) -> bool {
-        self.last_transition_is_internal
-    }
-
-    fn set_last_transition_is_internal(&mut self, value: bool) {
-        self.last_transition_is_internal = value;
-    }
-
-    fn last_transition_is_targetless(&self) -> bool {
-        self.last_transition_is_targetless
-    }
-
-    fn set_last_transition_is_targetless(&mut self, value: bool) {
-        self.last_transition_is_targetless = value;
-    }
-
-    fn last_transition_source_state(&self) -> Self::State {
-        self.last_transition_source_state
-    }
-
-    fn set_last_transition_source_state(&mut self, state: Self::State) {
-        self.last_transition_source_state = state;
+    // §scxml-3.10: what a <history> recorded when its parent was last exited;
+    // None before that ever happened.
+    fn history_value(&self, history: Self::History) -> Option<&[Self::State]> {
+        match history {
+{% for history_id in model.history_states | sort %}
+            {{ machine_name }}History::{{ history_id | to_state_variant }} => self.history_{{ history_id }}.as_deref(),
+{% endfor %}
+        }
     }
 
 {% if model.has_parallel_states or model.uses_in_predicate %}
@@ -804,12 +1170,9 @@ impl{{ policy_generics_decl }} StatePolicy for {{ machine_name }}Policy{{ policy
         states: ::sce_rust_runtime::helpers::hierarchy::StateChain<Self::State>,
     ) {
         self.active_states = states;
-    }
+{% if model.needs_script_engine %}
+        self.publish_in_predicate_states();
 {% endif %}
-
-{% if model.needs_external_flag %}
-    fn set_next_event_is_external(&mut self, value: bool) {
-        self.next_event_is_external = value;
     }
 {% endif %}
 
@@ -822,6 +1185,15 @@ impl{{ policy_generics_decl }} StatePolicy for {{ machine_name }}Policy{{ policy
     fn populate_event_payload(&mut self, payload: &Self::Payload) {
         self.pending_payload = payload.clone();
     }
+{% if event_payload_lift %}
+
+    // NL→IR Item C1 Path A: …and when no typed payload rode with the event,
+    // read that view out of the `data` every other producer fills — `<send>`
+    // with `<param>`, an invoke forwarding either way, autoforward, BasicHTTP,
+    // mesh. A payload that does not read as this event's schema is returned as
+    // a refusal, which the engine raises as `error.execution`.
+{{ event_payload_lift }}
+{% endif %}
 {% endif %}
 {# The pending_event_* fields are the script `_event.*` baseline (read only by
    the needs_script_engine-gated binding in process_transition). `data` is the
@@ -829,12 +1201,17 @@ impl{{ policy_generics_decl }} StatePolicy for {{ machine_name }}Policy{{ policy
    (which reads the `Payload` sum, not this metadata) — qualify it with
    needs_script_engine so no_std (and std pure-static) machines, where
    `metadata.data` is `#[cfg(not(no_std))]`-elided / unread, don't emit the
-   override. The other flags already imply needs_script_engine. #}
-{% if (model.needs_event_data and model.needs_script_engine) or model.needs_event_type or model.needs_event_sendid or model.needs_event_origin or model.needs_event_origintype %}
+   override. `invokeid` is also read by a host-served `<send>`, which carries it
+   out (SCE_MESH.md §mesh-10.7) on a machine with no script engine, so it is
+   named here in its own right; host sends are std-only, like the field. #}
+{% if (model.needs_event_data and model.needs_script_engine) or (model.needs_event_name and model.needs_script_engine) or model.needs_event_type or model.needs_event_sendid or model.needs_event_origin or model.needs_event_origintype or model.needs_event_invokeid %}
     // W3C SCXML 5.10: Populate pending event metadata from EventWithMetadata
     // Ports C++ EventMetadataHelper::populatePolicyFromMetadata
     fn populate_event_metadata(&mut self, metadata: &sce_rust_runtime::EventMetadata) {
-{% if model.needs_event_data %}
+{% if model.needs_event_name and model.needs_script_engine %}
+        self.pending_event_arrival_name = metadata.name.clone();
+{% endif %}
+{% if model.needs_event_data and model.needs_script_engine %}
         self.pending_event_data = metadata.data.clone();
 {% endif %}
 {% if model.needs_event_type %}
@@ -860,7 +1237,10 @@ impl{{ policy_generics_decl }} StatePolicy for {{ machine_name }}Policy{{ policy
 {% if model.needs_event_name %}
         self.pending_event_name.clear();
 {% endif %}
-{% if model.needs_event_data %}
+{% if model.needs_event_name and model.needs_script_engine %}
+        self.pending_event_arrival_name.clear();
+{% endif %}
+{% if model.needs_event_data and model.needs_script_engine %}
         self.pending_event_data.clear();
 {% endif %}
 {% if model.needs_event_type %}
@@ -903,11 +1283,202 @@ impl{{ policy_generics_decl }} StatePolicy for {{ machine_name }}Policy{{ policy
         self.do_execute_pending_invokes(engine);
     }
 {% endif %}
+{% if static_saved_shape and not no_std and model.invokes | scxml_family %}
+
+    // SCE Accepted Subset 2.15, "Saving and restoring": a saved state names the
+    // `<invoke>`s whose child is running, and a restore starts each again. This
+    // document saves only when every invoke is a static child session, a hybrid
+    // one among declared candidates, or one a declared host invoker serves.
+    fn invoke_owner(invoke_id: &str) -> Option<Self::State> {
+        match invoke_id {
+{% for invoke_info in model.invokes | scxml_family %}
+            "{{ invoke_info.invoke_id }}" => Some({{ machine_name }}State::{{ invoke_info.state_name | to_state_variant }}),
+{% endfor %}
+            _ => None,
+        }
+    }
+
+    // W3C SCXML 6.4: running means started and not ended. The policy keeps an
+    // ended child until its state exits, so the ending is what is asked here;
+    // an invocation whose `done.invoke` is queued or taken must not run twice.
+    // A hybrid invoke holds its child in the slot of the candidate it chose, and
+    // at most one is filled.
+    fn running_invokes(&self) -> Vec<&'static str> {
+        let mut running = Vec::new();
+{% for invoke_info in model.invokes | scxml_family %}
+{% if invoke_info.candidates %}
+        if ({% for candidate in invoke_info.candidates %}self.child_{{ invoke_info.field_suffix }}_{{ candidate.stem }}.is_some(){{ " || " if not loop.last }}{% endfor %}) && !self.pending_done_invoke_{{ invoke_info.field_suffix }} {
+{% else %}
+        if self.child_{{ invoke_info.field_suffix }}.is_some() && !self.pending_done_invoke_{{ invoke_info.field_suffix }} {
+{% endif %}
+            running.push("{{ invoke_info.invoke_id }}");
+        }
+{% endfor %}
+        running
+    }
+
+    fn restart_invoke(&mut self, invoke_id: &str, engine: &mut Engine<Self>) {
+        match invoke_id {
+{% for invoke_info in model.invokes | scxml_family %}
+            "{{ invoke_info.invoke_id }}" => self.defer_invoke_{{ invoke_info.field_suffix }}(engine),
+{% endfor %}
+            _ => {}
+        }
+    }
+{% endif %}
+{% if static_saved_shape and not no_std and model.invokes | host_invoker %}
+
+    // SCE Accepted Subset 2.15, "Saving and restoring": a saved state names the
+    // `<invoke>`s a declared host invoker is running, and a restore starts each
+    // again from the request it saved. What it may name is what the document
+    // hands to a host.
+    fn host_invoke_owner(processor_type: &str, invoke_id: &str) -> Option<Self::State> {
+        match (processor_type, invoke_id) {
+{% for invoke_info in model.invokes | host_invoker %}
+            ("{{ invoke_info.invoke_type | escape_rust }}", "{{ invoke_info.invoke_id | escape_rust }}") => Some({{ machine_name }}State::{{ invoke_info.state_name | to_state_variant }}),
+{% endfor %}
+            _ => None,
+        }
+    }
+{% endif %}
+{% if model.invokes | scxml_family %}
+
+    // W3C SCXML 6.2 + 6.4: a delayed `<send target="#_<invokeid>">` whose wait
+    // is over, delivered by name. A child whose session has reached its final
+    // state has ended, and is not there to take it (W3C SCXML C.1).
+    fn deliver_to_invocation(&mut self, invoke_id: &str, event_name: &str, event_data: &str) -> bool {
+{% for invoke_info in model.invokes | scxml_family %}
+{% set child_targets = invoke_info.candidates if invoke_info.candidates else [{'stem': none}] %}
+        if invoke_id == "{{ invoke_info.invoke_id }}" {
+{% for target in child_targets %}
+{% set slot = ('self.child_' ~ invoke_info.field_suffix ~ '_' ~ target.stem) if invoke_info.candidates else ('self.child_' ~ invoke_info.field_suffix) %}
+            if let Some(ref mut child) = {{ slot }} {
+                if !child.is_in_final_state() {
+                    child.deliver_by_name(event_name, event_data);
+                    return true;
+                }
+            }
+{% endfor %}
+            return false;
+        }
+{% endfor %}
+        false
+    }
+
+    // W3C SCXML 6.4 + C.1: whether `#_<invokeid>` names an invocation running
+    // now — one whose session has reached its final state has ended.
+    fn is_invocation_running(&self, invoke_id: &str) -> bool {
+{% for invoke_info in model.invokes | scxml_family %}
+{% set child_targets = invoke_info.candidates if invoke_info.candidates else [{'stem': none}] %}
+        if invoke_id == "{{ invoke_info.invoke_id }}" {
+{% for target in child_targets %}
+{% set slot = ('self.child_' ~ invoke_info.field_suffix ~ '_' ~ target.stem) if invoke_info.candidates else ('self.child_' ~ invoke_info.field_suffix) %}
+            if let Some(ref child) = {{ slot }} {
+                if !child.is_in_final_state() {
+                    return true;
+                }
+            }
+{% endfor %}
+            return false;
+        }
+{% endfor %}
+        false
+    }
+{% endif %}
+{% if model.invokes | scxml %}
+
+    // W3C SCXML C.1: deliver an event addressed to a child's published
+    // location. The parent mints each child's session id, and that id is what
+    // the child's `_ioprocessors` entry names, so a `<send>` whose target
+    // decodes to one of them is addressed to that child rather than to this
+    // machine — the routing half of C.1, which makes the published location a
+    // usable target rather than a string that merely compares equal.
+    fn deliver_to_child_session(&mut self, child_session_id: &str, event_name: &str, event_data: &str) -> bool {
+        if !self.is_child_session_running(child_session_id) {
+            return false;
+        }
+{% for invoke_info in model.invokes | scxml %}
+        if self.active_invokes
+            .get("{{ invoke_info.invoke_id }}")
+            .map_or(false, |cs| cs.session_id == child_session_id)
+        {
+            if let Some(ref mut child) = self.child_{{ invoke_info.field_suffix }} {
+                child.deliver_by_name(event_name, event_data);
+                return true;
+            }
+        }
+{% endfor %}
+        false
+    }
+
+    // W3C SCXML C.1: whether a session id names a child of this machine that
+    // is running now — the test `deliver_to_child_session` makes.
+    fn is_child_session_running(&self, child_session_id: &str) -> bool {
+        if child_session_id.is_empty() {
+            return false;
+        }
+{% for invoke_info in model.invokes | scxml %}
+        if self.active_invokes
+            .get("{{ invoke_info.invoke_id }}")
+            .map_or(false, |cs| cs.session_id == child_session_id)
+        {
+            if let Some(ref child) = self.child_{{ invoke_info.field_suffix }} {
+                if !child.is_in_final_state() {
+                    return true;
+                }
+            }
+        }
+{% endfor %}
+        false
+    }
+{% endif %}
+{% if not no_std %}
+
+    // W3C SCXML 6.2 + 6.4: a delayed `<send target="#_parent">` whose wait is
+    // over, with the payload an immediate one carries. It waited in this
+    // machine's own queue, so `<cancel>` reached it and a child that ended
+    // first dropped it — the engine dispatches nothing once final.
+    fn deliver_to_parent(&mut self, event_name: &str, event_data: &str) -> bool {
+        if let Some(ref parent_queue) = self.parent_external_queue {
+            if let Ok(mut q) = parent_queue.lock() {
+                q.push((event_name.to_string(), event_data.to_string()));
+                return true;
+            }
+        }
+        false
+    }
+
+    // W3C SCXML C.1: whether a session invoked this one — the queue the
+    // invoking parent installs is the link to it.
+    fn has_parent_session(&self) -> bool {
+        self.parent_external_queue.is_some()
+    }
+{% endif %}
 {% if model.invokes | scxml or model.invokes | hybrid %}
 
     // W3C SCXML 6.4: Tick child state machines
     fn tick_children(&mut self, engine: &mut Engine<Self>) {
         self.do_tick_children(engine);
+    }
+
+    // W3C SCXML 6.4: a running child's timers are deadlines of this machine's
+    // clock, since this machine is what ticks it.
+    fn next_child_deadline_ms(&self) -> Option<u64> {
+        self.do_next_child_deadline_ms()
+    }
+
+    // W3C SCXML 6.4: an invoked session reads its parent's time — on a
+    // host-owned clock that is a value, moved here as the parent opens a turn.
+    fn follow_clock_in_children(&mut self, clock: sce_rust_runtime::SceClock) {
+{% for invoke_info in model.invokes | scxml_family %}
+{% set child_targets = invoke_info.candidates if invoke_info.candidates else [{'stem': none}] %}
+{% for target in child_targets %}
+{% set slot = ('self.child_' ~ invoke_info.field_suffix ~ '_' ~ target.stem) if invoke_info.candidates else ('self.child_' ~ invoke_info.field_suffix) %}
+        if let Some(ref mut child) = {{ slot }} {
+            child.follow_clock(clock);
+        }
+{% endfor %}
+{% endfor %}
     }
 {% endif %}
 {% if model.invokes | scxml | selectattr('autoforward') | list %}
@@ -931,302 +1502,6 @@ impl{{ policy_generics_decl }} StatePolicy for {{ machine_name }}Policy{{ policy
         self.do_execute_finalize_for_child_event(event, engine);
     }
 {% endif %}
-}
-
-// ======================================================================
-// Helper impl block (try_transition_in_state, conflict resolution, etc.)
-// ======================================================================
-
-impl{{ policy_generics_decl }} {{ machine_name }}Policy{{ policy_generics_use }} {
-    // W3C SCXML 3.12: Helper method for hierarchical transition checking
-{% if model.has_parallel_states %}
-    fn try_transition_in_state(
-        &mut self,
-        check_state: {{ machine_name }}State,
-        event: {{ machine_name }}Event,
-        current_state: &mut {{ machine_name }}State,
-        transition_taken: &mut bool,
-        engine: &mut sce_rust_runtime::Engine<Self>,
-        mut collect_mode: Option<&mut TransitionList>,
-    ) -> bool {
-{% else %}
-    fn try_transition_in_state(
-        &mut self,
-        check_state: {{ machine_name }}State,
-        event: {{ machine_name }}Event,
-        current_state: &mut {{ machine_name }}State,
-        transition_taken: &mut bool,
-        engine: &mut sce_rust_runtime::Engine<Self>,
-    ) -> bool {
-{% endif %}
-        match check_state {
-{% for state_id, state in model.states | dictsort %}
-{% if state.transitions %}
-            {{ machine_name }}State::{{ state_id | to_state_variant }} => {
-{# Separate event-triggered and eventless transitions #}
-{% set event_transitions = state.transitions | selectattr("event") | list %}
-{% set eventless_transitions = state.transitions | rejectattr("event") | list %}
-{% if event_transitions %}
-                // W3C SCXML 3.12: Event-triggered transitions (document order)
-{% for trans in event_transitions %}
-{% if trans.needs_string_matching %}
-                // W3C SCXML 5.9.3: Runtime event descriptor matching
-                if event != {{ machine_name }}Event::Null && sce_rust_runtime::helpers::event_matching::matches_event_descriptor(
-                    Self::get_event_name(event), "{{ trans.event }}") {
-{% elif trans.matching_enum_values | length == 1 %}
-                // W3C SCXML 5.9.3: Direct enum comparison
-                if event == {{ machine_name }}Event::{{ trans.matching_enum_values[0] | to_event_variant }} {
-{% elif trans.matching_enum_values | length > 1 %}
-                // W3C SCXML 5.9.3: Precomputed prefix match for "{{ trans.event }}"
-                if {% for ev in trans.matching_enum_values %}event == {{ machine_name }}Event::{{ ev | to_event_variant }}{{ ' || ' if not loop.last }}{% endfor %} {
-{% else %}
-                // W3C SCXML 5.9.3: Event "{{ trans.event }}" has no matching enum values
-                if false {
-{% endif %}
-{% if trans.cond %}
-{% set native_guard = trans.native_payload_guard %}
-{% if trans.is_pure_in_predicate %}
-                    // W3C SCXML 5.9.2: Pure In() predicate
-                    if {{ trans.cond_cpp | replace('this->', '') | replace('isStateActive', 'self.is_state_active') }} {
-{% elif native_guard %}
-                    // NL→IR Item C1 Path A: native typed `_event.data` guard
-                    if {{ native_guard }} {
-{% elif model.needs_script_engine %}
-                    // W3C SCXML 5.9: Script engine guard
-                    if self.safe_evaluate_guard("{{ trans.cond | to_lua_guard | escape_rust }}", engine) {
-{% else %}
-                    // W3C SCXML 5.9: cond="{{ trans.cond }}" decided at build time
-                    if {{ 'true' if trans.cond_constant else 'false' }} {
-{% endif %}
-{% endif %}
-                        // W3C SCXML 3.4: Track transition metadata
-                        self.last_transition_source_state = check_state;
-{% if model.has_transition_actions %}
-                        self.last_transition_index = {{ trans.transition_index }};
-                        self.has_transition_actions = {{ 'true' if trans.actions else 'false' }};
-{% endif %}
-                        self.last_transition_is_internal = {{ 'true' if (trans.type == 'internal' or not trans.target) else 'false' }};
-                        self.last_transition_is_targetless = {{ 'true' if not trans.target else 'false' }};
-
-{% if model.has_parallel_states %}
-                        if let Some(ref mut collect) = collect_mode {
-{% if trans.target %}
-{% if trans.history_target is defined and trans.history_target %}
-                            // W3C SCXML 3.11: History transition - resolve at runtime
-                            let resolved_target = self.resolve_history_target_{{ trans.history_target }}();
-                            collect.push_bounded(TransitionInfo {
-                                source: check_state, target: resolved_target,
-                                transition_index: {{ trans.transition_index }},
-                                has_actions: {{ 'true' if trans.actions else 'false' }},
-                                is_internal: {{ 'true' if (trans.type == 'internal' or not trans.target) else 'false' }},
-                                is_targetless: false,
-                            });
-{% else %}
-                            collect.push_bounded(TransitionInfo {
-                                source: check_state, target: {{ machine_name }}State::{{ trans.target | to_state_variant }},
-                                transition_index: {{ trans.transition_index }},
-                                has_actions: {{ 'true' if trans.actions else 'false' }},
-                                is_internal: {{ 'true' if (trans.type == 'internal' or not trans.target) else 'false' }},
-                                is_targetless: false,
-                            });
-{% endif %}
-{% else %}
-                            collect.push_bounded(TransitionInfo {
-                                source: check_state, target: check_state,
-                                transition_index: {{ trans.transition_index }},
-                                has_actions: {{ 'true' if trans.actions else 'false' }},
-                                is_internal: true, is_targetless: true,
-                            });
-{% endif %}
-                        } else {
-{% endif %}
-{% if trans.target %}
-{% if trans.history_target is defined and trans.history_target %}
-                            // W3C SCXML 3.11: History transition
-                            *current_state = self.resolve_history_target_{{ trans.history_target }}();
-{% else %}
-                            *current_state = {{ machine_name }}State::{{ trans.target | to_state_variant }};
-{% endif %}
-                            *transition_taken = true;
-{% else %}
-                            // W3C SCXML 5.9.2: Targetless internal transition
-                            *transition_taken = true;
-{% endif %}
-{% if model.has_parallel_states %}
-                        }
-{% endif %}
-                        return true;
-{% if trans.cond %}
-                    }
-{% endif %}
-                }
-{% endfor %}
-{% endif %}
-{% if eventless_transitions %}
-{# Determine if any eventless transition has a guard condition #}
-{% set has_any_guard = eventless_transitions | selectattr("cond") | list %}
-                // W3C SCXML 3.13: Eventless transitions
-                if event == {{ machine_name }}Event::Null {
-{% if has_any_guard %}
-{# Guarded eventless transitions: use if/else if/else chain #}
-{% for transition in eventless_transitions %}
-{% if transition.cond %}
-{% set native_guard = transition.native_payload_guard %}
-{% if transition.is_pure_in_predicate %}
-                    {% if not loop.first %}} else {% endif %}if {{ transition.cond_cpp | replace('this->', '') | replace('isStateActive', 'self.is_state_active') }} {
-{% elif native_guard %}
-                    {% if not loop.first %}} else {% endif %}if {{ native_guard }} {
-{% elif model.needs_script_engine %}
-                    {% if not loop.first %}} else {% endif %}if self.safe_evaluate_guard("{{ transition.cond | to_lua_guard | escape_rust }}", engine) {
-{% else %}
-                    {% if not loop.first %}} else {% endif %}if {{ 'true' if transition.cond_constant else 'false' }} { // W3C SCXML 5.9: cond="{{ transition.cond }}" decided at build time
-{% endif %}
-{% else %}
-{# Unconditional fallback in a guarded chain = else branch #}
-{% if not loop.first %}
-                    } else {
-{% else %}
-{# First transition is unconditional but there are guards later - just execute directly #}
-{% endif %}
-{% endif %}
-                        // W3C SCXML 3.4: Track transition metadata
-                        self.last_transition_source_state = check_state;
-{% if model.has_transition_actions %}
-                        self.last_transition_index = {{ transition.transition_index }};
-                        self.has_transition_actions = {{ 'true' if transition.actions else 'false' }};
-{% endif %}
-                        self.last_transition_is_internal = {{ 'true' if transition.type == 'internal' else 'false' }};
-                        self.last_transition_is_targetless = {{ 'true' if not transition.target else 'false' }};
-{% if model.has_parallel_states %}
-                        if let Some(ref mut collect) = collect_mode {
-{% if transition.target %}
-{% if transition.history_target is defined and transition.history_target %}
-                            let resolved_target = self.resolve_history_target_{{ transition.history_target }}();
-                            collect.push_bounded(TransitionInfo {
-                                source: check_state, target: resolved_target,
-                                transition_index: {{ transition.transition_index }},
-                                has_actions: {{ 'true' if transition.actions else 'false' }},
-                                is_internal: {{ 'true' if transition.type == 'internal' else 'false' }},
-                                is_targetless: false,
-                            });
-{% else %}
-                            collect.push_bounded(TransitionInfo {
-                                source: check_state, target: {{ machine_name }}State::{{ transition.target | to_state_variant }},
-                                transition_index: {{ transition.transition_index }},
-                                has_actions: {{ 'true' if transition.actions else 'false' }},
-                                is_internal: {{ 'true' if transition.type == 'internal' else 'false' }},
-                                is_targetless: false,
-                            });
-{% endif %}
-{% else %}
-                            collect.push_bounded(TransitionInfo {
-                                source: check_state, target: check_state,
-                                transition_index: {{ transition.transition_index }},
-                                has_actions: {{ 'true' if transition.actions else 'false' }},
-                                is_internal: true, is_targetless: true,
-                            });
-{% endif %}
-                        } else {
-{% endif %}
-{% if transition.target %}
-{% if transition.history_target is defined and transition.history_target %}
-                            *current_state = self.resolve_history_target_{{ transition.history_target }}();
-{% else %}
-                            *current_state = {{ machine_name }}State::{{ transition.target | to_state_variant }};
-{% endif %}
-                            *transition_taken = true;
-{% else %}
-                            *transition_taken = true;
-{% endif %}
-{% if model.has_parallel_states %}
-                        }
-{% endif %}
-                        return true;
-{% endfor %}
-                    }
-{% else %}
-{# No guards at all: unconditional eventless transitions - just execute the first one #}
-{% set transition = eventless_transitions[0] %}
-                    // Unconditional eventless transition
-                    self.last_transition_source_state = check_state;
-{% if model.has_transition_actions %}
-                    self.last_transition_index = {{ transition.transition_index }};
-                    self.has_transition_actions = {{ 'true' if transition.actions else 'false' }};
-{% endif %}
-                    self.last_transition_is_internal = {{ 'true' if transition.type == 'internal' else 'false' }};
-                    self.last_transition_is_targetless = {{ 'true' if not transition.target else 'false' }};
-{% if model.has_parallel_states %}
-                    if let Some(ref mut collect) = collect_mode {
-{% if transition.target %}
-{% if transition.history_target is defined and transition.history_target %}
-                        let resolved_target = self.resolve_history_target_{{ transition.history_target }}();
-                        collect.push_bounded(TransitionInfo {
-                            source: check_state, target: resolved_target,
-                            transition_index: {{ transition.transition_index }},
-                            has_actions: {{ 'true' if transition.actions else 'false' }},
-                            is_internal: {{ 'true' if transition.type == 'internal' else 'false' }},
-                            is_targetless: false,
-                        });
-{% else %}
-                        collect.push_bounded(TransitionInfo {
-                            source: check_state, target: {{ machine_name }}State::{{ transition.target | to_state_variant }},
-                            transition_index: {{ transition.transition_index }},
-                            has_actions: {{ 'true' if transition.actions else 'false' }},
-                            is_internal: {{ 'true' if transition.type == 'internal' else 'false' }},
-                            is_targetless: false,
-                        });
-{% endif %}
-{% else %}
-                        collect.push_bounded(TransitionInfo {
-                            source: check_state, target: check_state,
-                            transition_index: {{ transition.transition_index }},
-                            has_actions: {{ 'true' if transition.actions else 'false' }},
-                            is_internal: true, is_targetless: true,
-                        });
-{% endif %}
-                    } else {
-{% endif %}
-{% if transition.target %}
-{% if transition.history_target is defined and transition.history_target %}
-                        *current_state = self.resolve_history_target_{{ transition.history_target }}();
-{% else %}
-                        *current_state = {{ machine_name }}State::{{ transition.target | to_state_variant }};
-{% endif %}
-                        *transition_taken = true;
-{% else %}
-                        *transition_taken = true;
-{% endif %}
-{% if model.has_parallel_states %}
-                    }
-{% endif %}
-                    return true;
-{% endif %}
-                }
-{% endif %}
-                false
-            }
-{% else %}
-            {{ machine_name }}State::{{ state_id | to_state_variant }} => false,
-{% endif %}
-{% endfor %}
-            _ => false,
-        }
-    }
-
-{% for history_id, history_info in model.history_states | dictsort %}
-    // W3C SCXML 3.11: Resolve history target for {{ history_id }}
-    fn resolve_history_target_{{ history_id }}(&self) -> {{ machine_name }}State {
-        if let Some(ref recorded) = self.history_{{ history_id }} {
-            if let Some(&first) = recorded.first() {
-                return first;
-            }
-        }
-        // No history recorded - use default transition target
-        {{ machine_name }}State::{{ history_info.leaf_target | to_state_variant }}
-    }
-{% endfor %}
-
-{% include 'conflict_resolution.rs.jinja2' %}
 }
 {% if model.on_sample_links %}
 

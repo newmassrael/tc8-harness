@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {# W3C SCXML 6.3: Cancel delayed send event.
@@ -7,9 +7,37 @@
    is rejected at parse time by the SCXML parser (parser.rs cancel branch,
    wire `validation/require-either`). No `{% else %}` arm — parser
    guarantees one branch matches. #}
-{% if action.sendidexpr and model.needs_script_engine %}
-            // W3C SCXML 6.3: Dynamic sendid evaluation (test210)
-            run {
+{% import 'block_exit.kt.jinja2' as block_exit %}
+{% if action.native_sendid %}
+            // `datamodel="sce-static"`: the id is a string computed from the
+            // machine's fields now (`Action::native_sendid`); no script engine is
+            // asked. An id no send holds cancels nothing; an operation that fails
+            // cannot be evaluated, which raises error.execution and ends the block.
+{% if action.native_sendid_fails %}
+            if (run cancel@{
+                val sendidToCancel: String? = try {
+                    {{ action.native_sendid }}
+                } catch (_: com.sce.forge.runtime.AlgorithmFailure) {
+                    null
+                }
+                if (sendidToCancel == null) {
+                    raisePlatformError({{ machine_name }}Event.Error.Execution, "<cancel> sendidexpr failed to evaluate")
+                    true
+                } else {
+                    cancelSend(sendidToCancel)
+                    false
+                }
+            }) {
+                {{ block_exit.stmt(_in_foreach_body is defined and _in_foreach_body, in_run_block is defined and in_run_block) }}
+            }
+{% else %}
+            cancelSend({{ action.native_sendid }})
+{% endif %}
+{% elif action.sendidexpr and model.needs_script_engine %}
+            // W3C SCXML 6.3: Dynamic sendid evaluation (test210). A sendidexpr
+            // that fails raises error.execution (W3C SCXML 5.9), and the error
+            // ends the block (W3C SCXML 4.9).
+            if (run cancel@{
                 ensureScriptEngine()
                 val engineCancel = scriptEngine ?: error("scriptEngine is required (codegen invariant: needs_script_engine == true)")
                 val sidCancel = scriptSessionId ?: error("scriptSessionId must be initialized after ensureScriptEngine() (codegen invariant)")
@@ -17,7 +45,13 @@
                     val v = engineCancel.evaluateExpr(sidCancel, {{ action.sendidexpr | to_script_source_expr }})
                     val sendidToCancel = v?.toString() ?: ""
                     if (sendidToCancel.isNotEmpty()) cancelSend(sendidToCancel)
-                } catch (_: Exception) {}
+                    false
+                } catch (_: Exception) {
+                    raisePlatformError({{ machine_name }}Event.Error.Execution, "<cancel> sendidexpr failed to evaluate")
+                    true
+                }
+            }) {
+                {{ block_exit.stmt(_in_foreach_body is defined and _in_foreach_body, in_run_block is defined and in_run_block) }}
             }
 {% elif action.sendid %}
             cancelSend("{{ action.sendid | escape_kotlin }}")

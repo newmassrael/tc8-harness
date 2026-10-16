@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
@@ -13,6 +13,16 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+{# `round(x)` lowers to C99 `llround` and `floor(x)` to C99 `floor`, both
+   declared in <math.h>. Conditional for the same reason as the C++ template:
+   an unused header in every file that does neither is noise, and the condition
+   reads the emitted bodies so it cannot drift from them.
+   ⚠ ONE CLAUSE PER LOWERED <math.h> NAME — see the C++ template. #}
+{% set body = functions | map(attribute='expr') | join(' ') %}
+{% set needs_math = 'llround' in body or 'floor(' in body %}
+{% if needs_math %}
+#include <math.h>
+{% endif %}
 {% if all_imports %}
 {% for imp in all_imports %}
 {{ imp.include_stmt }}
@@ -33,8 +43,75 @@
 {% endif %}
 {% endif %}
 static inline {{ func.ret_type }} {{ func.name }}({{ func.params }}) {
+{# Every output takes the same parameters; one this output does not read is
+   unread on purpose, and C11 has no attribute that says so. #}
+{% for p in func.unread %}
+    (void){{ p }};
+{% endfor %}
     return {{ func.expr }};
 }
 {% endfor %}
+{% if holder %}
+
+/* Every output of one activation. */
+typedef struct {
+{% for o in holder.outputs %}
+    {{ o.type }} {{ o.field }};
+{% endfor %}
+} {{ holder.symbols.outputs }};
+
+/* The values `previous()` reads, kept from one activation to the next.
+ * `{{ holder.symbols.update }}` is one activation: every output is computed
+ * from this activation's inputs and the kept values, and only then is each
+ * kept value replaced by what its field holds now. */
+typedef struct {
+{% for c in holder.cells %}
+    {{ c.type }} {{ c.name }};
+{% endfor %}
+} {{ holder.symbols.holder }};
+
+{% set this = holder.self_name %}
+{% set out = holder.out_name %}
+/* Every kept value back to its field's `sce:initial`. */
+static inline void {{ holder.symbols.reset }}({{ holder.symbols.holder }} *{{ this }}) {
+{% for c in holder.cells %}
+    {{ this }}->{{ c.name }} = {{ c.initial }};
+{% endfor %}
+}
+
+/* A holder whose kept values are at their fields' `sce:initial`. */
+static inline void {{ holder.symbols.new }}({{ holder.symbols.holder }} *{{ this }}) {
+    {{ holder.symbols.reset }}({{ this }});
+}
+{% if holder.symbols.restored %}
+
+/* A holder whose kept values of retained fields are the ones the host
+ * stored, and every other at its field's `sce:initial`. */
+static inline void {{ holder.symbols.restored }}({{ holder.symbols.holder }} *{{ this }}, {{ holder.restore_params }}) {
+    {{ holder.symbols.reset }}({{ this }});
+{% for c in holder.cells %}
+{% if c.restored_arg %}
+    {{ this }}->{{ c.name }} = {{ c.restored_arg }};
+{% endif %}
+{% endfor %}
+}
+{% endif %}
+
+/* One activation. */
+static inline {{ holder.symbols.outputs }} {{ holder.symbols.update }}({{ holder.symbols.holder }} *{{ this }}{% if holder.input_params %}, {{ holder.input_params }}{% endif %}) {
+    {{ holder.symbols.outputs }} {{ out }};
+{% for o in holder.outputs %}
+    {{ out }}.{{ o.field }} = {{ o.fn }}({{ holder.input_args }}{% for c in holder.cells %}{% if holder.input_args or not loop.first %}, {% endif %}{{ this }}->{{ c.name }}{% endfor %});
+{% endfor %}
+{% for c in holder.cells %}
+{% if c.from_output %}
+    {{ this }}->{{ c.name }} = {{ out }}.{{ c.source_field }};
+{% else %}
+    {{ this }}->{{ c.name }} = {{ c.source }};
+{% endif %}
+{% endfor %}
+    return {{ out }};
+}
+{% endif %}
 
 #endif  /* {{ guard }} */

@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
@@ -10,9 +10,62 @@
 
 package com.sce.generated.{{ package }}
 
+{% if is_open %}
+{# `sce:strict-variants="false"`: a value no variant declares is legal, and a
+   Kotlin enum class cannot hold one. The type therefore carries the value
+   and names the declared ones in its companion, spelled as every other
+   backend spells them. #}
+@JvmInline
+@OptIn(ExperimentalUnsignedTypes::class)
+value class {{ enum_name }}(val raw: {{ underlying_type }}) {
+    companion object {
+{% for v in variants %}
+        val {{ v.name }} = {{ enum_name }}({{ v.value }})
+{% endfor %}
+
+        /** The value [raw] stands for. Total: the declared set is open. */
+        fun fromUnderlying(raw: {{ underlying_type }}) = {{ enum_name }}(raw)
+    }
+
+    /** The carrier value this holds. */
+    fun toUnderlying(): {{ underlying_type }} = raw
+
+    /**
+     * The name the document declares for this value, or null for a value
+     * the open set holds without naming.
+     */
+    fun declaredName(): String? = when (this) {
+{% for v in variants %}
+        {{ v.name }} -> "{{ v.declared | escape_kotlin }}"
+{% endfor %}
+        else -> null
+    }
+}
+{% else %}
 @OptIn(ExperimentalUnsignedTypes::class)
 enum class {{ enum_name }}(val raw: {{ underlying_type }}) {
 {% for v in variants %}
     {{ v.name }}({{ v.value }}),
 {% endfor %}
+    ;
+
+    /** The carrier value this variant declares. */
+    fun toUnderlying(): {{ underlying_type }} = raw
+
+    /** The name the document declares for this variant. */
+    fun declaredName(): String = when (this) {
+{% for v in variants %}
+        {{ v.name }} -> "{{ v.declared | escape_kotlin }}"
+{% endfor %}
+    }
+
+    companion object {
+        /**
+         * The variant [raw] declares, or null — the declared set is closed,
+         * so a value outside it is not a value of this type.
+         */
+        fun fromUnderlying(raw: {{ underlying_type }}): {{ enum_name }}? =
+            entries.firstOrNull { it.raw == raw }
+    }
 }
+{% endif %}

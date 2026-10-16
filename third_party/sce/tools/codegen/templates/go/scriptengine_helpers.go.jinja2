@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {#
@@ -54,6 +54,60 @@ func (p *{{ machine_name }}Policy) ensureScriptEngine() {
    field the seed read from is gone with it. #}
 	p.scriptEngineInitialized = true
 }
+
+{# W3C SCXML 5.2/5.3: bind one state-local `<data>` — what binding means for
+   it, whichever binding decides WHEN: early binding runs it for every state at
+   document load, late binding on the state's first entry (bindStateData). One
+   macro, so the two cannot disagree about a `src`, an `expr` or content.
+   Expects `engine`, `sessionID` and `eng` in scope. #}
+{% macro bind_state_data_var(var) %}
+{% if var.src %}
+{% set src_file = var.src | replace("file:", "") %}
+	// W3C SCXML 5.2.2: Load {{ var.id }} from src="{{ var.src }}"
+	{
+		basePath := filepath.Join("..", "..", "..", "..", "..", "{{ model.scxml_base_path }}")
+		if srcData, err := sce.LoadFileContent(filepath.Join(basePath, "{{ src_file }}")); err == nil {
+			sce.InitializeVariableFromContent(engine, sessionID, "{{ var.id }}", srcData)
+		}
+	}
+{% elif var.expr %}
+{% set is_function_expr = (var.expr | trim) is startingwith('function') %}
+{% if is_function_expr %}
+	if err := engine.ExecuteScript(sessionID, `{{ var.id }} = {{ var.expr | to_lua_expr }}`); err != nil {
+{% if 'error.execution' in model.events %}
+		eng.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<data id='{{ var.id }}'> function expression failed"))
+{% endif %}
+	}
+{% else %}
+	{
+		result, err := engine.EvaluateExpression(sessionID, `{{ var.expr | to_lua_expr }}`)
+		if err == nil {
+			_ = engine.SetVariable(sessionID, "{{ var.id }}", result)
+		} else {
+{% if 'error.execution' in model.events %}
+			eng.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<data id='{{ var.id }}'> expr failed to evaluate"))
+{% endif %}
+			_ = engine.SetVariable(sessionID, "{{ var.id }}", nil)
+		}
+	}
+{% endif %}
+{% elif var.content %}
+{% if (var.content | trim) is startingwith('<') %}
+	_ = engine.SetVariable(sessionID, "{{ var.id }}", `{{ var.content }}`)
+{% else %}
+	{
+		result, err := engine.EvaluateExpression(sessionID, `{{ var.content | to_lua_data_content }}`)
+		if err == nil {
+			_ = engine.SetVariable(sessionID, "{{ var.id }}", result)
+		} else {
+			_ = engine.SetVariable(sessionID, "{{ var.id }}", `{{ var.content | normalize_ws }}`)
+		}
+	}
+{% endif %}
+{% else %}
+	_ = engine.SetVariable(sessionID, "{{ var.id }}", nil)
+{% endif %}
+{% endmacro %}
 
 // InitializeDataModel sets up datamodel via script engine (W3C SCXML 5.3).
 func (p *{{ machine_name }}Policy) InitializeDataModel(eng *sce.Engine[{{ machine_name }}State, {{ machine_name }}Event]) {
@@ -127,43 +181,7 @@ func (p *{{ machine_name }}Policy) InitializeDataModel(eng *sce.Engine[{{ machin
 {% if state.datamodel %}
 	// W3C SCXML 5.3: Early binding - Initialize state {{ state_id }} datamodel
 {% for var in state.datamodel %}
-{% if var.expr %}
-{% set is_function_expr = (var.expr | trim) is startingwith('function') %}
-{% if is_function_expr %}
-	if err := engine.ExecuteScript(sessionID, `{{ var.id }} = {{ var.expr | to_lua_expr }}`); err != nil {
-{% if 'error.execution' in model.events %}
-		eng.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<data id='{{ var.id }}'> function expression failed"))
-{% endif %}
-	}
-{% else %}
-	{
-		result, err := engine.EvaluateExpression(sessionID, `{{ var.expr | to_lua_expr }}`)
-		if err == nil {
-			_ = engine.SetVariable(sessionID, "{{ var.id }}", result)
-		} else {
-{% if 'error.execution' in model.events %}
-			eng.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<data id='{{ var.id }}'> expr failed to evaluate"))
-{% endif %}
-			_ = engine.SetVariable(sessionID, "{{ var.id }}", nil)
-		}
-	}
-{% endif %}
-{% elif var.content %}
-{% if (var.content | trim) is startingwith('<') %}
-	_ = engine.SetVariable(sessionID, "{{ var.id }}", `{{ var.content }}`)
-{% else %}
-	{
-		result, err := engine.EvaluateExpression(sessionID, `{{ var.content | to_lua_data_content }}`)
-		if err == nil {
-			_ = engine.SetVariable(sessionID, "{{ var.id }}", result)
-		} else {
-			_ = engine.SetVariable(sessionID, "{{ var.id }}", `{{ var.content | normalize_ws }}`)
-		}
-	}
-{% endif %}
-{% else %}
-	_ = engine.SetVariable(sessionID, "{{ var.id }}", nil)
-{% endif %}
+{{ bind_state_data_var(var) }}
 {% endfor %}
 {% endif %}
 {% endfor %}
@@ -194,21 +212,65 @@ func (p *{{ machine_name }}Policy) InitializeDataModel(eng *sce.Engine[{{ machin
 		p.pendingParams = nil
 	}
 }
+{% set late = namespace(any=false) %}
+{% for state_id, state in model.states | dictsort %}{% if state.datamodel %}{% set late.any = true %}{% endif %}{% endfor %}
+{% if model.binding == 'late' and late.any %}
+
+// bindStateData binds one state's <data> — what late binding runs on the
+// state's first entry (§scxml-D-enterStates: `if binding == "late" and
+// s.isFirstEntry`). The engine decides WHEN (ClaimLateBindingFirstEntry);
+// this is only WHAT, the same per-variable binding early binding runs at load.
+func (p *{{ machine_name }}Policy) bindStateData(state {{ machine_name }}State, eng *sce.Engine[{{ machine_name }}State, {{ machine_name }}Event]) {
+	p.ensureScriptEngine()
+	engine := p.ScriptEngine
+	sessionID := p.SessionID
+	switch state {
+{% for state_id, state in model.states | dictsort %}
+{% if state.datamodel %}
+	case {{ machine_name }}State{{ state_id | to_state_variant }}:
+{% for var in state.datamodel %}
+{{ bind_state_data_var(var) }}
+{% endfor %}
+{% endif %}
+{% endfor %}
+	}
+}
+{% endif %}
 
 // evaluateGuard evaluates a guard condition via script engine.
 // W3C SCXML 4.3.2: If a condition expression cannot be evaluated, the processor
 // MUST treat it as false and MUST raise error.execution.
 func (p *{{ machine_name }}Policy) evaluateGuard(guard string, eng *sce.Engine[{{ machine_name }}State, {{ machine_name }}Event]) bool {
+	value, _ := p.evaluateGuardRaising(guard, eng, "a <transition> cond failed to evaluate")
+	return value
+}
+
+// evaluateIfCond evaluates an <if> or <elseif> cond as evaluateGuard does, and
+// also records a failure in condFailed. W3C SCXML 5.9.1 + 4.9: the <if> still
+// selects on false, and is then the element whose processing raised, so its
+// block ends after it.
+func (p *{{ machine_name }}Policy) evaluateIfCond(guard string, eng *sce.Engine[{{ machine_name }}State, {{ machine_name }}Event], condFailed *bool) bool {
+	value, ok := p.evaluateGuardRaising(guard, eng, "an <if> cond failed to evaluate")
+	if !ok {
+		*condFailed = true
+	}
+	return value
+}
+
+// evaluateGuardRaising evaluates a cond, raising error.execution when it cannot
+// be evaluated (W3C SCXML 5.9.1); ok is false then, where a bare false could
+// not say so.
+func (p *{{ machine_name }}Policy) evaluateGuardRaising(guard string, eng *sce.Engine[{{ machine_name }}State, {{ machine_name }}Event], reason string) (value bool, ok bool) {
 	p.ensureScriptEngine()
 	engine := p.ScriptEngine
 	result, err := engine.EvaluateExpression(p.SessionID, guard)
 	if err != nil {
 {% if 'error.execution' in model.events %}
-		eng.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "a <transition> cond failed to evaluate"))
+		eng.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, reason))
 {% endif %}
-		return false
+		return false, false
 	}
-	return sce.ScriptToBool(result)
+	return sce.ScriptToBool(result), true
 }
 
 // executeScript executes a script block via script engine.
@@ -296,6 +358,18 @@ func (p *{{ machine_name }}Policy) assignVariable(location, expr string) error {
 	script := location + " = " + expr
 	return engine.ExecuteScript(p.SessionID, script)
 }
+{% if model.needs_idlocation_store %}
+
+// storeIDInLocation writes a generated id to an `idlocation` (W3C SCXML
+// 6.2.4, 6.4.1). The location is a location expression, so this is the
+// assignment `<assign>` makes: luaLocation is already lowered, so a member
+// path lands, and the error is the caller's to report as error.execution
+// (W3C SCXML 5.9.2). The id is quoted here because an invoke's is a run-time
+// value.
+func (p *{{ machine_name }}Policy) storeIDInLocation(luaLocation, id string) error {
+	return p.assignVariable(luaLocation, sce.QuoteLuaString(id))
+}
+{% endif %}
 
 // getVariable reads a datamodel variable from the script engine.
 func (p *{{ machine_name }}Policy) getVariable(name string) interface{} {

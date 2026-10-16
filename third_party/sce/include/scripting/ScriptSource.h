@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
+// SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
 // SPDX-FileCopyrightText: Copyright (c) 2026 newmassrael
 
 #pragma once
@@ -89,6 +89,42 @@ public:
     /// ECMAScript it was lowered from.
     static ScriptSource lua(std::string lowered, std::string source) {
         return ScriptSource(ScriptLanguage::Lua, std::move(lowered), std::move(source));
+    }
+
+    /**
+     * @brief A string known only at run time — a generated id, say — as the
+     *        right-hand side of an assignment in `language`
+     *
+     * §scxml-6.4.1: an `idlocation` receives an invoke's id, which exists only
+     * once the invocation does, so the literal cannot be written by the
+     * generator. One escaping serves both halves: a double-quoted literal
+     * escaping backslash, quote, newline and carriage return reads the same in
+     * Lua and in ECMAScript.
+     */
+    static ScriptSource stringLiteral(const std::string &value, ScriptLanguage language) {
+        std::string quoted;
+        quoted.reserve(value.size() + 2);
+        quoted.push_back('"');
+        for (const char c : value) {
+            switch (c) {
+            case '\\':
+                quoted += "\\\\";
+                break;
+            case '"':
+                quoted += "\\\"";
+                break;
+            case '\n':
+                quoted += "\\n";
+                break;
+            case '\r':
+                quoted += "\\r";
+                break;
+            default:
+                quoted.push_back(c);
+            }
+        }
+        quoted.push_back('"');
+        return language == ScriptLanguage::Lua ? lua(quoted, quoted) : ecmascript(quoted);
     }
 
     /// The language of `text()`.

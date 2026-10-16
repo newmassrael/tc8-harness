@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
+// SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
 // SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael
 
 // ITransitionNode.h
@@ -82,14 +82,18 @@ public:
     virtual const std::vector<std::shared_ptr<SCE::IActionNode>> &getActionNodes() const = 0;
 
     /**
-     * @brief Set internal transition status
-     * @param internal Internal transition status
+     * @brief Record whether the transition was written `type="internal"`
+     * @param internal true for `type="internal"`
      */
     virtual void setInternal(bool internal) = 0;
 
     /**
-     * @brief Return internal transition status
-     * @return Internal transition status
+     * @brief Whether the transition was written `type="internal"`
+     *
+     * Only the attribute: a transition with no target exits nothing whatever
+     * its type, and that is what an empty `getTargets()` says, not this.
+     *
+     * @return true for `type="internal"`
      */
     virtual bool isInternal() const = 0;
 

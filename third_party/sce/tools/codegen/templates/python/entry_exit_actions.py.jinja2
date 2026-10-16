@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2026 newmassrael #}
 
 {#
@@ -15,7 +15,7 @@
 
     # ── Entry actions (W3C SCXML 3.8) ─────────────────────────────
 
-    def execute_entry_actions(self, state, engine) -> None:
+    def execute_entry_actions(self, state, engine, is_default_entry: bool) -> None:
 {# W3C SCXML 3.8 — every `<onentry>` block is wrapped in
    `try/except _ActionAbort` so an `<assign>`/`<script>` failure
    raises `error.execution` and skips the rest of THIS block, while
@@ -29,13 +29,19 @@
        `done.invoke.<id>._event.data`;
      - nested `<final>` (parent compound): raise the parent's
        `done.state.<parent>` event with the evaluated data as
-       `_event.data` so the parent's transition can read it (test294).
+       `_event.data` so the parent's transition can read it (test294);
+       and when the parent's parent is a `<parallel>` every region of
+       which is now in a final state, `done.state.<grandparent>` too
+       (§scxml-D-enterStates, asked through the runtime's
+       isInFinalState).
    Mirrors `tools/codegen/templates/rust/entry_exit_actions.rs.jinja2`
    donedata evaluation + done.state branching. #}
 {% for state_id, state in model.states | dictsort %}
-{% set _has_donedata = state.is_final and state.donedata and (state.donedata.params or state.donedata.content.kind != 'none') %}
+{% set _has_donedata = state.is_final and state.donedata and (state.donedata.params or state.donedata.native_content_value or state.donedata.content.kind != 'none') %}
 {% set _final_with_parent = state.is_final and state.parent and (('done.state.' ~ state.parent) in model.events) %}
-{% if state.on_entry_blocks or state.initial_transition_actions or state.initial_history_default_actions or _has_donedata or _final_with_parent %}
+{% set _grandparent = model.states[state.parent].parent if (state.is_final and state.parent) else none %}
+{% set _grandparent_done = _grandparent and model.states[_grandparent].is_parallel and (('done.state.' ~ _grandparent) in model.events) %}
+{% if state.on_entry_blocks or state.initial_transition_actions or _has_donedata or _final_with_parent or _grandparent_done %}
         if state == {{ machine_name }}State.{{ state_id | to_python_const }}:{{ annot.annotation_comment(state, "python", "            ") }}
 {% if state.source_location %}
             {{ sce_map.source_marker(state.source_location, "python", stmt_level=true, symbol_state=state_id, symbol_artifact=sce_artifact.state_body) | trim }}
@@ -49,29 +55,16 @@
                 pass
 {% endfor %}
 {% if state.initial_transition_actions %}
-            # W3C SCXML 3.3.2 — `<initial>` transition's executable content
-            # runs AFTER the compound's `<onentry>` and BEFORE descent into
-            # the default initial child (test412). Block-aborts symmetric
-            # to onentry: a failing action raises `error.execution` and
-            # discards the remaining actions in this block only.
-            try:
-{% for action in state.initial_transition_actions %}
-{{ actions.emit(action, '                ', machine_name, model) }}
-{% endfor %}
-            except _ActionAbort:
-                pass
-{% endif %}
-{% if state.initial_history_id and state.initial_history_default_actions %}
-            # W3C SCXML 3.11 — `<initial>` targets `<history id="{{ state.initial_history_id }}">`:
-            # the history element's default `<transition>` executable
-            # content runs only when no snapshot exists. Subsequent
-            # entries replay from `engine._history[...]` via the engine's
-            # `_enter_from_history_snapshot` so the default actions are
-            # suppressed once the compound has been exited at least once.
-            # Mirrors Rust template's `entry_exit_actions.rs.jinja2:72-80`.
-            if not engine._history.get({{ state.initial_history_id | py_string_literal }}):
+            # W3C SCXML 3.3.2 — the `<initial>` transition's executable
+            # content runs AFTER the compound's `<onentry>` and before its
+            # children are entered (test412), and only when this state's
+            # initial state is entered by DEFAULT (§scxml-D-enterStates) —
+            # not when a transition targets a descendant, nor on a history
+            # restore. Block-aborts symmetric to onentry: a failing action
+            # raises `error.execution` and discards the rest of this block.
+            if is_default_entry:
                 try:
-{% for action in state.initial_history_default_actions %}
+{% for action in state.initial_transition_actions %}
 {{ actions.emit(action, '                    ', machine_name, model) }}
 {% endfor %}
                 except _ActionAbort:
@@ -85,20 +78,36 @@
             # reconstructed by a `return <text>` eval at the far end, which
             # is what made a payload executable there. Mirrors the Rust
             # template's `script_value_to_json(&val)`.
-            _done_data_ok = True
             _done_data: str = ""
 {% if state.donedata.params %}
             _done_parts: List[str] = []
 {% for param in state.donedata.params %}
-{% set _pexpr = param.expr or param.location %}
-{% if not _pexpr %}
-            # W3C SCXML 5.7: `<param>` with empty expr/location is a
-            # structural error — raise error.execution and skip stash.
+{# §scxml-5.7: the parser admits exactly one of the two attributes, so the
+   one that is PRESENT is the value — tested for presence, not truth. #}
+{% set _pexpr = param.expr if param.expr is not none else param.location %}
+{% if param.native_value %}
+{# `datamodel="sce-static"`: the value is native code
+   (`DoneDataParam::native_value`) reading the policy's own attributes, so no
+   script engine is asked for it. A checked operation that fails raises
+   `AlgorithmFailure` out of the evaluation: it is reported, and the pair is
+   left out (§scxml-5.7.1). #}
+            try:
+                _done_parts.append(
+                    '"{{ param.name | escape_json_string }}":'
+                    + ({{ param.native_value }}).to_json_literal()
+                )
+            except sce_algorithm.AlgorithmFailure:
+                self._raise_error_execution(
+                    engine,
+                    "<donedata> <param name='{{ param.name }}'> failed to evaluate",
+                )
+{% elif not _pexpr %}
+            # §scxml-5.7: an empty location names no location —
+            # error.execution, and this pair is ignored.
             self._raise_error_execution(
                 engine,
                 "<donedata> <param name='{{ param.name }}'> has an empty location",
             )
-            _done_data_ok = False
 {% else %}
             try:
                 _done_parts.append(
@@ -115,8 +124,32 @@
                 )
 {% endif %}
 {% endfor %}
-            if _done_data_ok:
-                _done_data = "{" + ",".join(_done_parts) + "}"
+            # §scxml-5.5: the pairs that survived, `{}` when none did.
+            _done_data = "{" + ",".join(_done_parts) + "}"
+{% elif state.donedata.native_content %}
+{# `datamodel="sce-static"` (`DoneData::native_content`): the data is the wire
+   text the build finished — the JSON string the inline `<content>` spells, or
+   the XML as written — so no script engine is asked for it (SCE Accepted
+   Subset §2.15). #}
+            # W3C SCXML 5.5: inline text is the content value, finished at build time.
+            _done_data = {{ state.donedata.native_content | py_string_literal }}
+{% elif state.donedata.native_content_value %}
+{# `datamodel="sce-static"` (`DoneData::native_content_value`): the `<content
+   expr>` names one value, lowered to native code reading the policy's own
+   attributes as the state is entered; it is the done event's whole data, as the
+   JSON it is (SCE Accepted Subset §2.15). One that cannot be computed raises
+   `AlgorithmFailure`, which is the evaluation that failed: error.execution, and
+   the empty string as the value. #}
+            # W3C SCXML 5.5: the value of <content expr> is the done event's data.
+{% if state.donedata.native_content_value_fails %}
+            try:
+                _done_data = ({{ state.donedata.native_content_value }}).to_json_literal()
+            except sce_algorithm.AlgorithmFailure:
+                self._raise_error_execution(engine, "<donedata> <content expr> failed to evaluate")
+                _done_data = '""'
+{% else %}
+            _done_data = ({{ state.donedata.native_content_value }}).to_json_literal()
+{% endif %}
 {% elif state.donedata.content.kind == "expression" or state.donedata.content.kind == "inline_text" %}
 {% if state.donedata.content.kind == "expression" %}
 {% set donedata_content_lua = state.donedata.content.text | to_lua_expr %}
@@ -132,7 +165,7 @@
                     {{ donedata_content_lua | py_string_literal }},
                 ).to_json_literal()
             except _ScriptError:
-                _done_data_ok = False
+                # §scxml-5.6.2: the data stays empty.
                 self._raise_error_execution(
                     engine, "<donedata> <content expr> failed to evaluate"
                 )
@@ -151,35 +184,40 @@
 {% if state.parent and ('done.state.' ~ state.parent) in model.events %}
             # W3C SCXML 5.5 + 3.7: a donedata eval failure raises
             # `error.execution` AND still fires `done.state.<parent>`
-            # with empty `_event.data` (test528). The error.execution
-            # has already been raised inline; here we always raise the
-            # done event, supplying empty data on the failure path so
-            # the surrounding transition can still match.
+            # (test343, test528). The error.execution has already been
+            # raised inline; here the done event carries whatever
+            # survived.
             engine.raise_internal(
                 {{ machine_name }}Event.{{ ('done.state.' ~ state.parent) | to_python_const }},
-                EventMetadata(data=_done_data if _done_data_ok else "", event_type="internal"),
+                EventMetadata(data=_done_data, event_type="internal"),
             )
 {% endif %}
 {% endif %}
 {% if state.is_final and not _has_donedata and state.parent and (('done.state.' ~ state.parent) in model.events) %}
             # W3C SCXML 3.7: entering a `<final>` raises
             # `done.state.<parent_id>` even when no `<donedata>` is
-            # present. The engine separately fires
-            # `done.state.<parallel_id>` from `_check_done_state_events`
-            # once every region of a parallel reaches its final, so
-            # this raise covers only the immediate parent (test372).
+            # present (test372).
             engine.raise_internal(
                 {{ machine_name }}Event.{{ ('done.state.' ~ state.parent) | to_python_const }},
                 EventMetadata(event_type="internal"),
             )
+{% endif %}
+{% if _grandparent_done %}
+            # §scxml-D-enterStates: the `<parallel>` this final's parent is a
+            # region of is done once every one of its child states is in a
+            # final state — asked now, at this entry, every time it holds.
+            if engine.is_in_final_state({{ machine_name }}State.{{ _grandparent | to_python_const }}):
+                engine.raise_internal(
+                    {{ machine_name }}Event.{{ ('done.state.' ~ _grandparent) | to_python_const }},
+                    EventMetadata(event_type="internal"),
+                )
 {% endif %}
 {% if state.is_final and _has_donedata and not state.parent %}
             # W3C SCXML 5.5 + 6.3.1: top-level `<final>` stashes
             # donedata onto the engine; the invoking parent's
             # `ScxmlInvoke.done_data()` lifts it into
             # `done.invoke.<id>._event.data`.
-            if _done_data_ok:
-                engine.done_data = _done_data
+            engine.done_data = _done_data
 {% endif %}
             return
 {% endif %}

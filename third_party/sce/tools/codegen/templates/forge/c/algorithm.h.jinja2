@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
@@ -18,10 +18,18 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
-{% if needs_span %}#include "sce/forge/bytes.h"  /* sce_forge_bytes_view_t */
+{% if needs_string_h %}#include <string.h>  /* a record's text is compared with strcmp */
+{% endif %}{% if needs_span %}#include "sce/forge/bytes.h"  /* sce_forge_bytes_view_t */
+{% endif %}{% if needs_list_view %}#include "sce/forge/list_view.h"  /* read-only list<T> parameters */
+{% endif %}{% if may_fail %}#include "sce/forge/algorithm.h"  /* checked arithmetic, SCE_FORGE.md §3.4.1 */
 {% endif %}{% if all_imports %}{% for imp in all_imports %}{{ imp.include_stmt }}
 {% endfor %}{% endif %}
 {{ consts_prelude }}static inline {{ return_type }} {{ primary_symbol }}({{ params_str }}) {
+{% if may_fail %}
+    /* SCE_FORGE.md §3.4.1: each checked operation records a failure here,
+     * and the statement around it returns it before the next statement runs. */
+    sce_forge_algorithm_failure_t sce_failure_ = { false, SCE_FORGE_ALGORITHM_OVERFLOW };
+{% endif %}
 {{ body }}
 }
 

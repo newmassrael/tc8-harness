@@ -1,0 +1,360 @@
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2026 newmassrael #}
+
+{%- import '_macros/sce_map_marker.jinja2' as sce_map %}
+{#- The read of one property's value, as the statement that stores it. The
+    line grammar — unfolding, TEXT escapes, quoting — is the runtime's
+    (`sce_forge_runtime::content_line`); this spells none of it. #}
+{#- The enum variant a text on a line names, as an expression: the text names a
+    carrier and the enum's own conversion takes it to a variant, so a closed and
+    an open enum are read by one rule (docs/adr/0015). A closed enum answers
+    `None` for a carrier it does not declare. `call` is the runtime's read. #}
+{% macro enum_of(x, call) -%}
+{{ x.enum_from }}({{ x.carrier_type }}::try_from({{ call }}?).map_err(|_| CodecError::LineBadValue)?){% if not x.enum_is_open %}.ok_or(CodecError::LineBadValue)?{% endif %}
+{%- endmacro %}
+{#- The read of one parameter's value, as the expression bound to it. #}
+{% macro read_param(p) -%}
+{%- if p.kind == "enum" -%}
+{{ enum_of(p, "line.read_param_enum::<" ~ p.enum_cap ~ ">(TEXTS_" ~ (p.enum_alias | upper) ~ ")") }}
+{%- else -%}
+line.read_param_string::<{{ p.max_size }}>()?
+{%- endif -%}
+{%- endmacro %}
+{#- The read of a record's value, as the expression bound to it. #}
+{% macro read_record_value(e) -%}
+{%- if e.kind == "enum" -%}
+{{ enum_of(e, "line.read_enum::<" ~ e.enum_cap ~ ">(TEXTS_" ~ (e.enum_alias | upper) ~ ")") }}
+{%- else -%}
+line.read_string::<{{ e.max_size }}>({{ "true" if e.text else "false" }})?
+{%- endif -%}
+{%- endmacro %}
+{#- The write of one parameter `p`, read from `holder`: a parameter that is an
+    enum is written as the text of its variant (docs/adr/0015). #}
+{% macro write_param(p, holder) -%}
+{%- if p.kind == "enum" and p.required -%}
+out.enum_param("{{ p.param }}", TEXTS_{{ p.enum_alias | upper }}, u64::from({{ holder }}.{{ p.name }}.to_underlying()))?;
+{%- elif p.kind == "enum" -%}
+if let Some(p) = &{{ holder }}.{{ p.name }} {
+                out.enum_param("{{ p.param }}", TEXTS_{{ p.enum_alias | upper }}, u64::from((*p).to_underlying()))?;
+            }
+{%- elif p.required -%}
+out.param("{{ p.param }}", &{{ holder }}.{{ p.name }}, {{ p.max_size }})?;
+{%- else -%}
+if let Some(p) = &{{ holder }}.{{ p.name }} {
+                out.param("{{ p.param }}", p, {{ p.max_size }})?;
+            }
+{%- endif -%}
+{%- endmacro %}
+{% macro store_value(e) -%}
+{%- if e.separator -%}
+{{ e.local }} = Some(line.read_strings::<{{ e.max_size }}, {{ e.max_values }}>(b'{{ e.separator }}', {{ "true" if e.text else "false" }})?);
+{%- elif e.kind == "string" and e.is_list -%}
+{{ e.local }}
+                .push(line.read_string::<{{ e.max_size }}>({{ "true" if e.text else "false" }})?)
+                .map_err(|_| CodecError::LineTooMany)?;
+{%- elif e.kind == "string" -%}
+{{ e.local }} = Some(line.read_string::<{{ e.max_size }}>({{ "true" if e.text else "false" }})?);
+{%- elif e.kind == "enum" and e.is_list -%}
+{{ e.local }}
+                .push({{ enum_of(e, "line.read_enum::<" ~ e.enum_cap ~ ">(TEXTS_" ~ (e.enum_alias | upper) ~ ")") }})
+                .map_err(|_| CodecError::LineTooMany)?;
+{%- elif e.kind == "enum" -%}
+{{ e.local }} = Some({{ enum_of(e, "line.read_enum::<" ~ e.enum_cap ~ ">(TEXTS_" ~ (e.enum_alias | upper) ~ ")") }});
+{%- elif e.kind == "bool" -%}
+{{ e.local }} = Some(line.read_bool()?);
+{%- elif e.kind == "uint" and e.value_type == "u64" -%}
+{{ e.local }} = Some(line.read_uint(u64::MAX)?);
+{%- elif e.kind == "uint" -%}
+{{ e.local }} = Some(line.read_uint(u64::from({{ e.value_type }}::MAX))? as {{ e.value_type }});
+{%- elif e.kind == "int" and e.value_type == "i64" -%}
+{{ e.local }} = Some(line.read_int(i64::MIN, i64::MAX)?);
+{%- else -%}
+{{ e.local }} = Some(line.read_int(i64::from({{ e.value_type }}::MIN), i64::from({{ e.value_type }}::MAX))? as {{ e.value_type }});
+{%- endif -%}
+{%- endmacro %}
+{#- The write of one property's value `v`, its name and parameters already
+    written. #}
+{% macro write_value(e) -%}
+{%- if e.separator -%}
+out.strings(v.as_slice(), b'{{ e.separator }}', {{ "true" if e.text else "false" }}, {{ e.max_size }}, {{ e.max_values }})?;
+{%- elif e.kind == "string" -%}
+out.string(v, {{ "true" if e.text else "false" }}, {{ e.max_size }})?;
+{%- elif e.kind == "enum" -%}
+out.enum_value(TEXTS_{{ e.enum_alias | upper }}, u64::from((*v).to_underlying()))?;
+{%- elif e.kind == "bool" -%}
+out.boolean(*v)?;
+{%- elif e.kind == "uint" and e.value_type == "u64" -%}
+out.uint(*v)?;
+{%- elif e.kind == "uint" -%}
+out.uint(u64::from(*v))?;
+{%- elif e.kind == "int" and e.value_type == "i64" -%}
+out.int(*v)?;
+{%- else -%}
+out.int(i64::from(*v))?;
+{%- endif -%}
+{%- endmacro %}
+{{ sce_map.source_marker(source_location, "rust", module_level=true, symbol_artifact=sce_artifact.forge_body) }}
+
+// SCE Forge: Auto-generated from Extended SCXML (sce:kind="codec" sce:encoding="content-line")
+// Runtime: {{ runtime_dep }}
+// Do not edit — regenerate from the source SCXML file.
+
+use sce_forge_runtime::codec::{CodecError, SceCursor, SceSink};
+use sce_forge_runtime::content_line::{ContentLineReader, ContentLineWriter};
+{% if enum_tables %}
+use sce_forge_runtime::content_line::EnumTexts;
+{% endif %}
+use sce_forge_runtime::heapless;
+// `VecSink` and the heap-backed `encode_to_vec` facade are gated on the
+// runtime's `alloc` feature, as they are for a positional codec.
+#[cfg(feature = "alloc")]
+extern crate alloc;
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
+#[cfg(feature = "alloc")]
+use sce_forge_runtime::codec::VecSink;
+{% if all_imports %}
+
+{% for imp in all_imports %}
+{{ imp.include_stmt }}
+{% endfor %}
+{% endif %}
+{% for t in enum_tables %}
+
+{#- What an entry that is an enum is written and read by (docs/adr/0015): each
+    variant's text and the carrier it stands for, held as data here because the
+    enum's own type carries none. #}
+const TEXTS_{{ t.alias | upper }}: EnumTexts = &[
+{% for r in t.rows %}
+    ("{{ r.text }}", {{ r.value }}),
+{% endfor %}
+];
+{% endfor %}
+
+{% for e in entries if e.is_records %}
+/// One line of `{{ e.property }}` (docs/adr/0014): the parameters it carries and
+/// its {% if e.separator %}list of values, cut at `{{ e.separator }}`{% else %}value{% endif %}. A parameter that may be absent is `None`.
+#[allow(dead_code)]
+{{ codec_struct_derives_attr }}
+pub struct {{ e.record_type }} {
+{% for p in e.params %}
+    /// Parameter `{{ p.param }}`{% if p.required %}, required{% endif %}.
+    pub {{ p.name }}: {{ p.field_type }},
+{% endfor %}
+{% if e.separator %}
+    /// The values of the line, at most {{ e.max_values }}.
+{% else %}
+    /// The value of the line.
+{% endif %}
+    pub {{ e.value_member }}: {{ e.value_field_type }},
+}
+
+{% endfor %}
+/// One `{{ component }}` component of content lines (SCE_FORGE.md §4.6.4).
+/// Decode reads the properties this codec declares in any order and skips the
+/// rest; encode writes the entries present in declaration order, folded at 75
+/// octets. A value lives in the bounded storage its `sce:max-size` names, so
+/// neither direction allocates. A repeated property that declares a parameter,
+/// or whose line holds a list of values, is a list of line records.
+// pub API: codecs are intended for cross-crate consumption (SCE_FORGE.md
+// §6 codec), so an unused field is not dead code.
+#[allow(dead_code)]
+{{ codec_struct_derives_attr }}
+pub struct {{ struct_name }} {
+{% for e in entries %}
+    /// Property `{{ e.property }}`{% if e.is_records %}, up to {{ e.max_count }} lines, each a record{% elif e.is_list %}, up to {{ e.max_count }} lines{% elif e.is_values %}, a list of at most {{ e.max_values }} values{% endif %}{% if e.required %}, required{% endif %}.
+    pub {{ e.name }}: {{ e.field_type }},
+{% if not e.is_records %}
+{% for p in e.params %}
+    /// Parameter `{{ p.param }}` of `{{ e.property }}`{% if p.required %}, required{% endif %}.
+    pub {{ p.name }}: {{ p.field_type }},
+{% endfor %}
+{% endif %}
+{% endfor %}
+}
+
+#[allow(dead_code)]
+impl {{ struct_name }} {
+    /// An instance with every value at its type's [`Default`] and every
+    /// optional entry absent — the infallible constructor every codec offers,
+    /// as a positional one does.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Decode one component from `cursor`. On success the cursor advances past
+    /// its `END:` line; on any refusal it is left untouched.
+    pub fn decode(cursor: &mut SceCursor<'_>) -> Result<Self, CodecError> {
+        let mut reader =
+            ContentLineReader::begin(cursor.peek_slice(cursor.remaining())?, "{{ component }}")?;
+{% for e in entries %}
+        let mut {{ e.local }}: {{ e.local_type }} = {{ e.local_init }};
+{% if not e.is_records %}
+{% for p in e.params %}
+        let mut {{ p.local }}: Option<{{ p.value_type }}> = None;
+{% endfor %}
+{% endif %}
+{% endfor %}
+        while let Some(mut line) = reader.next_property()? {
+{% for e in entries %}
+            {% if not loop.first %}else {% endif %}if line.is("{{ e.property }}") {
+{% if e.is_list or e.is_records %}
+                if {{ e.local }}.is_full() {
+                    return Err(CodecError::LineTooMany);
+                }
+{% else %}
+                if {{ e.local }}.is_some() {
+                    return Err(CodecError::LineTooMany);
+                }
+{% endif %}
+{% if e.is_records %}
+{#- The parameters of this line are locals of the line: they belong to its
+    record, and the line is judged on them before its value is read. #}
+{% for p in e.params %}
+                let mut {{ p.local }}: Option<{{ p.value_type }}> = None;
+{% endfor %}
+{% endif %}
+{% if e.params %}
+                while line.next_param()? {
+{% for p in e.params %}
+                    {% if not loop.first %}else {% endif %}if line.param_is("{{ p.param }}") {
+                        if {{ p.local }}.is_some() {
+                            return Err(CodecError::LineTooMany);
+                        }
+                        {{ p.local }} = Some({{ read_param(p) }});
+                    }
+{% endfor %}
+                }
+{% endif %}
+{% if e.is_records %}
+                {{ e.local }}
+                    .push({{ e.record_type }} {
+{% for p in e.params %}
+{% if p.required %}
+                        {{ p.name }}: {{ p.local }}.ok_or(CodecError::LineRequiredMissing)?,
+{% else %}
+                        {{ p.name }}: {{ p.local }},
+{% endif %}
+{% endfor %}
+{% if e.separator %}
+                        {{ e.value_member }}: line.read_strings::<{{ e.max_size }}, {{ e.max_values }}>(b'{{ e.separator }}', {{ "true" if e.text else "false" }})?,
+{% else %}
+                        {{ e.value_member }}: {{ read_record_value(e) }},
+{% endif %}
+                    })
+                    .map_err(|_| CodecError::LineTooMany)?;
+{% else %}
+                {{ store_value(e) }}
+{% endif %}
+            }
+{% endfor %}
+        }
+{% for e in entries if e.required and (e.is_list or e.is_records) %}
+        // A required list needs a line.
+        if {{ e.local }}.is_empty() {
+            return Err(CodecError::LineRequiredMissing);
+        }
+{% endfor %}
+        let value = Self {
+{% for e in entries %}
+{% if e.is_list or e.is_records %}
+            {{ e.name }}: {{ e.local }},
+{% elif e.is_values and not e.required %}
+            {{ e.name }}: {{ e.local }}.unwrap_or_default(),
+{% elif e.required %}
+            {{ e.name }}: {{ e.local }}.ok_or(CodecError::LineRequiredMissing)?,
+{% else %}
+            {{ e.name }}: {{ e.local }},
+{% endif %}
+{% if not e.is_records %}
+{% for p in e.params %}
+{% if p.required %}
+            {{ p.name }}: {{ p.local }}.ok_or(CodecError::LineRequiredMissing)?,
+{% else %}
+            {{ p.name }}: {{ p.local }},
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endfor %}
+        };
+        // Only a component that decoded whole moves the cursor.
+        cursor.advance(reader.consumed())?;
+        Ok(value)
+    }
+
+    /// Encode this component into `w`. A value past its declared bound, or one
+    /// a line could not carry, is refused (SCE_FORGE.md §4.6.4).
+    pub fn encode<S: SceSink>(&self, w: &mut S) -> Result<(), CodecError> {
+        let mut out = ContentLineWriter::begin(w, "{{ component }}")?;
+{% for e in entries %}
+{% if e.is_records %}
+{% if e.required %}
+        if self.{{ e.name }}.is_empty() {
+            return Err(CodecError::LineRequiredMissing);
+        }
+{% endif %}
+        for record in &self.{{ e.name }} {
+            let v = &record.{{ e.value_member }};
+            out.property("{{ e.property }}")?;
+{% for p in e.params %}
+            {{ write_param(p, "record") }}
+{% endfor %}
+            {{ write_value(e) }}
+        }
+{% elif e.is_list %}
+{% if e.required %}
+        if self.{{ e.name }}.is_empty() {
+            return Err(CodecError::LineRequiredMissing);
+        }
+{% endif %}
+        for v in &self.{{ e.name }} {
+            out.property("{{ e.property }}")?;
+            {{ write_value(e) }}
+        }
+{% elif e.required %}
+        {
+            let v = &self.{{ e.name }};
+            out.property("{{ e.property }}")?;
+{% for p in e.params %}
+            {{ write_param(p, "self") }}
+{% endfor %}
+            {{ write_value(e) }}
+        }
+{% elif e.is_values %}
+        if !self.{{ e.name }}.is_empty() {
+            let v = &self.{{ e.name }};
+            out.property("{{ e.property }}")?;
+{% for p in e.params %}
+            {{ write_param(p, "self") }}
+{% endfor %}
+            {{ write_value(e) }}
+        }{% if e.params %} else if {% for p in e.params %}{% if not loop.first %} || {% endif %}self.{{ p.name }}.is_some(){% endfor %} {
+            // A parameter with no value of its property has no line to stand on.
+            return Err(CodecError::LineRequiredMissing);
+        }{% endif %}
+
+{% else %}
+        if let Some(v) = &self.{{ e.name }} {
+            out.property("{{ e.property }}")?;
+{% for p in e.params %}
+            {{ write_param(p, "self") }}
+{% endfor %}
+            {{ write_value(e) }}
+        }{% if e.params %} else if {% for p in e.params %}{% if not loop.first %} || {% endif %}self.{{ p.name }}.is_some(){% endfor %} {
+            // A parameter with no value of its property has no line to stand on.
+            return Err(CodecError::LineRequiredMissing);
+        }{% endif %}
+
+{% endif %}
+{% endfor %}
+        out.finish()
+    }
+
+    /// [`encode`](Self::encode) into a new `Vec`.
+    #[cfg(feature = "alloc")]
+    pub fn encode_to_vec(&self) -> Result<Vec<u8>, CodecError> {
+        let mut out: Vec<u8> = Vec::new();
+        self.encode(&mut VecSink::new(&mut out))?;
+        Ok(out)
+    }
+}

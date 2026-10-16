@@ -1,0 +1,56 @@
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2026 newmassrael #}
+
+{# Enum kind — a named value vocabulary; pre-baked oracle.
+
+   C11 has no zero-deps JSON parser inside this backend's dependency rule, so
+   the expected values are materialised here as a static table rather than
+   read at runtime. That is the same choice every other C11 fragment makes.
+
+   C has no namespaces, so a variant's constant carries the type name. The
+   manifest carries the SOURCE spelling; `v.ident` is the constant the
+   declaration emits, put there by the render from the generator's own
+   spelling rule, so this fragment names no convention of its own. It used
+   to upper-case the fixture name where the declaration snake-cases it, and
+   the two agreed only while every fixture name was already snake case.
+
+   ⚠ NOTE THE ASYMMETRY, because it decides how this arm is mutation-tested.
+   The other five arms READ the oracle at run time; this one BAKES from the
+   MANIFEST, since C11 has no JSON parser here. So editing
+   numerical_reference.json alone cannot reach this file — a mutation proof
+   for the C11 arm has to move `fixtures.json`. Drift between the two sources
+   is still caught, but by the other five: the C++ fragment asserts the
+   oracle's variant NAME equals the manifest's at each index. #}
+static void test_{{ f.name }}(void) {
+    /* Automatic, not static: `declared` is a call, and only an automatic
+       aggregate may be initialised with one. */
+    const struct {
+        const char *name;
+        long long expected;
+        long long actual;
+        const char *declared;
+    } variants[] = {
+{% for v in f.variants %}
+        { "{{ v.name }}", {{ v.value }}LL, (long long){{ v.ident }}, {{ f.c11_prefix }}_declared_name({{ v.ident }}) },
+{% endfor %}
+    };
+    const size_t n = sizeof(variants) / sizeof(variants[0]);
+
+    /* The count is baked from the manifest, so a vocabulary that gained or
+     * lost a variant without the manifest moving fails to compile rather
+     * than passing quietly — the table above names each constant. */
+    for (size_t i = 0; i < n; ++i) {
+        if (variants[i].actual != variants[i].expected) {
+            fprintf(stderr,
+                    "FAIL: {{ f.name }}.%s = %lld, expected %lld\n",
+                    variants[i].name, variants[i].actual, variants[i].expected);
+            ++g_failures;
+        }
+        /* The name the declaration answers is the one the document wrote. */
+        if (variants[i].declared == NULL || strcmp(variants[i].declared, variants[i].name) != 0) {
+            fprintf(stderr, "FAIL: {{ f.name }}.%s declares its name as %s\n", variants[i].name,
+                    variants[i].declared != NULL ? variants[i].declared : "(none)");
+            ++g_failures;
+        }
+    }
+}

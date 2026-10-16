@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
@@ -10,6 +10,9 @@
 
 from enum import Enum
 
+{% for imp in all_imports %}
+{{ imp.include_stmt }}
+{% endfor %}
 from sce_forge_runtime.observer import EventDomain, EventQueue, ThresholdState
 
 {% if has_event_domain %}
@@ -54,18 +57,18 @@ class {{ struct_name }}:
 {% endfor %}
 
     def update(self, {{ params }}) -> EventQueue[ForgeDomainTag]:
-        events: EventQueue[ForgeDomainTag] = EventQueue()
+        _events: EventQueue[ForgeDomainTag] = EventQueue()
 {% for mon in monitors %}
         if self._{{ mon.id }}.enter_if({{ mon.enter_expr }}):
-            events.push(ForgeDomainTag.{{ mon.event_enter }})
+            _events.push(ForgeDomainTag.{{ mon.event_enter }})
 {% if mon.has_leave %}
 {% if mon.has_on_leave %}
         elif self._{{ mon.id }}.leave_if({{ mon.leave_expr }}):
-            events.push(ForgeDomainTag.{{ mon.event_leave }})
+            _events.push(ForgeDomainTag.{{ mon.event_leave }})
 {% else %}
         else:
             self._{{ mon.id }}.leave_if({{ mon.leave_expr }})
 {% endif %}
 {% endif %}
 {% endfor %}
-        return events
+        return _events

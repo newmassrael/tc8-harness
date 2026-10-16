@@ -1,24 +1,25 @@
-// SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
+// SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
 // SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael
 //
 // This file is part of SCE (SCXML Core Engine).
 //
 // Dual Licensed:
-// 1. LGPL-2.1: Free for unmodified use (see LICENSE-LGPL-2.1.md)
+// 1. AGPL-3.0 + Linking Exception: Free for unmodified use (see LICENSE-EXCEPTION.md)
 // 2. Commercial: For modifications (contact newmassrael@gmail.com)
 //
 // Commercial License:
-//   Individual: $5000 cumulative
-//   Enterprise: Contact for pricing
+//   Pricing: contact newmassrael@gmail.com
 //   Contact: https://github.com/newmassrael
 //
 // Full terms: https://github.com/newmassrael/scxml-core-engine/blob/main/LICENSE
 
 #pragma once
 
+#include "common/IOProcessorHelper.h"
 #include "common/SCXMLConstants.h"
 #include "common/UniqueIdGenerator.h"
 #include "core/LogMacros.h"
+#include <cctype>
 #ifdef SCE_ENABLE_HTTP
 #include "common/UrlEncodingHelper.h"
 #endif
@@ -290,19 +291,54 @@ public:
     }
 
     /**
-     * @brief Validate send target according to §scxml-6.2
+     * @brief Whether a host may not register `processorType`: it starts with
+     * `sce:`, the prefix SCE keeps for the processors it defines itself
+     * (`sce:mesh`, `sce:mesh-rpc`).
      *
-     * §scxml-6.2 (tests 159, 194): Invalid target values (e.g., starting with "!")
-     * must raise error.execution and stop subsequent executable content.
+     * §scxml-6.2.5 leaves the processor set open to the platform, and SCE
+     * shares that namespace with its host. A handler registered under `sce:`
+     * would not add a processor but replace one of SCE's, with nothing on the
+     * wire saying so — so registration refuses it, as the build refuses the
+     * same declaration (`cli/reserved-host-type`).
      *
-     * This function reuses isInvalidTarget() to avoid code duplication.
+     * The C++ copy of the rule. Every copy reads
+     * `sce-build/tests/fixtures/host_processor/reserved_type_cases.json`, so a
+     * type one of them refuses is one they all refuse.
+     */
+    static bool isReservedHostType(const std::string &processorType) {
+        return processorType.rfind(RESERVED_HOST_TYPE_PREFIX, 0) == 0;
+    }
+
+    /// The prefix [isReservedHostType] reserves.
+    static constexpr const char *RESERVED_HOST_TYPE_PREFIX = "sce:";
+
+    /// The key a Mesh router is registered under with a target factory, which
+    /// creates a target for a `#<peer>` address only through one. The Mesh
+    /// processor's own type (SCE_MESH.md, Registration).
+    static constexpr const char *MESH_TARGET_SCHEME = "sce:mesh";
+
+    /**
+     * @brief Validate send target according to §scxml-6.2.4
      *
+     * §scxml-6.2.4 (tests 159, 194): a target value the processor does not
+     * support, or that is invalid, raises error.execution and ends the block.
+     * For the SCXML Event I/O Processor that is every value [classifyTarget]
+     * calls Unsupported — `!invalid` and `bogus` alike. A value with another
+     * URI scheme is left to the target factory, which serves the schemes the
+     * platform registered; another processor reads its own targets, so only
+     * the `!` spelling is refused for it here.
+     *
+     * @param sendType The `<send>` type, empty for the default processor
      * @param target Target string to validate
      * @param errorMsg Output parameter for error message if validation fails
      * @return true if valid, false if invalid (error.execution should be raised)
      */
-    static bool validateTarget(const std::string &target, std::string &errorMsg) {
-        if (isInvalidTarget(target)) {
+    static bool validateTarget(const std::string &sendType, const std::string &target, std::string &errorMsg) {
+        const bool scxmlProcessor = sendType.empty() || sendType == Constants::SCXML_EVENT_PROCESSOR_TYPE;
+        const bool unsupported =
+            isInvalidTarget(target) ||
+            (scxmlProcessor && !target.empty() && classifyTarget(target, "").kind == SendTarget::Kind::Unsupported);
+        if (unsupported) {
             errorMsg = "Invalid target value: " + target;
             return false;
         }
@@ -328,6 +364,110 @@ public:
     static bool isUnreachableTarget(const std::string &target) {
         // §scxml-C-1: Empty or "undefined" targets are unreachable
         return target.empty() || target == "undefined";
+    }
+
+    /**
+     * @brief Where a `<send>` to the SCXML Event I/O Processor goes (§scxml-6.2.4, §scxml-C-1)
+     *
+     * One reading of a target value for every C++ path — a `target` written in
+     * the document and a `targetexpr` evaluated at run time alike, sent at once
+     * or after a delay — so no path can route a value the others route
+     * differently. The predicates above are its parts.
+     */
+    struct SendTarget {
+        enum class Kind {
+            SelfExternal,  ///< the sending session's own external queue
+            Internal,      ///< `#_internal`: the sending session's internal queue
+            Parent,        ///< `#_parent`: the session that invoked this one
+            Session,       ///< a session named by `#_scxml_<id>` or its published location
+            Invocation,    ///< `#_<invokeid>`: an invocation of the sending session
+            Mesh,          ///< `#<name>`: a machine an SCE Mesh deployment binds
+            Http,          ///< an http(s) URL (§scxml-C-2)
+            Uri,           ///< another scheme's URI: supported where the platform registered the scheme
+            Unreachable,   ///< a value naming no session: error.communication (§scxml-C-1)
+            Unsupported,   ///< a value this processor cannot address: error.execution (§scxml-6.2.4)
+        };
+        Kind kind;
+        std::string id;  ///< the session id (Session) or the invoke id (Invocation)
+    };
+
+    /**
+     * @brief Classify a target value (§scxml-6.2.4, §scxml-C-1)
+     *
+     * §scxml-6.2.4: "If the value of the 'target' or 'targetexpr' attribute is
+     * not supported or invalid, the Processor MUST place the error
+     * error.execution on the internal event queue. If it is unable to dispatch
+     * the message, the Processor MUST place the error error.communication on
+     * the internal event queue." A value of none of the shapes below —
+     * `bogus`, `!invalid` — is the first; an empty or `undefined` value, which
+     * names no session, is the second.
+     *
+     * @param target The target value, as written or as evaluated
+     * @param ownSessionId The sending session, so a session target naming it
+     *        is its own external queue
+     */
+    static SendTarget classifyTarget(const std::string &target, const std::string &ownSessionId) {
+        using Kind = SendTarget::Kind;
+        if (isUnreachableTarget(target)) {
+            return {Kind::Unreachable, ""};
+        }
+        if (isInvalidTarget(target)) {
+            return {Kind::Unsupported, ""};
+        }
+        if (isInternalTarget(target)) {
+            return {Kind::Internal, ""};
+        }
+        if (target == "#_parent") {
+            return {Kind::Parent, ""};
+        }
+        if (isSessionTarget(target)) {
+            const std::string sessionId = extractSessionId(target);
+            if (sessionId.empty() || sessionId == ownSessionId) {
+                return {Kind::SelfExternal, ""};
+            }
+            return {Kind::Session, sessionId};
+        }
+        if (const std::string located = IOProcessorHelper::sessionIdFromScxmlLocation(target); !located.empty()) {
+            if (located == ownSessionId) {
+                return {Kind::SelfExternal, ""};
+            }
+            return {Kind::Session, located};
+        }
+        if (isChildInvokeTarget(target)) {
+            return {Kind::Invocation, extractInvokeId(target)};
+        }
+        if (isMeshTarget(target)) {
+            return {Kind::Mesh, ""};
+        }
+        if (isHttpTarget(target)) {
+            return {Kind::Http, ""};
+        }
+        if (hasUriScheme(target)) {
+            return {Kind::Uri, ""};
+        }
+        return {Kind::Unsupported, ""};
+    }
+
+    /**
+     * @brief Whether `target` begins with a URI scheme (RFC 3986 §3.1)
+     *
+     * `scheme = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )`, then `:`. A value
+     * with one names some processor's address, which a platform may serve —
+     * the Interpreter's target factory takes registered schemes; a value with
+     * none, and none of the `#` shapes, is no address at all.
+     */
+    static bool hasUriScheme(const std::string &target) {
+        const auto colon = target.find(':');
+        if (colon == std::string::npos || colon == 0 || !std::isalpha(static_cast<unsigned char>(target[0]))) {
+            return false;
+        }
+        for (size_t i = 1; i < colon; ++i) {
+            const auto c = static_cast<unsigned char>(target[i]);
+            if (!std::isalnum(c) && c != '+' && c != '-' && c != '.') {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -422,129 +562,11 @@ public:
         return UniqueIdGenerator::generateSendId();
     }
 
-    /**
-     * @brief Send event to parent state machine (Single Source of Truth)
-     *
-     * §scxml-6.2: Handles <send target="#_parent"> semantics for child-to-parent
-     * event communication in invoked state machines.
-     *
-     * Single Source of Truth for #_parent event routing shared between:
-     * - Interpreter engine (ParentEventTarget)
-     * - AOT engine (StaticCodeGenerator generated code)
-     *
-     * This template function enables compile-time type-safe parent event routing
-     * in statically generated code while maintaining zero-overhead abstraction.
-     *
-     * @tparam ParentStateMachine Parent state machine type (CRTP)
-     * @tparam EventType Parent's Event enum type
-     * @param parent Pointer to parent state machine (nullptr-safe)
-     * @param event Event to send to parent
-     * @return true if event was sent successfully, false if parent is null
-     */
-    template <typename ParentStateMachine, typename EventType>
-    static bool sendToParent(ParentStateMachine *parent, EventType event) {
-        if (parent) {
-            // §scxml-6.2: Send to parent's external event queue
-            parent->raiseExternal(event);
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * @brief Send event to parent with invokeid metadata (§scxml-5.10.1)
-     *
-     * §scxml-5.10.1 (test338): When a child sends an event to its parent,
-     * the _event.invokeid field must be set to the invokeid of the invoke
-     * that created the child.
-     *
-     * @param parent Parent state machine pointer
-     * @param event Event to send
-     * @param invokeId Invokeid of the child (from parent's invoke element)
-     * @return true if event was sent successfully, false if parent is null
-     */
-    template <typename ParentStateMachine, typename EventType>
-    static bool sendToParent(ParentStateMachine *parent, EventType event, const std::string &invokeId) {
-        SCE_LOG_DEBUG("SendHelper::sendToParent called - parent={}, event={}, invokeId={}", (void *)parent,
-                      static_cast<int>(event), invokeId);
-        if (parent) {
-            // §scxml-5.10.1: Create event with invokeid metadata
-            typename ParentStateMachine::EventWithMetadata eventWithMetadata(event);
-            eventWithMetadata.invokeId = invokeId;
-
-            // §scxml-6.2: Send to parent's external event queue
-            SCE_LOG_DEBUG("SendHelper::sendToParent - calling parent->raiseExternal()");
-            parent->raiseExternal(eventWithMetadata);
-            SCE_LOG_DEBUG("SendHelper::sendToParent - parent->raiseExternal() completed");
-            return true;
-        }
-        SCE_LOG_DEBUG("SendHelper::sendToParent - parent is nullptr, not sending event");
-        return false;
-    }
-
-    /**
-     * @brief Send event to parent state machine with origin (§scxml-6.5 finalize)
-     *
-     * §scxml-6.5: Set origin to child session ID for finalize execution.
-     * Finalize runs BEFORE the event is processed, with access to _event.data.
-     *
-     * @tparam ParentStateMachine Parent state machine type
-     * @tparam EventType Parent's event enum type
-     * @param parent Pointer to parent state machine
-     * @param event Event to send
-     * @param invokeId Invokeid of the child (from parent's invoke element)
-     * @param childSessionId Child's session ID for finalize origin matching
-     * @return true if event was sent successfully, false if parent is null
-     */
-    template <typename ParentStateMachine, typename EventType>
-    static bool sendToParentWithOrigin(ParentStateMachine *parent, EventType event, const std::string &invokeId,
-                                       const std::string &childSessionId, const std::string &eventData = "") {
-        SCE_LOG_DEBUG(
-            "SendHelper::sendToParentWithOrigin called - parent={}, event={}, invokeId={}, childSessionId={}, "
-            "eventData='{}'",
-            (void *)parent, static_cast<int>(event), invokeId, childSessionId, eventData);
-        if (parent) {
-            // §scxml-5.10.1: Create event with invokeid metadata
-            // §scxml-6.5: Add origin (child session ID) for finalize support
-            // §scxml-5.10: Add event data from params/namelist (test 233)
-            typename ParentStateMachine::EventWithMetadata eventWithMetadata(event, eventData);
-            eventWithMetadata.invokeId = invokeId;
-            eventWithMetadata.origin = childSessionId;  // §scxml-6.5: For finalize matching
-            eventWithMetadata.originType =
-                SCE::Constants::SCXML_EVENT_PROCESSOR_TYPE;  // §scxml-C-1: SCXML Event I/O Processor (test 253)
-
-            // §scxml-6.2: Send to parent's external event queue
-            SCE_LOG_DEBUG("SendHelper::sendToParentWithOrigin - calling parent->raiseExternal()");
-            parent->raiseExternal(eventWithMetadata);
-            SCE_LOG_DEBUG("SendHelper::sendToParentWithOrigin - parent->raiseExternal() completed");
-            return true;
-        }
-        SCE_LOG_DEBUG("SendHelper::sendToParentWithOrigin - parent is nullptr, not sending event");
-        return false;
-    }
-
-    /**
-     * @brief Store sendid in idlocation variable (Single Source of Truth)
-     *
-     * §scxml-6.2.3 (test 183): The idlocation attribute specifies a variable
-     * where the generated sendid should be stored for later reference.
-     *
-     * This method encapsulates the idlocation storage logic shared between:
-     * - Interpreter engine (ActionExecutorImpl::executeSendAction)
-     * - AOT engine (StaticCodeGenerator::generateActionCode for SEND)
-     *
-     * @param jsEngine JSEngine instance for variable operations
-     * @param sessionId Session identifier
-     * @param idLocation Variable name to store sendid (empty = no storage)
-     * @param sendId Generated sendid value to store
-     */
-    template <typename JSEngineType>
-    static void storeInIdLocation(JSEngineType &jsEngine, const std::string &sessionId, const std::string &idLocation,
-                                  const std::string &sendId) {
-        if (!idLocation.empty()) {
-            jsEngine.setVariable(sessionId, idLocation, sendId);
-        }
-    }
+    // The generated C++ AOT's `<send target="#_parent">` is not here: it is
+    // delivered by event NAME through the machine's own policy
+    // (`deliverToParent`, generated beside the parent pointer), the one path
+    // its immediate and delayed forms share, and it raises error.communication
+    // when a session its host started has no parent (§scxml-C-1).
 
 #ifdef SCE_ENABLE_HTTP
     /**

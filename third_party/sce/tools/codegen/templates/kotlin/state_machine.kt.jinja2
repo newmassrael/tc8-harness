@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {#
@@ -15,24 +15,81 @@
 // Source: {{ model.scxml_source_path }}
 // Generator: SCE Kotlin Code Generator v1.0
 {% import '_macros/sce_map_marker.jinja2' as sce_map %}
+{% import '_macros/kotlin_entry_target.jinja2' as et %}
 {# SCE Protocol-Synthesis RFC §synth-5-O: SCE-MAP marker anchoring the
    generated Kotlin file to the `<scxml>` root element's source. #}
 {{ sce_map.source_marker(model.source_location, "kotlin", module_level=true, symbol_artifact=sce_artifact.machine) }}
+{# SCE Accepted Subset §2.15: what the machine's file is allowed to use of the
+   code it calls, which a file annotation says before the package. #}
+{% for line in static_file_annotations %}
+{{ line }}
+{% endfor %}
 
 package {{ kotlin_package_prefix | default("com.sce.generated") }}.{{ model.name | lower }}
 
 import com.sce.runtime.*
-{% if model.invokes | hybrid %}
-import com.sce.interpreter.ScxmlRuntimeInterpreter
-{% endif %}
+{# SCE Accepted Subset §2.15: each algorithm a `sce-static` machine calls,
+   imported by the line a forge kind importing it writes. #}
+{% for line in static_imports %}
+{{ line }}
+{% endfor %}
 
 {% include 'states.kt.jinja2' %}
 
 {% include 'events.kt.jinja2' %}
 
+{% if model.emitted_transition_table %}
+{# emitted-transition-table:begin #}
+{% set _table = model.emitted_transition_table %}
+// --- Transition table (§synth-6.2.6), because the build asked for it ---
+
+/**
+ * One transition of this machine, as constant data. Nothing in the machine
+ * reads it: a host that draws the machine, or checks it against its own
+ * design, does. `from`, `to` and `event` are this file's own
+ * [{{ machine_name }}State] and [{{ machine_name }}Event]; `index` is the
+ * transition's position within its state in document order; `annotation` is
+ * the `sce:req` tokens as written, space-separated and uninterpreted. `to` and
+ * `event` are null where a transition has no single id in those hierarchies: a
+ * targetless transition, a first target that is a `<history>`, an eventless
+ * transition, a wildcard or prefix descriptor, or several descriptors.
+ * `sce-codegen transition-table` lists the same transitions in the same order
+ * with the whole target set and every descriptor.
+ */
+data class {{ machine_name }}Transition(
+    val from: {{ machine_name }}State,
+    val to: {{ machine_name }}State?,
+    val event: {{ machine_name }}Event?,
+    val index: Int,
+    val annotation: String,
+)
+
+object {{ machine_name }}Transitions {
+    /** The digest of the source set this machine was generated from: the `source-hash` of the file's own header, as a value. */
+    const val SOURCE_HASH: String = "{{ _table.source_hash }}"
+
+    /** Every transition of the machine. */
+    val all: List<{{ machine_name }}Transition> = listOf(
+{% for t in _table.transitions %}
+        {{ machine_name }}Transition({{ machine_name }}State.{{ t.from | to_state_class_name }}, {% if t.to %}{{ machine_name }}State.{{ t.to | to_state_class_name }}{% else %}null{% endif %}, {% if t.event %}{{ machine_name }}Event.{{ t.event | to_event_ref }}{% else %}null{% endif %}, {{ t.index }}, "{{ t.annotation | escape_kotlin }}"),
+{% endfor %}
+    )
+}
+{# emitted-transition-table:end #}
+
+{% endif %}
 {% if event_payload_active %}
 // ── NL→IR Item C1 Path A: typed `_event.data` payload classes ─────────
 {{ event_payload_defs }}
+{% endif %}
+{% if static_type_defs %}
+// ── SCE Accepted Subset §2.15: sce-static enum and record variable classes ─────
+{{ static_type_defs }}
+{% endif %}
+{% if static_adapter_defs %}
+// ── SCE Accepted Subset §2.15: calls of an algorithm that takes or returns state ──
+{{ static_adapter_defs }}
+
 {% endif %}
 // --- State Machine (W3C SCXML) ---
 
@@ -46,6 +103,10 @@ import com.sce.interpreter.ScxmlRuntimeInterpreter
 {% if has_native_actions %}
 // ── W3C SCXML G.7: `<sce:action>` host dispatch ───────────────────────
 {{ native_actions_defs }}
+{% endif %}
+{% if host_invoker_defs %}
+// ── SCE Accepted Subset 2.12: typed host-run invoke interface ─────────
+{{ host_invoker_defs }}
 {% endif %}
 class {{ machine_name }}StateMachine(
 {% if has_native_actions %}
@@ -70,6 +131,245 @@ class {{ machine_name }}StateMachine(
 ) : StateMachineEngine<{{ machine_name }}State, {{ machine_name }}Event>(scriptEngine) {
 {% else %}
 ) : StateMachineEngine<{{ machine_name }}State, {{ machine_name }}Event>() {
+{% endif %}
+{% if static_fields %}
+
+    // ── SCE Accepted Subset §2.15: the datamodel="sce-static" variables ─────
+{# Under `sce-static` this class IS the datamodel's home: there is no engine,
+   and every expression was lowered to Kotlin reading and writing these fields
+   (`crate::forge::static_lowering`). Only the machine's own statements write
+   them, so every one is private, under a name of its own (`v<PascalCase id>`):
+   this class extends the engine, and a field under the author's bare name
+   would hide whatever the engine already calls by it (`clock`). A variable
+   declared `sce:direction="out"` is published — the host reads it through a
+   property of the author's spelling, and the snapshot carries it. The
+   generator gives no such property to a name the class already holds
+   (`field.reader` is none); the snapshot and a saved state carry the variable
+   all the same. #}
+{# What a host is handed of a published field: a byte string as a copy, because
+   the array is the machine's own and a host that wrote into it would change the
+   variable behind its bound; a record with a copy of each byte string it holds,
+   for the same reason; and so each record of a list. #}
+{% macro handed_out(field) -%}
+{% if field.saved_type == "bytes" %}{{ field.name }}.copyOf(){% elif field.holds_bytes and field.saved_kind == "record" %}{{ field.name }}.detached(){% elif field.holds_bytes and field.saved_kind == "record_list" %}{{ field.name }}.map { it.detached() }{% else %}{{ field.name }}{% endif %}
+{%- endmacro %}
+{% for field in static_fields %}
+{% if field.published %}
+    /** W3C SCXML 5.2: the `{{ field.id }}` datamodel variable, published (`sce:direction="out"`). */
+    private var {{ field.name }}: {{ field.ty }} = {{ field.init }}
+{% if field.reader %}
+
+    /** What the published `{{ field.id }}` holds. */
+    val {{ field.reader }}: {{ field.ty }} get() = {{ handed_out(field) }}
+{% endif %}
+{% else %}
+    /** W3C SCXML 5.2: the `{{ field.id }}` datamodel variable, the machine's own. */
+    private var {{ field.name }}: {{ field.ty }} = {{ field.init }}
+{% endif %}
+{% endfor %}
+{# §scxml-6.4.1: a variable a parent may hand a value to — a bool, a string, an
+   integer or a real. A list, a record, an enum and bytes are not seeded; the
+   static judge refuses a value handed to one. #}
+{% set ns_seed = namespace(any=false) %}
+{% for field in static_fields %}
+{% if field.saved_kind == 'scalar' and field.saved_type != 'bytes' %}
+{% set ns_seed.any = true %}
+{% endif %}
+{% endfor %}
+{% if ns_seed.any %}
+
+    /**
+     * §scxml-6.4.1: the values a parent's `<param>` and `namelist` give this
+     * machine's variables before it starts. A variable left `null` keeps the
+     * value its `<data>` gave it.
+     */
+    class InvokeParams {
+{% for field in static_fields %}
+{% if field.saved_kind == 'scalar' and field.saved_type != 'bytes' %}
+        var {{ field.id | to_camel_case }}: {{ field.ty }}? = null
+{% endif %}
+{% endfor %}
+    }
+
+    /** Give this machine the values [params] carries, in place of the ones its `<data>` gave. Called before [initialize]. */
+    fun acceptParams(params: InvokeParams) {
+{% for field in static_fields %}
+{% if field.saved_kind == 'scalar' and field.saved_type != 'bytes' %}
+        params.{{ field.id | to_camel_case }}?.let { {{ field.name }} = it }
+{% endif %}
+{% endfor %}
+    }
+{% endif %}
+{% if static_published %}
+
+    /** The published variables as one immutable value, in declaration order. */
+    data class Data(
+{% for field in static_published %}
+        val {{ field.id | to_camel_case }}: {{ field.ty }},
+{% endfor %}
+    )
+{% endif %}
+
+    /**
+     * What a host observes: the full active configuration — every active
+     * state, each region of a `<parallel>` included —{% if static_published %} and the published
+     * variables,{% endif %} taken together at a macrostep boundary. `truncated` is
+     * `true` when that macrostep was stopped at the microstep ceiling, so the
+     * configuration is not a stable one.
+     */
+    data class Snapshot(
+        val configuration: Set<{{ machine_name }}State>,
+{% if static_published %}
+        val data: Data,
+{% endif %}
+        val truncated: Boolean,
+    )
+{% if static_published %}
+
+    private fun currentData(): Data = Data(
+{% for field in static_published %}
+        {{ field.id | to_camel_case }} = {{ handed_out(field) }},
+{% endfor %}
+    )
+{% endif %}
+
+    private val _snapshot = kotlinx.coroutines.flow.MutableStateFlow(
+        Snapshot(emptySet(){% if static_published %}, currentData(){% endif %}, false)
+    )
+
+    /**
+     * The machine as the host sees it: one [Snapshot] per completed macrostep
+     * (W3C SCXML Appendix D), never a state between two microsteps.
+     *
+     * Compose integration: `val s by sm.snapshot.collectAsState()`
+     */
+    val snapshot: kotlinx.coroutines.flow.StateFlow<Snapshot>
+        get() = _snapshot
+
+    override fun onMacrostepComplete(truncated: Boolean) {
+        _snapshot.value = Snapshot(activeConfiguration{% if static_published %}, currentData(){% endif %}, truncated)
+    }
+{% endif %}
+{% if static_saved_shape %}
+
+    // ── SCE Accepted Subset §2.15: saving this machine, restoring it ─────────
+{% macro saved_write(kind, type, name) -%}
+{%- if kind == "record" or kind == "enum" -%}
+{{ name }}.toSaved()
+{%- elif kind == "list" -%}
+SavedValues.list({{ name }}) { SavedValues.of(it) }
+{%- elif kind == "record_list" -%}
+SavedValues.list({{ name }}) { it.toSaved() }
+{%- else -%}
+SavedValues.of({{ name }})
+{%- endif -%}
+{%- endmacro %}
+{% macro saved_read(kind, type, value, what, bound) -%}
+{%- if kind == "record" or kind == "enum" -%}
+{{ type }}.fromSaved({{ value }}, {{ what }})
+{%- elif kind == "list" -%}
+SavedValues.list({{ value }}, {{ what }}, {{ bound }}) { e, w -> SavedValues.{{ type }}(e, w) }
+{%- elif kind == "record_list" -%}
+SavedValues.list({{ value }}, {{ what }}, {{ bound }}) { e, w -> {{ type }}.fromSaved(e, w) }
+{%- elif type == "bytes" -%}
+SavedValues.bytes({{ value }}, {{ what }}, {{ bound if bound is not none else "Int.MAX_VALUE" }})
+{%- elif type == "string" and bound is not none -%}
+SavedValues.string({{ value }}, {{ what }}, {{ bound }})
+{%- else -%}
+SavedValues.{{ type }}({{ value }}, {{ what }})
+{%- endif -%}
+{%- endmacro %}
+{# A record's or an enum's saved form is its own type's (`toSaved` /
+   `fromSaved`, emitted with the type by the static lowering). A per-type function here, named by
+   prefixing the record's type, would reserve every variable name that prefix
+   could match (`crate::reader_names` reads a template name as a pattern), and
+   did: `readBackProbe` lost its reader in every backend (2026-09-27). #}
+
+    /**
+     * The shape a saved state of this document is bound to: a state saved
+     * from a document that renamed, re-typed or moved a state or a variable is
+     * refused, one saved before a guard or an action changed is not.
+     */
+    val savedShape: String = "{{ static_saved_shape }}"
+
+    /**
+     * This machine's whole state at the macrostep boundary it stands at —
+     * every variable, the machine's own included, and where it stands — as
+     * the `sce-saved-state` document every backend reads ([SavedState.toJson]).
+     * Each delayed `<send>` still waiting is written as the moment it comes due
+     * on the wall clock whose reading now is [wallNowMs], in milliseconds since
+     * the Unix epoch.
+     *
+     * @throws StateRefusal for a machine that is not running, or whose last
+     *   macrostep stopped at the microstep ceiling.
+     */
+    fun save(wallNowMs: Long): SavedState = savedState(
+        savedShape,
+        linkedMapOf(
+{% for field in static_fields %}
+            "{{ field.id }}" to {{ saved_write(field.saved_kind, field.saved_type, field.name) }},
+{% endfor %}
+        ),
+        wallNowMs,
+    )
+
+    /** [save] at the host's wall clock now. */
+    fun save(): SavedState = save(SavedState.wallClockMs())
+
+    /**
+     * Stand this machine where [saved] left one, in place of [initialize]: no
+     * `<onentry>` runs and no `<data>` is evaluated, since the saved run
+     * already did both. Every value is read before any is written, so a
+     * refused restore leaves the machine as it was.
+     *
+     * The delayed sends [saved] holds are armed against this machine's `clock`,
+     * which is installed before a restore as before [initialize]; [wallNowMs]
+     * is what time it is on the wall clock the saved `due`s were written
+     * against. A send comes due when its saved moment does, and one already due
+     * comes due now.
+     *
+     * @throws StateRefusal for a machine that has already started, a state
+     *   saved from a document of another shape, a configuration that is not
+     *   one of this document, or a value its variable's type cannot hold.
+     */
+    fun restore(saved: SavedState, wallNowMs: Long) {
+        beginRestore(saved, savedShape)
+{% for field in static_fields %}
+        val saved{{ loop.index }} = {{ saved_read(field.saved_kind, field.saved_type, 'saved.variable("' ~ field.id ~ '")', '"' ~ field.id ~ '"', field.bound) }}
+{% endfor %}
+{% for field in static_fields %}
+        {{ field.name }} = saved{{ loop.index }}
+{% endfor %}
+        enterSaved(saved, wallNowMs)
+    }
+
+    /** [restore] at the host's wall clock now. */
+    fun restore(saved: SavedState) = restore(saved, SavedState.wallClockMs())
+{% if model.invokes | scxml_family %}
+
+    // §scxml-6.4: a saved state names the `<invoke>`s whose child is running,
+    // and a restore starts each again from its beginning. This document saves
+    // only when every invoke is a static child session, a hybrid one among
+    // declared candidates, or one a declared host invoker serves.
+    override val staticInvokes: List<Pair<String, {{ machine_name }}State>> = listOf(
+{% for invoke_info in model.invokes | scxml_family %}
+        "{{ invoke_info.invoke_id | escape_kotlin }}" to {{ machine_name }}State.{{ invoke_info.state_name | to_state_class_name }},
+{% endfor %}
+    )
+
+    override fun restartInvoke(invokeId: String, state: {{ machine_name }}State) = deferStaticInvoke(invokeId, state)
+{% endif %}
+{% if model.invokes | host_invoker %}
+
+    // §scxml-6.4.1: a saved state names the `<invoke>`s a declared host invoker
+    // is running, and a restore starts each again from the request it saved. What
+    // it may name is what the document hands to a host.
+    override val staticHostInvokes: List<Triple<String, String, {{ machine_name }}State>> = listOf(
+{% for invoke_info in model.invokes | host_invoker %}
+        Triple("{{ invoke_info.invoke_type | escape_kotlin }}", "{{ invoke_info.invoke_id | escape_kotlin }}", {{ machine_name }}State.{{ invoke_info.state_name | to_state_class_name }}),
+{% endfor %}
+    )
+{% endif %}
 {% endif %}
 {# W3C SCXML 5.3: the datamodel has ONE home, and it is not this class.
 
@@ -109,14 +409,9 @@ class {{ machine_name }}StateMachine(
      * (§scxml-B-2) so the key order is the document's.
 {% endif %}
      */
-    fun {{ var.id | to_camel_case }}(): {{ KT_READ_TYPE[var.type] }}? =
+    fun {{ var.reader.kotlin }}(): {{ KT_READ_TYPE[var.type] }}? =
         com.sce.runtime.DatamodelRead.read{{ KT_READ_FN[var.type] }}(scriptEngine, scriptSessionId, "{{ var.id }}")
 {% endfor %}
-{% endif %}
-{% if inline_kind_code %}
-
-    // ── SCE Forge: Inline kind member functions ──────────────
-{{ inline_kind_code }}
 {% endif %}
 {% if event_payload_active %}
 
@@ -124,15 +419,25 @@ class {{ machine_name }}StateMachine(
     // lifted from the dequeued event by populateTypedPayload and read by the
     // native transition guards. `null` between events / for untyped events.
 {{ event_payload_policy_fields }}
-    // NL→IR Item C1 Path A: lift the dequeued event's type-erased typed payload
-    // into the matching nullable field (a non-typed carrier resets all to null,
-    // so every typed guard fails). Twin of the Go policy's PopulateEventMetadata
-    // type-switch / the C11 pop loop's `sm->pending_payload = evt.payload`.
-    override fun populateTypedPayload(metadata: EventMetadata) {
+    // NL→IR Item C1 Path A: bind the dequeued event's typed `_event.data` view
+    // — from the type-erased carrier the inject seam fills, and otherwise by
+    // lifting the fields out of `metadata.data`, which every other producer
+    // fills. An event with neither resets the fields to null, so every typed
+    // guard fails. A payload that cannot be read as this event's schema throws
+    // EventPayload.Refusal, which the engine reports as error.execution. Twin
+    // of the Go policy's PopulateEventMetadata + LiftTypedPayload / the C11 pop
+    // loop's `sm->pending_payload = evt.payload`.
+    override fun populateTypedPayload(event: {{ machine_name }}Event, metadata: EventMetadata) {
 {{ event_payload_populate }}    }
 
     // NL→IR Item C1 Path A: per-event typed `_event.data` inject seams.
 {{ event_payload_inject }}
+{% endif %}
+{% if host_invoker_members %}
+
+    // SCE Accepted Subset 2.12: registration and typed completion for this
+    // document's typed host-run invokes.
+{{ host_invoker_members }}
 {% endif %}
 
     override val initialState: {{ machine_name }}State = {{ machine_name }}State.{{ model.initial_leaf | to_state_class_name if model.initial_leaf else model.initial | to_state_class_name }}
@@ -141,6 +446,9 @@ class {{ machine_name }}StateMachine(
     // the synchronous mode. The same verdict the generate manifest publishes
     // as `needs_event_scheduler`.
     override val needsEventScheduler: Boolean = {{ 'true' if model.needs_tick_driving else 'false' }}
+
+    // The generate manifest's `needs_parent`: what a root-start policy reads.
+    override val needsParent: Boolean = {{ 'true' if model.needs_parent else 'false' }}
 {% if model.needs_script_engine %}
 
     // W3C SCXML B.1: Initialize script engine before entering initial state
@@ -150,7 +458,14 @@ class {{ machine_name }}StateMachine(
     }
 {% endif %}
 
+    // --- Document structure (W3C SCXML 3.2-3.4, 3.10) ---
+    //
+    // What the runtime's Appendix D procedures (com.sce.runtime.Microstep)
+    // read of this document. The tables are built once, in the companion
+    // object below, because the structure is a fact about the document and
+    // not about a run.
 {% if parent_map %}
+
     // W3C SCXML 3.3: State hierarchy parent mapping
     override fun parentOf(state: {{ machine_name }}State): {{ machine_name }}State? = when (state) {
 {% for child_id, parent_id in parent_map | dictsort %}
@@ -159,16 +474,163 @@ class {{ machine_name }}StateMachine(
         else -> null
     }
 {% endif %}
-
-{% if leaf_map %}
-    // W3C SCXML 3.3/3.4: Resolve compound/parallel state to initial leaf state
-    override fun resolveLeafState(state: {{ machine_name }}State): {{ machine_name }}State = when (state) {
-{% for compound_id, leaf_id in leaf_map | dictsort %}
-        is {{ machine_name }}State.{{ compound_id | to_state_class_name }} -> {{ machine_name }}State.{{ leaf_id | to_state_class_name }}
+{% set ns_doc = namespace(compound=[], parallel=[], final=[], parents=[]) %}
+{% for state_id, state in model.states | dictsort %}
+{% if state.initial_targets %}{% set ns_doc.compound = ns_doc.compound + [state_id] %}{% endif %}
+{% if state.is_parallel %}{% set ns_doc.parallel = ns_doc.parallel + [state_id] %}{% endif %}
+{% if state.is_final %}{% set ns_doc.final = ns_doc.final + [state_id] %}{% endif %}
+{% if state.children %}{% set ns_doc.parents = ns_doc.parents + [state_id] %}{% endif %}
 {% endfor %}
-        else -> state
+{% if ns_doc.compound %}
+
+    // W3C SCXML 3.3: a <state> with child states — exactly the states that
+    // have an initial transition. A <parallel> is not compound.
+    override fun isCompoundState(state: {{ machine_name }}State): Boolean = when (state) {
+        {%+ for state_id in ns_doc.compound %}is {{ machine_name }}State.{{ state_id | to_state_class_name }}{{ ", " if not loop.last }}{% endfor %} -> true
+        else -> false
     }
 {% endif %}
+{% if ns_doc.parallel %}
+
+    // W3C SCXML 3.4: Check if state is a parallel state
+    override fun isParallelState(state: {{ machine_name }}State): Boolean = when (state) {
+        {%+ for state_id in ns_doc.parallel %}is {{ machine_name }}State.{{ state_id | to_state_class_name }}{{ ", " if not loop.last }}{% endfor %} -> true
+        else -> false
+    }
+{% endif %}
+{% if ns_doc.final %}
+
+    // W3C SCXML 3.7: Check if state is a <final> element
+    override fun isFinalState(state: {{ machine_name }}State): Boolean = when (state) {
+        {%+ for state_id in ns_doc.final %}is {{ machine_name }}State.{{ state_id | to_state_class_name }}{{ ", " if not loop.last }}{% endfor %} -> true
+{# A document whose every state is a <final> (an invoked child that only
+   finishes) leaves the `when` exhaustive, and Kotlin rejects the redundant
+   `else` under -Werror. A compound or <parallel> state always has a child that
+   is neither, so the two predicates above always need theirs. #}
+{% if ns_doc.final | length < model.states | length %}
+        else -> false
+{% endif %}
+    }
+{% endif %}
+{% if ns_doc.parents %}
+
+    // §scxml-D-getChildStates: a state's <state>, <parallel> and <final>
+    // children, in document order — for a <parallel>, its regions.
+    override fun childStatesOf(state: {{ machine_name }}State): List<{{ machine_name }}State> =
+        childStates[state] ?: emptyList()
+{% endif %}
+{% if ns_doc.compound %}
+
+    // W3C SCXML 3.3: a compound state's initial transition target, as written.
+    override fun initialTargetsOf(state: {{ machine_name }}State): List<EntryTarget<{{ machine_name }}State, HistoryId>> =
+        initialTargets[state] ?: emptyList()
+{% endif %}
+
+    // W3C SCXML 3.2: the target of the document's own initial transition, as
+    // written.
+    override val documentInitialTargets: List<EntryTarget<{{ machine_name }}State, HistoryId>>
+        get() = documentInitialTargetList
+{% if model.history_states %}
+
+    // W3C SCXML 3.10: the state a <history> is declared in.
+    override fun historyParentOf(history: HistoryId): {{ machine_name }}State = historyParents.getValue(history)
+
+    // W3C SCXML 3.10.2: a <history>'s default transition target, as written.
+    override fun historyDefaultTargetsOf(history: HistoryId): List<EntryTarget<{{ machine_name }}State, HistoryId>> =
+        historyDefaultTargets.getValue(history)
+
+    // W3C SCXML 3.10: a state's <history> children, each with whether it is
+    // deep — what the runtime records as the state is exited.
+    override fun historiesOf(state: {{ machine_name }}State): List<Pair<HistoryId, Boolean>> =
+        historiesByParent[state] ?: emptyList()
+{% if static_saved_shape %}
+
+    // SCE Accepted Subset §2.15: the id a saved state keys a <history> by, and
+    // the history an id names.
+    override fun historyIdOf(history: HistoryId): String = when (history) {
+{% for history_id, info in model.history_states | dictsort %}
+        history{{ history_id | to_state_class_name }} -> "{{ history_id }}"
+{% endfor %}
+        else -> error("no <history> of this document is $history")
+    }
+
+    override fun resolveHistory(historyId: String): HistoryId? = when (historyId) {
+{% for history_id, info in model.history_states | dictsort %}
+        "{{ history_id }}" -> history{{ history_id | to_state_class_name }}
+{% endfor %}
+        else -> null
+    }
+{% endif %}
+{% endif %}
+
+    private companion object {
+{% for history_id, info in model.history_states | dictsort %}
+        /** W3C SCXML 3.10: the `{{ history_id }}` <history> ({{ info.type }}). */
+        val history{{ history_id | to_state_class_name }} = HistoryId({{ loop.index0 }})
+
+{% endfor %}
+{% if ns_doc.parents %}
+        val childStates: Map<{{ machine_name }}State, List<{{ machine_name }}State>> = mapOf(
+{% for state_id, state in model.states | dictsort %}
+{% if state.children %}
+            {{ machine_name }}State.{{ state_id | to_state_class_name }} to listOf({% for child in state.children %}{{ machine_name }}State.{{ child | to_state_class_name }}{{ ", " if not loop.last }}{% endfor %}),
+{% endif %}
+{% endfor %}
+        )
+
+{% endif %}
+{% if ns_doc.compound %}
+        val initialTargets: Map<{{ machine_name }}State, List<EntryTarget<{{ machine_name }}State, HistoryId>>> = mapOf(
+{% for state_id, state in model.states | dictsort %}
+{% if state.initial_targets %}
+            {{ machine_name }}State.{{ state_id | to_state_class_name }} to {{ et.entry_targets(state.initial_targets, model.history_states, machine_name) }},
+{% endif %}
+{% endfor %}
+        )
+
+{% endif %}
+        val documentInitialTargetList: List<EntryTarget<{{ machine_name }}State, HistoryId>> =
+            {{ et.entry_targets(model.initial_targets, model.history_states, machine_name) }}
+{% if model.history_states %}
+
+        val historyParents: Map<HistoryId, {{ machine_name }}State> = mapOf(
+{% for history_id, info in model.history_states | dictsort %}
+            history{{ history_id | to_state_class_name }} to {{ machine_name }}State.{{ info.parent | to_state_class_name }},
+{% endfor %}
+        )
+
+        val historyDefaultTargets: Map<HistoryId, List<EntryTarget<{{ machine_name }}State, HistoryId>>> = mapOf(
+{% for history_id, info in model.history_states | dictsort %}
+            history{{ history_id | to_state_class_name }} to {{ et.entry_targets(info.default_targets, model.history_states, machine_name) }},
+{% endfor %}
+        )
+
+        val historiesByParent: Map<{{ machine_name }}State, List<Pair<HistoryId, Boolean>>> = mapOf(
+{% for state_id, state in model.states | dictsort %}
+{% set ns_hist = namespace(entries=[]) %}
+{% for history_id, info in model.history_states | dictsort %}
+{% if info.parent == state_id %}{% set ns_hist.entries = ns_hist.entries + ["history" ~ (history_id | to_state_class_name) ~ " to " ~ ('true' if info.type == 'deep' else 'false')] %}{% endif %}
+{% endfor %}
+{% if ns_hist.entries %}
+            {{ machine_name }}State.{{ state_id | to_state_class_name }} to listOf({{ ns_hist.entries | join(", ") }}),
+{% endif %}
+{% endfor %}
+        )
+{% endif %}
+{% for state_id, state in model.states | dictsort %}
+{% for trans in state.transitions %}
+
+        // W3C SCXML 3.13: {{ state_id }}'s transition {{ trans.transition_index }}, as the microstep reads it.
+        val transition{{ state_id | to_state_class_name }}At{{ trans.transition_index }} = EnabledTransition<{{ machine_name }}State, HistoryId>(
+            {{ machine_name }}State.{{ state_id | to_state_class_name }},
+            {%+ if trans.targets %}{{ et.entry_targets(trans.targets, model.history_states, machine_name) }}{% else %}emptyList(){% endif %},
+            {{ trans.transition_index }},
+            hasActions = {{ 'true' if trans.actions else 'false' }},
+            isInternal = {{ 'true' if trans.type == 'internal' else 'false' }},
+        )
+{% endfor %}
+{% endfor %}
+    }
 
     // W3C SCXML: Resolve state ID string to State object
     override fun resolveState(stateId: String): {{ machine_name }}State? = when (stateId) {
@@ -185,60 +647,29 @@ class {{ machine_name }}StateMachine(
 {% endfor %}
     }
 
-    // W3C SCXML 3.4: Check if state is atomic (leaf — no children)
-    override fun isAtomicState(state: {{ machine_name }}State): Boolean = when (state) {
-{% for state_id in model.states | sort %}
-{% set state = model.states[state_id] %}
-{% if state.is_parallel or state.initial or (state_id in model.parallel_regions) %}
-        is {{ machine_name }}State.{{ state_id | to_state_class_name }} -> false
-{% endif %}
-{% endfor %}
-        else -> true
-    }
-
-{% if model.parallel_regions %}
-    // W3C SCXML 3.4: Check if state is a parallel state
-    override fun isParallelState(state: {{ machine_name }}State): Boolean = when (state) {
-{% for state_id in model.states | sort %}
-{% set state = model.states[state_id] %}
-{% if state.is_parallel %}
-        is {{ machine_name }}State.{{ state_id | to_state_class_name }} -> true
-{% endif %}
-{% endfor %}
-        else -> false
-    }
-
-    // W3C SCXML 3.4: Get child regions of a parallel state (C++ getParallelRegions pattern)
-    override fun getParallelRegions(state: {{ machine_name }}State): List<{{ machine_name }}State> = when (state) {
-{% for parallel_id, regions in model.parallel_regions | dictsort %}
-        is {{ machine_name }}State.{{ parallel_id | to_state_class_name }} -> listOf({% for region in regions %}{{ machine_name }}State.{{ region | to_state_class_name }}{% if not loop.last %}, {% endif %}{% endfor %})
-{% endfor %}
-        else -> emptyList()
-    }
-{% endif %}
-
-    // W3C SCXML 3.13: Document order for exit ordering
+    // W3C SCXML 3.13: Document order — entry order, and in reverse exit order
     override fun documentOrderOf(state: {{ machine_name }}State): Int = when (state) {
 {% for state_id in model.states | sort %}
         is {{ machine_name }}State.{{ state_id | to_state_class_name }} -> {{ model.states[state_id].document_order }}
 {% endfor %}
     }
 
-{# W3C SCXML 6.2.5 is in this list for a reason the others are not: a
-   host-served act answers with event NAMES, chosen while the machine runs, so
-   this map is the only thing that can turn a handler's report into events —
-   and the §scxml-6.2 report for an act nobody performed is resolved the same
-   way. Without it a machine that serves a host processor and has no datamodel
-   drops every reply silently: measured on
-   `statechart_delayed_host_send.scxml`, whose handler ran at its deadline and
-   whose `turn.done` reached nothing, because `needs_script_engine` had been
-   standing in for "this machine resolves events by name" and that fixture is
-   the first host-served one without one. #}
-{% if model.invokes or model.has_parent_communication or model.needs_script_engine or model.needs_http_send or model.host_processor_types %}
+{# Every machine resolves the names that cross into it, because a name crossing
+   in is not a property of what the document does: a child's autoforward, a
+   host's `sendEventByName`, a host-served act's reply, a refused typed payload's
+   `error.execution` and a saved queue read back are all names, and THIS map is
+   the only thing that turns one into an event. This used to be emitted when a
+   list of reasons held — an invoke, a parent, a script engine, an HTTP send, a
+   host processor, a typed payload, a saved shape — and each time a document
+   met none of them, the engine dropped every name in silence: measured on
+   `statechart_delayed_host_send.scxml` and on `statechart_lifted.scxml`, and
+   again on a plain machine driven by name (the probe of the arrival name,
+   2026-10-04). A list of reasons is a list that is one short; the map is the
+   document's own event table and costs a `when`. #}
     // W3C SCXML 6.4: Resolve event name to Event object (cross-SM routing)
     override fun resolveEventByName(name: String): {{ machine_name }}Event? = when (name) {
 {% for event_name in leaf_events | sort %}
-        "{{ event_name }}" -> {{ machine_name }}Event.{{ event_name | to_event_ref }}
+        "{{ event_name | event_wire_name }}" -> {{ machine_name }}Event.{{ event_name | to_event_ref }}
 {% endfor %}
         else -> null
     }
@@ -247,7 +678,7 @@ class {{ machine_name }}StateMachine(
 {% if leaf_events %}
     override fun eventNameOf(event: {{ machine_name }}Event): String? = when (event) {
 {% for event_name in leaf_events | sort %}
-        is {{ machine_name }}Event.{{ event_name | to_event_ref }} -> "{{ event_name }}"
+        is {{ machine_name }}Event.{{ event_name | to_event_ref }} -> "{{ event_name | event_wire_name }}"
 {% endfor %}
     }
 {% else %}
@@ -260,6 +691,15 @@ class {{ machine_name }}StateMachine(
     // Returning the null directly is the honest expression of "unreachable".
     override fun eventNameOf(event: {{ machine_name }}Event): String? = null
 {% endif %}
+{% if model.host_invoker_types %}
+
+    // W3C SCXML 6.4: these invokes are run by the host, so their `done.invoke`
+    // is accepted only through `completeHostInvoke`.
+    override val hostInvokeIds: Set<String> = setOf(
+{% for inv in model.invokes | host_invoker %}
+        "{{ inv.invoke_id | escape_kotlin }}",
+{% endfor %}
+    )
 {% endif %}
 
 {% include 'scriptengine_helpers.kt.jinja2' %}

@@ -1,7 +1,26 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
+{#- One field of the positional prefix, bound to its own local. An
+    enum-typed field travels on the wire as the enum's carrier, so
+    `decode_expr` reads that carrier and the enum's own conversion
+    turns it into a value of the type; a closed set's conversion is
+    partial, and a carrier value it does not declare is not a value of
+    that type, so the frame does not decode. The statement carries its
+    own indentation because the three call sites below share it. #}
+{% macro decode_field(field) %}
+{% if field.is_enum and field.enum_is_open %}
+	{{ field.id }} := {{ field.enum_from_underlying }}({{ field.decode_expr }})
+{%- elif field.is_enum %}
+	{{ field.id }}, ok := {{ field.enum_from_underlying }}({{ field.decode_expr }})
+	if !ok {
+		return nil, codec.ErrUndeclaredEnumValue
+	}
+{%- else %}
+	{{ field.id }} := {{ field.decode_expr }}
+{%- endif %}
+{% endmacro %}
 {{ sce_map.source_marker(source_location, "go", module_level=true, symbol_artifact=sce_artifact.forge_body) }}
 
 // SCE Forge: Auto-generated from Extended SCXML (sce:kind="codec")
@@ -128,7 +147,7 @@ func Decode{{ struct_name }}(cursor *codec.SceCursor{{ params_after_first_arg }}
 		return nil, err
 	}
 {% for field in fields %}
-	{{ field.id }} := {{ field.decode_expr }}
+{{ decode_field(field) }}
 {% endfor %}
 	if err := cursor.Advance({{ min_bytes }}); err != nil {
 		return nil, err
@@ -207,7 +226,7 @@ func Decode{{ struct_name }}(cursor *codec.SceCursor{{ params_after_first_arg }}
 		return nil, err
 	}
 {% for field in fields %}
-	{{ field.id }} := {{ field.decode_expr }}
+{{ decode_field(field) }}
 {% endfor %}
 	value := &{{ struct_name }}{
 {% for field in fields %}
@@ -224,7 +243,7 @@ func Decode{{ struct_name }}(cursor *codec.SceCursor{{ params_after_first_arg }}
 		return nil, err
 	}
 {% for field in fields %}
-	{{ field.id }} := {{ field.decode_expr }}
+{{ decode_field(field) }}
 {% endfor %}
 	value := &{{ struct_name }}{
 {% for field in fields %}
@@ -314,6 +333,7 @@ func (s *{{ struct_name }}) Encode(w codec.SceSink{{ params_after_first_arg }}) 
 	// carrier's encode site.
 {{ parent_tag_derivation_block }}
 {% endif %}
+{% if present_if_encode_prologue %}{{ present_if_encode_prologue }}{% endif %}
 {% if has_no_fields %}
 	// RFC §synth-5-B empty body — zero-byte payload.
 	_ = w
@@ -401,6 +421,22 @@ func (s *{{ struct_name }}) Encode(w codec.SceSink{{ params_after_first_arg }}) 
 {% endif %}
 }
 
+{% if encode_can_refuse %}
+// EncodeToBytes is the heap-backed convenience facade. Runs Encode
+// over a BytesSink and returns the freshly-encoded byte slice, or the
+// error Encode refuses a message with when a field's presence disagrees
+// with the chain-membership `sce:present-if` that gates it
+// (codec.ErrPresentIfMismatch). Callers targeting zero-alloc hot paths
+// should call Encode directly against a caller-owned sink (e.g.
+// BoundedSink over a stack buffer).
+func (s *{{ struct_name }}) EncodeToBytes({{ params_first_arg }}) ([]byte, error) {
+	_dst := make([]byte, 0, {{ max_bytes }})
+	if err := s.Encode(codec.NewBytesSink(&_dst){{ params_first_arg_with_comma }}); err != nil {
+		return nil, err
+	}
+	return _dst, nil
+}
+{% else %}
 // EncodeToBytes is the heap-backed convenience facade. Runs Encode
 // over a BytesSink and returns the freshly-encoded byte slice.
 // Callers targeting zero-alloc hot paths should call Encode directly
@@ -410,3 +446,4 @@ func (s *{{ struct_name }}) EncodeToBytes({{ params_first_arg }}) []byte {
 	_ = s.Encode(codec.NewBytesSink(&_dst){{ params_first_arg_with_comma }})
 	return _dst
 }
+{% endif %}

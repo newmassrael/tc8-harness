@@ -1,7 +1,25 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
+{#- One field of the positional prefix, bound to its own local. An
+    enum-typed field travels on the wire as the enum's carrier, so
+    `decode_expr` reads that carrier and the enum's own conversion
+    turns it into a value of the type; a closed set's conversion is
+    partial, and a carrier value it does not declare is not a value of
+    that type, so the frame does not decode — which this backend
+    reports as the truncation sentinel, as it does for malformed text.
+    The statement carries its own indentation because the three call
+    sites below share it. #}
+{% macro decode_field(field) %}
+{% if field.is_enum and field.enum_is_open %}
+            val {{ field.id }} = {{ field.enum_from_underlying }}({{ field.decode_expr }})
+{%- elif field.is_enum %}
+            val {{ field.id }} = {{ field.enum_from_underlying }}({{ field.decode_expr }}) ?: return null
+{%- else %}
+            val {{ field.id }} = {{ field.decode_expr }}
+{%- endif %}
+{% endmacro %}
 {{ sce_map.source_marker(source_location, "kotlin", module_level=true, symbol_artifact=sce_artifact.forge_body) }}
 
 // SCE Forge: Auto-generated from Extended SCXML (sce:kind="codec")
@@ -45,8 +63,11 @@ class {{ struct_name }} {
 {% else %}
 // Default-valued primary constructor: the generated procedure_l2 code
 // holds codec instances as owned members and initializes them with
-// `{{ struct_name }}()` before any encode()/decode() call. Defaults
-// mirror the zero-initialized shape that decode() fills in on success.
+// `{{ struct_name }}()` before any encode()/decode() call. Each default
+// is a value of that field's own type, which decode() then fills in on
+// success — the carrier's zero for a number, and for an enum the first
+// variant its document declares, since a closed set does not hold a
+// value it never declared.
 data class {{ struct_name }}(
 {% for field in fields %}
     var {{ field.id }}: {{ field.kt_type }} = {% if field.kt_flag_default_literal is defined %}{{ field.kt_flag_default_literal }}{% else %}{{ field.kt_default }}{% endif %}{{ "," if not loop.last or has_variant else "" }}
@@ -150,6 +171,7 @@ data class {{ struct_name }}(
         // carrier's encode site.
 {{ parent_tag_derivation_block }}
 {% endif %}
+{% if present_if_encode_prologue %}{{ present_if_encode_prologue }}{% endif %}
 {% if has_no_fields %}
         // RFC §synth-5-B empty body — zero-byte payload.
         return null
@@ -230,6 +252,19 @@ data class {{ struct_name }}(
 {% endif %}
     }
 
+{% if encode_can_refuse %}
+    /// Heap-backed convenience facade. Runs `encode` over a
+    /// `MutableListSink` and returns the freshly-encoded ByteArray, or
+    /// `null` when `encode` refuses a message whose chain and a gated
+    /// field contradict each other (`CodecError.PresentIfMismatch`).
+    /// Callers targeting zero-alloc hot paths should call `encode`
+    /// directly against a caller-owned sink (e.g. `ByteArraySink`).
+    fun encodeToByteArray({{ params_first_arg }}): ByteArray? {
+        val _list = mutableListOf<Byte>()
+        if (encode(MutableListSink(_list){{ params_first_arg_with_comma }}) != null) return null
+        return _list.toByteArray()
+    }
+{% else %}
     /// Heap-backed convenience facade. Runs `encode` over a
     /// `MutableListSink` and returns the freshly-encoded ByteArray.
     /// Callers targeting zero-alloc hot paths should call `encode`
@@ -239,6 +274,7 @@ data class {{ struct_name }}(
         encode(MutableListSink(_list){{ params_first_arg_with_comma }})
         return _list.toByteArray()
     }
+{% endif %}
 
     companion object {
         /// Decode the next frame from `cursor`. On success the cursor
@@ -279,7 +315,7 @@ data class {{ struct_name }}(
             // Decode fixed prefix (RFC §synth-5-B variant: fields before tag suffix).
             val raw = cursor.peekSlice({{ min_bytes }}) ?: return null
 {% for field in fields %}
-            val {{ field.id }} = {{ field.decode_expr }}
+{{ decode_field(field) }}
 {% endfor %}
             if (!cursor.advance({{ min_bytes }})) return null
 {% endif %}
@@ -345,7 +381,7 @@ data class {{ struct_name }}(
             if (frameLen < {{ min_bytes }}) return null
             val raw = cursor.peekSlice(frameLen) ?: return null
 {% for field in fields %}
-            val {{ field.id }} = {{ field.decode_expr }}
+{{ decode_field(field) }}
 {% endfor %}
             if (!cursor.advance(frameLen)) return null
             // Construct in the `return` (no intermediate local) so a field
@@ -358,7 +394,7 @@ data class {{ struct_name }}(
 {% else %}
             val raw = cursor.peekSlice({{ min_bytes }}) ?: return null
 {% for field in fields %}
-            val {{ field.id }} = {{ field.decode_expr }}
+{{ decode_field(field) }}
 {% endfor %}
             if (!cursor.advance({{ min_bytes }})) return null
             // Construct in the `return` (no intermediate local) so a field

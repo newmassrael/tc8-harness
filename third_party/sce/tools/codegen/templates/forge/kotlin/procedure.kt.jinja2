@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
@@ -106,7 +106,13 @@ class {{ class_name }} : ProcedureStateMachine<State, Event>() {
                         subfunc = "{{ send.subfunc }}",
 {% endif %}
 {% if send.has_addr %}
+{# An integer in decimal, a string as written — a string needs no
+   conversion, and kotlinc warns on the redundant one (SCE_FORGE.md §4.5). #}
+{% if send.addr_form == "text" %}
+                        addr = {{ send.addr_expr }},
+{% else %}
                         addr = ({{ send.addr_expr }}).toString(),
+{% endif %}
 {% endif %}
 {% if send.payload %}
                         payload = {{ send.payload_expr }},

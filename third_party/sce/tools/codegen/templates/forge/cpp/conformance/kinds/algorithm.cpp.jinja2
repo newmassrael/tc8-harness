@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {# Algorithm kind (RFC §synth-5-A) — single-output free function. C++ harness
@@ -9,23 +9,144 @@
    Bytes args lower to `std::span<const std::uint8_t>` per RFC §synth-5-J-5
    (algorithm_param_type cpp arm); the oracle JSON delivers each `bytes`
    argument as a JSON array of integers, materialised here into a
-   `std::vector<std::uint8_t>` so a `std::span` can borrow into it. #}
+   `std::vector<std::uint8_t>` so a `std::span` can borrow into it.
+
+   A `may-fail` algorithm (SCE_FORGE.md §3.4.1) returns an
+   `SCE::Forge::AlgorithmResult<T>`. A case that names a failure
+   (`"fails": "overflow"`) carries no `expected`; it is judged by the error's
+   contract name before anything reads `expected`, and every other case reads
+   the value. #}
+{% set call %}SCE::Generated::{{ f.name | to_pascal_case }}::{{ f.function }}({% for arg_ty in f.args %}arg{{ loop.index0 }}{% if not loop.last %}, {% endif %}{% endfor %}){% endset %}
     const auto &spec = ref["{{ f.ref_section }}"]["{{ f.name }}"];
     int i = 0;
     for (const auto &c : spec["cases"]) {
+{# A record argument or output (SCE_FORGE.md §4.12) is the event-schema's
+   payload struct, filled and read field by field from a JSON object keyed
+   by the schema's field ids; `fields` carries each field's C++ name,
+   derived from the schema document when the harness renders. #}
 {% for arg_ty in f.args %}
-{% if arg_ty == "bytes" %}
+{% set ai = loop.index0 %}
+{% if arg_ty.record is defined %}
+        SCE::Generated::{{ arg_ty.record | to_pascal_case }}::{{ arg_ty.record | to_pascal_case }}Payload arg{{ ai }}{};
+{% for fld in arg_ty.fields %}
+        arg{{ ai }}.{{ fld.ident }} = c["args"][{{ ai }}]["{{ fld.name }}"].get<{{ fld.type | cpp_type }}>();
+{% endfor %}
+{% elif arg_ty == "bytes" %}
         std::vector<std::uint8_t> arg{{ loop.index0 }}_buf;
         for (const auto &b : c["args"][{{ loop.index0 }}]) {
             arg{{ loop.index0 }}_buf.push_back(static_cast<std::uint8_t>(b.get<unsigned int>()));
         }
         std::span<const std::uint8_t> arg{{ loop.index0 }}{ arg{{ loop.index0 }}_buf };
+{% elif arg_ty.list_of is defined and arg_ty.list_of.record is defined %}
+{# A list of records: each JSON object filled into a payload struct, held
+   in a vector the parameter's `std::span` views. #}
+{% set r = arg_ty.list_of %}
+        std::vector<SCE::Generated::{{ r.record | to_pascal_case }}::{{ r.record | to_pascal_case }}Payload> arg{{ ai }};
+        for (const auto &x : c["args"][{{ ai }}]) {
+            SCE::Generated::{{ r.record | to_pascal_case }}::{{ r.record | to_pascal_case }}Payload e{};
+{% for fld in r.fields %}
+            e.{{ fld.ident }} = x["{{ fld.name }}"].get<{{ fld.type | cpp_type }}>();
+{% endfor %}
+            arg{{ ai }}.push_back(e);
+        }
+{% elif arg_ty.list_of is defined %}
+{# A `list<T>` argument: the elements held in a vector, which the
+   parameter's `std::span<const T>` views. #}
+        const auto arg{{ loop.index0 }} = c["args"][{{ loop.index0 }}].get<std::vector<{{ arg_ty.list_of | cpp_type }}>>();
 {% else %}
         auto arg{{ loop.index0 }} = c["args"][{{ loop.index0 }}].get<{{ arg_ty | cpp_type }}>();
 {% endif %}
 {% endfor %}
+{% if f.may_fail %}
+        const auto result = {{ call }};
+        if (c.contains("fails")) {
+            const std::string fails = c["fails"].get<std::string>();
+            CHECK(!result.ok() && fails == SCE::Forge::contractName(result.error()),
+                  "{{ f.name }} case %d: expected failure %s, got %s",
+                  i,
+                  fails.c_str(),
+                  result.ok() ? "a value" : SCE::Forge::contractName(result.error()));
+            ++i;
+            continue;
+        }
+        CHECK(result.ok(),
+              "{{ f.name }} case %d: expected a value, failed with %s",
+              i,
+              SCE::Forge::contractName(result.error()));
+        const auto returned = result.value();
+{% endif %}
+{% if f.output.record is defined %}
+        auto actual = {% if f.may_fail %}returned{% else %}{{ call }}{% endif %};
+{% for fld in f.output.fields %}
+        CHECK(actual.{{ fld.ident }} == c["expected"]["{{ fld.name }}"].get<{{ fld.type | cpp_type }}>(),
+              "{{ f.name }} case %d: {{ fld.name }} actual=%s expected=%s",
+              i,
+              {% if fld.type == "string" %}actual.{{ fld.ident }}.c_str(){% else %}std::to_string(actual.{{ fld.ident }}).c_str(){% endif %},
+              {% if fld.type == "string" %}c["expected"]["{{ fld.name }}"].get<std::string>().c_str(){% else %}std::to_string(c["expected"]["{{ fld.name }}"].get<{{ fld.type | cpp_type }}>()).c_str(){% endif %});
+{% endfor %}
+{% elif f.output.list_of is defined and f.output.list_of.record is defined %}
+{# A list of records: compared by length, then field by field. #}
+        const auto &expected = c["expected"];
+        auto actual = {% if f.may_fail %}returned{% else %}{{ call }}{% endif %};
+        CHECK(actual.size() == expected.size(),
+              "{{ f.name }} case %d: length actual=%zu expected=%zu",
+              i,
+              actual.size(),
+              expected.size());
+        for (std::size_t k = 0; k < expected.size() && k < actual.size(); ++k) {
+{% for fld in f.output.list_of.fields %}
+            CHECK(actual[k].{{ fld.ident }} == expected[k]["{{ fld.name }}"].get<{{ fld.type | cpp_type }}>(),
+                  "{{ f.name }} case %d [%zu]: {{ fld.name }} actual=%s expected=%s",
+                  i,
+                  k,
+                  {% if fld.type == "string" %}actual[k].{{ fld.ident }}.c_str(){% else %}std::to_string(actual[k].{{ fld.ident }}).c_str(){% endif %},
+                  {% if fld.type == "string" %}expected[k]["{{ fld.name }}"].get<std::string>().c_str(){% else %}std::to_string(expected[k]["{{ fld.name }}"].get<{{ fld.type | cpp_type }}>()).c_str(){% endif %});
+{% endfor %}
+        }
+{% elif f.output.list_of is defined %}
+{# A `list<T>` return (SCE_FORGE.md §4.12) is a `std::vector<T>`: compared
+   by length, then element by element. `std::to_string` prints any element
+   type, signed or not, without a per-type format specifier. #}
+        auto expected = c["expected"].get<std::vector<{{ f.output.list_of | cpp_type }}>>();
+        auto actual = {% if f.may_fail %}returned{% else %}{{ call }}{% endif %};
+        CHECK(actual.size() == expected.size(),
+              "{{ f.name }} case %d: length actual=%zu expected=%zu",
+              i,
+              actual.size(),
+              expected.size());
+        for (std::size_t k = 0; k < expected.size() && k < actual.size(); ++k) {
+{% if f.output.compare == "tolerance" %}
+            assert_close(static_cast<double>(actual[k]), static_cast<double>(expected[k]), tol, "{{ f.name }}");
+{% else %}
+            CHECK(actual[k] == expected[k],
+                  "{{ f.name }} case %d [%zu]: actual=%s expected=%s",
+                  i,
+                  k,
+                  std::to_string(actual[k]).c_str(),
+                  std::to_string(expected[k]).c_str());
+{% endif %}
+        }
+{% elif f.output.type == "bytes" %}
+{# A `bytes` return is a `std::vector<std::uint8_t>`, its `expected` a JSON
+   array of byte values: compared by length, then byte by byte. #}
+        const auto expected = c["expected"].get<std::vector<std::uint8_t>>();
+        const auto actual = {% if f.may_fail %}returned{% else %}{{ call }}{% endif %};
+        CHECK(actual.size() == expected.size(),
+              "{{ f.name }} case %d: length actual=%zu expected=%zu",
+              i,
+              actual.size(),
+              expected.size());
+        for (std::size_t k = 0; k < expected.size() && k < actual.size(); ++k) {
+            CHECK(actual[k] == expected[k],
+                  "{{ f.name }} case %d [%zu]: actual=%u expected=%u",
+                  i,
+                  k,
+                  static_cast<unsigned>(actual[k]),
+                  static_cast<unsigned>(expected[k]));
+        }
+{% else %}
         auto expected = c["expected"].get<{{ f.output.type | cpp_type }}>();
-        auto actual = SCE::Generated::{{ f.name | to_pascal_case }}::{{ f.function }}({% for arg_ty in f.args %}arg{{ loop.index0 }}{% if not loop.last %}, {% endif %}{% endfor %});
+        auto actual = {% if f.may_fail %}returned{% else %}{{ call }}{% endif %};
 {% if f.output.compare == "tolerance" %}
         assert_close(static_cast<double>(actual), static_cast<double>(expected), tol, "{{ f.name }}");
 {% else %}
@@ -34,6 +155,7 @@
               i,
               static_cast<unsigned long long>(actual),
               static_cast<unsigned long long>(expected));
+{% endif %}
 {% endif %}
         ++i;
     }

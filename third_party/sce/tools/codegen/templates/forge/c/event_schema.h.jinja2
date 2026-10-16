@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
@@ -17,11 +17,26 @@
 {% for inc in enum_includes %}
 #include "{{ inc }}"
 {% endfor %}
+{% if c_text_defs %}
+#include <stddef.h>
 
+{# A bounded `string` field is held in a buffer of its `sce:max-size`, the
+   type a `sce-static` statechart holds the same text in, declared under the
+   guard both headers share (SCE_FORGE.md section 4.12). #}
+{% for def in c_text_defs %}
+{{ def }}
+
+{% endfor %}
+{% endif %}
+
+{% if fields %}
 typedef struct {
 {% for f in fields %}
     {{ f.c_type }} {{ f.id }};
 {% endfor %}
 } {{ payload_struct_name }}_t;
+{% else %}
+/* This schema declares no field: the event carries no data, so no payload type is generated. */
+{% endif %}
 
 #endif  /* {{ guard }} */

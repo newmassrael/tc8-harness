@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2026 newmassrael #}
 
 {#
@@ -51,17 +51,27 @@
 {% if inv.idlocation %}
             # W3C SCXML 6.4.1: Store the generated id in the datamodel
             # so author expressions (`<assign>` from `_event.invokeid`,
-            # transition `cond="Var1==Var2"`) can match against it.
-            engine._script_engine.set_variable(
-                self._session_id,
-                {{ inv.idlocation | py_string_literal }},
-                _ScriptValue.of(_runtime_invoke_id),
-            )
-{% endif %}
+            # transition `cond="Var1==Var2"`) can match against it. The
+            # write is the assignment `<assign>` makes, so a member path
+            # lands and a location that cannot take the id starts nothing.
+            if self._store_id_in_location(
+                engine,
+                {{ inv.idlocation | to_lua_location | py_string_literal }},
+                _runtime_invoke_id,
+                "<invoke>",
+            ):
+                engine._pending_invokes.append(PendingInvoke(
+                    invoke_id=_runtime_invoke_id,
+                    owner_state_name={{ state_id | py_string_literal }},
+                    document_id={{ inv.invoke_id | py_string_literal }},
+                ))
+{% else %}
             engine._pending_invokes.append(PendingInvoke(
                 invoke_id=_runtime_invoke_id,
                 owner_state_name={{ state_id | py_string_literal }},
+                document_id={{ inv.invoke_id | py_string_literal }},
             ))
+{% endif %}
 {% endfor %}
 {% endif %}
 {% set unsup_list = state.invokes | unsupported | list %}
@@ -75,6 +85,7 @@
             engine._pending_invokes.append(PendingInvoke(
                 invoke_id=f"{{ state_id }}.{id(self)}.{{ inv.invoke_id }}",
                 owner_state_name={{ state_id | py_string_literal }},
+                document_id={{ inv.invoke_id | py_string_literal }},
             ))
 {% endfor %}
 {% endif %}
@@ -99,37 +110,215 @@
         for entry in pending:
 {% for state_id, state in model.states | dictsort %}
 {% for inv in state.invokes | scxml_family %}
-            # W3C SCXML 6.4.1: Match by `.<element_id>` suffix because
-            # `defer_invokes_on_entry` decorates the static id with the
-            # owning-state + instance prefix (Rust `contains(".{id}")` parity).
-            if entry.invoke_id.endswith({{ ('.' + inv.invoke_id) | py_string_literal }}):
-{% if inv.namelist %}
-                # W3C SCXML 6.4.1: Validate namelist variables in PARENT
-                # before instantiating the child. Missing names raise
-                # error.execution and skip the invoke entirely
-                # (mirrors `tools/codegen/templates/rust/invoke_methods.rs.jinja2`
-                # namelist-validation block).
-                _namelist_ok = True
-{% for vname in inv.namelist | split %}
-                if not engine._script_engine.has_variable(
-                    self._session_id, {{ vname | py_string_literal }}
-                ):
+            # W3C SCXML 6.4.1: the entry carries the document's id beside the
+            # decorated runtime one, and is dispatched on it whole.
+            if entry.document_id == {{ inv.invoke_id | py_string_literal }}:
+{% if inv.native_src %}
+{# `datamodel="sce-static"`: the `srcexpr` is a string computed from the machine's
+   fields now (`HybridInvokeInfo::native_src`); no script engine is asked. One
+   that cannot be computed is an attribute that cannot be evaluated, which
+   raises error.execution and starts nothing. #}
+                # §scxml-6.4: the `srcexpr` names the document to start.
+                try:
+                    __sce_selected_{{ inv.invoke_id | to_python_const }} = _document_stem({{ inv.native_src }})
+                except sce_algorithm.AlgorithmFailure:
                     self._raise_error_execution(
                         engine,
-                        "<invoke> namelist names '{{ vname }}', which the parent does not declare",
+                        "<invoke srcexpr> could not be evaluated",
                     )
+                    continue
+{% elif inv.srcexpr or inv.contentexpr %}
+                # W3C SCXML 6.4.3: evaluate the expression at invoke-fire
+                # time and raise `error.execution` when it cannot be
+                # evaluated. The value does not choose the child — that is
+                # fixed at build time, the same on every backend that spawns
+                # the generated stub (docs/SCE_ACCEPTED_SUBSET.md §2.13) —
+                # but "the expression evaluates" is a separate obligation
+                # the clause places on the Processor, and this was the one
+                # backend not meeting it. A document whose expression named
+                # an undeclared variable saw four backends raise and this
+                # one start the child as though nothing were wrong.
+                try:
+                    __sce_value = engine._script_engine.evaluate_expression(
+                        self._session_id,
+                        {{ (inv.srcexpr or inv.contentexpr) | to_lua_expr | py_string_literal }},
+                    )
+{% if inv.candidates %}
+                    # ⚠ `string_val`, not `str(value)`: a ScriptValue is a
+                    # dataclass, so stringifying it yields its repr and the
+                    # stem below would be cut out of `ScriptValue(kind=...`.
+                    # Measured — the fixture reached `fail` on the first run.
+                    __sce_selected_{{ inv.invoke_id | to_python_const }} = _document_stem(
+                        getattr(__sce_value, "string_val", "") or ""
+                    )
+{% endif %}
+                except _ScriptError:
+                    self._raise_error_execution(
+                        engine,
+                        "<invoke {{ 'srcexpr' if inv.srcexpr else 'contentexpr' }}='{{ (inv.srcexpr or inv.contentexpr) | escape_python }}'> could not be evaluated",
+                    )
+                    continue
+{% endif %}
+{% if inv.candidates %}
+                # W3C SCXML 6.4 + SCE_ACCEPTED_SUBSET.md §2.13: the evaluated
+                # value chooses among the declared candidates, matched on the
+                # document stem so `file:x.scxml` and `./x.scxml` name one
+                # child. A value naming none of them is the failure the
+                # Interpreter reports when a document will not load — before
+                # any argument is read, as there.
+                import importlib as _importlib
+                _child_module_{{ inv.invoke_id | to_python_const }} = {
+{% for candidate in inv.candidates %}
+                    {{ candidate.stem | py_string_literal }}: _importlib.import_module(("." if __package__ else "") + {{ (candidate.stem ~ "_sm") | py_string_literal }}, __package__ or None),
+{% endfor %}
+                }.get(__sce_selected_{{ inv.invoke_id | to_python_const }})
+                if _child_module_{{ inv.invoke_id | to_python_const }} is None:
+                    self._raise_error_execution(
+                        engine,
+                        "<invoke srcexpr{% if inv.srcexpr %}='{{ inv.srcexpr }}'{% endif %}> evaluated to a document it did not declare",
+                    )
+                    continue
+{% if inv.namelist or inv.params %}
+                # §scxml-6.4.3: the names the CHOSEN candidate's top-level
+                # `<data>` declares — the only ones an argument may add to it.
+                _child_vars = {
+{% for candidate in inv.candidates %}
+                    {{ candidate.stem | py_string_literal }}: frozenset([{% for cv in candidate.child_datamodel_vars | default([], true) %}{{ cv | py_string_literal }}{{ ", " if not loop.last }}{% endfor %}]),
+{% endfor %}
+                }[__sce_selected_{{ inv.invoke_id | to_python_const }}]
+{% endif %}
+{% endif %}
+{% if inv.namelist %}
+                # W3C SCXML 6.4: "if the evaluation of its arguments produces
+                # an error, the SCXML Processor MUST terminate the processing
+                # of the element without further action". A name that is not
+                # a readable location is such an error: ONE error.execution for
+                # the element, however many names are bad, no child, and its
+                # <param>s are not evaluated.
+                _namelist_ok = True
+{% for vname in inv.namelist | split %}
+                if _namelist_ok and not engine._script_engine.has_variable(
+                    self._session_id, {{ vname | py_string_literal }}
+                ):
                     _namelist_ok = False
 {% endfor %}
                 if not _namelist_ok:
+                    self._raise_error_execution(
+                        engine,
+                        "<invoke> namelist names a location that cannot be read",
+                    )
                     continue
 {% endif %}
-                import {{ inv.child_name }}_sm as _child_module_{{ inv.invoke_id | to_python_const }}
+{% if inv.candidates %}
+{% if inv.candidates | selectattr("child_host_call") | list %}
+{# docs/adr/0005, decision 6: a candidate that declares acts is built with the
+   host its parent's own host answers for IT — each candidate is a document with
+   acts of its own — asked here, where the invocation starts, and not for a
+   candidate the value did not name. A candidate that declares none is built as
+   it was. #}
+                _child_host_{{ inv.invoke_id | to_python_const }} = {
+{% for candidate in inv.candidates if candidate.child_host_call %}
+                    {{ candidate.stem | py_string_literal }}: lambda: {{ candidate.child_host_call }},
+{% endfor %}
+                }.get(__sce_selected_{{ inv.invoke_id | to_python_const }})
+                _child_policy = (
+                    _child_module_{{ inv.invoke_id | to_python_const }}.Policy(
+                        _child_host_{{ inv.invoke_id | to_python_const }}()
+                    )
+                    if _child_host_{{ inv.invoke_id | to_python_const }} is not None
+                    else _child_module_{{ inv.invoke_id | to_python_const }}.Policy()
+                )
+{% else %}
                 _child_policy = _child_module_{{ inv.invoke_id | to_python_const }}.Policy()
+{% endif %}
+{% else %}
+{# A child is a sibling of its parent: a module of the parent's own package when
+   it has one (a machine that calls an algorithm is one of a package, and its
+   child is imported beside it), a top-level module beside it otherwise. #}
+                import importlib as _importlib
+                _child_module_{{ inv.invoke_id | to_python_const }} = _importlib.import_module(
+                    ("." if __package__ else "") + {{ (inv.child_name ~ "_sm") | py_string_literal }},
+                    __package__ or None,
+                )
+{# The host the child performs its acts through leads its policy's parameters, as
+   the machine's own does, and is asked of the parent's host each time the
+   invocation starts (docs/adr/0005, decision 6). #}
+                _child_policy = _child_module_{{ inv.invoke_id | to_python_const }}.Policy({{ inv.child_host_call }})
+{% endif %}
                 # Engine DI Parity RFC (Path B+): forward the parent's
                 # script engine so the child shares the same Lua VM /
                 # session manager, mirroring Rust + Kotlin invoke parity.
                 _child_engine = Engine(_child_policy, script_engine=engine._script_engine)
-{% if inv.namelist or inv.params %}
+{# `datamodel="sce-static"`: each argument is native code
+   (`Param::native_seed`), read from the machine's own fields when the invoke
+   executes, and handed to the child's variable of the same name through its
+   `accept_params` — the child runs no script engine and keeps no value of its
+   own to receive them in. #}
+{% set native_seeded = inv.params | selectattr("native_seed") | list | length > 0 %}
+{% if native_seeded %}
+                # W3C SCXML 6.4.1: hand the child its values before it initializes
+                _seed = _child_module_{{ inv.invoke_id | to_python_const }}.InvokeParams()
+{% for param in inv.params %}
+{% if param.native_seed %}
+                try:
+                    _seed.v_{{ param.name | to_snake_case }} = {{ param.native_seed }}
+                except sce_algorithm.AlgorithmFailure:
+                    # §scxml-5.7.1: a value that failed is reported and the
+                    # child still starts, one value short.
+                    self._raise_error_execution(
+                        engine,
+                        {{ ("<invoke> <param name='" ~ param.name ~ "'> could not be read") | py_string_literal }},
+                    )
+{% endif %}
+{% endfor %}
+                _child_policy.accept_params(_seed)
+{% elif inv.native_src and inv.candidates %}
+{# `datamodel="sce-static"`: a hybrid invoke lowered what it hands each candidate
+   (`InvokeCandidate::seeds` and `unkept`), because which names a child keeps is
+   its own (§scxml-6.4.3). `seeds` are the arguments the candidate declares a
+   variable for, handed through its `accept_params`. `unkept` are the ones it
+   declares none for: each is evaluated and left out, and one that cannot be
+   evaluated costs `error.execution` all the same, because an argument is the
+   invoke's whatever the child keeps. #}
+{% for candidate in inv.candidates %}
+{% if candidate.seeds or candidate.unkept %}
+                if __sce_selected_{{ inv.invoke_id | to_python_const }} == {{ candidate.stem | py_string_literal }}:
+{% if candidate.seeds %}
+                    # W3C SCXML 6.4.1: hand the child its values before it initializes
+                    _seed = _child_module_{{ inv.invoke_id | to_python_const }}.InvokeParams()
+{% for param in candidate.seeds %}
+{% if param.native_seed %}
+                    try:
+                        _seed.v_{{ param.name | to_snake_case }} = {{ param.native_seed }}
+                    except sce_algorithm.AlgorithmFailure:
+                        # §scxml-5.7.1: a value that failed is reported and the
+                        # child still starts, one value short.
+                        self._raise_error_execution(
+                            engine,
+                            {{ ("<invoke> <param name='" ~ param.name ~ "'> could not be read") | py_string_literal }},
+                        )
+{% endif %}
+{% endfor %}
+                    _child_policy.accept_params(_seed)
+{% endif %}
+{% for param in candidate.unkept %}
+{% if param.native_value and param.native_fails %}
+                    # W3C SCXML 6.4.3: the child declares no `{{ param.name }}`, so the
+                    # Processor MUST NOT add it to its data model — but the
+                    # argument is still the invoke's, evaluated, and a failure
+                    # of it is reported (§scxml-5.7.1).
+                    try:
+                        {{ param.native_value }}
+                    except sce_algorithm.AlgorithmFailure:
+                        self._raise_error_execution(
+                            engine,
+                            {{ ("<invoke> <param name='" ~ param.name ~ "'> could not be read") | py_string_literal }},
+                        )
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% elif inv.namelist or inv.params %}
                 # W3C SCXML 6.4.1: Stage namelist + `<param>` values for
                 # the child's datamodel. The dict is applied by the
                 # child's `initialize_datamodel` as a final overlay so
@@ -139,10 +328,12 @@
                 # (parent-eval → child-side `set_variable`).
                 _pre_init: Dict[str, _ScriptValue] = {}
 {% if inv.namelist %}
-{% if inv.child_datamodel_vars is defined %}
+{% if inv.candidates or inv.child_datamodel_vars is defined %}
+{% if not inv.candidates %}
                 # W3C SCXML 6.3.2: Only seed names that the child
                 # actually declares in its `<datamodel>`.
                 _child_vars = { {% for cv in inv.child_datamodel_vars %}{{ cv | py_string_literal }}{{ ", " if not loop.last }}{% endfor %} }
+{% endif %}
 {% for vname in inv.namelist | split %}
                 if {{ vname | py_string_literal }} in _child_vars:
                     try:
@@ -169,14 +360,38 @@
 {% endif %}
 {% if inv.params %}
 {% for param in inv.params %}
-{% if inv.child_datamodel_vars is defined and param.name in inv.child_datamodel_vars %}
+{# §scxml-5.7: the value comes from 'expr' or, failing that, 'location' — a
+   location expression, read as its value; both empty is `location=""`, a
+   location that names nothing. The <param> is an argument of this <invoke>
+   whether or not the child declares `name`, so it is evaluated — and its
+   failure raised — either way; §scxml-6.4.3 decides only what the child
+   keeps. #}
+{% set param_source = param.expr or param.location %}
+{% set child_keeps = inv.child_datamodel_vars is defined and param.name in inv.child_datamodel_vars %}
+{% if not param_source %}
+                self._raise_error_execution(
+                    engine,
+                    {{ ("<invoke> <param name='" ~ param.name ~ "'> names no location") | py_string_literal }},
+                )
+{% else %}
                 try:
-                    _pre_init[{{ param.name | py_string_literal }}] = (
-                        engine._script_engine.evaluate_expression(
-                            self._session_id,
-                            {{ param.expr | to_lua_expr | py_string_literal }},
-                        )
+                    _param_value = engine._script_engine.evaluate_expression(
+                        self._session_id,
+                        {{ param_source | to_lua_expr | py_string_literal }},
                     )
+{% if inv.candidates %}
+                    # §scxml-6.4.3: kept only under a name the chosen
+                    # candidate declares.
+                    if {{ param.name | py_string_literal }} in _child_vars:
+                        _pre_init[{{ param.name | py_string_literal }}] = _param_value
+{% elif child_keeps %}
+                    _pre_init[{{ param.name | py_string_literal }}] = _param_value
+{% else %}
+                    # §scxml-6.4.3: {{ param.name }} matches no top-level `<data>`
+                    # of the child, so the Processor MUST NOT add it to the
+                    # invoked session's data model.
+                    del _param_value
+{% endif %}
                 except _ScriptError:
                     # §scxml-5.7.1: BOTH halves — `error.execution` on the
                     # internal queue AND the name and value ignored. Only the
@@ -193,20 +408,17 @@
                     # one pair short, and no `_ActionAbort` is raised here.
                     self._raise_error_execution(
                         engine,
-                        {{ ("<invoke> <param name='" ~ param.name ~ "'> expr failed to evaluate") | py_string_literal }},
+                        {{ ("<invoke> <param name='" ~ param.name ~ "'> could not be read") | py_string_literal }},
                     )
-{% else %}
-                # §scxml-6.4.3: {{ param.name }} matches no top-level `<data>`
-                # of the child, so the Processor MUST NOT add it to the
-                # invoked session's data model. The namelist arm above
-                # already read the child's declarations for the same reason;
-                # this arm did not, and a param that named nothing there
-                # became a variable in the child anyway.
 {% endif %}
 {% endfor %}
 {% endif %}
                 _child_policy._pre_init_vars = _pre_init
 {% endif %}
+                # W3C SCXML 6.4: the link a child's `#_parent` sends travel,
+                # installed before the child starts, since its first
+                # `<onentry>` may already use it.
+                _child_policy._parent_queue = []
                 _invoke = ScxmlInvoke(_child_engine, _child_policy._parent_queue)
                 _invoke.start(engine)
                 # W3C SCXML 6.4: key `_active_invokes` by the static
@@ -258,7 +470,7 @@
                 continue
 {% endfor %}
 {% for inv in state.invokes | unsupported_refused %}
-            if entry.invoke_id.endswith({{ ('.' + inv.invoke_id) | py_string_literal }}):
+            if entry.document_id == {{ inv.invoke_id | py_string_literal }}:
                 # W3C SCXML 6.4.1: unsupported `type` — place error.execution
                 # on the internal queue and start nothing.
                 self._raise_error_execution(
@@ -268,24 +480,216 @@
                 continue
 {% endfor %}
 {% for inv in state.invokes | host_invoker %}
-            if entry.invoke_id.endswith({{ ('.' + inv.invoke_id) | py_string_literal }}):
+            if entry.document_id == {{ inv.invoke_id | py_string_literal }}:
                 # W3C SCXML 6.4.1: the host declared this `type`, so START the
                 # invocation rather than refusing it. The id handed over is the
                 # DOCUMENT's, not the per-instance one the pending queue
                 # carries: `done.invoke.<id>` is the name the author wrote a
                 # transition for, so it is the name the host must answer on.
+{% if inv.idlocation %}
+                # W3C SCXML 6.4.1: the invocation's generated id goes to
+                # `idlocation` when the element is evaluated. It is the id the
+                # host is handed and `done.invoke.<id>` names, so the document
+                # can match on what it stored. The write is the assignment
+                # `<assign>` makes, so a location that cannot take the id
+                # starts nothing (W3C SCXML 5.9.2).
+                if not self._store_id_in_location(
+                    engine,
+                    {{ inv.idlocation | to_lua_location | py_string_literal }},
+                    {{ inv.invoke_id | py_string_literal }},
+                    "<invoke>",
+                ):
+                    continue
+{% endif %}
+                _host_src = {{ inv.src | default('', true) | py_string_literal }}
+                _host_content = {{ inv.content | default('', true) | py_string_literal }}
+{% if inv.native_src %}
+{# `datamodel="sce-static"`: the `src` is a string computed from the machine's
+   fields now (`UnsupportedInvokeInfo::native_src`); no script engine is asked.
+   One that cannot be computed is an attribute that cannot be evaluated, which
+   raises error.execution and starts nothing. #}
+{% if inv.native_src_fails %}
+                try:
+                    _host_src = {{ inv.native_src }}
+                except sce_algorithm.AlgorithmFailure:
+                    self._raise_error_execution(engine, "<invoke> srcexpr failed to evaluate")
+                    continue
+{% else %}
+                _host_src = {{ inv.native_src }}
+{% endif %}
+{% endif %}
+{% if inv.native_content %}
+{# `datamodel="sce-static"`: the `<content expr>` is a string computed from the
+   machine's fields now (`UnsupportedInvokeInfo::native_content`) — the body the
+   service runs; no script engine is asked. One that cannot be computed is an
+   attribute that cannot be evaluated, which raises error.execution and starts
+   nothing. #}
+{% if inv.native_content_fails %}
+                try:
+                    _host_content = {{ inv.native_content }}
+                except sce_algorithm.AlgorithmFailure:
+                    self._raise_error_execution(engine, "<invoke> content expr failed to evaluate")
+                    continue
+{% else %}
+                _host_content = {{ inv.native_content }}
+{% endif %}
+{% endif %}
+{# A `datamodel="sce-static"` param is native code (`Param::native_value`) over
+   the policy's own attributes, so it asks no script engine for its value. #}
+{% set host_evaluates = inv.srcexpr or inv.namelist or inv.contentexpr or (inv.params | rejectattr('is_static_literal') | rejectattr('native_value') | list | length > 0) %}
+{% if host_evaluates %}
+                # W3C SCXML 6.4.1: what the request says is evaluated now, when
+                # the invocation starts. An attribute that cannot be evaluated
+                # raises error.execution and starts nothing; a `<param>` that
+                # cannot is reported and dropped (W3C SCXML 5.7.1) while the
+                # invocation still starts.
+                _host_failed = False
+{% for attr, var, expr in [('src', '_host_src', inv.srcexpr), ('content', '_host_content', inv.contentexpr)] %}
+{% if expr %}
+                if not _host_failed:
+                    try:
+                        {{ var }} = engine._script_engine.evaluate_expression(
+                            self._session_id, {{ expr | to_lua_expr | py_string_literal }}
+                        ).to_wire_string()
+                    except _ScriptError:
+                        self._raise_error_execution(
+                            engine, "<invoke> {{ attr }}expr failed to evaluate"
+                        )
+                        _host_failed = True
+{% endif %}
+{% endfor %}
+                if _host_failed:
+                    continue
+{% if inv.invoke_id in host_invoke_request_checks %}
+{% set request_checks = host_invoke_request_checks[inv.invoke_id] %}
+                # SCE Accepted Subset 2.12: `sce:request` makes the params a
+                # record, so each value is held to its field here, where the
+                # invocation starts; one that cannot be evaluated or does not
+                # fit starts nothing. A string literal was held to its field
+                # at build time, so it passes as written.
+                # The params as text and the same pairs as the data model holds
+                # them, for the request's event data — one evaluation of each.
+                _host_params: dict = {}
+                _host_payload: dict = {}
+                _host_repeats: dict = {}
+                _request_refused = False
+{% for param in inv.params %}
+{% if param.name in request_checks and param.is_static_literal %}
+                _host_params.setdefault({{ param.name | py_string_literal }}, []).append({{ param.static_value | py_string_literal }})
+{% if not param.envelope_metadata %}
+                self._put_param(_host_payload, _host_repeats, {{ param.name | py_string_literal }}, {{ param.static_value | py_string_literal }})
+{% endif %}
+{% elif param.name in request_checks %}
+                if not _request_refused:
+                    try:
+                        _value = engine._script_engine.evaluate_expression(
+                            self._session_id, {% if param.expr %}{{ param.expr | to_lua_expr | py_string_literal }}{% else %}{{ param.location | py_string_literal }}{% endif %}
+                        )
+                        _host_params.setdefault({{ param.name | py_string_literal }}, []).append(_request_field_wire(
+                            _value,
+                            {{ param.name | py_string_literal }},
+                            {{ request_checks[param.name] }},
+                        ))
+{% if not param.envelope_metadata %}
+                        self._put_param(_host_payload, _host_repeats, {{ param.name | py_string_literal }}, _value.to_python())
+{% endif %}
+                    except (_ScriptError, _RequestRefusal) as _refusal:
+                        self._raise_error_execution(
+                            engine,
+                            "<invoke> <param name='{{ param.name }}'> cannot be its request field: " + str(_refusal),
+                        )
+                        _request_refused = True
+{% else %}
+                try:
+                    _one = self._eval_send_payload(engine, [({{ param.name | py_string_literal }}, {% if param.expr %}{{ param.expr | to_lua_expr | py_string_literal }}{% else %}{{ param.location | py_string_literal }}{% endif %})], "", "", "", "<invoke>")
+                except _ActionAbort:
+                    continue
+                for _name, _values in self._wire_params_from_payload(_one).items():
+                    _host_params.setdefault(_name, []).extend(_values)
+{% if not param.envelope_metadata %}
+                if isinstance(_one, dict):
+                    for _name, _value in _one.items():
+                        self._put_param(_host_payload, _host_repeats, _name, _value)
+{% endif %}
+{% endif %}
+{% endfor %}
+                if _request_refused:
+                    continue
+                _host_event_data = self._event_data_text(_host_payload, "", bool(_host_payload))
+{% else %}
+{% set payload_params = inv.params | rejectattr('envelope_metadata') | list %}
+{% set metadata_params = inv.params | selectattr('envelope_metadata') | list %}
+                try:
+                    # The same evaluation a `<send>` makes, rendered twice:
+                    # form text under a name that may repeat, namelist entries
+                    # first, and the `_event.data` text.
+                    _host_params, _host_event_data = self._host_invoke_request_data(engine, [
+{%- for param in payload_params -%}
+({{ param.name | py_string_literal }}, {% if param.expr %}{{ param.expr | to_lua_expr | py_string_literal }}{% else %}{{ param.location | py_string_literal }}{% endif %}),
+{%- endfor -%}
+], {{ inv.namelist | default('', true) | py_string_literal }}, [
+{%- for param in metadata_params -%}
+({{ param.name | py_string_literal }}, {{ param.static_value | py_string_literal }}),
+{%- endfor -%}
+])
+                except _ActionAbort:
+                    continue
+{% endif %}
+{% else %}
+                # Every param is a literal, so both renderings are finished
+                # here, without a script engine.
+                _host_params: dict = {}
+                _host_payload: dict = {}
+                _host_repeats: dict = {}
+                _request_refused = False
+{% for param in inv.params %}
+{% if param.native_value %}
+{# `datamodel="sce-static"`: the value is native code over the policy's own
+   attributes, read now. A checked operation that fails raises
+   `AlgorithmFailure`: the evaluation that failed, so the pair is left out and
+   reported (W3C SCXML 5.7.1) while the invocation still starts. The text is
+   the payload's own rendering, as a `<send>`'s host params are. A request
+   typed by `sce:request` (SCE Accepted Subset 2.12) is the exception: the
+   host was promised the whole record, so the value that failed refuses the
+   request and starts nothing. #}
+                try:
+                    _native = ({{ param.native_value }}).to_python()
+                except sce_algorithm.AlgorithmFailure:
+{% if inv.invoke_id in host_invoke_request_checks %}
+                    self._raise_error_execution(
+                        engine, "<invoke> <param name='" + {{ param.name | py_string_literal }} + "'> cannot be its request field: it failed to evaluate"
+                    )
+                    _request_refused = True
+{% else %}
+                    self._raise_error_execution(
+                        engine, "<invoke> <param name='" + {{ param.name | py_string_literal }} + "'> expr failed to evaluate"
+                    )
+{% endif %}
+                else:
+                    self._put_param(_host_payload, _host_repeats, {{ param.name | py_string_literal }}, _native)
+                    _host_params.setdefault({{ param.name | py_string_literal }}, []).extend(
+                        self._wire_params_from_payload({ {{ param.name | py_string_literal }}: _native })[{{ param.name | py_string_literal }}]
+                    )
+{% else %}
+                _host_params.setdefault({{ param.name | py_string_literal }}, []).append({{ param.static_value | py_string_literal }})
+{% if not param.envelope_metadata %}
+                self._put_param(_host_payload, _host_repeats, {{ param.name | py_string_literal }}, {{ param.static_value | py_string_literal }})
+{% endif %}
+{% endif %}
+{% endfor %}
+{% if inv.invoke_id in host_invoke_request_checks %}
+                if _request_refused:
+                    continue
+{% endif %}
+                _host_event_data = self._event_data_text(_host_payload, "", bool(_host_payload))
+{% endif %}
                 if not engine.perform_host_invoke(_HostInvokeRequest(
                     processor_type={{ inv.invoke_type | py_string_literal }},
                     invoke_id={{ inv.invoke_id | py_string_literal }},
-                    src={{ inv.src | default('', true) | py_string_literal }},
-                    params={
-{% for param in inv.params %}
-{% if param.is_static_literal %}
-                        {{ param.name | py_string_literal }}: [{{ param.static_value | py_string_literal }}],
-{% endif %}
-{% endfor %}
-                    },
-                    content={{ inv.content | default('', true) | py_string_literal }},
+                    src=_host_src,
+                    params=_host_params,
+                    event_data=_host_event_data,
+                    content=_host_content,
                 )):
                     # W3C SCXML 6.4.1: declared but no invoker registered. The
                     # document asked for a process to be run and none was,
@@ -309,10 +713,9 @@
 {% for inv in unsup_list %}
             # §scxml-6.4.1: an unsupported-type entry that never ran must
             # raise nothing, so drop it from the pending queue on exit.
-            _suffix = {{ ('.' + inv.invoke_id) | py_string_literal }}
             engine._pending_invokes = [
                 p for p in engine._pending_invokes
-                if not p.invoke_id.endswith(_suffix)
+                if p.document_id != {{ inv.invoke_id | py_string_literal }}
             ]
 {% endfor %}
 {% endif %}
@@ -335,17 +738,15 @@
         if state == {{ machine_name }}State.{{ state_id | to_python_const }}:
 {% for inv in scxml_list %}
             # W3C SCXML 6.4.2: `_active_invokes` is keyed by the static
-            # element id; `_pending_invokes` carries the runtime
-            # `<state>.<instance>.<id>` id (defer_invokes_on_entry),
-            # so the pending prune matches by suffix.
+            # element id, and each `_pending_invokes` entry carries it as
+            # `document_id` beside its runtime `<state>.<instance>.<id>` id.
             _inv = engine._active_invokes.pop({{ inv.invoke_id | py_string_literal }}, None)
             if _inv is not None:
                 _inv.cancel()
             engine._done_invoke_emitted.pop({{ inv.invoke_id | py_string_literal }}, None)
-            _suffix = {{ ('.' + inv.invoke_id) | py_string_literal }}
             engine._pending_invokes = [
                 p for p in engine._pending_invokes
-                if not p.invoke_id.endswith(_suffix)
+                if p.document_id != {{ inv.invoke_id | py_string_literal }}
             ]
 {% endfor %}
 {% endif %}

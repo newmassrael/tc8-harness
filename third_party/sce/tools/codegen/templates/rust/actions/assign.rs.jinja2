@@ -1,8 +1,14 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
-{# W3C SCXML 5.3/5.4: <assign> - Variable assignment #}
-{% if not model.needs_script_engine %}
+{# W3C SCXML 5.3/5.4: <assign> - Variable assignment. A statement lowered to
+   Rust at generate time (`native_code`, a sce-static document's) is emitted
+   as it is, and ends its block when it can fail (W3C SCXML 4.9). #}
+{% import 'actions/_native_statement.rs.jinja2' as native %}
+{% if action.native_code %}
+// W3C SCXML 5.3: <assign location="{{ action.location }}">
+{{ native.emit(action, in_action_block is defined and in_action_block) }}
+{% elif not model.needs_script_engine %}
 {% if action.location and action.expr %}
 // W3C SCXML 5.3: <assign location="{{ action.location }}" expr="{{ action.expr }}">
 self.{{ action.location | to_snake_case }} = {{ action.expr | to_rust_string_expr }};
@@ -24,6 +30,10 @@ self.{{ action.location | to_snake_case }} = {{ action.content | to_rust_string_
     ::sce_rust_runtime::sce_log_error!("W3C SCXML 5.3: Invalid assign location '{{ loc }}'");
 {% if 'error.execution' in model.events %}
     engine.raise(sce_rust_runtime::EventWithMetadata::platform_error({{ machine_name }}Event::{{ 'error.execution' | to_event_variant }}, "<assign> has an invalid or read-only location '{{ loc }}'"));
+{% endif %}
+{% if in_action_block is defined and in_action_block %}
+    // W3C SCXML 4.9: the error ends the block, from however deep a <foreach> it came.
+    break 'action_block;
 {% endif %}
 {% else %}
 {% if action.content %}
@@ -47,12 +57,8 @@ self.{{ action.location | to_snake_case }} = {{ action.content | to_rust_string_
 {% if 'error.execution' in model.events %}
         engine.raise(sce_rust_runtime::EventWithMetadata::platform_error({{ machine_name }}Event::{{ 'error.execution' | to_event_variant }}, "<assign> to '{{ loc }}' failed"));
 {% endif %}
-{% if in_foreach is defined and in_foreach %}
-        // W3C SCXML 4.6: Stop current foreach iteration and loop on error
-        iteration_success = false;
-        break 'foreach_body;
-{% elif in_entry_exit is defined and in_entry_exit %}
-        // W3C SCXML 3.8/3.9: Error stops subsequent actions in this onentry/onexit block
+{% if in_action_block is defined and in_action_block %}
+        // W3C SCXML 4.9: the error ends the block, from however deep a <foreach> it came.
         break 'action_block;
 {% endif %}
     }

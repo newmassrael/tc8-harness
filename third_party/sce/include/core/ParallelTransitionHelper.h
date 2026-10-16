@@ -1,10 +1,10 @@
-// SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
+// SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
 // SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael
 //
 // This file is part of SCE (SCXML Core Engine).
 //
 // Dual Licensed:
-// 1. LGPL-2.1: Free for unmodified use (see LICENSE-LGPL-2.1.md)
+// 1. AGPL-3.0 + Linking Exception: Free for unmodified use (see LICENSE-EXCEPTION.md)
 // 2. Commercial: For modifications (contact newmassrael@gmail.com)
 //
 // Commercial License:
@@ -19,7 +19,6 @@
 #include "core/HierarchicalStateHelper.h"
 #include "core/StatePolicyConcepts.h"
 #include <algorithm>
-#include <functional>
 #include <optional>
 #include <unordered_set>
 #include <vector>
@@ -139,21 +138,61 @@ struct ExitSetAlgorithms {
 
         return exitSet;
     }
+
+    /**
+     * @brief Appendix D's computeExitSet over a LIST of transitions, in exitOrder
+     *
+     * @param transitions Each with `source`, EFFECTIVE `targets`, `isInternal`
+     *        and `isTargetless` — the fields `ParallelTransitionHelper::Transition`
+     *        carries
+     * @param documentOrder `(const StateType&) -> int`, the pre-order position
+     * @return The states to exit, in the order they are exited
+     */
+    template <typename StateType, typename Transitions, typename GetParentFn, typename IsDomainCandidateFn,
+              typename DocumentOrderFn>
+    [[nodiscard]] static std::vector<StateType>
+    computeStatesToExit(const Transitions &transitions, const std::vector<StateType> &configuration,
+                        GetParentFn getParent, IsDomainCandidateFn isDomainCandidate, DocumentOrderFn documentOrder) {
+        // §scxml-D-computeExitSet takes the microstep's whole transition list
+        // and unions the exit sets; the appendix's exitStates exits that union
+        // in exitOrder — descendants before their ancestors and reverse
+        // document order among the rest, which together are exactly reverse
+        // document order.
+        std::vector<StateType> statesToExit;
+        for (const auto &transition : transitions) {
+            for (const auto &state :
+                 computeExitSet(transition.source, transition.targets, transition.isInternal, transition.isTargetless,
+                                configuration, getParent, isDomainCandidate)) {
+                if (std::find(statesToExit.begin(), statesToExit.end(), state) == statesToExit.end()) {
+                    statesToExit.push_back(state);
+                }
+            }
+        }
+        std::sort(statesToExit.begin(), statesToExit.end(), [&documentOrder](const StateType &a, const StateType &b) {
+            return documentOrder(a) > documentOrder(b);
+        });
+        return statesToExit;
+    }
 };
 
 /**
- * @brief Helper functions for parallel state transition conflict detection
+ * @brief Appendix D's exit set, bound to a StatePolicy
  *
- * §scxml-D-removeConflictingTransitions: optimal enabled transition set
- * - Optimal enabled transition set: Select non-conflicting transitions
- * - Conflict detection: Two transitions conflict if they exit the same state
+ * The exit set is what a microstep exits and what conflict resolution
+ * intersects; the resolver itself is ConflictResolutionHelper's, and this
+ * class does not decide conflicts.
  *
  * Shared between Interpreter and AOT engines following Zero Duplication Principle.
  */
 class ParallelTransitionHelper {
 public:
     /**
-     * @brief Transition descriptor for conflict detection
+     * @brief What a transition's exit set is computed from
+     *
+     * `targets` are the EFFECTIVE targets — a `<history>` already
+     * dereferenced to what it recorded or to its default — because the
+     * domain, and so the exit set, is a question about the states the
+     * transition will actually enter.
      */
     template <typename StateType> struct Transition {
         StateType source;                       // Source state
@@ -197,7 +236,7 @@ public:
      * @return Set of states that will be exited
      */
 #if __cpp_concepts >= 202002L
-    template <typename StateType, ParallelStatePolicy PolicyType>
+    template <typename StateType, HierarchyPolicy PolicyType>
 #else
     template <typename StateType, typename PolicyType>
 #endif
@@ -217,44 +256,12 @@ public:
         return exitSet;
     }
 
-    // §scxml-D-removeConflictingTransitions lives in ConflictResolutionHelper,
-    // where both engines reach it. A second resolver stood here -- a depth sort
+    // Appendix D's removeConflictingTransitions lives in
+    // ConflictResolutionHelper, where both engines reach it. A second resolver stood here -- a depth sort
     // and a greedy scan, which is not the appendix's ordered-set procedure -- and
     // nothing in the tree called it. It is gone rather than carried forward with
     // the configuration this exit set now needs: two implementations of one
     // appendix procedure can only drift, and the unreachable one drifts unseen.
-
-    /**
-     * @brief Get hierarchy depth of a state
-     *
-     * Depth = number of ancestors (0 for root states)
-     * Used for preemption: deeper states have priority
-     *
-     * @tparam StateType State enum or identifier type
-     * @tparam PolicyType Policy class with state hierarchy
-     * @param state State to get depth for
-     * @return Depth (0 = root)
-     */
-#if __cpp_concepts >= 202002L
-    template <typename StateType, ParallelStatePolicy PolicyType>
-#else
-    template <typename StateType, typename PolicyType>
-#endif
-    static int getDepth(StateType state) {
-        int depth = 0;
-        auto current = state;
-
-        while (true) {
-            auto parent = PolicyType::getParent(current);
-            if (!parent.has_value()) {
-                break;
-            }
-            depth++;
-            current = parent.value();
-        }
-
-        return depth;
-    }
 
     /**
      * @brief Compute and sort states to exit for microstep execution
@@ -265,18 +272,18 @@ public:
      *
      * @tparam StateType State enum or identifier type
      * @tparam PolicyType Policy class with getDocumentOrder()
-     * @param transitions Transitions to execute
+     * @param transitions Transitions to execute, each with its EFFECTIVE targets
      * @param activeStates Current active states
      * @return States to exit in reverse document order
      */
 #if __cpp_concepts >= 202002L
-    template <typename StateType, ParallelStatePolicy PolicyType>
+    template <typename StateType, HierarchyPolicy PolicyType>
 #else
     template <typename StateType, typename PolicyType>
 #endif
     static std::vector<StateType> computeStatesToExit(const std::vector<Transition<StateType>> &transitions,
                                                       const std::vector<StateType> &activeStates) {
-        std::vector<StateType> statesToExit;
+        using Hierarchy = SCE::Core::HierarchicalStateHelper<PolicyType>;
 
         // §scxml-D-computeExitSet takes a LIST of transitions and unions their
         // exit sets. Each one is the same procedure conflict resolution
@@ -284,73 +291,20 @@ public:
         // disagree about which states a transition exits, and they did while
         // this walked the configuration itself and `computeExitSet` walked the
         // source's ancestor chain.
-        for (const auto &trans : transitions) {
-            for (const auto &state : computeExitSet<StateType, PolicyType>(trans, activeStates)) {
-                if (std::find(statesToExit.begin(), statesToExit.end(), state) == statesToExit.end()) {
-                    statesToExit.push_back(state);
-                }
-            }
-        }
-
-        // §scxml-3.13: Sort by REVERSE document order (exit deepest/rightmost first)
-        std::sort(statesToExit.begin(), statesToExit.end(), [](StateType a, StateType b) {
-            return PolicyType::getDocumentOrder(a) > PolicyType::getDocumentOrder(b);
-        });
-
-        return statesToExit;
+        return ExitSetAlgorithms::computeStatesToExit(
+            transitions, activeStates, [](const StateType &s) { return PolicyType::getParent(s); },
+            [](const StateType &s) { return Hierarchy::isTransitionDomainCandidate(s); },
+            [](const StateType &s) { return PolicyType::getDocumentOrder(s); });
     }
 
-    /**
-     * @brief Sort transitions by source state document order
-     *
-     * ARCHITECTURE.MD: Zero Duplication Principle - Shared sorting logic
-     * §scxml-D-executeTransitionContent Step 3: Execute transition content in document order
-     *
-     * @tparam StateType State enum or identifier type
-     * @tparam PolicyType Policy class with getDocumentOrder()
-     * @param transitions Transitions to sort
-     * @return Sorted transitions (by source state document order)
-     */
-#if __cpp_concepts >= 202002L
-    template <typename StateType, ParallelStatePolicy PolicyType>
-#else
-    template <typename StateType, typename PolicyType>
-#endif
-    static std::vector<Transition<StateType>> sortTransitionsBySource(std::vector<Transition<StateType>> transitions) {
-        std::sort(transitions.begin(), transitions.end(),
-                  [](const Transition<StateType> &a, const Transition<StateType> &b) {
-                      return PolicyType::getDocumentOrder(a.source) < PolicyType::getDocumentOrder(b.source);
-                  });
-
-        return transitions;
-    }
-
-    /**
-     * @brief Sort transitions by target state document order
-     *
-     * ARCHITECTURE.MD: Zero Duplication Principle - Shared sorting logic
-     * §scxml-D-enterStates Step 4-5: Enter target states in document order
-     *
-     * @tparam StateType State enum or identifier type
-     * @tparam PolicyType Policy class with getDocumentOrder()
-     * @param transitions Transitions to sort
-     * @return Sorted transitions (by target state document order)
-     */
-#if __cpp_concepts >= 202002L
-    template <typename StateType, ParallelStatePolicy PolicyType>
-#else
-    template <typename StateType, typename PolicyType>
-#endif
-    static std::vector<Transition<StateType>> sortTransitionsByTarget(std::vector<Transition<StateType>> transitions) {
-        std::sort(transitions.begin(), transitions.end(),
-                  [](const Transition<StateType> &a, const Transition<StateType> &b) {
-                      StateType targetA = a.targets.empty() ? a.source : a.targets[0];
-                      StateType targetB = b.targets.empty() ? b.source : b.targets[0];
-                      return PolicyType::getDocumentOrder(targetA) < PolicyType::getDocumentOrder(targetB);
-                  });
-
-        return transitions;
-    }
+    // Two sorts stood here: transitions by source document order, for their
+    // content, and by their FIRST target's document order, for their entry.
+    // Neither is the appendix. §scxml-D-executeTransitionContent runs content
+    // in the order the transitions were selected, which is not their sources'
+    // document order once an ancestor's transition is reached from a later
+    // region; and entry order is a property of the entry SET, computed whole
+    // by `EntrySetAlgorithms::computeEntrySet`, which a sort over first
+    // targets could only approximate for one target per transition.
 
     /**
      * @brief Sort states for exit by depth and document order
@@ -384,35 +338,6 @@ public:
         });
 
         return states;
-    }
-
-    /**
-     * @brief Check if a transition is enabled for an event
-     *
-     * A transition is enabled if:
-     * 1. Source state is active
-     * 2. Event matches transition's event descriptor
-     * 3. Condition evaluates to true (if present)
-     *
-     * @tparam StateType State enum or identifier type
-     * @tparam EventType Event enum or identifier type
-     * @param sourceState Source state of transition
-     * @param transitionEvent Event descriptor of transition
-     * @param currentEvent Current event being processed
-     * @param isActive Predicate to check if source state is active
-     * @return true if transition is enabled
-     */
-    template <typename StateType, typename EventType>
-    static bool isTransitionEnabled(StateType sourceState, EventType transitionEvent, EventType currentEvent,
-                                    std::function<bool(StateType)> isActive) {
-        // Check if source state is active
-        if (!isActive(sourceState)) {
-            return false;
-        }
-
-        // Check if event matches (event matching logic is in EventMatchingHelper)
-        // For now, simple equality check
-        return transitionEvent == currentEvent;
     }
 
     // §scxml-D-getTransitionDomain used to be spelled twice below this line --

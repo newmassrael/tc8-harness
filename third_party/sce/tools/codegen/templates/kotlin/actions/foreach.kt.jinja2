@@ -1,13 +1,41 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
-{# W3C SCXML 4.6: <foreach> — script engine iteration or static Kotlin #}
-{% if model.needs_script_engine %}
+{# W3C SCXML 4.6: <foreach> — script engine iteration or static Kotlin.
+
+   "If the evaluation of any child element of foreach causes an error, the
+   processor MUST cease execution of the foreach element and the block that
+   contains it." The body runs inside `executeForeach`'s lambda, which a
+   `return` cannot leave, so a body element that raised its own error throws
+   `ActionBlockAbort` and this <foreach> raises nothing more for it. Any
+   other exception is the <foreach>'s own failure — a collection it cannot
+   walk, or an engine refusal a body element left for it to report — and it
+   raises that one error. Either way the enclosing block then ends, the way
+   the <send> in this backend ends it: rethrown to an enclosing <foreach>,
+   `return@run` out of a multi-block `run {}`, or `return`. #}
+{% import 'block_exit.kt.jinja2' as block_exit %}
+{% set foreach_in_body = _in_foreach_body is defined and _in_foreach_body %}
+{# A sce-static document's <foreach> over a list variable (SCE Accepted Subset
+   §2.15): a native `for` over the typed elements, lowered ahead of the
+   template by `forge::static_lowering`. It is not a lambda, so a body element
+   that raised its own error ends the block with the `return` every statement
+   of the block uses, and nothing is thrown or caught. #}
+{% if action.native_loop %}
+            {{ action.native_loop }} {
+{% if action.native_loop_prologue %}
+                {{ action.native_loop_prologue }}
+{% endif %}
+{% for body_action in action.actions %}
+{% set action = body_action %}
+{% include 'actions/_render.kt.jinja2' with context %}
+{% endfor %}
+            }
+{% elif model.needs_script_engine %}
 {% if not action.array or not action.item %}
             // W3C SCXML 4.6: Missing required foreach attribute (array/item)
             raisePlatformError({{ machine_name }}Event.Error.Execution, "<foreach> is missing its 'array' or 'item' attribute")
 {% else %}
-            run {
+            if (run foreach@{
                 ensureScriptEngine()
                 val engine = scriptEngine ?: error("scriptEngine is required (codegen invariant: needs_script_engine == true)")
                 val sid = scriptSessionId ?: error("scriptSessionId must be initialized after ensureScriptEngine() (codegen invariant)")
@@ -19,10 +47,19 @@
 {% include 'actions/_render.kt.jinja2' with context %}
 {% endfor %}
                     }
+                    false
+                } catch (e: com.sce.runtime.ActionBlockAbort) {
+                    // W3C SCXML 4.9: a body element raised its error and ended the
+                    // block; nothing more is raised here.
+                    true
                 } catch (e: Exception) {
                     raisePlatformError({{ machine_name }}Event.Error.Execution, "<foreach array='{{ action.array }}'> failed to iterate")
+                    true
                 }
-            }
+            }) {
+                // W3C SCXML 4.6 + 4.9: the block that contains the <foreach> ends.
+                {{ block_exit.stmt(foreach_in_body, in_run_block is defined and in_run_block) }}
+            } // end of run foreach@
 {% endif %}
 {% else %}
             {{ action.array }}.forEach { {{ action.item }} ->

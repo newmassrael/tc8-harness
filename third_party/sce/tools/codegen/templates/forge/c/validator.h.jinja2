@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
@@ -48,63 +48,44 @@ static inline {{ c_result_typedef }} {{ c_validate_func }}({{ c_state_typedef }}
 
 static inline {{ c_result_typedef }} {{ c_validate_func }}({{ params }}) {
 {% endif %}
+{% for name in unread_params %}
+    (void){{ name }}; /* no check reads it: every value it can hold is accepted */
+{% endfor %}
 {% for rule in range_rules %}
-{# Two tautology elisions for gcc -Wtype-limits → -Werror:
-     • `elide_lower`: unsigned + min "0" — `unsigned < 0` is
-       tautologically false. Domain-equivalent to keeping the term
-       since the unsigned type itself excludes negatives.
-     • `elide_upper`: rule.max equals the type's natural ceiling
-       (e.g. uint8 with max=255). `uint8 > 255` is tautologically
-       false; gcc rejects it. Generator-side computation in
-       `range_rules` (`is_max_at_type_max`) avoids per-template
-       string-table maintenance. #}
-{% set elide_lower = rule.is_unsigned and rule.min == "0" %}
-{% set elide_upper = rule.is_max_at_type_max %}
-{% if rule.has_min and rule.has_max %}
-{% if elide_lower and elide_upper %}
-{# Both bounds at the type's natural extremes — every value of the
-   type is in range, so emit no check at all. #}
-{% elif elide_lower %}
-    if ({{ rule.id }} > {{ rule.max }})
-        return ({{ c_result_typedef }}){false, "{{ rule.reason_id }}_out_of_range"};
-{% elif elide_upper %}
-    if ({{ rule.id }} < {{ rule.min }})
-        return ({{ c_result_typedef }}){false, "{{ rule.reason_id }}_out_of_range"};
-{% else %}
+{# `check_min` / `check_max` say which bounds carry a comparison. The
+   generator drops a bound at the type's own extreme — its comparison is a
+   tautology gcc refuses under -Werror=type-limits — deciding once, as
+   numbers, for all six backends. #}
+{% if rule.check_min and rule.check_max %}
     if ({{ rule.id }} < {{ rule.min }} || {{ rule.id }} > {{ rule.max }})
         return ({{ c_result_typedef }}){false, "{{ rule.reason_id }}_out_of_range"};
-{% endif %}
-{% elif rule.has_min %}
-{% if not elide_lower %}
+{% elif rule.check_min %}
     if ({{ rule.id }} < {{ rule.min }})
         return ({{ c_result_typedef }}){false, "{{ rule.reason_id }}_out_of_range"};
-{% endif %}
-{% elif rule.has_max %}
-{% if not elide_upper %}
+{% elif rule.check_max %}
     if ({{ rule.id }} > {{ rule.max }})
         return ({{ c_result_typedef }}){false, "{{ rule.reason_id }}_out_of_range"};
-{% endif %}
 {% endif %}
 {% endfor %}
 {% for rule in roc_rules %}
 {% if rule.is_float %}
     {
-        {{ rule.type }} delta_ = ({{ rule.id }} - _st->{{ rule.prev_name }}_);
-        if (delta_ < 0) delta_ = -delta_;
-        if (delta_ > {{ rule.max_delta }})
+        {{ rule.type }} sce_delta = ({{ rule.id }} - _st->{{ rule.prev_name }}_);
+        if (sce_delta < 0) sce_delta = -sce_delta;
+        if (sce_delta > {{ rule.max_delta }})
             return ({{ c_result_typedef }}){false, "{{ rule.reason_id }}_rate_of_change_exceeded"};
     }
 {% elif rule.is_unsigned %}
     {
-        {{ rule.type }} delta_ = ({{ rule.id }} > _st->{{ rule.prev_name }}_) ? ({{ rule.id }} - _st->{{ rule.prev_name }}_) : (_st->{{ rule.prev_name }}_ - {{ rule.id }});
-        if (delta_ > {{ rule.max_delta }})
+        {{ rule.type }} sce_delta = ({{ rule.id }} > _st->{{ rule.prev_name }}_) ? ({{ rule.id }} - _st->{{ rule.prev_name }}_) : (_st->{{ rule.prev_name }}_ - {{ rule.id }});
+        if (sce_delta > {{ rule.max_delta }})
             return ({{ c_result_typedef }}){false, "{{ rule.reason_id }}_rate_of_change_exceeded"};
     }
 {% else %}
     {
-        int64_t delta_ = (int64_t){{ rule.id }} - (int64_t)_st->{{ rule.prev_name }}_;
-        if (delta_ < 0) delta_ = -delta_;
-        if (delta_ > {{ rule.max_delta }})
+        int64_t sce_delta = (int64_t){{ rule.id }} - (int64_t)_st->{{ rule.prev_name }}_;
+        if (sce_delta < 0) sce_delta = -sce_delta;
+        if (sce_delta > {{ rule.max_delta }})
             return ({{ c_result_typedef }}){false, "{{ rule.reason_id }}_rate_of_change_exceeded"};
     }
 {% endif %}

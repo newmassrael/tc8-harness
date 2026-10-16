@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
+// SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
 // SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael
 
 #pragma once
@@ -34,7 +34,7 @@ struct EventDescriptor {
     // to the stringified pair, so `_event.data.d[0] === 1` read false for a
     // document that had sent the Number 1 (measured 2026-08-16).
     std::map<std::string, std::vector<ScriptValue>> typedParams;
-    std::string content;  // Content for HTTP body
+    std::string content;  // The output of <content> (§scxml-5.6.2)
 
     // Logical execution time for MANUAL mode FIFO preservation (visualizer stepping)
     std::chrono::milliseconds logicalExecuteTime{0};  // Scheduled logical time (0 = not set, use current time)
@@ -59,6 +59,18 @@ struct EventDescriptor {
     bool isDelayed() const {
         return delay.count() > 0;
     }
+
+    /**
+     * @brief The data this message carries to whichever session receives it
+     *
+     * §scxml-5.6.2 + 5.10: one rule for every SCXML-processor target. It
+     * was a private method of the internal target, so an event sent to
+     * `#_parent` or to `#_<invokeid>` dropped its `<content>` and arrived
+     * with no data while the same send to this session carried it.
+     *
+     * @return The `_event.data` payload, as JSON text
+     */
+    std::string payload() const;
 
     /**
      * @brief Validate event descriptor
@@ -100,6 +112,11 @@ struct SendResult {
         NONE,
         VALIDATION_ERROR,
         TARGET_NOT_FOUND,
+        /// The host wired nothing that serves the target (a Mesh peer with no
+        /// Mesh router registered): a configuration fault of the host, which
+        /// raises error.execution as a host-served send with no handler does
+        /// (SCE_MESH.md, Errors), not error.communication.
+        NOT_CONFIGURED,
         NETWORK_ERROR,
         TIMEOUT,
         CANCELLED,

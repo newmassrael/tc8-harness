@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
@@ -64,17 +64,22 @@ func New{{ struct_name }}() *{{ struct_name }} {
 }
 
 // Validate checks all validation rules and returns the result.
-func (p *{{ struct_name }}) Validate({{ params }}) ValidationResult {
+{# The receiver and the rate-of-change temporary carry the `sce` prefix, the
+   generator's own: an author's input called `p` or `delta` cannot meet them
+   (`go_local_spelling`). #}
+func ({{ go_receiver }} *{{ struct_name }}) Validate({{ params }}) ValidationResult {
 {% for rule in range_rules %}
-{% if rule.has_min and rule.has_max %}
+{# Which bounds carry a comparison is the generator's decision for all six
+   backends; a bound at the type's own extreme carries none. #}
+{% if rule.check_min and rule.check_max %}
 	if {{ rule.id }} < {{ rule.min }} || {{ rule.id }} > {{ rule.max }} {
 		return ValidationResult{Valid: false, Reason: "{{ rule.reason_id }}_out_of_range"}
 	}
-{% elif rule.has_min %}
+{% elif rule.check_min %}
 	if {{ rule.id }} < {{ rule.min }} {
 		return ValidationResult{Valid: false, Reason: "{{ rule.reason_id }}_out_of_range"}
 	}
-{% elif rule.has_max %}
+{% elif rule.check_max %}
 	if {{ rule.id }} > {{ rule.max }} {
 		return ValidationResult{Valid: false, Reason: "{{ rule.reason_id }}_out_of_range"}
 	}
@@ -82,28 +87,28 @@ func (p *{{ struct_name }}) Validate({{ params }}) ValidationResult {
 {% endfor %}
 {% for rule in roc_rules %}
 {% if rule.is_float %}
-	if math.Abs(float64({{ rule.id }})-float64(p.{{ rule.prev_name }})) > {{ rule.max_delta }} {
+	if math.Abs(float64({{ rule.id }})-float64({{ go_receiver }}.{{ rule.prev_name }})) > {{ rule.max_delta }} {
 		return ValidationResult{Valid: false, Reason: "{{ rule.reason_id }}_rate_of_change_exceeded"}
 	}
 {% elif rule.is_signed %}
 	{
-		delta := int64({{ rule.id }}) - int64(p.{{ rule.prev_name }})
-		if delta < 0 {
-			delta = -delta
+		sceDelta := int64({{ rule.id }}) - int64({{ go_receiver }}.{{ rule.prev_name }})
+		if sceDelta < 0 {
+			sceDelta = -sceDelta
 		}
-		if delta > {{ rule.max_delta }} {
+		if sceDelta > {{ rule.max_delta }} {
 			return ValidationResult{Valid: false, Reason: "{{ rule.reason_id }}_rate_of_change_exceeded"}
 		}
 	}
 {% else %}
 	{
-		var delta {{ rule.type }}
-		if {{ rule.id }} > p.{{ rule.prev_name }} {
-			delta = {{ rule.id }} - p.{{ rule.prev_name }}
+		var sceDelta {{ rule.type }}
+		if {{ rule.id }} > {{ go_receiver }}.{{ rule.prev_name }} {
+			sceDelta = {{ rule.id }} - {{ go_receiver }}.{{ rule.prev_name }}
 		} else {
-			delta = p.{{ rule.prev_name }} - {{ rule.id }}
+			sceDelta = {{ go_receiver }}.{{ rule.prev_name }} - {{ rule.id }}
 		}
-		if delta > {{ rule.max_delta }} {
+		if sceDelta > {{ rule.max_delta }} {
 			return ValidationResult{Valid: false, Reason: "{{ rule.reason_id }}_rate_of_change_exceeded"}
 		}
 	}
@@ -115,7 +120,7 @@ func (p *{{ struct_name }}) Validate({{ params }}) ValidationResult {
 	}
 {% endif %}
 {% for pv in prev_vars %}
-	p.{{ pv.name }} = {{ pv.id }}
+	{{ go_receiver }}.{{ pv.name }} = {{ pv.id }}
 {% endfor %}
 	return ValidationResult{Valid: true, Reason: ""}
 }

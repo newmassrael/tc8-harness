@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
@@ -19,13 +19,23 @@
 {% if needs_std_array %}#include <array>
 {% endif %}#include <cstddef>
 #include <cstdint>
-{% if needs_vector %}#include <vector>
-{% endif %}{% if needs_span %}#include <span>
+{# `std::string` and `std::to_string` are written by the expression emitter for a
+   string joined to an integer, and what a body needs is a fact about the text:
+   `std_includes` is what the render door (`LangCtx::render`) read off it. #}
+{% for header in std_includes %}#include <{{ header }}>
+{% endfor %}{% if needs_vector %}#include <vector>
+{% endif %}{% if needs_span or needs_list_view %}#include <span>
+{% endif %}{% if may_fail %}#include <sce/forge/algorithm.h>
 {% endif %}{% if all_imports %}{% for imp in all_imports %}{{ imp.include_stmt }}
 {% endfor %}{% endif %}
 namespace SCE::Generated::{{ namespace }} {
 
 {{ consts_prelude }}inline {{ return_type }} {{ primary_symbol }}({{ params_str }}) {
+{% if may_fail %}
+    // SCE_FORGE.md §3.4.1: each checked operation records a failure here, and
+    // the statement around it returns it before the next statement runs.
+    SCE::Forge::AlgorithmFailure sce_failure_;
+{% endif %}
 {{ body }}
 }
 

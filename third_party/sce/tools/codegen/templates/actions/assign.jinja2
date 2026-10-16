@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {#
@@ -23,6 +23,10 @@
     - 2025-10-28: Refactored to use shared AssignmentExecutionHelper
     - 2025-10-30: Conditional block scope based on context (foreach vs standalone)
 #}
+{% if action.native_code %}
+// W3C SCXML 5.3: <assign location="{{ action.location }}">, a sce-static statement lowered to C++
+{% include 'actions/_native_statement.jinja2' %}
+{% else %}
 {% if not in_foreach %}{{ '{' }}{% endif %}
 // W3C SCXML 5.3, 5.4: Validate assignment location using shared AssignHelper
 {% if not in_foreach %}bool success = false;
@@ -77,4 +81,12 @@ if (::SCE::AssignHelper::isValidLocation("{{ action.location | escape_cpp }}")) 
     SCE_LOG_ERROR("W3C SCXML 5.3: {}", errorMsg);
     engine.raise(typename Engine::EventWithMetadata(Event::Error_execution, errorMsg));
 }
+{# W3C SCXML 4.9: the error ends the block. Inside a <foreach> body the loop
+   reads `success` and ends the iteration itself. #}
+{% if not in_foreach and block_exit is defined and block_exit %}
+if (!success) {
+    {{ block_exit }}
+}
+{% endif %}
 {% if not in_foreach %}{{ '}' }}{% endif %}
+{% endif %}

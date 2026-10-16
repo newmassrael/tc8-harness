@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {# Algorithm kind (RFC §synth-5-A) — single-output free function. Cross-language
@@ -12,29 +12,158 @@
    is then converted to `[]byte` at the call site — same workaround the
    codec fragment uses for `Encoded []int` (see harness.go.jinja2 codecCase).
    Numeric args unmarshal directly into their canonical Go scalar type. #}
+{# A record argument or output (SCE_FORGE.md §4.12) is the event-schema's
+   payload struct. The oracle's JSON object unmarshals into an anonymous
+   struct whose tags are the schema's field ids, and the payload is filled
+   from it field by field; `fields` carries each field's Go name, derived
+   from the schema document when the harness renders. #}
+{# A `may-fail` algorithm (SCE_FORGE.md §3.4.1) returns `(value, error)`. A
+   case that names a failure (`"fails": "overflow"`) carries no `expected`;
+   it is judged by the error's contract name before anything reads
+   `expected`, and every other case reads the value. #}
+{% set call %}{{ f.name }}.{{ f.function }}({% for arg_ty in f.args %}arg{{ loop.index0 }}{% if not loop.last %}, {% endif %}{% endfor %}){% endset %}
 	cases := ref.pureCases(t, "{{ f.ref_section }}", "{{ f.name }}")
 	for _, c := range cases {
 {% for arg_ty in f.args %}
-{% if arg_ty == "bytes" %}
+{% set i = loop.index0 %}
+{% if arg_ty.record is defined %}
+		var arg{{ i }}_src struct {
+{% for fld in arg_ty.fields %}
+			{{ fld.ident }} {{ fld.type | go_type }} `json:"{{ fld.name }}"`
+{% endfor %}
+		}
+		unmarshalOrFatal(t, c.Args[{{ i }}], &arg{{ i }}_src, "{{ f.name }} arg{{ i }}")
+		arg{{ i }} := {{ arg_ty.record }}.{{ arg_ty.record | to_pascal_case }}Payload{
+{% for fld in arg_ty.fields %}
+			{{ fld.ident }}: arg{{ i }}_src.{{ fld.ident }},
+{% endfor %}
+		}
+{% elif arg_ty == "bytes" %}
 		var arg{{ loop.index0 }}_buf []int
 		unmarshalOrFatal(t, c.Args[{{ loop.index0 }}], &arg{{ loop.index0 }}_buf, "{{ f.name }} arg{{ loop.index0 }}")
 		arg{{ loop.index0 }} := make([]byte, len(arg{{ loop.index0 }}_buf))
 		for __i, __v := range arg{{ loop.index0 }}_buf {
 			arg{{ loop.index0 }}[__i] = byte(__v)
 		}
+{% elif arg_ty.list_of is defined and arg_ty.list_of.record is defined %}
+{% set r = arg_ty.list_of %}
+		var arg{{ i }}_src []struct {
+{% for fld in r.fields %}
+			{{ fld.ident }} {{ fld.type | go_type }} `json:"{{ fld.name }}"`
+{% endfor %}
+		}
+		unmarshalOrFatal(t, c.Args[{{ i }}], &arg{{ i }}_src, "{{ f.name }} arg{{ i }}")
+		arg{{ i }} := make([]{{ r.record }}.{{ r.record | to_pascal_case }}Payload, len(arg{{ i }}_src))
+		for __i, __v := range arg{{ i }}_src {
+			arg{{ i }}[__i] = {{ r.record }}.{{ r.record | to_pascal_case }}Payload{
+{% for fld in r.fields %}
+				{{ fld.ident }}: __v.{{ fld.ident }},
+{% endfor %}
+			}
+		}
+{% elif arg_ty.list_of is defined %}
+		var arg{{ loop.index0 }} []{{ arg_ty.list_of | go_type }}
+		unmarshalOrFatal(t, c.Args[{{ loop.index0 }}], &arg{{ loop.index0 }}, "{{ f.name }} arg{{ loop.index0 }}")
 {% else %}
 		var arg{{ loop.index0 }} {{ arg_ty | go_type }}
 		unmarshalOrFatal(t, c.Args[{{ loop.index0 }}], &arg{{ loop.index0 }}, "{{ f.name }} arg{{ loop.index0 }}")
 {% endif %}
 {% endfor %}
+{% if f.may_fail %}
+		returned, err := {{ call }}
+		if c.Fails != nil {
+			if err == nil || err.Error() != *c.Fails {
+				t.Errorf("{{ f.name }}: expected failure %s, got value %v err %v", *c.Fails, returned, err)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("{{ f.name }}: expected a value, failed with %v", err)
+			continue
+		}
+{% endif %}
+{% if f.output.record is defined %}
+		var expected struct {
+{% for fld in f.output.fields %}
+			{{ fld.ident }} {{ fld.type | go_type }} `json:"{{ fld.name }}"`
+{% endfor %}
+		}
+		unmarshalOrFatal(t, c.Expected, &expected, "{{ f.name }} expected")
+		actual := {% if f.may_fail %}returned{% else %}{{ call }}{% endif %}
+
+{% for fld in f.output.fields %}
+		if actual.{{ fld.ident }} != expected.{{ fld.ident }} {
+			t.Errorf("{{ f.name }}.{{ fld.name }}: actual=%v expected=%v", actual.{{ fld.ident }}, expected.{{ fld.ident }})
+		}
+{% endfor %}
+{% elif f.output.list_of is defined and f.output.list_of.record is defined %}
+{# A list of records: compared by length, then field by field. #}
+		var expected []struct {
+{% for fld in f.output.list_of.fields %}
+			{{ fld.ident }} {{ fld.type | go_type }} `json:"{{ fld.name }}"`
+{% endfor %}
+		}
+		unmarshalOrFatal(t, c.Expected, &expected, "{{ f.name }} expected")
+		actual := {% if f.may_fail %}returned{% else %}{{ call }}{% endif %}
+
+		if len(actual) != len(expected) {
+			t.Errorf("{{ f.name }}: actual=%v expected=%v", actual, expected)
+			continue
+		}
+		for __i := range expected {
+{% for fld in f.output.list_of.fields %}
+			if actual[__i].{{ fld.ident }} != expected[__i].{{ fld.ident }} {
+				t.Errorf("{{ f.name }}[%d].{{ fld.name }}: actual=%v expected=%v", __i, actual[__i].{{ fld.ident }}, expected[__i].{{ fld.ident }})
+			}
+{% endfor %}
+		}
+{% elif f.output.list_of is defined %}
+{# A `list<T>` return (SCE_FORGE.md §4.12) is a `[]T`: compared by length,
+   then element by element. #}
+		var expected []{{ f.output.list_of | go_type }}
+		unmarshalOrFatal(t, c.Expected, &expected, "{{ f.name }} expected")
+		actual := {% if f.may_fail %}returned{% else %}{{ call }}{% endif %}
+
+		if len(actual) != len(expected) {
+			t.Errorf("{{ f.name }}: actual=%v expected=%v", actual, expected)
+			continue
+		}
+		for __i := range expected {
+{% if f.output.compare == "tolerance" %}
+			assertClose(t, float64(actual[__i]), float64(expected[__i]), ref.FloatTolerance, "{{ f.name }}")
+{% else %}
+			if actual[__i] != expected[__i] {
+				t.Errorf("{{ f.name }}[%d]: actual=%v expected=%v", __i, actual[__i], expected[__i])
+			}
+{% endif %}
+		}
+{% elif f.output.type == "bytes" %}
+{# A `bytes` return is a `[]byte`; its `expected`, a JSON array of byte
+   values, unmarshals through `[]int` as a `bytes` argument does. #}
+		var expected []int
+		unmarshalOrFatal(t, c.Expected, &expected, "{{ f.name }} expected")
+		actual := {% if f.may_fail %}returned{% else %}{{ call }}{% endif %}
+
+		if len(actual) != len(expected) {
+			t.Errorf("{{ f.name }}: actual=%v expected=%v", actual, expected)
+			continue
+		}
+		for __i := range expected {
+			if int(actual[__i]) != expected[__i] {
+				t.Errorf("{{ f.name }}[%d]: actual=%v expected=%v", __i, actual[__i], expected[__i])
+			}
+		}
+{% else %}
 		var expected {{ f.output.type | go_type }}
 		unmarshalOrFatal(t, c.Expected, &expected, "{{ f.name }} expected")
-		actual := {{ f.name }}.{{ f.function }}({% for arg_ty in f.args %}arg{{ loop.index0 }}{% if not loop.last %}, {% endif %}{% endfor %})
+		actual := {% if f.may_fail %}returned{% else %}{{ call }}{% endif %}
+
 {% if f.output.compare == "tolerance" %}
 		assertClose(t, float64(actual), float64(expected), ref.FloatTolerance, "{{ f.name }}")
 {% else %}
 		if actual != expected {
 			t.Errorf("{{ f.name }}: actual=%v expected=%v", actual, expected)
 		}
+{% endif %}
 {% endif %}
 	}

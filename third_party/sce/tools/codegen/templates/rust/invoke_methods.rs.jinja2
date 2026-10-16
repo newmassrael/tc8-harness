@@ -1,6 +1,323 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
+{% from 'param_macros.rs.jinja2' import collect_params_into, collect_typed_param_into %}
+{% from 'invoke_macros.rs.jinja2' import defer_scxml_invoke_fn %}
 
+{% macro hybrid_child_tick(invoke_info, slot) %}
+        if !self.pending_done_invoke_{{ invoke_info.field_suffix }} {
+            if let Some(mut child) = self.{{ slot }}.take() {
+                sce_rust_runtime::helpers::invoke_processing::drain_and_raise_child_events(
+                    &child.policy().parent_external_queue,
+                    &self.active_invokes,
+                    "{{ invoke_info.invoke_id }}",
+                    engine,
+                );
+                child.tick();
+                sce_rust_runtime::helpers::invoke_processing::drain_and_raise_child_events(
+                    &child.policy().parent_external_queue,
+                    &self.active_invokes,
+                    "{{ invoke_info.invoke_id }}",
+                    engine,
+                );
+                if child.is_in_final_state() && !self.pending_done_invoke_{{ invoke_info.field_suffix }} {
+                    self.pending_done_invoke_{{ invoke_info.field_suffix }} = true;
+                    // W3C SCXML 5.5 + 6.3.1: Lift the child's stashed donedata onto
+                    // done.invoke.<id>._event.data.
+                    let donedata = child.donedata_at_final().to_string();
+                    sce_rust_runtime::helpers::invoke_processing::raise_done_invoke(
+                        "{{ invoke_info.invoke_id }}",
+                        donedata,
+                        engine,
+                    );
+                }
+                self.{{ slot }} = Some(child);
+            }
+        }
+{% endmacro %}
+{# W3C SCXML 6.4: a running child's nearest timer. A child that has ended
+   (`pending_done_invoke`) is skipped — the policy keeps it until its state
+   exits, and what it armed is no longer owed. #}
+{% macro child_deadline(invoke_info, slot) %}
+        if !self.pending_done_invoke_{{ invoke_info.field_suffix }} {
+            if let Some(ref child) = self.{{ slot }} {
+                if let Some(due) = child.time_until_next_scheduled_ms() {
+                    soonest = Some(soonest.map_or(due, |nearest| nearest.min(due)));
+                }
+            }
+        }
+{% endmacro %}
+{#
+    §scxml-6.4: "if the evaluation of its arguments produces an error, the
+    SCXML Processor MUST terminate the processing of the element without
+    further action". A `namelist` name that is not a readable location is
+    such an error: ONE error.execution for the element, however many names
+    are bad, no child, and its <param>s are not evaluated.
+
+    Read in the PARENT, before any child exists, so it is the same check
+    whichever child the invoke goes on to start — which is why a hybrid
+    invoke calls it once, after its value has chosen a candidate and before
+    that candidate is built. A name is read only once it is known to be
+    declared, so the name itself is never lowered as an expression.
+#}
+{% macro invoke_namelist_guard(invoke_info, model, machine_name) %}
+{% if invoke_info.namelist and model.needs_script_engine %}
+                {
+                    self.ensure_script_engine();
+                    let sid = self.session_id.as_ref().unwrap().clone();
+                    let se = self.script_engine.clone();
+                    let se: &dyn sce_rust_runtime::IScriptEngine = &*se;
+                    let mut namelist_bad: Option<&'static str> = None;
+{% for var_name in invoke_info.namelist | split %}
+                    if namelist_bad.is_none() && !se.has_variable(&sid, "{{ var_name | escape_rust }}") {
+                        namelist_bad = Some("{{ var_name | escape_rust }}");
+                    }
+{% endfor %}
+                    if let Some(bad) = namelist_bad {
+                        ::sce_rust_runtime::sce_log_error!("Namelist validation failed: '{}' is not a readable location", bad);
+{% if 'error.execution' in model.events %}
+                        engine.raise(sce_rust_runtime::EventWithMetadata::platform_error(
+                            {{ machine_name }}Event::{{ 'error.execution' | to_event_variant }},
+                            "<invoke> namelist names a location that cannot be read"));
+{% endif %}
+                        continue;  // W3C SCXML 6.4: the element is terminated; no child
+                    }
+                }
+{% endif %}
+{% endmacro %}
+{#
+    §scxml-6.4.1 + §scxml-6.4.3: the invoke's `namelist` values and
+    `<param>`s, into `child_policy` before the child initializes.
+
+    `child` is whatever describes the session being started — the invoke
+    itself for a static child, the chosen candidate for a hybrid one. The
+    arguments are the invoke's and are evaluated whatever the child is; only
+    which names the child KEEPS depends on it, so a candidate is given
+    exactly the names its own top-level `<data>` declares.
+#}
+{% macro invoke_seed_child(invoke_info, child, model, machine_name) %}
+{% if invoke_info.namelist and child.child_needs_script_engine %}
+                // W3C SCXML 6.4.1: Pass validated namelist values to child datamodel
+                // W3C SCXML 6.3.2: Only set if variable is declared in child's datamodel
+                {
+                    let sid = self.session_id.as_ref().unwrap().clone();
+                    let se = self.script_engine.clone();
+                    let se: &dyn sce_rust_runtime::IScriptEngine = &*se;
+{% if child.child_datamodel_vars is defined %}
+                    let child_vars: &[&str] = &[{% for cv in child.child_datamodel_vars %}"{{ cv }}"{{ ", " if not loop.last }}{% endfor %}];
+{% for var_name in invoke_info.namelist | split %}
+                    if child_vars.contains(&"{{ var_name }}") {
+                        if let Ok(val) = se.evaluate_expression(&sid, "{{ var_name }}") {
+                            // §scxml-6.4.1: "the value stored at the location
+                            // is the value" — so the value crosses, not a
+                            // rendering of it.
+                            child_policy.set_param_value_in_script_engine("{{ var_name }}", val);
+                        }
+                    }
+{% endfor %}
+{% else %}
+{% for var_name in invoke_info.namelist | split %}
+                    if let Ok(val) = se.evaluate_expression(&sid, "{{ var_name }}") {
+                        child_policy.set_param_value_in_script_engine("{{ var_name }}", val);
+                    }
+{% endfor %}
+{% endif %}
+                }
+{% endif %}
+{% if invoke_info.params and model.needs_script_engine %}
+                // W3C SCXML 6.4.1: Pass params to child datamodel before initialization
+                {
+                    self.ensure_script_engine();
+                    let sid = self.session_id.as_ref().unwrap().clone();
+                    let se = self.script_engine.clone();
+                    let se: &dyn sce_rust_runtime::IScriptEngine = &*se;
+{% for param in invoke_info.params %}
+{# §scxml-5.7: the value comes from 'expr' or, failing that, 'location' — a
+   location expression, read as its value; both empty is `location=""`, a
+   location that names nothing. The <param> is an argument of this <invoke>
+   whether or not the child declares `name` or runs a script engine, so it is
+   evaluated — and its failure raised — either way; §scxml-6.4.3 decides only
+   what the child keeps. #}
+{% set param_source = param.expr or param.location %}
+{% set child_keeps = child.child_needs_script_engine and child.child_datamodel_vars and param.name in child.child_datamodel_vars %}
+{% if not param_source %}
+{% if 'error.execution' in model.events %}
+                    engine.raise(sce_rust_runtime::EventWithMetadata::platform_error({{ machine_name }}Event::{{ 'error.execution' | to_event_variant }}, "<invoke> <param name='{{ param.name | escape_rust }}'> names no location"));
+{% endif %}
+{% else %}
+                    match se.evaluate_expression(&sid, "{{ param_source | to_lua_expr | escape_rust }}") {
+                        Ok(val) => {
+{% if child_keeps %}
+                            // §scxml-6.4.3: the VALUE of the param element becomes
+                            // the child `<data>`'s initial value.
+                            child_policy.set_param_value_in_script_engine("{{ param.name | escape_rust }}", val);
+{% else %}
+                            // §scxml-6.4.3: `{{ param.name }}` matches no top-level
+                            // `<data>` of the child, so the Processor MUST NOT add it
+                            // to the invoked session's data model.
+                            let _ = val;
+{% endif %}
+                        }
+                        Err(e) => {
+                            // §scxml-5.7.1: BOTH halves — `error.execution` on the
+                            // internal queue AND the name and value ignored. The
+                            // clause delegates only the SUCCESSFUL name and value to
+                            // the context ("See 5.5 <donedata>, 6.2 <send> and 6.4
+                            // <invoke>"), so §scxml-6.4.2's "terminate the
+                            // processing of the element" is not what a failing
+                            // `<param>` costs: the child still starts, one pair
+                            // short. W3C test343 settles the same clause from the
+                            // `<donedata>` side.
+                            ::sce_rust_runtime::sce_log_error!("invoke param '{{ param.name | escape_rust }}' eval failed: {}", e);
+{% if 'error.execution' in model.events %}
+                            engine.raise(sce_rust_runtime::EventWithMetadata::platform_error({{ machine_name }}Event::{{ 'error.execution' | to_event_variant }}, "<invoke> <param name='{{ param.name | escape_rust }}'> could not be read"));
+{% endif %}
+                        }
+                    }
+{% endif %}
+{% endfor %}
+                }
+{% endif %}
+{% endmacro %}
+{#
+    §scxml-6.4.1: under `datamodel="sce-static"`, the values the invoke's
+    `<param>`s and `namelist` give the child's variables, into `child_policy`
+    before the child initializes. The build lowered each (`Param::native_seed`)
+    to a value of the child variable's own type, read from this machine's
+    fields now — when the invoke is executed, at the macrostep's end — and the
+    child takes them through its `accept_params`.
+
+    A value that cannot be computed costs `error.execution` and that one value
+    (§scxml-5.7.1): the child still starts, one value short.
+
+    `seeds` are the arguments the child declares a variable for. `unkept` are
+    the ones it declares none for, which a hybrid invoke has because it hands
+    every candidate the same arguments: each is evaluated and left out
+    (§scxml-6.4.3), and one that cannot be evaluated costs `error.execution`
+    all the same, because an argument is the invoke's whatever the child keeps.
+#}
+{% macro seed_static_child(child_name, seeds, unkept, model, machine_name) %}
+{% set ns = namespace(any=false) %}
+{% for param in seeds %}
+{% if param.native_seed %}
+{% set ns.any = true %}
+{% endif %}
+{% endfor %}
+{% if ns.any %}
+                // W3C SCXML 6.4.1: hand the child the values this invoke names
+                {
+                    let mut seed = super::{{ child_name }}_sm::{{ child_name | to_machine_name }}InvokeParams::default();
+{% for param in seeds %}
+{% if param.native_seed and param.native_fails %}
+                    match (|| -> Result<_, sce_forge_runtime::algorithm::AlgorithmError> { Ok({{ param.native_seed }}) })() {
+                        Ok(value) => seed.{{ param.name | to_snake_case }} = Some(value),
+                        Err(_) => {
+                            // W3C SCXML 5.7.1: report the failure and leave the value out.
+                            ::sce_rust_runtime::sce_log_error!("invoke param '{{ param.name | escape_rust }}' overflowed or failed");
+{% if 'error.execution' in model.events %}
+                            engine.raise(sce_rust_runtime::EventWithMetadata::platform_error({{ machine_name }}Event::{{ 'error.execution' | to_event_variant }}, "<invoke> <param name='{{ param.name | escape_rust }}'> expr failed to evaluate"));
+{% endif %}
+                        }
+                    }
+{% elif param.native_seed %}
+                    seed.{{ param.name | to_snake_case }} = Some({{ param.native_seed }});
+{% endif %}
+{% endfor %}
+                    child_policy.accept_params(seed);
+                }
+{% endif %}
+{% for param in unkept %}
+{% if param.native_value and param.native_fails %}
+                // W3C SCXML 6.4.3: the child declares no `{{ param.name }}`, so the Processor
+                // MUST NOT add it to its data model — but the argument is still
+                // the invoke's, evaluated, and a failure of it is reported
+                // (§scxml-5.7.1).
+                if (|| -> Result<_, sce_forge_runtime::algorithm::AlgorithmError> { Ok({{ param.native_value }}) })().is_err() {
+                    ::sce_rust_runtime::sce_log_error!("invoke param '{{ param.name | escape_rust }}' overflowed or failed");
+{% if 'error.execution' in model.events %}
+                    engine.raise(sce_rust_runtime::EventWithMetadata::platform_error({{ machine_name }}Event::{{ 'error.execution' | to_event_variant }}, "<invoke> <param name='{{ param.name | escape_rust }}'> expr failed to evaluate"));
+{% endif %}
+                }
+{% endif %}
+{% endfor %}
+{% endmacro %}
+{% macro invoke_seed_static_child(invoke_info, model, machine_name) %}
+{{ seed_static_child(invoke_info.child_name, invoke_info.params, [], model, machine_name) }}
+{% endmacro %}
+{% macro hybrid_child_start(invoke_info, child, child_mod, child_policy_type, slot, model, machine_name) %}
+                // W3C SCXML 6.4: Create pre-generated child (Rust AOT: child resolved at codegen time)
+                // Engine DI Parity RFC: pass parent's script engine when child needs it.
+{# The host the child performs its acts through is asked of the parent's own host
+   here, where the invocation starts, so a state invoked again is given a fresh
+   one (docs/adr/0005, decision 6). It leads the policy's parameters. #}
+{% if child.child_needs_script_engine %}
+                let mut child_policy = super::{{ child_mod }}::{{ child_policy_type }}Policy::new({% if child.child_host_call %}{{ child.child_host_call }}, {% endif %}self.script_engine.clone());
+{% else %}
+                let mut child_policy = super::{{ child_mod }}::{{ child_policy_type }}Policy::new({{ child.child_host_call }});
+{% endif %}
+                child_policy.parent_external_queue = Some(engine.get_external_queue_handle());
+                child_policy.invoke_id = pending.invoke_id.clone();
+                child_policy.child_session_id = child_session_id.clone();
+
+                if child_policy.session_id.is_none() {
+                    static HYBRID_SESSION_COUNTER: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::new(0);
+                    let cid = HYBRID_SESSION_COUNTER.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+                    child_policy.session_id = Some(format!("hybrid_session_{}", cid));
+                }
+
+{{ invoke_seed_child(invoke_info, child, model, machine_name) }}
+{% if child.seeds or child.unkept %}
+{{ seed_static_child(child.stem, child.seeds, child.unkept, model, machine_name) }}
+{% endif %}
+
+                // W3C SCXML 6.4.1: Track active invoke session
+                self.active_invokes.insert("{{ invoke_info.invoke_id }}".to_string(),
+                    sce_rust_runtime::invoke::ChildSession {
+                        session_id: child_session_id,
+                        invoke_id: "{{ invoke_info.invoke_id }}".to_string(),
+                        parent_session_id: self.session_id.clone().unwrap_or_default(),
+                        autoforward: {{ 'true' if invoke_info.autoforward else 'false' }},
+                        finalize_script: String::new(),
+                    },
+                );
+
+                let mut child_engine = sce_rust_runtime::Engine::new(child_policy);
+                // §scxml-6.4: the child's delayed sends are measured against
+                // the same clock as ours. A child reading its own would start
+                // its origin at construction time, so `<send delay="100ms">`
+                // on either side of the boundary would mean two different
+                // absolute instants — and on a host-owned clock the child
+                // would not move at all, because the host advances the engine
+                // it holds, not the ones that engine invoked.
+                child_engine.set_clock(engine.clock());
+                child_engine.set_completion_callback(|| {});
+                child_engine.initialize();
+
+                self.{{ slot }} = Some(Box::new(child_engine));
+
+                // W3C SCXML 6.4: Drain child-to-parent events raised during initialize
+                sce_rust_runtime::helpers::invoke_processing::drain_and_raise_child_events(
+                    &self.{{ slot }}.as_ref().unwrap().policy().parent_external_queue,
+                    &self.active_invokes,
+                    "{{ invoke_info.invoke_id }}",
+                    engine,
+                );
+
+                // W3C SCXML 6.4: Check if child completed during initialize
+                if self.{{ slot }}.as_ref().map_or(false, |c| c.is_in_final_state()) {
+                    self.pending_done_invoke_{{ invoke_info.field_suffix }} = true;
+                    // W3C SCXML 5.5 + 6.3.1: Lift the child's stashed donedata onto
+                    // done.invoke.<id>._event.data.
+                    let donedata = self.{{ slot }}
+                        .as_ref()
+                        .map(|c| c.donedata_at_final().to_string())
+                        .unwrap_or_default();
+                    sce_rust_runtime::helpers::invoke_processing::raise_done_invoke(
+                        "{{ invoke_info.invoke_id }}",
+                        donedata,
+                        engine,
+                    );
+                }
+{% endmacro %}
 {#
     Invoke Methods Template (Rust Jinja2)
 
@@ -10,6 +327,17 @@
     Ports from C++ entry_exit_actions.jinja2 executePendingInvokes() and tickChildren().
 #}
 {% if model.invokes | scxml or model.invokes | hybrid or model.invokes | unsupported %}
+{% for state_id, state in model.states | dictsort %}
+{% for invoke_info in state.invokes | scxml %}
+{{ defer_scxml_invoke_fn(invoke_info, state_id, model, machine_name) }}
+{% endfor %}
+{# A hybrid invoke is deferred by the same body: entering its state and a
+   restore both start it, and `srcexpr` is read when the macrostep ends, as the
+   start reads every other argument. #}
+{% for invoke_info in state.invokes | hybrid %}
+{{ defer_scxml_invoke_fn(invoke_info, state_id, model, machine_name) }}
+{% endfor %}
+{% endfor %}
     // W3C SCXML 6.4: Execute pending invokes at macrostep end
     // 1:1 port of C++ executePendingInvokes() in entry_exit_actions.jinja2
     fn do_execute_pending_invokes(&mut self, engine: &mut sce_rust_runtime::Engine<Self>) {
@@ -30,34 +358,8 @@
 {% for state_id, state in model.states | dictsort %}
 {% if state.invokes | scxml %}
 {% for invoke_info in state.invokes | scxml %}
-            if pending.invoke_id.contains(".{{ invoke_info.invoke_id }}") {
-{% if invoke_info.namelist %}
-                // W3C SCXML 6.4.1: Validate namelist variables in PARENT before creating child
-                // 1:1 port of C++ NamelistHelper::evaluateNamelist — validate in parent scope
-{% if model.needs_script_engine %}
-                {
-                    self.ensure_script_engine();
-                    let sid = self.session_id.as_ref().unwrap().clone();
-                    let se = self.script_engine.clone();
-                    let se: &dyn sce_rust_runtime::IScriptEngine = &*se;
-                    let mut namelist_valid = true;
-{% for var_name in invoke_info.namelist | split %}
-                    if !se.has_variable(&sid, "{{ var_name }}") {
-                        ::sce_rust_runtime::sce_log_error!("Namelist validation failed: '{{ var_name }}' not declared in parent");
-{% if 'error.execution' in model.events %}
-                        engine.raise(sce_rust_runtime::EventWithMetadata::platform_error(
-                            {{ machine_name }}Event::{{ 'error.execution' | to_event_variant }},
-                            "<invoke> namelist names '{{ var_name }}', which the parent does not declare"));
-{% endif %}
-                        namelist_valid = false;
-                    }
-{% endfor %}
-                    if !namelist_valid {
-                        continue;  // W3C SCXML 6.4.1: Skip invoke on namelist error
-                    }
-                }
-{% endif %}
-{% endif %}
+            if pending.document_id == "{{ invoke_info.invoke_id }}" {
+{{ invoke_namelist_guard(invoke_info, model, machine_name) }}
 
                 // W3C SCXML 6.5: Generate child session ID for finalize origin matching
                 let child_session_id = format!("{}.{}",
@@ -68,9 +370,9 @@
                 // Engine DI Parity RFC: forward parent's script engine to child when the
                 // child Policy was generated with `model.needs_script_engine = true`.
 {% if invoke_info.child_needs_script_engine %}
-                let mut child_policy = super::{{ invoke_info.child_name }}_sm::{{ invoke_info.child_name | to_machine_name }}Policy::new(self.script_engine.clone());
+                let mut child_policy = super::{{ invoke_info.child_name }}_sm::{{ invoke_info.child_name | to_machine_name }}Policy::new({% if invoke_info.child_host_call %}{{ invoke_info.child_host_call }}, {% endif %}self.script_engine.clone());
 {% else %}
-                let mut child_policy = super::{{ invoke_info.child_name }}_sm::{{ invoke_info.child_name | to_machine_name }}Policy::new();
+                let mut child_policy = super::{{ invoke_info.child_name }}_sm::{{ invoke_info.child_name | to_machine_name }}Policy::new({{ invoke_info.child_host_call }});
 {% endif %}
                 // W3C SCXML 6.4: Pass parent session info to child for #_parent routing
                 child_policy.parent_external_queue = Some(engine.get_external_queue_handle());
@@ -89,85 +391,9 @@
                     child_policy.session_id = Some(child_session_id.clone());
                 }
 
-{% if invoke_info.namelist %}
-                // W3C SCXML 6.4.1: Pass validated namelist values to child datamodel
-                // W3C SCXML 6.3.2: Only set if variable is declared in child's datamodel
-{% if invoke_info.child_needs_script_engine %}
-                {
-                    let sid = self.session_id.as_ref().unwrap().clone();
-                    let se = self.script_engine.clone();
-                    let se: &dyn sce_rust_runtime::IScriptEngine = &*se;
-{% if invoke_info.child_datamodel_vars is defined %}
-                    let child_vars: &[&str] = &[{% for cv in invoke_info.child_datamodel_vars %}"{{ cv }}"{{ ", " if not loop.last }}{% endfor %}];
-{% for var_name in invoke_info.namelist | split %}
-                    if child_vars.contains(&"{{ var_name }}") {
-                        if let Ok(val) = se.evaluate_expression(&sid, "{{ var_name }}") {
-                            // §scxml-6.4.1: "the value stored at the location
-                            // is the value" — so the value crosses, not a
-                            // rendering of it.
-                            child_policy.set_param_value_in_script_engine("{{ var_name }}", val);
-                        }
-                    }
-{% endfor %}
-{% else %}
-{% for var_name in invoke_info.namelist | split %}
-                    if let Ok(val) = se.evaluate_expression(&sid, "{{ var_name }}") {
-                        child_policy.set_param_value_in_script_engine("{{ var_name }}", val);
-                    }
-{% endfor %}
-{% endif %}
-                }
-{% endif %}
-{% endif %}
-
-{% if invoke_info.params %}
-                // W3C SCXML 6.4.1: Pass params to child datamodel before initialization
-{% if invoke_info.child_needs_script_engine %}
-                {
-                    self.ensure_script_engine();
-                    let sid = self.session_id.as_ref().unwrap().clone();
-                    let se = self.script_engine.clone();
-                    let se: &dyn sce_rust_runtime::IScriptEngine = &*se;
-{% for param in invoke_info.params %}
-{% if invoke_info.child_datamodel_vars and param.name in invoke_info.child_datamodel_vars %}
-                    match se.evaluate_expression(&sid, "{{ param.expr | to_lua_expr | escape_rust }}") {
-                        Ok(val) => {
-                            // §scxml-6.4.3: the VALUE of the param element becomes
-                            // the child `<data>`'s initial value.
-                            child_policy.set_param_value_in_script_engine("{{ param.name | escape_rust }}", val);
-                        }
-                        Err(e) => {
-                            // §scxml-5.7.1: BOTH halves — `error.execution` on the
-                            // internal queue AND the name and value ignored. Only
-                            // the silent half was here: an `if let Ok` dropped the
-                            // failure, so a document that miscomputed one `<param>`
-                            // of an `<invoke>` got a child with a `<data>` nothing
-                            // explained and no event to act on.
-                            //
-                            // The clause delegates only the SUCCESSFUL name and
-                            // value to the context — "Otherwise the use of the name
-                            // and value depends on the context in which the <param>
-                            // element occurs. See 5.5 <donedata>, 6.2 <send> and 6.4
-                            // <invoke>" — so §scxml-6.4.2's "terminate the
-                            // processing of the element" is not what a failing
-                            // `<param>` costs: the child still starts, one pair
-                            // short. W3C test343 settles the same clause from the
-                            // `<donedata>` side.
-                            ::sce_rust_runtime::sce_log_error!("invoke param '{{ param.name | escape_rust }}' eval failed: {}", e);
-{% if 'error.execution' in model.events %}
-                            engine.raise(sce_rust_runtime::EventWithMetadata::platform_error({{ machine_name }}Event::{{ 'error.execution' | to_event_variant }}, "<invoke> <param name='{{ param.name | escape_rust }}'> expr failed to evaluate"));
-{% endif %}
-                        }
-                    }
-{% else %}
-                    // §scxml-6.4.3: `{{ param.name }}` matches no top-level `<data>` of
-                    // the child, so the Processor MUST NOT add it to the invoked
-                    // session's data model. Decided here because both the param
-                    // names and the child's declarations are static.
-{% endif %}
-{% endfor %}
-                }
-{% endif %}
+{{ invoke_seed_child(invoke_info, invoke_info, model, machine_name) }}
+{% if static_fields %}
+{{ invoke_seed_static_child(invoke_info, model, machine_name) }}
 {% endif %}
 
                 // W3C SCXML 6.4.1: Track active invoke session BEFORE initialize
@@ -247,9 +473,40 @@
 {% for state_id, state in model.states | dictsort %}
 {% if state.invokes | hybrid %}
 {% for invoke_info in state.invokes | hybrid %}
-            if pending.invoke_id.contains(".{{ invoke_info.invoke_id }}") {
+            if pending.document_id == "{{ invoke_info.invoke_id }}" {
                 // W3C SCXML 6.4: Hybrid invoke — evaluate expression at runtime, create pre-generated child
-{% if invoke_info.srcexpr %}
+{% if invoke_info.candidates %}
+                // Which candidate the evaluated value names. Declared here
+                // because the evaluation below is a `match` of its own.
+                let mut __sce_selected = String::new();
+{% endif %}
+{% if invoke_info.native_src %}
+{# `datamodel="sce-static"`: the `srcexpr` is a string computed from the
+   machine's fields now (`HybridInvokeInfo::native_src`); no script engine is
+   asked. One that cannot be computed is an attribute that cannot be
+   evaluated, which raises error.execution and starts nothing — the failure
+   a value naming no candidate is, below. #}
+                // §scxml-6.4: the `srcexpr` names the document to start.
+{% if invoke_info.native_src_fails %}
+                let __sce_value = match (|| -> Result<String, sce_forge_runtime::algorithm::AlgorithmError> {
+                    Ok({{ invoke_info.native_src }})
+                })() {
+                    Ok(value) => value,
+                    Err(_) => {
+                        ::sce_rust_runtime::sce_log_error!("Hybrid invoke: the srcexpr could not be evaluated");
+{% if 'error.execution' in model.events %}
+                        engine.raise(sce_rust_runtime::EventWithMetadata::platform_error(
+                            {{ machine_name }}Event::{{ 'error.execution' | to_event_variant }},
+                            "<invoke srcexpr> could not be evaluated"));
+{% endif %}
+                        continue;
+                    }
+                };
+{% else %}
+                let __sce_value: String = {{ invoke_info.native_src }};
+{% endif %}
+                __sce_selected = sce_rust_runtime::helpers::invoke_processing::document_stem(&__sce_value).to_string();
+{% elif invoke_info.srcexpr %}
                 // W3C SCXML 6.4.3: Evaluate srcexpr at runtime
                 self.ensure_script_engine();
                 let sid = self.session_id.as_ref().unwrap().clone();
@@ -261,12 +518,23 @@
 {% if 'error.execution' in model.events %}
                         engine.raise(sce_rust_runtime::EventWithMetadata::platform_error(
                             {{ machine_name }}Event::{{ 'error.execution' | to_event_variant }},
-                            "<invoke> srcexpr '{{ invoke_info.srcexpr | escape_rust }}' failed to evaluate"));
+                            "<invoke srcexpr='{{ invoke_info.srcexpr | escape_rust }}'> could not be evaluated"));
 {% endif %}
                         continue;
                     }
                     Ok(_path) => {
                         ::sce_rust_runtime::sce_log_debug!("Hybrid invoke: srcexpr evaluated to {:?}", _path);
+{% if invoke_info.candidates %}
+                        // §scxml-6.4 + SCE_ACCEPTED_SUBSET.md §2.13: the value
+                        // chooses among the declared candidates, matched on
+                        // the document STEM so `file:x.scxml`, `./x.scxml` and
+                        // an absolute path all name one child.
+                        let raw = match &_path {
+                            sce_rust_runtime::ScriptValue::String(s) => s.clone(),
+                            other => format!("{:?}", other),
+                        };
+                        __sce_selected = sce_rust_runtime::helpers::invoke_processing::document_stem(&raw).to_string();
+{% endif %}
                     }
                 }
 {% elif invoke_info.contentexpr %}
@@ -281,7 +549,7 @@
 {% if 'error.execution' in model.events %}
                         engine.raise(sce_rust_runtime::EventWithMetadata::platform_error(
                             {{ machine_name }}Event::{{ 'error.execution' | to_event_variant }},
-                            "<invoke> contentexpr '{{ invoke_info.contentexpr | escape_rust }}' failed to evaluate"));
+                            "<invoke contentexpr='{{ invoke_info.contentexpr | escape_rust }}'> could not be evaluated"));
 {% endif %}
                         continue;
                     }
@@ -290,84 +558,48 @@
                     }
                 }
 {% endif %}
+{% if invoke_info.candidates %}
+
+                // A value naming none of the declared candidates is the failure
+                // the Interpreter reports when a document will not load: nothing
+                // is created, and — as there — the arguments are not read.
+                if ![{% for candidate in invoke_info.candidates %}"{{ candidate.stem | escape_rust }}"{{ ", " if not loop.last }}{% endfor %}].contains(&__sce_selected.as_str()) {
+                    ::sce_rust_runtime::sce_log_error!("Hybrid invoke: '{}' names no declared candidate", __sce_selected);
+{% if 'error.execution' in model.events %}
+                    engine.raise(sce_rust_runtime::EventWithMetadata::platform_error(
+                        {{ machine_name }}Event::{{ 'error.execution' | to_event_variant }},
+                        "<invoke srcexpr{% if invoke_info.srcexpr %}='{{ invoke_info.srcexpr | escape_rust }}'{% endif %}> evaluated to a document it did not declare"));
+{% endif %}
+                    continue;
+                }
+{% endif %}
+{{ invoke_namelist_guard(invoke_info, model, machine_name) }}
 
                 // W3C SCXML 6.5: Generate child session ID
                 let child_session_id = format!("{}.{}",
                     self.session_id.as_deref().unwrap_or(""),
                     pending.invoke_id);
 
-                // W3C SCXML 6.4: Create pre-generated child (Rust AOT: child resolved at codegen time)
-                // Engine DI Parity RFC: pass parent's script engine when child needs it.
-{% if invoke_info.child_needs_script_engine %}
-                let mut child_policy = super::{{ invoke_info.child_name }}_sm::{{ invoke_info.child_name | to_machine_name }}Policy::new(self.script_engine.clone());
-{% else %}
-                let mut child_policy = super::{{ invoke_info.child_name }}_sm::{{ invoke_info.child_name | to_machine_name }}Policy::new();
-{% endif %}
-                child_policy.parent_external_queue = Some(engine.get_external_queue_handle());
-                child_policy.invoke_id = pending.invoke_id.clone();
-                child_policy.child_session_id = child_session_id.clone();
-
-                if child_policy.session_id.is_none() {
-                    static HYBRID_SESSION_COUNTER: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::new(0);
-                    let cid = HYBRID_SESSION_COUNTER.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
-                    child_policy.session_id = Some(format!("hybrid_session_{}", cid));
+{% if invoke_info.candidates %}
+                // §scxml-6.4 + SCE_ACCEPTED_SUBSET.md §2.13: the value chooses
+                // among the declared candidates, each with a slot of its own.
+{% for candidate in invoke_info.candidates %}
+                if __sce_selected == "{{ candidate.stem | escape_rust }}" {
+{{ hybrid_child_start(invoke_info, candidate, candidate.stem ~ "_sm", candidate.stem | to_machine_name, "child_" ~ invoke_info.field_suffix ~ "_" ~ candidate.stem, model, machine_name) }}
+                    continue;
                 }
-
-                // W3C SCXML 6.4.1: Track active invoke session
-                self.active_invokes.insert("{{ invoke_info.invoke_id }}".to_string(),
-                    sce_rust_runtime::invoke::ChildSession {
-                        session_id: child_session_id,
-                        invoke_id: "{{ invoke_info.invoke_id }}".to_string(),
-                        parent_session_id: self.session_id.clone().unwrap_or_default(),
-                        autoforward: {{ 'true' if invoke_info.autoforward else 'false' }},
-                        finalize_script: String::new(),
-                    },
-                );
-
-                let mut child_engine = sce_rust_runtime::Engine::new(child_policy);
-                // §scxml-6.4: the child's delayed sends are measured against
-                // the same clock as ours. A child reading its own would start
-                // its origin at construction time, so `<send delay="100ms">`
-                // on either side of the boundary would mean two different
-                // absolute instants — and on a host-owned clock the child
-                // would not move at all, because the host advances the engine
-                // it holds, not the ones that engine invoked.
-                child_engine.set_clock(engine.clock());
-                child_engine.set_completion_callback(|| {});
-                child_engine.initialize();
-
-                self.child_{{ invoke_info.field_suffix }} = Some(Box::new(child_engine));
-
-                // W3C SCXML 6.4: Drain child-to-parent events raised during initialize
-                sce_rust_runtime::helpers::invoke_processing::drain_and_raise_child_events(
-                    &self.child_{{ invoke_info.field_suffix }}.as_ref().unwrap().policy().parent_external_queue,
-                    &self.active_invokes,
-                    "{{ invoke_info.invoke_id }}",
-                    engine,
-                );
-
-                // W3C SCXML 6.4: Check if child completed during initialize
-                if self.child_{{ invoke_info.field_suffix }}.as_ref().map_or(false, |c| c.is_in_final_state()) {
-                    self.pending_done_invoke_{{ invoke_info.field_suffix }} = true;
-                    // W3C SCXML 5.5 + 6.3.1: Lift the child's stashed donedata onto
-                    // done.invoke.<id>._event.data.
-                    let donedata = self.child_{{ invoke_info.field_suffix }}
-                        .as_ref()
-                        .map(|c| c.donedata_at_final().to_string())
-                        .unwrap_or_default();
-                    sce_rust_runtime::helpers::invoke_processing::raise_done_invoke(
-                        "{{ invoke_info.invoke_id }}",
-                        donedata,
-                        engine,
-                    );
-                }
+{% endfor %}
                 continue;
+{% else %}
+{{ hybrid_child_start(invoke_info, invoke_info, invoke_info.child_name ~ "_sm", invoke_info.child_name | to_machine_name, "child_" ~ invoke_info.field_suffix, model, machine_name) }}
+                continue;
+{% endif %}
             }
 {% endfor %}
 {% endif %}
 {% if state.invokes | unsupported_refused %}
 {% for invoke_info in state.invokes | unsupported_refused %}
-            if pending.invoke_id.contains(".{{ invoke_info.invoke_id }}") {
+            if pending.document_id == "{{ invoke_info.invoke_id }}" {
                 // W3C SCXML 6.4.1: unsupported `type` — place error.execution
                 // on the internal queue and start nothing. No child session,
                 // so no done.invoke follows and nothing is left to cancel.
@@ -378,24 +610,180 @@
 {% endif %}
 {% if state.invokes | host_invoker %}
 {% for invoke_info in state.invokes | host_invoker %}
-            if pending.invoke_id.contains(".{{ invoke_info.invoke_id }}") {
+            if pending.document_id == "{{ invoke_info.invoke_id }}" {
                 // §scxml-6.4.1: the host declared this `type`, so start the
                 // invocation rather than refusing it. The id handed over is
                 // the DOCUMENT's, not the per-instance one the defer queue
                 // carries: `done.invoke.<id>` is the name the author wrote a
                 // transition for, so it is the name the host must answer on.
-                let mut host_invoke_params = std::collections::HashMap::<String, Vec<String>>::new();
-{% for param in invoke_info.params %}
-{% if param.is_static_literal %}
-                host_invoke_params.entry("{{ param.name | escape_rust }}".to_string()).or_default().push("{{ param.static_value | escape_rust }}".to_string());
+                // §scxml-6.4.1: what the request says is evaluated now, when
+                // the invocation starts, by the rules the other invoke kinds
+                // follow: an attribute that cannot be evaluated starts
+                // nothing, and a `<param>` that cannot is reported and left
+                // out (§scxml-5.7.1).
+{% if invoke_info.idlocation %}
+                // §scxml-6.4.1: the invocation's generated id goes to
+                // `idlocation` when the element is evaluated. It is the id the
+                // host is handed and `done.invoke.<id>` names, so the document
+                // can match on what it stored. The write is the assignment
+                // `<assign>` makes, so a location that cannot take the id
+                // starts nothing (§scxml-5.9.2), like any argument that cannot
+                // be evaluated.
+                {
+                    self.ensure_script_engine();
+                    let sid = self.session_id.as_ref().unwrap().clone();
+                    let se = self.script_engine.clone();
+                    let se: &dyn sce_rust_runtime::IScriptEngine = &*se;
+                    if !::sce_rust_runtime::helpers::idlocation::store_id_in_location(
+                        se, &sid, "{{ invoke_info.idlocation | to_lua_location | escape_rust }}", "{{ invoke_info.invoke_id | escape_rust }}",
+                    ) {
+{% if 'error.execution' in model.events %}
+                        engine.raise(sce_rust_runtime::EventWithMetadata::platform_error({{ machine_name }}Event::{{ 'error.execution' | to_event_variant }}, "<invoke idlocation='{{ invoke_info.idlocation | escape_rust }}'> could not take the invoke id"));
+{% endif %}
+                        continue;
+                    }
+                }
+{% endif %}
+                #[allow(unused_mut)]
+                let mut host_invoke_src = "{{ invoke_info.src | default('', true) | escape_rust }}".to_string();
+                #[allow(unused_mut)]
+                let mut host_invoke_content = "{{ invoke_info.content | default('', true) | escape_rust }}".to_string();
+{% if invoke_info.native_src %}
+{# `datamodel="sce-static"`: the `src` is a string computed from the machine's
+   fields now (`UnsupportedInvokeInfo::native_src`); no script engine is asked.
+   One that cannot be computed is an attribute that cannot be evaluated, which
+   raises error.execution and starts nothing. #}
+{% if invoke_info.native_src_fails %}
+                match (|| -> Result<String, sce_forge_runtime::algorithm::AlgorithmError> {
+                    Ok({{ invoke_info.native_src }})
+                })() {
+                    Ok(value) => host_invoke_src = value,
+                    Err(_) => {
+{% if 'error.execution' in model.events %}
+                        engine.raise(sce_rust_runtime::EventWithMetadata::platform_error({{ machine_name }}Event::{{ 'error.execution' | to_event_variant }}, "<invoke srcexpr> could not be evaluated"));
+{% endif %}
+                        continue;
+                    }
+                }
+{% else %}
+                host_invoke_src = {{ invoke_info.native_src }};
+{% endif %}
+{% endif %}
+{% if invoke_info.native_content %}
+{# `datamodel="sce-static"`: the `<content expr>` is a string computed from the
+   machine's fields now (`UnsupportedInvokeInfo::native_content`) — the body the
+   service runs; no script engine is asked. One that cannot be computed is an
+   attribute that cannot be evaluated, which raises error.execution and starts
+   nothing. #}
+{% if invoke_info.native_content_fails %}
+                match (|| -> Result<String, sce_forge_runtime::algorithm::AlgorithmError> {
+                    Ok({{ invoke_info.native_content }})
+                })() {
+                    Ok(value) => host_invoke_content = value,
+                    Err(_) => {
+{% if 'error.execution' in model.events %}
+                        engine.raise(sce_rust_runtime::EventWithMetadata::platform_error({{ machine_name }}Event::{{ 'error.execution' | to_event_variant }}, "<invoke> content expr could not be evaluated"));
+{% endif %}
+                        continue;
+                    }
+                }
+{% else %}
+                host_invoke_content = {{ invoke_info.native_content }};
+{% endif %}
+{% endif %}
+{% for attr, expr in [('src', invoke_info.srcexpr), ('content', invoke_info.contentexpr)] %}
+{% if expr %}
+                {
+                    self.ensure_script_engine();
+                    let sid = self.session_id.as_ref().unwrap().clone();
+                    let se = self.script_engine.clone();
+                    let se: &dyn sce_rust_runtime::IScriptEngine = &*se;
+                    match se.evaluate_expression(&sid, "{{ expr | to_lua_expr | escape_rust }}") {
+                        Ok(val) => host_invoke_{{ attr }} = ::sce_rust_runtime::helpers::event_data::script_value_to_wire_string(&val),
+                        Err(_) => {
+{% if 'error.execution' in model.events %}
+                            engine.raise(sce_rust_runtime::EventWithMetadata::platform_error({{ machine_name }}Event::{{ 'error.execution' | to_event_variant }}, "<invoke {{ attr }}expr='{{ expr | escape_rust }}'> could not be evaluated"));
+{% endif %}
+                            continue;
+                        }
+                    }
+                }
 {% endif %}
 {% endfor %}
+                let mut host_invoke_params = std::collections::HashMap::<String, Vec<String>>::new();
+                // The same pairs as the data model holds them, for the
+                // request's `event_data`: one evaluation, read as text for
+                // `params` and typed for the JSON.
+                #[allow(unused_mut)]
+                let mut host_invoke_payload =
+                    ::std::collections::BTreeMap::<String, Vec<::sce_rust_runtime::ScriptValue>>::new();
+{% if invoke_info.namelist %}
+                {
+                    // §scxml-6.4.1: a namelist location that is not declared,
+                    // or does not evaluate, starts nothing — the rule the
+                    // scxml invoke reads its namelist by.
+                    self.ensure_script_engine();
+                    let sid = self.session_id.as_ref().unwrap().clone();
+                    let se = self.script_engine.clone();
+                    let se: &dyn sce_rust_runtime::IScriptEngine = &*se;
+                    let mut namelist_failed = false;
+{% for name in invoke_info.namelist | split %}
+                    if !namelist_failed {
+                        match (se.has_variable(&sid, "{{ name }}"), se.evaluate_expression(&sid, "{{ name }}")) {
+                            (true, Ok(val)) => {
+                                host_invoke_params.entry("{{ name }}".to_string()).or_default().push(::sce_rust_runtime::helpers::event_data::script_value_to_wire_string(&val));
+                                host_invoke_payload.entry("{{ name }}".to_string()).or_default().push(val);
+                            }
+                            _ => {
+{% if 'error.execution' in model.events %}
+                                engine.raise(sce_rust_runtime::EventWithMetadata::platform_error({{ machine_name }}Event::{{ 'error.execution' | to_event_variant }}, "<invoke> namelist names '{{ name }}', which could not be read"));
+{% endif %}
+                                namelist_failed = true;
+                            }
+                        }
+                    }
+{% endfor %}
+                    if namelist_failed {
+                        continue;
+                    }
+                }
+{% endif %}
+{% if invoke_info.invoke_id in host_invoke_request_checks %}
+{% set request_checks = host_invoke_request_checks[invoke_info.invoke_id] %}
+                // SCE Accepted Subset 2.12: `sce:request` makes the params a
+                // record, so each value is held to its field here, where the
+                // invocation starts; one that does not fit starts nothing.
+                #[allow(unused_mut)]
+                let mut request_refused = false;
+{% for param in invoke_info.params %}
+{% if param.name in request_checks %}
+{{ collect_typed_param_into(param, request_checks[param.name], model, 'host_invoke_params', machine_name, 'host_invoke_payload') }}
+{% else %}
+{{ collect_params_into([param], model, 'host_invoke_params', machine_name, '<invoke>', 'invoke', 'host_invoke_payload') }}
+{% endif %}
+{% endfor %}
+                if request_refused {
+                    continue;
+                }
+{% else %}
+{{ collect_params_into(invoke_info.params, model, 'host_invoke_params', machine_name, '<invoke>', 'invoke', 'host_invoke_payload') }}
+{% endif %}
                 let started = engine.perform_host_invoke(sce_rust_runtime::HostInvokeRequest {
                     processor_type: "{{ invoke_info.invoke_type | escape_rust }}".to_string(),
                     invoke_id: "{{ invoke_info.invoke_id }}".to_string(),
-                    src: "{{ invoke_info.src | default('', true) | escape_rust }}".to_string(),
+                    src: host_invoke_src,
                     params: host_invoke_params,
-                    content: "{{ invoke_info.content | default('', true) | escape_rust }}".to_string(),
+                    event_data: if host_invoke_payload.is_empty() {
+                        String::new()
+                    } else {
+                        ::sce_rust_runtime::helpers::event_data::build_json_from_typed_params(&host_invoke_payload)
+                    },
+                    content: host_invoke_content,
+                    // §scxml-6.4: which start this is belongs to the engine,
+                    // which assigns it when the invocation starts.
+                    token: 0,
+                    // A start the document makes is never a restart.
+                    restarted: false,
                 });
                 if !started {
                     // §scxml-6.4.1: declared but no invoker registered. The
@@ -455,69 +843,37 @@
         }
 {% endfor %}
 {% for invoke_info in model.invokes | hybrid %}
-        if !self.pending_done_invoke_{{ invoke_info.field_suffix }} {
-            if let Some(mut child) = self.child_{{ invoke_info.field_suffix }}.take() {
-                sce_rust_runtime::helpers::invoke_processing::drain_and_raise_child_events(
-                    &child.policy().parent_external_queue,
-                    &self.active_invokes,
-                    "{{ invoke_info.invoke_id }}",
-                    engine,
-                );
-                child.tick();
-                sce_rust_runtime::helpers::invoke_processing::drain_and_raise_child_events(
-                    &child.policy().parent_external_queue,
-                    &self.active_invokes,
-                    "{{ invoke_info.invoke_id }}",
-                    engine,
-                );
-                if child.is_in_final_state() && !self.pending_done_invoke_{{ invoke_info.field_suffix }} {
-                    self.pending_done_invoke_{{ invoke_info.field_suffix }} = true;
-                    // W3C SCXML 5.5 + 6.3.1: Lift the child's stashed donedata onto
-                    // done.invoke.<id>._event.data.
-                    let donedata = child.donedata_at_final().to_string();
-                    sce_rust_runtime::helpers::invoke_processing::raise_done_invoke(
-                        "{{ invoke_info.invoke_id }}",
-                        donedata,
-                        engine,
-                    );
-                }
-                self.child_{{ invoke_info.field_suffix }} = Some(child);
-            }
-        }
+{% if invoke_info.candidates %}
+{# §scxml-6.4: at most one candidate slot holds a child, so each is taken,
+   ticked and put back under the same guard the single-slot shape used. #}
+{% for candidate in invoke_info.candidates %}
+{{ hybrid_child_tick(invoke_info, "child_" ~ invoke_info.field_suffix ~ "_" ~ candidate.stem) }}
+{% endfor %}
+{% else %}
+{{ hybrid_child_tick(invoke_info, "child_" ~ invoke_info.field_suffix) }}
+{% endif %}
 {% endfor %}
     }
 
-{% if model.invokes | scxml %}
-    // W3C SCXML C.1: deliver an event addressed to a child's published
-    // location.
-    //
-    // The parent mints `parentSession.invokeId` for each child and that id is
-    // what the child's `_ioprocessors` entry names, so a `<send>` whose target
-    // decodes to one of them is addressed to that child rather than to this
-    // machine. A false return means the address names no live child of ours
-    // and the event takes the normal external path — the routing half of C.1
-    // is what makes the published location a usable target rather than a
-    // string that merely compares equal.
-    fn deliver_to_child_session(&mut self, child_session_id: &str, event_name: &str, event_data: &str) -> bool {
-        if child_session_id.is_empty() {
-            return false;
-        }
+    // W3C SCXML 6.4: the nearest deadline among the running children, so a host
+    // that walks time by `time_until_next_scheduled_ms` does not step over a
+    // timer a child armed. The ticking above is what makes it this machine's.
+    fn do_next_child_deadline_ms(&self) -> Option<u64> {
+        let mut soonest: Option<u64> = None;
 {% for invoke_info in model.invokes | scxml %}
-        {
-            let addressed = self.active_invokes
-                .get("{{ invoke_info.invoke_id }}")
-                .map_or(false, |cs| cs.session_id == child_session_id);
-            if addressed {
-                if let Some(ref mut child) = self.child_{{ invoke_info.field_suffix }} {
-                    child.raise_external_by_name(event_name, event_data);
-                    return true;
-                }
-            }
-        }
+{{ child_deadline(invoke_info, "child_" ~ invoke_info.field_suffix) }}
 {% endfor %}
-        false
-    }
+{% for invoke_info in model.invokes | hybrid %}
+{% if invoke_info.candidates %}
+{% for candidate in invoke_info.candidates %}
+{{ child_deadline(invoke_info, "child_" ~ invoke_info.field_suffix ~ "_" ~ candidate.stem) }}
+{% endfor %}
+{% else %}
+{{ child_deadline(invoke_info, "child_" ~ invoke_info.field_suffix) }}
 {% endif %}
+{% endfor %}
+        soonest
+    }
 
 {% set autoforward_invokes = model.invokes | scxml | selectattr('autoforward') | list %}
 {% if autoforward_invokes %}
@@ -536,12 +892,21 @@
                 .get("{{ invoke_info.invoke_id }}")
                 .map_or(false, |cs| cs.autoforward);
             if is_autoforward {
+{% if invoke_info.candidates %}
+{# §scxml-6.4.1: forward to whichever candidate slot the value chose. #}
+{% for candidate in invoke_info.candidates %}
+                if let Some(ref mut child) = self.child_{{ invoke_info.field_suffix }}_{{ candidate.stem }} {
+                    child.raise_external_by_name_with_meta(event_name, metadata);
+                }
+{% endfor %}
+{% else %}
                 if let Some(ref mut child) = self.child_{{ invoke_info.field_suffix }} {
                     // W3C SCXML 6.4.1: the child resolves the name against its
                     // own Event enum; §6.4 requires the copy be exact, so the
                     // source event's metadata goes with it.
                     child.raise_external_by_name_with_meta(event_name, metadata);
                 }
+{% endif %}
             }
         }
 {% endfor %}

@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
@@ -11,12 +11,16 @@
 
 from dataclasses import dataclass
 {% for imp in python_enum_imports %}
-from {{ imp }}
+{{ imp }}
 {% endfor %}
 
 
+{% if fields %}
 @dataclass
 class {{ payload_struct_name }}:
 {% for f in fields %}
     {{ f.id }}: {{ f.py_type }}
 {% endfor %}
+{% else %}
+# This schema declares no field: the event carries no data, so no payload type is generated.
+{% endif %}

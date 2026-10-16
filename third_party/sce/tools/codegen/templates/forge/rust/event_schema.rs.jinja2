@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
@@ -13,9 +13,20 @@
 use crate::{{ use_path }};
 {% endfor %}
 
+{% if fields %}
 {{ event_schema_payload_derives_attr }}
 pub struct {{ payload_struct_name }} {
+{# ⚠ `rs_field_name`, not `id`: this crate denies `non_snake_case`, and a
+   camelCase document emitted a struct that did not compile. Every sibling
+   kind already snake_cases for Rust — see `render_event_schema`. #}
 {% for f in fields %}
-    pub {{ f.id }}: {{ f.rs_type }},
+    pub {{ f.rs_field_name }}: {{ f.rs_type }},
 {% endfor %}
 }
+{% else %}
+{# ⚠ No struct for a schema with no field: an empty one is not valid in every
+   backend (Kotlin `data class`, ISO C), and the event carries no data a struct
+   could hold. Every consumer that would name the type is refused first, by
+   `EventSchemaModel::carries_payload`. #}
+// This schema declares no field: the event carries no data, so no payload type is generated.
+{% endif %}

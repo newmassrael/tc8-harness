@@ -1,0 +1,55 @@
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2026 newmassrael #}
+
+{# Event-schema kind — see the C++ fragment for why this is a SHAPE claim.
+
+   ⚠ Go EXPORTS the payload fields, so `sensorId` is emitted `SensorId`. The
+   manifest keeps the document's spelling and this arm applies the filter —
+   the same contract the codec and enum fragments use, and the reason the
+   manifest is not written in any one language's convention. #}
+	{
+		spec := ref.eventSchemaEntry(t, "{{ f.ref_section }}", "{{ f.name }}")
+
+		// Count first: a payload that gained or lost a field without the
+		// manifest moving would otherwise satisfy every assertion below.
+		if len(spec.Fields) != {{ f.fields | length }} {
+			t.Fatalf("{{ f.name }}: oracle has %d fields, manifest has {{ f.fields | length }}",
+				len(spec.Fields))
+		}
+
+		// Field-keyed construction, because Go vets positional literals for
+		// exported structs. The ORDER claim is carried by the per-index name
+		// assertions below instead.
+		payload := {{ f.name }}.{{ f.name | to_pascal_case }}Payload{
+{% for field in f.fields %}
+{% if field.sce_type == "string" %}
+			{{ field.name | to_pascal_case }}: "{{ field.value }}",
+{% else %}
+			{{ field.name | to_pascal_case }}: {{ field.value }},
+{% endif %}
+{% endfor %}
+		}
+
+{% for field in f.fields %}
+		if spec.Fields[{{ loop.index0 }}].Name != "{{ field.name }}" {
+			t.Errorf("{{ f.name }} field {{ loop.index0 }}: oracle names %q, manifest %q",
+				spec.Fields[{{ loop.index0 }}].Name, "{{ field.name }}")
+		}
+{% if field.sce_type == "bool" %}
+		if want := spec.Fields[{{ loop.index0 }}].boolValue(t); payload.{{ field.name | to_pascal_case }} != want {
+			t.Errorf("{{ f.name }}.{{ field.name }} = %t, want %t",
+				payload.{{ field.name | to_pascal_case }}, want)
+		}
+{% elif field.sce_type == "string" %}
+		if want := spec.Fields[{{ loop.index0 }}].stringValue(t); payload.{{ field.name | to_pascal_case }} != want {
+			t.Errorf("{{ f.name }}.{{ field.name }} = %q, want %q",
+				payload.{{ field.name | to_pascal_case }}, want)
+		}
+{% else %}
+		if want := spec.Fields[{{ loop.index0 }}].int64Value(t); int64(payload.{{ field.name | to_pascal_case }}) != want {
+			t.Errorf("{{ f.name }}.{{ field.name }} = %d, want %d",
+				int64(payload.{{ field.name | to_pascal_case }}), want)
+		}
+{% endif %}
+{% endfor %}
+	}

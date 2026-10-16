@@ -1,15 +1,14 @@
-// SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
+// SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
 // SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael
 //
 // This file is part of SCE (SCXML Core Engine).
 //
 // Dual Licensed:
-// 1. LGPL-2.1: Free for unmodified use (see LICENSE-LGPL-2.1.md)
+// 1. AGPL-3.0 + Linking Exception: Free for unmodified use (see LICENSE-EXCEPTION.md)
 // 2. Commercial: For modifications (contact newmassrael@gmail.com)
 //
 // Commercial License:
-//   Individual: $5000 cumulative
-//   Enterprise: Contact for pricing
+//   Pricing: contact newmassrael@gmail.com
 //   Contact: https://github.com/newmassrael
 //
 // Full terms: https://github.com/newmassrael/scxml-core-engine/blob/main/LICENSE
@@ -26,6 +25,7 @@
 #include <regex>
 #include <string>
 #include <unordered_map>
+#include <utility>
 
 namespace SCE {
 
@@ -41,6 +41,63 @@ namespace SCE {
 struct HostSendRequest;
 
 /**
+ * @brief Which start of which host-run invocation a scheduled deadline ends
+ *
+ * Forward-declared for the reason HostSendRequest is. The queue indexes a
+ * deadline by the token it is handed beside the pointer, so it never needs the
+ * complete type.
+ */
+struct HostInvokeDeadline;
+
+/**
+ * @brief §scxml-6.2: where a delayed `<send>`'s event goes when it comes due
+ *
+ * A `delay` postpones a send; it does not change where the send goes. The
+ * target is resolved when the send is made, and this records the answer so
+ * the delivery at the end of the delay reaches it. An entry without one goes
+ * to the sending session's own external queue — a send with no target, or one
+ * naming this session.
+ *
+ * `eventName` is the event as the receiving machine resolves it: a child or a
+ * parent is another machine with its own event set, so the name is what
+ * crosses, as it does on an immediate send. For this session's own queues it
+ * is the name the event was sent under, which is `_event.name` there when the
+ * member is not called that (§scxml-5.10).
+ */
+struct ScheduledRoute {
+    enum class Kind {
+        /// This session's own external queue, for an event sent under a name
+        /// that is not its member's own: a `<send eventexpr>` computes the name
+        /// (§scxml-3.12.1), so the entry carries it in `eventName`. An event
+        /// sent under its own name takes no route.
+        ExternalQueue,
+        InternalQueue,  ///< `#_internal`: this session's internal queue
+        Invocation,     ///< `#_<invokeid>`: an invocation of this session
+        Parent,         ///< `#_parent`: the session that invoked this one
+        Session,        ///< a session named by its id — a child's published location (§scxml-C-1)
+        MeshPeer,       ///< `#<peer>`: a Mesh peer (SCE_MESH.md §mesh-9.5)
+    };
+
+    /// Only a Kind::MeshPeer route carries `meshInvokeId`, so every other
+    /// route is written with the three fields it has.
+    ScheduledRoute(Kind routeKind, std::string routeEventName = {}, std::string routeAddress = {},
+                   std::string routeMeshInvokeId = {})
+        : kind(routeKind), eventName(std::move(routeEventName)), address(std::move(routeAddress)),
+          meshInvokeId(std::move(routeMeshInvokeId)) {}
+
+    Kind kind;
+    std::string eventName;
+    /// The invoke id (Kind::Invocation), the session id (Kind::Session), or
+    /// the `#<peer>` target (Kind::MeshPeer).
+    std::string address;
+    /// SCE_MESH.md §mesh-10.7: for Kind::MeshPeer, the invokeid of the event
+    /// being processed when the send was MADE. Captured then because a reply
+    /// answers the request that was current at the send; at the deadline the
+    /// current event is whatever arrived in between.
+    std::string meshInvokeId;
+};
+
+/**
  * @brief Helper for W3C SCXML <send> delay parsing
  *
  * Single Source of Truth for delay parsing logic shared between:
@@ -53,39 +110,87 @@ struct HostSendRequest;
 class SendSchedulingHelper {
 public:
     /**
-     * @brief Parse W3C SCXML delay string to milliseconds
+     * @brief A `<send>` delay, read as the CSS2 time §scxml-6.2 names
      *
-     * §scxml-6.2: Delay formats - "5s", "100ms", "2min", ".5s", "0.5s"
+     * The grammar is ARCHITECTURE.md's "Durations (Single Source of Truth)":
+     * surrounding ASCII whitespace aside, a non-negative number (digits with
+     * an optional fraction of at least one digit, or a leading '.' and digits;
+     * no sign, no exponent) followed directly by "ms" or "s", either case. The
+     * milliseconds are computed in exact decimal and truncated, never through
+     * a double, and never exceed INT64_MAX. tests/durations/css2_time.json
+     * holds the cases every engine is measured against.
      *
-     * @param delayStr Delay specification (e.g., "5s", "100ms", "2min")
-     * @return Delay in milliseconds, 0 if invalid or empty
+     * @return the delay, or std::nullopt when the text is not a time — a bare
+     *         number included — so the caller raises the argument error rather
+     *         than choosing a wait
      */
-    static std::chrono::milliseconds parseDelayString(const std::string &delayStr) {
-        if (delayStr.empty()) {
-            return std::chrono::milliseconds{0};
+    static std::optional<std::chrono::milliseconds> parseDelayString(const std::string &delayStr) {
+        const auto isSpace = [](char c) {
+            return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v';
+        };
+        size_t begin = 0;
+        size_t end = delayStr.size();
+        while (begin < end && isSpace(delayStr[begin])) {
+            ++begin;
         }
-
-        std::regex delayPattern(R"((\d*\.?\d+)\s*(ms|s|min|h|sec|seconds?|minutes?|hours?)?)");
-        std::smatch match;
-
-        if (!std::regex_match(delayStr, match, delayPattern)) {
-            return std::chrono::milliseconds{0};
+        while (end > begin && isSpace(delayStr[end - 1])) {
+            --end;
         }
-
-        double value = std::stod(match[1].str());
-        std::string unit = match[2].str();
-
-        if (unit.empty() || unit == "s" || unit == "sec" || unit == "second" || unit == "seconds") {
-            return std::chrono::milliseconds(static_cast<long long>(value * 1000));
-        } else if (unit == "ms") {
-            return std::chrono::milliseconds(static_cast<long long>(value));
-        } else if (unit == "min" || unit == "minute" || unit == "minutes") {
-            return std::chrono::milliseconds(static_cast<long long>(value * 60000));
-        } else if (unit == "h" || unit == "hour" || unit == "hours") {
-            return std::chrono::milliseconds(static_cast<long long>(value * 3600000));
+        const auto lower = [](char c) { return (c >= 'A' && c <= 'Z') ? static_cast<char>(c - 'A' + 'a') : c; };
+        int64_t scale = 0;
+        if (end - begin >= 2 && lower(delayStr[end - 2]) == 'm' && lower(delayStr[end - 1]) == 's') {
+            scale = 1;
+            end -= 2;
+        } else if (end - begin >= 1 && lower(delayStr[end - 1]) == 's') {
+            scale = 1000;
+            end -= 1;
+        } else {
+            return std::nullopt;
         }
-
-        return std::chrono::milliseconds{0};
+        const size_t point = delayStr.find('.', begin);
+        const size_t wholeEnd = (point != std::string::npos && point < end) ? point : end;
+        const bool hasFraction = wholeEnd < end;
+        const auto allDigits = [&](size_t from, size_t to) {
+            for (size_t i = from; i < to; ++i) {
+                if (delayStr[i] < '0' || delayStr[i] > '9') {
+                    return false;
+                }
+            }
+            return true;
+        };
+        // A number is digits, digits "." digits, or "." digits: the fraction
+        // is never empty, and there is at least one digit somewhere.
+        if (!allDigits(begin, wholeEnd) || (hasFraction && (wholeEnd + 1 == end || !allDigits(wholeEnd + 1, end)))) {
+            return std::nullopt;
+        }
+        if (wholeEnd == begin && !hasFraction) {
+            return std::nullopt;
+        }
+        constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
+        int64_t ms = 0;
+        for (size_t i = begin; i < wholeEnd; ++i) {
+            const int64_t digit = delayStr[i] - '0';
+            if (ms > (kMax - digit) / 10) {
+                return std::nullopt;
+            }
+            ms = ms * 10 + digit;
+        }
+        if (ms > kMax / scale) {
+            return std::nullopt;
+        }
+        ms *= scale;
+        // Only the fraction digits that name whole milliseconds count; the
+        // rest truncate.
+        int64_t place = scale / 10;
+        for (size_t i = wholeEnd + 1; hasFraction && i < end && place > 0; ++i) {
+            const int64_t add = (delayStr[i] - '0') * place;
+            if (ms > kMax - add) {
+                return std::nullopt;
+            }
+            ms += add;
+            place /= 10;
+        }
+        return std::chrono::milliseconds{ms};
     }
 };
 
@@ -151,11 +256,41 @@ public:
          * its size on every scheduled event.
          */
         std::shared_ptr<const HostSendRequest> hostSend;
+        /**
+         * @brief The deadline of one start of a host-run invocation, judged when
+         *        this entry comes due, or null
+         *
+         * In this queue for the reason `hostSend` is: one deadline order, one
+         * `nextFireTime()`. It has no send id — a deadline is the engine's, not
+         * the document's, so no `<cancel>` can name it — and leaves by firing or
+         * through `dropHostInvokeDeadline()`.
+         */
+        std::shared_ptr<const HostInvokeDeadline> hostInvokeDeadline;
+        /// The start token `hostInvokeDeadline` belongs to, kept beside it so
+        /// the queue can index it without the complete type.
+        uint64_t hostInvokeDeadlineToken = 0;
+        /**
+         * @brief §scxml-C-1: the sending session, which `_event.origin`
+         *        publishes when the event arrives
+         *
+         * A delayed send is the same event as an immediate one, only later, so
+         * waiting must not cost it the address a reply goes back to. Empty for
+         * an engine that carries origin some other way (the Interpreter's
+         * target object) and for entries that are not an event.
+         */
+        std::string origin;
+        /**
+         * @brief §scxml-6.2: the target a delayed send resolved when it was
+         *        made, or null for this session's own external queue
+         */
+        std::shared_ptr<const ScheduledRoute> route;
 
         ScheduledEntry(EventType evt, TimePoint fire, std::string id, EventDataType data, uint64_t seq,
-                       std::shared_ptr<const HostSendRequest> host = nullptr)
+                       std::shared_ptr<const HostSendRequest> host = nullptr,
+                       std::shared_ptr<const HostInvokeDeadline> deadline = nullptr, uint64_t deadlineToken = 0)
             : event(std::move(evt)), fireTime(fire), sendId(std::move(id)), eventData(std::move(data)),
-              sequenceNum(seq), hostSend(std::move(host)) {}
+              sequenceNum(seq), hostSend(std::move(host)), hostInvokeDeadline(std::move(deadline)),
+              hostInvokeDeadlineToken(deadlineToken) {}
     };
 
     using EntryPtr = std::shared_ptr<ScheduledEntry>;
@@ -185,11 +320,16 @@ public:
      * @param fireTime When the event should fire
      * @param sendId Unique identifier for cancellation
      * @param eventData Additional event data
+     * @param hostSend The host-served send this entry performs, or null
+     * @param origin The sending session (§scxml-C-1), or empty
+     * @param route Where the event goes when due (§scxml-6.2), or null for
+     *              this session's own external queue
      * @return The sendId assigned
      */
     std::string schedule(EventType event, TimePoint fireTime, const std::string &sendId,
                          EventDataType eventData = EventDataType{},
-                         std::shared_ptr<const HostSendRequest> hostSend = nullptr) {
+                         std::shared_ptr<const HostSendRequest> hostSend = nullptr, std::string origin = {},
+                         std::shared_ptr<const ScheduledRoute> route = nullptr) {
         std::string actualSendId = sendId.empty() ? generateUniqueSendId() : sendId;
 
         // §scxml-6.3: Cancel existing event with same sendId (ACTUAL removal)
@@ -199,12 +339,47 @@ public:
         uint64_t seqNum = sequenceCounter_++;
         auto entry = std::make_shared<ScheduledEntry>(std::move(event), fireTime, actualSendId, std::move(eventData),
                                                       seqNum, std::move(hostSend));
+        entry->origin = std::move(origin);
+        entry->route = std::move(route);
 
         OrderKey key{fireTime, seqNum};
         auto it = queue_.emplace(key, entry);
         sendIdIndex_[actualSendId] = it.first;
 
         return actualSendId;
+    }
+
+    /**
+     * @brief Arm the deadline of host-run invocation start `deadline.token`
+     *
+     * Kept out of `sendIdIndex_`: `schedule()` would give it an `auto_<n>` id,
+     * and a `<cancel sendidexpr>` that happened to evaluate to that string would
+     * then reach a deadline that belongs to the engine. Indexed by token instead,
+     * which only `dropHostInvokeDeadline()` asks by.
+     */
+    void scheduleHostInvokeDeadline(TimePoint fireTime, uint64_t token,
+                                    std::shared_ptr<const HostInvokeDeadline> deadline) {
+        uint64_t seqNum = sequenceCounter_++;
+        auto entry = std::make_shared<ScheduledEntry>(EventType{}, fireTime, std::string{}, EventDataType{}, seqNum,
+                                                      nullptr, std::move(deadline), token);
+        auto it = queue_.emplace(OrderKey{fireTime, seqNum}, entry);
+        deadlineIndex_[token] = it.first;
+    }
+
+    /**
+     * @brief Drop the pending deadline of host-run start `token`, whose
+     *        invocation ended another way — completed or cancelled
+     *
+     * Leaving it would keep a host ticking toward a deadline that can no longer
+     * do anything.
+     */
+    void dropHostInvokeDeadline(uint64_t token) {
+        auto indexIt = deadlineIndex_.find(token);
+        if (indexIt == deadlineIndex_.end()) {
+            return;
+        }
+        queue_.erase(indexIt->second);
+        deadlineIndex_.erase(indexIt);
     }
 
     /**
@@ -253,6 +428,15 @@ public:
     }
 
     /**
+     * @brief Pop the next event due, with its sendId and the sending session
+     *        (§scxml-C-1) it was scheduled with
+     */
+    bool popReadyEvent(TimePoint now, EventType &outEvent, EventDataType &outEventData, std::string &outSendId,
+                       std::string &outOrigin) {
+        return popReadyEventImpl(now, outEvent, outEventData, outSendId, nullptr, nullptr, &outOrigin);
+    }
+
+    /**
      * @brief Pop the act due first — an event to raise, or a host-served send
      *        to perform (§scxml-6.2.4 + §scxml-6.2.5)
      *
@@ -268,8 +452,74 @@ public:
         return popReadyEventImpl(now, outEvent, outEventData, outSendId, &outHostSend);
     }
 
+    /**
+     * @brief popReadyAct, with a host-run invocation's deadline as a third
+     *        kind of act: when `outDeadline` is non-null the entry is that
+     *        deadline and the other fields carry nothing meaningful
+     */
+    bool popReadyAct(TimePoint now, EventType &outEvent, EventDataType &outEventData, std::string &outSendId,
+                     std::shared_ptr<const HostSendRequest> &outHostSend,
+                     std::shared_ptr<const HostInvokeDeadline> &outDeadline) {
+        return popReadyEventImpl(now, outEvent, outEventData, outSendId, &outHostSend, &outDeadline);
+    }
+
+    /**
+     * @brief popReadyAct, with the sending session (§scxml-C-1) the entry was
+     *        scheduled with
+     */
+    bool popReadyAct(TimePoint now, EventType &outEvent, EventDataType &outEventData, std::string &outSendId,
+                     std::string &outOrigin, std::shared_ptr<const HostSendRequest> &outHostSend,
+                     std::shared_ptr<const HostInvokeDeadline> &outDeadline) {
+        return popReadyEventImpl(now, outEvent, outEventData, outSendId, &outHostSend, &outDeadline, &outOrigin);
+    }
+
+    /**
+     * @brief popReadyAct, with the target a delayed send resolved when it was
+     *        made (§scxml-6.2) — null for this session's own external queue
+     */
+    bool popReadyAct(TimePoint now, EventType &outEvent, EventDataType &outEventData, std::string &outSendId,
+                     std::string &outOrigin, std::shared_ptr<const HostSendRequest> &outHostSend,
+                     std::shared_ptr<const HostInvokeDeadline> &outDeadline,
+                     std::shared_ptr<const ScheduledRoute> &outRoute) {
+        return popReadyEventImpl(now, outEvent, outEventData, outSendId, &outHostSend, &outDeadline, &outOrigin,
+                                 &outRoute);
+    }
+
     bool hasPendingEvents() const {
         return !queue_.empty();
+    }
+
+    /**
+     * @brief The entry `popReadyAct` would take next, left where it is
+     *
+     * `fireTime` is the instant it came due. `ownEvent` points at the event it
+     * delivers to this machine's own queues, and is null for an entry that
+     * delivers none — a host-served send, a host-run invocation's deadline, or a
+     * send routed to a child or a parent, whose event is a name the other machine
+     * resolves. The pointer is valid until the queue next changes.
+     *
+     * The same-instant bound reads it before popping: an entry due AT the
+     * reading is the only kind a handler can arm during the tick that pops it,
+     * and a cut reports the event it was still popping (ARCHITECTURE.md
+     * "External-Event Budget"). `std::nullopt` when nothing is ready.
+     */
+    struct ReadyHead {
+        TimePoint fireTime;
+        const EventType *ownEvent;
+    };
+
+    std::optional<ReadyHead> peekReady(TimePoint now) const {
+        if (queue_.empty()) {
+            return std::nullopt;
+        }
+        const ScheduledEntry &entry = *queue_.begin()->second;
+        if (entry.fireTime > now) {
+            return std::nullopt;
+        }
+        const bool ownsEvent = !entry.hostSend && !entry.hostInvokeDeadline &&
+                               (!entry.route || entry.route->kind == ScheduledRoute::Kind::InternalQueue ||
+                                entry.route->kind == ScheduledRoute::Kind::ExternalQueue);
+        return ReadyHead{entry.fireTime, ownsEvent ? &entry.event : nullptr};
     }
 
     /**
@@ -296,6 +546,7 @@ public:
     void clear() {
         queue_.clear();
         sendIdIndex_.clear();
+        deadlineIndex_.clear();
     }
 
     bool hasEvent(const std::string &sendId) const {
@@ -308,7 +559,10 @@ public:
 
 private:
     bool popReadyEventImpl(TimePoint now, EventType &outEvent, EventDataType &outEventData, std::string &outSendId,
-                           std::shared_ptr<const HostSendRequest> *outHostSend = nullptr) {
+                           std::shared_ptr<const HostSendRequest> *outHostSend = nullptr,
+                           std::shared_ptr<const HostInvokeDeadline> *outDeadline = nullptr,
+                           std::string *outOrigin = nullptr,
+                           std::shared_ptr<const ScheduledRoute> *outRoute = nullptr) {
         if (queue_.empty() || queue_.begin()->first.fireTime > now) {
             return false;
         }
@@ -317,11 +571,23 @@ private:
         outEvent = std::move(it->second->event);
         outEventData = std::move(it->second->eventData);
         outSendId = it->second->sendId;
+        if (outOrigin != nullptr) {
+            *outOrigin = std::move(it->second->origin);
+        }
+        if (outRoute != nullptr) {
+            *outRoute = std::move(it->second->route);
+        }
         if (outHostSend != nullptr) {
             *outHostSend = std::move(it->second->hostSend);
         }
-
-        sendIdIndex_.erase(it->second->sendId);
+        if (it->second->hostInvokeDeadline) {
+            deadlineIndex_.erase(it->second->hostInvokeDeadlineToken);
+            if (outDeadline != nullptr) {
+                *outDeadline = std::move(it->second->hostInvokeDeadline);
+            }
+        } else {
+            sendIdIndex_.erase(it->second->sendId);
+        }
         queue_.erase(it);
         return true;
     }
@@ -333,6 +599,8 @@ private:
 
     std::map<OrderKey, EntryPtr> queue_;
     std::unordered_map<std::string, typename std::map<OrderKey, EntryPtr>::iterator> sendIdIndex_;
+    // Host-run invocation deadlines by start token; see scheduleHostInvokeDeadline().
+    std::unordered_map<uint64_t, typename std::map<OrderKey, EntryPtr>::iterator> deadlineIndex_;
     uint64_t sequenceCounter_ = 0;
 };
 
@@ -356,8 +624,23 @@ public:
      * statement's.
      */
     std::string scheduleEventAt(EventType event, uint64_t fireTimeMs, const std::string &sendId = "",
-                                const std::string &eventData = "") {
-        return core_.schedule(std::move(event), fireTimeMs, sendId, eventData);
+                                const std::string &eventData = "", const std::string &origin = "") {
+        return core_.schedule(std::move(event), fireTimeMs, sendId, eventData, nullptr, origin);
+    }
+
+    /**
+     * @brief §scxml-6.2: queue a delayed send whose target is not this
+     *        session's own external queue, to be delivered there when due
+     *
+     * The same queue as `scheduleEventAt`, so one deadline order, one
+     * `<cancel sendid>` path (§scxml-6.3) and one `nextFireTime()` cover it.
+     * `event` is this machine's own spelling of the event, used when the route
+     * is this session's internal queue.
+     */
+    std::string scheduleRoutedAt(EventType event, uint64_t fireTimeMs, const std::string &sendId,
+                                 const std::string &eventData, const std::string &origin, ScheduledRoute route) {
+        return core_.schedule(std::move(event), fireTimeMs, sendId, eventData, nullptr, origin,
+                              std::make_shared<const ScheduledRoute>(std::move(route)));
     }
 
     /**
@@ -375,12 +658,38 @@ public:
         return core_.schedule(EventType{}, fireTimeMs, sendId, std::string{}, std::move(request));
     }
 
+    /**
+     * @brief Arm a host-run invocation start's deadline at `fireTimeMs` —
+     *        see `SchedulerQueueCore::scheduleHostInvokeDeadline`
+     */
+    void scheduleHostInvokeDeadlineAt(uint64_t token, std::shared_ptr<const HostInvokeDeadline> deadline,
+                                      uint64_t fireTimeMs) {
+        core_.scheduleHostInvokeDeadline(fireTimeMs, token, std::move(deadline));
+    }
+
+    /**
+     * @brief Drop start `token`'s pending deadline — see
+     *        `SchedulerQueueCore::dropHostInvokeDeadline`
+     */
+    void dropHostInvokeDeadline(uint64_t token) {
+        core_.dropHostInvokeDeadline(token);
+    }
+
     bool hasReadyEvents(uint64_t nowMs) const {
         return core_.hasReadyEvents(nowMs);
     }
 
     bool popReadyEvent(uint64_t nowMs, EventType &outEvent, std::string &outEventData) {
         return core_.popReadyEvent(nowMs, outEvent, outEventData);
+    }
+
+    /**
+     * @brief Pop the next event due with the metadata it was scheduled with —
+     *        its sendid (§scxml-5.10.1) and its origin (§scxml-C-1)
+     */
+    bool popReadyEvent(uint64_t nowMs, EventType &outEvent, std::string &outEventData, std::string &outSendId,
+                       std::string &outOrigin) {
+        return core_.popReadyEvent(nowMs, outEvent, outEventData, outSendId, outOrigin);
     }
 
     /**
@@ -392,8 +701,50 @@ public:
         return core_.popReadyAct(nowMs, outEvent, outEventData, sendId, outHostSend);
     }
 
+    /**
+     * @brief Pop the act due first, a host-run invocation's deadline included
+     */
+    bool popReadyAct(uint64_t nowMs, EventType &outEvent, std::string &outEventData,
+                     std::shared_ptr<const HostSendRequest> &outHostSend,
+                     std::shared_ptr<const HostInvokeDeadline> &outDeadline) {
+        std::string sendId;
+        return core_.popReadyAct(nowMs, outEvent, outEventData, sendId, outHostSend, outDeadline);
+    }
+
+    /**
+     * @brief Pop the act due first with the metadata an event was scheduled
+     *        with — its sendid (§scxml-5.10.1) and its origin (§scxml-C-1)
+     */
+    bool popReadyAct(uint64_t nowMs, EventType &outEvent, std::string &outEventData, std::string &outSendId,
+                     std::string &outOrigin, std::shared_ptr<const HostSendRequest> &outHostSend,
+                     std::shared_ptr<const HostInvokeDeadline> &outDeadline) {
+        return core_.popReadyAct(nowMs, outEvent, outEventData, outSendId, outOrigin, outHostSend, outDeadline);
+    }
+
+    /**
+     * @brief Pop the act due first with the target a delayed send resolved
+     *        (§scxml-6.2) — null for this session's own external queue
+     */
+    bool popReadyAct(uint64_t nowMs, EventType &outEvent, std::string &outEventData, std::string &outSendId,
+                     std::string &outOrigin, std::shared_ptr<const HostSendRequest> &outHostSend,
+                     std::shared_ptr<const HostInvokeDeadline> &outDeadline,
+                     std::shared_ptr<const ScheduledRoute> &outRoute) {
+        return core_.popReadyAct(nowMs, outEvent, outEventData, outSendId, outOrigin, outHostSend, outDeadline,
+                                 outRoute);
+    }
+
     bool hasPendingEvents() const {
         return core_.hasPendingEvents();
+    }
+
+    /**
+     * @brief The entry `popReadyAct` would take next, left where it is — see
+     *        `SchedulerQueueCore::peekReady`
+     */
+    using ReadyHead = typename SchedulerQueueCore<EventType, std::string>::ReadyHead;
+
+    std::optional<ReadyHead> peekReady(uint64_t nowMs) const {
+        return core_.peekReady(nowMs);
     }
 
     /**

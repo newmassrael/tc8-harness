@@ -1,16 +1,56 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 // W3C SCXML 4.3: <if>
-{% if action.is_pure_in_predicate %}
+{#
+    The native arm comes first, exactly as it does in
+    `process_transition.jinja2`. Without it a `cpp:` cond fell past every
+    arm to the constant fold below and emitted `if (false)`, which made the
+    branch body dead code and ran any `<else>` beside it unconditionally —
+    a wrong output, not a missing one, and with no diagnostic.
+#}
+{#
+    The whole chain sits in a block of its own, as `<assign>` does: the
+    script-engine arm declares `scriptEngine`, and two `<if>`s in one action
+    list — three transitions of one state each carrying one, say — otherwise
+    declared it twice in the same scope and the machine did not compile.
+#}
+{#
+    W3C SCXML 5.9.1 + 4.9: only the script-engine arm can fail. A cond that
+    cannot be evaluated is false, so the selection goes on to the next
+    partition; `condFailed` remembers it, and once the chain has run the
+    <if> ends its block as any element that raised does.
+#}
+{% set if_can_fail = model.needs_script_engine and ((not action.is_cpp_condition and not action.is_pure_in_predicate and not action.native_cond) or (action.elseif_branches | rejectattr("is_cpp_condition") | rejectattr("is_pure_in_predicate") | rejectattr("native_cond") | list | length > 0)) %}
+{#
+    A native cond that can fail (`native_cond_fails`, a sce-static document's)
+    sets the flag itself, as the script-engine arm's `evaluateIfCond` does:
+    the cond is false, the chain goes on, and the <if> ends its block when it
+    has run. The flag is named by the <if>'s ordinal so a nested <if> cannot
+    reuse its parent's.
+#}
+{% set if_native_can_fail = action.native_cond_fails or (action.elseif_branches | selectattr("native_cond_fails") | list | length > 0) %}
+{
+{% if if_can_fail %}
+bool condFailed = false;
+{% endif %}
+{% if if_native_can_fail %}
+bool ifCondFailed{{ action.if_ordinal }} = false;
+{% endif %}
+{% if action.native_cond %}
+// SCE Accepted Subset 2.15: a sce-static cond, lowered to C++ at build time
+if ({{ action.native_cond }}) SCE_LIKELY {
+{% elif action.is_cpp_condition %}
+// W3C SCXML 4.2: native guard (cpp: prefix) - direct C++ evaluation
+if ({{ action.cond_cpp_transformed }}) SCE_LIKELY {
+{% elif action.is_pure_in_predicate %}
 // W3C SCXML 5.9.2: Pure In() predicate - direct C++ call (no JSEngine)
 if ({{ action.cond_cpp }}) SCE_LIKELY {
 {% elif model.needs_script_engine %}
 // W3C SCXML 5.9: ECMAScript expression - JSEngine evaluation
-// Use safeEvaluateGuard for std::optional<bool> handling and error.execution support
 this->ensureScriptEngine();
 auto& scriptEngine = getScriptEngine();
-if (this->safeEvaluateGuard(scriptEngine, sessionId_.value(), {{ action.cond | to_script_source_guard }}, engine)) SCE_LIKELY {
+if (this->evaluateIfCond(scriptEngine, sessionId_.value(), {{ action.cond | to_script_source_guard }}, engine, condFailed)) SCE_LIKELY {
 {% else %}
 // W3C SCXML 4.2: cond="{{ action.cond }}" decided at build time
 if ({{ 'true' if action.cond_constant else 'false' }}) SCE_LIKELY {
@@ -21,7 +61,7 @@ if ({{ 'true' if action.cond_constant else 'false' }}) SCE_LIKELY {
     {% endwith %}
     {% endfor %}
 {% for elseif in action.elseif_branches %}
-} else if ({% if elseif.is_pure_in_predicate %}{{ elseif.cond_cpp }}{% elif model.needs_script_engine %}this->safeEvaluateGuard(scriptEngine, sessionId_.value(), {{ elseif.cond | to_script_source_guard }}, engine){% else %}{{ 'true' if elseif.cond_constant else 'false' }}{% endif %}) {
+} else if ({% if elseif.native_cond %}{{ elseif.native_cond }}{% elif elseif.is_cpp_condition %}{{ elseif.cond_cpp_transformed }}{% elif elseif.is_pure_in_predicate %}{{ elseif.cond_cpp }}{% elif model.needs_script_engine %}this->evaluateIfCond(scriptEngine, sessionId_.value(), {{ elseif.cond | to_script_source_guard }}, engine, condFailed){% else %}{{ 'true' if elseif.cond_constant else 'false' }}{% endif %}) {
     {% for elseif_action in elseif.actions %}
     {% with action=elseif_action %}
     {% include 'actions/' + elseif_action.type + '.jinja2' %}
@@ -35,5 +75,16 @@ if ({{ 'true' if action.cond_constant else 'false' }}) SCE_LIKELY {
     {% include 'actions/' + else_action.type + '.jinja2' %}
     {% endwith %}
     {% endfor %}
+{% endif %}
+}
+{% if if_can_fail and block_exit is defined and block_exit %}
+if (condFailed) {
+    {{ block_exit }}
+}
+{% endif %}
+{% if if_native_can_fail and block_exit is defined and block_exit %}
+if (ifCondFailed{{ action.if_ordinal }}) {
+    {{ block_exit }}
+}
 {% endif %}
 }

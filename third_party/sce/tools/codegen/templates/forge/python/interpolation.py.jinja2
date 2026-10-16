@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
@@ -32,9 +32,9 @@ def {{ member_symbol }}({{ params }}) -> {{ output_type }}:
 {% if is_bilinear %}
     return bilinear(
         {{ axes[0].var_name }}, {{ axes[1].var_name }}, VALUES,
-        float({{ axes[0].input_id }}), float({{ axes[1].input_id }}))
+        float({{ axes[0].input_local }}), float({{ axes[1].input_local }}))
 {% else %}
     return linear(
         {{ axes[0].var_name }}, VALUES,
-        float({{ axes[0].input_id }}))
+        float({{ axes[0].input_local }}))
 {% endif %}

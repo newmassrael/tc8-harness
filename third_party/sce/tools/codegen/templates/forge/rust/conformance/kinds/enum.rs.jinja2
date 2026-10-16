@@ -1,0 +1,45 @@
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2026 newmassrael #}
+
+{# Enum kind — see the C++ fragment for why the oracle compares VALUES and
+   keys on the source spelling; `v.ident` is the member the declaration
+   emits.
+
+   The value is read through `to_underlying`, the conversion both Rust shapes
+   define, and never with `as`: an open enum is a transparent struct holding
+   associated consts, and `as` casts only a fieldless enum — so a cast
+   compiled for every closed fixture and refused the first open one. #}
+    {
+        let spec = &reference["{{ f.ref_section }}"]["{{ f.name }}"];
+        let variants = spec["variants"].as_array().unwrap();
+
+        // Count first: a vocabulary that gained or lost a variant without
+        // the manifest moving would otherwise satisfy every per-variant
+        // assertion below.
+        assert_eq!(
+            variants.len(),
+            {{ f.variants | length }},
+            "{{ f.name }}: oracle variant count"
+        );
+
+{% for v in f.variants %}
+        assert_eq!(
+            variants[{{ loop.index0 }}]["name"].as_str().unwrap(),
+            "{{ v.name }}",
+            "{{ f.name }} variant {{ loop.index0 }} name"
+        );
+        assert_eq!(
+            fixtures::{{ f.name }}::{{ f.name | to_pascal_case }}::{{ v.ident }}.to_underlying() as i64,
+            variants[{{ loop.index0 }}]["value"].as_i64().unwrap(),
+            "{{ f.name }}::{{ v.name }}"
+        );
+        // The name the declaration answers is the one the document wrote.
+        // `Option::from` reads both shapes: a closed set answers `&str`, an
+        // open one `Option<&str>`.
+        assert_eq!(
+            Option::<&str>::from(fixtures::{{ f.name }}::{{ f.name | to_pascal_case }}::{{ v.ident }}.declared_name()),
+            Some("{{ v.name }}"),
+            "{{ f.name }}::{{ v.name }} declared name"
+        );
+{% endfor %}
+    }

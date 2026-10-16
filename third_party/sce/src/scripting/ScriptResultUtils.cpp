@@ -1,7 +1,8 @@
-// SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
+// SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
 // SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael
 
 #include "scripting/ScriptResultUtils.h"
+#include "common/JsonText.h"
 #include "core/LogMacros.h"
 #include "scripting/IScriptEngine.h"
 #include "scripting/ScriptDialect.h"
@@ -22,54 +23,15 @@ std::string resultToString(const ScriptResult &result, IScriptEngine *engine, co
 
     const auto &value = result.getInternalValue();
 
-    if (std::holds_alternative<std::string>(value)) {
-        return result.getValue<std::string>();
-    } else if (std::holds_alternative<double>(value)) {
-        double val = result.getValue<double>();
-        // §scxml-B-1: the data model is ECMAScript, so a number's text is its
-        // `String(value)`. The three non-finite spellings are ECMAScript's, not
-        // iostream's — `oss << nan` writes "nan", which is a C++ fact about a
-        // value the document wrote as `NaN`.
-        //
-        // The magnitude guard is not decoration. `std::floor(inf) == inf`, so
-        // an infinity used to take the integer branch below and reach
-        // `static_cast<int64_t>(inf)`, which is undefined behaviour — measured
-        // as INT64_MIN, i.e. a `<param>` carrying `-9223372036854775808` where
-        // the document sent Infinity. Every finite double above 2^63 casts the
-        // same way. The four ported runtimes (Rust, Go, Python, Kotlin) already
-        // carry this bound; this is the original catching up with its ports.
-        if (std::isnan(val)) {
-            return "NaN";
-        }
-        if (std::isinf(val)) {
-            return val > 0 ? "Infinity" : "-Infinity";
-        }
-        if (val == std::floor(val) && std::fabs(val) < 1e15) {
-            return std::to_string(static_cast<int64_t>(val));
-        } else {
-            // W3C SCXML: Use ECMAScript-compatible number formatting
-            std::ostringstream oss;
-            oss << std::noshowpoint << val;
-            std::string str = oss.str();
-
-            if (str.find('.') != std::string::npos) {
-                str.erase(str.find_last_not_of('0') + 1, std::string::npos);
-                if (str.back() == '.') {
-                    str.pop_back();
-                }
-            }
-            return str;
-        }
-    } else if (std::holds_alternative<int64_t>(value)) {
-        return std::to_string(result.getValue<int64_t>());
-    } else if (std::holds_alternative<bool>(value)) {
-        return result.getValue<bool>() ? "true" : "false";
-    } else if (std::holds_alternative<ScriptUndefined>(value)) {
-        // §scxml-C-1: undefined evaluates to empty string for target expressions
-        // Ensures isUnreachableTarget() works correctly across all script engines
-        return "";
-    } else if (std::holds_alternative<ScriptNull>(value)) {
-        return "";
+    // §scxml-B-1 and §scxml-C-1: a scalar is its own text, with no engine.
+    // `scalarText` writes it (header-only, so generated code without a script
+    // engine reaches it without this library), and this function adds only the
+    // engine fallback for what is not a scalar.
+    // An integer-valued double used to be cast to `int64_t` here, which is
+    // undefined for an infinity and for every finite double above 2^63;
+    // `numberText` has no cast.
+    if (const auto text = scalarText(value)) {
+        return *text;
     } else if (engine && !sessionId.empty() && !originalExpression.text().empty()) {
         // JSON.stringify fallback using provided engine. Composed through the
         // dialect table rather than spelled inline: the wrapper has to be in
@@ -113,9 +75,7 @@ std::vector<std::string> resultToStringArray(const ScriptResult &result, IScript
                         } else if constexpr (std::is_same_v<T, int64_t>) {
                             return std::to_string(v);
                         } else if constexpr (std::is_same_v<T, double>) {
-                            std::ostringstream oss;
-                            oss << std::noshowpoint << v;
-                            return oss.str();
+                            return JsonText::numberText(v);
                         } else if constexpr (std::is_same_v<T, bool>) {
                             return v ? "true" : "false";
                         } else {

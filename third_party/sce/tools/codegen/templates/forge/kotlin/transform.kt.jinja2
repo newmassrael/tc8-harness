@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
@@ -33,3 +33,69 @@ package com.sce.generated.{{ package }}
 fun {{ func.name }}({{ func.params }}): {{ func.ret_type }} =
     {{ func.expr }}
 {% endfor %}
+{% if holder %}
+
+/** Every output of one activation. */
+data class {{ holder.symbols.outputs }}(
+{% for o in holder.outputs %}
+    val {{ o.field }}: {{ o.type }},
+{% endfor %}
+)
+
+/**
+ * The values `previous()` reads, kept from one activation to the next.
+ *
+ * `{{ holder.symbols.update }}` is one activation: every output is computed
+ * from this activation's inputs and the kept values, and only then is each
+ * kept value replaced by what its field holds now.
+ */
+class {{ holder.symbols.holder }} {
+{% for c in holder.cells %}
+{% if c.is_string %}
+    private var {{ c.name }}: {{ c.type }} = "{{ c.initial_text }}"
+{% else %}
+    private var {{ c.name }}: {{ c.type }} = {{ c.initial }}
+{% endif %}
+{% endfor %}
+
+    /** Every kept value back to its field's `sce:initial`. */
+    fun {{ holder.symbols.reset }}() {
+{% for c in holder.cells %}
+{% if c.is_string %}
+        {{ c.name }} = "{{ c.initial_text }}"
+{% else %}
+        {{ c.name }} = {{ c.initial }}
+{% endif %}
+{% endfor %}
+    }
+
+    /** One activation. */
+    fun {{ holder.symbols.update }}({{ holder.input_params }}): {{ holder.symbols.outputs }} {
+{% for o in holder.outputs %}
+        val {{ o.name }} = {{ o.fn }}({{ holder.input_args }}{% for c in holder.cells %}{% if holder.input_args or not loop.first %}, {% endif %}{{ c.name }}{% endfor %})
+{% endfor %}
+{% for c in holder.cells %}
+        {{ c.name }} = {{ c.source }}
+{% endfor %}
+        return {{ holder.symbols.outputs }}({% for o in holder.outputs %}{{ o.name }}{% if not loop.last %}, {% endif %}{% endfor %})
+    }
+{% if holder.symbols.restored %}
+
+    companion object {
+        /**
+         * A holder whose kept values of retained fields are the ones the
+         * host stored, and every other at its field's `sce:initial`.
+         */
+        fun {{ holder.symbols.restored }}({{ holder.restore_params }}): {{ holder.symbols.holder }} {
+            val {{ holder.self_name }} = {{ holder.symbols.holder }}()
+{% for c in holder.cells %}
+{% if c.restored_arg %}
+            {{ holder.self_name }}.{{ c.name }} = {{ c.restored_arg }}
+{% endif %}
+{% endfor %}
+            return {{ holder.self_name }}
+        }
+    }
+{% endif %}
+}
+{% endif %}

@@ -1,8 +1,32 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
-{# W3C SCXML 4.6: Foreach loop (1:1 with Rust foreach template) #}
-{% if model.needs_script_engine %}
+{# W3C SCXML 4.6: Foreach loop (1:1 with Rust foreach template).
+   "If the evaluation of any child element of foreach causes an error, the
+   processor MUST cease execution of the foreach element and the block that
+   contains it." A failing body element raises its own error and `return`s
+   from the block's function itself, which leaves this loop too, so nothing
+   here raises for it. Only the <foreach>'s own errors — an item it cannot
+   name, a collection it cannot walk, a loop variable it cannot set — are
+   raised here, and they end the block the same way. #}
+{% set foreach_exit = 'return' if in_action_block is defined and in_action_block else '' %}
+{% if action.native_loop %}
+{# A sce-static document's <foreach> over a list variable (SCE Accepted Subset
+   §2.15): a native `for` over a copy of the typed elements, lowered ahead of
+   the template by `forge::static_lowering`. A body element that raised its own
+   error leaves the enclosing block from inside the loop with `return`, which
+   ends the block that holds the <foreach> as W3C SCXML 4.9 asks. #}
+	// W3C SCXML 4.6: <foreach array="{{ action.array }}" item="{{ action.item }}">, a native loop over a sce-static list
+	{{ action.native_loop }} {
+{% if action.native_loop_prologue %}
+		{{ action.native_loop_prologue }}
+{% endif %}
+{% for body_action in action.actions %}
+		{% with action=body_action %}{% include 'actions/' ~ body_action.type ~ '.go.jinja2' %}{% endwith %}
+
+{% endfor %}
+	}
+{% elif model.needs_script_engine %}
 	// W3C SCXML 4.6: foreach over {{ action.array }}
 	{
 		{# W3C SCXML 4.6: `item` is a location expression, lowered by the
@@ -13,11 +37,17 @@
 {% if 'error.execution' in model.events %}
 			engine.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<foreach item='{{ action.item | default("") }}'> is missing or not a legal variable name"))
 {% endif %}
+{% if foreach_exit %}
+			{{ foreach_exit }}
+{% endif %}
 		} else {
 			foreachArrVal, foreachErr := p.ScriptEngine.EvaluateExpression(p.SessionID, `{{ action.array | to_lua_expr }}`)
 			if foreachErr != nil {
 {% if 'error.execution' in model.events %}
 				engine.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<foreach array='{{ action.array }}'> failed to evaluate"))
+{% endif %}
+{% if foreach_exit %}
+				{{ foreach_exit }}
 {% endif %}
 			} else if foreachArr, foreachOk := sce.ToSlice(foreachArrVal); foreachOk {
 				foreachSuccess := true
@@ -48,13 +78,19 @@
 				}
 				if !foreachSuccess {
 {% if 'error.execution' in model.events %}
-					engine.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "an action inside <foreach> failed"))
+					engine.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<foreach> could not set its loop variable"))
+{% endif %}
+{% if foreach_exit %}
+					{{ foreach_exit }}
 {% endif %}
 				}
 			} else {
 				// Not an array — raise error.execution (W3C SCXML 5.6)
 {% if 'error.execution' in model.events %}
 				engine.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<foreach array='{{ action.array }}'> is not an array"))
+{% endif %}
+{% if foreach_exit %}
+				{{ foreach_exit }}
 {% endif %}
 			}
 		}

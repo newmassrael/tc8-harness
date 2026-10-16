@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {# ── W3C SCXML 6.4: Invoke lifecycle helpers (per-SM) ────────────────
@@ -11,12 +11,228 @@
    Per-SM logic is emitted into `_sm.c`. Cross-SM types
    (`sce_invoke_pending_queue_t`) live in `backends/c/runtime/include/sce/invoke.h`
    as static inline helpers — no .c source.                             #}
+{%- import 'c/param_macros.jinja2' as param_macros %}
+{# §scxml-6.4: the clock a child this machine starts measures its delays on —
+   this machine's own, read through `sce_clock_following`, so a host that owns
+   the parent's time owns the child's too. A parent with no scheduler has no
+   clock of its own to hand over, and the child keeps the monotonic default. #}
+{% set child_clock_c = 'sce_clock_following(&sm->clock)' if model.needs_event_scheduler else 'sce_clock_monotonic()' %}
+
+{# ── §scxml-6.4: a namelist the invoke cannot read starts nothing ──────
+   One check for every child the invoke may start — a static child, or the
+   candidate a hybrid invoke's value chose — because how the child was named
+   does not change what the arguments are. A hybrid invoke runs it after its
+   value has chosen a candidate and before that candidate is built. #}
+{% macro invoke_namelist_guard(invoke_info, model, csym_prefix) %}
+            {% if invoke_info.namelist %}
+            {# W3C SCXML 6.4 / test554: a namelist name not declared in the
+               parent's `<datamodel>` is an evaluation error — cpp
+               `InvokeExecutor::startInvoke` (sce/src/runtime/InvokeExecutor.cpp:425-432)
+               aborts the spawn via `destroySession + return ""`, propagating
+               error.execution upstream. Parent vars are statically known
+               at codegen time (model.variables), so the membership check
+               folds to a compile-time predicate. The `loop.first` arm
+               emits the error.execution raise + skip-spawn (`continue`)
+               exactly once on the first undeclared name — subsequent
+               undeclared names produce no output (the spawn is already
+               aborted). The param/namelist transfer block below stays
+               unreachable for this iteration. #}
+            {% set _parent_var_ids = model.variables | map(attribute='id') | list %}
+            {% for _ns_name in invoke_info.namelist.split() if _ns_name not in _parent_var_ids %}
+            {% if loop.first %}
+            /* W3C SCXML 6.4 (test554): namelist references undeclared
+               parent var `{{ _ns_name }}` — abort spawn and raise
+               error.execution per cpp `InvokeExecutor`. */
+            {{ csym_prefix }}{{ model.name }}_raise_platform_error(
+                sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
+                "<invoke> namelist names '{{ _ns_name }}', which the parent does not declare");
+            continue;
+            {% endif %}
+            {% endfor %}
+            {% endif %}
+{% endmacro %}
+
+{# ── §scxml-6.4.1 + §scxml-6.4.3: the invoke's arguments, into one child ──
+   `child` describes the session being started — the invoke itself for a
+   static child, the chosen candidate for a hybrid one — and `child_L` is that
+   child's `lua_State`. The arguments are the invoke's and are evaluated
+   whatever the child is; only which names the child KEEPS depends on it, so a
+   candidate is given exactly the names its own top-level `<data>` declares.
+   `se` is the script-engine macro module the including template imported. #}
+{% macro invoke_seed_child(invoke_info, child, child_L, model, csym_prefix, se) %}
+            {% if model.needs_script_engine and (invoke_info.params or (child.child_needs_script_engine and invoke_info.namelist)) %}
+            /* W3C SCXML 6.4.1 (test226/240/241/243/244/245/276):
+               `<param>` and `namelist` value passing. Evaluate each
+               param's `expr` (or read each namelist name's binding)
+               on the parent's `lua_State` so the value lands on
+               `sm->L`'s top of stack, then transfer to the child's
+               `lua_State` as a global under the param/namelist name —
+               overriding the `<data expr=...>` defaults that the
+               child's `_init` already seeded. C11 evaluates
+               parent-side because each generated SM owns its own Lua
+               state and a parent-side variable name is undefined in
+               the child's state.
+
+               The cpp backend transferred the expr STRING for
+               re-evaluation in the child's engine until the fixture
+               `integration_resources/invoke_param_seeds_declared_child_data/`
+               separated the two: for literal exprs — the entire W3C
+               corpus param/namelist surface — both shapes converge on
+               the same observable, which is why the divergence lived
+               as long as it did. It now passes the value, so this
+               backend's shape and cpp's are the same shape.
+
+               Names not declared in the child's `<datamodel>` skip
+               the transfer (test245: namelist Var2 with no child
+               <data id="Var2"> stays unbound). §scxml-6.4.3 requires
+               it — "if the names do not match, the Processor MUST NOT
+               add the value ... to the invoked session's data model" —
+               and cpp decides the same question at codegen time now,
+               having reached it through the runtime
+               `DatamodelValidationHelper::isVariableDeclaredInChild`
+               on its namelist arm alone. */
+            {% if invoke_info.params %}
+            {% for param in invoke_info.params %}
+            {# §scxml-5.7: the value comes from 'expr' or, failing that,
+               'location' — a location expression, read as its value; both
+               empty is `location=""`, a location that names nothing. The
+               <param> is an argument of this <invoke> whether or not the
+               child declares `name` or runs a script engine, so it is
+               evaluated — and its failure raised — either way; §scxml-6.4.3
+               decides only what the child keeps. #}
+            {% set param_source = param.expr or param.location %}
+            {% set child_keeps = child.child_needs_script_engine and child.child_datamodel_vars and param.name in child.child_datamodel_vars %}
+            {% if not param_source %}
+            /* `<param name="{{ param.name }}" location=""/>` names no location. */
+            {{ csym_prefix }}{{ model.name }}_raise_platform_error(
+                sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
+                "<invoke> <param name='{{ param.name | escape_c }}'> names no location");
+            {% else %}
+            /* `<param name="{{ param.name }}"/>` */
+            if (luaL_dostring(sm->L,
+                "return ({{ param_source | to_lua_expr | escape_c }})") == 0) {
+            {% if child_keeps %}
+{{ se.lua_xfer_top_to_child("sm->L", child_L, param.name) }}
+            {% else %}
+                /* §scxml-6.4.3: `{{ param.name }}` is not kept by the child. */
+                lua_pop(sm->L, 1);
+            {% endif %}
+            } else {
+                /* §scxml-5.7.1: BOTH halves — `error.execution` on the internal
+                   queue AND the name and value ignored. Only the silent half was
+                   here: the error object was popped and the child came up with a
+                   `<data>` nothing explained.
+
+                   The clause delegates only the SUCCESSFUL name and value to the
+                   context ("Otherwise the use of the name and value depends on
+                   the context ... See 5.5 <donedata>, 6.2 <send> and 6.4
+                   <invoke>"), so §scxml-6.4.2's "terminate the processing of the
+                   element" is not what a failing `<param>` costs: the child still
+                   starts, one pair short. */
+                lua_pop(sm->L, 1);
+                {{ csym_prefix }}{{ model.name }}_raise_platform_error(
+                    sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
+                    "<invoke> <param name='{{ param.name | escape_c }}'> could not be read");
+            }
+            {% endif %}
+            {% endfor %}
+            {% endif %}
+            {% if invoke_info.namelist and child.child_needs_script_engine %}
+            {% for ns_name in invoke_info.namelist.split() %}
+            {% if child.child_datamodel_vars and ns_name in child.child_datamodel_vars %}
+            /* namelist `{{ ns_name }}` */
+            lua_getglobal(sm->L, "{{ ns_name }}");
+{{ se.lua_xfer_top_to_child("sm->L", child_L, ns_name) }}
+            {% endif %}
+            {% endfor %}
+            {% endif %}
+            {% endif %}
+{% endmacro %}
+
+{# ── §scxml-6.4.1 + §scxml-6.4.3: a `sce-static` child's values ───────────
+   Each value was lowered at build time to an expression of the type of the
+   child variable it lands in, read from this machine's fields now — when the
+   invoke executes, not when its state was entered. §scxml-5.7.1: one that
+   cannot be computed raises error.execution and is left out; the child still
+   starts, one value short, holding what its `<data>` gave it.
+
+   `slot` is the child's struct in this machine. `seeds` are the arguments the
+   child declares a variable for. `unkept` are the ones it declares none for,
+   which a hybrid invoke has because it hands every candidate the same
+   arguments: each is evaluated and left out (§scxml-6.4.3), and one that cannot
+   be evaluated costs `error.execution` all the same, because an argument is the
+   invoke's whatever the child keeps. #}
+{% macro seed_static_child(slot, seeds, unkept, model, csym_prefix) %}
+            {% for param in seeds if param.native_seed %}
+            {# A string is a buffer of the bound its variable declares: the value
+               was bounded to the child's own bound where it was lowered, so a
+               failure never reaches the copy, and the terminator goes with it. #}
+            {% set seed_into = slot ~ '.policy.v_' ~ (param.name | to_snake_case) %}
+            {% set seed_write = ('memmove(' ~ seed_into ~ '.data, sce_value, strlen(sce_value) + 1u);') if param.native_seed_type == 'const char *' else (seed_into ~ ' = sce_value;') %}
+            {
+                {% if param.native_fails %}
+                sce_forge_algorithm_failure_t sce_failure_ = {0};
+                {% endif %}
+                {{ param.native_seed_type }} sce_value = {{ param.native_seed }};
+                {% if param.native_fails %}
+                if (sce_failure_.failed) {
+                    {% if 'error.execution' in model.events %}
+                    {{ csym_prefix }}{{ model.name }}_raise_platform_error(
+                        sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
+                        "<invoke> <param name='{{ param.name | escape_c }}'> could not be read");
+                    {% endif %}
+                } else {
+                    {{ seed_write }}
+                }
+                {% else %}
+                {{ seed_write }}
+                {% endif %}
+            }
+            {% endfor %}
+            {% for param in unkept if param.native_value and param.native_fails %}
+            /* §scxml-6.4.3: the child declares no `{{ param.name }}`, so the Processor MUST
+               NOT add it to its data model — but the argument is still the
+               invoke's, evaluated, and a failure of it is reported (§scxml-5.7.1). */
+            {
+                sce_forge_algorithm_failure_t sce_failure_ = {0};
+                const sce_forge_wire_value_t sce_value = {{ param.native_value }};
+                (void)sce_value;
+                if (sce_failure_.failed) {
+                    {% if 'error.execution' in model.events %}
+                    {{ csym_prefix }}{{ model.name }}_raise_platform_error(
+                        sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
+                        "<invoke> <param name='{{ param.name | escape_c }}'> could not be read");
+                    {% endif %}
+                }
+            }
+            {% endfor %}
+{% endmacro %}
 
 {% set _ns = namespace(any_child_parent_send=false) %}
 {% for invoke_info in model.invokes | scxml %}
 {% if invoke_info.child_has_send_to_parent %}
 {% set _ns.any_child_parent_send = true %}
 {% endif %}
+{% endfor %}
+{# A declared candidate is an ordinary document the parent may start, and
+   announcing itself with `<send target="#_parent">` is how a selection
+   becomes observable at all — so the routing shim is owed here for the same
+   reason the static-invoke scan above owes it. Emitted for any candidate
+   set rather than per candidate's own content: the set is the unit the
+   parent commits to, and a shim that appeared only for some of them would
+   make the selection's observability depend on which document won.
+
+   What a candidate is started with decides whether the shim is read at all: a
+   candidate under another data model is always started with parent routing,
+   and a `sce-static` one only when it addresses its parent (it is begun with no
+   routing otherwise), so a set of the latter that never does has no use for
+   the shim, and an unused function does not compile under `-Werror`. #}
+{% for invoke_info in model.invokes | hybrid %}
+{% for candidate in invoke_info.candidates %}
+{% if not candidate.child_is_static or candidate.child_has_send_to_parent %}
+{% set _ns.any_child_parent_send = true %}
+{% endif %}
+{% endfor %}
 {% endfor %}
 
 {% if _ns.any_child_parent_send %}
@@ -77,13 +293,13 @@ static void {{ csym_prefix }}{{ model.name }}_dispatch_external_by_name(void *op
         strncpy(evt.data, event_data, (size_t)SCE_MAX_DATA_LEN - 1u);
         evt.data[(size_t)SCE_MAX_DATA_LEN - 1u] = '\0';
     }
-    {% for ev_name in model.events | sort %}
-    if (strcmp(name, "{{ ev_name }}") == 0) {
-        evt.event = {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_{{ ev_name | upper | replace('.', '_') | replace('-', '_') }};
+    /* §scxml-3.12.1 + §scxml-5.10: the child names the event, and its names are
+       not this machine's, so one this document does not write reaches it as the
+       event of the longest prefix it does, under the name the child sent
+       (`evt.name`). One that no prefix of is written is dropped. */
+    if ({{ csym_prefix }}{{ model.name }}_arrive(name, strlen(name), &evt.event, evt.name)) {
         {{ csym_prefix }}{{ model.name }}_raise_external(sm, &evt);
-        return;
     }
-    {% endfor %}
 }
 {% endif %}
 
@@ -123,7 +339,7 @@ static void {{ csym_prefix }}{{ model.name }}_execute_pending_invokes({{ csym_pr
 
         {% for state_id, state in model.states | dictsort %}
         {% for invoke_info in state.invokes | unsupported %}
-        if (p->state == (int){{ csym_prefix | upper }}{{ model.name | upper }}_STATE_{{ state_id | upper | replace('-', '_') | replace('.', '_') }}
+        if (p->state == (int){{ csym_prefix | upper }}{{ model.name | upper }}_STATE_{{ state_id | to_c11_upper_ident }}
             && p->invoke_idx == {{ loop.index0 + (state.invokes | scxml | length) }}) {
 {% if invoke_info.host_served %}
             /* W3C SCXML 6.4.1: the host declared this `type`, so START the
@@ -137,38 +353,275 @@ static void {{ csym_prefix }}{{ model.name }}_execute_pending_invokes({{ csym_pr
                positional — it counts this state's invokes in order, and a
                second loop would restart the index and address the wrong
                entry. The two arms are told apart by the per-entry flag. */
-{% if invoke_info.params %}
-            sce_host_send_param_t _host_inv_params[{{ invoke_info.params | length }}];
+{% set host_namelist = (invoke_info.namelist | split) if invoke_info.namelist else [] %}
+{% set host_param_cap = (invoke_info.params | length) + (host_namelist | length) %}
+{% if host_param_cap > 0 %}
+            sce_host_send_param_t _host_inv_params[{{ host_param_cap }}];
             int _host_inv_param_count = 0;
-{% for param in invoke_info.params %}
-{% if param.is_static_literal %}
-            static const char _host_inv_param_value_{{ loop.index0 }}[] = "{{ param.static_value | escape_c }}";
-            _host_inv_params[_host_inv_param_count].name = "{{ param.name | escape_c }}";
-            _host_inv_params[_host_inv_param_count].value = _host_inv_param_value_{{ loop.index0 }};
-            _host_inv_param_count++;
+{% endif %}
+{% if invoke_info.idlocation %}
+            /* W3C SCXML 6.4.1: the invocation's generated id goes to
+               `idlocation` when the element is evaluated. It is the id the
+               host is handed and `done.invoke.<id>` names, so the document can
+               match on what it stored. The write is the assignment `<assign>`
+               makes, so a member path lands, and a location that cannot take
+               the id starts nothing (W3C SCXML 5.9.2). */
+            {
+                bool _idloc_ok = false;
+{{ se.lua_store_id_in_location(invoke_info.idlocation, '"' ~ (invoke_info.invoke_id | escape_c) ~ '"', '_idloc_ok') }}
+                if (!_idloc_ok) {
+{% if 'error.execution' in model.events %}
+                    {{ csym_prefix }}{{ model.name }}_raise_platform_error(
+                        sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
+                        "<invoke idlocation='{{ invoke_info.idlocation | escape_c }}'> could not take the invoke id");
+{% endif %}
+                    continue;
+                }
+            }
+{% endif %}
+            /* W3C SCXML 6.4.1: what the request says is evaluated now, when
+               the invocation starts. An attribute that cannot be evaluated
+               raises error.execution and starts nothing; a `<param>` that
+               cannot is reported and dropped (W3C SCXML 5.7.1) while the
+               invocation still starts. */
+{% if invoke_info.native_src %}
+            /* `datamodel="sce-static"`: the `src` is a string the machine
+               computed from its own fields (`UnsupportedInvokeInfo::native_src`),
+               no script engine asked. One that failed cannot be evaluated: it
+               raises error.execution and starts nothing. */
+            const char *_host_inv_src_native = "";
+            {
+                sce_forge_algorithm_failure_t sce_failure_ = {0};
+                _host_inv_src_native = {{ invoke_info.native_src }};
+                if (sce_failure_.failed) {
+{% if 'error.execution' in model.events %}
+                    {{ csym_prefix }}{{ model.name }}_raise_platform_error(
+                        sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
+                        "<invoke> srcexpr failed to evaluate");
+{% endif %}
+                    continue;
+                }
+            }
+{% endif %}
+{% if invoke_info.native_content %}
+            /* `datamodel="sce-static"`: the `<content expr>` is a string the
+               machine computed from its own fields
+               (`UnsupportedInvokeInfo::native_content`) — the body the service
+               runs — no script engine asked. One that failed cannot be
+               evaluated: it raises error.execution and starts nothing. */
+            const char *_host_inv_content_native = "";
+            {
+                sce_forge_algorithm_failure_t sce_failure_ = {0};
+                _host_inv_content_native = {{ invoke_info.native_content }};
+                if (sce_failure_.failed) {
+{% if 'error.execution' in model.events %}
+                    {{ csym_prefix }}{{ model.name }}_raise_platform_error(
+                        sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
+                        "<invoke> content expr failed to evaluate");
+{% endif %}
+                    continue;
+                }
+            }
+{% endif %}
+{% for attr, buf, cap, expr in [('src', '_host_inv_src', 'SCE_MAX_URI_LEN', invoke_info.srcexpr), ('content', '_host_inv_content', 'SCE_MAX_DATA_LEN', invoke_info.contentexpr)] %}
+{% if expr %}
+            char {{ buf }}[{{ cap }}];
+            bool {{ buf }}_ok = false;
+{{ se.lua_eval_to_wire_string(expr, buf, 'sizeof(' ~ buf ~ ')', buf ~ '_ok') }}
+            if (!{{ buf }}_ok) {
+{% if 'error.execution' in model.events %}
+                {{ csym_prefix }}{{ model.name }}_raise_platform_error(
+                    sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
+                    "<invoke> {{ attr }}expr failed to evaluate");
+{% endif %}
+                continue;
+            }
 {% endif %}
 {% endfor %}
+{# The request's event data is the pairs the author sent, as JSON, typed as
+   the data model holds them (W3C SCXML 5.10: the text a local `<send>` with
+   the same pairs would carry in `_event.data`). With a script engine, every
+   evaluation below also records its value in `_sce_invoke_pairs`, so the JSON
+   is built from the same evaluation as the text; without one, every value is
+   a literal and the JSON is finished here. Params the build marked as
+   envelope metadata (SCE_MESH.md §mesh-9.5) are left out. #}
+{% set record_pairs = model.needs_script_engine %}
+{% set payload_params = invoke_info.params | rejectattr('envelope_metadata') | list %}
+{% if record_pairs %}
+            (void)luaL_dostring(sm->L, "_sce_invoke_pairs = {}");
+{% endif %}
+{% for var_name in host_namelist %}
+            char _host_inv_nl_value_{{ loop.index0 }}[SCE_MAX_DATA_LEN];
+            bool _host_inv_nl_ok_{{ loop.index0 }} = false;
+{{ se.lua_namelist_var_to_wire_string(var_name, '_host_inv_nl_value_' ~ loop.index0, 'sizeof(_host_inv_nl_value_' ~ loop.index0 ~ ')', '_host_inv_nl_ok_' ~ loop.index0, var_name if record_pairs else none) }}
+            if (!_host_inv_nl_ok_{{ loop.index0 }}) {
+                /* W3C SCXML 5.9.2: a namelist item that names no readable
+                   location is an error, and the invocation does not start. */
+{% if 'error.execution' in model.events %}
+                {{ csym_prefix }}{{ model.name }}_raise_platform_error(
+                    sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
+                    "<invoke> namelist names '{{ var_name | escape_c }}', which could not be read");
+{% endif %}
+                continue;
+            }
+            _host_inv_params[_host_inv_param_count].name = "{{ var_name | escape_c }}";
+            _host_inv_params[_host_inv_param_count].value = _host_inv_nl_value_{{ loop.index0 }};
+            _host_inv_param_count++;
+{% endfor %}
+{% if static_datamodel %}
+            /* SCE Accepted Subset §2.15 + §scxml-6.4.1: under `sce-static` each
+               `<param>`'s value is native code (`Param::native_value`) read from
+               the machine's own fields when the invocation starts, with no script
+               engine to ask. It crosses twice, as the text a host's `params`
+               carries and as a JSON value of the request's event data, and both
+               are rendered from the one typed value. §scxml-5.7.1: a value that
+               cannot be computed is reported and its pair left out, and the
+               invocation still starts with the others. */
+            char _host_inv_event_data[SCE_MAX_DATA_LEN];
+            _host_inv_event_data[0] = '\0';
+{% if payload_params %}
+            char _host_inv_texts[{{ invoke_info.params | length }}][SCE_MAX_DATA_LEN];
+            sce_forge_wire_t _host_inv_wire;
+            sce_forge_wire_begin(&_host_inv_wire, _host_inv_event_data, sizeof(_host_inv_event_data));
+{% endif %}
+{# Ascending by the name's UTF-8 bytes, as on every engine (ARCHITECTURE.md,
+   "JSON Object Key Order"): a pair left out leaves the order of the others as
+   it was, so the names are sorted here, once, and not at run time. #}
+{% for param in invoke_info.params | sort(attribute='name', case_sensitive=true) %}
+{% if param.is_static_literal %}
+            _host_inv_params[_host_inv_param_count].name = "{{ param.name | escape_c }}";
+            _host_inv_params[_host_inv_param_count].value = "{{ param.static_value | escape_c }}";
+            _host_inv_param_count++;
+{% if not param.envelope_metadata %}
+            sce_forge_wire_pair(&_host_inv_wire, "\"{{ param.name | escape_json_string | escape_c }}\"",
+                                sce_forge_wire_string("{{ param.static_value | escape_c }}"));
+{% endif %}
+{% elif param.native_value %}
+            {
+                sce_forge_algorithm_failure_t sce_failure_ = {0};
+                const sce_forge_wire_value_t sce_value = {{ param.native_value }};
+                if (!sce_failure_.failed
+                    && sce_forge_wire_text(sce_value, _host_inv_texts[{{ loop.index0 }}], sizeof(_host_inv_texts[{{ loop.index0 }}]))) {
+                    _host_inv_params[_host_inv_param_count].name = "{{ param.name | escape_c }}";
+                    _host_inv_params[_host_inv_param_count].value = _host_inv_texts[{{ loop.index0 }}];
+                    _host_inv_param_count++;
+{% if not param.envelope_metadata %}
+                    sce_forge_wire_pair(&_host_inv_wire, "\"{{ param.name | escape_json_string | escape_c }}\"", sce_value);
+{% endif %}
+                } else {
+{% if invoke_info.invoke_id in host_invoke_request_checks %}
+                    /* SCE Accepted Subset 2.12: the host was promised the whole
+                       record, so a value that failed to evaluate refuses the
+                       request and starts nothing. */
+{% if 'error.execution' in model.events %}
+                    {{ csym_prefix }}{{ model.name }}_raise_platform_error(
+                        sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
+                        "<invoke> <param name='{{ param.name | escape_c }}'> cannot be its request field: it failed to evaluate");
+{% endif %}
+                    continue;
+{% else %}
+{% if 'error.execution' in model.events %}
+                    {{ csym_prefix }}{{ model.name }}_raise_platform_error(
+                        sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
+                        "<invoke> <param name='{{ param.name | escape_c }}'> failed to evaluate");
+{% endif %}
+{% endif %}
+                }
+            }
+{% else %}
+{% if 'error.execution' in model.events %}
+            {{ csym_prefix }}{{ model.name }}_raise_platform_error(
+                sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
+                "<invoke> <param name='{{ param.name | escape_c }}'> names no location");
+{% endif %}
+{% endif %}
+{% endfor %}
+{% if payload_params %}
+            if (!sce_forge_wire_end(&_host_inv_wire)) {
+{% if 'error.execution' in model.events %}
+                {{ csym_prefix }}{{ model.name }}_raise_platform_error(
+                    sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
+                    "<invoke>'s request does not fit the event's data, so nothing was started");
+{% endif %}
+                continue;
+            }
+{% endif %}
+{% elif invoke_info.invoke_id in host_invoke_request_checks %}
+{% set request_checks = host_invoke_request_checks[invoke_info.invoke_id] %}
+            /* SCE Accepted Subset 2.12: `sce:request` makes the params a
+               record, so each value is held to its field here, where the
+               invocation starts; one that cannot be evaluated or does not fit
+               starts nothing. A string literal was held to its field at build
+               time, so it passes as written. */
+{% for param in invoke_info.params %}
+{% if param.name in request_checks and not param.is_static_literal %}
+            char _host_inv_typed_{{ loop.index0 }}[SCE_MAX_DATA_LEN];
+            const char *_host_inv_refusal_{{ loop.index0 }} = NULL;
+{{ se.lua_eval_to_request_field(param.expr or param.location, request_checks[param.name], '_host_inv_typed_' ~ loop.index0, 'sizeof(_host_inv_typed_' ~ loop.index0 ~ ')', '_host_inv_refusal_' ~ loop.index0, param.name if (record_pairs and not param.envelope_metadata) else none) }}
+            if (_host_inv_refusal_{{ loop.index0 }} != NULL) {
+{% if 'error.execution' in model.events %}
+                char _host_inv_message[SCE_MAX_DATA_LEN];
+                snprintf(_host_inv_message, sizeof(_host_inv_message),
+                         "<invoke> <param name='{{ param.name | escape_c }}'> cannot be its request field: '{{ param.name | escape_c }}' %s",
+                         _host_inv_refusal_{{ loop.index0 }});
+                {{ csym_prefix }}{{ model.name }}_raise_platform_error(
+                    sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION, _host_inv_message);
+{% endif %}
+                continue;
+            }
+            _host_inv_params[_host_inv_param_count].name = "{{ param.name | escape_c }}";
+            _host_inv_params[_host_inv_param_count].value = _host_inv_typed_{{ loop.index0 }};
+            _host_inv_param_count++;
+{% else %}
+{{ param_macros.collect_host_params_into([param], model, csym_prefix, '_host_inv_params', '_host_inv_param_count', '_host_inv_param_' ~ loop.index0, '<invoke>', '            ', '', record_pairs) -}}
+{% endif %}
+{% endfor %}
+{% else %}
+{{ param_macros.collect_host_params_into(invoke_info.params, model, csym_prefix, '_host_inv_params', '_host_inv_param_count', '_host_inv_param', '<invoke>', '            ', '', record_pairs) -}}
+{% endif %}
+{% if static_datamodel %}
+{# The event data was written with the params above. #}
+{% elif record_pairs %}
+            char _host_inv_event_data[SCE_MAX_DATA_LEN];
+            _host_inv_event_data[0] = '\0';
+            if (luaL_dostring(sm->L,
+                "local p = _sce_invoke_pairs or {}; _sce_invoke_pairs = nil; "
+                "if #p == 0 then return '' end; "
+                "return JSON.stringify(_scxml_params(table.unpack(p)))") == 0) {
+                size_t _host_inv_ed_len = 0u;
+                const char *_host_inv_ed = lua_tolstring(sm->L, -1, &_host_inv_ed_len);
+                if (_host_inv_ed == NULL || _host_inv_ed_len >= sizeof(_host_inv_event_data)) {
+                    /* Truncated JSON does not parse, so it would arrive as some
+                       other value: an argument this platform cannot marshal is
+                       one the invocation cannot start with (W3C SCXML 6.4.1). */
+                    lua_pop(sm->L, 1);
+{% if 'error.execution' in model.events %}
+                    {{ csym_prefix }}{{ model.name }}_raise_platform_error(
+                        sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
+                        "<invoke>'s request does not fit the event's data, so nothing was started");
+{% endif %}
+                    continue;
+                }
+                memcpy(_host_inv_event_data, _host_inv_ed, _host_inv_ed_len + 1u);
+            }
+            lua_pop(sm->L, 1);
+{% else %}
+            static const char _host_inv_event_data[] = "{% if payload_params %}{{ payload_params | static_params_json | escape_c }}{% endif %}";
 {% endif %}
             {
                 sce_host_invoke_event_t _host_inv;
-                sce_host_invoke_response_t _host_inv_out;
-                const sce_host_invoker_entry_t *_host_inv_entry =
-                    sce_host_invoker_find(&sm->host_invokers, "{{ invoke_info.invoke_type | escape_c }}");
                 memset(&_host_inv, 0, sizeof(_host_inv));
-                memset(&_host_inv_out, 0, sizeof(_host_inv_out));
                 _host_inv.phase = SCE_HOST_INVOKE_START;
                 _host_inv.processor_type = "{{ invoke_info.invoke_type | escape_c }}";
                 _host_inv.invoke_id = "{{ invoke_info.invoke_id | escape_c }}";
-                _host_inv.src = "{{ invoke_info.src | default('', true) | escape_c }}";
-                _host_inv.content = "{{ invoke_info.content | default('', true) | escape_c }}";
-{% if invoke_info.params %}
-                _host_inv.params = _host_inv_param_count > 0 ? _host_inv_params : NULL;
-                _host_inv.param_count = _host_inv_param_count;
-{% else %}
-                _host_inv.params = NULL;
-                _host_inv.param_count = 0;
-{% endif %}
-                if (_host_inv_entry == NULL) {
+                _host_inv.src = {% if invoke_info.native_src %}_host_inv_src_native{% elif invoke_info.srcexpr %}_host_inv_src{% else %}"{{ invoke_info.src | default('', true) | escape_c }}"{% endif %};
+                _host_inv.content = {% if invoke_info.native_content %}_host_inv_content_native{% elif invoke_info.contentexpr %}_host_inv_content{% else %}"{{ invoke_info.content | default('', true) | escape_c }}"{% endif %};
+                _host_inv.event_data = _host_inv_event_data;
+                /* W3C SCXML 6.4.1: the machine's one start path records the
+                   invocation, reads its deadline and runs the handler; this
+                   site only says what the document wrote. */
+                if (!{{ csym_prefix }}{{ model.name }}_perform_host_invoke(
+                        sm, &_host_inv, {% if host_param_cap > 0 %}_host_inv_params, _host_inv_param_count{% else %}NULL, 0{% endif %})) {
                     /* W3C SCXML 6.4.1: declared but no invoker registered. The
                        document asked for a process to be run and none was,
                        which is the same fact as an unsupported type — so the
@@ -179,27 +632,6 @@ static void {{ csym_prefix }}{{ model.name }}_execute_pending_invokes({{ csym_pr
                         sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
                         "<invoke> names an invoker the host declared but never registered");
 {% endif %}
-                } else {
-                    _host_inv_entry->handler(_host_inv_entry->user_data, &_host_inv, &_host_inv_out);
-                    sce_host_invocation_mark(&sm->started_host_invokes,
-                                             "{{ invoke_info.invoke_type | escape_c }}",
-                                             "{{ invoke_info.invoke_id | escape_c }}");
-                    if (_host_inv_out.has_done_data) {
-                        /* W3C SCXML 6.4: a completion the host reported NOW.
-                           One it reports later arrives the same way, by
-                           raising the event itself. */
-                        {{ csym_prefix }}{{ model.name }}_event_with_meta_t _done_evt;
-                        const {{ csym_prefix }}{{ model.name }}_event_t _done_ev =
-                            {{ csym_prefix }}{{ model.name }}_event_from_name(
-                                "done.invoke.{{ invoke_info.invoke_id | escape_c }}",
-                                strlen("done.invoke.{{ invoke_info.invoke_id | escape_c }}"));
-                        if (_done_ev != {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_NONE) {
-                            memset(&_done_evt, 0, sizeof(_done_evt));
-                            _done_evt.event = _done_ev;
-                            sce_copy_bounded_data(_done_evt.data, _host_inv_out.done_data);
-                            {{ csym_prefix }}{{ model.name }}_raise_external(sm, &_done_evt);
-                        }
-                    }
                 }
             }
 {% else %}
@@ -213,41 +645,52 @@ static void {{ csym_prefix }}{{ model.name }}_execute_pending_invokes({{ csym_pr
         }
         {% endfor %}
         {% for invoke_info in state.invokes | scxml %}
-        if (p->state == (int){{ csym_prefix | upper }}{{ model.name | upper }}_STATE_{{ state_id | upper | replace('-', '_') | replace('.', '_') }}
+        if (p->state == (int){{ csym_prefix | upper }}{{ model.name | upper }}_STATE_{{ state_id | to_c11_upper_ident }}
             && p->invoke_idx == {{ loop.index0 }}) {
-            {% if invoke_info.namelist %}
-            {# W3C SCXML 6.4 / test554: a namelist name not declared in the
-               parent's `<datamodel>` is an evaluation error — cpp
-               `InvokeExecutor::startInvoke` (sce/src/runtime/InvokeExecutor.cpp:425-432)
-               aborts the spawn via `destroySession + return ""`, propagating
-               error.execution upstream. Parent vars are statically known
-               at codegen time (model.variables), so the membership check
-               folds to a compile-time predicate. The `loop.first` arm
-               emits the error.execution raise + skip-spawn (`continue`)
-               exactly once on the first undeclared name — subsequent
-               undeclared names produce no output (the spawn is already
-               aborted). The param/namelist transfer block below stays
-               unreachable for this iteration. #}
-            {% set _parent_var_ids = model.variables | map(attribute='id') | list %}
-            {% for _ns_name in invoke_info.namelist.split() if _ns_name not in _parent_var_ids %}
-            {% if loop.first %}
-            /* W3C SCXML 6.4 (test554): namelist references undeclared
-               parent var `{{ _ns_name }}` — abort spawn and raise
-               error.execution per cpp `InvokeExecutor`. */
-            {{ csym_prefix }}{{ model.name }}_raise_platform_error(
-                sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
-                "<invoke> namelist names '{{ _ns_name }}', which the parent does not declare");
-            continue;
-            {% endif %}
-            {% endfor %}
-            {% endif %}
+{{ invoke_namelist_guard(invoke_info, model, csym_prefix) }}
             /* W3C SCXML 6.4: spawn child {{ invoke_info.child_name }}
                (invoke id `{{ invoke_info.invoke_id }}` in state `{{ state_id }}`). */
-            {% if invoke_info.child_has_send_to_parent %}
+            {% if invoke_info.child_is_static %}
+            /* §scxml-6.4.1: a `sce-static` child is begun, handed the values
+               of the `<param>`s and the `namelist`, and only then entered, so
+               an `<onentry>` of its initial configuration reads what it was
+               handed. Its parent routing is stamped by the same call. */
+            {% if invoke_info.child_host_call %}
+            /* docs/adr/0005, decision 6: the child declares `<sce:action>`s, so it
+               is begun with the table its parent's own table answers for it,
+               asked here — where the invocation starts — and copied before the
+               entry walk. A host that has none to give, or an incomplete one, is
+               an invocation that cannot start: it is reported and nothing is
+               spawned, as an invoke of a type no invoker serves is. */
+            if (!{{ csym_prefix }}{{ invoke_info.child_name }}_invoked_begin(
+                    &sm->child_{{ invoke_info.field_suffix }},
+                    {{ invoke_info.child_host_call }},
+                    {% if invoke_info.child_has_send_to_parent %}sm,
+                    {{ csym_prefix }}{{ model.name }}_dispatch_external_by_name{% else %}NULL,
+                    NULL{% endif %},
+                    p->invoke_id,
+                    {{ child_clock_c }})) {
+{% if 'error.execution' in model.events %}
+                {{ csym_prefix }}{{ model.name }}_raise_platform_error(
+                    sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
+                    "<invoke id='{{ invoke_info.invoke_id | escape_c }}'> was given no complete host for its child");
+{% endif %}
+                continue;
+            }
+            {% else %}
+            {{ csym_prefix }}{{ invoke_info.child_name }}_invoked_begin(
+                &sm->child_{{ invoke_info.field_suffix }},
+                {% if invoke_info.child_has_send_to_parent %}sm,
+                {{ csym_prefix }}{{ model.name }}_dispatch_external_by_name{% else %}NULL,
+                NULL{% endif %},
+                p->invoke_id,
+                {{ child_clock_c }});
+            {% endif %}
+            {% elif invoke_info.child_has_send_to_parent %}
             /* W3C SCXML 6.4 (test191/338): stamp parent-routing fields
                BEFORE the configuration entry walk by passing them
                through `_init_with_parent`. `<onentry><send target="#_parent">`
-               in the child runs during `enter_state_recursive` inside
+               in the child runs during `enter_initial_configuration` inside
                this call, so a NULL `parent_dispatch` would silently
                drop the event. Fixtures whose child only routes to
                `#_parent` from inside `<transition>` bodies (test226/
@@ -259,7 +702,12 @@ static void {{ csym_prefix }}{{ model.name }}_execute_pending_invokes({{ csym_pr
                 &sm->child_{{ invoke_info.field_suffix }},
                 sm,
                 {{ csym_prefix }}{{ model.name }}_dispatch_external_by_name,
-                p->invoke_id);
+                p->invoke_id,
+                {{ child_clock_c }});
+            {% elif invoke_info.child_needs_event_scheduler and model.needs_event_scheduler %}
+            /* §scxml-6.4: the child's `<send delay>`s wait on this machine's
+               clock, installed before its entry walk arms any of them. */
+            (void){{ csym_prefix }}{{ invoke_info.child_name }}_init_with_clock(&sm->child_{{ invoke_info.field_suffix }}, {{ child_clock_c }});
             {% else %}
             {{ csym_prefix }}{{ invoke_info.child_name }}_init(&sm->child_{{ invoke_info.field_suffix }});
             {% endif %}
@@ -270,85 +718,26 @@ static void {{ csym_prefix }}{{ model.name }}_execute_pending_invokes({{ csym_pr
                carry an `invoke_id` slot (test247-shape children with
                no `<send target="#_parent">`). */
             sce_copy_bounded_id(sm->child_{{ invoke_info.field_suffix }}_invoke_id, p->invoke_id);
-            {% if invoke_info.child_needs_script_engine and (invoke_info.params or invoke_info.namelist) %}
-            /* W3C SCXML 6.4.1 (test226/240/241/243/244/245/276):
-               `<param>` and `namelist` value passing. Evaluate each
-               param's `expr` (or read each namelist name's binding)
-               on the parent's `lua_State` so the value lands on
-               `sm->L`'s top of stack, then transfer to the child's
-               `lua_State` as a global under the param/namelist name —
-               overriding the `<data expr=...>` defaults that the
-               child's `_init` already seeded. C11 evaluates
-               parent-side because each generated SM owns its own Lua
-               state and a parent-side variable name is undefined in
-               the child's state.
-
-               The cpp backend transferred the expr STRING for
-               re-evaluation in the child's engine until the fixture
-               `integration_resources/invoke_param_seeds_declared_child_data/`
-               separated the two: for literal exprs — the entire W3C
-               corpus param/namelist surface — both shapes converge on
-               the same observable, which is why the divergence lived
-               as long as it did. It now passes the value, so this
-               backend's shape and cpp's are the same shape.
-
-               Names not declared in the child's `<datamodel>` skip
-               the transfer (test245: namelist Var2 with no child
-               <data id="Var2"> stays unbound). §scxml-6.4.3 requires
-               it — "if the names do not match, the Processor MUST NOT
-               add the value ... to the invoked session's data model" —
-               and cpp decides the same question at codegen time now,
-               having reached it through the runtime
-               `DatamodelValidationHelper::isVariableDeclaredInChild`
-               on its namelist arm alone. */
-            {% if invoke_info.params %}
-            {% for param in invoke_info.params %}
-            {% if invoke_info.child_datamodel_vars and param.name in invoke_info.child_datamodel_vars %}
-            /* `<param name="{{ param.name }}" expr="{{ param.expr }}"/>` */
-            if (luaL_dostring(sm->L,
-                "return ({{ param.expr | to_lua_expr | escape_c }})") == 0) {
-{{ se.lua_xfer_top_to_child("sm->L", "sm->child_" ~ invoke_info.field_suffix ~ ".L", param.name) }}
-            } else {
-                /* §scxml-5.7.1: BOTH halves — `error.execution` on the internal
-                   queue AND the name and value ignored. Only the silent half was
-                   here: the error object was popped and the child came up with a
-                   `<data>` nothing explained.
-
-                   The clause delegates only the SUCCESSFUL name and value to the
-                   context ("Otherwise the use of the name and value depends on
-                   the context ... See 5.5 <donedata>, 6.2 <send> and 6.4
-                   <invoke>"), so §scxml-6.4.2's "terminate the processing of the
-                   element" is not what a failing `<param>` costs: the child still
-                   starts, one pair short. */
-                lua_pop(sm->L, 1);
-                {{ csym_prefix }}{{ model.name }}_raise_platform_error(
-                    sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
-                    "<invoke> <param name='{{ param.name | escape_c }}'> expr failed to evaluate");
-            }
+{{ invoke_seed_child(invoke_info, invoke_info, "sm->child_" ~ invoke_info.field_suffix ~ ".L", model, csym_prefix, se) }}
+            {% if invoke_info.child_is_static %}
+{{ seed_static_child('sm->child_' ~ invoke_info.field_suffix, invoke_info.params, [], model, csym_prefix) }}
+            {{ csym_prefix }}{{ invoke_info.child_name }}_invoked_enter(&sm->child_{{ invoke_info.field_suffix }});
             {% endif %}
-            {% endfor %}
-            {% endif %}
-            {% if invoke_info.namelist %}
-            {% for ns_name in invoke_info.namelist.split() %}
-            {% if invoke_info.child_datamodel_vars and ns_name in invoke_info.child_datamodel_vars %}
-            /* namelist `{{ ns_name }}` */
-            lua_getglobal(sm->L, "{{ ns_name }}");
-{{ se.lua_xfer_top_to_child("sm->L", "sm->child_" ~ invoke_info.field_suffix ~ ".L", ns_name) }}
-            {% endif %}
-            {% endfor %}
-            {% endif %}
-            {% endif %}
-            {% if invoke_info.child_has_send_to_parent %}
-            /* W3C SCXML 6.4: drive the child's deferred macrostep loop
+            /* W3C SCXML 6.4: drive the child's deferred main event loop
                now that param/namelist have been applied and parent
-               routing is live. The bound (16) is a safety net — the
-               W3C corpus' invoked children reach `<final>` in one
-               macrostep (single eventless transition + send-to-parent
-               + enter subFinal). The first iteration that observes
-               `is_in_final_state` exits before calling `_step` again
-               so a child that finalised during init's entry walk
-               (test247-style sync-final) costs zero `_step` calls. */
-            for (int _step_n = 0; _step_n < 16; ++_step_n) {
+               routing is live. At least one pass, even for a child whose
+               entry walk already entered its top-level <final>
+               (test236/247-style sync-final): that loop is where the
+               child runs §scxml-D-exitInterpreter, so its `<onexit>` —
+               and any `<send target="#_parent">` in it — happens before
+               the done.invoke raised below. A child that sends to its
+               parent is driven further, up to a safety bound of 16 —
+               the W3C corpus' invoked children reach `<final>` in one
+               macrostep; any other child is driven on from
+               `_drive_active_children`. */
+            {{ csym_prefix }}{{ invoke_info.child_name }}_step(&sm->child_{{ invoke_info.field_suffix }});
+            {% if invoke_info.child_has_send_to_parent %}
+            for (int _step_n = 1; _step_n < 16; ++_step_n) {
                 if ({{ csym_prefix }}{{ invoke_info.child_name }}_is_in_final_state(&sm->child_{{ invoke_info.field_suffix }})) {
                     break;
                 }
@@ -361,17 +750,11 @@ static void {{ csym_prefix }}{{ model.name }}_execute_pending_invokes({{ csym_pr
                true at this point and we synthesise `done.invoke`
                immediately so the parent's next dequeue drains it. */
             if ({{ csym_prefix }}{{ invoke_info.child_name }}_is_in_final_state(&sm->child_{{ invoke_info.field_suffix }})) {
-                {% if invoke_info.child_has_send_to_parent %}
-                /* W3C SCXML 3.4 (test236): run `<onexit>` on every
-                   still-active child state BEFORE raising `done.invoke`
-                   so a `<final>` with `<onexit><send target="#_parent">`
-                   gets its verdict event onto the parent's external
-                   queue ahead of the completion event. Children whose
-                   own SCXML never sends to `#_parent` (test247-shape:
-                   pure `<final>` with no exit body) skip the helper —
-                   they have no `_finalize_session` symbol to call. */
-                {{ csym_prefix }}{{ invoke_info.child_name }}_finalize_session(&sm->child_{{ invoke_info.field_suffix }});
-                {% endif %}
+                /* W3C SCXML 6.4 (test236): the child's own main event loop
+                   ran exitInterpreter when it entered its final, so every
+                   `<onexit><send target="#_parent">` it holds is already on
+                   this machine's external queue, ahead of the done.invoke
+                   raised here. */
                 {{ csym_prefix }}{{ model.name }}_event_with_meta_t _done_evt;
                 memset(&_done_evt, 0, sizeof(_done_evt));
                 /* W3C SCXML 6.4 / 6.3.1 (test235): when the parent has a
@@ -383,11 +766,16 @@ static void {{ csym_prefix }}{{ model.name }}_execute_pending_invokes({{ csym_pr
                    `invoke_methods.jinja2:160` makes the same choice via
                    the `Event::Done_invoke_<id>` vs `Event::Done_invoke`
                    ternary. */
-                _done_evt.event = {% if invoke_info.use_specific_event %}{{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_DONE_INVOKE_{{ invoke_info.invoke_id | upper | replace('.', '_') | replace('-', '_') }}{% else %}{{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_DONE_INVOKE{% endif %};
+                _done_evt.event = {% if invoke_info.use_specific_event %}{{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_DONE_INVOKE_{{ invoke_info.invoke_id | to_c11_upper_ident }}{% else %}{{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_DONE_INVOKE{% endif %};
+{% if not invoke_info.use_specific_event %}
+/* §scxml-5.10: `_event.name` is the specific `done.invoke.<id>`, though the
+   document listens for the generic descriptor it is matched through. */
+sce_copy_bounded_id(_done_evt.name, "done.invoke.{{ invoke_info.invoke_id | escape_c }}");
+{% endif %}
                 sce_copy_bounded_id(_done_evt.invoke_id, p->invoke_id);
                 {% if invoke_info.child_needs_script_engine %}
                 /* W3C SCXML 5.5 + 6.3.1: lift the child's `<final><donedata>`
-                   payload (stashed on the child's `_pending_donedata` lua
+                   payload (stashed on the child's `_sce_donedata` lua
                    global by `execute_entry_actions`) onto `_done_evt.data[]`
                    so the parent's `process_event_queues` dequeue rebinds
                    `_event.data` to the typed value. Without this carry, a
@@ -409,7 +797,7 @@ static void {{ csym_prefix }}{{ model.name }}_execute_pending_invokes({{ csym_pr
         }
         {% endfor %}
         {% for invoke_info in state.invokes | hybrid %}
-        if (p->state == (int){{ csym_prefix | upper }}{{ model.name | upper }}_STATE_{{ state_id | upper | replace('-', '_') | replace('.', '_') }}
+        if (p->state == (int){{ csym_prefix | upper }}{{ model.name | upper }}_STATE_{{ state_id | to_c11_upper_ident }}
             && p->invoke_idx == {{ (state.invokes | scxml | length) + loop.index0 }}) {
             /* W3C SCXML 6.4 (test216/530): hybrid invoke — evaluate
                srcexpr/contentexpr at runtime (validation only) before
@@ -420,43 +808,193 @@ static void {{ csym_prefix }}{{ model.name }}_execute_pending_invokes({{ csym_pr
                invoke-fire time", not "evaluated string drives child
                selection" — child SM identity is fixed at codegen time
                by sce-build's `generate_hybrid_child_scxmls`. */
-            {% if model.needs_script_engine %}
+            {% if invoke_info.native_src %}
+            {# `datamodel="sce-static"`: the `srcexpr` is a string the machine
+               computed from its own fields (`HybridInvokeInfo::native_src`), no
+               script engine asked. One that failed cannot be evaluated: it
+               raises error.execution and starts nothing. #}
+            /* §scxml-6.4: the `srcexpr` names the document to start. */
+            char __sce_selected_{{ invoke_info.field_suffix }}[SCE_MAX_ID_LEN] = {0};
+            {
+                sce_forge_algorithm_failure_t sce_failure_ = {0};
+                const char *__sce_value = {{ invoke_info.native_src }};
+                if (sce_failure_.failed) {
+{% if 'error.execution' in model.events %}
+                    {{ csym_prefix }}{{ model.name }}_raise_platform_error(
+                        sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
+                        "<invoke srcexpr> could not be evaluated");
+{% endif %}
+                    continue;
+                }
+                sce_document_stem(__sce_value, __sce_selected_{{ invoke_info.field_suffix }}, sizeof(__sce_selected_{{ invoke_info.field_suffix }}));
+            }
+            {% elif model.needs_script_engine %}
             {% if invoke_info.srcexpr %}
+{% if invoke_info.candidates %}
+            char __sce_selected_{{ invoke_info.field_suffix }}[SCE_MAX_ID_LEN] = {0};
+{% endif %}
             /* W3C SCXML 6.4.3: srcexpr eval-validation. */
             if (luaL_dostring(sm->L,
                 "return ({{ invoke_info.srcexpr | to_lua_expr | escape_c }})") != 0) {
                 lua_pop(sm->L, 1);
+{% if 'error.execution' in model.events %}
                 {{ csym_prefix }}{{ model.name }}_raise_platform_error(
                     sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
-                    "<invoke> srcexpr failed to evaluate");
+                    "<invoke srcexpr='{{ invoke_info.srcexpr | escape_c }}'> could not be evaluated");
+{% endif %}
                 continue;
             }
+{% if invoke_info.candidates %}
+            /* §2.13: the stem of what the value named, which is what a
+               candidate is identified by. Directory and extension are cut so
+               `file:x.scxml`, `./x.scxml` and an absolute path agree. */
+            sce_document_stem(lua_tostring(sm->L, -1), __sce_selected_{{ invoke_info.field_suffix }}, sizeof(__sce_selected_{{ invoke_info.field_suffix }}));
+{% endif %}
             lua_pop(sm->L, 1);
             {% elif invoke_info.contentexpr %}
             /* W3C SCXML 6.4.4: contentexpr eval-validation. */
             if (luaL_dostring(sm->L,
                 "return ({{ invoke_info.contentexpr | to_lua_expr | escape_c }})") != 0) {
                 lua_pop(sm->L, 1);
+{% if 'error.execution' in model.events %}
                 {{ csym_prefix }}{{ model.name }}_raise_platform_error(
                     sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
-                    "<invoke> contentexpr failed to evaluate");
+                    "<invoke contentexpr='{{ invoke_info.contentexpr | escape_c }}'> could not be evaluated");
+{% endif %}
                 continue;
             }
             lua_pop(sm->L, 1);
             {% endif %}
             {% endif %}
+{% if invoke_info.candidates %}
+            /* §scxml-6.4 + SCE_ACCEPTED_SUBSET.md §2.13: the evaluated value
+               chooses among the declared candidates, matched on the document
+               stem. A value naming none of them is the failure the
+               Interpreter reports when a document will not load — and, as
+               there, the arguments are not read. */
+            if ({% for candidate in invoke_info.candidates %}strcmp(__sce_selected_{{ invoke_info.field_suffix }}, "{{ candidate.stem | escape_c }}") != 0{{ " && " if not loop.last }}{% endfor %}) {
+{% if 'error.execution' in model.events %}
+                {{ csym_prefix }}{{ model.name }}_raise_platform_error(
+                    sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
+                    "<invoke srcexpr{% if invoke_info.srcexpr %}='{{ invoke_info.srcexpr | escape_c }}'{% endif %}> evaluated to a document it did not declare");
+{% endif %}
+                continue;
+            }
+{{ invoke_namelist_guard(invoke_info, model, csym_prefix) }}
+{% for candidate in invoke_info.candidates %}
+            if (strcmp(__sce_selected_{{ invoke_info.field_suffix }}, "{{ candidate.stem | escape_c }}") == 0) {
+                /* Parent routing is stamped before the entry walk, for the
+                   reason the static-invoke site above states: a candidate
+                   that announces itself with `<onentry><send
+                   target="#_parent">` — which is how a selection becomes
+                   observable at all — would otherwise have that send
+                   dropped against a NULL dispatch. */
+{% if candidate.child_is_static %}
+                /* §scxml-6.4.1: a `sce-static` candidate is begun, handed the
+                   values of the `<param>`s and the `namelist` it keeps, and only
+                   then entered, so an `<onentry>` of its initial configuration
+                   reads what it was handed. Its parent routing is stamped by
+                   the same call. */
+{% if candidate.child_host_call %}
+                /* docs/adr/0005, decision 6: a candidate that declares
+                   `<sce:action>`s is begun with the table the parent's own table
+                   answers for IT, and refused as the invoke above is when there is
+                   none to give. */
+                if (!{{ csym_prefix }}{{ candidate.stem }}_invoked_begin(
+                        &sm->child_{{ invoke_info.field_suffix }}_{{ candidate.stem }},
+                        {{ candidate.child_host_call }},
+                        {% if candidate.child_has_send_to_parent %}sm,
+                        {{ csym_prefix }}{{ model.name }}_dispatch_external_by_name{% else %}NULL,
+                        NULL{% endif %},
+                        p->invoke_id,
+                        {{ child_clock_c }})) {
+{% if 'error.execution' in model.events %}
+                    {{ csym_prefix }}{{ model.name }}_raise_platform_error(
+                        sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
+                        "<invoke id='{{ invoke_info.invoke_id | escape_c }}'> was given no complete host for its child");
+{% endif %}
+                    continue;
+                }
+{% else %}
+                {{ csym_prefix }}{{ candidate.stem }}_invoked_begin(
+                    &sm->child_{{ invoke_info.field_suffix }}_{{ candidate.stem }},
+                    {% if candidate.child_has_send_to_parent %}sm,
+                    {{ csym_prefix }}{{ model.name }}_dispatch_external_by_name{% else %}NULL,
+                    NULL{% endif %},
+                    p->invoke_id,
+                    {{ child_clock_c }});
+{% endif %}
+{% else %}
+                {{ csym_prefix }}{{ candidate.stem }}_init_with_parent(
+                    &sm->child_{{ invoke_info.field_suffix }}_{{ candidate.stem }},
+                    sm,
+                    {{ csym_prefix }}{{ model.name }}_dispatch_external_by_name,
+                    p->invoke_id,
+                    {{ child_clock_c }});
+{% endif %}
+                sm->child_{{ invoke_info.field_suffix }}_{{ candidate.stem }}_active = true;
+                sce_copy_bounded_id(sm->child_{{ invoke_info.field_suffix }}_invoke_id, p->invoke_id);
+{{ invoke_seed_child(invoke_info, candidate, "sm->child_" ~ invoke_info.field_suffix ~ "_" ~ candidate.stem ~ ".L", model, csym_prefix, se) }}
+{% if candidate.child_is_static %}
+{{ seed_static_child("sm->child_" ~ invoke_info.field_suffix ~ "_" ~ candidate.stem, candidate.seeds, candidate.unkept, model, csym_prefix) }}
+                {{ csym_prefix }}{{ candidate.stem }}_invoked_enter(&sm->child_{{ invoke_info.field_suffix }}_{{ candidate.stem }});
+                /* The macrostep that follows the entry walk, now that the values
+                   are in and parent routing is live: a candidate that ends on
+                   what it was handed ends here. One that sends to its parent is
+                   driven further, up to a safety bound of 16, as a static child
+                   is; any other is driven on from `_drive_active_children`. */
+                {{ csym_prefix }}{{ candidate.stem }}_step(&sm->child_{{ invoke_info.field_suffix }}_{{ candidate.stem }});
+{% if candidate.child_has_send_to_parent %}
+                for (int _step_n = 1; _step_n < 16; ++_step_n) {
+                    if ({{ csym_prefix }}{{ candidate.stem }}_is_in_final_state(&sm->child_{{ invoke_info.field_suffix }}_{{ candidate.stem }})) {
+                        break;
+                    }
+                    {{ csym_prefix }}{{ candidate.stem }}_step(&sm->child_{{ invoke_info.field_suffix }}_{{ candidate.stem }});
+                }
+{% endif %}
+{% endif %}
+{% if invoke_info.use_specific_event or 'done.invoke' in model.events %}
+                /* Only when the document listens for it: a machine that
+                   observes its child by what the child SENDS has no
+                   done-event in its enum, and naming one asks the compiler
+                   for a member the document never declared. */
+                if ({{ csym_prefix }}{{ candidate.stem }}_is_in_final_state(&sm->child_{{ invoke_info.field_suffix }}_{{ candidate.stem }})) {
+                    {{ csym_prefix }}{{ model.name }}_event_with_meta_t _done_evt;
+                    memset(&_done_evt, 0, sizeof(_done_evt));
+                    _done_evt.event = {% if invoke_info.use_specific_event %}{{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_DONE_INVOKE_{{ invoke_info.invoke_id | to_c11_upper_ident }}{% else %}{{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_DONE_INVOKE{% endif %};
+{% if not invoke_info.use_specific_event %}
+/* §scxml-5.10: `_event.name` is the specific `done.invoke.<id>`, though the
+   document listens for the generic descriptor it is matched through. */
+sce_copy_bounded_id(_done_evt.name, "done.invoke.{{ invoke_info.invoke_id | escape_c }}");
+{% endif %}
+                    sce_copy_bounded_id(_done_evt.invoke_id, p->invoke_id);
+                    {{ csym_prefix }}{{ model.name }}_raise_external(sm, &_done_evt);
+                }
+{% endif %}
+                continue;
+            }
+{% endfor %}
+            continue;
+{% else %}
             /* W3C SCXML 6.4: spawn pre-generated AOT stub child
                `{{ invoke_info.child_name }}` (initial=`<final>` so the
                child reaches its final state during `_init`'s entry
                walk and the immediate-final raise below fires
                `done.invoke` synchronously). */
+{{ invoke_namelist_guard(invoke_info, model, csym_prefix) }}
             {{ csym_prefix }}{{ invoke_info.child_name }}_init(&sm->child_{{ invoke_info.field_suffix }});
             sm->child_{{ invoke_info.field_suffix }}_active = true;
             sce_copy_bounded_id(sm->child_{{ invoke_info.field_suffix }}_invoke_id, p->invoke_id);
+{{ invoke_seed_child(invoke_info, invoke_info, "sm->child_" ~ invoke_info.field_suffix ~ ".L", model, csym_prefix, se) }}
             if ({{ csym_prefix }}{{ invoke_info.child_name }}_is_in_final_state(&sm->child_{{ invoke_info.field_suffix }})) {
                 {{ csym_prefix }}{{ model.name }}_event_with_meta_t _done_evt;
                 memset(&_done_evt, 0, sizeof(_done_evt));
-                _done_evt.event = {% if invoke_info.use_specific_event %}{{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_DONE_INVOKE_{{ invoke_info.invoke_id | upper | replace('.', '_') | replace('-', '_') }}{% else %}{{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_DONE_INVOKE{% endif %};
+                _done_evt.event = {% if invoke_info.use_specific_event %}{{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_DONE_INVOKE_{{ invoke_info.invoke_id | to_c11_upper_ident }}{% else %}{{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_DONE_INVOKE{% endif %};
+{% if not invoke_info.use_specific_event %}
+/* §scxml-5.10: `_event.name` is the specific `done.invoke.<id>`, though the
+   document listens for the generic descriptor it is matched through. */
+sce_copy_bounded_id(_done_evt.name, "done.invoke.{{ invoke_info.invoke_id | escape_c }}");
+{% endif %}
                 sce_copy_bounded_id(_done_evt.invoke_id, p->invoke_id);
                 {% if invoke_info.child_needs_script_engine %}
                 /* W3C SCXML 5.5 + 6.3.1: hybrid sync-final donedata carry —
@@ -470,6 +1008,7 @@ static void {{ csym_prefix }}{{ model.name }}_execute_pending_invokes({{ csym_pr
                 {% endif %}
                 {{ csym_prefix }}{{ model.name }}_raise_external(sm, &_done_evt);
             }
+{% endif %}
             continue;
         }
         {% endfor %}
@@ -506,21 +1045,40 @@ static void {{ csym_prefix }}{{ model.name }}_drive_active_children({{ csym_pref
        reason to drive them is defensive — a future stub that defers
        finalisation would land here. The trivial-stub fast path below
        no-ops gracefully. */
-    if (sm->child_{{ invoke_info.field_suffix }}_active
-        && !{{ csym_prefix }}{{ invoke_info.child_name }}_is_in_final_state(&sm->child_{{ invoke_info.field_suffix }})) {
-        {{ csym_prefix }}{{ invoke_info.child_name }}_step(&sm->child_{{ invoke_info.field_suffix }});
-        if ({{ csym_prefix }}{{ invoke_info.child_name }}_is_in_final_state(&sm->child_{{ invoke_info.field_suffix }})) {
+{% set tick_targets = invoke_info.candidates if invoke_info.candidates else [{'stem': invoke_info.child_name}] %}
+{% for target in tick_targets %}
+{% set slot = ('child_' ~ invoke_info.field_suffix ~ '_' ~ target.stem) if invoke_info.candidates else ('child_' ~ invoke_info.field_suffix) %}
+    if (sm->{{ slot }}_active
+        && !{{ csym_prefix }}{{ target.stem }}_is_in_final_state(&sm->{{ slot }})) {
+{% if target.child_needs_event_scheduler %}
+        /* §scxml-6.2: the candidate carries `<send delay>` in its own session,
+           so its `_tick` promotes the elapsed events and runs a macrostep;
+           `_step` alone would never dispatch them. */
+        {{ csym_prefix }}{{ target.stem }}_tick(&sm->{{ slot }});
+{% else %}
+        {{ csym_prefix }}{{ target.stem }}_step(&sm->{{ slot }});
+{% endif %}
+{% if invoke_info.use_specific_event or 'done.invoke' in model.events %}
+        /* Raised only when the document listens for it — see the spawn site. */
+        if ({{ csym_prefix }}{{ target.stem }}_is_in_final_state(&sm->{{ slot }})) {
             {{ csym_prefix }}{{ model.name }}_event_with_meta_t _done_evt;
             memset(&_done_evt, 0, sizeof(_done_evt));
-            _done_evt.event = {% if invoke_info.use_specific_event %}{{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_DONE_INVOKE_{{ invoke_info.invoke_id | upper | replace('.', '_') | replace('-', '_') }}{% else %}{{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_DONE_INVOKE{% endif %};
+            _done_evt.event = {% if invoke_info.use_specific_event %}{{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_DONE_INVOKE_{{ invoke_info.invoke_id | to_c11_upper_ident }}{% else %}{{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_DONE_INVOKE{% endif %};
+{% if not invoke_info.use_specific_event %}
+/* §scxml-5.10: `_event.name` is the specific `done.invoke.<id>`, though the
+   document listens for the generic descriptor it is matched through. */
+sce_copy_bounded_id(_done_evt.name, "done.invoke.{{ invoke_info.invoke_id | escape_c }}");
+{% endif %}
             sce_copy_bounded_id(_done_evt.invoke_id, sm->child_{{ invoke_info.field_suffix }}_invoke_id);
             {% if invoke_info.child_needs_script_engine %}
             /* W3C SCXML 5.5 + 6.3.1: hybrid async-final donedata carry. */
-            {{ se.lua_marshal_child_donedata("sm->child_" ~ invoke_info.field_suffix ~ ".L", "_done_evt") }}
+            {{ se.lua_marshal_child_donedata("sm->" ~ slot ~ ".L", "_done_evt") }}
             {% endif %}
             {{ csym_prefix }}{{ model.name }}_raise_external(sm, &_done_evt);
         }
+{% endif %}
     }
+{% endfor %}
     {% endfor %}
     {% for invoke_info in state.invokes | scxml %}
     if (sm->child_{{ invoke_info.field_suffix }}_active
@@ -536,12 +1094,6 @@ static void {{ csym_prefix }}{{ model.name }}_drive_active_children({{ csym_pref
         {{ csym_prefix }}{{ invoke_info.child_name }}_step(&sm->child_{{ invoke_info.field_suffix }});
         {% endif %}
         if ({{ csym_prefix }}{{ invoke_info.child_name }}_is_in_final_state(&sm->child_{{ invoke_info.field_suffix }})) {
-            {% if invoke_info.child_has_send_to_parent %}
-            /* W3C SCXML 3.4 (test236-shape async-final): mirror the
-               sync-final exit walk so `<onexit>` of the just-entered
-               final state runs before `done.invoke`. */
-            {{ csym_prefix }}{{ invoke_info.child_name }}_finalize_session(&sm->child_{{ invoke_info.field_suffix }});
-            {% endif %}
             /* W3C SCXML 6.4 / 6.3.1: child completed asynchronously
                (post-init parent→child message drove it to <final>).
                Raise done.invoke with the spawn-time invoke_id stamped
@@ -553,14 +1105,19 @@ static void {{ csym_prefix }}{{ model.name }}_drive_active_children({{ csym_pref
                drains the verdict event first. */
             {{ csym_prefix }}{{ model.name }}_event_with_meta_t _done_evt;
             memset(&_done_evt, 0, sizeof(_done_evt));
-            _done_evt.event = {% if invoke_info.use_specific_event %}{{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_DONE_INVOKE_{{ invoke_info.invoke_id | upper | replace('.', '_') | replace('-', '_') }}{% else %}{{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_DONE_INVOKE{% endif %};
+            _done_evt.event = {% if invoke_info.use_specific_event %}{{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_DONE_INVOKE_{{ invoke_info.invoke_id | to_c11_upper_ident }}{% else %}{{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_DONE_INVOKE{% endif %};
+{% if not invoke_info.use_specific_event %}
+/* §scxml-5.10: `_event.name` is the specific `done.invoke.<id>`, though the
+   document listens for the generic descriptor it is matched through. */
+sce_copy_bounded_id(_done_evt.name, "done.invoke.{{ invoke_info.invoke_id | escape_c }}");
+{% endif %}
             sce_copy_bounded_id(_done_evt.invoke_id, sm->child_{{ invoke_info.field_suffix }}_invoke_id);
             {% if invoke_info.child_needs_script_engine %}
             /* W3C SCXML 5.5 + 6.3.1: scxml async-final donedata carry —
                the child reached `<final>` during a post-init macrostep
                (parent→child `<send target="#_<invokeid>">` drove it).
                Same lift contract as the sync-final site in
-               `execute_pending_invokes`; the lua-side `_pending_donedata`
+               `execute_pending_invokes`; the lua-side `_sce_donedata`
                slot is whatever the child's terminal `<donedata>` emit
                stashed before this `_step` returned. */
             {{ se.lua_marshal_child_donedata("sm->child_" ~ invoke_info.field_suffix ~ ".L", "_done_evt") }}
@@ -584,10 +1141,14 @@ static void {{ csym_prefix }}{{ model.name }}_destroy_active_children({{ csym_pr
     }
     {% endfor %}
     {% for invoke_info in state.invokes | hybrid %}
-    if (sm->child_{{ invoke_info.field_suffix }}_active) {
-        {{ csym_prefix }}{{ invoke_info.child_name }}_destroy(&sm->child_{{ invoke_info.field_suffix }});
-        sm->child_{{ invoke_info.field_suffix }}_active = false;
+{% set destroy_targets = invoke_info.candidates if invoke_info.candidates else [{'stem': invoke_info.child_name}] %}
+{% for target in destroy_targets %}
+{% set slot = ('child_' ~ invoke_info.field_suffix ~ '_' ~ target.stem) if invoke_info.candidates else ('child_' ~ invoke_info.field_suffix) %}
+    if (sm->{{ slot }}_active) {
+        {{ csym_prefix }}{{ target.stem }}_destroy(&sm->{{ slot }});
+        sm->{{ slot }}_active = false;
     }
+{% endfor %}
     {% endfor %}
     {% endfor %}
 }

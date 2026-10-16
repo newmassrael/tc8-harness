@@ -1,15 +1,14 @@
-// SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
+// SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
 // SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael
 //
 // This file is part of SCE (SCXML Core Engine).
 //
 // Dual Licensed:
-// 1. LGPL-2.1: Free for unmodified use (see LICENSE-LGPL-2.1.md)
+// 1. AGPL-3.0 + Linking Exception: Free for unmodified use (see LICENSE-EXCEPTION.md)
 // 2. Commercial: For modifications (contact newmassrael@gmail.com)
 //
 // Commercial License:
-//   Individual: $5000 cumulative
-//   Enterprise: Contact for pricing
+//   Pricing: contact newmassrael@gmail.com
 //   Contact: https://github.com/newmassrael
 //
 // Full terms: https://github.com/newmassrael/scxml-core-engine/blob/main/LICENSE
@@ -18,6 +17,7 @@
 
 #include "SCXMLTypes.h"
 #include "common/EventDataHelper.h"
+#include "core/InvokeHelper.h"
 #include "core/StatePolicyConcepts.h"
 #include <any>
 #include <optional>
@@ -86,17 +86,31 @@ template <typename P, typename = void> struct has_pendingEventName : std::false_
 template <typename P>
 struct has_pendingEventName<P, std::void_t<decltype(std::declval<P>().pendingEventName_)>> : std::true_type {};
 
-// NL→IR Item C1 Path A (EventSchema native lowering): detect the generated
-// policy's typed-payload populate hook. Present only on a policy whose
-// statechart reads a typed `_event.data.<field>` guard that lowered natively;
-// when absent the if-constexpr block below is a no-op, so every existing
-// policy is unaffected.
-template <typename P, typename = void> struct has_populateTypedPayload : std::false_type {};
+// §scxml-5.10: the name an event arrived under when it is not the one its enum member
+// carries (see EventWithMetadata::name); present on a policy that binds `_event.name`.
+template <typename P, typename = void> struct has_pendingEventArrivalName : std::false_type {};
 
 template <typename P>
-struct has_populateTypedPayload<
-    P, std::void_t<decltype(std::declval<P &>().populateTypedPayload(std::declval<const std::any &>()))>>
+struct has_pendingEventArrivalName<P, std::void_t<decltype(std::declval<P>().pendingEventArrivalName_)>>
     : std::true_type {};
+
+// NL→IR Item C1 Path A (EventSchema native lowering): detect the generated
+// policy's typed-payload bind hook. Present only on a policy whose statechart
+// reads a typed `_event.data.<field>` guard that lowered natively; when absent
+// the if-constexpr block below is a no-op, so every existing policy is
+// unaffected.
+//
+// ⚠ The hook takes the WHOLE dequeued event, not just its `std::any` carrier:
+// binding the typed view needs the event's name — to know which schema its data
+// must read as — and its `data`, which is what every producer but the generated
+// inject seam fills. It answers with the sentence saying why it could not bind,
+// empty when it did, and the ENGINE turns that into `error.execution`.
+template <typename P, typename M, typename = void> struct has_populateTypedPayload : std::false_type {};
+
+template <typename P, typename M>
+struct has_populateTypedPayload<
+    P, M, std::void_t<decltype(std::declval<P &>().populateTypedPayload(std::declval<const M &>()))>> : std::true_type {
+};
 
 }  // namespace detail
 
@@ -202,6 +216,12 @@ public:
     static void
     populatePolicyFromMetadata(Policy &policy,
                                const typename SCE::Static::StaticExecutionEngine<Policy>::EventWithMetadata &metadata) {
+        // §scxml-5.10: Set the arrival name for _event.name — empty when the enum
+        // member's own name is the name the event was sent under
+        if constexpr (detail::has_pendingEventArrivalName<Policy>::value) {
+            policy.pendingEventArrivalName_ = metadata.name;
+        }
+
         // §scxml-5.10: Set pending event data for _event.data access (test176)
         if constexpr (detail::has_pendingEventData<Policy>::value) {
             policy.pendingEventData_ = metadata.data;
@@ -241,15 +261,11 @@ public:
             }
         }
 
-        // NL→IR Item C1 Path A: lift the dequeued event's typed `_event.data`
-        // payload into the generated policy's typed channel (no script engine).
-        // The hook resets its tag and any_casts the carrier into the matching
-        // pending<Event>Payload_ field; the native transition guards read it.
-        // Twin of the Go policy's PopulateEventMetadata type-switch and the
-        // C11 pop loop's `sm->pending_payload = evt.payload`.
-        if constexpr (detail::has_populateTypedPayload<Policy>::value) {
-            policy.populateTypedPayload(metadata.typedPayload);
-        }
+        // NL→IR Item C1 Path A: binding the typed `_event.data` view is NOT
+        // done here. The bind can refuse — a payload that does not read as its
+        // schema — and §scxml-3.13's answer to that is `error.execution`, which
+        // only the engine can raise. `StaticExecutionEngine::bindTypedPayload`
+        // owns both halves, beside its own call to this function.
     }
 
     /**
@@ -274,6 +290,10 @@ public:
         // §scxml-5.10: Clear event name for next cycle
         if constexpr (detail::has_pendingEventName<Policy>::value) {
             policy.pendingEventName_.clear();
+        }
+
+        if constexpr (detail::has_pendingEventArrivalName<Policy>::value) {
+            policy.pendingEventArrivalName_.clear();
         }
 
         // §scxml-5.10: Clear event data for next cycle
@@ -365,15 +385,21 @@ public:
      */
     template <typename EventEnum, typename MetadataType>
     static MetadataType createDoneInvokeEvent(EventEnum event, const std::string &invokeId) {
-        return MetadataType(event,     // event - §scxml-6.4.3: done.invoke or done.invoke.id
-                            "",        // data - empty (no donedata from child)
-                            "",        // origin - empty (child completion doesn't specify origin)
-                            "",        // sendId - empty (not a send event)
-                            "",        // type - empty (internal event, not external)
-                            "",        // originType - empty (not external event)
-                            invokeId,  // invokeId - §scxml-5.10.1: _event.invokeid field
-                            ""         // target - empty (not a send event)
+        MetadataType metadata(event,     // event - §scxml-6.4.3: done.invoke or done.invoke.id
+                              "",        // data - empty (no donedata from child)
+                              "",        // origin - empty (child completion doesn't specify origin)
+                              "",        // sendId - empty (not a send event)
+                              "",        // type - empty (internal event, not external)
+                              "",        // originType - empty (not external event)
+                              invokeId,  // invokeId - §scxml-5.10.1: _event.invokeid field
+                              ""         // target - empty (not a send event)
         );
+        // §scxml-5.10: `_event.name` is the specific `done.invoke.<id>`, whichever
+        // descriptor of the document (`done.invoke.<id>`, `done.invoke`, `done`) the
+        // member the caller chose stands for. For the member that IS the specific
+        // name this is the name it already has.
+        metadata.name = ::SCE::Core::InvokeHelper::createDoneInvokeEventName(invokeId);
+        return metadata;
     }
 
     /**
@@ -412,6 +438,8 @@ public:
                               ""         // target
         );
         metadata.typedData = std::move(typedData);
+        // §scxml-5.10: the specific name, as in the overload above.
+        metadata.name = ::SCE::Core::InvokeHelper::createDoneInvokeEventName(invokeId);
         return metadata;
     }
 };

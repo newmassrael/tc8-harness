@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {# W3C SCXML 6.3: Cancel delayed send event.
@@ -8,10 +8,44 @@
    guarantees one branch matches. #}
 {% if action.sendid %}
 	engine.CancelEvent("{{ action.sendid | escape_go }}")
+{% elif action.native_sendid %}
+{# `datamodel="sce-static"`: the id is a string computed from the machine's
+   fields now (`Action::native_sendid`); no script engine is asked. An id no send
+   holds cancels nothing; an operation that fails cannot be evaluated, which
+   raises error.execution and ends the block. #}
+	{
+{% if action.native_sendid_fails %}
+		var sceFailure scealgorithm.Failure
+{% endif %}
+		cancelSendID := {{ action.native_sendid }}
+{% if action.native_sendid_fails %}
+		if sceFailure.Failed() {
+{% if 'error.execution' in model.events %}
+			engine.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<cancel> sendidexpr failed to evaluate"))
+{% endif %}
+{% if in_action_block is defined and in_action_block %}
+			return
+{% endif %}
+		} else {
+			engine.CancelEvent(cancelSendID)
+		}
+{% else %}
+		engine.CancelEvent(cancelSendID)
+{% endif %}
+	}
 {% elif action.sendidexpr and model.needs_script_engine %}
 	{
 		cancelSendIDVal, cancelErr := p.ScriptEngine.EvaluateExpression(p.SessionID, `{{ action.sendidexpr | to_lua_expr }}`)
-		if cancelErr == nil && cancelSendIDVal != nil {
+		if cancelErr != nil {
+			// W3C SCXML 5.9: a sendidexpr that fails raises error.execution,
+			// and (W3C SCXML 4.9) the error ends the block.
+{% if 'error.execution' in model.events %}
+			engine.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<cancel> sendidexpr failed to evaluate"))
+{% endif %}
+{% if in_action_block is defined and in_action_block %}
+			return
+{% endif %}
+		} else if cancelSendIDVal != nil {
 			engine.CancelEvent(fmt.Sprintf("%v", cancelSendIDVal))
 		}
 	}

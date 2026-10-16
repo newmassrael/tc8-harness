@@ -1,13 +1,18 @@
-// SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
+// SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
 // SPDX-FileCopyrightText: Copyright (c) 2026 newmassrael
 
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
+
+#include "core/InvokeHelper.h"
 
 namespace SCE {
 
@@ -50,6 +55,21 @@ struct HostSendRequest {
     /// The send's id (§scxml-6.2.4), auto-generated when the document declared
     /// none. A handler correlating a reply, or honouring a `<cancel>`, needs it.
     std::string sendId;
+    /// The event's data exactly as a local delivery of this send would carry
+    /// it in `_event.data` (§scxml-5.10): the namelist and `<param>` pairs as
+    /// JSON, or the `<content>`, or empty. Computed once by the engine, so a
+    /// host that forwards the event — the Mesh router puts it in an envelope —
+    /// forwards the engine's serialisation rather than making a second one
+    /// from `params` that could differ from it.
+    std::string eventData;
+    /// `_event.invokeid` of the event being processed when the `<send>`
+    /// executed, empty when it had none. A send made while handling an event
+    /// carries its invokeid back out, as a W3C child's send to its parent does
+    /// (§scxml-6.4.1); a Mesh router matches the reply a document sends to the
+    /// request it received by nothing else (SCE_MESH.md §mesh-10.7). Taken when
+    /// the send executes, so a delayed one carries the invokeid current then,
+    /// not when it fires.
+    std::string invokeId;
 };
 
 /**
@@ -140,8 +160,26 @@ struct HostInvokeRequest {
     /// `<param>` values keyed by name; a repeated name keeps every value in
     /// document order.
     std::map<std::string, std::vector<std::string>> params;
+    /// The namelist and `<param>` pairs as JSON, typed as the data model holds
+    /// them — the text a local `<send>` with the same pairs would carry in
+    /// `_event.data` (§scxml-5.10) — or empty when there are none. Params the
+    /// build marked as envelope metadata are left out. Computed once by the
+    /// generated invoke site, so a host that forwards the request forwards the
+    /// engine's serialisation rather than a second one made from `params`,
+    /// which are text and have lost their types.
+    std::string eventData;
     /// Inline `<content>`, empty when the document carried none.
     std::string content;
+    /// Which start of this invoke this is. The engine assigns it, and a host
+    /// that finishes later hands it back to `completeHostInvoke`.
+    ///
+    /// The id alone cannot say it: a state that exits and is entered again
+    /// starts the same `<invoke>` a second time under the same id, and a result
+    /// the first run produces after it was cancelled would otherwise read as
+    /// the second run's (§scxml-6.4 — once the state has exited, what the
+    /// cancelled process sends is ignored). Distinct for every start of every
+    /// invocation within one engine.
+    uint64_t token = 0;
 };
 
 /**
@@ -152,6 +190,9 @@ struct HostInvokeCancel {
     std::string processorType;
     /// The invocation being cancelled — the same id its start carried.
     std::string invokeId;
+    /// The token its start carried, so a host running more than one start of
+    /// the same id stops the right one.
+    uint64_t token = 0;
 };
 
 /**
@@ -169,10 +210,10 @@ struct HostInvokeEvent {
     std::optional<HostInvokeRequest> start;
     /// §scxml-6.4: the state exited. Stop it.
     ///
-    /// Delivered only for an invocation that actually started: a state that
-    /// exits before the macrostep ends never runs its invoke, and cancelling
-    /// something that never began would have the host tearing down state it
-    /// never built.
+    /// Delivered only for an invocation that is still running: one that never
+    /// started (its state exited before the macrostep ended) has nothing to
+    /// tear down, and one that already completed has nothing left to stop —
+    /// `done.invoke` said the process is over.
     std::optional<HostInvokeCancel> cancel;
 };
 
@@ -187,16 +228,124 @@ struct HostInvokeResponse {
     /// that completed before returning.
     ///
     /// `std::nullopt` is the ordinary case: the work outlives the call, and
-    /// the host raises the completion itself when it finishes. SCE does not
-    /// synthesise a completion the host did not report — an invoked process
-    /// that never terminates never fires `done.invoke`, which is what
-    /// §scxml-6.4 says.
+    /// the host reports it through `completeHostInvoke` with the request's
+    /// token when it finishes. SCE does not synthesise a completion the host
+    /// did not report — an invoked process that never terminates never fires
+    /// `done.invoke`, which is what §scxml-6.4 says.
     std::optional<std::string> doneData;
+    /// The host could not start the invocation at all: `_event.data` for the
+    /// `error.execution` the engine raises instead (§scxml-6.4.1 — an
+    /// invocation that cannot be started is an error of the element, not an
+    /// `error.invoke` of a process that ran). Text, or JSON when the host
+    /// reports a structured reason. A refused invocation never started: its
+    /// deadline is dropped, no cancel follows, and a completion reported for
+    /// it later is refused. It overrides `doneData`, since nothing ran to
+    /// complete.
+    std::optional<std::string> refusal;
 };
 
 /**
  * @brief A registered invoke-lifecycle handler
  */
 using HostInvokeHandler = std::function<std::optional<HostInvokeResponse>(const HostInvokeEvent &)>;
+
+/**
+ * @brief The reserved `<param>` a host-run `<invoke>` names its deadline with,
+ *        in milliseconds
+ *
+ * The engine reads it and does not hand it to the host: past the deadline, an
+ * invocation still running is cancelled and the document receives
+ * `error.invoke.<id>` instead of its completion. A neutral name rather than
+ * `sce:mesh-rpc`'s `_mesh_deadline_ms`, so the two invoke types converge on one
+ * spelling.
+ */
+inline constexpr std::string_view HOST_INVOKE_DEADLINE_PARAM = "_sce_deadline_ms";
+
+/**
+ * @brief Read the text of a HOST_INVOKE_DEADLINE_PARAM value as milliseconds
+ *
+ * One or more ASCII digits, optionally followed by `.` and one or more `0` — a
+ * `<param expr>` reaches the request as the text of its value, and a script
+ * engine may render a whole number `5000.0` — within a signed 64-bit count.
+ * Anything else is `std::nullopt`: no sign, no whitespace, no exponent, no
+ * digit separator.
+ *
+ * Spelled out rather than left to `strtoull`, which skips leading whitespace
+ * and reads a sign, because every runtime implements this and the languages'
+ * parsers disagree; the table they are all held to is
+ * `sce-build/tests/fixtures/host_processor/host_invoke_deadline_values.json`.
+ */
+inline std::optional<uint64_t> parseHostInvokeDeadlineMs(std::string_view written) {
+    const auto dot = written.find('.');
+    const std::string_view whole = written.substr(0, dot);
+    if (whole.empty()) {
+        return std::nullopt;
+    }
+    constexpr uint64_t max = static_cast<uint64_t>(INT64_MAX);
+    uint64_t ms = 0;
+    for (const char c : whole) {
+        if (c < '0' || c > '9') {
+            return std::nullopt;
+        }
+        const auto digit = static_cast<uint64_t>(c - '0');
+        if (ms > (max - digit) / 10) {
+            return std::nullopt;
+        }
+        ms = ms * 10 + digit;
+    }
+    if (dot != std::string_view::npos) {
+        const std::string_view fraction = written.substr(dot + 1);
+        if (fraction.empty() || fraction.find_first_not_of('0') != std::string_view::npos) {
+            return std::nullopt;
+        }
+    }
+    return ms;
+}
+
+/**
+ * @brief Which start of which host-run invocation a scheduled deadline ends
+ */
+struct HostInvokeDeadline {
+    /// The invocation's `type`.
+    std::string processorType;
+    /// The invocation's id.
+    std::string invokeId;
+    /// The start this deadline belongs to; a restart under the same id has its
+    /// own.
+    uint64_t token = 0;
+};
+
+/**
+ * @brief Whether an event named `eventName` carrying `_event.invokeid` =
+ *        `invokeId` is the completion of a host-run invocation
+ *
+ * That is a `done.invoke.<id>` whose `<id>` is one of `hostInvokeIds`, or the
+ * generic `done.invoke` a document that names no specific completion
+ * receives, whose invokeid is one of them.
+ *
+ * Such an event is accepted only through `completeHostInvoke`, the one path
+ * that knows the invocation is still running. Raised any other way it could
+ * be a cancelled run's late reply (§scxml-6.4), so the engine refuses it.
+ */
+inline bool isHostInvokeCompletion(std::string_view eventName, std::string_view invokeId,
+                                   const std::string_view *hostInvokeIds, std::size_t hostInvokeIdCount) {
+    constexpr std::string_view prefix = ::SCE::Core::InvokeHelper::DONE_INVOKE_PREFIX;
+    std::string_view id;
+    if (eventName.substr(0, prefix.size()) == prefix) {
+        id = eventName.substr(prefix.size());
+    } else if (eventName == ::SCE::Core::InvokeHelper::DONE_INVOKE_EVENT) {
+        // The generic `done.invoke` a document that names no specific
+        // completion receives: its invokeid says whose completion it is.
+        id = invokeId;
+    } else {
+        return false;
+    }
+    for (std::size_t i = 0; i < hostInvokeIdCount; ++i) {
+        if (id == hostInvokeIds[i]) {
+            return true;
+        }
+    }
+    return false;
+}
 
 }  // namespace SCE

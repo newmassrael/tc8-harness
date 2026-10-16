@@ -1,15 +1,14 @@
-// SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
+// SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
 // SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael
 //
 // This file is part of SCE (SCXML Core Engine).
 //
 // Dual Licensed:
-// 1. LGPL-2.1: Free for unmodified use (see LICENSE-LGPL-2.1.md)
+// 1. AGPL-3.0 + Linking Exception: Free for unmodified use (see LICENSE-EXCEPTION.md)
 // 2. Commercial: For modifications (contact newmassrael@gmail.com)
 //
 // Commercial License:
-//   Individual: $5000 cumulative
-//   Enterprise: Contact for pricing
+//   Pricing: contact newmassrael@gmail.com
 //   Contact: https://github.com/newmassrael
 //
 // Full terms: https://github.com/newmassrael/scxml-core-engine/blob/main/LICENSE
@@ -95,10 +94,11 @@ public:
      *
      * @param bindingMode Binding mode ("early", "late", or empty for default)
      * @param isFirstEntry true if this is the first time entering the state
-     * @param hasExpr true if <data> element has expr attribute
+     * @param hasInitializer true if the <data> element carries a value to
+     *        assign — an `expr`, a `src` or inline content
      * @return true if variable should be assigned value on state entry
      */
-    static bool shouldAssignValueOnStateEntry(const std::string &bindingMode, bool isFirstEntry, bool hasExpr) {
+    static bool shouldAssignValueOnStateEntry(const std::string &bindingMode, bool isFirstEntry, bool hasInitializer) {
         // Early binding: never assign on state entry (already done at load)
         if (isEarlyBinding(bindingMode)) {
             return false;
@@ -106,7 +106,7 @@ public:
 
         // Late binding: assign values on first entry only
         // §scxml-B-2-2: "only when the state containing them is first entered"
-        return isLateBinding(bindingMode) && isFirstEntry && hasExpr;
+        return isLateBinding(bindingMode) && isFirstEntry && hasInitializer;
     }
 
     /**

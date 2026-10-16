@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
@@ -13,9 +13,23 @@
 // parameters lower to `[]byte` (RFC §synth-5-J-5 emitter table).
 
 package {{ package }}
-{% if all_imports %}
+{# `round(x)` and `floor(x)` lower to `math.Round` / `math.Floor`, and a string
+   joined to an integer to `strconv.FormatInt`. `std_imports` is the standard
+   packages the emitted text uses, read off it by the render door
+   (`LangCtx::render`) with literals and comments skipped — so the import block
+   cannot fall behind the vocabulary, and a name inside a string cannot add an
+   import. `uses_scealgorithm` is the same fact for the forge runtime: the body
+   names it for a `may-fail` algorithm's checked operations and for an
+   enum-valued conditional alike, so the text decides and `may_fail` does not. #}
+{% if all_imports or uses_scealgorithm or std_imports %}
 
 import (
+{% for pkg in std_imports %}
+	"{{ pkg }}"
+{% endfor %}
+{% if uses_scealgorithm %}
+	scealgorithm "github.com/newmassrael/sce-forge-runtime/algorithm"
+{% endif %}
 {% for imp in all_imports %}
 {{ imp.include_stmt }}
 {% endfor %}
@@ -23,5 +37,10 @@ import (
 {% endif %}
 
 {{ consts_prelude }}func {{ primary_symbol }}({{ params_str }}){% if has_return %} {{ return_type }}{% endif %} {
+{% if may_fail %}
+    // SCE_FORGE.md §3.4.1: each checked operation records a failure here, and
+    // the statement around it returns it before the next statement runs.
+    var sceFailure scealgorithm.Failure
+{% endif %}
 {{ body }}
 }

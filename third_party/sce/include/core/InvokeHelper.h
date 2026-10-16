@@ -1,10 +1,10 @@
-// SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
+// SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
 // SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael
 //
 // This file is part of SCE (SCXML Core Engine).
 //
 // Dual Licensed:
-// 1. LGPL-2.1: Free for unmodified use (see LICENSE-LGPL-2.1.md)
+// 1. AGPL-3.0 + Linking Exception: Free for unmodified use (see LICENSE-EXCEPTION.md)
 // 2. Commercial: For modifications (contact newmassrael@gmail.com)
 //
 // Commercial License:
@@ -19,6 +19,7 @@
 #include "core/LogMacros.h"
 #include <algorithm>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace SCE::Core {
@@ -263,8 +264,39 @@ public:
      */
     static std::string createDoneInvokeEventName(const std::string &invokeId) {
         // §scxml-6.4.3: done.invoke.{invokeid} event naming
-        return "done.invoke." + invokeId;
+        return std::string(DONE_INVOKE_PREFIX) + invokeId;
     }
+
+    /**
+     * @brief §scxml-6.3.1: what every `done.invoke.<id>` begins with, spelled
+     *        once so building the name and recognising it cannot disagree
+     */
+    static constexpr std::string_view DONE_INVOKE_PREFIX = "done.invoke.";
+
+    /**
+     * @brief §scxml-3.12.1: the generic completion descriptor
+     *
+     * A document that names no specific `done.invoke.<id>` matches every
+     * completion through it, so it is the event a completion falls back to.
+     */
+    static constexpr std::string_view DONE_INVOKE_EVENT = "done.invoke";
+
+    /**
+     * @brief The event an invocation that did not finish raises instead of
+     *        its completion
+     *
+     * A host-run invocation past its `_sce_deadline_ms`, named the way
+     * `sce:mesh-rpc` names a request that ran out of time (SCE_MESH.md §9.5),
+     * so a document handles the two alike. Specific form: `error.invoke.<id>`.
+     */
+    static constexpr std::string_view ERROR_INVOKE_PREFIX = "error.invoke.";
+
+    /**
+     * @brief The generic form of ERROR_INVOKE_PREFIX, for a document that names
+     *        no specific `error.invoke.<id>` — as DONE_INVOKE_EVENT is for a
+     *        completion
+     */
+    static constexpr std::string_view ERROR_INVOKE_EVENT = "error.invoke";
 
     /**
      * @brief §scxml-6.4.1: Validate invoke ID format

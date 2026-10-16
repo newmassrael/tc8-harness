@@ -1,15 +1,14 @@
-// SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
+// SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
 // SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael
 //
 // This file is part of SCE (SCXML Core Engine).
 //
 // Dual Licensed:
-// 1. LGPL-2.1: Free for unmodified use (see LICENSE-LGPL-2.1.md)
+// 1. AGPL-3.0 + Linking Exception: Free for unmodified use (see LICENSE-EXCEPTION.md)
 // 2. Commercial: For modifications (contact newmassrael@gmail.com)
 //
 // Commercial License:
-//   Individual: $5000 cumulative
-//   Enterprise: Contact for pricing
+//   Pricing: contact newmassrael@gmail.com
 //   Contact: https://github.com/newmassrael
 //
 // Full terms: https://github.com/newmassrael/scxml-core-engine/blob/main/LICENSE
@@ -17,6 +16,7 @@
 #pragma once
 
 #include "common/EventDataHelper.h"
+#include "common/JsonText.h"
 #include "scripting/IScriptEngine.h"
 #include <functional>
 #include <optional>
@@ -41,6 +41,49 @@ namespace SCE {
  * the processor must place the error error.execution in the internal event queue."
  */
 class DoneDataHelper {
+    /// The object a done event's data is: the pairs that survived, in order, as
+    /// the canonical JSON text of the wire and as the engine-agnostic typed
+    /// value. One writer for the pairs an engine evaluated and the ones a
+    /// generated machine computed itself, so the two cannot differ in a byte.
+    class ParamObject {
+    public:
+        explicit ParamObject(bool typed) {
+            json_ << "{";
+            if (typed) {
+                typed_ = std::make_shared<ScriptObject>();
+            }
+        }
+
+        void add(const std::string &name, const ScriptValue &value) {
+            if (!first_) {
+                json_ << ",";
+            }
+            first_ = false;
+            // §scxml-5.5 + B.2: Use canonical JSON serializer so nested
+            // ScriptObject/ScriptArray param values round-trip through the
+            // wire / local JSON-fallback paths identically to typedData.
+            json_ << JsonText::quoted(name) << ":" << EventDataHelper::scriptValueToJsonString(value);
+            if (typed_) {
+                typed_->properties[name] = value;
+            }
+        }
+
+        /// `{}` when no pair survived, and the typed value stored alongside.
+        void finish(std::string &outEventData, std::optional<ScriptValue> *outTypedData) {
+            json_ << "}";
+            outEventData = json_.str();
+            // §scxml-5.5: Store typed data for done.state event
+            if (outTypedData && typed_) {
+                *outTypedData = typed_;
+            }
+        }
+
+    private:
+        std::ostringstream json_;
+        std::shared_ptr<ScriptObject> typed_;
+        bool first_ = true;
+    };
+
 public:
     /**
      * @brief Evaluate donedata content expression to _event.data value
@@ -52,16 +95,17 @@ public:
      * @param contentExpr Content expression to evaluate
      * @param outEventData Output value (may be string, number, object)
      * @param onError Callback for error.execution events (optional)
-     * @return true if evaluation succeeded or no content, false on critical error
+     *
+     * A failed evaluation queues error.execution through `onError` and leaves
+     * the data empty; the done event is raised either way, so nothing is
+     * returned.
      *
      * Usage:
      * ```cpp
      * // Interpreter engine (StateMachine.cpp)
      * std::string eventData;
-     * if (!DoneDataHelper::evaluateContent(jsEngine, sessionId, content, eventData,
-     *         [this](const std::string& msg) { eventRaiser_->raiseEvent("error.execution", msg); })) {
-     *     return false;
-     * }
+     * DoneDataHelper::evaluateContent(jsEngine, sessionId, content, eventData,
+     *     [this](const std::string& msg) { eventRaiser_->raiseEvent("error.execution", msg); });
      *
      * // Static Code Generator (generated code)
      * std::string eventData;
@@ -100,12 +144,12 @@ public:
         }
     }
 
-    static bool evaluateContent(IScriptEngine &jsEngine, const std::string &sessionId, const ScriptSource &contentExpr,
+    static void evaluateContent(IScriptEngine &jsEngine, const std::string &sessionId, const ScriptSource &contentExpr,
                                 std::string &outEventData, std::function<void(const std::string &)> onError = nullptr,
                                 std::optional<ScriptValue> *outTypedData = nullptr) {
         if (contentExpr.text().empty()) {
             outEventData = "";
-            return true;
+            return;
         }
 
         // §scxml-5.5: Evaluate content as expression
@@ -130,7 +174,7 @@ public:
             if (outTypedData) {
                 *outTypedData = value;
             }
-            return true;
+            return;
         }
 
         // §scxml-5.10: Raise error.execution event for expression evaluation failure
@@ -140,35 +184,33 @@ public:
 
         // §scxml-5.5: Return empty data (not literal content) when evaluation fails
         outEventData = "";
-        return true;
     }
 
     /**
      * @brief Evaluate donedata params to JSON object
      *
      * §scxml-5.5: <param> elements create object with name:value pairs
-     * §scxml-5.7: Empty param location raises error.execution
      *
      * @param jsEngine JSEngine instance for expression evaluation
      * @param sessionId Session ID for JSEngine context
      * @param params Vector of (name, expr) pairs
-     * @param outEventData Output JSON string (e.g., {"Var1":1})
+     * @param outEventData Output JSON string (e.g., {"Var1":1}; `{}` when no
+     *                     pair survives)
      * @param onError Callback for error.execution events (optional)
-     * @return false if structural error prevents done.state, true otherwise
      *
-     * Error Handling:
-     * - Structural error (empty location): returns false to prevent done.state event
-     * - Runtime error (invalid expr): ignores failed param, continues with others
+     * §scxml-5.7: a pair whose location is not a valid location — an empty
+     * one included — or whose expr fails queues error.execution through
+     * `onError` and is ignored; every other pair is still evaluated, and the
+     * done event is raised with the pairs that survive. Nothing is returned,
+     * because no failure stops the done event.
      *
      * Usage:
      * ```cpp
      * // Interpreter engine
      * std::vector<std::pair<std::string, std::string>> params = {{"x", "1"}, {"y", "Var1"}};
      * std::string eventData;
-     * if (!DoneDataHelper::evaluateParams(jsEngine, sessionId, params, eventData,
-     *         [this](const std::string& msg) { eventRaiser_->raiseEvent("error.execution", msg); })) {
-     *     return false;  // Structural error, skip done.state
-     * }
+     * DoneDataHelper::evaluateParams(jsEngine, sessionId, params, eventData,
+     *     [this](const std::string& msg) { eventRaiser_->raiseEvent("error.execution", msg); });
      *
      * // Static Code Generator
      * std::vector<std::pair<std::string, std::string>> params = {{"Var1", "1"}};
@@ -180,38 +222,31 @@ public:
     /// The pair is (param name, param expression). Only the second half crosses
     /// the boundary as text to evaluate; the name is a JSON key this helper
     /// writes itself and never hands to an engine.
-    static bool evaluateParams(IScriptEngine &jsEngine, const std::string &sessionId,
+    static void evaluateParams(IScriptEngine &jsEngine, const std::string &sessionId,
                                const std::vector<std::pair<std::string, ScriptSource>> &params,
                                std::string &outEventData, std::function<void(const std::string &)> onError = nullptr,
                                std::optional<ScriptValue> *outTypedData = nullptr) {
         if (params.empty()) {
             outEventData = "";
-            return true;
+            return;
         }
 
-        // §scxml-5.5: <param> elements create an object with name:value pairs
-        std::ostringstream jsonBuilder;
-        jsonBuilder << "{";
+        // §scxml-5.5: <param> elements create an object with name:value pairs,
+        // and a typed ScriptObject beside it for the engine-agnostic pipeline
+        ParamObject object(outTypedData != nullptr);
 
-        // §scxml-5.5: Build ScriptObject for engine-agnostic typed data pipeline
-        std::shared_ptr<ScriptObject> typedObj;
-        if (outTypedData) {
-            typedObj = std::make_shared<ScriptObject>();
-        }
-
-        bool first = true;
         for (const auto &param : params) {
             const std::string &paramName = param.first;
             const ScriptSource &paramExpr = param.second;
 
-            // §scxml-5.7: Empty location is invalid (structural error)
-            // Must raise error.execution and prevent done.state event generation
+            // §scxml-5.7: an empty location refers to no location in the data
+            // model — error.execution, and this pair is ignored like any other
+            // that cannot be read.
             if (paramExpr.text().empty()) {
                 if (onError) {
                     onError("Empty param location or expression: " + paramName);
                 }
-                // §scxml-5.7: Return false to skip done.state event generation
-                return false;
+                continue;
             }
 
             // Evaluate param expression
@@ -220,22 +255,7 @@ public:
 
             if (result.isSuccess()) {
                 // §scxml-5.7: Successfully evaluated param
-                if (!first) {
-                    jsonBuilder << ",";
-                }
-                first = false;
-
-                const auto &value = result.getInternalValue();
-                // §scxml-5.5 + B.2: Use canonical JSON serializer so nested
-                // ScriptObject/ScriptArray param values round-trip through the
-                // wire / local JSON-fallback paths identically to typedData.
-                jsonBuilder << "\"" << escapeJsonString(paramName)
-                            << "\":" << EventDataHelper::scriptValueToJsonString(value);
-
-                // Preserve typed value for engine-agnostic pipeline
-                if (typedObj) {
-                    typedObj->properties[paramName] = value;
-                }
+                object.add(paramName, result.getInternalValue());
             } else {
                 // §scxml-5.7: Invalid location or expression (runtime error)
                 // Must raise error.execution and ignore this param, but continue with others
@@ -246,54 +266,29 @@ public:
             }
         }
 
-        jsonBuilder << "}";
-        outEventData = jsonBuilder.str();
-
-        // §scxml-5.5: Store typed data for done.state event
-        if (outTypedData && typedObj) {
-            *outTypedData = typedObj;
-        }
-
-        return true;
+        object.finish(outEventData, outTypedData);
     }
 
     /**
-     * @brief Escape special characters for JSON string
+     * @brief Build the donedata object from values a generated machine computed
      *
-     * @param str Input string
-     * @return Escaped JSON string (without surrounding quotes)
+     * §scxml-5.5: the same object `evaluateParams` makes, for a machine whose
+     * `<param>`s were lowered to C++ at build time and so need no engine
+     * (`datamodel="sce-static"`, SCE Accepted Subset §2.15). The machine passes
+     * only the pairs that could be computed: §scxml-5.7.1 leaves out one that
+     * could not, and raises error.execution itself.
+     *
+     * @param values (param name, value) pairs, in document order
+     * @param outEventData Output JSON string; `{}` when no pair survived
+     * @param outTypedData Optional typed pipeline value, as `evaluateParams` stores
      */
-    static std::string escapeJsonString(const std::string &str) {
-        std::ostringstream escaped;
-        for (char c : str) {
-            switch (c) {
-            case '"':
-                escaped << "\\\"";
-                break;
-            case '\\':
-                escaped << "\\\\";
-                break;
-            case '\n':
-                escaped << "\\n";
-                break;
-            case '\r':
-                escaped << "\\r";
-                break;
-            case '\t':
-                escaped << "\\t";
-                break;
-            case '\b':
-                escaped << "\\b";
-                break;
-            case '\f':
-                escaped << "\\f";
-                break;
-            default:
-                escaped << c;
-                break;
-            }
+    static void collectParams(const std::vector<std::pair<std::string, ScriptValue>> &values, std::string &outEventData,
+                              std::optional<ScriptValue> *outTypedData = nullptr) {
+        ParamObject object(outTypedData != nullptr);
+        for (const auto &[name, value] : values) {
+            object.add(name, value);
         }
-        return escaped.str();
+        object.finish(outEventData, outTypedData);
     }
 };
 

@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {% include 'license_header.jinja2' %}
@@ -15,8 +15,17 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+{% if model.emitted_transition_table %}
+#include <array>
+#include <cstddef>
+#include <optional>
+{% endif %}
 {% if model.needs_event_scheduler or model.needs_parent_template %}
 #include <chrono>
+{% endif %}
+{% if model.needs_parent_template %}
+// W3C SCXML C.1: the parent type of a session its host started.
+#include "common/NoParent.h"
 {% endif %}
 {% if model.invokes | scxml or model.invokes | hybrid or model.needs_script_engine %}
 #include <memory>
@@ -30,11 +39,34 @@
 {% endif %}
 {% endfor %}
 #include "static/StaticExecutionEngine.h"
+{% if static_fields %}
+{# SCE Accepted Subset §2.15: a `sce-static` document's integer operations are
+   the checked ones every forge algorithm is held to (SCE_FORGE.md §3.4.1). #}
+#include <sce/forge/algorithm.h>
+#include <utility>
+#include <vector>
+{% if (static_fields | selectattr('saved_type', 'equalto', 'bytes') | list) or (static_fields | selectattr('holds_bytes') | list) %}
+{# SCE Accepted Subset §2.15: a byte string crosses a `<param>` as its Latin-1
+   text, which this header-only helper spells. #}
+#include "common/Latin1Bytes.h"
+{% endif %}
+{% for line in static_imports %}
+{{ line }}
+{% endfor %}
+{% endif %}
 {# §scxml-3.2: `constexprStrEq` backs the compile-time round trip between
    `getStateName` and `getStateFromName` in utility_methods.jinja2, and
    `validateConfiguration` is what `enterAt` refuses with. Unconditional
    because both halves of the name pair are. #}
 #include "core/ConfigurationHelper.h"
+{% if host_invoker_defs %}
+{# SCE Accepted Subset 2.12: a typed host-run invoke's records spell their
+   JSON with the payload channel's writer, and its adapter reads the request
+   back with the typed-request reader; both are header-only. #}
+#include <optional>
+#include "common/EventPayloadLift.h"
+#include "core/TypedHostInvokeRequest.h"
+{% endif %}
 {% if model.invokes | scxml or model.invokes | hybrid %}
 
 // W3C SCXML 6.4: Child state machine headers (all pure AOT)
@@ -44,7 +76,14 @@
 {% endif %}
 {% endfor %}
 {% for invoke_info in model.invokes | hybrid %}
-{% if invoke_info.child_name %}
+{# §scxml-6.4 + SCE_ACCEPTED_SUBSET.md §2.13: an invoke that declared
+   `sce:candidates` has one child per candidate rather than one stub, and
+   each is an ordinary generated machine with a header of its own. #}
+{% if invoke_info.candidates %}
+{% for candidate in invoke_info.candidates %}
+#include "{{ candidate.stem }}_sm.h"
+{% endfor %}
+{% elif invoke_info.child_name %}
 #include "{{ invoke_info.child_name }}_sm.h"
 {% endif %}
 {% endfor %}
@@ -86,6 +125,14 @@
 // helper with nothing declaring it.
 #include "common/NamelistHelper.h"
 {% endif %}
+{% if ((model.invokes | mesh_rpc) or model.host_invoker_types) and not model.needs_script_engine %}
+// docs/adr/0005, decision 5: a Mesh request's `<param>`, and a host-run invoke's,
+// under `datamodel="sce-static"` is given its text by `ScriptResultUtils::valueText`,
+// a header-only helper. The include a machine with a script engine gets below is not
+// there for one without, and a machine whose only native params are on this
+// `<invoke>` has no send or namelist to bring it in through `NamelistHelper.h`.
+#include "scripting/ScriptResultUtils.h"
+{% endif %}
 {% if model.needs_script_engine %}
 #include "common/FinalizeHelper.h"
 {% endif %}
@@ -98,16 +145,19 @@
 {% if model.needs_event_scheduler %}
 #include "common/SendSchedulingHelper.h"
 {% endif %}
+{% if model.invokes | hybrid %}
+// §scxml-6.4 + SCE_ACCEPTED_SUBSET.md §2.13: the one reader of the value a
+// hybrid `<invoke srcexpr>` computes, which names the candidate to start.
+#include "common/DocumentStem.h"
+{% endif %}
 #include "core/TransitionHelper.h"
 #include "core/HistoryHelper.h"
-#include "core/StateEntryHelper.h"
 #include "core/EntryExitHelper.h"
 {% if model.needs_event_matching_helper %}
 #include "core/EventMatchingHelper.h"
 {% endif %}
 {% if model.has_parallel_states %}
 #include "core/ParallelStateHelper.h"
-#include "core/ParallelExitEntryHelper.h"
 #include "core/ParallelTransitionHelper.h"
 #include "core/HierarchicalStateHelper.h"
 #include "core/ConflictResolutionHelper.h"
@@ -133,17 +183,17 @@
 {% endif %}
 {% endif %}
 #include "common/EventDataHelper.h"
+{% if event_payload_active %}
+// NL→IR Item C1 Path A: the typed `_event.data` view is lifted out of the data
+// every producer but the inject seam fills, and written into it by that seam.
+#include "common/EventPayloadLift.h"
+{% endif %}
 {% if model.needs_donedata_helper %}
 #include "common/DoneDataHelper.h"
 {% endif %}
 #include "common/InPredicateHelper.h"
 {% if model.invokes | mesh_rpc | selectattr('srcexpr') | list | length > 0 %}
 #include <regex>  // SCE_MESH.md §9.5 srcexpr shape check.
-{% endif %}
-{% if inline_kind_code %}
-#include <optional>
-#include <vector>
-#include <cstring>
 {% endif %}
 // W3C SCXML B.1: every generated SM exposes setScriptEngine(IScriptEngine&)
 // (no-op when NEEDS_SCRIPT_ENGINE=false) so generic callers — mesh worker
@@ -155,9 +205,7 @@
 {% if model.needs_script_engine %}
 #include "common/DataModelInitHelper.h"
 #include "common/EventTypeHelper.h"
-{% if not inline_kind_code %}
 #include <optional>
-{% endif %}
 #include "common/Logger.h"
 {% if model.invokes %}
 // W3C SCXML B.1: invoke child needs the build-configured engine handle
@@ -179,38 +227,6 @@
     // Debug logging disabled in release builds
     #define AOT_DEBUG(...)
 #endif
-
-// Transition execution macro - compresses repetitive transition code
-#ifdef AOT_EXECUTE_TRANSITION
-#undef AOT_EXECUTE_TRANSITION
-#endif
-{% if model.has_parallel_states %}
-#define AOT_EXECUTE_TRANSITION(SRC, TGT, IDX, HAS_ACTIONS, IS_INTERNAL, IS_TARGETLESS) \
-    do { \
-        AOT_DEBUG("AOT processTransition: Transition matched in state {}", static_cast<int>(SRC)); \
-        lastTransitionSourceState_ = SRC; \
-        lastTransitionIsInternal_ = IS_INTERNAL; \
-        lastTransitionIsTargetless_ = IS_TARGETLESS; \
-        if (collectMode != nullptr) { \
-            AOT_DEBUG("AOT processTransition: Collecting transition {} -> {}", static_cast<int>(SRC), static_cast<int>(TGT)); \
-            collectMode->push_back(TransitionInfo(SRC, TGT, IDX, HAS_ACTIONS, IS_INTERNAL, IS_TARGETLESS)); \
-        } else { \
-            AOT_DEBUG("AOT processTransition: State transition {} -> {}", static_cast<int>(currentState), static_cast<int>(TGT)); \
-            currentState = TGT; \
-            transitionTaken = true; \
-        } \
-    } while(0)
-{% else %}
-#define AOT_EXECUTE_TRANSITION(SRC, TGT, IDX, HAS_ACTIONS, IS_INTERNAL, IS_TARGETLESS) \
-    do { \
-        AOT_DEBUG("AOT processTransition: Transition matched in state {} -> {}", static_cast<int>(SRC), static_cast<int>(TGT)); \
-        lastTransitionSourceState_ = SRC; \
-        lastTransitionIsInternal_ = IS_INTERNAL; \
-        lastTransitionIsTargetless_ = IS_TARGETLESS; \
-        currentState = TGT; \
-        transitionTaken = true; \
-    } while(0)
-{% endif %}
 
 {# ═══ Named Context: precompute template parameter/argument lists ═══ #}
 {# Contexts with cpp_type use concrete types (no template param needed).    #}
@@ -262,9 +278,12 @@
    `SCE::Generated::<machine>` shape used by every existing consumer. #}
 namespace SCE::Generated::{{ cpp_ns_prefix }}{{ model.name }}{% if model.partition_self_name %}::P_{{ model.partition_self_name }}{% endif %} {
 
-{# Forward declaration #}
+{# Forward declaration. The parent parameter's default is given here, once, as
+   C++ requires: `::SCE::Common::NoParent` is the parent of a session its host
+   started (W3C SCXML C.1), so a host writes `{{ model.name }}<> sm;` and an
+   invoking parent names itself. It is always the last class parameter. #}
 {% if _has_sm_tpl %}
-template <{{ _sm_tpl_params | join(', ') }}>
+template <{% for p in _sm_tpl_params %}{{ p }}{% if p == 'typename ParentStateMachine' %} = ::SCE::Common::NoParent{% endif %}{{ ', ' if not loop.last }}{% endfor %}>
 {% endif %}
 class {{ model.name }};
 
@@ -279,38 +298,66 @@ enum class State : uint8_t {
 enum class Event : uint8_t {
     NONE,  // W3C SCXML 6.2: Default event for scheduler polling (no semantic meaning)
     {% for event_name in model.events | sort %}
-    {{ event_name | replace('.', '_') | replace('-', '_') | capitalize }}{{ "," if not loop.last }}
+    {{ event_name | to_cpp_event_variant }}{{ "," if not loop.last }}
     {% endfor %}
 };
 
-{% if model.has_parallel_states %}
-{# Transition descriptor for W3C SCXML Appendix D optimal transition set #}
-/**
- * @brief Transition information for microstep execution
- *
- * W3C SCXML Appendix D: Optimal enabled transition set execution requires
- * collecting all enabled transitions before executing any (atomic microstep).
- */
-struct TransitionInfo {
-    State source;              // W3C SCXML 3.13: Source state of transition
-    State target;              // Target state of transition
-    int transitionIndex;       // Index of transition in source state (for executeTransitionActions)
-    bool hasActions;           // Whether transition has executable content
-    bool isInternal;           // W3C SCXML 3.13: Whether transition is type="internal"
-    bool isTargetless;         // W3C SCXML 5.9.2: Whether transition has no target (consumes event only)
-
-    TransitionInfo(State src, State tgt, int idx, bool actions, bool internal = false, bool targetless = false)
-        : source(src), target(tgt), transitionIndex(idx), hasActions(actions), isInternal(internal), isTargetless(targetless) {}
+{# History enum: W3C SCXML 3.10 pseudo-states. They are named in target lists
+   and never in a configuration, so they are not States. Empty when the
+   document declares none. #}
+enum class History : uint8_t {
+    {% for history_id in model.history_states | list | sort %}
+    {{ history_id | capitalize }}{{ "," if not loop.last }}
+    {% endfor %}
 };
-{% endif %}
 
+{% if static_fields %}
+{# SCE Accepted Subset §2.15: the types a `sce-static` machine's variables
+   are held in, declared in the machine's own unit. `sceLogName` is how a
+   `<log>` shows a value: an enum declares one beside its type, which names the
+   value as the enum document does, and every other value passes through. #}
+template <typename T> const T &sceLogName(const T &value) {
+    return value;
+}
+
+{# A `<foreach>` walks the list as it was when the loop began (W3C SCXML 4.6: a
+   shallow copy), so a body that appends to the list does not move it. #}
+template <typename C> C sceCopy(const C &list) {
+    return list;
+}
+
+/// The same copy with each element's position, a `uint32` as `len` is.
+template <typename T> ::std::vector<::std::pair<::std::uint32_t, T>> sceIndexed(const ::std::vector<T> &list) {
+    ::std::vector<::std::pair<::std::uint32_t, T>> walked;
+    walked.reserve(list.size());
+    for (::std::uint32_t position = 0; position < list.size(); ++position) {
+        walked.emplace_back(position, list[position]);
+    }
+    return walked;
+}
+
+{% if static_type_defs %}
+{{ static_type_defs }}
+
+{% endif %}
+{% endif %}
 {% if event_payload_active %}
 // ── NL→IR Item C1 Path A: typed `_event.data` payload channel ─────────
 {{ event_payload_defs }}
 {% endif %}
+{% if static_adapter_defs %}
+// ── SCE Accepted Subset §2.15: calls of an algorithm that takes or returns state ──
+{# After the payload channel: an adapter that takes an event's payload names its type. #}
+{{ static_adapter_defs }}
+
+{% endif %}
 {% if has_native_actions %}
 // ── W3C SCXML G.7: `<sce:action>` host dispatch ───────────────────────
 {{ native_actions_defs }}
+{% endif %}
+{% if host_invoker_defs %}
+// ── SCE Accepted Subset 2.12: typed host-run invoke interface ─────────
+{{ host_invoker_defs }}
 {% endif %}
 {# Policy class #}
 // State policy for {{ model.name }}
@@ -320,6 +367,11 @@ template <{{ _tpl_params | join(', ') }}>
 struct {{ model.name }}Policy {
     using State = ::SCE::Generated::{{ cpp_ns_prefix }}{{ model.name }}{% if model.partition_self_name %}::P_{{ model.partition_self_name }}{% endif %}::State;
     using Event = ::SCE::Generated::{{ cpp_ns_prefix }}{{ model.name }}{% if model.partition_self_name %}::P_{{ model.partition_self_name }}{% endif %}::Event;
+    using History = ::SCE::Generated::{{ cpp_ns_prefix }}{{ model.name }}{% if model.partition_self_name %}::P_{{ model.partition_self_name }}{% endif %}::History;
+    // W3C SCXML Appendix D: one token of a target list, and one transition
+    // the engine's selection found enabled.
+    using EntryTargetT = ::SCE::Core::EntryTarget<State, History>;
+    using TransitionInfo = ::SCE::Core::EnabledTransition<State, History>;
 {% for ctx in model.context_objects %}
     using {{ ctx.id | capitalize }}Type = {{ ctx.cpp_type if ctx.cpp_type else (ctx.id | capitalize + 'T') }};
 {% endfor %}
@@ -336,6 +388,18 @@ struct {{ model.name }}Policy {
     // forever with nothing said. The same verdict the generate manifest
     // publishes as `needs_event_scheduler`.
     static constexpr bool NEEDS_EVENT_SCHEDULER = {{ 'true' if model.needs_tick_driving else 'false' }};
+    // The generate manifest's `needs_parent`: what a root-start policy reads.
+    static constexpr bool NEEDS_PARENT = {{ 'true' if model.needs_parent else 'false' }};
+{% if model.host_invoker_types %}
+
+    // W3C SCXML 6.4: these invokes are run by the host, so their `done.invoke`
+    // is accepted only through the engine's completeHostInvoke().
+    static constexpr std::string_view HOST_INVOKE_IDS[] = {
+{% for inv in model.invokes | host_invoker %}
+        "{{ inv.invoke_id | escape_cpp }}",
+{% endfor %}
+    };
+{% endif %}
 
     {% if model.context_objects %}
     // Named Context: individual pointers for dependency injection
@@ -354,7 +418,64 @@ struct {{ model.name }}Policy {
        DataModelReadHelper (see the accessors below) instead of shadowing it.
        Kotlin's template already drew this line; the other backends now do
        too. #}
-    {% if model.readable_variables %}
+    {% if static_fields %}
+    // ── SCE Accepted Subset §2.15: the datamodel="sce-static" variables ──
+    {# Under `sce-static` this struct IS the datamodel's home: there is no
+       script engine, and every expression was lowered to C++ reading and
+       writing these members (`crate::forge::static_lowering`). Only the
+       machine's own statements write them. A variable declared
+       `sce:direction="out"` is read by the host through the accessor below;
+       every other one is the machine's own. #}
+{% for field in static_fields %}
+    /// W3C SCXML 5.2: the `{{ field.id }}` datamodel variable{% if field.published %}, published (`sce:direction="out"`){% endif %}.
+    {{ field.ty }} {{ field.name }} = {{ field.init }};
+{% endfor %}
+{% for field in static_published %}
+{% if field.reader %}
+
+    /// W3C SCXML 5.2: what the published `{{ field.id }}` datamodel variable holds now.
+    /// Only the machine writes it.
+    {% if field.view %}{{ field.view }}{% else %}{{ field.ty }}{% endif %} {{ field.reader }}() const {
+        return {{ field.name }};
+    }
+{% endif %}
+{% endfor %}
+{# A parent's `<param>` and `namelist` hand values to a child's top-level
+   `<data>` of a scalar type (§scxml-6.4.1). A list, a record, an enum and bytes
+   are not seeded; the static judge refuses a value handed to one. #}
+{% set ns_seed = namespace(any=false) %}
+{% for field in static_fields %}
+{% if field.saved_kind == 'scalar' and field.saved_type != 'bytes' %}
+{% set ns_seed.any = true %}
+{% endif %}
+{% endfor %}
+{% if ns_seed.any %}
+
+    /// §scxml-6.4.1: the values a parent's `<param>` and `namelist` give this
+    /// machine's variables before it starts. A variable left empty keeps the
+    /// value its `<data>` gave it.
+    struct InvokeParams {
+{% for field in static_fields %}
+{% if field.saved_kind == 'scalar' and field.saved_type != 'bytes' %}
+        std::optional<{{ field.ty }}> {{ field.name }};
+{% endif %}
+{% endfor %}
+    };
+
+    /// §scxml-6.4.1: give this machine the values `params` carries, in place of
+    /// the ones its `<data>` gave. Called before it initializes.
+    void acceptParams(const InvokeParams &params) {
+{% for field in static_fields %}
+{% if field.saved_kind == 'scalar' and field.saved_type != 'bytes' %}
+        if (params.{{ field.name }}) {
+            {{ field.name }} = *params.{{ field.name }};
+        }
+{% endif %}
+{% endfor %}
+    }
+{% endif %}
+    {% endif %}
+    {% if model.readable_variables and not static_fields %}
     // ── §scxml-5.3: read the datamodel this machine is holding ──────────
     {# Looked up rather than spelled as a ternary chain: a chain's last arm is
        a fallback, so a host type added to the classifier and not to these maps
@@ -378,7 +499,7 @@ struct {{ model.name }}Policy {
      * (§scxml-B-2) so the key order is the document's.
 {% endif %}
      */
-    ::std::optional<{{ CPP_READ_TYPE[var.type] }}> {{ var.id }}() const {
+    ::std::optional<{{ CPP_READ_TYPE[var.type] }}> {{ var.reader.cpp }}() const {
         if (!scriptEngine_ || !sessionId_.has_value()) {
             return ::std::nullopt;
         }
@@ -387,11 +508,6 @@ struct {{ model.name }}Policy {
     }
     {% endfor %}
     {% endif %}
-{% if inline_kind_code %}
-
-    // ── SCE Forge: Inline kind member functions ──────────────
-{{ inline_kind_code }}
-{% endif %}
     {% if model.needs_parent_template %}
 
     // W3C SCXML 6.2: Parent state machine pointer for #_parent support
@@ -403,9 +519,30 @@ struct {{ model.name }}Policy {
     // W3C SCXML 6.5: Child session ID for finalize origin matching (test233)
     ::std::string childSessionId_;
 
-    // W3C SCXML 6.4.2: Delayed sends to parent scheduler (using SendSchedulingHelper)
-    // ARCHITECTURE.md Zero Duplication: Reuses SendSchedulingHelper (Single Source of Truth)
-    mutable ::SCE::PullScheduler<typename ParentStateMachine::Event> parentSendScheduler_;
+    // W3C SCXML 6.2 + 6.4: a delayed `<send target="#_parent">` whose wait is
+    // over. The engine's queue held it, so `<cancel>` reached it and a child
+    // that ends first drops it (the engine stops dispatching once final);
+    // this delivers it with the fields an immediate send stamps — the
+    // payload, this invocation's id (test338) and this session as the origin
+    // (test233) — answering whether the parent was there to take it.
+    bool deliverToParent(const ::SCE::Common::ForwardedEvent& forwarded) {
+        if (parent_ == nullptr) {
+            return false;
+        }
+        ::SCE::Common::ForwardedEvent addressed = forwarded;
+        addressed.invokeId = invokeId_;
+        addressed.origin = childSessionId_;
+        addressed.originType = ::SCE::Constants::SCXML_EVENT_PROCESSOR_TYPE;
+        parent_->raiseExternal(addressed);
+        return true;
+    }
+
+    // W3C SCXML C.1: whether a session invoked this one — asked when a
+    // `<send targetexpr>` names `#_parent`, so a session with none hears
+    // error.communication when the send is made, delayed or not.
+    bool hasParentSession() const {
+        return parent_ != nullptr;
+    }
     {% endif %}
 
     {# SCE_MESH.md §9.6.2 — a parent whose only `<invoke type="scxml">` is     #}
@@ -432,6 +569,11 @@ struct {{ model.name }}Policy {
     {% if model.needs_event_name %}
     // W3C SCXML 5.10: Event name storage for _event.name access (test318)
     mutable ::std::string pendingEventName_;
+    // W3C SCXML 5.10 + 3.12.1: the name the event arrived under when that is longer than the
+    // enum member it was matched through (`request.new` for a transition on `request`);
+    // empty when the member's own name is the name. Filled from the event's metadata
+    // before the event is bound, and read by bindCurrentEvent.
+    mutable ::std::string pendingEventArrivalName_;
     {% endif %}
     {% if model.needs_event_data %}
     // W3C SCXML 5.10: Event data storage for _event.data access
@@ -464,8 +606,9 @@ struct {{ model.name }}Policy {
     {% endif %}
     {% if event_payload_active %}
     // NL→IR Item C1 Path A: the current event's typed `_event.data` payload,
-    // lifted from the dequeued event's std::any carrier by populateTypedPayload
-    // and read by the native transition guards (`pending<Event>Payload_.<field>`).
+    // bound by populateTypedPayload from the dequeued event's std::any carrier
+    // or, when it carries none, lifted out of its `data`, and read by the
+    // native transition guards (`pending<Event>Payload_.<field>`).
     // Mirrors the Rust policy's `pending_payload` / the C11 `sm->pending_payload`.
 {{ event_payload_policy_members }}
     {% endif %}
@@ -481,10 +624,6 @@ struct {{ model.name }}Policy {
     // `mutable` for the same reason the `pendingEvent*_` members are: the
     // transition matcher reads the policy from a const method.
     mutable {{ native_actions_interface }} *actions_ = nullptr;
-    {% endif %}
-    {% if model.needs_external_flag %}
-    // W3C SCXML 6.2: Flag to mark next event as external (from send)
-    mutable bool nextEventIsExternal_ = false;
     {% endif %}
     // W3C SCXML 5.10: the current event's metadata — the payload, origin,
     // sendid and invokeid a dequeued event carries.
@@ -508,7 +647,18 @@ struct {{ model.name }}Policy {
     mutable std::shared_ptr<::SCE::Generated::{{ cpp_ns_prefix }}{{ invoke_info.child_name }}::{{ invoke_info.child_name }}<SelfType>> child_{{ invoke_info.field_suffix }}_;
     {% endfor %}
     {% for invoke_info in model.invokes | hybrid %}
+    {% if invoke_info.candidates %}
+    // §scxml-6.4: one slot per declared candidate, at most one of them ever
+    // filled. A single polymorphic slot would need the generated children to
+    // share a base they do not have — they are concrete types parameterised
+    // by this parent — and every lifecycle site below is already null-guarded
+    // per slot, so the unchosen ones cost a null check and nothing else.
+    {% for candidate in invoke_info.candidates %}
+    mutable std::shared_ptr<::SCE::Generated::{{ cpp_ns_prefix }}{{ candidate.stem }}::{{ candidate.stem }}<SelfType>> child_{{ invoke_info.field_suffix }}_{{ candidate.stem }}_;
+    {% endfor %}
+    {% else %}
     mutable std::shared_ptr<::SCE::Generated::{{ cpp_ns_prefix }}{{ invoke_info.child_name }}::{{ invoke_info.child_name }}<SelfType>> child_{{ invoke_info.field_suffix }}_;
+    {% endif %}
     {% endfor %}
     {% endif %}
 
@@ -564,6 +714,10 @@ struct {{ model.name }}Policy {
     struct PendingInvoke {
         std::string invokeId;  // W3C SCXML 6.4.1: Unique invoke identifier
         State state;           // State containing the invoke element
+        // The `<invoke>` this entry defers, as the document names it — what
+        // the execute step dispatches on, compared whole. Reading it back out
+        // of `invokeId` by substring matched `probe` against `probe2`.
+        std::string documentId;
     };
 
     {% endif %}
@@ -607,15 +761,6 @@ struct {{ model.name }}Policy {
     mutable ::std::mutex activeStatesMutex_;
     {% endif %}
 
-    // W3C SCXML 3.13: Track last transition for deferred action execution
-    // W3C SCXML 3.4: Also needed for parallel states to track actual transition source
-    mutable State lastTransitionSourceState_{};
-{% if model.has_transition_actions %}
-    mutable size_t lastTransitionIndex_ = 0;
-    mutable bool hasTransitionActions_ = false;
-{% endif %}
-    mutable bool lastTransitionIsInternal_ = false;  // W3C SCXML 3.13: Track internal transition type
-    mutable bool lastTransitionIsTargetless_ = false;  // W3C SCXML 5.9.2: Track targetless transition (consumes event only)
     // Default constructor (lazy initialization, no immediate resource allocation)
     {{ model.name }}Policy() = default;
 
@@ -746,6 +891,11 @@ public:
     // zenoh MCU consumer is C11/Rust; this is the AP-side C++ parity.
 {{ event_payload_inject_methods }}
 {% endif %}
+{% if host_invoker_members %}
+    // ── SCE Accepted Subset 2.12: typed host-run invoke registration and
+    // completion ──
+{{ host_invoker_members }}
+{% endif %}
 {# W3C SCXML G.7: a document that declares `<sce:action>`s cannot run without
    a host, and the initial state's `<onentry>` may already perform one — so the
    host leads every constructor this class has rather than arriving through a
@@ -756,7 +906,7 @@ public:
     explicit {{ model.name }}(
         {%- if has_native_actions %}{{ native_actions_interface }}& actions, {% endif -%}
         {%- for ctx in model.context_objects %}{% if ctx.cpp_type %}{{ ctx.cpp_type }}{% else %}{{ ctx.id | capitalize }}T{% endif %}& {{ ctx.id }}{{ ', ' if not loop.last or model.needs_parent_template }}{% endfor %}
-        {%- if model.needs_parent_template %}ParentStateMachine* parent, const std::string& invokeId = "", const std::string& childSessionId = ""{% endif -%}
+        {%- if model.needs_parent_template %}ParentStateMachine* parent = nullptr, const std::string& invokeId = "", const std::string& childSessionId = ""{% endif -%}
     ) {
         {% if has_native_actions %}
         this->policy_.actions_ = &actions;
@@ -861,7 +1011,26 @@ public:
         this->policy_.setBasicHttpAccessUri(::std::move(accessUri));
 {% endif %}
     }
-{% if model.readable_variables %}
+{% if static_fields %}
+{% for field in static_published %}
+{% if field.reader %}
+
+    /// W3C SCXML 5.2: what the published `{{ field.id }}` datamodel variable holds now.
+    {% if field.view %}{{ field.view }}{% else %}{{ field.ty }}{% endif %} {{ field.reader }}() const {
+        return this->policy_.{{ field.reader }}();
+    }
+{% endif %}
+{% endfor %}
+{% if ns_seed.any %}
+
+    /// §scxml-6.4.1: the values a parent's `<param>` and `namelist` give this
+    /// machine's variables, and the call that hands them over before it starts.
+    using InvokeParams = typename PolicyType::InvokeParams;
+    void acceptParams(const InvokeParams &params) {
+        this->policy_.acceptParams(params);
+    }
+{% endif %}
+{% elif model.readable_variables %}
 
     {# §scxml-5.3: the read accessors are DEFINED on the policy, beside the
        session handle they need, and forwarded here because `policy_` is
@@ -875,8 +1044,8 @@ public:
     {% for var in model.readable_variables %}
     /// §scxml-5.3: what `{{ var.id }}` is holding now — see the policy's accessor
     /// for what `nullopt` means.
-    ::std::optional<{{ CPP_READ_TYPE[var.type] }}> {{ var.id }}() const {
-        return this->policy_.{{ var.id }}();
+    ::std::optional<{{ CPP_READ_TYPE[var.type] }}> {{ var.reader.cpp }}() const {
+        return this->policy_.{{ var.reader.cpp }}();
     }
     {% endfor %}
 {% endif %}

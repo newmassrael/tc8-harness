@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {# Algorithm kind (RFC §synth-5-A) — single-output free function with bounded
@@ -10,45 +10,255 @@
    carries a fixed-cap `uint8_t input_arg<i>[256]` + `size_t input_arg<i>_len`
    pair on the case struct; we memcpy into a fresh `sce_forge_bytes_t`
    per case to make every invocation start from a clean buffer. Numeric
-   args copy into the case struct directly. #}
+   args copy into the case struct directly.
+
+   A `list<T>` return (SCE_FORGE.md §4.12) is the algorithm's
+   `<fn>_result_t { items[N], len, ok }`. Its expected elements are baked
+   into an array as long as the longest case (at least one slot, since C11
+   has no empty array), and compared by `ok`, then length, then element.
+
+   A record argument or output (SCE_FORGE.md §4.12) is the event-schema's
+   `<Pascal>Payload_t`, baked into the case table with a designated
+   initializer per field and compared field by field; `fields` carries each
+   field's C name, derived from the schema document when the harness
+   renders.
+
+   A `may-fail` algorithm (SCE_FORGE.md §3.4.1) returns its
+   `<fn>_result_t` with `ok` false and `why` naming the failure. A case that
+   names a failure (`"fails": "overflow"`) is baked with `fails` set and no
+   `expected`, and is judged by the failure's contract name before anything
+   reads `expected`. #}
+{% set call_args %}{% for arg_ty in f.args %}{% if arg_ty == "bytes" %}(sce_forge_bytes_view_t){ arg{{ loop.index0 }}.data, arg{{ loop.index0 }}.len }{% else %}arg{{ loop.index0 }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}{% endset %}
+{% if f.output.list_of is defined or f.output.type == "bytes" %}
+{% set ns = namespace(width=1) %}
+{% for c in f.cases %}
+{# A case that names a failure has no `expected` to size the array by. #}
+{% if c.expected is defined and c.expected | length > ns.width %}
+{% set ns.width = c.expected | length %}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if f.output.list_of is defined %}
+{% set signed_elem = f.output.list_of in ["i32", "i64"] %}
+{% set float_elem = f.output.list_of in ["f32", "f64"] %}
+{% endif %}
 static void test_{{ f.name }}(void) {
     static const struct {
 {% for arg_ty in f.args %}
-{% if arg_ty == "bytes" %}
+{% if arg_ty.record is defined %}
+        {{ arg_ty.record | to_pascal_case }}Payload_t input_arg{{ loop.index0 }};
+{% elif arg_ty == "bytes" %}
         uint8_t input_arg{{ loop.index0 }}[256];
         size_t  input_arg{{ loop.index0 }}_len;
+{% elif arg_ty.list_of is defined %}
+{# A `list<T>` argument is baked as long as its longest case (at least one
+   slot, since C11 has no empty array) and passed as the element's view. #}
+{% set ai = loop.index0 %}
+{% set w = namespace(n=1) %}
+{% for c in f.cases %}
+{% if c.args[ai] | length > w.n %}
+{% set w.n = c.args[ai] | length %}
+{% endif %}
+{% endfor %}
+{% if arg_ty.list_of.record is defined %}
+        {{ arg_ty.list_of.record | to_pascal_case }}Payload_t input_arg{{ ai }}[{{ w.n }}];
+{% else %}
+        {{ arg_ty.list_of | c_type }} input_arg{{ ai }}[{{ w.n }}];
+{% endif %}
+        size_t  input_arg{{ ai }}_len;
 {% else %}
         {{ arg_ty | c_type }} input_arg{{ loop.index0 }};
 {% endif %}
 {% endfor %}
+{% if f.output.record is defined %}
+        {{ f.output.record | to_pascal_case }}Payload_t expected;
+{% elif f.output.list_of is defined and f.output.list_of.record is defined %}
+        {{ f.output.list_of.record | to_pascal_case }}Payload_t expected[{{ ns.width }}];
+        size_t  expected_len;
+{% elif f.output.list_of is defined %}
+        {{ f.output.list_of | c_type }} expected[{{ ns.width }}];
+        size_t  expected_len;
+{% elif f.output.type == "bytes" %}
+        uint8_t expected[{{ ns.width }}];
+        size_t  expected_len;
+{% else %}
         {{ f.output.type | c_type }} expected;
+{% endif %}
+{% if f.may_fail %}
+        const char *fails;
+{% endif %}
     } cases[] = {
 {% for c in f.cases %}
         {
 {% for arg_ty in f.args %}
-{% if arg_ty == "bytes" %}
-            .input_arg{{ loop.index0 }} = {{ c.args[loop.index0] | c_literal(arg_ty) }},
-            .input_arg{{ loop.index0 }}_len = {{ c.args[loop.index0] | length }},
+{% set ai = loop.index0 %}
+{% if arg_ty.record is defined %}
+{# A record's text is the bounded buffer `{ char data[N + 1]; }`, which a string
+   literal fills as its first member; it needs no storage of its own beside the
+   case table. #}
+            .input_arg{{ ai }} = { {% for fld in arg_ty.fields %}.{{ fld.ident }} = {% if fld.type == "string" %}{ {{ c.args[ai][fld.name] | c_literal(fld.type) }} }{% else %}{{ c.args[ai][fld.name] | c_literal(fld.type) }}{% endif %}, {% endfor %}},
+{% elif arg_ty == "bytes" %}
+            .input_arg{{ ai }} = {{ c.args[ai] | c_literal(arg_ty) }},
+            .input_arg{{ ai }}_len = {{ c.args[ai] | length }},
+{% elif arg_ty.list_of is defined and arg_ty.list_of.record is defined %}
+            .input_arg{{ ai }} = { {% for v in c.args[ai] %}{ {% for fld in arg_ty.list_of.fields %}.{{ fld.ident }} = {% if fld.type == "string" %}{ {{ v[fld.name] | c_literal(fld.type) }} }{% else %}{{ v[fld.name] | c_literal(fld.type) }}{% endif %}, {% endfor %}}, {% else %}{0}{% endfor %} },
+            .input_arg{{ ai }}_len = {{ c.args[ai] | length }},
+{% elif arg_ty.list_of is defined %}
+            .input_arg{{ ai }} = { {% for v in c.args[ai] %}{{ v | c_literal(arg_ty.list_of) }}, {% else %}0{% endfor %} },
+            .input_arg{{ ai }}_len = {{ c.args[ai] | length }},
 {% else %}
-            .input_arg{{ loop.index0 }} = {{ c.args[loop.index0] | c_literal(arg_ty) }},
+            .input_arg{{ ai }} = {{ c.args[ai] | c_literal(arg_ty) }},
 {% endif %}
 {% endfor %}
+{% if c.fails is defined %}
+            .fails = "{{ c.fails }}",
+{% elif f.output.record is defined %}
+            .expected = { {% for fld in f.output.fields %}.{{ fld.ident }} = {% if fld.type == "string" %}{ {{ c.expected[fld.name] | c_literal(fld.type) }} }{% else %}{{ c.expected[fld.name] | c_literal(fld.type) }}{% endif %}, {% endfor %}},
+{% elif f.output.list_of is defined and f.output.list_of.record is defined %}
+            .expected = { {% for v in c.expected %}{ {% for fld in f.output.list_of.fields %}.{{ fld.ident }} = {% if fld.type == "string" %}{ {{ v[fld.name] | c_literal(fld.type) }} }{% else %}{{ v[fld.name] | c_literal(fld.type) }}{% endif %}, {% endfor %}}, {% else %}{0}{% endfor %} },
+            .expected_len = {{ c.expected | length }},
+{% elif f.output.list_of is defined %}
+            .expected = { {% for v in c.expected %}{{ v | c_literal(f.output.list_of) }}, {% else %}0{% endfor %} },
+            .expected_len = {{ c.expected | length }},
+{% elif f.output.type == "bytes" %}
+            .expected = {{ c.expected | c_literal("bytes") }},
+            .expected_len = {{ c.expected | length }},
+{% else %}
             .expected = {{ c.expected | c_literal(f.output.type) }},
+{% endif %}
         },
 {% endfor %}
     };
     const size_t n = sizeof(cases) / sizeof(cases[0]);
     for (size_t i = 0; i < n; ++i) {
 {% for arg_ty in f.args %}
-{% if arg_ty == "bytes" %}
+{% if arg_ty.record is defined %}
+        {{ arg_ty.record | to_pascal_case }}Payload_t arg{{ loop.index0 }} = cases[i].input_arg{{ loop.index0 }};
+{% elif arg_ty == "bytes" %}
         sce_forge_bytes_t arg{{ loop.index0 }} = {0};
         memcpy(arg{{ loop.index0 }}.data, cases[i].input_arg{{ loop.index0 }}, cases[i].input_arg{{ loop.index0 }}_len);
         arg{{ loop.index0 }}.len = cases[i].input_arg{{ loop.index0 }}_len;
+{% elif arg_ty.list_of is defined and arg_ty.list_of.record is defined %}
+{# The view the algorithm's header declares beside it for this record. #}
+        const {{ arg_ty.list_of.record | to_pascal_case }}Payload_view_t arg{{ loop.index0 }} = { cases[i].input_arg{{ loop.index0 }}, cases[i].input_arg{{ loop.index0 }}_len };
+{% elif arg_ty.list_of is defined %}
+        const sce_forge_{{ (arg_ty.list_of | c_type) | replace("_t", "") }}_view_t arg{{ loop.index0 }} = { cases[i].input_arg{{ loop.index0 }}, cases[i].input_arg{{ loop.index0 }}_len };
 {% else %}
         {{ arg_ty | c_type }} arg{{ loop.index0 }} = cases[i].input_arg{{ loop.index0 }};
 {% endif %}
 {% endfor %}
-        {{ f.output.type | c_type }} actual = {{ f.function }}({% for arg_ty in f.args %}{% if arg_ty == "bytes" %}(sce_forge_bytes_view_t){ arg{{ loop.index0 }}.data, arg{{ loop.index0 }}.len }{% else %}arg{{ loop.index0 }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %});
+{% if f.may_fail %}
+        const {{ f.function }}_result_t result = {{ f.function }}({{ call_args }});
+        if (cases[i].fails != NULL) {
+            if (result.ok || strcmp(cases[i].fails, sce_forge_algorithm_error_name(result.why)) != 0) {
+                fprintf(stderr,
+                    "FAIL: {{ f.name }} case %zu: expected failure %s, got %s\n",
+                    i, cases[i].fails, result.ok ? "a value" : sce_forge_algorithm_error_name(result.why));
+                ++g_failures;
+            }
+            continue;
+        }
+        if (!result.ok) {
+            fprintf(stderr,
+                "FAIL: {{ f.name }} case %zu: expected a value, failed with %s\n",
+                i, sce_forge_algorithm_error_name(result.why));
+            ++g_failures;
+            continue;
+        }
+{% endif %}
+{% if f.output.record is defined %}
+        {{ f.output.record | to_pascal_case }}Payload_t actual = {% if f.may_fail %}result.value{% else %}{{ f.function }}({% for arg_ty in f.args %}arg{{ loop.index0 }}{% if not loop.last %}, {% endif %}{% endfor %}){% endif %};
+{% for fld in f.output.fields %}
+{% if fld.type == "string" %}
+        if (strcmp(actual.{{ fld.ident }}.data, cases[i].expected.{{ fld.ident }}.data) != 0) {
+            fprintf(stderr,
+                "FAIL: {{ f.name }} case %zu: {{ fld.name }} actual='%s' expected='%s'\n",
+                i, actual.{{ fld.ident }}.data, cases[i].expected.{{ fld.ident }}.data);
+            ++g_failures;
+        }
+{% else %}
+        if (actual.{{ fld.ident }} != cases[i].expected.{{ fld.ident }}) {
+            fprintf(stderr,
+                "FAIL: {{ f.name }} case %zu: {{ fld.name }} actual=%lld expected=%lld\n",
+                i, (long long)actual.{{ fld.ident }}, (long long)cases[i].expected.{{ fld.ident }});
+            ++g_failures;
+        }
+{% endif %}
+{% endfor %}
+{% elif f.output.list_of is defined %}
+        {{ f.function }}_result_t actual = {% if f.may_fail %}result{% else %}{{ f.function }}({{ call_args }}){% endif %};
+        if (!actual.ok || actual.len != cases[i].expected_len) {
+            fprintf(stderr,
+                "FAIL: {{ f.name }} case %zu: ok=%d len=%zu expected_len=%zu\n",
+                i, (int)actual.ok, actual.len, cases[i].expected_len);
+            ++g_failures;
+            continue;
+        }
+        for (size_t k = 0; k < actual.len; ++k) {
+{% if f.output.list_of.record is defined %}
+{# A list of records: compared field by field. #}
+{% for fld in f.output.list_of.fields %}
+{% if fld.type == "string" %}
+            if (strcmp(actual.items[k].{{ fld.ident }}.data, cases[i].expected[k].{{ fld.ident }}.data) != 0) {
+                fprintf(stderr,
+                    "FAIL: {{ f.name }} case %zu [%zu]: {{ fld.name }} actual='%s' expected='%s'\n",
+                    i, k, actual.items[k].{{ fld.ident }}.data, cases[i].expected[k].{{ fld.ident }}.data);
+                ++g_failures;
+            }
+{% else %}
+            if (actual.items[k].{{ fld.ident }} != cases[i].expected[k].{{ fld.ident }}) {
+                fprintf(stderr,
+                    "FAIL: {{ f.name }} case %zu [%zu]: {{ fld.name }} actual=%lld expected=%lld\n",
+                    i, k, (long long)actual.items[k].{{ fld.ident }}, (long long)cases[i].expected[k].{{ fld.ident }});
+                ++g_failures;
+            }
+{% endif %}
+{% endfor %}
+        }
+{% else %}
+{% if f.output.compare == "tolerance" %}
+            if (!close_enough((double)actual.items[k], (double)cases[i].expected[k], FLOAT_TOL)) {
+{% else %}
+            if (actual.items[k] != cases[i].expected[k]) {
+{% endif %}
+{% if float_elem %}
+                fprintf(stderr,
+                    "FAIL: {{ f.name }} case %zu [%zu]: actual=%.17g expected=%.17g\n",
+                    i, k, (double)actual.items[k], (double)cases[i].expected[k]);
+{% elif signed_elem %}
+                fprintf(stderr,
+                    "FAIL: {{ f.name }} case %zu [%zu]: actual=%lld expected=%lld\n",
+                    i, k, (long long)actual.items[k], (long long)cases[i].expected[k]);
+{% else %}
+                fprintf(stderr,
+                    "FAIL: {{ f.name }} case %zu [%zu]: actual=%llu expected=%llu\n",
+                    i, k, (unsigned long long)actual.items[k], (unsigned long long)cases[i].expected[k]);
+{% endif %}
+                ++g_failures;
+            }
+        }
+{% endif %}
+{% elif f.output.type == "bytes" %}
+{# A `bytes` return is the algorithm's `<fn>_result_t { bytes[N], len, ok }`,
+   compared by `ok`, then length, then byte. #}
+        {{ f.function }}_result_t actual = {% if f.may_fail %}result{% else %}{{ f.function }}({{ call_args }}){% endif %};
+        if (!actual.ok || actual.len != cases[i].expected_len) {
+            fprintf(stderr,
+                "FAIL: {{ f.name }} case %zu: ok=%d len=%zu expected_len=%zu\n",
+                i, (int)actual.ok, (size_t)actual.len, cases[i].expected_len);
+            ++g_failures;
+            continue;
+        }
+        for (size_t k = 0; k < actual.len; ++k) {
+            if (actual.bytes[k] != cases[i].expected[k]) {
+                fprintf(stderr,
+                    "FAIL: {{ f.name }} case %zu [%zu]: actual=%u expected=%u\n",
+                    i, k, (unsigned)actual.bytes[k], (unsigned)cases[i].expected[k]);
+                ++g_failures;
+            }
+        }
+{% else %}
+        {{ f.output.type | c_type }} actual = {% if f.may_fail %}result.value{% else %}{{ f.function }}({{ call_args }}){% endif %};
 {% if f.output.compare == "tolerance" %}
         if (!close_enough((double)actual, (double)cases[i].expected, FLOAT_TOL)) {
             fprintf(stderr,
@@ -63,6 +273,7 @@ static void test_{{ f.name }}(void) {
                 i, (unsigned long long)actual, (unsigned long long)cases[i].expected);
             ++g_failures;
         }
+{% endif %}
 {% endif %}
     }
 }

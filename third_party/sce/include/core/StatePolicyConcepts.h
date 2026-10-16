@@ -1,10 +1,10 @@
-// SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
+// SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
 // SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael
 //
 // This file is part of SCE (SCXML Core Engine).
 //
 // Dual Licensed:
-// 1. LGPL-2.1: Free for unmodified use (see LICENSE-LGPL-2.1.md)
+// 1. AGPL-3.0 + Linking Exception: Free for unmodified use (see LICENSE-EXCEPTION.md)
 // 2. Commercial: For modifications (contact newmassrael@gmail.com)
 //
 // Commercial License:
@@ -54,6 +54,17 @@ template <typename P, typename E>
 struct HasChildTickTrait<P, E, std::void_t<decltype(std::declval<P>().tickChildren(std::declval<E &>()))>>
     : std::true_type {};
 
+// §scxml-6.4: a policy that names the nearest deadline of the children it runs.
+// Emitted beside `tickChildren`, so a policy that ticks children answers this
+// too; the engine asks it only through this trait, never by probing the member
+// directly (a member that sits under another guard of the template would read
+// as absent and the branch would silently go the other way).
+template <typename P, typename = void> struct HasNextChildDeadlineTrait : std::false_type {};
+
+template <typename P>
+struct HasNextChildDeadlineTrait<P, std::void_t<decltype(std::declval<const P &>().nextChildDeadline())>>
+    : std::true_type {};
+
 template <typename P, typename E, typename = void> struct HasAutoforwardTrait : std::false_type {};
 
 template <typename P, typename E>
@@ -74,11 +85,6 @@ template <typename P, typename = void> struct HasActiveStatesTrait : std::false_
 template <typename P>
 struct HasActiveStatesTrait<P, std::void_t<decltype(std::declval<P>().getActiveStates())>> : std::true_type {};
 
-template <typename P, typename = void> struct HasExternalEventFlagTrait : std::false_type {};
-
-template <typename P>
-struct HasExternalEventFlagTrait<P, std::void_t<decltype(std::declval<P>().nextEventIsExternal_)>> : std::true_type {};
-
 /// Policy declares that driving it needs `tick()` rather than `step()` alone.
 ///
 /// `step()` runs a macrostep and never drains the delayed-send scheduler or
@@ -95,6 +101,26 @@ template <typename P>
 struct NeedsEventSchedulerTrait<P, std::void_t<decltype(P::NEEDS_EVENT_SCHEDULER)>>
     : std::bool_constant<P::NEEDS_EVENT_SCHEDULER> {};
 
+/// Policy declares that its document sends to its parent session — a literal
+/// `<send target="#_parent">` — the generate manifest's `needs_parent`.
+///
+/// Read by a host that refuses to start such a machine as a root
+/// (`StaticExecutionEngine::initializeAsRoot`). Detected rather than required,
+/// for the reason `NeedsEventSchedulerTrait` gives; absent means `false`.
+template <typename P, typename = void> struct NeedsParentTrait : std::false_type {};
+
+template <typename P>
+struct NeedsParentTrait<P, std::void_t<decltype(P::NEEDS_PARENT)>> : std::bool_constant<P::NEEDS_PARENT> {};
+
+/// Policy names the `<invoke>`s its document hands to a host invoker
+/// (§scxml-6.4.1), as `static constexpr` `HOST_INVOKE_IDS` — a range of
+/// strings. Their `done.invoke.<id>` is accepted only through the engine's
+/// `completeHostInvoke`. Detected rather than required: a policy without a
+/// host-run invoke has nothing to list, and a hand-written one keeps compiling.
+template <typename P, typename = void> struct HasHostInvokeIdsTrait : std::false_type {};
+
+template <typename P> struct HasHostInvokeIdsTrait<P, std::void_t<decltype(P::HOST_INVOKE_IDS)>> : std::true_type {};
+
 /// Policy can hand an event to a live `<invoke>` child named by session id.
 ///
 /// A session's published location is a usable `<send>` target,
@@ -107,6 +133,27 @@ template <typename P>
 struct HasChildSessionDeliveryTrait<
     P, std::void_t<decltype(std::declval<P &>().deliverToChildSession(
            std::declval<const std::string &>(), std::declval<const SCE::Common::ForwardedEvent &>()))>>
+    : std::true_type {};
+
+/// §scxml-6.2 + 6.4: policy can deliver a delayed send's event to one of
+/// its invocations by invoke id, answering whether that invocation was there
+/// to take it. Only a policy that invokes has children to deliver to.
+template <typename P, typename = void> struct HasInvocationDeliveryTrait : std::false_type {};
+
+template <typename P>
+struct HasInvocationDeliveryTrait<
+    P, std::void_t<decltype(std::declval<P &>().deliverToInvocation(
+           std::declval<const std::string &>(), std::declval<const SCE::Common::ForwardedEvent &>()))>>
+    : std::true_type {};
+
+/// §scxml-6.2 + 6.4: policy can deliver a delayed send's event to the
+/// session that invoked it, answering whether that session was there. Only an
+/// invoked machine has a parent.
+template <typename P, typename = void> struct HasParentDeliveryTrait : std::false_type {};
+
+template <typename P>
+struct HasParentDeliveryTrait<
+    P, std::void_t<decltype(std::declval<P &>().deliverToParent(std::declval<const SCE::Common::ForwardedEvent &>()))>>
     : std::true_type {};
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -130,35 +177,38 @@ struct HasChildSessionDeliveryTrait<
 // helper classes, and generated StatePolicy structs.
 //
 // Layered design — each level adds requirements incrementally:
-//   HierarchyPolicy     → basic tree traversal (getParent, isCompoundState)
-//   BaseStatePolicy     → engine essentials (initialState, isFinalState, enums)
+//   HierarchyPolicy     → the document tree Appendix D walks (parents,
+//                         children in document order, compound / parallel)
+//   BaseStatePolicy     → engine essentials (initial and history targets,
+//                         isFinalState, enums)
 //   EventNamingPolicy   → event name ↔ enum conversion
 //   StateNamingPolicy   → state enum → SCXML id string
 //   ParallelStatePolicy → parallel state extensions (isParallelState, regions)
 //
-// NOTE: Engine-dependent checks (processTransition, executeEntryActions, etc.)
-// are intentionally NOT in concepts due to circular dependency:
+// NOTE: Engine-dependent checks (firstEnabledTransition, executeEntryActions,
+// etc.) are intentionally NOT in concepts due to circular dependency:
 //   StaticExecutionEngine<P> requires P, but P's methods take Engine& parameter.
-// These are verified via static_assert inside StaticExecutionEngine instead.
-//
-// NOTE: Member variable checks (lastTransitionIsInternal_, etc.) are also
-// verified via static_assert because concepts cannot distinguish between
-// member variables and member functions with the same syntax when accessed
-// through friend declarations.
+// The engine's calls to them are what checks them.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Level 1: Hierarchy Policy — minimal tree traversal
-// Used by: HierarchicalStateHelper, HierarchicalAlgorithms
+// Level 1: Hierarchy Policy — the document tree
+// Used by: HierarchicalStateHelper, ParallelTransitionHelper,
+//          ConflictResolutionHelper, StaticExecutionEngine
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Minimal state hierarchy navigation capability.
-/// Any policy used with HierarchicalStateHelper must satisfy this.
+/// The state tree the Appendix D procedures walk: parents, children in
+/// document order, and which states are compound or parallel.
+/// `isCompoundState` answers true for a `<state>` with child states; what it
+/// answers for a `<parallel>` is not part of the contract — policies differ —
+/// so a caller that must tell the two apart asks `isParallelState` as well.
 template <typename P>
 concept HierarchyPolicy = requires { typename P::State; } && requires(typename P::State s) {
     { P::getParent(s) } -> std::same_as<std::optional<typename P::State>>;
     { P::isCompoundState(s) } -> std::convertible_to<bool>;
-    { P::getInitialChild(s) } -> std::same_as<typename P::State>;
+    { P::isParallelState(s) } -> std::convertible_to<bool>;
+    { P::getChildStates(s) } -> std::convertible_to<std::vector<typename P::State>>;
+    { P::getDocumentOrder(s) } -> std::convertible_to<int>;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -166,15 +216,22 @@ concept HierarchyPolicy = requires { typename P::State; } && requires(typename P
 // Used by: StaticExecutionEngine (template constraint)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Core state identification and lifecycle capability.
+/// Core state identification and lifecycle capability, and the target lists
+/// the entry procedures dereference: every compound state's initial
+/// transition, the document's, and every `<history>`'s default.
 /// Every StatePolicy used with StaticExecutionEngine must satisfy this.
 template <typename P>
 concept BaseStatePolicy = HierarchyPolicy<P> && requires {
     typename P::Event;
+    typename P::History;
     { P::HAS_PARALLEL_STATES } -> std::convertible_to<bool>;
-} && requires(typename P::State s) {
+    P::getDocumentInitialTargets();
+} && requires(typename P::State s, typename P::History h) {
     { P::initialState() } -> std::same_as<typename P::State>;
     { P::isFinalState(s) } -> std::convertible_to<bool>;
+    P::getInitialTargets(s);
+    { P::getHistoryParent(h) } -> std::same_as<typename P::State>;
+    P::getHistoryDefaultTargets(h);
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -207,9 +264,7 @@ concept StateNamingPolicy = BaseStatePolicy<P> && requires(typename P::State s) 
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Level 4: Parallel State Policy — parallel state extensions
-// Used by: ParallelTransitionHelper, ParallelStateHelper,
-//          ParallelCompletionHelper, ParallelExitEntryHelper,
-//          ConflictResolutionHelper
+// Used by: ParallelStateHelper, ParallelCompletionHelper
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Parallel state navigation and ordering capability.
@@ -243,6 +298,10 @@ concept HasInvokeSupport = HasInvokeSupportTrait<P, Engine>::value;
 template <typename P, typename Engine>
 concept HasChildTick = HasChildTickTrait<P, Engine>::value;
 
+/// Policy names the nearest deadline of its running children (§scxml-6.4)
+template <typename P>
+concept HasNextChildDeadline = HasNextChildDeadlineTrait<P>::value;
+
 /// Policy supports autoforward to children (§scxml-6.4)
 template <typename P, typename Engine>
 concept HasAutoforward = HasAutoforwardTrait<P, Engine>::value;
@@ -255,17 +314,29 @@ concept HasFinalize = HasFinalizeTrait<P, EventMeta, Engine>::value;
 template <typename P>
 concept HasActiveStates = HasActiveStatesTrait<P>::value;
 
-/// Policy has external event marking flag
-template <typename P>
-concept HasExternalEventFlag = HasExternalEventFlagTrait<P>::value;
-
 /// Policy can deliver an event to a live invoke child by session id
 template <typename P>
 concept HasChildSessionDelivery = HasChildSessionDeliveryTrait<P>::value;
 
+/// Policy can deliver a delayed send to one of its invocations by invoke id
+template <typename P>
+concept HasInvocationDelivery = HasInvocationDeliveryTrait<P>::value;
+
+/// Policy can deliver a delayed send to the session that invoked it
+template <typename P>
+concept HasParentDelivery = HasParentDeliveryTrait<P>::value;
+
 /// Driving the policy's machine needs `tick()`, not `step()` alone
 template <typename P>
 concept NeedsEventScheduler = NeedsEventSchedulerTrait<P>::value;
+
+/// The policy's machine sends to its parent session
+template <typename P>
+concept NeedsParent = NeedsParentTrait<P>::value;
+
+/// Policy lists the invokes a host runs
+template <typename P>
+concept HasHostInvokeIds = HasHostInvokeIdsTrait<P>::value;
 
 #else  // C++17 fallback
 
@@ -282,6 +353,8 @@ template <typename P, typename Engine> inline constexpr bool HasInvokeSupport = 
 
 template <typename P, typename Engine> inline constexpr bool HasChildTick = HasChildTickTrait<P, Engine>::value;
 
+template <typename P> inline constexpr bool HasNextChildDeadline = HasNextChildDeadlineTrait<P>::value;
+
 template <typename P, typename Engine> inline constexpr bool HasAutoforward = HasAutoforwardTrait<P, Engine>::value;
 
 template <typename P, typename M, typename Engine>
@@ -289,11 +362,15 @@ inline constexpr bool HasFinalize = HasFinalizeTrait<P, M, Engine>::value;
 
 template <typename P> inline constexpr bool HasActiveStates = HasActiveStatesTrait<P>::value;
 
-template <typename P> inline constexpr bool HasExternalEventFlag = HasExternalEventFlagTrait<P>::value;
-
 template <typename P> inline constexpr bool HasChildSessionDelivery = HasChildSessionDeliveryTrait<P>::value;
+template <typename P> inline constexpr bool HasInvocationDelivery = HasInvocationDeliveryTrait<P>::value;
+template <typename P> inline constexpr bool HasParentDelivery = HasParentDeliveryTrait<P>::value;
 
 template <typename P> inline constexpr bool NeedsEventScheduler = NeedsEventSchedulerTrait<P>::value;
+
+template <typename P> inline constexpr bool NeedsParent = NeedsParentTrait<P>::value;
+
+template <typename P> inline constexpr bool HasHostInvokeIds = HasHostInvokeIdsTrait<P>::value;
 
 #endif  // __cpp_concepts >= 202002L
 

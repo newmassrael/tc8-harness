@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
@@ -10,6 +10,11 @@
 
 package com.sce.generated.{{ package }}
 
+{% for imp in all_imports %}
+{% if imp.include_stmt %}
+{{ imp.include_stmt }}
+{% endif %}
+{% endfor %}
 import com.sce.forge.runtime.EventDomain
 import com.sce.forge.runtime.EventQueue
 import com.sce.forge.runtime.ThresholdState
@@ -47,27 +52,27 @@ class ForgeDomain : EventDomain<ForgeDomainTag>
 
 class {{ struct_name }} {
 {% for mon in monitors %}
-    private val {{ mon.id }} = ThresholdState()
+    private val {{ mon.field }} = ThresholdState()
 {% endfor %}
 
     fun update({{ params }}): EventQueue<ForgeDomainTag> {
-        val events = EventQueue<ForgeDomainTag>()
+        val sceEvents = EventQueue<ForgeDomainTag>()
 {% for mon in monitors %}
-        if ({{ mon.id }}.enterIf({{ mon.enter_expr }})) {
-            events.push(ForgeDomainTag.{{ mon.event_enter }})
+        if ({{ mon.field }}.enterIf({{ mon.enter_expr }})) {
+            sceEvents.push(ForgeDomainTag.{{ mon.event_enter }})
         }
 {% if mon.has_leave %}
 {% if mon.has_on_leave %}
-        else if ({{ mon.id }}.leaveIf({{ mon.leave_expr }})) {
-            events.push(ForgeDomainTag.{{ mon.event_leave }})
+        else if ({{ mon.field }}.leaveIf({{ mon.leave_expr }})) {
+            sceEvents.push(ForgeDomainTag.{{ mon.event_leave }})
         }
 {% else %}
         else {
-            {{ mon.id }}.leaveIf({{ mon.leave_expr }})
+            {{ mon.field }}.leaveIf({{ mon.leave_expr }})
         }
 {% endif %}
 {% endif %}
 {% endfor %}
-        return events
+        return sceEvents
     }
 }

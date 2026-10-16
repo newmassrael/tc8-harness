@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
@@ -47,15 +47,17 @@ func {{ func_name }}({{ input_id }} {{ input_type }}) {{ enum_name }} {
 
 import "github.com/newmassrael/sce-forge-runtime/lookup"
 
-var keys = [{{ n }}]{{ input_type }}{ {{ keys_literal | join(", ") }} }
-var values = [{{ n }}]{{ value_type }}{ {{ values_literal | join(", ") }} }
+{# The tables are package-level, so they carry the `sce` prefix, the
+   generator's own: an input called `keys` or `values` cannot hide them. #}
+var sceKeys = [{{ n }}]{{ input_type }}{ {{ keys_literal | join(", ") }} }
+var sceValues = [{{ n }}]{{ value_type }}{ {{ values_literal | join(", ") }} }
 
 // {{ func_name }} returns the value paired with {{ input_id }}, or {% if on_miss_error %}(zero, false) on miss{% else %}{{ default_literal }} on miss{% endif %}.
 func {{ func_name }}({{ input_id }} {{ input_type }}) {% if on_miss_error %}({{ value_type }}, bool){% else %}{{ value_type }}{% endif %} {
 {% if on_miss_error %}
-	return lookup.Lookup(keys[:], values[:], {{ input_id }})
+	return lookup.Lookup(sceKeys[:], sceValues[:], {{ input_id }})
 {% else %}
-	if v, ok := lookup.Lookup(keys[:], values[:], {{ input_id }}); ok {
+	if v, ok := lookup.Lookup(sceKeys[:], sceValues[:], {{ input_id }}); ok {
 		return v
 	}
 	return {{ default_literal }}

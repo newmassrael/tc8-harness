@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
+// SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
 // SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael
 
 #pragma once
@@ -32,7 +32,6 @@ struct JSContext;
 // JSValueConst is defined by QuickJS, no need to redefine
 
 namespace SCE {
-class StateMachine;
 
 /**
  * @brief Thread-safe session-based JavaScript engine
@@ -242,14 +241,12 @@ public:
                           const std::vector<std::pair<std::string, NativeMethod>> &methods) override;
 
     /**
-     * @brief Set the StateMachine instance for In() function integration
-     * @param stateMachine Pointer to the StateMachine instance
-     * @param sessionId Session ID to associate with this state machine
-     */
-    void setStateMachine(std::shared_ptr<StateMachine> stateMachine, const std::string &sessionId);
-
-    /**
-     * @brief Set state query callback for In() function integration (for static engines)
+     * @brief Set the state query callback that answers In() for a session
+     *
+     * The one way a session answers In(): the interpreter and the generated
+     * machines both register here, so the script engine asks a callback and
+     * never reaches into the runtime tier.
+     *
      * @param callback Function that checks if a state is active
      * @param sessionId Session ID to associate with this callback
      */
@@ -461,13 +458,13 @@ private:
     // === Global Functions ===
     std::unordered_map<std::string, std::function<ScriptValue(const std::vector<ScriptValue> &)>> globalFunctions_;
     std::mutex globalFunctionsMutex_;
-    // === StateMachine Integration ===
-    // RACE CONDITION FIX: Use weak_ptr to prevent heap-use-after-free (W3C Test 530)
-    // Worker threads can safely check validity with lock() before accessing StateMachine
-    std::unordered_map<std::string, std::weak_ptr<StateMachine>> stateMachines_;  // sessionId -> weak_ptr<StateMachine>
-    // === StateMachine Integration (Callback-based for static engines) ===
+    // === In() integration: each session's state query ===
     std::unordered_map<std::string, StateQueryCallback> stateQueryCallbacks_;  // sessionId -> callback
-    mutable std::mutex stateMachinesMutex_;
+    // The session each context evaluates for, so In() asks that session's
+    // callback and no other. Guarded by stateQueryCallbacksMutex_ with the
+    // callbacks, since In() reads both in one lookup.
+    std::unordered_map<JSContext *, std::string> contextSessions_;
+    mutable std::mutex stateQueryCallbacksMutex_;
 
     // === Internal Event System ===
     struct InternalEventQueue {
@@ -534,8 +531,9 @@ private:
     // Static callback functions for QuickJS
     static JSValue inFunctionWrapper(JSContext *ctx, JSValue this_val, int argc, JSValue *argv);
 
-    // Helper method for In() function
-    bool checkStateActive(const std::string &stateName) const;
+    // Helper method for In() function: whether `stateName` is active in the
+    // configuration of the session `ctx` evaluates for.
+    bool checkStateActive(JSContext *ctx, const std::string &stateName) const;
 
     static JSValue consoleFunctionWrapper(JSContext *ctx, JSValue this_val, int argc, JSValue *argv);
     static JSValue queueErrorEventWrapper(JSContext *ctx, JSValue this_val, int argc, JSValue *argv);
@@ -553,18 +551,6 @@ private:
 
     // Error handling
     ScriptResult createErrorFromException(JSContext *ctx);
-
-    // === Internal EventRaiser Management (Private) ===
-    /**
-     * @brief Register EventRaiser for a session (Internal use only)
-     *
-     * Enables ParentEventTarget to send events to parent sessions by
-     * providing access to their EventRaiser instances.
-     * Only accessible by friend classes (StateMachine).
-     *
-     * @param sessionId Target session
-     * @param eventRaiser EventRaiser instance for this session
-     */
 };
 
 }  // namespace SCE

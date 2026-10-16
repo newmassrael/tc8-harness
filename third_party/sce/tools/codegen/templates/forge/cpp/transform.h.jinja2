@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
@@ -14,6 +14,22 @@
 
 #include <cstdint>
 #include <string>
+{# `round(x)` lowers to `std::llround` and `floor(x)` to `std::floor`, both of
+   which live in <cmath>. The include is conditional rather than unconditional
+   because an unused header is noise in every generated file that does neither
+   — the same reason `algorithm.h.jinja2` gates <array>/<vector>/<span>. The
+   condition reads the emitted bodies, so it cannot drift from what the emitter
+   actually produced; a flag computed upstream could say "no" while the body
+   says `llround`.
+   ⚠ ONE CLAUSE PER LOWERED <cmath> NAME. The second name was added to
+   `real_to_int_builtin` after this condition was written for `llround` alone,
+   and a body calling `std::floor` under a one-name condition does not compile.
+   Adding a builtin that lowers to <cmath> means adding its name here. #}
+{% set body = functions | map(attribute='expr') | join(' ') %}
+{% set needs_cmath = 'llround' in body or 'std::floor' in body %}
+{% if needs_cmath %}
+#include <cmath>
+{% endif %}
 {% if all_imports %}
 {% for imp in all_imports %}
 {{ imp.include_stmt }}
@@ -39,6 +55,69 @@ inline {{ func.ret_type }} {{ func.name }}({{ func.params }}) {
     return {{ func.expr }};
 }
 {% endfor %}
+{% if holder %}
+
+// Every output of one activation.
+struct {{ holder.symbols.outputs }} {
+{% for o in holder.outputs %}
+    {{ o.type }} {{ o.field }};
+{% endfor %}
+};
+
+// The values `previous()` reads, kept from one activation to the next.
+//
+// `{{ holder.symbols.update }}` is one activation: every output is computed
+// from this activation's inputs and the kept values, and only then is each
+// kept value replaced by what its field holds now.
+class {{ holder.symbols.holder }} {
+public:
+    {{ holder.symbols.holder }}() { {{ holder.symbols.reset }}(); }
+
+    // Every kept value back to its field's `sce:initial`.
+    void {{ holder.symbols.reset }}() {
+{% for c in holder.cells %}
+{% if c.is_string %}
+        {{ c.member }} = "{{ c.initial_text }}";
+{% else %}
+        {{ c.member }} = {{ c.initial }};
+{% endif %}
+{% endfor %}
+    }
+{% if holder.symbols.restored %}
+
+    // A holder whose kept values of retained fields are the ones the host
+    // stored, and every other at its field's `sce:initial`.
+    static {{ holder.symbols.holder }} {{ holder.symbols.restored }}({{ holder.restore_params }}) {
+        {{ holder.symbols.holder }} {{ holder.self_name }};
+{% for c in holder.cells %}
+{% if c.restored_arg %}
+        {{ holder.self_name }}.{{ c.member }} = {{ c.restored_arg }};
+{% endif %}
+{% endfor %}
+        return {{ holder.self_name }};
+    }
+{% endif %}
+
+    // One activation.
+    {{ holder.symbols.outputs }} {{ holder.symbols.update }}({{ holder.input_params }}) {
+{# The call is qualified: a function is named from an output (`computeDelta`) and
+   an author's input of that name, a parameter of this method, would hide an
+   unqualified one. #}
+{% for o in holder.outputs %}
+        const {{ o.type }} {{ o.name }} = ::SCE::Generated::{{ namespace }}::{{ o.fn }}({{ holder.input_args }}{% for c in holder.cells %}{% if holder.input_args or not loop.first %}, {% endif %}{{ c.member }}{% endfor %});
+{% endfor %}
+{% for c in holder.cells %}
+        {{ c.member }} = {{ c.source }};
+{% endfor %}
+        return {{ holder.symbols.outputs }}{ {%- for o in holder.outputs %}{{ o.name }}{% if not loop.last %}, {% endif %}{% endfor -%} };
+    }
+
+private:
+{% for c in holder.cells %}
+    {{ c.type }} {{ c.member }}{};
+{% endfor %}
+};
+{% endif %}
 
 }  // namespace SCE::Generated::{{ namespace }}
 

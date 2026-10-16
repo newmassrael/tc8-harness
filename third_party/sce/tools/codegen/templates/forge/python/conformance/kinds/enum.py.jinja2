@@ -1,0 +1,32 @@
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-FileCopyrightText: Copyright (c) 2026 newmassrael #}
+
+{# Enum kind — see the C++ fragment for why the oracle compares VALUES and
+   keys on the source spelling; `v.ident` is the member the declaration
+   emits. `spec` is bound by the harness. #}
+        variants = spec["variants"]
+
+        # Count first: a vocabulary that gained or lost a variant without the
+        # manifest moving would otherwise satisfy every assertion below.
+        self.assertEqual(
+            len(variants), {{ f.variants | length }}, "{{ f.name }}: oracle variant count"
+        )
+
+{% for v in f.variants %}
+        self.assertEqual(
+            variants[{{ loop.index0 }}]["name"],
+            "{{ v.name }}",
+            "{{ f.name }} variant {{ loop.index0 }} name",
+        )
+        self.assertEqual(
+            int({{ f.name }}.{{ f.name | to_pascal_case }}.{{ v.ident }}),
+            variants[{{ loop.index0 }}]["value"],
+            "{{ f.name }}.{{ v.name }}",
+        )
+        # The name the declaration answers is the one the document wrote.
+        self.assertEqual(
+            {{ f.name }}.{{ f.name | to_pascal_case }}.{{ v.ident }}.declared_name(),
+            "{{ v.name }}",
+            "{{ f.name }}.{{ v.name }} declared name",
+        )
+{% endfor %}

@@ -1,15 +1,14 @@
-// SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
+// SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
 // SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael
 //
 // This file is part of SCE (SCXML Core Engine).
 //
 // Dual Licensed:
-// 1. LGPL-2.1: Free for unmodified use (see LICENSE-LGPL-2.1.md)
+// 1. AGPL-3.0 + Linking Exception: Free for unmodified use (see LICENSE-EXCEPTION.md)
 // 2. Commercial: For modifications (contact newmassrael@gmail.com)
 //
 // Commercial License:
-//   Individual: $5000 cumulative
-//   Enterprise: Contact for pricing
+//   Pricing: contact newmassrael@gmail.com
 //   Contact: https://github.com/newmassrael
 //
 // Full terms: https://github.com/newmassrael/scxml-core-engine/blob/main/LICENSE
@@ -162,6 +161,23 @@ public:
                           expr.source());
             return true;
         }
+    }
+
+    /**
+     * @brief §scxml-6.2.4 / §scxml-6.4.1: write a generated id to an
+     *        `idlocation`
+     *
+     * The location is a location expression, so this is the assignment
+     * executeAssignment() makes: a member path lands, and one that cannot take
+     * the id reports through `errorCallback` and answers false, for the caller
+     * to raise error.execution and abandon the element (§scxml-5.9.2). The id
+     * is quoted here, in the location's own language, because an invoke's is
+     * a run-time value.
+     */
+    static bool storeIdInLocation(IScriptEngine &jsEngine, const std::string &sessionId, const ScriptSource &location,
+                                  const std::string &id, std::function<void(const std::string &)> errorCallback) {
+        return executeAssignment(jsEngine, sessionId, location, ScriptSource::stringLiteral(id, location.language()),
+                                 std::move(errorCallback));
     }
 };
 

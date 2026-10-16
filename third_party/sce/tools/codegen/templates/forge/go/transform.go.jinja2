@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
@@ -9,9 +9,25 @@
 // Do not edit — regenerate from the source SCXML file.
 
 package {{ package }}
-{% if all_imports %}
+{# `round(x)` lowers to `math.Round`. Go makes an unused import a COMPILE
+   ERROR, so this cannot be added unconditionally the way a C++ include could
+   — every transform that does not round would stop building. The condition
+   reads the emitted bodies for the same reason as the C++ side: a flag
+   computed upstream could disagree with what the emitter produced, and here
+   that disagreement is a broken build in both directions. #}
+{# ⚠ The package is read off the emitted text, not named: `floor(x)` lowers to
+   `math.Floor`, a string joined to an integer to `strconv.FormatInt`, and a
+   condition naming ONE function goes stale the moment the vocabulary grows —
+   which it did. `std_imports` is what the render door (`LangCtx::render`)
+   read off the text: a package used as a package, with literals and comments
+   skipped, so this form cannot fall behind `real_to_int_builtin` or the
+   concatenation emitter. #}
+{% if all_imports or std_imports %}
 
 import (
+{% for pkg in std_imports %}
+	"{{ pkg }}"
+{% endfor %}
 {% for imp in all_imports %}
 {{ imp.include_stmt }}
 {% endfor %}
@@ -36,3 +52,75 @@ func {{ func.name }}({{ func.params }}) {{ func.ret_type }} {
 	return {{ func.expr }}
 }
 {% endfor %}
+{% if holder %}
+{# A package-level function is called from `update` through a name no parameter
+   can be: the function is named from an output (`ComputeDelta`), and an author's
+   input of that name is a parameter of the method. #}
+{% for o in holder.outputs %}
+
+var sce{{ o.fn }} = {{ o.fn }}
+{% endfor %}
+
+// {{ holder.symbols.outputs }} is every output of one activation.
+type {{ holder.symbols.outputs }} struct {
+{% for o in holder.outputs %}
+	{{ o.field }} {{ o.type }}
+{% endfor %}
+}
+
+// {{ holder.symbols.holder }} keeps the values previous() reads from one
+// activation to the next. {{ holder.symbols.update }} is one activation: every
+// output is computed from this activation's inputs and the kept values, and
+// only then is each kept value replaced by what its field holds now.
+type {{ holder.symbols.holder }} struct {
+{% for c in holder.cells %}
+	{{ c.name }} {{ c.type }}
+{% endfor %}
+}
+
+{% set this = holder.self_name %}
+// {{ holder.symbols.new }} returns a holder whose kept values are at their
+// fields' sce:initial.
+func {{ holder.symbols.new }}() *{{ holder.symbols.holder }} {
+	{{ this }} := &{{ holder.symbols.holder }}{}
+	{{ this }}.{{ holder.symbols.reset }}()
+	return {{ this }}
+}
+
+// {{ holder.symbols.reset }} returns every kept value to its field's sce:initial.
+func ({{ this }} *{{ holder.symbols.holder }}) {{ holder.symbols.reset }}() {
+{% for c in holder.cells %}
+{% if c.is_string %}
+	{{ this }}.{{ c.name }} = "{{ c.initial_text }}"
+{% else %}
+	{{ this }}.{{ c.name }} = {{ c.initial }}
+{% endif %}
+{% endfor %}
+}
+{% if holder.symbols.restored %}
+
+// {{ holder.symbols.restored }} returns a holder whose kept values of retained
+// fields are the ones the host stored, and every other at its field's
+// sce:initial.
+func {{ holder.symbols.restored }}({{ holder.restore_params }}) *{{ holder.symbols.holder }} {
+	{{ this }} := {{ holder.symbols.new }}()
+{% for c in holder.cells %}
+{% if c.restored_arg %}
+	{{ this }}.{{ c.name }} = {{ c.restored_arg }}
+{% endif %}
+{% endfor %}
+	return {{ this }}
+}
+{% endif %}
+
+// {{ holder.symbols.update }} is one activation.
+func ({{ this }} *{{ holder.symbols.holder }}) {{ holder.symbols.update }}({{ holder.input_params }}) {{ holder.symbols.outputs }} {
+{% for o in holder.outputs %}
+	{{ o.name }} := sce{{ o.fn }}({{ holder.input_args }}{% for c in holder.cells %}{% if holder.input_args or not loop.first %}, {% endif %}{{ this }}.{{ c.name }}{% endfor %})
+{% endfor %}
+{% for c in holder.cells %}
+	{{ this }}.{{ c.name }} = {{ c.source }}
+{% endfor %}
+	return {{ holder.symbols.outputs }}{ {%- for o in holder.outputs %}{{ o.field }}: {{ o.name }}{% if not loop.last %}, {% endif %}{% endfor -%} }
+}
+{% endif %}

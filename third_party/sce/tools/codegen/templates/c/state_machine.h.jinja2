@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {# RFC §synth-5-J-1 — C11 statechart header (paired with state_machine.c.jinja2).
@@ -32,6 +32,20 @@
 #include <stddef.h>
 
 #include "sce/types.h"
+{% if static_published | selectattr('view') | rejectattr('read') | list %}
+{# SCE Accepted Subset §2.15: a published list is read through the library's
+   borrowed view of its elements, `{data, len}`, which the host cannot grow past
+   the bound the machine keeps. A string is read as the text of its buffer,
+   which is no such view. #}
+#include "sce/forge/list_view.h"
+{% endif %}
+{% if (static_fields | selectattr('saved_type', 'equalto', 'bytes') | list) or (static_fields | selectattr('holds_bytes') | list) %}
+{# SCE Accepted Subset §2.15: a byte string is a buffer and the length it holds,
+   which a host is lent as the library's `sce_forge_bytes_view_t` and which the
+   buffer's `_of` is filled from; a record's field of one, alone or in a list of
+   them, is the same buffer. #}
+#include "sce/forge/bytes.h"
+{% endif %}
 {# `SCE_STATIC_ASSERT`, used by the compile-time invariants at the
    bottom of this header. This header opens `extern "C"`, so a C++
    application linking the generated machine compiles it as C++ —
@@ -45,12 +59,12 @@
    find the definition through the same include it already has. #}
 #include "sce/payload_reading.h"
 
-{% if model.needs_event_scheduler %}
 /* §scxml-6.2.2: `sce_clock_t`, the per-instance seam this machine measures its
    `<send delay>` deadlines from. The link-time `_sce_clock_now_ms()` it falls
-   back to is declared in the same header. */
+   back to is declared in the same header. Included on every machine: one
+   that is invoked is handed its parent's clock at `_init_with_parent`, whether
+   or not it has delays of its own. */
 #include "sce/clock.h"
-{% endif %}
 
 {% if model.on_sample_links %}
 /* SCE Protocol-Synthesis RFC §synth-5-E sample-callback codegen wire-up. `sce_sample_t`
@@ -60,7 +74,7 @@
 #include "sce/sample.h"
 {% endif %}
 
-{% if model.host_processor_types or model.host_invoker_types %}
+{% if model.host_processor_types or model.host_invoker_types or model.needs_http_send %}
 /* §scxml-6.2.5 + §scxml-6.4.1: host-served Event I/O Processor types and
    host-run `<invoke>` types + the bounded registries this machine
    dispatches through
@@ -69,7 +83,11 @@
    dispatch is emitted into the generated `_sm.c`. cpp's
    `core/HostProcessor.h` plus `StaticExecutionEngine`'s map is the
    equivalent shape, translated to a fixed-capacity array because the
-   MCU profile has no allocator. */
+   MCU profile has no allocator.
+
+   A BasicHTTP `<send>` (§scxml-C-2) needs the request type alone: the send
+   site hands its request to the machine's own HTTP client in that shape, and
+   a delayed one waits in the delayed-send queue as a host-served one does. */
 #include "sce/host_processor.h"
 {% endif %}
 
@@ -88,13 +106,19 @@
 {% endfor %}
 {% for invoke_info in model.invokes | hybrid %}
 /* W3C SCXML 6.4 (test216/530): child SM declarations for hybrid
-   `<invoke srcexpr=...>` / `<invoke><content expr=...>`. The child's
-   SCXML is a trivial immediate-final stub written by sce-build's
-   `generate_hybrid_child_scxmls`; the parent's runtime evaluation of
-   srcexpr/contentexpr is validation-only (cpp `test216_sm.inl:166`
-   pattern). The child header / struct embed shape is identical to the
-   static-scxml case. */
+   `<invoke srcexpr=...>` / `<invoke><content expr=...>`. Without a
+   declared candidate set the child's SCXML is a trivial immediate-final
+   stub written by sce-build's `generate_hybrid_child_scxmls` and the
+   runtime evaluation is validation-only; with one
+   (SCE_ACCEPTED_SUBSET.md §2.13) each candidate is a real document and
+   the evaluated value chooses between them. */
+{% if invoke_info.candidates %}
+{% for candidate in invoke_info.candidates %}
+#include "{{ candidate.stem }}_sm.h"
+{% endfor %}
+{% else %}
 #include "{{ invoke_info.child_name }}_sm.h"
+{% endif %}
 {% endfor %}
 {% endif %}
 
@@ -121,7 +145,7 @@ extern "C" {
    width via SCE_STATIC_ASSERT at the bottom of this header.             #}
 enum {{ csym_prefix }}{{ model.name }}_state_e {
     {% for state_name in model.states | sort %}
-    {{ csym_prefix | upper }}{{ model.name | upper }}_STATE_{{ state_name | upper | replace('-', '_') | replace('.', '_') }},
+    {{ csym_prefix | upper }}{{ model.name | upper }}_STATE_{{ state_name | to_c11_upper_ident }},
     {% endfor %}
     {{ csym_prefix | upper }}{{ model.name | upper }}_STATE_COUNT
 };
@@ -173,17 +197,17 @@ typedef enum {{ csym_prefix }}{{ model.name }}_configuration_rejection_e {{ csym
 
 {% if model.has_history_states %}
 /* ── W3C SCXML 3.10: History pseudo-state enumeration ─────────────── */
-{# History state IDs are not part of the regular state enum (parser.rs
-   collapses transition.target to the resolved leaf), so they get their
-   own enum here. The `_HIST_NONE` sentinel marks transitions whose
-   target is a regular state — every transition_info_t carries this
-   field, but only history-targeted transitions set it to a non-NONE
-   value. Mirrors the per-history `history_<id>: Option<Vec<State>>`
-   shape used by the Rust backend (state_machine.rs.jinja2:163). #}
+{# A <history> is not a state — it is never in a configuration — so it is
+   numbered apart from the state enum, and a target list names one by this
+   enumerator (see `_macros/c_entry_target.jinja2`); the entry procedures
+   dereference it to what it recorded, or to its default. `_HIST_NONE` is
+   the entry set's "no default history content owed" marker. Mirrors the
+   per-history `history_<id>: Option<Vec<State>>` shape used by the Rust
+   backend. #}
 enum {{ csym_prefix }}{{ model.name }}_history_e {
     {{ csym_prefix | upper }}{{ model.name | upper }}_HIST_NONE,
     {% for hid, _ in model.history_states | dictsort %}
-    {{ csym_prefix | upper }}{{ model.name | upper }}_HIST_{{ hid | upper | replace('-', '_') | replace('.', '_') }},
+    {{ csym_prefix | upper }}{{ model.name | upper }}_HIST_{{ hid | to_c11_upper_ident }},
     {% endfor %}
 };
 typedef enum {{ csym_prefix }}{{ model.name }}_history_e {{ csym_prefix }}{{ model.name }}_history_t;
@@ -197,11 +221,59 @@ typedef enum {{ csym_prefix }}{{ model.name }}_history_e {{ csym_prefix }}{{ mod
 enum {{ csym_prefix }}{{ model.name }}_event_e {
     {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_NONE{{ "," if model.events }}
     {% for event_name in model.events | sort %}
-    {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_{{ event_name | upper | replace('.', '_') | replace('-', '_') }}{{ "," if not loop.last }}
+    {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_{{ event_name | to_c11_upper_ident }}{{ "," if not loop.last }}
     {% endfor %}
 };
 typedef enum {{ csym_prefix }}{{ model.name }}_event_e {{ csym_prefix }}{{ model.name }}_event_t;
 
+{% if model.emitted_transition_table %}
+{# emitted-transition-table:begin #}
+{% set _table = model.emitted_transition_table %}
+/* ── §synth-6.2.6: transition table, because the build asked for it ── */
+{# One definition in the `.c`, declared here, for the reason every other piece of
+   this machine's data is: a `static const` array in a header is one copy per
+   translation unit that includes it. A zero-length array is not C, so a machine
+   with no transitions declares the count and no array. #}
+/* The digest of the source set this machine was generated from: the
+   `source-hash` of the file's own header, as a value. */
+#define {{ csym_prefix | upper }}{{ model.name | upper }}_SOURCE_HASH "{{ _table.source_hash }}"
+#define {{ csym_prefix | upper }}{{ model.name | upper }}_TRANSITION_COUNT {{ _table.transitions | length }}u
+
+/* One transition of this machine, as constant data. Nothing in the machine
+   reads it: a host that draws the machine, or checks it against its own
+   design, does. `from`, `to` and `event` are this header's own enumerators;
+   `index` is the transition's position within its state in document order;
+   `annotation` is the `sce:req` tokens as written, space-separated and
+   uninterpreted. `to` is `{{ csym_prefix | upper }}{{ model.name | upper }}_STATE_COUNT` and `event` is
+   `{{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_NONE` where a transition has no single id in those
+   enumerations: a targetless transition, a first target that is a <history>,
+   an eventless transition, a wildcard or prefix descriptor, or several
+   descriptors. `sce-codegen transition-table` lists the same transitions in
+   the same order with the whole target set and every descriptor. */
+typedef struct {{ csym_prefix }}{{ model.name }}_transition_s {
+    {{ csym_prefix }}{{ model.name }}_state_t from;
+    {{ csym_prefix }}{{ model.name }}_state_t to;
+    {{ csym_prefix }}{{ model.name }}_event_t event;
+    uint32_t index;
+    const char *annotation;
+} {{ csym_prefix }}{{ model.name }}_transition_t;
+{% if _table.transitions %}
+
+extern const {{ csym_prefix }}{{ model.name }}_transition_t {{ csym_prefix }}{{ model.name }}_transitions[{{ csym_prefix | upper }}{{ model.name | upper }}_TRANSITION_COUNT];
+{% endif %}
+{# emitted-transition-table:end #}
+
+{% endif %}
+{% if static_type_defs %}
+/* ── Datamodel types (SCE Accepted Subset §2.15) ──────────────────── */
+{# Before the payload channel: a payload struct holds a field of the enum the
+   machine declares here (§2.15, an enum field of a payload), and a type must
+   be declared before a struct names it. What these declare is scalars, the
+   other enums and the bounded strings a record holds, none of which name the
+   payload or the event. #}
+{{ static_type_defs }}
+
+{% endif %}
 {% if event_payload_active %}
 /* ── NL→IR Item C1 Path A: typed `_event.data` payload channel ─────── */
 {{ event_payload_defs }}
@@ -216,6 +288,13 @@ typedef enum {{ csym_prefix }}{{ model.name }}_event_e {{ csym_prefix }}{{ model
    event record is value-typed and queue storage is statically reservable. #}
 typedef struct {{ csym_prefix }}{{ model.name }}_event_with_meta {
     {{ csym_prefix }}{{ model.name }}_event_t event;
+    /* §scxml-5.10: `_event.name` is the name an event ARRIVED under. The event
+       is carried as the enum member of a name the document writes, and
+       §scxml-3.12.1 lets `request.new` take a transition on `request`, so the
+       member alone loses the longer name. Set by a door that resolved a name
+       through a prefix; empty means the member's own name IS the name, which is
+       every event the document itself raises or sends. */
+    char name[SCE_MAX_ID_LEN];
     char data[SCE_MAX_DATA_LEN];
     /* §scxml-C-1: `_event.origin` is the location the sending session
        published, so it is sized as a URI rather than as an id — see
@@ -234,35 +313,36 @@ typedef struct {{ csym_prefix }}{{ model.name }}_event_with_meta {
        transition guards simply fail. */
     {{ event_payload_type }} payload;
 {% endif %}
+{% if model.host_invoker_types %}
+    /* W3C SCXML 6.4: the token of the host-run invocation this event
+       completes, set only by `_complete_host_invoke` after it confirmed the
+       invocation was still running. A host invoke's `done.invoke.<id>` that
+       arrives without one did not come through that check, so the machine
+       refuses it. Not script-visible: `_event` has no field for it. */
+    bool has_host_invoke_token;
+    uint64_t host_invoke_token;
+{% endif %}
 } {{ csym_prefix }}{{ model.name }}_event_with_meta_t;
 
-/* ── Appendix D removeConflictingTransitions: Optimal enabled transition set ───────── */
-{# Mirrors the C++ `TransitionInfo` struct defined inside the generated
-   namespace (process_transition.jinja2 emits it per fixture). The C11
-   layout adds a `exit_set` bitmap field — cpp re-computes the exit set
-   inside `removeConflictingTransitions` via `ConflictResolutionHelper::
-   computeExitSet`, but the C11 backend evaluates it once at collect
-   time so conflict checks reduce to bitmap intersection (no helper
-   class dispatch — jinja2-inline contract). The struct is fixture-local rather
-   than runtime-shared because state_t is per-fixture.
+/* ── Appendix D: one transition of the optimal enabled transition set ─── */
+{# Appendix D's EnabledTransition, as the C11 microstep (c/microstep.jinja2)
+   carries it: the transition is named by its source and its index among the
+   source's own transitions, which is the key both its target list
+   (`transition_targets`) and its content (`execute_transition_actions`) are
+   looked up by. The struct is fixture-local rather than runtime-shared
+   because state_t is per-fixture.
 
-   Fields are read by:
-     - process_transition: writes (source, target, index, flags, exit_set)
-     - remove_conflicting_transitions: reads exit_set + source for the
-       depth-greedy preemption pass
-     - handle_microstep: reads (source, target, index, flags) for the
-       exit/body/entry sequence
+   Fields are written by:
+     - first_enabled_transition: (source, index, is_internal)
+     - remove_conflicting_transitions: exit_set, against the configuration
+       it judges — which `exit_states` then exits, unchanged, because
+       nothing runs between selection and the microstep
    #}
 typedef struct {{ csym_prefix }}{{ model.name }}_transition_info {
     {{ csym_prefix }}{{ model.name }}_state_t source;       /* W3C 3.13: source state of transition */
-    {{ csym_prefix }}{{ model.name }}_state_t target;       /* W3C 3.13: target state (== source when targetless) */
-    uint16_t index;                        /* W3C 3.13: per-source-state transition index for execute_transition_actions */
+    uint16_t index;                        /* W3C 3.13: index among the source's own transitions */
     bool is_internal;                      /* W3C 3.13: type="internal" (analyzer.rs has already collapsed not-proper-descendant cases to external) */
-    bool is_targetless;                    /* W3C 5.9.2: no target — body fires, no state change */
-    uint32_t exit_set;                     /* W3C App.D.2: states this transition would exit (computed at collect time) */
-{% if model.has_history_states %}
-    {{ csym_prefix }}{{ model.name }}_history_t history_target;  /* W3C 3.10: HIST_NONE for plain transitions; non-NONE = enter via enter_history_state (snapshot or default) */
-{% endif %}
+    uint32_t exit_set;                     /* §scxml-D-computeExitSet: the states this transition exits */
 } {{ csym_prefix }}{{ model.name }}_transition_info_t;
 
 /* ── Internal/external event queues — circular buffer ─────────────── */
@@ -274,6 +354,14 @@ typedef struct {{ csym_prefix }}{{ model.name }}_event_queue {
 } {{ csym_prefix }}{{ model.name }}_event_queue_t;
 
 {% if model.needs_event_scheduler %}
+/* W3C SCXML 6.2.4: the queue a scheduled entry delivers to when due. */
+typedef enum {
+    {{ csym_prefix | upper }}{{ model.name | upper }}_SCHED_ROUTE_EXTERNAL = 0,  /* this session's external queue */
+    {{ csym_prefix | upper }}{{ model.name | upper }}_SCHED_ROUTE_INTERNAL,      /* `#_internal`: this session's internal queue */
+    {{ csym_prefix | upper }}{{ model.name | upper }}_SCHED_ROUTE_PARENT,        /* `#_parent`: the invoking session */
+    {{ csym_prefix | upper }}{{ model.name | upper }}_SCHED_ROUTE_INVOCATION     /* `#_<invokeid>`: an invoked child */
+} {{ csym_prefix }}{{ model.name }}_sched_route_t;
+
 /* ── W3C SCXML 6.2: Delayed-send queue entry ──────────────────────── */
 {# Mirrors `SchedulerQueueCore::ScheduledEntry` from cpp
    `common/SendSchedulingHelper.h`. Unlike the cpp shape we drop the
@@ -288,34 +376,50 @@ typedef struct {{ csym_prefix }}{{ model.name }}_scheduled_entry {
     uint64_t fire_time_ms;
     {{ csym_prefix }}{{ model.name }}_event_t event;
     char send_id[SCE_MAX_ID_LEN];
-{% if model.needs_script_engine %}
-    /* W3C SCXML 5.10: per-entry payload reference into the lua registry.
-       LUA_NOREF (-2) when the <send> carries no <param>/<content>
-       (delay-only fixtures schedule with no payload); a positive int when
-       scheduled_push stashed a _pending_donedata table via
-       luaL_ref(L, LUA_REGISTRYINDEX). The dispatch path in `_tick` reads
-       the table back with lua_rawgeti, restores it onto the lua-side
-       _pending_donedata slot so set_current_event can promote it to
-       _event.data, and releases the registry slot via luaL_unref. Mirrors
-       cpp `EventWithMetadata::data` per-entry carry — cpp ships a JSON
-       string because its EventWithMetadata must cross engine-agnostic
-       boundaries; C11's Lua 5.4-only engine makes the lua-native
-       ref the round-trip-free equivalent of the same per-entry carry. */
-    int payload_lua_ref;
+{% if model.needs_script_engine or model.has_delayed_send_payload %}
+    /* §scxml-5.10: the payload this entry's event carries, as the JSON
+       its `data[]` takes; empty when the <send> carries none. It used to be
+       a reference into the Lua registry, restored into a global the next
+       dequeue promoted — which any event dequeued first could take, and
+       which no saved state can hold, because a registry reference means
+       nothing outside the engine that issued it. Mirrors cpp
+       `EventWithMetadata::data`. Costs SCE_MAX_DATA_LEN per scheduled slot,
+       on a machine with a script engine, whose sends can evaluate a payload,
+       and on one whose document sends a delayed payload of its own fields
+       (`has_delayed_send_payload`, §scxml-6.2.4); no other machine has a
+       payload to hold. */
+    char data[SCE_MAX_DATA_LEN];
 {% endif %}
-{% if model.has_parent_communication %}
-    /* W3C SCXML 6.2 + 6.4 (test187): delayed `<send target="#_parent">` —
-       the entry carries an event NAME (parent's enum is foreign to this
-       SM) plus a `to_parent` flag so `_tick`'s promote loop can dispatch
-       through `parent_dispatch` instead of the local `raise_external`
-       path. When the child terminates before fire_time_ms is reached,
-       `_tick`'s `is_in_final_state` early-return drops the pending entry
-       silently — same observable as cpp's per-child `parentSendScheduler_`
-       destructor cleaning up its std::map. The `event` enum slot stays
-       zero-initialised (`{{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_NONE`) for these
-       entries; only `to_parent_event` carries routing information. */
-    bool to_parent;
-    char to_parent_event[SCE_MAX_ID_LEN];
+    /* W3C SCXML 6.2.4 + C.1: where the entry delivers when it comes due —
+       the target its `<send>` resolved when it was performed. A delay
+       postpones a send; it does not change where it goes. One of
+       `{{ csym_prefix }}{{ model.name }}_sched_route_t`. */
+    uint8_t route;
+{% if model.needs_script_engine %}
+    /* W3C SCXML 5.10: the name this machine's own event was sent under, when
+       that is not the name of its member — a `<send eventexpr>` computes it, and
+       the member that takes it is the document's event of that name, the longest
+       token prefix of it the document writes, or its wildcard
+       (`{{ csym_prefix }}{{ model.name }}_resolve_event_by_name`). `_event.name`
+       is the whole name when the wait ends. Empty when the member's own name is
+       the name sent. Only a machine with a script engine computes a name. */
+    char name[SCE_MAX_ID_LEN];
+{% endif %}
+{% set sched_invocations = model.invokes | scxml_family | list %}
+{% if model.may_address_parent or sched_invocations %}
+    /* The event NAME a `#_parent` or `#_<invokeid>` entry delivers: the
+       receiver's enum is foreign to this SM, so its own by-name door
+       resolves it. The `event` enum slot stays
+       `{{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_NONE` for these entries. A child that terminates
+       before its `#_parent` entry is due drops it with the rest of its
+       queue (`_tick`'s `is_in_final_state` early return). */
+    char route_event[SCE_MAX_ID_LEN];
+{% endif %}
+{% if sched_invocations %}
+    /* The invocation a `#_<invokeid>` entry is addressed to. Whether it is
+       still running is judged when the entry comes due; one that is not
+       is reported to this machine as error.communication (W3C SCXML C.1). */
+    char route_invoke[SCE_MAX_ID_LEN];
 {% endif %}
 {% if model.has_delayed_host_send %}
     /* W3C SCXML 6.2.4 + 6.2.5: a `<send delay>` addressed to a processor
@@ -341,6 +445,11 @@ typedef struct {{ csym_prefix }}{{ model.name }}_scheduled_entry {
     char host_event_name[SCE_MAX_ID_LEN];
     char host_target[SCE_MAX_URI_LEN];
     char host_content[SCE_MAX_DATA_LEN];
+    char host_event_data[SCE_MAX_DATA_LEN];
+    /* The invokeid current when the send executed (SCE_MESH.md
+       §mesh-10.7), kept so the act performed at the deadline carries that
+       one rather than whatever event is being processed then. */
+    char host_invoke_id[SCE_MAX_ID_LEN];
 {% if model.delayed_host_send_max_params > 0 %}
     /* Sized by the widest delayed host-served `<send>` in this document
        ({{ model.delayed_host_send_max_params }}), not by
@@ -351,6 +460,18 @@ typedef struct {{ csym_prefix }}{{ model.name }}_scheduled_entry {
     uint8_t host_param_count;
 {% endif %}
 {% endif %}
+{% if model.has_host_invoke_deadline %}
+    /* The deadline of one start of a host-run invocation, judged when the
+       entry comes due: if that start is still running, the host is told to
+       stop and the document receives `error.invoke.<id>`. On this queue for
+       the reason `host_send` is — one fire-time order, one next-deadline
+       answer. Its `send_id` is empty and `scheduled_cancel` skips it: a
+       deadline is the machine's, not the document's. */
+    bool host_invoke_deadline;
+    char deadline_processor_type[SCE_MAX_ID_LEN];
+    char deadline_invoke_id[SCE_MAX_ID_LEN];
+    uint64_t deadline_token;
+{% endif %}
 } {{ csym_prefix }}{{ model.name }}_scheduled_entry_t;
 
 typedef struct {{ csym_prefix }}{{ model.name }}_scheduled_queue {
@@ -360,26 +481,13 @@ typedef struct {{ csym_prefix }}{{ model.name }}_scheduled_queue {
 {% endif %}
 
 /* ── Policy state (datamodel + transition tracking) ───────────────── */
-{# C++ `{name}Policy` mutable members. E1 minimum keeps only the
-   transition-tracking trio that `AOT_EXECUTE_TRANSITION` always writes.
-   Datamodel variables, history slots, invoke tables, and parallel
-   active-state vectors join in E2-E5 as their owning fixture lands. #}
+{# C++ `{name}Policy` mutable members: the last microstep's source and
+   every <history>'s recorded configuration. #}
 typedef struct {{ csym_prefix }}{{ model.name }}_policy {
+    /* The source of the last transition the last microstep took — the state
+       a truncated macrostep names, since this profile keeps its
+       configuration in a bitmap and has no single current state. */
     {{ csym_prefix }}{{ model.name }}_state_t last_transition_source_state;
-    /* W3C SCXML 3.13: Target captured at process_transition match time so
-       handle_hierarchical_transition can run exit→body→entry without
-       requiring a separate `current_state` shadow (active configuration
-       lives in the bitmap `active`). Unused when last_transition_is_targetless. */
-    {{ csym_prefix }}{{ model.name }}_state_t last_transition_target_state;
-    bool last_transition_is_internal;
-    bool last_transition_is_targetless;
-    /* W3C SCXML 3.13: Transition body actions are deferred to
-       execute_transition_actions so they run between the exit and entry
-       chains (mirrors the C++ `lastTransitionIndex_` member used by
-       `process_transition.jinja2`'s deferred dispatch). The pair
-       (source_state, index) keys into the per-state switch the macro
-       emits for fixtures that carry transition body actions. */
-    uint16_t last_transition_index;
 {% if model.has_history_states %}
     {# W3C SCXML 3.10: per-history-state snapshot. `_recorded` distinguishes
        "first entry, use default transition target" from "captured snapshot
@@ -393,23 +501,14 @@ typedef struct {{ csym_prefix }}{{ model.name }}_policy {
     bool history_{{ hid }}_recorded;
     {% endfor %}
 {% endif %}
+{% for field in static_fields %}
+    {# SCE Accepted Subset §2.15: under `datamodel="sce-static"` a variable is a
+       member of this struct, read and written by the statements the build
+       lowered — no script engine holds it. #}
+    {{ field.ty }} {{ field.name }};
+{% endfor %}
 } {{ csym_prefix }}{{ model.name }}_policy_t;
 
-{% if inline_kind_code %}
-/* ── SCE Forge: Inline kind declarations ──────────────────────────── */
-{# Free-standing emit (typedef enums + `static
-   inline` functions). C11 has no nested types — both lookup enum
-   typedefs and transform/condition/codec functions live at file
-   scope, prefixed with the policy name to avoid identifier
-   collisions across fixtures. The functions take `const <sm>_policy_t
-   *_st` so their `_st->{snake}` member access mirrors cpp's implicit
-   `this->`. Cpp emits the same fragment inside the Policy struct
-   body (state_machine.jinja2 line 291); this is the C11 mirror at the
-   only structurally-equivalent point — immediately after the policy
-   typedef closes. #}
-{{ inline_kind_code }}
-
-{% endif %}
 /* ── State machine instance ───────────────────────────────────────── */
 {# Equivalent to `class {name} : StaticExecutionEngine<{name}Policy>` —
    in C11 the engine and policy fields are flattened into a single
@@ -439,11 +538,28 @@ typedef struct {{ csym_prefix }}{{ model.name }} {
 {% endif %}
 {% if event_payload_active %}
     /* NL→IR Item C1 Path A: the current event's typed `_event.data`
-       payload, copied from the dequeued event by `process_event_queues`
+       payload — copied from the dequeued event by `process_event_queues`,
+       or, when the event carried none, lifted out of its `data` there,
        and read by native transition guards
        (`sm->pending_payload.as.<event>.<field>`). Mirrors the Rust
        policy's `pending_payload` field. */
     {{ event_payload_type }} pending_payload;
+{{ event_payload_lift_storage }}
+{% endif %}
+{% if model.needs_auto_send_id %}
+    /* The ids this machine generates for a `<send idlocation>`: how many it has
+       generated, and the buffer the latest is formatted into
+       (`sce_next_auto_send_id`). Zero until the first, as `_init` clears the
+       struct. */
+    uint64_t auto_send_seq;
+    char auto_send_id[SCE_AUTO_SEND_ID_BUF_LEN];
+{% endif %}
+{% if static_done_data %}
+    /* §scxml-5.5: the pairs of a final's `<donedata>`, written when the final is
+       entered as the JSON object a done event carries as its data — what a host
+       reads through `_done_data`, and a compound final's done event is built
+       from. Empty until then. */
+    char done_data[SCE_MAX_DATA_LEN];
 {% endif %}
     {{ csym_prefix }}{{ model.name }}_event_queue_t internal_queue;   /* W3C 3.12.1: high-priority FIFO */
     {{ csym_prefix }}{{ model.name }}_event_queue_t external_queue;   /* W3C 3.12.1: low-priority FIFO  */
@@ -461,6 +577,16 @@ typedef struct {{ csym_prefix }}{{ model.name }} {
 {% endif %}
     {{ csym_prefix }}{{ model.name }}_policy_t policy;
     bool is_running;
+    /* §scxml-D-enterStates: the top-level <final> the run ended in, valid
+       when `has_terminal_state` — set on entering it, zero when a run starts.
+       Read through `_terminal_state`. */
+    {{ csym_prefix }}{{ model.name }}_state_t terminal_state;
+    bool has_terminal_state;
+    /* §scxml-D-enterStates, late binding: the states (one bit each, as the
+       configuration) whose <data> this run has already bound —
+       `s.isFirstEntry` is false for exactly these. Zero when a run starts;
+       `_init_at` seeds it with the configuration it restores. */
+    uint32_t late_bound;
     bool transition_taken;
     /* W3C SCXML 3.1.2: external events no transition matched, and the most
        recent of them. `has_discarded_event` is separate because the event
@@ -514,6 +640,17 @@ typedef struct {{ csym_prefix }}{{ model.name }} {
     bool has_truncated_macrostep;
     bool macrostep_truncated;
     uint32_t macrostep_microsteps_taken;
+    /* The budget of one invocation of the main event loop, the invocations
+       this engine handed back with an external event still queued, and the
+       event at the head of the queue when that last happened. Zero in
+       `max_external_events_per_call` means "not chosen", which is the default:
+       the setter refuses zero, so the two cannot be confused. `has_truncated_event`
+       is separate because the event enum's zero value is a real event. See
+       `_truncated_event_chains` below. */
+    uint32_t max_external_events_per_call;
+    uint32_t truncated_event_chains;
+    {{ csym_prefix }}{{ model.name }}_event_t last_truncated_event;
+    bool has_truncated_event;
     char current_event_invoke_id[SCE_MAX_ID_LEN];
     /* W3C SCXML 5.10 / C.1.1: the id the processor generates for THIS
        session, and the address that reaches it. Issued in `_init` rather
@@ -560,9 +697,21 @@ typedef struct {{ csym_prefix }}{{ model.name }} {
        `execute_pending_invokes` (cpp `test216_sm.inl:166-176` mirror).
        The child SM is the trivial immediate-final stub that sce-build
        writes via `generate_hybrid_child_scxmls`. */
+{% if invoke_info.candidates %}
+    /* §2.13: one slot per declared candidate, at most one ever active. C11
+       has no interface to hold them behind, so the shape is the one the
+       cpp backend uses — a slot each, every lifecycle site guarded by its
+       own `_active` flag. */
+{% for candidate in invoke_info.candidates %}
+    {{ csym_prefix }}{{ candidate.stem }}_t child_{{ invoke_info.field_suffix }}_{{ candidate.stem }};
+    bool child_{{ invoke_info.field_suffix }}_{{ candidate.stem }}_active;
+{% endfor %}
+    char child_{{ invoke_info.field_suffix }}_invoke_id[SCE_MAX_ID_LEN];
+{% else %}
     {{ csym_prefix }}{{ invoke_info.child_name }}_t child_{{ invoke_info.field_suffix }};
     bool child_{{ invoke_info.field_suffix }}_active;
     char child_{{ invoke_info.field_suffix }}_invoke_id[SCE_MAX_ID_LEN];
+{% endif %}
     {% endfor %}
     {% endif %}
     {% if model.needs_script_engine %}
@@ -577,7 +726,7 @@ typedef struct {{ csym_prefix }}{{ model.name }} {
        address nothing answers on. */
     char basic_http_access_uri[SCE_MAX_URI_LEN];
     {% endif %}
-    {% if model.has_parent_communication %}
+    {% if model.may_address_parent %}
     /* W3C SCXML 6.4: cross-machine event dispatch when this SM is
        invoked as a child. The parent's `execute_pending_invokes` calls
        `_init_with_parent`, which stamps these fields BEFORE the
@@ -620,6 +769,9 @@ typedef struct {{ csym_prefix }}{{ model.name }} {
        tells a host to stop something. */
     sce_host_invoker_registry_t host_invokers;
     sce_host_invocation_set_t started_host_invokes;
+    /* W3C SCXML 6.4: host invokes' `done.invoke` events refused at dequeue;
+       see `_refused_host_invoke_completions`. */
+    uint32_t refused_host_invoke_completions;
     {% endif %}
 } {{ csym_prefix }}{{ model.name }}_t;
 
@@ -691,21 +843,48 @@ const char *{{ csym_prefix }}{{ model.name }}_scxml_location(const {{ csym_prefi
    For the acts a machine performs while entering its initial
    configuration, this is too late: use `_init_with_host_processors`.
 
-   Returns false when the registry is full or the type does not fit its
-   slot, because a registration that did not happen must not read as one
-   that did. */
+   Returns false when the registry is full, the type does not fit its slot,
+   or the type is under SCE_RESERVED_HOST_TYPE_PREFIX, because a
+   registration that did not happen must not read as one that did. */
+bool {{ csym_prefix }}{{ model.name }}_register_event_processor({{ csym_prefix }}{{ model.name }}_t *sm, const char *processor_type,
+                                                                sce_host_send_handler_fn handler, void *user_data);
+
+/* Register `router` as the Mesh router, the processor for
+   SCE_MESH_PROCESSOR_TYPE — the one type `_register_event_processor`
+   refuses by name. See `sce_host_registry_register_mesh_router`. */
+bool {{ csym_prefix }}{{ model.name }}_register_mesh_router({{ csym_prefix }}{{ model.name }}_t *sm,
+                                                            sce_host_send_handler_fn router, void *user_data);
+
+/* Whether a handler is registered for `processor_type`. Two things can go
+   wrong with a host-served send — no handler, or a handler that reported
+   nothing — and only the first is an error; this is how a host tells them
+   apart from outside. */
+bool {{ csym_prefix }}{{ model.name }}_has_event_processor(const {{ csym_prefix }}{{ model.name }}_t *sm, const char *processor_type);
+{% endif %}
+{# The invoke half is declared on its own condition, not inside the send
+    half's: a machine the build declared `--host-invoker` for and no
+    `--host-processor` defines these three in its `.c`, and nested under
+    `host_processor_types` their declarations vanished — no host could call
+    them, and a C11 host-invoker machine had never been compiled. #}
 {% if model.host_invoker_types %}
 /* W3C SCXML 6.4.1: register what RUNS `processor_type`, and ask what is
    registered. Separate from the `<send>` half because they are separate
    contracts — delivering an event is not the same capability as running a
    process with a lifetime.
 
-   Unlike the send half these are safe after `_init`: §scxml-6.4 runs an
-   `<invoke>` at the END of the entry macrostep, so a registration made before
-   the first `_step` still arrives in time. */
+   For every moment after `_init`. An invocation of the initial configuration
+   runs inside `_init` — §scxml-6.4 runs an `<invoke>` at the end of the
+   macrostep that entered its state — so its invokers arrive through
+   `_init_with_host_invokers` instead. */
 bool {{ csym_prefix }}{{ model.name }}_register_invoker({{ csym_prefix }}{{ model.name }}_t *sm, const char *processor_type,
                                   sce_host_invoke_handler_fn handler, void *user_data);
 bool {{ csym_prefix }}{{ model.name }}_has_invoker(const {{ csym_prefix }}{{ model.name }}_t *sm, const char *processor_type);
+
+/* SCE Mesh §9.5: register `router` as the runner of SCE_MESH_RPC_INVOKE_TYPE,
+   the type a Mesh `<invoke>` is lowered to — the one type `_register_invoker`
+   refuses by name. See `sce_host_invoker_register_mesh_rpc_invoker`. */
+bool {{ csym_prefix }}{{ model.name }}_register_mesh_rpc_invoker({{ csym_prefix }}{{ model.name }}_t *sm,
+                                                                sce_host_invoke_handler_fn router, void *user_data);
 
 /* W3C SCXML 6.4: stop a host-run invocation from outside the exit chain, for a
    host that tears its own session down. Returns whether a cancel was
@@ -713,15 +892,69 @@ bool {{ csym_prefix }}{{ model.name }}_has_invoker(const {{ csym_prefix }}{{ mod
    the exit chain also asks. */
 bool {{ csym_prefix }}{{ model.name }}_cancel_host_invoke({{ csym_prefix }}{{ model.name }}_t *sm, const char *processor_type,
                                   const char *invoke_id);
-{% endif %}
-bool {{ csym_prefix }}{{ model.name }}_register_event_processor({{ csym_prefix }}{{ model.name }}_t *sm, const char *processor_type,
-                                                                sce_host_send_handler_fn handler, void *user_data);
 
-/* Whether a handler is registered for `processor_type`. Two things can go
-   wrong with a host-served send — no handler, or a handler that reported
-   nothing — and only the first is an error; this is how a host tells them
-   apart from outside. */
-bool {{ csym_prefix }}{{ model.name }}_has_event_processor(const {{ csym_prefix }}{{ model.name }}_t *sm, const char *processor_type);
+/* W3C SCXML 6.4: a host-run invocation finished — raise its
+   `done.invoke.<invoke_id>` with `done_data`. `token` is the one its start
+   carried; the completion is accepted at most once, and only while that start
+   is still running. Returns false, raising nothing, for a cancelled, already
+   completed or restarted invocation. The only way a host invoke's
+   `done.invoke` reaches the document: one raised through `_raise_external` is
+   refused when it is dequeued. */
+bool {{ csym_prefix }}{{ model.name }}_complete_host_invoke({{ csym_prefix }}{{ model.name }}_t *sm, const char *processor_type,
+                                  const char *invoke_id, uint64_t token, const char *done_data);
+
+/* `_complete_host_invoke`, with the completion's `_event.origin` and
+   `_event.origintype` (W3C SCXML 5.10.1); NULL leaves either as it was. */
+bool {{ csym_prefix }}{{ model.name }}_complete_host_invoke_from({{ csym_prefix }}{{ model.name }}_t *sm, const char *processor_type,
+                                  const char *invoke_id, uint64_t token, const char *done_data,
+                                  const char *origin, const char *origin_type);
+
+/* W3C SCXML 6.4: a host-run invocation failed — raise its
+   `error.invoke.<invoke_id>` with `error_data`, under the same rules as a
+   completion: accepted at most once, only while that start is still running,
+   and a failure ends the run. */
+bool {{ csym_prefix }}{{ model.name }}_fail_host_invoke({{ csym_prefix }}{{ model.name }}_t *sm, const char *processor_type,
+                                  const char *invoke_id, uint64_t token, const char *error_data,
+                                  const char *origin, const char *origin_type);
+
+/* W3C SCXML 6.4: how many host invokes' `done.invoke` events were refused
+   because they did not arrive through `_complete_host_invoke`. */
+uint32_t {{ csym_prefix }}{{ model.name }}_refused_host_invoke_completions(const {{ csym_prefix }}{{ model.name }}_t *sm);
+{% if host_invoker_decls %}
+
+/* ── SCE Accepted Subset 2.12: typed host-run invoke interface ── */
+{{ host_invoker_decls }}
+{%- endif %}
+
+/* W3C SCXML 6.4.1: start the machine with what RUNS its host invokes — the
+   door for an invocation of the initial configuration, which runs inside this
+   call and so before any `_register_invoker` could. */
+{{ init_rc }} {{ csym_prefix }}{{ model.name }}_init_with_host_invokers({{ csym_prefix }}{{ model.name }}_t *sm,
+                                  const sce_host_invoker_registry_t *host_invokers{% if has_native_actions %},
+                                  const {{ native_actions_interface }} *actions{% endif %});
+{% if model.needs_event_scheduler %}
+{{ init_rc }} {{ csym_prefix }}{{ model.name }}_init_with_clock_and_host_invokers({{ csym_prefix }}{{ model.name }}_t *sm,
+                                  sce_clock_t clock,
+                                  const sce_host_invoker_registry_t *host_invokers{% if has_native_actions %},
+                                  const {{ native_actions_interface }} *actions{% endif %});
+{% endif %}
+{% if model.host_processor_types %}
+
+/* W3C SCXML 6.2.5 + 6.4.1: both host seams at once, for a machine that can
+   perform a host-served act in its first `<onentry>` and invoke the host from
+   its initial state. */
+{{ init_rc }} {{ csym_prefix }}{{ model.name }}_init_with_host_surfaces({{ csym_prefix }}{{ model.name }}_t *sm,
+                                  const sce_host_processor_registry_t *host_processors,
+                                  const sce_host_invoker_registry_t *host_invokers{% if has_native_actions %},
+                                  const {{ native_actions_interface }} *actions{% endif %});
+{% if model.needs_event_scheduler %}
+{{ init_rc }} {{ csym_prefix }}{{ model.name }}_init_with_clock_and_host_surfaces({{ csym_prefix }}{{ model.name }}_t *sm,
+                                  sce_clock_t clock,
+                                  const sce_host_processor_registry_t *host_processors,
+                                  const sce_host_invoker_registry_t *host_invokers{% if has_native_actions %},
+                                  const {{ native_actions_interface }} *actions{% endif %});
+{% endif %}
+{% endif %}
 {% endif %}
 
 {% if model.readable_variables %}
@@ -767,17 +1000,18 @@ bool {{ csym_prefix }}{{ model.name }}_has_event_processor(const {{ csym_prefix 
    itself differently depending on which backend was generated. */
 {% for var in model.readable_variables %}
 {% if var.type == 'string' or var.type == 'json' %}
-bool {{ csym_prefix }}{{ model.name }}_{{ var.id | to_snake_case }}(const {{ csym_prefix }}{{ model.name }}_t *sm,
-{{ ' ' * (csym_prefix | length + model.name | length + (var.id | to_snake_case | length) + 11) }}char *out, size_t cap, size_t *len);
+bool {{ csym_prefix }}{{ model.name }}_{{ var.reader.c11 }}(const {{ csym_prefix }}{{ model.name }}_t *sm,
+{{ ' ' * (csym_prefix | length + model.name | length + (var.reader.c11 | length) + 11) }}char *out, size_t cap, size_t *len);
 {% elif var.type == 'int' %}
-bool {{ csym_prefix }}{{ model.name }}_{{ var.id | to_snake_case }}(const {{ csym_prefix }}{{ model.name }}_t *sm, int64_t *out);
+bool {{ csym_prefix }}{{ model.name }}_{{ var.reader.c11 }}(const {{ csym_prefix }}{{ model.name }}_t *sm, int64_t *out);
 {% else %}
-bool {{ csym_prefix }}{{ model.name }}_{{ var.id | to_snake_case }}(const {{ csym_prefix }}{{ model.name }}_t *sm, bool *out);
+bool {{ csym_prefix }}{{ model.name }}_{{ var.reader.c11 }}(const {{ csym_prefix }}{{ model.name }}_t *sm, bool *out);
 {% endif %}
 {% endfor %}
 {% endif %}
 
-{% if not model.has_parent_communication %}
+{# The host's doors are declared for every document; see `_init`'s
+   definition for why a machine with a `#_parent` send has them too. #}
 {% if has_native_actions %}
 /* W3C SCXML G.7: initialize SM to its initial state with the host that serves
    every `<sce:action>` this document declares.
@@ -824,7 +1058,7 @@ void {{ csym_prefix }}{{ model.name }}_init({{ csym_prefix }}{{ model.name }}_t 
                                                             const char *basic_http_access_uri{% if has_native_actions %},
                                                             const {{ native_actions_interface }} *actions{% endif %});
 {% endif %}
-{% else %}
+{% if model.may_address_parent %}
 /* W3C SCXML 6.4: Initialize an invoked-child SM with parent-routing
    wired BEFORE the configuration entry walk runs. The parent's
    `execute_pending_invokes` calls this immediately after pushing the
@@ -834,14 +1068,47 @@ void {{ csym_prefix }}{{ model.name }}_init({{ csym_prefix }}{{ model.name }}_t 
    string is the spawn-time id (`<state>.<sm_ptr_hex>.<invoke_idx>` or
    the explicit `<invoke id>`) — the dispatcher carries it onto the
    parent's external event so `_event.invokeid` reads as that id at
-   the parent's transition time (test338). SMs that declare
-   `<send target="#_parent">` are exclusively invoked as children, so
-   the plain `_init` symbol is not emitted for them — the only call site
-   is the parent's invoke helper. */
+   the parent's transition time (test338). The parent's invoke helper is
+   its only call site; a host starting the same machine calls `_init`,
+   and its `#_parent` send — written or evaluated — then raises
+   error.communication (W3C SCXML C.1). `clock` is the parent's time
+   (`sce_clock_following`): an invoked session's `<send delay>`s wait on the
+   clock its parent's do (§scxml-6.4), installed before the entry walk arms
+   any of them. */
 void {{ csym_prefix }}{{ model.name }}_init_with_parent({{ csym_prefix }}{{ model.name }}_t *sm,
                                        void *parent_sm,
                                        void (*dispatch)(void *parent_sm, const char *event_name, const char *invoke_id, const char *event_data),
-                                       const char *invoke_id);
+                                       const char *invoke_id,
+                                       sce_clock_t clock);
+{% endif %}
+{% if static_datamodel %}
+/* §scxml-6.4.1: the two steps a parent starts a `datamodel="sce-static"` child
+   in. A child here is a value its parent holds, so there is no constructor to
+   hand it the values of the parent's `<param>`s, and `_init` enters the
+   initial configuration at once — an `<onentry>` that reads one would meet the
+   value its `<data>` declared. `_invoked_begin` does what `_init` does up to
+   the entry walk (each variable at its declared value, the session identity,
+   the parent's clock and, for a child that addresses its parent, the routing
+   `_init_with_parent` stamps); the parent then writes the values it was asked
+   to hand over, and `_invoked_enter` runs the entry walk.
+{% if has_native_actions %}
+   A child that declares `<sce:action>`s is begun with the table of the host that
+   performs them — the one its parent's own table answers for it — copied in
+   before the entry walk for the reason `_init_with_actions` gives. The call
+   answers whether the table was accepted: a NULL or incomplete one refuses the
+   start, leaving the child's storage as it was, and the parent reports it. */
+bool {{ csym_prefix }}{{ model.name }}_invoked_begin({{ csym_prefix }}{{ model.name }}_t *sm,
+                                       const {{ native_actions_interface }} *actions,
+                                       void *parent_sm,
+{% else %}
+   */
+void {{ csym_prefix }}{{ model.name }}_invoked_begin({{ csym_prefix }}{{ model.name }}_t *sm,
+                                       void *parent_sm,
+{% endif %}
+                                       void (*dispatch)(void *parent_sm, const char *event_name, const char *invoke_id, const char *event_data),
+                                       const char *invoke_id,
+                                       sce_clock_t clock);
+void {{ csym_prefix }}{{ model.name }}_invoked_enter({{ csym_prefix }}{{ model.name }}_t *sm);
 {% endif %}
 
 /* W3C SCXML 5.10: Tear down any owned datamodel resources. Idempotent —
@@ -1075,6 +1342,52 @@ uint32_t {{ csym_prefix }}{{ model.name }}_truncated_macrosteps(const {{ csym_pr
 bool {{ csym_prefix }}{{ model.name }}_last_truncated_macrostep_state(const {{ csym_prefix }}{{ model.name }}_t *sm,
                             {{ csym_prefix }}{{ model.name }}_state_t *out);
 
+/* How many invocations of the main event loop this engine handed back with an
+   external event still queued, because the invocation had already taken
+   `_max_external_events_per_call` of them (ARCHITECTURE.md "External-Event
+   Budget").
+
+   `_truncated_macrosteps` counts a macrostep that does not end; this counts the
+   other way a call fails to return: every macrostep ends, and each one queues
+   the event that starts the next (`<send event="again"/>`, no target, answered
+   by a transition that sends it again). The specification bounds neither, and
+   an engine that ran either to the letter would never return, with
+   `_current_state` answering, the machine reporting itself running and no sign
+   that anything went wrong. This is that sign.
+
+   Counted when the loop still had work after the budget. A call that takes
+   exactly the budget and empties the queue counts zero: a long backlog is
+   ordinary, an endless one is not. The events left queued stay queued, so a
+   host that calls again gets another budget and the machine goes on from where
+   it was; what the host learns is that this call did not reach quiet.
+
+   The external queue is a fixed ring that drops on overflow, which is a
+   different bound and not this one: a chain that sends the next event holds one
+   at a time. */
+uint32_t {{ csym_prefix }}{{ model.name }}_truncated_event_chains(const {{ csym_prefix }}{{ model.name }}_t *sm);
+
+/* The event at the head of the queue when this engine last handed a call back
+   that way. Returns false, leaving `*out` untouched, while the count above is
+   zero — and for a cut of the scheduler whose due entry delivers no event of
+   this machine's. The event enum's zero value is a real event and cannot stand
+   in for "none". */
+bool {{ csym_prefix }}{{ model.name }}_last_truncated_event(const {{ csym_prefix }}{{ model.name }}_t *sm,
+                            {{ csym_prefix }}{{ model.name }}_event_t *out);
+
+/* The most external events one invocation of the main event loop may take;
+   `SCE_MAX_EXTERNAL_EVENTS_PER_CALL` until the host chooses another. */
+uint32_t {{ csym_prefix }}{{ model.name }}_max_external_events_per_call(const {{ csym_prefix }}{{ model.name }}_t *sm);
+
+/* Let a host choose the budget of one invocation. A host that hands the machine
+   a backlog it means the machine to work through in one call knows its size, and
+   this engine does not. Settable at any time.
+
+   Refused below one — returns false and changes nothing: a budget that takes no
+   event is a machine that cannot run, not a stricter one, since every call would
+   hand control back with the queue untouched and say it had been cut. */
+bool {{ csym_prefix }}{{ model.name }}_set_max_external_events_per_call({{ csym_prefix }}{{ model.name }}_t *sm,
+                            uint32_t limit);
+
 /* W3C SCXML 5.3: Enqueue an event onto the internal (high-priority) queue. */
 void {{ csym_prefix }}{{ model.name }}_raise({{ csym_prefix }}{{ model.name }}_t *sm,
                             const {{ csym_prefix }}{{ model.name }}_event_with_meta_t *evt);
@@ -1139,6 +1452,13 @@ void {{ csym_prefix }}{{ model.name }}_raise_external({{ csym_prefix }}{{ model.
 {{ event_payload_entry_decls }}
 {% endif %}
 
+/* §scxml-3.12.1: the event an event that arrives BY NAME is delivered as — the
+   name itself when this SM's enum holds it, else the longest token prefix of it
+   (`request` for `request.new`) that it does, and false when none of those is
+   one of its events, which is a name it drops. Every by-name door below
+   delivers through this. */
+bool {{ csym_prefix }}{{ model.name }}_resolve_event_by_name(const char *name, {{ csym_prefix }}{{ model.name }}_event_t *out);
+
 {% if model.has_parent_communication %}
 /* W3C SCXML 6.4 (test192/253): String-keyed external raise — the
    invoking parent's `<send target="#_<invokeid>" event="X">` lower
@@ -1149,24 +1469,17 @@ void {{ csym_prefix }}{{ model.name }}_raise_external({{ csym_prefix }}{{ model.
    matching transition shape — same observable as cpp's SendHelper for
    unknown event targets). */
 void {{ csym_prefix }}{{ model.name }}_raise_external_by_name({{ csym_prefix }}{{ model.name }}_t *sm, const char *event_name);
-
-/* W3C SCXML 6.4: autoforward entry point. §6.4 requires the parent to
-   forward an *exact copy* of the event, so this sibling of
-   `_raise_external_by_name` takes the source event's `_event` fields in a
-   transport-neutral carrier (the child's own event record type is
-   unrelated to the parent's). Names absent from this SM's enum drop
-   silently, same as the by-name form. */
-void {{ csym_prefix }}{{ model.name }}_raise_external_forwarded({{ csym_prefix }}{{ model.name }}_t *sm, const sce_forwarded_event_t *fwd);
-
-/* W3C SCXML 6.4 / 3.4 (test236): natural-termination exit walk.
-   Runs `<onexit>` on every active state so a `<final>` state with an
-   `<onexit><send target="#_parent">` body fires the send onto the
-   parent's external queue BEFORE the parent's invoke helper raises
-   `done.invoke`. Called only on the natural-final path; the cancel
-   path NULLs the parent dispatch instead so any in-flight sends drop
-   (W3C 6.4 cancellation drop semantics, test252). */
-void {{ csym_prefix }}{{ model.name }}_finalize_session({{ csym_prefix }}{{ model.name }}_t *sm);
 {% endif %}
+
+/* W3C SCXML 6.4: the door an invoking parent reaches this machine through —
+   a `<send target="#_<invokeid>">`, delivered now or when a delayed one comes
+   due, and autoforward, which §6.4 requires be an *exact copy* of the event.
+   It takes the source event's `_event` fields in a transport-neutral carrier
+   (the child's own event record type is unrelated to the parent's). Names
+   absent from this SM's enum drop silently. Emitted on every machine: any of
+   them can be invoked, and whether it SENDS to a parent says nothing about
+   whether a parent sends to it. */
+void {{ csym_prefix }}{{ model.name }}_raise_external_forwarded({{ csym_prefix }}{{ model.name }}_t *sm, const sce_forwarded_event_t *fwd);
 
 /* W3C SCXML 3.2: configuration query helpers. `_active_states` exposes
    the full bitmap; `_in_state(s)` mirrors the SCXML In() predicate (true
@@ -1175,7 +1488,43 @@ void {{ csym_prefix }}{{ model.name }}_finalize_session({{ csym_prefix }}{{ mode
    configuration spans multiple leaves simultaneously. */
 uint32_t {{ csym_prefix }}{{ model.name }}_active_states(const {{ csym_prefix }}{{ model.name }}_t *sm);
 bool {{ csym_prefix }}{{ model.name }}_in_state(const {{ csym_prefix }}{{ model.name }}_t *sm, {{ csym_prefix }}{{ model.name }}_state_t s);
+/* §scxml-3.7: whether the run has ended at a top-level <final> — the same
+   answer as `_terminal_state` returning true. */
 bool {{ csym_prefix }}{{ model.name }}_is_in_final_state(const {{ csym_prefix }}{{ model.name }}_t *sm);
+{% if static_done_data %}
+/* §scxml-5.5: the data the done event of the final this run ended at carries —
+   the JSON object of its `<donedata>` pairs, the ones whose value was computed —
+   or the empty string while no final with a `<donedata>` has been entered. */
+const char *{{ csym_prefix }}{{ model.name }}_done_data(const {{ csym_prefix }}{{ model.name }}_t *sm);
+{% endif %}
+{% for field in static_published %}
+
+/* SCE Accepted Subset §2.15: the published variable `{{ field.id }}` (`sce:direction="out"`),
+   as the machine holds it now. The machine's other variables have no reader:
+   they are its own, and a host written against one would break when it is
+   renamed. */
+{{ field.view or field.ty }} {{ csym_prefix }}{{ model.name }}_{{ field.reader }}(const {{ csym_prefix }}{{ model.name }}_t *sm);
+{% endfor %}
+
+/* §scxml-D-exitInterpreter: stop a run. Every active state's `<onexit>` runs,
+   innermost first, and the configuration ends empty, as when a run ends at a
+   top-level <final> -- which exits the same way on its own, so a run that
+   has ended has nothing left to stop. */
+void {{ csym_prefix }}{{ model.name }}_stop({{ csym_prefix }}{{ model.name }}_t *sm);
+
+/* §scxml-D-enterStates: the top-level <final> the run ended in. Returns true
+   and writes it to `*out` once the run has ended; false while it is still
+   running or before it started. The one answer to "where did this run end":
+   it is recorded when the final is entered, so it does not depend on what the
+   configuration holds afterwards — Appendix D's exitInterpreter leaves the
+   configuration empty. */
+bool {{ csym_prefix }}{{ model.name }}_terminal_state(const {{ csym_prefix }}{{ model.name }}_t *sm,
+                                        {{ csym_prefix }}{{ model.name }}_state_t *out);
+
+/* Whether the run has ended, and ended in `s` — `_terminal_state` asked for
+   one particular final. */
+bool {{ csym_prefix }}{{ model.name }}_ended_in(const {{ csym_prefix }}{{ model.name }}_t *sm,
+                                  {{ csym_prefix }}{{ model.name }}_state_t s);
 
 /* W3C SCXML 3.3: the document's own name for `s`, or "" for a value outside
    this document's enumeration.
@@ -1277,6 +1626,18 @@ const char *{{ csym_prefix }}{{ model.name }}_configuration_rejection_text(
 {{ csym_prefix }}{{ model.name }}_state_t {{ csym_prefix }}{{ model.name }}_initial_state(void);
 bool {{ csym_prefix }}{{ model.name }}_is_final_state({{ csym_prefix }}{{ model.name }}_state_t s);
 
+/* W3C SCXML 6.2.4: whether a host running this machine as a ROOT — started by
+   the host through an `_init*`, not by an `<invoke>` — should refuse to start
+   it: NULL when it need not, otherwise the reason as a sentence (the same
+   words on every engine). The machine is refused when its document sends to
+   `#_parent` (the generate manifest's `needs_parent`), since a root has no
+   parent to reach. Every `_init*` still runs such a machine — each such send
+   then raises error.communication, which is the default — so a host that
+   wants the refusal asks this before calling one. A query rather than a
+   checked twin of each `_init*`: there are many, and each zeroes the struct,
+   so a flag set beforehand could not survive into it. */
+const char *{{ csym_prefix }}{{ model.name }}_root_start_refusal(void);
+
 {% if model.on_sample_links %}
 /* SCE Protocol-Synthesis RFC §synth-5-E sample-callback codegen wire-up — per-link Sample
    delivery surface. Host's link RX path (zenoh-pico subscriber,
@@ -1322,8 +1683,22 @@ void {{ cb }}(const sce_sample_t *sample SCE_PARAM_TYPESTATE(unconsumed), void *
 /* ── Compile-time invariants ──────────────────────────────────────── */
 SCE_STATIC_ASSERT(SCE_MAX_EVENTS >= 1u, "SCE_MAX_EVENTS must be >= 1");
 SCE_STATIC_ASSERT(SCE_MAX_ID_LEN >= 16u, "SCE_MAX_ID_LEN too small for W3C event names");
+{% if model.needs_auto_send_id %}
+/* An id this machine generates is copied into the entries that carry it, which
+   cut an id at `SCE_MAX_ID_LEN`; a cut id would be another send's. */
+SCE_STATIC_ASSERT(SCE_MAX_ID_LEN >= SCE_AUTO_SEND_ID_BUF_LEN,
+                  "SCE_MAX_ID_LEN too small for the ids a <send idlocation> generates");
+{% endif %}
 SCE_STATIC_ASSERT((unsigned){{ csym_prefix | upper }}{{ model.name | upper }}_STATE_COUNT <= 32u,
                   "Configuration bitmap is uint32_t; multi-word array lands when a fixture exceeds 32 states");
+{% if model.host_invoker_types %}
+/* §scxml-6.4: the started set remembers every host-run invocation so its
+   state's exit can cancel it. {{ host_invocation_peak }} is the most this
+   machine's configurations hold at once (`host_invocation_peak`), so a set
+   smaller than that would lose the cancel for one and say nothing. */
+SCE_STATIC_ASSERT({{ host_invocation_peak }}u <= (unsigned)SCE_MAX_HOST_INVOCATIONS,
+                  "this machine can run {{ host_invocation_peak }} host invocations at once; define SCE_MAX_HOST_INVOCATIONS to at least that");
+{% endif %}
 
 #ifdef __cplusplus
 }

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
+// SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial
 // SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael
 
 #pragma once
@@ -226,6 +226,17 @@ public:
      * @return Vector of active state IDs
      */
     virtual std::vector<std::string> getActiveStatesSync(const std::string &sessionId = "") const = 0;
+
+    /**
+     * @brief Get the top-level final state the run ended in (synchronous)
+     *
+     * A run that has ended has no active states (W3C SCXML Appendix D
+     * exitInterpreter), so this is how a host learns where it stopped.
+     *
+     * @param sessionId Target session (uses default if empty)
+     * @return The final state's ID, empty while the run has not ended in one
+     */
+    virtual std::string getTerminalStateSync(const std::string &sessionId = "") const = 0;
 
     /**
      * @brief Set a variable in the state machine's data model (synchronous)

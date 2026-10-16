@@ -1,4 +1,4 @@
-{# SPDX-License-Identifier: LGPL-2.1-or-later WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
+{# SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-SCE-Linking-Exception OR LicenseRef-SCE-Commercial #}
 {# SPDX-FileCopyrightText: Copyright (c) 2025 newmassrael #}
 
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
@@ -13,13 +13,17 @@ package {{ package }}
 {% if go_enum_imports %}
 import (
 {% for imp in go_enum_imports %}
-	"{{ imp }}"
+	{{ imp }}
 {% endfor %}
 )
 {% endif %}
 
+{% if fields %}
 type {{ payload_struct_name }} struct {
 {% for f in fields %}
 	{{ f.go_field_name }} {{ f.go_type }}
 {% endfor %}
 }
+{% else %}
+// This schema declares no field: the event carries no data, so no payload type is generated.
+{% endif %}
