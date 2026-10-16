@@ -737,6 +737,15 @@ Two ways:
   then `frame_suppressed`). Only the headers are read; a frame's meaning is in
   the saved pcap. If the handle cannot be opened the run goes on and the
   stream says so once with `observer_unavailable`.
+  A case may also carry its specification's own numbered procedure
+  (`kSpec`, `sce_integration/spec_steps.h`): a `spec` line after `case_begin`
+  lists the steps and the items to verify, `tx` lines made inside a
+  `TxSpecStep` scope carry `spec_step`, and a `transition` line carries the
+  step the case's table maps it to (by the states it leaves and arrives at and
+  its event; no match, or two rows that disagree, leaves it out). The text is
+  the case's own and is passed through untouched, so the harness holds none of
+  it; a table naming a state the machine lacks is reported once as
+  `spec_invalid`. A case with no table writes none of this.
 
 ### JUnit XML for CI consumers
 

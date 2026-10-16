@@ -257,6 +257,20 @@ constexpr std::string_view bpfExpressionOf() {
 }
 
 // Detects whether TestCaseTraits<SM> declares the optional
+// `static constexpr SpecProcedure kSpec` (spec_steps.h): the specification's own numbered
+// procedure for the case, which the live state stream carries so a watcher can say which
+// step a send or a transition is. A case without it compiles and runs unchanged, and
+// its stream has none of the spec members.
+template <typename Traits, typename = void>
+struct has_case_spec : std::false_type {};
+
+template <typename Traits>
+struct has_case_spec<Traits, std::void_t<decltype(Traits::kSpec)>> : std::true_type {};
+
+template <typename Traits>
+inline constexpr bool has_case_spec_v = has_case_spec<Traits>::value;
+
+// Detects whether TestCaseTraits<SM> declares the optional
 // `static constexpr std::array<std::uint16_t, N> kExtraCaptureUdpPorts` — extra
 // UDP ports the case's verdict needs captured beyond its kBpfGroup default
 // range (e.g. an OEM protocol on non-standard ports). The harness ORs them,

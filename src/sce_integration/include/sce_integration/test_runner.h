@@ -481,7 +481,18 @@ public:
         // transition, and that line must follow the `start` it departs from.
         if (state_stream_ != nullptr) {
             state_stream_->start(StateMachine::PolicyType::getStateName(sm_.getCurrentState()));
-            state_stream_->machine(describeMachine());
+            const MachineDescription machine = describeMachine();
+            state_stream_->machine(machine);
+            if constexpr (has_case_spec_v<Traits>) {
+                // A table that names a state the machine lacks has drifted from it (a
+                // rename, a regeneration); say so rather than let it stop tagging unseen.
+                std::vector<std::string> state_ids;
+                for (const auto &s : machine.states) state_ids.push_back(s.id);
+                const auto problems = validateSpec(Traits::kSpec, state_ids);
+                if (!problems.empty()) {
+                    state_stream_->specInvalid(problems);
+                }
+            }
         }
 
         // Deliver what the stimulus drained while it waited, in capture order and
@@ -577,6 +588,13 @@ public:
 
     void setStateStream(StateStream *stream) override {
         state_stream_ = stream;
+        // The case's own steps, right after case_begin and before anything it does: a
+        // reader has the vocabulary before the first line that uses it.
+        if constexpr (has_case_spec_v<Traits>) {
+            if (state_stream_ != nullptr) {
+                state_stream_->spec(Traits::kSpec);
+            }
+        }
     }
 
     void endStateStream() override {
@@ -960,9 +978,14 @@ private:
         // the stream and `trace.json` cannot disagree about what happened.
         if (state_stream_ != nullptr) {
             const auto &recorded = trace_.back();
+            int spec_step = ::tc8::stimulus::kNoSpecStep;
+            if constexpr (has_case_spec_v<Traits>) {
+                spec_step = specStepForTransition(Traits::kSpec, recorded.from_state_name,
+                                                  recorded.to_state_name, recorded.event_name);
+            }
             state_stream_->transition(recorded.step_idx, recorded.event_name,
                                       recorded.from_state_name, recorded.to_state_name,
-                                      recorded.pcap_frame_idx);
+                                      recorded.pcap_frame_idx, spec_step);
         }
     }
 

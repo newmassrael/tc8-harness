@@ -8,6 +8,7 @@
 #include <string_view>
 #include <vector>
 
+#include "sce_integration/spec_steps.h"
 #include "stimulus/tx_observer.h"
 #include "tc8/frame_summary.h"
 
@@ -75,6 +76,21 @@
 // is none to read, and `"transitions":null` says "not known", never "none". Order is
 // the machine's enumeration order, not the document's.
 //
+// A case that declares its specification's own steps (sce_integration/spec_steps.h) adds:
+//
+//   {"event":"spec","steps":[{"n":1,"actor":"<who>","text":"<step>"},...],
+//    "checks":[{"step":N,"mark":"<mark>","text":"<item>"},...],"t_us":N}   after case_begin
+//   {"event":"spec_invalid","problems":["<sentence>",...],"t_us":N}   after machine, only
+//                                          if the case's table names what the machine lacks
+//
+// and a "spec_step":N member on the `tx` lines the case tagged and on the `transition`
+// lines its table maps; both are ABSENT, not null, where the case said nothing. The text
+// is the case's own, escaped and passed through untouched; the harness neither reads
+// nor shortens it. A step is a separate axis from the machine's states: nothing about a
+// state, a trigger or a verdict changes with it. `frame` lines are never tagged: a
+// reader joins a frame to the tx or transition that explains it by time. A case without
+// a table produces none of this, byte for byte.
+//
 // State and trigger names are the SCXML ids `trace.json` carries (same source,
 // same strings). `pcap_frame_idx` is null where `trace.json` has null: a step with
 // no retained frame behind it (a timer firing). `t_us` is microseconds since the Unix
@@ -135,11 +151,19 @@ public:
     void stimulusBegin();
     void stimulusEnd();
 
+    // The `spec` line, once, right after case_begin, for a case that declares one.
+    void spec(const SpecProcedure &procedure);
+    // The `spec_invalid` line: what is wrong with the case's table against its machine.
+    // Not called with an empty list.
+    void specInvalid(const std::vector<std::string> &problems);
+
     void start(std::string_view initial_state);
     // The `machine` line, once, right after `start`.
     void machine(const MachineDescription &description);
+    // `spec_step` is the case's step for this transition, or kNoSpecStep.
     void transition(int step, std::string_view trigger, std::string_view from,
-                    std::string_view to, int pcap_frame_idx);
+                    std::string_view to, int pcap_frame_idx,
+                    int spec_step = ::tc8::stimulus::kNoSpecStep);
     void end(std::string_view final_state);
 
     // ITxObserver: the `tx` line.

@@ -6,6 +6,9 @@
 
 namespace tc8::stimulus {
 
+// "No step": what a send or a transition reports when the case declared none for it.
+inline constexpr int kNoSpecStep = -1;
+
 // What the tester put on the wire, reported to whoever asked to watch.
 //
 // WHY THIS EXISTS
@@ -49,6 +52,10 @@ struct TxEvent {
     std::uint32_t dst_ip_be = 0;
     std::uint16_t dst_port = 0;
     std::size_t bytes = 0;
+    // The specification step the case declared for this send (TxSpecStep), or
+    // kNoSpecStep. Carried, never interpreted: the number means something only to the
+    // case that wrote it and to whoever reads the case's own step table.
+    int spec_step = kNoSpecStep;
 };
 
 class ITxObserver {
@@ -86,6 +93,28 @@ public:
 
 private:
     bool owns_;
+};
+
+// Tags every send made while it is alive, on this thread, with the specification step
+// the case says it performs. A case wraps the emission in its own `stimulus()`:
+//
+//     ::tc8::stimulus::TxSpecStep step(1);
+//     ::tc8::stimulus::emitMethodRequestAfter(...);
+//
+// Nested scopes: the innermost wins and the outer one is restored on exit, so a case may
+// name a sub-step inside a larger one. Independent of TxScope (which names the emitter):
+// the emitter says what code sent it, the step says which part of the specified
+// procedure it was. A send on another thread (a responder, a burst thread) is not tagged
+// by a scope on this one.
+class TxSpecStep {
+public:
+    explicit TxSpecStep(int step);
+    ~TxSpecStep();
+    TxSpecStep(const TxSpecStep &) = delete;
+    TxSpecStep &operator=(const TxSpecStep &) = delete;
+
+private:
+    int previous_;
 };
 
 }  // namespace tc8::stimulus

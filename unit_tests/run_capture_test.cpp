@@ -93,6 +93,15 @@ template <>
 struct TestCaseTraits<ServicesDuringAwaitSM> : ArpAnyBase<ServicesDuringAwaitSM> {
     static constexpr std::string_view kCaseId = "SERVICES_DURING_AWAIT";
 
+    // The case's own steps (spec_steps.h), here to pin that they reach the live stream
+    // through the runner: a `spec` line after case_begin, and the step a transition
+    // decides, found by the state it arrives at.
+    static constexpr SpecStep kSteps[] = {{1, "TESTER", "await the reply"},
+                                          {2, "DUT", "answers \"ARP\""}};
+    static constexpr SpecCheck kChecks[] = {{2, "a)", "the reply is an ARP Reply"}};
+    static constexpr SpecTransition kTransitions[] = {{"", "pass", "", 2}};
+    static constexpr SpecProcedure kSpec{kSteps, kChecks, kTransitions};
+
     // Adopt a service, then await the DUT's ARP Reply from the start of the
     // capture: the fixture delivers its whole file on the first drain, so a cursor
     // taken now would already sit past the Reply.
@@ -215,10 +224,18 @@ TEST(RunCaptureDuringAwait, TheStateStreamFollowsTheTraceAndLeavesTheVerdictAlon
         std::ifstream in(stream_path);
         std::vector<std::string> before;
         for (std::string l; std::getline(in, l);) before.push_back(l);
-        ASSERT_EQ(before.size(), 3u);
+        ASSERT_EQ(before.size(), 4u);
         EXPECT_NE(before[0].find(R"("event":"case_begin")"), std::string::npos) << before[0];
-        EXPECT_NE(before[1].find(R"("event":"stimulus_begin")"), std::string::npos) << before[1];
-        EXPECT_NE(before[2].find(R"("event":"stimulus_end")"), std::string::npos) << before[2];
+        // The case's steps come right after case_begin, before anything the case does.
+        // (A raw string delimited `)x"`: the mark "a)" holds a `)"` of its own.)
+        EXPECT_NE(before[1].find(R"x({"event":"spec","steps":[{"n":1,"actor":"TESTER",)x"
+                                 R"x("text":"await the reply"},{"n":2,"actor":"DUT",)x"
+                                 R"x("text":"answers \"ARP\""}],"checks":[{"step":2,)x"
+                                 R"x("mark":"a)","text":"the reply is an ARP Reply"}])x"),
+                  std::string::npos)
+            << before[1];
+        EXPECT_NE(before[2].find(R"("event":"stimulus_begin")"), std::string::npos) << before[2];
+        EXPECT_NE(before[3].find(R"("event":"stimulus_end")"), std::string::npos) << before[3];
     }
     runner.start();
     runner.endStateStream();
@@ -231,26 +248,29 @@ TEST(RunCaptureDuringAwait, TheStateStreamFollowsTheTraceAndLeavesTheVerdictAlon
     std::error_code ec;
     std::filesystem::remove(stream_path, ec);
 
-    // case_begin, stimulus_begin, stimulus_end, then the machine's own four lines.
-    ASSERT_EQ(lines.size(), 7u);
-    EXPECT_NE(lines[3].find(R"("event":"start","case":"SERVICES_DURING_AWAIT","initial":"listening")"),
+    // case_begin, spec, stimulus_begin, stimulus_end, then the machine's own four lines.
+    ASSERT_EQ(lines.size(), 8u);
+    EXPECT_NE(lines[4].find(R"("event":"start","case":"SERVICES_DURING_AWAIT","initial":"listening")"),
               std::string::npos)
-        << lines[3];
+        << lines[4];
     // The machine as compiled: its states with the initial and final ones marked, the
     // events it names, and no transitions (the generated code holds none as data).
-    EXPECT_NE(lines[4].find(R"("event":"machine","states":[)"), std::string::npos) << lines[4];
-    EXPECT_NE(lines[4].find(R"({"id":"listening","initial":true,"final":false})"),
-              std::string::npos)
-        << lines[4];
-    EXPECT_NE(lines[4].find(R"({"id":"pass","initial":false,"final":true})"), std::string::npos)
-        << lines[4];
-    EXPECT_NE(lines[4].find(R"("arp_observed")"), std::string::npos) << lines[4];
-    EXPECT_NE(lines[4].find(R"("transitions":null)"), std::string::npos) << lines[4];
-    EXPECT_NE(lines[5].find(R"("event":"transition","step":0,"trigger":"arp_observed",)"
-                            R"("from":"listening","to":"pass")"),
+    EXPECT_NE(lines[5].find(R"("event":"machine","states":[)"), std::string::npos) << lines[5];
+    EXPECT_NE(lines[5].find(R"({"id":"listening","initial":true,"final":false})"),
               std::string::npos)
         << lines[5];
-    EXPECT_NE(lines[6].find(R"("event":"end","final_state":"pass")"), std::string::npos) << lines[6];
+    EXPECT_NE(lines[5].find(R"({"id":"pass","initial":false,"final":true})"), std::string::npos)
+        << lines[5];
+    EXPECT_NE(lines[5].find(R"("arp_observed")"), std::string::npos) << lines[5];
+    EXPECT_NE(lines[5].find(R"("transitions":null)"), std::string::npos) << lines[5];
+    // The case's table names only states the machine has, so no `spec_invalid`; the
+    // transition into `pass` carries the step the table maps that state to.
+    EXPECT_NE(lines[6].find(R"("event":"transition","step":0,"trigger":"arp_observed",)"
+                            R"("from":"listening","to":"pass")"),
+              std::string::npos)
+        << lines[6];
+    EXPECT_NE(lines[6].find(R"("spec_step":2)"), std::string::npos) << lines[6];
+    EXPECT_NE(lines[7].find(R"("event":"end","final_state":"pass")"), std::string::npos) << lines[7];
 
     // The stream and the trace are one record: the same step, the same names.
     const std::string trace = runner.dumpTraceJson();

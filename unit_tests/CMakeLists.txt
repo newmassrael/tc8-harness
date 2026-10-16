@@ -97,6 +97,8 @@ tc8_add_unit_test(captured_frame_observer_test)
 # The live state stream's file contract (`test --state-stream`); the runner wiring
 # that feeds it is pinned in run_capture_test below.
 tc8_add_unit_test(state_stream_test)
+# The case's own specification steps (`spec_steps.h`) and how they reach that stream.
+tc8_add_unit_test(spec_steps_test)
 tc8_add_unit_test(bpf_filter_test)
 # bpf_filter_test pcap_compiles every group filter to prove the VLAN-aware
 # wrap is valid libpcap syntax, so it links libpcap.

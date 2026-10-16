@@ -12,6 +12,20 @@
 
 namespace tc8::sce {
 
+namespace {
+
+// `,"spec_step":N` for a step the case declared, nothing for one it did not.
+void appendSpecStep(std::string &line, int spec_step) {
+    if (spec_step == ::tc8::stimulus::kNoSpecStep) {
+        return;
+    }
+    char num[32];
+    std::snprintf(num, sizeof(num), ",\"spec_step\":%d", spec_step);
+    line.append(num);
+}
+
+}  // namespace
+
 std::unique_ptr<StateStream> StateStream::open(const std::string &path,
                                                std::string_view case_label) {
     // O_NONBLOCK so that opening a FIFO with no reader fails instead of hanging
@@ -94,6 +108,7 @@ void StateStream::onTx(const ::tc8::stimulus::TxEvent &ev) {
     }
     std::snprintf(num, sizeof(num), ",\"bytes\":%zu", ev.bytes);
     line.append(num);
+    appendSpecStep(line, ev.spec_step);
     emit(std::move(line));
 }
 
@@ -144,6 +159,52 @@ void StateStream::observerUnavailable(std::string_view reason) {
     emit(std::move(line));
 }
 
+void StateStream::spec(const SpecProcedure &procedure) {
+    char num[32];
+    std::string line = "{\"event\":\"spec\",\"steps\":[";
+    bool first = true;
+    for (const SpecStep &s : procedure.steps) {
+        if (!first) line.push_back(',');
+        first = false;
+        std::snprintf(num, sizeof(num), "{\"n\":%d,", s.n);
+        line.append(num);
+        line.append("\"actor\":\"");
+        appendJsonEscaped(line, s.actor);
+        line.append("\",\"text\":\"");
+        appendJsonEscaped(line, s.text);
+        line.append("\"}");
+    }
+    line.append("],\"checks\":[");
+    first = true;
+    for (const SpecCheck &c : procedure.checks) {
+        if (!first) line.push_back(',');
+        first = false;
+        std::snprintf(num, sizeof(num), "{\"step\":%d,", c.step);
+        line.append(num);
+        line.append("\"mark\":\"");
+        appendJsonEscaped(line, c.mark);
+        line.append("\",\"text\":\"");
+        appendJsonEscaped(line, c.text);
+        line.append("\"}");
+    }
+    line.push_back(']');
+    emit(std::move(line));
+}
+
+void StateStream::specInvalid(const std::vector<std::string> &problems) {
+    std::string line = "{\"event\":\"spec_invalid\",\"problems\":[";
+    bool first = true;
+    for (const auto &p : problems) {
+        if (!first) line.push_back(',');
+        first = false;
+        line.push_back('"');
+        appendJsonEscaped(line, p);
+        line.push_back('"');
+    }
+    line.push_back(']');
+    emit(std::move(line));
+}
+
 void StateStream::start(std::string_view initial_state) {
     std::string line = "{\"event\":\"start\",\"case\":\"";
     appendJsonEscaped(line, case_label_);
@@ -182,7 +243,7 @@ void StateStream::machine(const MachineDescription &d) {
 }
 
 void StateStream::transition(int step, std::string_view trigger, std::string_view from,
-                             std::string_view to, int pcap_frame_idx) {
+                             std::string_view to, int pcap_frame_idx, int spec_step) {
     char num[32];
     std::string line = "{\"event\":\"transition\",\"step\":";
     std::snprintf(num, sizeof(num), "%d", step);
@@ -200,6 +261,7 @@ void StateStream::transition(int step, std::string_view trigger, std::string_vie
     } else {
         line.append("null");
     }
+    appendSpecStep(line, spec_step);
     emit(std::move(line));
 }
 

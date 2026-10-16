@@ -22,6 +22,9 @@ std::atomic<int>           g_in_flight{0};
 // capture thread is inside an emitter is not that emitter's send.
 thread_local const char *t_emitter = nullptr;
 
+// The innermost active TxSpecStep's number on this thread, or kNoSpecStep.
+thread_local int t_spec_step = kNoSpecStep;
+
 }  // namespace
 
 void setTxObserver(ITxObserver *observer) {
@@ -50,6 +53,7 @@ void reportTx(const char *transport, std::string_view iface, std::uint32_t dst_i
         ev.dst_ip_be = dst_ip_be;
         ev.dst_port = dst_port;
         ev.bytes = bytes;
+        ev.spec_step = t_spec_step;
         observer->onTx(ev);
     }
     g_in_flight.fetch_sub(1);
@@ -81,6 +85,14 @@ TxScope::~TxScope() {
     if (owns_) {
         t_emitter = nullptr;
     }
+}
+
+TxSpecStep::TxSpecStep(int step) : previous_(t_spec_step) {
+    t_spec_step = step;
+}
+
+TxSpecStep::~TxSpecStep() {
+    t_spec_step = previous_;
 }
 
 }  // namespace tc8::stimulus
