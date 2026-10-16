@@ -36,7 +36,12 @@ struct TxEvent {
     // reached by some other route. The OUTERMOST scope wins: a case calls
     // emitFindServiceBoot, not the primitive underneath it.
     std::string_view emitter;
-    // Which primitive carried it: "ethernet", "udp_unicast", "udp_multicast", "tcp".
+    // Which primitive carried it: "ethernet", "udp_unicast", "udp_multicast", "tcp",
+    // or "tcp_connect". The last is a connect(): the SYN is made by the kernel, not by
+    // the tester, so it is reported once the connect has succeeded (the handshake
+    // done, the SYN long on the wire) with `bytes` 0, and a connect that failed is not
+    // reported. The wire itself, SYN included, is in the saved pcap and the live
+    // `frame` lines.
     const char *transport = "";
     std::string_view iface;  // empty when the primitive does not take one
     // IPv4 destination in network byte order and port; 0/0 when the primitive does not
@@ -57,12 +62,18 @@ public:
 // The observer for this process, or nullptr (the default: nothing is reported and a
 // send costs one pointer test). Process-scoped for the reason `setSiteDutIpv4` is: one
 // harness process runs one case, set once by the runner before any stimulus. The
-// caller owns the observer and must clear it (nullptr) before destroying it.
+// caller owns the observer and must clear it (nullptr) before destroying it; clearing
+// returns only once no thread is still inside a report, so a sender on a thread of its
+// own (a responder, a burst a case detached) never reaches a destroyed observer.
 void setTxObserver(ITxObserver *observer);
 
 // Report a successful send. No-op without an observer. `iface` may be empty.
 void reportTx(const char *transport, std::string_view iface, std::uint32_t dst_ip_be,
               std::uint16_t dst_port, std::size_t bytes);
+
+// The same for a send on a connected IPv4 socket, which has no destination argument to
+// pass: the peer is read from the socket. Without an observer it does not even look.
+void reportTxConnected(const char *transport, int fd, std::size_t bytes);
 
 // Names the emitter for every send made while it is alive, on this thread. Nested
 // scopes keep the outermost name. Use through TC8_TX_SCOPE().

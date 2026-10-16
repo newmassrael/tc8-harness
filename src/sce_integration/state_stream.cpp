@@ -153,6 +153,34 @@ void StateStream::start(std::string_view initial_state) {
     emit(std::move(line));
 }
 
+void StateStream::machine(const MachineDescription &d) {
+    std::string line = "{\"event\":\"machine\",\"states\":[";
+    bool first = true;
+    for (const auto &s : d.states) {
+        if (!first) line.push_back(',');
+        first = false;
+        line.append("{\"id\":\"");
+        appendJsonEscaped(line, s.id);
+        line.append("\",\"initial\":");
+        line.append(s.initial ? "true" : "false");
+        line.append(",\"final\":");
+        line.append(s.final ? "true" : "false");
+        line.push_back('}');
+    }
+    line.append("],\"events\":[");
+    first = true;
+    for (const auto &e : d.events) {
+        if (!first) line.push_back(',');
+        first = false;
+        line.push_back('"');
+        appendJsonEscaped(line, e);
+        line.push_back('"');
+    }
+    // Transitions are not data in the generated machine; null, not an empty list.
+    line.append("],\"transitions\":null");
+    emit(std::move(line));
+}
+
 void StateStream::transition(int step, std::string_view trigger, std::string_view from,
                              std::string_view to, int pcap_frame_idx) {
     char num[32];
@@ -179,21 +207,23 @@ void StateStream::end(std::string_view final_state) {
     std::string line = "{\"event\":\"end\",\"final_state\":\"";
     appendJsonEscaped(line, final_state);
     line.push_back('"');
-    emit(std::move(line));
+    emit(std::move(line), /*final=*/true);
 }
 
-void StateStream::emit(std::string line) {
-    if (failed_.load(std::memory_order_relaxed)) {
-        return;
-    }
+void StateStream::emit(std::string line, bool final) {
     const auto now_us = std::chrono::duration_cast<std::chrono::microseconds>(
                             std::chrono::system_clock::now().time_since_epoch())
                             .count();
-    emitAt(std::move(line), now_us);
+    emitAt(std::move(line), now_us, final);
 }
 
-void StateStream::emitAt(std::string line, std::int64_t t_us) {
-    if (failed_.load(std::memory_order_relaxed)) {
+void StateStream::emitAt(std::string line, std::int64_t t_us, bool final) {
+    // Under one lock so that `end` is the last line however the others are timed: a
+    // thread the case detached, or the observer's, may still be mid-line when the run
+    // ends, and its line must lose that race, not follow `end`. The lock is held for
+    // one write into the page cache.
+    std::lock_guard<std::mutex> lock(write_mu_);
+    if (ended_ || failed_.load(std::memory_order_relaxed)) {
         return;
     }
     char tail[48];
@@ -212,6 +242,9 @@ void StateStream::emitAt(std::string line, std::int64_t t_us) {
     // open until the destructor: another thread may be inside its own write.
     if (n != static_cast<ssize_t>(line.size())) {
         failed_.store(true, std::memory_order_relaxed);
+    }
+    if (final) {
+        ended_ = true;
     }
 }
 

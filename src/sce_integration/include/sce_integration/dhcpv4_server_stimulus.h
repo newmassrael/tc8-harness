@@ -9,6 +9,7 @@
 #include "sce_integration/test_config.h"
 #include "stimulus/arp_builder.h"  // sendRawEthernet
 #include "stimulus/dhcpv4_frame_builder.h"
+#include "stimulus/tx_observer.h"
 
 namespace tc8::sce::dhcpv4 {
 
@@ -81,6 +82,7 @@ inline void scheduleDhcpReplyOnStateEntry(
             spec.file_payload       = params.file_payload;
 
             const auto frame = ::tc8::stimulus::buildDhcpv4Reply(spec);
+            ::tc8::stimulus::TxScope tx_scope("dhcpv4ServerReply");
             ::tc8::stimulus::sendRawEthernet(frame, iface_copy);
         });
 }
@@ -116,6 +118,7 @@ inline void scheduleArpConflictReplyOnStateEntry(
             spec.target_hw    = dut_mac;
             spec.target_ip_be = 0U;
             const auto frame = ::tc8::stimulus::buildArpFrame(spec);
+            ::tc8::stimulus::TxScope tx_scope("dhcpv4ArpConflictReply");
             ::tc8::stimulus::sendRawEthernet(frame, iface_copy);
         });
 }

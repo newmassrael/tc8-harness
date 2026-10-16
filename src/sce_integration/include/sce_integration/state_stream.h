@@ -3,8 +3,10 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "stimulus/tx_observer.h"
 #include "tc8/frame_summary.h"
@@ -21,6 +23,8 @@
 //   {"event":"stimulus_begin","t_us":N}                      around kickStimulus,
 //   {"event":"stimulus_end","t_us":N}                        always a pair
 //   {"event":"start","case":"<suite:ID>","initial":"<state>","t_us":N}
+//   {"event":"machine","states":[{"id":"<state>","initial":bool,"final":bool},...],
+//    "events":["<event>",...],"transitions":null,"t_us":N}                 once, after start
 //   {"event":"transition","step":N,"trigger":"<event>","from":"<state>",
 //    "to":"<state>","pcap_frame_idx":N|null,"t_us":N}
 //   {"event":"end","final_state":"<state>","t_us":N}
@@ -63,6 +67,14 @@
 // {"event":"observer_unavailable","reason":"<text>"} is written, never a verdict change.
 // The observer ends before the `end` line, which stays the last of the run.
 //
+// The `machine` line is the compiled machine's own declaration, read from the generated
+// code's name tables (not the SCXML file): every state id with whether it is the initial
+// one and whether it is final, and every event id it names (the vocabulary a `trigger`
+// is drawn from; `error.execution` is the platform's). It does NOT carry the
+// transitions: the generated machine holds them as control flow, not as data, so there
+// is none to read, and `"transitions":null` says "not known", never "none". Order is
+// the machine's enumeration order, not the document's.
+//
 // State and trigger names are the SCXML ids `trace.json` carries (same source,
 // same strings). `pcap_frame_idx` is null where `trace.json` has null: a step with
 // no retained frame behind it (a timer firing). `t_us` is microseconds since the Unix
@@ -89,10 +101,22 @@
 // A failed write is dropped silently and permanently disables the stream, so a
 // short write cannot leave a half record that the next line would be glued onto.
 //
-// Callable from more than one thread (a responder sends from its own): each record is
-// one write(2) on an O_APPEND file, which the kernel orders whole, and the disable flag
-// is atomic.
+// Callable from more than one thread (a responder sends from its own, the frame
+// observer reads on its own): each record is one write(2) on an O_APPEND file, taken
+// under a lock that also makes `end` the last line of the run: a line another thread
+// offers after it is dropped. The disable flag is atomic.
 namespace tc8::sce {
+
+// What the compiled state machine declares: the vocabulary of the `machine` line.
+struct MachineDescription {
+    struct State {
+        std::string id;
+        bool        initial = false;
+        bool        final   = false;
+    };
+    std::vector<State>       states;
+    std::vector<std::string> events;
+};
 
 class StateStream final : public ::tc8::stimulus::ITxObserver {
 public:
@@ -112,6 +136,8 @@ public:
     void stimulusEnd();
 
     void start(std::string_view initial_state);
+    // The `machine` line, once, right after `start`.
+    void machine(const MachineDescription &description);
     void transition(int step, std::string_view trigger, std::string_view from,
                     std::string_view to, int pcap_frame_idx);
     void end(std::string_view final_state);
@@ -132,8 +158,9 @@ private:
 
     // Appends the `,"t_us":N}` tail and newline, then writes the whole line. The
     // first form stamps the time of writing, the second a time the caller supplies.
-    void emit(std::string line);
-    void emitAt(std::string line, std::int64_t t_us);
+    // `final` marks the `end` line: nothing is written after it.
+    void emit(std::string line, bool final = false);
+    void emitAt(std::string line, std::int64_t t_us, bool final = false);
 
     // Upper bound on tx lines in one run (see onTx).
     static constexpr unsigned kMaxTxLines = 1000;
@@ -141,6 +168,8 @@ private:
     static constexpr unsigned kMaxFrameLines = 5000;
 
     const int           fd_;
+    std::mutex          write_mu_;  // orders a write against `end`; guards ended_
+    bool                ended_ = false;
     std::atomic<bool>   failed_{false};
     std::atomic<unsigned> tx_lines_{0};
     std::atomic<unsigned> frame_lines_{0};

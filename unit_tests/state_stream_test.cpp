@@ -2,14 +2,20 @@
 // what a tailing reader may rely on. The runner wiring that feeds it is pinned
 // through the production path in run_capture_test.cpp.
 
+#include <atomic>
+#include <chrono>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <thread>
 #include <vector>
 
+#include <arpa/inet.h>
 #include <gtest/gtest.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -173,6 +179,46 @@ TEST_F(StateStreamTest, StimulusIsBracketedAndTxLinesAreBounded) {
     EXPECT_EQ(withoutTime(got[1003]), R"({"event":"stimulus_end"})");
 }
 
+TEST_F(StateStreamTest, MachineLineDeclaresStatesAndEventsAndSaysTransitionsAreUnknown) {
+    const std::string p = path("machine.ndjson");
+    auto s = ::tc8::sce::StateStream::open(p, "X");
+    ASSERT_NE(s, nullptr);
+
+    ::tc8::sce::MachineDescription d;
+    d.states = {{"listening", true, false}, {"pass", false, true}, {"fa\"il", false, true}};
+    d.events = {"arp_observed", "error.execution"};
+    s->machine(d);
+
+    const auto got = lines(p);
+    ASSERT_EQ(got.size(), 2u);
+    EXPECT_EQ(withoutTime(got[1]),
+              R"({"event":"machine","states":[{"id":"listening","initial":true,"final":false},)"
+              R"({"id":"pass","initial":false,"final":true},)"
+              R"({"id":"fa\"il","initial":false,"final":true}],)"
+              R"("events":["arp_observed","error.execution"],"transitions":null})");
+}
+
+TEST_F(StateStreamTest, NothingIsWrittenAfterEnd) {
+    // A thread the case detached, or the frame observer, may offer a line after the
+    // run has ended; `end` has to stay the last line.
+    const std::string p = path("after_end.ndjson");
+    auto s = ::tc8::sce::StateStream::open(p, "X");
+    ASSERT_NE(s, nullptr);
+    s->start("s0");
+    s->end("s0");
+
+    ::tc8::stimulus::TxEvent ev;
+    ev.transport = "udp_unicast";
+    s->onTx(ev);
+    ::tc8::FrameSummary f;
+    s->frame(f);
+    s->end("again");
+
+    const auto got = lines(p);
+    ASSERT_EQ(got.size(), 3u);  // case_begin, start, end
+    EXPECT_EQ(withoutTime(got[2]), R"({"event":"end","final_state":"s0"})");
+}
+
 TEST_F(StateStreamTest, FrameLineCarriesTheCaptureTimeAndWhatTheHeadersHold) {
     const std::string p = path("frame.ndjson");
     auto s = ::tc8::sce::StateStream::open(p, "X");
@@ -262,6 +308,65 @@ TEST(TxObserver, TheOutermostScopeNamesTheSendAndNoObserverMeansNoReport) {
     EXPECT_EQ(capture.emitters[0], "emitOuter");
     EXPECT_EQ(capture.emitters[1], "emitOuter");
     EXPECT_EQ(capture.emitters[2], "");
+}
+
+TEST(TxObserver, ClearingWaitsForASenderStillInsideAReport) {
+    // A sender on a thread of its own may be inside a report when the case ends and the
+    // observer is about to be destroyed: clearing must not return until it has left.
+    struct Slow final : ::tc8::stimulus::ITxObserver {
+        std::atomic<bool> entered{false};
+        std::atomic<bool> left{false};
+        void onTx(const ::tc8::stimulus::TxEvent &) override {
+            entered = true;
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            left = true;
+        }
+    } slow;
+
+    ::tc8::stimulus::setTxObserver(&slow);
+    std::thread sender([] { ::tc8::stimulus::reportTx("udp_unicast", "", 0, 0, 1); });
+    while (!slow.entered) std::this_thread::yield();
+    ::tc8::stimulus::setTxObserver(nullptr);
+    EXPECT_TRUE(slow.left) << "cleared while a report was still running";
+    sender.join();
+}
+
+TEST(TxObserver, AConnectedSocketIsReportedWithItsPeer) {
+    struct Capture final : ::tc8::stimulus::ITxObserver {
+        std::uint32_t ip = 0;
+        std::uint16_t port = 0;
+        std::size_t bytes = 0;
+        std::string transport;
+        void onTx(const ::tc8::stimulus::TxEvent &ev) override {
+            ip = ev.dst_ip_be;
+            port = ev.dst_port;
+            bytes = ev.bytes;
+            transport = ev.transport;
+        }
+    } capture;
+
+    const int listener = ::socket(AF_INET, SOCK_STREAM, 0);
+    ASSERT_GE(listener, 0);
+    sockaddr_in a{};
+    a.sin_family = AF_INET;
+    a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    ASSERT_EQ(::bind(listener, reinterpret_cast<sockaddr *>(&a), sizeof(a)), 0);
+    ASSERT_EQ(::listen(listener, 1), 0);
+    socklen_t len = sizeof(a);
+    ASSERT_EQ(::getsockname(listener, reinterpret_cast<sockaddr *>(&a), &len), 0);
+    const int client = ::socket(AF_INET, SOCK_STREAM, 0);
+    ASSERT_EQ(::connect(client, reinterpret_cast<sockaddr *>(&a), sizeof(a)), 0);
+
+    ::tc8::stimulus::setTxObserver(&capture);
+    ::tc8::stimulus::reportTxConnected("tcp", client, 4);
+    ::tc8::stimulus::setTxObserver(nullptr);
+    ::close(client);
+    ::close(listener);
+
+    EXPECT_EQ(capture.transport, "tcp");
+    EXPECT_EQ(capture.ip, htonl(INADDR_LOOPBACK));
+    EXPECT_EQ(capture.port, ntohs(a.sin_port));
+    EXPECT_EQ(capture.bytes, 4u);
 }
 
 TEST_F(StateStreamTest, RefusesAPathItCannotWriteAsARegularFile) {

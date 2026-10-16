@@ -11,12 +11,14 @@
 #include <cstring>
 
 #include "stimulus/iface_addr.h"  // ipv4OfInterface — tester IPv4 (NBO) SSOT.
+#include "stimulus/tx_observer.h"
 
 namespace tc8::stimulus {
 
 int connectTcpFromIface(std::string_view iface, const Endpoint &dst,
                         std::uint32_t source_ip_be, std::uint16_t *out_local_port,
                         bool nonblocking) {
+    TC8_TX_SCOPE();
     if (out_local_port != nullptr) {
         *out_local_port = 0;
     }
@@ -57,6 +59,8 @@ int connectTcpFromIface(std::string_view iface, const Endpoint &dst,
         ::close(sock);
         return -4;
     }
+    // The SYN is the kernel's; what the tester did is this connect (tx_observer.h).
+    reportTx("tcp_connect", iface, dst.ipv4_be, dst.port, 0);
 
     if (out_local_port != nullptr) {
         sockaddr_in local{};

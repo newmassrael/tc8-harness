@@ -14,6 +14,7 @@
 #include "tc8/someip/wire.h"           // getBe16 (shared big-endian reader SSOT)
 #include "stimulus/arp_builder.h"  // ArpFrameSpec / buildArpFrame / sendRawEthernet
 #include "stimulus/iface_addr.h"   // ipv4FromWire (shared NBO-IPv4 reader SSOT)
+#include "stimulus/tx_observer.h"
 
 namespace tc8::stimulus {
 
@@ -146,6 +147,8 @@ void ArpResponder::onReadable() {
         if (!reply) {
             continue;
         }
+        // Sent from the capture loop, on no emitter's behalf: named for what it is.
+        TxScope tx_scope("arpResponderReply");
         if (sendRawEthernet(*reply, iface_) == 0) {
             ++replies_sent_;
         }

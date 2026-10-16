@@ -590,6 +590,10 @@ ssize_t dgramUtRoundTrip(std::uint32_t dut_ip_be,
         ::close(fd);
         return -1;
     }
+    // The control channel is tester traffic like any other, and the case's own ops
+    // (open, send, close, query) travel on it: reported with the public entry point
+    // that carried it, whose TxScope the three callers below hold.
+    reportTx("udp_unicast", {}, dut_ip_be, dut_port, req.size());
 
     const ssize_t n = ::recv(fd, resp, resp_len, 0);
     ::close(fd);
@@ -606,6 +610,7 @@ std::optional<UtPingResult> pingUpperTester(std::uint32_t dut_ip_be,
                                             std::uint16_t dut_port,
                                             int timeout_ms,
                                             std::uint32_t src_ip_be) {
+    TC8_TX_SCOPE();
     // Response: <OpPing|0x80> <req_id> <status> <max_opcode>.
     std::uint8_t buf[8] = {};
     const ssize_t n = dgramUtRoundTrip(dut_ip_be, dut_port, timeout_ms,
@@ -622,6 +627,7 @@ std::optional<UtCapabilities> queryUpperTesterCapabilities(
     std::uint16_t dut_port,
     int timeout_ms,
     std::uint32_t src_ip_be) {
+    TC8_TX_SCOPE();
     // Response: <0x16|0x80> <req_id> <status> <bitmap_len> <bitmap[]>.
     // 16 bytes covers a 12-byte bitmap (opcodes through 0x5F) — well
     // past kMaxProtocolOpcode growth before this buffer needs a bump.
@@ -653,6 +659,7 @@ std::optional<UtReply> upperTesterRoundTrip(std::uint32_t dut_ip_be,
                                             const std::vector<std::uint8_t> &request,
                                             std::uint16_t dut_port, int timeout_ms,
                                             std::uint32_t src_ip_be) {
+    TC8_TX_SCOPE();
     std::uint8_t buf[2048];
     const ssize_t n =
         dgramUtRoundTrip(dut_ip_be, dut_port, timeout_ms, src_ip_be, request, buf, sizeof(buf));

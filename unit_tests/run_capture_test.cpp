@@ -231,16 +231,26 @@ TEST(RunCaptureDuringAwait, TheStateStreamFollowsTheTraceAndLeavesTheVerdictAlon
     std::error_code ec;
     std::filesystem::remove(stream_path, ec);
 
-    // case_begin, stimulus_begin, stimulus_end, then the machine's own three lines.
-    ASSERT_EQ(lines.size(), 6u);
+    // case_begin, stimulus_begin, stimulus_end, then the machine's own four lines.
+    ASSERT_EQ(lines.size(), 7u);
     EXPECT_NE(lines[3].find(R"("event":"start","case":"SERVICES_DURING_AWAIT","initial":"listening")"),
               std::string::npos)
         << lines[3];
-    EXPECT_NE(lines[4].find(R"("event":"transition","step":0,"trigger":"arp_observed",)"
-                            R"("from":"listening","to":"pass")"),
+    // The machine as compiled: its states with the initial and final ones marked, the
+    // events it names, and no transitions (the generated code holds none as data).
+    EXPECT_NE(lines[4].find(R"("event":"machine","states":[)"), std::string::npos) << lines[4];
+    EXPECT_NE(lines[4].find(R"({"id":"listening","initial":true,"final":false})"),
               std::string::npos)
         << lines[4];
-    EXPECT_NE(lines[5].find(R"("event":"end","final_state":"pass")"), std::string::npos) << lines[5];
+    EXPECT_NE(lines[4].find(R"({"id":"pass","initial":false,"final":true})"), std::string::npos)
+        << lines[4];
+    EXPECT_NE(lines[4].find(R"("arp_observed")"), std::string::npos) << lines[4];
+    EXPECT_NE(lines[4].find(R"("transitions":null)"), std::string::npos) << lines[4];
+    EXPECT_NE(lines[5].find(R"("event":"transition","step":0,"trigger":"arp_observed",)"
+                            R"("from":"listening","to":"pass")"),
+              std::string::npos)
+        << lines[5];
+    EXPECT_NE(lines[6].find(R"("event":"end","final_state":"pass")"), std::string::npos) << lines[6];
 
     // The stream and the trace are one record: the same step, the same names.
     const std::string trace = runner.dumpTraceJson();

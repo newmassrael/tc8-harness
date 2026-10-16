@@ -14,6 +14,7 @@
 #include "sce_integration/cases/_tcp_traits_base.h"
 #include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
+#include "stimulus/tx_observer.h"
 
 #include "tcp_checksum_01_sm.h"
 
@@ -79,8 +80,13 @@ struct TestCaseTraits<cases::TcpChecksum01SM>
         // scheduling jitter not happy-path latency.
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd >= 0) {
-            (void)::send(tester_fd, kChecksumPayload.data(),
-                          kChecksumPayload.size(), MSG_NOSIGNAL);
+            const ssize_t sent = ::send(tester_fd, kChecksumPayload.data(),
+                                        kChecksumPayload.size(), MSG_NOSIGNAL);
+            if (sent >= 0) {
+                ::tc8::stimulus::TxScope tx_scope("tcpChecksum01Payload");
+                ::tc8::stimulus::reportTxConnected("tcp", tester_fd,
+                                                   static_cast<std::size_t>(sent));
+            }
             // Brief wait so the DUT's data-elicited ACK lands before
             // the stimulus tail closes the connection. Linux's
             // delayed-ACK upper bound is ~40 ms; 100 ms covers it

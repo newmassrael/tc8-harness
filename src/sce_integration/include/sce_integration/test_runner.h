@@ -1,7 +1,9 @@
 #pragma once
 
 #include <chrono>
+#include <cstdint>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -479,6 +481,7 @@ public:
         // transition, and that line must follow the `start` it departs from.
         if (state_stream_ != nullptr) {
             state_stream_->start(StateMachine::PolicyType::getStateName(sm_.getCurrentState()));
+            state_stream_->machine(describeMachine());
         }
 
         // Deliver what the stimulus drained while it waited, in capture order and
@@ -914,6 +917,33 @@ private:
                     return "";
             },
             ev);
+    }
+
+    // The states and events the compiled machine declares, for the live stream's
+    // `machine` line. Read from the generated policy itself (its name tables), not from
+    // the SCXML file, so it is the machine the harness runs. Walks every value of the
+    // enum's underlying type: the tables name a value they do not declare as "".
+    static MachineDescription describeMachine() {
+        using Policy = typename StateMachine::PolicyType;
+        using StateE = typename Policy::State;
+        using EventE = typename Policy::Event;
+        MachineDescription d;
+        constexpr auto kStateMax = std::numeric_limits<std::underlying_type_t<StateE>>::max();
+        for (std::uint32_t v = 0; v <= static_cast<std::uint32_t>(kStateMax); ++v) {
+            const auto s = static_cast<StateE>(v);
+            const char *name = Policy::getStateName(s);
+            if (name != nullptr && *name != '\0') {
+                d.states.push_back({name, s == Policy::initialState(), Policy::isFinalState(s)});
+            }
+        }
+        constexpr auto kEventMax = std::numeric_limits<std::underlying_type_t<EventE>>::max();
+        for (std::uint32_t v = 0; v <= static_cast<std::uint32_t>(kEventMax); ++v) {
+            const char *name = Policy::getEventName(static_cast<EventE>(v));
+            if (name != nullptr && *name != '\0') {
+                d.events.emplace_back(name);
+            }
+        }
+        return d;
     }
 
     void recordTransition(State from, State to, const char *event_name,

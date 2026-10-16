@@ -15,6 +15,7 @@
 #include "sce_integration/cases/_someipsrv_traits_base.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/someip_sd_builder.h"
+#include "stimulus/tx_observer.h"
 
 #include "someip_ets_152_sm.h"
 
@@ -77,6 +78,9 @@ struct TestCaseTraits<cases::SomeipEts152SM> : SomeIpAnyBase<cases::SomeipEts152
         const std::uint32_t dut_ip   = cfg.ipv4.dut_iface_ip;
         const std::uint32_t tester_ip = cfg.tester.ip;
         std::thread([datagram, dut_ip, tester_ip]() {
+            // This thread sends outside every emit*; named here, per thread, so its
+            // datagrams are not reported as anonymous.
+            ::tc8::stimulus::TxScope tx_scope("someipEts152Burst");
             const int sock = ::socket(AF_INET, SOCK_DGRAM, 0);
             if (sock < 0) return;
             const int reuse = 1;
@@ -110,6 +114,10 @@ struct TestCaseTraits<cases::SomeipEts152SM> : SomeIpAnyBase<cases::SomeipEts152
                         continue;
                     }
                     break;  // hard error — give up this iter
+                }
+                if (n >= 0) {
+                    ::tc8::stimulus::reportTx("udp_unicast", {}, dut_ip, tc8::dut::kSdPort,
+                                              static_cast<std::size_t>(n));
                 }
                 std::this_thread::sleep_for(std::chrono::microseconds(1500));
             }

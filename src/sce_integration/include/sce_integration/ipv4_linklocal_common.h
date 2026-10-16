@@ -27,6 +27,7 @@
 #include "sce_integration/test_case_traits.h"  // IStimulusScheduler
 #include "sce_integration/test_config.h"
 #include "stimulus/arp_builder.h"
+#include "stimulus/tx_observer.h"
 #include "stimulus/upper_tester_client.h"
 
 namespace tc8::sce::linklocal {
@@ -257,6 +258,7 @@ enum class ConflictArpVariant : std::uint8_t {
 inline int emitConflictArp(std::string_view iface,
                             std::uint32_t dut_tentative_ll_be,
                             ConflictArpVariant variant) {
+    TC8_TX_SCOPE();
     ::tc8::stimulus::ArpFrameSpec spec{};
     spec.eth_dst   = ::tc8::stimulus::kEthBroadcast;
     spec.sender_hw = ::tc8::stimulus::kTesterInjectedMac;
@@ -499,6 +501,7 @@ inline int emitArpRequestForDefenderTest(
     std::string_view iface,
     std::uint32_t    target_ll_be,
     std::uint32_t    tester_ll_be) {
+    TC8_TX_SCOPE();
     ::tc8::stimulus::ArpFrameSpec spec{};
     spec.eth_dst       = ::tc8::stimulus::kEthBroadcast;
     spec.opcode        = 0x0001;
@@ -542,6 +545,7 @@ inline int emitDefenderConflictArp(
     std::string_view iface,
     std::uint32_t    dut_committed_ll_be,
     std::uint16_t    opcode) {
+    TC8_TX_SCOPE();
     ::tc8::stimulus::ArpFrameSpec spec{};
     spec.eth_dst       = ::tc8::stimulus::kEthBroadcast;
     spec.opcode        = opcode;

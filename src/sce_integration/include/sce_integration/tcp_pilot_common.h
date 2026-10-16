@@ -30,6 +30,7 @@
 #include "stimulus/endpoint.h"                       // Endpoint — per-connection 4-tuple.
 #include "stimulus/ipv4_frame_builder.h"
 #include "stimulus/tcp_segment_builder.h"
+#include "stimulus/tx_observer.h"
 #include "stimulus/upper_tester_client.h"
 
 namespace tc8::sce::tcp {
@@ -721,6 +722,7 @@ inline int connectToDutTcp(const ::tc8::TestConfig &cfg,
                            std::uint16_t dst_port,
                            TcpPostClose post_close,
                            int *out_fd = nullptr) {
+    TC8_TX_SCOPE();
     const int fd = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (fd < 0) {
         std::fprintf(stderr, "tcp-pilot: socket() failed: %d\n", errno);
@@ -737,6 +739,8 @@ inline int connectToDutTcp(const ::tc8::TestConfig &cfg,
         ::close(fd);
         return -1;
     }
+    // The SYN is the kernel's; what the tester did is this connect (tx_observer.h).
+    ::tc8::stimulus::reportTx("tcp_connect", {}, remote.sin_addr.s_addr, dst_port, 0);
 
     if (post_close == TcpPostClose::kShutdownWr) {
         ::shutdown(fd, SHUT_WR);

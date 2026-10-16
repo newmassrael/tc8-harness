@@ -1,12 +1,21 @@
 #include "stimulus/tx_observer.h"
 
+#include <atomic>
+#include <thread>
+
+#include <netinet/in.h>
+#include <sys/socket.h>
+
 namespace tc8::stimulus {
 namespace {
 
-// Not atomic, for the reason site_target.cpp gives: written once by the runner before
-// any stimulus runs, read afterwards. A responder thread is started after it is set,
-// and starting a thread orders the write before the thread's reads.
-ITxObserver *g_observer = nullptr;
+// Set by the runner before any stimulus and cleared when the case ends. Atomic, with a
+// count of reports in flight, because the clearing is not ordered against every sender:
+// a responder thread, or a thread a case detached for a burst, may be inside a report
+// when the case ends and the observer behind the pointer is destroyed. Clearing waits
+// for them (setTxObserver), so a report never reaches a destroyed observer.
+std::atomic<ITxObserver *> g_observer{nullptr};
+std::atomic<int>           g_in_flight{0};
 
 // The outermost active scope's name on this thread, or nullptr. Per thread because a
 // scope names the emitter running on THAT thread; a responder thread sending while the
@@ -16,22 +25,50 @@ thread_local const char *t_emitter = nullptr;
 }  // namespace
 
 void setTxObserver(ITxObserver *observer) {
-    g_observer = observer;
+    g_observer.store(observer);
+    if (observer == nullptr) {
+        // A report that read the old pointer before the store is counted here; one that
+        // starts after it reads null. Sequentially consistent, so the two cannot both
+        // be missed.
+        while (g_in_flight.load() != 0) {
+            std::this_thread::yield();
+        }
+    }
 }
 
 void reportTx(const char *transport, std::string_view iface, std::uint32_t dst_ip_be,
               std::uint16_t dst_port, std::size_t bytes) {
-    if (g_observer == nullptr) {
+    if (g_observer.load(std::memory_order_relaxed) == nullptr) {
         return;
     }
-    TxEvent ev;
-    ev.emitter = t_emitter != nullptr ? std::string_view{t_emitter} : std::string_view{};
-    ev.transport = transport;
-    ev.iface = iface;
-    ev.dst_ip_be = dst_ip_be;
-    ev.dst_port = dst_port;
-    ev.bytes = bytes;
-    g_observer->onTx(ev);
+    g_in_flight.fetch_add(1);
+    if (ITxObserver *observer = g_observer.load()) {
+        TxEvent ev;
+        ev.emitter = t_emitter != nullptr ? std::string_view{t_emitter} : std::string_view{};
+        ev.transport = transport;
+        ev.iface = iface;
+        ev.dst_ip_be = dst_ip_be;
+        ev.dst_port = dst_port;
+        ev.bytes = bytes;
+        observer->onTx(ev);
+    }
+    g_in_flight.fetch_sub(1);
+}
+
+void reportTxConnected(const char *transport, int fd, std::size_t bytes) {
+    // Not even the peer lookup without an observer: a send costs what it always did.
+    if (g_observer.load(std::memory_order_relaxed) == nullptr) {
+        return;
+    }
+    sockaddr_in peer{};
+    socklen_t len = sizeof(peer);
+    if (::getpeername(fd, reinterpret_cast<sockaddr *>(&peer), &len) != 0 ||
+        peer.sin_family != AF_INET) {
+        // The send happened; where it went is unknown. Reported without a destination.
+        reportTx(transport, {}, 0, 0, bytes);
+        return;
+    }
+    reportTx(transport, {}, peer.sin_addr.s_addr, ntohs(peer.sin_port), bytes);
 }
 
 TxScope::TxScope(const char *emitter) : owns_(t_emitter == nullptr) {
