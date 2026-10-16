@@ -1378,6 +1378,13 @@ Third-party components ship under their own licenses, retained in tree:
 | CLI11 | `third_party/CLI11/` | BSD-3-Clause (`LICENSE`) |
 | vsomeip (submodule) | `third_party/vsomeip/` | MPL-2.0 (`third_party/vsomeip/LICENSE`); harness patches under `patches/vsomeip/` retain MPL-2.0 inheritance |
 
+SCE is used by `tc8-harness` to build and run its cases, and projects built on
+`tc8-harness` use it the same way. [LICENSE-SCE-GRANT.md](LICENSE-SCE-GRANT.md)
+is the SCE copyright holder's separate grant that lets those projects use SCE
+through `tc8-harness` without a licensing question: it is not part of the
+Apache License 2.0 above, and it does not cover SCE used outside `tc8-harness`
+or a modified SCE.
+
 Runtime dependencies (libpcap, libtins, Boost, CommonAPI) are linked
 from the system or built from upstream sources by `scripts/setup-vsomeip.sh`
 and the build-test workflow; consult those projects for their respective

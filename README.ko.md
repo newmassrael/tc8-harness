@@ -1060,6 +1060,12 @@ Wall-time 이연 케이스(`TCP_RETRANSMISSION_TO_08/_09`)는 이미
 | CLI11 | `third_party/CLI11/` | BSD-3-Clause (`LICENSE`) |
 | vsomeip (서브모듈) | `third_party/vsomeip/` | MPL-2.0 (`third_party/vsomeip/LICENSE`); `patches/vsomeip/`의 하네스 패치는 MPL-2.0 상속 유지 |
 
+`tc8-harness`는 케이스를 만들고 실행하는 데 SCE를 사용하며, `tc8-harness` 위에
+만든 프로젝트도 같은 방식으로 사용합니다. [LICENSE-SCE-GRANT.md](LICENSE-SCE-GRANT.md)는
+SCE 저작권자가 별도로 내는 허가문으로, 그 프로젝트들이 `tc8-harness`를 통해
+SCE를 쓰는 데 라이선스 문제가 없게 합니다. 위 Apache License 2.0의 일부가 아니며,
+`tc8-harness` 밖에서 쓰는 SCE나 수정한 SCE에는 적용되지 않습니다.
+
 런타임 의존성(libpcap, libtins, Boost, CommonAPI)은 시스템에서 링크되거나
 `scripts/setup-vsomeip.sh` + build-test 워크플로가 upstream 소스에서
 빌드합니다. 라이선스는 각 프로젝트를 확인하세요.
