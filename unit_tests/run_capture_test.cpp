@@ -170,8 +170,10 @@ TEST(RunCaptureDuringAwait, FollowPcapPutsDumpedFramesOnDiskBeforeClose) {
     ::tc8::cli::RunCapture capture(*src, src->datalink(), nullptr, 0, dumper, pipeline, runner);
     capture.followPcap(std::chrono::milliseconds(1));
 
-    const auto drained = capture.drain();
-    ASSERT_GT(drained.frames, 0u);
+    // The drain's frame count is not asserted: what a savefile's pcap_dispatch returns
+    // once it reaches the end of the file differs between libpcap releases (the count
+    // of what it read, or 0). The saved pcap below is the evidence.
+    ASSERT_EQ(capture.drain().status, ::tc8::sce::ICapturePump::Status::kOk);
 
     std::error_code ec;
     const auto before_close = std::filesystem::file_size(dump_path, ec);

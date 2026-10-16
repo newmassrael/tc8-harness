@@ -53,7 +53,7 @@ std::string withoutTime(const std::string &line) {
 
 TEST_F(StateStreamTest, WritesOneRecordPerLineInOrder) {
     const std::string p = path("a.ndjson");
-    auto s = ::tc8::sce::StateStream::open(p, "hkmc:SOMEIPSRV_SD_BEHAVIOR_21");
+    auto s = ::tc8::sce::StateStream::open(p, "ext:SOMEIPSRV_SD_BEHAVIOR_21");
     ASSERT_NE(s, nullptr);
     s->start("listening_phase1");
     s->transition(0, "someip_notification", "listening_phase1", "listening_phase2", 0);
@@ -63,9 +63,9 @@ TEST_F(StateStreamTest, WritesOneRecordPerLineInOrder) {
     const auto got = lines(p);
     ASSERT_EQ(got.size(), 5u);
     EXPECT_EQ(withoutTime(got[0]),
-              R"({"event":"case_begin","case":"hkmc:SOMEIPSRV_SD_BEHAVIOR_21"})");
+              R"({"event":"case_begin","case":"ext:SOMEIPSRV_SD_BEHAVIOR_21"})");
     EXPECT_EQ(withoutTime(got[1]),
-              R"({"event":"start","case":"hkmc:SOMEIPSRV_SD_BEHAVIOR_21","initial":"listening_phase1"})");
+              R"({"event":"start","case":"ext:SOMEIPSRV_SD_BEHAVIOR_21","initial":"listening_phase1"})");
     EXPECT_EQ(withoutTime(got[2]),
               R"({"event":"transition","step":0,"trigger":"someip_notification",)"
               R"("from":"listening_phase1","to":"listening_phase2","pcap_frame_idx":0})");
