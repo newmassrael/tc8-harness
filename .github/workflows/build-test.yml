@@ -92,19 +92,21 @@ jobs:
             cmake \
             ninja-build \
             python3 \
+            python3-pip \
             quilt \
-            clang-format-15 \
             libpcap-dev \
             libtins-dev \
             pkg-config \
             git
-          # SCE codegen post-formats generated C++ via clang-format and
-          # the third_party/sce/tools/codegen/default.clang-format style
-          # uses the `InsertBraces` option introduced in LLVM 15. Ubuntu
-          # 22.04 ships clang-format-14 by default; force-symlink so
-          # `find_program(clang-format)` always resolves to 15+.
-          sudo ln -sf /usr/bin/clang-format-15 /usr/bin/clang-format
-          clang-format --version
+          # sce-codegen formats the C++ it generates and refuses to run
+          # without clang-format of major 19 (no quiet fallback): bytes of
+          # one document must not depend on which formatter the host has.
+          # Ubuntu 22.04 ships 14 and 15 only, so take the PyPI wheel,
+          # pinned to the exact version the generator was measured with.
+          # The generator finds it on PATH.
+          python3 -m pip install --user clang-format==19.1.7
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/clang-format" --version
 
       # Resolve the PINNED vsomeip commit (the submodule gitlink SHA in the
       # checked-out tree) so the cache key below can fold it in. .gitmodules

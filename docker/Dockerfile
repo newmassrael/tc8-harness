@@ -115,7 +115,6 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         ca-certificates \
-        clang-format-15 \
         cmake \
         curl \
         git \
@@ -126,12 +125,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         ninja-build \
         pkg-config \
         python3 \
+        python3-pip \
         iproute2 \
         iputils-ping \
         openssh-client \
         tcpdump \
-    && ln -sf /usr/bin/clang-format-15 /usr/bin/clang-format \
     && rm -rf /var/lib/apt/lists/*
+
+# sce-codegen formats the C++ it generates and stops without clang-format of
+# major 19, so one document cannot compile from different bytes on different
+# hosts. 22.04 ships 14 and 15 only; take the PyPI wheel, pinned to the version
+# the generator was measured with. It lands in /usr/local/bin, on PATH.
+RUN python3 -m pip install --no-cache-dir clang-format==19.1.7 \
+    && clang-format --version
 
 # libxml2-dev and libclang-dev are NOT in build-test.yml's apt list: the GitHub
 # runner image ships both, so CI never had to name them. sce-codegen needs the
