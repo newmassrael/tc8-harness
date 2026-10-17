@@ -1,3 +1,5 @@
+schema = 1
+
 # What tc8-harness needs from a build machine — REQUIREMENTS, never a machine name.
 #
 # WHY THIS FILE EXISTS. This was the only repository on this workstation without
