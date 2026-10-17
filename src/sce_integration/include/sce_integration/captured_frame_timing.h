@@ -89,8 +89,11 @@ struct CapturedFrameTiming {
 
     // Wall-clock (CLOCK_REALTIME epoch microseconds — the SAME domain as
     // `observed_ts_us`, which is the pcap `gettimeofday` arrival stamp) instant
-    // the LISTEN WINDOW opened: stamped ONCE by `TestRunner::start()` right after
-    // `kickStimulus` returns and before the SM is driven. This is NOT when the
+    // the LISTEN WINDOW opened: the instant `TestRunner::kickStimulus` returned,
+    // taken there and published by `start()` before the SM is driven (the
+    // process runs the SM's code for the first time in between, which on a host
+    // under IO pressure takes ~10 ms, so stamping in `start()` measured the
+    // host). A runner that never ran a stimulus stamps at `start()`. This is NOT when the
     // kernel BPF capture began — that is armed earlier, before `kickStimulus`
     // (see test_command.cpp) — so a frame the DUT sent during stimulus may
     // already sit in the capture ring with an `observed_ts_us` BEFORE this stamp

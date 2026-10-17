@@ -16,6 +16,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <variant>
 #include <vector>
 
@@ -67,12 +68,23 @@ struct Probe {
     int              reads_after_await    = -1;
     std::size_t      arp_seen_after_await = 0;
     bool             reply_awaited        = false;
+    // CLOCK_REALTIME microseconds: the stimulus's last statement, and the
+    // listen-window reference the runner had published when the first held frame
+    // reached the machine.
+    std::int64_t     stimulus_end_us      = 0;
+    std::int64_t     window_open_us       = 0;
 };
 Probe g_probe;
 
 bool isArpReply(const ::tc8::CapturedEvent &ev) {
     const auto *arp = std::get_if<::tc8::ArpFrame>(&ev);
     return arp != nullptr && arp->opcode == 2;
+}
+
+std::int64_t nowUs() {
+    return std::chrono::duration_cast<std::chrono::microseconds>(
+               std::chrono::system_clock::now().time_since_epoch())
+        .count();
 }
 
 class NoDutControl final : public ::tc8::sce::IDutControl {
@@ -116,6 +128,16 @@ struct TestCaseTraits<ServicesDuringAwaitSM> : ArpAnyBase<ServicesDuringAwaitSM>
         g_probe.reply_awaited        = reply.has_value();
         g_probe.reads_after_await    = g_probe.service->reads();
         g_probe.arp_seen_after_await = g_probe.service->arpFrames();
+        g_probe.stimulus_end_us      = nowUs();
+    }
+
+    // Reads the window reference at the first frame the machine is given, which is
+    // after start() has published it.
+    static void dispatch(Captured &c, SM &sm, const ::tc8::CapturedEvent &ev) {
+        if (g_probe.window_open_us == 0) {
+            g_probe.window_open_us = c.listen_window_open_ts_us;
+        }
+        ArpAnyBase<ServicesDuringAwaitSM>::dispatch(c, sm, ev);
     }
 };
 
@@ -155,6 +177,53 @@ TEST(RunCaptureDuringAwait, AServiceIsDrainedAndSeesFramesBeforeTheWindowOpens) 
     // and must not be told again, or a reaction would fire twice.
     EXPECT_EQ(g_probe.service->arpFrames(), 2u);
     EXPECT_FALSE(::tc8::UnperformedStimulus::any()) << ::tc8::UnperformedStimulus::reason();
+}
+
+// The listen-window reference is the instant the stimulus returned, not the instant
+// start() got to run. The CLI executes the state machine's code for the first time
+// between the two, and on a host under IO pressure loading it took ~10 ms, which every
+// window-relative delta then absorbed. A start() that comes late must not move it.
+TEST(RunCaptureDuringAwait, TheWindowReferenceIsWhenTheStimulusReturnedNotWhenStartRan) {
+    ::tc8::UnperformedStimulus::reset();
+    g_probe = Probe{};
+
+    auto src = ::tc8::capture::PcapSource::openOffline(TC8_FIXTURE_DIR "/decode_pcap_sample.pcap");
+    ASSERT_NE(src, nullptr);
+    ::tc8::sce::TestRunner<ServicesDuringAwaitSM> runner;
+    ::tc8::dissect::PacketPipeline pipeline(
+        [&runner](const ::tc8::CapturedEvent &ev) { runner.onCaptured(ev); });
+    ::tc8::cli::RunCapture capture(*src, src->datalink(), nullptr, 0, nullptr, pipeline, runner);
+    NoDutControl dut;
+
+    runner.kickStimulus("unit-test", dut, capture);
+    ASSERT_NE(g_probe.stimulus_end_us, 0);
+
+    constexpr std::int64_t kLateStartUs = 60'000;
+    std::this_thread::sleep_for(std::chrono::microseconds(kLateStartUs));
+    const std::int64_t start_called_us = nowUs();
+    runner.start();
+
+    ASSERT_NE(g_probe.window_open_us, 0) << "no frame reached the machine at start()";
+    // At or after the stimulus's last statement, and nowhere near the late start().
+    EXPECT_GE(g_probe.window_open_us, g_probe.stimulus_end_us);
+    EXPECT_LT(g_probe.window_open_us, start_called_us - kLateStartUs / 2)
+        << "the reference followed start() instead of the stimulus";
+}
+
+// A runner whose stimulus never ran has no earlier instant: it stamps at start().
+TEST(RunCaptureDuringAwait, WithoutAStimulusTheWindowReferenceFallsBackToStart) {
+    ::tc8::UnperformedStimulus::reset();
+    g_probe = Probe{};
+
+    ::tc8::sce::TestRunner<ServicesDuringAwaitSM> runner;
+    const std::int64_t before_us = nowUs();
+    runner.start();
+    const std::int64_t after_us = nowUs();
+    runner.onCaptured(::tc8::CapturedEvent{::tc8::ArpFrame{}});
+
+    ASSERT_NE(g_probe.window_open_us, 0);
+    EXPECT_GE(g_probe.window_open_us, before_us);
+    EXPECT_LE(g_probe.window_open_us, after_us);
 }
 
 // followPcap(): the saved pcap reaches the disk while the run is going, not at close.

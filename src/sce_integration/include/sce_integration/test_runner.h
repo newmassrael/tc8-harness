@@ -446,29 +446,36 @@ public:
                           "— see sce_integration/stimulus_context.h. The earlier signatures "
                           "were removed (docs/tech-debt.md TD-62).");
         }
+        // The instant the stimulus handed control back: the last thing the case
+        // did to the DUT, and so the reference every window-relative delta wants.
+        // Taken here, in the stimulus's own scope, and not in `start()`: between
+        // the two the process runs the state machine's code for the first time,
+        // and on a host under IO pressure those cold pages cost ~10 ms (measured:
+        // 11-12 ms with 16 major faults dropped, 43 us warm). A reference that
+        // waited for that code to load measured the host, not the DUT.
+        stimulus_returned_ts_us_ = realtimeNowUs();
     }
 
     void start() override {
         sm_.initialize();
-        // Stamp the listen-window-open instant — the measurement reference for
+        // The listen-window-open instant — the measurement reference for
         // boot/stimulus-relative timing cases (see
-        // `CapturedFrameTiming::delta_from_listen_window_us`). `start()` runs
-        // exactly once, after `kickStimulus` returns and before the SM is driven,
-        // so this is the listen-window-open time (the kernel BPF capture was
-        // armed earlier, before `kickStimulus`). Sampled from `system_clock`
-        // (CLOCK_REALTIME / Unix epoch on this platform) to match the pcap
-        // `gettimeofday` domain of `observed_ts_us` — NOT `steady_clock`, which
-        // the CLI deadline uses and which would make the subtraction meaningless.
-        // (A CLOCK_REALTIME step inside the listen window would corrupt the delta;
-        // accepted because pcap offers no monotonic stamp and the window is
-        // seconds-scale — the same exposure `frame_delta_us()` already carries.)
-        // Guarded so a Captured context that does not observe wire timing (no
-        // `CapturedFrameTiming` base) still compiles.
+        // `CapturedFrameTiming::delta_from_listen_window_us`). It is the instant
+        // `kickStimulus` returned (the kernel BPF capture was armed earlier,
+        // before it), which is before this call by however long the process took
+        // to get here; a runner whose `kickStimulus` never ran has no earlier
+        // instant, so it falls back to now. `system_clock` (CLOCK_REALTIME / Unix
+        // epoch on this platform) matches the pcap `gettimeofday` domain of
+        // `observed_ts_us` — NOT `steady_clock`, which the CLI deadline uses and
+        // which would make the subtraction meaningless. (A CLOCK_REALTIME step
+        // inside the listen window would corrupt the delta; accepted because pcap
+        // offers no monotonic stamp and the window is seconds-scale — the same
+        // exposure `frame_delta_us()` already carries.) Guarded so a Captured
+        // context that does not observe wire timing (no `CapturedFrameTiming`
+        // base) still compiles.
         if constexpr (std::is_base_of_v<::tc8::CapturedFrameTiming, Captured>) {
             captured_.listen_window_open_ts_us =
-                std::chrono::duration_cast<std::chrono::microseconds>(
-                    std::chrono::system_clock::now().time_since_epoch())
-                    .count();
+                stimulus_returned_ts_us_ != 0 ? stimulus_returned_ts_us_ : realtimeNowUs();
         }
         // Anchor the state-entry observer baseline. A transition is
         // detected when `getCurrentState()` differs from this value,
@@ -1004,6 +1011,15 @@ private:
     ObservationReactions               reactions_;
     // Whether `start()` has run: before it, a delivered frame is held.
     bool                               started_ = false;
+    // CLOCK_REALTIME microseconds at which `kickStimulus` returned; 0 = it has
+    // not run. `start()` publishes it as the listen-window-open reference.
+    std::int64_t                       stimulus_returned_ts_us_ = 0;
+
+    static std::int64_t realtimeNowUs() {
+        return std::chrono::duration_cast<std::chrono::microseconds>(
+                   std::chrono::system_clock::now().time_since_epoch())
+            .count();
+    }
     // Evidence Export ledger — appended-to on every state change observed
     // in onCaptured / tick. The walker reads this from the saved pcap's
     // sidecar JSON to render the timeline (single source of truth for
