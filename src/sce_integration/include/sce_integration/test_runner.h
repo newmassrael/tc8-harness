@@ -31,6 +31,18 @@
 
 namespace tc8::sce {
 
+// Whether the generated policy carries its own transition table: the generator writes
+// `transitions`, `transitionCount()` and `sourceHash()` into it only for a design that
+// declares `<scxml sce:transition-table="emit">`.
+template <typename Policy, typename = void>
+struct has_emitted_transitions : std::false_type {};
+template <typename Policy>
+struct has_emitted_transitions<
+    Policy, std::void_t<decltype(Policy::transitions), decltype(Policy::transitionCount())>>
+    : std::true_type {};
+template <typename Policy>
+inline constexpr bool has_emitted_transitions_v = has_emitted_transitions<Policy>::value;
+
 // Stimulus scheduler — opt-in handle that compound-phase traits use to
 // emit additional packets AFTER `kickStimulus` returns and the SCXML
 // has had time to reach a target state. A compound shape (an absence
@@ -488,8 +500,18 @@ public:
         // transition, and that line must follow the `start` it departs from.
         if (state_stream_ != nullptr) {
             state_stream_->start(StateMachine::PolicyType::getStateName(sm_.getCurrentState()));
-            const MachineDescription machine = describeMachine();
+            MachineDescription machine = describeMachine();
+            // A table that disagrees with the machine's own names is not written: a wrong
+            // table is worse than none, so the line says "not known" and the next one why.
+            const auto table_problems = validateTransitions(machine);
+            if (!table_problems.empty()) {
+                machine.transitions.reset();
+                machine.source_hash.reset();
+            }
             state_stream_->machine(machine);
+            if (!table_problems.empty()) {
+                state_stream_->transitionsInvalid(table_problems);
+            }
             if constexpr (has_case_spec_v<Traits>) {
                 // A table that names a state the machine lacks has drifted from it (a
                 // rename, a regeneration); say so rather than let it stop tagging unseen.
@@ -967,6 +989,22 @@ private:
             if (name != nullptr && *name != '\0') {
                 d.events.emplace_back(name);
             }
+        }
+        // The machine's own transition table, present only when its design declared one
+        // (`sce:transition-table="emit"`); without it the member stays unset, which the
+        // stream writes as null ("not known"), never as an empty list.
+        if constexpr (has_emitted_transitions_v<Policy>) {
+            std::vector<MachineDescription::Transition> table;
+            for (const auto &r : Policy::transitions) {
+                MachineDescription::Transition t;
+                t.from = Policy::getStateName(r.from);
+                if (r.to.has_value()) t.to = Policy::getStateName(*r.to);
+                if (r.event.has_value()) t.event = Policy::getEventName(*r.event);
+                t.index = static_cast<int>(r.index);
+                table.push_back(std::move(t));
+            }
+            d.transitions = std::move(table);
+            d.source_hash = Policy::sourceHash();
         }
         return d;
     }

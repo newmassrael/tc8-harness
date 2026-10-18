@@ -323,7 +323,8 @@ TEST(RunCaptureDuringAwait, TheStateStreamFollowsTheTraceAndLeavesTheVerdictAlon
               std::string::npos)
         << lines[4];
     // The machine as compiled: its states with the initial and final ones marked, the
-    // events it names, and no transitions (the generated code holds none as data).
+    // events it names, and its own transition table, which the fixture's design declares
+    // (`sce:transition-table="emit"`), in document order and each by its place in its state.
     EXPECT_NE(lines[5].find(R"("event":"machine","states":[)"), std::string::npos) << lines[5];
     EXPECT_NE(lines[5].find(R"({"id":"listening","initial":true,"final":false})"),
               std::string::npos)
@@ -331,7 +332,18 @@ TEST(RunCaptureDuringAwait, TheStateStreamFollowsTheTraceAndLeavesTheVerdictAlon
     EXPECT_NE(lines[5].find(R"({"id":"pass","initial":false,"final":true})"), std::string::npos)
         << lines[5];
     EXPECT_NE(lines[5].find(R"("arp_observed")"), std::string::npos) << lines[5];
-    EXPECT_NE(lines[5].find(R"("transitions":null)"), std::string::npos) << lines[5];
+    EXPECT_NE(lines[5].find(R"("transitions":[{"from":"listening","to":"pass",)"
+                            R"("event":"arp_observed","index":0},)"
+                            R"({"from":"listening","to":"inconclusive_no_reply",)"
+                            R"("event":"deadline_exceeded","index":1}],"source_hash":")"),
+              std::string::npos)
+        << lines[5];
+    // The digest the generator wrote into the policy: 64 hex digits (SHA-256).
+    const auto hash_at = lines[5].find(R"("source_hash":")");
+    ASSERT_NE(hash_at, std::string::npos) << lines[5];
+    const auto digest = lines[5].substr(hash_at + 15, 65);
+    EXPECT_EQ(digest.back(), '"') << digest;
+    EXPECT_EQ(digest.find_first_not_of("0123456789abcdef"), 64u) << digest;
     // The case's table names only states the machine has, so no `spec_invalid`; the
     // transition into `pass` carries the step the table maps that state to.
     EXPECT_NE(lines[6].find(R"("event":"transition","step":0,"trigger":"arp_observed",)"

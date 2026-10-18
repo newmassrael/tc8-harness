@@ -746,6 +746,16 @@ Two ways:
   the case's own and is passed through untouched, so the harness holds none of
   it; a table naming a state the machine lacks is reported once as
   `spec_invalid`. A case with no table writes none of this.
+  The `machine` line also carries the machine's own transitions (`from`, `to`,
+  `event`, and `index` within the state) when its SCXML declares
+  `sce:transition-table="emit"`; without that declaration the member is
+  `null`, which means "not known", never "none". A `to` or `event` the machine
+  has no single id for (no target, a wildcard, several events) is `null`. A
+  table that names a state or event the machine lacks is not written; the
+  member is `null` and `transitions_invalid` follows. With a table the line
+  also carries `source_hash`, the digest of the SCXML it was generated from;
+  a reader that holds the SCXML compares it with the first line of
+  `sce-codegen transition-table --header <file>`.
 
 ### JUnit XML for CI consumers
 

@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -25,7 +26,7 @@
 //   {"event":"stimulus_end","t_us":N}                        always a pair
 //   {"event":"start","case":"<suite:ID>","initial":"<state>","t_us":N}
 //   {"event":"machine","states":[{"id":"<state>","initial":bool,"final":bool},...],
-//    "events":["<event>",...],"transitions":null,"t_us":N}                 once, after start
+//    "events":["<event>",...],"transitions":[...]|null,"t_us":N}           once, after start
 //   {"event":"transition","step":N,"trigger":"<event>","from":"<state>",
 //    "to":"<state>","pcap_frame_idx":N|null,"t_us":N}
 //   {"event":"end","final_state":"<state>","t_us":N}
@@ -71,10 +72,30 @@
 // The `machine` line is the compiled machine's own declaration, read from the generated
 // code's name tables (not the SCXML file): every state id with whether it is the initial
 // one and whether it is final, and every event id it names (the vocabulary a `trigger`
-// is drawn from; `error.execution` is the platform's). It does NOT carry the
-// transitions: the generated machine holds them as control flow, not as data, so there
-// is none to read, and `"transitions":null` says "not known", never "none". Order is
-// the machine's enumeration order, not the document's.
+// is drawn from; `error.execution` is the platform's). Order is the machine's
+// enumeration order, not the document's.
+//
+// Its `transitions` member is the machine's own table when the design declares one
+// (`<scxml sce:transition-table="emit">`, which makes the generator write the table into
+// the policy), and null when it does not:
+//
+//   "transitions":[{"from":"<state>","to":"<state>"|null,"event":"<event>"|null,"index":N},...]
+//
+// With a list the line also carries `"source_hash":"<hex>"`, the digest of the SCXML
+// source set the table was generated from. The harness cannot check it (it holds no
+// SCXML at run time, and the table and the machine come out of one generation), but a
+// reader that has the SCXML can: `sce-codegen transition-table --header <file>` prints
+// the same `source_hash` in its first line, and a differing one means the stream was
+// made by another revision of that design. Absent where the list is.
+//
+// A list means "these are all of them", in the machine's document order; `index` is the
+// transition's position within its `from` state. `to` is null for a transition with no
+// target, or whose first target is a history; `event` is null for an eventless one, a
+// wildcard, a prefix such as `error.*`, or several descriptors. Null never means "none":
+// it is "not known", and a reader that gets it draws the states alone. A table that
+// disagrees with the machine's own name tables is not written (the member is null) and
+// `{"event":"transitions_invalid","problems":["<sentence>",...],"t_us":N}` follows the
+// machine line instead: a wrong table is worse than none.
 //
 // A case that declares its specification's own steps (sce_integration/spec_steps.h) adds:
 //
@@ -130,9 +151,30 @@ struct MachineDescription {
         bool        initial = false;
         bool        final   = false;
     };
+    // One entry of the machine's own transition table (the generated policy's
+    // `transitions`). `to` and `event` are absent where the transition has no single id
+    // in the name tables (see the stream's header comment).
+    struct Transition {
+        std::string                from;
+        std::optional<std::string> to;
+        std::optional<std::string> event;
+        int                        index = 0;
+    };
     std::vector<State>       states;
     std::vector<std::string> events;
+    // nullopt = the machine carries no table, so nothing is known; a list, even an
+    // empty one, is the complete set.
+    std::optional<std::vector<Transition>> transitions;
+    // The digest of the SCXML source set the table was generated from (the policy's
+    // `sourceHash()`); set with `transitions` and never without it.
+    std::optional<std::string> source_hash;
 };
+
+// What is wrong with a machine's transition table against the machine's own states and
+// events, one sentence each; empty when it is sound or there is no table. Checks that every
+// `from` and `to` is a declared state, every `event` a declared event, and that no two
+// entries of one state share an `index`.
+std::vector<std::string> validateTransitions(const MachineDescription &description);
 
 class StateStream final : public ::tc8::stimulus::ITxObserver {
 public:
@@ -160,6 +202,9 @@ public:
     void start(std::string_view initial_state);
     // The `machine` line, once, right after `start`.
     void machine(const MachineDescription &description);
+    // The `transitions_invalid` line: what is wrong with the machine's table against its
+    // own name tables. Not called with an empty list.
+    void transitionsInvalid(const std::vector<std::string> &problems);
     // `spec_step` is the case's step for this transition, or kNoSpecStep.
     void transition(int step, std::string_view trigger, std::string_view from,
                     std::string_view to, int pcap_frame_idx,

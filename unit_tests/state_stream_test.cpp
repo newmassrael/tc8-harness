@@ -198,6 +198,105 @@ TEST_F(StateStreamTest, MachineLineDeclaresStatesAndEventsAndSaysTransitionsAreU
               R"("events":["arp_observed","error.execution"],"transitions":null})");
 }
 
+TEST_F(StateStreamTest, MachineLineCarriesItsTransitionsAndNullForWhatItHasNoIdFor) {
+    const std::string p = path("machine_transitions.ndjson");
+    auto s = ::tc8::sce::StateStream::open(p, "X");
+    ASSERT_NE(s, nullptr);
+
+    ::tc8::sce::MachineDescription d;
+    d.states = {{"listening", true, false}, {"pass", false, true}};
+    d.events = {"arp_observed"};
+    // The second has no event id (eventless or a wildcard), the third no target.
+    d.transitions = std::vector<::tc8::sce::MachineDescription::Transition>{
+        {"listening", "pass", "arp_observed", 0},
+        {"listening", "pass", std::nullopt, 1},
+        {"listening", std::nullopt, "arp_observed", 2}};
+    d.source_hash = "ab12";
+    s->machine(d);
+
+    const auto got = lines(p);
+    ASSERT_EQ(got.size(), 2u);
+    EXPECT_EQ(withoutTime(got[1]),
+              R"({"event":"machine","states":[{"id":"listening","initial":true,"final":false},)"
+              R"({"id":"pass","initial":false,"final":true}],"events":["arp_observed"],)"
+              R"("transitions":[{"from":"listening","to":"pass","event":"arp_observed","index":0},)"
+              R"({"from":"listening","to":"pass","event":null,"index":1},)"
+              R"({"from":"listening","to":null,"event":"arp_observed","index":2}],)"
+              R"("source_hash":"ab12"})");
+}
+
+TEST_F(StateStreamTest, TheSourceHashRidesWithTheListAndNeverWithoutIt) {
+    const std::string p = path("machine_source_hash.ndjson");
+    auto s = ::tc8::sce::StateStream::open(p, "X");
+    ASSERT_NE(s, nullptr);
+
+    ::tc8::sce::MachineDescription d;
+    d.states = {{"only", true, true}};
+    // A hash with no table says nothing about a table, so it is not written.
+    d.source_hash = "ab12";
+    s->machine(d);
+    d.transitions = std::vector<::tc8::sce::MachineDescription::Transition>{};
+    s->machine(d);
+
+    const auto got = lines(p);
+    ASSERT_EQ(got.size(), 3u);
+    EXPECT_EQ(got[1].find("source_hash"), std::string::npos) << got[1];
+    EXPECT_NE(got[2].find(R"("transitions":[],"source_hash":"ab12")"), std::string::npos) << got[2];
+}
+
+TEST_F(StateStreamTest, AnEmptyTableIsAListAndNoTableIsNull) {
+    const std::string p = path("machine_empty_table.ndjson");
+    auto s = ::tc8::sce::StateStream::open(p, "X");
+    ASSERT_NE(s, nullptr);
+
+    ::tc8::sce::MachineDescription d;
+    d.states = {{"only", true, true}};
+    d.transitions = std::vector<::tc8::sce::MachineDescription::Transition>{};
+    s->machine(d);
+    d.transitions.reset();
+    s->machine(d);
+
+    const auto got = lines(p);
+    ASSERT_EQ(got.size(), 3u);
+    // A machine that declares its table and has no transitions: "these are all of them".
+    EXPECT_NE(got[1].find(R"("transitions":[])"), std::string::npos) << got[1];
+    EXPECT_NE(got[2].find(R"("transitions":null)"), std::string::npos) << got[2];
+}
+
+TEST_F(StateStreamTest, ATableAgainstItsOwnNamesIsValidatedAndTheProblemsAreStreamed) {
+    ::tc8::sce::MachineDescription d;
+    d.states = {{"a", true, false}, {"b", false, true}};
+    d.events = {"go"};
+
+    // No table is not a problem: nothing was claimed.
+    EXPECT_TRUE(::tc8::sce::validateTransitions(d).empty());
+
+    d.transitions = std::vector<::tc8::sce::MachineDescription::Transition>{
+        {"a", "b", "go", 0}, {"a", std::nullopt, std::nullopt, 1}, {"b", std::nullopt, std::nullopt, 0}};
+    EXPECT_TRUE(::tc8::sce::validateTransitions(d).empty());
+
+    d.transitions = std::vector<::tc8::sce::MachineDescription::Transition>{
+        {"ghost", "b", "go", 0},     // departs from an unknown state
+        {"a", "nowhere", "go", 0},   // arrives at one
+        {"a", "b", "stop", 1},       // is triggered by an unnamed event
+        {"a", "b", "go", 1}};        // repeats an index of its state
+    const auto problems = ::tc8::sce::validateTransitions(d);
+    ASSERT_EQ(problems.size(), 4u);
+    EXPECT_NE(problems[0].find("ghost"), std::string::npos) << problems[0];
+    EXPECT_NE(problems[1].find("nowhere"), std::string::npos) << problems[1];
+    EXPECT_NE(problems[2].find("stop"), std::string::npos) << problems[2];
+    EXPECT_NE(problems[3].find("repeats the index"), std::string::npos) << problems[3];
+
+    const std::string p = path("transitions_invalid.ndjson");
+    auto s = ::tc8::sce::StateStream::open(p, "X");
+    ASSERT_NE(s, nullptr);
+    s->transitionsInvalid({"a \"quoted\" problem"});
+    const auto got = lines(p);
+    ASSERT_EQ(got.size(), 2u);
+    EXPECT_EQ(withoutTime(got[1]),
+              R"({"event":"transitions_invalid","problems":["a \"quoted\" problem"]})");
+}
+
 TEST_F(StateStreamTest, NothingIsWrittenAfterEnd) {
     // A thread the case detached, or the frame observer, may offer a line after the
     // run has ended; `end` has to stay the last line.

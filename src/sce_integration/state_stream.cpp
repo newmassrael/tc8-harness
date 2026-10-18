@@ -3,6 +3,9 @@
 #include <cerrno>
 #include <chrono>
 #include <cstdio>
+#include <set>
+#include <string>
+#include <utility>
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -22,6 +25,17 @@ void appendSpecStep(std::string &line, int spec_step) {
     char num[32];
     std::snprintf(num, sizeof(num), ",\"spec_step\":%d", spec_step);
     line.append(num);
+}
+
+// A JSON string, or `null` for a value the machine has no single id for.
+void appendNullableString(std::string &line, const std::optional<std::string> &value) {
+    if (!value.has_value()) {
+        line.append("null");
+        return;
+    }
+    line.push_back('"');
+    appendJsonEscaped(line, *value);
+    line.push_back('"');
 }
 
 }  // namespace
@@ -237,9 +251,75 @@ void StateStream::machine(const MachineDescription &d) {
         appendJsonEscaped(line, e);
         line.push_back('"');
     }
-    // Transitions are not data in the generated machine; null, not an empty list.
-    line.append("],\"transitions\":null");
+    line.append("],\"transitions\":");
+    if (!d.transitions.has_value()) {
+        // Not known: a machine whose design did not declare a table. Never an empty list.
+        line.append("null");
+    } else {
+        line.push_back('[');
+        first = true;
+        for (const auto &t : *d.transitions) {
+            if (!first) line.push_back(',');
+            first = false;
+            line.append("{\"from\":\"");
+            appendJsonEscaped(line, t.from);
+            line.append("\",\"to\":");
+            appendNullableString(line, t.to);
+            line.append(",\"event\":");
+            appendNullableString(line, t.event);
+            line.append(",\"index\":");
+            line.append(std::to_string(t.index));
+            line.push_back('}');
+        }
+        line.push_back(']');
+        if (d.source_hash.has_value()) {
+            line.append(",\"source_hash\":\"");
+            appendJsonEscaped(line, *d.source_hash);
+            line.push_back('"');
+        }
+    }
     emit(std::move(line));
+}
+
+void StateStream::transitionsInvalid(const std::vector<std::string> &problems) {
+    std::string line = "{\"event\":\"transitions_invalid\",\"problems\":[";
+    bool first = true;
+    for (const auto &p : problems) {
+        if (!first) line.push_back(',');
+        first = false;
+        line.push_back('"');
+        appendJsonEscaped(line, p);
+        line.push_back('"');
+    }
+    line.push_back(']');
+    emit(std::move(line));
+}
+
+std::vector<std::string> validateTransitions(const MachineDescription &d) {
+    std::vector<std::string> problems;
+    if (!d.transitions.has_value()) return problems;
+
+    std::set<std::string> states;
+    for (const auto &s : d.states) states.insert(s.id);
+    const std::set<std::string> events(d.events.begin(), d.events.end());
+    std::set<std::pair<std::string, int>> seen;
+
+    for (const auto &t : *d.transitions) {
+        const std::string label = "a transition of '" + t.from + "' (index " + std::to_string(t.index) + ")";
+        if (states.count(t.from) == 0) {
+            problems.push_back(label + " departs from a state the machine does not have");
+        }
+        if (t.to.has_value() && states.count(*t.to) == 0) {
+            problems.push_back(label + " arrives at '" + *t.to + "', which the machine does not have");
+        }
+        if (t.event.has_value() && events.count(*t.event) == 0) {
+            problems.push_back(label + " is triggered by '" + *t.event + "', an event the machine does not name");
+        }
+        if (!seen.insert({t.from, t.index}).second) {
+            problems.push_back(label + " repeats the index of another transition of that state");
+        }
+    }
+    return problems;
 }
 
 void StateStream::transition(int step, std::string_view trigger, std::string_view from,
