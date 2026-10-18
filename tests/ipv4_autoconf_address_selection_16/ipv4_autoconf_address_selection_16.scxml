@@ -59,6 +59,7 @@
        xmlns:cpp="urn:sce:cpp"
        version="1.0"
        name="ipv4_autoconf_address_selection_16"
+       sce:transition-table="emit"
        datamodel="null"
        initial="listening_pre_claim">
 

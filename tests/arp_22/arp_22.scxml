@@ -23,6 +23,7 @@
        xmlns:cpp="urn:sce:cpp"
        version="1.0"
        name="arp_22"
+       sce:transition-table="emit"
        datamodel="null"
        initial="listening">
   <sce:use template="../_templates/arp_group_c_drop_and_emit.sce-template.xml"/>

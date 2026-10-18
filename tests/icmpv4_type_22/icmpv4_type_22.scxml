@@ -21,6 +21,7 @@
        xmlns:cpp="urn:sce:cpp"
        version="1.0"
        name="icmpv4_type_22"
+       sce:transition-table="emit"
        datamodel="null"
        initial="listening">
 

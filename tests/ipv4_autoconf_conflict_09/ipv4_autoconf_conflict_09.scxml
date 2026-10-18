@@ -15,6 +15,7 @@
        xmlns:cpp="urn:sce:cpp"
        version="1.0"
        name="ipv4_autoconf_conflict_09"
+       sce:transition-table="emit"
        datamodel="null"
        initial="listening_pre_claim">
   <sce:use template="../_templates/ipv4_linklocal_defender_cease.sce-template.xml"/>

@@ -62,6 +62,7 @@
        xmlns:cpp="urn:sce:cpp"
        version="1.0"
        name="tcp_out_of_order_02"
+       sce:transition-table="emit"
        datamodel="null"
        initial="listening_handshake_ack">
 

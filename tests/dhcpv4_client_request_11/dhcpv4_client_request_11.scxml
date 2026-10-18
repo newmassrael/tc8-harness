@@ -17,6 +17,7 @@
        xmlns:cpp="urn:sce:cpp"
        version="1.0"
        name="dhcpv4_client_request_11"
+       sce:transition-table="emit"
        datamodel="null"
        initial="listening_for_discover">
   <sce:use template="../_templates/dhcpv4_rebinding_request_field.sce-template.xml"

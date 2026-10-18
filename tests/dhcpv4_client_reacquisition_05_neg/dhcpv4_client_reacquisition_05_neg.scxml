@@ -23,6 +23,7 @@
        xmlns:cpp="urn:sce:cpp"
        version="1.0"
        name="dhcpv4_client_reacquisition_05_neg"
+       sce:transition-table="emit"
        datamodel="null"
        initial="listening_for_discover">
   <sce:use template="../_templates/dhcpv4_renewing_retx_field.sce-template.xml"

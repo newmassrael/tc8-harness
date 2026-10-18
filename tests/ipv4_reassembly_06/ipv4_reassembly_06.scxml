@@ -16,6 +16,7 @@
        xmlns:cpp="urn:sce:cpp"
        version="1.0"
        name="ipv4_reassembly_06"
+       sce:transition-table="emit"
        datamodel="null"
        initial="listening">
   <sce:use template="../_templates/icmpv4_negative_absence.sce-template.xml"

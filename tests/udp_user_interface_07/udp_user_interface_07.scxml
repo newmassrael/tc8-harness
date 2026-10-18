@@ -34,6 +34,7 @@
        xmlns:cpp="urn:sce:cpp"
        version="1.0"
        name="udp_user_interface_07"
+       sce:transition-table="emit"
        datamodel="null"
        initial="listening">
   <sce:context id="captured"

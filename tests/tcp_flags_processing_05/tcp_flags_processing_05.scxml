@@ -53,6 +53,7 @@
        xmlns:cpp="urn:sce:cpp"
        version="1.0"
        name="tcp_flags_processing_05"
+       sce:transition-table="emit"
        datamodel="null"
        initial="listening_p1_prelude_synack">
 

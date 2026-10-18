@@ -46,6 +46,7 @@
        xmlns:cpp="urn:sce:cpp"
        version="1.0"
        name="ipv4_autoconf_conflict_11"
+       sce:transition-table="emit"
        datamodel="null"
        initial="listening_pre_claim">
 

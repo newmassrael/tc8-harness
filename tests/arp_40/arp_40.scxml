@@ -20,6 +20,7 @@
        xmlns:cpp="urn:sce:cpp"
        version="1.0"
        name="arp_40"
+       sce:transition-table="emit"
        datamodel="null"
        initial="wait_dut_request">
   <sce:use template="../_templates/arp_group_d_stateful_learning_observation.sce-template.xml"

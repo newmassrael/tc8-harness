@@ -14,6 +14,7 @@
        xmlns:cpp="urn:sce:cpp"
        version="1.0"
        name="tcp_call_receive_05_neg2"
+       sce:transition-table="emit"
        datamodel="null"
        initial="listening_handshake_ack">
   <sce:use template="../_templates/tcp_synth_fin_watch_neg.sce-template.xml"

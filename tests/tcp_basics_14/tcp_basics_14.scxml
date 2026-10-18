@@ -40,6 +40,7 @@
        xmlns:cpp="urn:sce:cpp"
        version="1.0"
        name="tcp_basics_14"
+       sce:transition-table="emit"
        datamodel="null"
        initial="listening_handshake_ack">
   <sce:use template="../_templates/tcp_time_wait_4state.sce-template.xml"

@@ -13,6 +13,7 @@
        xmlns:cpp="urn:sce:cpp"
        version="1.0"
        name="tcp_header_11_neg"
+       sce:transition-table="emit"
        datamodel="null"
        initial="listening_handshake_ack">
   <sce:use template="../_templates/tcp_synth_ack_neg.sce-template.xml"

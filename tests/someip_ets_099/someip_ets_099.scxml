@@ -43,6 +43,7 @@
        xmlns:cpp="urn:sce:cpp"
        version="1.0"
        name="someip_ets_099"
+       sce:transition-table="emit"
        datamodel="null"
        initial="listening_phase1">
 

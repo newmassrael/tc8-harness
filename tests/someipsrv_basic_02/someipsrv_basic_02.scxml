@@ -14,6 +14,7 @@
        xmlns:cpp="urn:sce:cpp"
        version="1.0"
        name="someipsrv_basic_02"
+       sce:transition-table="emit"
        datamodel="null"
        initial="listening">
 

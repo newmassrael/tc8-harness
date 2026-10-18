@@ -18,6 +18,7 @@
        xmlns:cpp="urn:sce:cpp"
        version="1.0"
        name="dhcpv4_client_initialization_allocation_08_neg"
+       sce:transition-table="emit"
        datamodel="null"
        initial="listening_for_discover">
   <sce:use template="../_templates/dhcpv4_init_alloc_arp_probe.sce-template.xml"

@@ -12,6 +12,7 @@
        xmlns:cpp="urn:sce:cpp"
        version="1.0"
        name="udp_fields_07_neg"
+       sce:transition-table="emit"
        datamodel="null"
        initial="listening_phase1">
   <sce:use template="../_templates/udp_field_check.sce-template.xml"

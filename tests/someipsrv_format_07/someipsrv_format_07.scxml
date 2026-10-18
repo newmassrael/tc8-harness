@@ -8,6 +8,7 @@
        xmlns:cpp="urn:sce:cpp"
        version="1.0"
        name="someipsrv_format_07"
+       sce:transition-table="emit"
        datamodel="null"
        initial="listening">
 

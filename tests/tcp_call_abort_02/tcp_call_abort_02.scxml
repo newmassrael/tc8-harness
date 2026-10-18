@@ -44,6 +44,7 @@
        xmlns:cpp="urn:sce:cpp"
        version="1.0"
        name="tcp_call_abort_02"
+       sce:transition-table="emit"
        datamodel="null"
        initial="listening_handshake_ack">
 

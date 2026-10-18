@@ -11,6 +11,7 @@
        xmlns:cpp="urn:sce:cpp"
        version="1.0"
        name="udp_user_interface_04"
+       sce:transition-table="emit"
        datamodel="null"
        initial="listening">
   <sce:use template="../_templates/udp_ut_received_check.sce-template.xml"

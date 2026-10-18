@@ -13,6 +13,7 @@
        xmlns:cpp="urn:sce:cpp"
        version="1.0"
        name="udp_fields_12_neg2"
+       sce:transition-table="emit"
        datamodel="null"
        initial="listening">
   <sce:use template="../_templates/ipv4_udp_ut_presence.sce-template.xml"

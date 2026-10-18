@@ -15,6 +15,7 @@
        xmlns:cpp="urn:sce:cpp"
        version="1.0"
        name="dhcpv4_client_summary_04"
+       sce:transition-table="emit"
        datamodel="null"
        initial="listening">
   <sce:use template="../_templates/dhcpv4_discover_field.sce-template.xml"

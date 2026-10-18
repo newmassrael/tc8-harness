@@ -35,6 +35,7 @@
        xmlns:cpp="urn:sce:cpp"
        version="1.0"
        name="dhcpv4_client_allocating_10"
+       sce:transition-table="emit"
        datamodel="null"
        initial="listening_for_discover">
 

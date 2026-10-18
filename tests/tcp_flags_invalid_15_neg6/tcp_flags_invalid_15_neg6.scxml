@@ -13,6 +13,7 @@
        xmlns:cpp="urn:sce:cpp"
        version="1.0"
        name="tcp_flags_invalid_15_neg6"
+       sce:transition-table="emit"
        datamodel="null"
        initial="listening_handshake_ack">
   <sce:use template="../_templates/tcp_synth_rst_watch_neg.sce-template.xml"

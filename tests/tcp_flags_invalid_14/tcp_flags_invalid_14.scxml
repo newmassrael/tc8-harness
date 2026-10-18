@@ -26,6 +26,7 @@
        xmlns:cpp="urn:sce:cpp"
        version="1.0"
        name="tcp_flags_invalid_14"
+       sce:transition-table="emit"
        datamodel="null"
        initial="listening_p1_handshake">
   <sce:use template="../_templates/tcp_time_wait_dual_phase_otw_probe.sce-template.xml"

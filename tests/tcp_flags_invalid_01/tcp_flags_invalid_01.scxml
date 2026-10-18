@@ -73,6 +73,7 @@
        xmlns:cpp="urn:sce:cpp"
        version="1.0"
        name="tcp_flags_invalid_01"
+       sce:transition-table="emit"
        datamodel="null"
        initial="listening_first_synack">
 

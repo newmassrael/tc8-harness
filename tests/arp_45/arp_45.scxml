@@ -16,6 +16,7 @@
        xmlns:cpp="urn:sce:cpp"
        version="1.0"
        name="arp_45"
+       sce:transition-table="emit"
        datamodel="null"
        initial="wait_resp_1">
 
