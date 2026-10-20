@@ -105,6 +105,12 @@ void StateStream::onTx(const ::tc8::stimulus::TxEvent &ev) {
     line.append(",\"transport\":\"");
     appendJsonEscaped(line, ev.transport);
     line.push_back('"');
+    if (!ev.action.empty()) {
+        // The label of a "tester_action": the case's own word, escaped, never read.
+        line.append(",\"action\":\"");
+        appendJsonEscaped(line, ev.action);
+        line.push_back('"');
+    }
     if (!ev.iface.empty()) {
         line.append(",\"iface\":\"");
         appendJsonEscaped(line, ev.iface);

@@ -32,7 +32,8 @@
 //   {"event":"end","final_state":"<state>","t_us":N}
 //
 // and, once the stream is bound as the process's tx observer (stimulus/tx_observer.h),
-// one line per frame or datagram the TESTER successfully sent:
+// one line per frame or datagram the TESTER successfully sent (and per action of its that
+// sends none, below):
 //
 //   {"event":"tx","emitter":"<emit* name>"|null,"transport":"udp_unicast","iface":"<if>",
 //    "dst":"a.b.c.d:port","src_port":N,"bytes":N,"t_us":N}
@@ -45,7 +46,14 @@
 // abort ("tcp_connect", "tcp_connect_ack", "tcp_accept", "tcp_reset") is identified by
 // that connection and its flags, not by its time; "tcp_refuse", the RST for a port the
 // tester leaves unserved, has only the port (`src_port`) and is written before the SYN it
-// answers (TxEvent::transport). A tx line says THAT
+// answers (TxEvent::transport). A "tester_action" line reports something the tester did
+// that puts NO frame on the wire, labelled by `"action":"<what>"` (the case's own short
+// word, escaped, right after `transport`), with no `dst`, no `iface` and `"bytes":0`:
+//
+//   {"event":"tx","emitter":null,"transport":"tester_action","action":"wait","bytes":0,
+//    "spec_step":N,"t_us":N}
+//
+// A tx line says THAT
 // the tester sent and where, never WHAT: the saved pcap holds the frame, and a reader
 // decodes it there. It is reported after the send, so it may follow the frame's own
 // pcap record by a moment and must not be used to order the two.

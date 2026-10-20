@@ -42,14 +42,21 @@ class SubscribeTcpTeardownService : public IFrameObservingService {
     // the reliable NOTIFICATION to count (e.g. 0xF4E7 / 0x8003). After
     // `trigger_after` such notifications arrive over TCP, `mode`'s teardown fires
     // exactly once.
+    //
+    // `teardown_step` is the specification step the teardown performs (what its reports,
+    // "tcp_reset" or "ignore_segments", are tagged with), or kNoSpecStep. It is given
+    // here rather than by a TxSpecStep because the teardown fires on the capture
+    // thread, which a scope on the case's thread does not reach.
     SubscribeTcpTeardownService(std::unique_ptr<::tc8::stimulus::SubscribeEventgroupTcpSession> session,
                                 std::uint16_t service_id, std::uint16_t event_id,
-                                int trigger_after, TcpTeardownMode mode)
+                                int trigger_after, TcpTeardownMode mode,
+                                int teardown_step = ::tc8::stimulus::kNoSpecStep)
         : session_(std::move(session)),
           service_id_(service_id),
           event_id_(event_id),
           trigger_after_(trigger_after < 1 ? 1 : trigger_after),
-          mode_(mode) {}
+          mode_(mode),
+          teardown_step_(teardown_step) {}
 
     // IPollableService — delegate the held reliable connection to the capture loop.
     int pollFd() const override { return session_ ? session_->pollFd() : -1; }
@@ -78,6 +85,8 @@ class SubscribeTcpTeardownService : public IFrameObservingService {
             // An invalid (fd-less) session is inert — the counter still fires so the
             // logic is unit-testable, but no packet-filter/socket op runs.
             if (session_->valid()) {
+                // Whatever the teardown reports is the step's, for as long as it runs.
+                const ::tc8::stimulus::TxSpecStep step(teardown_step_);
                 if (mode_ == TcpTeardownMode::kRefuseWithRst) {
                     session_->refuseWithRst();
                 } else {
@@ -97,6 +106,7 @@ class SubscribeTcpTeardownService : public IFrameObservingService {
     std::uint16_t event_id_;
     int trigger_after_;
     TcpTeardownMode mode_;
+    int teardown_step_;
     // The DROP filter for kDropIncoming — held so it stays installed across the
     // observation window and is removed (RAII) when this driver is torn down.
     std::unique_ptr<tcp::TesterInboundDropScope> drop_scope_;

@@ -9,12 +9,19 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
+#include <vector>
 
+#include <arpa/inet.h>
 #include <gtest/gtest.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
 #include "sce_integration/reliable_teardown_service.h"
 #include "stimulus/endpoint.h"
 #include "stimulus/subscribe_tcp_session.h"
+#include "stimulus/tx_observer.h"
 #include "tc8/captured_event.h"
 
 namespace {
@@ -68,6 +75,50 @@ TEST(SubscribeTcpTeardownService, FiresExactlyAfterN) {
     // No re-count or re-fire once torn down.
     drv.onCapturedFrame(someipNotif(kService, kEvent, /*is_tcp=*/true));
     EXPECT_EQ(drv.observedCount(), 3);
+}
+
+// The teardown fires on the capture thread, where a case's TxSpecStep does not reach, so
+// the step is the service's own: the RST it puts on the wire is reported under it, and
+// nothing outside the teardown inherits it.
+TEST(SubscribeTcpTeardownService, TheTeardownReportsUnderItsOwnStep) {
+    struct Capture final : tc8::stimulus::ITxObserver {
+        std::vector<std::string> transports;
+        std::vector<int>         steps;
+        void onTx(const tc8::stimulus::TxEvent &ev) override {
+            transports.emplace_back(ev.transport);
+            steps.push_back(ev.spec_step);
+        }
+    } capture;
+
+    const int listener = ::socket(AF_INET, SOCK_STREAM, 0);
+    ASSERT_GE(listener, 0);
+    sockaddr_in a{};
+    a.sin_family = AF_INET;
+    a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    ASSERT_EQ(::bind(listener, reinterpret_cast<sockaddr *>(&a), sizeof(a)), 0);
+    ASSERT_EQ(::listen(listener, 8), 0);
+    socklen_t len = sizeof(a);
+    ASSERT_EQ(::getsockname(listener, reinterpret_cast<sockaddr *>(&a), &len), 0);
+
+    auto session = std::make_unique<SubscribeEventgroupTcpSession>(
+        "lo", Endpoint{htonl(INADDR_LOOPBACK), ntohs(a.sin_port)});
+    ASSERT_TRUE(session->valid());
+    SubscribeTcpTeardownService drv(std::move(session), kService, kEvent, /*trigger_after=*/2,
+                                    TcpTeardownMode::kRefuseWithRst, /*teardown_step=*/47);
+
+    tc8::stimulus::setTxObserver(&capture);
+    drv.onCapturedFrame(someipNotif(kService, kEvent, /*is_tcp=*/true));  // counted, not yet
+    drv.onCapturedFrame(someipNotif(kService, kEvent, /*is_tcp=*/true));  // fires
+    // A send after the teardown, on the same thread, is not the teardown's step.
+    tc8::stimulus::reportTx("udp_unicast", {}, 0, 0, 1);
+    tc8::stimulus::setTxObserver(nullptr);
+    ::close(listener);
+
+    ASSERT_EQ(capture.transports.size(), 2u);
+    EXPECT_EQ(capture.transports[0], "tcp_reset");
+    EXPECT_EQ(capture.steps[0], 47);
+    EXPECT_EQ(capture.transports[1], "udp_unicast");
+    EXPECT_EQ(capture.steps[1], tc8::stimulus::kNoSpecStep);
 }
 
 }  // namespace

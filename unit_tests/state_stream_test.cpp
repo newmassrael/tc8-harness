@@ -644,6 +644,32 @@ TEST_F(StateStreamTest, ARefusedPortIsALineWithItsPortAndNoDestination) {
               R"("src_port":30509,"bytes":0,"spec_step":45})");
 }
 
+// An action that puts nothing on the wire still carries the emitter scope and the step,
+// and names what it was; the label is the case's word, so it is escaped and never read.
+TEST_F(StateStreamTest, ATesterActionIsALineWithItsLabelAndNothingOnTheWire) {
+    const std::string p = path("action.ndjson");
+    auto s = ::tc8::sce::StateStream::open(p, "X");
+    ASSERT_NE(s, nullptr);
+    ::tc8::stimulus::setTxObserver(s.get());
+    {
+        ::tc8::stimulus::TxScope scope("holdFor");
+        ::tc8::stimulus::TxSpecStep step(46);
+        ::tc8::stimulus::reportTesterAction("wait");
+    }
+    ::tc8::stimulus::reportTesterAction("a\"b");  // outside any scope or step
+    ::tc8::stimulus::setTxObserver(nullptr);
+    ::tc8::stimulus::reportTesterAction("after");  // no observer: nothing
+
+    const auto got = lines(p);
+    ASSERT_EQ(got.size(), 3u);
+    EXPECT_EQ(withoutTime(got[1]),
+              R"({"event":"tx","emitter":"holdFor","transport":"tester_action",)"
+              R"("action":"wait","bytes":0,"spec_step":46})");
+    EXPECT_EQ(withoutTime(got[2]),
+              R"({"event":"tx","emitter":null,"transport":"tester_action",)"
+              R"("action":"a\"b","bytes":0})");
+}
+
 TEST_F(StateStreamTest, RefusesAPathItCannotWriteAsARegularFile) {
     EXPECT_EQ(::tc8::sce::StateStream::open(path("no_such_dir/e.ndjson"), "X"), nullptr);
     // A FIFO could block a write on its reader, or kill the process with SIGPIPE

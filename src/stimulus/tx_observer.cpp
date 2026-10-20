@@ -35,12 +35,13 @@ thread_local ConnectSteps t_connect_steps;
 
 void deliver(const char *transport, std::string_view iface, std::uint32_t dst_ip_be,
              std::uint16_t dst_port, std::uint16_t src_port, std::size_t bytes,
-             int spec_step) {
+             int spec_step, std::string_view action = {}) {
     g_in_flight.fetch_add(1);
     if (ITxObserver *observer = g_observer.load()) {
         TxEvent ev;
         ev.emitter = t_emitter != nullptr ? std::string_view{t_emitter} : std::string_view{};
         ev.transport = transport;
+        ev.action = action;
         ev.iface = iface;
         ev.dst_ip_be = dst_ip_be;
         ev.dst_port = dst_port;
@@ -148,6 +149,13 @@ void reportTcpRefusal(std::string_view iface, std::uint16_t port) {
         return;
     }
     deliver("tcp_refuse", iface, 0, 0, port, 0, t_spec_step);
+}
+
+void reportTesterAction(std::string_view what) {
+    if (g_observer.load(std::memory_order_relaxed) == nullptr) {
+        return;
+    }
+    deliver("tester_action", {}, 0, 0, 0, 0, t_spec_step, what);
 }
 
 TxScope::TxScope(const char *emitter) : owns_(t_emitter == nullptr) {

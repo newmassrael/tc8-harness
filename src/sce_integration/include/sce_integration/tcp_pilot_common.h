@@ -809,6 +809,11 @@ public:
                       kTesterStimulusChain, match_);
         if (std::system(cmd) == 0) {
             installed_ = true;
+            // The tester now ignores this connection's inbound segments, which puts
+            // nothing on the wire. Reported here, once the filter is in, because every
+            // user of the scope (a case on its own thread, a service on the capture
+            // thread) goes through this constructor.
+            ::tc8::stimulus::reportTesterAction(::tc8::stimulus::kActionIgnoreSegments);
         } else {
             fail("install failed");
         }

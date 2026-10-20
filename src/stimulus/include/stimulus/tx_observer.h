@@ -61,7 +61,21 @@ struct TxEvent {
     // A report names its connection (dst and src_port) and the segment by its flags, not
     // by its time, so a watcher picks the frame out of the capture by both. The wire
     // itself is in the saved pcap and the live `frame` lines.
+    //
+    // One transport reports no frame at all:
+    //   "tester_action"   something the tester did that a procedure counts as a step and
+    //                     that puts nothing on the wire (a wait, an interface taken down,
+    //                     inbound segments ignored, an observation); `action` says which
+    // so a line of this transport has no destination, no interface and no bytes, and
+    // nothing in the capture to find. It is on this channel, not a channel of its own,
+    // because what makes it reportable is what makes a send reportable: the thread it
+    // ran on, the emitter scope and the step the case declared.
     const char *transport = "";
+    // For "tester_action": a short generic label of what the tester did ("wait",
+    // "link_down", ...). Carried, never interpreted, like `spec_step`: it means something
+    // to the case that wrote it and to whoever reads that case's step table. Empty for
+    // every other transport. Valid only for the duration of onTx, like `emitter`.
+    std::string_view action;
     std::string_view iface;  // empty when the primitive does not take one
     // IPv4 destination in network byte order and port; 0/0 when the primitive does not
     // know it (a raw frame is opaque to the sender).
@@ -132,6 +146,18 @@ void reportTcpReset(std::string_view iface, std::uint32_t dst_ip_be, std::uint16
 // a report with no frame behind it, which is what a watcher should see. `iface` may be
 // empty.
 void reportTcpRefusal(std::string_view iface, std::uint16_t port);
+
+// The labels the harness itself reports with, so a producer and a reader share one
+// spelling. A case may use any other short label for an action of its own.
+inline constexpr std::string_view kActionIgnoreSegments = "ignore_segments";
+
+// The tester did something that is a step of a procedure and puts no frame on the wire:
+// reports "tester_action" labelled `what`, with the current TxSpecStep and emitter scope.
+// A case calls it for the waits and observations it makes in its own code, where its
+// scope reaches; the harness calls it itself where it performs such an action (a service
+// on a thread of its own is given the step, as TcpAcceptService is, since a scope on the
+// case's thread does not reach it).
+void reportTesterAction(std::string_view what);
 
 // Names the emitter for every send made while it is alive, on this thread. Nested
 // scopes keep the outermost name. Use through TC8_TX_SCOPE().
