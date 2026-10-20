@@ -2,15 +2,17 @@
 # Gate: the SCE revision pinned in third_party/sce/VERSION must be an ancestor of
 # upstream's default branch.
 #
-# Two places turn that revision into a source tree with a plain
-# `git clone && git checkout <rev>`: the sce-codegen layer of docker/Dockerfile
-# and the "Build & install sce-codegen" step of the `build` job. A clone carries
+# scripts/install-sce-codegen.sh turns that revision into a source tree with a
+# plain `git clone && git checkout <rev>`, for the sce-codegen layer of
+# docker/Dockerfile, the "Build & install sce-codegen" step of the `build` job,
+# and bx's tool store on a build machine. A clone carries
 # the branches and tags the remote still advertises, so a revision that lived
 # only on a rewritten or deleted history is not there to check out:
 #     error: pathspec '<rev>' did not match any file(s) known to git
 # Upstream rewrote its main history once, which orphaned every sha recorded
-# before it. Both consumers sit behind a cache (the docker layer cache, and
-# actions/cache keyed on the hash of VERSION), so an orphaned pin stays green
+# before it. All three sit behind a cache (the docker layer cache,
+# actions/cache keyed on the hash of VERSION, and the tool store keyed on the
+# revision), so an orphaned pin stays green
 # until a cache misses and then fails far from its cause. This gate resolves the
 # pin against the remote on every run, with nothing cached in between.
 #

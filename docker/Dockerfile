@@ -164,17 +164,13 @@ ENV PATH=/root/.cargo/bin:$PATH
 # git reset, and nothing in this build embeds a commit SHA.
 WORKDIR /src
 COPY third_party /src/third_party
+COPY scripts/install-sce-codegen.sh /src/scripts/install-sce-codegen.sh
 
 # --- Layer 3: sce-codegen at the pinned SHA. Built here rather than fetched so
 # the image carries no unpinned binary.
 RUN set -eux; \
-    rev="$(tr -d '[:space:]' < third_party/sce/VERSION)"; \
-    git clone https://github.com/newmassrael/scxml-core-engine.git /tmp/sce-src; \
-    git -C /tmp/sce-src checkout "${rev}"; \
-    cargo build --release --manifest-path /tmp/sce-src/sce-build/Cargo.toml \
-        --bin sce-codegen --features cli; \
-    install /tmp/sce-src/target/release/sce-codegen /usr/local/bin/; \
-    rm -rf /tmp/sce-src /root/.cargo/registry
+    scripts/install-sce-codegen.sh /usr/local; \
+    rm -rf /root/.cargo/registry
 
 # --- Layer 4: the harness + orchestrator ------------------------------------
 # The rest of the tree, now that every dependency layer above is settled.

@@ -192,20 +192,13 @@ jobs:
           # SCE Rust codegen binary lives outside the embed/ snapshot
           # (Rust toolchain, not C++); we build it from upstream
           # newmassrael/scxml-core-engine at the SHA pinned in
-          # third_party/sce/VERSION. Cache hit when VERSION is unchanged.
-          key: sce-codegen-${{ runner.os }}-${{ hashFiles('third_party/sce/VERSION') }}
+          # third_party/sce/VERSION. Cache hit when neither VERSION nor the
+          # script that builds from it has changed.
+          key: sce-codegen-${{ runner.os }}-${{ hashFiles('third_party/sce/VERSION', 'scripts/install-sce-codegen.sh') }}
 
       - name: Build & install sce-codegen from upstream SCE
         if: steps.cache-sce-codegen.outputs.cache-hit != 'true'
-        run: |
-          SCE_REV=$(tr -d '[:space:]' < third_party/sce/VERSION)
-          git clone https://github.com/newmassrael/scxml-core-engine.git "$HOME/sce-src"
-          git -C "$HOME/sce-src" checkout "$SCE_REV"
-          cargo build --release \
-            --manifest-path "$HOME/sce-src/sce-build/Cargo.toml" \
-            --bin sce-codegen --features cli
-          mkdir -p "$HOME/.local/bin"
-          install "$HOME/sce-src/target/release/sce-codegen" "$HOME/.local/bin/"
+        run: scripts/install-sce-codegen.sh "$HOME/.local"
 
       - name: Add ~/.local/bin to PATH
         run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
