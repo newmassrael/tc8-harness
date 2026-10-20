@@ -85,12 +85,30 @@ class TcpConnection {
     // DUT-sent Request over the reliable connection before answering.
     int recv(std::vector<std::uint8_t> &out, std::chrono::milliseconds timeout);
 
+    // Has the DUT closed its side (a FIN arrived, and the connection was not reset)?
+    // Looks without consuming: bytes the DUT sent before its FIN stay unread, and the
+    // receive window is not touched, which matters for a connection a case HOLDS and
+    // deliberately does not read (a drain would reopen the window the DUT can see). The
+    // kernel ACKs a FIN when it arrives, whether or not anyone reads, so this is how an
+    // owner of a held connection notices it, from its own drain.
+    //
+    // The first time it finds the FIN it reports "tcp_close_ack" (stimulus/
+    // tx_observer.h) under `step` (kNoSpecStep for none): the step is the caller's to
+    // name, as TcpAcceptService's accept_step is, because the owner's drain runs on a
+    // thread a case's TxSpecStep does not reach. A connection reports it once however
+    // often this is called, and recv()/waitForPeerFin() reporting the same FIN counts.
+    bool observePeerClose(int step);
+
     // Explicit close (also run by the destructor). Idempotent.
     void close();
 
   private:
+    // Report the DUT's FIN once, under the current TxSpecStep.
+    void reportPeerClose();
+
     int fd_ = -1;
     Endpoint peer_{};
+    bool close_reported_ = false;
 };
 
 // Tester TCP listener bound to `iface`'s IPv4 + `port`. RAII over the listening

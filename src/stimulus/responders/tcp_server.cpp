@@ -67,7 +67,8 @@ int pollReadable(int fd, std::chrono::milliseconds timeout) {
 
 // --- TcpConnection ---
 
-TcpConnection::TcpConnection(TcpConnection &&o) noexcept : fd_(o.fd_), peer_(o.peer_) {
+TcpConnection::TcpConnection(TcpConnection &&o) noexcept
+    : fd_(o.fd_), peer_(o.peer_), close_reported_(o.close_reported_) {
     o.fd_ = -1;
 }
 
@@ -76,6 +77,7 @@ TcpConnection &TcpConnection::operator=(TcpConnection &&o) noexcept {
         close();
         fd_ = o.fd_;
         peer_ = o.peer_;
+        close_reported_ = o.close_reported_;
         o.fd_ = -1;
     }
     return *this;
@@ -131,10 +133,41 @@ int TcpConnection::recv(std::vector<std::uint8_t> &out, std::chrono::millisecond
         return -1;
     }
     if (n == 0) {
+        reportPeerClose();
         return 0;  // peer FIN (EOF).
     }
     out.insert(out.end(), buf, buf + n);
     return static_cast<int>(n);
+}
+
+void TcpConnection::reportPeerClose() {
+    if (close_reported_) {
+        return;
+    }
+    close_reported_ = true;
+    // The ACK of the FIN is the kernel's; what the tester did is observe it (tx_observer.h).
+    reportTcpPeerClosed(fd_, peer_.ipv4_be, peer_.port);
+}
+
+bool TcpConnection::observePeerClose(int step) {
+    if (fd_ < 0) {
+        return false;
+    }
+    if (close_reported_) {
+        return true;
+    }
+    // POLLRDHUP is the peer's shutdown of its write side, seen without a read. A reset
+    // sets POLLERR as well and is not a FIN: no ACK went to it, so it reports nothing.
+    pollfd pfd{};
+    pfd.fd = fd_;
+    pfd.events = POLLRDHUP;
+    if (::poll(&pfd, 1, 0) <= 0 || (pfd.revents & POLLRDHUP) == 0 ||
+        (pfd.revents & POLLERR) != 0) {
+        return false;
+    }
+    const TxSpecStep scope(step);
+    reportPeerClose();
+    return true;
 }
 
 bool TcpConnection::waitForPeerFin(std::chrono::milliseconds timeout) {

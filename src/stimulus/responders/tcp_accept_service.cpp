@@ -15,7 +15,14 @@ constexpr int kAutonomousAcceptBacklog = 8;
 }  // namespace
 
 TcpAcceptService::TcpAcceptService(std::string_view iface, std::uint16_t port,
-                                   TcpAcceptHandler handler, int accept_step)
+                                   TcpAcceptHandler handler, int accept_step, int close_step)
+    : TcpAcceptService(iface, port, std::move(handler),
+                       TcpAcceptStepFn([accept_step](std::uint64_t) { return accept_step; }),
+                       close_step) {}
+
+TcpAcceptService::TcpAcceptService(std::string_view iface, std::uint16_t port,
+                                   TcpAcceptHandler handler, TcpAcceptStepFn accept_step,
+                                   int close_step)
     // The listener is created non-blocking with a deeper backlog: non-blocking so
     // onReadable()'s accept never stalls the single capture thread (the
     // IPollableService contract), and the backlog so a burst of DUT connects is
@@ -23,7 +30,8 @@ TcpAcceptService::TcpAcceptService(std::string_view iface, std::uint16_t port,
     // openTcpListener, not patched on afterwards.
     : server_(iface, port, /*non_blocking=*/true, /*backlog=*/kAutonomousAcceptBacklog),
       handler_(std::move(handler)),
-      accept_step_(accept_step) {}
+      accept_step_(std::move(accept_step)),
+      close_step_(close_step) {}
 
 void TcpAcceptService::onReadable() {
     if (!server_.valid()) {
@@ -39,8 +47,10 @@ void TcpAcceptService::onReadable() {
         std::optional<TcpConnection> conn;
         {
             // The accept's step covers its own report only: what the handler sends over
-            // the connection is a step of its own, not the handshake's.
-            const TxSpecStep step(accept_step_);
+            // the connection is a step of its own, not the handshake's. Chosen for the
+            // accept about to happen, before it, since the report is made inside it; a
+            // drain that finds nothing to accept asks and uses nothing.
+            const TxSpecStep step(accept_step_ ? accept_step_(accepted_ + 1) : kNoSpecStep);
             conn = server_.acceptOne(std::chrono::milliseconds(0));
         }
         if (!conn) {

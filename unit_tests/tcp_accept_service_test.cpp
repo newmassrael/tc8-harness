@@ -58,7 +58,123 @@ bool pumpUntilAccepted(TcpAcceptService &svc, std::uint64_t target) {
     return svc.accepted() >= target;
 }
 
+// Records every report: what it was, under which step, and on which connection.
+struct TxRecorder final : ITxObserver {
+    struct Seen {
+        std::string   transport;
+        int           step;
+        std::uint16_t dst_port;
+        std::uint16_t src_port;
+    };
+    std::vector<Seen> seen;
+    void onTx(const TxEvent &ev) override {
+        seen.push_back({ev.transport, ev.spec_step, ev.dst_port, ev.src_port});
+    }
+    // The reports of one transport, in order.
+    std::vector<Seen> of(const std::string &transport) const {
+        std::vector<Seen> out;
+        for (const Seen &s : seen) {
+            if (s.transport == transport) out.push_back(s);
+        }
+        return out;
+    }
+};
+
+// The tester's own port of a connected client socket.
+std::uint16_t localPortOf(int fd) {
+    sockaddr_in local{};
+    socklen_t   len = sizeof(local);
+    ::getsockname(fd, reinterpret_cast<sockaddr *>(&local), &len);
+    return ntohs(local.sin_port);
+}
+
 }  // namespace
+
+// The DUT's FIN, observed through the read the case makes, is reported once with both
+// ends of the connection and the step the case is in; reading the EOF again is not a
+// second close.
+TEST(TcpConnection, ObservingTheFinByReadReportsTheCloseAckOnce) {
+    TcpServer srv("lo", 0);
+    ASSERT_TRUE(srv.valid());
+    const int client = connectLoopbackClient(srv.port());
+    ASSERT_GE(client, 0);
+    const std::uint16_t client_port = localPortOf(client);
+    auto conn = srv.acceptOne(1000ms);
+    ASSERT_TRUE(conn.has_value());
+
+    TxRecorder rec;
+    setTxObserver(&rec);
+    ::close(client);
+    {
+        TxSpecStep step(52);
+        EXPECT_TRUE(conn->waitForPeerFin(1000ms));
+        std::vector<std::uint8_t> scratch;
+        EXPECT_EQ(conn->recv(scratch, 100ms), 0);  // EOF again
+    }
+    setTxObserver(nullptr);
+
+    const auto got = rec.of("tcp_close_ack");
+    ASSERT_EQ(got.size(), 1u);
+    EXPECT_EQ(got[0].step, 52);
+    EXPECT_EQ(got[0].dst_port, client_port);  // the DUT's end
+    EXPECT_EQ(got[0].src_port, srv.port());   // the tester's end
+}
+
+// A connection the case holds and does not read still gets its FIN noticed, without a
+// read: the bytes the DUT sent first stay unread, and noticing it twice reports once.
+TEST(TcpConnection, ObservePeerCloseSeesTheFinWithoutReadingAnything) {
+    TcpServer srv("lo", 0);
+    ASSERT_TRUE(srv.valid());
+    const int client = connectLoopbackClient(srv.port());
+    ASSERT_GE(client, 0);
+    auto conn = srv.acceptOne(1000ms);
+    ASSERT_TRUE(conn.has_value());
+
+    TxRecorder rec;
+    setTxObserver(&rec);
+    EXPECT_FALSE(conn->observePeerClose(53));  // the DUT is still there: nothing to report
+    EXPECT_TRUE(rec.seen.empty());
+
+    const std::uint8_t data[] = {0x11, 0x22, 0x33};
+    ASSERT_EQ(::write(client, data, sizeof(data)), 3);
+    ::close(client);
+    std::this_thread::sleep_for(50ms);
+
+    EXPECT_TRUE(conn->observePeerClose(53));
+    EXPECT_TRUE(conn->observePeerClose(54));  // already noticed: no second report, no new step
+    setTxObserver(nullptr);
+
+    const auto got = rec.of("tcp_close_ack");
+    ASSERT_EQ(got.size(), 1u);
+    EXPECT_EQ(got[0].step, 53);
+    EXPECT_EQ(rec.seen.size(), 1u);
+
+    // Nothing was consumed: the bytes are still there, then the EOF.
+    std::vector<std::uint8_t> bytes;
+    EXPECT_EQ(conn->recv(bytes, 100ms), 3);
+    EXPECT_EQ(bytes, (std::vector<std::uint8_t>{0x11, 0x22, 0x33}));
+}
+
+// A reset is not a FIN and nothing ACKed it, so it is not a close ack.
+TEST(TcpConnection, AResetIsNotACloseAck) {
+    TcpServer srv("lo", 0);
+    ASSERT_TRUE(srv.valid());
+    const int client = connectLoopbackClient(srv.port());
+    ASSERT_GE(client, 0);
+    auto conn = srv.acceptOne(1000ms);
+    ASSERT_TRUE(conn.has_value());
+
+    const linger abortive{1, 0};
+    ASSERT_EQ(::setsockopt(client, SOL_SOCKET, SO_LINGER, &abortive, sizeof(abortive)), 0);
+    ::close(client);
+    std::this_thread::sleep_for(50ms);
+
+    TxRecorder rec;
+    setTxObserver(&rec);
+    EXPECT_FALSE(conn->observePeerClose(53));
+    setTxObserver(nullptr);
+    EXPECT_TRUE(rec.seen.empty());
+}
 
 TEST(TcpAcceptService, AcceptsAutonomousConnectAndCapturesPeer) {
     Endpoint captured{};
@@ -224,6 +340,72 @@ TEST(TcpAcceptService, TheAcceptCarriesItsStepAndTheHandlersSendDoesNot) {
     EXPECT_EQ(capture.seen[1].transport, "tcp");
     EXPECT_EQ(capture.seen[1].step, kNoSpecStep);
     EXPECT_EQ(capture.seen[1].src_port, svc.boundPort());
+}
+
+// A case that specifies only its reconnect tags only that accept: the first connection's
+// SYN+ACK is no step of the procedure and must not carry one.
+TEST(TcpAcceptService, TheStepIsChosenPerAcceptByItsIndex) {
+    TcpAcceptService svc("lo", 0, [](TcpConnection) {}, acceptStepFrom(2, 56));
+    ASSERT_TRUE(svc.ok());
+    const int first = connectLoopbackClient(svc.boundPort());
+    ASSERT_GE(first, 0);
+
+    TxRecorder rec;
+    setTxObserver(&rec);
+    ASSERT_TRUE(pumpUntilAccepted(svc, 1));
+    const int second = connectLoopbackClient(svc.boundPort());
+    ASSERT_GE(second, 0);
+    ASSERT_TRUE(pumpUntilAccepted(svc, 2));
+    setTxObserver(nullptr);
+    ::close(first);
+    ::close(second);
+
+    const auto got = rec.of("tcp_accept");
+    ASSERT_EQ(got.size(), 2u);
+    EXPECT_EQ(got[0].step, kNoSpecStep);
+    EXPECT_EQ(got[1].step, 56);
+
+    // The constant form still tags every accept, as it always did.
+    TcpAcceptService every("lo", 0, [](TcpConnection) {}, /*accept_step=*/57);
+    ASSERT_TRUE(every.ok());
+    const int c = connectLoopbackClient(every.boundPort());
+    ASSERT_GE(c, 0);
+    TxRecorder rec2;
+    setTxObserver(&rec2);
+    ASSERT_TRUE(pumpUntilAccepted(every, 1));
+    setTxObserver(nullptr);
+    ::close(c);
+    ASSERT_EQ(rec2.of("tcp_accept").size(), 1u);
+    EXPECT_EQ(rec2.of("tcp_accept")[0].step, 57);
+}
+
+// The service does not keep the connections, so whoever does asks it to look at each; the
+// FIN is reported under the service's close_step, not the step of the thread that asked.
+TEST(TcpAcceptService, ObserveCloseReportsTheHeldConnectionsFinUnderItsCloseStep) {
+    std::vector<TcpConnection> held;
+    TcpAcceptService svc(
+        "lo", 0, [&](TcpConnection c) { held.push_back(std::move(c)); },
+        /*accept_step=*/kNoSpecStep, /*close_step=*/58);
+    ASSERT_TRUE(svc.ok());
+    const int client = connectLoopbackClient(svc.boundPort());
+    ASSERT_GE(client, 0);
+    ASSERT_TRUE(pumpUntilAccepted(svc, 1));
+    ASSERT_EQ(held.size(), 1u);
+
+    TxRecorder rec;
+    setTxObserver(&rec);
+    {
+        TxSpecStep unrelated(99);  // a case scope on the thread that happens to ask
+        EXPECT_FALSE(svc.observeClose(held[0]));  // not closed yet
+        ::close(client);
+        std::this_thread::sleep_for(50ms);
+        EXPECT_TRUE(svc.observeClose(held[0]));
+    }
+    setTxObserver(nullptr);
+
+    const auto got = rec.of("tcp_close_ack");
+    ASSERT_EQ(got.size(), 1u);
+    EXPECT_EQ(got[0].step, 58);
 }
 
 // The capture loop drains the services only after the stimulus returns, so a connection

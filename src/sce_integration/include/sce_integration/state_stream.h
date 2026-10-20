@@ -43,8 +43,9 @@
 // sender does not know it (a raw Ethernet frame is opaque to it); `src_port`, the
 // tester's own port, is present only on a TCP connection, where with `dst` it names the
 // connection. A TCP control segment the kernel sent for a connect(), an accept() or an
-// abort ("tcp_connect", "tcp_connect_ack", "tcp_accept", "tcp_reset") is identified by
-// that connection and its flags, not by its time; "tcp_refuse", the RST for a port the
+// abort ("tcp_connect", "tcp_connect_ack", "tcp_accept", "tcp_reset") or for observing the
+// DUT's FIN ("tcp_close_ack") is identified by that connection and its flags, not by its
+// time; "tcp_refuse", the RST for a port the
 // tester leaves unserved, has only the port (`src_port`) and is written before the SYN it
 // answers (TxEvent::transport). A "tester_action" line reports something the tester did
 // that puts NO frame on the wire, labelled by `"action":"<what>"` (the case's own short

@@ -52,6 +52,9 @@ struct TxEvent {
     //   "tcp_accept"       the SYN+ACK of a connection the DUT opened to the tester; the
     //                      kernel sent it when the SYN arrived, so the report may come
     //                      well after it, whenever the tester accepted
+    //   "tcp_close_ack"    the ACK of the DUT's FIN on a connection the tester holds; the
+    //                      kernel sent it when the FIN arrived, so the report comes when
+    //                      the tester OBSERVED the FIN, which may be much later
     //   "tcp_reset"        the RST of a connection the tester aborted (close with
     //                      SO_LINGER 0), reported as the abort is made
     //   "tcp_refuse"       the RST the kernel answers a SYN with while the tester serves
@@ -130,6 +133,12 @@ void reportTcpConnected(std::string_view iface, int fd);
 // reset it by then; a reset socket answers getpeername with ENOTCONN, and the connection
 // would be reported without its name.
 void reportTcpAccepted(int fd, std::uint32_t peer_ip_be, std::uint16_t peer_port);
+
+// The tester observed the DUT's FIN on the connection `fd` with `peer_ip_be`/`peer_port`
+// (as accept() reported them): reports "tcp_close_ack" with the current TxSpecStep. The
+// peer comes from the caller for the reason reportTcpAccepted's does. Once per
+// connection is the CALLER's to keep (TcpConnection does); this reports every time.
+void reportTcpPeerClosed(int fd, std::uint32_t peer_ip_be, std::uint16_t peer_port);
 
 // The tester aborts a connection (close with SO_LINGER 0, which puts an RST on the wire
 // in place of a FIN): reports "tcp_reset" with the current TxSpecStep. Call it as the

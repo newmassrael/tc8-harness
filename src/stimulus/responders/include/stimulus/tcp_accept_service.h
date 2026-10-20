@@ -32,6 +32,23 @@ namespace tc8::stimulus {
 // MethodResponder's reply builder.
 using TcpAcceptHandler = std::function<void(TcpConnection)>;
 
+// The specification step each accept's SYN+ACK performs, chosen by which accept it is:
+// `accept_index` counts from 1, in the order the service accepts them. Returns
+// kNoSpecStep for an accept that is no step of the procedure (a connection the case
+// merely tolerates), which is the point of choosing per accept: a case that specifies
+// only its second connection must not tag the first with a step that is not its own.
+// It is asked for the NEXT accept before each attempt, including a drain that finds
+// nothing to accept, so it must be a pure function of the index.
+using TcpAcceptStepFn = std::function<int(std::uint64_t accept_index)>;
+
+// `step` for the `first`-th accept and every later one, kNoSpecStep before it: the
+// common shape, "the reconnect is the step, the first connect is not".
+inline TcpAcceptStepFn acceptStepFrom(std::uint64_t first, int step) {
+    return [first, step](std::uint64_t accept_index) {
+        return accept_index >= first ? step : kNoSpecStep;
+    };
+}
+
 // Tester-as-SERVER autonomous TCP-accept service: a run-scoped IPollableService
 // that accepts DUT-initiated TCP connections arriving at ANY point in the
 // capture window, for the case where the DUT (in its SOME/IP client role) opens
@@ -80,9 +97,14 @@ class TcpAcceptService : public ::tc8::IPollableService {
     // `accept_step` is the specification step each accept's SYN+ACK performs (the
     // "tcp_accept" report, stimulus/tx_observer.h), or kNoSpecStep. It is given here
     // rather than by a TxSpecStep because the accept runs on the capture thread, which
-    // a scope on the case's thread does not reach.
+    // a scope on the case's thread does not reach. The second form chooses it per
+    // accept (TcpAcceptStepFn, acceptStepFrom).
+    //
+    // `close_step` is the step observeClose() reports the DUT's FIN under (see there).
     TcpAcceptService(std::string_view iface, std::uint16_t port, TcpAcceptHandler handler,
-                     int accept_step = kNoSpecStep);
+                     int accept_step = kNoSpecStep, int close_step = kNoSpecStep);
+    TcpAcceptService(std::string_view iface, std::uint16_t port, TcpAcceptHandler handler,
+                     TcpAcceptStepFn accept_step, int close_step = kNoSpecStep);
     ~TcpAcceptService() override = default;  // TcpServer RAII closes the listener.
 
     TcpAcceptService(const TcpAcceptService &) = delete;
@@ -111,10 +133,19 @@ class TcpAcceptService : public ::tc8::IPollableService {
     // it needs no synchronisation.
     std::uint64_t accepted() const { return accepted_; }
 
+    // The DUT closed `conn`, a connection the handler kept? Reports its FIN under this
+    // service's close_step the first time it is found (TcpConnection::observePeerClose).
+    // The service does not keep the connections (ownership moved into the handler), so
+    // it cannot look at them itself: whoever holds them calls this for each from its own
+    // onReadable(), which the capture loop calls on every drain. Reading the connection
+    // instead would discard what the DUT sent and reopen a window the DUT can see.
+    bool observeClose(TcpConnection &conn) const { return conn.observePeerClose(close_step_); }
+
   private:
     TcpServer server_;
     TcpAcceptHandler handler_;
-    int accept_step_;
+    TcpAcceptStepFn accept_step_;
+    int close_step_;
     std::uint64_t accepted_ = 0;
 };
 

@@ -79,6 +79,21 @@ void deliverOnConnection(const char *transport, std::string_view iface, int fd,
             ntohs(local.sin_port), bytes, spec_step);
 }
 
+// A report on a connection whose peer the caller already holds (accept() returned it).
+// The local end survives a reset (only the peer is gone), so it is read apart from the
+// peer rather than dropped with it.
+void deliverWithPeerFromCaller(const char *transport, int fd, std::uint32_t peer_ip_be,
+                               std::uint16_t peer_port) {
+    std::uint16_t local_port = 0;
+    sockaddr_in local{};
+    socklen_t len = sizeof(local);
+    if (::getsockname(fd, reinterpret_cast<sockaddr *>(&local), &len) == 0 &&
+        local.sin_family == AF_INET) {
+        local_port = ntohs(local.sin_port);
+    }
+    deliver(transport, {}, peer_ip_be, peer_port, local_port, 0, t_spec_step);
+}
+
 }  // namespace
 
 void setTxObserver(ITxObserver *observer) {
@@ -124,16 +139,14 @@ void reportTcpAccepted(int fd, std::uint32_t peer_ip_be, std::uint16_t peer_port
     if (g_observer.load(std::memory_order_relaxed) == nullptr) {
         return;
     }
-    // The local end survives a reset (only the peer is gone), so it is read apart from
-    // the peer rather than dropped with it.
-    std::uint16_t local_port = 0;
-    sockaddr_in local{};
-    socklen_t len = sizeof(local);
-    if (::getsockname(fd, reinterpret_cast<sockaddr *>(&local), &len) == 0 &&
-        local.sin_family == AF_INET) {
-        local_port = ntohs(local.sin_port);
+    deliverWithPeerFromCaller("tcp_accept", fd, peer_ip_be, peer_port);
+}
+
+void reportTcpPeerClosed(int fd, std::uint32_t peer_ip_be, std::uint16_t peer_port) {
+    if (g_observer.load(std::memory_order_relaxed) == nullptr) {
+        return;
     }
-    deliver("tcp_accept", {}, peer_ip_be, peer_port, local_port, 0, t_spec_step);
+    deliverWithPeerFromCaller("tcp_close_ack", fd, peer_ip_be, peer_port);
 }
 
 void reportTcpReset(std::string_view iface, std::uint32_t dst_ip_be, std::uint16_t dst_port,
