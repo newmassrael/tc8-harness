@@ -327,7 +327,8 @@ std::vector<std::string> validateTransitions(const MachineDescription &d) {
 }
 
 void StateStream::transition(int step, std::string_view trigger, std::string_view from,
-                             std::string_view to, int pcap_frame_idx, int spec_step) {
+                             std::string_view to, int pcap_frame_idx,
+                             const std::vector<int> &spec_steps) {
     char num[32];
     std::string line = "{\"event\":\"transition\",\"step\":";
     std::snprintf(num, sizeof(num), "%d", step);
@@ -345,7 +346,17 @@ void StateStream::transition(int step, std::string_view trigger, std::string_vie
     } else {
         line.append("null");
     }
-    appendSpecStep(line, spec_step);
+    if (!spec_steps.empty()) {
+        appendSpecStep(line, spec_steps.front());
+    }
+    if (spec_steps.size() > 1) {
+        line.append(",\"spec_steps\":[");
+        for (std::size_t i = 0; i < spec_steps.size(); ++i) {
+            std::snprintf(num, sizeof(num), i == 0 ? "%d" : ",%d", spec_steps[i]);
+            line.append(num);
+        }
+        line.push_back(']');
+    }
     emit(std::move(line));
 }
 

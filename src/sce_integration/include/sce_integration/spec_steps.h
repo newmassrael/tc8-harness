@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <string>
 #include <string_view>
@@ -46,11 +47,15 @@
 //
 // MATCHING A TRANSITION
 // ---------------------
-// A transition line takes the step of the rows that match it. No match, or matching rows
-// that name different steps, leaves it untagged: the harness never guesses between two
-// answers. A row is a filter on what the harness records for a transition (the state it
-// left, the state it arrived at, the event that caused it), so a case whose transitions
-// share a trigger tells them apart by their states.
+// A transition line takes the steps of the rows that match it. No match leaves it
+// untagged. Several matching rows that name different steps are all kept: one transition
+// can be the evidence for more than one step (a message checked for its content by one
+// step and for its timing by a later one), and the case says so by writing a row for
+// each. The harness lists them, ascending and each once, and never picks between them;
+// rows that agree on a step count once, so a catch-all row and a specific one that name
+// the same step are not a second step. A row is a filter on what the harness records for
+// a transition (the state it left, the state it arrived at, the event that caused it),
+// so a case whose transitions share a trigger tells them apart by their states.
 namespace tc8::sce {
 
 // A read-only view of a case's constexpr array.
@@ -96,24 +101,23 @@ struct SpecProcedure {
     SpecList<SpecTransition> transitions;
 };
 
-// The step a transition decides, or kNoSpecStep (see "MATCHING A TRANSITION").
-inline int specStepForTransition(const SpecProcedure &spec, std::string_view from,
-                                 std::string_view to, std::string_view event) {
-    int found = ::tc8::stimulus::kNoSpecStep;
-    bool matched = false;
+// The steps a transition decides, ascending and without repeats; empty when no row
+// matches (see "MATCHING A TRANSITION").
+inline std::vector<int> specStepsForTransition(const SpecProcedure &spec,
+                                               std::string_view from, std::string_view to,
+                                               std::string_view event) {
+    std::vector<int> steps;
     for (const SpecTransition &row : spec.transitions) {
         if ((!row.from.empty() && row.from != from) || (!row.to.empty() && row.to != to) ||
             (!row.event.empty() && row.event != event)) {
             continue;
         }
-        if (!matched) {
-            found = row.step;
-            matched = true;
-        } else if (row.step != found) {
-            return ::tc8::stimulus::kNoSpecStep;
+        const auto at = std::lower_bound(steps.begin(), steps.end(), row.step);
+        if (at == steps.end() || *at != row.step) {
+            steps.insert(at, row.step);
         }
     }
-    return found;
+    return steps;
 }
 
 // What is wrong with a case's table against the machine it is attached to, one sentence

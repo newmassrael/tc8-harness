@@ -34,38 +34,51 @@ constexpr SpecCheck kChecks[] = {{3, "a)", "first item"}, {3, "b)", "second item
 constexpr SpecTransition kRows[] = {{"", "phase2", "", 2}, {"", "pass", "", 3}};
 constexpr SpecProcedure kSpec{kSteps, kChecks, kRows};
 
+using Steps = std::vector<int>;
+
 TEST(SpecSteps, ATransitionTakesTheStepOfTheStateItArrivesAt) {
     // Both transitions are caused by the same event; the arrival state tells them apart.
-    EXPECT_EQ(::tc8::sce::specStepForTransition(kSpec, "phase1", "phase2", "notification"), 2);
-    EXPECT_EQ(::tc8::sce::specStepForTransition(kSpec, "phase2", "pass", "notification"), 3);
+    EXPECT_EQ(::tc8::sce::specStepsForTransition(kSpec, "phase1", "phase2", "notification"),
+              Steps{2});
+    EXPECT_EQ(::tc8::sce::specStepsForTransition(kSpec, "phase2", "pass", "notification"),
+              Steps{3});
 }
 
 TEST(SpecSteps, NoRowMeansNoStepAndNeverAGuess) {
-    EXPECT_EQ(::tc8::sce::specStepForTransition(kSpec, "phase2", "inconclusive", "deadline"),
-              kNoSpecStep);
+    EXPECT_TRUE(
+        ::tc8::sce::specStepsForTransition(kSpec, "phase2", "inconclusive", "deadline").empty());
     constexpr SpecProcedure none{};
-    EXPECT_EQ(::tc8::sce::specStepForTransition(none, "a", "b", "e"), kNoSpecStep);
+    EXPECT_TRUE(::tc8::sce::specStepsForTransition(none, "a", "b", "e").empty());
 }
 
 TEST(SpecSteps, FromToAndEventAllFilter) {
     static constexpr SpecTransition rows[] = {{"a", "b", "go", 1}, {"a", "b", "stop", 2}};
     constexpr SpecProcedure spec{kSteps, {}, rows};
-    EXPECT_EQ(::tc8::sce::specStepForTransition(spec, "a", "b", "go"), 1);
-    EXPECT_EQ(::tc8::sce::specStepForTransition(spec, "a", "b", "stop"), 2);
-    EXPECT_EQ(::tc8::sce::specStepForTransition(spec, "c", "b", "go"), kNoSpecStep);
-    EXPECT_EQ(::tc8::sce::specStepForTransition(spec, "a", "b", "other"), kNoSpecStep);
+    EXPECT_EQ(::tc8::sce::specStepsForTransition(spec, "a", "b", "go"), Steps{1});
+    EXPECT_EQ(::tc8::sce::specStepsForTransition(spec, "a", "b", "stop"), Steps{2});
+    EXPECT_TRUE(::tc8::sce::specStepsForTransition(spec, "c", "b", "go").empty());
+    EXPECT_TRUE(::tc8::sce::specStepsForTransition(spec, "a", "b", "other").empty());
 }
 
-TEST(SpecSteps, RowsThatDisagreeLeaveTheTransitionUntagged) {
-    // A general row and a specific one both match and name different steps: the table
-    // is ambiguous, so the harness says nothing rather than choose.
+TEST(SpecSteps, RowsThatNameDifferentStepsAreAllKeptAscendingAndNeverChosenBetween) {
+    // One transition can be the evidence for more than one step: the case writes a row
+    // for each, and the harness lists them all. Whatever order the rows come in, the
+    // list is ascending.
     static constexpr SpecTransition rows[] = {{"", "pass", "", 3}, {"phase2", "pass", "", 2}};
     constexpr SpecProcedure spec{kSteps, {}, rows};
-    EXPECT_EQ(::tc8::sce::specStepForTransition(spec, "phase2", "pass", "e"), kNoSpecStep);
-    // Rows that agree are not a conflict.
+    EXPECT_EQ(::tc8::sce::specStepsForTransition(spec, "phase2", "pass", "e"), (Steps{2, 3}));
+    // A row that does not match this transition adds nothing.
+    EXPECT_EQ(::tc8::sce::specStepsForTransition(spec, "phase1", "pass", "e"), Steps{3});
+    // Rows that agree are one step, not two: a catch-all and a specific row naming the
+    // same step is how a case narrows a row, not a second step.
     static constexpr SpecTransition same[] = {{"", "pass", "", 3}, {"phase2", "pass", "", 3}};
     constexpr SpecProcedure agree{kSteps, {}, same};
-    EXPECT_EQ(::tc8::sce::specStepForTransition(agree, "phase2", "pass", "e"), 3);
+    EXPECT_EQ(::tc8::sce::specStepsForTransition(agree, "phase2", "pass", "e"), Steps{3});
+    // Three rows, two of them agreeing, still list each step once.
+    static constexpr SpecTransition mixed[] = {
+        {"", "pass", "", 3}, {"phase2", "pass", "", 1}, {"phase2", "pass", "e", 3}};
+    constexpr SpecProcedure many{kSteps, {}, mixed};
+    EXPECT_EQ(::tc8::sce::specStepsForTransition(many, "phase2", "pass", "e"), (Steps{1, 3}));
 }
 
 TEST(SpecSteps, ASoundTableReportsNothing) {
@@ -170,15 +183,36 @@ TEST_F(SpecStreamTest, SpecInvalidNamesEachProblem) {
               R"(of the machine","second"]})");
 }
 
+TEST_F(SpecStreamTest, ATransitionForSeveralStepsListsThemAndKeepsTheFirstAsSpecStep) {
+    const std::string p = path("several.ndjson");
+    auto s = ::tc8::sce::StateStream::open(p, "X");
+    ASSERT_NE(s, nullptr);
+    s->transition(0, "notification", "phase1", "phase2", 4, {2, 3});
+    s->transition(1, "notification", "phase2", "pass", 5, {1, 2, 7});
+    // One step is the line it always was: no list for a reader that has no use for one.
+    s->transition(2, "deadline", "phase2", "inconclusive", -1, {3});
+
+    const auto got = lines(p);
+    ASSERT_EQ(got.size(), 4u);
+    EXPECT_EQ(withoutTime(got[1]),
+              R"({"event":"transition","step":0,"trigger":"notification","from":"phase1",)"
+              R"("to":"phase2","pcap_frame_idx":4,"spec_step":2,"spec_steps":[2,3]})");
+    EXPECT_EQ(withoutTime(got[2]),
+              R"({"event":"transition","step":1,"trigger":"notification","from":"phase2",)"
+              R"("to":"pass","pcap_frame_idx":5,"spec_step":1,"spec_steps":[1,2,7]})");
+    EXPECT_EQ(withoutTime(got[3]).find("spec_steps"), std::string::npos) << got[3];
+    EXPECT_NE(withoutTime(got[3]).find(R"("spec_step":3})"), std::string::npos) << got[3];
+}
+
 TEST_F(SpecStreamTest, ATransitionCarriesItsStepOnlyWhenTheCaseNamedOne) {
     const std::string p = path("transition.ndjson");
     auto s = ::tc8::sce::StateStream::open(p, "X");
     ASSERT_NE(s, nullptr);
-    s->transition(0, "notification", "phase1", "phase2", 4, 2);
+    s->transition(0, "notification", "phase1", "phase2", 4, {2});
     // Absent, not null, where the case said nothing: a reader of a case with no table
     // sees the line it always saw.
     s->transition(1, "deadline", "phase2", "inconclusive", -1);
-    s->transition(2, "notification", "phase2", "pass", 5, 0);  // step 0 is a step
+    s->transition(2, "notification", "phase2", "pass", 5, {0});  // step 0 is a step
 
     const auto got = lines(p);
     ASSERT_EQ(got.size(), 4u);

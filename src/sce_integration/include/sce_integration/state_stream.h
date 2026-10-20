@@ -109,7 +109,11 @@
 //                                          if the case's table names what the machine lacks
 //
 // and a "spec_step":N member on the `tx` lines the case tagged and on the `transition`
-// lines its table maps; both are ABSENT, not null, where the case said nothing. The text
+// lines its table maps; both are ABSENT, not null, where the case said nothing. A
+// transition that is the evidence for several steps names them too, as
+// "spec_steps":[N,M,...] (ascending, each once, at least two), after `spec_step`, which
+// then holds the first: a reader that knows only `spec_step` still sees a step, one that
+// knows `spec_steps` reads it when present and `spec_step` otherwise. The text
 // is the case's own, escaped and passed through untouched; the harness neither reads
 // nor shortens it. A step is a separate axis from the machine's states: nothing about a
 // state, a trigger or a verdict changes with it. `frame` lines are never tagged: a
@@ -209,10 +213,12 @@ public:
     // The `transitions_invalid` line: what is wrong with the machine's table against its
     // own name tables. Not called with an empty list.
     void transitionsInvalid(const std::vector<std::string> &problems);
-    // `spec_step` is the case's step for this transition, or kNoSpecStep.
+    // `spec_steps` are the case's steps for this transition, ascending (what
+    // specStepsForTransition returns), or empty. The first is written as `spec_step`;
+    // with more than one, all are also written as `spec_steps`.
     void transition(int step, std::string_view trigger, std::string_view from,
                     std::string_view to, int pcap_frame_idx,
-                    int spec_step = ::tc8::stimulus::kNoSpecStep);
+                    const std::vector<int> &spec_steps = {});
     void end(std::string_view final_state);
 
     // ITxObserver: the `tx` line.

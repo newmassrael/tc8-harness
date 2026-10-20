@@ -1023,14 +1023,14 @@ private:
         // the stream and `trace.json` cannot disagree about what happened.
         if (state_stream_ != nullptr) {
             const auto &recorded = trace_.back();
-            int spec_step = ::tc8::stimulus::kNoSpecStep;
+            std::vector<int> spec_steps;
             if constexpr (has_case_spec_v<Traits>) {
-                spec_step = specStepForTransition(Traits::kSpec, recorded.from_state_name,
-                                                  recorded.to_state_name, recorded.event_name);
+                spec_steps = specStepsForTransition(Traits::kSpec, recorded.from_state_name,
+                                                    recorded.to_state_name, recorded.event_name);
             }
             state_stream_->transition(recorded.step_idx, recorded.event_name,
                                       recorded.from_state_name, recorded.to_state_name,
-                                      recorded.pcap_frame_idx, spec_step);
+                                      recorded.pcap_frame_idx, spec_steps);
         }
     }
 
