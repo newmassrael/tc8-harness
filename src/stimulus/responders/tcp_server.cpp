@@ -227,14 +227,14 @@ std::optional<TcpConnection> TcpServer::acceptOne(std::chrono::milliseconds time
         }
         return std::nullopt;
     }
-    // The SYN+ACK is the kernel's; what the tester did is this accept (tx_observer.h).
-    reportTcpAccepted(conn_fd);
     // peer.sin_addr.s_addr is already network byte order (matches
     // Endpoint::ipv4_be); sin_port is network order, Endpoint::port is host order
     // (the emitter applies htons), so convert once here.
     Endpoint ep{};
     ep.ipv4_be = peer.sin_addr.s_addr;
     ep.port = ntohs(peer.sin_port);
+    // The SYN+ACK is the kernel's; what the tester did is this accept (tx_observer.h).
+    reportTcpAccepted(conn_fd, ep.ipv4_be, ep.port);
     return TcpConnection{conn_fd, ep};
 }
 
@@ -321,7 +321,7 @@ int acceptTcpOnce(int listen_fd, std::chrono::milliseconds timeout) {
                      std::strerror(errno));
         return -3;
     }
-    reportTcpAccepted(accepted);
+    reportTcpAccepted(accepted, peer.sin_addr.s_addr, ntohs(peer.sin_port));
     ::close(accepted);
     return 1;
 }

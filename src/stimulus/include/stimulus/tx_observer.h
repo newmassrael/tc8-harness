@@ -103,8 +103,13 @@ void reportTxConnected(const char *transport, int fd, std::size_t bytes,
 // both with the current TxSpecStep. `iface` may be empty.
 void reportTcpConnected(std::string_view iface, int fd);
 
-// accept() returned `fd`: reports "tcp_accept" with the current TxSpecStep.
-void reportTcpAccepted(int fd);
+// accept() returned `fd` for a connection from `peer_ip_be` (network byte order) and
+// `peer_port` (host order), as accept() itself reported them: reports "tcp_accept" with
+// the current TxSpecStep. The peer comes from the caller and is not asked of the socket,
+// because the accept can come long after the connection was made and the peer may have
+// reset it by then; a reset socket answers getpeername with ENOTCONN, and the connection
+// would be reported without its name.
+void reportTcpAccepted(int fd, std::uint32_t peer_ip_be, std::uint16_t peer_port);
 
 // Names the emitter for every send made while it is alive, on this thread. Nested
 // scopes keep the outermost name. Use through TC8_TX_SCOPE().

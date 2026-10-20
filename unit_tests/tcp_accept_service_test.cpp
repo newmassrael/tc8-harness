@@ -226,6 +226,42 @@ TEST(TcpAcceptService, TheAcceptCarriesItsStepAndTheHandlersSendDoesNot) {
     EXPECT_EQ(capture.seen[1].src_port, svc.boundPort());
 }
 
+// The capture loop drains the services only after the stimulus returns, so a connection
+// can be accepted long after the DUT opened it, and the DUT may have reset it by then.
+// A reset socket no longer has a peer to ask (getpeername says ENOTCONN), but accept()
+// itself returned the peer's address: the report must name the connection from that.
+TEST(TcpAcceptService, AnAcceptOfAConnectionAlreadyResetStillNamesTheConnection) {
+    struct Capture final : ITxObserver {
+        std::vector<TxEvent> seen;
+        void onTx(const TxEvent &ev) override { seen.push_back(ev); }
+    } capture;
+
+    TcpAcceptService svc("lo", 0, [](TcpConnection) {}, /*accept_step=*/51);
+    ASSERT_TRUE(svc.ok());
+    const int client = connectLoopbackClient(svc.boundPort());
+    ASSERT_GE(client, 0);
+    sockaddr_in local{};
+    socklen_t len = sizeof(local);
+    ASSERT_EQ(::getsockname(client, reinterpret_cast<sockaddr *>(&local), &len), 0);
+    // Close with RST, while the connection still waits in the accept queue.
+    const linger abortive{1, 0};
+    ASSERT_EQ(::setsockopt(client, SOL_SOCKET, SO_LINGER, &abortive, sizeof(abortive)), 0);
+    ::close(client);
+    std::this_thread::sleep_for(50ms);
+
+    setTxObserver(&capture);
+    const bool accepted = pumpUntilAccepted(svc, 1);
+    setTxObserver(nullptr);
+    ASSERT_TRUE(accepted);
+
+    ASSERT_EQ(capture.seen.size(), 1u);
+    EXPECT_EQ(std::string(capture.seen[0].transport), "tcp_accept");
+    EXPECT_EQ(capture.seen[0].spec_step, 51);
+    EXPECT_EQ(capture.seen[0].dst_ip_be, htonl(INADDR_LOOPBACK));
+    EXPECT_EQ(capture.seen[0].dst_port, ntohs(local.sin_port));
+    EXPECT_EQ(capture.seen[0].src_port, svc.boundPort());
+}
+
 TEST(TcpAcceptService, BadInterfaceReportsNotOk) {
     TcpAcceptService svc("tc8-no-such-if", 0, [](TcpConnection) {});
     EXPECT_FALSE(svc.ok());

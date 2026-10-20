@@ -625,7 +625,7 @@ public:
         const int conn = ::accept(fd_, reinterpret_cast<sockaddr*>(&peer), &peer_len);
         if (conn >= 0) {
             // The SYN+ACK is the kernel's; what the tester did is this accept.
-            ::tc8::stimulus::reportTcpAccepted(conn);
+            ::tc8::stimulus::reportTcpAccepted(conn, peer.sin_addr.s_addr, ntohs(peer.sin_port));
         }
         return conn;
     }

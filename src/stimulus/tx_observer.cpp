@@ -119,11 +119,20 @@ void reportTcpConnected(std::string_view iface, int fd) {
                         steps.active ? steps.ack : t_spec_step);
 }
 
-void reportTcpAccepted(int fd) {
+void reportTcpAccepted(int fd, std::uint32_t peer_ip_be, std::uint16_t peer_port) {
     if (g_observer.load(std::memory_order_relaxed) == nullptr) {
         return;
     }
-    deliverOnConnection("tcp_accept", {}, fd, 0, t_spec_step);
+    // The local end survives a reset (only the peer is gone), so it is read apart from
+    // the peer rather than dropped with it.
+    std::uint16_t local_port = 0;
+    sockaddr_in local{};
+    socklen_t len = sizeof(local);
+    if (::getsockname(fd, reinterpret_cast<sockaddr *>(&local), &len) == 0 &&
+        local.sin_family == AF_INET) {
+        local_port = ntohs(local.sin_port);
+    }
+    deliver("tcp_accept", {}, peer_ip_be, peer_port, local_port, 0, t_spec_step);
 }
 
 TxScope::TxScope(const char *emitter) : owns_(t_emitter == nullptr) {
