@@ -102,6 +102,7 @@ public:
                      std::uint8_t major) override {
         finds.push_back({service, instance, major});
     }
+    void releaseService(std::uint16_t, std::uint16_t) override {}
 
     // noinline so GCC analyses this with the generic `const vector&` (unknown
     // size) instead of constant-propagating the size-1 events list inlined from

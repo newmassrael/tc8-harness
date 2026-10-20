@@ -47,11 +47,27 @@ public:
     // a specific value to Find that Major. The requested minor is ANY_MINOR (a
     // SOME/IP-SD Find carries no specific minor). Idempotent per (service, instance):
     // vsomeip request_service dedups, so the Major is fixed at the first findService
-    // for a pair; the dtor's release_service balances it once. Using this instead of
+    // for a pair as long as it is held (releaseService lets go of it); the dtor's
+    // release_service balances what is still held, once. Using this instead of
     // the CommonAPI ClientTarget proxy is what keeps the wire to a SINGLE Find at the
     // chosen Major (the proxy would emit its own fixed-Major Find in parallel).
     virtual void findService(std::uint16_t service, std::uint16_t instance,
                              std::uint8_t major) = 0;
+
+    // Let go of the request findService (or subscribeEventgroup / callMethod, which
+    // request the same pair) made for `service`/`instance`, so that the NEXT one for the
+    // pair requests it anew. vsomeip's discovery runs once for as long as a pair stays
+    // requested; a procedure that deactivates the client and activates it again, and
+    // expects the second activation to Find from a fresh Initial Wait Phase, has to
+    // release the pair in between, or its second findService() is the no-op the dedup
+    // above makes it and nothing goes on the wire. The pair is forgotten, so the dtor
+    // does not release it a second time, and a later findService() for it sets the
+    // `major` of its own (the first fixed the old one only for as long as it was held).
+    //
+    // A pair nothing requested is left alone. It does NOT stop a subscription on the
+    // pair (stop those first, stopSubscribeEventgroup), and a Request callMethod parked
+    // for the pair stays parked until the pair is requested again and becomes available.
+    virtual void releaseService(std::uint16_t service, std::uint16_t instance) = 0;
 
     // Subscribe the DUT (client role) to `eventgroup` on the tester's
     // `service`/`instance`/`major`. vsomeip requires each event of the eventgroup

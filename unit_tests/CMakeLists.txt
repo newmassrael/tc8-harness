@@ -245,6 +245,18 @@ target_link_libraries(pending_requests_test PRIVATE
     GTest::gtest GTest::gtest_main)
 add_test(NAME pending_requests_test COMMAND pending_requests_test)
 
+# Request/release bookkeeping of the client's discovered (service, instance) pairs
+# (dut/dut_service/service_requests.h), split out of VsomeipEtsClientControl for the same
+# reason: the vsomeip bindings are injected, so the call SEQUENCE the stack sees is
+# pinned with a recording fake. The case that matters is release-then-request, which
+# must reach request_service twice (a fresh discovery), with no double release at teardown.
+add_executable(service_requests_test service_requests_test.cpp)
+target_include_directories(service_requests_test PRIVATE
+    ${PROJECT_SOURCE_DIR}/dut/dut_service)
+target_link_libraries(service_requests_test PRIVATE
+    GTest::gtest GTest::gtest_main)
+add_test(NAME service_requests_test COMMAND service_requests_test)
+
 # Response<->Request session correlation (dut/dut_service/response_correlation.h):
 # the policy split out of VsomeipEtsClientControl that drops a Response whose
 # Session ID matches no Request the DUT sent, so a raw vsomeip client ignores an

@@ -51,6 +51,7 @@ struct StubSink : tc8::dut::IEtsEventSink {
 };
 struct StubClient : tc8::dut::IEtsClientControl {
     void findService(std::uint16_t, std::uint16_t, std::uint8_t) override {}
+    void releaseService(std::uint16_t, std::uint16_t) override {}
     void subscribeEventgroup(std::uint16_t, std::uint16_t, std::uint16_t,
                              const std::vector<std::uint16_t>&, bool, std::uint8_t) override {}
     void stopSubscribeEventgroup(std::uint16_t, std::uint16_t, std::uint16_t) override {}

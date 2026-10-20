@@ -14,6 +14,7 @@
 #include "ets_vsomeip_app.h"  // acquireCommonApiApplication, messageBytes (SSOT)
 #include "pending_requests.h"  // availability-gated Request buffer (testable policy)
 #include "response_correlation.h"  // Response<->Request session correlation policy
+#include "service_requests.h"  // request/release bookkeeping per (service, instance)
 
 namespace tc8::dut {
 namespace {
@@ -32,8 +33,9 @@ public:
     // Withdraw everything this control opened BEFORE it is destroyed, so a tester
     // offering the service after teardown does not keep a stale subscription or
     // dangling handler alive on the shared application. release_service is balanced
-    // here (once per unique service ever requested), not per subscription, so a
-    // callMethod and a subscribe to the same service do not release each other early.
+    // here (once per pair still requested; one releaseService() already let go of is no
+    // longer held), not per subscription, so a callMethod and a subscribe to the same
+    // service do not release each other early.
     //
     // Enqueued-callback safety: unregister_availability_handler (below) stops only
     // FUTURE dispatch — it does NOT drain a flushPending callback vsomeip already
@@ -66,10 +68,7 @@ public:
             app_->unregister_subscription_status_handler(e.service, e.instance,
                                                          e.eventgroup, vsomeip::ANY_EVENT);
         }
-        for (const auto& svc : requested_services_) {
-            app_->unregister_availability_handler(svc.first, svc.second);
-            app_->release_service(svc.first, svc.second);
-        }
+        requests_.releaseAll();
     }
 
     void findService(std::uint16_t service, std::uint16_t instance,
@@ -82,6 +81,18 @@ public:
         // Reuses the same dedup + availability-handler + dtor-release path as
         // subscribe/callMethod so the discovery lifecycle stays uniform.
         requestServiceLocked(service, instance, major);
+    }
+
+    void releaseService(std::uint16_t service, std::uint16_t instance) override {
+        if (!app_) return;
+        std::lock_guard<std::mutex> lock(mutex_);
+        // Lets go of the request a findService (or a subscribe / callMethod, which
+        // request_service the same pair) made, so the next one for the pair requests
+        // anew and vsomeip starts discovery again from the Initial Wait Phase. A pair
+        // nothing requested is left alone. The pair is forgotten here, so the dtor does
+        // not release it a second time. Anything parked for the pair by callMethod stays
+        // parked until the pair is requested and becomes available again.
+        requests_.release(service, instance);
     }
 
     void subscribeEventgroup(std::uint16_t service, std::uint16_t instance,
@@ -292,18 +303,29 @@ private:
     // Caller holds mutex_.
     void requestServiceLocked(std::uint16_t service, std::uint16_t instance,
                               std::uint8_t major) {
-        if (requested_services_.insert({service, instance}).second) {
-            app_->register_availability_handler(
-                service, instance,
-                [this, live = live_](vsomeip::service_t s, vsomeip::instance_t i,
-                                     bool available) {
-                    if (!available) return;
-                    std::lock_guard<std::mutex> latch(live->m);
-                    if (!live->alive) return;  // control torn down — skip the flush
-                    flushPending(s, i);
-                });
-            app_->request_service(service, instance, major, vsomeip::ANY_MINOR);
-        }
+        requests_.request(service, instance, major);
+    }
+
+    // The vsomeip half of ServiceRequests::request: runs once per hold of a pair.
+    void openRequestLocked(std::uint16_t service, std::uint16_t instance,
+                           std::uint8_t major) {
+        app_->register_availability_handler(
+            service, instance,
+            [this, live = live_](vsomeip::service_t s, vsomeip::instance_t i,
+                                 bool available) {
+                if (!available) return;
+                std::lock_guard<std::mutex> latch(live->m);
+                if (!live->alive) return;  // control torn down — skip the flush
+                flushPending(s, i);
+            });
+        app_->request_service(service, instance, major, vsomeip::ANY_MINOR);
+    }
+
+    // The vsomeip half of ServiceRequests::release: the handler goes with the request,
+    // so a pair requested again registers one handler, not a second beside the first.
+    void closeRequestLocked(std::uint16_t service, std::uint16_t instance) {
+        app_->unregister_availability_handler(service, instance);
+        app_->release_service(service, instance);
     }
 
     // Flush callMethod()'s Requests parked for (service, instance) now that the
@@ -332,7 +354,14 @@ private:
     std::vector<Subscription> subscriptions_;
     std::vector<ResponseMethod> response_methods_;
     std::vector<StatusEventgroup> status_eventgroups_;
-    std::set<std::pair<std::uint16_t, std::uint16_t>> requested_services_;
+    // The pairs requested of vsomeip and the rule for requesting and releasing them.
+    // Both bindings run under mutex_ (every caller holds it), and the dtor's barrier
+    // has already tripped live_ when releaseAll() runs.
+    ServiceRequests requests_{
+        [this](std::uint16_t s, std::uint16_t i, std::uint8_t major) {
+            openRequestLocked(s, i, major);
+        },
+        [this](std::uint16_t s, std::uint16_t i) { closeRequestLocked(s, i); }};
     // Response<->Request session correlation, shared by strong copy with each
     // onResponse handler (which may outlive this control). recordRequest() runs
     // here on the send path; acceptResponse() runs on a vsomeip dispatch thread.
@@ -382,6 +411,7 @@ private:
 class NullEtsClientControl : public IEtsClientControl {
 public:
     void findService(std::uint16_t, std::uint16_t, std::uint8_t) override {}
+    void releaseService(std::uint16_t, std::uint16_t) override {}
     void subscribeEventgroup(std::uint16_t, std::uint16_t, std::uint16_t,
                              const std::vector<std::uint16_t>&, bool,
                              std::uint8_t) override {}
