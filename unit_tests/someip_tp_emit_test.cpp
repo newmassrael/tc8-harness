@@ -12,9 +12,35 @@
 
 #include "tc8/autosar/someiptp.h"
 #include "stimulus/someip_tp_emit.h"
+#include "stimulus/tx_observer.h"
 
 namespace tc8::stimulus {
 namespace {
+
+// Records the step of every reported send, in order.
+class StepRecorder : public ITxObserver {
+public:
+    void onTx(const TxEvent &ev) override { steps.push_back(ev.spec_step); }
+    std::vector<int> steps;
+};
+
+// A loopback receiver bound to an ephemeral port, so a test can emit to it.
+struct LoopbackReceiver {
+    LoopbackReceiver() {
+        fd = ::socket(AF_INET, SOCK_DGRAM, 0);
+        sockaddr_in ra{};
+        ra.sin_family = AF_INET;
+        ra.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        ::bind(fd, reinterpret_cast<sockaddr *>(&ra), sizeof(ra));
+        sockaddr_in bound{};
+        socklen_t bl = sizeof(bound);
+        ::getsockname(fd, reinterpret_cast<sockaddr *>(&bound), &bl);
+        port = ntohs(bound.sin_port);
+    }
+    ~LoopbackReceiver() { ::close(fd); }
+    int fd = -1;
+    std::uint16_t port = 0;
+};
 
 // End-to-end: emit a 40-byte SOME/IP message as 16-byte TP segments over loopback,
 // receive each datagram, and reassemble via the engine — the round trip proves the
@@ -59,6 +85,29 @@ TEST(SomeIpTpEmit, SegmentsRoundTripThroughLoopback) {
 
     ASSERT_EQ(result.status, someiptp::Reassembler::Status::kComplete);
     EXPECT_EQ(result.payload, payload);
+}
+
+// A procedure that counts each segment as a step of its own gets each segment tagged
+// with that step, and a segment the list does not name keeps the caller's.
+TEST(SomeIpTpEmit, EachSegmentTakesItsStepAndAnUnnamedOneKeepsTheCallers) {
+    LoopbackReceiver rx;
+    ASSERT_GE(rx.fd, 0);
+    someiptp::MessageHeader hdr{0x01010009, 0x00010005, 0x01, 0x01, 0x00, 0x00};
+    const std::vector<std::uint8_t> payload(40, 0x5A);  // 3 segments of at most 16 bytes
+
+    StepRecorder recorder;
+    setTxObserver(&recorder);
+    int rc = 0;
+    {
+        TxSpecStep callers(9);
+        rc = emitSomeIpTpSegments("lo", 23461, hdr, payload.data(), payload.size(),
+                                  htonl(INADDR_LOOPBACK), rx.port, /*max_segment_payload=*/16,
+                                  /*reserved=*/0, /*segment_steps=*/{2, 3});
+    }
+    setTxObserver(nullptr);
+
+    ASSERT_EQ(rc, 0);
+    EXPECT_EQ(recorder.steps, (std::vector<int>{2, 3, 9}));
 }
 
 }  // namespace

@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string_view>
+#include <vector>
 
 #include "tc8/autosar/someiptp.h"
 
@@ -21,10 +22,15 @@ namespace tc8::stimulus {
 // sent, or the first negative sendUdpUnicast sentinel on failure (remaining segments are
 // not sent). Propagates the Segmenter's exceptions on a bad max_segment_payload or an
 // over-long payload (see someiptp::Segmenter).
+//
+// `segment_steps[k]` is the specification step the k-th segment performs (TxSpecStep):
+// a procedure that counts each segment as a step of its own cannot tag them from outside,
+// because the segments are made and sent inside this one call. A segment past the end of
+// the list keeps the caller's own step, if any.
 int emitSomeIpTpSegments(std::string_view iface, std::uint16_t src_port,
                          const someiptp::MessageHeader &hdr, const std::uint8_t *payload,
                          std::size_t len, std::uint32_t dst_ip_be, std::uint16_t dst_port,
                          std::size_t max_segment_payload = someiptp::kRecommendedMaxSegment,
-                         std::uint8_t reserved = 0);
+                         std::uint8_t reserved = 0, const std::vector<int> &segment_steps = {});
 
 }  // namespace tc8::stimulus
