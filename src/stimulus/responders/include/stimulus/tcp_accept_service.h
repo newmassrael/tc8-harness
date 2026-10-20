@@ -5,6 +5,7 @@
 #include <string_view>
 
 #include "stimulus/tcp_server.h"     // TcpServer / TcpConnection — the wrapped primitive.
+#include "stimulus/tx_observer.h"    // kNoSpecStep — the accept's step.
 #include "tc8/pollable_service.h"    // IPollableService — the capture-loop drain seam.
 
 namespace tc8::stimulus {
@@ -75,7 +76,13 @@ class TcpAcceptService : public ::tc8::IPollableService {
     // thread for each accepted connection. Check ok() before adopting the
     // service; a !ok() service reports pollFd() == -1 and the capture loop skips
     // it.
-    TcpAcceptService(std::string_view iface, std::uint16_t port, TcpAcceptHandler handler);
+    //
+    // `accept_step` is the specification step each accept's SYN+ACK performs (the
+    // "tcp_accept" report, stimulus/tx_observer.h), or kNoSpecStep. It is given here
+    // rather than by a TxSpecStep because the accept runs on the capture thread, which
+    // a scope on the case's thread does not reach.
+    TcpAcceptService(std::string_view iface, std::uint16_t port, TcpAcceptHandler handler,
+                     int accept_step = kNoSpecStep);
     ~TcpAcceptService() override = default;  // TcpServer RAII closes the listener.
 
     TcpAcceptService(const TcpAcceptService &) = delete;
@@ -107,6 +114,7 @@ class TcpAcceptService : public ::tc8::IPollableService {
   private:
     TcpServer server_;
     TcpAcceptHandler handler_;
+    int accept_step_;
     std::uint64_t accepted_ = 0;
 };
 

@@ -40,7 +40,9 @@
 //     };
 //
 // and tags the sends of a step with `::tc8::stimulus::TxSpecStep step(1);` around them
-// (stimulus/tx_observer.h).
+// (stimulus/tx_observer.h). Two sends cannot be wrapped that way and are named apart: the
+// SYN and ACK of a handshake made inside an emitter (`TxConnectSteps`), and the SYN+ACK
+// of an accept made on the capture thread (`TcpAcceptService`'s `accept_step`).
 //
 // MATCHING A TRANSITION
 // ---------------------

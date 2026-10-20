@@ -1,6 +1,7 @@
 #include "stimulus/tcp_accept_service.h"
 
 #include <chrono>
+#include <optional>
 #include <utility>
 
 namespace tc8::stimulus {
@@ -14,14 +15,15 @@ constexpr int kAutonomousAcceptBacklog = 8;
 }  // namespace
 
 TcpAcceptService::TcpAcceptService(std::string_view iface, std::uint16_t port,
-                                   TcpAcceptHandler handler)
+                                   TcpAcceptHandler handler, int accept_step)
     // The listener is created non-blocking with a deeper backlog: non-blocking so
     // onReadable()'s accept never stalls the single capture thread (the
     // IPollableService contract), and the backlog so a burst of DUT connects is
     // queued rather than refused. Both are intrinsic to the socket via
     // openTcpListener, not patched on afterwards.
     : server_(iface, port, /*non_blocking=*/true, /*backlog=*/kAutonomousAcceptBacklog),
-      handler_(std::move(handler)) {}
+      handler_(std::move(handler)),
+      accept_step_(accept_step) {}
 
 void TcpAcceptService::onReadable() {
     if (!server_.valid()) {
@@ -33,7 +35,17 @@ void TcpAcceptService::onReadable() {
     // Each accepted connection's ownership moves into the handler, which decides
     // the app-layer behaviour. A connection the handler does not retain destructs
     // at the end of the call. No synchronisation: capture thread only.
-    while (auto conn = server_.acceptOne(std::chrono::milliseconds(0))) {
+    while (true) {
+        std::optional<TcpConnection> conn;
+        {
+            // The accept's step covers its own report only: what the handler sends over
+            // the connection is a step of its own, not the handshake's.
+            const TxSpecStep step(accept_step_);
+            conn = server_.acceptOne(std::chrono::milliseconds(0));
+        }
+        if (!conn) {
+            break;
+        }
         ++accepted_;
         if (handler_) {
             handler_(std::move(*conn));

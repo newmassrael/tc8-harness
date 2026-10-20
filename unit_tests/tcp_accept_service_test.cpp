@@ -13,6 +13,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <string>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -21,6 +22,7 @@
 
 #include "stimulus/tcp_accept_service.h"
 #include "stimulus/endpoint.h"
+#include "stimulus/tx_observer.h"
 
 namespace tc8::stimulus {
 namespace {
@@ -180,6 +182,48 @@ TEST(TcpAcceptService, NoConnectLeavesAcceptCountZero) {
         svc.onReadable();
     }
     EXPECT_EQ(svc.accepted(), 0u);
+}
+
+// The accept's SYN+ACK is reported with the step the service was given, on the
+// connection the DUT opened; what the handler then sends over it is not that step.
+TEST(TcpAcceptService, TheAcceptCarriesItsStepAndTheHandlersSendDoesNot) {
+    struct Capture final : ITxObserver {
+        struct Seen {
+            std::string   transport;
+            int           step;
+            std::uint16_t dst_port;
+            std::uint16_t src_port;
+        };
+        std::vector<Seen> seen;
+        void onTx(const TxEvent &ev) override {
+            seen.push_back({ev.transport, ev.spec_step, ev.dst_port, ev.src_port});
+        }
+    } capture;
+
+    TcpAcceptService svc(
+        "lo", 0, [](TcpConnection c) { c.send({0x01, 0x02}); }, /*accept_step=*/50);
+    ASSERT_TRUE(svc.ok());
+    const int client = connectLoopbackClient(svc.boundPort());
+    ASSERT_GE(client, 0);
+    sockaddr_in local{};
+    socklen_t len = sizeof(local);
+    ASSERT_EQ(::getsockname(client, reinterpret_cast<sockaddr *>(&local), &len), 0);
+
+    setTxObserver(&capture);
+    const bool accepted = pumpUntilAccepted(svc, 1);
+    setTxObserver(nullptr);
+    ::close(client);
+    ASSERT_TRUE(accepted);
+
+    ASSERT_EQ(capture.seen.size(), 2u);
+    EXPECT_EQ(capture.seen[0].transport, "tcp_accept");
+    EXPECT_EQ(capture.seen[0].step, 50);
+    // The DUT's end is the destination; the tester's is the listener's port.
+    EXPECT_EQ(capture.seen[0].dst_port, ntohs(local.sin_port));
+    EXPECT_EQ(capture.seen[0].src_port, svc.boundPort());
+    EXPECT_EQ(capture.seen[1].transport, "tcp");
+    EXPECT_EQ(capture.seen[1].step, kNoSpecStep);
+    EXPECT_EQ(capture.seen[1].src_port, svc.boundPort());
 }
 
 TEST(TcpAcceptService, BadInterfaceReportsNotOk) {

@@ -20,6 +20,8 @@
 #include <unistd.h>
 
 #include "sce_integration/state_stream.h"
+#include "stimulus/endpoint.h"
+#include "stimulus/tcp_client.h"
 #include "stimulus/tx_observer.h"
 
 namespace {
@@ -156,6 +158,26 @@ TEST_F(StateStreamTest, TxLineNamesTheEmitterTheTransportAndWhereItWent) {
     // No entry point named it: kept, with a null name, so the gap is visible.
     EXPECT_EQ(withoutTime(got[2]),
               R"({"event":"tx","emitter":null,"transport":"ethernet","bytes":42})");
+}
+
+TEST_F(StateStreamTest, ATxLineOnATcpConnectionCarriesTheTestersPort) {
+    const std::string p = path("tcp.ndjson");
+    auto s = ::tc8::sce::StateStream::open(p, "X");
+    ASSERT_NE(s, nullptr);
+
+    ::tc8::stimulus::TxEvent ev;
+    ev.transport = "tcp_connect_ack";
+    const unsigned char dut[4] = {10, 0, 0, 2};
+    std::memcpy(&ev.dst_ip_be, dut, sizeof(dut));
+    ev.dst_port = 30509;
+    ev.src_port = 40001;
+    s->onTx(ev);
+
+    const auto got = lines(p);
+    ASSERT_EQ(got.size(), 2u);
+    EXPECT_EQ(withoutTime(got[1]),
+              R"({"event":"tx","emitter":null,"transport":"tcp_connect_ack",)"
+              R"("dst":"10.0.0.2:30509","src_port":40001,"bytes":0})");
 }
 
 TEST_F(StateStreamTest, StimulusIsBracketedAndTxLinesAreBounded) {
@@ -434,11 +456,13 @@ TEST(TxObserver, AConnectedSocketIsReportedWithItsPeer) {
     struct Capture final : ::tc8::stimulus::ITxObserver {
         std::uint32_t ip = 0;
         std::uint16_t port = 0;
+        std::uint16_t src_port = 0;
         std::size_t bytes = 0;
         std::string transport;
         void onTx(const ::tc8::stimulus::TxEvent &ev) override {
             ip = ev.dst_ip_be;
             port = ev.dst_port;
+            src_port = ev.src_port;
             bytes = ev.bytes;
             transport = ev.transport;
         }
@@ -456,6 +480,10 @@ TEST(TxObserver, AConnectedSocketIsReportedWithItsPeer) {
     const int client = ::socket(AF_INET, SOCK_STREAM, 0);
     ASSERT_EQ(::connect(client, reinterpret_cast<sockaddr *>(&a), sizeof(a)), 0);
 
+    sockaddr_in local{};
+    len = sizeof(local);
+    ASSERT_EQ(::getsockname(client, reinterpret_cast<sockaddr *>(&local), &len), 0);
+
     ::tc8::stimulus::setTxObserver(&capture);
     ::tc8::stimulus::reportTxConnected("tcp", client, 4);
     ::tc8::stimulus::setTxObserver(nullptr);
@@ -465,7 +493,89 @@ TEST(TxObserver, AConnectedSocketIsReportedWithItsPeer) {
     EXPECT_EQ(capture.transport, "tcp");
     EXPECT_EQ(capture.ip, htonl(INADDR_LOOPBACK));
     EXPECT_EQ(capture.port, ntohs(a.sin_port));
+    // The tester's own end: with the peer it names which connection carried the send.
+    EXPECT_EQ(capture.src_port, ntohs(local.sin_port));
     EXPECT_EQ(capture.bytes, 4u);
+}
+
+// What a handshake the tester opens reports, through the production connect: the SYN
+// and the completing ACK, each with the step a TxConnectSteps names, both on the
+// connection the connect made.
+TEST(TxObserver, AConnectReportsTheSynAndTheAckWithTheirOwnSteps) {
+    struct Capture final : ::tc8::stimulus::ITxObserver {
+        struct Seen {
+            std::string   transport;
+            int           step;
+            std::uint16_t dst_port;
+            std::uint16_t src_port;
+        };
+        std::vector<Seen> seen;
+        void onTx(const ::tc8::stimulus::TxEvent &ev) override {
+            seen.push_back({ev.transport, ev.spec_step, ev.dst_port, ev.src_port});
+        }
+    } capture;
+
+    const int listener = ::socket(AF_INET, SOCK_STREAM, 0);
+    ASSERT_GE(listener, 0);
+    sockaddr_in a{};
+    a.sin_family = AF_INET;
+    a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    ASSERT_EQ(::bind(listener, reinterpret_cast<sockaddr *>(&a), sizeof(a)), 0);
+    ASSERT_EQ(::listen(listener, 8), 0);
+    socklen_t len = sizeof(a);
+    ASSERT_EQ(::getsockname(listener, reinterpret_cast<sockaddr *>(&a), &len), 0);
+    const ::tc8::stimulus::Endpoint dut{htonl(INADDR_LOOPBACK), ntohs(a.sin_port)};
+
+    // Opens one connection and returns the tester's port, so each pair of reports can be
+    // held to the connection that made it.
+    const auto connectOnce = [&]() -> std::uint16_t {
+        std::uint16_t local_port = 0;
+        const int fd = ::tc8::stimulus::connectTcpFromIface("lo", dut, 0, &local_port);
+        EXPECT_GE(fd, 0);
+        if (fd >= 0) ::close(fd);
+        return local_port;
+    };
+
+    ::tc8::stimulus::setTxObserver(&capture);
+    std::uint16_t named = 0;
+    std::uint16_t inner = 0;
+    std::uint16_t restored = 0;
+    std::uint16_t unnamed = 0;
+    {
+        ::tc8::stimulus::TxSpecStep request(40);
+        {
+            ::tc8::stimulus::TxConnectSteps handshake(41, 42);
+            named = connectOnce();
+            {
+                // A step of its own for the SYN only: the ACK is left untagged rather
+                // than taking the request's step.
+                ::tc8::stimulus::TxConnectSteps syn_only(43, ::tc8::stimulus::kNoSpecStep);
+                inner = connectOnce();
+            }
+            restored = connectOnce();
+        }
+        // Without one, both segments take the step the send is in, as any send does.
+        unnamed = connectOnce();
+    }
+    ::tc8::stimulus::setTxObserver(nullptr);
+    ::close(listener);
+
+    using Seen = Capture::Seen;
+    const std::uint16_t port = dut.port;
+    const std::vector<Seen> want = {
+        {"tcp_connect", 41, port, named},     {"tcp_connect_ack", 42, port, named},
+        {"tcp_connect", 43, port, inner},     {"tcp_connect_ack", -1, port, inner},
+        {"tcp_connect", 41, port, restored},  {"tcp_connect_ack", 42, port, restored},
+        {"tcp_connect", 40, port, unnamed},   {"tcp_connect_ack", 40, port, unnamed},
+    };
+    ASSERT_EQ(capture.seen.size(), want.size());
+    for (std::size_t i = 0; i < want.size(); ++i) {
+        EXPECT_EQ(capture.seen[i].transport, want[i].transport) << i;
+        EXPECT_EQ(capture.seen[i].step, want[i].step) << i;
+        EXPECT_EQ(capture.seen[i].dst_port, want[i].dst_port) << i;
+        EXPECT_EQ(capture.seen[i].src_port, want[i].src_port) << i;
+        EXPECT_NE(capture.seen[i].src_port, 0u) << i;
+    }
 }
 
 TEST_F(StateStreamTest, RefusesAPathItCannotWriteAsARegularFile) {

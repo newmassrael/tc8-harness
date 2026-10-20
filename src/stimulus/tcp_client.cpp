@@ -59,8 +59,9 @@ int connectTcpFromIface(std::string_view iface, const Endpoint &dst,
         ::close(sock);
         return -4;
     }
-    // The SYN is the kernel's; what the tester did is this connect (tx_observer.h).
-    reportTx("tcp_connect", iface, dst.ipv4_be, dst.port, 0);
+    // The SYN and the completing ACK are the kernel's; what the tester did is this
+    // connect (tx_observer.h).
+    reportTcpConnected(iface, sock);
 
     if (out_local_port != nullptr) {
         sockaddr_in local{};

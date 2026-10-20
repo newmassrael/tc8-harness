@@ -108,7 +108,7 @@ int TcpConnection::send(const std::vector<std::uint8_t> &bytes) {
         }
         off += static_cast<std::size_t>(n);
     }
-    reportTx("tcp", /*iface=*/{}, peer_.ipv4_be, peer_.port, bytes.size());
+    reportTxConnected("tcp", fd_, bytes.size());
     return 0;
 }
 
@@ -227,6 +227,8 @@ std::optional<TcpConnection> TcpServer::acceptOne(std::chrono::milliseconds time
         }
         return std::nullopt;
     }
+    // The SYN+ACK is the kernel's; what the tester did is this accept (tx_observer.h).
+    reportTcpAccepted(conn_fd);
     // peer.sin_addr.s_addr is already network byte order (matches
     // Endpoint::ipv4_be); sin_port is network order, Endpoint::port is host order
     // (the emitter applies htons), so convert once here.
@@ -319,6 +321,7 @@ int acceptTcpOnce(int listen_fd, std::chrono::milliseconds timeout) {
                      std::strerror(errno));
         return -3;
     }
+    reportTcpAccepted(accepted);
     ::close(accepted);
     return 1;
 }

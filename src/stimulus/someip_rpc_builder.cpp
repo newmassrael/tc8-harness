@@ -196,7 +196,7 @@ int requestOnceTcp(const SomeIpRpcMessage &target, std::uint16_t session_id, std
         ::close(sock);
         return -5;
     }
-    reportTx("tcp", iface, dest.ipv4_be, dest.port, datagram.size());
+    reportTxConnected("tcp", sock, datagram.size(), iface);
 
     // Dwell so vsomeip's tcp_server_endpoint can handle the Request and
     // queue a Response back on the same socket before close() tears
@@ -250,7 +250,7 @@ int emitMethodRequestTcpAndHold(std::string_view iface, const SomeIpRpcMessage &
         ::close(sock);
         return -5;
     }
-    reportTx("tcp", iface, dest.ipv4_be, dest.port, datagram.size());
+    reportTxConnected("tcp", sock, datagram.size(), iface);
 
     // Hold the socket open across the dwell so vsomeip's tcp_server_endpoint
     // delivers the Response on the same connection and the kernel records
@@ -362,7 +362,7 @@ int emitBundledMethodRequestsTcp(std::string_view iface,
         ::close(sock);
         return -5;
     }
-    reportTx("tcp", iface, dest.ipv4_be, dest.port, bundle.size());
+    reportTxConnected("tcp", sock, bundle.size(), iface);
 
     // Hold the socket open across the dwell so vsomeip's
     // tcp_server_endpoint can walk the bundle, dispatch each Request

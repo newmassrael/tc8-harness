@@ -622,7 +622,12 @@ public:
         if (rc <= 0 || (pfd.revents & POLLIN) == 0) return -1;
         sockaddr_in peer{};
         socklen_t   peer_len = sizeof(peer);
-        return ::accept(fd_, reinterpret_cast<sockaddr*>(&peer), &peer_len);
+        const int conn = ::accept(fd_, reinterpret_cast<sockaddr*>(&peer), &peer_len);
+        if (conn >= 0) {
+            // The SYN+ACK is the kernel's; what the tester did is this accept.
+            ::tc8::stimulus::reportTcpAccepted(conn);
+        }
+        return conn;
     }
 
     void close() {
@@ -739,8 +744,9 @@ inline int connectToDutTcp(const ::tc8::TestConfig &cfg,
         ::close(fd);
         return -1;
     }
-    // The SYN is the kernel's; what the tester did is this connect (tx_observer.h).
-    ::tc8::stimulus::reportTx("tcp_connect", {}, remote.sin_addr.s_addr, dst_port, 0);
+    // The SYN and the completing ACK are the kernel's; what the tester did is this
+    // connect (tx_observer.h).
+    ::tc8::stimulus::reportTcpConnected({}, fd);
 
     if (post_close == TcpPostClose::kShutdownWr) {
         ::shutdown(fd, SHUT_WR);

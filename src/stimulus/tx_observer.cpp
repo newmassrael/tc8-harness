@@ -25,6 +25,59 @@ thread_local const char *t_emitter = nullptr;
 // The innermost active TxSpecStep's number on this thread, or kNoSpecStep.
 thread_local int t_spec_step = kNoSpecStep;
 
+// The innermost active TxConnectSteps on this thread; inactive without one.
+struct ConnectSteps {
+    bool active = false;
+    int  syn = kNoSpecStep;
+    int  ack = kNoSpecStep;
+};
+thread_local ConnectSteps t_connect_steps;
+
+void deliver(const char *transport, std::string_view iface, std::uint32_t dst_ip_be,
+             std::uint16_t dst_port, std::uint16_t src_port, std::size_t bytes,
+             int spec_step) {
+    g_in_flight.fetch_add(1);
+    if (ITxObserver *observer = g_observer.load()) {
+        TxEvent ev;
+        ev.emitter = t_emitter != nullptr ? std::string_view{t_emitter} : std::string_view{};
+        ev.transport = transport;
+        ev.iface = iface;
+        ev.dst_ip_be = dst_ip_be;
+        ev.dst_port = dst_port;
+        ev.src_port = src_port;
+        ev.bytes = bytes;
+        ev.spec_step = spec_step;
+        observer->onTx(ev);
+    }
+    g_in_flight.fetch_sub(1);
+}
+
+// The two ends of a connected IPv4 socket. False when either cannot be read, which
+// leaves the report without a destination rather than with a wrong one.
+bool connectionEnds(int fd, sockaddr_in &peer, sockaddr_in &local) {
+    socklen_t len = sizeof(peer);
+    if (::getpeername(fd, reinterpret_cast<sockaddr *>(&peer), &len) != 0 ||
+        peer.sin_family != AF_INET) {
+        return false;
+    }
+    len = sizeof(local);
+    return ::getsockname(fd, reinterpret_cast<sockaddr *>(&local), &len) == 0 &&
+           local.sin_family == AF_INET;
+}
+
+void deliverOnConnection(const char *transport, std::string_view iface, int fd,
+                         std::size_t bytes, int spec_step) {
+    sockaddr_in peer{};
+    sockaddr_in local{};
+    if (!connectionEnds(fd, peer, local)) {
+        // The send happened; where it went is unknown. Reported without a destination.
+        deliver(transport, iface, 0, 0, 0, bytes, spec_step);
+        return;
+    }
+    deliver(transport, iface, peer.sin_addr.s_addr, ntohs(peer.sin_port),
+            ntohs(local.sin_port), bytes, spec_step);
+}
+
 }  // namespace
 
 void setTxObserver(ITxObserver *observer) {
@@ -44,35 +97,33 @@ void reportTx(const char *transport, std::string_view iface, std::uint32_t dst_i
     if (g_observer.load(std::memory_order_relaxed) == nullptr) {
         return;
     }
-    g_in_flight.fetch_add(1);
-    if (ITxObserver *observer = g_observer.load()) {
-        TxEvent ev;
-        ev.emitter = t_emitter != nullptr ? std::string_view{t_emitter} : std::string_view{};
-        ev.transport = transport;
-        ev.iface = iface;
-        ev.dst_ip_be = dst_ip_be;
-        ev.dst_port = dst_port;
-        ev.bytes = bytes;
-        ev.spec_step = t_spec_step;
-        observer->onTx(ev);
-    }
-    g_in_flight.fetch_sub(1);
+    deliver(transport, iface, dst_ip_be, dst_port, 0, bytes, t_spec_step);
 }
 
-void reportTxConnected(const char *transport, int fd, std::size_t bytes) {
-    // Not even the peer lookup without an observer: a send costs what it always did.
+void reportTxConnected(const char *transport, int fd, std::size_t bytes,
+                       std::string_view iface) {
+    // Not even the socket lookups without an observer: a send costs what it always did.
     if (g_observer.load(std::memory_order_relaxed) == nullptr) {
         return;
     }
-    sockaddr_in peer{};
-    socklen_t len = sizeof(peer);
-    if (::getpeername(fd, reinterpret_cast<sockaddr *>(&peer), &len) != 0 ||
-        peer.sin_family != AF_INET) {
-        // The send happened; where it went is unknown. Reported without a destination.
-        reportTx(transport, {}, 0, 0, bytes);
+    deliverOnConnection(transport, iface, fd, bytes, t_spec_step);
+}
+
+void reportTcpConnected(std::string_view iface, int fd) {
+    if (g_observer.load(std::memory_order_relaxed) == nullptr) {
         return;
     }
-    reportTx(transport, {}, peer.sin_addr.s_addr, ntohs(peer.sin_port), bytes);
+    const ConnectSteps &steps = t_connect_steps;
+    deliverOnConnection("tcp_connect", iface, fd, 0, steps.active ? steps.syn : t_spec_step);
+    deliverOnConnection("tcp_connect_ack", iface, fd, 0,
+                        steps.active ? steps.ack : t_spec_step);
+}
+
+void reportTcpAccepted(int fd) {
+    if (g_observer.load(std::memory_order_relaxed) == nullptr) {
+        return;
+    }
+    deliverOnConnection("tcp_accept", {}, fd, 0, t_spec_step);
 }
 
 TxScope::TxScope(const char *emitter) : owns_(t_emitter == nullptr) {
@@ -93,6 +144,17 @@ TxSpecStep::TxSpecStep(int step) : previous_(t_spec_step) {
 
 TxSpecStep::~TxSpecStep() {
     t_spec_step = previous_;
+}
+
+TxConnectSteps::TxConnectSteps(int syn, int ack)
+    : previous_active_(t_connect_steps.active),
+      previous_syn_(t_connect_steps.syn),
+      previous_ack_(t_connect_steps.ack) {
+    t_connect_steps = ConnectSteps{true, syn, ack};
+}
+
+TxConnectSteps::~TxConnectSteps() {
+    t_connect_steps = ConnectSteps{previous_active_, previous_syn_, previous_ack_};
 }
 
 }  // namespace tc8::stimulus

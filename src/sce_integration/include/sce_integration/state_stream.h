@@ -35,11 +35,15 @@
 // one line per frame or datagram the TESTER successfully sent:
 //
 //   {"event":"tx","emitter":"<emit* name>"|null,"transport":"udp_unicast","iface":"<if>",
-//    "dst":"a.b.c.d:port","bytes":N,"t_us":N}
+//    "dst":"a.b.c.d:port","src_port":N,"bytes":N,"t_us":N}
 //
 // `emitter` is null when the send was reached by a route no emit*/send* entry point
 // names (kept, so a missing name is visible); `iface` is absent when the primitive takes none; `dst` is absent when the
-// sender does not know it (a raw Ethernet frame is opaque to it). A tx line says THAT
+// sender does not know it (a raw Ethernet frame is opaque to it); `src_port`, the
+// tester's own port, is present only on a TCP connection, where with `dst` it names the
+// connection. A TCP control segment the kernel sent for a connect() or an accept()
+// ("tcp_connect", "tcp_connect_ack", "tcp_accept") is identified by that connection and
+// its flags, not by its time (TxEvent::transport). A tx line says THAT
 // the tester sent and where, never WHAT: the saved pcap holds the frame, and a reader
 // decodes it there. It is reported after the send, so it may follow the frame's own
 // pcap record by a moment and must not be used to order the two.

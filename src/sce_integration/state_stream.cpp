@@ -120,6 +120,10 @@ void StateStream::onTx(const ::tc8::stimulus::TxEvent &ev) {
         line.append(num);
         line.push_back('"');
     }
+    if (ev.src_port != 0) {
+        std::snprintf(num, sizeof(num), ",\"src_port\":%u", static_cast<unsigned>(ev.src_port));
+        line.append(num);
+    }
     std::snprintf(num, sizeof(num), ",\"bytes\":%zu", ev.bytes);
     line.append(num);
     appendSpecStep(line, ev.spec_step);

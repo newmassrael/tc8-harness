@@ -40,17 +40,31 @@ struct TxEvent {
     // emitFindServiceBoot, not the primitive underneath it.
     std::string_view emitter;
     // Which primitive carried it: "ethernet", "udp_unicast", "udp_multicast", "tcp",
-    // or "tcp_connect". The last is a connect(): the SYN is made by the kernel, not by
-    // the tester, so it is reported once the connect has succeeded (the handshake
-    // done, the SYN long on the wire) with `bytes` 0, and a connect that failed is not
-    // reported. The wire itself, SYN included, is in the saved pcap and the live
-    // `frame` lines.
+    // or one of the TCP control segments below.
+    //
+    // The TCP control segments are made by the kernel, not by the tester: what the
+    // tester did is a connect() or an accept(), and each segment that call put on the
+    // wire for it is one report, with `bytes` 0, made once the call succeeded (a call
+    // that failed is not reported):
+    //   "tcp_connect"      the SYN of a connection the tester opened
+    //   "tcp_connect_ack"  the ACK that completed that handshake (reported right after
+    //                      "tcp_connect", since connect() returns only once it is sent)
+    //   "tcp_accept"       the SYN+ACK of a connection the DUT opened to the tester; the
+    //                      kernel sent it when the SYN arrived, so the report may come
+    //                      well after it, whenever the tester accepted
+    // A report names its connection (dst and src_port) and the segment by its flags, not
+    // by its time, so a watcher picks the frame out of the capture by both. The wire
+    // itself is in the saved pcap and the live `frame` lines.
     const char *transport = "";
     std::string_view iface;  // empty when the primitive does not take one
     // IPv4 destination in network byte order and port; 0/0 when the primitive does not
     // know it (a raw frame is opaque to the sender).
     std::uint32_t dst_ip_be = 0;
     std::uint16_t dst_port = 0;
+    // The tester's own port, for a send on a TCP connection; 0 when the primitive does
+    // not report one. With the destination it names the connection, which is what tells
+    // two connections to the same DUT port apart.
+    std::uint16_t src_port = 0;
     std::size_t bytes = 0;
     // The specification step the case declared for this send (TxSpecStep), or
     // kNoSpecStep. Carried, never interpreted: the number means something only to the
@@ -78,9 +92,19 @@ void setTxObserver(ITxObserver *observer);
 void reportTx(const char *transport, std::string_view iface, std::uint32_t dst_ip_be,
               std::uint16_t dst_port, std::size_t bytes);
 
-// The same for a send on a connected IPv4 socket, which has no destination argument to
-// pass: the peer is read from the socket. Without an observer it does not even look.
-void reportTxConnected(const char *transport, int fd, std::size_t bytes);
+// The same for a send on a connected IPv4 socket: the peer and the tester's own port are
+// read from the socket, so the report names the connection. Without an observer it does
+// not even look. `iface` may be empty.
+void reportTxConnected(const char *transport, int fd, std::size_t bytes,
+                       std::string_view iface = {});
+
+// A connect() on `fd` succeeded: reports "tcp_connect" and then "tcp_connect_ack" (see
+// TxEvent::transport), with the steps a TxConnectSteps on this thread names, or else
+// both with the current TxSpecStep. `iface` may be empty.
+void reportTcpConnected(std::string_view iface, int fd);
+
+// accept() returned `fd`: reports "tcp_accept" with the current TxSpecStep.
+void reportTcpAccepted(int fd);
 
 // Names the emitter for every send made while it is alive, on this thread. Nested
 // scopes keep the outermost name. Use through TC8_TX_SCOPE().
@@ -115,6 +139,31 @@ public:
 
 private:
     int previous_;
+};
+
+// Tags the two segments of a TCP handshake the tester opens while it is alive, on this
+// thread: the SYN with `syn` and the completing ACK with `ack` (kNoSpecStep leaves that
+// one untagged). A procedure may count the handshake as steps of its own, apart from the
+// request sent over the connection, and the connect is made inside the emitter that
+// sends the request, so the case cannot put a TxSpecStep around the connect alone:
+//
+//     ::tc8::stimulus::TxSpecStep request(4);
+//     ::tc8::stimulus::TxConnectSteps handshake(/*syn=*/2, /*ack=*/3);
+//     ::tc8::stimulus::emitMethodRequestTcpAfter(...);   // connect, then the request
+//
+// Without one, both segments take the current TxSpecStep, as every other send does.
+// Nested scopes: the innermost wins and the outer one is restored on exit.
+class TxConnectSteps {
+public:
+    TxConnectSteps(int syn, int ack);
+    ~TxConnectSteps();
+    TxConnectSteps(const TxConnectSteps &) = delete;
+    TxConnectSteps &operator=(const TxConnectSteps &) = delete;
+
+private:
+    bool previous_active_;
+    int  previous_syn_;
+    int  previous_ack_;
 };
 
 }  // namespace tc8::stimulus
