@@ -21,6 +21,7 @@
 
 #include "sce_integration/state_stream.h"
 #include "stimulus/endpoint.h"
+#include "stimulus/subscribe_tcp_session.h"
 #include "stimulus/tcp_client.h"
 #include "stimulus/tx_observer.h"
 
@@ -576,6 +577,71 @@ TEST(TxObserver, AConnectReportsTheSynAndTheAckWithTheirOwnSteps) {
         EXPECT_EQ(capture.seen[i].src_port, want[i].src_port) << i;
         EXPECT_NE(capture.seen[i].src_port, 0u) << i;
     }
+}
+
+// The tester's abortive close is the one place it puts an RST on the wire itself, and it
+// reports it with both ends of the connection it reset, from what the session holds.
+TEST(TxObserver, AnAbortiveCloseReportsTheResetWithBothEndsAndTheStep) {
+    struct Capture final : ::tc8::stimulus::ITxObserver {
+        std::vector<::tc8::stimulus::TxEvent> seen;
+        std::vector<std::string>              transports;
+        void onTx(const ::tc8::stimulus::TxEvent &ev) override {
+            seen.push_back(ev);
+            transports.emplace_back(ev.transport);
+        }
+    } capture;
+
+    const int listener = ::socket(AF_INET, SOCK_STREAM, 0);
+    ASSERT_GE(listener, 0);
+    sockaddr_in a{};
+    a.sin_family = AF_INET;
+    a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    ASSERT_EQ(::bind(listener, reinterpret_cast<sockaddr *>(&a), sizeof(a)), 0);
+    ASSERT_EQ(::listen(listener, 8), 0);
+    socklen_t len = sizeof(a);
+    ASSERT_EQ(::getsockname(listener, reinterpret_cast<sockaddr *>(&a), &len), 0);
+    const ::tc8::stimulus::Endpoint dut{htonl(INADDR_LOOPBACK), ntohs(a.sin_port)};
+
+    ::tc8::stimulus::SubscribeEventgroupTcpSession session("lo", dut);
+    ASSERT_TRUE(session.valid());
+    const std::uint16_t local_port = session.localPort();
+
+    ::tc8::stimulus::setTxObserver(&capture);
+    {
+        ::tc8::stimulus::TxSpecStep step(44);
+        session.refuseWithRst();
+        session.refuseWithRst();  // already closed: nothing more is reset, or reported
+    }
+    ::tc8::stimulus::setTxObserver(nullptr);
+    ::close(listener);
+
+    ASSERT_EQ(capture.seen.size(), 1u);
+    EXPECT_EQ(capture.transports[0], "tcp_reset");
+    EXPECT_EQ(capture.seen[0].spec_step, 44);
+    EXPECT_EQ(capture.seen[0].dst_ip_be, htonl(INADDR_LOOPBACK));
+    EXPECT_EQ(capture.seen[0].dst_port, dut.port);
+    EXPECT_EQ(capture.seen[0].src_port, local_port);
+    EXPECT_NE(local_port, 0u);
+}
+
+// A port the tester leaves unserved has no call to hook, so the case declares it; the
+// line names the port refused and no destination, since the SYN has not arrived.
+TEST_F(StateStreamTest, ARefusedPortIsALineWithItsPortAndNoDestination) {
+    const std::string p = path("refuse.ndjson");
+    auto s = ::tc8::sce::StateStream::open(p, "X");
+    ASSERT_NE(s, nullptr);
+    ::tc8::stimulus::setTxObserver(s.get());
+    {
+        ::tc8::stimulus::TxSpecStep step(45);
+        ::tc8::stimulus::reportTcpRefusal("veth-tester", 30509);
+    }
+    ::tc8::stimulus::setTxObserver(nullptr);
+
+    const auto got = lines(p);
+    ASSERT_EQ(got.size(), 2u);
+    EXPECT_EQ(withoutTime(got[1]),
+              R"({"event":"tx","emitter":null,"transport":"tcp_refuse","iface":"veth-tester",)"
+              R"("src_port":30509,"bytes":0,"spec_step":45})");
 }
 
 TEST_F(StateStreamTest, RefusesAPathItCannotWriteAsARegularFile) {

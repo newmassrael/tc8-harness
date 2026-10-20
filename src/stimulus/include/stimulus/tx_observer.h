@@ -52,6 +52,12 @@ struct TxEvent {
     //   "tcp_accept"       the SYN+ACK of a connection the DUT opened to the tester; the
     //                      kernel sent it when the SYN arrived, so the report may come
     //                      well after it, whenever the tester accepted
+    //   "tcp_reset"        the RST of a connection the tester aborted (close with
+    //                      SO_LINGER 0), reported as the abort is made
+    //   "tcp_refuse"       the RST the kernel answers a SYN with while the tester serves
+    //                      no listener on a port, reported as the case sets that up, so
+    //                      BEFORE the SYN it answers has arrived (or if none ever does);
+    //                      only `src_port` is known, the port refused, and `dst` is absent
     // A report names its connection (dst and src_port) and the segment by its flags, not
     // by its time, so a watcher picks the frame out of the capture by both. The wire
     // itself is in the saved pcap and the live `frame` lines.
@@ -110,6 +116,22 @@ void reportTcpConnected(std::string_view iface, int fd);
 // reset it by then; a reset socket answers getpeername with ENOTCONN, and the connection
 // would be reported without its name.
 void reportTcpAccepted(int fd, std::uint32_t peer_ip_be, std::uint16_t peer_port);
+
+// The tester aborts a connection (close with SO_LINGER 0, which puts an RST on the wire
+// in place of a FIN): reports "tcp_reset" with the current TxSpecStep. Call it as the
+// abort is made, once the linger option is set. The ends come from the caller for the
+// reason reportTcpAccepted's peer does: a socket being reset is not one to ask. `iface`
+// may be empty.
+void reportTcpReset(std::string_view iface, std::uint32_t dst_ip_be, std::uint16_t dst_port,
+                    std::uint16_t src_port);
+
+// The tester serves no listener on `port` (host order), so the kernel answers a SYN to it
+// with an RST: reports "tcp_refuse" with the current TxSpecStep. There is no call of the
+// tester's to hook, only a port left unserved, so the CASE says so, when it arranges it.
+// It is a declaration made before the SYN it answers, and a SYN that never comes leaves
+// a report with no frame behind it, which is what a watcher should see. `iface` may be
+// empty.
+void reportTcpRefusal(std::string_view iface, std::uint16_t port);
 
 // Names the emitter for every send made while it is alive, on this thread. Nested
 // scopes keep the outermost name. Use through TC8_TX_SCOPE().

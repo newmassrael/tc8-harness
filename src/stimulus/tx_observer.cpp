@@ -135,6 +135,21 @@ void reportTcpAccepted(int fd, std::uint32_t peer_ip_be, std::uint16_t peer_port
     deliver("tcp_accept", {}, peer_ip_be, peer_port, local_port, 0, t_spec_step);
 }
 
+void reportTcpReset(std::string_view iface, std::uint32_t dst_ip_be, std::uint16_t dst_port,
+                    std::uint16_t src_port) {
+    if (g_observer.load(std::memory_order_relaxed) == nullptr) {
+        return;
+    }
+    deliver("tcp_reset", iface, dst_ip_be, dst_port, src_port, 0, t_spec_step);
+}
+
+void reportTcpRefusal(std::string_view iface, std::uint16_t port) {
+    if (g_observer.load(std::memory_order_relaxed) == nullptr) {
+        return;
+    }
+    deliver("tcp_refuse", iface, 0, 0, port, 0, t_spec_step);
+}
+
 TxScope::TxScope(const char *emitter) : owns_(t_emitter == nullptr) {
     if (owns_) {
         t_emitter = emitter;

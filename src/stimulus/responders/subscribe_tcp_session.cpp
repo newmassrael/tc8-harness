@@ -12,6 +12,7 @@
 
 #include "stimulus/iface_addr.h"  // ipv4OfInterface — tester IPv4 (NBO) SSOT.
 #include "stimulus/tcp_client.h"  // connectTcpFromIface — shared TCP bind+connect.
+#include "stimulus/tx_observer.h"
 
 namespace tc8::stimulus {
 
@@ -76,6 +77,9 @@ void SubscribeEventgroupTcpSession::refuseWithRst() {
                      "stimulus: reliable subscribe refuseWithRst SO_LINGER failed: %s "
                      "(close will FIN, not RST)\n",
                      std::strerror(errno));
+    } else {
+        // Only an RST is reported: the downgrade above sends a FIN, which is not this.
+        reportTcpReset(iface_, dut_reliable_.ipv4_be, dut_reliable_.port, local_port_);
     }
     ::close(fd_);
     fd_ = -1;
