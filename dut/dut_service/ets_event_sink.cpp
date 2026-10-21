@@ -49,10 +49,12 @@ public:
 
     void offerEvent(std::uint16_t event_id,
                     const std::vector<std::uint16_t>& eventgroups) override {
-        const std::set<vsomeip::eventgroup_t> egs(eventgroups.begin(), eventgroups.end());
-        app_->offer_event(service_, instance_, event_id, egs,
-                          vsomeip::event_type_e::ET_EVENT);
-        offered_events_.push_back(event_id);
+        offer(event_id, eventgroups, vsomeip::event_type_e::ET_EVENT);
+    }
+
+    void offerField(std::uint16_t event_id,
+                    const std::vector<std::uint16_t>& eventgroups) override {
+        offer(event_id, eventgroups, vsomeip::event_type_e::ET_FIELD);
     }
 
     void notify(std::uint16_t event_id,
@@ -89,6 +91,13 @@ public:
     }
 
 private:
+    void offer(std::uint16_t event_id, const std::vector<std::uint16_t>& eventgroups,
+               vsomeip::event_type_e type) {
+        const std::set<vsomeip::eventgroup_t> egs(eventgroups.begin(), eventgroups.end());
+        app_->offer_event(service_, instance_, event_id, egs, type);
+        offered_events_.push_back(event_id);
+    }
+
     // Register a raw vsomeip message handler for `method_id` on this sink's
     // service/instance and remember it for unregister-on-destroy — the single
     // registration + bookkeeping path shared by onMethod and onRequestEx.
@@ -112,6 +121,7 @@ private:
 class NullEtsEventSink : public IEtsEventSink {
 public:
     void offerEvent(std::uint16_t, const std::vector<std::uint16_t>&) override {}
+    void offerField(std::uint16_t, const std::vector<std::uint16_t>&) override {}
     void notify(std::uint16_t, const std::vector<std::uint8_t>&) override {}
     void onMethod(std::uint16_t,
                   std::function<void(const std::vector<std::uint8_t>&)>) override {}

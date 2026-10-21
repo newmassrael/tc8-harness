@@ -257,6 +257,17 @@ target_link_libraries(service_requests_test PRIVATE
     GTest::gtest GTest::gtest_main)
 add_test(NAME service_requests_test COMMAND service_requests_test)
 
+# Dynamic UTF-8 string field served through the IEtsEventSink seam
+# (dut/dut_service/ets_string_field.h): the wire codec, and the get / set / notify
+# behaviour against a recording sink. Synthetic ids; no vsomeip.
+add_executable(ets_string_field_test ets_string_field_test.cpp)
+target_include_directories(ets_string_field_test PRIVATE
+    ${PROJECT_SOURCE_DIR}/dut/dut_service
+    ${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(ets_string_field_test PRIVATE
+    GTest::gtest GTest::gtest_main)
+add_test(NAME ets_string_field_test COMMAND ets_string_field_test)
+
 # Response<->Request session correlation (dut/dut_service/response_correlation.h):
 # the policy split out of VsomeipEtsClientControl that drops a Response whose
 # Session ID matches no Request the DUT sent, so a raw vsomeip client ignores an

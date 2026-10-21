@@ -62,6 +62,35 @@ service in one of two ways:
 for the client role and for a Request/Response the DUT answers. The public
 default extension uses neither.
 
+## A field the public interface does not carry
+
+An OEM's interface may have a field the public §5.1.4 table lacks. Its getter, setter and
+notifier ids come from the OEM's own interface definition, so they are bound in the OEM's
+`TC8_ETS_EXTENSION_SRC`, not here. What is shared is the serving logic, which has no vendor
+content.
+
+`serveUtf8DynamicField` (`ets_string_field.h`) serves a dynamic UTF-8 string field from
+`onRegister`:
+
+```cpp
+void onRegister(EtsExtensionContext& ctx) override {
+    field_ = serveUtf8DynamicField(ctx.sink, {kGetter, kSetter, kNotifier, {kEventgroup}}, "");
+}
+```
+
+- The notifier is offered as a field (`IEtsEventSink::offerField`), so a subscriber gets the
+  current value on its SubscribeEventgroupAck, and it is seeded with the initial value.
+- The setter answers a Response with E_OK that carries the stored value, and the notifier
+  fires when the value changes. A malformed request answers an Error with
+  E_MALFORMED_MESSAGE and changes nothing.
+- The wire shape is the one `echoUTF8DYNAMIC` uses: BE32 length, BOM, characters, NUL.
+- The component is transport-blind. A Request that arrives over TCP is answered on that
+  connection, and a Notification goes out over the transport the subscriber named in its
+  SubscribeEventgroup. A field meant to be reliable needs the OEM's `vsomeip.json` to
+  declare its eventgroup reliable; nothing here sets that.
+- The extension keeps the returned field, and calls `reset` from its own reset path if the
+  procedure expects the default value back after `resetInterface`.
+
 ## Emission
 
 `EmissionController` (`ets_emission.h`) is the one engine behind every ETS

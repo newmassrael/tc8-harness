@@ -42,6 +42,7 @@ public:
 // RecordingExtension ignores it.
 struct StubSink : tc8::dut::IEtsEventSink {
     void offerEvent(std::uint16_t, const std::vector<std::uint16_t>&) override {}
+    void offerField(std::uint16_t, const std::vector<std::uint16_t>&) override {}
     void notify(std::uint16_t, const std::vector<std::uint8_t>&) override {}
     void onMethod(std::uint16_t,
                   std::function<void(const std::vector<std::uint8_t>&)>) override {}

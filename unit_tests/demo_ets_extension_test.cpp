@@ -49,6 +49,10 @@ public:
                     const std::vector<std::uint16_t>& eventgroups) override {
         offers.push_back({event_id, eventgroups});
     }
+    void offerField(std::uint16_t event_id,
+                    const std::vector<std::uint16_t>& eventgroups) override {
+        offers.push_back({event_id, eventgroups});
+    }
     void notify(std::uint16_t event_id,
                 const std::vector<std::uint8_t>& payload) override {
         notifications.push_back({event_id, payload});

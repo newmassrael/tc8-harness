@@ -31,8 +31,15 @@ public:
     virtual void offerEvent(std::uint16_t event_id,
                             const std::vector<std::uint16_t>& eventgroups) = 0;
 
+    // Offer `event_id` as the NOTIFIER of a field (vsomeip ET_FIELD) on `eventgroups`.
+    // The stack keeps the last notified payload and sends it as the initial value on
+    // every SubscribeEventgroupAck, which is what a field's subscribers expect and what a
+    // plain event does not do. Seed the first value with notify() right after.
+    virtual void offerField(std::uint16_t event_id,
+                            const std::vector<std::uint16_t>& eventgroups) = 0;
+
     // Notify current subscribers of `event_id` with `payload` (vsomeip notify).
-    // offerEvent(event_id, ...) must have been called first.
+    // offerEvent / offerField(event_id, ...) must have been called first.
     virtual void notify(std::uint16_t event_id,
                         const std::vector<std::uint8_t>& payload) = 0;
 
