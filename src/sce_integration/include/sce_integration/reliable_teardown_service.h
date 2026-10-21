@@ -1,7 +1,9 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <memory>
+#include <mutex>
 #include <utility>
 
 #include "sce_integration/captured_frame_observer.h"
@@ -19,6 +21,64 @@ namespace tc8::sce {
 // close (RST). The mechanisms live in their correct layers — packet filter in sce,
 // socket close in the transport session — and this driver dispatches between them.
 enum class TcpTeardownMode { kDropIncoming, kRefuseWithRst };
+
+// Installs the inbound DROP for a connection and returns what keeps it installed: the
+// filter is removed when the last copy of the returned owner is released. An empty owner
+// means nothing was installed (nothing to resume). Injected so the resume logic is
+// testable without a packet filter; the default installs tcp::TesterInboundDropScope.
+using InboundDropInstaller = std::function<std::shared_ptr<void>(
+    const ::tc8::stimulus::Endpoint &dut, const ::tc8::stimulus::Endpoint &tester)>;
+
+inline std::shared_ptr<void> installInboundDrop(const ::tc8::stimulus::Endpoint &dut,
+                                                const ::tc8::stimulus::Endpoint &tester) {
+    auto scope = std::make_shared<tcp::TesterInboundDropScope>(dut, tester);
+    if (!scope->installed()) {
+        return nullptr;
+    }
+    return scope;
+}
+
+// The installed drop of one teardown service, shared with the handles the case holds.
+struct InboundDropState {
+    std::mutex mutex;
+    std::shared_ptr<void> drop;  // empty: not dropped, or already resumed
+};
+
+// A case's handle on a teardown service it handed to the runner. The runner owns the
+// service, so the case cannot keep a pointer to it; it keeps this instead. A copy is
+// cheap, and it stays safe after the service is gone (resume() then returns false).
+class TcpResume {
+  public:
+    TcpResume() = default;
+    explicit TcpResume(std::weak_ptr<InboundDropState> state) : state_(std::move(state)) {}
+
+    // The tester goes back to answering the connection's segments: releases the inbound
+    // drop and reports the "resume" action under `step`. Returns true when it released a
+    // drop, and false (reporting nothing) when there was none to release: the service is
+    // not in drop mode, has not dropped yet, was already resumed, or is gone. Callable
+    // from any thread, so a scheduled step on the capture thread may call it.
+    bool resume(int step) const {
+        const auto state = state_.lock();
+        if (!state) {
+            return false;
+        }
+        std::shared_ptr<void> released;
+        {
+            std::lock_guard<std::mutex> lock(state->mutex);
+            released = std::move(state->drop);
+        }
+        if (!released) {
+            return false;
+        }
+        released.reset();  // removes the filter before the step is reported
+        const ::tc8::stimulus::TxSpecStep scope(step);
+        ::tc8::stimulus::reportTesterAction(::tc8::stimulus::kActionResume);
+        return true;
+    }
+
+  private:
+    std::weak_ptr<InboundDropState> state_;
+};
 
 // Drives the teardown of a reliable-subscribe session from the wire, for a
 // reliable-event teardown silence shape: observe the reliable event delivered live
@@ -50,13 +110,22 @@ class SubscribeTcpTeardownService : public IFrameObservingService {
     SubscribeTcpTeardownService(std::unique_ptr<::tc8::stimulus::SubscribeEventgroupTcpSession> session,
                                 std::uint16_t service_id, std::uint16_t event_id,
                                 int trigger_after, TcpTeardownMode mode,
-                                int teardown_step = ::tc8::stimulus::kNoSpecStep)
+                                int teardown_step = ::tc8::stimulus::kNoSpecStep,
+                                InboundDropInstaller install_drop = installInboundDrop)
         : session_(std::move(session)),
           service_id_(service_id),
           event_id_(event_id),
           trigger_after_(trigger_after < 1 ? 1 : trigger_after),
           mode_(mode),
-          teardown_step_(teardown_step) {}
+          teardown_step_(teardown_step),
+          install_drop_(std::move(install_drop)) {}
+
+    // The handle a case keeps to end the drop before the case does (see TcpResume). Take
+    // it before handing the service to the runner.
+    TcpResume resumer() const { return TcpResume(drop_state_); }
+
+    // TcpResume::resume on this service, for a holder of the service itself.
+    bool resume(int step) const { return resumer().resume(step); }
 
     // IPollableService — delegate the held reliable connection to the capture loop.
     int pollFd() const override { return session_ ? session_->pollFd() : -1; }
@@ -90,8 +159,10 @@ class SubscribeTcpTeardownService : public IFrameObservingService {
                 if (mode_ == TcpTeardownMode::kRefuseWithRst) {
                     session_->refuseWithRst();
                 } else {
-                    drop_scope_ = std::make_unique<tcp::TesterInboundDropScope>(
-                        session_->dutReliable(), session_->testerEndpoint());
+                    auto drop = install_drop_(session_->dutReliable(),
+                                              session_->testerEndpoint());
+                    std::lock_guard<std::mutex> lock(drop_state_->mutex);
+                    drop_state_->drop = std::move(drop);
                 }
             }
         }
@@ -107,9 +178,11 @@ class SubscribeTcpTeardownService : public IFrameObservingService {
     int trigger_after_;
     TcpTeardownMode mode_;
     int teardown_step_;
+    InboundDropInstaller install_drop_;
     // The DROP filter for kDropIncoming — held so it stays installed across the
-    // observation window and is removed (RAII) when this driver is torn down.
-    std::unique_ptr<tcp::TesterInboundDropScope> drop_scope_;
+    // observation window and is removed (RAII) when this driver is torn down, or sooner
+    // by TcpResume. Shared so a case's handle can reach it after the runner owns this.
+    std::shared_ptr<InboundDropState> drop_state_ = std::make_shared<InboundDropState>();
     int observed_ = 0;
     bool torn_down_ = false;
 };

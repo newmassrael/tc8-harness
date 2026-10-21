@@ -121,4 +121,161 @@ TEST(SubscribeTcpTeardownService, TheTeardownReportsUnderItsOwnStep) {
     EXPECT_EQ(capture.steps[1], tc8::stimulus::kNoSpecStep);
 }
 
+// ---- resume ----------------------------------------------------------------------------
+// The drop is injected, so these run without a packet filter. The installer hands back an
+// owner whose deleter counts the removal, which is what "the filter is gone" means here.
+
+struct Loopback {
+    int listener = -1;
+    ~Loopback() {
+        if (listener >= 0) ::close(listener);
+    }
+    std::unique_ptr<SubscribeEventgroupTcpSession> session() {
+        listener = ::socket(AF_INET, SOCK_STREAM, 0);
+        sockaddr_in a{};
+        a.sin_family = AF_INET;
+        a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        EXPECT_EQ(::bind(listener, reinterpret_cast<sockaddr *>(&a), sizeof(a)), 0);
+        EXPECT_EQ(::listen(listener, 8), 0);
+        socklen_t len = sizeof(a);
+        EXPECT_EQ(::getsockname(listener, reinterpret_cast<sockaddr *>(&a), &len), 0);
+        auto s = std::make_unique<SubscribeEventgroupTcpSession>(
+            "lo", Endpoint{htonl(INADDR_LOOPBACK), ntohs(a.sin_port)});
+        EXPECT_TRUE(s->valid());
+        return s;
+    }
+};
+
+struct FakeDrop {
+    int installs = 0;
+    int removals = 0;
+    bool fail = false;
+    tc8::sce::InboundDropInstaller installer() {
+        return [this](const Endpoint &, const Endpoint &) -> std::shared_ptr<void> {
+            ++installs;
+            if (fail) return nullptr;
+            return std::shared_ptr<void>(this, [](void *p) { ++static_cast<FakeDrop *>(p)->removals; });
+        };
+    }
+};
+
+struct ActionLog final : tc8::stimulus::ITxObserver {
+    struct Entry {
+        std::string transport;
+        std::string action;
+        int step;
+    };
+    std::vector<Entry> entries;
+    void onTx(const tc8::stimulus::TxEvent &ev) override {
+        entries.push_back({std::string(ev.transport), std::string(ev.action), ev.spec_step});
+    }
+};
+
+tc8::CapturedEvent notif() { return someipNotif(kService, kEvent, /*is_tcp=*/true); }
+
+TEST(SubscribeTcpTeardownService, ResumeReleasesTheDropAndReportsItUnderItsStep) {
+    Loopback lo;
+    FakeDrop drop;
+    ActionLog log;
+    SubscribeTcpTeardownService drv(lo.session(), kService, kEvent, /*trigger_after=*/1,
+                                    TcpTeardownMode::kDropIncoming, /*teardown_step=*/3,
+                                    drop.installer());
+    tc8::stimulus::setTxObserver(&log);
+    drv.onCapturedFrame(notif());  // the drop is installed
+    EXPECT_EQ(drop.installs, 1);
+    EXPECT_EQ(drop.removals, 0);
+    log.entries.clear();
+
+    EXPECT_TRUE(drv.resume(/*step=*/9));
+    tc8::stimulus::setTxObserver(nullptr);
+
+    EXPECT_EQ(drop.removals, 1);
+    ASSERT_EQ(log.entries.size(), 1u);
+    EXPECT_EQ(log.entries[0].transport, "tester_action");
+    EXPECT_EQ(log.entries[0].action, "resume");
+    EXPECT_EQ(log.entries[0].step, 9);
+}
+
+TEST(SubscribeTcpTeardownService, ResumeIsIdempotentAndReportsOnce) {
+    Loopback lo;
+    FakeDrop drop;
+    ActionLog log;
+    SubscribeTcpTeardownService drv(lo.session(), kService, kEvent, 1,
+                                    TcpTeardownMode::kDropIncoming,
+                                    tc8::stimulus::kNoSpecStep, drop.installer());
+    drv.onCapturedFrame(notif());
+    tc8::stimulus::setTxObserver(&log);
+    EXPECT_TRUE(drv.resume(9));
+    EXPECT_FALSE(drv.resume(9));
+    drv.onCapturedFrame(notif());  // a later frame does not drop the connection again
+    tc8::stimulus::setTxObserver(nullptr);
+    EXPECT_EQ(drop.installs, 1);
+    EXPECT_EQ(drop.removals, 1);
+    EXPECT_EQ(log.entries.size(), 1u);
+}
+
+TEST(SubscribeTcpTeardownService, ResumeBeforeTheDropOrWithoutOneDoesNothing) {
+    Loopback lo;
+    FakeDrop drop;
+    ActionLog log;
+    SubscribeTcpTeardownService drv(lo.session(), kService, kEvent, 2,
+                                    TcpTeardownMode::kDropIncoming,
+                                    tc8::stimulus::kNoSpecStep, drop.installer());
+    tc8::stimulus::setTxObserver(&log);
+    EXPECT_FALSE(drv.resume(9));  // not dropped yet
+    drv.onCapturedFrame(notif());
+    EXPECT_FALSE(drv.resume(9));  // still counting
+    tc8::stimulus::setTxObserver(nullptr);
+    EXPECT_TRUE(log.entries.empty());
+
+    // A drop that could not be installed leaves nothing to resume.
+    Loopback lo2;
+    FakeDrop failing;
+    failing.fail = true;
+    SubscribeTcpTeardownService none(lo2.session(), kService, kEvent, 1,
+                                     TcpTeardownMode::kDropIncoming,
+                                     tc8::stimulus::kNoSpecStep, failing.installer());
+    none.onCapturedFrame(notif());
+    EXPECT_FALSE(none.resume(9));
+}
+
+TEST(SubscribeTcpTeardownService, ResumeInRefuseModeDoesNothing) {
+    Loopback lo;
+    FakeDrop drop;
+    SubscribeTcpTeardownService drv(lo.session(), kService, kEvent, 1,
+                                    TcpTeardownMode::kRefuseWithRst,
+                                    tc8::stimulus::kNoSpecStep, drop.installer());
+    drv.onCapturedFrame(notif());
+    EXPECT_FALSE(drv.resume(9));
+    EXPECT_EQ(drop.installs, 0);
+}
+
+TEST(SubscribeTcpTeardownService, TheHandleOutlivesTheServiceSafely) {
+    Loopback lo;
+    FakeDrop drop;
+    tc8::sce::TcpResume handle;
+    {
+        SubscribeTcpTeardownService drv(lo.session(), kService, kEvent, 1,
+                                        TcpTeardownMode::kDropIncoming,
+                                        tc8::stimulus::kNoSpecStep, drop.installer());
+        handle = drv.resumer();
+        drv.onCapturedFrame(notif());
+        EXPECT_EQ(drop.removals, 0);
+    }
+    EXPECT_EQ(drop.removals, 1);  // destroying the service removed the filter
+    EXPECT_FALSE(handle.resume(9));
+}
+
+TEST(SubscribeTcpTeardownService, TheHandleResumesTheServiceTheRunnerOwns) {
+    Loopback lo;
+    FakeDrop drop;
+    auto drv = std::make_unique<SubscribeTcpTeardownService>(
+        lo.session(), kService, kEvent, 1, TcpTeardownMode::kDropIncoming,
+        tc8::stimulus::kNoSpecStep, drop.installer());
+    const auto handle = drv->resumer();  // taken before the runner takes the service
+    drv->onCapturedFrame(notif());
+    EXPECT_TRUE(handle.resume(9));
+    EXPECT_EQ(drop.removals, 1);
+}
+
 }  // namespace
