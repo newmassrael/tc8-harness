@@ -63,10 +63,13 @@ packages = ["libpcap-dev", "libtins-dev"]
 min_ram_gb  = 16
 min_free_gb = 40
 
-# A rough per-compile-job figure for the thread-budget calculation, not a measured
-# peak: the registrar chunking (TC8_CASES_PER_TU=32) keeps the largest
-# translation units modest, and no single TU here has been seen near 2 GB.
-peak_gb_per_task = 1
+# Per-compile-job peak for the thread-budget calculation. Measured 2026-10-27:
+# a -j7 full build (harness + unit tests) on a build machine with a 28 GB run
+# ceiling peaked at 19.7 GB and was ended by that ceiling, about 2.8 GB a job. The registrar chunking
+# (TC8_CASES_PER_TU=32) keeps each case TU modest, but the generated-SM TUs and
+# the tester link run alongside them. The earlier figure of 1 GB was an estimate
+# and let bx place seven jobs where three fit.
+peak_gb_per_task = 3
 
 [commands]
 # ⚠ MOCK DUT OFF, deliberately, and this is a real limitation rather than a
