@@ -25,7 +25,8 @@ std::vector<std::uint8_t> buildEchoFrame(std::uint8_t type, std::uint8_t code, s
                                          std::uint16_t seq, const std::uint8_t *data,
                                          std::uint32_t data_len) {
     std::vector<std::uint8_t> icmp;
-    icmp.reserve(8U + data_len);
+    // Summed in size_t: an unsigned 32-bit sum wraps for data_len >= 0xFFFFFFF8.
+    icmp.reserve(std::size_t{8} + data_len);
     icmp.push_back(type);
     icmp.push_back(code);
     appendBe16(icmp, 0x0000);  // checksum placeholder
