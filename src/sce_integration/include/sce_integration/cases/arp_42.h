@@ -23,6 +23,8 @@ struct TestCaseTraits<cases::Arp42SM>
     static constexpr std::string_view kCaseId = "ARP_42";
     static constexpr std::string_view kDescription =
         "ARP Response received — DUT must not reply to a Response";
+    // As ARP_21: not answering a Response, against an anchor Request it must answer.
+    static constexpr DutRequirements kRequirementsUnderTest{};
     // Non-gratuitous Response: target_hw is the tester's injected MAC so
     // the frame is addressed to us, eth_dst is unicast back at the tester
     // (Linux still processes broadcast-dst Responses but the spec says

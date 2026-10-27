@@ -19,8 +19,8 @@ This tool guards that single source. For every registered case it checks:
   UNPARSED          the .scxml is not well-formed XML
   QUIESCENCE_REACH  an `observed_quiescence` final is reached by anything but a
                     window timer (docs/verdict_policy.md §3)
-  QUIESCENCE_UNGATED  an `observed_quiescence` final exists before the CLI gates
-                    the role on its hypotheses (§8, Phase Q2)
+  QUIESCENCE_UNGATED  an `observed_quiescence` final exists before every
+                    hypothesis behind it is enforced (§8, Phases Q2-Q3)
 
 Exit status is non-zero if any finding is present, so it can gate CI and the
 pre-commit hook. Run with --summary for counts only.
@@ -179,9 +179,10 @@ def reach_kinds(parts: list[tuple[ET.Element, dict[str, str]]]) -> dict[str, set
     return out
 
 
-# False until the CLI gates an `observed_quiescence` fail on S, H1 and H2
-# (docs/verdict_policy.md §8, Phase Q2). Before that the role would be an
-# ungated fail on an absence, so authoring it is refused outright.
+# False until every hypothesis behind an `observed_quiescence` fail is enforced:
+# S, H1 and H2 by the CLI (Phase Q2, in the tree) and H3, the window bound, by the
+# registry audit (Phase Q3). Until then the role could turn slowness into a fail,
+# so authoring it is refused outright (docs/verdict_policy.md §8).
 QUIESCENCE_GATED_AT_RUN_TIME = False
 
 
@@ -195,8 +196,8 @@ def quiescence_findings(done: dict[str, Verdict], reached: dict[str, set[str]],
             continue
         if not gated:
             findings.append(
-                f"QUIESCENCE_UNGATED: final '{state}' is observed_quiescence, but the CLI does not "
-                "yet gate that role on its hypotheses (docs/verdict_policy.md §8, Phase Q2)"
+                f"QUIESCENCE_UNGATED: final '{state}' is observed_quiescence, but its window bound "
+                "(H3) is not yet audited (docs/verdict_policy.md §8, Phase Q3)"
             )
         kinds = reached.get(state, set())
         if not kinds:

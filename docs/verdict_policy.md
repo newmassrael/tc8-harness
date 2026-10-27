@@ -81,10 +81,11 @@ Environmental shortfalls never red the gate.
 
 ### 2.1 Quiescence and the test hypotheses
 
-> **Status (Phase Q, Section 8).** Q1 is in the tree: the `observed_quiescence`
-> role and its reach rule. Until Q2 lands, the CLI enforces only S and H2, and only
-> for a `pass` not decided by a frame; there is no liveness anchor yet, so no case
-> may author `observed_quiescence` before Q2.
+> **Status (Phase Q, Section 8).** Q1 and Q2 are in the tree: the
+> `observed_quiescence` role and its reach rule, and the run-time gate on S, H1 and
+> H2. H3 (Q3) is not yet audited, and a window shorter than the bound the IUT is
+> granted would turn slowness into a `fail`; so the donedata audit still refuses
+> `observed_quiescence` until Q3 lands.
 
 **Quiescence is an observation.** In the input/output conformance theory the
 suite is grounded in (ioco, Tretmans), the absence of any output — quiescence,
@@ -106,7 +107,7 @@ does not hold, the run says nothing about the IUT.
 |---|---|---|---|
 | **S** | the stimulus that obliges or forbids the emission was performed | the unperformed-stimulus record (`tc8::UnperformedStimulus`) | `inconclusive`, reason names the stimulus |
 | **H1** | the IUT was live and able to answer through the window's end | a **liveness anchor**: after the window, an exchange the IUT must answer, chosen to be independent of the requirement under test, answered on the wire | `inconclusive`, `liveness_anchor_*` reason |
-| **H2** | the observation channel saw the whole window | capture completeness: no ring or interface drop, no snaplen truncation, every multicast group held (`tc8::captureProvenComplete`) — and the anchor's answer, captured after the window, shows the capture was still live at its end | `inconclusive`, `capture_*` reason |
+| **H2** | the observation channel saw the whole window | capture completeness: no ring or interface drop, no snaplen truncation, every multicast group held (`tc8::captureProvenComplete`) | `inconclusive`, `capture_*` reason |
 | **H3** | the window M is not shorter than the bound the requirement grants the IUT | a declared bound per guard — a specification value with its citation, or an implementation parameter the operator supplies (IXIT) — checked statically against the case's deadline | the case is invalid: the audit rejects it |
 
 **Where each is enforced.**
@@ -122,14 +123,21 @@ does not hold, the run says nothing about the IUT.
 - H3 is a property of the case and its specification. It is enforced by the
   audit (`tools/negative_coverage_audit.py`) over the registry's declared bounds.
 
-**Independence of the anchor.** An anchor that runs through the requirement
-under test proves nothing about it: a DUT whose ARP responder is broken also
-fails an ARP anchor, and the absence would stay undecidable. Each case declares
-the requirements it grades as tags; each anchor kind declares the requirements
-it exercises; the harness picks the first anchor kind whose set is disjoint from
-the case's and whose capability the backend offers. No eligible anchor means H1
-cannot be established, and every timer-decided verdict of that case on that DUT
-is `inconclusive` with the reason `liveness_anchor_none_independent`.
+**The anchor.** Two kinds, run by the harness after the window on a capture
+handle of their own (the case's filter often keeps their answer out, and widening
+it would change what the machine saw in the window): an ARP Request for the DUT's
+address, and an ICMP Echo Request to it, each answered within a bound and tried
+twice. Any answered anchor establishes H1, so the choice never makes a verdict
+unsound. What the choice decides is **power**: an anchor that runs through the
+requirement under test goes unanswered by a DUT that violates that requirement
+wholesale — a DUT whose ARP responder is broken fails an ARP anchor too — and the
+case can then only report `inconclusive` about the very DUT it exists to fail. A
+`_neg` is the sharp form: its fault suppresses the emission, and an anchor the
+fault also suppresses leaves the `_neg` unable to pass. So each case declares the
+requirements it grades as tags (`kRequirementsUnderTest`; a `_neg` and an alias
+read through to the case they stand for; otherwise the family's broad default),
+each anchor kind declares the requirements it exercises, and the harness takes
+the kind sharing fewest with the case. The run prints how many it shares.
 
 **Preamble versus test body.** The hypotheses decide only absences in the test
 body: the IUT has reached the testable state and the stimulus under test has

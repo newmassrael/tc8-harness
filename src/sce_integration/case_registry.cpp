@@ -184,6 +184,23 @@ const CaseEntry *CaseRegistry::find(std::string_view suite, std::string_view id)
     return nullptr;
 }
 
+DutRequirements CaseRegistry::requirementsUnderTest(const CaseEntry &entry) const {
+    if (entry.declared_requirements_under_test) {
+        return *entry.declared_requirements_under_test;
+    }
+    // An alias's own id is a consumer's naming; what it runs is its target.
+    const QualifiedCaseId self =
+        entry.isAlias() ? entry.alias_of : QualifiedCaseId{entry.suite, entry.id};
+    const std::string_view positive_id = stripVariantTag(self.id);
+    if (positive_id != self.id) {
+        const CaseEntry *positive = find(self.suite, positive_id);
+        if (positive != nullptr && positive->declared_requirements_under_test) {
+            return *positive->declared_requirements_under_test;
+        }
+    }
+    return defaultRequirementsUnderTest(positive_id);
+}
+
 std::vector<const CaseEntry *> CaseRegistry::listSorted(bool include_deprecated) const {
     std::vector<const CaseEntry *> out;
     out.reserve(entries_.size());

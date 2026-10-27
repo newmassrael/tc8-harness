@@ -2,9 +2,11 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string_view>
 #include <type_traits>
 
+#include "dut_requirements.h"
 #include "tc8/bpf_group.h"
 #include "tc8/captured_event.h"
 
@@ -464,6 +466,29 @@ constexpr DutReadyBarrier dutReadyBarrierOf() {
 // a tested home apart from the command that acts on it.
 constexpr bool dutReadyBarrierPremiseHeld(DutReadyBarrier requirement, bool barrier_armed) {
     return requirement == DutReadyBarrier::kOptional || barrier_armed;
+}
+
+// Detects whether TestCaseTraits<SM> declares the optional
+// `static constexpr DutRequirements kRequirementsUnderTest` member — the
+// requirements its test purpose grades, from which the liveness anchor should be
+// disjoint (dut_requirements.h; docs/verdict_policy.md Section 2.1, H1). Absent is kept
+// as absent, not filled in here: an undeclared `_neg` takes its positive's
+// declaration, which only the registry can look up
+// (CaseRegistry::requirementsUnderTest).
+template <typename Traits, typename = void>
+struct has_requirements_under_test : std::false_type {};
+
+template <typename Traits>
+struct has_requirements_under_test<Traits, std::void_t<decltype(Traits::kRequirementsUnderTest)>>
+    : std::true_type {};
+
+template <typename Traits>
+constexpr std::optional<DutRequirements> declaredRequirementsUnderTestOf() {
+    if constexpr (has_requirements_under_test<Traits>::value) {
+        return Traits::kRequirementsUnderTest;
+    } else {
+        return std::nullopt;
+    }
 }
 
 }  // namespace tc8::sce

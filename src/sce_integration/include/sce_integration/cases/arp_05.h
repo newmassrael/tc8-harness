@@ -26,6 +26,8 @@ struct TestCaseTraits<cases::Arp05SM>
     static constexpr std::string_view kDescription =
         "ARP entry learned on gratuitous ARP Response — DUT must NOT emit an "
         "ARP Request after tester pre-populates the cache via gratuitous Response";
+    // As ARP_03: the resolver's use of a learned entry.
+    static constexpr DutRequirements kRequirementsUnderTest{DutRequirement::kArpResolve};
     // Variant of ARP_03's stimulus using a gratuitous ARP Response
     // (opcode 2, sender==target==<tester_ip, kTesterInjectedMac>). Requires
     // `net.ipv4.conf.<dut_iface>.arp_accept=1` on DUT for the kernel to

@@ -486,6 +486,10 @@ tc8_add_unit_test(case_spec_test)
 tc8_add_unit_test(verdict_donedata_test)
 target_link_libraries(verdict_donedata_test PRIVATE sce_base)
 
+# The absence hypotheses (docs/verdict_policy.md §2.1): the qualification rule
+# and the liveness-anchor selection, both pure, so no capture or DUT is needed.
+tc8_add_unit_test(absence_qualification_test)
+
 # The 802.1Q round-trip test decodes the builder's output with libtins —
 # the same decoder the live dissector uses — so it links libtins on top
 # of the shared testable library. (LIBTINS_* are set by the top-level

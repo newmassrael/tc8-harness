@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -90,6 +91,11 @@ struct CaseEntry {
     // Whether the case's stimulus needs the start-order barrier to be sound
     // (from TestCaseTraits<>::kDutReadyBarrier). See `DutReadyBarrier`.
     DutReadyBarrier dut_ready_barrier = DutReadyBarrier::kOptional;
+    // The requirements the case grades, as its traits declare them
+    // (TestCaseTraits<>::kRequirementsUnderTest), or nullopt when they declare
+    // none. Read through CaseRegistry::requirementsUnderTest, which resolves an
+    // undeclared case. See dut_requirements.h.
+    std::optional<DutRequirements> declared_requirements_under_test = std::nullopt;
     std::function<std::unique_ptr<ITestRunner>(const ::tc8::TestConfig &)> factory;
     // Catalog this case belongs to. Defaults to kDefaultSuite so every existing
     // construction (which omits it) stays in the in-tree suite; the OEM-suite
@@ -143,6 +149,14 @@ public:
     // complete before any command takes a pointer.
     std::vector<const CaseEntry *> listSorted(bool include_deprecated = false) const;
 
+    // The requirements `entry` grades, for choosing its liveness anchor
+    // (dut_requirements.h). Its own declaration when it has one. Otherwise an
+    // alias reads as its target, and a variant (`_NEG`, `_NEG2`, ...) as the
+    // positive it self-validates: a `_neg` grades the same test purpose, and its
+    // fault suppresses exactly what that positive's anchor was chosen to avoid.
+    // Failing both, the broad default of the resolved id's family.
+    DutRequirements requirementsUnderTest(const CaseEntry &entry) const;
+
     std::size_t size() const {
         return entries_.size();
     }
@@ -176,7 +190,7 @@ template <typename StateMachine> struct CaseRegistrar {
                       T::kTopology, T::kBpfGroup, bpfExpressionOf<T>(),
                       extraCaptureUdpPortsData<T>(), extraCaptureUdpPortsCount<T>(),
                       requiredCapabilitiesOf<T>(), controlPlaneRoleOf<T>(),
-                      dutReadyBarrierOf<T>(),
+                      dutReadyBarrierOf<T>(), declaredRequirementsUnderTestOf<T>(),
                       [](const ::tc8::TestConfig &cfg) {
                           return std::unique_ptr<ITestRunner>(new TestRunner<StateMachine>(cfg));
                       },

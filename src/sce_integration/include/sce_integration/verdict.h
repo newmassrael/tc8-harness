@@ -68,10 +68,15 @@ constexpr int verdictExitCode(VerdictClass c) {
 
 #undef TC8_VERDICT_ROLE
 
-// A conformance verdict: a class plus an optional human-readable reason.
+// A conformance verdict: a class plus an optional human-readable reason, and the
+// semantic role the final declared (docs/verdict_policy.md Section 3). The role is not
+// part of the wire form `str()`: it says what KIND of evidence decided the class,
+// which the CLI's absence qualification reads (an `observed_quiescence` fail
+// claims an absence; an `observed_violation` fail does not).
 struct Verdict {
     VerdictClass cls = VerdictClass::Running;
     std::string  reason;
+    std::string  role = {};
 
     // Flat wire form the smoke harness greps for: "<class>" when there is no
     // reason, "<class>:<reason>" otherwise.
@@ -157,8 +162,9 @@ inline std::string jsonUnquote(std::string_view s) {
 inline Verdict verdictFromDonedata(std::string_view donedata) {
     const std::string obj = jsonUnquote(donedata);
     const std::string cls = jsonStringField(obj, "verdict");
-    if (cls.empty()) return Verdict{VerdictClass::Running, {}};
-    return Verdict{verdictClassFromName(cls), jsonStringField(obj, "reason")};
+    if (cls.empty()) return Verdict{VerdictClass::Running, {}, {}};
+    return Verdict{verdictClassFromName(cls), jsonStringField(obj, "reason"),
+                   jsonStringField(obj, "role")};
 }
 
 }  // namespace tc8::sce

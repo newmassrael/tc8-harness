@@ -60,6 +60,7 @@ CaseEntry makeEntry(std::string_view id, bool deprecated = false) {
         /*bpf_expression=*/{}, /*extra_capture_udp_ports=*/nullptr,
         /*extra_capture_udp_port_count=*/0U, /*required_capabilities=*/0U,
         ControlPlaneRole::kScaffolding, DutReadyBarrier::kOptional,
+        /*declared_requirements_under_test=*/std::nullopt,
         [](const ::tc8::TestConfig &) {
             return std::unique_ptr<ITestRunner>(new DummyRunner());
         }};
@@ -333,6 +334,35 @@ TEST(CaseRegistryAlias, CopiesTheTargetUnderTheAliasIdentity) {
     ASSERT_NE(t, nullptr);
     EXPECT_FALSE(t->isAlias());
     EXPECT_EQ(reg.size(), 2U);
+}
+
+// The requirements a case grades, for choosing its liveness anchor: a declaration
+// wins; a `_neg` and an alias read through to the case they stand for; the
+// family default is the last resort, taken from the resolved id.
+TEST(CaseRegistryRequirementsUnderTest, ResolvesDeclarationVariantAliasAndDefault) {
+    using ::tc8::sce::DutRequirement;
+    using ::tc8::sce::DutRequirements;
+    CaseRegistry reg;
+    CaseEntry positive = makeEntry("ARP_20");
+    positive.declared_requirements_under_test = DutRequirements{DutRequirement::kArpRespond};
+    reg.add(std::move(positive));
+    reg.add(makeEntry("ARP_20_NEG"));
+    reg.add(makeEntry("ARP_22"));
+    reg.add(makeEntry("ARP_22_NEG"));
+    reg.add(makeEntry("TCP_BASICS_10"));
+    std::string err;
+    ASSERT_TRUE(reg.addAlias({"vendorx", "VX_LINK_07", "tc8", "ARP_20_NEG"}, &err)) << err;
+
+    const DutRequirements respond{DutRequirement::kArpRespond};
+    EXPECT_EQ(reg.requirementsUnderTest(*reg.find("tc8", "ARP_20")), respond);
+    EXPECT_EQ(reg.requirementsUnderTest(*reg.find("tc8", "ARP_20_NEG")), respond);
+    // An alias's own id names nothing in the tree; it reads as its target, here a
+    // variant that reads as its positive in turn.
+    EXPECT_EQ(reg.requirementsUnderTest(*reg.find("vendorx", "VX_LINK_07")), respond);
+    // No declaration anywhere along the chain: the family default of the positive.
+    EXPECT_EQ(reg.requirementsUnderTest(*reg.find("tc8", "ARP_22_NEG")),
+              ::tc8::sce::defaultRequirementsUnderTest("ARP_22"));
+    EXPECT_EQ(reg.requirementsUnderTest(*reg.find("tc8", "TCP_BASICS_10")), DutRequirements{});
 }
 
 TEST(CaseRegistryAlias, RefusesAMissingTarget) {

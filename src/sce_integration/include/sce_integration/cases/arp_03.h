@@ -30,6 +30,9 @@ struct TestCaseTraits<cases::Arp03SM>
     static constexpr std::string_view kDescription =
         "ARP entry learned on ARP Request — DUT must NOT emit an ARP Request "
         "after tester pre-populates the cache via an ARP Request";
+    // Grades the resolver's use of a learned entry, not the responder: the ARP
+    // exchange anchor, which only asks the DUT to respond, stays independent.
+    static constexpr DutRequirements kRequirementsUnderTest{DutRequirement::kArpResolve};
     // Two-phase stimulus:
     //   1. Inject an ARP Request sourced from kTesterInjectedMac with
     //      sender-IP = tester_ip, target-IP = dut_iface_ip. DUT learns

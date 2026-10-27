@@ -23,6 +23,8 @@ struct TestCaseTraits<cases::Arp27SM>
     static constexpr std::string_view kCaseId = "ARP_27";
     static constexpr std::string_view kDescription =
         "ARP Request with unknown proto_type — DUT must drop and not reply";
+    // As ARP_21: dropping a malformed Request, against a well-formed anchor.
+    static constexpr DutRequirements kRequirementsUnderTest{};
     static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg,
                          ::tc8::sce::StimulusContext &ctx) {
         ::tc8::stimulus::ArpFrameSpec spec;

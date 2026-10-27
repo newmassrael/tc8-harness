@@ -32,6 +32,7 @@
 #include "tc8/dut_config.h"  // kSdMcastGroup — the SD group's compiled-in default
 #include "tc8/net/link_control.h"  // captureSnaplenFor
 #include "cli/expect_parser.h"
+#include "cli/liveness_anchor.h"
 #include "cli/run_capture.h"
 #include "cli/signal_handler.h"
 #include "dissect/packet_pipeline.h"
@@ -1623,19 +1624,47 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     }
     const bool capture_whole =
         ::tc8::captureProvenComplete(capture_stats) && pipeline.truncatedFrames() == 0;
-    if (verdict.cls == ::tc8::sce::VerdictClass::Pass &&
-        !runner->finalTransitionWasFrameDriven() && !capture_whole) {
-        const char *reason = pipeline.truncatedFrames() != 0
-                                 ? "capture_truncated_frames_absence_unproven"
-                             : ::tc8::anySourceLostFrames(capture_stats)
-                                 ? "capture_lost_frames_absence_unproven"
-                             : ::tc8::anySourceMissingMulticastMembership(capture_stats)
-                                 ? "capture_multicast_group_unheld_absence_unproven"
-                                 : "capture_completeness_unknown_absence_unproven";
-        verdict = ::tc8::sce::Verdict{::tc8::sce::VerdictClass::Inconclusive, reason};
+    const char *capture_reason = pipeline.truncatedFrames() != 0
+                                     ? "capture_truncated_frames_absence_unproven"
+                                 : ::tc8::anySourceLostFrames(capture_stats)
+                                     ? "capture_lost_frames_absence_unproven"
+                                 : ::tc8::anySourceMissingMulticastMembership(capture_stats)
+                                     ? "capture_multicast_group_unheld_absence_unproven"
+                                     : "capture_completeness_unknown_absence_unproven";
+    // H1, the liveness anchor (docs/verdict_policy.md Section 2.1): the DUT answering an
+    // exchange after the window — one independent of what the case grades — is what
+    // makes its silence in the window an observation rather than a dead link. Run
+    // only for a verdict that claims an absence over a whole capture: nothing else
+    // needs it, and every exchange is traffic the DUT did not have to see. Skipped
+    // on an operator stop, where the run's verdict is already an error.
+    const bool frame_decided = runner->finalTransitionWasFrameDriven();
+    LivenessAnchorRun anchor;
+    if (!SignalGuard::stopRequested() &&
+        ::tc8::sce::needsLivenessAnchor(verdict, frame_decided, capture_whole)) {
+        anchor = runLivenessAnchor(iface_, config,
+                                   sce::CaseRegistry::instance().requirementsUnderTest(*entry));
     }
+    verdict = ::tc8::sce::qualifyAbsence(
+        verdict, ::tc8::sce::AbsenceFacts{frame_decided, capture_whole, capture_reason, anchor.outcome});
     const std::string verdict_str = verdict.str();
     std::printf("verdict  : %s\n", verdict_str.c_str());
+    // After the verdict it qualifies, like the capture lines below. Printed only when
+    // an anchor was needed: a run decided by a frame has nothing to anchor.
+    // The shared count is printed because it is the anchor's power: a non-zero one
+    // means a DUT violating those requirements wholesale cannot be failed by this
+    // case, only reported inconclusive.
+    if (anchor.outcome != ::tc8::sce::LivenessAnchorOutcome::kNotRun) {
+        const std::string_view kind = ::tc8::sce::livenessAnchorName(anchor.kind);
+        if (anchor.outcome == ::tc8::sce::LivenessAnchorOutcome::kAnswered) {
+            std::printf("anchor   : %.*s answered in %ld us (attempt %d, shares %d graded requirement(s))\n",
+                        static_cast<int>(kind.size()), kind.data(), anchor.latency_us, anchor.attempts,
+                        anchor.shared_requirements);
+        } else {
+            const std::string_view why = ::tc8::sce::livenessAnchorReason(anchor.outcome);
+            std::printf("anchor   : %.*s NOT established — %.*s\n", static_cast<int>(kind.size()), kind.data(),
+                        static_cast<int>(why.size()), why.data());
+        }
+    }
     // After the verdict it qualifies, before the evidence it belongs to.
     // Printed unconditionally, not only when frames were lost: a line that
     // appears solely on loss is indistinguishable from a silently broken

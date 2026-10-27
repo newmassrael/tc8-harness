@@ -23,6 +23,9 @@ struct TestCaseTraits<cases::Arp37SM>
     static constexpr std::string_view kCaseId = "ARP_37";
     static constexpr std::string_view kDescription =
         "ARP Request with target_ip != DUT IP — DUT must not reply";
+    // As ARP_21: declining a Request for another address, against an anchor
+    // Request for the DUT's own.
+    static constexpr DutRequirements kRequirementsUnderTest{};
     // <IP-FIRST-UNUSED-ADDR-INTERFACE-1> per spec — an address on the
     // /24 subnet not currently bound to DUT or tester. 10.99.99.99 is
     // outside 172.16.0.0/24 which guarantees Linux sees it as

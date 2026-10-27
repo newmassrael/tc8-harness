@@ -23,6 +23,10 @@ struct TestCaseTraits<cases::Arp21SM>
     static constexpr std::string_view kCaseId = "ARP_21";
     static constexpr std::string_view kDescription =
         "ARP Request with unknown hw_type — DUT must drop and not reply";
+    // Grades dropping a malformed Request, which no anchor exercises. The ARP
+    // exchange anchor is the well-formed counterpart, so a DUT that answers no ARP
+    // at all cannot pass this case by its silence.
+    static constexpr DutRequirements kRequirementsUnderTest{};
     static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg,
                          ::tc8::sce::StimulusContext &ctx) {
         ::tc8::stimulus::ArpFrameSpec spec;

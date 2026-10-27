@@ -71,6 +71,16 @@ TEST(VerdictFromDonedata, PassCarriesNoReason) {
     EXPECT_EQ(v.str(), "pass");
 }
 
+// The role says what kind of evidence decided the class; the absence
+// qualification reads it, and the wire form leaves it out.
+TEST(VerdictFromDonedata, CarriesTheRoleOutsideTheWireForm) {
+    const Verdict v = tc8::sce::verdictFromDonedata(
+        stash(R"({"verdict":"fail","reason":"no_dut_arp_reply","role":"observed_quiescence"})"));
+    EXPECT_EQ(v.role, "observed_quiescence");
+    EXPECT_EQ(v.str(), "fail:no_dut_arp_reply");
+    EXPECT_EQ(tc8::sce::verdictFromDonedata(stash(R"({"verdict":"pass"})")).role, "");
+}
+
 TEST(VerdictFromDonedata, FailJoinsClassAndReason) {
     const Verdict v = tc8::sce::verdictFromDonedata(
         stash(R"({"verdict":"fail","reason":"session_id_wrapped_to_zero"})"));
