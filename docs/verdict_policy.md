@@ -56,21 +56,92 @@ a worker that dies before finishing its cases does (`docs/tech-debt.md` TD-59).
 
 Read top to bottom; the first matching clause assigns the verdict.
 
-1. **Observed a MUST violation** → `fail`. A frame or behaviour was captured
-   that contradicts a normative requirement (wrong field, prohibited event in a
-   forbidden window, malformed-but-accepted input).
+1. **Observed a MUST violation** → `fail`. Either a frame or behaviour was
+   captured that contradicts a normative requirement (wrong field, prohibited
+   event in a forbidden window, malformed-but-accepted input), or **quiescence
+   was observed where the requirement mandates an emission** (Section 2.1) —
+   the DUT stayed silent over a valid observation window after the stimulus
+   that obliges it to answer.
 2. **Observed the required conformant behaviour** → `pass`. Includes a
    *conformant absence*: a "must NOT occur" assertion whose observation window
-   elapsed with no prohibited event.
+   elapsed with no prohibited event — itself an observation of quiescence, held
+   to the same hypotheses as clause 1's (Section 2.1).
 3. **The test system failed** → `error`. The harness could not present the
    stimulus or observe the wire (see Section 3, `test_system_fault`).
 4. **Otherwise the purpose could not be decided** → `inconclusive`. The IUT was
    not shown to violate anything and the required behaviour was not confirmed:
-   the preamble did not complete, or the targeted frame/reaction was not
-   observed within the window.
+   the preamble did not complete, or an absence decided the run while one of
+   the quiescence hypotheses was not established.
 
 Soundness corollary: the gate (`fail`) fires **only** on clause 1 — an observed
-violation. Environmental shortfalls never red the gate.
+violation, of which observed quiescence is one kind. An absence counts as an
+observation only when the run proved it could have seen the emission; when it
+could not, the absence is a non-conclusion, never a `fail` and never a `pass`.
+Environmental shortfalls never red the gate.
+
+### 2.1 Quiescence and the test hypotheses
+
+> **Status (Phase Q, Section 8).** Q1 is in the tree: the `observed_quiescence`
+> role and its reach rule. Until Q2 lands, the CLI enforces only S and H2, and only
+> for a `pass` not decided by a frame; there is no liveness anchor yet, so no case
+> may author `observed_quiescence` before Q2.
+
+**Quiescence is an observation.** In the input/output conformance theory the
+suite is grounded in (ioco, Tretmans), the absence of any output — quiescence,
+δ — is an observable outcome of the IUT, on a par with an output frame. A
+specification that obliges an emission after a stimulus does not admit δ there,
+so observing δ is a non-conformance; a specification that forbids an emission
+admits only δ, so observing δ is conformance. In real time δ is observed as "no
+such output within a bound M" (timed ioco), and that observation is valid only
+when M is not shorter than the time the specification grants the IUT.
+
+So one primitive decides both directions: **a conclusive verdict decided by a
+timer is an observation of quiescence.** A `conformant_absence` pass and an
+`observed_quiescence` fail make the same claim about the wire and need the same
+evidence. What that evidence is, is the set of test hypotheses below. ISO/IEC
+9646 places a hypothesis about the test system outside the IUT's verdict: if it
+does not hold, the run says nothing about the IUT.
+
+| | hypothesis | established by | if not established |
+|---|---|---|---|
+| **S** | the stimulus that obliges or forbids the emission was performed | the unperformed-stimulus record (`tc8::UnperformedStimulus`) | `inconclusive`, reason names the stimulus |
+| **H1** | the IUT was live and able to answer through the window's end | a **liveness anchor**: after the window, an exchange the IUT must answer, chosen to be independent of the requirement under test, answered on the wire | `inconclusive`, `liveness_anchor_*` reason |
+| **H2** | the observation channel saw the whole window | capture completeness: no ring or interface drop, no snaplen truncation, every multicast group held (`tc8::captureProvenComplete`) — and the anchor's answer, captured after the window, shows the capture was still live at its end | `inconclusive`, `capture_*` reason |
+| **H3** | the window M is not shorter than the bound the requirement grants the IUT | a declared bound per guard — a specification value with its citation, or an implementation parameter the operator supplies (IXIT) — checked statically against the case's deadline | the case is invalid: the audit rejects it |
+
+**Where each is enforced.**
+- S, H1 and H2 are run facts. They are enforced in one place, the CLI's verdict
+  qualification (`src/cli/commands/test_command.cpp`), for every verdict that
+  claims an absence: a `pass` whose final transition was not driven by a frame
+  (conservatively — a `pass` evaluated from a state query is checked too, which
+  can only cost a conclusion, never forge one), and a `fail` whose role is
+  `observed_quiescence` or, on a `_neg`, a timer-reached `fault_injection_inert`
+  ("the DUT stayed silent despite the fault" is a quiescence claim too). Case
+  authors never re-state them; an invariant handed to every author is one that
+  gets forgotten.
+- H3 is a property of the case and its specification. It is enforced by the
+  audit (`tools/negative_coverage_audit.py`) over the registry's declared bounds.
+
+**Independence of the anchor.** An anchor that runs through the requirement
+under test proves nothing about it: a DUT whose ARP responder is broken also
+fails an ARP anchor, and the absence would stay undecidable. Each case declares
+the requirements it grades as tags; each anchor kind declares the requirements
+it exercises; the harness picks the first anchor kind whose set is disjoint from
+the case's and whose capability the backend offers. No eligible anchor means H1
+cannot be established, and every timer-decided verdict of that case on that DUT
+is `inconclusive` with the reason `liveness_anchor_none_independent`.
+
+**Preamble versus test body.** The hypotheses decide only absences in the test
+body: the IUT has reached the testable state and the stimulus under test has
+been applied. A preamble that never completes (the DUT never offered the service,
+never probed its address) is `precondition_unmet` → `inconclusive` whatever the
+hypotheses say, because the test purpose was never exercised. This is the TTCN-3
+convention: a timeout in the preamble is inconclusive, a timeout on a mandated
+reply in the test body is a fail.
+
+**Frame-decided verdicts are unaffected.** A verdict whose final transition was
+driven by a captured frame carries its own evidence in the trace; no hypothesis
+about absence applies to it.
 
 ---
 
@@ -87,6 +158,7 @@ below by `tools/gen_verdict_taxonomy.py` (CI fails if it drifts):
 | `conformant` | `pass` |
 | `conformant_absence` | `pass` |
 | `observed_violation` | `fail` |
+| `observed_quiescence` | `fail` |
 | `fault_injection_inert` | `fail` |
 | `precondition_unmet` | `inconclusive` |
 | `property_unobserved` | `inconclusive` |
@@ -97,9 +169,10 @@ Role meanings:
 - **`conformant`** — required behaviour observed (role optional; `pass` is unambiguous).
 - **`conformant_absence`** — "must NOT occur" assertion held: window elapsed, no prohibited event.
 - **`observed_violation`** — a captured frame/behaviour violates a MUST requirement (the IUT is non-conformant).
+- **`observed_quiescence`** — the IUT stayed silent over the test-body window where a MUST requirement obliges it to emit (Section 2.1). The CLI keeps it a `fail` only while S, H1 and H2 hold, and downgrades it to `inconclusive` naming the missing hypothesis otherwise. Its decisive evidence is an absence, so it is reachable only through a **window timer** (an event the machine raises itself with a non-zero `delay`), never through a frame and never only through a zero-delay evaluation step. A `fail` that a timer reaches but whose evidence is a captured value or a state query (an RTO measured from frames, a `TCP_INFO` counter) is an `observed_violation`: the timer only says when to evaluate.
 - **`fault_injection_inert`** — a `_neg` self-validation case landed on its conformant-DUT (`fail_compliant*`) branch: the injected firmware fault produced no observable change, so the negative caught nothing. Same `fail` class (gate-red) as `observed_violation` but a distinct meaning — a fault-wiring / test-suite regression, **not** a DUT defect. See Section 6.1.
 - **`precondition_unmet`** — the IUT never reached the testable state: preamble incomplete (no OfferService, no initial ARP probe, no DUT-originated packet, no UT confirmation).
-- **`property_unobserved`** — the IUT reached the testable state (liveness shown), but the targeted frame/reaction was not observed within the window (**includes a mandated reaction that was not seen**).
+- **`property_unobserved`** — the IUT reached the testable state, but the targeted frame/reaction was not observed and the absence could not be graded: a quiescence hypothesis was not established, or the case has not yet been migrated to `observed_quiescence` (Section 8, Phase Q). It is also what the CLI's downgrade of a timer-decided verdict reports.
 - **`test_system_fault`** — the harness could not drive/observe: stimulus send failure, capture/socket failure, SCXML interpreter error, operator interruption.
 
 The split between `precondition_unmet` and `property_unobserved` is **diagnostic
@@ -107,15 +180,22 @@ only** — both are `inconclusive`. It records *where* the test stalled (before 
 after liveness) in the reason string, without changing the class. This replaces
 the previous (non-standard) practice of classifying preamble failure as `error`.
 
-### Why "mandated reaction not observed" is `inconclusive`, not `fail`
+### When a mandated reaction that was not observed is a `fail`
 
-A test that injects a stimulus (e.g. a conflicting ARP) and waits for a mandated
-reaction (e.g. an address re-pick) assigns `inconclusive` when the reaction is
-not seen, **not** `fail`. We did not *observe a violation*; we observed an
-*absence*, and absence over a finite capture window cannot be distinguished from
-a missed observation with certainty. Per clause 4, that is `inconclusive`. The
-negative-test harness (which deliberately forces the reaction to be absent) is
-what proves such a guard is non-vacuous; see Section 6.
+An earlier revision of this policy graded every unseen mandated reaction
+`inconclusive`, on the ground that an absence over a finite window cannot be told
+from a missed observation. The ground is right and the conclusion was not: it
+names a property of the **test system** (could the capture have missed it? was
+the DUT up?), and ISO/IEC 9646 keeps such properties out of the IUT's verdict by
+stating them as test hypotheses and checking them, not by lowering every absence
+to a non-conclusion. Lowering them also left the suite unable to fail a DUT that
+never answers, and graded the same observation two ways — a silent window was a
+`pass` for a "must not send" case without any check that the DUT was alive.
+
+So an unseen mandated reaction in the test body is `observed_quiescence` → `fail`
+when the run establishes S, H1 and H2 and the case satisfies H3 (Section 2.1),
+and `inconclusive` naming the missing hypothesis when it does not. The same
+hypotheses now gate every `conformant_absence` pass.
 
 ---
 
@@ -129,7 +209,10 @@ what proves such a guard is non-vacuous; see Section 6.
 | FindService start-phase (ETS_099/100/101) | DUT emitted no SD at all | `precondition_unmet` | inconclusive |
 | FindService start-phase | live, but FindService burst not seen | `property_unobserved` | inconclusive |
 | FindService main-phase | a FindService appeared where forbidden | `observed_violation` | fail |
-| FindService main-phase | window elapsed, none appeared | `conformant_absence` | pass |
+| FindService main-phase | window elapsed, none appeared, S/H1/H2 established | `conformant_absence` | pass |
+| FindService main-phase | window elapsed, none appeared, liveness anchor unanswered | (CLI downgrade) | inconclusive |
+| ARP Request reception | well-formed Request applied, no Reply in a valid window, anchor answered | `observed_quiescence` | fail |
+| ARP Request reception | no Reply, and the anchor was not answered either | (CLI downgrade) | inconclusive |
 | link-local conflict re-pick | DUT emitted no initial probe | `precondition_unmet` | inconclusive |
 | link-local conflict re-pick | probed, but did not re-pick after conflict | `property_unobserved` | inconclusive |
 | link-local probe field | probe observed with wrong field | `observed_violation` | fail |
@@ -181,7 +264,7 @@ the guard compares**, and every case falls into exactly one of three strategies:
 |----------|-------------------|----------------------------|-------------|
 | **expect-flip** | a captured field equals an *operator-supplied* value (`captured.X == expected.X`) | the **reference DUT** run with a deliberately-wrong `--expect` token → the guard must yield `observed_violation` | the curated `NEG_ROWS` set + `tools/negative_coverage_audit.py` |
 | **dut-mutation** | *DUT behaviour* — it must reject malformed input, or must not emit a prohibited frame (`conformant_absence`) | a **faulty DUT** that actually misbehaves → the guard must yield `observed_violation`. No `--expect` flip can fault the conformant reference DUT | `tools/conformant_absence_registry.json` |
-| **liveness** | the DUT must emit Y; Y is binary present/absent, no malformed variant | not applicable — absence is `inconclusive` (Section 2, clause 4); there is no reachable `fail` to validate | the same registry (`class: liveness`) |
+| **dut-mutation (required emission)** | the DUT must emit Y; Y is binary present/absent, no malformed variant | a **faulty DUT** that omits Y → the guard must yield `observed_quiescence` (Section 2.1) | the same registry (`class: required_emission`) |
 
 The decisive separation: **`--expect` injection validates only expect-flip
 guards.** A dut-mutation guard has no operator value to corrupt — the property is
@@ -204,7 +287,12 @@ variant?
 |------------------|--------------------|--------------------|----------------------|----------|
 | **`prohibited_emission`** (safety) | silence is conformant | a frame the protocol forbids here *appearing* | a DUT that emits the forbidden frame | reject malformed input (no OK echo); decline an invalid/unknown subscribe (no Ack); no emission after stop / in the wrong phase |
 | **`incorrect_emission`** (functional) | a valued emission is mandated | that emission carrying a *wrong value* | a DUT that emits the right frame with a wrong value | ack (not nack) a valid subscribe; monotonic/wrapping session id; response-payload content; post-reset field value |
-| **`liveness`** | an emission is mandated, binary present/absent | nothing — there is no `fail` (absence is `inconclusive`, Section 2 clause 4) | omission only, indistinguishable from slowness → not empirically faultable | DUT must emit an OfferService / a SYN-ACK |
+| **`required_emission`** (liveness) | an emission is mandated, binary present/absent | its *absence* over a valid window — `observed_quiescence` | a DUT that omits the emission; slowness is excluded by H3, so the omission is faultable | DUT must emit an OfferService / a SYN-ACK / an ARP Reply |
+
+**`liveness`** is the transitional name of a `required_emission` guard whose case
+has not yet been migrated (Section 8, Phase Q): its absence still lands on an
+`inconclusive` final, so it has no `fail` and is not faultable until it moves. The
+audit accepts it only from the migration ledger, which may only shrink.
 
 `malformed_rejection` is the named case of `prohibited_emission` where the
 forbidden frame is an OK echo of malformed input; the ISO 9646 stimulus class
@@ -247,8 +335,10 @@ faulted value). The rest is a review/empirical concern: a `REGISTRY` class and
 property are reviewed; a `FAULT_INJECTION` pairing is grounded by the `_neg`
 case's own green run; full empirical correctness is the Phase F track. The registry
 is also structurally validated: every `fail` final is covered by a guard; a
-non-`liveness` guard names a real `fail` final; a `liveness` guard names none and
-the case has none.
+non-`liveness` guard names a real `fail` final; a `required_emission` guard's final
+carries the `observed_quiescence` role and declares its H3 bound; a transitional
+`liveness` guard names none, the case has none, and the case is on the migration
+ledger.
 
 Honesty boundary: the registry records *structural* non-vacuity and the
 behavioural property each guard protects. **Empirical** validation of
@@ -266,26 +356,30 @@ prints the live count. The other frontier is **correctness** — proving each
 `fail` final. This is mutation analysis / ISO 9646 suite validation, and it is the
 **single** verification standard the suite converges to. The disposition taxonomy
 above (four dispositions, three registry classes) is **frozen**: Phase F is
-execution — producing `_neg` cases — not a re-cut of the model.
+execution — producing `_neg` cases — not a re-cut of the model. (The one re-cut
+since, Section 2.1, renamed nothing and removed nothing: it gave the third class a
+reachable `fail`.)
 
 A `REGISTRY` guard is empirically faultable only when **both** hold: (a) the
 misbehaviour can be *produced* — which depends on **who implements the protocol** —
-and (b) the guard has a *reachable `fail`*. A `liveness` guard (Section 6, the
-`liveness` row) maps absence to `inconclusive`, so it has no `fail` to drive and is
-**never** promotable to `FAULT_INJECTION` on *any* DUT — it stays terminal in
-`REGISTRY` by policy. The registry `class` is the SSOT for (b); the family→DUT
+and (b) the guard has a *reachable `fail`*. A `required_emission` guard has one —
+its `observed_quiescence` final — so it is faultable like the other two classes:
+its `_neg` arms a flavor that suppresses the emission and grades `pass` on the
+quiescence it causes. Only a transitional `liveness` guard (not yet migrated) still
+lacks a `fail` and stays out of the target until it moves. The registry `class` is
+the SSOT for (b); the family→DUT
 mapping (a) lives in `negative_coverage_audit.py`
 (`FIRMWARE_FAMILIES`/`KERNEL_FAMILIES`), which the table below only mirrors;
 `--phase-f` computes the live split and is authoritative.
 
-| DUT | protocols | faultable (`prohibited`/`incorrect`) | excluded from the target |
+| DUT | protocols | faultable (`prohibited`/`incorrect`/`required_emission`) | excluded from the target |
 |-----|-----------|--------------------------------------|--------------------------|
-| **tc8-dut firmware / vsomeip app** | IPv4 link-local, DHCPv4 client, SOME/IP (ETS + Server) | a `_neg` drives a firmware flavor onto the `fail` (the realised `ipv4_autoconf` pattern) — **the primary ratchet** | its `liveness` guards (no reachable `fail`) |
-| **Linux kernel stack** | TCP, IPv4, ICMPv4, UDP, ARP (§4.2) | faultable only on the **lwIP DUT** (firmware stack) | against Linux the reference stack *is* the oracle; `liveness` likewise |
+| **tc8-dut firmware / vsomeip app** | IPv4 link-local, DHCPv4 client, SOME/IP (ETS + Server) | a `_neg` drives a firmware flavor onto the `fail` (the realised `ipv4_autoconf` pattern) — **the primary ratchet** | its unmigrated `liveness` guards (no reachable `fail` yet) |
+| **Linux kernel stack** | TCP, IPv4, ICMPv4, UDP, ARP (§4.2) | faultable only on the **lwIP DUT** (firmware stack) | against Linux the reference stack *is* the oracle; unmigrated `liveness` likewise |
 
-So the firmware ratchet targets the **faultable** (`prohibited` + `incorrect`)
-guards, **not** every firmware guard: the `liveness` subset has no reachable `fail`
-on any DUT, and counting it would set an unreachable goal. The kernel-stack guards
+So the firmware ratchet targets the **faultable** guards, **not** every firmware
+guard: an unmigrated `liveness` guard has no reachable `fail` on any DUT, and
+counting it would set an unreachable goal. The kernel-stack guards
 are faultable only on the lwIP track; against Linux they remain structural with the
 reference stack as conformance oracle. **§4.2 ARP** sits in this kernel-stack row,
 not with the firmware families: the DUT emits no §4.2 ARP frame itself —
@@ -299,7 +393,7 @@ the excluded `liveness` and kernel buckets.
 **Ratchet.** Beside per-final coverage (the ledger shrinking to zero), the metric
 is empirical proof: the `FAULT_INJECTION` count is floored by
 `negative_coverage_audit.py --check` and only ever rises as `_neg` cases land; the
-current **faultable** `REGISTRY` set (`prohibited`/`incorrect`; `liveness` excluded)
+current **faultable** `REGISTRY` set (`prohibited`/`incorrect`/`required_emission`; unmigrated `liveness` excluded)
 is the work-list (`--phase-f`). Each `_neg` promotes a case `REGISTRY →
 FAULT_INJECTION`. The ratchet is **per fault DUT-layer** — one high-water for
 `tc8_dut` (firmware families, a flavor mutant) and one for `lwip` (kernel families,
@@ -362,6 +456,37 @@ conformance evidence credible.
 - **Phase 4 — honesty pass.** Make negative-row expectations declare their actual
   verdict; introduce the reason registry.
 
+### Phase Q — quiescence as an observation (Section 2.1)
+
+Each step lands with its own gate, so the policy text never claims a mechanism the
+tree does not have.
+
+- **Q1 — vocabulary and the authoring rule.** The `observed_quiescence` role. The
+  donedata audit learns which events of the composed machine (case plus bound
+  templates) are window timers — raised by its own `<send>` with a non-zero
+  `delay` — and enforces Section 3: an `observed_quiescence` final is reached only
+  through window timers. Measured when the rule was written: of 766 `fail` finals,
+  659 are reached by frames and 107 by timers (83 `_neg` inert finals, and 24
+  positive value judgments evaluated on a zero-delay step or at a window's end,
+  all correctly `observed_violation`); none is reached by an eventless or raised
+  transition.
+- **Q2 — the hypotheses at run time.** The liveness anchor (two kinds: an ARP
+  exchange and an ICMP Echo exchange, each declaring the requirements it
+  exercises), the requirement tags a case declares (a per-family default,
+  narrowed per case), and the CLI qualification extended from "a timer-decided
+  `pass` needs H2 and S" to "**every** timer-decided conclusive verdict — `pass`
+  or `fail`, positive or `_neg` — needs S, H1 and H2". This is the step that also
+  tightens every existing `conformant_absence` pass: a dead DUT no longer passes
+  a "must not send" case.
+- **Q3 — H3 in the registry.** The `required_emission` class with a declared
+  bound per guard (a cited specification value or a named IXIT parameter), and the
+  audit check that the case's test-body deadline is not shorter.
+- **Q4 — migration.** Each `liveness` guard moves to `required_emission`: its
+  test-body deadline final becomes `observed_quiescence`, its preamble deadlines
+  stay `precondition_unmet`, and where a fixture can suppress the emission a `_neg`
+  ships with it. The migration ledger lists the guards still to move and may only
+  shrink. Pilot: the §4.2.4.2 ARP Request-reception cases and `IPv4_TTL_05`.
+
 ---
 
 ## 9. Authorities
@@ -371,3 +496,10 @@ conformance evidence credible.
 - ETSI ES 201 873-1 (TTCN-3 core language): the `error` verdict as a test-system
   condition.
 - W3C SCXML 1.0 §5.5 (`<donedata>`): the per-case verdict carrier.
+- J. Tretmans, *Test generation with inputs, outputs and repetitive quiescence*,
+  Software — Concepts and Tools 17(3), 1996; and *Model based testing with
+  labelled transition systems*, in Formal Methods and Testing, LNCS 4949, 2008:
+  the ioco relation, in which quiescence is an observable output.
+- L. Brandán Briones and E. Brinksma, *A test generation framework for quiescent
+  real-time systems*, FATES 2004, LNCS 3395, 2005: quiescence observed through a
+  bounded timeout, valid when the bound covers the specification's.

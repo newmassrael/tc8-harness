@@ -29,9 +29,15 @@ TC8_VERDICT_CLASS(Running,      "running",      1)
 // firmware fault did NOT change the observable behaviour, so the negative
 // caught nothing. That is gate-red (a fault-wiring / test-suite regression)
 // but NOT a DUT defect — see docs/verdict_policy.md Section 6.1.
+// `observed_quiescence` is the third `fail` role: the DUT stayed silent where
+// the specification mandates an emission, decided by a timer rather than by a
+// frame. It is an IUT violation like `observed_violation`, but its evidence is
+// an absence, so it holds only while the quiescence hypotheses hold
+// (docs/verdict_policy.md Section 2.1); the CLI downgrades it otherwise.
 TC8_VERDICT_ROLE("conformant",            Pass)
 TC8_VERDICT_ROLE("conformant_absence",    Pass)
 TC8_VERDICT_ROLE("observed_violation",    Fail)
+TC8_VERDICT_ROLE("observed_quiescence",   Fail)
 TC8_VERDICT_ROLE("fault_injection_inert", Fail)
 TC8_VERDICT_ROLE("precondition_unmet",    Inconclusive)
 TC8_VERDICT_ROLE("property_unobserved",   Inconclusive)

@@ -8,6 +8,7 @@ ROLE_POLICY = {
     "conformant":            "pass",
     "conformant_absence":    "pass",
     "observed_violation":    "fail",
+    "observed_quiescence":   "fail",
     "fault_injection_inert": "fail",
     "precondition_unmet":    "inconclusive",
     "property_unobserved":   "inconclusive",

@@ -17,6 +17,10 @@ This tool guards that single source. For every registered case it checks:
                     conformance classes (pass / fail / inconclusive / error)
   NO_SCXML          the case header exists but its .scxml does not
   UNPARSED          the .scxml is not well-formed XML
+  QUIESCENCE_REACH  an `observed_quiescence` final is reached by anything but a
+                    window timer (docs/verdict_policy.md §3)
+  QUIESCENCE_UNGATED  an `observed_quiescence` final exists before the CLI gates
+                    the role on its hypotheses (§8, Phase Q2)
 
 Exit status is non-zero if any finding is present, so it can gate CI and the
 pre-commit hook. Run with --summary for counts only.
@@ -108,9 +112,11 @@ def _finals_from_root(root: ET.Element, bindings: dict[str, str]) -> dict[str, V
     return out
 
 
-def extract_donedata(scxml_path: Path) -> dict[str, Verdict]:
+def _composed_roots(scxml_path: Path) -> list[tuple[ET.Element, dict[str, str]]]:
+    """The case root plus every template it binds via `<sce:use>`, each with its
+    `{$param}` bindings — the parts codegen splices into one machine."""
     root = ET.parse(scxml_path).getroot()
-    out = _finals_from_root(root, {})  # inline finals (direct cases)
+    parts = [(root, {})]
     for el in root.iter():
         if _local(el.tag) == "use" and el.tag == f"{{{SCE_NS}}}use":
             tmpl_rel = el.get("template")
@@ -120,9 +126,89 @@ def extract_donedata(scxml_path: Path) -> dict[str, Verdict]:
             if not tmpl_path.is_file():
                 continue
             bindings = {k: v for k, v in el.attrib.items() if k != "template"}
-            troot = ET.parse(tmpl_path).getroot()
-            out.update(_finals_from_root(troot, bindings))
+            parts.append((ET.parse(tmpl_path).getroot(), bindings))
+    return parts
+
+
+def extract_donedata(scxml_path: Path) -> dict[str, Verdict]:
+    out: dict[str, Verdict] = {}
+    for root, bindings in _composed_roots(scxml_path):
+        out.update(_finals_from_root(root, bindings))
     return out
+
+
+# --------------------------------------------------------------------------
+# how each final is reached (docs/verdict_policy.md §3, `observed_quiescence`)
+# --------------------------------------------------------------------------
+
+# A `delay` that is all zeros in any unit ("0s", "0ms", "0") schedules an
+# evaluation step, not an observation window.
+_ZERO_DELAY_RE = re.compile(r"^\s*0+(\.0*)?\s*[a-z]*\s*$")
+
+# How a transition is triggered: a window timer (the machine's own `<send>` with
+# a non-zero delay), a zero-delay evaluation step, or anything else — an event
+# the runner raises from a captured frame or an observation.
+WINDOW, STEP, OTHER = "window", "step", "other"
+
+
+def reach_kinds(parts: list[tuple[ET.Element, dict[str, str]]]) -> dict[str, set[str]]:
+    """Map target id (lowercased) -> the trigger kinds of the transitions that
+    reach it, over the composed machine. Events are global to a machine, so the
+    timers of the case and of every bound template classify each other's
+    transitions."""
+    window: set[str] = set()
+    step: set[str] = set()
+    for root, b in parts:
+        for el in root.iter():
+            if _local(el.tag) != "send":
+                continue
+            event = _subst(el.get("event", ""), b)
+            if el.get("delayexpr") is not None:
+                window.add(event)  # an expression delay is a window unless proven zero
+            elif el.get("delay") is not None:
+                (step if _ZERO_DELAY_RE.match(el.get("delay", "")) else window).add(event)
+    out: dict[str, set[str]] = {}
+    for root, b in parts:
+        for el in root.iter():
+            if _local(el.tag) != "transition" or not el.get("target"):
+                continue
+            event = _subst(el.get("event", ""), b)
+            kind = WINDOW if event in window else STEP if event in step else OTHER
+            for target in _subst(el.get("target", ""), b).split():
+                out.setdefault(target.lower(), set()).add(kind)
+    return out
+
+
+# False until the CLI gates an `observed_quiescence` fail on S, H1 and H2
+# (docs/verdict_policy.md §8, Phase Q2). Before that the role would be an
+# ungated fail on an absence, so authoring it is refused outright.
+QUIESCENCE_GATED_AT_RUN_TIME = False
+
+
+def quiescence_findings(done: dict[str, Verdict], reached: dict[str, set[str]],
+                        gated: bool = QUIESCENCE_GATED_AT_RUN_TIME) -> list[str]:
+    """An `observed_quiescence` final's evidence is an absence over a window, so
+    every transition into it must be a window timer, and there must be one."""
+    findings = []
+    for state, (_cls, _reason, role) in sorted(done.items()):
+        if role != "observed_quiescence":
+            continue
+        if not gated:
+            findings.append(
+                f"QUIESCENCE_UNGATED: final '{state}' is observed_quiescence, but the CLI does not "
+                "yet gate that role on its hypotheses (docs/verdict_policy.md §8, Phase Q2)"
+            )
+        kinds = reached.get(state, set())
+        if not kinds:
+            findings.append(f"QUIESCENCE_REACH: final '{state}' is observed_quiescence but nothing reaches it")
+        elif kinds != {WINDOW}:
+            bad = sorted(kinds - {WINDOW})
+            findings.append(
+                f"QUIESCENCE_REACH: final '{state}' is observed_quiescence but is reached by "
+                f"{'/'.join(bad)} transition(s); its evidence is an absence, so only a window "
+                "timer (a <send> with a non-zero delay) may decide it"
+            )
+    return findings
 
 
 # --------------------------------------------------------------------------
@@ -137,6 +223,7 @@ def audit_case(name: str) -> CaseReport:
         rep.findings.append("NO_SCXML")
         return rep
     try:
+        parts = _composed_roots(scxml_path)
         done = extract_donedata(scxml_path)
     except ET.ParseError as exc:
         rep.findings.append(f"UNPARSED: .scxml not parseable as XML ({exc})")
@@ -171,6 +258,7 @@ def audit_case(name: str) -> CaseReport:
             rep.findings.append(
                 f"REASON_FORMAT: final '{state}' reason '{reason}' is not lower_snake_case"
             )
+    rep.findings.extend(quiescence_findings(done, reach_kinds(parts)))
     return rep
 
 
@@ -189,13 +277,60 @@ def all_case_names() -> list[str]:
     return names
 
 
+_SELF_TEST_FINAL = (
+    '<final id="{id}"><donedata><content>'
+    '{{"verdict":"fail","reason":"r","role":"observed_quiescence"}}'
+    "</content></donedata></final>"
+)
+
+
+def _self_test() -> int:
+    """Each QUIESCENCE_REACH outcome on an inline machine, so a regression in the
+    trigger classification shows here rather than as a silent CLEAN corpus."""
+    ns = 'xmlns="http://www.w3.org/2005/07/scxml" xmlns:sce="http://sce.dev/ext"'
+
+    def run(body: str, template: str | None = None, bindings: dict[str, str] | None = None,
+            gated: bool = True) -> list[str]:
+        parts = [(ET.fromstring(f"<scxml {ns}>{body}</scxml>"), {})]
+        if template is not None:
+            parts.append((ET.fromstring(f"<sce:template {ns}>{template}</sce:template>"), bindings or {}))
+        done: dict[str, Verdict] = {}
+        for root, b in parts:
+            done.update(_finals_from_root(root, b))
+        return quiescence_findings(done, reach_kinds(parts), gated=gated)
+
+    q = _SELF_TEST_FINAL.format(id="fail_q")
+    window = '<state id="s"><onentry><send event="t" delay="5s"/></onentry><transition event="t" target="fail_q"/></state>'
+    cases = [
+        ("window timer only", run(window + q), 0),
+        ("frame-reached", run('<state id="s"><transition event="arp_observed" target="fail_q"/></state>' + q), 1),
+        ("zero-delay step", run('<state id="s"><onentry><send event="e" delay="0ms"/></onentry>'
+                                '<transition event="e" target="fail_q"/></state>' + q), 1),
+        ("window and frame", run(window.replace("</state>", '<transition event="f" target="fail_q"/></state>') + q), 1),
+        ("unreached", run('<state id="s"/>' + q), 1),
+        ("timer bound through a template param",
+         run('<state id="s"><transition event="dl" target="fail_q"/></state>' + q,
+             '<state id="x"><onentry><send event="{$ev}" delay="2s"/></onentry></state>', {"ev": "dl"}), 0),
+    ]
+    cases.append(("well-formed but not yet gated at run time", run(window + q, gated=False), 1))
+    bad = 0
+    for label, findings, want in cases:
+        ok = len(findings) == want
+        bad += 0 if ok else 1
+        print(f"{'ok  ' if ok else 'FAIL'} {label}: {len(findings)} finding(s), want {want}")
+    return 1 if bad else 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     ap.add_argument("cases", nargs="*", help="case names to audit (default: all)")
     ap.add_argument("--summary", action="store_true", help="print only per-finding-type counts")
+    ap.add_argument("--self-test", action="store_true", help="run the trigger-classification self-test")
     args = ap.parse_args()
+    if args.self_test:
+        return _self_test()
 
     reports = [audit_case(n) for n in (args.cases or all_case_names())]
 
