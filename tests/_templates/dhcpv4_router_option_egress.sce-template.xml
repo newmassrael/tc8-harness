@@ -10,15 +10,27 @@
   Lifecycle (state count = 3 listening + 4 finals):
     listening_for_discover (s1_deadline 6 s)
       on dhcp_observed: is_dhcp_discover + chaddr_match → listening_for_request
-    listening_for_request (OFFER injected on entry, s2_deadline 4 s)
+    listening_for_request (OFFER injected on entry, s2_deadline 11 s)
       on dhcp_observed: is_dhcp_request + chaddr_match → listening_for_dut_udp
     listening_for_dut_udp (ACK injected on entry + delayed
                             OpTriggerSendUdp via scheduler.schedule(),
-                            s3_deadline 6 s)
+                            s3_deadline 11 s)
       on udp_observed: dst_ip == unused_routed_ip_be
                        AND eth_src_equals(dut_iface_mac)
                        AND eth_dst_equals(router_mac) → pass
-      on s3_deadline → inconclusive_no_dut_udp
+      on s3_deadline → fail_no_dut_udp
+
+  Verdicts for a silence (docs/verdict_policy.md Section 2.1): the
+  DISCOVER starts the exchange the case builds on, so its absence stays
+  inconclusive. The REQUEST answering the overloaded OFFER and the UDP
+  message routed through the Option 3 gateway are the test body; the
+  procedure listens up to <ParamListenTime> for each, so a window that
+  elapses without it is the DUT's silence where it must send —
+  observed_quiescence, judged against that bound (H3). Each window is
+  ParamListenTime plus <ParamToleranceTime> (10 s + 1 s at the
+  defaults); the UDP window opens 400 ms before the trigger, which the
+  tolerance covers. Whether a silence stands as a fail is the CLI's call
+  on the run's hypotheses.
 
   Zero-parameter template — both consumers (CM_05, CM_06) have
   structurally identical pass criteria; the divergence between them
@@ -56,25 +68,25 @@
 
   <state id="listening_for_request">
     <onentry>
-      <send event="s2_deadline" delay="4s"/>
+      <send event="s2_deadline" delay="11s"/>
     </onentry>
     <transition event="dhcp_observed"
                 cond="cpp:captured.dhcpv4.is_dhcp_request()
                       and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)"
                 target="listening_for_dut_udp"/>
-    <transition event="s2_deadline" target="inconclusive_no_request"/>
+    <transition event="s2_deadline" target="fail_no_request"/>
   </state>
 
   <state id="listening_for_dut_udp">
     <onentry>
-      <send event="s3_deadline" delay="6s"/>
+      <send event="s3_deadline" delay="11s"/>
     </onentry>
     <transition event="udp_observed"
                 cond="cpp:captured.udp.dst_ip == expected.unused_routed_ip_be
                       and captured.udp.eth_src_equals(expected.dhcpv4.dut_iface_mac)
                       and captured.udp.eth_dst_equals(expected.router_mac)"
                 target="pass"/>
-    <transition event="s3_deadline" target="inconclusive_no_dut_udp"/>
+    <transition event="s3_deadline" target="fail_no_dut_udp"/>
   </state>
 
   <final id="pass">
@@ -89,15 +101,15 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_no_request">
+  <final id="fail_no_request">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_request_after_offer","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_request_after_offer","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 
-  <final id="inconclusive_no_dut_udp">
+  <final id="fail_no_dut_udp">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_udp_to_unused_routed_ip_via_router_option","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_udp_to_unused_routed_ip_via_router_option","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </sce:template>

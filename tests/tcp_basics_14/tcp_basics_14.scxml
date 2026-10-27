@@ -30,7 +30,10 @@
   this state observes responds to tester FIN driving the FW1 →
   CLOSING transition, not the FW2 → TIME-WAIT transition the FW2
   variants observe) and replay_label=replay_ack (within-2*MSL ACK
-  observation, 5s deadline).
+  observation, 11s deadline). A replay window that elapses without the
+  ACK is observed_quiescence against <ParamListenTime>, over
+  ParamListenTime plus <ParamToleranceTime> (10 s + 1 s at the
+  defaults).
 
   Negative smoke flips ipv4.dut_iface_ip → first state's
   src_ip-conjunct unreachable → fail_no_handshake_ack.
@@ -48,7 +51,7 @@
            mid_fail_reason="no_dut_ack_in_closing_transition"
            replay_label="replay_ack"
            replay_method="is_pure_dut_ack"
-           replay_deadline="5s"
+           replay_deadline="11s"
            replay_fail_reason="no_dut_ack_to_replay_fin_in_time_wait_via_closing"
            local_offset="kTcpBasics14LocalOffset"/>
 </scxml>

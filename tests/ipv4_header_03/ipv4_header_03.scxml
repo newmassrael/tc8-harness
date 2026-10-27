@@ -5,12 +5,16 @@
 
   The pass guard IS the src_addr check; a DUT reply with a non-DUT
   source address is indistinguishable at this layer from the tester
-  stimulus (which also has a non-DUT src_addr). fail_timeout therefore
-  covers both "DUT emitted nothing" and "DUT emitted with an unexpected
-  src_addr". The negative-mode row flips `ipv4.dut_iface_ip` to a value
-  the DUT never emits, which takes the pass path out of reach.
+  stimulus (which also has a non-DUT src_addr). fail_no_dut_ipv4_packet
+  therefore covers both "DUT emitted nothing" and "DUT emitted with an
+  unexpected src_addr". The negative-mode row flips `ipv4.dut_iface_ip`
+  to a value the DUT never emits, which takes the pass path out of reach.
 
-  Body shared with IPv4_TTL_05 / IPv4_VERSION_01 via sce:template
+  The procedure states no listen time, so a window that elapses without
+  the Reply is observed_quiescence judged against <ParamListenTime>, over
+  ParamListenTime plus <ParamToleranceTime>; see the template.
+
+  Body shared with IPv4_VERSION_01 via sce:template
   (tests/_templates/ipv4_positive_reply.sce-template.xml).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"

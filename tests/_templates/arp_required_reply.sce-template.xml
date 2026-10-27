@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.2.4.2 Request-reception positive body: the DUT MUST answer a well-formed
+  ARP Request for its own address. Each case's procedure listens up to
+  <ParamListenTime> for the Response, so a window that elapses without one is
+  the DUT's silence where it must answer — observed_quiescence, judged against
+  that bound (docs/verdict_policy.md Section 2.1, H3). The window is
+  ParamListenTime plus <ParamToleranceTime>, the slack the spec adds to every
+  listen (10 s + 1 s at the defaults).
+
+  Whether a silence stands as a fail is the CLI's call on the run's hypotheses:
+  an incomplete capture or an unanswered liveness anchor makes it inconclusive.
+  The cases grade the responder, so they declare it and are anchored by an ICMP
+  Echo, which only asks the DUT to resolve: a DUT whose responder alone is broken
+  still answers the anchor, and the case fails it.
+
+  The cases differ only in the Request their trait injects (which field the spec
+  names: Hardware Type, Protocol Type, Target Protocol Address, the Target
+  Hardware Address variants, a Request answered in the Response direction); the
+  frame is well-formed in every one, so this body is shared and param-less.
+  Self-validation: arp_required_reply_neg.
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="arp_required_reply">
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="11s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 2 and captured.sender_hw == expected.dut_iface_mac"
+                target="pass"/>
+    <transition event="deadline_exceeded" target="fail_no_reply"/>
+  </state>
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+  <final id="fail_no_reply">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_arp_reply_within_listen_window","role":"observed_quiescence","bound":"ParamListenTime"}</content>
+    </donedata>
+  </final>
+</sce:template>

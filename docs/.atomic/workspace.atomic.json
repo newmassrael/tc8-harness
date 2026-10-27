@@ -790,6 +790,34 @@
         {
           "file": "tests/arp_36_neg/arp_36_neg.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/_templates/arp_required_reply.sce-template.xml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/arp_16_neg/arp_16_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/arp_17_neg/arp_17_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/arp_18_neg/arp_18_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/arp_19_neg/arp_19_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/arp_41_neg/arp_41_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/cases/_arp_ignore_request_neg.h",
+          "kind": "implements"
         }
       ]
     },

@@ -59,7 +59,8 @@ struct TestCaseTraits<cases::TcpUnacceptable08SM>
     // Phase 2 (CASE 2) was once omitted, which a 2026-05-07 audit of
     // false-positive passes flagged; it was added here. It can race
     // tc8-dut's close-path connector-thread join, and if that race
-    // shows, phase 2 ends inconclusive_p2_no_dut_rst. It did not on
+    // shows, phase 2's SYN is never seen and the run is inconclusive on
+    // the unperformed `dut_syn_phase2` stimulus. It did not on
     // kernel 7.0.0-31: the case passes there (single-pc 2026-09-24)
     // and carries no known-fail mark.
     static void stimulus(Captured& /*c*/,

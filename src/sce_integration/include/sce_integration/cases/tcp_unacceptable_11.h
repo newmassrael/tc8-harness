@@ -89,7 +89,7 @@ struct TestCaseTraits<cases::TcpUnacceptable11SM>
             const std::uint16_t remote_port = kBasicsActiveRemotePort + offset;
 
             auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
-            const int tester_fd = open.listener.acceptOne();
+            const int tester_fd = acceptPreambleConnection(open);
             if (tester_fd < 0 || !open.conn) {
                 silentlyCloseTesterFd(tester_fd);
                 std::this_thread::sleep_for(kTcpPilotPhaseGap);

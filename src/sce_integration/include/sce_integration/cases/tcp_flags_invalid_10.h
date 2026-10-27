@@ -54,7 +54,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid10SM>
             const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsInvalid10BaseOffset + phase;
             const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsInvalid10BaseOffset + phase;
             auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
-            const int tester_fd = open.listener.acceptOne();
+            const int tester_fd = acceptPreambleConnection(open);
             if (open.conn) ctx.dut.tcpControl()->closeTcp(open.conn->socket);
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
             if (tester_fd < 0) {

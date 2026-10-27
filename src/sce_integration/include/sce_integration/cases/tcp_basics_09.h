@@ -81,7 +81,7 @@ struct TestCaseTraits<cases::TcpBasics09SM>
             kBasicsActiveRemotePort + kTcpBasics09LocalOffset);
 
         // Stage b: tester FIN puts DUT in CLOSE-WAIT.
-        const int tester_fd = open.listener.acceptOne();
+        const int tester_fd = acceptPreambleConnection(open);
         if (tester_fd >= 0) {
             ::shutdown(tester_fd, SHUT_WR);
         }

@@ -22,6 +22,16 @@
   stimulus side (which segment was injected) and surface in the
   fail terminal reason text — the only template parameters here.
 
+  Observation 4 is the test body in both cases, and the procedure
+  states no listen time, so the general input parameter
+  <ParamListenTime> bounds it. A probe window that elapses without the
+  ACK is the DUT's silence where it must answer: observed_quiescence for
+  that phase, judged against that bound (H3), over ParamListenTime plus
+  <ParamToleranceTime> (10 s + 1 s at the defaults). Observations 1-3
+  walk the DUT into TIME-WAIT and stay inconclusive: they set up the
+  state the probe tests. Whether a silence stands as a fail is the CLI's
+  call on the run's hypotheses.
+
   Per-state fail terminals split the chain by phase/sub-edge so
   smoke-test triage identifies the first DUT-egress edge that did
   not fire. Negative smoke flips ipv4.dut_iface_ip → first state's
@@ -83,12 +93,12 @@
 
   <state id="listening_p1_probe_ack">
     <onentry>
-      <send event="deadline_p1_probe_ack" delay="5s"/>
+      <send event="deadline_p1_probe_ack" delay="11s"/>
     </onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::{$p1_local_offset}, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::{$p1_local_offset}) and captured.ack_num == captured.expected_ack_num"
                 target="listening_p2_handshake"/>
-    <transition event="deadline_p1_probe_ack" target="inconclusive_p1_no_probe_ack"/>
+    <transition event="deadline_p1_probe_ack" target="fail_p1_no_probe_ack"/>
   </state>
 
   <state id="listening_p2_handshake">
@@ -123,12 +133,12 @@
 
   <state id="listening_p2_probe_ack">
     <onentry>
-      <send event="deadline_p2_probe_ack" delay="5s"/>
+      <send event="deadline_p2_probe_ack" delay="11s"/>
     </onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::{$p2_local_offset}, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::{$p2_local_offset}) and captured.ack_num == captured.expected_ack_num_phase2"
                 target="pass"/>
-    <transition event="deadline_p2_probe_ack" target="inconclusive_p2_no_probe_ack"/>
+    <transition event="deadline_p2_probe_ack" target="fail_p2_no_probe_ack"/>
   </state>
 
   <final id="pass">
@@ -155,9 +165,9 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_p1_no_probe_ack">
+  <final id="fail_p1_no_probe_ack">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"{$p1_probe_fail_reason}","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"{$p1_probe_fail_reason}","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 
@@ -179,9 +189,9 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_p2_no_probe_ack">
+  <final id="fail_p2_no_probe_ack">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"{$p2_probe_fail_reason}","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"{$p2_probe_fail_reason}","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </sce:template>

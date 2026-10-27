@@ -34,6 +34,15 @@
   Per-phase fail_timeout terminals mirror the BASICS_04/05 split-fail
   diagnostic granularity: a stuck-at phase-1 fault is distinguishable
   from a phase-2 regression without re-reading the SCXML.
+
+  The FIN is the Pass Criteria of both iterations, and the TCP chapter
+  states no time for it, so a phase window that elapses without it is
+  the DUT's silence where it must emit — observed_quiescence for that
+  iteration, judged against <ParamListenTime> (docs/verdict_policy.md
+  Section 2.1, H3). Each window is ParamListenTime plus
+  <ParamToleranceTime> (10 s + 1 s at the defaults), and each phase arms
+  its own timer event so an earlier phase's timer cannot close a later
+  phase's window.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -54,22 +63,22 @@
 
   <state id="listening_phase1">
     <onentry>
-      <send event="deadline_exceeded" delay="5s"/>
+      <send event="deadline_phase1" delay="11s"/>
     </onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == (::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpBasics08Phase1LocalOffset) and captured.dst_port == (::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpBasics08Phase1LocalOffset) and (captured.flags &amp; 0x01) != 0"
                 target="listening_phase2"/>
-    <transition event="deadline_exceeded" target="inconclusive_timeout_phase1"/>
+    <transition event="deadline_phase1" target="fail_timeout_phase1"/>
   </state>
 
   <state id="listening_phase2">
     <onentry>
-      <send event="deadline_exceeded" delay="5s"/>
+      <send event="deadline_phase2" delay="11s"/>
     </onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == (::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpBasics08Phase2LocalOffset) and captured.dst_port == (::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpBasics08Phase2LocalOffset) and (captured.flags &amp; 0x01) != 0"
                 target="pass"/>
-    <transition event="deadline_exceeded" target="inconclusive_timeout_phase2"/>
+    <transition event="deadline_phase2" target="fail_timeout_phase2"/>
   </state>
 
   <final id="pass">
@@ -78,15 +87,15 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_timeout_phase1">
+  <final id="fail_timeout_phase1">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_fin_from_established","role":"precondition_unmet"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_fin_from_established","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 
-  <final id="inconclusive_timeout_phase2">
+  <final id="fail_timeout_phase2">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_fin_from_close_wait","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_fin_from_close_wait","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </scxml>

@@ -717,7 +717,17 @@ inline std::optional<TcpSeqRange> queryTcpSeqRange(int fd) {
     int repair_off = TCP_REPAIR_OFF_NO_WP;
     ::setsockopt(fd, IPPROTO_TCP, TCP_REPAIR, &repair_off, sizeof(repair_off));
 
-    if (!ok) return std::nullopt;
+    if (!ok) {
+        // Every caller composes its next segment from this snapshot, so a failed
+        // query is a segment the tester could not build. The cause is the tester's
+        // own socket (TCP_REPAIR needs CAP_NET_ADMIN), never a DUT frame. An fd < 0
+        // returns above without a record: the accept that produced it owns that.
+        std::fprintf(stderr,
+                     "tcp-pilot: TCP_REPAIR sequence query failed "
+                     "(the case will be inconclusive rather than graded)\n");
+        ::tc8::UnperformedStimulus::record("tester_tcp_seq_query");
+        return std::nullopt;
+    }
     return r;
 }
 
@@ -1049,9 +1059,10 @@ private:
 // value; the only path is to wait 2 * MSL + spec's 20 % margin for
 // real. For the Linux DUT under test this is 60 s × 1.20 = 72 s.
 //
-// COUPLING NOTE: BASICS_11/12 SCXML files hardcode their
-// `Listening_replay_rst` deadline to 78s (= 72 + 6 s observation
-// margin). SCXML `<send delay="..."/>` accepts string literals
+// COUPLING NOTE: BASICS_11/12 bind their `Listening_replay_rst`
+// deadline to 83s (= 72 + 11 s: the replay FIN goes out at 72 s and
+// the DUT is then granted ParamListenTime plus ParamToleranceTime to
+// RST it). SCXML `<send delay="..."/>` accepts string literals
 // only — there is no source-of-truth bridge between this constant
 // and the SCXML attribute. Adjusting this constant requires a
 // matched edit to both `tests/tcp_basics_11/tcp_basics_11.scxml`

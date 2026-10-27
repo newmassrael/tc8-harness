@@ -5,6 +5,13 @@
   SD message carrying a Type 2 entry (0x06 subscribe / 0x07 ack/nack)
   is a positive multiple of 16. The TESTER emits a SubscribeEventgroup
   to trigger the DUT's Type 2 reply, then observes the array length.
+
+  The procedure listens up to <ParamListenTime> for the
+  SubscribeEventgroupAck, so a window that elapses without a Type 2 reply
+  of the mandated length is the DUT's silence where it must answer:
+  observed_quiescence, judged against that bound (docs/verdict_policy.md
+  Section 2.1, H3), over a window of ParamListenTime plus
+  <ParamToleranceTime> (10 s + 1 s at the defaults).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -25,12 +32,12 @@
 
   <state id="listening">
     <onentry>
-      <send event="deadline_exceeded" delay="5s"/>
+      <send event="deadline_exceeded" delay="11s"/>
     </onentry>
     <transition event="someip_notification"
                 cond="cpp:captured.sd_entries[0].type == 0x07 and captured.sd_entries_len >= 16 and (captured.sd_entries_len % 16) == 0"
                 target="pass"/>
-    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
   </state>
 
   <final id="pass">
@@ -39,9 +46,9 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_timeout">
+  <final id="fail_timeout">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_ack_within_listen_window","role":"precondition_unmet"}</content>
+      <content>{"verdict":"fail","reason":"no_ack_within_listen_window","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </scxml>

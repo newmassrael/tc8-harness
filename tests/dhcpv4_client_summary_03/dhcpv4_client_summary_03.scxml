@@ -14,6 +14,16 @@
   SCXML envelope identical to SUMMARY_01 — only the trait differs by
   configuring `ip_datagram_total_bytes = 576` on the server emul so
   the OFFER carries ~308 octets of PAD options before END.
+
+  The DISCOVER is the start of the exchange the case builds on, so its
+  absence stays inconclusive. The procedure listens up to
+  <ParamListenTime> for the REQUEST answering the padded OFFER, so a
+  window that elapses without it is the DUT's silence where it must
+  answer — observed_quiescence, judged against that bound (H3), over
+  ParamListenTime plus <ParamToleranceTime> (10 s + 1 s at the
+  defaults). Whether the silence stands as a fail is the CLI's call on
+  the run's hypotheses. Each state's deadline event is its own, so the
+  DISCOVER window's timer cannot close the REQUEST window early.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -34,24 +44,24 @@
 
   <state id="listening_for_discover">
     <onentry>
-      <send event="deadline_exceeded" delay="6s"/>
+      <send event="s1_deadline" delay="6s"/>
     </onentry>
     <transition event="dhcp_observed"
                 cond="cpp:captured.is_dhcp_discover()
                       and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
                 target="listening_for_request"/>
-    <transition event="deadline_exceeded" target="inconclusive_no_discover"/>
+    <transition event="s1_deadline" target="inconclusive_no_discover"/>
   </state>
 
   <state id="listening_for_request">
     <onentry>
-      <send event="deadline_exceeded" delay="4s"/>
+      <send event="s2_deadline" delay="11s"/>
     </onentry>
     <transition event="dhcp_observed"
                 cond="cpp:captured.is_dhcp_request()
                       and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
                 target="pass"/>
-    <transition event="deadline_exceeded" target="inconclusive_no_request"/>
+    <transition event="s2_deadline" target="fail_no_request"/>
   </state>
 
   <final id="pass">
@@ -66,9 +76,9 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_no_request">
+  <final id="fail_no_request">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_request_after_padded_offer","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_request_after_padded_offer","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </scxml>

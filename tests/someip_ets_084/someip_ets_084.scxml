@@ -28,11 +28,20 @@
     Phase 2 (listening_phase2_subscribe_seen, 12 s): observe
             DUT-emitted SubscribeEventgroup (Type 0x06, SERVICE-ID
             0xF4E9 ets3, ttl > 0).
-    Phase 3 (listening_phase3_stop_seen, 10 s): observe DUT-emitted
+    Phase 3 (listening_phase3_stop_seen, 11 s): observe DUT-emitted
             StopSubscribeEventgroup (Type 0x06, SERVICE-ID 0xF4E9,
             ttl == 0). Phase 3 onentry triggers the trait-side
             scheduleAfterStateEntry callback that fires the
             clientServiceDeactivate Method Request.
+
+  The procedure states no time for the Subscribe or the StopSubscribe, so
+  the general <ParamListenTime> governs: a phase-2 or phase-3 window that
+  elapses without its entry is the DUT's silence where it must emit,
+  observed_quiescence judged against that bound (docs/verdict_policy.md
+  Section 2.1, H3). Phase 3's window is ParamListenTime plus
+  <ParamToleranceTime> (10 s + 1 s at the defaults); phase 2's 12 s covers
+  it. Phase 1 (no OfferService) is the preamble and stays
+  precondition_unmet.
 
   References: PRS_SOMEIPSD_00386, SD §4.2.
 -->
@@ -72,12 +81,12 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x06 and captured.sd_entries[0].service_id == 0xF4E9 and captured.sd_entries[0].ttl &gt; 0"
                 target="listening_phase3_stop_seen"/>
-    <transition event="phase2_deadline_exceeded" target="inconclusive_phase2_no_subscribe"/>
+    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_subscribe"/>
   </state>
 
   <state id="listening_phase3_stop_seen">
     <onentry>
-      <send event="phase3_deadline_exceeded" delay="10s"/>
+      <send event="phase3_deadline_exceeded" delay="11s"/>
     </onentry>
     <!-- StopSubscribeEventgroup is a SubscribeEventgroup entry (Type
          0x06) with ttl == 0 per SD §4.2. Trait-side
@@ -86,7 +95,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x06 and captured.sd_entries[0].service_id == 0xF4E9 and captured.sd_entries[0].ttl == 0"
                 target="pass"/>
-    <transition event="phase3_deadline_exceeded" target="inconclusive_phase3_no_stop_subscribe"/>
+    <transition event="phase3_deadline_exceeded" target="fail_phase3_no_stop_subscribe"/>
   </state>
 
   <final id="pass">
@@ -101,15 +110,15 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_phase2_no_subscribe">
+  <final id="fail_phase2_no_subscribe">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_subscribe_for_ets3_within_listen_window","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_subscribe_for_ets3_within_listen_window","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 
-  <final id="inconclusive_phase3_no_stop_subscribe">
+  <final id="fail_phase3_no_stop_subscribe">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_stop_subscribe_for_ets3_within_listen_window","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_stop_subscribe_for_ets3_within_listen_window","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </scxml>

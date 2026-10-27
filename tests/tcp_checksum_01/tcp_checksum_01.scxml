@@ -50,6 +50,15 @@
 
   Iteration coverage: spec lists no explicit iteration table; one
   stimulus run with one DATA segment is sufficient.
+
+  The data-elicited ACK is the reaction the Pass Criteria names, and the
+  TCP chapter states no time for it, so a listening_data_ack window that
+  elapses without it is the DUT's silence where it must answer —
+  observed_quiescence, judged against <ParamListenTime>
+  (docs/verdict_policy.md Section 2.1, H3). The window is
+  ParamListenTime plus <ParamToleranceTime> (10 s + 1 s at the
+  defaults). The handshake ACK is the ESTABLISHED precondition, so its
+  silence stays inconclusive.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -80,12 +89,12 @@
 
   <state id="listening_data_ack">
     <onentry>
-      <send event="deadline_exceeded_data" delay="5s"/>
+      <send event="deadline_exceeded_data" delay="11s"/>
     </onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpChecksum01LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpChecksum01LocalOffset)"
                 target="pass"/>
-    <transition event="deadline_exceeded_data" target="inconclusive_no_data_ack"/>
+    <transition event="deadline_exceeded_data" target="fail_no_data_ack"/>
   </state>
 
   <final id="pass">
@@ -100,9 +109,9 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_no_data_ack">
+  <final id="fail_no_data_ack">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_correct_checksum_data","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_ack_to_correct_checksum_data","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </scxml>

@@ -297,7 +297,7 @@ inline constexpr std::uint8_t kIpv4FaultHoldFirstFragment = 0x15;  // §4.4.4.7 
 // verdict is reported over. The peer is the sender of the frames to the UT port, learned
 // before the arm takes effect (the arm itself arrives on that port). The case's Request is
 // injected from the tester's injected MAC, which is not that peer, so it is the one dropped.
-inline constexpr std::uint8_t kArpFaultIgnoreWellFormedRequest = 0x16;  // §4.2.4.2 ARP_20/26/36 (a well-formed Request for the DUT's address goes unanswered)
+inline constexpr std::uint8_t kArpFaultIgnoreWellFormedRequest = 0x16;  // §4.2.4.2 ARP_16..20/26/36/41 (a well-formed Request for the DUT's address goes unanswered)
 inline constexpr std::uint8_t kIngressFaultMax           = kArpFaultIgnoreWellFormedRequest;
 
 // `OpSetAppFlavor` (0x1A) APP-LAYER reception-fault flavor byte. Distinct from the

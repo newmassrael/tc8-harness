@@ -135,7 +135,7 @@ private:
         (void)ack_drop;
 
         auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
-        const int tester_fd = open.listener.acceptOne();
+        const int tester_fd = acceptPreambleConnection(open);
         if (tester_fd < 0) return;
         if (!open.conn) return;
 
@@ -167,7 +167,7 @@ private:
         (void)ack_drop;
 
         auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
-        const int tester_fd = open.listener.acceptOne();
+        const int tester_fd = acceptPreambleConnection(open);
         if (tester_fd < 0) return;
         if (!open.conn) return;
 
@@ -207,7 +207,7 @@ private:
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffsetTimeWait;
 
         auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
-        const int tester_fd = open.listener.acceptOne();
+        const int tester_fd = acceptPreambleConnection(open);
         if (tester_fd < 0) return;
         if (!open.conn) return;
 

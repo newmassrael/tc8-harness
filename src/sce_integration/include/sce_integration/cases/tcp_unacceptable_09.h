@@ -88,7 +88,7 @@ struct TestCaseTraits<cases::TcpUnacceptable09SM>
                 ctx.dut, cfg,
                 kBasicsActiveLocalPort  + kTcpUnacceptable09Phase1LocalOffset,
                 kBasicsActiveRemotePort + kTcpUnacceptable09Phase1LocalOffset);
-            const int tester_fd = open.listener.acceptOne();
+            const int tester_fd = acceptPreambleConnection(open);
             TesterAutoAckDrop ack_drop(cfg);
             // Seam close drives DUT into FIN-WAIT-1 (no tester ACK
             // because of ack_drop).
@@ -130,7 +130,7 @@ struct TestCaseTraits<cases::TcpUnacceptable09SM>
                 ctx.dut, cfg,
                 /*local_port=*/phase2_local_port,
                 /*remote_port=*/phase2_remote_port);
-            const int tester_fd = open.listener.acceptOne();
+            const int tester_fd = acceptPreambleConnection(open);
             TesterAutoAckDrop ack_drop(cfg);
             if (open.conn) ctx.dut.tcpControl()->closeTcp(open.conn->socket);
             std::this_thread::sleep_for(std::chrono::milliseconds(100));

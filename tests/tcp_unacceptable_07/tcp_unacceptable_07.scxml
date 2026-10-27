@@ -20,6 +20,14 @@
   on the (12345, 49152) port quad. The mismatched-tester-port
   exclusion is implicit — only frames from the DUT to the tester's
   injected source port match.
+
+  The procedure states no listen time, so the general input parameter
+  <ParamListenTime> bounds the wait for the RST. A window that elapses
+  without it is the DUT's silence where it must answer:
+  observed_quiescence, judged against that bound (H3), over
+  ParamListenTime plus <ParamToleranceTime> (10 s + 1 s at the
+  defaults). Whether a silence stands as a fail is the CLI's call on
+  the run's hypotheses.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -40,12 +48,12 @@
 
   <state id="listening">
     <onentry>
-      <send event="deadline_exceeded" delay="5s"/>
+      <send event="deadline_exceeded" delay="11s"/>
     </onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort and (captured.flags &amp; 0x04) != 0"
                 target="pass"/>
-    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
   </state>
 
   <final id="pass">
@@ -54,9 +62,9 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_timeout">
+  <final id="fail_timeout">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_rst_to_listen_synack","role":"precondition_unmet"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_rst_to_listen_synack","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </scxml>

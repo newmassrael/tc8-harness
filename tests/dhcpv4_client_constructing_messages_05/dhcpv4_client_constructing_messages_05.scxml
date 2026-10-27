@@ -14,6 +14,10 @@
   fixed region carries Option 3 (Router) = SERVER1-IP. Both lift to
   `dhcpv4_router_option_egress.sce-template.xml`; the trait
   `stimulus()` selects the overload kind via ServerEmulParams.
+
+  A REQUEST or UDP window that elapses without its message is
+  observed_quiescence against <ParamListenTime>, over ParamListenTime
+  plus <ParamToleranceTime>; see the template.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"

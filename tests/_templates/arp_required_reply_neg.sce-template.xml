@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   §4.2.4.2 Request-reception `_NEG` body: the lwIP ingress-fault self-validation
-  of the positive ARP_20/26/36 required-emission guards. The positive injects a
+  of the arp_required_reply positives (ARP_16/17/18/19/20/26/36/41). The
+  positive injects a
   well-formed Request for the DUT's address and the DUT MUST answer it within
   <ParamListenTime>; its silence is the observed_quiescence final. Its `_NEG` arms
   kArpFaultIgnoreWellFormedRequest, so the lwIP netif input hook swallows that
@@ -17,9 +18,10 @@
     Fail:    a DUT ARP Reply observed despite the flavor -> fail_compliant (the
              fault was inert: a flavor-wiring regression, NOT a DUT conformance
              violation; role fault_injection_inert).
-  The three positives differ only in which field of the Request is the one the
-  spec names as correct; the frame is well-formed in every one, so the fault and
-  this body are shared and param-less (cf. arp_reply_neg).
+  The positives differ only in which field of the Request is the one the spec
+  names; the frame is well-formed in every one, so the fault and this body are
+  shared and param-less (cf. arp_reply_neg), and each `_NEG` trait runs its
+  positive's own stimulus (_arp_ignore_request_neg.h).
 -->
 <sce:template xmlns:sce="http://sce.dev/ext"
               xmlns="http://www.w3.org/2005/07/scxml"

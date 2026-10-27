@@ -61,7 +61,7 @@ struct TestCaseTraits<cases::TcpUnacceptable06SM>
             kBasicsActiveLocalPort  + kTcpUnacceptable06LocalOffset,
             kBasicsActiveRemotePort + kTcpUnacceptable06LocalOffset);
 
-        const int tester_fd = open.listener.acceptOne();
+        const int tester_fd = acceptPreambleConnection(open);
         if (tester_fd >= 0) {
             const auto seq_range = queryTcpSeqRange(tester_fd);
             if (seq_range.has_value()) {

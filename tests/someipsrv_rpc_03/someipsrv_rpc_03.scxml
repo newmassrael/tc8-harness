@@ -12,6 +12,13 @@
 
   Stimulus chain (Traits::stimulus): emitFindServiceBoot then
   emitMethodRequestAfter with target.method_id=0x40 and empty payload.
+
+  The procedure listens up to <ParamListenTime> for the Response, so a
+  phase-2 window that elapses without one is the DUT's silence where it
+  must answer: observed_quiescence, judged against that bound
+  (docs/verdict_policy.md Section 2.1, H3), over a window of
+  ParamListenTime plus <ParamToleranceTime> (10 s + 1 s at the defaults).
+  Phase 1 (no OfferService) is the preamble and stays precondition_unmet.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -42,12 +49,12 @@
 
   <state id="listening_phase2">
     <onentry>
-      <send event="phase2_deadline_exceeded" delay="5s"/>
+      <send event="phase2_deadline_exceeded" delay="11s"/>
     </onentry>
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.return_code == 0x00 and captured.method_id == 0x0040"
                 target="pass"/>
-    <transition event="phase2_deadline_exceeded" target="inconclusive_phase2_no_response"/>
+    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_response"/>
   </state>
 
   <final id="pass">
@@ -62,9 +69,9 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_phase2_no_response">
+  <final id="fail_phase2_no_response">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_getter_response_within_listen_window","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_getter_response_within_listen_window","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </scxml>

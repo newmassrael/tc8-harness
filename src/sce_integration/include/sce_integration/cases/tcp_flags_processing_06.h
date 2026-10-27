@@ -66,8 +66,9 @@ struct TestCaseTraits<cases::TcpFlagsProcessing06SM>
     //      enqueue scheduler.schedule(kHalfMslWait, …) so the second
     //      replay FIN lands 45 s of wall-time later. Splitting
     //      "state-entry registration → wall-time schedule" keeps the
-    //      trait independent of the SCXML's deadline value (50 s)
-    //      — same pattern as BASICS_11/12.
+    //      trait independent of the SCXML's deadline value (56 s:
+    //      this wait plus the ParamListenTime + tolerance the ACK is
+    //      granted after the FIN) — same pattern as BASICS_11/12.
     //
     // TesterAutoRstDrop held in a shared_ptr captured by value in
     // both schedule lambdas — load-bearing for the wall-time wait.

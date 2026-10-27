@@ -41,6 +41,14 @@
   emission (< 1 ms) + pcap dispatch (~10 ms) — well under the
   spec's 500 ms ceiling.
 
+  The synopsis states the bound: the full-sized segment is acknowledged
+  within 0.5 s (RFC 1122 section 4.2.3.2). A data-ACK window that
+  elapses without the ACK is the DUT's silence where it must answer:
+  observed_quiescence, judged against that 500 ms bound (H3); the window
+  equals it. The handshake window stays inconclusive: it sets up the
+  connection the segment is sent on. Whether a silence stands as a fail
+  is the CLI's call on the run's hypotheses.
+
   Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
   is_pure_dut_ack(...)'s src_ip conjunct unreachable; case lands
   on inconclusive_no_handshake_ack via the 5 s phase-1 deadline.
@@ -79,7 +87,7 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpOutOfOrder01LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpOutOfOrder01LocalOffset) and captured.ack_num == captured.expected_ack_num"
                 target="pass"/>
-    <transition event="deadline_data_ack" target="inconclusive_no_data_ack_within_500ms"/>
+    <transition event="deadline_data_ack" target="fail_no_data_ack_within_500ms"/>
   </state>
 
   <final id="pass">
@@ -94,9 +102,9 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_no_data_ack_within_500ms">
+  <final id="fail_no_data_ack_within_500ms">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"dut_did_not_ack_full_sized_segment_within_500ms","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"dut_did_not_ack_full_sized_segment_within_500ms","role":"observed_quiescence","bound":"500ms"}</content>
     </donedata>
   </final>
 </scxml>

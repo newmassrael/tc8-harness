@@ -198,7 +198,7 @@ private:
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsProcessing02Phase1LocalOffset;
 
         auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
-        const int tester_fd = open.listener.acceptOne();
+        const int tester_fd = acceptPreambleConnection(open);
         if (tester_fd < 0) return;
         const auto seq_range = queryTcpSeqRange(tester_fd);
         if (!seq_range.has_value()) {
@@ -224,7 +224,7 @@ private:
         (void)ack_drop;
 
         auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
-        const int tester_fd = open.listener.acceptOne();
+        const int tester_fd = acceptPreambleConnection(open);
         if (tester_fd < 0 || !open.conn) {
             silentlyCloseTesterFd(tester_fd);
             return;
@@ -260,7 +260,7 @@ private:
         // proceeding to TIME-WAIT. The 200 ms settle lets that ACK land
         // before the verify probe.
         auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
-        const int tester_fd = open.listener.acceptOne();
+        const int tester_fd = acceptPreambleConnection(open);
         if (tester_fd < 0 || !open.conn) {
             silentlyCloseTesterFd(tester_fd);
             return;
@@ -288,7 +288,7 @@ private:
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsProcessing02Phase4LocalOffset;
 
         auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
-        const int tester_fd = open.listener.acceptOne();
+        const int tester_fd = acceptPreambleConnection(open);
         if (tester_fd < 0) return;
         ::shutdown(tester_fd, SHUT_WR);
         std::this_thread::sleep_for(std::chrono::milliseconds(100));

@@ -226,7 +226,7 @@
     },
     "TCP_FLAGS_INVALID_07": {
       "platform_known_fail": true,
-      "platform_known_fail_verdict": "inconclusive:no_dut_ack_to_otw_seq_syn_in_syn_recv",
+      "platform_known_fail_verdict": "fail:no_dut_ack_to_otw_seq_syn_in_syn_recv",
       "platform_known_fail_ref": "dut/lwip_dut/README.md",
       "reason": "OTW-SEQ SYN in SYN-RCVD is dropped without the RFC 793 section 3.9 challenge ACK"
     },

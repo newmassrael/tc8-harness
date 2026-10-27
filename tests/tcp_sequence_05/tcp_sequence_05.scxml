@@ -34,7 +34,7 @@
     immediately; a delayed-ACK stack (lwIP) holds the ACK up to the
     RFC 1122 §4.2.3.2 ceiling (≤500 ms) and would legally coalesce
     segments arriving inside that window into one cumulative ACK —
-    landing the SCXML chain at inconclusive_timeout_seg2/seg3 for a test-design
+    landing the SCXML chain at fail_timeout_seg2/seg3 for a test-design
     reason, not a conformance gap (verified 2026-06-11: at the former
     100 ms spacing the lwIP fixture coalesced seg 2+3 into a single
     ack=+13). Spacing the segments by kDelayedAckSettle lets the
@@ -43,6 +43,16 @@
     walks; the final gap also outlasts the close-RST race so seg 3's
     ACK is observed before teardown. This keeps the matcher strict
     (per-segment, exact ack_num) while making the case DUT-neutral.
+
+  The procedure states no listen time, so the general input parameter
+  <ParamListenTime> bounds the wait for each segment's ACK. A window
+  that elapses without it is the DUT's silence where it must answer:
+  observed_quiescence for that segment, judged against that bound (H3),
+  over ParamListenTime plus <ParamToleranceTime> (10 s + 1 s at the
+  defaults). The handshake is the stimulus's (an awaited SYN+ACK), so a
+  connection that never opened is an unperformed stimulus, not a
+  silence here. Whether a silence stands as a fail is the CLI's call on
+  the run's hypotheses.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -63,32 +73,32 @@
 
   <state id="listen_seg1_ack">
     <onentry>
-      <send event="deadline_exceeded" delay="5s"/>
+      <send event="deadline_exceeded" delay="11s"/>
     </onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpSequence05ListenPort, ::tc8::sce::tcp::kTcpSequence05TesterSrcPort) and captured.ack_num == ::tc8::sce::tcp::kTesterInitialSeq + 5U"
                 target="listen_seg2_ack"/>
-    <transition event="deadline_exceeded" target="inconclusive_timeout_seg1"/>
+    <transition event="deadline_exceeded" target="fail_timeout_seg1"/>
   </state>
 
   <state id="listen_seg2_ack">
     <onentry>
-      <send event="deadline_exceeded_2" delay="5s"/>
+      <send event="deadline_exceeded_2" delay="11s"/>
     </onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpSequence05ListenPort, ::tc8::sce::tcp::kTcpSequence05TesterSrcPort) and captured.ack_num == ::tc8::sce::tcp::kTesterInitialSeq + 9U"
                 target="listen_seg3_ack"/>
-    <transition event="deadline_exceeded_2" target="inconclusive_timeout_seg2"/>
+    <transition event="deadline_exceeded_2" target="fail_timeout_seg2"/>
   </state>
 
   <state id="listen_seg3_ack">
     <onentry>
-      <send event="deadline_exceeded_3" delay="5s"/>
+      <send event="deadline_exceeded_3" delay="11s"/>
     </onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpSequence05ListenPort, ::tc8::sce::tcp::kTcpSequence05TesterSrcPort) and captured.ack_num == ::tc8::sce::tcp::kTesterInitialSeq + 13U"
                 target="pass"/>
-    <transition event="deadline_exceeded_3" target="inconclusive_timeout_seg3"/>
+    <transition event="deadline_exceeded_3" target="fail_timeout_seg3"/>
   </state>
 
   <final id="pass">
@@ -97,21 +107,21 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_timeout_seg1">
+  <final id="fail_timeout_seg1">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_ack_for_seg1","role":"precondition_unmet"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_ack_for_seg1","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 
-  <final id="inconclusive_timeout_seg2">
+  <final id="fail_timeout_seg2">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_ack_for_seg2","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_ack_for_seg2","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 
-  <final id="inconclusive_timeout_seg3">
+  <final id="fail_timeout_seg3">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_ack_for_seg3","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_ack_for_seg3","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </scxml>

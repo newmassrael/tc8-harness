@@ -23,6 +23,15 @@
   Confirmation (`has_ut_response` filter excludes the latter).
 
   Per-case unique src_port = 20040 keeps cross-case state isolated.
+
+  Each host listens up to <ParamListenTime> for the DUT's message, and
+  both messages are pass criteria, so a phase window that elapses without
+  its message is the DUT's silence where it must send: observed_quiescence
+  for that host, judged against that bound (H3). Each window is
+  ParamListenTime plus <ParamToleranceTime> (10 s + 1 s at the defaults).
+  Whether a silence stands as a fail is the CLI's call on the run's
+  hypotheses: an incomplete capture or an unanswered liveness anchor makes
+  it inconclusive.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -43,22 +52,22 @@
 
   <state id="listening_phase1">
     <onentry>
-      <send event="phase1_deadline" delay="5s"/>
+      <send event="phase1_deadline" delay="11s"/>
     </onentry>
     <transition event="udp_observed"
                 cond="cpp:!captured.has_ut_response and captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.dst_port == 20000"
                 target="listening_phase2"/>
-    <transition event="phase1_deadline" target="inconclusive_phase1_no_host1_egress"/>
+    <transition event="phase1_deadline" target="fail_phase1_no_host1_egress"/>
   </state>
 
   <state id="listening_phase2">
     <onentry>
-      <send event="phase2_deadline" delay="5s"/>
+      <send event="phase2_deadline" delay="11s"/>
     </onentry>
     <transition event="udp_observed"
                 cond="cpp:!captured.has_ut_response and captured.src_ip == expected.dut_iface_ip and captured.dst_ip == 0x030010AC and captured.dst_port == 20000"
                 target="pass"/>
-    <transition event="phase2_deadline" target="inconclusive_phase2_no_host2_egress"/>
+    <transition event="phase2_deadline" target="fail_phase2_no_host2_egress"/>
   </state>
 
   <final id="pass">
@@ -67,15 +76,15 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_phase1_no_host1_egress">
+  <final id="fail_phase1_no_host1_egress">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_originated_udp_to_host1_within_listen_window","role":"precondition_unmet"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_originated_udp_to_host1_within_listen_window","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 
-  <final id="inconclusive_phase2_no_host2_egress">
+  <final id="fail_phase2_no_host2_egress">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_originated_udp_to_host2_within_listen_window","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_originated_udp_to_host2_within_listen_window","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </scxml>

@@ -8,6 +8,8 @@
 #include <utility>
 #include <vector>
 
+#include "tc8/unperformed_stimulus.h"
+
 #include "sce_integration/dut_control.h"
 #include "sce_integration/tcp_pilot_common.h"
 #include "sce_integration/test_config.h"
@@ -75,6 +77,11 @@ inline SeamPassiveOpen driveSeamPassiveOpen(::tc8::sce::IDutControl &dut,
                      "tcp-pilot: seam passive-OPEN failed (acceptTcp "
                      "listen=%u, backend=%s)\n",
                      listen_port, dut.backendName());
+        // Deliberately NOT recorded as an unperformed stimulus, unlike
+        // driveSeamListen and driveSeamRawPassiveAccept: the tester connect is a
+        // kernel connect, so a DUT that never sends its SYN+ACK also lands here,
+        // and that silence is what TCP_BASICS_01 grades as an observed_quiescence
+        // fail. Recording it would turn that DUT defect into an inconclusive.
     }
     return SeamPassiveOpen{std::move(conn), tester_fd};
 }
@@ -101,6 +108,12 @@ inline std::optional<::tc8::sce::DutSocket> driveSeamListen(::tc8::sce::IDutCont
                      "tcp-pilot: seam listen-only failed (listenTcp "
                      "listen=%u, backend=%s)\n",
                      listen_port, dut.backendName());
+        // A listen that did not happen is a control-plane miss, never a DUT wire
+        // behaviour: no frame is graded on it. Every caller's test-body stimulus
+        // needs the DUT in LISTEN, so without this record the window that follows
+        // would grade the DUT's silence to a question it was never put in a state
+        // to answer (an observed_quiescence fail).
+        ::tc8::UnperformedStimulus::record("tcp_seam_listen");
     }
     return handle;
 }
@@ -167,6 +180,12 @@ inline SeamRawPassiveAccept driveSeamRawPassiveAccept(
                      "tcp-pilot: seam raw-passive ACCEPT failed (acceptTcp "
                      "listen=%u, backend=%s)\n",
                      listen_port, dut.backendName());
+        // The handshake here is the preamble of every caller, not its graded
+        // property: a missing DUT SYN+ACK is already recorded by the awaited
+        // observation inside rawPassiveThreeWayHandshake, and the remaining causes
+        // (the LISTEN or the accept confirmation failing) are control-plane misses.
+        // Either way the test body never ran against an ESTABLISHED connection.
+        ::tc8::UnperformedStimulus::record("tcp_seam_raw_accept");
     }
     return result;
 }

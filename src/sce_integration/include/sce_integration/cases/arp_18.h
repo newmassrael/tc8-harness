@@ -23,6 +23,8 @@ struct TestCaseTraits<cases::Arp18SM>
     static constexpr std::string_view kCaseId = "ARP_18";
     static constexpr std::string_view kDescription =
         "ARP Request reception with arbitrary target_hw — DUT must reply";
+    // As ARP_20: grades the responder, anchored by an ICMP Echo.
+    static constexpr DutRequirements kRequirementsUnderTest{DutRequirement::kArpRespond};
     static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg,
                          ::tc8::sce::StimulusContext &ctx) {
         ::tc8::stimulus::ArpFrameSpec spec;

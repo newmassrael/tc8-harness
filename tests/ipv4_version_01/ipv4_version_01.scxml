@@ -10,7 +10,11 @@
   reply-side Version field; this case observes the DUT's receive-side
   acceptance.
 
-  Body shared with IPv4_HEADER_03 / IPv4_TTL_05 via sce:template
+  The procedure states no listen time, so a window that elapses without
+  the Reply is observed_quiescence judged against <ParamListenTime>, over
+  ParamListenTime plus <ParamToleranceTime>; see the template.
+
+  Body shared with IPv4_HEADER_03 via sce:template
   (tests/_templates/ipv4_positive_reply.sce-template.xml).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"

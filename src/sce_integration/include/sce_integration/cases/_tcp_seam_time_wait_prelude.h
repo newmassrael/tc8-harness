@@ -29,7 +29,7 @@ inline TcpTimeWaitInfo driveSeamTimeWaitFw2(::tc8::sce::IDutControl &dut,
                                             std::uint16_t local_port,
                                             std::uint16_t remote_port) {
     auto open = driveSeamActiveOpen(dut, cfg, local_port, remote_port);
-    const int tester_fd = open.listener.acceptOne();
+    const int tester_fd = acceptPreambleConnection(open);
     return finishFw2ToTimeWait(tester_fd, [&]() {
         if (open.conn) dut.tcpControl()->closeTcp(open.conn->socket);
     });

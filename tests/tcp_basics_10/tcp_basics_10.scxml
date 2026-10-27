@@ -39,6 +39,16 @@
   third-leg ACK from the DUT and pass spuriously — same hazard
   BASICS_07 dodges by querying ut_established (which has no off-the-
   wire surrogate available here).
+
+  The ACK to the tester FIN is the Pass Criteria of both iterations, and
+  the TCP chapter states no time for it, so a listening_pK_ack window
+  that elapses without it is the DUT's silence where it must answer —
+  observed_quiescence for that iteration, judged against
+  <ParamListenTime> (docs/verdict_policy.md Section 2.1, H3); the window
+  is ParamListenTime plus <ParamToleranceTime> (10 s + 1 s at the
+  defaults). The close FIN that marks FINWAIT-K is the precondition
+  (step 1), so its silence stays inconclusive. Every state arms its own
+  timer event so an earlier state's timer cannot close a later window.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -59,42 +69,42 @@
 
   <state id="listening_p1_fin">
     <onentry>
-      <send event="deadline_exceeded" delay="5s"/>
+      <send event="deadline_p1_fin" delay="5s"/>
     </onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == (::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpBasics10Phase1LocalOffset) and captured.dst_port == (::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpBasics10Phase1LocalOffset) and (captured.flags &amp; 0x01) != 0"
                 target="listening_p1_ack"/>
-    <transition event="deadline_exceeded" target="inconclusive_timeout_p1_fin"/>
+    <transition event="deadline_p1_fin" target="inconclusive_timeout_p1_fin"/>
   </state>
 
   <state id="listening_p1_ack">
     <onentry>
-      <send event="deadline_exceeded" delay="5s"/>
+      <send event="deadline_p1_ack" delay="11s"/>
     </onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == (::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpBasics10Phase1LocalOffset) and captured.dst_port == (::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpBasics10Phase1LocalOffset) and (captured.flags &amp; 0x01) == 0 and (captured.flags &amp; 0x02) == 0 and (captured.flags &amp; 0x04) == 0 and (captured.flags &amp; 0x10) != 0"
                 target="listening_p2_fin"/>
-    <transition event="deadline_exceeded" target="inconclusive_timeout_p1_ack"/>
+    <transition event="deadline_p1_ack" target="fail_timeout_p1_ack"/>
   </state>
 
   <state id="listening_p2_fin">
     <onentry>
-      <send event="deadline_exceeded" delay="5s"/>
+      <send event="deadline_p2_fin" delay="5s"/>
     </onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == (::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpBasics10Phase2LocalOffset) and captured.dst_port == (::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpBasics10Phase2LocalOffset) and (captured.flags &amp; 0x01) != 0"
                 target="listening_p2_ack"/>
-    <transition event="deadline_exceeded" target="inconclusive_timeout_p2_fin"/>
+    <transition event="deadline_p2_fin" target="inconclusive_timeout_p2_fin"/>
   </state>
 
   <state id="listening_p2_ack">
     <onentry>
-      <send event="deadline_exceeded" delay="5s"/>
+      <send event="deadline_p2_ack" delay="11s"/>
     </onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == (::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpBasics10Phase2LocalOffset) and captured.dst_port == (::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpBasics10Phase2LocalOffset) and (captured.flags &amp; 0x01) == 0 and (captured.flags &amp; 0x02) == 0 and (captured.flags &amp; 0x04) == 0 and (captured.flags &amp; 0x10) != 0"
                 target="pass"/>
-    <transition event="deadline_exceeded" target="inconclusive_timeout_p2_ack"/>
+    <transition event="deadline_p2_ack" target="fail_timeout_p2_ack"/>
   </state>
 
   <final id="pass">
@@ -109,9 +119,9 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_timeout_p1_ack">
+  <final id="fail_timeout_p1_ack">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_tester_fin_phase1","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_ack_to_tester_fin_phase1","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 
@@ -121,9 +131,9 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_timeout_p2_ack">
+  <final id="fail_timeout_p2_ack">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_tester_fin_phase2","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_ack_to_tester_fin_phase2","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </scxml>

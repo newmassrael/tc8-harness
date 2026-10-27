@@ -19,7 +19,9 @@
   binds the two probe-state fail reason strings — FLAGS_INVALID_14
   distinguishes phase 1 (FIN with OTW SEQ) from phase 2 (data with
   OTW SEQ); the wire-level shape is identical to UNACCEPTABLE_13's
-  per-phase probe ACK observation.
+  per-phase probe ACK observation. Each probe ACK's silence is the
+  template's observed_quiescence final, judged against
+  <ParamListenTime>.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"

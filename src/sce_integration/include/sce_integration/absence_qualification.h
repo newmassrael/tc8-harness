@@ -85,6 +85,16 @@ inline AbsenceBound resolveAbsenceBound(std::string_view bound, const ::tc8::Ixi
     return b;
 }
 
+// How far a measured window may read short of the timer that closed it and still
+// count as covering its bound: the run loop's idle quantum (test_command.cpp
+// kIdleWait). The window is measured from the transition that entered the
+// source state, which is stamped after that state's onentry armed the timer, so
+// even an exact window reads a little short; a literal bound equal to its window
+// (a spec "within 500 ms") must not fail H3 on that alone. The static audit still
+// requires every window timer's delay to be at least its bound, so this slack never
+// admits a window that was authored short.
+inline constexpr std::int64_t kWindowMeasurementSlackUs = 20 * 1000;
+
 // The facts the CLI gathered. `capture_reason` names the H2 hole when
 // `capture_whole` is false (the capture accounting decides which one).
 struct AbsenceFacts {
@@ -127,7 +137,7 @@ inline std::string_view unestablishedBeforeAnchor(const Verdict &v, const Absenc
     if (!facts.bound.valid) {
         return "absence_bound_unparseable_absence_unproven";
     }
-    if (!facts.window_us || *facts.window_us < facts.bound.us) {
+    if (!facts.window_us || *facts.window_us + kWindowMeasurementSlackUs < facts.bound.us) {
         return "window_shorter_than_bound_absence_unproven";
     }
     return {};

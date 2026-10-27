@@ -26,8 +26,11 @@
 
   See tests/_templates/tcp_time_wait_4state.sce-template.xml for
   the shared 4-state observation chain (incl. the COUPLING NOTE
-  pairing the 78s replay deadline below to kTimeWaitFullWait in
+  pairing the 83s replay deadline below to kTimeWaitFullWait in
   src/sce_integration/include/sce_integration/tcp_pilot_common.h).
+  A replay window that elapses without the RST is observed_quiescence
+  against <ParamListenTime>: 83 s is the 72 s wait plus ParamListenTime
+  plus <ParamToleranceTime> (10 s + 1 s at the defaults) after the FIN.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -42,7 +45,7 @@
            mid_fail_reason="no_dut_ack_to_tester_fin"
            replay_label="replay_rst"
            replay_method="is_dut_rst"
-           replay_deadline="78s"
+           replay_deadline="83s"
            replay_fail_reason="no_dut_rst_after_2msl_post_time_wait"
            local_offset="kTcpBasics11LocalOffset"/>
 </scxml>

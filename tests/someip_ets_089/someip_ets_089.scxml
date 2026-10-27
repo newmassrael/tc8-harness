@@ -27,13 +27,22 @@
   Verdict (3-state):
     Phase 1 (listening_phase1, 6 s): observe OfferService for
             SERVICE-ID-1.
-    Phase 2 (listening_phase2_stop_offer, 6 s): observe DUT-emitted
+    Phase 2 (listening_phase2_stop_offer, 11 s): observe DUT-emitted
             StopOfferService (Type 0x01 + ttl == 0 on SERVICE-ID-1).
     Phase 3 (listening_phase3_resume, 8 s): observe DUT-emitted
             OfferService (Type 0x01 + ttl > 0) AFTER the suspend
             window — i.e. the resume re-offer. Cyclic OfferService
             from before suspend is intercepted by phase 1 already, so
             phase 3's first match is the re-offer.
+
+  The procedure states no time for the StopOfferService that the DUT sends
+  on suspendInterface, so the general <ParamListenTime> governs: a phase-2
+  window that elapses without it is the DUT's silence where it must emit,
+  observed_quiescence judged against that bound (docs/verdict_policy.md
+  Section 2.1, H3), over a window of ParamListenTime plus
+  <ParamToleranceTime> (10 s + 1 s at the defaults). The resume re-offer
+  is no step of the procedure, so phase 3's deadline stays inconclusive;
+  phase 1 (no OfferService) is the preamble and stays precondition_unmet.
 
   Reference: PRS_SOMEIPSD_00356 / 00357 / 00364, TC8 §5.1.4.3.2.
 -->
@@ -66,13 +75,13 @@
 
   <state id="listening_phase2_stop_offer">
     <onentry>
-      <send event="phase2_deadline_exceeded" delay="6s"/>
+      <send event="phase2_deadline_exceeded" delay="11s"/>
     </onentry>
     <!-- DUT-emitted StopOfferService — Type 0x01 entry with ttl == 0. -->
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.sd_entries[0].ttl == 0"
                 target="listening_phase3_resume"/>
-    <transition event="phase2_deadline_exceeded" target="inconclusive_phase2_no_stop_offer"/>
+    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_stop_offer"/>
   </state>
 
   <state id="listening_phase3_resume">
@@ -99,9 +108,9 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_phase2_no_stop_offer">
+  <final id="fail_phase2_no_stop_offer">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_stop_offer_service_within_listen_window","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_stop_offer_service_within_listen_window","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 

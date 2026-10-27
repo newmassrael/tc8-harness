@@ -61,7 +61,7 @@ struct TestCaseTraits<cases::TcpOutOfOrder05SM>
             kBasicsActiveRemotePort + kTcpOutOfOrder05LocalOffset;
 
         auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
-        const int tester_fd = open.listener.acceptOne();
+        const int tester_fd = acceptPreambleConnection(open);
         if (tester_fd < 0) return;
 
         const auto seq_range = queryTcpSeqRange(tester_fd);

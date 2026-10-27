@@ -449,10 +449,10 @@ laziness:
   before shipping. Also, clearing the SYN bit *de-selects* the segment (the positive
   has no fail-final — only pass on SYN+ACK), so the violation is unobservable rather
   than a clean pass/fail flip.
-- **TCP_CHECKSUM_01 (must-ACK a correct-checksum segment).** Its data-ACK guard has
-  only pass + inconclusive — no fail-final (absence is `inconclusive`, a liveness
-  guard), so there is nothing a fault could make reachable; it stays terminal in the
-  registry by policy, not a fault target. (HEADER_02/05/06 — the data-ACK ack_num
+- **TCP_CHECKSUM_01 (must-ACK a correct-checksum segment).** Its data-ACK silence is an
+  `observed_quiescence` fail (a `required_emission` guard), so a fault that swallows
+  the correct-checksum segment would make it reachable; no such flavor exists yet, so
+  it stays a `REGISTRY` row on the Phase F backlog. (HEADER_02/05/06 — the data-ACK ack_num
   cases — are now wired via per-phase arming, above. HEADER_07/08/09/11 and CHECKSUM_02
   are must-not-respond cases — wrong seam for the egress field-fault, but reachable via the
   ingress-synthesis seam, like ACKNOWLEDGEMENT_04 below.)

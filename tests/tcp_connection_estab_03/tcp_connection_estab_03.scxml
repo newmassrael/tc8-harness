@@ -23,6 +23,13 @@
   SCXML state progression; on the wire the three handshakes complete
   in the order the DUT emits its SYNs (the DUT opens the three active
   connections serially).
+
+  The third-leg ACKs are Pass Criteria step 4, and the TCP chapter
+  states no time for them, so a leg window that elapses without its ACK
+  is the DUT's silence where it must answer — observed_quiescence for
+  that leg, judged against <ParamListenTime> (docs/verdict_policy.md
+  Section 2.1, H3). Each window is ParamListenTime plus
+  <ParamToleranceTime> (10 s + 1 s at the defaults).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -43,32 +50,32 @@
 
   <state id="listen_leg1">
     <onentry>
-      <send event="deadline_exceeded" delay="6s"/>
+      <send event="deadline_exceeded" delay="11s"/>
     </onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpConnEstab03LocalOffset1, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpConnEstab03LocalOffset1)"
                 target="listen_leg2"/>
-    <transition event="deadline_exceeded" target="inconclusive_timeout_leg1"/>
+    <transition event="deadline_exceeded" target="fail_timeout_leg1"/>
   </state>
 
   <state id="listen_leg2">
     <onentry>
-      <send event="deadline_exceeded_2" delay="6s"/>
+      <send event="deadline_exceeded_2" delay="11s"/>
     </onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpConnEstab03LocalOffset2, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpConnEstab03LocalOffset2)"
                 target="listen_leg3"/>
-    <transition event="deadline_exceeded_2" target="inconclusive_timeout_leg2"/>
+    <transition event="deadline_exceeded_2" target="fail_timeout_leg2"/>
   </state>
 
   <state id="listen_leg3">
     <onentry>
-      <send event="deadline_exceeded_3" delay="6s"/>
+      <send event="deadline_exceeded_3" delay="11s"/>
     </onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpConnEstab03LocalOffset3, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpConnEstab03LocalOffset3)"
                 target="pass"/>
-    <transition event="deadline_exceeded_3" target="inconclusive_timeout_leg3"/>
+    <transition event="deadline_exceeded_3" target="fail_timeout_leg3"/>
   </state>
 
   <final id="pass">
@@ -77,21 +84,21 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_timeout_leg1">
+  <final id="fail_timeout_leg1">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_for_leg1","role":"precondition_unmet"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_handshake_ack_for_leg1","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 
-  <final id="inconclusive_timeout_leg2">
+  <final id="fail_timeout_leg2">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_for_leg2","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_handshake_ack_for_leg2","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 
-  <final id="inconclusive_timeout_leg3">
+  <final id="fail_timeout_leg3">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_for_leg3","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_handshake_ack_for_leg3","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </scxml>

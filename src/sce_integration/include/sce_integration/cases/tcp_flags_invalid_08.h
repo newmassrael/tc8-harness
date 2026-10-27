@@ -54,7 +54,7 @@ struct TestCaseTraits<cases::TcpFlagsInvalid08SM>
             const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpFlagsInvalid08BaseOffset + phase;
             const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpFlagsInvalid08BaseOffset + phase;
             auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
-            const int tester_fd = open.listener.acceptOne();
+            const int tester_fd = acceptPreambleConnection(open);
             if (tester_fd < 0) {
                 std::this_thread::sleep_for(kTcpPilotPhaseGap);
                 continue;

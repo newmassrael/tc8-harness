@@ -98,6 +98,18 @@ TEST(QualifyAbsence, AWindowShorterThanTheBoundIsNotAnObservedSilence) {
     EXPECT_EQ(qualifyAbsence(kQuiescence, facts).str(), "inconclusive:window_shorter_than_bound_absence_unproven");
 }
 
+// A literal bound equal to its window ("within 500 ms" over a 500 ms window) reads a
+// little short when measured; within the loop's resolution it still covers it.
+TEST(QualifyAbsence, AWindowEqualToALiteralBoundCoversItWithinMeasurementSlack) {
+    Verdict v = kQuiescence;
+    v.bound = "500ms";
+    AbsenceFacts facts = holdingFacts(v, LivenessAnchorOutcome::kAnswered);
+    facts.window_us = 500 * 1000 - 300;  // stamped after the timer was armed
+    EXPECT_EQ(qualifyAbsence(v, facts).str(), "fail:no_dut_arp_reply");
+    facts.window_us = 500 * 1000 - ::tc8::sce::kWindowMeasurementSlackUs - 1;
+    EXPECT_EQ(qualifyAbsence(v, facts).str(), "inconclusive:window_shorter_than_bound_absence_unproven");
+}
+
 TEST(QualifyAbsence, AQuiescenceFailMustDeclareAValidBound) {
     Verdict undeclared = kQuiescence;
     undeclared.bound.clear();

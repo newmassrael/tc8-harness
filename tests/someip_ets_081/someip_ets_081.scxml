@@ -43,6 +43,14 @@
             reboot OfferService. Cond on the deadline reads the slot
             once and routes to pass / fail accordingly.
 
+  The procedure states no time for the Subscribe or the renewed connection,
+  so the general <ParamListenTime> governs: a phase-2 window without the
+  Subscribe, and a phase-3 window that ends with fewer than two accepted
+  handshakes, are the DUT's silence where it must emit, observed_quiescence
+  judged against that bound (docs/verdict_policy.md Section 2.1, H3); the
+  12 s windows cover it. Phase 1 (no OfferService) is the preamble and
+  stays precondition_unmet.
+
   Reference: PRS_SOMEIPSD_00385.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
@@ -83,7 +91,7 @@
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x06 and captured.sd_entries[0].service_id == 0xF4E9 and captured.sd_entries[0].ttl &gt; 0 and captured.sd_option_count >= 1 and captured.sd_options[0].type == 0x04 and captured.sd_options[0].l4_proto == 0x06"
                 target="listening_phase3_renewed_handshake"/>
-    <transition event="phase2_deadline_exceeded" target="inconclusive_phase2_no_first_subscribe"/>
+    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_first_subscribe"/>
   </state>
 
   <state id="listening_phase3_renewed_handshake">
@@ -98,7 +106,7 @@
                 cond="cpp:captured.tcp_handshake_count >= 2"
                 target="pass"/>
     <transition event="phase3_deadline_exceeded"
-                target="inconclusive_phase3_no_renewed_handshake"/>
+                target="fail_phase3_no_renewed_handshake"/>
   </state>
 
   <final id="pass">
@@ -113,15 +121,15 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_phase2_no_first_subscribe">
+  <final id="fail_phase2_no_first_subscribe">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_subscribe_with_tcp_option_within_listen_window","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_subscribe_with_tcp_option_within_listen_window","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 
-  <final id="inconclusive_phase3_no_renewed_handshake">
+  <final id="fail_phase3_no_renewed_handshake">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"dut_did_not_renew_tcp_connection_after_simulated_server_reboot","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"dut_did_not_renew_tcp_connection_after_simulated_server_reboot","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </scxml>

@@ -196,8 +196,9 @@
     "SOMEIP_ETS_063": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit a method response for oversized utf16 fixed"
+          "class": "required_emission",
+          "fail_reason": "no_method_response_within_listen_window_for_oversized_utf16_fixed",
+          "property": "DUT must return a method or error response to echoUTF16FIXED with an oversized string within ParamListenTime; binary present/absent"
         }
       ]
     },
@@ -213,8 +214,9 @@
     "SOMEIP_ETS_065": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit a method response for oversized utf8 fixed"
+          "class": "required_emission",
+          "fail_reason": "no_method_response_within_listen_window_for_oversized_utf8_fixed",
+          "property": "DUT must return a method or error response to echoUTF8FIXED with an oversized string within ParamListenTime; binary present/absent"
         }
       ]
     },
@@ -273,8 +275,9 @@
     "SOMEIP_ETS_073": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit a method response for wrong union type"
+          "class": "required_emission",
+          "fail_reason": "no_method_response_within_listen_window_for_wrong_union_type",
+          "property": "DUT must return a method response to echoUNION with a wrong union type field within ParamListenTime; binary present/absent"
         }
       ]
     },
@@ -326,24 +329,42 @@
     "SOMEIP_ETS_081": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must subscribe with a TCP option then renew the TCP connection after a simulated server reboot"
+          "class": "required_emission",
+          "fail_reason": "no_dut_subscribe_with_tcp_option_within_listen_window",
+          "property": "DUT client must TCP-connect and subscribe with a TCP endpoint option after the tester's OfferService within ParamListenTime (PRS_SOMEIPSD_00385); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "dut_did_not_renew_tcp_connection_after_simulated_server_reboot",
+          "property": "DUT must open a new TCP connection after the reboot OfferService within ParamListenTime; binary present/absent"
         }
       ]
     },
     "SOMEIP_ETS_082": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must subscribe with a UDP option then re-subscribe after a simulated server reboot"
+          "class": "required_emission",
+          "fail_reason": "no_dut_subscribe_with_udp_option_within_listen_window",
+          "property": "DUT client must subscribe with a UDP endpoint option after the tester's OfferService within ParamListenTime (PRS_SOMEIPSD_00385); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "dut_did_not_re_subscribe_after_simulated_server_reboot",
+          "property": "DUT must subscribe again after the reboot OfferService within ParamListenTime; binary present/absent"
         }
       ]
     },
     "SOMEIP_ETS_084": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must subscribe then stop-subscribe for the activated service"
+          "class": "required_emission",
+          "fail_reason": "no_dut_subscribe_for_ets3_within_listen_window",
+          "property": "DUT client must send SubscribeEventgroup after the tester's OfferService within ParamListenTime; binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_stop_subscribe_for_ets3_within_listen_window",
+          "property": "DUT must send StopSubscribeEventgroup after clientServiceDeactivate within ParamListenTime (PRS_SOMEIPSD_00386); binary present/absent"
         }
       ]
     },
@@ -376,8 +397,9 @@
     "SOMEIP_ETS_089": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must offer, stop-offer, then resume offering the service across SuspendInterface"
+          "class": "required_emission",
+          "fail_reason": "no_stop_offer_service_within_listen_window",
+          "property": "DUT must send StopOfferService on suspendInterface within ParamListenTime (PRS_SOMEIPSD_00364); binary present/absent"
         }
       ]
     },
@@ -475,8 +497,9 @@
     "SOMEIP_ETS_099": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit findservice for service id 2"
+          "class": "required_emission",
+          "fail_reason": "no_dut_findservice_for_service_id_2_within_listen_window",
+          "property": "DUT must start its client Start-Up Phase (FindService for SERVICE-ID-2) after clientServiceActivate within ParamListenTime (PRS_SOMEIPSD_00350); binary present/absent"
         }
       ]
     },
@@ -501,16 +524,23 @@
     "SOMEIP_ETS_106": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit subscribe"
+          "class": "required_emission",
+          "fail_reason": "dut_did_not_emit_subscribe_within_listen_window",
+          "property": "DUT client must send SubscribeEventgroup to the tester's offered service within ParamListenTime (PRS_SOMEIPSD_00385); binary present/absent"
         }
       ]
     },
     "SOMEIP_ETS_107": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the first SubscribeEventgroupAck and the resubscribe Ack in order"
+          "class": "required_emission",
+          "fail_reason": "no_first_subscribe_ack_within_listen_window",
+          "property": "DUT must send SubscribeEventgroupAck for the first Subscribe within ParamListenTime (PRS_SOMEIPSD_00263); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_resubscribe_ack_within_listen_window",
+          "property": "DUT must send SubscribeEventgroupAck for the re-subscription after Stop+Subscribe within ParamListenTime; binary present/absent"
         }
       ]
     },
@@ -624,8 +654,9 @@
     "SOMEIP_ETS_120": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit subscribe ack"
+          "class": "required_emission",
+          "fail_reason": "no_subscribe_ack_within_listen_window",
+          "property": "DUT must Ack a Subscribe whose endpoint option names an alternate IP/port within ParamListenTime (PRS_SOMEIPSD_00386); binary present/absent"
         }
       ]
     },
@@ -641,8 +672,9 @@
     "SOMEIP_ETS_122": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit a method response for interface version getter"
+          "class": "required_emission",
+          "fail_reason": "no_method_response_within_listen_window_for_interface_version_getter",
+          "property": "DUT must return a method or error response to the InterfaceVersion getter within ParamListenTime; binary present/absent"
         }
       ]
     },
@@ -684,8 +716,9 @@
     "SOMEIP_ETS_128": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit offer service phase2"
+          "class": "required_emission",
+          "fail_reason": "no_offer_service_phase2_within_listen_window",
+          "property": "DUT must answer the second wildcard FindService burst with at least one OfferService within ParamListenTime; binary present/absent"
         }
       ]
     },
@@ -871,8 +904,14 @@
     "SOMEIP_ETS_155": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the first SubscribeEventgroupAck and a second Ack after StopSubscribe"
+          "class": "required_emission",
+          "fail_reason": "no_first_subscribe_ack_within_listen_window",
+          "property": "DUT must Ack the first Subscribe within ParamListenTime (PRS_SOMEIPSD_00263); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_second_subscribe_ack_after_stop_within_listen_window",
+          "property": "DUT must Ack the re-subscription after StopSubscribe within ParamListenTime (PRS_SOMEIPSD_00386); binary present/absent"
         }
       ]
     },
@@ -913,8 +952,14 @@
     "SOMEIP_ETS_173": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the first and second unicast SubscribeEventgroupAck"
+          "class": "required_emission",
+          "fail_reason": "no_first_subscribe_ack_within_listen_window",
+          "property": "DUT must send a unicast SubscribeEventgroupAck for the first Subscribe within ParamListenTime (PRS_SOMEIPSD_00386); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_second_subscribe_ack_within_listen_window",
+          "property": "DUT must Ack the Subscribe with the deviating option layout within ParamListenTime; binary present/absent"
         }
       ]
     },
@@ -930,24 +975,32 @@
     "SOMEIP_ETS_175": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit subscribe ack"
+          "class": "required_emission",
+          "fail_reason": "no_subscribe_ack_within_listen_window",
+          "property": "DUT must Ack a Subscribe that carries an unreferenced Configuration option within ParamListenTime (PRS_SOMEIPSD_00337); binary present/absent"
         }
       ]
     },
     "SOMEIP_ETS_176": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the first and second SubscribeEventgroupAck"
+          "class": "required_emission",
+          "fail_reason": "no_first_subscribe_ack_within_listen_window",
+          "property": "DUT must Ack a Subscribe with unused data after the Options Array (counted in Length) within ParamListenTime (PRS_SOMEIPSD_00153); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_second_subscribe_ack_within_listen_window",
+          "property": "DUT must Ack the Subscribe whose trailing data is not counted in Length within ParamListenTime; binary present/absent"
         }
       ]
     },
     "SOMEIP_ETS_177": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit subscribe ack"
+          "class": "required_emission",
+          "fail_reason": "no_subscribe_ack_within_listen_window",
+          "property": "DUT must Ack a Subscribe with trailing data not counted in the SOME/IP Length within ParamListenTime (PRS_SOMEIPSD_00273); binary present/absent"
         }
       ]
     },
@@ -991,24 +1044,27 @@
     "ICMPv4_TYPE_22": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit an Echo Reply to the Echo Request; binary present/absent, no wrong-value variant"
+          "class": "required_emission",
+          "fail_reason": "no_echo_reply_within_listen_window",
+          "property": "DUT must emit an ICMP Echo Reply in response to the Echo Request within ParamListenTime (RFC 792); binary present/absent"
         }
       ]
     },
     "IPv4_HEADER_03": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit an IPv4 packet from its interface address; binary present/absent"
+          "class": "required_emission",
+          "fail_reason": "no_dut_ipv4_packet_with_expected_source_address",
+          "property": "DUT must emit an Echo Reply sourced from its own IPv4 address in response to the Echo Request within ParamListenTime (RFC 1122 section 3.2.1.3); binary present/absent"
         }
       ]
     },
     "IPv4_VERSION_01": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit an IPv4 packet from its interface address; binary present/absent"
+          "class": "required_emission",
+          "fail_reason": "no_dut_ipv4_packet_with_expected_source_address",
+          "property": "DUT must emit an Echo Reply in response to a Version=4 Echo Request within ParamListenTime (RFC 1122 section 3.2.1.1); binary present/absent"
         }
       ]
     },
@@ -1038,8 +1094,14 @@
     "UDP_FIELDS_04": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must originate UDP to each Topology-2 host; binary present/absent per host"
+          "class": "required_emission",
+          "fail_reason": "no_dut_originated_udp_to_host1_within_listen_window",
+          "property": "DUT must emit UDP to Host-1 in response to the UT send trigger within ParamListenTime; binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_originated_udp_to_host2_within_listen_window",
+          "property": "DUT must emit UDP to Host-2 in response to the UT send trigger within ParamListenTime; binary present/absent"
         }
       ]
     },
@@ -1078,38 +1140,6 @@
         }
       ]
     },
-    "ARP_16": {
-      "guards": [
-        {
-          "class": "liveness",
-          "property": "DUT must emit an ARP Reply (opcode 2, sender_hw = DUT MAC) to a Request whose Target Hardware Address is zeroed; binary present/absent"
-        }
-      ]
-    },
-    "ARP_17": {
-      "guards": [
-        {
-          "class": "liveness",
-          "property": "DUT must emit an ARP Reply to a Request whose Target Hardware Address is ff:ff:ff:ff:ff:ff; binary present/absent"
-        }
-      ]
-    },
-    "ARP_18": {
-      "guards": [
-        {
-          "class": "liveness",
-          "property": "DUT must emit an ARP Reply to a Request carrying an arbitrary (unresolved) Target Hardware Address; binary present/absent"
-        }
-      ]
-    },
-    "ARP_19": {
-      "guards": [
-        {
-          "class": "liveness",
-          "property": "DUT must emit an ARP Reply to a Request whose Target Hardware Address is the DUT MAC carried in a broadcast Ethernet frame; binary present/absent"
-        }
-      ]
-    },
     "ARP_39": {
       "guards": [
         {
@@ -1125,14 +1155,6 @@
           "class": "prohibited_emission",
           "fail_reason": "udp_egress_before_dut_arp_request",
           "property": "DUT must not emit the provoked UDP before it has resolved the tester, on the third injected MAC. Ordering only, so no --expect value can fault it: the guard's single expected-value conjunct is the L3 destination filter, and flipping a filter suppresses the observation rather than faulting the DUT. PARTIAL entry -- the case's other fail final is proven by its negative row"
-        }
-      ]
-    },
-    "ARP_41": {
-      "guards": [
-        {
-          "class": "liveness",
-          "property": "DUT must answer a correct ARP Request with a Reply whose opcode is Response (2, RFC 826 opcode swap); binary present/absent"
         }
       ]
     },
@@ -1219,24 +1241,37 @@
     "DHCPv4_CLIENT_ALLOCATING_06": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must retransmit DHCPDISCOVER when no DHCPOFFER arrives (RFC 2131 §3.1); binary present/absent"
+          "class": "required_emission",
+          "fail_reason": "no_dut_dhcp_discover_retransmission",
+          "property": "DUT must retransmit DHCPDISCOVER when no DHCPOFFER arrives, within ParamListenTime (RFC 2131 §3.1); binary present/absent"
         }
       ]
     },
     "DHCPv4_CLIENT_ALLOCATING_07": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must send a DHCPDECLINE and restart configuration when ARP detects the offered address in use (RFC 2131 §3.1); binary present/absent"
+          "class": "required_emission",
+          "fail_reason": "no_dut_dhcp_decline_after_arp_conflict",
+          "property": "DUT must emit a DHCPDECLINE for the offered address in response to a conflicting ARP Reply within ParamListenTime (RFC 2131 §3.1); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_dhcp_discover_after_decline",
+          "property": "DUT must restart configuration with a DHCPDISCOVER within 10 s after its DHCPDECLINE (RFC 2131 §3.1); binary present/absent"
         }
       ]
     },
     "DHCPv4_CLIENT_ALLOCATING_08": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must wait at least ten seconds before restarting configuration after a DHCPDECLINE (RFC 2131 §3.1); binary present/absent"
+          "class": "required_emission",
+          "fail_reason": "no_dut_dhcp_decline_after_arp_conflict",
+          "property": "As DHCPv4_CLIENT_ALLOCATING_07 (shared template)"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_dhcp_discover_within_decline_to_discover_window",
+          "property": "DUT must emit the restart DHCPDISCOVER no later than 10 s plus ParamToleranceTime after the DECLINE (RFC 2131 §3.1); present/absent in that interval"
         }
       ]
     },
@@ -1251,24 +1286,42 @@
     "DHCPv4_CLIENT_ALLOCATING_10": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must retransmit its RENEWING DHCPREQUEST when neither a DHCPACK nor a DHCPNAK arrives (RFC 2131 §3.1); binary present/absent"
+          "class": "required_emission",
+          "fail_reason": "no_dut_renewing_request_within_listen_window",
+          "property": "DUT must enter RENEWING and emit a unicast DHCPREQUEST at T1 = 6 s after the ACK of a 12 s lease (RFC 2131 §4.4.5); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_second_renewing_request_within_retx_window",
+          "property": "DUT must retransmit the RENEWING DHCPREQUEST before T2, within 4.5 s of the first (RFC 2131 §4.4.5, §3.1); binary present/absent"
         }
       ]
     },
     "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_05": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must parse the sname field when Option Overload is present and complete configuration (RFC 2132 §9.3); binary present/absent"
+          "class": "required_emission",
+          "fail_reason": "no_dut_dhcp_request_after_offer",
+          "property": "DUT must emit a DHCPREQUEST in response to an Option-52 (sname) overloaded 576-octet OFFER within ParamListenTime (RFC 2132 §9.3); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_udp_to_unused_routed_ip_via_router_option",
+          "property": "DUT must send UDP to an unused routed address through the Option 3 gateway read from sname, in response to the UT trigger, within ParamListenTime; binary present/absent"
         }
       ]
     },
     "DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_06": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must parse the file field when Option Overload is present and complete configuration (RFC 2132 §9.3); binary present/absent"
+          "class": "required_emission",
+          "fail_reason": "no_dut_dhcp_request_after_offer",
+          "property": "As DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_05 with the 'file' field overloaded (RFC 2132 §9.3)"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_udp_to_unused_routed_ip_via_router_option",
+          "property": "As DHCPv4_CLIENT_CONSTRUCTING_MESSAGES_05, gateway read from 'file'"
         }
       ]
     },
@@ -1301,24 +1354,27 @@
     "DHCPv4_CLIENT_SUMMARY_01": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit a DHCPDISCOVER and a DHCPREQUEST as a DHCP client on UDP port 68 (RFC 2131 §4.1); binary present/absent"
+          "class": "required_emission",
+          "fail_reason": "no_dut_dhcp_request_after_offer",
+          "property": "DUT must emit a DHCPREQUEST in response to the DHCPOFFER within ParamListenTime (RFC 2131 §4.1); binary present/absent"
         }
       ]
     },
     "DHCPv4_CLIENT_SUMMARY_03": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must accept DHCP messages with an options field of at least 312 octets (576-octet total) (RFC 2131 §2); binary present/absent"
+          "class": "required_emission",
+          "fail_reason": "no_dut_dhcp_request_after_padded_offer",
+          "property": "DUT must emit a DHCPREQUEST in response to a 576-octet padded DHCPOFFER within ParamListenTime (RFC 2131 §2); binary present/absent"
         }
       ]
     },
     "SOMEIPSRV_BASIC_01": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must offer its service identified by the configured Service-ID (SOME/IP-SD OfferService); binary present/absent"
+          "class": "required_emission",
+          "fail_reason": "no_method_response_within_listen_window",
+          "property": "DUT must send a Method Response (E_OK) to the tester's Request within ParamListenTime; binary present/absent"
         }
       ]
     },
@@ -1465,16 +1521,18 @@
     "SOMEIPSRV_FORMAT_19": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must respond to a SubscribeEventgroup with a Type-2 entry (SubscribeEventgroupAck or Nack); binary present/absent"
+          "class": "required_emission",
+          "fail_reason": "no_ack_within_listen_window",
+          "property": "DUT must answer the SubscribeEventgroup with a Type 2 (0x07) entry within ParamListenTime (SWS_SD_00385); binary present/absent"
         }
       ]
     },
     "SOMEIPSRV_FORMAT_20": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit a Type-2 SD entry (16-byte entry length) in its SD response; binary present/absent"
+          "class": "required_emission",
+          "fail_reason": "no_ack_within_listen_window",
+          "property": "DUT must answer the SubscribeEventgroup with a Type 2 Ack whose entries length is NumberOfEntries*16 within ParamListenTime (SWS_SD_00183); binary present/absent"
         }
       ]
     },
@@ -1517,8 +1575,14 @@
     "SOMEIPSRV_ONWIRE_04": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must respond to a request that reuses the same Request ID (client_id 0xCAFE, session_id 0x1234); binary present/absent"
+          "class": "required_emission",
+          "fail_reason": "no_first_response_within_listen_window",
+          "property": "DUT must answer the first Request within ParamListenTime (TR_SOMEIP_00044); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "dut_silently_dropped_second_request_with_reused_request_id",
+          "property": "DUT must answer the second Request that reuses the same Request ID within ParamListenTime; binary present/absent"
         }
       ]
     },
@@ -1660,8 +1724,9 @@
     "SOMEIPSRV_RPC_01": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must serve all methods of a service instance over a single shared TCP/UDP transport; binary present/absent"
+          "class": "required_emission",
+          "fail_reason": "no_response_for_service_id_2_method_within_listen_window",
+          "property": "DUT must answer the METHOD-ID-1-SI-2 Request on SERVICE-ID-2 with E_OK within ParamListenTime (TR_SOMEIP_00150); binary present/absent"
         }
       ]
     },
@@ -1677,8 +1742,9 @@
     "SOMEIPSRV_RPC_03": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must answer a field getter (empty-payload request) with the field value; binary present/absent"
+          "class": "required_emission",
+          "fail_reason": "no_getter_response_within_listen_window",
+          "property": "DUT must answer the field getter with an E_OK Response within ParamListenTime; binary present/absent"
         }
       ]
     },
@@ -1827,8 +1893,14 @@
     "SOMEIPSRV_SD_MESSAGE_02": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must reply to a FindService carrying a specific Service Instance ID with a matching two-entry OfferService; binary present/absent"
+          "class": "required_emission",
+          "fail_reason": "no_single_entry_offer_for_extracted_instance_1_within_listen_window",
+          "property": "DUT must answer FindService(extractedInstID1) with a 1-entry OfferService for that instance within ParamListenTime (TR_SOMEIP_00351); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_single_entry_offer_for_extracted_instance_2_within_listen_window",
+          "property": "As instance 1, for extractedInstID2"
         }
       ]
     },
@@ -1903,8 +1975,9 @@
     "TCP_BASICS_01": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit a SYN,ACK to the tester's SYN; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_syn_ack_within_listen_window",
+          "property": "DUT must emit a SYN,ACK in response to the tester's SYN in LISTEN within ParamListenTime (RFC 793 section 3.2); binary present/absent"
         }
       ]
     },
@@ -1928,8 +2001,9 @@
     "TCP_BASICS_06": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit a SYN to open the connection; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_syn_within_listen_window",
+          "property": "DUT must emit a SYN on an active OPEN call within ParamListenTime (RFC 793 section 3.2); binary present/absent"
         }
       ]
     },
@@ -1945,56 +2019,78 @@
     "TCP_BASICS_08": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit a FIN when closing from ESTABLISHED; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_fin_from_established",
+          "property": "DUT must emit a FIN on CLOSE in ESTABLISHED within ParamListenTime (iteration 1); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_fin_from_close_wait",
+          "property": "DUT must emit a FIN on CLOSE in CLOSE-WAIT within ParamListenTime (iteration 2); binary present/absent"
         }
       ]
     },
     "TCP_BASICS_09": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit a FIN entering LAST-ACK; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_fin_into_last_ack",
+          "property": "DUT must emit a FIN entering LAST-ACK within ParamListenTime; binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_rst_from_closed",
+          "property": "DUT must emit a RST to a non-RST segment once CLOSED within ParamListenTime (RFC 793 section 3.9); binary present/absent"
         }
       ]
     },
     "TCP_BASICS_10": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit a FIN to close the connection; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_tester_fin_phase1",
+          "property": "DUT must ACK a FIN received in FINWAIT-1 within ParamListenTime (iteration 1); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_tester_fin_phase2",
+          "property": "DUT must ACK a FIN received in FINWAIT-2 within ParamListenTime (iteration 2); binary present/absent"
         }
       ]
     },
     "TCP_BASICS_11": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_rst_after_2msl_post_time_wait",
+          "property": "DUT must emit a RST to a FIN sent after 2*MSL+20% (TIME-WAIT via FINWAIT-2 expired) within ParamListenTime of that FIN; binary present/absent"
         }
       ]
     },
     "TCP_BASICS_12": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_rst_after_2msl_post_time_wait_via_closing",
+          "property": "DUT must emit a RST to a FIN sent after 2*MSL+20% (TIME-WAIT via CLOSING expired) within ParamListenTime of that FIN; binary present/absent"
         }
       ]
     },
     "TCP_BASICS_13": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_replay_fin_in_time_wait",
+          "property": "DUT must ACK a FIN sent within 2*MSL of entering TIME-WAIT via FINWAIT-2, within ParamListenTime; binary present/absent"
         }
       ]
     },
     "TCP_BASICS_14": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_replay_fin_in_time_wait_via_closing",
+          "property": "DUT must ACK a FIN sent within 2*MSL of entering TIME-WAIT via CLOSING, within ParamListenTime; binary present/absent"
         }
       ]
     },
@@ -2010,16 +2106,33 @@
     "TCP_CALL_ABORT_02": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "dut_did_not_emit_rst_after_abort_in_est",
+          "property": "DUT must emit a RST on ABORT in ESTABLISHED within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "dut_did_not_close_after_abort_in_est",
+          "property": "DUT, once CLOSED after the abort, must RST the verify-probe ACK on the killed 4-tuple within ParamListenTime (RFC 793 section 3.9 CLOSED-state reset); binary present/absent"
         }
       ]
     },
     "TCP_CALL_ABORT_03": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "dut_did_not_close_after_abort_in_closing",
+          "property": "DUT, CLOSED after ABORT in CLOSING, must RST the verify-probe ACK within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "dut_did_not_close_after_abort_in_last_ack",
+          "property": "DUT, CLOSED after ABORT in LAST-ACK, must RST the verify-probe ACK within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "dut_did_not_close_after_abort_in_time_wait",
+          "property": "DUT, CLOSED after ABORT in TIME-WAIT, must RST the verify-probe ACK within ParamListenTime (RFC 793 section 3.9); binary present/absent"
         }
       ]
     },
@@ -2034,56 +2147,98 @@
     "TCP_CHECKSUM_01": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_correct_checksum_data",
+          "property": "DUT must ACK a data segment carrying a correct checksum within ParamListenTime (RFC 1122 section 4.2.2.7); binary present/absent"
         }
       ]
     },
     "TCP_CLOSING_06": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_close_fin",
+          "property": "DUT must emit a FIN when the application issues CLOSE in ESTABLISHED within ParamListenTime (RFC 793 section 3.5); binary present/absent"
         }
       ]
     },
     "TCP_CONNECTION_ESTAB_01": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit a SYN,ACK for leg 1; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_synack_for_leg1",
+          "property": "DUT's one passive socket must SYN,ACK each of three SYNs from distinct ports within ParamListenTime; leg 1; binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_synack_for_leg2",
+          "property": "As leg 1, leg 2"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_synack_for_leg3",
+          "property": "As leg 1, leg 3"
         }
       ]
     },
     "TCP_CONNECTION_ESTAB_02": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit a SYN,ACK for leg 1; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_synack_for_leg1",
+          "property": "DUT's three passive sockets must each SYN,ACK their SYN within ParamListenTime; leg 1; binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_synack_for_leg2",
+          "property": "As leg 1, leg 2"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_synack_for_leg3",
+          "property": "As leg 1, leg 3"
         }
       ]
     },
     "TCP_CONNECTION_ESTAB_03": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the handshake ACK completing leg 1's handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_handshake_ack_for_leg1",
+          "property": "DUT's three active sockets must each complete the handshake with an ACK to the tester's SYN,ACK within ParamListenTime; leg 1; binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_handshake_ack_for_leg2",
+          "property": "As leg 1, leg 2"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_handshake_ack_for_leg3",
+          "property": "As leg 1, leg 3"
         }
       ]
     },
     "TCP_CONNECTION_ESTAB_07": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit an ACK to the tester's FIN; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_fin_after_close",
+          "property": "DUT in CLOSE-WAIT must emit a FIN on the user Close within ParamListenTime (RFC 793 section 3.5); binary present/absent"
         }
       ]
     },
     "TCP_CONTROL_FLAGS_08": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit a SYN,ACK to the first SYN; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_syn_ack_to_first_syn",
+          "property": "DUT in LISTEN must SYN,ACK the old-duplicate SYN with ack=SEQ1+1 within ParamListenTime (RFC 793 section 3.4 figure 9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_syn_ack_after_old_duplicate_recovery",
+          "property": "DUT, back in LISTEN after the RST, must SYN,ACK the fresh SYN with ack=SEQ2+1 within ParamListenTime; binary present/absent"
         }
       ]
     },
@@ -2104,88 +2259,274 @@
     "TCP_FLAGS_INVALID_07": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit an ACK to the out-of-window SYN in SYN-RECEIVED; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_syn_in_syn_recv",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ SYN in SYN-RCVD within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_synack_in_syn_recv",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ SYN,ACK in SYN-RCVD within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_ack_in_syn_recv",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ ACK in SYN-RCVD within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_fin_in_syn_recv",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ FIN in SYN-RCVD within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_data_in_syn_recv",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ data segment in SYN-RCVD within ParamListenTime (RFC 793 section 3.9); binary present/absent"
         }
       ]
     },
     "TCP_FLAGS_INVALID_08": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_syn_in_established",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ SYN in ESTABLISHED within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_synack_in_established",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ SYN,ACK in ESTABLISHED within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_ack_in_established",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ ACK in ESTABLISHED within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_fin_in_established",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ FIN in ESTABLISHED within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_data_in_established",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ data segment in ESTABLISHED within ParamListenTime (RFC 793 section 3.9); binary present/absent"
         }
       ]
     },
     "TCP_FLAGS_INVALID_09": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_syn_in_finwait1",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ SYN in FIN-WAIT-1 within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_synack_in_finwait1",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ SYN,ACK in FIN-WAIT-1 within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_ack_in_finwait1",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ ACK in FIN-WAIT-1 within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_fin_in_finwait1",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ FIN in FIN-WAIT-1 within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_data_in_finwait1",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ data segment in FIN-WAIT-1 within ParamListenTime (RFC 793 section 3.9); binary present/absent"
         }
       ]
     },
     "TCP_FLAGS_INVALID_10": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_syn_in_finwait2",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ SYN in FIN-WAIT-2 within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_synack_in_finwait2",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ SYN,ACK in FIN-WAIT-2 within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_ack_in_finwait2",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ ACK in FIN-WAIT-2 within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_fin_in_finwait2",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ FIN in FIN-WAIT-2 within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_data_in_finwait2",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ data segment in FIN-WAIT-2 within ParamListenTime (RFC 793 section 3.9); binary present/absent"
         }
       ]
     },
     "TCP_FLAGS_INVALID_11": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_syn_in_close_wait",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ SYN in CLOSE-WAIT within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_synack_in_close_wait",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ SYN,ACK in CLOSE-WAIT within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_ack_in_close_wait",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ ACK in CLOSE-WAIT within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_fin_in_close_wait",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ FIN in CLOSE-WAIT within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_data_in_close_wait",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ data segment in CLOSE-WAIT within ParamListenTime (RFC 793 section 3.9); binary present/absent"
         }
       ]
     },
     "TCP_FLAGS_INVALID_12": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_syn_in_closing",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ SYN in CLOSING within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_synack_in_closing",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ SYN,ACK in CLOSING within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_ack_in_closing",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ ACK in CLOSING within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_fin_in_closing",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ FIN in CLOSING within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_data_in_closing",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ data segment in CLOSING within ParamListenTime (RFC 793 section 3.9); binary present/absent"
         }
       ]
     },
     "TCP_FLAGS_INVALID_13": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_syn_in_last_ack",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ SYN in LAST-ACK within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_synack_in_last_ack",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ SYN,ACK in LAST-ACK within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_ack_in_last_ack",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ ACK in LAST-ACK within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_fin_in_last_ack",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ FIN in LAST-ACK within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_data_in_last_ack",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ data segment in LAST-ACK within ParamListenTime (RFC 793 section 3.9); binary present/absent"
         }
       ]
     },
     "TCP_FLAGS_INVALID_14": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_fin_in_time_wait",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ FIN in TIME-WAIT within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_data_in_time_wait",
+          "property": "DUT must emit an ACK carrying the next expected SEQ in response to an OTW-SEQ data segment in TIME-WAIT within ParamListenTime (RFC 793 section 3.9); binary present/absent"
         }
       ]
     },
     "TCP_FLAGS_PROCESSING_02": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit a SYN,ACK entering SYN-RECEIVED; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "dut_did_not_emit_rst_after_rst_in_syn_rcvd",
+          "property": "DUT must RST the verify ACK sent after an in-window RST in SYN-RCVD within ParamListenTime, showing it went CLOSED (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "dut_did_not_emit_rst_after_rst_in_est",
+          "property": "DUT must RST the verify ACK sent after an in-window RST in ESTABLISHED within ParamListenTime, showing it went CLOSED (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "dut_did_not_emit_rst_after_rst_in_fw1",
+          "property": "DUT must RST the verify ACK sent after an in-window RST in FIN-WAIT-1 within ParamListenTime, showing it went CLOSED (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "dut_did_not_emit_rst_after_rst_in_fw2",
+          "property": "DUT must RST the verify ACK sent after an in-window RST in FIN-WAIT-2 within ParamListenTime, showing it went CLOSED (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "dut_did_not_emit_rst_after_rst_in_cw",
+          "property": "DUT must RST the verify ACK sent after an in-window RST in CLOSE-WAIT within ParamListenTime, showing it went CLOSED (RFC 793 section 3.9); binary present/absent"
         }
       ]
     },
     "TCP_FLAGS_PROCESSING_05": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit a SYN,ACK to the prelude SYN; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_synack_to_verify_syn_after_in_window_syn",
+          "property": "DUT must answer a fresh verify SYN with a SYN,ACK within ParamListenTime after an in-window SYN in SYN-RCVD, showing it returned to LISTEN (RFC 1122 section 4.2.2.20); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_synack_to_verify_syn_after_in_window_synack",
+          "property": "DUT must answer a fresh verify SYN with a SYN,ACK within ParamListenTime after an in-window SYN,ACK in SYN-RCVD, showing it returned to LISTEN (RFC 1122 section 4.2.2.20); binary present/absent"
         }
       ]
     },
     "TCP_FLAGS_PROCESSING_06": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_first_replay_fin_in_time_wait",
+          "property": "DUT must ACK the retransmitted FIN in TIME-WAIT within ParamListenTime (RFC 793 section 3.9); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_second_replay_fin_after_1_5_msl",
+          "property": "DUT must still be in TIME-WAIT 1.5*MSL after the restart and ACK a second replayed FIN within ParamListenTime of it; binary present/absent"
         }
       ]
     },
@@ -2259,40 +2600,50 @@
     "TCP_OUT_OF_ORDER_01": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "dut_did_not_ack_full_sized_segment_within_500ms",
+          "property": "DUT must ACK a full-sized segment within 0.5 s (RFC 1122 section 4.2.3.2); binary present/absent"
         }
       ]
     },
     "TCP_OUT_OF_ORDER_02": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "dut_did_not_emit_cumulative_ack_for_two_segments_within_500ms",
+          "property": "DUT must ACK two back-to-back segments, delayed or not, within 0.5 s (RFC 1122 section 4.2.3.2); binary present/absent"
         }
       ]
     },
     "TCP_OUT_OF_ORDER_03": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_initial_data_segment",
+          "property": "DUT must ACK the first in-order data segment within ParamListenTime; binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "dut_did_not_emit_cumulative_ack_after_gap_fill",
+          "property": "DUT must emit the cumulative ACK covering the queued out-of-order segments plus the filler within ParamListenTime of the gap fill; binary present/absent"
         }
       ]
     },
     "TCP_OUT_OF_ORDER_05": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "dut_emitted_fewer_than_5_acks_for_10_full_sized_segments",
+          "property": "DUT must emit at least 5 ACKs for a 10-segment full-sized stream, each within ParamListenTime of the previous (RFC 1122 section 4.2.3.2); count at deadline"
         }
       ]
     },
     "TCP_PROBING_WINDOWS_02": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "dut_did_not_send_data_after_msb_set_window_advertisement",
+          "property": "DUT must send the requested data segment after receiving a window with the MSB set, within ParamListenTime (RFC 1122 section 4.2.2.3); binary present/absent"
         }
       ]
     },
@@ -2338,104 +2689,167 @@
     "TCP_SEQUENCE_05": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit an ACK for the first data segment; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_for_seg1",
+          "property": "DUT must ACK in-order segment 1 with the expected ack number within ParamListenTime (RFC 793); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_for_seg2",
+          "property": "DUT must ACK in-order segment 2 with the expected ack number within ParamListenTime (RFC 793); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_for_seg3",
+          "property": "DUT must ACK in-order segment 3 with the expected ack number within ParamListenTime (RFC 793); binary present/absent"
         }
       ]
     },
     "TCP_UNACCEPTABLE_01": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit a SYN,ACK to the first tester SYN; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_synack_after_acceptable_rst",
+          "property": "DUT must answer a fresh SYN with a SYN,ACK within ParamListenTime after an acceptable RST in SYN-RCVD, showing it returned to LISTEN (RFC 793 section 3.4); binary present/absent"
         }
       ]
     },
     "TCP_UNACCEPTABLE_03": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit a RST to the unacceptable ACK in SYN-RECEIVED; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_rst_to_unacceptable_ack_in_syn_recv",
+          "property": "DUT must send an RST after an unacceptable ACK in SYN-RCVD within ParamListenTime (RFC 793 section 3.4); binary present/absent"
         }
       ]
     },
     "TCP_UNACCEPTABLE_04": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_data",
+          "property": "DUT must return an empty ACK with proper SEQ/ACK to an OTW-SEQ data segment in ESTABLISHED within ParamListenTime (RFC 793 section 3.4); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_unacc_ack_data",
+          "property": "DUT must return an empty ACK with proper SEQ/ACK to a data segment with an unacceptable ACK in ESTABLISHED within ParamListenTime (RFC 793 section 3.4); binary present/absent"
         }
       ]
     },
     "TCP_UNACCEPTABLE_05": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit a RST to a SYN,ACK received in LISTEN; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_rst_to_listen_synack",
+          "property": "DUT in LISTEN must send an RST to a SYN,ACK carrying an unacceptable ACK within ParamListenTime (RFC 793 section 3.4); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_rst_to_listen_naked_ack",
+          "property": "DUT in LISTEN must send an RST to a bare ACK within ParamListenTime (RFC 793 section 3.4); binary present/absent"
         }
       ]
     },
     "TCP_UNACCEPTABLE_06": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_syn",
+          "property": "DUT in ESTABLISHED must send an ACK naming the next expected SEQ in response to an OTW-SEQ SYN within ParamListenTime (RFC 793 section 3.4); binary present/absent"
         }
       ]
     },
     "TCP_UNACCEPTABLE_07": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit a RST to a SYN,ACK received in LISTEN; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_rst_to_listen_synack",
+          "property": "DUT in LISTEN must send an RST to a spurious SYN,ACK within ParamListenTime (RFC 793 section 3.4); binary present/absent"
         }
       ]
     },
     "TCP_UNACCEPTABLE_08": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit a RST to the SYN,ACK carrying an unacceptable ACK; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_rst_phase1_synack_with_unacceptable_ack",
+          "property": "DUT in SYN-SENT must send an RST with SEQ = incoming ACK for a SYN,ACK with an unacceptable ACK within ParamListenTime (RFC 793 section 3.4); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_rst_phase2_ack_with_unacceptable_ack",
+          "property": "DUT in SYN-SENT must send an RST with SEQ = incoming ACK for a bare ACK with an unacceptable ACK within ParamListenTime (RFC 793 section 3.4); binary present/absent"
         }
       ]
     },
     "TCP_UNACCEPTABLE_09": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_finwait1",
+          "property": "DUT in FIN-WAIT-1 must return an empty ACK with proper SEQ/ACK to an OTW-SEQ data segment within ParamListenTime (RFC 793 section 3.4); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_unacceptable_ack_finwait1",
+          "property": "DUT in FIN-WAIT-1 must return an empty ACK with proper SEQ/ACK to a data segment with an unacceptable ACK within ParamListenTime (RFC 793 section 3.4); binary present/absent"
         }
       ]
     },
     "TCP_UNACCEPTABLE_11": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_in_closing",
+          "property": "DUT in CLOSING must return an empty ACK with proper SEQ/ACK to an OTW-SEQ data segment within ParamListenTime (RFC 793 section 3.4); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_unacceptable_ack_in_closing",
+          "property": "DUT in CLOSING must return an empty ACK with proper SEQ/ACK to a data segment with an unacceptable ACK within ParamListenTime (RFC 793 section 3.4); binary present/absent"
         }
       ]
     },
     "TCP_UNACCEPTABLE_12": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_in_last_ack",
+          "property": "DUT in LAST-ACK must return an empty ACK with proper SEQ/ACK to an OTW-SEQ data segment within ParamListenTime (RFC 793 section 3.4); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_unacceptable_ack_in_last_ack",
+          "property": "DUT in LAST-ACK must return an empty ACK with proper SEQ/ACK to a data segment with an unacceptable ACK within ParamListenTime (RFC 793 section 3.4); binary present/absent"
         }
       ]
     },
     "TCP_UNACCEPTABLE_13": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_in_time_wait",
+          "property": "DUT in TIME-WAIT must return an empty ACK with proper SEQ/ACK to an OTW-SEQ data segment within ParamListenTime (RFC 793 section 3.4); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_unacceptable_ack_in_time_wait",
+          "property": "DUT in TIME-WAIT must return an empty ACK with proper SEQ/ACK to a data segment with an unacceptable ACK within ParamListenTime (RFC 793 section 3.4); binary present/absent"
         }
       ]
     },
     "TCP_UNACCEPTABLE_14": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_otw_seq_close_wait",
+          "property": "DUT in CLOSE-WAIT must return an empty ACK with proper SEQ/ACK to an OTW-SEQ data segment within ParamListenTime (RFC 793 section 3.4); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_unacceptable_ack_close_wait",
+          "property": "DUT in CLOSE-WAIT must return an empty ACK with proper SEQ/ACK to a data segment with an unacceptable ACK within ParamListenTime (RFC 793 section 3.4); binary present/absent"
         }
       ]
     },

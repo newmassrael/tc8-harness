@@ -252,8 +252,7 @@ guard asserts DUT behaviour, not a comparison against an operator value.
   UDP MF/offset=0), IPv4_ADDRESSING_01 (UT received-count), IPv4_HEADER_05
   (§4.4.4.1, 576-byte Echo Reply payload).
 - **required_emission** (must answer within ParamListenTime; silence is an
-  observed_quiescence fail): IPv4_TTL_05, one guard per TTL iteration.
-- **liveness** (transitional, not yet migrated — `tools/liveness_migration_pending.txt`):
+  observed_quiescence fail): IPv4_TTL_05 (one guard per TTL iteration),
   IPv4_HEADER_03, IPv4_VERSION_01.
 - **prohibited_emission** (silence conformant, must not emit):
   IPv4_REASSEMBLY_06, IPv4_REASSEMBLY_07, IPv4_REASSEMBLY_09.
@@ -272,7 +271,7 @@ The §4.3 conformant-absence cases live in `tools/conformant_absence_registry.js
   originate/receive/transmit), ICMPv4_TYPE_18 (Dest Unreachable code=2).
 - **prohibited_emission**: ICMPv4_ERROR_03, ICMPv4_ERROR_04, ICMPv4_ERROR_05,
   ICMPv4_TYPE_04, ICMPv4_TYPE_05, ICMPv4_TYPE_10, ICMPv4_TYPE_16.
-- **liveness**: ICMPv4_TYPE_22.
+- **required_emission**: ICMPv4_TYPE_22 (Echo Reply within ParamListenTime).
 
 **ICMPv4_TYPE_08 keeps a sound row**: its Echo Reply data is compared against
 `expected.payload`, whose conformant default is the spec literal "ECU NETWORK
@@ -363,8 +362,10 @@ timer / discard guard grades.
 
 The §4.8 conformant-absence cases live in `tools/conformant_absence_registry.json`
 (`docs/verdict_policy.md` Section 6): no `--expect` flip can fault them — each
-guard asserts DUT behaviour (must emit a correct segment, must not emit a
-prohibited one, or liveness), not a comparison against an operator value.
+guard asserts DUT behaviour (must emit within its bound, so silence is an
+observed_quiescence fail; must not emit a prohibited segment; or, for the few
+not yet migrated, a transitional liveness guard), not a comparison against an
+operator value.
 
 The negative coverage for §4.8.6.2 TCP_CHECKSUM_01, §4.8.6.3 TCP_UNACCEPTABLE_01
 and §4.8.6.6 TCP_FLAGS_INVALID_01 (and the other §4.8 sub-areas) is that registry
@@ -384,8 +385,10 @@ guard asserts DUT behaviour, not a comparison against an operator value.
   (pseudo-header checksum), UDP_USER_INTERFACE_01/05/06 (UT port count / src /
   dst port), UDP_Padding_02 (no even-payload padding), UDP_INTRODUCTION_03
   (§4.6.5.6 ICMP type 3 code 3).
-- **liveness** (must originate UDP, no wrong-value variant): UDP_FIELDS_04
-  (per-host egress), UDP_FIELDS_05 (per-host UT receipt).
+- **required_emission** (must originate UDP within ParamListenTime): UDP_FIELDS_04
+  (per-host egress).
+- **liveness** (transitional, `tools/liveness_migration_pending.txt`): UDP_FIELDS_05
+  (per-host UT receipt — a state query, not a wire silence, so not quiescence).
 
 UDP_USER_INTERFACE_07 and _08 below keep sound rows (the alias-IP axis).
 

@@ -32,17 +32,28 @@
       if TW expired, the (kBasicsActiveRemotePort + 51,
       kBasicsActiveLocalPort + 51) 4-tuple no longer matches a DUT
       socket and the DUT emits a closed-port RST, missing the
-      pure-ACK pass guard and landing on inconclusive_no_second_replay_ack.
+      pure-ACK pass guard and landing on fail_no_second_replay_ack.
 
   SCXML chain (5 listening states + 5 fail terminals + pass):
     handshake_ack → dut_fin → tester_fin_ack →
       first_replay_ack → second_replay_ack → pass
 
-  listening_second_replay_ack deadline = 50 s (45 s wait + ~5 s
-  observation margin); other states use 5 s standard. Total positive
-  envelope ≈ kTcpUtBootWait (1.5 s) + prelude (~3 s) + 4 × 0.1 s
-  observed ACK latencies + 45 s wait + 0.1 s second ACK ≈ 50 s.
-  CASE_TIMEOUT_SEC=60.
+  The procedure states no listen time for either ACK, so the general
+  input parameter <ParamListenTime> bounds each wait after its replay
+  FIN. A replay window that elapses without the ACK is the DUT's
+  silence where it must answer: observed_quiescence, judged against
+  that bound (H3). The first replay FIN goes out on entry to
+  listening_first_replay_ack, so its window is ParamListenTime plus
+  <ParamToleranceTime> (10 s + 1 s at the defaults). The second goes
+  out 45 s after entry to listening_second_replay_ack, so that window
+  is 56 s: the 45 s wait plus the same 11 s after the FIN. The
+  handshake, DUT-FIN and tester-FIN-ACK windows walk the DUT into
+  TIME-WAIT and stay inconclusive. Whether a silence stands as a fail
+  is the CLI's call on the run's hypotheses.
+
+  Total positive envelope ≈ kTcpUtBootWait (1.5 s) + prelude (~3 s) +
+  4 × 0.1 s observed ACK latencies + 45 s wait + 0.1 s second ACK ≈
+  50 s.
 
   Negative IP-flip path: src_ip-conjunct on listening_handshake_ack
   unreachable, lands on inconclusive_no_handshake_ack at the 5 s deadline
@@ -90,19 +101,19 @@
   </state>
 
   <state id="listening_first_replay_ack">
-    <onentry><send event="deadline_first_replay_ack" delay="5s"/></onentry>
+    <onentry><send event="deadline_first_replay_ack" delay="11s"/></onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsProcessing06LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsProcessing06LocalOffset)"
                 target="listening_second_replay_ack"/>
-    <transition event="deadline_first_replay_ack" target="inconclusive_no_first_replay_ack"/>
+    <transition event="deadline_first_replay_ack" target="fail_no_first_replay_ack"/>
   </state>
 
   <state id="listening_second_replay_ack">
-    <onentry><send event="deadline_second_replay_ack" delay="50s"/></onentry>
+    <onentry><send event="deadline_second_replay_ack" delay="56s"/></onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsProcessing06LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsProcessing06LocalOffset)"
                 target="pass"/>
-    <transition event="deadline_second_replay_ack" target="inconclusive_no_second_replay_ack"/>
+    <transition event="deadline_second_replay_ack" target="fail_no_second_replay_ack"/>
   </state>
 
   <final id="pass">
@@ -121,11 +132,11 @@
     <donedata><content>{"verdict":"inconclusive","reason":"no_dut_ack_to_tester_fin","role":"property_unobserved"}</content></donedata>
   </final>
 
-  <final id="inconclusive_no_first_replay_ack">
-    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_ack_to_first_replay_fin_in_time_wait","role":"property_unobserved"}</content></donedata>
+  <final id="fail_no_first_replay_ack">
+    <donedata><content>{"verdict":"fail","reason":"no_dut_ack_to_first_replay_fin_in_time_wait","role":"observed_quiescence","bound":"ParamListenTime"}</content></donedata>
   </final>
 
-  <final id="inconclusive_no_second_replay_ack">
-    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_ack_to_second_replay_fin_after_1_5_msl","role":"property_unobserved"}</content></donedata>
+  <final id="fail_no_second_replay_ack">
+    <donedata><content>{"verdict":"fail","reason":"no_dut_ack_to_second_replay_fin_after_1_5_msl","role":"observed_quiescence","bound":"ParamListenTime"}</content></donedata>
   </final>
 </scxml>

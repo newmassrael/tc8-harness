@@ -19,19 +19,32 @@
     * `replay_method` — TcpCaptured member predicate
         `is_pure_dut_ack` (BASICS_13/14) |
         `is_dut_rst` (BASICS_11/12)
-    * `replay_deadline` — `5s` (within-2*MSL replay; observation lands
-                          immediately after state-entry observer fires) |
-                         `78s` (post-2*MSL replay; covers the 72 s
-                          wall-time wait plus 6 s observation margin —
-                          paired with `kTimeWaitFullWait` in
+    * `replay_deadline` — `11s` (within-2*MSL replay, injected as the
+                          state is entered: the listen window alone) |
+                         `83s` (post-2*MSL replay; covers the 72 s
+                          wall-time wait before the replay plus the 11 s
+                          listen window after it — paired with
+                          `kTimeWaitFullWait` in
                           `src/sce_integration/include/sce_integration/tcp_pilot_common.h`)
 
-  COUPLING NOTE: the `78s` deadline above is paired with
+  The replay's answer (the RST of BASICS_11/12, the ACK of BASICS_13/14)
+  is the Pass Criteria of every user, and the TCP chapter states no time
+  for it, so a replay window that elapses without it is the DUT's
+  silence where it must answer — observed_quiescence, judged against
+  <ParamListenTime> (docs/verdict_policy.md Section 2.1, H3). The listen
+  part of the window is ParamListenTime plus <ParamToleranceTime>
+  (10 s + 1 s at the defaults). The handshake ACK and the close FIN are
+  the precondition every user shares, so their silence stays
+  inconclusive. The mid ACK is a Pass Criteria of BASICS_11/13 (step 3)
+  but only part of reaching CLOSING in BASICS_12/14 (step 1), so its
+  final stays inconclusive here: one shared final cannot be both.
+
+  COUPLING NOTE: the `83s` deadline above is paired with
   `kTimeWaitFullWait` (currently 72 s) in tcp_pilot_common.h.
   Because SCXML `<send delay>` accepts string literals only there
   is no symbolic bridge between the C++ constant and the SCXML
   attribute; bumping `kTimeWaitFullWait` requires a paired edit to
-  every BASICS_11/12 consumer (which set replay_deadline="78s").
+  every BASICS_11/12 consumer (which set replay_deadline="83s").
 -->
 <sce:template xmlns:sce="http://sce.dev/ext"
               xmlns="http://www.w3.org/2005/07/scxml"
@@ -125,7 +138,7 @@
 
   <final id="fail_no_{$replay_label}">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"{$replay_fail_reason}","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"{$replay_fail_reason}","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </sce:template>

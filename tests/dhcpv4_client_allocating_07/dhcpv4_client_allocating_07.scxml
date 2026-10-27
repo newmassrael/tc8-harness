@@ -7,6 +7,11 @@
   4 + 6 + 7 + 10 + 12 (timing-free DISCOVER #2). The ALLOCATING_08
   sibling adds the SHOULD second-sentence timing assert; this case
   verifies the first-sentence MUST only.
+
+  A DECLINE window or a restart window that elapses without its message
+  is observed_quiescence, against <ParamListenTime> and against the
+  procedure's 10 s respectively; the restart window is 10 +
+  <ParamToleranceTime> = 11 s at the default. See the template.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -17,7 +22,7 @@
        datamodel="null"
        initial="listening_for_discover">
   <sce:use template="../_templates/dhcpv4_post_decline_discover.sce-template.xml"
-           s5_deadline="4s"
+           s5_deadline="11s"
            s5_extra_pass_cond="true"
            s5_fail_state="fail_no_second_discover"
            s5_fail_reason="no_dut_dhcp_discover_after_decline"/>

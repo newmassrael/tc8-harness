@@ -83,7 +83,8 @@ Environmental shortfalls never red the gate.
 
 > **Status (Phase Q, Section 8).** Q1–Q3 are in the tree: the
 > `observed_quiescence` role, its reach and bound rules, and the run-time gate on
-> S, H1, H2 and H3. Q4 (migrating the `liveness` guards) is in progress.
+> S, H1, H2 and H3. Q4 (migrating the `liveness` guards) is in progress: 89 moved,
+> 33 on the ledger.
 
 **Quiescence is an observation.** In the input/output conformance theory the
 suite is grounded in (ioco, Tretmans), the absence of any output — quiescence,
@@ -511,6 +512,38 @@ tree does not have.
   `REGISTRY` until a fixture flavor drops low-TTL datagrams). Each window is
   `ParamListenTime` plus `<ParamToleranceTime>`, the slack the specification adds
   to every listen, so a window never measures short of its bound.
+
+  First sweep, done: 89 of the 122 ledger cases moved, 33 remain. The §4.2.4.2
+  Request-reception family shares one template (`arp_required_reply`), and
+  ARP_16..19 and ARP_41 now carry `_neg` cases on the same fault flavor. The
+  sweep added three rules, each with its own check:
+
+  - **One event name per window.** SCXML does not cancel a delayed `<send>` when
+    its state exits, so a timer armed in an earlier state with the same event name
+    can close a later window early. The donedata audit refuses an
+    `observed_quiescence` final reachable through a timer event that another state
+    also arms (`STALE_TIMER`), and refuses it for a pass or an inert fail when the
+    deciding state also arms that event itself.
+  - **Measurement slack on H3.** The CLI measures the window as the dwell in the
+    deciding state, which runs a few milliseconds short of the timer's delay
+    because the entry is stamped after the send is armed. H3 allows 20 ms
+    (`kWindowMeasurementSlackUs`, the run loop's idle quantum) so a window
+    declared equal to its bound, such as a specification's "within 500 ms", is
+    not refused on that alone. The audit still requires the declared delay to
+    cover the bound in full.
+  - **The premise of a test-body window is a stimulus.** A migrated deadline fails
+    the DUT only if the tester actually put the question. Every shared helper
+    whose failure leaves the test body unrun records an unperformed stimulus:
+    `driveSeamListen`, `driveSeamRawPassiveAccept`, `acceptPreambleConnection`
+    (the tester accept of an active OPEN whose handshake is the preamble) and
+    `queryTcpSeqRange`. `driveSeamPassiveOpen` deliberately does not, because the
+    DUT's missing SYN+ACK also lands there and `TCP_BASICS_01` grades it.
+
+  The 33 that remain each have a recorded reason in `docs/tech-debt.md`: the
+  silence is in a preamble only, the bound is DUT-specific with no specification
+  ceiling, the check is a UT state query rather than a wire silence, a shared
+  template final would need a per-case parameter, or the tester gives the DUT less
+  than `ParamListenTime` to answer.
 
 ---
 

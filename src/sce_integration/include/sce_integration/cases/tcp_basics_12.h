@@ -54,7 +54,7 @@ struct TestCaseTraits<cases::TcpBasics12SM>
             ctx.dut, cfg,
             kBasicsActiveLocalPort  + kTcpBasics12LocalOffset,
             kBasicsActiveRemotePort + kTcpBasics12LocalOffset);
-        const int tester_fd = open.listener.acceptOne();
+        const int tester_fd = acceptPreambleConnection(open);
         if (tester_fd < 0 || !open.conn) return;
 
         const auto info = driveSeamCloseToTimeWaitClosing(

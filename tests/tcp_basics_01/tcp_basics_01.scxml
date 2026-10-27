@@ -29,6 +29,13 @@
   and any SOME/IP-over-TCP kernel traffic to vsomeip ports.
 
   Iteration coverage: spec lists only one iteration for BASICS_01.
+
+  The SYN,ACK is the reaction the Pass Criteria names, and the TCP
+  chapter states no time for it, so a window that elapses without it
+  is the DUT's silence where it must answer — observed_quiescence,
+  judged against <ParamListenTime> (docs/verdict_policy.md Section 2.1,
+  H3). The window is ParamListenTime plus <ParamToleranceTime>
+  (10 s + 1 s at the defaults).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -49,12 +56,12 @@
 
   <state id="listening">
     <onentry>
-      <send event="deadline_exceeded" delay="5s"/>
+      <send event="deadline_exceeded" delay="11s"/>
     </onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0"
                 target="pass"/>
-    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
+    <transition event="deadline_exceeded" target="fail_timeout"/>
   </state>
 
   <final id="pass">
@@ -63,9 +70,9 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_timeout">
+  <final id="fail_timeout">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_syn_ack_within_listen_window","role":"precondition_unmet"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_syn_ack_within_listen_window","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </scxml>

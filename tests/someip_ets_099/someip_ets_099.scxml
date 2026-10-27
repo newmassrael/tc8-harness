@@ -8,10 +8,14 @@
   client-side target service while continuing to OfferService for SERVICE-
   ID-1.
 
-  Conformance verdict model (ISO/IEC 9646 / TTCN-3, same as SOMEIP_ETS_152).
-  The verdict is SOUND: it concludes pass only on an observed FindService,
-  and never FAILs merely because the environment failed to drive the DUT
-  into the observable precondition.
+  Conformance verdict model (ISO/IEC 9646 / TTCN-3, docs/verdict_policy.md
+  Section 2.1). It concludes pass only on an observed FindService. The
+  procedure states no time for the Start-Up-Phase FindService, so the
+  general <ParamListenTime> governs: a phase-2 window that elapses without
+  one is the DUT's silence where it must emit, observed_quiescence judged
+  against that bound (H3), over a window of ParamListenTime plus
+  <ParamToleranceTime> (10 s + 1 s at the defaults). A preamble that never
+  completes stays inconclusive.
 
   Phase 1 (listening_phase1): standard SD warm-up. Watch for the DUT's
           OfferService for SERVICE-ID-1 (proves Server Mode is live).
@@ -23,10 +27,10 @@
           watch for a FindService entry (Type 0x00) on SERVICE-ID-2
           (0xF4E8).
             * FindService observed -> pass.
-            * deadline -> inconclusive (inconclusive_no_findservice): the
-              DUT was proven live by its Phase 1 offer, but the transient
-              Start-Up-Phase FindService burst (~1.5 s) was not captured in
-              window. The DUT was NOT shown to violate anything — not a FAIL.
+            * deadline -> fail (fail_no_findservice, observed_quiescence):
+              the DUT did not start its client Start-Up Phase. The CLI
+              makes it inconclusive when the run cannot prove the absence
+              (an incomplete capture, an unanswered liveness anchor).
 
   Server-Mode-preserved assertion: implicit. The DUT's vsomeip server
   lifecycle is untouched by the raw-UDP client-mode runner (see
@@ -67,12 +71,12 @@
 
   <state id="listening_phase2">
     <onentry>
-      <send event="phase2_deadline_exceeded" delay="5s"/>
+      <send event="phase2_deadline_exceeded" delay="11s"/>
     </onentry>
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x00 and captured.sd_entries[0].service_id == 0xF4E8"
                 target="pass"/>
-    <transition event="phase2_deadline_exceeded" target="inconclusive_no_findservice"/>
+    <transition event="phase2_deadline_exceeded" target="fail_no_findservice"/>
   </state>
 
   <final id="pass">
@@ -87,9 +91,9 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_no_findservice">
+  <final id="fail_no_findservice">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_findservice_for_service_id_2_within_listen_window","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_findservice_for_service_id_2_within_listen_window","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </scxml>

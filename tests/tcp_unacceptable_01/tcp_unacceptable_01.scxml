@@ -46,15 +46,24 @@
   separate fail terminal — the second SYN+ACK observation captures
   conformance regardless.
 
-  Per-state fail terminals (inconclusive_timeout_first_synack /
-  inconclusive_timeout_second_synack) let smoke-test triage identify which
+  Per-state terminals (inconclusive_timeout_first_synack /
+  fail_timeout_second_synack) let smoke-test triage identify which
   edge the DUT failed to emit. Negative smoke flips
   `ipv4.dut_iface_ip=10.99.99.99` → src_ip-conjunct unreachable in
   state 1 → inconclusive_timeout_first_synack.
 
-  Phase deadline: 5 s × 2 states = 10 s upper bound. Stimulus wall-
-  time ~600 ms (UT boot + 3 raw injects + close); CASE_TIMEOUT_SEC
-  budgets 12 s for handshake + teardown margin.
+  The procedure states no listen time, so the general input parameter
+  <ParamListenTime> bounds the wait for the second SYN+ACK, the one
+  that shows the DUT back in LISTEN. A window that elapses without it
+  is the DUT's silence where its listener must answer:
+  observed_quiescence, judged against that bound (H3), over
+  ParamListenTime plus <ParamToleranceTime> (10 s + 1 s at the
+  defaults). The first SYN+ACK window (5 s) stays inconclusive: it sets
+  up the SYN-RCVD state the RST tests. Whether a silence stands as a
+  fail is the CLI's call on the run's hypotheses.
+
+  Phase deadline: 5 s + 11 s = 16 s upper bound. Stimulus wall-time
+  ~600 ms (UT boot + 3 raw injects + close).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -85,12 +94,12 @@
 
   <state id="listening_second_synack">
     <onentry>
-      <send event="deadline_second" delay="5s"/>
+      <send event="deadline_second" delay="11s"/>
     </onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort + 1U and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0"
                 target="pass"/>
-    <transition event="deadline_second" target="inconclusive_timeout_second_synack"/>
+    <transition event="deadline_second" target="fail_timeout_second_synack"/>
   </state>
 
   <final id="pass">
@@ -105,9 +114,9 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_timeout_second_synack">
+  <final id="fail_timeout_second_synack">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_synack_after_acceptable_rst","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_synack_after_acceptable_rst","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </scxml>

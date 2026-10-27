@@ -3,15 +3,7 @@
   TC8 §4.2.4.2 ARP_20: ARP Request reception (Hardware Type correct).
   Tester injects a Request with hw_type=0x0001 (Ethernet) — the RFC 826
   §"Packet Reception" "Do I have the hardware type in ar$hrd?" check
-  must succeed and DUT must reply.
-
-  The procedure listens up to <ParamListenTime> for the Response, so a
-  window that elapses without one is the DUT's silence where it must
-  answer: observed_quiescence, judged against that bound (H3). The window
-  is ParamListenTime plus <ParamToleranceTime>, the slack the spec adds to
-  every listen (10 s + 1 s at the defaults). Whether the silence stands
-  as a fail is the CLI's call on the run's hypotheses: an incomplete
-  capture or an unanswered liveness anchor makes it inconclusive.
+  must succeed and DUT must reply. Body: arp_required_reply.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -21,34 +13,5 @@
        sce:transition-table="emit"
        datamodel="null"
        initial="listening">
-
-  <sce:context id="captured"
-               cpp:type="tc8::ArpCaptured"
-               cpp:include="sce_integration/arp_captured.h"/>
-
-  <sce:context id="expected"
-               cpp:type="tc8::ArpExpected"
-               cpp:include="sce_integration/arp_expected.h"/>
-
-  <state id="listening">
-    <onentry>
-      <send event="deadline_exceeded" delay="11s"/>
-    </onentry>
-    <transition event="arp_observed"
-                cond="cpp:captured.opcode == 2 and captured.sender_hw == expected.dut_iface_mac"
-                target="pass"/>
-    <transition event="deadline_exceeded" target="fail_no_reply"/>
-  </state>
-
-  <final id="pass">
-    <donedata>
-      <content>{"verdict":"pass"}</content>
-    </donedata>
-  </final>
-
-  <final id="fail_no_reply">
-    <donedata>
-      <content>{"verdict":"fail","reason":"no_arp_reply_within_listen_window","role":"observed_quiescence","bound":"ParamListenTime"}</content>
-    </donedata>
-  </final>
+  <sce:use template="../_templates/arp_required_reply.sce-template.xml"/>
 </scxml>

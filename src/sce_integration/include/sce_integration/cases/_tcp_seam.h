@@ -152,6 +152,30 @@ inline SeamActiveOpen driveSeamActiveOpen(::tc8::sce::IDutControl &dut,
     return SeamActiveOpen{std::move(listener), std::move(conn)};
 }
 
+// Accept the tester end of an active OPEN whose handshake is the case's
+// PREAMBLE: the case grades what the DUT does on the established connection,
+// and its SCXML sends a missing handshake to a precondition_unmet final before
+// any test-body window opens. A failed accept then means the test body never
+// ran, so it is recorded as an unperformed stimulus. Without the record the case
+// returned early and its test-body window graded the resulting silence as an
+// observed_quiescence fail.
+//
+// ⚠ Only for preamble handshakes. connectTcp returns while the DUT socket may
+// still be in SYN-SENT, so a failed accept can also be a DUT that never sent its
+// SYN; a case that GRADES that SYN must call `listener.acceptOne()` itself, or
+// this record would turn the DUT's defect into an inconclusive. A failed open
+// (`conn` empty) is already recorded by seamConnectTcp.
+inline int acceptPreambleConnection(SeamActiveOpen &open) {
+    const int tester_fd = open.listener.acceptOne();
+    if (tester_fd < 0 && open.conn) {
+        std::fprintf(stderr,
+                     "tcp-pilot: tester accept of the preamble handshake failed "
+                     "(the case will be inconclusive rather than graded)\n");
+        ::tc8::UnperformedStimulus::record("tester_tcp_accept");
+    }
+    return tester_fd;
+}
+
 // SYN-SENT counterpart of `driveSeamActiveOpen`: a seam active OPEN to a
 // destination with NO tester listener, so the SYN goes unanswered and the
 // DUT stays in SYN-SENT and retransmits. `connectTcp` returns the socket

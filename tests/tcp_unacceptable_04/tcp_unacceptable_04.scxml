@@ -16,7 +16,7 @@
   kernel function the segment reaches, so it differs by state:
     * ESTABLISHED (this case) → tcp_rcv_established. Linux 6.5
       discarded the unsent-data ACK (ack after SND.NXT) silently,
-      so this case timed out to inconclusive_no_dut_ack_to_unacc_ack.
+      so this case times out to fail_no_dut_ack_to_unacc_ack there.
       Kernel 7.0.0-31 answers with a pure ACK and the case passes
       (measured single-pc 2026-09-24); it carries no known-fail mark.
     * FIN-WAIT-2 after the application closed → the socket is an
@@ -36,6 +36,15 @@
         phase 1 OTW-SEQ stimulus; transitions to phase 2.
     listening_unacc_ack      — onentry schedules phase 2 stimulus
         (unacc-ACK); pass on next DUT pure-ACK; deadline → fail.
+
+  The procedure states no listen time, so the general input parameter
+  <ParamListenTime> bounds the wait for each CASE's empty ACK. A window
+  that elapses without it is the DUT's silence where it must answer:
+  observed_quiescence for that CASE, judged against that bound (H3),
+  over ParamListenTime plus <ParamToleranceTime> (10 s + 1 s at the
+  defaults). The handshake window stays inconclusive: it sets up the
+  ESTABLISHED state the segments test. Whether a silence stands as a
+  fail is the CLI's call on the run's hypotheses.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -66,22 +75,22 @@
 
   <state id="listening_otw_ack">
     <onentry>
-      <send event="deadline_otw_ack" delay="5s"/>
+      <send event="deadline_otw_ack" delay="11s"/>
     </onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable04LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable04LocalOffset)"
                 target="listening_unacc_ack"/>
-    <transition event="deadline_otw_ack" target="inconclusive_no_otw_seq_ack"/>
+    <transition event="deadline_otw_ack" target="fail_no_otw_seq_ack"/>
   </state>
 
   <state id="listening_unacc_ack">
     <onentry>
-      <send event="deadline_unacc_ack" delay="5s"/>
+      <send event="deadline_unacc_ack" delay="11s"/>
     </onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable04LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable04LocalOffset)"
                 target="pass"/>
-    <transition event="deadline_unacc_ack" target="inconclusive_no_dut_ack_to_unacc_ack"/>
+    <transition event="deadline_unacc_ack" target="fail_no_dut_ack_to_unacc_ack"/>
   </state>
 
   <final id="pass">
@@ -96,15 +105,15 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_no_otw_seq_ack">
+  <final id="fail_no_otw_seq_ack">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_otw_seq_data","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_ack_to_otw_seq_data","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 
-  <final id="inconclusive_no_dut_ack_to_unacc_ack">
+  <final id="fail_no_dut_ack_to_unacc_ack">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_unacc_ack_data","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_ack_to_unacc_ack_data","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </scxml>

@@ -40,13 +40,22 @@
 
   SCXML chain (9 listening states + 3 fail terminals + pass):
     p1_handshake_ack → p1_settle (5 s absorb prelude+abort egress) →
-    p1_verify_rst (5 s; verify-probe ACK fired on entry, observe DUT
+    p1_verify_rst (11 s; verify-probe ACK fired on entry, observe DUT
     closed-port RST) →
     p2_handshake_ack → p2_settle → p2_verify_rst →
     p3_handshake_ack → p3_settle → p3_verify_rst → pass
 
   Negative IP-flip path: src_ip-conjunct on listening_p1_handshake_ack
   unreachable → inconclusive_p1_no_handshake_ack.
+
+  The closed-port RST is the case's evidence for Pass Criteria #5 (the
+  RFC 793 §3.9 CLOSED-state reset), and the TCP chapter states no time
+  for it, so a pN_verify_rst window that elapses without it is the DUT's
+  silence where it must emit — observed_quiescence for that iteration,
+  judged against <ParamListenTime> (docs/verdict_policy.md Section 2.1,
+  H3). Each window is ParamListenTime plus <ParamToleranceTime> (10 s +
+  1 s at the defaults). The handshake ACKs set up each <wst> state, so
+  their silence stays inconclusive.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -79,11 +88,11 @@
   </state>
 
   <state id="listening_p1_verify_rst">
-    <onentry><send event="deadline_p1_verify_rst" delay="5s"/></onentry>
+    <onentry><send event="deadline_p1_verify_rst" delay="11s"/></onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpCallAbort03Phase1LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpCallAbort03Phase1LocalOffset)"
                 target="listening_p2_handshake_ack"/>
-    <transition event="deadline_p1_verify_rst" target="inconclusive_p1_no_close"/>
+    <transition event="deadline_p1_verify_rst" target="fail_p1_no_close"/>
   </state>
 
   <state id="listening_p2_handshake_ack">
@@ -100,11 +109,11 @@
   </state>
 
   <state id="listening_p2_verify_rst">
-    <onentry><send event="deadline_p2_verify_rst" delay="5s"/></onentry>
+    <onentry><send event="deadline_p2_verify_rst" delay="11s"/></onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpCallAbort03Phase2LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpCallAbort03Phase2LocalOffset)"
                 target="listening_p3_handshake_ack"/>
-    <transition event="deadline_p2_verify_rst" target="inconclusive_p2_no_close"/>
+    <transition event="deadline_p2_verify_rst" target="fail_p2_no_close"/>
   </state>
 
   <state id="listening_p3_handshake_ack">
@@ -121,11 +130,11 @@
   </state>
 
   <state id="listening_p3_verify_rst">
-    <onentry><send event="deadline_p3_verify_rst" delay="5s"/></onentry>
+    <onentry><send event="deadline_p3_verify_rst" delay="11s"/></onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpCallAbort03Phase3LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpCallAbort03Phase3LocalOffset)"
                 target="pass"/>
-    <transition event="deadline_p3_verify_rst" target="inconclusive_p3_no_close"/>
+    <transition event="deadline_p3_verify_rst" target="fail_p3_no_close"/>
   </state>
 
   <final id="pass">
@@ -136,23 +145,23 @@
     <donedata><content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_phase1_closing","role":"precondition_unmet"}</content></donedata>
   </final>
 
-  <final id="inconclusive_p1_no_close">
-    <donedata><content>{"verdict":"inconclusive","reason":"dut_did_not_close_after_abort_in_closing","role":"property_unobserved"}</content></donedata>
+  <final id="fail_p1_no_close">
+    <donedata><content>{"verdict":"fail","reason":"dut_did_not_close_after_abort_in_closing","role":"observed_quiescence","bound":"ParamListenTime"}</content></donedata>
   </final>
 
   <final id="inconclusive_p2_no_handshake_ack">
     <donedata><content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_phase2_last_ack","role":"property_unobserved"}</content></donedata>
   </final>
 
-  <final id="inconclusive_p2_no_close">
-    <donedata><content>{"verdict":"inconclusive","reason":"dut_did_not_close_after_abort_in_last_ack","role":"property_unobserved"}</content></donedata>
+  <final id="fail_p2_no_close">
+    <donedata><content>{"verdict":"fail","reason":"dut_did_not_close_after_abort_in_last_ack","role":"observed_quiescence","bound":"ParamListenTime"}</content></donedata>
   </final>
 
   <final id="inconclusive_p3_no_handshake_ack">
     <donedata><content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_phase3_time_wait","role":"property_unobserved"}</content></donedata>
   </final>
 
-  <final id="inconclusive_p3_no_close">
-    <donedata><content>{"verdict":"inconclusive","reason":"dut_did_not_close_after_abort_in_time_wait","role":"property_unobserved"}</content></donedata>
+  <final id="fail_p3_no_close">
+    <donedata><content>{"verdict":"fail","reason":"dut_did_not_close_after_abort_in_time_wait","role":"observed_quiescence","bound":"ParamListenTime"}</content></donedata>
   </final>
 </scxml>

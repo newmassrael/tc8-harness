@@ -44,7 +44,7 @@ struct TestCaseTraits<cases::Onwire04SM> : SomeIpAnyBase<cases::Onwire04SM> {
         // Second Request reuses the same Request ID. 800 ms gap lets the
         // first Response arrive and gives the SCXML phase 2 transition
         // time to consume it before phase 3 starts watching. The default
-        // 500 ms pre_emit_wait would still satisfy phase 2's 5 s window
+        // 500 ms pre_emit_wait would still satisfy phase 2's 11 s window
         // but a clear gap makes the inter-Request ordering deterministic
         // under varying tester load.
         ::tc8::stimulus::MethodRequestTiming retx_timing{};

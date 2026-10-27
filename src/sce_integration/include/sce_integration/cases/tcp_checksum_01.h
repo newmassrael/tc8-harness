@@ -58,7 +58,7 @@ struct TestCaseTraits<cases::TcpChecksum01SM>
     // promptly (Linux sends an immediate ACK for non-empty data above
     // a threshold; the threshold is far above 4 B but the data also
     // satisfies the SCXML's "ACK arrived after stimulus" expectation
-    // because the listen window is 5 s and Linux's max delayed-ACK is
+    // because the listen window is 11 s and Linux's max delayed-ACK is
     // ~40 ms).
     static constexpr std::array<std::uint8_t, 4> kChecksumPayload = {
         0x12U, 0x34U, 0x56U, 0x78U};
@@ -78,7 +78,7 @@ struct TestCaseTraits<cases::TcpChecksum01SM>
         // timeout — under a busy worker netns the handshake completes
         // in single-digit milliseconds, the timeout is sized for
         // scheduling jitter not happy-path latency.
-        const int tester_fd = open.listener.acceptOne();
+        const int tester_fd = acceptPreambleConnection(open);
         if (tester_fd >= 0) {
             const ssize_t sent = ::send(tester_fd, kChecksumPayload.data(),
                                         kChecksumPayload.size(), MSG_NOSIGNAL);

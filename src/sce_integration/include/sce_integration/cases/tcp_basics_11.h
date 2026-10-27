@@ -49,7 +49,7 @@ struct TestCaseTraits<cases::TcpBasics11SM>
     //
     // Splitting the wait into "state-entry registration → wall-time
     // schedule" keeps the trait independent of the SCXML's deadline
-    // value (78 s in this case) — the trait names the state
+    // value (83 s in this case) — the trait names the state
     // symbolically and the runner observes the transition.
     // Migrated onto the Tier-2 DUT-control seam: the FIN-WAIT-2 TIME-WAIT
     // prelude runs through `driveSeamTimeWaitFw2` (active OPEN via the seam, DUT

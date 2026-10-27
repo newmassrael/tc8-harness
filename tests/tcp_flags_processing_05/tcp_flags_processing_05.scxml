@@ -44,6 +44,16 @@
   Phase 1 fires synchronously with the stimulus. Phase 2 is scheduled
   on entry to listening_p2_prelude_synack.
 
+  The procedure states no listen time, so the general input parameter
+  <ParamListenTime> bounds the wait for each phase's verify SYN+ACK. A
+  verify window that elapses without it is the DUT's silence where its
+  LISTEN socket must answer: observed_quiescence for that phase, judged
+  against that bound (H3), over ParamListenTime plus <ParamToleranceTime>
+  (10 s + 1 s at the defaults). The prelude SYN+ACK windows stay
+  inconclusive: they set up the SYN-RCVD state the inject tests.
+  Whether a silence stands as a fail is the CLI's call on the run's
+  hypotheses.
+
   Negative IP-flip path: phase 1 src_ip-conjunct unreachable on
   the initial state, lands on inconclusive_p1_no_prelude_synack at the 5 s
   deadline.
@@ -74,11 +84,11 @@
     <transition event="deadline_p1_prelude_synack" target="inconclusive_p1_no_prelude_synack"/>
   </state>
   <state id="listening_p1_verify_synack">
-    <onentry><send event="deadline_p1_verify_synack" delay="5s"/></onentry>
+    <onentry><send event="deadline_p1_verify_synack" delay="11s"/></onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort + 10U and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort + 73U and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0"
                 target="listening_p2_prelude_synack"/>
-    <transition event="deadline_p1_verify_synack" target="inconclusive_p1_no_verify_synack"/>
+    <transition event="deadline_p1_verify_synack" target="fail_p1_no_verify_synack"/>
   </state>
 
   <!-- Phase 2: SYN+ACK in window. listen +11, prelude tester +74, verify tester +75 -->
@@ -90,17 +100,17 @@
     <transition event="deadline_p2_prelude_synack" target="inconclusive_p2_no_prelude_synack"/>
   </state>
   <state id="listening_p2_verify_synack">
-    <onentry><send event="deadline_p2_verify_synack" delay="5s"/></onentry>
+    <onentry><send event="deadline_p2_verify_synack" delay="11s"/></onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort + 11U and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort + 75U and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0"
                 target="pass"/>
-    <transition event="deadline_p2_verify_synack" target="inconclusive_p2_no_verify_synack"/>
+    <transition event="deadline_p2_verify_synack" target="fail_p2_no_verify_synack"/>
   </state>
 
   <final id="pass"><donedata><content>{"verdict":"pass"}</content></donedata></final>
 
   <final id="inconclusive_p1_no_prelude_synack"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_synack_to_prelude_syn_phase1","role":"precondition_unmet"}</content></donedata></final>
-  <final id="inconclusive_p1_no_verify_synack"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_synack_to_verify_syn_after_in_window_syn","role":"property_unobserved"}</content></donedata></final>
+  <final id="fail_p1_no_verify_synack"><donedata><content>{"verdict":"fail","reason":"no_dut_synack_to_verify_syn_after_in_window_syn","role":"observed_quiescence","bound":"ParamListenTime"}</content></donedata></final>
   <final id="inconclusive_p2_no_prelude_synack"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_synack_to_prelude_syn_phase2","role":"property_unobserved"}</content></donedata></final>
-  <final id="inconclusive_p2_no_verify_synack"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_synack_to_verify_syn_after_in_window_synack","role":"property_unobserved"}</content></donedata></final>
+  <final id="fail_p2_no_verify_synack"><donedata><content>{"verdict":"fail","reason":"no_dut_synack_to_verify_syn_after_in_window_synack","role":"observed_quiescence","bound":"ParamListenTime"}</content></donedata></final>
 </scxml>

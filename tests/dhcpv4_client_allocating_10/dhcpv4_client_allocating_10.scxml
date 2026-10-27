@@ -11,11 +11,18 @@
     the DUT has to send its REQUEST twice in that window — a client
     hearing neither ACK nor NAK retries rather than giving up.
 
-  The spec's pass criterion is the COUNT alone ("DUT: Sends 2 DHCPREQUEST
-  Messages"): the second RENEWING REQUEST has no wrong-value variant, so
-  its absence is inconclusive and there is no fail final. This is the
-  liveness shape of ALLOCATING_06 (DISCOVER retransmission), registered
-  as `liveness` in tools/conformant_absence_registry.json.
+  The spec's pass criteria are the transit to RENEWING and the COUNT
+  ("DUT: Sends 2 DHCPREQUEST Messages"). The DISCOVER and the SELECTING
+  REQUEST acquire the lease the case builds on, so their absence stays
+  inconclusive. The two RENEWING REQUESTs are the test body, and each
+  window that elapses without its REQUEST is the DUT's silence where it
+  must send — observed_quiescence, judged against the RFC 2131 §4.4.5
+  timer the 12 s lease grants (H3): the first REQUEST is due at T1 =
+  0.5 x lease = 6 s after the ACK, the second before T2 = 0.875 x lease
+  = 10.5 s, i.e. within T2 - T1 = 4.5 s of the first (the RFC defaults,
+  as the server sends no Option 58/59; the tc8-dut floors T2 to 10 s,
+  inside that grant). Whether a silence
+  stands as a fail is the CLI's call on the run's hypotheses.
 
   Same lifecycle and retx envelope as REACQUISITION_05's
   `dhcpv4_renewing_retx_field` template (kRetransmissionLeaseSeconds =
@@ -74,7 +81,7 @@
     <transition event="dhcp_observed"
                 cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac) and captured.dst_ip_equals(expected.server_id_be)"
                 target="listening_for_second_renewing_request"/>
-    <transition event="s3_deadline" target="inconclusive_no_renewing_request"/>
+    <transition event="s3_deadline" target="fail_no_renewing_request"/>
   </state>
 
   <state id="listening_for_second_renewing_request">
@@ -84,7 +91,7 @@
     <transition event="dhcp_observed"
                 cond="cpp:captured.is_dhcp_request() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac) and captured.dst_ip_equals(expected.server_id_be)"
                 target="pass"/>
-    <transition event="s4_deadline" target="inconclusive_no_second_renewing_request"/>
+    <transition event="s4_deadline" target="fail_no_second_renewing_request"/>
   </state>
 
   <final id="pass">
@@ -105,15 +112,15 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_no_renewing_request">
+  <final id="fail_no_renewing_request">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_renewing_request_within_listen_window","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_renewing_request_within_listen_window","role":"observed_quiescence","bound":"6s"}</content>
     </donedata>
   </final>
 
-  <final id="inconclusive_no_second_renewing_request">
+  <final id="fail_no_second_renewing_request">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_second_renewing_request_within_retx_window","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_second_renewing_request_within_retx_window","role":"observed_quiescence","bound":"4500ms"}</content>
     </donedata>
   </final>
 </scxml>

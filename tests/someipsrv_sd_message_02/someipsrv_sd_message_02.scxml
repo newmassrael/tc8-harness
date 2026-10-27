@@ -24,6 +24,15 @@
   Replaces the prior "instance_id == expected.instance_id + 1"
   hardcode (which baked in the tc8-dut sequential allocator) with a
   spec-literal extraction from the observed 2-entry response.
+
+  The procedure listens up to <ParamListenTime> for each instance-specific
+  OfferService, so a phase-2 or phase-3 window that elapses without one is
+  the DUT's silence where it must answer: observed_quiescence, judged
+  against that bound (docs/verdict_policy.md Section 2.1, H3), over a
+  window of ParamListenTime plus <ParamToleranceTime> (10 s + 1 s at the
+  defaults). A cyclic offer carries both entries, so it cannot satisfy the
+  1-entry match. Phase 1 (no 2-entry OfferService) is the preamble and
+  stays precondition_unmet.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -54,22 +63,22 @@
 
   <state id="listening_phase2_find_inst1">
     <onentry>
-      <send event="phase2_deadline_exceeded" delay="6s"/>
+      <send event="phase2_deadline_exceeded" delay="11s"/>
     </onentry>
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count == 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.sd_entries[0].instance_id == captured.extracted_instance_id_1"
                 target="listening_phase3_find_inst2"/>
-    <transition event="phase2_deadline_exceeded" target="inconclusive_phase2_no_offer_for_instance_1"/>
+    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_offer_for_instance_1"/>
   </state>
 
   <state id="listening_phase3_find_inst2">
     <onentry>
-      <send event="phase3_deadline_exceeded" delay="6s"/>
+      <send event="phase3_deadline_exceeded" delay="11s"/>
     </onentry>
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count == 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.sd_entries[0].instance_id == captured.extracted_instance_id_2"
                 target="pass"/>
-    <transition event="phase3_deadline_exceeded" target="inconclusive_phase3_no_offer_for_instance_2"/>
+    <transition event="phase3_deadline_exceeded" target="fail_phase3_no_offer_for_instance_2"/>
   </state>
 
   <final id="pass">
@@ -84,15 +93,15 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_phase2_no_offer_for_instance_1">
+  <final id="fail_phase2_no_offer_for_instance_1">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_single_entry_offer_for_extracted_instance_1_within_listen_window","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_single_entry_offer_for_extracted_instance_1_within_listen_window","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 
-  <final id="inconclusive_phase3_no_offer_for_instance_2">
+  <final id="fail_phase3_no_offer_for_instance_2">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_single_entry_offer_for_extracted_instance_2_within_listen_window","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_single_entry_offer_for_extracted_instance_2_within_listen_window","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </scxml>

@@ -22,6 +22,9 @@ This tool guards that single source. For every registered case it checks:
   QUIESCENCE_BOUND  an `observed_quiescence` final declares no window bound
   QUIESCENCE_WINDOW a window deciding an `observed_quiescence` final is shorter
                     than its bound at the default IXIT values, or unreadable
+  STALE_TIMER       a window timer deciding an absence verdict shares its event
+                    with another state's timer, which SCXML does not cancel on
+                    exit and which can close the window early
   BOUND_UNPARSEABLE a final's `bound` is neither ParamListenTime nor <n>ms/<n>s
   BOUND_MISPLACED   a `bound` on a final whose verdict claims no absence
 
@@ -260,6 +263,44 @@ def window_delays(parts: list[tuple[ET.Element, dict[str, str]]]) -> dict[str, l
     return out
 
 
+def foreign_window_timers(parts: list[tuple[ET.Element, dict[str, str]]]) -> dict[str, list[tuple[str, bool]]]:
+    """Map final id (lowercased) -> the window-timer events that decide it and are
+    also raised by another state, each with whether the deciding state raises the
+    event itself. SCXML does not cancel a delayed `<send>` when its state exits, so
+    a timer another state raised under the same event name can fire while the
+    deciding state is active. When the deciding state arms its own timer as well,
+    the other one closes the window early — a window shorter than the one authored,
+    which no delay audit sees. When it arms none, the earlier timer IS its window
+    (one budget across states), which is a deliberate shape."""
+    raised_in: dict[str, set[str]] = {}
+    deciding: list[tuple[str, str, str]] = []  # (source state, event, target)
+
+    def walk(node: ET.Element, state: str, b: dict[str, str]) -> None:
+        for ch in node:
+            tag = _local(ch.tag)
+            if tag in ("state", "parallel"):
+                walk(ch, _subst(ch.get("id", ""), b).lower(), b)
+            elif tag == "send" and (ch.get("delay") or ch.get("delayexpr")) and \
+                    not _ZERO_DELAY_RE.match(ch.get("delay", "") or "x"):
+                raised_in.setdefault(_subst(ch.get("event", ""), b), set()).add(state)
+            elif tag == "transition" and ch.get("target") and ch.get("event"):
+                for t in _subst(ch.get("target", ""), b).split():
+                    deciding.append((state, _subst(ch.get("event", ""), b), t.lower()))
+                walk(ch, state, b)
+            else:
+                walk(ch, state, b)
+
+    for root, b in parts:
+        walk(root, "", b)
+    out: dict[str, list[tuple[str, bool]]] = {}
+    for state, event, target in deciding:
+        sources = raised_in.get(event)
+        if sources and sources - {state}:
+            out.setdefault(target, []).append(
+                (f"'{event}' in '{state}' is also raised by {sorted(sources - {state})}", state in sources))
+    return out
+
+
 # The roles whose verdict claims an absence and may therefore carry a bound
 # (claimsAbsence in absence_qualification.h): a pass, a silence fail, a `_neg`
 # inert fail. A bound anywhere else would be read by nothing.
@@ -269,7 +310,8 @@ _BOUND_ROLES = {"", "conformant", "conformant_absence", "observed_quiescence", "
 def quiescence_findings(done: dict[str, Verdict], reached: dict[str, set[str]],
                         bounds: dict[str, str] | None = None,
                         delays: dict[str, list[int | None]] | None = None,
-                        listen_us: int | None = None) -> list[str]:
+                        listen_us: int | None = None,
+                        foreign: dict[str, list[tuple[str, bool]]] | None = None) -> list[str]:
     """An `observed_quiescence` final's evidence is an absence over a window, so
     every transition into it must be a window timer, and there must be one; it
     must declare the bound it is judged against (H3), and every window that
@@ -288,6 +330,16 @@ def quiescence_findings(done: dict[str, Verdict], reached: dict[str, set[str]],
         elif resolve_bound_us(bound, listen_us) is None:
             findings.append(f"BOUND_UNPARSEABLE: final '{state}' bound '{bound}' is neither "
                             "'ParamListenTime' nor '<n>ms' / '<n>s'")
+    for state, (cls, _reason, role) in sorted(done.items()):
+        claims_absence = cls == "pass" or role in ("observed_quiescence", "fault_injection_inert")
+        for why, own in (foreign or {}).get(state, []):
+            # An observed_quiescence window must be its state's own, or the measured
+            # window (H3) is not the one that decided; any other absence verdict is
+            # flagged only where two same-named timers overlap.
+            if role == "observed_quiescence" or (claims_absence and own):
+                findings.append(f"STALE_TIMER: final '{state}' is decided by {why}; a timer left running "
+                                "from another state can close this window early — give each window its "
+                                "own event")
     for state, (_cls, _reason, role) in sorted(done.items()):
         if role != "observed_quiescence":
             continue
@@ -363,7 +415,7 @@ def audit_case(name: str) -> CaseReport:
                 f"REASON_FORMAT: final '{state}' reason '{reason}' is not lower_snake_case"
             )
     rep.findings.extend(quiescence_findings(done, reach_kinds(parts), extract_bounds(parts),
-                                            window_delays(parts)))
+                                            window_delays(parts), foreign=foreign_window_timers(parts)))
     return rep
 
 
@@ -405,7 +457,7 @@ def _self_test() -> int:
         for root, b in parts:
             done.update(_finals_from_root(root, b))
         return quiescence_findings(done, reach_kinds(parts), extract_bounds(parts), window_delays(parts),
-                                   listen_us=listen_us)
+                                   listen_us=listen_us, foreign=foreign_window_timers(parts))
 
     q = _self_test_final("fail_q")
     window = '<state id="s"><onentry><send event="t" delay="5s"/></onentry><transition event="t" target="fail_q"/></state>'
@@ -417,8 +469,9 @@ def _self_test() -> int:
         ("window and frame", run(window.replace("</state>", '<transition event="f" target="fail_q"/></state>') + q), 1),
         ("unreached", run('<state id="s"/>' + q), 1),
         ("timer bound through a template param",
-         run('<state id="s"><transition event="dl" target="fail_q"/></state>' + _self_test_final("fail_q", "2s"),
-             '<state id="x"><onentry><send event="{$ev}" delay="2s"/></onentry></state>', {"ev": "dl"}), 0),
+         run(_self_test_final("fail_q", "2s"),
+             '<state id="x"><onentry><send event="{$ev}" delay="2s"/></onentry>'
+             '<transition event="{$ev}" target="fail_q"/></state>', {"ev": "dl"}), 0),
         ("no bound declared", run(window + _self_test_final("fail_q", None)), 1),
         ("window shorter than ParamListenTime", run(window + _self_test_final("fail_q", "ParamListenTime")), 1),
         ("window covering ParamListenTime",
@@ -428,6 +481,25 @@ def _self_test() -> int:
         ("bound on a value-judgment fail",
          run(window + _self_test_final("fail_q", "5s", role="observed_violation")), 1),
         ("bound on an absence pass", run(window + _self_test_final("fail_q", "5s", role="", cls="pass")), 0),
+        # An earlier state's timer under the same event name is still running when the
+        # deciding state is entered, and can close its window early.
+        ("event shared with an earlier state",
+         run('<state id="a"><onentry><send event="t" delay="5s"/></onentry><transition event="f" target="s"/>'
+             '<transition event="t" target="fail_p"/></state>' + window + q
+             + _self_test_final("fail_p", None, role="precondition_unmet", cls="inconclusive")), 1),
+        ("absence pass whose own timer overlaps an earlier same-named one",
+         run('<state id="a"><onentry><send event="t" delay="5s"/></onentry><transition event="f" target="s"/>'
+             '</state><state id="s"><onentry><send event="t" delay="5s"/></onentry>'
+             '<transition event="t" target="pass"/></state>'
+             '<final id="pass"><donedata><content>{"verdict":"pass"}</content></donedata></final>'), 1),
+        ("absence pass on one budget across states (no own timer)",
+         run('<state id="a"><onentry><send event="t" delay="5s"/></onentry><transition event="f" target="s"/>'
+             '</state><state id="s"><transition event="t" target="pass"/></state>'
+             '<final id="pass"><donedata><content>{"verdict":"pass"}</content></donedata></final>'), 0),
+        ("each window its own event",
+         run('<state id="a"><onentry><send event="ta" delay="5s"/></onentry><transition event="f" target="s"/>'
+             '<transition event="ta" target="fail_p"/></state>' + window + q
+             + _self_test_final("fail_p", None, role="precondition_unmet", cls="inconclusive")), 0),
     ]
     bad = 0
     for label, findings, want in cases:

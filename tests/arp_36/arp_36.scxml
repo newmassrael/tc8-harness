@@ -4,10 +4,7 @@
   correct). Tester injects a Request whose target_ip equals the DUT's
   interface IP — the RFC 826 §"Packet Reception" "Am I the target
   protocol address?" check must succeed and DUT must reply.
-
-  The silence verdict is ARP_20's: observed_quiescence against
-  <ParamListenTime>, over a window of ParamListenTime plus
-  <ParamToleranceTime>; see tests/arp_20/arp_20.scxml.
+  Body: arp_required_reply.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -17,34 +14,5 @@
        sce:transition-table="emit"
        datamodel="null"
        initial="listening">
-
-  <sce:context id="captured"
-               cpp:type="tc8::ArpCaptured"
-               cpp:include="sce_integration/arp_captured.h"/>
-
-  <sce:context id="expected"
-               cpp:type="tc8::ArpExpected"
-               cpp:include="sce_integration/arp_expected.h"/>
-
-  <state id="listening">
-    <onentry>
-      <send event="deadline_exceeded" delay="11s"/>
-    </onentry>
-    <transition event="arp_observed"
-                cond="cpp:captured.opcode == 2 and captured.sender_hw == expected.dut_iface_mac"
-                target="pass"/>
-    <transition event="deadline_exceeded" target="fail_no_reply"/>
-  </state>
-
-  <final id="pass">
-    <donedata>
-      <content>{"verdict":"pass"}</content>
-    </donedata>
-  </final>
-
-  <final id="fail_no_reply">
-    <donedata>
-      <content>{"verdict":"fail","reason":"no_arp_reply_within_listen_window","role":"observed_quiescence","bound":"ParamListenTime"}</content>
-    </donedata>
-  </final>
+  <sce:use template="../_templates/arp_required_reply.sce-template.xml"/>
 </scxml>

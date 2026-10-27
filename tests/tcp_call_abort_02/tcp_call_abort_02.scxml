@@ -38,6 +38,16 @@
   Negative IP-flip path: src_ip-conjunct on listening_handshake_ack
   unreachable, lands on inconclusive_no_handshake_ack at the 5 s deadline +
   ~2 s prelude wall-time ≈ 8 s.
+
+  Both RSTs are what the Pass Criteria names (#3 directly, #4 through
+  the RFC 793 §3.9 CLOSED-state reset), and the TCP chapter states no
+  time for either, so a dut_rst or verify_rst window that elapses
+  without its RST is the DUT's silence where it must emit —
+  observed_quiescence, judged against <ParamListenTime>
+  (docs/verdict_policy.md Section 2.1, H3). Each window is
+  ParamListenTime plus <ParamToleranceTime> (10 s + 1 s at the
+  defaults). The handshake ACK is the ESTABLISHED precondition, so its
+  silence stays inconclusive.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -65,19 +75,19 @@
   </state>
 
   <state id="listening_dut_rst">
-    <onentry><send event="deadline_dut_rst" delay="5s"/></onentry>
+    <onentry><send event="deadline_dut_rst" delay="11s"/></onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpCallAbort02LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpCallAbort02LocalOffset)"
                 target="listening_verify_rst"/>
-    <transition event="deadline_dut_rst" target="inconclusive_no_dut_rst"/>
+    <transition event="deadline_dut_rst" target="fail_no_dut_rst"/>
   </state>
 
   <state id="listening_verify_rst">
-    <onentry><send event="deadline_verify_rst" delay="5s"/></onentry>
+    <onentry><send event="deadline_verify_rst" delay="11s"/></onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpCallAbort02LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpCallAbort02LocalOffset)"
                 target="pass"/>
-    <transition event="deadline_verify_rst" target="inconclusive_no_verify_rst"/>
+    <transition event="deadline_verify_rst" target="fail_no_verify_rst"/>
   </state>
 
   <final id="pass">
@@ -88,11 +98,11 @@
     <donedata><content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack","role":"precondition_unmet"}</content></donedata>
   </final>
 
-  <final id="inconclusive_no_dut_rst">
-    <donedata><content>{"verdict":"inconclusive","reason":"dut_did_not_emit_rst_after_abort_in_est","role":"property_unobserved"}</content></donedata>
+  <final id="fail_no_dut_rst">
+    <donedata><content>{"verdict":"fail","reason":"dut_did_not_emit_rst_after_abort_in_est","role":"observed_quiescence","bound":"ParamListenTime"}</content></donedata>
   </final>
 
-  <final id="inconclusive_no_verify_rst">
-    <donedata><content>{"verdict":"inconclusive","reason":"dut_did_not_close_after_abort_in_est","role":"property_unobserved"}</content></donedata>
+  <final id="fail_no_verify_rst">
+    <donedata><content>{"verdict":"fail","reason":"dut_did_not_close_after_abort_in_est","role":"observed_quiescence","bound":"ParamListenTime"}</content></donedata>
   </final>
 </scxml>

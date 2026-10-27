@@ -42,35 +42,37 @@
 
   <state id="listening_for_discover">
     <onentry>
-      <send event="deadline_exceeded" delay="6s"/>
+      <send event="discover_deadline" delay="6s"/>
     </onentry>
     <transition event="dhcp_observed"
                 cond="cpp:captured.dhcpv4.is_dhcp_discover()
                       and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)"
                 target="listening_for_request"/>
-    <transition event="deadline_exceeded" target="inconclusive_no_discover"/>
+    <transition event="discover_deadline" target="inconclusive_no_discover"/>
   </state>
 
   <state id="listening_for_request">
     <onentry>
-      <send event="deadline_exceeded" delay="4s"/>
+      <send event="request_deadline" delay="4s"/>
     </onentry>
     <transition event="dhcp_observed"
                 cond="cpp:captured.dhcpv4.op == 1
                       and captured.dhcpv4.message_type == 3
                       and captured.dhcpv4.chaddr_matches_dut_mac(expected.dhcpv4.dut_iface_mac)"
                 target="listening_for_no_arp_probe"/>
-    <transition event="deadline_exceeded" target="inconclusive_no_request"/>
+    <transition event="request_deadline" target="inconclusive_no_request"/>
   </state>
 
   <state id="listening_for_no_arp_probe">
     <onentry>
-      <send event="deadline_exceeded" delay="4s"/>
+      <!-- Its own event: a request_deadline left running from the previous state
+           would otherwise end this "no Probe" window early and pass on less of it. -->
+      <send event="no_probe_window_elapsed" delay="4s"/>
     </onentry>
     <transition event="arp_observed"
                 cond="cpp:captured.arp.is_arp_probe()"
                 target="fail_dut_emitted_ll_probe"/>
-    <transition event="deadline_exceeded" target="pass"/>
+    <transition event="no_probe_window_elapsed" target="pass"/>
   </state>
 
   <final id="pass">

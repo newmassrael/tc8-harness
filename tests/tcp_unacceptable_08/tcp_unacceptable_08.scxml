@@ -32,9 +32,19 @@
   Each phase uses a distinct local/remote port pair and connection
   identity (mirror of FLAGS_INVALID_05). If the DUT's close path
   races the lingering SYN-SENT retransmit on phase 2 (audit-flagged
-  TEST-DESIGN concern), the case lands inconclusive_p2_no_dut_rst. That
-  race does not show on kernel 7.0.0-31: the case passes there (single-pc
-  2026-09-24) and carries no known-fail mark.
+  TEST-DESIGN concern) so that phase 2's SYN never reaches the wire, the
+  awaited SYN goes unseen and the run is inconclusive on the unperformed
+  stimulus. That race does not show on kernel 7.0.0-31: the case passes
+  there (single-pc 2026-09-24) and carries no known-fail mark.
+
+  The procedure states no listen time, so the general input parameter
+  <ParamListenTime> bounds the wait for each phase's RST. A window that
+  elapses without it is the DUT's silence where it must answer:
+  observed_quiescence for that phase, judged against that bound (H3),
+  over ParamListenTime plus <ParamToleranceTime> (10 s + 1 s at the
+  defaults). SYN-SENT is the stimulus's own setup (the DUT SYN is
+  awaited before the bad ACK is sent). Whether a silence stands as a
+  fail is the CLI's call on the run's hypotheses.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -55,22 +65,22 @@
 
   <state id="listening_p1_dut_rst">
     <onentry>
-      <send event="deadline_p1" delay="5s"/>
+      <send event="deadline_p1" delay="11s"/>
     </onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable08Phase1LocalOffset and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable08Phase1LocalOffset and (captured.flags &amp; 0x04) != 0"
                 target="listening_p2_dut_rst"/>
-    <transition event="deadline_p1" target="inconclusive_p1_no_dut_rst"/>
+    <transition event="deadline_p1" target="fail_p1_no_dut_rst"/>
   </state>
 
   <state id="listening_p2_dut_rst">
     <onentry>
-      <send event="deadline_p2" delay="5s"/>
+      <send event="deadline_p2" delay="11s"/>
     </onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable08Phase2LocalOffset and captured.dst_port == ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable08Phase2LocalOffset and (captured.flags &amp; 0x04) != 0"
                 target="pass"/>
-    <transition event="deadline_p2" target="inconclusive_p2_no_dut_rst"/>
+    <transition event="deadline_p2" target="fail_p2_no_dut_rst"/>
   </state>
 
   <final id="pass">
@@ -79,15 +89,15 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_p1_no_dut_rst">
+  <final id="fail_p1_no_dut_rst">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_rst_phase1_synack_with_unacceptable_ack","role":"precondition_unmet"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_rst_phase1_synack_with_unacceptable_ack","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 
-  <final id="inconclusive_p2_no_dut_rst">
+  <final id="fail_p2_no_dut_rst">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_rst_phase2_ack_with_unacceptable_ack","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_rst_phase2_ack_with_unacceptable_ack","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </scxml>

@@ -74,7 +74,7 @@ struct TestCaseTraits<cases::TcpBasics10SM>
                 kBasicsActiveLocalPort  + kTcpBasics10Phase1LocalOffset,
                 kBasicsActiveRemotePort + kTcpBasics10Phase1LocalOffset);
 
-            const int tester_fd = open1.listener.acceptOne();
+            const int tester_fd = acceptPreambleConnection(open1);
 
             // Order: DUT close (enters FINWAIT-1, sends FIN) then
             // immediate tester FIN. No pre-FIN delay — phase 2 is
@@ -94,7 +94,7 @@ struct TestCaseTraits<cases::TcpBasics10SM>
                 kBasicsActiveLocalPort  + kTcpBasics10Phase2LocalOffset,
                 kBasicsActiveRemotePort + kTcpBasics10Phase2LocalOffset);
 
-            const int tester_fd = open2.listener.acceptOne();
+            const int tester_fd = acceptPreambleConnection(open2);
 
             // Order: DUT close → wait 100 ms (DUT receives tester ACK,
             // moves FINWAIT-1 → FINWAIT-2) → tester FIN.

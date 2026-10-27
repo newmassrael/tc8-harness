@@ -2,7 +2,7 @@
 <!--
   TC8 §4.2.4.2 ARP_18: ARP Request reception (Target Hardware Address =
   arbitrary). DUT must reply regardless of the unresolved target_hw
-  value; same pass criterion as ARP_16/17.
+  value; same pass criterion as ARP_16/17. Body: arp_required_reply.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -12,34 +12,5 @@
        sce:transition-table="emit"
        datamodel="null"
        initial="listening">
-
-  <sce:context id="captured"
-               cpp:type="tc8::ArpCaptured"
-               cpp:include="sce_integration/arp_captured.h"/>
-
-  <sce:context id="expected"
-               cpp:type="tc8::ArpExpected"
-               cpp:include="sce_integration/arp_expected.h"/>
-
-  <state id="listening">
-    <onentry>
-      <send event="deadline_exceeded" delay="5s"/>
-    </onentry>
-    <transition event="arp_observed"
-                cond="cpp:captured.opcode == 2 and captured.sender_hw == expected.dut_iface_mac"
-                target="pass"/>
-    <transition event="deadline_exceeded" target="inconclusive_no_reply"/>
-  </state>
-
-  <final id="pass">
-    <donedata>
-      <content>{"verdict":"pass"}</content>
-    </donedata>
-  </final>
-
-  <final id="inconclusive_no_reply">
-    <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_arp_reply_within_listen_window","role":"precondition_unmet"}</content>
-    </donedata>
-  </final>
+  <sce:use template="../_templates/arp_required_reply.sce-template.xml"/>
 </scxml>

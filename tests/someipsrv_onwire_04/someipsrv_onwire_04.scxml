@@ -7,14 +7,21 @@
   dedupe the second Request as a stale duplicate.
 
     Phase 1 (listening_phase1, 6 s): DUT emits OfferService.
-    Phase 2 (listening_phase2, 5 s): first Response (msg_type 0x80,
+    Phase 2 (listening_phase2, 11 s): first Response (msg_type 0x80,
             session_id 0x1234) arrives.
-    Phase 3 (listening_phase3, 5 s): second Response (same session_id,
+    Phase 3 (listening_phase3, 11 s): second Response (same session_id,
             from the second Request) arrives. Pass requires both.
 
   Three discrete deadline event names (s1/s2/s3) prevent leftover-
   deadline leakage across phases (a single shared `deadline_exceeded`
   would let phase 1's leftover fire phase 2 / 3's transition).
+
+  The procedure listens up to <ParamListenTime> for each Response, so a
+  phase-2 or phase-3 window that elapses without one is the DUT's silence
+  where it must answer: observed_quiescence, judged against that bound
+  (docs/verdict_policy.md Section 2.1, H3), over a window of
+  ParamListenTime plus <ParamToleranceTime> (10 s + 1 s at the defaults).
+  Phase 1 (no OfferService) is the preamble and stays precondition_unmet.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -45,22 +52,22 @@
 
   <state id="listening_phase2">
     <onentry>
-      <send event="s2_deadline_exceeded" delay="5s"/>
+      <send event="s2_deadline_exceeded" delay="11s"/>
     </onentry>
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.client_id == 0xCAFE and captured.session_id == 0x1234"
                 target="listening_phase3"/>
-    <transition event="s2_deadline_exceeded" target="inconclusive_phase2_no_first_response"/>
+    <transition event="s2_deadline_exceeded" target="fail_phase2_no_first_response"/>
   </state>
 
   <state id="listening_phase3">
     <onentry>
-      <send event="s3_deadline_exceeded" delay="5s"/>
+      <send event="s3_deadline_exceeded" delay="11s"/>
     </onentry>
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x80 and captured.client_id == 0xCAFE and captured.session_id == 0x1234"
                 target="pass"/>
-    <transition event="s3_deadline_exceeded" target="inconclusive_phase3_no_second_response"/>
+    <transition event="s3_deadline_exceeded" target="fail_phase3_no_second_response"/>
   </state>
 
   <final id="pass">
@@ -75,15 +82,15 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_phase2_no_first_response">
+  <final id="fail_phase2_no_first_response">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_first_response_within_listen_window","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_first_response_within_listen_window","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 
-  <final id="inconclusive_phase3_no_second_response">
+  <final id="fail_phase3_no_second_response">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"dut_silently_dropped_second_request_with_reused_request_id","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"dut_silently_dropped_second_request_with_reused_request_id","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </scxml>

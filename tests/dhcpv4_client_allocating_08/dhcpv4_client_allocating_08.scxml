@@ -9,6 +9,13 @@
   Window `[9_000_000, 12_000_000]` us = `[9 s, 12 s]` (ToleranceTime
   default = 1 s; upper bound covers the trait's [10000, 11000] ms
   desync draw + worker jitter without false negatives).
+
+  A DECLINE window or a restart window that elapses without its message
+  is observed_quiescence, against <ParamListenTime> and against the
+  procedure's 10 s respectively; see the template. The restart window's
+  deadline also lands a DUT whose only DISCOVER fell outside the
+  [9 s, 12 s] interval: it did not send the DISCOVER the procedure
+  listens for within the time it grants.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"

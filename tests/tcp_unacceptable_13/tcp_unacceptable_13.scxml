@@ -19,7 +19,9 @@
   binds the two probe-state fail reason strings — UNACCEPTABLE_13
   distinguishes phase 1 (OTW SEQ) from phase 2 (unacceptable ACK)
   semantically; the wire-level shape is identical (DUT pure ACK
-  on the per-phase port quad).
+  on the per-phase port quad). Each probe ACK's silence is the
+  template's observed_quiescence final, judged against
+  <ParamListenTime>.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"

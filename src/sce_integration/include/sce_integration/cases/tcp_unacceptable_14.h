@@ -65,7 +65,7 @@ struct TestCaseTraits<cases::TcpUnacceptable14SM>
                 ctx.dut, cfg,
                 kBasicsActiveLocalPort  + kTcpUnacceptable14Phase1LocalOffset,
                 kBasicsActiveRemotePort + kTcpUnacceptable14Phase1LocalOffset);
-            const int tester_fd = open.listener.acceptOne();
+            const int tester_fd = acceptPreambleConnection(open);
             if (tester_fd >= 0) {
                 ::shutdown(tester_fd, SHUT_WR);
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -106,7 +106,7 @@ struct TestCaseTraits<cases::TcpUnacceptable14SM>
                 ctx.dut, cfg,
                 /*local_port=*/phase2_local_port,
                 /*remote_port=*/phase2_remote_port);
-            const int tester_fd = open.listener.acceptOne();
+            const int tester_fd = acceptPreambleConnection(open);
             if (tester_fd >= 0) {
                 ::shutdown(tester_fd, SHUT_WR);
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));

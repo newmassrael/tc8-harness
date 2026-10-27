@@ -20,6 +20,14 @@
   Both phases trip on the cyclic 1 Hz Offer cadence; the per-burst
   invariant is exercised by the stimulus chain (DUT must not crash
   under the burst rate) rather than per-phase wire-shape distinction.
+
+  The procedure states no time for the answer, so the general
+  <ParamListenTime> governs: a phase-2 window that elapses without any
+  OfferService is the DUT's silence where it must answer the second burst,
+  observed_quiescence judged against that bound (docs/verdict_policy.md
+  Section 2.1, H3), over a window of ParamListenTime plus
+  <ParamToleranceTime> (10 s + 1 s at the defaults). Phase 1 (no
+  OfferService) is the preamble and stays precondition_unmet.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -50,12 +58,12 @@
 
   <state id="listening_phase2">
     <onentry>
-      <send event="phase2_deadline_exceeded" delay="6s"/>
+      <send event="phase2_deadline_exceeded" delay="11s"/>
     </onentry>
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.sd_entries[0].ttl &gt; 0"
                 target="pass"/>
-    <transition event="phase2_deadline_exceeded" target="inconclusive_phase2_no_offer"/>
+    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_offer"/>
   </state>
 
   <final id="pass">
@@ -70,9 +78,9 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_phase2_no_offer">
+  <final id="fail_phase2_no_offer">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_offer_service_phase2_within_listen_window","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_offer_service_phase2_within_listen_window","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </scxml>

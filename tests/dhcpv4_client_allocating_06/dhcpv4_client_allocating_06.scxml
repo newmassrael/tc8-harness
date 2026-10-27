@@ -18,11 +18,17 @@
   Listening windows:
     listening_for_first_discover  (deadline 6 s, covers pilot bootstrap +
                                    1.5 s initial wait + DISCOVER#1)
-    listening_for_second_discover (deadline 8 s = retry_sleep 1 s +
-                                   2nd offer_wait 2 s + retry_sleep 1 s +
-                                   3rd offer_wait 2 s on the abort path +
-                                   2 s tolerance — 3 s margin over the
-                                   3 s nominal delta to DISCOVER#2)
+    listening_for_second_discover (deadline 11 s = <ParamListenTime>
+                                   plus <ParamToleranceTime>)
+
+  The first DISCOVER starts the process the case builds on, so its
+  absence stays inconclusive. The procedure listens up to
+  <ParamListenTime> for the retransmission, so a window that elapses
+  without it is the DUT's silence where it must retransmit —
+  observed_quiescence, judged against that bound (H3). Whether the
+  silence stands as a fail is the CLI's call on the run's hypotheses.
+  Each state's deadline event is its own, so the first window's timer
+  cannot close the second early.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -43,22 +49,22 @@
 
   <state id="listening_for_first_discover">
     <onentry>
-      <send event="deadline_exceeded" delay="6s"/>
+      <send event="s1_deadline" delay="6s"/>
     </onentry>
     <transition event="dhcp_observed"
                 cond="cpp:captured.is_dhcp_discover() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
                 target="listening_for_second_discover"/>
-    <transition event="deadline_exceeded" target="inconclusive_no_first_discover"/>
+    <transition event="s1_deadline" target="inconclusive_no_first_discover"/>
   </state>
 
   <state id="listening_for_second_discover">
     <onentry>
-      <send event="deadline_exceeded" delay="8s"/>
+      <send event="s2_deadline" delay="11s"/>
     </onentry>
     <transition event="dhcp_observed"
                 cond="cpp:captured.is_dhcp_discover() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
                 target="pass"/>
-    <transition event="deadline_exceeded" target="inconclusive_no_resend"/>
+    <transition event="s2_deadline" target="fail_no_resend"/>
   </state>
 
   <final id="pass">
@@ -73,9 +79,9 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_no_resend">
+  <final id="fail_no_resend">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_dhcp_discover_retransmission","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_dhcp_discover_retransmission","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </scxml>

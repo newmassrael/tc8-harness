@@ -33,6 +33,15 @@
   Negative IP-flip path: src_ip-conjunct on listening_handshake_ack
   becomes unreachable, lands on inconclusive_no_handshake_ack at the 5 s
   deadline + ~2 s prelude wall-time ≈ 8 s.
+
+  The FIN is the emission the Pass Criteria names, and the TCP chapter
+  states no time for it, so a listening_dut_fin window that elapses
+  without it is the DUT's silence where it must emit —
+  observed_quiescence, judged against <ParamListenTime>
+  (docs/verdict_policy.md Section 2.1, H3). The window is
+  ParamListenTime plus <ParamToleranceTime> (10 s + 1 s at the
+  defaults). The handshake ACK is the ESTABLISHED precondition, so its
+  silence stays inconclusive.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -60,11 +69,11 @@
   </state>
 
   <state id="listening_dut_fin">
-    <onentry><send event="deadline_dut_fin" delay="5s"/></onentry>
+    <onentry><send event="deadline_dut_fin" delay="11s"/></onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpClosing06LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpClosing06LocalOffset)"
                 target="pass"/>
-    <transition event="deadline_dut_fin" target="inconclusive_no_dut_fin"/>
+    <transition event="deadline_dut_fin" target="fail_no_dut_fin"/>
   </state>
 
   <final id="pass">
@@ -75,7 +84,7 @@
     <donedata><content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack","role":"precondition_unmet"}</content></donedata>
   </final>
 
-  <final id="inconclusive_no_dut_fin">
-    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_close_fin","role":"property_unobserved"}</content></donedata>
+  <final id="fail_no_dut_fin">
+    <donedata><content>{"verdict":"fail","reason":"no_dut_close_fin","role":"observed_quiescence","bound":"ParamListenTime"}</content></donedata>
   </final>
 </scxml>

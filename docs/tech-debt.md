@@ -4308,3 +4308,77 @@ here needs building. The settle's remaining job is to cover a run without the st
 That job belongs to `kDutReadyBarrier`, and the consumer will remove the settle by declaring the
 barrier once that commit reaches its pin. The TCP SYN-SENT half of the gap was already expressible
 on the opcode backend, and the testability backend's CONNECT is fixed by its standard.
+
+## TD-64 — nine SOME/IP cases give the DUT less than ParamListenTime, or demand an order
+
+**Status:** OPEN. **Logged:** 2026-10-28, from the Phase Q4 sweep (docs/verdict_policy.md
+Section 8). These cases are still `liveness` on `tools/liveness_migration_pending.txt`, and the
+cause is the tester, not the specification or the DUT.
+
+**What it is.** Migrating a case makes its test-body deadline an `observed_quiescence` fail. That
+is sound only when the DUT had its whole bound to answer and any answer the specification allows
+would have been heard. In these nine cases neither holds:
+
+- **The tester stops listening first.** `SOMEIPSRV_RPC_17` sends each TCP method request through
+  `requestOnceTcp`, which closes the connection 300 ms after the send (the `linger` default in
+  `MethodRequestTiming`'s TCP variant). A response sent later than that reaches a closed socket.
+  `SOMEIP_ETS_068` bounds its wait at 800 ms. `SOMEIP_ETS_097` accepts the DUT's TCP connection
+  under a 3 s bound.
+- **Fixed waits stand in for the reply.** `SOMEIPSRV_RPC_14` and `SOMEIP_ETS_164` sleep for fixed
+  durations between steps instead of awaiting the response each step depends on, so the time the
+  DUT is granted depends on the sleeps, not on the bound.
+- **The case requires an order the specification does not.** `SOMEIP_ETS_004`, `_061`, `_069` and
+  `_088` accept the replies only in the order the case expects. A DUT that answers in another valid
+  order goes silent from the case's point of view.
+
+**Risk if left.** None in the false-fail direction: the cases stay inconclusive on silence. The
+cost is power, because a DUT that never answers is reported as unobserved instead of failed.
+
+**Fix.** Give each wait the bound: keep the tester socket open for `ParamListenTime` plus
+`ParamToleranceTime` after the request, and replace each fixed sleep with an awaited observation
+whose miss is recorded as an unperformed stimulus. Make the reply guards order-independent where
+the specification does not order the replies. Then migrate each case as in Section 8.
+
+**Done when:** these nine names are off `tools/liveness_migration_pending.txt`, each with its
+test-body deadline `observed_quiescence` and bound `ParamListenTime`, and `negative_coverage_audit.py
+--check` is clean.
+
+## TD-65 — 24 liveness guards need a modelling decision before they can migrate
+
+**Status:** OPEN. **Logged:** 2026-10-28, from the Phase Q4 sweep. The other 24 cases on
+`tools/liveness_migration_pending.txt`.
+
+**What it is.** Each guard's registry property says the DUT must emit something, but the case as
+written cannot grade that emission's absence as a fail. The reasons fall into five groups:
+
+- **The template's final is shared.** `DHCPv4_CLIENT_ALLOCATING_09` and
+  `DHCPv4_CLIENT_REACQUISITION_08` decide on a final their template shares with cases where the
+  silence is a preamble miss. The ten IPv4 link-local cases (`IPv4_AUTOCONF_ADDRESS_SELECTION_09`,
+  `_11`, `_12`, `_13`, `IPv4_AUTOCONF_ANNOUNCING_05`, `IPv4_AUTOCONF_CONFLICT_06` to `_10`) share
+  window timers across states or grade a requirement RFC 3927 states as MAY. `_CONFLICT_10`
+  also has to leave the `ipv4_linklocal_defender_cease` template before its final can change role.
+- **The silence is only in a preamble.** `SOMEIP_ETS_060`, `_118`, `_127` and `_171` have no
+  test-body deadline: every timer-decided final is a preamble miss, which is `precondition_unmet`.
+- **No specification bound exists.** `TCP_PROBING_WINDOWS_04` and `_05` time zero-window probes
+  that follow the DUT's own retransmission timeout, and RFC 1122 section 4.2.2.17 sets no ceiling.
+  `SOMEIP_ETS_130` grades an SD timing the case does not bound.
+- **The check is a state query, not a wire silence.** `UDP_FIELDS_05` and `TCP_URGENT_PTR_04`
+  judge a value the Upper Tester reports, which is an `observed_violation` if anything.
+  `TCP_CALL_RECEIVE_04` merges "the query returned nothing" with the no-answer sentinel in one
+  final.
+- **The emission is not mandated, or one window covers two things.** `TCP_MSS_OPTIONS_05` waits
+  for a third-leg ACK that RFC 1122 section 4.2.2.5 does not require (a DUT may reset or drop
+  instead). `TCP_BASICS_03` has one window covering both the preamble and the body.
+
+**Risk if left.** None in the false-fail direction. The registry text for the "not mandated" and
+"state query" groups overstates what the case grades, so a reader of the registry is misled.
+
+**Fix.** Per group: parameterise or split the shared templates; for preamble-only and unbounded
+cases, rewrite the registry guard to the class that matches what is graded (none of them is a
+`required_emission`); split the state-query finals into an `observed_violation` for a wrong value
+and an unperformed-stimulus record for no answer; re-derive `TCP_MSS_OPTIONS_05` from its pass
+criteria. Once a group is redesigned, its cases leave the ledger by migration or by
+reclassification.
+
+**Done when:** `tools/liveness_migration_pending.txt` lists none of these 24 names and the registry
+has no `liveness` guard for any of them.

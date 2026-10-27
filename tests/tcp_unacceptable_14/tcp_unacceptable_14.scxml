@@ -32,6 +32,16 @@
   smoke-test triage identifies which edge the DUT failed to emit.
   Negative smoke flips ipv4.dut_iface_ip → first state's
   src_ip-conjunct unreachable → inconclusive_p1_no_handshake_ack.
+
+  The procedure states no listen time, so the general input parameter
+  <ParamListenTime> bounds the wait for each CASE's empty ACK. A window
+  that elapses without it is the DUT's silence where it must answer:
+  observed_quiescence for that CASE, judged against that bound (H3),
+  over ParamListenTime plus <ParamToleranceTime> (10 s + 1 s at the
+  defaults). The handshake and close-ACK windows that bring each phase
+  to CLOSE-WAIT stay inconclusive: they set up the state the segment
+  tests. Whether a silence stands as a fail is the CLI's call on the
+  run's hypotheses.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -72,12 +82,12 @@
 
   <state id="listening_p1_data_ack">
     <onentry>
-      <send event="deadline_p1_data_ack" delay="5s"/>
+      <send event="deadline_p1_data_ack" delay="11s"/>
     </onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable14Phase1LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable14Phase1LocalOffset) and captured.ack_num == captured.expected_ack_num"
                 target="listening_p2_handshake"/>
-    <transition event="deadline_p1_data_ack" target="inconclusive_p1_no_data_ack"/>
+    <transition event="deadline_p1_data_ack" target="fail_p1_no_data_ack"/>
   </state>
 
   <state id="listening_p2_handshake">
@@ -102,12 +112,12 @@
 
   <state id="listening_p2_data_ack">
     <onentry>
-      <send event="deadline_p2_data_ack" delay="5s"/>
+      <send event="deadline_p2_data_ack" delay="11s"/>
     </onentry>
     <transition event="tcp_observed"
                 cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpUnacceptable14Phase2LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpUnacceptable14Phase2LocalOffset) and captured.ack_num == captured.expected_ack_num_phase2"
                 target="pass"/>
-    <transition event="deadline_p2_data_ack" target="inconclusive_p2_no_data_ack"/>
+    <transition event="deadline_p2_data_ack" target="fail_p2_no_data_ack"/>
   </state>
 
   <final id="pass">
@@ -128,9 +138,9 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_p1_no_data_ack">
+  <final id="fail_p1_no_data_ack">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_otw_seq_close_wait","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_ack_to_otw_seq_close_wait","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 
@@ -146,9 +156,9 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_p2_no_data_ack">
+  <final id="fail_p2_no_data_ack">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_unacceptable_ack_close_wait","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_ack_to_unacceptable_ack_close_wait","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </scxml>

@@ -53,8 +53,8 @@ struct TestCaseTraits<cases::TcpUnacceptable04SM>
     // kernels. Linux 6.5 silently discarded it in ESTABLISHED
     // (tcp_rcv_established slow path, step 5: tcp_ack returns
     // -SKB_DROP_REASON_TCP_ACK_UNSENT_DATA and the segment is
-    // discarded with no challenge ACK), so the case could only time
-    // out to inconclusive_no_dut_ack_to_unacc_ack. Kernel 7.0.0-31
+    // discarded with no challenge ACK), so the case times out to
+    // fail_no_dut_ack_to_unacc_ack on that kernel. Kernel 7.0.0-31
     // answers it with a pure ACK (ack = the tester's rcv_nxt, measured
     // single-pc 2026-09-24), and the case passes; it carries no
     // known-fail mark. See the SCXML preamble for the per-state table.
@@ -75,7 +75,7 @@ struct TestCaseTraits<cases::TcpUnacceptable04SM>
             kBasicsActiveLocalPort  + kTcpUnacceptable04LocalOffset,
             kBasicsActiveRemotePort + kTcpUnacceptable04LocalOffset);
 
-        const int tester_fd = open.listener.acceptOne();
+        const int tester_fd = acceptPreambleConnection(open);
         if (tester_fd < 0) return;
 
         const auto seq_range = queryTcpSeqRange(tester_fd);

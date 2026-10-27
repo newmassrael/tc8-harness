@@ -53,7 +53,7 @@ struct TestCaseTraits<cases::TcpCallAbort02SM>
         const std::uint16_t remote_port = kBasicsActiveRemotePort + kPortOffset;
 
         auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
-        const int tester_fd = open.listener.acceptOne();
+        const int tester_fd = acceptPreambleConnection(open);
         if (tester_fd < 0) return;
         if (!open.conn) return;
 

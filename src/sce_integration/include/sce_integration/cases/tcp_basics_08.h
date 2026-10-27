@@ -103,7 +103,7 @@ struct TestCaseTraits<cases::TcpBasics08SM>
             // SCXML lands on fail_timeout_phase2 (no DUT FIN observed)
             // — a clean diagnostic that points at the helper, not the
             // DUT.
-            const int tester_fd = open2.listener.acceptOne();
+            const int tester_fd = acceptPreambleConnection(open2);
             if (tester_fd >= 0) {
                 ::shutdown(tester_fd, SHUT_WR);
                 // Brief grace so the DUT kernel processes the FIN and
