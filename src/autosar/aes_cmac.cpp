@@ -174,7 +174,9 @@ std::array<std::uint8_t, 16> aesCmac(const std::uint8_t* key, std::size_t key_le
             m_last[j] = static_cast<std::uint8_t>(msg[last_off + j] ^ k1[j]);
         }
     } else {
-        const std::size_t rem = msg_len - last_off;  // 0 only when msg_len == 0
+        // Bytes in the partial final block, < 16: a whole last block takes the
+        // branch above. 0 only when msg_len == 0.
+        const std::size_t rem = msg_len % 16;
         for (std::size_t j = 0; j < 16; ++j) {
             std::uint8_t b = 0x00;
             if (j < rem) {
