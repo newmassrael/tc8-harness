@@ -5,6 +5,7 @@
 #include <memory>
 #include <string_view>
 #include <thread>
+#include <variant>
 #include <vector>
 
 #include "sce_integration/case_registry.h"
@@ -14,6 +15,10 @@
 #include "stimulus/someip_sd_builder.h"
 #include "stimulus/tcp_accept_service.h"
 #include "stimulus/tcp_server.h"
+#include "stimulus/tx_observer.h"
+#include "tc8/captured_event.h"
+#include "tc8/protocol_frames/tcp_frame.h"
+#include "tc8/test_defaults.h"
 
 #include "someip_ets_097_sm.h"
 
@@ -52,7 +57,9 @@ namespace tc8::sce {
 //   5. emitOfferServiceMulticastWithEndpoint(offer1, tester:30509, TCP) —
 //      OfferService #1 with TCP endpoint, no listener up yet → DUT's first
 //      SYN gets RST from the kernel (ECONNREFUSED at vsomeip).
-//   6. Sleep 1500 ms — DUT vsomeip notices ECONNREFUSED + arms its retry timer.
+//   6. Await the tester kernel's RST to the DUT from :30509 — the refused first
+//      connect, observed rather than assumed (bound ParamListenTime plus
+//      ParamToleranceTime; a miss is an unperformed stimulus).
 //   7. TcpAcceptService(:30509), adopted by the runner — flips the tester
 //      from "refuse" to "accept" for the rest of the run; each accept sets
 //      `c.tcp_handshake_completed = 1` and holds the connection.
@@ -111,15 +118,45 @@ struct TestCaseTraits<cases::SomeipEts097SM> : SomeIpAnyBase<cases::SomeipEts097
         // endpoint.ipv4_be left at 0 — the emitter auto-fills from `iface`.
         offer1.endpoint.port    = kTesterReliablePort;
         offer1.endpoint.l4proto = 0x06;          // TCP
+        // Nothing serves the port yet, so the tester kernel answers the DUT's
+        // SYN with an RST: the refusal the procedure restarts from.
+        ::tc8::stimulus::reportTcpRefusal(ctx.iface, kTesterReliablePort);
+        // Marked before the Offer, so a SYN the DUT sends while it is still
+        // being emitted counts.
+        const ::tc8::sce::ObservationCursor offered = ctx.observer.mark();
         ::tc8::stimulus::emitOfferServiceMulticastWithEndpoint(
             ctx.iface, offer1, std::chrono::milliseconds(500));
 
-        // Give vsomeip's first connect attempt time to fire + fail.
-        std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+        // The case grades a RESTART, so it needs the first attempt refused
+        // before it lets one succeed. Opening the listener after a fixed wait
+        // would accept a DUT whose first SYN came later than the wait, and the
+        // case would pass without a restart. So it waits for the RST that
+        // refused the DUT's first connect (an absence of it is an unperformed
+        // stimulus: the refusal the procedure depends on did not happen), the
+        // DUT having its listen time to make that first attempt.
+        const std::uint32_t dut_ip = cfg.dut.ip;
+        const auto refused = ctx.observer.awaitObservation(
+            "dut_first_connect_refused", offered,
+            [dut_ip](const ::tc8::CapturedEvent &ev) {
+                const auto *seg = std::get_if<::tc8::TcpFrame>(&ev);
+                return seg != nullptr && seg->dst_ip == dut_ip &&
+                       seg->src_port == kTesterReliablePort &&
+                       (seg->flags & kTcpFlagRst) != 0U;
+            },
+            std::chrono::milliseconds(cfg.ixit.param_listen_time_ms) +
+                ::tc8::defaults::kToleranceTime);
+        if (!refused) {
+            return;
+        }
 
-        // Open the TCP listener, then emit OfferService #2; vsomeip reacts to
-        // the offer by re-attempting the TCP connect, which now completes
-        // against the live listener. The runner owns the listener for the whole
+        // Open the TCP listener, then emit OfferService #2 at once; vsomeip
+        // reacts to the offer by re-attempting the TCP connect, which now
+        // completes against the live listener. The pass criteria ask for the
+        // second SYN as the DUT's answer to ANOTHER OfferService, so the port
+        // keeps refusing until that Offer goes out: the listener opens
+        // immediately before it, with no wait in between, and a retry the DUT
+        // makes on a timer of its own before the Offer is refused like the
+        // first attempt. The runner owns the listener for the whole
         // run and accepts on every drain, so a connect at any point in the
         // window is heard: a bounded accept here would grant the DUT the bound
         // instead of the listen time, and a SYN after it would meet a closed
@@ -142,11 +179,13 @@ struct TestCaseTraits<cases::SomeipEts097SM> : SomeIpAnyBase<cases::SomeipEts097
         ::tc8::stimulus::OfferServiceWithEndpointTarget offer2 = offer1;
         offer2.service.session_id = 0x0002;
         ::tc8::stimulus::emitOfferServiceMulticastWithEndpoint(
-            ctx.iface, offer2, std::chrono::milliseconds(200));
+            ctx.iface, offer2, std::chrono::milliseconds(0));
     }
 
     // The tester's reliable endpoint both Offers advertise.
     static constexpr std::uint16_t kTesterReliablePort = 30509;
+    // RFC 793 RST control bit in TcpFrame::flags.
+    static constexpr std::uint8_t kTcpFlagRst = 0x04U;
 };
 
 }  // namespace tc8::sce

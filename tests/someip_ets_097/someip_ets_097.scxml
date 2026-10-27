@@ -15,7 +15,10 @@
        subscribe() on the TCP-reliable event.
     4. emitOfferServiceMulticastWithEndpoint(offer1, tester:30509, TCP) —
        OfferService #1 with no listener bound → DUT first SYN gets RST.
-    5. Sleep 1.5 s — DUT vsomeip arms its retry timer.
+    5. Await the tester kernel's RST to the DUT from :30509, which shows
+       the first connect was made and refused (a miss is an unperformed
+       stimulus, so a DUT that never made a first attempt is not graded
+       as having restarted one).
     6. A listener on :30509 that the runner owns for the rest of the run
        (TcpAcceptService) + emitOfferServiceMulticastWithEndpoint(offer2) —
        second OfferService triggers vsomeip's offer-driven reconnect. Each

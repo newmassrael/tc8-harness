@@ -4366,7 +4366,7 @@ The work exposed a gap in hypothesis S that reached past these nine. Nearly ever
 outside TCP ignores its emitters' return values, so a send that never left the tester would have
 been graded as the DUT's silence. The send primitives now record the failure themselves
 (`reportTxFailed`, `stimulus/tx_observer.h`), so S holds whether or not the case checks. One
-residual of ETS_097 is logged as TD-66.
+residual of ETS_097 was logged as TD-66, since resolved.
 
 ## TD-65 — 24 liveness guards need a modelling decision before they can migrate
 
@@ -4410,7 +4410,8 @@ has no `liveness` guard for any of them.
 
 ## TD-66 — SOMEIP_ETS_097 can pass without the first connect having been refused
 
-**Status:** OPEN. **Logged:** 2026-10-28, while resolving TD-64.
+**Status:** RESOLVED (2026-10-28). **Logged:** 2026-10-28, while resolving TD-64. The entry below
+is the debt as logged; **Resolution** at its end records what closed it.
 
 **What it is.** The case checks that the DUT client reconnects after a refused TCP connect
 (PRS_SOMEIPSD_00527). The tester advertises its reliable endpoint in a first Offer while nothing
@@ -4432,3 +4433,24 @@ procedure depends on did not happen). Only then open the listener and send the s
 
 **Done when:** the case's stimulus opens the listener only after it observed the refused SYN, and a
 run against a DUT that connects late on its first attempt is inconclusive rather than a pass.
+
+**Resolution.** The capture already covered the segments: the SOME/IP filter admits TCP on the
+whole SOME/IP port range, 30509 included, and the pipeline emits a `TcpFrame` for every TCP
+segment, so the "captures SOME/IP only" above was wrong and no filter change was needed. The
+stimulus now awaits the tester kernel's RST to the DUT from the advertised port, in place of the
+1.5 s sleep, and opens the listener only after it. The bound is `ParamListenTime` plus
+`ParamToleranceTime`, the time any answer to an Offer gets. A DUT that makes its first attempt
+late is therefore still refused first and graded on its restart; a DUT that makes no first attempt
+within the bound leaves the refusal unobserved, which records `dut_first_connect_refused` as an
+unperformed stimulus and makes the run inconclusive instead of a pass. The Done-when's "late is
+inconclusive" was the wrong target: a late first attempt is still a first attempt, and the case
+now waits for it.
+
+The first on-wire run showed a second gap of the same kind. The reference DUT retried 100 ms after
+the RST on a timer of its own, and the listener, opened 200 ms before the second Offer, accepted
+that retry before the Offer went out. The pass criteria ask for the second SYN as the answer to
+another OfferService, so the listener now opens immediately before the second Offer, with no wait
+between them. The port refuses until that Offer is sent, and the SYN the case accepts comes after
+it. What the case cannot tell apart is a DUT that reconnects because of the Offer from one whose
+own retry timer happens to fire after it; the criteria give no bound tighter than the listen time
+that would separate the two.
