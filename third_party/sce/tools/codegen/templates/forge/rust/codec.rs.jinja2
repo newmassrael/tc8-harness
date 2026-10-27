@@ -3,23 +3,11 @@
 
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
 {%- import '_macros/forge_rust_flag_accessors.jinja2' as flags %}
-{#- One field of the positional prefix, bound to its own local. An
-    enum-typed field travels on the wire as the enum's carrier, so
-    `decode_expr` reads that carrier and the enum's own conversion
-    turns it into a value of the type; a closed set's conversion is
-    partial, and a carrier value it does not declare is not a value of
-    that type, so the frame does not decode. The statement carries its
-    own indentation because the three call sites below share it. #}
-{% macro decode_field(field) %}
-{% if field.is_enum and field.enum_is_open %}
-        let {{ field.id }} = {{ field.enum_from_underlying }}({{ field.decode_expr }});
-{%- elif field.is_enum %}
-        let {{ field.id }} = {{ field.enum_from_underlying }}({{ field.decode_expr }})
-            .ok_or(CodecError::UndeclaredEnumValue)?;
-{%- else %}
-        let {{ field.id }} = {{ field.decode_expr }};
-{%- endif %}
-{% endmacro %}
+{#- A codec that dispatches to a body or holds a bounded list / embedded body
+    decodes into its destination (`decode_into` is the body, `decode` wraps it);
+    any other shape keeps its body in `decode` and gets a `decode_into` that
+    stores the result. Same branch order as the decode body below. #}
+{%- set decode_in_place = (not has_no_fields) and (has_variant or needs_streaming) %}
 {{ sce_map.source_marker(source_location, "rust", module_level=true, symbol_artifact=sce_artifact.forge_body) }}
 
 // SCE Forge: Auto-generated from Extended SCXML (sce:kind="codec")
@@ -49,6 +37,15 @@ use sce_forge_runtime::heapless::Vec as HeaplessVec;
 
 {% for imp in all_imports %}
 {{ imp.include_stmt }}
+{% endfor %}
+{% endif %}
+{% if emit_views %}
+
+{% if has_view_lists %}
+use sce_forge_runtime::codec::{ListView, ListWalk};
+{% endif %}
+{% for stmt in view_imports %}
+{{ stmt }}
 {% endfor %}
 {% endif %}
 {% if has_dma_aligned_fields -%}
@@ -176,186 +173,41 @@ impl{{ struct_lifetime }} {{ struct_name }}{{ struct_lifetime }} {
     /// advances past the consumed bytes; on `NeedMoreBytes` the cursor
     /// is left untouched so the caller can resume after appending more
     /// bytes (RFC §synth-5-B L494-519).
+{% if decode_in_place %}
     pub fn decode(cursor: &mut SceCursor<{{ cursor_lifetime }}>{{ params_after_first_arg }}{{ dispatch_tag_param_decl }}) -> Result<Self, CodecError> {
-{% if has_parent_flags %}
-        // RFC §synth-5-B: `parent_flags` is the parent codec's flags
-        // carrier value, threaded through by the variant arm dispatcher.
-        // Body fields gated via `parent.<flag>` predicates read from
-        // this parameter; suppress unused-variable warnings when no
-        // gated field happens to consume it (defensive guard for
-        // codecs that declare `<sce:requires-parent-flags>` but
-        // don't yet wire any predicate to it).
-        let _ = parent_flags;
-{% endif %}
-{% if has_flag_inputs %}
-        // Declared-but-unconsumed flag inputs: defensive suppress per declared
-        // `<sce:flag-input>` so codecs that haven't (yet) consumed an
-        // input via `present-if` compile cleanly. The validator enforces
-        // declaration; consumption is a per-codec design choice.
-{{ flag_input_unused_suppress }}
-{% endif %}
-{% if has_caller_tag %}
-        // Parent-tag dispatch: `tag` is the dispatch value the
-        // caller (parent codec) extracted from its own flag carrier
-        // and passed in. The type is fixed at u8 — matches the parent's
-        // `<sce:flag>` width upper bound.
-{% endif %}
-{% if has_no_fields %}
-        // RFC §synth-5-B empty body — nothing to read; the surrounding
-        // header byte (and the wire-protocol layer that demuxes it)
-        // already proved this codec was selected, so return the
-        // default-constructed envelope without touching the cursor.
-        let _ = cursor;
-        Ok(Self {})
-{% elif has_variant %}
-{% if variant.has_streaming_prefix %}
-        // RFC §synth-5-B peek-byte / streaming-prefix:
-        // streaming prefix decode (variable-length fields supported via
-        // per-field present_if/tlv-chain/embed/repeat helpers). Peek-byte
-        // mode additionally peeks the cursor's next byte for the variant
-        // tag without advancing — the arm body decoder reads the peeked
-        // byte as its own header byte (Zenoh response/request body MID
-        // dispatch shape per network.c:347-364 + 220-235).
-{% for field in fields %}
-{% if field.is_repeat %}
-        {{ field.repeat_decode_stmt }}
-{% elif field.is_tlv_chain %}
-        {{ field.tlv_chain_decode_stmt }}
-{% elif field.is_embed %}
-        {{ field.embed_decode_stmt }}
-{% else %}
-        {{ field.present_if_decode_stmt }}
-{% endif %}
-{% endfor %}
-{% if variant.has_peek_byte %}
-        {{ variant.peek_byte_decode_stmt }}
-{% endif %}
-{% else %}
-{% if fields %}
-        // Decode fixed prefix (RFC §synth-5-B variant primitive: fields
-        // sit before the variant suffix on the wire).
-        let raw = cursor.peek_slice({{ min_bytes }})?;
-{% for field in fields %}
-{{ decode_field(field) }}
-{% endfor %}
-        cursor.advance({{ min_bytes }})?;
-{% endif %}
-{% endif %}
-        // Dispatch on the tag field; each arm decodes its body codec
-        // from the cursor. The default arm (when declared) carries the
-        // runtime tag value so encode can round-trip it back onto the
-        // wire.
-        let body = match {{ variant.tag_match_expr }} {
-{% for arm in variant.arms %}
-            {{ arm.value_literal }} => {{ struct_name }}Variant::{{ arm.variant_name }}({{ arm.body_type }}::decode(cursor{{ arm.body_decode_args_after_cursor }})?),
-{% endfor %}
-{% if variant.default_arm %}
-            other => {{ struct_name }}Variant::{{ variant.default_arm.variant_name }} {
-                tag: other,
-                body: {{ variant.default_arm.body_type }}::decode(cursor{{ variant.default_arm.body_decode_args_after_cursor }})?,
-            },
-{% else %}
-            // Build-time `codec/variant-arm-unreachable` proves the
-            // arm set covers the tag domain without a default.
-            _ => unreachable!("variant exhaustiveness gated by codec/variant-arm-unreachable at parse time"),
-{% endif %}
-        };
-        Ok(Self {
-{% for field in fields %}
-            {{ field.id }},
-{% endfor %}
-            body,
-        })
-{% elif needs_streaming %}
-        // Streaming cursor decode (SSOT selection: `needs_streaming`).
-        // The positional `raw[byte_off]` path is valid only when every
-        // field's absolute offset is fixed at codegen time; this branch
-        // handles every codec where it is not — present-if-gated fields
-        // (runtime presence), VLE / repeat / TLV-chain / embed fields
-        // (runtime width), string fields (UTF-8 decode), and a fixed field
-        // after a variable-length payload (offset depends on the payload
-        // length). Each field reads its own bytes from the cursor and
-        // advances past exactly what it consumed. Per-field `is_repeat` /
-        // `is_tlv_chain` / `is_embed` route to their dedicated helpers;
-        // every other field flows through `present_if_decode_stmt`, whose
-        // non-gated arm covers plain fixed / tail / length-ref / VLE reads.
-{% for field in fields %}
-{% if field.is_repeat %}
-        {{ field.repeat_decode_stmt }}
-{% elif field.is_tlv_chain %}
-        {{ field.tlv_chain_decode_stmt }}
-{% elif field.is_embed %}
-        {{ field.embed_decode_stmt }}
-{% else %}
-        {{ field.present_if_decode_stmt }}
-{% endif %}
-{% endfor %}
-        Ok(Self {
-{% for field in fields %}
-            {{ field.id }},
-{% endfor %}
-        })
-{% elif has_variable_fields %}
-        // Variable-length codec. RFC §synth-5-B B3 stream-correct shape:
-        // a codec without `<sce:field sce:bit-size="tail">` consumes
-        // only `min_bytes + length_value` rather than the entire
-        // cursor remaining. Codecs WITH a tail field still consume
-        // to end (tail's definition forces it). The prior
-        // "consume entire cursor" behaviour deferred to "the first
-        // multi-frame consumer" — the TLV chain is that consumer,
-        // so length-ref entry codecs now decode-iterably from a
-        // shared cursor without each entry eating the next entry's
-        // bytes.
-        let _frame_len = cursor.remaining();
-        if _frame_len < {{ min_bytes }} {
-            return Err(CodecError::NeedMoreBytes);
-        }
-        let raw = cursor.peek_slice(_frame_len)?;
-{% for field in fields %}
-{{ decode_field(field) }}
-{% endfor %}
-        let value = Self {
-{% for field in fields %}
-            {{ field.id }},
-{% endfor %}
-        };
-{% if has_tail_fields %}
-        cursor.advance(_frame_len)?;
-{% else %}
-        // Stream-correct: advance only the bytes actually decoded.
-        // For each length-ref field, end = byte_off + sibling local
-        // value (the sibling let-binding ran before the payload's).
-        // Take the max across all length-ref fields; min_bytes is the
-        // lower bound.
-        let mut _consumed: usize = {{ min_bytes }};
-{% for field in fields %}
-{% if field.is_variable and field.bit_size_kind == "length-ref" %}
-        {
-            let _end = {{ field.byte_off }}usize + value.{{ field.id }}.len();
-            if _end > _consumed { _consumed = _end; }
-        }
-{% endif %}
-{% endfor %}
-        if _consumed > _frame_len {
-            return Err(CodecError::NeedMoreBytes);
-        }
-        cursor.advance(_consumed)?;
-{% endif %}
-        Ok(value)
-{% else %}
-        let raw = cursor.peek_slice({{ min_bytes }})?;
-{% for field in fields %}
-{{ decode_field(field) }}
-{% endfor %}
-        let value = Self {
-{% for field in fields %}
-            {{ field.id }},
-{% endfor %}
-        };
-        cursor.advance({{ min_bytes }})?;
-        Ok(value)
-{% endif %}
+        let mut _out = Self::default();
+        Self::decode_into(cursor, &mut _out{{ decode_forward_args_with_comma }})?;
+        Ok(_out)
     }
+
+    /// Decode the next frame from `cursor` into `_out`: the bytes, the bounds
+    /// and the errors of [`Self::decode`], with each bounded list and embedded
+    /// body built in the field where it will live.
+    ///
+    /// `decode` returns its value, and a `heapless::Vec` moves by copying its
+    /// whole declared capacity, so every hop a decoded list takes on the way
+    /// up (the struct literal, `Ok(..)`, a variant wrapper, the caller's own
+    /// binding) copies the declared maximum however few entries the wire held.
+    /// A caller on a path where that shows decodes into a destination it owns.
+    /// On `Err`, `_out` holds the fields decoded so far and is not to be read.
+    pub fn decode_into(cursor: &mut SceCursor<{{ cursor_lifetime }}>, _out: &mut Self{{ params_after_first_arg }}{{ dispatch_tag_param_decl }}) -> Result<(), CodecError> {
+{% else %}
+    pub fn decode(cursor: &mut SceCursor<{{ cursor_lifetime }}>{{ params_after_first_arg }}{{ dispatch_tag_param_decl }}) -> Result<Self, CodecError> {
+{% endif %}
+{% set view_decode = false %}
+{% include '_macros/forge_rust_codec_decode_body.jinja2' %}
+    }
+{% if not decode_in_place %}
+
+    /// [`Self::decode`] into a destination the caller owns, so a codec that
+    /// embeds or dispatches to this one decodes it where it will live (see
+    /// `decode_into` on a codec that holds a bounded list). This body has no
+    /// list of its own to build in place, so it decodes and stores.
+    pub fn decode_into(cursor: &mut SceCursor<{{ cursor_lifetime }}>, _out: &mut Self{{ params_after_first_arg }}{{ dispatch_tag_param_decl }}) -> Result<(), CodecError> {
+        *_out = Self::decode(cursor{{ decode_forward_args_with_comma }})?;
+        Ok(())
+    }
+{% endif %}
 
 {% if has_quantity %}
     // NL→IR Mapping Roadmap Item 4 — physical-quantity raw↔physical
@@ -402,124 +254,9 @@ impl{{ struct_lifetime }} {{ struct_name }}{{ struct_lifetime }} {
     /// destination has insufficient remaining capacity; growable
     /// sinks (e.g. `VecSink`) are effectively infallible.
     pub fn encode<S: SceSink>(&self, w: &mut S{{ params_after_first_arg }}) -> Result<(), CodecError> {
-{% if has_parent_flags %}
-        // RFC §synth-5-B: see `decode` — same parameter, same suppress.
-        let _ = parent_flags;
-{% endif %}
-{% if has_flag_inputs %}
-        // Declared-but-unconsumed flag inputs: see `decode` — same suppress per
-        // declared `<sce:flag-input>`.
-{{ flag_input_unused_suppress }}
-{% endif %}
-{% if has_parent_tag_derivation %}
-        // RFC §synth-5-B parent-tag carriers — derive carrier bits from each embedded
-        // parent-tag variant's active arm before the carrier byte is
-        // emitted. Each `_derived_<carrier>` local is OR'd into the
-        // carrier's encode site (see `inject_parent_tag_carrier_suffix`).
-{{ parent_tag_derivation_block }}
-{% endif %}
-{% if present_if_encode_prologue %}{{ present_if_encode_prologue }}{% endif %}
-{% if has_no_fields %}
-        // RFC §synth-5-B empty body — zero-byte payload (the surrounding
-        // wire-protocol header byte alone marks this codec on the wire).
-        // Suppress the unused-sink warning explicitly so empty codecs
-        // stay warning-clean under `warnings = "deny"`.
-        let _ = w;
-        Ok(())
-{% elif has_variant %}
-{% if variant.has_streaming_prefix %}
-        // RFC §synth-5-B peek-byte / streaming-prefix:
-        // streaming prefix encode (per-field present_if/tlv-chain/embed/
-        // repeat helpers). Peek-byte mode: the arm body's encode prepends
-        // its own header byte (which the decoder peeked); no separate
-        // tag byte is emitted here. Streaming-prefix mode (own-field
-        // variant): the carrier is part of the prefix fields and emits
-        // through the same per-field path.
-{% for field in fields %}
-{% if field.is_repeat %}
-{{ field.repeat_encode_block }}
-{% elif field.is_tlv_chain %}
-{{ field.tlv_chain_encode_block }}
-{% elif field.is_embed %}
-{{ field.embed_encode_block }}
-{% else %}
-{{ field.present_if_encode_block }}
-{% endif %}
-{% endfor %}
-{% else %}
-        // Encode fixed prefix (tag field is part of the prefix). The
-        // tag value is read from the struct field, NOT derived from
-        // the body discriminant — keeping author-set msg_id / body in
-        // sync is the caller's responsibility (v1 keeps the layout
-        // simple; future extensions may auto-sync via a typed setter).
-{% for expr in encode_exprs %}
-        w.write_u8({{ expr }})?;
-{% endfor %}
-{% endif %}
-        // Append the active arm's encoded bytes.
-        match &self.body {
-{% for arm in variant.arms %}
-            {{ struct_name }}Variant::{{ arm.variant_name }}(b) => {
-                b.encode(w{{ arm.body_encode_args_with_leading_comma }})?;
-            }
-{% endfor %}
-{% if variant.default_arm %}
-            {{ struct_name }}Variant::{{ variant.default_arm.variant_name }} { body, .. } => {
-                body.encode(w{{ variant.default_arm.body_encode_args_with_leading_comma }})?;
-            }
-{% endif %}
-        }
-        Ok(())
-{% elif needs_streaming %}
-        // Streaming cursor encode (SSOT selection: `needs_streaming`).
-        // Mirrors the streaming decode: every field appends its own bytes
-        // in declaration order through the per-field encode blocks, so a
-        // gated field skips its append when absent, and a fixed field after
-        // a variable-length payload lands after the payload (the positional
-        // path appends variable fields last, placing it ahead on the wire).
-        // Per-field `is_repeat` / `is_tlv_chain` / `is_embed` route to their
-        // dedicated helpers; everything else uses `present_if_encode_block`
-        // (its non-gated arm covers plain fixed / tail / length-ref / VLE).
-{% for field in fields %}
-{% if field.is_repeat %}
-{{ field.repeat_encode_block }}
-{% elif field.is_tlv_chain %}
-{{ field.tlv_chain_encode_block }}
-{% elif field.is_embed %}
-{{ field.embed_encode_block }}
-{% else %}
-{{ field.present_if_encode_block }}
-{% endif %}
-{% endfor %}
-        Ok(())
-{% elif has_variable_fields %}
-{% for expr in encode_exprs %}
-        w.write_u8({{ expr }})?;
-{% endfor %}
-{% for field in fields %}
-{% if field.is_variable %}
-{% if has_dma_aligned_fields %}
-        // RFC §synth-5-B B3 DMA padding: zero-fill any gap between the
-        // current write position and this field's authored byte
-        // offset (deterministic zeros on the wire so peers stay
-        // byte-compatible regardless of host allocator — RFC §synth-5-B
-        // "wire layout, not host allocator").
-        while w.position() < {{ field.byte_off }} {
-            w.write_u8(0)?;
-        }
-{% endif %}
-        // `self.<id>` is the borrowed `&'a [u8]` view — pass it directly;
-        // `&self.<id>` would be `&&[u8]` (clippy::needless_borrow).
-        w.write_bytes(self.{{ field.id }})?;
-{% endif %}
-{% endfor %}
-        Ok(())
-{% else %}
-{% for expr in encode_exprs %}
-        w.write_u8({{ expr }})?;
-{% endfor %}
-        Ok(())
-{% endif %}
+{% set owned_encode = false %}
+{% set encode_view = false %}
+{% include '_macros/forge_rust_codec_encode_body.jinja2' %}
     }
 
 {% if encode_can_refuse %}
@@ -565,6 +302,209 @@ impl{{ struct_lifetime }} {{ struct_name }}{{ struct_lifetime }} {
     }
 {% endif %}
 }
+{% if emit_views %}
+
+// ── View (ADR 0049) ──────────────────────────────────────────────────
+{% if view_is_alias %}
+// `{{ struct_name }}` holds no bounded list, embedded body or variant, so a
+// view of it would hold what it holds. Its view is the codec itself under the
+// name every codec's view has, which lets a codec that embeds, lists or
+// dispatches to it name `{{ struct_name }}View` whatever kind of codec it is.
+#[allow(dead_code)]
+pub type {{ struct_name }}View{{ view_lifetime }} = {{ struct_name }}{{ struct_lifetime }};
+
+#[allow(dead_code)]
+impl{{ struct_lifetime }} {{ struct_name }}{{ struct_lifetime }} {
+    /// Fill `_out` with what this value says, as the view of any other codec
+    /// does (`{{ struct_name }}View` is this type, so it takes part in the same
+    /// call).
+    pub fn into_builder(&self, _out: &mut Self) -> Result<(), CodecError> {
+        _out.clone_from(self);
+        Ok(())
+    }
+}
+{% else %}
+// `{{ struct_name }}View` is what a decode of `{{ struct_name }}` learned, not a
+// copy of what the wire repeated: a scalar, a string or a bytes field is held
+// as `{{ struct_name }}` holds it, an embedded body or a variant arm as its
+// own view, and a bounded list as the frame it was read from, how many entries
+// it holds and what a walk needs to read them again (`ListView`). Its size
+// depends on the number of fields and not on any `sce:max-count`, so moving
+// one copies a few words however long its lists may be. `decode` refuses the
+// frames `{{ struct_name }}::decode` refuses, with the same error: the entries
+// are decoded once to check them, and a walk afterwards cannot fail.
+{% if has_variant %}
+#[allow(dead_code)]
+{{ codec_variant_enum_derives_attr }}
+pub enum {{ struct_name }}ViewVariant{{ view_variant_lifetime }} {
+{% for arm in variant.arms %}
+    {{ arm.variant_name }}({{ arm.view_body_type }}{{ arm.view_body_lifetime }}),
+{% endfor %}
+{% if variant.default_arm %}
+    {{ variant.default_arm.variant_name }} {
+        tag: {{ variant.tag_native_type }},
+        body: {{ variant.default_arm.view_body_type }}{{ variant.default_arm.view_body_lifetime }},
+    },
+{% endif %}
+}
+
+{% set view_ns = namespace(default_arm=none) %}
+{% for arm in variant.arms %}{% if arm.is_default %}{% set view_ns.default_arm = arm %}{% endif %}{% endfor %}
+impl{{ view_variant_lifetime }} Default for {{ struct_name }}ViewVariant{{ view_variant_lifetime }} {
+    fn default() -> Self {
+{% if view_ns.default_arm %}
+        Self::{{ view_ns.default_arm.variant_name }}({{ view_ns.default_arm.view_body_type }}::default())
+{% elif variant.arms %}
+        Self::{{ variant.arms[0].variant_name }}({{ variant.arms[0].view_body_type }}::default())
+{% else %}
+        Self::{{ variant.default_arm.variant_name }} {
+            tag: 0,
+            body: {{ variant.default_arm.view_body_type }}::default(),
+        }
+{% endif %}
+    }
+}
+
+{% endif %}
+{# How each list of the view reads its entries: one marker type for each, which the
+   list names by type (`ListWalk`) so that it holds no function over the lifetime of
+   the bytes and stays covariant in it. #}
+{% for field in fields %}
+{% if field.view_walk_item is defined %}
+{{ field.view_walk_item }}
+{% endif %}
+{% endfor %}
+#[allow(dead_code)]
+{{ codec_struct_derives_attr }}
+pub struct {{ struct_name }}View{{ view_lifetime }} {
+{% for field in fields %}
+    pub {{ field.id }}: {{ field.view_rs_type }},
+{% endfor %}
+{% if has_variant %}
+    pub body: {{ struct_name }}ViewVariant{{ view_variant_lifetime }},
+{% endif %}
+}
+{% if ns.has_flag_default %}
+
+impl{{ view_lifetime }} Default for {{ struct_name }}View{{ view_lifetime }} {
+    fn default() -> Self {
+        Self {
+{% for field in fields %}
+            {{ field.id }}: {% if field.rs_flag_default_literal is defined %}{{ field.rs_flag_default_literal }}{% else %}Default::default(){% endif %},
+{% endfor %}
+{% if has_variant %}
+            body: {{ struct_name }}ViewVariant::default(),
+{% endif %}
+        }
+    }
+}
+{% endif %}
+
+#[allow(dead_code)]
+impl{{ view_lifetime }} {{ struct_name }}View{{ view_lifetime }} {
+    /// A view with every field at its own type's [`Default`]: the destination
+    /// [`Self::decode_into`] fills.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Decode the next frame from `cursor`: the bytes, the bounds and the
+    /// errors of [`{{ struct_name }}::decode`], held as a view. On success the
+    /// cursor advances past the consumed bytes.
+    pub fn decode(cursor: &mut SceCursor<{{ view_cursor_lifetime }}>{{ params_after_first_arg }}{{ dispatch_tag_param_decl }}) -> Result<Self, CodecError> {
+        let mut _out = Self::default();
+        Self::decode_into(cursor, &mut _out{{ decode_forward_args_with_comma }})?;
+        Ok(_out)
+    }
+
+    /// [`Self::decode`] into a destination the caller owns, so a view that
+    /// embeds or dispatches to this one is filled where it will live. On
+    /// `Err`, `_out` holds the fields decoded so far and is not to be read.
+    pub fn decode_into(cursor: &mut SceCursor<{{ view_cursor_lifetime }}>, _out: &mut Self{{ params_after_first_arg }}{{ dispatch_tag_param_decl }}) -> Result<(), CodecError> {
+{% set view_decode = true %}
+{% include '_macros/forge_rust_codec_decode_body.jinja2' %}
+    }
+
+    /// Fill `_out`, the builder form [`{{ struct_name }}`] a sender fills and
+    /// encodes, with what this view says: every field, each embedded body, the
+    /// variant arm, and each list entry as the walk yields it, built in the
+    /// destination where it will live. Fails only where the destination cannot
+    /// hold it, which a destination of the same declared bounds does.
+    pub fn into_builder(&self, _out: &mut {{ struct_name }}{{ struct_lifetime }}) -> Result<(), CodecError> {
+{% for field in fields %}
+        {{ field.view_into_builder_stmt }}
+{% endfor %}
+{% if has_variant %}
+        match &self.body {
+{% for arm in variant.arms %}
+            {{ struct_name }}ViewVariant::{{ arm.variant_name }}(_b) => {
+                _out.body = {{ struct_name }}Variant::{{ arm.variant_name }}({{ arm.body_type }}::default());
+                if let {{ struct_name }}Variant::{{ arm.variant_name }}(_o) = &mut _out.body {
+                    _b.into_builder(_o)?;
+                }
+            }
+{% endfor %}
+{% if variant.default_arm %}
+            {{ struct_name }}ViewVariant::{{ variant.default_arm.variant_name }} { tag, body } => {
+                _out.body = {{ struct_name }}Variant::{{ variant.default_arm.variant_name }} {
+                    tag: *tag,
+                    body: {{ variant.default_arm.body_type }}::default(),
+                };
+                if let {{ struct_name }}Variant::{{ variant.default_arm.variant_name }} { body: _o, .. } = &mut _out.body {
+                    body.into_builder(_o)?;
+                }
+            }
+{% endif %}
+        }
+{% endif %}
+        Ok(())
+    }
+
+    /// Worst-case encoded byte count for this codec, as
+    /// [`{{ struct_name }}::MAX_ENCODED_BYTES`].
+    pub const MAX_ENCODED_BYTES: usize = {{ max_bytes }};
+
+    /// Encode what this view says into the caller-owned sink: the bytes
+    /// [`{{ struct_name }}::encode`] writes for the value [`Self::into_builder`]
+    /// fills, written straight from the view, walking each list, without the
+    /// builder. It writes the canonical wire, not the frame the view was decoded
+    /// from, so a frame `decode` accepted in a form that is not canonical is
+    /// not passed on as it came.
+    pub fn encode<S: SceSink>(&self, w: &mut S{{ params_after_first_arg }}) -> Result<(), CodecError> {
+{% set owned_encode = false %}
+{% set encode_view = true %}
+{% include '_macros/forge_rust_codec_encode_body.jinja2' %}
+    }
+{% if encode_can_refuse %}
+
+    /// Heap-backed convenience facade over [`Self::encode`], fallible where
+    /// `encode` can refuse a message whose presence disagrees with a gate.
+    #[cfg(feature = "alloc")]
+    pub fn encode_to_vec(&self{{ params_after_first_arg }}) -> Result<Vec<u8>, CodecError> {
+        let mut _sce_v: Vec<u8> = Vec::with_capacity(Self::MAX_ENCODED_BYTES);
+        let mut _sce_sink = VecSink::new(&mut _sce_v);
+        self.encode(&mut _sce_sink{{ params_first_arg_with_comma }})?;
+        Ok(_sce_v)
+    }
+{% else %}
+
+    /// Heap-backed convenience facade over [`Self::encode`].
+    #[cfg(feature = "alloc")]
+    pub fn encode_to_vec(&self{{ params_after_first_arg }}) -> Vec<u8> {
+        let mut _sce_v: Vec<u8> = Vec::with_capacity(Self::MAX_ENCODED_BYTES);
+        let mut _sce_sink = VecSink::new(&mut _sce_v);
+        self.encode(&mut _sce_sink{{ params_first_arg_with_comma }})
+            .expect("VecSink is infallible");
+        _sce_v
+    }
+{% endif %}
+{% if has_flags %}
+
+{{ flags.accessors(fields, false) }}
+{% endif %}
+}
+{% endif %}
+{% endif %}
 {% if emit_owned %}
 
 // ── Owned projection (storage-parameterised native form) ─────────────
@@ -682,14 +622,40 @@ impl{{ variant_owned_generics_impl }} {{ struct_name }}OwnedVariant{{ variant_ow
     /// single `encode`; the owned form deliberately carries no encode of
     /// its own.
     pub fn {{ variant_as_borrowed_fn }}(&self) -> {{ variant_as_borrowed_ret }} {
-        {{ variant_as_borrowed_ok_open }}match self {
+        let mut _out = {{ struct_name }}Variant::default();
+        self.{{ variant_as_borrowed_into_fn }}(&mut _out){{ variant_as_borrowed_try }};
+        {{ variant_as_borrowed_ok_open }}_out{{ variant_as_borrowed_ok_close }}
+    }
+
+    /// [`Self::{{ variant_as_borrowed_fn }}`] into a destination the caller
+    /// owns: the active arm is installed in `_out` holding its body's default
+    /// and that body is projected where it sits, so the arm body is never
+    /// returned up through the variant wrapper.
+    ///
+    /// A bounded list moves by copying its whole declared capacity, so a
+    /// projection that returns one copies the declared maximum at every layer
+    /// it passes through. A caller on a path where that shows projects into a
+    /// destination it owns. On `Err`, `_out` holds what was projected so far.
+    pub fn {{ variant_as_borrowed_into_fn }}<'o>(&'o self, _out: &mut {{ struct_name }}Variant<'o>){{ variant_as_borrowed_into_ret }} {
+        match self {
 {% for arm in variant.arms %}
-            {{ struct_name }}OwnedVariant::{{ arm.variant_name }}(_b) => {{ struct_name }}Variant::{{ arm.variant_name }}({{ arm.as_borrowed_body }}),
+            {{ struct_name }}OwnedVariant::{{ arm.variant_name }}(_b) => {
+                *_out = {{ struct_name }}Variant::{{ arm.variant_name }}(Default::default());
+                if let {{ struct_name }}Variant::{{ arm.variant_name }}(_o) = _out {
+                    {{ arm.as_borrowed_into_stmt }}
+                }
+            }
 {% endfor %}
 {% if variant.default_arm %}
-            {{ struct_name }}OwnedVariant::{{ variant.default_arm.variant_name }} { tag, body } => {{ struct_name }}Variant::{{ variant.default_arm.variant_name }} { tag: *tag, {{ variant.default_arm.as_borrowed_body }} },
+            {{ struct_name }}OwnedVariant::{{ variant.default_arm.variant_name }} { tag, body } => {
+                *_out = {{ struct_name }}Variant::{{ variant.default_arm.variant_name }} { tag: *tag, body: Default::default() };
+                if let {{ struct_name }}Variant::{{ variant.default_arm.variant_name }} { body: _o, .. } = _out {
+                    {{ variant.default_arm.as_borrowed_into_stmt }}
+                }
+            }
 {% endif %}
-        }{{ variant_as_borrowed_ok_close }}
+        }
+        {{ variant_as_borrowed_into_tail }}
     }
 }
 {% endif %}
@@ -739,14 +705,29 @@ impl{{ owned_generics_impl }} {{ struct_name }}Owned{{ owned_generics_args }} {
     /// list; on the inline profile the source is already within bounds.
 {% endif %}
     pub fn {{ as_borrowed_fn }}(&self) -> {{ as_borrowed_ret }} {
-        {{ as_borrowed_ok_open }}{{ struct_name }} {
+        let mut _out = {{ struct_name }}::default();
+        self.{{ as_borrowed_into_fn }}(&mut _out){{ as_borrowed_try }};
+        {{ as_borrowed_ok_open }}_out{{ as_borrowed_ok_close }}
+    }
+
+    /// [`Self::{{ as_borrowed_fn }}`] into a destination the caller owns, each
+    /// bounded list and embedded body projected in the field where it sits.
+    ///
+    /// A bounded list moves by copying its whole declared capacity, so a
+    /// projection that returns one copies the declared maximum at every layer
+    /// it passes through (the optional wrapper, the borrowed struct, the
+    /// variant, the caller's binding), however few entries the list holds. A
+    /// caller on a path where that shows projects into a destination it owns,
+    /// then encodes from it. On `Err`, `_out` holds what was projected so far
+    /// and is not to be read.
+    pub fn {{ as_borrowed_into_fn }}<'o>(&'o self, _out: &mut {{ struct_name }}<'o>){{ as_borrowed_into_ret }} {
 {% for field in fields %}
-            {{ field.id }}: {{ field.rs_as_borrowed_expr }},
+        {{ field.rs_as_borrowed_into_stmt }}
 {% endfor %}
 {% if has_variant %}
-            body: self.body.{{ variant_as_borrowed_call }},
+        self.body.{{ variant_as_borrowed_into_call }}
 {% endif %}
-        }{{ as_borrowed_ok_close }}
+        {{ as_borrowed_into_tail }}
     }
 
     /// Move this value to a different storage profile — growable to inline
@@ -760,6 +741,49 @@ impl{{ owned_generics_impl }} {{ struct_name }}Owned{{ owned_generics_args }} {
     pub fn transcode_in<D: {{ codec_storage_path }}>(&self) -> Result<{{ struct_name }}Owned<D>, CodecError> {
         self.{{ as_borrowed_fn }}(){{ as_borrowed_try }}.{{ owned_in_fn }}::<D>()
     }
+}
+
+#[allow(dead_code)]
+impl{{ owned_generics_impl }} {{ struct_name }}Owned{{ owned_generics_args }} {
+    /// Encode `self` into the caller-owned sink, straight from the owned
+    /// fields: the bytes `{{ as_borrowed_fn }}` followed by
+    /// [`{{ struct_name }}::encode`] writes, without the projection.
+    ///
+    /// The projection builds the whole borrowed record (every list and
+    /// embedded body in it, by value) only for `encode` to read it once. A
+    /// sender that holds an owned value encodes it from here. The same
+    /// refusals as the projection's: a list longer than the borrowed view
+    /// declares raises `CodecError::TooManyElements`, so an owned value the
+    /// borrowed form could not carry is an error and never a frame its own
+    /// decoder would reject.
+    pub fn encode<K: SceSink>(&self, w: &mut K{{ params_after_first_arg }}) -> Result<(), CodecError> {
+{% set owned_encode = true %}
+{% set encode_view = false %}
+{% include '_macros/forge_rust_codec_encode_body.jinja2' %}
+    }
+
+{% if owned_encode_can_refuse %}
+    /// Heap-backed convenience facade over [`Self::encode`]. Fallible: a list
+    /// past the bound the borrowed view declares is refused, and so is a
+    /// presence the chain predicates disagree with.
+    #[cfg(feature = "alloc")]
+    pub fn encode_to_vec(&self{{ params_after_first_arg }}) -> Result<Vec<u8>, CodecError> {
+        let mut _sce_v: Vec<u8> = Vec::with_capacity({{ struct_name }}::MAX_ENCODED_BYTES);
+        let mut _sce_sink = VecSink::new(&mut _sce_v);
+        self.encode(&mut _sce_sink{{ params_first_arg_with_comma }})?;
+        Ok(_sce_v)
+    }
+{% else %}
+    /// Heap-backed convenience facade over [`Self::encode`].
+    #[cfg(feature = "alloc")]
+    pub fn encode_to_vec(&self{{ params_after_first_arg }}) -> Vec<u8> {
+        let mut _sce_v: Vec<u8> = Vec::with_capacity({{ struct_name }}::MAX_ENCODED_BYTES);
+        let mut _sce_sink = VecSink::new(&mut _sce_v);
+        self.encode(&mut _sce_sink{{ params_first_arg_with_comma }})
+            .expect("VecSink is infallible");
+        _sce_v
+    }
+{% endif %}
 }
 {% if owned_origin %}
 {% if has_variant and variant_owned_generics_args %}

@@ -35,22 +35,13 @@
 {% endif -%}
 {% endmacro %}
 {% if model.needs_script_engine %}
-    // W3C SCXML 5.10: Ensure session ID is initialized
-    // Uses atomic counter (1:1 with C++ UniqueIdGenerator::generateSessionId)
-    fn ensure_session_id(&mut self) {
-        if self.session_id.is_none() {
-            static SESSION_COUNTER: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::new(0);
-            let id = SESSION_COUNTER.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
-            self.session_id = Some(format!("session_{}", id));
-        }
-    }
-
-    // W3C SCXML 5.2: Lazy script engine initialization
+    // W3C SCXML 5.2: Lazy script engine initialization. The script engine's
+    // session is named by the session's id (W3C SCXML 5.10), which every
+    // constructor bound when the policy was built (docs/adr/0045).
     fn ensure_script_engine(&mut self) {
         if self.script_engine_initialized {
             return;
         }
-        self.ensure_session_id();
         let sid = self.session_id.as_ref().unwrap().clone();
         let se = self.script_engine.clone();
         let se: &dyn sce_rust_runtime::IScriptEngine = &*se;
@@ -67,7 +58,7 @@
             ::sce_rust_runtime::sce_log_error!("Failed to setup system variables: {}", e);
         }
 
-        // W3C SCXML 5.2.2: Initialize global datamodel variables (no error events)
+        // W3C SCXML 5.3.3: Initialize global datamodel variables (no error events)
 {% for var in model.variables %}
 {{ initialize_variable(var, 'global', false, machine_name, model) }}
 {% endfor %}
@@ -100,7 +91,6 @@
         if self.script_engine_initialized {
             return;
         }
-        self.ensure_session_id();
         let sid = self.session_id.as_ref().unwrap().clone();
         let se = self.script_engine.clone();
         let se: &dyn sce_rust_runtime::IScriptEngine = &*se;
@@ -117,7 +107,7 @@
             ::sce_rust_runtime::sce_log_error!("Failed to setup system variables: {}", e);
         }
 
-        // W3C SCXML 5.2.2: Initialize global datamodel variables (with error events)
+        // W3C SCXML 5.3.3: Initialize global datamodel variables (with error events)
 {% for var in model.variables %}
 {{ initialize_variable(var, 'global', true, machine_name, model) }}
 {% endfor %}

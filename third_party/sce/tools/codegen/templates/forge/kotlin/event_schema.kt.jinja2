@@ -9,9 +9,20 @@
 // Event name: {{ event_name }}
 // Do not edit — regenerate from the source SCXML file.
 
-package com.sce.generated.{{ package }}
+package {{ package | kotlin_forge_package }}
 {% for imp in kotlin_enum_imports %}
 {{ imp }}
+{% endfor %}
+
+/** The event this schema types (`sce:event-name`), as a host names it. */
+const val EVENT_NAME: String = {{ event_name_literal }}
+
+/** The revision of the schema (`sce:revision`, 1 when the document declares none). */
+const val REVISION: UInt = {{ schema_revision }}u
+{% for b in field_bounds %}
+
+/** The most {{ b.unit }} `{{ b.id }}` holds (`sce:max-size`{% if b.limit %}, the bound `sce:limit="{{ b.limit }}"` names{% endif %}), as this build resolved it. */
+const val {{ b.upper }}: UInt = {{ b.value }}u
 {% endfor %}
 
 {% if fields %}

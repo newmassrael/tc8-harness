@@ -154,7 +154,7 @@
 {# The form a transport posts is needed only by those that post one. #}
 {% set needs_wire_params = action.send_type_host_served or is_http or dynamic_mesh %}
 {# ── The element's own arguments, evaluated once ──
-   W3C SCXML 6.2: "The Processor MUST evaluate all arguments to <send> when the
+   W3C SCXML 6.2.3: "The Processor MUST evaluate all arguments to <send> when the
    <send> element is evaluated", and "if the evaluation of <send>'s arguments
    produces an error, the Processor MUST discard the message without attempting
    to deliver it". So every argument is read here, before any arm runs. The
@@ -186,6 +186,10 @@
             // the argument error, as it does on every engine.
             raisePlatformError({{ machine_name }}Event.Error.Execution, "<send> delay is not a CSS2 time", {{ send_id_kt }})
             true
+{# The lambda answers `true` on every path, so the block exit after it always
+   runs: the action list emits nothing after this element (`block_flow`,
+   kotlin/entry_exit_actions.kt.jinja2). #}
+{% set block_flow.ended = true %}
 {% else %}
 {% if param_ns.can_fail %}
             var paramFailed = false
@@ -384,6 +388,12 @@
             raisePlatformError({{ machine_name }}Event.Error.Communication, "<send target='{{ action.target | escape_kotlin }}'> names no invocation of this session", {{ send_id_kt }})
             true  // W3C SCXML 4.9: the error ends the block
 {% endif %}
+{% if static_refused %}
+{# Each refusal arm answers `true` wherever the lambda returns, so the block
+   exit after it always runs: the action list emits nothing after this
+   element (`block_flow`, kotlin/entry_exit_actions.kt.jinja2). #}
+{% set block_flow.ended = true %}
+{% endif %}
 {% if not static_refused %}
 {# ── The payload ──
    W3C SCXML 5.10 / C.1: the namelist and `<param>` pairs, in the shape
@@ -566,14 +576,14 @@
 {% if has_delay %}
             // W3C SCXML 6.2.4: this session's own external queue, when due.
 {% if dyn_event %}
-            if (sendEvent != null) scheduleSend({{ send_id_kt }}, {{ delay_kt }}, sendEvent, EventMetadata.external(sendId = {{ send_id_kt }}, origin = scriptSessionId ?: "", data = sendData).copy(name = arrivalNameOf(sendEvent, sendEventName)))
+            if (sendEvent != null) scheduleSend({{ send_id_kt }}, {{ delay_kt }}, sendEvent, EventMetadata.external(sendId = {{ send_id_kt }}, origin = sessionId, data = sendData).copy(name = arrivalNameOf(sendEvent, sendEventName)))
 {% else %}
-            scheduleSend({{ send_id_kt }}, {{ delay_kt }}, {{ machine_name }}Event.{{ action.event | to_event_ref }}, EventMetadata.external(sendId = {{ send_id_kt }}, origin = scriptSessionId ?: "", data = sendData))
+            scheduleSend({{ send_id_kt }}, {{ delay_kt }}, {{ machine_name }}Event.{{ action.event | to_event_ref }}, EventMetadata.external(sendId = {{ send_id_kt }}, origin = sessionId, data = sendData))
 {% endif %}
 {% elif dyn_event %}
-            if (sendEvent != null) send(sendEvent, EventMetadata.external(sendId = {{ send_id_kt }}, origin = scriptSessionId ?: "", data = sendData).copy(name = arrivalNameOf(sendEvent, sendEventName)))
+            if (sendEvent != null) send(sendEvent, EventMetadata.external(sendId = {{ send_id_kt }}, origin = sessionId, data = sendData).copy(name = arrivalNameOf(sendEvent, sendEventName)))
 {% else %}
-            send({{ machine_name }}Event.{{ action.event | to_event_ref }}, EventMetadata.external(sendId = {{ send_id_kt }}, origin = scriptSessionId ?: "", data = sendData))
+            send({{ machine_name }}Event.{{ action.event | to_event_ref }}, EventMetadata.external(sendId = {{ send_id_kt }}, origin = sessionId, data = sendData))
 {% endif %}
 {% elif static_target.startswith('#_') and has_delay %}
             // W3C SCXML 6.2.4 + 6.4: a delayed send to an invoked child. Whether
@@ -615,16 +625,16 @@
 {% elif has_delay %}
             // W3C SCXML 6.2: Delayed send
 {% if dyn_event %}
-            if (sendEvent != null) scheduleSend({{ send_id_kt }}, {{ delay_kt }}, sendEvent, EventMetadata.external(sendId = {{ send_id_kt }}, origin = scriptSessionId ?: "", data = sendData).copy(name = arrivalNameOf(sendEvent, sendEventName)))
+            if (sendEvent != null) scheduleSend({{ send_id_kt }}, {{ delay_kt }}, sendEvent, EventMetadata.external(sendId = {{ send_id_kt }}, origin = sessionId, data = sendData).copy(name = arrivalNameOf(sendEvent, sendEventName)))
 {% else %}
-            scheduleSend({{ send_id_kt }}, {{ delay_kt }}, {{ machine_name }}Event.{{ action.event | to_event_ref }}, EventMetadata.external(sendId = {{ send_id_kt }}, origin = scriptSessionId ?: "", data = sendData))
+            scheduleSend({{ send_id_kt }}, {{ delay_kt }}, {{ machine_name }}Event.{{ action.event | to_event_ref }}, EventMetadata.external(sendId = {{ send_id_kt }}, origin = sessionId, data = sendData))
 {% endif %}
 {% else %}
             // W3C SCXML 6.2: send to this session's external queue
 {% if dyn_event %}
-            if (sendEvent != null) send(sendEvent, EventMetadata.external(sendId = {{ send_id_kt }}, origin = scriptSessionId ?: "", data = sendData).copy(name = arrivalNameOf(sendEvent, sendEventName)))
+            if (sendEvent != null) send(sendEvent, EventMetadata.external(sendId = {{ send_id_kt }}, origin = sessionId, data = sendData).copy(name = arrivalNameOf(sendEvent, sendEventName)))
 {% else %}
-            send({{ machine_name }}Event.{{ action.event | to_event_ref }}, EventMetadata.external(sendId = {{ send_id_kt }}, origin = scriptSessionId ?: "", data = sendData))
+            send({{ machine_name }}Event.{{ action.event | to_event_ref }}, EventMetadata.external(sendId = {{ send_id_kt }}, origin = sessionId, data = sendData))
 {% endif %}
 {% endif %}
 {% if dynamic_mesh %}

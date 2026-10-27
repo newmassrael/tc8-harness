@@ -36,6 +36,9 @@ from typing import Any, Dict, List, Optional, Tuple
 {% endif %}
 
 from sce_runtime import (
+{% if has_native_duties %}
+    ActionRealization,
+{% endif %}
     EnabledTransition,
     Engine,
     EventMetadata,
@@ -79,6 +82,10 @@ from sce_runtime import request_field as _request_field
 from sce_runtime import request_field_wire as _request_field_wire
 from sce_runtime.event_payload import TypedPayloadError as _RequestRefusal
 {% endif %}
+# W3C SCXML 5.10 + B-2-9: the text an event's data is on the wire, which the
+# script engine's `set_current_event` takes and a saved state holds.
+from sce_runtime.event import event_data_text as _coerce_event_data_str
+from sce_runtime import session_id as _sce_session_id
 from sce_runtime.scripting import (
     LuaScriptEngine as _LuaScriptEngine,
     ScriptError as _ScriptError,
@@ -98,6 +105,15 @@ import sce_forge_runtime.algorithm as sce_algorithm
 # A record variable is a frozen dataclass, changed a field at a time by
 # replacing it.
 import dataclasses as sce_dataclasses
+{% endif %}
+{% if static_fields or static_saved_shape %}
+# SCE Accepted Subset §2.15: how each type of a datamodel is written into a saved
+# state and read back (docs/adr/0045).
+import sce_runtime.saved_values as sce_saved
+{% endif %}
+{% if static_saved_shape %}
+import sce_runtime.saved_state as sce_saved_state
+import sce_runtime.saved_engine as sce_saved_engine
 {% endif %}
 {% if static_imports %}
 # SCE Accepted Subset §2.15: each algorithm the document calls is a module
@@ -250,46 +266,6 @@ class _ActionAbort(Exception):
     pass
 
 
-def _coerce_event_data_str(data: Any) -> str:
-    """W3C SCXML 5.10 + B-2-9 — the script engine's `set_current_event`
-    takes `event_data` as a single string, and that string is the WIRE:
-    the reader parses it under §scxml-B-2-8-1's three readings (XML →
-    DOM, JSON → value, otherwise a space-normalized string). Generated
-    Python code marshals `<send>` payloads as a dict of named params or
-    a bare scalar; we serialise them here into that wire.
-
-    - dict / list → JSON encode (so `_event.data.foo` becomes a real
-      table member at the receiving parse);
-    - str → returned unchanged, which the string reading gives back
-      whole;
-    - int / float / bool → the JSON spelling, so a numeric payload
-      arrives as a number rather than as its text;
-    - None → `""` so the Lua side leaves `_event.data` unbound.
-
-    What is deliberately absent is a spelling only the sender's own
-    engine could read back: the receiving side used to RUN this string
-    as Lua before parsing it, so a payload could execute at the far
-    end."""
-    if data is None:
-        return ""
-    if isinstance(data, str):
-        return data
-    if isinstance(data, bool):
-        return "true" if data else "false"
-    if isinstance(data, int):
-        return str(data)
-    if isinstance(data, (float, dict, list)):
-        # The one writer of JSON text this backend has (ARCHITECTURE.md,
-        # "JSON Text", "JSON Number Text" and "JSON Object Key Order"):
-        # compact, UTF-8, members in byte order, a float as ECMAScript
-        # spells it. `json.dumps` did none of the last two — it spells a
-        # float with Python's `repr` (`1.0`, `1e-07`) and keeps the order
-        # a dict was built in — so the same payload differed byte for byte
-        # from the one another backend sent.
-        return _ScriptValue.of(data).to_json_literal()
-    return str(data)
-
-
 {% if event_payload_active %}
 # ======================================================================
 # NL→IR Item C1 Path A: typed `_event.data` payload dataclasses
@@ -311,14 +287,44 @@ def _coerce_event_data_str(data: Any) -> str:
 
 {{ host_invoker_interface }}
 {% endif %}
+{% if static_format2_shape %}
+# ======================================================================
+# SCE Accepted Subset §2.15: what a format-2 saved state of it is bound to
+# ======================================================================
+
+# The shape a format-2 saved state of this machine names when every record
+# schema it holds is in its first revision, and the one it names when it names a
+# later revision (docs/adr/0045, section 2). The generator computes both once, so
+# they are the texts every backend's constants are.
+SAVED_SHAPE_FORMAT2 = "{{ static_format2_shape.first }}"
+SAVED_SHAPE_FORMAT2_REVISED = "{{ static_format2_shape.revised }}"
+
+# Each enum a value of a saved state of this machine is of, by its document
+# (docs/adr/0044): the key `revisions` names it by, and the format-2 shape spells
+# it by.
+{% if static_format2_shape.enum_keys %}
+SAVED_ENUM_KEYS = (
+{% for key in static_format2_shape.enum_keys %}
+    "{{ key | escape_python }}",
+{% endfor %}
+)
+{% else %}
+SAVED_ENUM_KEYS = ()
+{% endif %}
+
+
+{% endif %}
 {% if static_fields %}
 # ======================================================================
 # SCE Accepted Subset §2.15: the types a `sce-static` datamodel holds
 # ======================================================================
 
 def _sce_log_name(value):
-    """What a `<log>` shows of `value`: the name the enum document declares for
-    an enum member, and any other value as it is."""
+    """What a `<log>` shows of `value`: `null` for an absent optional value, as
+    every engine logs one (docs/adr/0055), the name the enum document declares
+    for an enum member, and any other value as it is."""
+    if value is None:
+        return "null"
     return value.sce_name if hasattr(value, "sce_name") else value
 
 
@@ -375,7 +381,30 @@ class {{ machine_name }}Policy(StatePolicy[{{ machine_name }}State, {{ machine_n
     `self._session_id`.
     """
 
-{% if has_native_actions %}
+{% if accepts_simulated_host %}
+    def __init__(self, actions: {{ native_actions_interface }}, *, accept_simulated_host: bool = False) -> None:
+{% if has_native_duties %}
+        # docs/adr/0038: this machine states a duty, so a host that only
+        # simulates the duties is refused unless the caller says, by name, that
+        # it means to run the machine on one. A host with no `realization` at all
+        # has declared nothing, which is refused as a simulating one is.
+        if not accept_simulated_host and getattr(actions, "realization", None) is not ActionRealization.PERFORMS:
+            raise ValueError(
+                "{{ machine_name }} states a duty and its host declares that it only simulates the duties "
+                "(or declares nothing): pass accept_simulated_host=True to run it on a recorder or a "
+                "test double on purpose"
+            )
+{% endif %}
+        # docs/adr/0038: held, so the children this machine builds with a host
+        # are built under the statement the caller gave it.
+        self._accept_simulated_host = accept_simulated_host
+        # W3C SCXML G.7: the host implementation every `<sce:action>` in this
+        # document calls directly (`self._actions.<op>(…)`) instead of the
+        # script engine. A constructor parameter rather than a setter, because
+        # the initial state's `<onentry>` can already perform an act — a host
+        # installed afterwards would arrive one act too late.
+        self._actions = actions
+{% elif has_native_actions %}
     def __init__(self, actions: {{ native_actions_interface }}) -> None:
         # W3C SCXML G.7: the host implementation every `<sce:action>` in this
         # document calls directly (`self._actions.<op>(…)`) instead of the
@@ -394,6 +423,12 @@ class {{ machine_name }}Policy(StatePolicy[{{ machine_name }}State, {{ machine_n
         # fact the engine can read (W3C SCXML C.1: a send to `#_parent`
         # from a session nothing invoked is error.communication).
         self._parent_queue: Optional[List[Tuple[str, Any]]] = None
+{% for invoke_info in model.invokes | scxml_family %}
+        # docs/adr/0045: how many times '{{ invoke_info.invoke_id }}' has started
+        # in this session; the next start, and the id it is started under, is
+        # numbered by it, so a child's ids come from the tree alone.
+        self._invoke_starts_{{ invoke_info.field_suffix }}: int = 0
+{% endfor %}
 {% if event_payload_active %}
         # NL→IR Item C1 Path A: the current event's typed `_event.data`
         # payload(s), lifted from the dequeued event by `set_current_event`
@@ -618,9 +653,13 @@ class {{ machine_name }}Policy(StatePolicy[{{ machine_name }}State, {{ machine_n
 {% if info.default_actions %}
         if history_id == {{ history_id | py_string_literal }}:
             try:
+{% with block_flow = namespace(ended=false) %}
 {% for action in info.default_actions %}
-{{ actions.emit(action, '                ', machine_name, model) }}
+{% if not block_flow.ended %}
+{{ actions.emit(action, '                ', machine_name, model, block_flow) }}
+{% endif %}
 {% endfor %}
+{% endwith %}
             except _ActionAbort:
                 pass
             return
@@ -678,6 +717,8 @@ class {{ machine_name }}Policy(StatePolicy[{{ machine_name }}State, {{ machine_n
 {% include 'entry_exit_actions.py.jinja2' %}
 
 {% include 'invoke_methods.py.jinja2' %}
+
+{% include 'saved_policy.py.jinja2' %}
 
 {% include 'scriptengine_helpers.py.jinja2' %}
 
@@ -746,11 +787,12 @@ _HISTORY_DEFAULT_TARGETS: Dict[str, Tuple[Any, ...]] = {
 }
 {% endif %}
 
+{% include 'saved_functions.py.jinja2' %}
 # ======================================================================
 # Convenience factory
 # ======================================================================
 
-def create_engine({% if has_native_actions %}actions: {{ native_actions_interface }}, {% endif %}script_engine=None) -> Engine[{{ machine_name }}State, {{ machine_name }}Event]:
+def create_engine({% if has_native_actions %}actions: {{ native_actions_interface }}, {% endif %}script_engine=None, *, {% if accepts_simulated_host %}accept_simulated_host: bool = False, {% endif %}session_id: Optional[str] = None) -> Engine[{{ machine_name }}State, {{ machine_name }}Event]:
     """Construct a runnable engine bound to a fresh policy instance.
 
     Engine DI Parity RFC (Path B+): every Engine instance owns its script
@@ -764,8 +806,26 @@ def create_engine({% if has_native_actions %}actions: {{ native_actions_interfac
     has no default, because the initial state's `<onentry>` may already
     perform an act — a host arriving later would arrive one act too late.
 {% endif %}
+{% if accepts_simulated_host %}
+
+    docs/adr/0038: `accept_simulated_host=True` states that the machine is built
+    for a host that only simulates its duties (a recorder, a test double) on
+    purpose. The statement covers the children the machine builds with a host.
+{% endif %}
+
+    docs/adr/0045: `session_id` is the id the host has for this session
+    (`_sessionid`), in place of the one the engine draws: an XML Nmtoken, since
+    another session addresses this one as `#_scxml_<id>` and every child's id is
+    this one's and the id the child was started under. Refused with a
+    `ValueError` for anything else, never replaced by another.
     """
-{% if has_native_actions %}
+    if session_id is not None:
+        reason = _sce_session_id.refusal_of(session_id)
+        if reason is not None:
+            raise ValueError(reason)
+{% if accepts_simulated_host %}
+    policy = {{ machine_name }}Policy(actions, accept_simulated_host=accept_simulated_host)
+{% elif has_native_actions %}
     policy = {{ machine_name }}Policy(actions)
 {% else %}
     policy = {{ machine_name }}Policy()
@@ -773,7 +833,7 @@ def create_engine({% if has_native_actions %}actions: {{ native_actions_interfac
     if script_engine is None:
         script_engine = _LuaScriptEngine()
         script_engine.initialize()
-    return Engine(policy, script_engine=script_engine)
+    return Engine(policy, script_engine=script_engine, session_id=session_id)
 
 
 {% if event_payload_active %}
@@ -820,4 +880,12 @@ __all__ = [
     "Policy",
     "SCE_HOST_NAMES",
     "create_engine",
+{% if static_saved_shape %}
+    "SAVED_SHAPE",
+    "judge",
+    "restore",
+    "restore_at",
+    "save",
+    "save_at",
+{% endif %}
 ]

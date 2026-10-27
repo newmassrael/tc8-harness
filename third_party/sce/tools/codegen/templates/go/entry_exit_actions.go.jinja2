@@ -32,7 +32,17 @@
    evaluated does. `model`, `machine_name` and `state_id` are parameters
    because a macro body does not see the render context. #}
 {% macro defer_with_idlocation(invoke_info, model, machine_name, state_id) %}
-{% if invoke_info.idlocation %}
+{% if invoke_info.native_idlocation %}
+			// docs/adr/0045: under `datamodel="sce-static"` the id is written to the
+			// string variable `idlocation` names, whose bound the build held to one
+			// the id fits.
+			{{ invoke_info.native_idlocation }}
+			sce.DeferInvoke(&p.pendingInvokes, sce.PendingInvoke[{{ machine_name }}State]{
+				InvokeID:   generatedInvokeID,
+				State:      {{ machine_name }}State{{ state_id | to_state_variant }},
+				DocumentID: "{{ invoke_info.invoke_id }}",
+			})
+{%- elif invoke_info.idlocation %}
 			if err := p.storeIDInLocation(`{{ invoke_info.idlocation | to_lua_location }}`, generatedInvokeID); err != nil {
 {% if 'error.execution' in model.events %}
 				engine.Raise(sce.NewPlatformError({{ machine_name }}Event{{ 'error.execution' | to_event_variant }}, "<invoke idlocation='{{ invoke_info.idlocation | escape_go }}'> could not take the invoke id"))
@@ -79,7 +89,7 @@ func (p *{{ machine_name }}Policy) ExecuteEntryActions(state {{ machine_name }}S
 {% if state.on_entry_blocks or state.initial_transition_actions or (state.is_final and state.parent) or (state.is_final and state.donedata) or (state.datamodel and model.binding == 'late') or state.invokes | scxml or state.invokes | hybrid or state.invokes | unsupported %}
 	case {{ machine_name }}State{{ state_id | to_state_variant }}:{{ annot.annotation_comment(state, "go", "		") }}
 {% if state.source_location %}
-		{{ sce_map.source_marker(state.source_location, "go", stmt_level=true, symbol_state=state_id, symbol_artifact=sce_artifact.state_body) | trim }}
+{{ sce_map.source_marker(state.source_location, "go", stmt_level=true, symbol_state=state_id, symbol_artifact=sce_artifact.state_body) | trim }}
 {% endif %}
 {% if state.datamodel and model.binding == 'late' %}
 		// §scxml-D-enterStates, late binding: the state's <data> is bound on
@@ -94,13 +104,29 @@ func (p *{{ machine_name }}Policy) ExecuteEntryActions(state {{ machine_name }}S
 		// W3C SCXML 3.8 + 4.9: onentry block {{ loop.index0 }}, its own function so an
 		// error ends it with `return` from however deep a <foreach> it came.
 		func() {
+{# `block_flow` is what one list of executable content knows about its own
+   end. An element the build has already decided will raise — a `<send>`
+   whose type, target or delay is refused, an `<assign>` to a read-only
+   location — ends the block with a `return` that no condition guards, and
+   sets `block_flow.ended` where it writes it. Nothing after it can run
+   (W3C SCXML 4.9: the error ends the block), and Go reports a statement
+   after an unconditional `return` as unreachable, so the list writes none:
+   the elements after it are not emitted. Every list an action is rendered
+   into binds its own `block_flow` — each block here, each branch of an
+   <if> (actions/if.go.jinja2), each <foreach> body — and an action
+   template that ends its block unconditionally sets the flag of the list
+   it was rendered into. #}
+{% with block_flow = namespace(ended=false) %}
 {% for action in block %}
+{% if not block_flow.ended %}
 {%- if action.req or action.unresolved %}
 {{ annot.annotation_block(action, "go", "			") -}}
 {%- endif %}
 			{% with in_action_block=true %}{% include 'actions/' ~ action.type ~ '.go.jinja2' %}{% endwith %}
 
+{% endif %}
 {% endfor %}
+{% endwith %}
 		}()
 {% endfor %}
 {% if state.initial_transition_actions %}
@@ -109,10 +135,14 @@ func (p *{{ machine_name }}Policy) ExecuteEntryActions(state {{ machine_name }}S
 		// not when the state is entered only as an ancestor of a deeper target.
 		if isDefaultEntry {
 			func() {
+{% with block_flow = namespace(ended=false) %}
 {% for action in state.initial_transition_actions %}
+{% if not block_flow.ended %}
 				{% with in_action_block=true %}{% include 'actions/' ~ action.type ~ '.go.jinja2' %}{% endwith %}
 
+{% endif %}
 {% endfor %}
+{% endwith %}
 			}()
 		}
 {% endif %}
@@ -311,13 +341,17 @@ func (p *{{ machine_name }}Policy) ExecuteEntryActions(state {{ machine_name }}S
 		// W3C SCXML 6.4: Defer invoke execution until macrostep end
 {% for invoke_info in state.invokes | scxml %}
 		{  {{- annot.annotation_comment(invoke_info, "go", "			") }}
-			generatedInvokeID := fmt.Sprintf("%s.%d.{{ invoke_info.invoke_id }}", "{{ state_id }}", sce.NextInvokeCounter())
+			// docs/adr/0045: the platform part of the id is the number of this
+			// start, so the id comes from the tree alone.
+			p.invokeStarts{{ invoke_info.field_suffix | to_pascal_case }}++
+			generatedInvokeID := fmt.Sprintf("%s.%d.{{ invoke_info.invoke_id }}", "{{ state_id }}", p.invokeStarts{{ invoke_info.field_suffix | to_pascal_case }})
 {{ defer_with_idlocation(invoke_info, model, machine_name, state_id) }}
 		}
 {% endfor %}
 {% for invoke_info in state.invokes | hybrid %}
 		{  {{- annot.annotation_comment(invoke_info, "go", "			") }}
-			generatedInvokeID := fmt.Sprintf("%s.%d.{{ invoke_info.invoke_id }}", "{{ state_id }}", sce.NextInvokeCounter())
+			p.invokeStarts{{ invoke_info.field_suffix | to_pascal_case }}++
+			generatedInvokeID := fmt.Sprintf("%s.%d.{{ invoke_info.invoke_id }}", "{{ state_id }}", p.invokeStarts{{ invoke_info.field_suffix | to_pascal_case }})
 {{ defer_with_idlocation(invoke_info, model, machine_name, state_id) }}
 		}
 {% endfor %}
@@ -328,6 +362,33 @@ func (p *{{ machine_name }}Policy) ExecuteEntryActions(state {{ machine_name }}S
 	}
 }
 
+{% if static_saved_shape and model.invokes | scxml_family %}
+// RestartInvokes starts each of ids again from its beginning, as entering its
+// state starts it: the start is deferred to the macrostep the host drives next,
+// which runs it, so the restore itself takes no step. What a format-1 saved state
+// holds of a running child is its id alone (sce.SavedPolicy, docs/adr/0045).
+func (p *{{ machine_name }}Policy) RestartInvokes(engine *sce.Engine[{{ machine_name }}State, {{ machine_name }}Event], ids []string) {
+	for _, id := range ids {
+		switch id {
+{% for state_id, state in model.states | dictsort %}
+{% for invoke_info in state.invokes | scxml %}
+		case "{{ invoke_info.invoke_id | escape_go }}":
+			p.invokeStarts{{ invoke_info.field_suffix | to_pascal_case }}++
+			generatedInvokeID := fmt.Sprintf("%s.%d.{{ invoke_info.invoke_id }}", "{{ state_id }}", p.invokeStarts{{ invoke_info.field_suffix | to_pascal_case }})
+{{ defer_with_idlocation(invoke_info, model, machine_name, state_id) }}
+{% endfor %}
+{% for invoke_info in state.invokes | hybrid %}
+		case "{{ invoke_info.invoke_id | escape_go }}":
+			p.invokeStarts{{ invoke_info.field_suffix | to_pascal_case }}++
+			generatedInvokeID := fmt.Sprintf("%s.%d.{{ invoke_info.invoke_id }}", "{{ state_id }}", p.invokeStarts{{ invoke_info.field_suffix | to_pascal_case }})
+{{ defer_with_idlocation(invoke_info, model, machine_name, state_id) }}
+{% endfor %}
+{% endfor %}
+		}
+	}
+}
+
+{% endif %}
 // ExecuteHistoryDefaultContent runs a <history>'s default transition content
 // (W3C SCXML 3.10.2), after its parent's onentry (and after the parent's own
 // <initial> content) when the history was taken with nothing recorded. The
@@ -351,10 +412,14 @@ func (p *{{ machine_name }}Policy) ExecuteHistoryDefaultContent(history sce.Hist
 	case {{ machine_name }}History{{ history_id | to_state_variant }}:
 		// W3C SCXML 4.9: the default content is one block; an error ends it.
 		func() {
+{% with block_flow = namespace(ended=false) %}
 {% for action in history_info.default_actions %}
+{% if not block_flow.ended %}
 		{% with in_action_block=true %}{% include 'actions/' ~ action.type ~ '.go.jinja2' %}{% endwith %}
 
+{% endif %}
 {% endfor %}
+{% endwith %}
 		}()
 {% endif %}
 {% endfor %}
@@ -393,19 +458,23 @@ func (p *{{ machine_name }}Policy) ExecuteExitActions(state {{ machine_name }}St
 {% if state.on_exit_blocks %}
 	case {{ machine_name }}State{{ state_id | to_state_variant }}:{{ annot.annotation_comment(state, "go", "		") }}
 {% if state.source_location %}
-		{{ sce_map.source_marker(state.source_location, "go", stmt_level=true, symbol_state=state_id, symbol_artifact=sce_artifact.state_body) | trim }}
+{{ sce_map.source_marker(state.source_location, "go", stmt_level=true, symbol_state=state_id, symbol_artifact=sce_artifact.state_body) | trim }}
 {% endif %}
 {% for block in state.on_exit_blocks %}
 		// W3C SCXML 3.9 + 4.9: onexit block {{ loop.index0 }}, its own function so an
 		// error ends it with `return`.
 		func() {
+{% with block_flow = namespace(ended=false) %}
 {% for action in block %}
+{% if not block_flow.ended %}
 {%- if action.req or action.unresolved %}
 {{ annot.annotation_block(action, "go", "			") -}}
 {%- endif %}
 			{% with in_action_block=true %}{% include 'actions/' ~ action.type ~ '.go.jinja2' %}{% endwith %}
 
+{% endif %}
 {% endfor %}
+{% endwith %}
 		}()
 {% endfor %}
 {% endif %}
@@ -436,22 +505,30 @@ func (p *{{ machine_name }}Policy) ExecuteExitActions(state {{ machine_name }}St
 		engine.CancelHostInvoke("{{ invoke_info.invoke_type | escape_go }}", "{{ invoke_info.invoke_id }}")
 {% endfor %}
 {% for invoke_info in state.invokes | scxml %}
-		if p.child{{ invoke_info.invoke_id | to_pascal_case }} != nil {
+		if p.child{{ invoke_info.field_suffix | to_pascal_case }} != nil {
 			// §scxml-D-exitInterpreter: a cancelled session is exited -- its
 			// states' <onexit> run -- before it is dropped; what that exit
 			// sends to #_parent is dropped with it (§scxml-6.4, test252).
-			p.child{{ invoke_info.invoke_id | to_pascal_case }}.Stop()
-			p.child{{ invoke_info.invoke_id | to_pascal_case }} = nil
+			p.child{{ invoke_info.field_suffix | to_pascal_case }}.Stop()
+			// Child sessions in Mesh (SCE_MESH.md): the session ended, after the
+			// child stopped, so what it sent while stopping was handed over first.
+			p.child{{ invoke_info.field_suffix | to_pascal_case }}.DetachMesh()
+			p.child{{ invoke_info.field_suffix | to_pascal_case }} = nil
 		}
 		delete(p.activeInvokes, "{{ invoke_info.invoke_id }}")
-		p.pendingDoneInvoke{{ invoke_info.invoke_id | to_pascal_case }} = false
+		p.pendingDoneInvoke{{ invoke_info.field_suffix | to_pascal_case }} = false
 {% endfor %}
 {% for invoke_info in state.invokes | hybrid %}
-		if p.child{{ invoke_info.invoke_id | to_pascal_case }} != nil {
-			p.child{{ invoke_info.invoke_id | to_pascal_case }} = nil
+		if p.child{{ invoke_info.field_suffix | to_pascal_case }} != nil {
+			// A cancelled candidate is exited as a static child is, which
+			// cancels its own children first; then its Mesh router is told the
+			// session ended (SCE_MESH.md, Child Sessions in Mesh).
+			p.child{{ invoke_info.field_suffix | to_pascal_case }}.Stop()
+			p.child{{ invoke_info.field_suffix | to_pascal_case }}.DetachMesh()
+			p.child{{ invoke_info.field_suffix | to_pascal_case }} = nil
 		}
 		delete(p.activeInvokes, "{{ invoke_info.invoke_id }}")
-		p.pendingDoneInvoke{{ invoke_info.invoke_id | to_pascal_case }} = false
+		p.pendingDoneInvoke{{ invoke_info.field_suffix | to_pascal_case }} = false
 {% endfor %}
 {% endif %}
 {% endfor %}

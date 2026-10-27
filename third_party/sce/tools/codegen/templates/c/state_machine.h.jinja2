@@ -17,6 +17,22 @@
    `void` for every other document shape, byte-identical to the pre-feature
    emit. Kept in step with the same `set` in `state_machine.c.jinja2`. #}
 {%- set init_rc = 'bool' if has_native_actions else 'void' %}
+{# docs/adr/0038: a machine takes the caller's opt-in for a simulated host when
+   it states a duty itself, or when a child it begins with a host of its own
+   states one, because the opt-in the caller gave a parent covers the children
+   the parent begins. `host_duty_children` is true for the second. A machine
+   with neither emits nothing new. Kept in step with the same `set`s in
+   `state_machine.c.jinja2`. #}
+{% set host_duty_children = namespace(any=false) %}
+{% for invoke_info in model.invokes | scxml %}
+{% if invoke_info.child_declares_host_duties %}{% set host_duty_children.any = true %}{% endif %}
+{% endfor %}
+{% for invoke_info in model.invokes | hybrid %}
+{% for candidate in invoke_info.candidates %}
+{% if candidate.child_declares_host_duties %}{% set host_duty_children.any = true %}{% endif %}
+{% endfor %}
+{% endfor %}
+{% set takes_simulated_host = has_native_duties or host_duty_children.any %}
 {# SCE Protocol-Synthesis RFC §synth-5-O: SCE-MAP marker anchoring the
    generated C11 header. Module-level form is a comment, not the
    `#line` directive — `#line` in a header would propagate into
@@ -32,6 +48,12 @@
 #include <stddef.h>
 
 #include "sce/types.h"
+{% if static_type_defs or static_saved_shape %}
+{# SCE Accepted Subset §2.15: a record and an enum a machine declares are
+   written to a saved state and read back by the functions declared beside them,
+   and a machine that saves declares its own. #}
+#include "sce/saved_state.h"
+{% endif %}
 {% if static_published | selectattr('view') | rejectattr('read') | list %}
 {# SCE Accepted Subset §2.15: a published list is read through the library's
    borrowed view of its elements, `{data, len}`, which the host cannot grow past
@@ -45,6 +67,12 @@
    buffer's `_of` is filled from; a record's field of one, alone or in a list of
    them, is the same buffer. #}
 #include "sce/forge/bytes.h"
+{% endif %}
+{% if static_optional_include %}
+{# docs/adr/0055: a value that may be absent is the struct of a flag and a value
+   the runtime declares for its element, which the policy, a record and a payload
+   below hold. #}
+{{ static_optional_include }}
 {% endif %}
 {# `SCE_STATIC_ASSERT`, used by the compile-time invariants at the
    bottom of this header. This header opens `extern "C"`, so a C++
@@ -66,6 +94,13 @@
    or not it has delays of its own. */
 #include "sce/clock.h"
 
+{% if has_native_duties %}
+/* docs/adr/0038: `sce_action_realization_t`, the first member of the host table
+   of a machine that states a duty
+   (backends/c/runtime/include/sce/action_realization.h). */
+#include "sce/action_realization.h"
+
+{% endif %}
 {% if model.on_sample_links %}
 /* SCE Protocol-Synthesis RFC §synth-5-E sample-callback codegen wire-up. `sce_sample_t`
    borrow type + `sce_sub_callback_t` typedef live in the runtime
@@ -74,7 +109,10 @@
 #include "sce/sample.h"
 {% endif %}
 
-{% if model.host_processor_types or model.host_invoker_types or model.needs_http_send %}
+{% if model.host_processor_types or model.host_invoker_types or model.needs_http_send or static_datamodel %}
+{# A `datamodel="sce-static"` machine may be started as a child session, and
+   holds the Mesh router its parent gives it (SCE_MESH.md, Child Sessions in
+   Mesh), whose type this header declares. #}
 /* §scxml-6.2.5 + §scxml-6.4.1: host-served Event I/O Processor types and
    host-run `<invoke>` types + the bounded registries this machine
    dispatches through
@@ -213,7 +251,10 @@ enum {{ csym_prefix }}{{ model.name }}_history_e {
 typedef enum {{ csym_prefix }}{{ model.name }}_history_e {{ csym_prefix }}{{ model.name }}_history_t;
 
 {% endif %}
-/* ── W3C SCXML 6.2: Event enumeration ─────────────────────────────── */
+/* ── W3C SCXML 3.12: Event enumeration ────────────────────────────── */
+{# W3C SCXML 3.12: one member per event name this machine knows. An event
+   it raises or receives is carried as one of these members, and transition
+   selection matches a transition's `event` attribute against the member. #}
 {# `_NONE` is the scheduler-polling default (W3C 6.2). Enumerated first so
    the underlying integer is 0, matching the C++ `Event::NONE` semantics
    (`process_transition.jinja2` peers compare against the unset event with
@@ -277,6 +318,22 @@ extern const {{ csym_prefix }}{{ model.name }}_transition_t {{ csym_prefix }}{{ 
    other enums and the bounded strings a record holds, none of which name the
    payload or the event. #}
 {{ static_type_defs }}
+
+{% endif %}
+{% if static_format2_shape %}
+{% set saved_prefix = (csym_prefix | upper) ~ (model.name | upper) %}
+/* ── Format-2 saved shape (SCE Accepted Subset §2.15) ──────────────── */
+/* The shape a format-2 saved state of this machine names when every record
+   schema it holds is in its first revision, and the one it names when it names
+   a later revision (docs/adr/0045, section 2), and each enum a value of it is
+   of, by its document (docs/adr/0044). The generator computes them once, so
+   they are the texts every backend's constants are. */
+#define {{ saved_prefix }}_SAVED_SHAPE_FORMAT2 "{{ static_format2_shape.first }}"
+#define {{ saved_prefix }}_SAVED_SHAPE_FORMAT2_REVISED "{{ static_format2_shape.revised }}"
+#define {{ saved_prefix }}_SAVED_ENUM_KEY_COUNT {{ static_format2_shape.enum_keys | length }}u
+{% for key in static_format2_shape.enum_keys %}
+#define {{ saved_prefix }}_SAVED_ENUM_KEY_{{ loop.index0 }} "{{ key | escape_c }}"
+{% endfor %}
 
 {% endif %}
 {% if event_payload_active %}
@@ -485,6 +542,37 @@ typedef struct {{ csym_prefix }}{{ model.name }}_scheduled_queue {
 } {{ csym_prefix }}{{ model.name }}_scheduled_queue_t;
 {% endif %}
 
+{% if static_saved_shape and model.host_invoker_types %}
+{% set host_request_cap = namespace(n=1) %}
+{% for invoke_info in model.invokes | host_invoker %}
+{% set width = (invoke_info.params | length) + ((invoke_info.namelist | split | length) if invoke_info.namelist else 0) %}
+{% if width > host_request_cap.n %}{% set host_request_cap.n = width %}{% endif %}
+{% endfor %}
+/* ── SCE Accepted Subset §2.15: a host-run invocation a saved state holds ── */
+/* What a host-run `<invoke>` was started with (§scxml-6.4.1), kept for as long as it runs: every
+   field is what the request the host was handed carried, so that a restore can hand it to the
+   host again. `params` is sized by the widest such `<invoke>` of the document. */
+typedef struct {{ csym_prefix }}{{ model.name }}_host_request {
+    uint64_t token;
+    char processor_type[SCE_MAX_ID_LEN];
+    char invoke_id[SCE_MAX_ID_LEN];
+    char src[SCE_MAX_URI_LEN];
+    char content[SCE_MAX_DATA_LEN];
+    char event_data[SCE_MAX_DATA_LEN];
+    uint8_t param_count;
+    char param_names[{{ host_request_cap.n }}][SCE_MAX_ID_LEN];
+    char param_values[{{ host_request_cap.n }}][SCE_MAX_DATA_LEN];
+} {{ csym_prefix }}{{ model.name }}_host_request_t;
+
+/* An invocation a restore re-armed: its request, and when its deadline comes due (`deadline` is
+   0 for none, 1 for one `remaining_ms` away, 2 for one that came due while the machine was away). */
+typedef struct {{ csym_prefix }}{{ model.name }}_restored_host {
+    {{ csym_prefix }}{{ model.name }}_host_request_t request;
+    uint8_t deadline;
+    uint64_t remaining_ms;
+} {{ csym_prefix }}{{ model.name }}_restored_host_t;
+
+{% endif %}
 /* ── Policy state (datamodel + transition tracking) ───────────────── */
 {# C++ `{name}Policy` mutable members: the last microstep's source and
    every <history>'s recorded configuration. #}
@@ -493,6 +581,14 @@ typedef struct {{ csym_prefix }}{{ model.name }}_policy {
        a truncated macrostep names, since this profile keeps its
        configuration in a bitmap and has no single current state. */
     {{ csym_prefix }}{{ model.name }}_state_t last_transition_source_state;
+{% if static_saved_shape %}
+    /* SCE Accepted Subset §2.15: the atomic state the machine last stood in,
+       which a saved state names beside the configuration — in a document with
+       a <parallel> the configuration alone does not say which region the last
+       transition entered. Set where states are entered (`settle_current_state`)
+       and by a restore. */
+    {{ csym_prefix }}{{ model.name }}_state_t current_state;
+{% endif %}
 {% if model.has_history_states %}
     {# W3C SCXML 3.10: per-history-state snapshot. `_recorded` distinguishes
        "first entry, use default transition target" from "captured snapshot
@@ -509,7 +605,8 @@ typedef struct {{ csym_prefix }}{{ model.name }}_policy {
 {% for field in static_fields %}
     {# SCE Accepted Subset §2.15: under `datamodel="sce-static"` a variable is a
        member of this struct, read and written by the statements the build
-       lowered — no script engine holds it. #}
+       lowered — no script engine holds it. W3C SCXML 5.2: each <data> a
+       <datamodel> wraps is one such data object. #}
     {{ field.ty }} {{ field.name }};
 {% endfor %}
 } {{ csym_prefix }}{{ model.name }}_policy_t;
@@ -540,6 +637,14 @@ typedef struct {{ csym_prefix }}{{ model.name }} {
        already perform an act, so a vtable written after `_init` would arrive
        one act too late (and `_init` zeroes the struct anyway). */
     {{ native_actions_interface }} actions;
+{% endif %}
+{% if host_duty_children.any %}
+    /* docs/adr/0038: whether the caller initialised this machine through
+       `_init_with_simulated_actions`. A child begun with the table this
+       machine's own table answers for it is begun with the same opt-in, so
+       the caller states it once and it covers the children the machine begins;
+       the child makes the refusal itself, at its own `_invoked_begin`. */
+    bool accept_simulated_host;
 {% endif %}
 {% if event_payload_active %}
     /* NL→IR Item C1 Path A: the current event's typed `_event.data`
@@ -673,8 +778,17 @@ typedef struct {{ csym_prefix }}{{ model.name }} {
        which is where the ordinal that distinguishes two sessions lives.
        20 digits is `unsigned long`'s widest decimal form, and the
        `sizeof` of the literal carries the terminator. */
+{% if static_saved_shape %}
+    /* SCE Accepted Subset §2.15: a saved state of a session carries on under
+       the id it was saved with, which another backend drew (a UUID is 36
+       bytes) or a parent derived from its own (`parent.state.N.invoke`), so a
+       machine that restores holds an id of `SCE_MAX_SESSION_ID_LEN` bytes. */
+    char session_id[SCE_MAX_SESSION_ID_LEN];
+    char scxml_location[sizeof("sce://scxml/") + SCE_MAX_SESSION_ID_LEN];
+{% else %}
     char session_id[sizeof("{{ model.name | escape_c }}_session_") + 20u];
     char scxml_location[sizeof("sce://scxml/{{ model.name | escape_c }}_session_") + 20u];
+{% endif %}
     void (*completion_callback)(void *user_data);
     void *completion_callback_user_data;
     {% if (model.invokes | scxml_family) or (model.invokes | unsupported) %}
@@ -708,8 +822,8 @@ typedef struct {{ csym_prefix }}{{ model.name }} {
        cpp backend uses — a slot each, every lifecycle site guarded by its
        own `_active` flag. */
 {% for candidate in invoke_info.candidates %}
-    {{ csym_prefix }}{{ candidate.stem }}_t child_{{ invoke_info.field_suffix }}_{{ candidate.stem }};
-    bool child_{{ invoke_info.field_suffix }}_{{ candidate.stem }}_active;
+    {{ csym_prefix }}{{ candidate.stem }}_t child_{{ invoke_info.field_suffix | candidate_identifier(candidate.stem) }};
+    bool child_{{ invoke_info.field_suffix | candidate_identifier(candidate.stem) }}_active;
 {% endfor %}
     char child_{{ invoke_info.field_suffix }}_invoke_id[SCE_MAX_ID_LEN];
 {% else %}
@@ -717,6 +831,12 @@ typedef struct {{ csym_prefix }}{{ model.name }} {
     bool child_{{ invoke_info.field_suffix }}_active;
     char child_{{ invoke_info.field_suffix }}_invoke_id[SCE_MAX_ID_LEN];
 {% endif %}
+    {% endfor %}
+    {% for invoke_info in model.invokes | scxml_family %}
+    /* docs/adr/0045: how many times `{{ invoke_info.invoke_id }}` has started in
+       this session. The next start is numbered by it, and so is the id it is
+       started under, so a child's ids come from the tree alone. */
+    uint64_t invoke_starts_{{ invoke_info.field_suffix }};
     {% endfor %}
     {% endif %}
     {% if model.needs_script_engine %}
@@ -766,6 +886,14 @@ typedef struct {{ csym_prefix }}{{ model.name }} {
        against its own contract. */
     sce_host_processor_registry_t host_processors;
 {% endif %}
+{% if static_datamodel %}
+    /* SCE_MESH.md, Child Sessions in Mesh: the router this machine was given
+       when its parent started it as a child session (`_install_mesh_router`),
+       which its peer sends reach and what arrives for it waits in; unset for
+       a machine its host started, and for a child given none. */
+    sce_child_mesh_router_t mesh_router;
+    bool has_mesh_router;
+{% endif %}
 {% if model.host_invoker_types %}
     /* W3C SCXML 6.4.1: what RUNS each `<invoke type>` this host declared, and
        which of those invocations are in flight. Two members rather than one
@@ -777,6 +905,17 @@ typedef struct {{ csym_prefix }}{{ model.name }} {
     /* W3C SCXML 6.4: host invokes' `done.invoke` events refused at dequeue;
        see `_refused_host_invoke_completions`. */
     uint32_t refused_host_invoke_completions;
+{% if static_saved_shape %}
+    /* SCE Accepted Subset §2.15: the request each running host-run invocation was
+       started with, found by its start's token, which a saved state holds so that a
+       restore can start it again (§scxml-6.4.1). A slot whose token the set no
+       longer holds is free. */
+    {{ csym_prefix }}{{ model.name }}_host_request_t started_host_requests[SCE_MAX_HOST_INVOCATIONS];
+    /* ... and the invocations a restore re-armed, which start at the top of the first
+       macrostep the host drives, once it has registered its invokers. */
+    {{ csym_prefix }}{{ model.name }}_restored_host_t restored_host_invokes[SCE_MAX_HOST_INVOCATIONS];
+    uint8_t restored_host_invoke_count;
+{% endif %}
     {% endif %}
 } {{ csym_prefix }}{{ model.name }}_t;
 
@@ -1033,6 +1172,9 @@ bool {{ csym_prefix }}{{ model.name }}_{{ var.reader.c11 }}(const {{ csym_prefix
    Usage:
 
      {{ native_actions_interface }} host = {
+{% if has_native_duties %}
+         .realization = SCE_ACTION_PERFORMS,
+{% endif %}
 {% for op in native_action_ops %}
          .{{ op }} = my_{{ op }},
 {% endfor %}
@@ -1042,10 +1184,37 @@ bool {{ csym_prefix }}{{ model.name }}_{{ var.reader.c11 }}(const {{ csym_prefix
          return;   // a member was NULL: the machine was NOT initialised
      }
 
+{% if has_native_duties %}
+   This document states a duty (docs/adr/0038), so the table's first member,
+   `realization`, must be written: `SCE_ACTION_PERFORMS` when the host performs
+   the duties. A table that says `SCE_ACTION_SIMULATES`, or says nothing, is
+   refused with false and the machine is left UNINITIALISED, as a NULL member
+   is. A recorder or a test double is accepted through
+   `{{ csym_prefix }}{{ model.name }}_init_with_simulated_actions`, which says so by its name.
+
+{% endif %}
    `actions` is copied into the machine, so the struct itself need not outlive
    this call; whatever `user_data` points at must. */
 bool {{ csym_prefix }}{{ model.name }}_init_with_actions({{ csym_prefix }}{{ model.name }}_t *sm,
                                                           const {{ native_actions_interface }} *actions);
+{% if takes_simulated_host %}
+
+/* docs/adr/0038: `_init_with_actions` for a host that only simulates the
+   duties this machine{% if host_duty_children.any %} (and the children it begins){% endif %} states — a recorder, a test double. It is the
+   same initialiser with the refusal of `SCE_ACTION_SIMULATES` lifted, called by
+   name so that accepting a simulated host is written where it is accepted;
+   a table that performs is accepted too, and one that says nothing, or has a
+   NULL member, is refused as there.
+{% if host_duty_children.any %}
+   A child this machine begins with the table its own table answers for it is
+   begun with the same opt-in.
+{% endif %}
+   Only this entry takes the opt-in. The entries that also install a clock, a
+   host processor or an invoker refuse a simulating host, because they are the
+   production wiring and a recorder is not. */
+bool {{ csym_prefix }}{{ model.name }}_init_with_simulated_actions({{ csym_prefix }}{{ model.name }}_t *sm,
+                                                                    const {{ native_actions_interface }} *actions);
+{% endif %}
 {% else %}
 /* Initialize SM to its initial state (W3C SCXML 3.3 + 3.6 compound descend).
    Must be called once before {{ csym_prefix }}{{ model.name }}_step / {{ csym_prefix }}{{ model.name }}_run. */
@@ -1096,6 +1265,11 @@ void {{ csym_prefix }}{{ model.name }}_init_with_parent({{ csym_prefix }}{{ mode
    the parent's clock and, for a child that addresses its parent, the routing
    `_init_with_parent` stamps); the parent then writes the values it was asked
    to hand over, and `_invoked_enter` runs the entry walk.
+{% if has_native_duties %}
+   This child states a duty (docs/adr/0038), so `accept_simulated` follows the
+   table: a table that says `SCE_ACTION_SIMULATES`, or says nothing, refuses the
+   start unless it is true. The parent passes the opt-in its own caller gave it.
+{% endif %}
 {% if has_native_actions %}
    A child that declares `<sce:action>`s is begun with the table of the host that
    performs them — the one its parent's own table answers for it — copied in
@@ -1104,6 +1278,9 @@ void {{ csym_prefix }}{{ model.name }}_init_with_parent({{ csym_prefix }}{{ mode
    start, leaving the child's storage as it was, and the parent reports it. */
 bool {{ csym_prefix }}{{ model.name }}_invoked_begin({{ csym_prefix }}{{ model.name }}_t *sm,
                                        const {{ native_actions_interface }} *actions,
+{% if has_native_duties %}
+                                       bool accept_simulated,
+{% endif %}
                                        void *parent_sm,
 {% else %}
    */
@@ -1114,6 +1291,62 @@ void {{ csym_prefix }}{{ model.name }}_invoked_begin({{ csym_prefix }}{{ model.n
                                        const char *invoke_id,
                                        sce_clock_t clock);
 void {{ csym_prefix }}{{ model.name }}_invoked_enter({{ csym_prefix }}{{ model.name }}_t *sm);
+
+/* SCE_MESH.md, Child Sessions in Mesh (docs/adr/0043): the Mesh router this
+   machine's parent gave it as a child session, installed between
+   `_invoked_begin` and `_invoked_enter`, before its first `<onentry>` can send.
+   Its peer sends reach `router->send`, its Mesh requests `router->invoke`, and
+   the children it starts are asked of `router->child_router`. */
+void {{ csym_prefix }}{{ model.name }}_install_mesh_router({{ csym_prefix }}{{ model.name }}_t *sm,
+                                       const sce_child_mesh_router_t *router);
+
+/* SCE Accepted Subset §2.12 + docs/adr/0045: the invokers the host registered on the root of
+   the tree, which serve every session of it — a child session's host-run `<invoke>` is run by
+   the invoker of its type like any other, and the request it is started with names the session
+   (`session_id`). Installed between `_invoked_begin` and `_invoked_enter` by the parent that
+   begins this machine, and by the restore that resumes it. Nothing for a machine that declares
+   no host-run invocation. */
+void {{ csym_prefix }}{{ model.name }}_install_host_invokers({{ csym_prefix }}{{ model.name }}_t *sm,
+                                         const sce_host_invoker_registry_t *invokers);
+
+/* `_complete_host_invoke`, for a host-run invocation of any session of the tree this machine is
+   the root of: `session_id` is the one the request named when the invocation was started
+   (`sce_host_invoke_event_t::session_id`), and the completion reaches the session that started
+   it wherever it stands in the tree. False for a session that is not running, and for a
+   completion the session refuses (a stale token). */
+bool {{ csym_prefix }}{{ model.name }}_complete_host_invoke_in({{ csym_prefix }}{{ model.name }}_t *sm,
+                                         const char *session_id, const char *processor_type,
+                                         const char *invoke_id, uint64_t token, const char *done_data);
+
+/* `_fail_host_invoke`, for a host-run invocation of any session of the tree this machine is the
+   root of, found by `session_id` as `_complete_host_invoke_in` finds it: the session that started
+   it raises `error.invoke.<invoke_id>`. False for a session that is not running, and for a
+   failure the session refuses (a stale token). */
+bool {{ csym_prefix }}{{ model.name }}_fail_host_invoke_in({{ csym_prefix }}{{ model.name }}_t *sm,
+                                         const char *session_id, const char *processor_type,
+                                         const char *invoke_id, uint64_t token, const char *error_data,
+                                         const char *origin, const char *origin_type);
+
+/* Apply what arrived for this child on its router, oldest first: an event is
+   raised on its external queue with the `_event` a Mesh event carries
+   (SCE_MESH.md §mesh-10.7), the end of a Mesh request ends it. The parent
+   calls it each time it drives the child, before the child's macrostep. */
+void {{ csym_prefix }}{{ model.name }}_apply_mesh_calls({{ csym_prefix }}{{ model.name }}_t *sm);
+
+/* The session ended: tell its router, once. Called by the parent after the
+   child reached a top-level `<final>`, and by `_destroy`, after its own
+   children were torn down, so a grandchild is detached before its parent. */
+void {{ csym_prefix }}{{ model.name }}_detach_mesh({{ csym_prefix }}{{ model.name }}_t *sm);
+{% endif %}
+{% if model.host_processor_types %}
+
+/* SCE_MESH.md, Child Sessions in Mesh: the factory of the routers of this
+   machine's children, kept in its registry beside the router its own sends
+   reach. For every moment after `_init`; the registry the machine is started
+   with (`sce_host_registry_register_child_mesh_routers`) carries it for the
+   children of the initial configuration. */
+bool {{ csym_prefix }}{{ model.name }}_register_child_mesh_routers({{ csym_prefix }}{{ model.name }}_t *sm,
+                                       sce_child_mesh_routers_fn ask, void *user_data);
 {% endif %}
 
 /* W3C SCXML 5.10: Tear down any owned datamodel resources. Idempotent —
@@ -1683,6 +1916,102 @@ void {{ cb }}(const sce_sample_t *sample SCE_PARAM_TYPESTATE(unconsumed), void *
 {% endif %}
 {% endfor %}
 {% endfor %}
+
+{% endif %}
+{% if static_saved_shape %}
+{% set saved_restore_args = model.needs_event_scheduler or model.host_processor_types or model.host_invoker_types or has_native_actions %}
+/* ── SCE Accepted Subset §2.15: saving this machine, restoring it ───── */
+/* A running machine saved at a macrostep boundary, and restored into a new process in place of
+   `_init` (docs/adr/0045). The saved state is JSON (`sce-saved-state`, format 2), the same on
+   every backend, so a state another backend saved is one this machine restores, and the other way
+   round. Nothing is allocated: the host owns the buffer a state is written into and the text one
+   is read from, and every refusal is one sentence in `err` (`sce/saved_json.h`), in the words the
+   other backends use. */
+
+{% if saved_restore_args %}
+/* What a restore is handed besides the text: the seams `_init_with_*` take, since this is the one
+   call where a host has all of them to hand. A zeroed value is the default of each (the
+   link-time monotonic clock, no registered processor or invoker); a machine that declares
+   `<sce:action>`s needs its table. */
+typedef struct {{ csym_prefix }}{{ model.name }}_restore_args {
+{% if model.needs_event_scheduler %}
+    sce_clock_t clock;
+{% endif %}
+{% if model.host_processor_types %}
+    const sce_host_processor_registry_t *host_processors;
+{% endif %}
+{% if model.host_invoker_types %}
+    const sce_host_invoker_registry_t *host_invokers;
+{% endif %}
+{% if has_native_actions %}
+    const {{ native_actions_interface }} *actions;
+{% if takes_simulated_host %}
+    bool accept_simulated;
+{% endif %}
+{% endif %}
+} {{ csym_prefix }}{{ model.name }}_restore_args_t;
+
+{% endif %}
+/* The state of `sm`, written to `buf` of `cap` bytes as `sce-saved-state` JSON, terminated.
+   `wall_now_ms` is what time it is on the wall clock, in milliseconds since the Unix epoch: each
+   delayed `<send>` still waiting is written as the moment it comes due on that clock, not as a
+   wait, which would start again when the process came back.
+
+   `*len` is the length of the text, not counting its terminator, whether or not it fit: called
+   with `buf` NULL, this measures the text, and a host sizes its buffer by it. False, with the
+   reason in `err`, for a machine that is not running, one whose last macrostep stopped at the
+   microstep ceiling, and a buffer too small. */
+bool {{ csym_prefix }}{{ model.name }}_save(const {{ csym_prefix }}{{ model.name }}_t *sm, int64_t wall_now_ms, char *buf,
+                          size_t cap, size_t *len, sce_saved_error_t *err);
+
+/* Whether `text` is a state a machine of this document could restore, built from nothing and
+   touching no machine: its shape, its variables, its configuration, its queue and its waiting
+   sends are judged. What a parent's restore asks of the state of each child it holds. */
+bool {{ csym_prefix }}{{ model.name }}_judge(const char *text, size_t len, sce_saved_error_t *err);
+
+/* Stand `sm`, storage the caller owns, where `text` left a machine of this document: in place of
+   `_init`, so no `<onentry>` runs and no `<data>` is evaluated, since the saved run already did
+   both. Every value is read and the state judged before `sm` is touched, so a refused restore
+   leaves the storage as it was.
+
+   `wall_now_ms` is what time it is on the wall clock the saved `due`s were written against. A
+   delayed `<send>` is armed against the machine's clock to come due `due - wall_now_ms` after
+   now, and one that came due while the machine was away comes due now. A format-2 state carries
+   on under the id it was saved with, which every child's id and a peer's address name; a
+   format-1 state holds none, so the machine keeps the one it drew. The host drives the machine
+   on as it would one it had initialized. */
+bool {{ csym_prefix }}{{ model.name }}_restore({{ csym_prefix }}{{ model.name }}_t *sm, const char *text, size_t len,
+                             int64_t wall_now_ms{% if saved_restore_args %},
+                             const {{ csym_prefix }}{{ model.name }}_restore_args_t *args{% endif %},
+                             sce_saved_error_t *err);
+
+/* ── The session of a tree (docs/adr/0045) ───────────────────────────── */
+/* A tree of sessions is saved by each session writing its own members into the object of its
+   parent's `invokes[i].session`, and restored by each being resumed where it stood. A parent
+   calls these on the child it runs, which it embeds; a host has no use for them. */
+
+/* Write the members of this session into the object `w` has open, in the order every backend
+   writes them. The root's `_save` is this inside the object that names the format. */
+bool {{ csym_prefix }}{{ model.name }}_save_members(const {{ csym_prefix }}{{ model.name }}_t *sm, int64_t wall_now_ms,
+                                    sce_jw_t *w, sce_saved_error_t *err);
+
+/* Refuse `members`, the object a child session was saved as, unless it is a state of this
+   document, building nothing (docs/adr/0045, section 3, step 1). */
+bool {{ csym_prefix }}{{ model.name }}_judge_members(sce_jv_t members, sce_saved_error_t *err);
+
+/* Stand `sm`, a machine its parent has begun (`_invoked_begin`) and not entered, where `members`
+   left it, in place of `_invoked_enter`: no `<onentry>`, no `<data>`, nothing sent. */
+bool {{ csym_prefix }}{{ model.name }}_resume({{ csym_prefix }}{{ model.name }}_t *sm, sce_jv_t members,
+                              int64_t wall_now_ms, sce_saved_error_t *err);
+
+/* Name the session `<parent_id>.<invoke_id>`, the id a child session is known by (docs/adr/0045):
+   its parent's and the id of the start. False when the id does not fit the room a session id
+   has (`SCE_MAX_SESSION_ID_LEN`), in which case the session keeps the id it was given. */
+bool {{ csym_prefix }}{{ model.name }}_bind_session_id({{ csym_prefix }}{{ model.name }}_t *sm, const char *parent_id,
+                                       const char *invoke_id);
+
+SCE_STATIC_ASSERT(SCE_MAX_SESSION_ID_LEN >= (int)(sizeof("{{ model.name | escape_c }}_session_") + 20u),
+                  "SCE_MAX_SESSION_ID_LEN too small for the id this machine draws for itself");
 
 {% endif %}
 /* ── Compile-time invariants ──────────────────────────────────────── */

@@ -12,6 +12,7 @@
 {% include 'license_header.jinja2' %}
 {%- import 'c/scriptengine.jinja2' as se %}
 {%- import 'c/param_macros.jinja2' as param_macros %}
+{%- import '_macros/c_invoke_defer.jinja2' as invoke_defer %}
 {%- import '_macros/sce_map_marker.jinja2' as sce_map %}
 {%- import '_macros/sce_annotation_marker.jinja2' as annot %}
 
@@ -142,8 +143,9 @@
                     }
                 }
 {% elif not namelist and params | rejectattr("is_static_literal") | list | length == 0 %}
-                /* W3C SCXML 6.2 + B-2-9: every value is a literal, so the
-                   payload is finished at codegen time. */
+                /* W3C SCXML 6.2: every value is a literal, so the payload —
+                   the JSON the arm below serialises to (W3C SCXML B.2.9) —
+                   is finished at codegen time. */
                 {
                     static const char _lit[] = "{{ params | static_params_json | escape_c }}";
                     _Static_assert(sizeof(_lit) <= SCE_MAX_DATA_LEN,
@@ -192,6 +194,9 @@
                 }
 {% endif %}
 {% endfor %}
+{# W3C SCXML B.2.9: the pairs leave the data model as JSON, which keeps each
+   value's type for the receiver to reconstruct it. When `JSON.stringify`
+   fails, the message is not sent and error.execution says why. #}
                 if (luaL_dostring(sm->L,
 {% if keep_pairs %}
                     "return JSON.stringify(_scxml_params(table.unpack(_sce_send_pairs)))") != 0) {
@@ -208,7 +213,8 @@
 {{ send_payload_take(csym_prefix, machine, "payload") }}
 {% endif %}
 {% endmacro %}
-{# W3C SCXML 5.10 + B.2 — a `<send>`'s `<content>` as JSON in `_ed`, by the
+{# W3C SCXML 5.6 — the data a `<send>`'s `<content>` holds, passed on as the
+   message's payload: as JSON in `_ed` (W3C SCXML 5.10 + B.2), by the
    same rules as `send_payload_json` above. Inline text takes its reading at
    build time (`to_lua_data_content`: an expression when it is one, otherwise
    the string); text whose first character is `<` crosses as the XML it is,
@@ -568,7 +574,7 @@ SCE_SM_FN static SCE_C_UNUSED bool deliver_to_invocation({{ csym_prefix }}{{ mod
 {% set child_targets = invoke_info.candidates if invoke_info.candidates else [{'stem': invoke_info.child_name}] %}
     if (strcmp(invoke_id, "{{ invoke_info.invoke_id | escape_c }}") == 0) {
 {% for target in child_targets %}
-{% set slot = ('child_' ~ invoke_info.field_suffix ~ '_' ~ target.stem) if invoke_info.candidates else ('child_' ~ invoke_info.field_suffix) %}
+{% set slot = ('child_' ~ (invoke_info.field_suffix | candidate_identifier(target.stem))) if invoke_info.candidates else ('child_' ~ invoke_info.field_suffix) %}
         if (sm->{{ slot }}_active && !{{ csym_prefix }}{{ target.stem }}_is_in_final_state(&sm->{{ slot }})) {
             {{ csym_prefix }}{{ target.stem }}_raise_external_forwarded(&sm->{{ slot }}, fwd);
             return true;
@@ -589,7 +595,7 @@ SCE_SM_FN static SCE_C_UNUSED bool invocation_is_running(const {{ csym_prefix }}
 {% set child_targets = invoke_info.candidates if invoke_info.candidates else [{'stem': invoke_info.child_name}] %}
     if (strcmp(invoke_id, "{{ invoke_info.invoke_id | escape_c }}") == 0) {
 {% for target in child_targets %}
-{% set slot = ('child_' ~ invoke_info.field_suffix ~ '_' ~ target.stem) if invoke_info.candidates else ('child_' ~ invoke_info.field_suffix) %}
+{% set slot = ('child_' ~ (invoke_info.field_suffix | candidate_identifier(target.stem))) if invoke_info.candidates else ('child_' ~ invoke_info.field_suffix) %}
         if (sm->{{ slot }}_active && !{{ csym_prefix }}{{ target.stem }}_is_in_final_state(&sm->{{ slot }})) {
             return true;
         }
@@ -607,7 +613,7 @@ SCE_SM_FN static SCE_C_UNUSED const char *invocation_of_session(const {{ csym_pr
 {% for invoke_info in model.invokes | scxml_family %}
 {% set child_targets = invoke_info.candidates if invoke_info.candidates else [{'stem': invoke_info.child_name}] %}
 {% for target in child_targets %}
-{% set slot = ('child_' ~ invoke_info.field_suffix ~ '_' ~ target.stem) if invoke_info.candidates else ('child_' ~ invoke_info.field_suffix) %}
+{% set slot = ('child_' ~ (invoke_info.field_suffix | candidate_identifier(target.stem))) if invoke_info.candidates else ('child_' ~ invoke_info.field_suffix) %}
     if (sm->{{ slot }}_active && !{{ csym_prefix }}{{ target.stem }}_is_in_final_state(&sm->{{ slot }}) &&
         strcmp(sm->{{ slot }}.session_id, session_id) == 0) {
         return "{{ invoke_info.invoke_id | escape_c }}";
@@ -859,8 +865,12 @@ SCE_SM_FN static void {{ csym_prefix }}{{ model.name }}_perform_basic_http({{ cs
    not FIT is not dropped: `overflowed` says this build reserved less
    room than the act produced, and an act that reported two events and
    delivered one leaves the machine somewhere the document never
-   described. */
-SCE_SM_FN static void {{ csym_prefix }}{{ model.name }}_perform_host_send({{ csym_prefix }}{{ model.name }}_t *sm,
+   described.
+
+   Marked as possibly unused: a machine that carries the registry only for
+   the factory of its children's Mesh routers (SCE_MESH.md, Child Sessions in
+   Mesh) has no host-served send of its own to call it. */
+SCE_SM_FN static SCE_C_UNUSED void {{ csym_prefix }}{{ model.name }}_perform_host_send({{ csym_prefix }}{{ model.name }}_t *sm,
                                   const sce_host_send_request_t *request) {
     const sce_host_processor_entry_t *_entry =
         sce_host_registry_find(&sm->host_processors, request->processor_type);
@@ -1174,7 +1184,7 @@ SCE_SM_FN static void {{ csym_prefix }}{{ model.name }}_perform_host_send({{ csy
     written as `id`, or one `idlocation` handed over. Both are C expressions
     (`send_id_c_expr`, `send_meta_id_c_expr`): a literal, or the local that holds
     the id a `sce-static` machine generated. -#}
-{% macro send_lowered(action, in_foreach) %}
+{% macro send_lowered(action, in_foreach, flow=none) %}
 {% set P = csym_prefix ~ model.name %}
 {% set PU = csym_prefix | upper ~ model.name | upper %}
 {% set send_id_c = send_id_c_expr(action) %}
@@ -1236,6 +1246,11 @@ SCE_SM_FN static void {{ csym_prefix }}{{ model.name }}_perform_host_send({{ csy
                 "<send> uses a combination of attributes this backend cannot emit",
                 {{ send_id_c }});
             return;
+{# This arm and each build-time refusal below end the block unconditionally:
+   the list emits nothing after this element (`flow`, `emit_action`). #}
+{% if flow is not none %}
+{% set flow.ended = true %}
+{% endif %}
 {% else %}
 {% if has_delay and has_payload and route != 'http' and not refused_at_build and not (model.needs_script_engine or model.has_delayed_send_payload) %}
 #error "SCE codegen drift: a delayed <send> carries a payload, yet this machine's scheduled entry has no `data[]` to hold it. analyzer::analyze_action must set has_delayed_send_payload for every delayed send with a <param>, namelist or <content>."
@@ -1455,6 +1470,9 @@ SCE_SM_FN static void {{ csym_prefix }}{{ model.name }}_perform_host_send({{ csy
                 "<send type='{{ action.send_type | escape_c }}'> names a processor this platform does not support",
                 {{ send_id_c }});
             return;
+{% if flow is not none %}
+{% set flow.ended = true %}
+{% endif %}
 {% elif action.target_unsupported %}
             /* W3C SCXML 6.2.4 (test159, 194, 332): a target this processor
                cannot address — `Action::target_unsupported`, decided once at
@@ -1464,6 +1482,9 @@ SCE_SM_FN static void {{ csym_prefix }}{{ model.name }}_perform_host_send({{ csy
                 "<send target='{{ action.target | escape_c }}'> is not a target this processor can address",
                 {{ send_id_c }});
             return;
+{% if flow is not none %}
+{% set flow.ended = true %}
+{% endif %}
 {% elif is_http and not action.target and not action.targetexpr %}
             /* W3C SCXML C.2 (test577): BasicHTTP names no target to post to. */
             {{ P }}_raise_platform_error_with_send_id(
@@ -1471,6 +1492,9 @@ SCE_SM_FN static void {{ csym_prefix }}{{ model.name }}_perform_host_send({{ csy
                 "<send> over BasicHTTPEventProcessor has no target to post to",
                 {{ send_id_c }});
             return;
+{% if flow is not none %}
+{% set flow.ended = true %}
+{% endif %}
 {% elif names_no_invocation %}
             /* W3C SCXML C.1 + 6.4: no invocation of this document is called
                "{{ static_target[2:] }}", so the target reaches
@@ -1481,6 +1505,9 @@ SCE_SM_FN static void {{ csym_prefix }}{{ model.name }}_perform_host_send({{ csy
                 "<send target='{{ static_target | escape_c }}'> names no invocation of this session",
                 {{ send_id_c }});
             return;
+{% if flow is not none %}
+{% set flow.ended = true %}
+{% endif %}
 {% else %}
 {{ send_param_failed_open(action) }}
 {% if route == 'http' %}
@@ -1837,13 +1864,25 @@ SCE_SM_FN static void {{ csym_prefix }}{{ model.name }}_perform_host_send({{ csy
 {% endif %}
                 }
 {%- endmacro %}
-{% macro emit_action(action, in_foreach=false, foreach_depth=0) %}
+{# `flow` is what the list the action is emitted into knows about its own end:
+   a `namespace(ended=false)` the caller binds, one per list — a block, a
+   branch of an <if>, a <foreach> body. An element the build has already
+   decided will raise — a `<send>` whose type, target or delay is refused, an
+   `<assign>` to a read-only location — ends the block with a `return` that no
+   condition guards, and sets `flow.ended` where it writes it. Nothing after
+   it can run (W3C SCXML 4.9: the error ends the block), so the caller emits
+   nothing more into the list — not the next element, and not the `break`
+   that closes a `case`. A macro does not see its caller's names, so the
+   namespace is passed in; `none` is a list that tracks nothing. The Go
+   templates follow the same rule (go/entry_exit_actions.go.jinja2). #}
+{% macro emit_action(action, in_foreach=false, foreach_depth=0, flow=none) %}
 {% if action.native_code %}
         /* SCE Accepted Subset §2.15: <{{ action.type }}> lowered at build time; one that can fail ends its block itself. */
         {{ action.native_code | to_in_predicate_c11(csym_prefix ~ model.name, model.history_states | list) }}
 {% elif action.type == 'raise' %}
         {
-            /* W3C SCXML 3.8.1: <raise event="{{ action.event }}"> */
+            /* W3C SCXML 4.2: <raise event="{{ action.event }}">, onto the
+               internal queue, processed after this block completes. */
             {{ csym_prefix }}{{ model.name }}_event_with_meta_t evt;
             memset(&evt, 0, sizeof(evt));
             evt.event = {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_{{ action.event | to_c11_upper_ident }};
@@ -1852,7 +1891,9 @@ SCE_SM_FN static void {{ csym_prefix }}{{ model.name }}_perform_host_send({{ csy
 {% elif action.type == 'assign' %}
         {
             /* W3C SCXML 5.4: <assign location="{{ action.location }}" expr="{{ action.expr }}"> */
-{% if action.location in ['_sessionid', '_name', '_ioprocessors', '_event'] %}
+{# The read-only set is decided once for every backend (`read_only_location`,
+   filters::READ_ONLY_LOCATIONS). #}
+{% if action.location is read_only_location %}
             /* W3C SCXML 5.10: assignment to read-only system variable
                '{{ action.location }}' is illegal — raise error.execution
                and skip the lua chunk entirely so the system variable's
@@ -1871,6 +1912,9 @@ SCE_SM_FN static void {{ csym_prefix }}{{ model.name }}_perform_host_send({{ csy
                 sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
                 "<assign> has an invalid or read-only location '{{ action.location | escape_c }}'");
             return;  /* W3C 4.9: the error ends the block (and any <foreach> in it) */
+{% if flow is not none %}
+{% set flow.ended = true %}
+{% endif %}
 {% elif (not action.expr) and action.content %}
             /* W3C SCXML 5.4.2: `<assign location="{{ action.location }}">` with
                in-line children. The children "provide an in-line specification
@@ -1897,8 +1941,14 @@ SCE_SM_FN static void {{ csym_prefix }}{{ model.name }}_perform_host_send({{ csy
         /* W3C SCXML 4.6: <foreach array="{{ action.array }}" item="{{ action.item }}"{% if action.index %} index="{{ action.index }}"{% endif %}>, a native loop over a copy of a sce-static list. A body element that raised its own error leaves the block from inside the loop, which ends the block that holds the <foreach> (§scxml-4.9). */
         {{ action.native_loop }} {
             {{ action.native_loop_prologue }}
+{# The body is a list of its own (`flow`): an element in it that ends the
+   block unconditionally ends what the body emits, and not the list the
+   <foreach> is in — the loop may run no times. #}
+{% set body_flow = namespace(ended=false) %}
 {% for sub in action.actions %}
-            {{ emit_action(sub, true, foreach_depth + 1) }}
+{% if not body_flow.ended %}
+            {{ emit_action(sub, true, foreach_depth + 1, body_flow) }}
+{% endif %}
 {% endfor %}
         }
 {% elif action.type == 'foreach' %}
@@ -1942,8 +1992,11 @@ SCE_SM_FN static void {{ csym_prefix }}{{ model.name }}_perform_host_send({{ csy
             }
             for (int _i = 0; _i < _sce_n; ++_i) {
 {{ se.lua_foreach_body_iter(action.item, action.index, foreach_slot) }}
+                {% set body_flow = namespace(ended=false) %}
                 {% for sub in action.actions %}
-                {{ emit_action(sub, true, foreach_depth + 1) }}
+                {% if not body_flow.ended %}
+                {{ emit_action(sub, true, foreach_depth + 1, body_flow) }}
+                {% endif %}
                 {% endfor %}
             }
 {{ se.lua_foreach_body_epilogue(foreach_slot) }}
@@ -1980,6 +2033,9 @@ SCE_SM_FN static void {{ csym_prefix }}{{ model.name }}_perform_host_send({{ csy
                 "<send> delay is not a CSS2 time",
                 {{ send_id_c_expr(action) }});
             return;
+{% if flow is not none %}
+{% set flow.ended = true %}
+{% endif %}
 {% elif action.send_type_host_served %}
             /* §scxml-6.2.5: "{{ action.send_type }}" is served by the HOST,
                which declared it to this build. Dispatch rather than refuse.
@@ -2004,19 +2060,26 @@ SCE_SM_FN static void {{ csym_prefix }}{{ model.name }}_perform_host_send({{ csy
 {# Every other delivery, the BasicHTTP post included: it is one more act
    `send_lowered` hands a request to, and the machine's own HTTP client makes
    it (`_perform_basic_http`). #}
-{{ send_lowered(action, in_foreach) }}
+{{ send_lowered(action, in_foreach, flow) }}
 {% endif %}
         }
 {% elif action.type == 'if' %}
 {% set if_can_fail = (model.needs_script_engine and (not action.is_pure_in_predicate or (action.elseif_branches | rejectattr("is_pure_in_predicate") | list | length > 0))) or action.native_cond_fails or (action.elseif_branches | selectattr("native_cond_fails") | list | length > 0) %}
-        {
-            /* W3C SCXML 4.3: <if cond="{{ action.cond }}"> */
-{% if if_can_fail %}
-            /* W3C SCXML 5.9.1 + 4.9: a cond that cannot be evaluated is false,
-               so the selection goes on; the <if> then ends its block, as any
-               element that raised does — every block is its own C function. */
-            bool _if_cond_failed = false;
+{# Each branch is a list of its own (`flow`, `emit_action`). When the <if> has
+   an <else> and every branch ends the block unconditionally, whichever branch
+   the selection reaches ends it — a cond that failed only moves the selection
+   on — so the chain is itself the end of the block: the check of
+   `_if_cond_failed` that would follow it, and every element after the <if>,
+   could never run. `if_flow.ends` records it, and the chain is rendered first
+   (`if_chain`) so that the flag, which the conds write and nothing then
+   reads, is read once where it is declared: GCC and Clang report a variable
+   that is only ever set. #}
+{% set if_flow = namespace(ends=true) %}
+{% if not action.else_actions %}
+{% set if_flow.ends = false %}
 {% endif %}
+{% set then_flow = namespace(ended=false) %}
+{% set if_chain %}
 {% if action.native_cond %}
             /* SCE Accepted Subset §2.15: the cond was lowered at build time. One
                that can fail is the head of this `if`: it evaluates the cond, and
@@ -2028,7 +2091,9 @@ SCE_SM_FN static void {{ csym_prefix }}{{ model.name }}_perform_host_send({{ csy
             if ({{ action.native_cond | to_in_predicate_c11(csym_prefix ~ model.name, model.history_states | list) }}) {
 {% endif %}
                 {% for sub in action.then_actions %}
-                {{ emit_action(sub, in_foreach, foreach_depth) }}
+                {% if not then_flow.ended %}
+                {{ emit_action(sub, in_foreach, foreach_depth, then_flow) }}
+                {% endif %}
                 {% endfor %}
             }
 {% elif action.is_pure_in_predicate %}
@@ -2038,7 +2103,9 @@ SCE_SM_FN static void {{ csym_prefix }}{{ model.name }}_perform_host_send({{ csy
                otherwise lua-free) and a phantom lua trampoline (jinja2-inline). */
             if ({{ action.cond | to_in_predicate_c11(csym_prefix ~ model.name, model.history_states | list) }}) {
                 {% for sub in action.then_actions %}
-                {{ emit_action(sub, in_foreach, foreach_depth) }}
+                {% if not then_flow.ended %}
+                {{ emit_action(sub, in_foreach, foreach_depth, then_flow) }}
+                {% endif %}
                 {% endfor %}
             }
 {% elif model.needs_script_engine %}
@@ -2046,7 +2113,9 @@ SCE_SM_FN static void {{ csym_prefix }}{{ model.name }}_perform_host_send({{ csy
 {{ se.lua_eval_guard(action.cond, '_if_pass', '_if_cond_failed', 'an <if>') }}
             if (_if_pass) {
                 {% for sub in action.then_actions %}
-                {{ emit_action(sub, in_foreach, foreach_depth) }}
+                {% if not then_flow.ended %}
+                {{ emit_action(sub, in_foreach, foreach_depth, then_flow) }}
+                {% endif %}
                 {% endfor %}
             }
 {% else %}
@@ -2056,11 +2125,17 @@ SCE_SM_FN static void {{ csym_prefix }}{{ model.name }}_perform_host_send({{ csy
                emitting a state reference the header never declares. */
             if ({{ 'true' if action.cond_constant else 'false' }}) {
                 {% for sub in action.then_actions %}
-                {{ emit_action(sub, in_foreach, foreach_depth) }}
+                {% if not then_flow.ended %}
+                {{ emit_action(sub, in_foreach, foreach_depth, then_flow) }}
+                {% endif %}
                 {% endfor %}
             }
 {% endif %}
+{% if not then_flow.ended %}
+{% set if_flow.ends = false %}
+{% endif %}
 {% for elif in action.elseif_branches %}
+{% set elif_flow = namespace(ended=false) %}
             else {
                 /* W3C SCXML 4.3: <elseif cond="{{ elif.cond }}"> */
 {% if elif.native_cond %}
@@ -2070,13 +2145,17 @@ SCE_SM_FN static void {{ csym_prefix }}{{ model.name }}_perform_host_send({{ csy
                 if ({{ elif.native_cond | to_in_predicate_c11(csym_prefix ~ model.name, model.history_states | list) }}) {
 {% endif %}
                     {% for sub in elif.actions %}
-                    {{ emit_action(sub, in_foreach, foreach_depth) }}
+                    {% if not elif_flow.ended %}
+                    {{ emit_action(sub, in_foreach, foreach_depth, elif_flow) }}
+                    {% endif %}
                     {% endfor %}
                 }
 {% elif elif.is_pure_in_predicate %}
                 if ({{ elif.cond | to_in_predicate_c11(csym_prefix ~ model.name, model.history_states | list) }}) {
                     {% for sub in elif.actions %}
-                    {{ emit_action(sub, in_foreach, foreach_depth) }}
+                    {% if not elif_flow.ended %}
+                    {{ emit_action(sub, in_foreach, foreach_depth, elif_flow) }}
+                    {% endif %}
                     {% endfor %}
                 }
 {% elif model.needs_script_engine %}
@@ -2084,37 +2163,65 @@ SCE_SM_FN static void {{ csym_prefix }}{{ model.name }}_perform_host_send({{ csy
 {{ se.lua_eval_guard(elif.cond, '_elif_pass', '_if_cond_failed', 'an <elseif>') }}
                 if (_elif_pass) {
                     {% for sub in elif.actions %}
-                    {{ emit_action(sub, in_foreach, foreach_depth) }}
+                    {% if not elif_flow.ended %}
+                    {{ emit_action(sub, in_foreach, foreach_depth, elif_flow) }}
+                    {% endif %}
                     {% endfor %}
                 }
 {% else %}
                 /* W3C SCXML 4.3: decided at build time — see the `<if>` arm. */
                 if ({{ 'true' if elif.cond_constant else 'false' }}) {
                     {% for sub in elif.actions %}
-                    {{ emit_action(sub, in_foreach, foreach_depth) }}
+                    {% if not elif_flow.ended %}
+                    {{ emit_action(sub, in_foreach, foreach_depth, elif_flow) }}
+                    {% endif %}
                     {% endfor %}
                 }
 {% endif %}
+{% if not elif_flow.ended %}
+{% set if_flow.ends = false %}
+{% endif %}
 {% endfor %}
 {% if action.else_actions %}
+{% set else_flow = namespace(ended=false) %}
             else {
                 /* W3C SCXML 4.3: <else> */
                 {% for sub in action.else_actions %}
-                {{ emit_action(sub, in_foreach, foreach_depth) }}
+                {% if not else_flow.ended %}
+                {{ emit_action(sub, in_foreach, foreach_depth, else_flow) }}
+                {% endif %}
                 {% endfor %}
             }
+{% if not else_flow.ended %}
+{% set if_flow.ends = false %}
+{% endif %}
 {% endif %}
 {% for elif in action.elseif_branches %}
             }
 {% endfor %}
+{% endset %}
+        {
+            /* W3C SCXML 4.3: <if cond="{{ action.cond }}"> */
 {% if if_can_fail %}
+            /* W3C SCXML 5.9.1 + 4.9: a cond that cannot be evaluated is false,
+               so the selection goes on; the <if> then ends its block, as any
+               element that raised does — every block is its own C function. */
+            bool _if_cond_failed = false;
+{% if if_flow.ends %}
+            (void)_if_cond_failed;  /* every branch ends the block, so no check reads it */
+{% endif %}
+{% endif %}
+{{ if_chain }}{% if if_can_fail and not if_flow.ends %}
             if (_if_cond_failed) {
                 return;
             }
 {% endif %}
         }
+{% if if_flow.ends and flow is not none %}
+{% set flow.ended = true %}
+{% endif %}
 {% elif action.type == 'log' %}
-        /* W3C SCXML 4.4: <log{% if action.label %} label="{{ action.label }}"{% endif %}{% if action.expr %} expr="{{ action.expr }}"{% endif %}>
+        /* W3C SCXML 4.7: <log{% if action.label %} label="{{ action.label }}"{% endif %}{% if action.expr %} expr="{{ action.expr }}"{% endif %}>
            Logging is observable side-effect only — the W3C spec mandates no
            statechart effect, just developer-facing output. Mirrors cpp
            `actions/log.jinja2`: success path emits the evaluated expression
@@ -2397,7 +2504,11 @@ SCE_SM_FN const char *{{ csym_prefix }}{{ model.name }}_configuration_rejection_
         return "a value outside this document's state enumeration";
 {% if has_native_actions %}
     case {{ csym_prefix | upper }}{{ model.name | upper }}_CONFIG_HOST_ACTIONS_INCOMPLETE:
+{% if has_native_duties %}
+        return "the host does not perform every act this document declares, or says it only simulates its duties (W3C SCXML G.7, docs/adr/0038)";
+{% else %}
         return "the host does not perform every act this document declares (W3C SCXML G.7)";
+{% endif %}
 {% endif %}
     default:
         return "unknown";
@@ -2670,11 +2781,16 @@ SCE_SM_FN static void record_unseen_external_events({{ csym_prefix }}{{ model.na
 {% endif %}
 SCE_SM_FN static void {{ csym_prefix }}{{ model.name }}_on_entry_{{ state_id | to_c11_lower_ident }}_block_{{ loop.index }}({{ csym_prefix }}{{ model.name }}_t *sm) {  {{- annot.annotation_comment(state, "c", "    ") }}
     (void)sm;
+{# `block_flow`: an element that ends the block unconditionally sets it, and
+   nothing after that element is emitted (`flow`, `emit_action`). #}
+{% set block_flow = namespace(ended=false) %}
     {% for action in block %}
+{% if not block_flow.ended %}
 {%- if action.req or action.unresolved %}
 {{ annot.annotation_block(action, "c", "    ") -}}
 {%- endif %}
-    {{ emit_action(action) }}
+    {{ emit_action(action, flow=block_flow) }}
+{% endif %}
     {% endfor %}
 }
 {% endfor %}
@@ -2689,11 +2805,14 @@ SCE_SM_FN static void {{ csym_prefix }}{{ model.name }}_on_entry_{{ state_id | t
 {% endif %}
 SCE_SM_FN static void {{ csym_prefix }}{{ model.name }}_on_exit_{{ state_id | to_c11_lower_ident }}_block_{{ loop.index }}({{ csym_prefix }}{{ model.name }}_t *sm) {  {{- annot.annotation_comment(state, "c", "    ") }}
     (void)sm;
+{% set block_flow = namespace(ended=false) %}
     {% for action in block %}
+{% if not block_flow.ended %}
 {%- if action.req or action.unresolved %}
 {{ annot.annotation_block(action, "c", "    ") -}}
 {%- endif %}
-    {{ emit_action(action) }}
+    {{ emit_action(action, flow=block_flow) }}
+{% endif %}
     {% endfor %}
 }
 {% endfor %}
@@ -2723,10 +2842,11 @@ SCE_SM_FN static void execute_entry_actions({{ csym_prefix }}{{ model.name }}_t 
         }
         {% endif %}
         {% for block in state.on_entry_blocks %}
-        /* Onentry block {{ loop.index }}/{{ state.on_entry_blocks | length }} —
-           each block is an independent helper so a `return;` inside
-           (e.g. invalid-target send raising error.execution + W3C 5.10
-           stop-subsequent-content) terminates only that block. */
+        /* W3C SCXML 3.8: onentry block {{ loop.index }}/{{ state.on_entry_blocks | length }},
+           run as the state is entered. Each block is an independent
+           helper so a `return;` inside (e.g. invalid-target send raising
+           error.execution + W3C 5.10 stop-subsequent-content) terminates
+           only that block. */
         {{ csym_prefix }}{{ model.name }}_on_entry_{{ state_id | to_c11_lower_ident }}_block_{{ loop.index }}(sm);
         {% endfor %}
         {% if state.invokes | unsupported %}
@@ -2742,11 +2862,11 @@ SCE_SM_FN static void execute_entry_actions({{ csym_prefix }}{{ model.name }}_t 
             char _invoke_id_buf[SCE_MAX_ID_LEN];
             sce_invoke_format_id(_invoke_id_buf, sizeof(_invoke_id_buf),
                                  "{{ state_id }}", (const void *)sm,
-                                 {{ loop.index0 + (state.invokes | scxml | length) }});
+                                 {{ loop.index0 + (state.invokes | scxml | length) + (state.invokes | hybrid | length) }});
             sce_invoke_pending_push(&sm->pending_invokes,
                                     (int){{ csym_prefix | upper }}{{ model.name | upper }}_STATE_{{ state_id | to_c11_upper_ident }},
-                                    {{ loop.index0 + (state.invokes | scxml | length) }},
-                                    _invoke_id_buf);
+                                    {{ loop.index0 + (state.invokes | scxml | length) + (state.invokes | hybrid | length) }},
+                                    _invoke_id_buf, _invoke_id_buf);
         }
         {% endfor %}
         {% endif %}
@@ -2754,21 +2874,18 @@ SCE_SM_FN static void execute_entry_actions({{ csym_prefix }}{{ model.name }}_t 
         /* W3C SCXML 6.4: defer `<invoke>` execution until macrostep end.
            cpp `entry_exit_actions.jinja2` mirrors this with
            `pendingInvokes_.push_back({...})`; the C11 helper takes the
-           same (state, invoke_idx, id) tuple. Auto-generated ids follow
-           cpp pattern `<state>.<sm_ptr_hex>.<invoke_idx>` (W3C 3.12.1);
+           same (state, invoke_idx, id) tuple. Auto-generated ids are
+           `<state>.<start>.<invoke>` (W3C 3.12.1; docs/adr/0045: the
+           number of this start, so the id comes from the tree alone);
            explicit `<invoke id="...">` overrides use the author-supplied
-           literal verbatim. */
+           literal verbatim. Every start is counted either way. */
         {% for invoke_info in state.invokes | scxml %}
         {
             char _invoke_id_buf[SCE_MAX_ID_LEN];
-            {% if invoke_info.invoke_id and not invoke_info.invoke_id.startswith('_invoke_') %}
-            /* W3C SCXML 3.12.1: author-supplied id="{{ invoke_info.invoke_id }}"
-               wins over the auto-generated format. */
-            sce_copy_bounded_id(_invoke_id_buf, "{{ invoke_info.invoke_id }}");
-            {% else %}
-            sce_invoke_format_id(_invoke_id_buf, sizeof(_invoke_id_buf),
-                                 "{{ state_id }}", (const void *)sm, {{ loop.index0 }});
-            {% endif %}
+            char _runtime_id_buf[SCE_MAX_ID_LEN];
+            /* W3C SCXML 3.12.1: an author-supplied id wins over the generated format, as the
+               id the child's events carry; the session is named by the generated one. */
+            {{ invoke_defer.number_start(state_id, invoke_info, false) }}
             {% if invoke_info.idlocation and model.needs_script_engine %}
             /* W3C SCXML 6.4.1 (test223/224/225/338): expose the spawned
                invoke's id to the parent datamodel via the `idlocation`
@@ -2792,10 +2909,10 @@ SCE_SM_FN static void execute_entry_actions({{ csym_prefix }}{{ model.name }}_t 
                     "<invoke idlocation='{{ invoke_info.idlocation | escape_c }}'> could not take the invoke id");
             } else
             {% endif %}
-            sce_invoke_pending_push(&sm->pending_invokes,
-                                    (int){{ csym_prefix | upper }}{{ model.name | upper }}_STATE_{{ state_id | to_c11_upper_ident }},
-                                    {{ loop.index0 }},
-                                    _invoke_id_buf);
+            {# Under `sce-static` the id this start is started under goes to the variable
+               `idlocation` names, at defer time as above; the judge held the variable's
+               bound to one the id fits (SCE Accepted Subset §2.15, docs/adr/0045). #}
+            {{ invoke_defer.queue_start(csym_prefix | upper ~ model.name | upper, state_id, state_id | to_c11_upper_ident, invoke_info, loop.index0) }}
         }
         {% endfor %}
         {% endif %}
@@ -2803,7 +2920,7 @@ SCE_SM_FN static void execute_entry_actions({{ csym_prefix }}{{ model.name }}_t 
         /* W3C SCXML 6.4 (test216/530): defer hybrid `<invoke srcexpr=...>` /
            `<invoke><content expr=...>` execution until macrostep end.
            Mirrors the static-scxml defer above — same auto-id format
-           (`<state>.<sm_ptr_hex>.<invoke_idx>`) and same pending-queue
+           (`<state>.<start>.<invoke>`) and same pending-queue
            push. Eval validation runs at execute time
            (`{{ csym_prefix }}{{ model.name }}_execute_pending_invokes`), not at defer
            time, so `<assign>` blocks earlier in this same onentry have
@@ -2813,9 +2930,9 @@ SCE_SM_FN static void execute_entry_actions({{ csym_prefix }}{{ model.name }}_t 
         {% for invoke_info in state.invokes | hybrid %}
         {
             char _invoke_id_buf[SCE_MAX_ID_LEN];
-            sce_invoke_format_id(_invoke_id_buf, sizeof(_invoke_id_buf),
-                                 "{{ state_id }}", (const void *)sm,
-                                 {{ (state.invokes | scxml | length) + loop.index0 }});
+            char _runtime_id_buf[SCE_MAX_ID_LEN];
+            /* docs/adr/0045: numbered by this start, as the static arm is. */
+            {{ invoke_defer.number_start(state_id, invoke_info, true) }}
             {% if invoke_info.idlocation and model.needs_script_engine %}
             /* W3C SCXML 6.4.1: idlocation propagation — same shape as the
                static-scxml branch, stored before the invocation is queued. */
@@ -2827,10 +2944,7 @@ SCE_SM_FN static void execute_entry_actions({{ csym_prefix }}{{ model.name }}_t 
                     "<invoke idlocation='{{ invoke_info.idlocation | escape_c }}'> could not take the invoke id");
             } else
             {% endif %}
-            sce_invoke_pending_push(&sm->pending_invokes,
-                                    (int){{ csym_prefix | upper }}{{ model.name | upper }}_STATE_{{ state_id | to_c11_upper_ident }},
-                                    {{ (state.invokes | scxml | length) + loop.index0 }},
-                                    _invoke_id_buf);
+            {{ invoke_defer.queue_start(csym_prefix | upper ~ model.name | upper, state_id, state_id | to_c11_upper_ident, invoke_info, (state.invokes | scxml | length) + loop.index0) }}
         }
         {% endfor %}
         {% endif %}
@@ -2969,9 +3083,10 @@ SCE_SM_FN static void execute_entry_actions({{ csym_prefix }}{{ model.name }}_t 
            its own element. */
         {{ se.lua_eval_donedata_content(state.donedata.content.text | to_lua_data_content) }}
         {% elif state.donedata.content.kind == "literal" %}
-        /* W3C SCXML 5.5 + Appendix B.2.2: <content>literal-text</content>
-           under the "null" datamodel — the inline text is the content
-           value verbatim, no evaluation, no script engine required.
+        /* W3C SCXML 5.5: <content>literal-text</content> under the
+           "null" datamodel, which has no data model and no value
+           expression language (W3C SCXML B.1) — the inline text is the
+           content value verbatim, no evaluation, no script engine required.
            Parser routes to `kind == "literal"` only when datamodel="null";
            models with a value expression language and the same XML route
            through the inline-text arm above. Mirrors cpp `DoneDataHelper::
@@ -3088,9 +3203,10 @@ SCE_SM_FN static void execute_exit_actions({{ csym_prefix }}{{ model.name }}_t *
            of invocation, then configuration.delete(s) (`exit_states` does
            that after this returns). #}
         {% for block in state.on_exit_blocks %}
-        /* Onexit block {{ loop.index }}/{{ state.on_exit_blocks | length }} —
-           each block is an independent helper so a `return;` inside
-           terminates only that block. W3C SCXML 3.13. */
+        /* W3C SCXML 3.9: onexit block {{ loop.index }}/{{ state.on_exit_blocks | length }},
+           run as the state is exited. Each block is an independent
+           helper so a `return;` inside terminates only that block.
+           W3C SCXML 3.13. */
         {{ csym_prefix }}{{ model.name }}_on_exit_{{ state_id | to_c11_lower_ident }}_block_{{ loop.index }}(sm);
         {% endfor %}
         {% for invoke_info in state.invokes | host_invoker %}
@@ -3140,7 +3256,7 @@ SCE_SM_FN static void execute_exit_actions({{ csym_prefix }}{{ model.name }}_t *
            is the equivalent. */
 {% set cancel_targets = invoke_info.candidates if invoke_info.candidates else [{'stem': invoke_info.child_name}] %}
 {% for target in cancel_targets %}
-{% set slot = ('child_' ~ invoke_info.field_suffix ~ '_' ~ target.stem) if invoke_info.candidates else ('child_' ~ invoke_info.field_suffix) %}
+{% set slot = ('child_' ~ (invoke_info.field_suffix | candidate_identifier(target.stem))) if invoke_info.candidates else ('child_' ~ invoke_info.field_suffix) %}
         if (sm->{{ slot }}_active) {
             {{ csym_prefix }}{{ target.stem }}_destroy(&sm->{{ slot }});
             sm->{{ slot }}_active = false;
@@ -3207,13 +3323,21 @@ SCE_SM_FN static void execute_transition_actions({{ csym_prefix }}{{ model.name 
                 break;
             }
 {% endif %}
+{# `block_flow`: an element that ends the block unconditionally sets it, and
+   nothing after that element is emitted — the `break` that closes the case
+   included (`flow`, `emit_action`). #}
+{% set block_flow = namespace(ended=false) %}
             {% for action in trans.actions %}
+{% if not block_flow.ended %}
 {%- if action.req or action.unresolved %}
 {{ annot.annotation_block(action, "c", "            ") -}}
 {%- endif %}
-            {{ emit_action(action) }}
+            {{ emit_action(action, flow=block_flow) }}
+{% endif %}
             {% endfor %}
+{% if not block_flow.ended %}
             break;
+{% endif %}
         }
         {% endif %}
         {% endfor %}
@@ -3242,10 +3366,15 @@ SCE_SM_FN static void execute_initial_transition_content({{ csym_prefix }}{{ mod
     {% for state_id, state in model.states | dictsort %}
     {% if state.initial_transition_actions %}
     case {{ csym_prefix | upper }}{{ model.name | upper }}_STATE_{{ state_id | to_c11_upper_ident }}: {
+{% set block_flow = namespace(ended=false) %}
         {% for action in state.initial_transition_actions %}
-        {{ emit_action(action) }}
+{% if not block_flow.ended %}
+        {{ emit_action(action, flow=block_flow) }}
+{% endif %}
         {% endfor %}
+{% if not block_flow.ended %}
         break;
+{% endif %}
     }
     {% endif %}
     {% endfor %}
@@ -3256,7 +3385,9 @@ SCE_SM_FN static void execute_initial_transition_content({{ csym_prefix }}{{ mod
 {% if model.has_history_states %}
 
 {# §scxml-D-enterStates: a <history>'s default transition content, owed to
-   its parent when nothing was recorded, run once the parent is entered. #}
+   its parent when nothing was recorded, run once the parent is entered.
+   §scxml-3.10.2: that <transition> MAY hold executable content, and it runs
+   only when the default stored state configuration is entered. #}
 SCE_SM_FN static void execute_history_default_content({{ csym_prefix }}{{ model.name }}_t *sm,
                                                       {{ csym_prefix }}{{ model.name }}_history_t h) {
     (void)sm;
@@ -3264,10 +3395,15 @@ SCE_SM_FN static void execute_history_default_content({{ csym_prefix }}{{ model.
     {% for hid, info in model.history_states | dictsort %}
     {% if info.default_actions %}
     case {{ csym_prefix | upper }}{{ model.name | upper }}_HIST_{{ hid | to_c11_upper_ident }}: {
+{% set block_flow = namespace(ended=false) %}
         {% for action in info.default_actions %}
-        {{ emit_action(action) }}
+{% if not block_flow.ended %}
+        {{ emit_action(action, flow=block_flow) }}
+{% endif %}
         {% endfor %}
+{% if not block_flow.ended %}
         break;
+{% endif %}
     }
     {% endif %}
     {% endfor %}
@@ -4485,7 +4621,7 @@ SCE_SM_FN static bool process_next_external_event({{ csym_prefix }}{{ model.name
         {% endfor %}
         {% endfor %}
         {% if _has_finalize.any %}
-        /* W3C SCXML 6.4 (test233): run the matching invoke's
+        /* W3C SCXML 6.5 (test233): run the matching invoke's
            `<finalize>` body in the parent's lua_State BEFORE transition
            selection. The finalize body reads `_event.data.<key>` (just
            hydrated above) and writes parent variables — so the
@@ -4630,7 +4766,16 @@ SCE_SM_FN static void check_eventless_transitions({{ csym_prefix }}{{ model.name
    yet while that drain runs, so everything `<onentry>` queued for this
    session on the way in is consumed with no autoforward child to receive it
    — and there is no later point at which it is delivered. */
+{% if static_saved_shape and model.host_invoker_types %}
+SCE_SM_FN static void start_restored_host_invokes({{ csym_prefix }}{{ model.name }}_t *sm);
+{% endif %}
 SCE_SM_FN static void run_main_event_loop({{ csym_prefix }}{{ model.name }}_t *sm) {
+{% if static_saved_shape and model.host_invoker_types %}
+    /* SCE Accepted Subset §2.15: the invocations a restore re-armed start before anything else
+       this drive does, as the macrostep's start would start ones the document had just entered
+       (§scxml-6.4). */
+    start_restored_host_invokes(sm);
+{% endif %}
     /* External events this invocation has taken off the queue, against
        `external_event_budget`. A local, because the budget is one invocation's:
        a cut leaves the queue as it is and the next invocation gets a budget of
@@ -5000,6 +5145,13 @@ SCE_SM_FN void {{ csym_prefix }}{{ model.name }}_tick({{ csym_prefix }}{{ model.
    interval — which cannot straddle two fire times it was never told about.
    The queue is sorted by fire time, so the answer is its head. */
 SCE_SM_FN int64_t {{ csym_prefix }}{{ model.name }}_time_until_next_scheduled_ms(const {{ csym_prefix }}{{ model.name }}_t *sm) {
+{% if static_saved_shape and model.host_invoker_types %}
+    /* SCE Accepted Subset §2.15: an invocation a restore re-armed starts at the top of the next
+       drive, so the machine needs one now. */
+    if (sm->restored_host_invoke_count != 0u) {
+        return 0;
+    }
+{% endif %}
     if (sm->scheduled_queue.count == 0u) {
         return -1;
     }
@@ -5107,6 +5259,25 @@ SCE_SM_FN static void {{ csym_prefix }}{{ model.name }}_issue_session_identity({
    initialiser below carries the same verdict outward — `void` for every other
    document shape, byte-identical to the pre-feature emit. #}
 {% set init_rc = 'bool' if has_native_actions else 'void' %}
+{# docs/adr/0038: a machine takes the caller's opt-in for a simulated host when
+   it states a duty itself, or when a child it begins with a host of its own
+   states one, because the opt-in the caller gave a parent covers the children
+   the parent begins. `host_duty_children` is true for the second. A machine
+   with neither emits nothing new. Kept in step with the same `set`s in
+   `state_machine.h.jinja2`. #}
+{% set host_duty_children = namespace(any=false) %}
+{% for invoke_info in model.invokes | scxml %}
+{% if invoke_info.child_declares_host_duties %}{% set host_duty_children.any = true %}{% endif %}
+{% endfor %}
+{% for invoke_info in model.invokes | hybrid %}
+{% for candidate in invoke_info.candidates %}
+{% if candidate.child_declares_host_duties %}{% set host_duty_children.any = true %}{% endif %}
+{% endfor %}
+{% endfor %}
+{% set takes_simulated_host = has_native_duties or host_duty_children.any %}
+{# The argument every entry but `_init_with_simulated_actions` gives the shared
+   body for the opt-in: none. Empty for a machine that takes no opt-in. #}
+{% set simulated_refused = ', false' if takes_simulated_host else '' %}
 {# The construction half of `_init`, shared with `_init_at`.
 
    Everything a session needs before it is anywhere: the host's wiring, the
@@ -5123,7 +5294,8 @@ SCE_SM_FN static bool {{ csym_prefix }}{{ model.name }}_init_construct({{ csym_p
                                                        const char *basic_http_access_uri{% endif %}{% if model.host_processor_types %},
                                                        const sce_host_processor_registry_t *host_processors{% endif %}{% if model.host_invoker_types %},
                                                        const sce_host_invoker_registry_t *host_invokers{% endif %}{% if has_native_actions %},
-                                                       const {{ native_actions_interface }} *actions{% endif %}) {
+                                                       const {{ native_actions_interface }} *actions{% endif %}{% if takes_simulated_host %},
+                                                       bool accept_simulated{% endif %}) {
 {% if has_native_actions %}
     /* W3C SCXML G.7: refuse a host that does not perform every act this
        document declares, BEFORE anything is touched — a refused call leaves
@@ -5135,6 +5307,17 @@ SCE_SM_FN static bool {{ csym_prefix }}{{ model.name }}_init_construct({{ csym_p
         return false;
     }
 {% endif %}
+{% if has_native_duties %}
+    /* docs/adr/0038: this document states a duty, so the table says what it
+       does with duties, and a table that only simulates them — or says nothing —
+       is refused here, in the same place and for the same reason a NULL member
+       is, unless the caller opted in by name (`accept_simulated`). `realization`
+       is an enum and not a function pointer, so it is read by the shared rule and
+       is not one of the members the NULL check above walks. */
+    if (!sce_action_realization_accepted(actions->realization, accept_simulated)) {
+        return false;
+    }
+{% endif %}
     memset(sm, 0, sizeof(*sm));
 {% if has_native_actions %}
     /* Copied in before the entry walk, for the reason the host-processor
@@ -5142,6 +5325,12 @@ SCE_SM_FN static bool {{ csym_prefix }}{{ model.name }}_init_construct({{ csym_p
        act, and a vtable written afterwards would arrive one act too late — and
        a value this call MEMSETS cannot be set before it. */
     sm->actions = *actions;
+{% endif %}
+{% if host_duty_children.any %}
+    /* docs/adr/0038: the opt-in is kept for the children this machine begins
+       with the table its own table answers for them, and is written after the
+       memset for the reason the table above is. */
+    sm->accept_simulated_host = accept_simulated;
 {% endif %}
 {% if model.host_processor_types %}
     /* §scxml-6.2.5: the host's wiring is installed BEFORE the entry walk,
@@ -5224,8 +5413,9 @@ SCE_SM_FN static {{ init_rc }} {{ csym_prefix }}{{ model.name }}_init_impl({{ cs
                                                        const char *basic_http_access_uri{% endif %}{% if model.host_processor_types %},
                                                        const sce_host_processor_registry_t *host_processors{% endif %}{% if model.host_invoker_types %},
                                                        const sce_host_invoker_registry_t *host_invokers{% endif %}{% if has_native_actions %},
-                                                       const {{ native_actions_interface }} *actions{% endif %}) {
-    if (!{{ csym_prefix }}{{ model.name }}_init_construct(sm{% if model.needs_event_scheduler %}, clock{% endif %}{% if model.needs_script_engine %}, basic_http_access_uri{% endif %}{% if model.host_processor_types %}, host_processors{% endif %}{% if model.host_invoker_types %}, host_invokers{% endif %}{% if has_native_actions %}, actions{% endif %})) {
+                                                       const {{ native_actions_interface }} *actions{% endif %}{% if takes_simulated_host %},
+                                                       bool accept_simulated{% endif %}) {
+    if (!{{ csym_prefix }}{{ model.name }}_init_construct(sm{% if model.needs_event_scheduler %}, clock{% endif %}{% if model.needs_script_engine %}, basic_http_access_uri{% endif %}{% if model.host_processor_types %}, host_processors{% endif %}{% if model.host_invoker_types %}, host_invokers{% endif %}{% if has_native_actions %}, actions{% endif %}{% if takes_simulated_host %}, accept_simulated{% endif %})) {
 {% if has_native_actions %}
         return false;
 {% else %}
@@ -5263,35 +5453,12 @@ SCE_SM_FN static {{ init_rc }} {{ csym_prefix }}{{ model.name }}_init_impl({{ cs
 {% endif %}
 }
 
-/* W3C SCXML 3.2 — the resume door. See the header for what it is for, what it
-   refuses, and why it is an `_init` variant rather than a call on a live
-   machine. */
-SCE_SM_FN {{ csym_prefix }}{{ model.name }}_configuration_rejection_t {{ csym_prefix }}{{ model.name }}_init_at(
-    {{ csym_prefix }}{{ model.name }}_t *sm,
-    const {{ csym_prefix }}{{ model.name }}_state_t *configuration, size_t count{% if model.needs_event_scheduler %},
-    sce_clock_t clock{% endif %}{% if model.needs_script_engine %},
-    const char *basic_http_access_uri{% endif %}{% if model.host_processor_types %},
-    const sce_host_processor_registry_t *host_processors{% endif %}{% if has_native_actions %},
-    const {{ native_actions_interface }} *actions{% endif %}) {
-    /* Before anything is touched — the memset included: a rejection must not
-       half-enter, and on this backend "half" would mean a caller's storage
-       zeroed for a set the document never describes. */
-    const {{ csym_prefix }}{{ model.name }}_configuration_rejection_t verdict =
-        {{ csym_prefix }}{{ model.name }}_validate_configuration(configuration, count);
-    if (verdict != {{ csym_prefix | upper }}{{ model.name | upper }}_CONFIG_NONE) {
-        return verdict;
-    }
-
-{% if has_native_actions %}
-    if (!{{ csym_prefix }}{{ model.name }}_init_construct(sm{% if model.needs_event_scheduler %}, clock{% endif %}{% if model.needs_script_engine %}, basic_http_access_uri{% endif %}{% if model.host_processor_types %}, host_processors{% endif %}{% if model.host_invoker_types %}, NULL{% endif %}, actions)) {
-        return {{ csym_prefix | upper }}{{ model.name | upper }}_CONFIG_HOST_ACTIONS_INCOMPLETE;
-    }
-{% else %}
-    /* Cannot fail for this document: the act table is the only thing
-       construction refuses, and this document declares no acts. */
-    (void){{ csym_prefix }}{{ model.name }}_init_construct(sm{% if model.needs_event_scheduler %}, clock{% endif %}{% if model.needs_script_engine %}, basic_http_access_uri{% endif %}{% if model.host_processor_types %}, host_processors{% endif %}{% if model.host_invoker_types %}, NULL{% endif %});
-{% endif %}
-
+/* W3C SCXML 3.2: stand a constructed machine in a configuration already judged
+   to be one of this document, entering nothing. What `_init_at` does after it
+   has constructed the machine, and what a restore of a saved state does
+   (SCE Accepted Subset §2.15) after the same. */
+SCE_SM_FN static void {{ csym_prefix }}{{ model.name }}_stand_in(
+    {{ csym_prefix }}{{ model.name }}_t *sm, const {{ csym_prefix }}{{ model.name }}_state_t *configuration, size_t count) {
     /* W3C SCXML 3.2: the configuration IS the bitmap on this backend, so the
        restore is the set of bits the host recorded — no entry walk, and so no
        `<onentry>`. `_init_construct` has already memset it to zero, which is
@@ -5314,15 +5481,74 @@ SCE_SM_FN {{ csym_prefix }}{{ model.name }}_configuration_rejection_t {{ csym_pr
             break;
         }
     }
+{% if static_saved_shape %}
+    /* SCE Accepted Subset §2.15: the first atomic state of the configuration in
+       document order, which is the one it holds when it holds no <parallel>.
+       A host that knows better (a restore of a saved state) says so after. */
+    for (uint32_t k = 0u; k < (uint32_t){{ csym_prefix | upper }}{{ model.name | upper }}_STATE_COUNT; ++k) {
+        const {{ csym_prefix }}{{ model.name }}_state_t s = k_document_order[k];
+        if ((sm->active & state_bit(s)) != 0u && k_child_states[s] == 0u) {
+            sm->policy.current_state = s;
+            break;
+        }
+    }
+{% endif %}
+}
 
+/* W3C SCXML 3.2 — the resume door. See the header for what it is for, what it
+   refuses, and why it is an `_init` variant rather than a call on a live
+   machine. */
+SCE_SM_FN {{ csym_prefix }}{{ model.name }}_configuration_rejection_t {{ csym_prefix }}{{ model.name }}_init_at(
+    {{ csym_prefix }}{{ model.name }}_t *sm,
+    const {{ csym_prefix }}{{ model.name }}_state_t *configuration, size_t count{% if model.needs_event_scheduler %},
+    sce_clock_t clock{% endif %}{% if model.needs_script_engine %},
+    const char *basic_http_access_uri{% endif %}{% if model.host_processor_types %},
+    const sce_host_processor_registry_t *host_processors{% endif %}{% if has_native_actions %},
+    const {{ native_actions_interface }} *actions{% endif %}) {
+    /* Before anything is touched — the memset included: a rejection must not
+       half-enter, and on this backend "half" would mean a caller's storage
+       zeroed for a set the document never describes. */
+    const {{ csym_prefix }}{{ model.name }}_configuration_rejection_t verdict =
+        {{ csym_prefix }}{{ model.name }}_validate_configuration(configuration, count);
+    if (verdict != {{ csym_prefix | upper }}{{ model.name | upper }}_CONFIG_NONE) {
+        return verdict;
+    }
+
+{% if has_native_actions %}
+    if (!{{ csym_prefix }}{{ model.name }}_init_construct(sm{% if model.needs_event_scheduler %}, clock{% endif %}{% if model.needs_script_engine %}, basic_http_access_uri{% endif %}{% if model.host_processor_types %}, host_processors{% endif %}{% if model.host_invoker_types %}, NULL{% endif %}, actions{{ simulated_refused }})) {
+        return {{ csym_prefix | upper }}{{ model.name | upper }}_CONFIG_HOST_ACTIONS_INCOMPLETE;
+    }
+{% else %}
+    /* Cannot fail for this document: the act table is the only thing
+       construction refuses, and this document declares no acts. */
+    (void){{ csym_prefix }}{{ model.name }}_init_construct(sm{% if model.needs_event_scheduler %}, clock{% endif %}{% if model.needs_script_engine %}, basic_http_access_uri{% endif %}{% if model.host_processor_types %}, host_processors{% endif %}{% if model.host_invoker_types %}, NULL{% endif %});
+{% endif %}
+
+    {{ csym_prefix }}{{ model.name }}_stand_in(sm, configuration, count);
     return {{ csym_prefix | upper }}{{ model.name | upper }}_CONFIG_NONE;
 }
+
+{% if static_saved_shape %}
+{% include 'c/saved.c.jinja2' %}
+
+{% endif %}
 
 {% if has_native_actions %}
 SCE_SM_FN bool {{ csym_prefix }}{{ model.name }}_init_with_actions({{ csym_prefix }}{{ model.name }}_t *sm,
                                   const {{ native_actions_interface }} *actions) {
-    return {{ csym_prefix }}{{ model.name }}_init_impl(sm{% if model.needs_event_scheduler %}, sce_clock_monotonic(){% endif %}{% if model.needs_script_engine %}, NULL{% endif %}{% if model.host_processor_types %}, NULL{% endif %}{% if model.host_invoker_types %}, NULL{% endif %}, actions);
+    return {{ csym_prefix }}{{ model.name }}_init_impl(sm{% if model.needs_event_scheduler %}, sce_clock_monotonic(){% endif %}{% if model.needs_script_engine %}, NULL{% endif %}{% if model.host_processor_types %}, NULL{% endif %}{% if model.host_invoker_types %}, NULL{% endif %}, actions{{ simulated_refused }});
 }
+{% if takes_simulated_host %}
+
+/* docs/adr/0038: the same body as `_init_with_actions`, with the refusal of a
+   table that says `SCE_ACTION_SIMULATES` lifted. The opt-in is the name of the
+   entry and nothing else, so it is written where a simulated host is accepted
+   and cannot be reached by a flag that happens to be true. */
+SCE_SM_FN bool {{ csym_prefix }}{{ model.name }}_init_with_simulated_actions({{ csym_prefix }}{{ model.name }}_t *sm,
+                                  const {{ native_actions_interface }} *actions) {
+    return {{ csym_prefix }}{{ model.name }}_init_impl(sm{% if model.needs_event_scheduler %}, sce_clock_monotonic(){% endif %}{% if model.needs_script_engine %}, NULL{% endif %}{% if model.host_processor_types %}, NULL{% endif %}{% if model.host_invoker_types %}, NULL{% endif %}, actions, true);
+}
+{% endif %}
 {% else %}
 SCE_SM_FN void {{ csym_prefix }}{{ model.name }}_init({{ csym_prefix }}{{ model.name }}_t *sm) {
     {{ csym_prefix }}{{ model.name }}_init_impl(sm{% if model.needs_event_scheduler %}, sce_clock_monotonic(){% endif %}{% if model.needs_script_engine %}, NULL{% endif %}{% if model.host_processor_types %}, NULL{% endif %}{% if model.host_invoker_types %}, NULL{% endif %});
@@ -5331,7 +5557,7 @@ SCE_SM_FN void {{ csym_prefix }}{{ model.name }}_init({{ csym_prefix }}{{ model.
 {% if model.needs_event_scheduler %}
 
 SCE_SM_FN {{ init_rc }} {{ csym_prefix }}{{ model.name }}_init_with_clock({{ csym_prefix }}{{ model.name }}_t *sm, sce_clock_t clock{% if has_native_actions %}, const {{ native_actions_interface }} *actions{% endif %}) {
-    {% if has_native_actions %}return {% endif %}{{ csym_prefix }}{{ model.name }}_init_impl(sm, clock{% if model.needs_script_engine %}, NULL{% endif %}{% if model.host_processor_types %}, NULL{% endif %}{% if model.host_invoker_types %}, NULL{% endif %}{% if has_native_actions %}, actions{% endif %});
+    {% if has_native_actions %}return {% endif %}{{ csym_prefix }}{{ model.name }}_init_impl(sm, clock{% if model.needs_script_engine %}, NULL{% endif %}{% if model.host_processor_types %}, NULL{% endif %}{% if model.host_invoker_types %}, NULL{% endif %}{% if has_native_actions %}, actions{{ simulated_refused }}{% endif %});
 }
 {% endif %}
 {% if model.host_processor_types %}
@@ -5339,7 +5565,7 @@ SCE_SM_FN {{ init_rc }} {{ csym_prefix }}{{ model.name }}_init_with_clock({{ csy
 SCE_SM_FN {{ init_rc }} {{ csym_prefix }}{{ model.name }}_init_with_host_processors({{ csym_prefix }}{{ model.name }}_t *sm,
                                   const sce_host_processor_registry_t *host_processors{% if has_native_actions %},
                                   const {{ native_actions_interface }} *actions{% endif %}) {
-    {% if has_native_actions %}return {% endif %}{{ csym_prefix }}{{ model.name }}_init_impl(sm{% if model.needs_event_scheduler %}, sce_clock_monotonic(){% endif %}{% if model.needs_script_engine %}, NULL{% endif %}, host_processors{% if model.host_invoker_types %}, NULL{% endif %}{% if has_native_actions %}, actions{% endif %});
+    {% if has_native_actions %}return {% endif %}{{ csym_prefix }}{{ model.name }}_init_impl(sm{% if model.needs_event_scheduler %}, sce_clock_monotonic(){% endif %}{% if model.needs_script_engine %}, NULL{% endif %}, host_processors{% if model.host_invoker_types %}, NULL{% endif %}{% if has_native_actions %}, actions{{ simulated_refused }}{% endif %});
 }
 {% if model.needs_event_scheduler %}
 
@@ -5359,7 +5585,7 @@ SCE_SM_FN {{ init_rc }} {{ csym_prefix }}{{ model.name }}_init_with_clock_and_ho
                                   sce_clock_t clock,
                                   const sce_host_processor_registry_t *host_processors{% if has_native_actions %},
                                   const {{ native_actions_interface }} *actions{% endif %}) {
-    {% if has_native_actions %}return {% endif %}{{ csym_prefix }}{{ model.name }}_init_impl(sm, clock{% if model.needs_script_engine %}, NULL{% endif %}, host_processors{% if model.host_invoker_types %}, NULL{% endif %}{% if has_native_actions %}, actions{% endif %});
+    {% if has_native_actions %}return {% endif %}{{ csym_prefix }}{{ model.name }}_init_impl(sm, clock{% if model.needs_script_engine %}, NULL{% endif %}, host_processors{% if model.host_invoker_types %}, NULL{% endif %}{% if has_native_actions %}, actions{{ simulated_refused }}{% endif %});
 }
 {% endif %}
 {% endif %}
@@ -5376,7 +5602,7 @@ SCE_SM_FN {{ init_rc }} {{ csym_prefix }}{{ model.name }}_init_with_clock_and_ho
 SCE_SM_FN {{ init_rc }} {{ csym_prefix }}{{ model.name }}_init_with_host_invokers({{ csym_prefix }}{{ model.name }}_t *sm,
                                   const sce_host_invoker_registry_t *host_invokers{% if has_native_actions %},
                                   const {{ native_actions_interface }} *actions{% endif %}) {
-    {% if has_native_actions %}return {% endif %}{{ csym_prefix }}{{ model.name }}_init_impl(sm{% if model.needs_event_scheduler %}, sce_clock_monotonic(){% endif %}{% if model.needs_script_engine %}, NULL{% endif %}{% if model.host_processor_types %}, NULL{% endif %}, host_invokers{% if has_native_actions %}, actions{% endif %});
+    {% if has_native_actions %}return {% endif %}{{ csym_prefix }}{{ model.name }}_init_impl(sm{% if model.needs_event_scheduler %}, sce_clock_monotonic(){% endif %}{% if model.needs_script_engine %}, NULL{% endif %}{% if model.host_processor_types %}, NULL{% endif %}, host_invokers{% if has_native_actions %}, actions{{ simulated_refused }}{% endif %});
 }
 {% if model.needs_event_scheduler %}
 
@@ -5387,7 +5613,7 @@ SCE_SM_FN {{ init_rc }} {{ csym_prefix }}{{ model.name }}_init_with_clock_and_ho
                                   sce_clock_t clock,
                                   const sce_host_invoker_registry_t *host_invokers{% if has_native_actions %},
                                   const {{ native_actions_interface }} *actions{% endif %}) {
-    {% if has_native_actions %}return {% endif %}{{ csym_prefix }}{{ model.name }}_init_impl(sm, clock{% if model.needs_script_engine %}, NULL{% endif %}{% if model.host_processor_types %}, NULL{% endif %}, host_invokers{% if has_native_actions %}, actions{% endif %});
+    {% if has_native_actions %}return {% endif %}{{ csym_prefix }}{{ model.name }}_init_impl(sm, clock{% if model.needs_script_engine %}, NULL{% endif %}{% if model.host_processor_types %}, NULL{% endif %}, host_invokers{% if has_native_actions %}, actions{{ simulated_refused }}{% endif %});
 }
 {% endif %}
 {% if model.host_processor_types %}
@@ -5400,7 +5626,7 @@ SCE_SM_FN {{ init_rc }} {{ csym_prefix }}{{ model.name }}_init_with_host_surface
                                   const sce_host_processor_registry_t *host_processors,
                                   const sce_host_invoker_registry_t *host_invokers{% if has_native_actions %},
                                   const {{ native_actions_interface }} *actions{% endif %}) {
-    {% if has_native_actions %}return {% endif %}{{ csym_prefix }}{{ model.name }}_init_impl(sm{% if model.needs_event_scheduler %}, sce_clock_monotonic(){% endif %}{% if model.needs_script_engine %}, NULL{% endif %}, host_processors, host_invokers{% if has_native_actions %}, actions{% endif %});
+    {% if has_native_actions %}return {% endif %}{{ csym_prefix }}{{ model.name }}_init_impl(sm{% if model.needs_event_scheduler %}, sce_clock_monotonic(){% endif %}{% if model.needs_script_engine %}, NULL{% endif %}, host_processors, host_invokers{% if has_native_actions %}, actions{{ simulated_refused }}{% endif %});
 }
 {% if model.needs_event_scheduler %}
 
@@ -5409,7 +5635,7 @@ SCE_SM_FN {{ init_rc }} {{ csym_prefix }}{{ model.name }}_init_with_clock_and_ho
                                   const sce_host_processor_registry_t *host_processors,
                                   const sce_host_invoker_registry_t *host_invokers{% if has_native_actions %},
                                   const {{ native_actions_interface }} *actions{% endif %}) {
-    {% if has_native_actions %}return {% endif %}{{ csym_prefix }}{{ model.name }}_init_impl(sm, clock{% if model.needs_script_engine %}, NULL{% endif %}, host_processors, host_invokers{% if has_native_actions %}, actions{% endif %});
+    {% if has_native_actions %}return {% endif %}{{ csym_prefix }}{{ model.name }}_init_impl(sm, clock{% if model.needs_script_engine %}, NULL{% endif %}, host_processors, host_invokers{% if has_native_actions %}, actions{{ simulated_refused }}{% endif %});
 }
 {% endif %}
 {% endif %}
@@ -5438,6 +5664,14 @@ SCE_SM_FN bool {{ csym_prefix }}{{ model.name }}_register_mesh_router({{ csym_pr
         return false;
     }
     return sce_host_registry_register_mesh_router(&sm->host_processors, router, user_data);
+}
+
+SCE_SM_FN bool {{ csym_prefix }}{{ model.name }}_register_child_mesh_routers({{ csym_prefix }}{{ model.name }}_t *sm,
+                                                                             sce_child_mesh_routers_fn ask, void *user_data) {
+    if (sm == NULL) {
+        return false;
+    }
+    return sce_host_registry_register_child_mesh_routers(&sm->host_processors, ask, user_data);
 }
 
 SCE_SM_FN bool {{ csym_prefix }}{{ model.name }}_has_event_processor(const {{ csym_prefix }}{{ model.name }}_t *sm, const char *processor_type) {
@@ -5586,6 +5820,44 @@ SCE_SM_FN static void expire_host_invoke({{ csym_prefix }}{{ model.name }}_t *sm
 }
 {% endif %}
 
+{% if static_saved_shape %}
+/* SCE Accepted Subset §2.15: keep the request start `start->token` was handed, for as long as it
+   runs, so that a saved state can hold it (§scxml-6.4.1). A slot is free when the set no longer
+   holds the token it was written under. A field that does not fit its slot is cut, as the
+   delayed-send queue cuts one: the request the start site built is bounded by the same sizes. */
+SCE_SM_FN static void note_host_request({{ csym_prefix }}{{ model.name }}_t *sm, const sce_host_invoke_event_t *start) {
+    {{ csym_prefix }}{{ model.name }}_host_request_t *slot = NULL;
+    for (size_t i = 0u; i < (size_t)SCE_MAX_HOST_INVOCATIONS && slot == NULL; ++i) {
+        bool live = false;
+        for (int j = 0; j < sm->started_host_invokes.count; ++j) {
+            if (sm->started_host_invokes.tokens[j] == sm->started_host_requests[i].token &&
+                sm->started_host_requests[i].invoke_id[0] != '\0' &&
+                strcmp(sm->started_host_invokes.ids[j], sm->started_host_requests[i].invoke_id) == 0) {
+                live = true;
+            }
+        }
+        if (!live) {
+            slot = &sm->started_host_requests[i];
+        }
+    }
+    if (slot == NULL) {
+        return;
+    }
+    memset(slot, 0, sizeof(*slot));
+    slot->token = start->token;
+    sce_copy_bounded_id(slot->processor_type, start->processor_type);
+    sce_copy_bounded_id(slot->invoke_id, start->invoke_id);
+    sce_copy_bounded_n(slot->src, start->src, sizeof(slot->src));
+    sce_copy_bounded_data(slot->content, start->content);
+    sce_copy_bounded_data(slot->event_data, start->event_data);
+    for (int i = 0; i < start->param_count && i < (int)(sizeof(slot->param_names) / sizeof(slot->param_names[0])); ++i) {
+        sce_copy_bounded_id(slot->param_names[i], start->params[i].name);
+        sce_copy_bounded_data(slot->param_values[i], start->params[i].value);
+        slot->param_count++;
+    }
+}
+
+{% endif %}
 /* W3C SCXML 6.4.1: start a host-run invocation, reporting whether an invoker
    ran it. `false` means none was registered, which the start site turns into
    `error.execution`.
@@ -5644,6 +5916,10 @@ SCE_SM_FN static bool {{ csym_prefix }}{{ model.name }}_perform_host_invoke({{ c
     start->params = param_count > 0 ? params : NULL;
     start->param_count = param_count;
     start->token = sce_host_invocation_mark(&sm->started_host_invokes, start->processor_type, start->invoke_id);
+    start->session_id = sm->session_id;
+{% if static_saved_shape %}
+    note_host_request(sm, start);
+{% endif %}
 {% if model.has_host_invoke_deadline %}
     if (has_deadline) {
         schedule_host_invoke_deadline(sm, start->processor_type, start->invoke_id, start->token, deadline_ms);
@@ -5674,6 +5950,95 @@ SCE_SM_FN static bool {{ csym_prefix }}{{ model.name }}_perform_host_invoke({{ c
     return true;
 }
 
+{% if static_saved_shape %}
+/* SCE Accepted Subset §2.15: tell the document a host-run invocation a restore found failed, as
+   `error.invoke.<id>` with the reason as its data: `"deadline"` for a deadline that passed while
+   the machine was away, `"interrupted"` for a call a restore must not send again. The JSON
+   spelling of the string, as every other backend carries it. */
+SCE_SM_FN static void raise_host_invoke_failure({{ csym_prefix }}{{ model.name }}_t *sm, const char *invoke_id,
+                                                const char *reason) {
+    char name[SCE_MAX_ID_LEN];
+    const size_t prefix_len = sizeof(SCE_ERROR_INVOKE_PREFIX) - 1u;
+    const size_t id_len = strlen(invoke_id);
+    {{ csym_prefix }}{{ model.name }}_event_with_meta_t raised;
+    memset(&raised, 0, sizeof(raised));
+    if (prefix_len + id_len >= sizeof(name)) {
+        return;
+    }
+    memcpy(name, SCE_ERROR_INVOKE_PREFIX, prefix_len);
+    memcpy(name + prefix_len, invoke_id, id_len);
+    name[prefix_len + id_len] = '\0';
+    if ({{ csym_prefix }}{{ model.name }}_arrive(name, prefix_len + id_len, &raised.event, raised.name)) {
+        (void)snprintf(raised.data, sizeof(raised.data), "\"%s\"", reason);
+        sce_copy_bounded_id(raised.invoke_id, invoke_id);
+        {{ csym_prefix }}{{ model.name }}_raise_external(sm, &raised);
+    }
+}
+
+/* SCE Accepted Subset §2.15: start the invocations a restore re-armed, as the macrostep's start
+   would start ones the document had just entered (§scxml-6.4).
+
+   A deadline that came due while the machine was away ends the invocation without a start: the
+   host is not asked to begin what it would be told to stop at once, and the document receives
+   the `error.invoke` the deadline raises. A request SCE sends on the document's behalf (a Mesh
+   request) may already have reached its peer, which would act on it twice if it were sent again,
+   and the router that carried it is gone with the process that saved it: it is not started, the
+   document is told the call was interrupted, and sends a new one if it means to ask again. An
+   invoker that is not registered by now is the same error a document's own start gets. */
+SCE_SM_FN static void start_restored_host_invokes({{ csym_prefix }}{{ model.name }}_t *sm) {
+    const uint8_t owed = sm->restored_host_invoke_count;
+    if (owed == 0u) {
+        return;
+    }
+    sm->restored_host_invoke_count = 0u;
+    for (uint8_t i = 0u; i < owed; ++i) {
+        {{ csym_prefix }}{{ model.name }}_restored_host_t *restored = &sm->restored_host_invokes[i];
+        {{ csym_prefix }}{{ model.name }}_host_request_t *request = &restored->request;
+        if (restored->deadline == 2u) {
+            raise_host_invoke_failure(sm, request->invoke_id, "deadline");
+        } else if (sce_is_reserved_host_type(request->processor_type)) {
+            raise_host_invoke_failure(sm, request->invoke_id, "interrupted");
+        } else if (sce_host_invoker_find(&sm->host_invokers, request->processor_type) == NULL) {
+{% if 'error.execution' in model.events %}
+            {{ csym_prefix }}{{ model.name }}_raise_platform_error(
+                sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
+                "<invoke> names an invoker the host declared but never registered");
+{% endif %}
+        } else {
+            sce_host_send_param_t params[sizeof(request->param_names) / sizeof(request->param_names[0]) + 1u];
+            char deadline_text[24];
+            sce_host_invoke_event_t start;
+            int count = 0;
+            memset(&start, 0, sizeof(start));
+            start.phase = SCE_HOST_INVOKE_START;
+            start.restarted = true;
+            start.processor_type = request->processor_type;
+            start.invoke_id = request->invoke_id;
+            start.src = request->src;
+            start.content = request->content;
+            start.event_data = request->event_data;
+            for (; count < (int)request->param_count; ++count) {
+                params[count].name = request->param_names[count];
+                params[count].value = request->param_values[count];
+            }
+{% if model.has_host_invoke_deadline %}
+            if (restored->deadline == 1u) {
+                /* The machine's own parameter, which the start takes out of what the host is
+                   handed and arms: the time left. */
+                (void)snprintf(deadline_text, sizeof(deadline_text), "%llu", (unsigned long long)restored->remaining_ms);
+                params[count].name = SCE_HOST_INVOKE_DEADLINE_PARAM;
+                params[count].value = deadline_text;
+                ++count;
+            }
+{% else %}
+            (void)deadline_text;
+{% endif %}
+            (void){{ csym_prefix }}{{ model.name }}_perform_host_invoke(sm, &start, params, count);
+        }
+    }
+}
+
+{% endif %}
 /* W3C SCXML 6.4: stop a host-run invocation whose state has exited, or from
    outside the exit chain.
 
@@ -6083,7 +6448,7 @@ SCE_SM_FN bool {{ csym_prefix }}{{ model.name }}_{{ var.reader.c11 }}(const {{ c
 SCE_SM_FN {{ init_rc }} {{ csym_prefix }}{{ model.name }}_init_with_basic_http({{ csym_prefix }}{{ model.name }}_t *sm,
                                                                       const char *basic_http_access_uri{% if has_native_actions %},
                                                                       const {{ native_actions_interface }} *actions{% endif %}) {
-    {% if has_native_actions %}return {% endif %}{{ csym_prefix }}{{ model.name }}_init_impl(sm{% if model.needs_event_scheduler %}, sce_clock_monotonic(){% endif %}, basic_http_access_uri{% if model.host_processor_types %}, NULL{% endif %}{% if model.host_invoker_types %}, NULL{% endif %}{% if has_native_actions %}, actions{% endif %});
+    {% if has_native_actions %}return {% endif %}{{ csym_prefix }}{{ model.name }}_init_impl(sm{% if model.needs_event_scheduler %}, sce_clock_monotonic(){% endif %}, basic_http_access_uri{% if model.host_processor_types %}, NULL{% endif %}{% if model.host_invoker_types %}, NULL{% endif %}{% if has_native_actions %}, actions{{ simulated_refused }}{% endif %});
 }
 {% endif %}
 {% if model.may_address_parent %}
@@ -6148,6 +6513,9 @@ SCE_SM_FN void {{ csym_prefix }}{{ model.name }}_init_with_parent({{ csym_prefix
 {% if has_native_actions %}
 SCE_SM_FN bool {{ csym_prefix }}{{ model.name }}_invoked_begin({{ csym_prefix }}{{ model.name }}_t *sm,
                                        const {{ native_actions_interface }} *actions,
+{% if has_native_duties %}
+                                       bool accept_simulated,
+{% endif %}
                                        void *parent_sm,
 {% else %}
 SCE_SM_FN void {{ csym_prefix }}{{ model.name }}_invoked_begin({{ csym_prefix }}{{ model.name }}_t *sm,
@@ -6160,11 +6528,17 @@ SCE_SM_FN void {{ csym_prefix }}{{ model.name }}_invoked_begin({{ csym_prefix }}
     (void)clock;
 {% endif %}
 {% if has_native_actions %}
+{% if has_native_duties %}
+    /* docs/adr/0038: this child states a duty, so a table that says it only
+       simulates them is refused here the way an incomplete one is, unless the
+       parent passes the opt-in its own caller gave it. The check is made where
+       the child meets its host and is not repeated at the parent. */
+{% endif %}
     /* The table is the host's answer for this child (docs/adr/0005, decision 6),
        copied in by the construction before the entry walk. A NULL or incomplete
        one is refused FIRST, so the child's storage is as the parent left it and
        the parent can report the start as failed. */
-    if (!{{ csym_prefix }}{{ model.name }}_init_construct(sm{% if model.needs_event_scheduler %}, clock{% endif %}{% if model.needs_script_engine %}, NULL{% endif %}{% if model.host_processor_types %}, NULL{% endif %}{% if model.host_invoker_types %}, NULL{% endif %}, actions)) {
+    if (!{{ csym_prefix }}{{ model.name }}_init_construct(sm{% if model.needs_event_scheduler %}, clock{% endif %}{% if model.needs_script_engine %}, NULL{% endif %}{% if model.host_processor_types %}, NULL{% endif %}{% if model.host_invoker_types %}, NULL{% endif %}, actions{% if has_native_duties %}, accept_simulated{% elif takes_simulated_host %}, false{% endif %})) {
         return false;
     }
 {% else %}
@@ -6199,6 +6573,176 @@ SCE_SM_FN void {{ csym_prefix }}{{ model.name }}_invoked_enter({{ csym_prefix }}
     end_turn(sm, _turn_opened);
 {% endif %}
 }
+
+/* SCE_MESH.md, Child Sessions in Mesh (docs/adr/0043): install the router this
+   child's parent gave it. What a host installs on a machine it starts, the
+   parent installs here, between `_invoked_begin` (which zeroes the struct) and
+   `_invoked_enter` (whose first `<onentry>` may already send): the child's
+   peer sends, its Mesh requests and the factory of its own children's routers
+   are all the router's. */
+SCE_SM_FN void {{ csym_prefix }}{{ model.name }}_install_mesh_router({{ csym_prefix }}{{ model.name }}_t *sm,
+                                       const sce_child_mesh_router_t *router) {
+    if (sm == NULL || router == NULL) {
+        return;
+    }
+    sm->mesh_router = *router;
+    sm->has_mesh_router = true;
+{% if model.host_processor_types %}
+    if (router->send != NULL) {
+        (void)sce_host_registry_register_mesh_router(&sm->host_processors, router->send, router->user_data);
+    }
+    sm->host_processors.child_mesh_routers.ask = router->child_router;
+    sm->host_processors.child_mesh_routers.user_data = router->user_data;
+{% endif %}
+{% if 'sce:mesh-rpc' in model.host_invoker_types %}
+    if (router->invoke != NULL) {
+        (void)sce_host_invoker_register_mesh_rpc_invoker(&sm->host_invokers, router->invoke, router->user_data);
+    }
+{% endif %}
+}
+
+SCE_SM_FN void {{ csym_prefix }}{{ model.name }}_install_host_invokers({{ csym_prefix }}{{ model.name }}_t *sm,
+                                         const sce_host_invoker_registry_t *invokers) {
+{% if model.host_invoker_types %}
+    if (sm == NULL || invokers == NULL) {
+        return;
+    }
+    sm->host_invokers = *invokers;
+{% else %}
+    (void)sm;
+    (void)invokers;
+{% endif %}
+}
+
+{# The sessions of the tree below this one that can run a host-run invocation of their own: a
+   child session written as a `sce-static` document, and each candidate of a hybrid invoke that
+   is one. #}
+{% set complete_in = namespace(targets=[]) %}
+{% for inv in model.invokes | scxml_family %}
+{% if inv.candidates %}
+{% for c in inv.candidates %}
+{% if c.child_is_static %}
+{% set complete_in.targets = complete_in.targets + [{'slot': 'child_' ~ (inv.field_suffix | candidate_identifier(c.stem)), 'stem': c.stem}] %}
+{% endif %}
+{% endfor %}
+{% elif inv.kind == 'Scxml' and inv.child_is_static %}
+{% set complete_in.targets = complete_in.targets + [{'slot': 'child_' ~ inv.field_suffix, 'stem': inv.child_name}] %}
+{% endif %}
+{% endfor %}
+/* The one walk behind `_complete_host_invoke_in` and `_fail_host_invoke_in`: the ending of a
+   host-run invocation of the session named `session_id`, found wherever it stands in the tree.
+   `failed` says which ending it is, and `data` is its `done_data` or `error_data`. */
+SCE_SM_FN static bool {{ csym_prefix }}{{ model.name }}_end_host_invoke_in({{ csym_prefix }}{{ model.name }}_t *sm,
+                                         const char *session_id, const char *processor_type,
+                                         const char *invoke_id, uint64_t token, bool failed, const char *data,
+                                         const char *origin, const char *origin_type) {
+    if (sm == NULL || session_id == NULL) {
+        return false;
+    }
+{% if model.host_invoker_types %}
+    if (strcmp(session_id, sm->session_id) == 0) {
+        return failed ? {{ csym_prefix }}{{ model.name }}_fail_host_invoke(sm, processor_type, invoke_id, token, data, origin, origin_type)
+                      : {{ csym_prefix }}{{ model.name }}_complete_host_invoke_from(sm, processor_type, invoke_id, token, data, origin, origin_type);
+    }
+{% endif %}
+{% for target in complete_in.targets %}
+    if (sm->{{ target.slot }}_active &&
+        (failed ? {{ csym_prefix }}{{ target.stem }}_fail_host_invoke_in(&sm->{{ target.slot }}, session_id, processor_type,
+                                                                         invoke_id, token, data, origin, origin_type)
+                : {{ csym_prefix }}{{ target.stem }}_complete_host_invoke_in(&sm->{{ target.slot }}, session_id, processor_type,
+                                                                             invoke_id, token, data))) {
+        return true;
+    }
+{% endfor %}
+    (void)processor_type;
+    (void)invoke_id;
+    (void)token;
+    (void)failed;
+    (void)data;
+    (void)origin;
+    (void)origin_type;
+    return false;
+}
+
+SCE_SM_FN bool {{ csym_prefix }}{{ model.name }}_complete_host_invoke_in({{ csym_prefix }}{{ model.name }}_t *sm,
+                                         const char *session_id, const char *processor_type,
+                                         const char *invoke_id, uint64_t token, const char *done_data) {
+    return {{ csym_prefix }}{{ model.name }}_end_host_invoke_in(sm, session_id, processor_type, invoke_id, token, false,
+                                                                done_data, NULL, NULL);
+}
+
+SCE_SM_FN bool {{ csym_prefix }}{{ model.name }}_fail_host_invoke_in({{ csym_prefix }}{{ model.name }}_t *sm,
+                                         const char *session_id, const char *processor_type,
+                                         const char *invoke_id, uint64_t token, const char *error_data,
+                                         const char *origin, const char *origin_type) {
+    return {{ csym_prefix }}{{ model.name }}_end_host_invoke_in(sm, session_id, processor_type, invoke_id, token, true,
+                                                                error_data, origin, origin_type);
+}
+
+/* Apply what arrived for this child on its router, in the order the router
+   released it. An event the machine does not declare is dropped, as the engine
+   drops any such event; one from a peer carries `_event.origin`
+   `mesh://<source>` and the SCXML processor as origin type (SCE_MESH.md
+   §mesh-10.7). An end of a Mesh request ends it through the host-invoke door,
+   whose token check refuses one the machine no longer waits for. */
+SCE_SM_FN void {{ csym_prefix }}{{ model.name }}_apply_mesh_calls({{ csym_prefix }}{{ model.name }}_t *sm) {
+    if (sm == NULL || !sm->has_mesh_router || sm->mesh_router.take_call == NULL) {
+        return;
+    }
+    sce_mesh_call_t _call;
+    while (sm->mesh_router.take_call(sm->mesh_router.user_data, &_call)) {
+        char _origin[SCE_MAX_URI_LEN];
+        _origin[0] = '\0';
+        if (_call.source[0] != '\0') {
+            (void)snprintf(_origin, sizeof(_origin), "%s%s", SCE_MESH_ORIGIN_SCHEME, _call.source);
+        }
+        if (_call.kind == SCE_MESH_CALL_RAISE) {
+            /* Zeroed: the resolver writes it only for a name it knows, and the compiler
+               cannot see that a `true` answer is the only way past the `continue`
+               below, which an optimising build with -Werror reports. */
+            {{ csym_prefix }}{{ model.name }}_event_t _event = 0;
+            if (!{{ csym_prefix }}{{ model.name }}_resolve_event_by_name(_call.name, &_event)) {
+                continue;
+            }
+            {{ csym_prefix }}{{ model.name }}_event_with_meta_t _meta;
+            memset(&_meta, 0, sizeof(_meta));
+            _meta.event = _event;
+            sce_copy_bounded_data(_meta.data, _call.data);
+            sce_copy_bounded_id(_meta.send_id, _call.send_id);
+            sce_copy_bounded_event_type(_meta.type, "external");
+            if (_origin[0] != '\0') {
+                sce_copy_bounded_origin(_meta.origin, _origin);
+                sce_copy_bounded_id(_meta.origin_type, "http://www.w3.org/TR/scxml/#SCXMLEventProcessor");
+            }
+            {{ csym_prefix }}{{ model.name }}_raise_external(sm, &_meta);
+            continue;
+        }
+{% if 'sce:mesh-rpc' in model.host_invoker_types %}
+        {
+            const char *_origin_type = (_origin[0] != '\0') ? SCE_MESH_RPC_INVOKE_TYPE : "";
+            if (_call.failed) {
+                (void){{ csym_prefix }}{{ model.name }}_fail_host_invoke(sm, SCE_MESH_RPC_INVOKE_TYPE, _call.invoke_id,
+                                                                        _call.token, _call.data, _origin, _origin_type);
+            } else {
+                (void){{ csym_prefix }}{{ model.name }}_complete_host_invoke_from(sm, SCE_MESH_RPC_INVOKE_TYPE,
+                                                                                 _call.invoke_id, _call.token,
+                                                                                 _call.data, _origin, _origin_type);
+            }
+        }
+{% endif %}
+    }
+}
+
+/* The session ended: tell its router, once. */
+SCE_SM_FN void {{ csym_prefix }}{{ model.name }}_detach_mesh({{ csym_prefix }}{{ model.name }}_t *sm) {
+    if (sm == NULL || !sm->has_mesh_router) {
+        return;
+    }
+    sm->has_mesh_router = false;
+    if (sm->mesh_router.detach != NULL) {
+        sm->mesh_router.detach(sm->mesh_router.user_data);
+    }
+}
 {% endif %}
 
 SCE_SM_FN void {{ csym_prefix }}{{ model.name }}_destroy({{ csym_prefix }}{{ model.name }}_t *sm) {
@@ -6214,6 +6758,13 @@ SCE_SM_FN void {{ csym_prefix }}{{ model.name }}_destroy({{ csym_prefix }}{{ mod
        — its pending entry lives in the bounded queue the parent owns
        outright. */
     {{ csym_prefix }}{{ model.name }}_destroy_active_children(sm);
+    {% endif %}
+    {% if static_datamodel %}
+    /* SCE_MESH.md, Child Sessions in Mesh: a child session's end, after its
+       own children were torn down above, so a grandchild is detached before
+       its parent. Nothing for a machine given no router, or detached already
+       when it reached its final. */
+    {{ csym_prefix }}{{ model.name }}_detach_mesh(sm);
     {% endif %}
     {% if model.needs_script_engine %}
 {{ se.lua_destroy_engine() }}

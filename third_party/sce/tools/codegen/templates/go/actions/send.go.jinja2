@@ -151,10 +151,13 @@
 {% endif %}
 {% if in_block %}
 	return  // W3C SCXML 4.9: the error ends the block
+{# The `return` is unconditional: the action list emits nothing after it
+   (`block_flow`, go/entry_exit_actions.go.jinja2). #}
+{% set block_flow.ended = true %}
 {% endif %}
 {% else %}
 {# ── The element's own arguments, evaluated once ──
-   W3C SCXML 6.2: "The Processor MUST evaluate all arguments to <send> when the
+   W3C SCXML 6.2.3: "The Processor MUST evaluate all arguments to <send> when the
    <send> element is evaluated", and "if the evaluation of <send>'s arguments
    produces an error, the Processor MUST discard the message without attempting
    to deliver it". So every argument is read here, before any arm runs, and the
@@ -405,6 +408,7 @@
 {% endif %}
 {% if in_block %}
 	return  // W3C SCXML 4.9: the error ends the block
+{% set block_flow.ended = true %}
 {% endif %}
 {% elif action.target_unsupported %}
 	// W3C SCXML 6.2.4: "{{ action.target }}" is not a target this processor can
@@ -418,6 +422,7 @@
 {% endif %}
 {% if in_block %}
 	return  // W3C SCXML 4.9: the error ends the block
+{% set block_flow.ended = true %}
 {% endif %}
 {% elif is_http and not action.target and not action.targetexpr and not action.send_type_host_served %}
 	// W3C SCXML C.2 (test 577): BasicHTTP names no target to post to.
@@ -436,6 +441,7 @@
 {% endif %}
 {% if in_block %}
 	return  // W3C SCXML 4.9: the error ends the block
+{% set block_flow.ended = true %}
 {% endif %}
 {% elif names_no_invocation and not action.send_type_host_served %}
 	// W3C SCXML C.1 + 6.4: no invocation of this document is called
@@ -448,6 +454,7 @@
 	}
 {% if in_block %}
 	return  // W3C SCXML 4.9: the error ends the block
+{% set block_flow.ended = true %}
 {% endif %}
 {% else %}
 {# ── Build event data from <param>, namelist, or <content> ── #}
@@ -782,7 +789,7 @@
 {% if invoke_info.invoke_id == invoke_target_id %}
 	// A child whose session has reached its final state has ended, and is not
 	// there to address.
-	if child := p.child{{ invoke_info.invoke_id | to_pascal_case }}; child != nil && !child.IsInFinalState() {
+	if child := p.child{{ invoke_info.field_suffix | to_pascal_case }}; child != nil && !child.IsInFinalState() {
 {% if action.event or (action.eventexpr and model.needs_script_engine) or action.native_event %}
 {% if delay_go %}
 		// W3C SCXML 6.2: named now, reached when the delay has elapsed — or
@@ -791,6 +798,9 @@
 			sce.ScheduledRoute{Kind: sce.RouteInvocation, EventName: {{ event_name_go }}, InvokeID: "{{ invoke_info.invoke_id | escape_go }}"})
 {% else %}
 		sce.DeliverToChild(child, {{ event_name_go }}, eventDataStr)
+		// docs/adr/0045: what the child sent in answer reaches this session within
+		// the delivery, so nothing is between the two when it returns.
+		p.SettleChildren(engine)
 {% endif %}
 {% else %}
 		_ = child

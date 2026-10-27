@@ -64,13 +64,29 @@
                 // W3C SCXML 3.8: onentry block {{ loop.index }}/{{ state.on_entry_blocks | length }}
                 // Labeled block allows actions to break out on error (W3C 3.8: error stops block)
                 'action_block: {
+{# `block_flow` is what one list of executable content knows about its own
+   end. An element the build has already decided will raise — a `<send>`
+   whose type, target or delay is refused, an `<assign>` to a read-only
+   location — ends the block with a `break 'action_block` that no condition
+   guards, and sets `block_flow.ended` where it writes it. Nothing after it
+   can run (W3C SCXML 4.9: the error ends the block), and rustc reports a
+   statement after it as unreachable code, so the list writes none: the
+   elements after it are not emitted. Every list an action is rendered into
+   binds its own `block_flow` — each block here, each branch of an <if>
+   (actions/if.rs.jinja2), each <foreach> body — and an action template that
+   ends its block unconditionally sets the flag of the list it was rendered
+   into. The Go templates follow the same rule (go/entry_exit_actions.go.jinja2). #}
+{% with block_flow = namespace(ended=false) %}
 {% for action in block %}
+{% if not block_flow.ended %}
 {%- if action.req or action.unresolved %}
 {{ annot.annotation_block(action, "rust", "                ") -}}
 {%- endif %}
                 {% with in_action_block=true %}{% include 'actions/' ~ action.type ~ '.rs.jinja2' %}{% endwith %}
 
+{% endif %}
 {% endfor %}
+{% endwith %}
                 }
 {% endfor %}
 {% if state.initial_transition_actions %}
@@ -81,10 +97,14 @@
                 // deeper target, nor when a <history> restores its children.
                 if is_default_entry {
                     'action_block: {
+{% with block_flow = namespace(ended=false) %}
 {% for action in state.initial_transition_actions %}
+{% if not block_flow.ended %}
                     {% with in_action_block=true %}{% include 'actions/' ~ action.type ~ '.rs.jinja2' %}{% endwith %}
 
+{% endif %}
 {% endfor %}
+{% endwith %}
                     }
                 }
 {% endif %}
@@ -372,10 +392,14 @@
             {{ machine_name }}History::{{ history_id | to_state_variant }} => {
                 // W3C SCXML 4.9: the default content is one block; an error ends it.
                 'action_block: {
+{% with block_flow = namespace(ended=false) %}
 {% for action in history_info.default_actions %}
+{% if not block_flow.ended %}
                 {% with in_action_block=true %}{% include 'actions/' ~ action.type ~ '.rs.jinja2' %}{% endwith %}
 
+{% endif %}
 {% endfor %}
+{% endwith %}
                 }
             }
 {% endif %}
@@ -404,8 +428,9 @@
 {% for history_id, history_info in model.history_states | dictsort %}
         if state == {{ machine_name }}State::{{ history_info.parent | to_state_variant }} {
             // W3C SCXML 3.11: {{ history_info.type }} history — SCE Protocol-Synthesis
-            // RFC §synth-5-J-2: the record is a [`StateChain`] (heapless under
-            // no_std), and a subset of the configuration, so it fits the depth bound.
+            // RFC §synth-5-J-2: the record is this machine's `Configuration`
+            // (heapless under no_std), and a subset of a configuration, so it
+            // fits the configuration's bound.
             self.history_{{ history_id }} = Some(::sce_rust_runtime::helpers::microstep::recorded_history(
                 &::sce_rust_runtime::PolicyDocument(&*self),
                 {{ machine_name }}State::{{ history_info.parent | to_state_variant }},
@@ -434,13 +459,17 @@
                 // W3C SCXML 3.9: onexit block {{ loop.index }}/{{ state.on_exit_blocks | length }}
                 // Labeled block allows actions to break out on error (W3C 3.9: error stops block)
                 'action_block: {
+{% with block_flow = namespace(ended=false) %}
 {% for action in block %}
+{% if not block_flow.ended %}
 {%- if action.req or action.unresolved %}
 {{ annot.annotation_block(action, "rust", "                ") -}}
 {%- endif %}
                 {% with in_action_block=true %}{% include 'actions/' ~ action.type ~ '.rs.jinja2' %}{% endwith %}
 
+{% endif %}
 {% endfor %}
+{% endwith %}
                 }
 {% endfor %}
             }
@@ -487,6 +516,10 @@
                     // cancel-drop, test252).
                     if let Some(mut child) = self.child_{{ invoke_info.field_suffix }}.take() {
                         child.stop();
+                        // Child sessions in Mesh (SCE_MESH.md): the session
+                        // ended, after the child stopped, so what it sent while
+                        // stopping was handed to its router first.
+                        child.detach_mesh();
                     }
                 }
                 self.active_invokes.remove("{{ invoke_info.invoke_id }}");
@@ -496,15 +529,20 @@
                 // W3C SCXML 6.4: Cleanup running hybrid child '{{ invoke_info.invoke_id }}'
 {% if invoke_info.candidates %}
 {# At most one candidate slot holds a child; clearing all of them is the
-   same guard the single-slot shape used, once per slot. #}
+   same guard the single-slot shape used, once per slot. A cancelled candidate
+   is exited before it is dropped, as a static child is (§scxml-D-exitInterpreter),
+   which cancels its own children first; then the session's Mesh router is told
+   it ended (SCE_MESH.md, Child Sessions in Mesh). #}
 {% for candidate in invoke_info.candidates %}
-                if self.child_{{ invoke_info.field_suffix }}_{{ candidate.stem }}.is_some() {
-                    self.child_{{ invoke_info.field_suffix }}_{{ candidate.stem }} = None;
+                if let Some(mut child) = self.child_{{ invoke_info.field_suffix | candidate_identifier(candidate.stem) }}.take() {
+                    child.stop();
+                    child.detach_mesh();
                 }
 {% endfor %}
 {% else %}
-                if self.child_{{ invoke_info.field_suffix }}.is_some() {
-                    self.child_{{ invoke_info.field_suffix }} = None;
+                if let Some(mut child) = self.child_{{ invoke_info.field_suffix }}.take() {
+                    child.stop();
+                    child.detach_mesh();
                 }
 {% endif %}
                 self.active_invokes.remove("{{ invoke_info.invoke_id }}");

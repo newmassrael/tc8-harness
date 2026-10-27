@@ -12,6 +12,9 @@
     The statement carries its own indentation because the three call
     sites below share it. #}
 {% macro decode_field(field) %}
+{% if field.length_ref_end is defined %}
+        if (_frame_len < static_cast<std::size_t>({{ field.length_ref_end }})) return std::nullopt;
+{% endif %}
 {% if field.is_enum and field.enum_is_open %}
         {{ field.cpp_type }} {{ field.id }} = {{ field.enum_from_underlying }}({{ field.decode_expr }});
 {%- elif field.is_enum %}
@@ -220,7 +223,9 @@ struct {{ struct_name }} {
         };
 {% elif has_variable_fields %}
         std::size_t _frame_len = cursor.remaining();
+{% if min_bytes > 0 %}
         if (_frame_len < {{ min_bytes }}) return std::nullopt;
+{% endif %}
         const std::uint8_t* raw = cursor.peek_slice(_frame_len);
         if (raw == nullptr) return std::nullopt;
 {% for field in fields %}

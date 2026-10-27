@@ -30,7 +30,7 @@
     Port-of-Go template: tools/codegen/templates/go/invoke_methods.go.jinja2.
 #}
 
-{%- import '_macros/sce_annotation_marker.jinja2' as annot %}
+{%- import '_macros/python_invoke_start.jinja2' as invoke_start %}
 
     # ── Invokes (W3C SCXML 6.4) ───────────────────────────────────
 
@@ -40,38 +40,7 @@
 {% if scxml_list %}
         if state == {{ machine_name }}State.{{ state_id | to_python_const }}:
 {% for inv in scxml_list %}
-{{ annot.annotation_block(inv, "python", "            ") }}            # W3C SCXML 6.4.1: Generate the runtime invoke id with the
-            # `<state_id>.<instance>.<element_id>` shape (test224 checks
-            # the `stateid.` prefix; test338 compares an `idlocation`
-            # binding against `_event.invokeid` on a child-raised event,
-            # so both must share the same runtime id). Mirrors Rust's
-            # `format!("{}.{}.{invoke_id}", state_id, self as *const _ as usize)`
-            # in `tools/codegen/templates/rust/entry_exit_actions.rs.jinja2`.
-            _runtime_invoke_id = f"{{ state_id }}.{id(self)}.{{ inv.invoke_id }}"
-{% if inv.idlocation %}
-            # W3C SCXML 6.4.1: Store the generated id in the datamodel
-            # so author expressions (`<assign>` from `_event.invokeid`,
-            # transition `cond="Var1==Var2"`) can match against it. The
-            # write is the assignment `<assign>` makes, so a member path
-            # lands and a location that cannot take the id starts nothing.
-            if self._store_id_in_location(
-                engine,
-                {{ inv.idlocation | to_lua_location | py_string_literal }},
-                _runtime_invoke_id,
-                "<invoke>",
-            ):
-                engine._pending_invokes.append(PendingInvoke(
-                    invoke_id=_runtime_invoke_id,
-                    owner_state_name={{ state_id | py_string_literal }},
-                    document_id={{ inv.invoke_id | py_string_literal }},
-                ))
-{% else %}
-            engine._pending_invokes.append(PendingInvoke(
-                invoke_id=_runtime_invoke_id,
-                owner_state_name={{ state_id | py_string_literal }},
-                document_id={{ inv.invoke_id | py_string_literal }},
-            ))
-{% endif %}
+{{ invoke_start.defer_scxml_invoke(inv, state_id, "            ") }}
 {% endfor %}
 {% endif %}
 {% set unsup_list = state.invokes | unsupported | list %}
@@ -120,7 +89,7 @@
    raises error.execution and starts nothing. #}
                 # §scxml-6.4: the `srcexpr` names the document to start.
                 try:
-                    __sce_selected_{{ inv.invoke_id | to_python_const }} = _document_stem({{ inv.native_src }})
+                    __sce_selected_{{ inv.field_suffix | to_python_const }} = _document_stem({{ inv.native_src }})
                 except sce_algorithm.AlgorithmFailure:
                     self._raise_error_execution(
                         engine,
@@ -128,7 +97,7 @@
                     )
                     continue
 {% elif inv.srcexpr or inv.contentexpr %}
-                # W3C SCXML 6.4.3: evaluate the expression at invoke-fire
+                # W3C SCXML 6.4.2: evaluate the expression at invoke-fire
                 # time and raise `error.execution` when it cannot be
                 # evaluated. The value does not choose the child — that is
                 # fixed at build time, the same on every backend that spawns
@@ -148,7 +117,7 @@
                     # dataclass, so stringifying it yields its repr and the
                     # stem below would be cut out of `ScriptValue(kind=...`.
                     # Measured — the fixture reached `fail` on the first run.
-                    __sce_selected_{{ inv.invoke_id | to_python_const }} = _document_stem(
+                    __sce_selected_{{ inv.field_suffix | to_python_const }} = _document_stem(
                         getattr(__sce_value, "string_val", "") or ""
                     )
 {% endif %}
@@ -167,12 +136,12 @@
                 # Interpreter reports when a document will not load — before
                 # any argument is read, as there.
                 import importlib as _importlib
-                _child_module_{{ inv.invoke_id | to_python_const }} = {
+                _child_module_{{ inv.field_suffix | to_python_const }} = {
 {% for candidate in inv.candidates %}
                     {{ candidate.stem | py_string_literal }}: _importlib.import_module(("." if __package__ else "") + {{ (candidate.stem ~ "_sm") | py_string_literal }}, __package__ or None),
 {% endfor %}
-                }.get(__sce_selected_{{ inv.invoke_id | to_python_const }})
-                if _child_module_{{ inv.invoke_id | to_python_const }} is None:
+                }.get(__sce_selected_{{ inv.field_suffix | to_python_const }})
+                if _child_module_{{ inv.field_suffix | to_python_const }} is None:
                     self._raise_error_execution(
                         engine,
                         "<invoke srcexpr{% if inv.srcexpr %}='{{ inv.srcexpr }}'{% endif %}> evaluated to a document it did not declare",
@@ -185,7 +154,7 @@
 {% for candidate in inv.candidates %}
                     {{ candidate.stem | py_string_literal }}: frozenset([{% for cv in candidate.child_datamodel_vars | default([], true) %}{{ cv | py_string_literal }}{{ ", " if not loop.last }}{% endfor %}]),
 {% endfor %}
-                }[__sce_selected_{{ inv.invoke_id | to_python_const }}]
+                }[__sce_selected_{{ inv.field_suffix | to_python_const }}]
 {% endif %}
 {% endif %}
 {% if inv.namelist %}
@@ -216,39 +185,64 @@
    acts of its own — asked here, where the invocation starts, and not for a
    candidate the value did not name. A candidate that declares none is built as
    it was. #}
-                _child_host_{{ inv.invoke_id | to_python_const }} = {
+{% set duty_stems = inv.candidates | selectattr("child_declares_host_duties") | map(attribute="stem") | list %}
+{% if duty_stems %}
+{# docs/adr/0038: a candidate that states a duty is built through the check that
+   refuses a host that only simulates, so it is handed the statement the caller
+   gave this machine; a candidate that states none takes no such argument. #}
+                _child_opt_in_{{ inv.field_suffix | to_python_const }} = (
+                    {"accept_simulated_host": self._accept_simulated_host}
+                    if __sce_selected_{{ inv.field_suffix | to_python_const }} in ({% for stem in duty_stems %}{{ stem | py_string_literal }}, {% endfor %})
+                    else {}
+                )
+{% endif %}
+                _child_host_{{ inv.field_suffix | to_python_const }} = {
 {% for candidate in inv.candidates if candidate.child_host_call %}
                     {{ candidate.stem | py_string_literal }}: lambda: {{ candidate.child_host_call }},
 {% endfor %}
-                }.get(__sce_selected_{{ inv.invoke_id | to_python_const }})
+                }.get(__sce_selected_{{ inv.field_suffix | to_python_const }})
                 _child_policy = (
-                    _child_module_{{ inv.invoke_id | to_python_const }}.Policy(
-                        _child_host_{{ inv.invoke_id | to_python_const }}()
+                    _child_module_{{ inv.field_suffix | to_python_const }}.Policy(
+                        _child_host_{{ inv.field_suffix | to_python_const }}(){% if duty_stems %}, **_child_opt_in_{{ inv.field_suffix | to_python_const }}{% endif %}
+
                     )
-                    if _child_host_{{ inv.invoke_id | to_python_const }} is not None
-                    else _child_module_{{ inv.invoke_id | to_python_const }}.Policy()
+                    if _child_host_{{ inv.field_suffix | to_python_const }} is not None
+                    else _child_module_{{ inv.field_suffix | to_python_const }}.Policy()
                 )
 {% else %}
-                _child_policy = _child_module_{{ inv.invoke_id | to_python_const }}.Policy()
+                _child_policy = _child_module_{{ inv.field_suffix | to_python_const }}.Policy()
 {% endif %}
 {% else %}
 {# A child is a sibling of its parent: a module of the parent's own package when
    it has one (a machine that calls an algorithm is one of a package, and its
    child is imported beside it), a top-level module beside it otherwise. #}
                 import importlib as _importlib
-                _child_module_{{ inv.invoke_id | to_python_const }} = _importlib.import_module(
+                _child_module_{{ inv.field_suffix | to_python_const }} = _importlib.import_module(
                     ("." if __package__ else "") + {{ (inv.child_name ~ "_sm") | py_string_literal }},
                     __package__ or None,
                 )
 {# The host the child performs its acts through leads its policy's parameters, as
    the machine's own does, and is asked of the parent's host each time the
    invocation starts (docs/adr/0005, decision 6). #}
-                _child_policy = _child_module_{{ inv.invoke_id | to_python_const }}.Policy({{ inv.child_host_call }})
+{% if inv.child_declares_host_duties %}
+                _child_policy = _child_module_{{ inv.field_suffix | to_python_const }}.Policy({{ inv.child_host_call }}, accept_simulated_host=self._accept_simulated_host)
+{% else %}
+                _child_policy = _child_module_{{ inv.field_suffix | to_python_const }}.Policy({{ inv.child_host_call }})
+{% endif %}
 {% endif %}
                 # Engine DI Parity RFC (Path B+): forward the parent's
                 # script engine so the child shares the same Lua VM /
                 # session manager, mirroring Rust + Kotlin invoke parity.
-                _child_engine = Engine(_child_policy, script_engine=engine._script_engine)
+                # docs/adr/0045: the child's id is this session's and the id of
+                # this start, so it comes from the tree alone.
+                _child_engine = Engine(
+                    _child_policy,
+                    script_engine=engine._script_engine,
+                    session_id=f"{self._session_id}.{entry.invoke_id}",
+                )
+                # docs/adr/0045: the invokers a host registered serve every
+                # session of the tree, this child's too, before it runs.
+                engine.share_host_invokers_with(_child_engine)
 {# `datamodel="sce-static"`: each argument is native code
    (`Param::native_seed`), read from the machine's own fields when the invoke
    executes, and handed to the child's variable of the same name through its
@@ -257,7 +251,7 @@
 {% set native_seeded = inv.params | selectattr("native_seed") | list | length > 0 %}
 {% if native_seeded %}
                 # W3C SCXML 6.4.1: hand the child its values before it initializes
-                _seed = _child_module_{{ inv.invoke_id | to_python_const }}.InvokeParams()
+                _seed = _child_module_{{ inv.field_suffix | to_python_const }}.InvokeParams()
 {% for param in inv.params %}
 {% if param.native_seed %}
                 try:
@@ -282,10 +276,10 @@
    invoke's whatever the child keeps. #}
 {% for candidate in inv.candidates %}
 {% if candidate.seeds or candidate.unkept %}
-                if __sce_selected_{{ inv.invoke_id | to_python_const }} == {{ candidate.stem | py_string_literal }}:
+                if __sce_selected_{{ inv.field_suffix | to_python_const }} == {{ candidate.stem | py_string_literal }}:
 {% if candidate.seeds %}
                     # W3C SCXML 6.4.1: hand the child its values before it initializes
-                    _seed = _child_module_{{ inv.invoke_id | to_python_const }}.InvokeParams()
+                    _seed = _child_module_{{ inv.field_suffix | to_python_const }}.InvokeParams()
 {% for param in candidate.seeds %}
 {% if param.native_seed %}
                     try:
@@ -330,7 +324,7 @@
 {% if inv.namelist %}
 {% if inv.candidates or inv.child_datamodel_vars is defined %}
 {% if not inv.candidates %}
-                # W3C SCXML 6.3.2: Only seed names that the child
+                # W3C SCXML 6.4.3: Only seed names that the child
                 # actually declares in its `<datamodel>`.
                 _child_vars = { {% for cv in inv.child_datamodel_vars %}{{ cv | py_string_literal }}{{ ", " if not loop.last }}{% endfor %} }
 {% endif %}
@@ -419,7 +413,25 @@
                 # installed before the child starts, since its first
                 # `<onentry>` may already use it.
                 _child_policy._parent_queue = []
-                _invoke = ScxmlInvoke(_child_engine, _child_policy._parent_queue)
+                # Child sessions in Mesh (SCE_MESH.md): the child's router,
+                # asked of this machine's factory with the invoke's id and the
+                # stem of the child's document (empty for one written inline),
+                # and installed before the child initializes, since its first
+                # `<onentry>` may already send to a peer.
+                engine.start_child_mesh(
+                    _child_engine,
+                    {{ inv.invoke_id | py_string_literal }},
+                    {% if inv.candidates %}__sce_selected_{{ inv.field_suffix | to_python_const }}{% elif inv.src is defined and inv.src and not inv.src.startswith('#') %}{{ inv.child_name | py_string_literal }}{% else %}""{% endif %},
+                )
+                # docs/adr/0045: what a save of the tree asks of this child: the
+                # document it runs, and the child's own `save_at` (a document
+                # generated without the save API has none).
+                _invoke = ScxmlInvoke(
+                    _child_engine,
+                    _child_policy._parent_queue,
+                    saved_document={% if inv.candidates %}__sce_selected_{{ inv.field_suffix | to_python_const }}{% else %}{{ inv.child_name | py_string_literal }}{% endif %},
+                    save_session=getattr(_child_module_{{ inv.field_suffix | to_python_const }}, "save_at", None),
+                )
                 _invoke.start(engine)
                 # W3C SCXML 6.4: key `_active_invokes` by the static
                 # element id so `<send target="#_<id>">` (explicit id
@@ -430,6 +442,8 @@
                 engine._active_invokes[{{ inv.invoke_id | py_string_literal }}] = _invoke
 {% if inv.idlocation %}
                 _invoke_id_field = entry.invoke_id
+                # The events the child sends on later drives carry the same id.
+                _invoke.event_invoke_id = _invoke_id_field
 {% else %}
                 _invoke_id_field = {{ inv.invoke_id | py_string_literal }}
 {% endif %}

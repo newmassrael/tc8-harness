@@ -133,9 +133,51 @@ class {{ machine_name }}StateMachine(
 {% endfor %}
 {% if model.needs_script_engine %}
     scriptEngine: ScxmlScriptEngine,
+{% endif %}
+{% if accepts_simulated_host %}
+{# docs/adr/0038, decision 3: the last parameter, defaulted, so a caller that
+   builds this machine as before still compiles and a caller that means to run
+   it on a recorder says so by name. It is held, so the children this machine
+   builds with a host are built under the same statement. #}
+    /**
+     * docs/adr/0038: `true` states that this machine is built for a host that
+     * only simulates its duties (a recorder, a test double) on purpose. The
+     * statement covers the children this machine builds with a host.
+     */
+    private val acceptSimulatedHost: Boolean = false,
+{% endif %}
+{% if static_saved_shape %}
+{# docs/adr/0045, "Questions the owner answered" 2: the last parameter,
+   defaulted, so a caller that builds this machine as before still compiles. A
+   root is never without an id: the host gives it here, or it is drawn. #}
+    /**
+     * docs/adr/0045: the id of this machine's session (`_sessionid`), which a
+     * saved state names it by and a peer addresses it by (`#_scxml_<id>`), given
+     * by the host that creates it: an XML Nmtoken, refused when it is not one
+     * and never replaced. Drawn (a UUID version 4) when the host gives none. A
+     * child is given the id its parent derives for it, and this is not read.
+     */
+    sessionId: String? = null,
+{% endif %}
+{% if model.needs_script_engine %}
 ) : StateMachineEngine<{{ machine_name }}State, {{ machine_name }}Event>(scriptEngine) {
 {% else %}
 ) : StateMachineEngine<{{ machine_name }}State, {{ machine_name }}Event>() {
+{% endif %}
+{% if static_saved_shape %}
+
+    init {
+        bindRootSessionId(sessionId)
+    }
+{% endif %}
+{% if has_native_duties %}
+
+    init {
+        require(actions.realization == ActionRealization.PERFORMS || acceptSimulatedHost) {
+            "{{ machine_name }} states a duty and its host declares that it only simulates the duties: " +
+                "pass acceptSimulatedHost = true to run it on a recorder or a test double on purpose"
+        }
+    }
 {% endif %}
 {% if static_fields %}
 
@@ -153,10 +195,11 @@ class {{ machine_name }}StateMachine(
    all the same. #}
 {# What a host is handed of a published field: a byte string as a copy, because
    the array is the machine's own and a host that wrote into it would change the
-   variable behind its bound; a record with a copy of each byte string it holds,
-   for the same reason; and so each record of a list. #}
+   variable behind its bound, and an optional one (docs/adr/0055) as a copy where
+   it is present; a record with a copy of each byte string it holds, for the same
+   reason; and so each record of a list. #}
 {% macro handed_out(field) -%}
-{% if field.saved_type == "bytes" %}{{ field.name }}.copyOf(){% elif field.holds_bytes and field.saved_kind == "record" %}{{ field.name }}.detached(){% elif field.holds_bytes and field.saved_kind == "record_list" %}{{ field.name }}.map { it.detached() }{% else %}{{ field.name }}{% endif %}
+{% if field.saved_type == "bytes" and field.saved_kind == "optional" %}{{ field.name }}?.copyOf(){% elif field.saved_type == "bytes" %}{{ field.name }}.copyOf(){% elif field.holds_bytes and field.saved_kind == "record" %}{{ field.name }}.detached(){% elif field.holds_bytes and field.saved_kind == "record_list" %}{{ field.name }}.map { it.detached() }{% else %}{{ field.name }}{% endif %}
 {%- endmacro %}
 {% for field in static_fields %}
 {% if field.published %}
@@ -258,8 +301,12 @@ class {{ machine_name }}StateMachine(
 {% if static_saved_shape %}
 
     // ── SCE Accepted Subset §2.15: saving this machine, restoring it ─────────
-{% macro saved_write(kind, type, name) -%}
-{%- if kind == "record" or kind == "enum" -%}
+{% macro saved_write(kind, type, name, elem) -%}
+{%- if kind == "optional" and elem == "enum" -%}
+SavedValues.optional({{ name }}) { it.toSaved() }
+{%- elif kind == "optional" -%}
+SavedValues.optional({{ name }}) { SavedValues.of(it) }
+{%- elif kind == "record" or kind == "enum" -%}
 {{ name }}.toSaved()
 {%- elif kind == "list" -%}
 SavedValues.list({{ name }}) { SavedValues.of(it) }
@@ -269,8 +316,16 @@ SavedValues.list({{ name }}) { it.toSaved() }
 SavedValues.of({{ name }})
 {%- endif -%}
 {%- endmacro %}
-{% macro saved_read(kind, type, value, what, bound) -%}
-{%- if kind == "record" or kind == "enum" -%}
+{% macro saved_read(kind, type, value, what, bound, elem) -%}
+{%- if kind == "optional" and elem == "enum" -%}
+SavedValues.optional({{ value }}, {{ what }}) { e, w -> {{ type }}.fromSaved(e, w) }
+{%- elif kind == "optional" and type == "bytes" -%}
+SavedValues.optional({{ value }}, {{ what }}) { e, w -> SavedValues.bytes(e, w, {{ bound if bound is not none else "Int.MAX_VALUE" }}) }
+{%- elif kind == "optional" and type == "string" and bound is not none -%}
+SavedValues.optional({{ value }}, {{ what }}) { e, w -> SavedValues.string(e, w, {{ bound }}) }
+{%- elif kind == "optional" -%}
+SavedValues.optional({{ value }}, {{ what }}) { e, w -> SavedValues.{{ type }}(e, w) }
+{%- elif kind == "record" or kind == "enum" -%}
 {{ type }}.fromSaved({{ value }}, {{ what }})
 {%- elif kind == "list" -%}
 SavedValues.list({{ value }}, {{ what }}, {{ bound }}) { e, w -> SavedValues.{{ type }}(e, w) }
@@ -288,14 +343,63 @@ SavedValues.{{ type }}({{ value }}, {{ what }})
    `fromSaved`, emitted with the type by the static lowering). A per-type function here, named by
    prefixing the record's type, would reserve every variable name that prefix
    could match (`crate::reader_names` reads a template name as a pattern), and
-   did: `readBackProbe` lost its reader in every backend (2026-09-27). #}
+   did: `readBackProbe` lost its reader in every backend (2026-09-27).
+   An optional value (docs/adr/0055) is written as `null` or as its present
+   value, `elem` saying how that is held: by its own type for an enum, as a
+   scalar otherwise; and it is read back absent from `null` and otherwise as its
+   present value is, a text held to its bound. #}
 
     /**
-     * The shape a saved state of this document is bound to: a state saved
-     * from a document that renamed, re-typed or moved a state or a variable is
-     * refused, one saved before a guard or an action changed is not.
+     * What a saved state of this document is bound to: a state saved from a
+     * document that renamed, re-typed or moved a state or a variable is
+     * refused, one saved before a guard or an action changed is not, and one
+     * saved at an earlier revision of a record schema is read with each field a
+     * later revision added at its default.
      */
-    val savedShape: String = "{{ static_saved_shape }}"
+    val savedShape: SavedShape = SavedShape(
+        first = "{{ static_saved_shape.first }}",
+        revised = "{{ static_saved_shape.revised }}",
+        format2First = "{{ static_saved_shape.format2_first }}",
+        format2Revised = "{{ static_saved_shape.format2_revised }}",
+        records = listOf(
+{% for record in static_saved_shape.records %}
+            RecordLineage(
+                event = "{{ record.event | escape_kotlin }}",
+                revision = {{ record.revision }},
+                revisions = listOf({% for fields in record.revisions %}"{{ fields }}"{{ ", " if not loop.last }}{% endfor %}),
+                added = listOf(
+{% for field in record.added %}
+                    AddedField("{{ field.id | escape_kotlin }}", {{ field.since }}, "{{ field.default | escape_kotlin }}"),
+{% endfor %}
+                ),
+                holders = listOf(
+{% for holder in record.holders %}
+                    RecordHolder("{{ holder.variable | escape_kotlin }}", {{ "true" if holder.list else "false" }}),
+{% endfor %}
+                ),
+            ),
+{% endfor %}
+        ),
+        enums = listOf(
+{% for lineage in static_saved_shape.enums %}
+            EnumLineage(
+                key = "{{ lineage.key | escape_kotlin }}",
+                revision = {{ lineage.revision }},
+                revisions = listOf({% for fields in lineage.revisions %}"{{ fields }}"{{ ", " if not loop.last }}{% endfor %}),
+                added = listOf(
+{% for variant in lineage.added %}
+                    AddedVariant("{{ variant.name | escape_kotlin }}", {{ variant.since }}),
+{% endfor %}
+                ),
+                holders = listOf(
+{% for holder in lineage.holders %}
+                    EnumHolder("{{ holder.variable | escape_kotlin }}", {% if holder.field is not none %}"{{ holder.field | escape_kotlin }}"{% else %}null{% endif %}, {{ "true" if holder.list else "false" }}),
+{% endfor %}
+                ),
+            ),
+{% endfor %}
+        ),
+    )
 
     /**
      * This machine's whole state at the macrostep boundary it stands at —
@@ -312,7 +416,7 @@ SavedValues.{{ type }}({{ value }}, {{ what }})
         savedShape,
         linkedMapOf(
 {% for field in static_fields %}
-            "{{ field.id }}" to {{ saved_write(field.saved_kind, field.saved_type, field.name) }},
+            "{{ field.id }}" to {{ saved_write(field.saved_kind, field.saved_type, field.name, field.saved_elem) }},
 {% endfor %}
         ),
         wallNowMs,
@@ -338,18 +442,34 @@ SavedValues.{{ type }}({{ value }}, {{ what }})
      *   one of this document, or a value its variable's type cannot hold.
      */
     fun restore(saved: SavedState, wallNowMs: Long) {
-        beginRestore(saved, savedShape)
+        // The state as one of this machine: each record saved at an earlier
+        // revision of its schema holds the defaults of the fields added since.
+        val savedGrown = beginRestore(saved, savedShape)
 {% for field in static_fields %}
-        val saved{{ loop.index }} = {{ saved_read(field.saved_kind, field.saved_type, 'saved.variable("' ~ field.id ~ '")', '"' ~ field.id ~ '"', field.bound) }}
+        val saved{{ loop.index }} = {{ saved_read(field.saved_kind, field.saved_type, 'savedGrown.variable("' ~ field.id ~ '")', '"' ~ field.id ~ '"', field.bound, field.saved_elem) }}
 {% endfor %}
 {% for field in static_fields %}
         {{ field.name }} = saved{{ loop.index }}
 {% endfor %}
-        enterSaved(saved, wallNowMs)
+        enterSaved(savedGrown, wallNowMs)
     }
 
     /** [restore] at the host's wall clock now. */
     fun restore(saved: SavedState) = restore(saved, SavedState.wallClockMs())
+
+    // docs/adr/0045: this machine as a child session of another's saved state —
+    // saved with it, judged with it before anything is built, and restored in
+    // place of initialized.
+    override fun saveAsSession(wallNowMs: Long): SavedState = save(wallNowMs)
+
+    override fun judgeAsSession(saved: SavedState) {
+        val savedGrown = beginRestore(saved, savedShape)
+{% for field in static_fields %}
+        {{ saved_read(field.saved_kind, field.saved_type, 'savedGrown.variable("' ~ field.id ~ '")', '"' ~ field.id ~ '"', field.bound, field.saved_elem) }}
+{% endfor %}
+    }
+
+    override fun restoreAsSession(saved: SavedState, wallNowMs: Long) = restore(saved, wallNowMs)
 {% if model.invokes | scxml_family %}
 
     // §scxml-6.4: a saved state names the `<invoke>`s whose child is running,

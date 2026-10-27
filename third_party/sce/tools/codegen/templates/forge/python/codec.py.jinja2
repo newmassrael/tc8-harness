@@ -10,6 +10,10 @@
     that type, so the frame does not decode. The statement carries its
     own indentation because the three call sites below share it. #}
 {% macro decode_field(field) %}
+{% if field.length_ref_end is defined %}
+        if _frame_len < {{ field.length_ref_end }}:
+            return None
+{% endif %}
 {% if field.is_enum and field.enum_is_open %}
         {{ field.local }} = {{ field.enum_from_underlying }}({{ field.decode_expr }})
 {%- elif field.is_enum %}
@@ -231,8 +235,10 @@ class {{ struct_name }}:
 {% elif has_variable_fields %}
         try:
             _frame_len = cursor.remaining()
+{% if min_bytes > 0 %}
             if _frame_len < {{ min_bytes }}:
                 return None
+{% endif %}
             raw = cursor.peek_slice(_frame_len)
         except NeedMoreBytes:
             return None

@@ -12,6 +12,7 @@
    (`sce_invoke_pending_queue_t`) live in `backends/c/runtime/include/sce/invoke.h`
    as static inline helpers — no .c source.                             #}
 {%- import 'c/param_macros.jinja2' as param_macros %}
+{%- import '_macros/c_child_begin.jinja2' as child_begin %}
 {# §scxml-6.4: the clock a child this machine starts measures its delays on —
    this machine's own, read through `sce_clock_following`, so a host that owns
    the parent's time owns the child's too. A parent with no scheduler has no
@@ -340,7 +341,7 @@ static void {{ csym_prefix }}{{ model.name }}_execute_pending_invokes({{ csym_pr
         {% for state_id, state in model.states | dictsort %}
         {% for invoke_info in state.invokes | unsupported %}
         if (p->state == (int){{ csym_prefix | upper }}{{ model.name | upper }}_STATE_{{ state_id | to_c11_upper_ident }}
-            && p->invoke_idx == {{ loop.index0 + (state.invokes | scxml | length) }}) {
+            && p->invoke_idx == {{ loop.index0 + (state.invokes | scxml | length) + (state.invokes | hybrid | length) }}) {
 {% if invoke_info.host_served %}
             /* W3C SCXML 6.4.1: the host declared this `type`, so START the
                invocation rather than refusing it. The id handed over is the
@@ -655,37 +656,35 @@ static void {{ csym_prefix }}{{ model.name }}_execute_pending_invokes({{ csym_pr
                of the `<param>`s and the `namelist`, and only then entered, so
                an `<onentry>` of its initial configuration reads what it was
                handed. Its parent routing is stamped by the same call. */
-            {% if invoke_info.child_host_call %}
-            /* docs/adr/0005, decision 6: the child declares `<sce:action>`s, so it
-               is begun with the table its parent's own table answers for it,
-               asked here — where the invocation starts — and copied before the
-               entry walk. A host that has none to give, or an incomplete one, is
-               an invocation that cannot start: it is reported and nothing is
-               spawned, as an invoke of a type no invoker serves is. */
-            if (!{{ csym_prefix }}{{ invoke_info.child_name }}_invoked_begin(
-                    &sm->child_{{ invoke_info.field_suffix }},
-                    {{ invoke_info.child_host_call }},
-                    {% if invoke_info.child_has_send_to_parent %}sm,
-                    {{ csym_prefix }}{{ model.name }}_dispatch_external_by_name{% else %}NULL,
-                    NULL{% endif %},
-                    p->invoke_id,
-                    {{ child_clock_c }})) {
+            {# docs/adr/0005, decision 6: a child that declares `<sce:action>`s is begun with
+               the table its parent's own table answers for it, asked here — where the
+               invocation starts — and copied before the entry walk. A host that has none to
+               give, or an incomplete one, is an invocation that cannot start: it is reported
+               and nothing is spawned, as an invoke of a type no invoker serves is. #}
+            {% call child_begin.begin_static_child(csym_prefix, model.name, 'sm->child_' ~ invoke_info.field_suffix, invoke_info.child_name, invoke_info.child_host_call, invoke_info.child_declares_host_duties, invoke_info.child_has_send_to_parent, 'p->invoke_id', child_clock_c) %}
 {% if 'error.execution' in model.events %}
                 {{ csym_prefix }}{{ model.name }}_raise_platform_error(
                     sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
                     "<invoke id='{{ invoke_info.invoke_id | escape_c }}'> was given no complete host for its child");
 {% endif %}
                 continue;
+            {% endcall %}
+{% if model.host_invoker_types %}
+            {# docs/adr/0045: the invokers the host registered on the root serve the whole tree. #}
+            {{ csym_prefix }}{{ invoke_info.child_name }}_install_host_invokers(&sm->child_{{ invoke_info.field_suffix }}, &sm->host_invokers);
+{% endif %}
+{% if static_saved_shape %}
+            {# docs/adr/0045: a child session is known by its parent's id and the id its start
+               is made under, so a saved tree names every session from the root alone. #}
+            if (!{{ csym_prefix }}{{ invoke_info.child_name }}_bind_session_id(&sm->child_{{ invoke_info.field_suffix }}, sm->session_id, p->runtime_id)) {
+{% if 'error.execution' in model.events %}
+                {{ csym_prefix }}{{ model.name }}_raise_platform_error(
+                    sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
+                    "<invoke id='{{ invoke_info.invoke_id | escape_c }}'>'s session id does not fit the id this build holds");
+{% endif %}
+                continue;
             }
-            {% else %}
-            {{ csym_prefix }}{{ invoke_info.child_name }}_invoked_begin(
-                &sm->child_{{ invoke_info.field_suffix }},
-                {% if invoke_info.child_has_send_to_parent %}sm,
-                {{ csym_prefix }}{{ model.name }}_dispatch_external_by_name{% else %}NULL,
-                NULL{% endif %},
-                p->invoke_id,
-                {{ child_clock_c }});
-            {% endif %}
+{% endif %}
             {% elif invoke_info.child_has_send_to_parent %}
             /* W3C SCXML 6.4 (test191/338): stamp parent-routing fields
                BEFORE the configuration entry walk by passing them
@@ -721,6 +720,22 @@ static void {{ csym_prefix }}{{ model.name }}_execute_pending_invokes({{ csym_pr
 {{ invoke_seed_child(invoke_info, invoke_info, "sm->child_" ~ invoke_info.field_suffix ~ ".L", model, csym_prefix, se) }}
             {% if invoke_info.child_is_static %}
 {{ seed_static_child('sm->child_' ~ invoke_info.field_suffix, invoke_info.params, [], model, csym_prefix) }}
+{% if model.host_processor_types %}
+            {
+                /* SCE_MESH.md, Child Sessions in Mesh: the child's router,
+                   asked of this machine's factory with the invoke's id and the
+                   stem of the child's document (empty for one written inline),
+                   and installed before the child is entered, since its first
+                   `<onentry>` may already send to a peer. */
+                sce_child_mesh_router_t _mesh_router;
+                const sce_child_mesh_router_t *_mesh = sce_child_mesh_routers_ask(
+                    &sm->host_processors.child_mesh_routers, "{{ invoke_info.invoke_id | escape_c }}",
+                    "{% if not invoke_info.src.startswith('#') %}{{ invoke_info.child_name | escape_c }}{% endif %}", &_mesh_router);
+                if (_mesh != NULL) {
+                    {{ csym_prefix }}{{ invoke_info.child_name }}_install_mesh_router(&sm->child_{{ invoke_info.field_suffix }}, _mesh);
+                }
+            }
+{% endif %}
             {{ csym_prefix }}{{ invoke_info.child_name }}_invoked_enter(&sm->child_{{ invoke_info.field_suffix }});
             {% endif %}
             /* W3C SCXML 6.4: drive the child's deferred main event loop
@@ -852,7 +867,7 @@ sce_copy_bounded_id(_done_evt.name, "done.invoke.{{ invoke_info.invoke_id | esca
 {% endif %}
             lua_pop(sm->L, 1);
             {% elif invoke_info.contentexpr %}
-            /* W3C SCXML 6.4.4: contentexpr eval-validation. */
+            /* W3C SCXML 6.4.2: contentexpr eval-validation. */
             if (luaL_dostring(sm->L,
                 "return ({{ invoke_info.contentexpr | to_lua_expr | escape_c }})") != 0) {
                 lua_pop(sm->L, 1);
@@ -895,61 +910,70 @@ sce_copy_bounded_id(_done_evt.name, "done.invoke.{{ invoke_info.invoke_id | esca
                    then entered, so an `<onentry>` of its initial configuration
                    reads what it was handed. Its parent routing is stamped by
                    the same call. */
-{% if candidate.child_host_call %}
-                /* docs/adr/0005, decision 6: a candidate that declares
-                   `<sce:action>`s is begun with the table the parent's own table
-                   answers for IT, and refused as the invoke above is when there is
-                   none to give. */
-                if (!{{ csym_prefix }}{{ candidate.stem }}_invoked_begin(
-                        &sm->child_{{ invoke_info.field_suffix }}_{{ candidate.stem }},
-                        {{ candidate.child_host_call }},
-                        {% if candidate.child_has_send_to_parent %}sm,
-                        {{ csym_prefix }}{{ model.name }}_dispatch_external_by_name{% else %}NULL,
-                        NULL{% endif %},
-                        p->invoke_id,
-                        {{ child_clock_c }})) {
+{# docs/adr/0005, decision 6: a candidate that declares `<sce:action>`s is begun with the
+   table the parent's own table answers for IT, and refused as the invoke above is when
+   there is none to give. #}
+{% call child_begin.begin_static_child(csym_prefix, model.name, 'sm->child_' ~ (invoke_info.field_suffix | candidate_identifier(candidate.stem)), candidate.stem, candidate.child_host_call, candidate.child_declares_host_duties, candidate.child_has_send_to_parent, 'p->invoke_id', child_clock_c) %}
 {% if 'error.execution' in model.events %}
                     {{ csym_prefix }}{{ model.name }}_raise_platform_error(
                         sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
                         "<invoke id='{{ invoke_info.invoke_id | escape_c }}'> was given no complete host for its child");
 {% endif %}
                     continue;
+{% endcall %}
+{% if model.host_invoker_types %}
+                {{ csym_prefix }}{{ candidate.stem }}_install_host_invokers(&sm->child_{{ invoke_info.field_suffix | candidate_identifier(candidate.stem) }}, &sm->host_invokers);
+{% endif %}
+{% if static_saved_shape %}
+                if (!{{ csym_prefix }}{{ candidate.stem }}_bind_session_id(&sm->child_{{ invoke_info.field_suffix | candidate_identifier(candidate.stem) }}, sm->session_id, p->runtime_id)) {
+{% if 'error.execution' in model.events %}
+                    {{ csym_prefix }}{{ model.name }}_raise_platform_error(
+                        sm, {{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_ERROR_EXECUTION,
+                        "<invoke id='{{ invoke_info.invoke_id | escape_c }}'>'s session id does not fit the id this build holds");
+{% endif %}
+                    continue;
                 }
-{% else %}
-                {{ csym_prefix }}{{ candidate.stem }}_invoked_begin(
-                    &sm->child_{{ invoke_info.field_suffix }}_{{ candidate.stem }},
-                    {% if candidate.child_has_send_to_parent %}sm,
-                    {{ csym_prefix }}{{ model.name }}_dispatch_external_by_name{% else %}NULL,
-                    NULL{% endif %},
-                    p->invoke_id,
-                    {{ child_clock_c }});
 {% endif %}
 {% else %}
                 {{ csym_prefix }}{{ candidate.stem }}_init_with_parent(
-                    &sm->child_{{ invoke_info.field_suffix }}_{{ candidate.stem }},
+                    &sm->child_{{ invoke_info.field_suffix | candidate_identifier(candidate.stem) }},
                     sm,
                     {{ csym_prefix }}{{ model.name }}_dispatch_external_by_name,
                     p->invoke_id,
                     {{ child_clock_c }});
 {% endif %}
-                sm->child_{{ invoke_info.field_suffix }}_{{ candidate.stem }}_active = true;
+                sm->child_{{ invoke_info.field_suffix | candidate_identifier(candidate.stem) }}_active = true;
                 sce_copy_bounded_id(sm->child_{{ invoke_info.field_suffix }}_invoke_id, p->invoke_id);
-{{ invoke_seed_child(invoke_info, candidate, "sm->child_" ~ invoke_info.field_suffix ~ "_" ~ candidate.stem ~ ".L", model, csym_prefix, se) }}
+{{ invoke_seed_child(invoke_info, candidate, "sm->child_" ~ (invoke_info.field_suffix | candidate_identifier(candidate.stem)) ~ ".L", model, csym_prefix, se) }}
 {% if candidate.child_is_static %}
-{{ seed_static_child("sm->child_" ~ invoke_info.field_suffix ~ "_" ~ candidate.stem, candidate.seeds, candidate.unkept, model, csym_prefix) }}
-                {{ csym_prefix }}{{ candidate.stem }}_invoked_enter(&sm->child_{{ invoke_info.field_suffix }}_{{ candidate.stem }});
+{{ seed_static_child("sm->child_" ~ (invoke_info.field_suffix | candidate_identifier(candidate.stem)), candidate.seeds, candidate.unkept, model, csym_prefix) }}
+{% if model.host_processor_types %}
+                {
+                    /* SCE_MESH.md, Child Sessions in Mesh: the router of the
+                       candidate this start chose, asked with its stem and
+                       installed before it is entered. */
+                    sce_child_mesh_router_t _mesh_router;
+                    const sce_child_mesh_router_t *_mesh = sce_child_mesh_routers_ask(
+                        &sm->host_processors.child_mesh_routers, "{{ invoke_info.invoke_id | escape_c }}",
+                        "{{ candidate.stem | escape_c }}", &_mesh_router);
+                    if (_mesh != NULL) {
+                        {{ csym_prefix }}{{ candidate.stem }}_install_mesh_router(&sm->child_{{ invoke_info.field_suffix | candidate_identifier(candidate.stem) }}, _mesh);
+                    }
+                }
+{% endif %}
+                {{ csym_prefix }}{{ candidate.stem }}_invoked_enter(&sm->child_{{ invoke_info.field_suffix | candidate_identifier(candidate.stem) }});
                 /* The macrostep that follows the entry walk, now that the values
                    are in and parent routing is live: a candidate that ends on
                    what it was handed ends here. One that sends to its parent is
                    driven further, up to a safety bound of 16, as a static child
                    is; any other is driven on from `_drive_active_children`. */
-                {{ csym_prefix }}{{ candidate.stem }}_step(&sm->child_{{ invoke_info.field_suffix }}_{{ candidate.stem }});
+                {{ csym_prefix }}{{ candidate.stem }}_step(&sm->child_{{ invoke_info.field_suffix | candidate_identifier(candidate.stem) }});
 {% if candidate.child_has_send_to_parent %}
                 for (int _step_n = 1; _step_n < 16; ++_step_n) {
-                    if ({{ csym_prefix }}{{ candidate.stem }}_is_in_final_state(&sm->child_{{ invoke_info.field_suffix }}_{{ candidate.stem }})) {
+                    if ({{ csym_prefix }}{{ candidate.stem }}_is_in_final_state(&sm->child_{{ invoke_info.field_suffix | candidate_identifier(candidate.stem) }})) {
                         break;
                     }
-                    {{ csym_prefix }}{{ candidate.stem }}_step(&sm->child_{{ invoke_info.field_suffix }}_{{ candidate.stem }});
+                    {{ csym_prefix }}{{ candidate.stem }}_step(&sm->child_{{ invoke_info.field_suffix | candidate_identifier(candidate.stem) }});
                 }
 {% endif %}
 {% endif %}
@@ -958,7 +982,7 @@ sce_copy_bounded_id(_done_evt.name, "done.invoke.{{ invoke_info.invoke_id | esca
                    observes its child by what the child SENDS has no
                    done-event in its enum, and naming one asks the compiler
                    for a member the document never declared. */
-                if ({{ csym_prefix }}{{ candidate.stem }}_is_in_final_state(&sm->child_{{ invoke_info.field_suffix }}_{{ candidate.stem }})) {
+                if ({{ csym_prefix }}{{ candidate.stem }}_is_in_final_state(&sm->child_{{ invoke_info.field_suffix | candidate_identifier(candidate.stem) }})) {
                     {{ csym_prefix }}{{ model.name }}_event_with_meta_t _done_evt;
                     memset(&_done_evt, 0, sizeof(_done_evt));
                     _done_evt.event = {% if invoke_info.use_specific_event %}{{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_DONE_INVOKE_{{ invoke_info.invoke_id | to_c11_upper_ident }}{% else %}{{ csym_prefix | upper }}{{ model.name | upper }}_EVENT_DONE_INVOKE{% endif %};
@@ -1047,9 +1071,14 @@ static void {{ csym_prefix }}{{ model.name }}_drive_active_children({{ csym_pref
        no-ops gracefully. */
 {% set tick_targets = invoke_info.candidates if invoke_info.candidates else [{'stem': invoke_info.child_name}] %}
 {% for target in tick_targets %}
-{% set slot = ('child_' ~ invoke_info.field_suffix ~ '_' ~ target.stem) if invoke_info.candidates else ('child_' ~ invoke_info.field_suffix) %}
+{% set slot = ('child_' ~ (invoke_info.field_suffix | candidate_identifier(target.stem))) if invoke_info.candidates else ('child_' ~ invoke_info.field_suffix) %}
     if (sm->{{ slot }}_active
         && !{{ csym_prefix }}{{ target.stem }}_is_in_final_state(&sm->{{ slot }})) {
+{% if target.child_is_static is defined and target.child_is_static %}
+        /* SCE_MESH.md, Child Sessions in Mesh: what arrived for the child on
+           the router it was given, before its macrostep. */
+        {{ csym_prefix }}{{ target.stem }}_apply_mesh_calls(&sm->{{ slot }});
+{% endif %}
 {% if target.child_needs_event_scheduler %}
         /* §scxml-6.2: the candidate carries `<send delay>` in its own session,
            so its `_tick` promotes the elapsed events and runs a macrostep;
@@ -1083,6 +1112,11 @@ sce_copy_bounded_id(_done_evt.name, "done.invoke.{{ invoke_info.invoke_id | esca
     {% for invoke_info in state.invokes | scxml %}
     if (sm->child_{{ invoke_info.field_suffix }}_active
         && !{{ csym_prefix }}{{ invoke_info.child_name }}_is_in_final_state(&sm->child_{{ invoke_info.field_suffix }})) {
+        {% if invoke_info.child_is_static %}
+        /* SCE_MESH.md, Child Sessions in Mesh: what arrived for the child on
+           the router it was given, before its macrostep. */
+        {{ csym_prefix }}{{ invoke_info.child_name }}_apply_mesh_calls(&sm->child_{{ invoke_info.field_suffix }});
+        {% endif %}
         {% if invoke_info.child_needs_event_scheduler %}
         /* W3C SCXML 6.2 (test207): the child carries `<send delay>`
            in its own session, so call its `_tick` (which promotes
@@ -1094,6 +1128,11 @@ sce_copy_bounded_id(_done_evt.name, "done.invoke.{{ invoke_info.invoke_id | esca
         {{ csym_prefix }}{{ invoke_info.child_name }}_step(&sm->child_{{ invoke_info.field_suffix }});
         {% endif %}
         if ({{ csym_prefix }}{{ invoke_info.child_name }}_is_in_final_state(&sm->child_{{ invoke_info.field_suffix }})) {
+            {% if invoke_info.child_is_static %}
+            /* SCE_MESH.md, Child Sessions in Mesh: the session ended; its
+               router is told so. */
+            {{ csym_prefix }}{{ invoke_info.child_name }}_detach_mesh(&sm->child_{{ invoke_info.field_suffix }});
+            {% endif %}
             /* W3C SCXML 6.4 / 6.3.1: child completed asynchronously
                (post-init parent→child message drove it to <final>).
                Raise done.invoke with the spawn-time invoke_id stamped
@@ -1143,7 +1182,7 @@ static void {{ csym_prefix }}{{ model.name }}_destroy_active_children({{ csym_pr
     {% for invoke_info in state.invokes | hybrid %}
 {% set destroy_targets = invoke_info.candidates if invoke_info.candidates else [{'stem': invoke_info.child_name}] %}
 {% for target in destroy_targets %}
-{% set slot = ('child_' ~ invoke_info.field_suffix ~ '_' ~ target.stem) if invoke_info.candidates else ('child_' ~ invoke_info.field_suffix) %}
+{% set slot = ('child_' ~ (invoke_info.field_suffix | candidate_identifier(target.stem))) if invoke_info.candidates else ('child_' ~ invoke_info.field_suffix) %}
     if (sm->{{ slot }}_active) {
         {{ csym_prefix }}{{ target.stem }}_destroy(&sm->{{ slot }});
         sm->{{ slot }}_active = false;

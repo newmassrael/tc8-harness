@@ -14,6 +14,9 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+{% if needs_optional %}
+#include "sce/forge/optional.h"  /* a field that may be absent, docs/adr/0055 */
+{% endif %}
 {% for inc in enum_includes %}
 #include "{{ inc }}"
 {% endfor %}
@@ -28,6 +31,15 @@
 
 {% endfor %}
 {% endif %}
+
+/* The event this schema types (`sce:event-name`), as a host names it. */
+#define {{ c_const_prefix }}_EVENT_NAME {{ event_name_literal }}
+/* The revision of the schema (`sce:revision`, 1 when the document declares none). */
+#define {{ c_const_prefix }}_REVISION UINT32_C({{ schema_revision }})
+{% for b in field_bounds %}
+/* The most {{ b.unit }} `{{ b.id }}` holds (`sce:max-size`{% if b.limit %}, the bound `sce:limit="{{ b.limit }}"` names{% endif %}), as this build resolved it. */
+#define {{ c_const_prefix }}_{{ b.upper }} UINT32_C({{ b.value }})
+{% endfor %}
 
 {% if fields %}
 typedef struct {

@@ -12,6 +12,9 @@
     The statement carries its own indentation because the three call
     sites below share it. #}
 {% macro decode_field(field) %}
+{% if field.length_ref_end is defined %}
+            if (frameLen < {{ field.length_ref_end }}) return null
+{% endif %}
 {% if field.is_enum and field.enum_is_open %}
             val {{ field.id }} = {{ field.enum_from_underlying }}({{ field.decode_expr }})
 {%- elif field.is_enum %}
@@ -26,7 +29,7 @@
 // Runtime: {{ runtime_dep }}
 // Do not edit — regenerate from the source SCXML file.
 
-package com.sce.generated.{{ package }}
+package {{ package | kotlin_forge_package }}
 
 import com.sce.forge.runtime.CodecError
 import com.sce.forge.runtime.MutableListSink
@@ -378,7 +381,9 @@ data class {{ struct_name }}(
             )
 {% elif has_variable_fields %}
             val frameLen = cursor.remaining()
+{% if min_bytes > 0 %}
             if (frameLen < {{ min_bytes }}) return null
+{% endif %}
             val raw = cursor.peekSlice(frameLen) ?: return null
 {% for field in fields %}
 {{ decode_field(field) }}

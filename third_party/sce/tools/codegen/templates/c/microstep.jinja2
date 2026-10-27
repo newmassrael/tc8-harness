@@ -77,9 +77,12 @@ static const {{ _t }}_state_t k_document_order[{{ _u }}_STATE_COUNT] = {
 #define {{ _u }}_ATOMIC_STATES ((uint32_t)0u{% for state_id, state in model.states | dictsort %}{% if not state.children %} | ((uint32_t)1u << (uint32_t){{ _u }}_STATE_{{ state_id | to_c11_upper_ident }}){% endif %}{% endfor %})
 
 /* The most transitions one microstep can take: selection contributes at most
-   one per active atomic state, so the document's atomic state count bounds
-   the optimal enabled transition set and nothing sized by it can overflow. */
-#define {{ _u }}_MAX_SELECTED {{ model.states.values() | rejectattr('children') | list | length }}u
+   one per active atomic state, and a configuration holds only the atomic
+   states of one path through the tree (every region of a <parallel> on it), so
+   that count bounds the optimal enabled transition set and nothing sized by it
+   can overflow. The generator derives it once for every backend
+   (`MicrostepBounds`), the Rust policy's `MAX_ENABLED` among them. */
+#define {{ _u }}_MAX_SELECTED {{ max_enabled }}u
 
 /* One token of a target list, as `c_entry_target.jinja2` encodes it: a state
    below `_STATE_COUNT`, a <history> at `_STATE_COUNT` plus its enumerator. */
@@ -150,8 +153,9 @@ SCE_SM_FN static SCE_C_UNUSED uint8_t transition_targets({{ _t }}_state_t source
     }
 }
 
-/* §scxml-3.3: each compound state's initial transition target, as written —
-   the first child state when the document names none. */
+/* §scxml-3.3.2: each compound state's default initial state(s) — the target
+   of its `initial` attribute or <initial> element, as written, and its first
+   child state in document order when the document names none. */
 {% for state_id, state in model.states | dictsort %}
 {% if state.initial_targets %}
 static const uint8_t k_initial_targets_{{ loop.index0 }}[] = {{ et.entry_targets(state.initial_targets, model.history_states, _u) }};
@@ -178,7 +182,8 @@ SCE_SM_FN static SCE_C_UNUSED uint8_t initial_targets({{ _t }}_state_t s, const 
 static const uint8_t k_document_initial_targets[] = {{ et.entry_targets(model.initial_targets, model.history_states, _u) }};
 {% if model.has_history_states %}
 
-/* §scxml-3.10: each <history>'s default transition target, as written. */
+/* §scxml-3.10.2: each <history>'s default transition target, as written —
+   its default stored state configuration. */
 {% for hid, info in model.history_states | dictsort %}
 static const uint8_t k_history_default_targets_{{ loop.index0 }}[] = {{ et.entry_targets(info.default_targets, model.history_states, _u) }};
 {% endfor %}
@@ -409,8 +414,8 @@ SCE_SM_FN static uint8_t remove_conflicting_transitions(const {{ _t }}_t *sm, {{
    `event` is `_EVENT_NONE`: the optimal enabled transition set, in selection
    order. Returns whether it is non-empty.
 
-   `out` holds `_MAX_SELECTED` entries, which is this document's atomic state
-   count: each atomic state contributes at most one transition, so the set
+   `out` holds `_MAX_SELECTED` entries, the most atomic states one
+   configuration holds: each contributes at most one transition, so the set
    cannot outgrow it and nothing is ever dropped. */
 SCE_SM_FN static bool select_transitions({{ _t }}_t *sm, {{ _t }}_event_t event,
                                          {{ _t }}_transition_info_t *out, uint8_t *out_count) {
@@ -646,11 +651,13 @@ SCE_SM_FN static void exit_states({{ _t }}_t *sm, const {{ _t }}_transition_info
     if ((states_to_exit & state_bit({{ parent_enum }})) != 0u) {
 {% if info.type == 'deep' %}
         /* §scxml-D-exitStates, <history id="{{ hid }}" type="deep">: the
-           active atomic states below its parent. */
+           active atomic states below its parent, recorded before the
+           transition exits the parent (§scxml-3.10.2). */
         sm->policy.history_{{ hid }}_snapshot = configuration & k_descendant_states[{{ parent_enum }}] & {{ _u }}_ATOMIC_STATES;
 {% else %}
         /* §scxml-D-exitStates, <history id="{{ hid }}" type="shallow">: its
-           parent's active children. */
+           parent's immediately active children, recorded before the
+           transition exits the parent (§scxml-3.10.2). */
         sm->policy.history_{{ hid }}_snapshot = configuration & k_child_states[{{ parent_enum }}];
 {% endif %}
         sm->policy.history_{{ hid }}_recorded = true;
@@ -699,6 +706,97 @@ SCE_SM_FN static void execute_transition_content({{ _t }}_t *sm, const {{ _t }}_
     }
 }
 
+{% if static_saved_shape %}
+{% set _has_parallel = (model.states.values() | selectattr('is_parallel') | list | length) > 0 %}
+/* SCE Accepted Subset §2.15: the atomic state the machine last stood in, which
+   a saved state names beside the configuration. The configuration of a
+   document with a <parallel> does not say which of its regions the last
+   transition entered, and this backend keeps its configuration as a bitmap
+   with no single current state, so the machine keeps the one the other
+   engines name (`settleCurrentState`): the first state the last transition
+   with a target names, dereferenced, then down through the configuration to an
+   atomic state. */
+{% if _has_parallel %}
+SCE_SM_FN static bool first_effective_target(const {{ _t }}_t *sm, const uint8_t *targets, uint8_t count,
+                                             {{ _t }}_state_t *out) {
+    for (uint8_t i = 0u; i < count; ++i) {
+        const uint8_t token = targets[i];
+{% if model.has_history_states %}
+        if (target_is_history(token)) {
+            const {{ _t }}_history_t h = target_history(token);
+            uint32_t recorded;
+            if (history_value(sm, h, &recorded) && recorded != 0u) {
+                for (uint32_t k = 0u; k < (uint32_t){{ _u }}_STATE_COUNT; ++k) {
+                    if ((recorded & state_bit(k_document_order[k])) != 0u) {
+                        *out = k_document_order[k];
+                        return true;
+                    }
+                }
+            } else {
+                const uint8_t *defaults;
+                const uint8_t n = history_default_targets(h, &defaults);
+                if (first_effective_target(sm, defaults, n, out)) {
+                    return true;
+                }
+            }
+            continue;
+        }
+{% endif %}
+        (void)sm;
+        *out = target_state(token);
+        return true;
+    }
+    return false;
+}
+
+SCE_SM_FN static {{ _t }}_state_t descend_to_leaf(const {{ _t }}_t *sm, {{ _t }}_state_t s) {
+    for (uint32_t depth = 0u; depth < (uint32_t){{ _u }}_STATE_COUNT; ++depth) {
+        if (k_child_states[s] == 0u) {
+            return s;
+        }
+        bool found = false;
+        for (uint32_t k = 0u; k < (uint32_t){{ _u }}_STATE_COUNT && !found; ++k) {
+            const {{ _t }}_state_t child = k_document_order[k];
+            if ((k_child_states[s] & sm->active & state_bit(child)) != 0u) {
+                s = child;
+                found = true;
+            }
+        }
+        if (!found) {
+            return s;
+        }
+    }
+    return s;
+}
+{% endif %}
+SCE_SM_FN static void settle_current_state({{ _t }}_t *sm, const {{ _t }}_entry_transition_t *transitions, uint8_t count,
+                                           uint32_t entered) {
+    if (entered == 0u) {
+        return;
+    }
+{% if _has_parallel %}
+    for (uint8_t i = count; i-- > 0u;) {
+        {{ _t }}_state_t first;
+        if (first_effective_target(sm, transitions[i].targets, transitions[i].target_count, &first)) {
+            sm->policy.current_state = descend_to_leaf(sm, first);
+            return;
+        }
+    }
+{% else %}
+    /* No <parallel>: the configuration is one chain, and the entry set ends on
+       its atomic state. */
+    (void)transitions;
+    (void)count;
+    for (uint32_t k = (uint32_t){{ _u }}_STATE_COUNT; k-- > 0u;) {
+        if ((entered & state_bit(k_document_order[k])) != 0u) {
+            sm->policy.current_state = k_document_order[k];
+            return;
+        }
+    }
+{% endif %}
+}
+
+{% endif %}
 /* §scxml-D-enterStates. Also the whole of the appendix's entry into the
    initial configuration (§scxml-D-interpret): hand it the document's initial
    transition, whose source is the <scxml> element. */
@@ -738,6 +836,9 @@ SCE_SM_FN static void enter_states({{ _t }}_t *sm, const {{ _t }}_entry_transiti
         }
 {% endif %}
     }
+{% if static_saved_shape %}
+    settle_current_state(sm, transitions, count, entry.states_to_enter);
+{% endif %}
 }
 
 /* §scxml-D-microstepProcedure: every exit, then every transition's content,

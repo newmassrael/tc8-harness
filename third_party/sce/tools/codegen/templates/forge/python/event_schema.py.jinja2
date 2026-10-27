@@ -10,8 +10,18 @@
 # Do not edit — regenerate from the source SCXML file.
 
 from dataclasses import dataclass
+from typing import Final{{ ", Optional" if needs_optional else "" }}
 {% for imp in python_enum_imports %}
 {{ imp }}
+{% endfor %}
+
+# The event this schema types (`sce:event-name`), as a host names it.
+EVENT_NAME: Final[str] = {{ event_name_literal }}
+# The revision of the schema (`sce:revision`, 1 when the document declares none).
+REVISION: Final[int] = {{ schema_revision }}
+{% for b in field_bounds %}
+# The most {{ b.unit }} `{{ b.id }}` holds (`sce:max-size`{% if b.limit %}, the bound `sce:limit="{{ b.limit }}"` names{% endif %}), as this build resolved it.
+{{ b.upper }}: Final[int] = {{ b.value }}
 {% endfor %}
 
 

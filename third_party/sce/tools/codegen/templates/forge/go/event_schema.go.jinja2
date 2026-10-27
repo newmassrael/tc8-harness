@@ -10,13 +10,29 @@
 // Do not edit — regenerate from the source SCXML file.
 
 package {{ package }}
-{% if go_enum_imports %}
+{# `uses_optional` is read off the text by the render door: a field that may be
+   absent is the runtime's `optional.Of[T]` (docs/adr/0055). #}
+{% if go_enum_imports or uses_optional %}
 import (
+{% if uses_optional %}
+	"github.com/newmassrael/sce-forge-runtime/optional"
+{% endif %}
 {% for imp in go_enum_imports %}
 	{{ imp }}
 {% endfor %}
 )
 {% endif %}
+
+// EventName is the event this schema types (`sce:event-name`), as a host names it.
+const EventName string = {{ event_name_literal }}
+
+// Revision is the revision of the schema (`sce:revision`, 1 when the document declares none).
+const Revision uint32 = {{ schema_revision }}
+{% for b in field_bounds %}
+
+// {{ b.go_name }} is the most {{ b.unit }} `{{ b.id }}` holds (`sce:max-size`{% if b.limit %}, the bound `sce:limit="{{ b.limit }}"` names{% endif %}), as this build resolved it.
+const {{ b.go_name }} uint32 = {{ b.value }}
+{% endfor %}
 
 {% if fields %}
 type {{ payload_struct_name }} struct {
