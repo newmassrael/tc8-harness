@@ -56,13 +56,15 @@ inline TcpAcceptStepFn acceptStepFrom(std::uint64_t first, int step) {
 // direct response to a just-emitted Offer.
 //
 // When to use which surface:
-//   - SYNCHRONOUS connect (DUT connects right after a tester stimulus, ETS_097):
-//     call TcpServer::acceptOne(timeout) inline in stimulus() — a bounded block
-//     is correct because the connect is expected within the window.
-//   - AUTONOMOUS connect (timing unknown, anywhere in the window): the accept
-//     cannot block the single capture thread, so it must fold into the drain
-//     loop. THIS adapter is that fold: its pollFd() is the listener, and
-//     onReadable() does a non-blocking accept each capture-loop iteration.
+//   - SYNCHRONOUS connect whose absence the case does NOT grade (a preamble the
+//     next step needs): call TcpServer::acceptOne(timeout) inline in stimulus().
+//   - A connect the case FAILS on the absence of, or whose timing is unknown
+//     (anywhere in the window): the accept cannot block the single capture
+//     thread, so it must fold into the drain loop. THIS adapter is that fold:
+//     its pollFd() is the listener, and onReadable() does a non-blocking accept
+//     each capture-loop iteration. A bounded inline accept would grant the DUT
+//     the bound instead of the listen time, and close the port behind it, so a
+//     SYN after the bound meets a refusal (SOMEIP_ETS_097 moved here for that).
 //
 // Lifetime + threading model are identical to MethodResponder / ArpResponder
 // (see tc8/pollable_service.h): a case builds it in stimulus() and hands it to
@@ -80,10 +82,9 @@ inline TcpAcceptStepFn acceptStepFrom(std::uint64_t first, int step) {
 // need only bind the tester's offered service endpoint.
 //
 // CONSUMER STATUS: this is the public, NDA-clean accept seam for autonomous
-// client-role cases; the production driver (a DUT-in-client-role case) is
-// out-of-tree. No in-tree case adopts it yet — its in-tree contract is the
-// hermetic loopback unit test (unit_tests/tcp_accept_service_test.cpp). Land an
-// in-tree consumer alongside the first case that needs it.
+// client-role cases. In tree, SOMEIP_ETS_097 adopts it for the DUT's reconnect;
+// its hermetic contract is the loopback unit test
+// (unit_tests/tcp_accept_service_test.cpp).
 //
 // Non-copyable: owns a live listening socket (through TcpServer).
 class TcpAcceptService : public ::tc8::IPollableService {

@@ -26,6 +26,7 @@ int connectTcpFromIface(std::string_view iface, const Endpoint &dst,
     const int sock = ::socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
         std::fprintf(stderr, "stimulus: tcp socket() failed: %s\n", std::strerror(errno));
+        reportTxFailed("tcp_connect");
         return -1;
     }
 
@@ -36,6 +37,7 @@ int connectTcpFromIface(std::string_view iface, const Endpoint &dst,
                      "tester source for tcp connect\n",
                      static_cast<int>(iface.size()), iface.data());
         ::close(sock);
+        reportTxFailed("tcp_connect");
         return -2;
     }
 
@@ -46,6 +48,7 @@ int connectTcpFromIface(std::string_view iface, const Endpoint &dst,
     if (::bind(sock, reinterpret_cast<sockaddr *>(&bind_addr), sizeof(bind_addr)) < 0) {
         std::fprintf(stderr, "stimulus: tcp bind(ephemeral) failed: %s\n", std::strerror(errno));
         ::close(sock);
+        reportTxFailed("tcp_connect");
         return -3;
     }
 
@@ -57,6 +60,7 @@ int connectTcpFromIface(std::string_view iface, const Endpoint &dst,
         std::fprintf(stderr, "stimulus: tcp connect(dut:%u) failed: %s\n",
                      dst.port, std::strerror(errno));
         ::close(sock);
+        reportTxFailed("tcp_connect");
         return -4;
     }
     // The SYN and the completing ACK are the kernel's; what the tester did is this
@@ -76,6 +80,7 @@ int connectTcpFromIface(std::string_view iface, const Endpoint &dst,
         if (flags < 0 || ::fcntl(sock, F_SETFL, flags | O_NONBLOCK) < 0) {
             std::fprintf(stderr, "stimulus: tcp O_NONBLOCK failed: %s\n", std::strerror(errno));
             ::close(sock);
+            reportTxFailed("tcp_connect");
             return -3;
         }
     }

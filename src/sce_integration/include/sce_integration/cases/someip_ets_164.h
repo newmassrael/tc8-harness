@@ -2,12 +2,14 @@
 
 #include <chrono>
 #include <cstdint>
+#include <string>
 #include <string_view>
-#include <thread>
 
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_someipsrv_traits_base.h"
+#include "sce_integration/someip_observation.h"
 #include "sce_integration/test_runner.h"
+#include "tc8/someip/sd_wire_constants.h"
 #include "stimulus/someip_rpc_builder.h"
 #include "stimulus/someip_sd_builder.h"
 
@@ -50,9 +52,18 @@ struct TestCaseTraits<cases::SomeipEts164SM> : SomeIpAnyBase<cases::SomeipEts164
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
+        // Marked before the boot, so an Offer the DUT sends while it runs counts.
+        const ::tc8::sce::ObservationCursor booting = ctx.observer.mark();
         ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{},
                                              cfg.stimulus_timing);
-        std::this_thread::sleep_for(std::chrono::milliseconds(2500));
+        // The set must reach a service the DUT offers: the Offer phase 1 grades.
+        if (!ctx.observer.awaitObservation(
+                "dut_offer_before_set_field", booting,
+                ::tc8::sce::dutSdFirstEntry(cfg.dut.ip, ::tc8::sd_entry_type::kOfferService,
+                                            cfg.someip_dut.service_id),
+                kOfferBound)) {
+            return;
+        }
 
         // 1. setFieldA(0x77) — Method 0x42, payload [0x77]. Phase 2
         // observes the Response.
@@ -60,26 +71,41 @@ struct TestCaseTraits<cases::SomeipEts164SM> : SomeIpAnyBase<cases::SomeipEts164
         set.method_id = 0x0042;
         set.payload   = {0x77};
         ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, set, {}, ::tc8::sce::someipUdpMethodDest(cfg));
-        std::this_thread::sleep_for(std::chrono::milliseconds(1500));
 
         // 2. suspendInterface(start=0, duration=2000) — Method 0x02
-        // Fire&Forget. Args 4-byte start + 4-byte duration BE.
-        ::tc8::stimulus::SomeIpRpcMessage suspend{};
-        suspend.method_id    = 0x0002;
-        suspend.message_type = ::tc8::someip::MessageType::REQUEST_NO_RETURN;  // RequestNoReturn (Fire&Forget).
-        suspend.payload      = {0x00, 0x00, 0x00, 0x00,   // start = 0
-                                0x00, 0x00, 0x07, 0xD0};  // duration = 2000 ms
-        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, suspend, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        // Fire&Forget, sent once phase 2 saw the set answered, so the
+        // suspension cannot swallow a set the DUT had not answered yet.
+        // Args 4-byte start + 4-byte duration BE.
+        const ::tc8::stimulus::MethodEndpoint dest = ::tc8::sce::someipUdpMethodDest(cfg);
+        const std::string iface(ctx.iface);
+        ctx.scheduler.scheduleAfterStateEntry(
+            static_cast<int>(State::Listening_phase3), [iface, dest]() {
+                ::tc8::stimulus::SomeIpRpcMessage suspend{};
+                suspend.method_id    = 0x0002;
+                suspend.message_type = ::tc8::someip::MessageType::REQUEST_NO_RETURN;  // RequestNoReturn (Fire&Forget).
+                suspend.payload      = {0x00, 0x00, 0x00, 0x00,   // start = 0
+                                        0x00, 0x00, 0x07, 0xD0};  // duration = 2000 ms
+                ::tc8::stimulus::MethodRequestTiming now{};
+                now.pre_emit_wait = std::chrono::milliseconds(0);
+                ::tc8::stimulus::emitMethodRequestAfter(iface, suspend, now, dest);
+            });
 
-        // Wait through the 2 s suspend window + 1 s resume settle.
-        std::this_thread::sleep_for(std::chrono::milliseconds(3500));
-
-        // 3. getFieldA again — Method 0x40. Phase 4 observes the
-        // Response (any payload).
-        ::tc8::stimulus::SomeIpRpcMessage get{};
-        get.method_id = 0x0040;
-        ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, get, {}, ::tc8::sce::someipUdpMethodDest(cfg));
+        // 3. getFieldA again — Method 0x40, sent once the machine saw the
+        // DUT offer the service again. Phase 4 observes the Response (any
+        // payload).
+        ctx.scheduler.scheduleAfterStateEntry(
+            static_cast<int>(State::Listening_phase4), [iface, dest]() {
+                ::tc8::stimulus::SomeIpRpcMessage get{};
+                get.method_id = 0x0040;
+                ::tc8::stimulus::MethodRequestTiming now{};
+                now.pre_emit_wait = std::chrono::milliseconds(0);
+                ::tc8::stimulus::emitMethodRequestAfter(iface, get, now, dest);
+            });
     }
+
+    // How long the stimulus waits for the DUT's Offer before the set: the
+    // phase-1 window, so the wait gives up when phase 1 would.
+    static constexpr std::chrono::milliseconds kOfferBound{6000};
 };
 
 }  // namespace tc8::sce

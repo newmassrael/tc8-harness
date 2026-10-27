@@ -128,10 +128,11 @@ fields alone — same precedent as OPTIONS_01/02/03/05/06.
 
 ## §5.1.5.3 SD_MESSAGE_02 + SOMEIPSRV_RPC_14 / _17 — why their rows were removed
 
-Count/liveness cases whose sole fail is a precondition-break. The old
+Count cases whose fails are the DUT's silence where it must answer. The old
 `service_id=0x0000` rows merely timed the gate out before the real observation —
 vacuous, so they were removed rather than kept as false coverage. They are
-liveness guards in `tools/conformant_absence_registry.json`, alongside the former
+required_emission guards in `tools/conformant_absence_registry.json` (each
+test-body window is an `observed_quiescence` fail), alongside the former
 "omitted" captured-only cases (SOMEIPSRV_SD_MESSAGE_01, SOMEIPSRV_RPC_01, _02,
 _13).
 

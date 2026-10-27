@@ -118,6 +118,7 @@ int sendRawEthernet(const std::vector<std::uint8_t> &frame, std::string_view ifa
         std::fprintf(stderr, "stimulus: raw emit on '%.*s' failed at step %d: %s (%zu B)\n",
                      static_cast<int>(iface.size()), iface.data(), rc, std::strerror(errno),
                      frame.size());
+        reportTxFailed("ethernet");
     } else {
         reportTx("ethernet", iface, /*dst_ip_be=*/0, /*dst_port=*/0, frame.size());
     }

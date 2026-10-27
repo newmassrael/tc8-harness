@@ -4311,9 +4311,9 @@ on the opcode backend, and the testability backend's CONNECT is fixed by its sta
 
 ## TD-64 — nine SOME/IP cases give the DUT less than ParamListenTime, or demand an order
 
-**Status:** OPEN. **Logged:** 2026-10-28, from the Phase Q4 sweep (docs/verdict_policy.md
-Section 8). These cases are still `liveness` on `tools/liveness_migration_pending.txt`, and the
-cause is the tester, not the specification or the DUT.
+**Status:** RESOLVED (2026-10-28). **Logged:** 2026-10-28, from the Phase Q4 sweep
+(docs/verdict_policy.md Section 8). The entry below is the debt as logged; **Resolution** at its
+end records what closed it.
 
 **What it is.** Migrating a case makes its test-body deadline an `observed_quiescence` fail. That
 is sound only when the DUT had its whole bound to answer and any answer the specification allows
@@ -4342,6 +4342,31 @@ the specification does not order the replies. Then migrate each case as in Secti
 **Done when:** these nine names are off `tools/liveness_migration_pending.txt`, each with its
 test-body deadline `observed_quiescence` and bound `ParamListenTime`, and `negative_coverage_audit.py
 --check` is clean.
+
+**Resolution.** All nine migrated, each with every test-body window at 11 s (`ParamListenTime`
+plus `ParamToleranceTime`) and its own event name.
+
+- **Order.** RPC_14, RPC_17, ETS_004, ETS_061, ETS_068, ETS_069 and ETS_088 now have one flat
+  waiting state per set of answers still owed, and each answer moves to the set without it. An
+  answer still owed therefore gets a full window after its request, whichever answers came first.
+  A `<parallel>` or a compound state with one timer was not used: H3 measures the dwell from the
+  previous transition, so a timer armed in an enclosing state would read short exactly when one
+  answer of two is missing, and the run would be inconclusive where it should fail. ETS_088 looks
+  for each eventgroup's Ack at any entry index (`SdDecoded::sd_has_live_eventgroup_entry`), so
+  one SD message carrying several Acks moves past all of them at once.
+- **Held connections.** RPC_17 and ETS_068 send on a `ReliableMethodSession`
+  (`stimulus/reliable_method_session.h`), a TCP connection the runner holds until teardown.
+  `emitBundledMethodRequestsTcp` had no other caller and is deleted. ETS_097 listens through a
+  runner-owned `TcpAcceptService`, so the DUT's reconnect is accepted at any point in the window.
+- **Sleeps.** ETS_164 sends the suspend when the machine has seen the set answered, and the get
+  when it has seen the service offered again (`scheduleAfterStateEntry`). Its resume window opens
+  after the 2 s suspension the tester asked for.
+
+The work exposed a gap in hypothesis S that reached past these nine. Nearly every migrated case
+outside TCP ignores its emitters' return values, so a send that never left the tester would have
+been graded as the DUT's silence. The send primitives now record the failure themselves
+(`reportTxFailed`, `stimulus/tx_observer.h`), so S holds whether or not the case checks. One
+residual of ETS_097 is logged as TD-66.
 
 ## TD-65 — 24 liveness guards need a modelling decision before they can migrate
 
@@ -4382,3 +4407,28 @@ reclassification.
 
 **Done when:** `tools/liveness_migration_pending.txt` lists none of these 24 names and the registry
 has no `liveness` guard for any of them.
+
+## TD-66 — SOMEIP_ETS_097 can pass without the first connect having been refused
+
+**Status:** OPEN. **Logged:** 2026-10-28, while resolving TD-64.
+
+**What it is.** The case checks that the DUT client reconnects after a refused TCP connect
+(PRS_SOMEIPSD_00527). The tester advertises its reliable endpoint in a first Offer while nothing
+listens on it, waits 1.5 s, opens the listener and sends a second Offer. The pass reads one flag:
+the listener accepted a connection. Nothing checks that the first attempt was made and refused. A
+DUT whose first SYN comes later than 1.5 s after the first Offer is accepted on that first attempt,
+and the case passes without the restart ever happening.
+
+**Why it was not fixed with TD-64.** The case captures SOME/IP only, so the machine sees no TCP
+segment, and the fixed 1.5 s is a guess at when the first SYN comes. A sound pass needs the refusal
+itself as an observation: the DUT's SYN to the advertised port answered by the tester kernel's RST,
+before the listener opens.
+
+**Risk if left.** A vacuous pass on a DUT that connects slowly. A DUT that never retries still fails.
+
+**Fix.** Widen the case's capture to TCP on the advertised port. Await the DUT's first SYN and the
+RST that answers it, in place of the 1.5 s sleep (a miss is an unperformed stimulus: the refusal the
+procedure depends on did not happen). Only then open the listener and send the second Offer.
+
+**Done when:** the case's stimulus opens the listener only after it observed the refused SYN, and a
+run against a DUT that connects late on its first attempt is inconclusive rather than a pass.

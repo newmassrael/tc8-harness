@@ -97,6 +97,7 @@ int requestOnce(const SomeIpRpcMessage &target, std::uint16_t session_id, std::s
     const int sock = ::socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0) {
         std::fprintf(stderr, "stimulus: socket() failed: %s\n", std::strerror(errno));
+        reportTxFailed("udp_method_request");
         return -1;
     }
 
@@ -106,6 +107,7 @@ int requestOnce(const SomeIpRpcMessage &target, std::uint16_t session_id, std::s
                              "cannot bind tester source for method request\n",
                      static_cast<int>(iface.size()), iface.data());
         ::close(sock);
+        reportTxFailed("udp_method_request");
         return -2;
     }
 
@@ -119,6 +121,7 @@ int requestOnce(const SomeIpRpcMessage &target, std::uint16_t session_id, std::s
     if (::bind(sock, reinterpret_cast<sockaddr *>(&bind_addr), sizeof(bind_addr)) < 0) {
         std::fprintf(stderr, "stimulus: bind(method request ephemeral) failed: %s\n", std::strerror(errno));
         ::close(sock);
+        reportTxFailed("udp_method_request");
         return -3;
     }
 
@@ -138,6 +141,7 @@ int requestOnce(const SomeIpRpcMessage &target, std::uint16_t session_id, std::s
     if (n < 0 || static_cast<std::size_t>(n) != datagram.size()) {
         std::fprintf(stderr, "stimulus: sendto(method request dut:%u) failed: %s (sent=%zd of %zu)\n", dest.port,
                      std::strerror(saved_errno), n, datagram.size());
+        reportTxFailed("udp_method_request");
         return -4;
     }
     reportTx("udp_unicast", iface, dest.ipv4_be, dest.port, datagram.size());
@@ -194,6 +198,7 @@ int requestOnceTcp(const SomeIpRpcMessage &target, std::uint16_t session_id, std
         std::fprintf(stderr, "stimulus: tcp send(method request dut:%u) failed: %s (sent=%zd of %zu)\n",
                      dest.port, std::strerror(saved_errno), n, datagram.size());
         ::close(sock);
+        reportTxFailed("tcp_method_request");
         return -5;
     }
     reportTxConnected("tcp", sock, datagram.size(), iface);
@@ -248,6 +253,7 @@ int emitMethodRequestTcpAndHold(std::string_view iface, const SomeIpRpcMessage &
         std::fprintf(stderr, "stimulus: tcp hold send(dut:%u) failed: %s (sent=%zd of %zu)\n",
                      dest.port, std::strerror(saved_errno), n, datagram.size());
         ::close(sock);
+        reportTxFailed("tcp_method_request");
         return -5;
     }
     reportTxConnected("tcp", sock, datagram.size(), iface);
@@ -261,12 +267,6 @@ int emitMethodRequestTcpAndHold(std::string_view iface, const SomeIpRpcMessage &
     return sock;
 }
 
-namespace {
-
-// Concatenates each target's wire bytes (SOME/IP header + payload)
-// into a single buffer. Per-target Length headers stay self-
-// consistent (or honour each target's own length_override) so the
-// receiving side can walk the buffer one message at a time.
 std::vector<std::uint8_t> buildBundledMethodRequests(
     const std::vector<SomeIpRpcMessage> &targets) {
     std::vector<std::uint8_t> bundle;
@@ -276,8 +276,6 @@ std::vector<std::uint8_t> buildBundledMethodRequests(
     }
     return bundle;
 }
-
-}  // namespace
 
 int emitBundledMethodRequestsUdp(std::string_view iface,
                                  const std::vector<SomeIpRpcMessage> &targets,
@@ -293,6 +291,7 @@ int emitBundledMethodRequestsUdp(std::string_view iface,
     const int sock = ::socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0) {
         std::fprintf(stderr, "stimulus: bundled udp socket() failed: %s\n", std::strerror(errno));
+        reportTxFailed("udp_bundled_method_requests");
         return -1;
     }
 
@@ -302,6 +301,7 @@ int emitBundledMethodRequestsUdp(std::string_view iface,
                              "cannot bind tester source for bundled udp\n",
                      static_cast<int>(iface.size()), iface.data());
         ::close(sock);
+        reportTxFailed("udp_bundled_method_requests");
         return -2;
     }
 
@@ -313,6 +313,7 @@ int emitBundledMethodRequestsUdp(std::string_view iface,
         std::fprintf(stderr, "stimulus: bundled udp bind(ephemeral) failed: %s\n",
                      std::strerror(errno));
         ::close(sock);
+        reportTxFailed("udp_bundled_method_requests");
         return -3;
     }
 
@@ -330,46 +331,10 @@ int emitBundledMethodRequestsUdp(std::string_view iface,
     if (n < 0 || static_cast<std::size_t>(n) != bundle.size()) {
         std::fprintf(stderr, "stimulus: bundled udp sendto(dut:%u) failed: %s (sent=%zd of %zu)\n",
                      dest.port, std::strerror(saved_errno), n, bundle.size());
+        reportTxFailed("udp_bundled_method_requests");
         return -4;
     }
     reportTx("udp_unicast", iface, dest.ipv4_be, dest.port, bundle.size());
-    return 0;
-}
-
-int emitBundledMethodRequestsTcp(std::string_view iface,
-                                 const std::vector<SomeIpRpcMessage> &targets,
-                                 std::chrono::milliseconds pre_emit_wait,
-                                 const MethodEndpoint &dest,
-                                 std::chrono::milliseconds linger) {
-    TC8_TX_SCOPE();
-    std::this_thread::sleep_for(pre_emit_wait);
-
-    if (targets.empty()) {
-        return 0;
-    }
-
-    const int sock = connectTcpFromIface(iface, dest);
-    if (sock < 0) {
-        return sock;  // connectTcpFromIface logged the failure (-1..-4).
-    }
-
-    const auto bundle = buildBundledMethodRequests(targets);
-    const ssize_t n = ::send(sock, bundle.data(), bundle.size(), 0);
-    if (n < 0 || static_cast<std::size_t>(n) != bundle.size()) {
-        const int saved_errno = errno;
-        std::fprintf(stderr, "stimulus: bundled tcp send(dut:%u) failed: %s (sent=%zd of %zu)\n",
-                     dest.port, std::strerror(saved_errno), n, bundle.size());
-        ::close(sock);
-        return -5;
-    }
-    reportTxConnected("tcp", sock, bundle.size(), iface);
-
-    // Hold the socket open across the dwell so vsomeip's
-    // tcp_server_endpoint can walk the bundle, dispatch each Request
-    // and queue 3 Responses back on the same connection before
-    // close() RSTs the link.
-    std::this_thread::sleep_for(linger);
-    ::close(sock);
     return 0;
 }
 

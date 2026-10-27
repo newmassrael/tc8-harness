@@ -468,6 +468,7 @@ int emitOfferServiceMulticastWithEndpoint(std::string_view iface,
                          "stimulus: interface '%.*s' has no IPv4 — cannot fill "
                          "OfferService endpoint option\n",
                          static_cast<int>(iface.size()), iface.data());
+            reportTxFailed("sd_offer_with_endpoint");
             return -2;
         }
     }
@@ -513,6 +514,7 @@ int sendSdMulticastFromSourceIp(const std::vector<std::uint8_t> &datagram, std::
     if (::inet_pton(AF_INET, std::string(mcast_group).c_str(), &group_addr) != 1) {
         std::fprintf(stderr, "stimulus: sendSdMulticastFromSourceIp inet_pton('%.*s') failed\n",
                      static_cast<int>(mcast_group.size()), mcast_group.data());
+        reportTxFailed("sd_multicast_from_source_ip");
         return -5;  // mirror sendUdpMulticast's malformed-group sentinel
     }
     const std::uint32_t group_be = group_addr.s_addr;
@@ -737,6 +739,7 @@ std::uint32_t resolveDestIpv4(const SubscribeDestination &dest) {
                      "stimulus: SubscribeEventgroup has no destination — the case named "
                      "none and this run published no DUT address (TestConfig::dut.ip, "
                      "from --expect dut.ip=). Refusing to send.\n");
+        reportTxFailed("sd_subscribe");
     }
     return site;
 }
@@ -752,6 +755,7 @@ int subscribeOnce(const SubscribeEventgroupTarget &target, std::uint8_t sd_flags
                      "stimulus: interface '%.*s' has no IPv4 address — "
                      "cannot advertise tester endpoint in subscribe option\n",
                      static_cast<int>(iface.size()), iface.data());
+        reportTxFailed("sd_subscribe");
         return -2;
     }
 
@@ -855,6 +859,7 @@ int emitMultiSubscribeEventgroup(std::string_view iface,
                      "stimulus: interface '%.*s' has no IPv4 address — "
                      "cannot advertise tester endpoint in multi-subscribe option\n",
                      static_cast<int>(iface.size()), iface.data());
+        reportTxFailed("sd_multi_subscribe");
         return -2;
     }
 
@@ -890,6 +895,7 @@ int emitMultiSubscribeEventgroupRaw(std::string_view iface,
                      "stimulus: interface '%.*s' has no IPv4 address — "
                      "cannot advertise tester endpoint in multi-subscribe-raw option\n",
                      static_cast<int>(iface.size()), iface.data());
+        reportTxFailed("sd_multi_subscribe");
         return -2;
     }
 
@@ -1026,6 +1032,7 @@ int emitSubscribeEventgroupRaw(std::string_view iface,
                      "stimulus: interface '%.*s' has no IPv4 address — "
                      "cannot advertise tester endpoint in subscribe-raw option\n",
                      static_cast<int>(iface.size()), iface.data());
+        reportTxFailed("sd_subscribe");
         return -2;
     }
 

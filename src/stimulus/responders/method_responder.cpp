@@ -18,6 +18,7 @@
 #include "tc8/someip/wire.h"                  // getBe16 / parseHeader / Header / MessageType.
 #include "stimulus/iface_addr.h"          // ipv4FromWire.
 #include "stimulus/someip_rpc_builder.h"  // emitMethodReply / MethodEndpoint.
+#include "stimulus/tx_observer.h"         // reportTxFailed.
 
 namespace tc8::stimulus {
 
@@ -194,6 +195,7 @@ MethodResponder::MethodResponder(std::string_view iface, std::uint16_t service_i
     if (sock_ < 0) {
         std::fprintf(stderr, "stimulus: MethodResponder socket(AF_PACKET) failed: %s\n",
                      std::strerror(errno));
+        reportTxFailed("method_responder");
         return;
     }
 
@@ -203,6 +205,7 @@ MethodResponder::MethodResponder(std::string_view iface, std::uint16_t service_i
                      iface_.c_str(), std::strerror(errno));
         ::close(sock_);
         sock_ = -1;
+        reportTxFailed("method_responder");
         return;
     }
 
@@ -215,6 +218,7 @@ MethodResponder::MethodResponder(std::string_view iface, std::uint16_t service_i
                      std::strerror(errno));
         ::close(sock_);
         sock_ = -1;
+        reportTxFailed("method_responder");
         return;
     }
     ok_ = true;

@@ -90,6 +90,7 @@ ArpResponder::ArpResponder(std::string_view iface, std::vector<ArpBinding> bindi
     if (sock_ < 0) {
         std::fprintf(stderr, "stimulus: ArpResponder socket(AF_PACKET) failed: %s\n",
                      std::strerror(errno));
+        reportTxFailed("arp_responder");
         return;
     }
 
@@ -99,6 +100,7 @@ ArpResponder::ArpResponder(std::string_view iface, std::vector<ArpBinding> bindi
                      iface_.c_str(), std::strerror(errno));
         ::close(sock_);
         sock_ = -1;
+        reportTxFailed("arp_responder");
         return;
     }
 
@@ -113,6 +115,7 @@ ArpResponder::ArpResponder(std::string_view iface, std::vector<ArpBinding> bindi
                      std::strerror(errno));
         ::close(sock_);
         sock_ = -1;
+        reportTxFailed("arp_responder");
         return;
     }
     ok_ = true;

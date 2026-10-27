@@ -9,18 +9,29 @@
   the entries one at a time and emit a SubscribeEventgroupAck for
   each entry.
 
-  vsomeip bundles the 3 Acks into a single SD response message
-  whose entries array carries 3 Type 0x07 entries in request order
-  (verified against the wire pcap: session 2 SD response at
-  172.16.0.2:30490 → 172.16.0.1:30490 carries EntriesLen=0x30 with
-  eg 0x02 / 0x05 / 0x06 in that order). Phase 2 therefore checks
-  the bundled response in a single transition.
+  The pass criteria ask for an Ack for each entry and fix neither the
+  order of the Acks nor how they are packed: vsomeip bundles the 3 Acks
+  into a single SD response message whose entries array carries 3 Type
+  0x07 entries in request order, and a DUT that acks in another order, or
+  in separate messages, gives the same answer. So phase 2 looks for each
+  eventgroup's Ack (ttl > 0) at any entry index of any SD message: there
+  is one waiting state per set of Acks still owed (awaiting_acks_256,
+  _25, ..., _6), and an SD message moves to the set without every Ack it
+  carries, the transition covering the most Acks first.
 
     Phase 1 (listening_phase1): OfferService observation on SERVICE-ID-1
             with sd_ipv4_endpoint_count >= 1.
-    Phase 2 (listening_phase2): SD response with sd_entry_count >= 3,
-            each of indices 0/1/2 a Type 0x07 entry on eg
-            0x02 / 0x05 / 0x06 with ttl > 0 -> pass. Deadline -> fail.
+    Phase 2 (awaiting_acks_*): a Type 0x07 entry with ttl > 0 for each
+            of eg 0x02 / 0x05 / 0x06 -> pass.
+
+  Every waiting state has its own window, so an Ack still owed has at
+  least one full window after the Subscribe. A window that elapses with
+  an Ack owed is the DUT's silence where it must answer:
+  observed_quiescence, judged against <ParamListenTime>
+  (docs/verdict_policy.md Section 2.1, H3), over a window of
+  ParamListenTime plus <ParamToleranceTime> (10 s + 1 s at the defaults).
+  Each window has its own event name, because SCXML does not cancel a
+  delayed send when its state exits.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -45,18 +56,114 @@
     </onentry>
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.sd_ipv4_endpoint_count >= 1"
-                target="listening_phase2"/>
+                target="awaiting_acks_256"/>
     <transition event="phase1_deadline_exceeded" target="inconclusive_phase1_no_offer_with_endpoint"/>
   </state>
 
-  <state id="listening_phase2">
+  <state id="awaiting_acks_256">
     <onentry>
-      <send event="phase2_deadline_exceeded" delay="6s"/>
+      <send event="awaiting_acks_256_window_elapsed" delay="11s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 3 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].eventgroup_id == 0x0002 and captured.sd_entries[0].ttl &gt; 0 and captured.sd_entries[1].type == 0x07 and captured.sd_entries[1].eventgroup_id == 0x0005 and captured.sd_entries[1].ttl &gt; 0 and captured.sd_entries[2].type == 0x07 and captured.sd_entries[2].eventgroup_id == 0x0006 and captured.sd_entries[2].ttl &gt; 0"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_has_live_eventgroup_entry(::tc8::sd_entry_type::kSubscribeEventgroupAck, expected.service_id, 0x0002) and captured.sd_has_live_eventgroup_entry(::tc8::sd_entry_type::kSubscribeEventgroupAck, expected.service_id, 0x0005) and captured.sd_has_live_eventgroup_entry(::tc8::sd_entry_type::kSubscribeEventgroupAck, expected.service_id, 0x0006)"
                 target="pass"/>
-    <transition event="phase2_deadline_exceeded" target="inconclusive_phase2_no_three_acks"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_has_live_eventgroup_entry(::tc8::sd_entry_type::kSubscribeEventgroupAck, expected.service_id, 0x0002) and captured.sd_has_live_eventgroup_entry(::tc8::sd_entry_type::kSubscribeEventgroupAck, expected.service_id, 0x0005)"
+                target="awaiting_acks_6"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_has_live_eventgroup_entry(::tc8::sd_entry_type::kSubscribeEventgroupAck, expected.service_id, 0x0002) and captured.sd_has_live_eventgroup_entry(::tc8::sd_entry_type::kSubscribeEventgroupAck, expected.service_id, 0x0006)"
+                target="awaiting_acks_5"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_has_live_eventgroup_entry(::tc8::sd_entry_type::kSubscribeEventgroupAck, expected.service_id, 0x0005) and captured.sd_has_live_eventgroup_entry(::tc8::sd_entry_type::kSubscribeEventgroupAck, expected.service_id, 0x0006)"
+                target="awaiting_acks_2"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_has_live_eventgroup_entry(::tc8::sd_entry_type::kSubscribeEventgroupAck, expected.service_id, 0x0002)"
+                target="awaiting_acks_56"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_has_live_eventgroup_entry(::tc8::sd_entry_type::kSubscribeEventgroupAck, expected.service_id, 0x0005)"
+                target="awaiting_acks_26"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_has_live_eventgroup_entry(::tc8::sd_entry_type::kSubscribeEventgroupAck, expected.service_id, 0x0006)"
+                target="awaiting_acks_25"/>
+    <transition event="awaiting_acks_256_window_elapsed" target="fail_acks_missing"/>
+  </state>
+
+  <state id="awaiting_acks_25">
+    <onentry>
+      <send event="awaiting_acks_25_window_elapsed" delay="11s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_has_live_eventgroup_entry(::tc8::sd_entry_type::kSubscribeEventgroupAck, expected.service_id, 0x0002) and captured.sd_has_live_eventgroup_entry(::tc8::sd_entry_type::kSubscribeEventgroupAck, expected.service_id, 0x0005)"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_has_live_eventgroup_entry(::tc8::sd_entry_type::kSubscribeEventgroupAck, expected.service_id, 0x0002)"
+                target="awaiting_acks_5"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_has_live_eventgroup_entry(::tc8::sd_entry_type::kSubscribeEventgroupAck, expected.service_id, 0x0005)"
+                target="awaiting_acks_2"/>
+    <transition event="awaiting_acks_25_window_elapsed" target="fail_acks_missing"/>
+  </state>
+
+  <state id="awaiting_acks_26">
+    <onentry>
+      <send event="awaiting_acks_26_window_elapsed" delay="11s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_has_live_eventgroup_entry(::tc8::sd_entry_type::kSubscribeEventgroupAck, expected.service_id, 0x0002) and captured.sd_has_live_eventgroup_entry(::tc8::sd_entry_type::kSubscribeEventgroupAck, expected.service_id, 0x0006)"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_has_live_eventgroup_entry(::tc8::sd_entry_type::kSubscribeEventgroupAck, expected.service_id, 0x0002)"
+                target="awaiting_acks_6"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_has_live_eventgroup_entry(::tc8::sd_entry_type::kSubscribeEventgroupAck, expected.service_id, 0x0006)"
+                target="awaiting_acks_2"/>
+    <transition event="awaiting_acks_26_window_elapsed" target="fail_acks_missing"/>
+  </state>
+
+  <state id="awaiting_acks_56">
+    <onentry>
+      <send event="awaiting_acks_56_window_elapsed" delay="11s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_has_live_eventgroup_entry(::tc8::sd_entry_type::kSubscribeEventgroupAck, expected.service_id, 0x0005) and captured.sd_has_live_eventgroup_entry(::tc8::sd_entry_type::kSubscribeEventgroupAck, expected.service_id, 0x0006)"
+                target="pass"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_has_live_eventgroup_entry(::tc8::sd_entry_type::kSubscribeEventgroupAck, expected.service_id, 0x0005)"
+                target="awaiting_acks_6"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_has_live_eventgroup_entry(::tc8::sd_entry_type::kSubscribeEventgroupAck, expected.service_id, 0x0006)"
+                target="awaiting_acks_5"/>
+    <transition event="awaiting_acks_56_window_elapsed" target="fail_acks_missing"/>
+  </state>
+
+  <state id="awaiting_acks_2">
+    <onentry>
+      <send event="awaiting_acks_2_window_elapsed" delay="11s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_has_live_eventgroup_entry(::tc8::sd_entry_type::kSubscribeEventgroupAck, expected.service_id, 0x0002)"
+                target="pass"/>
+    <transition event="awaiting_acks_2_window_elapsed" target="fail_acks_missing"/>
+  </state>
+
+  <state id="awaiting_acks_5">
+    <onentry>
+      <send event="awaiting_acks_5_window_elapsed" delay="11s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_has_live_eventgroup_entry(::tc8::sd_entry_type::kSubscribeEventgroupAck, expected.service_id, 0x0005)"
+                target="pass"/>
+    <transition event="awaiting_acks_5_window_elapsed" target="fail_acks_missing"/>
+  </state>
+
+  <state id="awaiting_acks_6">
+    <onentry>
+      <send event="awaiting_acks_6_window_elapsed" delay="11s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_has_live_eventgroup_entry(::tc8::sd_entry_type::kSubscribeEventgroupAck, expected.service_id, 0x0006)"
+                target="pass"/>
+    <transition event="awaiting_acks_6_window_elapsed" target="fail_acks_missing"/>
   </state>
 
   <final id="pass">
@@ -71,9 +178,9 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_phase2_no_three_acks">
+  <final id="fail_acks_missing">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_bundled_subscribe_ack_for_eg_0x02_0x05_0x06","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_subscribe_ack_for_every_entry_eg_0x02_0x05_0x06","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </scxml>

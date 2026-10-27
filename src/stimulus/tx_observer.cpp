@@ -1,10 +1,13 @@
 #include "stimulus/tx_observer.h"
 
 #include <atomic>
+#include <string>
 #include <thread>
 
 #include <netinet/in.h>
 #include <sys/socket.h>
+
+#include "tc8/unperformed_stimulus.h"
 
 namespace tc8::stimulus {
 namespace {
@@ -169,6 +172,11 @@ void reportTesterAction(std::string_view what) {
         return;
     }
     deliver("tester_action", {}, 0, 0, 0, 0, t_spec_step, what);
+}
+
+void reportTxFailed(const char *primitive) {
+    const char *name = t_emitter != nullptr ? t_emitter : primitive;
+    ::tc8::UnperformedStimulus::record(std::string("tx_") + name);
 }
 
 TxScope::TxScope(const char *emitter) : owns_(t_emitter == nullptr) {

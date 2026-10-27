@@ -24,17 +24,15 @@ namespace tc8::sce {
 
 // TC8 v3.0 §5.1.6 SOMEIP_ETS_088 — SD_Answer_multiple_subscribes_together.
 // Tester sends a single SD message carrying 3 Type 2 SubscribeEventgroup
-// entries (eg 0x02, 0x05, 0x06) via emitMultiSubscribeEventgroup. Per
-// PRS_SOMEIPSD_00263 the DUT must respond to each entry — Ack with
-// ttl > 0 for the configured eventgroups (0x02, 0x05) and Nack with
-// ttl == 0 for 0x06 (not in tc8-dut's vsomeip.json). Phase 2c
-// accepts any response on eg 0x06 (Ack OR Nack) per the lenient
-// spec invariant "DUT responds to each entry".
+// entries (eg 0x02, 0x05, 0x06) from a held reliable session. Per
+// PRS_SOMEIPSD_00263 and the pass criteria the DUT sends a
+// SubscribeEventgroupAck (ttl > 0) for each entry; the SCXML accepts the
+// three Acks in any order and in any packing (one SD message or several).
 template <>
 struct TestCaseTraits<cases::SomeipEts088SM> : SomeIpAnyBase<cases::SomeipEts088SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_088";
     static constexpr std::string_view kDescription =
-        "Multi-entry Subscribe (eg 0x02 + 0x05 + 0x06) — DUT acks/nacks each entry";
+        "Multi-entry Subscribe (eg 0x02 + 0x05 + 0x06) — DUT acks each entry";
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,

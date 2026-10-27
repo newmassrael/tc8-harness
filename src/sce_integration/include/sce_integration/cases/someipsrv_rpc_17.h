@@ -1,8 +1,10 @@
 #pragma once
 
 #include <string_view>
+#include <thread>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/reliable_method_request.h"
 #include "sce_integration/cases/_someipsrv_traits_base.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/someip_rpc_builder.h"
@@ -19,9 +21,10 @@ using Rpc17SM = ::SCE::Generated::someipsrv_rpc_17::someipsrv_rpc_17;
 namespace tc8::sce {
 
 // TC8 v3.0 §5.1.5.7.17 — Multiple instances use multiple TCP connections.
-// Stimulus chain: FindService → wait for two-entry OfferService → TCP
-// Method Request to instance 1 reliable port (30501) → wait for
-// Response → TCP Method Request to instance 2 reliable port (30503).
+// Stimulus chain: FindService → one held TCP connection to each instance's
+// reliable port (30501, 30503), each carrying one Method Request. The runner
+// holds both connections for the whole run, so a Response the DUT sends at
+// any point in the window travels a connection the tester has not closed.
 // Method ID is echoUINT8RELIABLE (0x0A) per ets.fdepl SomeIpReliable=true.
 template <>
 struct TestCaseTraits<cases::Rpc17SM> : SomeIpAnyBase<cases::Rpc17SM> {
@@ -33,6 +36,9 @@ struct TestCaseTraits<cases::Rpc17SM> : SomeIpAnyBase<cases::Rpc17SM> {
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         ::tc8::stimulus::emitFindServiceBoot(ctx.iface, ::tc8::stimulus::FindServiceTarget{});
+        // The OfferService cycle is under way when the boot returns; the gap is the
+        // one emitMethodRequestAfter keeps before a Request.
+        std::this_thread::sleep_for(::tc8::stimulus::MethodRequestTiming{}.pre_emit_wait);
 
         ::tc8::stimulus::SomeIpRpcMessage req{};
         req.service_id = 0xF4E7;
@@ -40,17 +46,14 @@ struct TestCaseTraits<cases::Rpc17SM> : SomeIpAnyBase<cases::Rpc17SM> {
         req.payload = {0x42};
 
         // instance 0x0001 reliable = the configured services[0] TCP endpoint.
-        ::tc8::stimulus::emitMethodRequestTcpAfter(ctx.iface, req, {},
-                                                   ::tc8::sce::someipTcpMethodDest(cfg));
+        ::tc8::sce::sendOnHeldReliableConnection(ctx, ::tc8::sce::someipTcpMethodDest(cfg), {req});
 
         ::tc8::stimulus::SomeIpRpcMessage req2 = req;
         req2.session_id = 0x0002;
-        ::tc8::stimulus::MethodRequestTiming late{};
-        late.pre_emit_wait = std::chrono::milliseconds{500};
         // instance 0x0002 reliable — not the base services[0] endpoint, so
         // name the port explicitly.
-        ::tc8::stimulus::emitMethodRequestTcpAfter(ctx.iface, req2, late,
-                                                   ::tc8::sce::someipTcpMethodDest(cfg, ::tc8::sce::someip::kSi1Inst2TcpPort));
+        ::tc8::sce::sendOnHeldReliableConnection(
+            ctx, ::tc8::sce::someipTcpMethodDest(cfg, ::tc8::sce::someip::kSi1Inst2TcpPort), {req2});
     }
 };
 

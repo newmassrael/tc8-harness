@@ -1,7 +1,7 @@
 # tc8_harness_core — the dependency-light harness internals shared by the tester
 # executable and the unit tests: pcap capture, the expect/summary CLI helpers, the
 # SCE case registry + spec inventory, and the socket responders (ARP / method / TCP
-# server + accept + subscribe) that own a thread or a capture loop. A library for the
+# server + accept + subscribe + reliable method) that own a thread or a capture loop. A library for the
 # same reason tc8_stimulus is: the tester and every unit test link the SAME objects,
 # so a responder covered by a test is the one the tester ships — no second, drifting
 # copy (this set was listed by path in the tester AND in unit_tests' testable lib).
@@ -34,6 +34,7 @@ add_library(tc8_harness_core STATIC
     ${PROJECT_SOURCE_DIR}/src/stimulus/responders/tcp_server.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/responders/tcp_accept_service.cpp
     ${PROJECT_SOURCE_DIR}/src/stimulus/responders/subscribe_tcp_session.cpp
+    ${PROJECT_SOURCE_DIR}/src/stimulus/responders/reliable_method_session.cpp
 )
 # PUBLIC roots consumers inherit by linkage: src/sce_integration/include (this lib's
 # OWN sce_integration/ tree — case registry, spec inventory, the expected/captured

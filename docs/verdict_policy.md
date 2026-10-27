@@ -83,8 +83,8 @@ Environmental shortfalls never red the gate.
 
 > **Status (Phase Q, Section 8).** Q1–Q3 are in the tree: the
 > `observed_quiescence` role, its reach and bound rules, and the run-time gate on
-> S, H1, H2 and H3. Q4 (migrating the `liveness` guards) is in progress: 89 moved,
-> 33 on the ledger.
+> S, H1, H2 and H3. Q4 (migrating the `liveness` guards) is in progress: 98 moved,
+> 24 on the ledger.
 
 **Quiescence is an observation.** In the input/output conformance theory the
 suite is grounded in (ioco, Tretmans), the absence of any output — quiescence,
@@ -513,7 +513,7 @@ tree does not have.
   `ParamListenTime` plus `<ParamToleranceTime>`, the slack the specification adds
   to every listen, so a window never measures short of its bound.
 
-  First sweep, done: 89 of the 122 ledger cases moved, 33 remain. The §4.2.4.2
+  First sweep, done: 89 of the 122 ledger cases moved. The §4.2.4.2
   Request-reception family shares one template (`arp_required_reply`), and
   ARP_16..19 and ARP_41 now carry `_neg` cases on the same fault flavor. The
   sweep added three rules, each with its own check:
@@ -539,11 +539,27 @@ tree does not have.
     `queryTcpSeqRange`. `driveSeamPassiveOpen` deliberately does not, because the
     DUT's missing SYN+ACK also lands there and `TCP_BASICS_01` grades it.
 
-  The 33 that remain each have a recorded reason in `docs/tech-debt.md`: the
+  Second sweep, done: the nine SOME/IP cases in which the tester gave the DUT less
+  than `ParamListenTime`, or required an order the specification does not
+  (`docs/tech-debt.md` TD-64). It added two more rules:
+
+  - **Answers the specification does not order are awaited in any order.** A case
+    owed several answers has one waiting state per set of answers still owed, each
+    with its own window, so the answer still owed always has a full window after
+    its request. A compound state with one timer does not do this: H3 measures the
+    dwell from the previous transition, which a first answer resets.
+  - **S is enforced at the send primitive.** Most cases ignore an emitter's
+    return value, so a send that failed would have left a migrated deadline to fail
+    the DUT for a question never put. Every send primitive (raw Ethernet, UDP,
+    TCP connect and send, the SD and RPC builders' own sockets, the responders'
+    setup) records its failure as an unperformed stimulus named after the emitter
+    the case called (`reportTxFailed`, `stimulus/tx_observer.h`). Outcomes that are
+    observations, such as a receive that timed out, are not recorded.
+
+  The 24 that remain each have a recorded reason in `docs/tech-debt.md` TD-65: the
   silence is in a preamble only, the bound is DUT-specific with no specification
-  ceiling, the check is a UT state query rather than a wire silence, a shared
-  template final would need a per-case parameter, or the tester gives the DUT less
-  than `ParamListenTime` to answer.
+  ceiling, the check is a UT state query rather than a wire silence, or a shared
+  template final would need a per-case parameter.
 
 ---
 

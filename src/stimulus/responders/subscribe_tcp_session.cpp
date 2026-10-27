@@ -30,6 +30,7 @@ SubscribeEventgroupTcpSession::SubscribeEventgroupTcpSession(std::string_view if
                      "stimulus: interface '%.*s' has no IPv4 address — cannot open "
                      "reliable subscribe session\n",
                      static_cast<int>(iface.size()), iface.data());
+        reportTxFailed("subscribe_tcp_session");
         return;
     }
     // No literal fallback (cf. MethodEndpoint): an unconfigured DUT endpoint is a
@@ -38,6 +39,7 @@ SubscribeEventgroupTcpSession::SubscribeEventgroupTcpSession(std::string_view if
         std::fprintf(stderr,
                      "stimulus: reliable subscribe session has an unconfigured DUT "
                      "endpoint (0.0.0.0:0) — refusing to connect\n");
+        reportTxFailed("subscribe_tcp_session");
         return;
     }
 
@@ -77,6 +79,8 @@ void SubscribeEventgroupTcpSession::refuseWithRst() {
                      "stimulus: reliable subscribe refuseWithRst SO_LINGER failed: %s "
                      "(close will FIN, not RST)\n",
                      std::strerror(errno));
+        // The teardown the case asked for (a reset) is not the one the DUT will see.
+        reportTxFailed("subscribe_tcp_session_reset");
     } else {
         // Only an RST is reported: the downgrade above sends a FIN, which is not this.
         reportTcpReset(iface_, dut_reliable_.ipv4_be, dut_reliable_.port, local_port_);

@@ -1,10 +1,11 @@
 #pragma once
 
-#include <chrono>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/reliable_method_request.h"
 #include "sce_integration/cases/_someipsrv_traits_base.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/someip_rpc_builder.h"
@@ -22,8 +23,9 @@ namespace tc8::sce {
 
 // TC8 v3.0 §5.1.6 SOMEIP_ETS_068 — Unaligned_SOMEIP_Messages_overTCP.
 // Tester packs 3 echoUINT8RELIABLE Method Requests (METHOD-ID 0x000A,
-// 1-byte UInt8 payload each) into a single TCP send() via
-// emitBundledMethodRequestsTcp. Per-message wire size = 17 bytes
+// 1-byte UInt8 payload each) into a single TCP send() on a connection
+// the runner holds for the whole run (sendOnHeldReliableConnection), so
+// every Response travels a connection the tester has not closed. Per-message wire size = 17 bytes
 // (16 header + 1 payload), so the bundle lands at TCP-stream offsets
 // 0/17/34 — none 4-byte-aligned. Spec body names "method
 // echoUINT8array" but tc8-dut only declares array methods on UDP
@@ -65,12 +67,12 @@ struct TestCaseTraits<cases::SomeipEts068SM> : SomeIpAnyBase<cases::SomeipEts068
         m3.payload    = {0x44};
         bundle.push_back(m3);
 
+        // The OfferService cycle is under way when the boot returns; the gap is the
+        // one emitMethodRequestAfter keeps before a Request.
+        std::this_thread::sleep_for(::tc8::stimulus::MethodRequestTiming{}.pre_emit_wait);
         // tc8-dut SERVICE-ID-1 instance 0x0001 reliable endpoint — the
         // configured services[0] TCP port (vsomeip.json reliable.port).
-        ::tc8::stimulus::emitBundledMethodRequestsTcp(ctx.iface, bundle,
-                                                     std::chrono::milliseconds(500),
-                                                     ::tc8::sce::someipTcpMethodDest(cfg),
-                                                     std::chrono::milliseconds(800));
+        ::tc8::sce::sendOnHeldReliableConnection(ctx, ::tc8::sce::someipTcpMethodDest(cfg), bundle);
     }
 };
 

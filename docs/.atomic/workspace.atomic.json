@@ -7218,10 +7218,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/stimulus/include/stimulus/someip_rpc_builder.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/include/sce_integration/someip_captured.h",
           "kind": "implements"
         }

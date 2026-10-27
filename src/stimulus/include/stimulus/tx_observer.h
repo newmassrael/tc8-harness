@@ -156,6 +156,21 @@ void reportTcpReset(std::string_view iface, std::uint32_t dst_ip_be, std::uint16
 // empty.
 void reportTcpRefusal(std::string_view iface, std::uint16_t port);
 
+// A send primitive could not do what it was called for (no socket, no source address,
+// a refused connect, a short write): records an unperformed stimulus
+// (tc8/unperformed_stimulus.h) named "tx_<emitter>", after the outermost TxScope on this
+// thread, or "tx_<primitive>" when none is open (a responder's own thread).
+//
+// Recorded HERE, at the primitive, for the reason a successful send is reported here: a
+// verdict on the DUT's silence (docs/verdict_policy.md Section 2.1, hypothesis S) is only
+// sound when the stimulus went out, and a case that ignored an emitter's negative return
+// would otherwise grade the tester's failure as the DUT's silence. Most cases do ignore
+// it; a primitive cannot be ignored. Independent of the observer: a run with no state
+// stream still records it. Call it on every failure return of a primitive, after the
+// log line that says why, and on none of the outcomes that are an observation (a recv
+// that timed out, a peer that closed).
+void reportTxFailed(const char *primitive);
+
 // The labels the harness itself reports with, so a producer and a reader share one
 // spelling. A case may use any other short label for an action of its own.
 inline constexpr std::string_view kActionIgnoreSegments = "ignore_segments";

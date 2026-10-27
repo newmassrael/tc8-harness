@@ -39,6 +39,7 @@ BoundSocket openBoundUdpSocket(std::string_view iface_name, std::uint16_t src_po
     const int sock = ::socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0) {
         std::fprintf(stderr, "stimulus: socket() failed: %s\n", std::strerror(errno));
+        reportTxFailed("udp_socket");
         return {-1, 0};
     }
 
@@ -47,6 +48,7 @@ BoundSocket openBoundUdpSocket(std::string_view iface_name, std::uint16_t src_po
         std::fprintf(stderr, "stimulus: interface '%.*s' has no IPv4 address — cannot bind UDP source\n",
                      static_cast<int>(iface_name.size()), iface_name.data());
         ::close(sock);
+        reportTxFailed("udp_socket");
         return {-2, 0};
     }
 
@@ -54,6 +56,7 @@ BoundSocket openBoundUdpSocket(std::string_view iface_name, std::uint16_t src_po
     if (::setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
         std::fprintf(stderr, "stimulus: setsockopt(SO_REUSEADDR) failed: %s\n", std::strerror(errno));
         ::close(sock);
+        reportTxFailed("udp_socket");
         return {-7, 0};
     }
 
@@ -64,6 +67,7 @@ BoundSocket openBoundUdpSocket(std::string_view iface_name, std::uint16_t src_po
     if (::bind(sock, reinterpret_cast<sockaddr *>(&bind_addr), sizeof(bind_addr)) < 0) {
         std::fprintf(stderr, "stimulus: bind(source port %u) failed: %s\n", src_port, std::strerror(errno));
         ::close(sock);
+        reportTxFailed("udp_socket");
         return {-7, 0};
     }
 
@@ -95,6 +99,7 @@ int sendUdpUnicast(const std::vector<std::uint8_t> &datagram, std::string_view i
         std::fprintf(stderr, "stimulus: sendto(unicast %u.%u.%u.%u:%u) failed: %s (sent=%zd of %zu)\n",
                      (dst_ip_be >> 0) & 0xFFU, (dst_ip_be >> 8) & 0xFFU, (dst_ip_be >> 16) & 0xFFU,
                      (dst_ip_be >> 24) & 0xFFU, dst_port, std::strerror(saved_errno), n, datagram.size());
+        reportTxFailed("udp_unicast");
         return -6;
     }
     reportTx("udp_unicast", iface_name, dst_ip_be, dst_port, datagram.size());
@@ -117,12 +122,14 @@ int sendUdpMulticast(const std::vector<std::uint8_t> &datagram, std::string_view
     if (::setsockopt(bs.fd, IPPROTO_IP, IP_MULTICAST_IF, &mcast_if, sizeof(mcast_if)) < 0) {
         std::fprintf(stderr, "stimulus: setsockopt(IP_MULTICAST_IF) failed: %s\n", std::strerror(errno));
         ::close(bs.fd);
+        reportTxFailed("udp_multicast");
         return -3;
     }
 
     if (::setsockopt(bs.fd, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl)) < 0) {
         std::fprintf(stderr, "stimulus: setsockopt(IP_MULTICAST_TTL) failed: %s\n", std::strerror(errno));
         ::close(bs.fd);
+        reportTxFailed("udp_multicast");
         return -4;
     }
 
@@ -133,6 +140,7 @@ int sendUdpMulticast(const std::vector<std::uint8_t> &datagram, std::string_view
         std::fprintf(stderr, "stimulus: inet_pton('%.*s') failed\n", static_cast<int>(mcast_group.size()),
                      mcast_group.data());
         ::close(bs.fd);
+        reportTxFailed("udp_multicast");
         return -5;
     }
 
@@ -145,6 +153,7 @@ int sendUdpMulticast(const std::vector<std::uint8_t> &datagram, std::string_view
         std::fprintf(stderr, "stimulus: sendto(%.*s:%u) failed: %s (sent=%zd of %zu)\n",
                      static_cast<int>(mcast_group.size()), mcast_group.data(), mcast_port,
                      std::strerror(saved_errno), n, datagram.size());
+        reportTxFailed("udp_multicast");
         return -6;
     }
     reportTx("udp_multicast", iface_name, dst.sin_addr.s_addr, mcast_port, datagram.size());

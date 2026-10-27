@@ -28,9 +28,9 @@ namespace tc8::sce {
 // Method Response for each Request. Spec p589 Pass Criteria: "DUT
 // returns the method results of both requests in one message or
 // separate messages" — Linux DUT (CommonAPI-on-vsomeip) emits two
-// distinct UDP datagrams, one per Response, so the SCXML pins each
-// reply on its own session_id (0x0001 / 0x0002) in successive
-// phases. Direct lift of the ETS_069 3-bundle pattern with 2
+// distinct UDP datagrams, one per Response; the SCXML tells the
+// replies apart by session_id (0x0001 / 0x0002) and accepts them in
+// either order. Direct lift of the ETS_069 3-bundle pattern with 2
 // messages and method-id varying (echoUINT8 + echoENUM) instead of
 // the same array method.
 template <>

@@ -106,6 +106,7 @@ int TcpConnection::send(const std::vector<std::uint8_t> &bytes) {
                 continue;
             }
             std::fprintf(stderr, "stimulus: TcpConnection::send failed: %s\n", std::strerror(errno));
+            reportTxFailed("tcp_connection_send");
             return -1;
         }
         off += static_cast<std::size_t>(n);
@@ -278,6 +279,7 @@ int openTcpListener(std::string_view iface, std::uint16_t port, bool non_blockin
     if (sock < 0) {
         std::fprintf(stderr, "stimulus: tcp listen socket() failed: %s\n",
                      std::strerror(errno));
+        reportTxFailed("tcp_listen");
         return -1;
     }
 
@@ -286,6 +288,7 @@ int openTcpListener(std::string_view iface, std::uint16_t port, bool non_blockin
         std::fprintf(stderr, "stimulus: tcp listen SO_REUSEADDR failed: %s\n",
                      std::strerror(errno));
         ::close(sock);
+        reportTxFailed("tcp_listen");
         return -2;
     }
 
@@ -296,6 +299,7 @@ int openTcpListener(std::string_view iface, std::uint16_t port, bool non_blockin
                      "cannot bind tcp listener\n",
                      static_cast<int>(iface.size()), iface.data());
         ::close(sock);
+        reportTxFailed("tcp_listen");
         return -3;
     }
 
@@ -307,12 +311,14 @@ int openTcpListener(std::string_view iface, std::uint16_t port, bool non_blockin
         std::fprintf(stderr, "stimulus: tcp listen bind(%u) failed: %s\n",
                      port, std::strerror(errno));
         ::close(sock);
+        reportTxFailed("tcp_listen");
         return -4;
     }
     if (::listen(sock, backlog) < 0) {
         std::fprintf(stderr, "stimulus: tcp listen(%u) failed: %s\n",
                      port, std::strerror(errno));
         ::close(sock);
+        reportTxFailed("tcp_listen");
         return -5;
     }
     if (non_blocking) {
@@ -324,6 +330,7 @@ int openTcpListener(std::string_view iface, std::uint16_t port, bool non_blockin
             std::fprintf(stderr, "stimulus: tcp listen O_NONBLOCK failed: %s\n",
                          std::strerror(errno));
             ::close(sock);
+            reportTxFailed("tcp_listen");
             return -6;
         }
     }

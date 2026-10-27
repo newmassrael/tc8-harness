@@ -258,6 +258,23 @@ struct SdDecoded {
         return n;
     }
 
+    // Returns true when any parsed entry is of `want_type` for `(want_service_id,
+    // want_eventgroup_id)` with a live TTL (> 0), at whatever index. For a guard on
+    // answers the specification requires per entry but neither orders nor packs: a
+    // DUT may Ack three Subscribe entries in one message, in any entry order, or in
+    // three messages, and each of those is the same answer.
+    bool sd_has_live_eventgroup_entry(std::uint8_t want_type, std::uint16_t want_service_id,
+                                      std::uint16_t want_eventgroup_id) const {
+        for (std::uint8_t i = 0; i < sd_entry_count; ++i) {
+            const SdEntry &e = sd_entries[i];
+            if (e.type == want_type && e.service_id == want_service_id &&
+                e.eventgroup_id == want_eventgroup_id && e.ttl > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // Returns true when at least one parsed option matches `(type, l4)`.
     // Used by OPTIONS_06/13/15 guards that assert "an IPv4 Endpoint Option with
     // L4-Proto = X is present" without committing to a fixed array index (vsomeip

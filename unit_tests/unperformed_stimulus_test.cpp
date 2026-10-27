@@ -17,6 +17,9 @@
 #include <vector>
 
 #include "sce_integration/cases/_tcp_seam.h"
+#include "stimulus/reliable_method_session.h"
+#include "stimulus/tx_observer.h"
+#include "stimulus/udp_emit.h"
 
 using tc8::UnperformedStimulus;
 
@@ -169,6 +172,48 @@ TEST_F(UnperformedStimulusTest, TheSeamOpenRecordNamesTheOpenNotTheCase) {
     (void)::tc8::sce::tcp::seamConnectTcp(dut, cfg, 1u, 2u, "first");
     (void)::tc8::sce::tcp::seamConnectTcp(dut, cfg, 3u, 4u, "second");
     EXPECT_EQ(UnperformedStimulus::reason(), "stimulus_tcp_seam_open_not_performed");
+}
+
+// An interface name no host carries, so a send from it fails without any privilege.
+constexpr const char *kNoSuchInterface = "tc8-no-such-if";
+
+TEST_F(UnperformedStimulusTest, AFailedSendIsRecordedByThePrimitiveNotTheCase) {
+    // Most cases ignore an emitter's negative return. A verdict on the DUT's
+    // silence after such a send would grade the tester's failure as the DUT's, so
+    // the primitive records it itself (stimulus/tx_observer.h, reportTxFailed).
+    const int rc = ::tc8::stimulus::sendUdpUnicast({0x00}, kNoSuchInterface, 0, 0x0100007FU, 9);
+    ASSERT_LT(rc, 0);
+    EXPECT_TRUE(UnperformedStimulus::any())
+        << "a send that never left the tester left no record";
+    // Called with no emitter around it, the primitive is its own outermost scope.
+    EXPECT_EQ(UnperformedStimulus::reason(), "stimulus_tx_sendUdpUnicast_not_performed");
+}
+
+TEST_F(UnperformedStimulusTest, TheRecordNamesTheEmitterTheCaseCalled) {
+    // The emitter is what a reader of the report can find in the case; the
+    // primitive underneath it is the same for dozens of emitters.
+    {
+        ::tc8::stimulus::TxScope scope("emitUnitTestProbe");
+        (void)::tc8::stimulus::sendUdpUnicast({0x00}, kNoSuchInterface, 0, 0x0100007FU, 9);
+    }
+    EXPECT_EQ(UnperformedStimulus::reason(), "stimulus_tx_emitUnitTestProbe_not_performed");
+}
+
+TEST_F(UnperformedStimulusTest, AHeldReliableConnectionThatCannotOpenIsRecorded) {
+    // The connection a reliable Response must come back on: without it, the
+    // Response's absence is the tester's doing.
+    const ::tc8::stimulus::ReliableMethodSession session(kNoSuchInterface,
+                                                         ::tc8::stimulus::Endpoint{0x0100007FU, 9});
+    EXPECT_FALSE(session.valid());
+    EXPECT_EQ(UnperformedStimulus::reason(), "stimulus_tx_connectTcpFromIface_not_performed");
+}
+
+TEST_F(UnperformedStimulusTest, ASendThatWorksRecordsNothing) {
+    // The other half of the contract: a primitive that did its job must not
+    // downgrade the run. Loopback always has an IPv4 address.
+    const int rc = ::tc8::stimulus::sendUdpUnicast({0x00}, "lo", 0, 0x0100007FU, 9);
+    ASSERT_EQ(rc, 0);
+    EXPECT_FALSE(UnperformedStimulus::any());
 }
 
 }  // namespace

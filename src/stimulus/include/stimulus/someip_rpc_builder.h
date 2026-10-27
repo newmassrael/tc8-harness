@@ -152,7 +152,7 @@ int emitEventNotification(std::string_view iface, const std::vector<std::uint8_t
 // packing is produced by a per-message `length_override` at build time (a message
 // whose Length disagrees with its byte count makes the next message start
 // unaligned). Pure (no I/O). Sibling of `buildBundledMethodRequests`, which
-// builds-then-concats Requests over a fresh socket; this concats already-built
+// builds-then-concats Requests; this concats already-built
 // messages of any kind — kept separate to avoid an extra vector-of-vector
 // allocation in the request path.
 std::vector<std::uint8_t> packSomeIpMessages(const std::vector<std::vector<std::uint8_t>> &messages);
@@ -206,16 +206,19 @@ int emitMethodRequestFromSourceIp(std::string_view iface, const SomeIpRpcMessage
                                   const std::array<std::uint8_t, 6> &dut_mac = kEthBroadcast,
                                   const std::array<std::uint8_t, 6> &src_mac = {});
 
-// TCP variant of `emitMethodRequestAfter`. Used by §5.1.5.7 RPC_17 to
-// drive multi-instance Method Request/Response over the reliable TCP
-// endpoint (vsomeip's tcp_server_endpoint). Each emit opens a fresh
-// SOCK_STREAM socket bound to an ephemeral source port on `iface`,
-// connects to `dest`, sends the SOME/IP datagram, dwells `linger` so
-// vsomeip has time to process and reply on the same socket, and
-// closes. Distinct from the UDP variant because TCP requires the
-// 3-way handshake before payload — keeps the post-send dwell so the
-// kernel can deliver the Response to pcap before close() RSTs the
-// connection.
+// TCP variant of `emitMethodRequestAfter`, for a Method Request/Response over
+// the reliable TCP endpoint (vsomeip's tcp_server_endpoint). Each emit opens a
+// fresh SOCK_STREAM socket bound to an ephemeral source port on `iface`,
+// connects to `dest`, sends the SOME/IP datagram, dwells `linger` so vsomeip has
+// time to process and reply on the same socket, and closes. Distinct from the
+// UDP variant because TCP requires the 3-way handshake before payload — keeps
+// the post-send dwell so the kernel can deliver the Response to pcap before
+// close() RSTs the connection.
+//
+// The DUT is granted `linger`, not the listen time: a Response sent after the
+// close meets a closed connection. So a case whose verdict FAILS on the
+// Response's absence must not use it; it holds the connection for the run
+// instead (stimulus/reliable_method_session.h).
 struct MethodRequestTcpDwell {
     std::chrono::milliseconds linger{300};
 };
@@ -247,34 +250,28 @@ int emitMethodRequestTcpAndHold(std::string_view iface, const SomeIpRpcMessage &
                                 std::chrono::milliseconds dwell_after_send =
                                     std::chrono::milliseconds(1000));
 
-// §5.1.6 SOMEIP_ETS_068/_069 helpers — pack multiple SOME/IP Method
-// Requests into a single L4 datagram and emit it in one syscall. The
-// spec body for both cases ("send three SOMEIP messages in one
-// TCP/UDP package with one unaligned SOMEIP message") relies on the
-// wire-level concatenation, so each target's bytes are built via
-// `buildMethodRequest` and appended back-to-back; vsomeip's
-// udp_server_endpoint / tcp_server_endpoint walks the buffer using
-// the per-message Length header to dispatch each Request. Each
-// emit binds an ephemeral source port on `iface`, sleeps
-// `pre_emit_wait` first (mirroring `emitMethodRequestAfter`), and
-// returns 0 on success or a negative on the first failure.
-//
-// `targets` order is the wire order; session_id stays as set in each
-// target (no auto-increment — caller supplies distinct session_ids
-// to keep the per-message Responses pinnable in a multi-phase
-// SCXML).
+// §5.1.6 SOMEIP_ETS_068/_069 — several SOME/IP Method Requests in one L4
+// packet. The spec body for both cases ("send three SOMEIP messages in one
+// TCP/UDP package with one unaligned SOMEIP message") relies on the wire-level
+// concatenation, so each target's bytes are built via `buildMethodRequest` and
+// appended back-to-back; the receiver walks the buffer by each message's Length
+// header. Per-target Length headers stay self-consistent (or honour each
+// target's own length_override). `targets` order is the wire order; session_id
+// stays as set in each target (no auto-increment — the caller supplies distinct
+// session_ids so each Response is told apart). Pure (no I/O): the UDP emitter
+// below sends it as one datagram, and the TCP case writes it to a held
+// connection (stimulus/reliable_method_session.h), whose Responses must come
+// back on a connection the tester has not closed.
+std::vector<std::uint8_t> buildBundledMethodRequests(const std::vector<SomeIpRpcMessage> &targets);
 
+// Emit `buildBundledMethodRequests(targets)` as one UDP datagram from an
+// ephemeral source port on `iface`, after sleeping `pre_emit_wait` (mirroring
+// `emitMethodRequestAfter`). Returns 0 on success or a negative on the first
+// failure.
 int emitBundledMethodRequestsUdp(std::string_view iface,
                                  const std::vector<SomeIpRpcMessage> &targets,
                                  std::chrono::milliseconds pre_emit_wait,
                                  const MethodEndpoint &dest);
-
-int emitBundledMethodRequestsTcp(std::string_view iface,
-                                 const std::vector<SomeIpRpcMessage> &targets,
-                                 std::chrono::milliseconds pre_emit_wait,
-                                 const MethodEndpoint &dest,
-                                 std::chrono::milliseconds linger =
-                                     std::chrono::milliseconds(500));
 
 // Reads `SOL_TCP / TCP_INFO` from `fd` (must be SOCK_STREAM) into
 // `*out_tcpi_state` and unconditionally closes `fd`. tcpi_state values

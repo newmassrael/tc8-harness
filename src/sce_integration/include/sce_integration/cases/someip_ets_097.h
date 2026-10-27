@@ -2,15 +2,17 @@
 
 #include <chrono>
 #include <cstdint>
+#include <memory>
 #include <string_view>
 #include <thread>
-#include <unistd.h>
+#include <vector>
 
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_someipsrv_traits_base.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/someip_rpc_builder.h"
 #include "stimulus/someip_sd_builder.h"
+#include "stimulus/tcp_accept_service.h"
 #include "stimulus/tcp_server.h"
 
 #include "someip_ets_097_sm.h"
@@ -51,11 +53,11 @@ namespace tc8::sce {
 //      OfferService #1 with TCP endpoint, no listener up yet → DUT's first
 //      SYN gets RST from the kernel (ECONNREFUSED at vsomeip).
 //   6. Sleep 1500 ms — DUT vsomeip notices ECONNREFUSED + arms its retry timer.
-//   7. openTcpListener(:30509) — flips the tester from "refuse" to "accept".
+//   7. TcpAcceptService(:30509), adopted by the runner — flips the tester
+//      from "refuse" to "accept" for the rest of the run; each accept sets
+//      `c.tcp_handshake_completed = 1` and holds the connection.
 //   8. emitOfferServiceMulticastWithEndpoint(offer2, same endpoint) — second
 //      OfferService triggers vsomeip's offer-driven reconnect.
-//   9. acceptTcpOnce(timeout = 3 s) — sets `c.tcp_handshake_completed = 1`
-//      when the second SYN completes the handshake.
 //
 // Verdict (3-state SCXML):
 //   Phase 1 (listening_phase1, 6 s deadline): observe an OfferService for
@@ -63,9 +65,9 @@ namespace tc8::sce {
 //   Phase 2 (listening_phase2_subscribe_seen, 12 s deadline): observe
 //           SubscribeEventgroup from DUT for SERVICE-ID 0xF4E9 carrying a
 //           TCP-l4 IPv4 Endpoint Option.
-//   Phase 3 (listening_phase3_handshake, 6 s deadline): wait for the
-//           stimulus chain to write `c.tcp_handshake_completed`. Cond on
-//           the deadline reads the slot.
+//   Phase 3 (listening_phase3_handshake, 11 s window): the deadline reads
+//           `c.tcp_handshake_completed`; still 0 is the DUT's silence where
+//           it must reconnect (observed_quiescence over ParamListenTime).
 template <>
 struct TestCaseTraits<cases::SomeipEts097SM> : SomeIpAnyBase<cases::SomeipEts097SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_097";
@@ -107,7 +109,7 @@ struct TestCaseTraits<cases::SomeipEts097SM> : SomeIpAnyBase<cases::SomeipEts097
         offer1.service.ttl           = 5;
         offer1.service.session_id    = 0x0001;
         // endpoint.ipv4_be left at 0 — the emitter auto-fills from `iface`.
-        offer1.endpoint.port    = 30509;
+        offer1.endpoint.port    = kTesterReliablePort;
         offer1.endpoint.l4proto = 0x06;          // TCP
         ::tc8::stimulus::emitOfferServiceMulticastWithEndpoint(
             ctx.iface, offer1, std::chrono::milliseconds(500));
@@ -115,25 +117,36 @@ struct TestCaseTraits<cases::SomeipEts097SM> : SomeIpAnyBase<cases::SomeipEts097
         // Give vsomeip's first connect attempt time to fire + fail.
         std::this_thread::sleep_for(std::chrono::milliseconds(1500));
 
-        // Open the TCP listener and immediately emit OfferService #2; vsomeip
-        // reacts to the offer by re-attempting the TCP connect, which now
-        // completes against the live listener.
-        const int listen_fd = ::tc8::stimulus::openTcpListener(ctx.iface, 30509);
+        // Open the TCP listener, then emit OfferService #2; vsomeip reacts to
+        // the offer by re-attempting the TCP connect, which now completes
+        // against the live listener. The runner owns the listener for the whole
+        // run and accepts on every drain, so a connect at any point in the
+        // window is heard: a bounded accept here would grant the DUT the bound
+        // instead of the listen time, and a SYN after it would meet a closed
+        // port. Each accepted connection is held, so the DUT's client
+        // connection stays up as it would against a real server. A listener
+        // that cannot be opened is recorded as an unperformed stimulus by the
+        // primitive (stimulus/tx_observer.h, reportTxFailed).
+        auto held = std::make_shared<std::vector<::tc8::stimulus::TcpConnection>>();
+        auto listener = std::make_unique<::tc8::stimulus::TcpAcceptService>(
+            ctx.iface, kTesterReliablePort, [&c, held](::tc8::stimulus::TcpConnection conn) {
+                c.tcp_handshake_completed = 1;
+                held->push_back(std::move(conn));
+            });
+        const bool listening = listener->ok();
+        ctx.services.adoptService(std::move(listener));
+        if (!listening) {
+            return;
+        }
 
         ::tc8::stimulus::OfferServiceWithEndpointTarget offer2 = offer1;
         offer2.service.session_id = 0x0002;
         ::tc8::stimulus::emitOfferServiceMulticastWithEndpoint(
             ctx.iface, offer2, std::chrono::milliseconds(200));
-
-        if (listen_fd >= 0) {
-            const int accepted =
-                ::tc8::stimulus::acceptTcpOnce(listen_fd, std::chrono::milliseconds(3000));
-            if (accepted == 1) {
-                c.tcp_handshake_completed = 1;
-            }
-            ::close(listen_fd);
-        }
     }
+
+    // The tester's reliable endpoint both Offers advertise.
+    static constexpr std::uint16_t kTesterReliablePort = 30509;
 };
 
 }  // namespace tc8::sce
