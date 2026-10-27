@@ -149,6 +149,10 @@ jobs:
         # suite-producer surface does. Caught within a day is proportionate; a
         # push lane that reaches no test lane at all is not.
         if: ${{ github.event_name != 'push' }}
+        # Its fresh configure gets the pinned generator build-harness resolved;
+        # PATH on this host holds whatever revision was installed last.
+        env:
+          CMAKE_EXTRA_ARGS: -DSCE_CODEGEN=${{ env.SCE_CODEGEN }}
         run: ./scripts/check-suite-producer.sh "${{ runner.temp }}/suite-producer" 4
 
       - name: Run host unit tests (DUT + engines, ctest)

@@ -31,6 +31,34 @@ runs:
       shell: bash
       run: sudo -n ./scripts/setup-vsomeip.sh /opt/someip-stack
 
+    - name: Resolve sce-codegen at the pinned revision
+      # The configure-time pin check refuses a generator built from any revision
+      # other than third_party/sce/VERSION. This runner is a persistent host, so
+      # whatever sits on PATH is whatever was last installed by hand: the SCE
+      # 19175ffbb4 re-vendor reached it while ~/.local/bin/sce-codegen was still
+      # 6499fa67, and the smoke lane died at configure. ~/.local/bin is also
+      # shared with other checkouts on this host that pin their own revision, so
+      # it is not this job's to overwrite.
+      #
+      # Instead the generator lives in a per-revision store, the layout bx's tool
+      # store uses (~/.local/share/sce-codegen-rev/<rev>/bin/sce-codegen), built
+      # once per pin by the same scripts/install-sce-codegen.sh every other
+      # provisioning path calls, and handed to configure explicitly. The build
+      # goes to a temporary prefix renamed into place, so an interrupted build
+      # never leaves a partial binary under the revision's name.
+      shell: bash
+      run: |
+        rev="$(tr -d '[:space:]' < third_party/sce/VERSION)"
+        store="$HOME/.local/share/sce-codegen-rev/${rev}"
+        if [[ ! -x "${store}/bin/sce-codegen" ]]; then
+          mkdir -p "$(dirname "${store}")"
+          staging="$(mktemp -d "${store}.partial.XXXXXX")"
+          trap 'rm -rf "${staging}"' EXIT
+          scripts/install-sce-codegen.sh "${staging}"
+          mv -T "${staging}" "${store}"
+        fi
+        echo "SCE_CODEGEN=${store}/bin/sce-codegen" >> "$GITHUB_ENV"
+
     - name: Configure
       # CMAKE_PREFIX_PATH steers find_package(vsomeip3) to the job-scoped
       # install above — deterministic even when /usr/local holds a foreign
@@ -76,6 +104,7 @@ runs:
         cmake -S . -B build \
           -DCMAKE_BUILD_TYPE=Release \
           -DTC8_SCE_FIND_PACKAGE=OFF \
+          -DSCE_CODEGEN="${SCE_CODEGEN}" \
           "${ccache_args[@]}"
 
     - name: Build harness + tc8-dut
