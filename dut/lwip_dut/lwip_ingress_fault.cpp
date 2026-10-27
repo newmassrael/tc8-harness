@@ -320,6 +320,32 @@ constexpr std::uint16_t kHeldFragmentCap = 1600;  // an Ethernet frame plus slac
 std::uint8_t  g_held_fragment[kHeldFragmentCap];
 std::uint16_t g_held_fragment_len = 0;
 
+// kArpFaultIgnoreWellFormedRequest's exemption: the hardware address the UT control
+// channel's datagrams arrive from. Learned from every frame to the UT port, so it is held
+// before any flavor is armed (the arm is itself such a frame).
+std::uint8_t g_control_peer_mac[6] = {};
+bool         g_have_control_peer = false;
+
+void noteControlPeer(const std::uint8_t *f, std::uint16_t len) {
+    if (len < kIpProtoOff + 1 || !isIpv4(f) || f[kIpProtoOff] != kIpProtoUdp ||
+        len < l4RegionOffset(f) + kUdpHdrLen) {
+        return;
+    }
+    if (get16(f, static_cast<std::uint16_t>(l4RegionOffset(f) + kUdpDstPort)) == ut::kPort) {
+        std::memcpy(g_control_peer_mac, f + 6, 6);  // Ethernet source address
+        g_have_control_peer = true;
+    }
+}
+
+// A well-formed Request for this DUT's own address from anyone but the control peer.
+bool isPeerRequestForUs(const std::uint8_t *f, const struct netif *nif) {
+    std::uint32_t target = 0;
+    std::memcpy(&target, f + kArpTargetIp, 4);  // network order, as ip4_addr_t stores it
+    const bool for_us = target == ip4_addr_get_u32(netif_ip4_addr(nif));
+    const bool from_peer = g_have_control_peer && std::memcmp(f + kArpSenderHw, g_control_peer_mac, 6) == 0;
+    return get16(f, kArpOpcode) == 0x0001 && for_us && !from_peer;
+}
+
 bool senderAlreadyTaught(const std::uint8_t *rx) {
     std::uint32_t ip = 0;
     std::memcpy(&ip, rx + kArpSenderIp, 4);  // network order
@@ -366,10 +392,19 @@ err_t ingressFaultInput(struct pbuf *p, struct netif *nif) {
             g_rx_ipv4_frags.fetch_add(1, std::memory_order_relaxed);
         }
     }
+    if (p != nullptr && p->payload != nullptr) {
+        noteControlPeer(static_cast<const std::uint8_t *>(p->payload), p->len);
+    }
     const std::uint8_t flavor = g_ingress_flavor.load(std::memory_order_relaxed);
     if (flavor != ut::kIngressFaultNone && p != nullptr && p->payload != nullptr) {
         auto *f = static_cast<std::uint8_t *>(p->payload);
         if (p->len >= kArpFrameLen && isArp(f)) {
+            if (flavor == ut::kArpFaultIgnoreWellFormedRequest && isPeerRequestForUs(f, nif)) {
+                // Swallowed before etharp, so the DUT neither answers nor learns from
+                // it: its responder reads as broken to everyone but the control peer.
+                pbuf_free(p);
+                return ERR_OK;
+            }
             if (flavor == ut::kArpFaultReplyToDropFrame) {
                 emitProhibitedArpReply(nif, f);
             } else if (flavor == ut::kArpFaultLearnFromDropFrame &&

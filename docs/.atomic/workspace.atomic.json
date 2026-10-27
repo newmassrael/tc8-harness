@@ -774,6 +774,22 @@
         {
           "file": "include/tc8/upper_tester_fault_catalog.h",
           "kind": "references"
+        },
+        {
+          "file": "tests/_templates/arp_required_reply_neg.sce-template.xml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/arp_20_neg/arp_20_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/arp_26_neg/arp_26_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/arp_36_neg/arp_36_neg.scxml",
+          "kind": "implements"
         }
       ]
     },

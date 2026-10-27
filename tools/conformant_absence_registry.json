@@ -3,7 +3,8 @@
   "classes": {
     "prohibited_emission": "Silence (no such emission) is a conformant outcome for this stimulus; the named fail final fires iff the DUT emits a frame the protocol forbids here. A conformant DUT never emits it. Covers rejecting malformed input (no OK echo), declining an invalid/unknown subscribe (no Ack), and emitting in a state that forbids it (after stop, wrong phase).",
     "incorrect_emission": "A conformant DUT does emit such a frame for this stimulus, and it must carry a protocol-mandated value; the named fail final fires iff the emitted frame carries a wrong value. Covers acking (not nacking) a valid subscribe, monotonic/wrapping session ids, response-payload content, and post-reset field values.",
-    "liveness": "DUT must emit Y; Y is binary present/absent with no wrong-value variant; its absence over the window is inconclusive (see docs/verdict_policy.md Section 2 clause 4) and there is no reachable fail final to validate."
+    "required_emission": "DUT must emit Y; Y is binary present/absent with no wrong-value variant; the named fail final is the DUT's silence over a window covering the bound it is granted, an observed_quiescence final (see docs/verdict_policy.md Section 2.1). A conformant DUT always emits Y in time; a DUT that omits Y trips the guard.",
+    "liveness": "Transitional (docs/verdict_policy.md Section 8, Phase Q4): a required emission whose case has not yet moved its silence onto an observed_quiescence final, so its absence still lands on inconclusive and there is no reachable fail final to validate. Allowed only for a case on tools/liveness_migration_pending.txt."
   },
   "cases": {
     "SOMEIP_ETS_001": {
@@ -1014,8 +1015,14 @@
     "IPv4_TTL_05": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit an IPv4 packet from its interface address; binary present/absent"
+          "class": "required_emission",
+          "fail_reason": "dut_discarded_echo_request_with_ttl_0",
+          "property": "DUT must answer an ICMP Echo Request received with TTL=0 within ParamListenTime (RFC 1122 section 3.2.1.7); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "dut_discarded_echo_request_with_ttl_1",
+          "property": "DUT must answer an ICMP Echo Request received with TTL=1 within ParamListenTime (RFC 1122 section 3.2.1.7); binary present/absent"
         }
       ]
     },
@@ -1100,30 +1107,6 @@
         {
           "class": "liveness",
           "property": "DUT must emit an ARP Reply to a Request whose Target Hardware Address is the DUT MAC carried in a broadcast Ethernet frame; binary present/absent"
-        }
-      ]
-    },
-    "ARP_20": {
-      "guards": [
-        {
-          "class": "liveness",
-          "property": "DUT must emit an ARP Reply to a Request carrying the correct Hardware Type (0x0001); binary present/absent"
-        }
-      ]
-    },
-    "ARP_26": {
-      "guards": [
-        {
-          "class": "liveness",
-          "property": "DUT must emit an ARP Reply to a Request carrying the correct Protocol Type (0x0800); binary present/absent"
-        }
-      ]
-    },
-    "ARP_36": {
-      "guards": [
-        {
-          "class": "liveness",
-          "property": "DUT must emit an ARP Reply to a Request whose Target Protocol Address is the DUT's interface IP; binary present/absent"
         }
       ]
     },

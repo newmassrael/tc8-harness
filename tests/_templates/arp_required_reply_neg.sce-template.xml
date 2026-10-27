@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  §4.2.4.2 Request-reception `_NEG` body: the lwIP ingress-fault self-validation
+  of the positive ARP_20/26/36 required-emission guards. The positive injects a
+  well-formed Request for the DUT's address and the DUT MUST answer it within
+  <ParamListenTime>; its silence is the observed_quiescence final. Its `_NEG` arms
+  kArpFaultIgnoreWellFormedRequest, so the lwIP netif input hook swallows that
+  Request before etharp sees it and the Reply never comes.
+    Pass:    the window (ParamListenTime plus ParamToleranceTime, as the
+             positive's) elapsed with no DUT Reply — the injected omission is
+             present, proving the positive's guard fires on a DUT that omits it.
+             A silence, so it is held to the same hypotheses as the positive's
+             fail (docs/verdict_policy.md Section 2.1), bound included: the
+             liveness anchor is the positive's (an ICMP Echo, which the fault
+             leaves alone), and an unanswered anchor makes this inconclusive
+             rather than a pass for a dead DUT.
+    Fail:    a DUT ARP Reply observed despite the flavor -> fail_compliant (the
+             fault was inert: a flavor-wiring regression, NOT a DUT conformance
+             violation; role fault_injection_inert).
+  The three positives differ only in which field of the Request is the one the
+  spec names as correct; the frame is well-formed in every one, so the fault and
+  this body are shared and param-less (cf. arp_reply_neg).
+-->
+<sce:template xmlns:sce="http://sce.dev/ext"
+              xmlns="http://www.w3.org/2005/07/scxml"
+              xmlns:cpp="urn:sce:cpp"
+              name="arp_required_reply_neg">
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="11s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.opcode == 2 and captured.sender_hw == expected.dut_iface_mac"
+                target="fail_compliant"/>
+    <transition event="deadline_exceeded" target="pass"/>
+  </state>
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass","bound":"ParamListenTime"}</content>
+    </donedata>
+  </final>
+  <final id="fail_compliant">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_replied_despite_ignore_request_flavor","role":"fault_injection_inert"}</content>
+    </donedata>
+  </final>
+</sce:template>

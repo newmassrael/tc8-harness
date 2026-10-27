@@ -75,8 +75,9 @@ TEST(VerdictFromDonedata, PassCarriesNoReason) {
 // qualification reads it, and the wire form leaves it out.
 TEST(VerdictFromDonedata, CarriesTheRoleOutsideTheWireForm) {
     const Verdict v = tc8::sce::verdictFromDonedata(
-        stash(R"({"verdict":"fail","reason":"no_dut_arp_reply","role":"observed_quiescence"})"));
+        stash(R"({"verdict":"fail","reason":"no_dut_arp_reply","role":"observed_quiescence","bound":"ParamListenTime"})"));
     EXPECT_EQ(v.role, "observed_quiescence");
+    EXPECT_EQ(v.bound, "ParamListenTime");
     EXPECT_EQ(v.str(), "fail:no_dut_arp_reply");
     EXPECT_EQ(tc8::sce::verdictFromDonedata(stash(R"({"verdict":"pass"})")).role, "");
 }

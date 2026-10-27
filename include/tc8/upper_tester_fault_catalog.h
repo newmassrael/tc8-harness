@@ -285,7 +285,20 @@ inline constexpr std::uint8_t kIcmpFaultSynthTimestampReplyBadSeq = 0x14;  // §
 // the start it would defer phase A's head the same way, the positive's phase-A guard would take
 // the run, and phase B — the half under test — would never be entered.
 inline constexpr std::uint8_t kIpv4FaultHoldFirstFragment = 0x15;  // §4.4.4.7 REASSEMBLY_10: the DUT answers a pair the wire spread across its reassembly window
-inline constexpr std::uint8_t kIngressFaultMax           = kIpv4FaultHoldFirstFragment;
+// §4.2.4.2 ARP Request reception — the REQUIRED-emission counterpart of the reply-absence
+// flavor at 0x01. That one makes the DUT answer a Request it must drop; this one makes it
+// ignore a well-formed Request it must answer, by swallowing it at the netif input before
+// etharp sees it, so the Reply the positive waits for never comes and its silence is the
+// observed_quiescence final (docs/verdict_policy.md Section 2.1).
+//
+// ⚠ Not the control channel's peer, and that is the same safety argument as the
+// Request-only siblings above, from the other side: the tester's kernel resolves the DUT
+// for its own UT datagrams, and swallowing those Requests would starve the channel the
+// verdict is reported over. The peer is the sender of the frames to the UT port, learned
+// before the arm takes effect (the arm itself arrives on that port). The case's Request is
+// injected from the tester's injected MAC, which is not that peer, so it is the one dropped.
+inline constexpr std::uint8_t kArpFaultIgnoreWellFormedRequest = 0x16;  // §4.2.4.2 ARP_20/26/36 (a well-formed Request for the DUT's address goes unanswered)
+inline constexpr std::uint8_t kIngressFaultMax           = kArpFaultIgnoreWellFormedRequest;
 
 // `OpSetAppFlavor` (0x1A) APP-LAYER reception-fault flavor byte. Distinct from the
 // egress/ingress catalogs: those mutate or synthesize wire frames at the netif hook,

@@ -77,6 +77,10 @@ struct Verdict {
     VerdictClass cls = VerdictClass::Running;
     std::string  reason;
     std::string  role = {};
+    // The bound an absence-deciding final declares for its window (H3, Section
+    // 2.1): "ParamListenTime", or a literal such as "2000ms". Empty when the final
+    // declares none. Like the role, not part of the wire form.
+    std::string  bound = {};
 
     // Flat wire form the smoke harness greps for: "<class>" when there is no
     // reason, "<class>:<reason>" otherwise.
@@ -162,9 +166,9 @@ inline std::string jsonUnquote(std::string_view s) {
 inline Verdict verdictFromDonedata(std::string_view donedata) {
     const std::string obj = jsonUnquote(donedata);
     const std::string cls = jsonStringField(obj, "verdict");
-    if (cls.empty()) return Verdict{VerdictClass::Running, {}, {}};
+    if (cls.empty()) return Verdict{VerdictClass::Running, {}, {}, {}};
     return Verdict{verdictClassFromName(cls), jsonStringField(obj, "reason"),
-                   jsonStringField(obj, "role")};
+                   jsonStringField(obj, "role"), jsonStringField(obj, "bound")};
 }
 
 }  // namespace tc8::sce

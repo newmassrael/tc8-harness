@@ -5,6 +5,7 @@
 #include <functional>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -324,6 +325,18 @@ public:
     // decide anything, which must not read as "a frame decided it".
     virtual bool finalTransitionWasFrameDriven() const = 0;
 
+    // How long the run watched before its last transition: from entering that
+    // transition's source state (or from start(), when it is the first) to the
+    // transition, in microseconds. For a timer-decided verdict this is the window
+    // the absence was observed over (docs/verdict_policy.md Section 2.1, H3). A
+    // measurement of the source state's dwell, so a timer armed in an enclosing
+    // state reads as shorter than it ran — the error only ever costs a conclusion.
+    // Nullopt when no transition was recorded. Not pure: a runner that records no
+    // trace has no window to report.
+    virtual std::optional<std::int64_t> finalWindowUs() const {
+        return std::nullopt;
+    }
+
     // Live progress stream (state_stream.h). Borrowed: the CLI owns the stream and
     // keeps it alive past the last call into the runner. Not pure: a runner with
     // nothing to stream (every test double) needs no override, and a run that never
@@ -495,6 +508,7 @@ public:
         // no-op (the SM is never observed to "enter" it from
         // somewhere else — initialize() lands directly).
         last_state_id_ = static_cast<int>(sm_.getCurrentState());
+        started_steady_us_ = steadyNowUs();
         started_ = true;
         // Before the held frames are replayed below: a replayed frame can fire a
         // transition, and that line must follow the `start` it departs from.
@@ -638,6 +652,17 @@ public:
         // frame the saved pcap did not retain, both of which are absences as far
         // as the evidence record goes.
         return !trace_.empty() && trace_.back().pcap_frame_idx >= 0;
+    }
+
+    std::optional<std::int64_t> finalWindowUs() const override {
+        if (trace_.empty()) {
+            return std::nullopt;
+        }
+        // The source state was entered by the step before, or by start() when the
+        // deciding transition is the run's first.
+        const std::int64_t entered =
+            trace_.size() >= 2 ? trace_[trace_.size() - 2].steady_us : started_steady_us_;
+        return trace_.back().steady_us - entered;
     }
 
     std::string dumpTraceJson() const override {
@@ -1017,6 +1042,7 @@ private:
         step.from_state_name = StateMachine::PolicyType::getStateName(from);
         step.to_state_name = StateMachine::PolicyType::getStateName(to);
         step.pcap_frame_idx = pcap_frame_idx;
+        step.steady_us = steadyNowUs();
         appendCapturedJson(step.captured_json, captured_);  // ADL
         trace_.push_back(std::move(step));
         // The one place a state change is recorded, so the one place it is streamed:
@@ -1058,6 +1084,16 @@ private:
                    std::chrono::system_clock::now().time_since_epoch())
             .count();
     }
+    // Steady clock for durations within the run (finalWindowUs): a wall-clock step
+    // must not lengthen or shorten a window an absence is judged over.
+    static std::int64_t steadyNowUs() {
+        return std::chrono::duration_cast<std::chrono::microseconds>(
+                   std::chrono::steady_clock::now().time_since_epoch())
+            .count();
+    }
+    // The instant start() ran, on the steady clock; the source-state entry of a
+    // run's first transition.
+    std::int64_t                       started_steady_us_ = 0;
     // Evidence Export ledger — appended-to on every state change observed
     // in onCaptured / tick. The walker reads this from the saved pcap's
     // sidecar JSON to render the timeline (single source of truth for

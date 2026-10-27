@@ -54,6 +54,10 @@ struct TransitionStep {
     const char  *to_state_name   = "";
     int          pcap_frame_idx  = -1;
     std::string  captured_json;
+    // When the transition was recorded, in steady-clock microseconds. Run-local:
+    // only differences between steps (and the runner's start instant) mean
+    // anything, which is what the deciding window of an absence is measured from.
+    std::int64_t steady_us       = 0;
 };
 
 // Append ``s`` as a JSON-escaped string body (no surrounding quotes) to

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.2.4.2 ARP_20 negative — lwIP ingress-fault self-validation of the
+  positive _20 required-emission guard. The trait arms
+  kArpFaultIgnoreWellFormedRequest and injects the positive's Request (Hardware
+  Type Ethernet), which the lwIP netif input hook swallows. Pass = the window
+  elapsed with no Reply; fail_compliant = the DUT replied despite the flavor
+  (fault inert). lwIP-only (capability-gated on kCapIngressFault). Envelope:
+  arp_required_reply_neg.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="arp_20_neg"
+       sce:transition-table="emit"
+       datamodel="null"
+       initial="listening">
+  <sce:use template="../_templates/arp_required_reply_neg.sce-template.xml"/>
+</scxml>

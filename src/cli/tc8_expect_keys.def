@@ -74,6 +74,10 @@
 #define TC8_EK_someip_dut(kind, name)
 #define TC8_EK_someip_dut_DEFAULTED
 #endif
+#ifndef TC8_EK_ixit
+#define TC8_EK_ixit(kind, name)
+#define TC8_EK_ixit_DEFAULTED
+#endif
 #ifndef TC8_EK_arp_stimulus
 #define TC8_EK_arp_stimulus(kind, name)
 #define TC8_EK_arp_stimulus_DEFAULTED
@@ -102,6 +106,7 @@ TC8_EXPECT_GROUP(dut,          "dut.")
 TC8_EXPECT_GROUP(tester,       "tester.")
 TC8_EXPECT_GROUP(someip_dut,   "someip_dut.")
 TC8_EXPECT_GROUP(arp_stimulus, "arp_stimulus.")
+TC8_EXPECT_GROUP(ixit,         "ixit.")
 TC8_EXPECT_GROUP(icmpv4,       "icmpv4.")
 TC8_EXPECT_GROUP(ipv4,         "ipv4.")
 TC8_EXPECT_GROUP(dhcpv4,       "dhcpv4.")
@@ -195,6 +200,9 @@ TC8_EXPECT_KEY(someip_dut, U16, instance_id)
 // --- ARP stimulus knobs (ArpStimulusConfig, "arp_stimulus." prefix) ---------
 TC8_EXPECT_KEY(arp_stimulus, U16, ut_cache_conditioning_s)
 
+// --- Tester IXIT parameters (IxitConfig, "ixit." prefix) --------------------
+TC8_EXPECT_KEY(ixit, U32, param_listen_time_ms)
+
 // --- ICMPv4 (Icmpv4Expectations, "icmpv4." prefix) --------------------------
 TC8_EXPECT_KEY(icmpv4, IPV4, tester_ip)
 TC8_EXPECT_KEY(icmpv4, IPV4, dut_iface_ip)
@@ -245,6 +253,10 @@ TC8_EXPECT_KEY(dhcpv4, MAC, dut_iface_mac)
 #ifdef TC8_EK_arp_stimulus_DEFAULTED
 #undef TC8_EK_arp_stimulus_DEFAULTED
 #undef TC8_EK_arp_stimulus
+#endif
+#ifdef TC8_EK_ixit_DEFAULTED
+#undef TC8_EK_ixit_DEFAULTED
+#undef TC8_EK_ixit
 #endif
 #ifdef TC8_EK_icmpv4_DEFAULTED
 #undef TC8_EK_icmpv4_DEFAULTED

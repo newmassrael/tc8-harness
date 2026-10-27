@@ -251,8 +251,10 @@ guard asserts DUT behaviour, not a comparison against an operator value.
   Length >= RFC 791 min), IPv4_VERSION_03 (Version=4), IPv4_FRAGMENTS_05 (egress
   UDP MF/offset=0), IPv4_ADDRESSING_01 (UT received-count), IPv4_HEADER_05
   (§4.4.4.1, 576-byte Echo Reply payload).
-- **liveness** (must emit an IPv4 packet, no wrong-value variant):
-  IPv4_HEADER_03, IPv4_VERSION_01, IPv4_TTL_05.
+- **required_emission** (must answer within ParamListenTime; silence is an
+  observed_quiescence fail): IPv4_TTL_05, one guard per TTL iteration.
+- **liveness** (transitional, not yet migrated — `tools/liveness_migration_pending.txt`):
+  IPv4_HEADER_03, IPv4_VERSION_01.
 - **prohibited_emission** (silence conformant, must not emit):
   IPv4_REASSEMBLY_06, IPv4_REASSEMBLY_07, IPv4_REASSEMBLY_09.
 

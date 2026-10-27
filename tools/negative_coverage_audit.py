@@ -107,6 +107,9 @@ OVERRIDES_JSON = REPO / "docs" / "spec" / "inventory_overrides.json"
 HERE = Path(__file__).resolve().parent
 LEDGER = HERE / "negative_coverage_undisposed.txt"
 REGISTRY = HERE / "conformant_absence_registry.json"
+# The `liveness` guards not yet moved to `required_emission` (docs/verdict_policy.md
+# Section 8, Phase Q4). One case id per line; it may only shrink.
+LIVENESS_LEDGER = HERE / "liveness_migration_pending.txt"
 DEFERRED = HERE / "deferred_negatives.json"
 FAULT_COVERAGE = HERE / "fault_injection_coverage.json"
 FLOOR_LEDGER = HERE / "fault_injection_floor.txt"
@@ -287,6 +290,20 @@ def fail_final_roles(case: str) -> dict[str, str]:
         fid: role
         for fid, (cls, _reason, role) in extract_donedata(scxml).items()
         if cls == "fail"
+    }
+
+
+def fail_reason_roles(case: str) -> dict[str, str]:
+    """fail reason -> declared role, for a case's .scxml (template-resolved). Empty
+    if no .scxml. A registry guard names its final by reason, so this is the lookup
+    that ties a `required_emission` guard to an `observed_quiescence` final."""
+    scxml = TESTS_DIR / case / f"{case}.scxml"
+    if not scxml.is_file():
+        return {}
+    return {
+        reason: role
+        for cls, reason, role in extract_donedata(scxml).values()
+        if cls == "fail" and reason
     }
 
 
@@ -475,6 +492,15 @@ def validate_registry(cases: dict[str, dict], classes: dict[str, str],
                 findings.append(f"REGISTRY_INVALID: {case_id} fail_reason '{reason}' is not a fail final")
             else:
                 covered.add(reason)
+                # A required emission fails on the DUT's silence, so its final is the
+                # one role that says so (docs/verdict_policy.md Section 3); any other
+                # class naming such a final has mistaken a silence for a frame.
+                role = fail_reason_roles(case_id.lower()).get(reason, "")
+                if (cls == "required_emission") != (role == "observed_quiescence"):
+                    findings.append(
+                        f"REGISTRY_INVALID: {case_id} guard '{reason}' is {cls} but its final's role is "
+                        f"'{role}'; required_emission and observed_quiescence go together"
+                    )
         missing = case_fail_reasons - covered
         if missing and case_id.lower() not in partial_ok:
             findings.append(f"REGISTRY_INCOMPLETE: {case_id} fail finals not covered by a guard: {sorted(missing)}")
@@ -539,6 +565,12 @@ def _derive_guard_classes(case_lower: str) -> dict[str, set[str]]:
     fail_reason = {fid: rsn for fid, (cls, rsn, _r) in done.items() if cls == "fail"}
     out: dict[str, set[str]] = {}
     for fid, reason in fail_reason.items():
+        # The role states the class outright: a fail decided by the DUT's silence is
+        # a required emission, whatever its transition's event happens to be named.
+        if done[fid][2] == "observed_quiescence":
+            if reason:
+                out.setdefault(reason, set()).add("required_emission")
+            continue
         cls = None
         for sid, rows in states.items():
             if not any(tgt == fid for _ev, tgt in rows):
@@ -860,11 +892,37 @@ def validate_fault_coverage(m: Model) -> list[str]:
     return findings
 
 
+def load_liveness_ledger() -> set[str]:
+    if not LIVENESS_LEDGER.is_file():
+        return set()
+    return {
+        line.strip()
+        for line in LIVENESS_LEDGER.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    }
+
+
+def liveness_ledger_findings(registry: dict[str, dict], ledger: set[str]) -> list[str]:
+    """The `liveness` class is transitional (docs/verdict_policy.md Section 6): a
+    guard may carry it only while its case is on the migration ledger, and a ledger
+    entry must still be a liveness case — so the ledger can only shrink."""
+    findings: list[str] = []
+    live = {c for c, e in registry.items() if any(g.get("class") == "liveness" for g in e.get("guards", []))}
+    for c in sorted(live - ledger):
+        findings.append(f"LIVENESS_NEW: {c} carries a liveness guard but is not on {LIVENESS_LEDGER.name}; "
+                        "a new mandated-emission guard is required_emission")
+    for c in sorted(ledger - live):
+        findings.append(f"LIVENESS_STALE: {c} is on {LIVENESS_LEDGER.name} but carries no liveness guard; "
+                        "remove it")
+    return findings
+
+
 def cross_findings(m: Model) -> list[str]:
     """Invariants that must always hold (independent of the ratchet)."""
     findings: list[str] = []
     reg_lower = {k.lower() for k in m.registry}
     pos = set(m.positives)
+    findings.extend(liveness_ledger_findings(m.registry, load_liveness_ledger()))
 
     # STALE rows: a row whose reason is not a final in the case.
     for r in m.rows:

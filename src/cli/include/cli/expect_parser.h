@@ -14,6 +14,7 @@
 #include "sce_integration/tester_identity.h"
 #include "sce_integration/icmpv4_expectations.h"
 #include "sce_integration/ipv4_expectations.h"
+#include "sce_integration/ixit_config.h"
 #include "sce_integration/someip_expectations.h"
 
 namespace tc8::cli {
@@ -89,6 +90,12 @@ bool applyExpectToken(std::string_view token, ::tc8::SomeIpIdentity &e);
 // set are the SSOT in tc8_expect_keys.def. Returns false when the token lacks
 // the prefix, the value fails its parser, or the post-prefix key is unknown.
 bool applyExpectToken(std::string_view token, ::tc8::ArpStimulusConfig &e);
+
+// Applies a single `--expect ixit.<key>=<value>` token to `e` — the tester's IXIT
+// parameters, which decide whether an observation is valid rather than what it
+// must carry (never guard-compared; see `IxitConfig`). Prefix and keys are the
+// SSOT in tc8_expect_keys.def. Returns false as the other appliers do.
+bool applyExpectToken(std::string_view token, ::tc8::IxitConfig &e);
 
 // Applies a single `--expect icmpv4.<key>=<value>` token to `e`. The `icmpv4.`
 // prefix and key set are the SSOT in tc8_expect_keys.def. Semantic note:

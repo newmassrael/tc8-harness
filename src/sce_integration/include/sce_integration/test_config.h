@@ -5,6 +5,7 @@
 
 #include "arp_expectations.h"
 #include "arp_stimulus_config.h"
+#include "ixit_config.h"
 #include "dhcpv4_expectations.h"
 #include "dut_control_backend.h"
 #include "dut_identity.h"
@@ -48,6 +49,8 @@ struct TestConfig {
     ArpExpectations arp{};
     // ARP stimulus knobs (not guard-compared); see `ArpStimulusConfig`.
     ArpStimulusConfig arp_stimulus{};
+    // The tester's IXIT parameters (not guard-compared); see `IxitConfig`.
+    IxitConfig ixit{};
     Icmpv4Expectations icmpv4{};
     Ipv4Expectations ipv4{};
     Dhcpv4Expectations dhcpv4{};

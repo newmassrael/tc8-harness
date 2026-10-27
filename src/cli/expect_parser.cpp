@@ -305,6 +305,15 @@ bool applyExpectToken(std::string_view token, ::tc8::ArpStimulusConfig &e) {
     return matchExpect(token, ekPrefix_arp_stimulus, e, kKeys, std::size(kKeys));
 }
 
+bool applyExpectToken(std::string_view token, ::tc8::IxitConfig &e) {
+    static constexpr EKey<::tc8::IxitConfig> kKeys[] = {
+#define TC8_EK_ixit(kind, name) TC8_EK_ROW(IxitConfig, kind, name)
+#include "tc8_expect_keys.def"
+#undef TC8_EK_ixit
+    };
+    return matchExpect(token, ekPrefix_ixit, e, kKeys, std::size(kKeys));
+}
+
 bool applyExpectToken(std::string_view token, ::tc8::Icmpv4Expectations &e) {
     static constexpr EKey<::tc8::Icmpv4Expectations> kKeys[] = {
 #define TC8_EK_icmpv4(kind, name) TC8_EK_ROW(Icmpv4Expectations, kind, name)

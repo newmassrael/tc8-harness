@@ -1143,6 +1143,9 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
         if (applyExpectToken(tok, config.arp_stimulus)) {
             continue;
         }
+        if (applyExpectToken(tok, config.ixit)) {
+            continue;
+        }
         if (applyExpectToken(tok, config.icmpv4)) {
             continue;
         }
@@ -1637,19 +1640,33 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // only for a verdict that claims an absence over a whole capture: nothing else
     // needs it, and every exchange is traffic the DUT did not have to see. Skipped
     // on an operator stop, where the run's verdict is already an error.
-    const bool frame_decided = runner->finalTransitionWasFrameDriven();
+    // H3 rides along: the window the deciding transition closed, against the bound
+    // its final declares, resolved through this run's IXIT values.
+    ::tc8::sce::AbsenceFacts absence{runner->finalTransitionWasFrameDriven(), capture_whole, capture_reason,
+                                     runner->finalWindowUs(),
+                                     ::tc8::sce::resolveAbsenceBound(verdict.bound, config.ixit),
+                                     ::tc8::sce::LivenessAnchorOutcome::kNotRun};
     LivenessAnchorRun anchor;
-    if (!SignalGuard::stopRequested() &&
-        ::tc8::sce::needsLivenessAnchor(verdict, frame_decided, capture_whole)) {
+    if (!SignalGuard::stopRequested() && ::tc8::sce::needsLivenessAnchor(verdict, absence)) {
         anchor = runLivenessAnchor(iface_, config,
                                    sce::CaseRegistry::instance().requirementsUnderTest(*entry));
+        absence.anchor = anchor.outcome;
     }
-    verdict = ::tc8::sce::qualifyAbsence(
-        verdict, ::tc8::sce::AbsenceFacts{frame_decided, capture_whole, capture_reason, anchor.outcome});
+    const ::tc8::sce::Verdict pre_qualification = verdict;
+    verdict = ::tc8::sce::qualifyAbsence(verdict, absence);
     const std::string verdict_str = verdict.str();
     std::printf("verdict  : %s\n", verdict_str.c_str());
     // After the verdict it qualifies, like the capture lines below. Printed only when
     // an anchor was needed: a run decided by a frame has nothing to anchor.
+    // H3's two sides, printed whenever a bound was in play: the window the run
+    // measured and the allowance it was held to, so a downgrade on H3 is readable
+    // without the trace.
+    if (absence.bound.declared && ::tc8::sce::claimsAbsence(pre_qualification, absence.frame_decided)) {
+        std::printf("window   : %.3f s against bound %s (%.3f s at this run's IXIT)\n",
+                    absence.window_us ? static_cast<double>(*absence.window_us) / 1e6 : 0.0,
+                    pre_qualification.bound.c_str(),
+                    absence.bound.valid ? static_cast<double>(absence.bound.us) / 1e6 : 0.0);
+    }
     // The shared count is printed because it is the anchor's power: a non-zero one
     // means a DUT violating those requirements wholesale cannot be failed by this
     // case, only reported inconclusive.

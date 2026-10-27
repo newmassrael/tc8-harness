@@ -2,17 +2,24 @@
 <!--
   TC8 §4.4.4.3 IPv4_TTL_05: a host MUST NOT discard a datagram just
   because it was received with TTL less than 2 (RFC 1122 section
-  3.2.1.7). Pass when the DUT replies to an Echo Request carrying
-  TTL=0.
+  3.2.1.7). The spec lists two iterations, <ttl>=0 and <ttl>=1, and the
+  DUT must answer the Echo Request in each.
 
-  Spec lists two iterations (<ttl>=0, <ttl>=1). This case covers the
-  ttl=0 iteration — the more pathological boundary. The ttl=1 case is
-  structurally identical to the pilot's default stimulus (which already
-  replies), so a dedicated SCXML for it would add no observational
-  power.
+  Both are on the wire, in order, told apart by the Echo sequence number
+  so a late reply to one is never read as the other: TTL=0 carries
+  expected.echo_seq, TTL=1 carries expected.echo_seq + 1 (the stimulus
+  sends the same pair). TTL=1 is not the default stimulus: the frame
+  builder's default TTL is 64, so TTL=1 is the boundary a router would
+  have to discard on forwarding and a host must still accept.
 
-  Body shared with IPv4_HEADER_03 / IPv4_VERSION_01 via sce:template
-  (tests/_templates/ipv4_positive_reply.sce-template.xml).
+  Each iteration listens up to <ParamListenTime>; a window that elapses
+  without its Echo Reply is the DUT's silence where it must answer —
+  observed_quiescence for that iteration, judged against that bound (H3).
+  The window is ParamListenTime plus <ParamToleranceTime> (10 s + 1 s at
+  the defaults). Whether a silence stands as a fail is the CLI's call on
+  the run's hypotheses: the liveness anchor is an ARP exchange, which
+  exercises no IPv4 at all, so a DUT that drops low-TTL datagrams while
+  otherwise up answers it and the case fails that DUT.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -21,6 +28,51 @@
        name="ipv4_ttl_05"
        sce:transition-table="emit"
        datamodel="null"
-       initial="listening">
-  <sce:use template="../_templates/ipv4_positive_reply.sce-template.xml"/>
+       initial="listening_ttl0">
+
+  <sce:context id="captured"
+               cpp:type="tc8::Icmpv4Captured"
+               cpp:include="sce_integration/icmpv4_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Icmpv4Expected"
+               cpp:include="sce_integration/icmpv4_expected.h"/>
+
+  <state id="listening_ttl0">
+    <onentry>
+      <send event="ttl0_deadline_exceeded" delay="11s"/>
+    </onentry>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 0 and captured.src_ip == expected.dut_iface_ip and captured.echo_id == expected.echo_id and captured.echo_seq == expected.echo_seq"
+                target="listening_ttl1"/>
+    <transition event="ttl0_deadline_exceeded" target="fail_ttl0_unanswered"/>
+  </state>
+
+  <state id="listening_ttl1">
+    <onentry>
+      <send event="ttl1_deadline_exceeded" delay="11s"/>
+    </onentry>
+    <transition event="icmp_observed"
+                cond="cpp:captured.type == 0 and captured.src_ip == expected.dut_iface_ip and captured.echo_id == expected.echo_id and captured.echo_seq == static_cast&lt;std::uint16_t&gt;(expected.echo_seq + 1)"
+                target="pass"/>
+    <transition event="ttl1_deadline_exceeded" target="fail_ttl1_unanswered"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_ttl0_unanswered">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_discarded_echo_request_with_ttl_0","role":"observed_quiescence","bound":"ParamListenTime"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_ttl1_unanswered">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_discarded_echo_request_with_ttl_1","role":"observed_quiescence","bound":"ParamListenTime"}</content>
+    </donedata>
+  </final>
 </scxml>

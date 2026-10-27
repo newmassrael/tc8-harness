@@ -23,6 +23,10 @@ struct TestCaseTraits<cases::Arp20SM>
     static constexpr std::string_view kCaseId = "ARP_20";
     static constexpr std::string_view kDescription =
         "ARP Request reception with hw_type=Ethernet (correct) — DUT must reply";
+    // Grades the responder, so its silence is anchored by an ICMP Echo, which only
+    // asks the DUT to resolve: a DUT whose responder alone is broken still answers
+    // the anchor, and the case can fail it.
+    static constexpr DutRequirements kRequirementsUnderTest{DutRequirement::kArpRespond};
     static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg,
                          ::tc8::sce::StimulusContext &ctx) {
         ::tc8::stimulus::ArpFrameSpec spec;

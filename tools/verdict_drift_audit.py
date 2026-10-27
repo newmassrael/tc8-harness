@@ -19,8 +19,11 @@ This tool guards that single source. For every registered case it checks:
   UNPARSED          the .scxml is not well-formed XML
   QUIESCENCE_REACH  an `observed_quiescence` final is reached by anything but a
                     window timer (docs/verdict_policy.md §3)
-  QUIESCENCE_UNGATED  an `observed_quiescence` final exists before every
-                    hypothesis behind it is enforced (§8, Phases Q2-Q3)
+  QUIESCENCE_BOUND  an `observed_quiescence` final declares no window bound
+  QUIESCENCE_WINDOW a window deciding an `observed_quiescence` final is shorter
+                    than its bound at the default IXIT values, or unreadable
+  BOUND_UNPARSEABLE a final's `bound` is neither ParamListenTime nor <n>ms/<n>s
+  BOUND_MISPLACED   a `bound` on a final whose verdict claims no absence
 
 Exit status is non-zero if any finding is present, so it can gate CI and the
 pre-commit hook. Run with --summary for counts only.
@@ -179,26 +182,126 @@ def reach_kinds(parts: list[tuple[ET.Element, dict[str, str]]]) -> dict[str, set
     return out
 
 
-# False until every hypothesis behind an `observed_quiescence` fail is enforced:
-# S, H1 and H2 by the CLI (Phase Q2, in the tree) and H3, the window bound, by the
-# registry audit (Phase Q3). Until then the role could turn slowness into a fail,
-# so authoring it is refused outright (docs/verdict_policy.md §8).
-QUIESCENCE_GATED_AT_RUN_TIME = False
+# --------------------------------------------------------------------------
+# the window bound an absence is judged against (H3, docs/verdict_policy.md §2.1)
+# --------------------------------------------------------------------------
+
+# The run-time default of <ParamListenTime>, read from its one definition so the
+# audit and the CLI cannot disagree about it.
+_TEST_DEFAULTS = REPO / "include" / "tc8" / "test_defaults.h"
+_PARAM_LISTEN_RE = re.compile(r"kParamListenTime\{(\d+)\}")
+
+
+def param_listen_time_us() -> int:
+    m = _PARAM_LISTEN_RE.search(_TEST_DEFAULTS.read_text(encoding="utf-8"))
+    if not m:
+        sys.exit(f"verdict_drift_audit: no kParamListenTime{{<seconds>}} in {_TEST_DEFAULTS}")
+    return int(m.group(1)) * 1_000_000
+
+
+# A literal bound or an SCXML delay: an integer count of milliseconds or seconds.
+_DURATION_RE = re.compile(r"^(\d+)(ms|s)$")
+
+
+def duration_us(text: str) -> int | None:
+    m = _DURATION_RE.match(text.strip())
+    if not m:
+        return None
+    return int(m.group(1)) * (1000 if m.group(2) == "ms" else 1_000_000)
+
+
+def resolve_bound_us(bound: str, listen_us: int) -> int | None:
+    """The bound a final declares, at the default IXIT values; None when unparseable.
+    Mirrors resolveAbsenceBound (sce_integration/absence_qualification.h)."""
+    return listen_us if bound == "ParamListenTime" else duration_us(bound)
+
+
+def extract_bounds(parts: list[tuple[ET.Element, dict[str, str]]]) -> dict[str, str]:
+    """Map final id (lowercased) -> the `bound` its donedata declares, when it does."""
+    out: dict[str, str] = {}
+    for root, b in parts:
+        for fin in root.iter():
+            if _local(fin.tag) != "final":
+                continue
+            for content in fin.iter():
+                if _local(content.tag) != "content":
+                    continue
+                try:
+                    obj = json.loads(_subst((content.text or "").strip(), b))
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(obj, dict) and obj.get("bound") is not None:
+                    out[_subst(fin.get("id", ""), b).lower()] = str(obj["bound"])
+    return out
+
+
+def window_delays(parts: list[tuple[ET.Element, dict[str, str]]]) -> dict[str, list[int | None]]:
+    """Map target id (lowercased) -> the delay of every window timer that reaches
+    it, in microseconds; None for a delay the audit cannot read (an expression, or
+    a unit it does not parse), which no bound can be shown to cover."""
+    delays: dict[str, list[int | None]] = {}
+    for root, b in parts:
+        for el in root.iter():
+            if _local(el.tag) != "send":
+                continue
+            event = _subst(el.get("event", ""), b)
+            if el.get("delayexpr") is not None:
+                delays.setdefault(event, []).append(None)
+            elif el.get("delay") is not None and not _ZERO_DELAY_RE.match(el.get("delay", "")):
+                delays.setdefault(event, []).append(duration_us(_subst(el.get("delay", ""), b)))
+    out: dict[str, list[int | None]] = {}
+    for root, b in parts:
+        for el in root.iter():
+            if _local(el.tag) != "transition" or not el.get("target"):
+                continue
+            event = _subst(el.get("event", ""), b)
+            for target in _subst(el.get("target", ""), b).split():
+                out.setdefault(target.lower(), []).extend(delays.get(event, []))
+    return out
+
+
+# The roles whose verdict claims an absence and may therefore carry a bound
+# (claimsAbsence in absence_qualification.h): a pass, a silence fail, a `_neg`
+# inert fail. A bound anywhere else would be read by nothing.
+_BOUND_ROLES = {"", "conformant", "conformant_absence", "observed_quiescence", "fault_injection_inert"}
 
 
 def quiescence_findings(done: dict[str, Verdict], reached: dict[str, set[str]],
-                        gated: bool = QUIESCENCE_GATED_AT_RUN_TIME) -> list[str]:
+                        bounds: dict[str, str] | None = None,
+                        delays: dict[str, list[int | None]] | None = None,
+                        listen_us: int | None = None) -> list[str]:
     """An `observed_quiescence` final's evidence is an absence over a window, so
-    every transition into it must be a window timer, and there must be one."""
+    every transition into it must be a window timer, and there must be one; it
+    must declare the bound it is judged against (H3), and every window that
+    decides it must be at least that long. A bound on any other final must parse
+    and belong to a verdict that claims an absence."""
+    bounds = bounds or {}
+    delays = delays or {}
+    listen_us = param_listen_time_us() if listen_us is None else listen_us
     findings = []
+    for state, bound in sorted(bounds.items()):
+        role = done.get(state, ("", "", ""))[2]
+        cls = done.get(state, ("", "", ""))[0]
+        if role not in _BOUND_ROLES or (cls == "fail" and role not in ("observed_quiescence", "fault_injection_inert")):
+            findings.append(f"BOUND_MISPLACED: final '{state}' declares bound '{bound}' but its verdict "
+                            "claims no absence, so nothing reads it")
+        elif resolve_bound_us(bound, listen_us) is None:
+            findings.append(f"BOUND_UNPARSEABLE: final '{state}' bound '{bound}' is neither "
+                            "'ParamListenTime' nor '<n>ms' / '<n>s'")
     for state, (_cls, _reason, role) in sorted(done.items()):
         if role != "observed_quiescence":
             continue
-        if not gated:
-            findings.append(
-                f"QUIESCENCE_UNGATED: final '{state}' is observed_quiescence, but its window bound "
-                "(H3) is not yet audited (docs/verdict_policy.md §8, Phase Q3)"
-            )
+        bound = bounds.get(state)
+        if bound is None:
+            findings.append(f"QUIESCENCE_BOUND: final '{state}' is observed_quiescence but declares no "
+                            "bound; a silence judged against no allowance cannot tell slowness from omission")
+        else:
+            bound_us = resolve_bound_us(bound, listen_us)
+            for d in delays.get(state, []):
+                if bound_us is not None and (d is None or d < bound_us):
+                    shown = "an unreadable delay" if d is None else f"a {d // 1000} ms window"
+                    findings.append(f"QUIESCENCE_WINDOW: final '{state}' is decided by {shown}, shorter "
+                                    f"than its bound '{bound}' ({bound_us // 1000} ms at the default IXIT)")
         kinds = reached.get(state, set())
         if not kinds:
             findings.append(f"QUIESCENCE_REACH: final '{state}' is observed_quiescence but nothing reaches it")
@@ -259,7 +362,8 @@ def audit_case(name: str) -> CaseReport:
             rep.findings.append(
                 f"REASON_FORMAT: final '{state}' reason '{reason}' is not lower_snake_case"
             )
-    rep.findings.extend(quiescence_findings(done, reach_kinds(parts)))
+    rep.findings.extend(quiescence_findings(done, reach_kinds(parts), extract_bounds(parts),
+                                            window_delays(parts)))
     return rep
 
 
@@ -278,42 +382,53 @@ def all_case_names() -> list[str]:
     return names
 
 
-_SELF_TEST_FINAL = (
-    '<final id="{id}"><donedata><content>'
-    '{{"verdict":"fail","reason":"r","role":"observed_quiescence"}}'
-    "</content></donedata></final>"
-)
+def _self_test_final(fid: str, bound: str | None = "5s", role: str = "observed_quiescence",
+                     cls: str = "fail") -> str:
+    tail = f',"bound":"{bound}"' if bound is not None else ""
+    return (f'<final id="{fid}"><donedata><content>'
+            f'{{"verdict":"{cls}","reason":"r","role":"{role}"{tail}}}'
+            "</content></donedata></final>")
 
 
 def _self_test() -> int:
-    """Each QUIESCENCE_REACH outcome on an inline machine, so a regression in the
-    trigger classification shows here rather than as a silent CLEAN corpus."""
+    """Each QUIESCENCE_* and BOUND_* outcome on an inline machine, so a regression
+    in the trigger or bound classification shows here rather than as a silent
+    CLEAN corpus."""
     ns = 'xmlns="http://www.w3.org/2005/07/scxml" xmlns:sce="http://sce.dev/ext"'
+    listen_us = 10_000_000  # fixed, so the test does not move with the header
 
-    def run(body: str, template: str | None = None, bindings: dict[str, str] | None = None,
-            gated: bool = True) -> list[str]:
+    def run(body: str, template: str | None = None, bindings: dict[str, str] | None = None) -> list[str]:
         parts = [(ET.fromstring(f"<scxml {ns}>{body}</scxml>"), {})]
         if template is not None:
             parts.append((ET.fromstring(f"<sce:template {ns}>{template}</sce:template>"), bindings or {}))
         done: dict[str, Verdict] = {}
         for root, b in parts:
             done.update(_finals_from_root(root, b))
-        return quiescence_findings(done, reach_kinds(parts), gated=gated)
+        return quiescence_findings(done, reach_kinds(parts), extract_bounds(parts), window_delays(parts),
+                                   listen_us=listen_us)
 
-    q = _SELF_TEST_FINAL.format(id="fail_q")
+    q = _self_test_final("fail_q")
     window = '<state id="s"><onentry><send event="t" delay="5s"/></onentry><transition event="t" target="fail_q"/></state>'
     cases = [
-        ("window timer only", run(window + q), 0),
+        ("window timer covering its bound", run(window + q), 0),
         ("frame-reached", run('<state id="s"><transition event="arp_observed" target="fail_q"/></state>' + q), 1),
         ("zero-delay step", run('<state id="s"><onentry><send event="e" delay="0ms"/></onentry>'
                                 '<transition event="e" target="fail_q"/></state>' + q), 1),
         ("window and frame", run(window.replace("</state>", '<transition event="f" target="fail_q"/></state>') + q), 1),
         ("unreached", run('<state id="s"/>' + q), 1),
         ("timer bound through a template param",
-         run('<state id="s"><transition event="dl" target="fail_q"/></state>' + q,
+         run('<state id="s"><transition event="dl" target="fail_q"/></state>' + _self_test_final("fail_q", "2s"),
              '<state id="x"><onentry><send event="{$ev}" delay="2s"/></onentry></state>', {"ev": "dl"}), 0),
+        ("no bound declared", run(window + _self_test_final("fail_q", None)), 1),
+        ("window shorter than ParamListenTime", run(window + _self_test_final("fail_q", "ParamListenTime")), 1),
+        ("window covering ParamListenTime",
+         run(window.replace('delay="5s"', 'delay="10s"') + _self_test_final("fail_q", "ParamListenTime")), 0),
+        ("unparseable bound", run(window + _self_test_final("fail_q", "soon")), 1),
+        ("unreadable window delay", run(window.replace('delay="5s"', 'delayexpr="x"') + q), 1),
+        ("bound on a value-judgment fail",
+         run(window + _self_test_final("fail_q", "5s", role="observed_violation")), 1),
+        ("bound on an absence pass", run(window + _self_test_final("fail_q", "5s", role="", cls="pass")), 0),
     ]
-    cases.append(("well-formed but not yet gated at run time", run(window + q, gated=False), 1))
     bad = 0
     for label, findings, want in cases:
         ok = len(findings) == want

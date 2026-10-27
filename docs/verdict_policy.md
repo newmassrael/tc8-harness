@@ -81,11 +81,9 @@ Environmental shortfalls never red the gate.
 
 ### 2.1 Quiescence and the test hypotheses
 
-> **Status (Phase Q, Section 8).** Q1 and Q2 are in the tree: the
-> `observed_quiescence` role and its reach rule, and the run-time gate on S, H1 and
-> H2. H3 (Q3) is not yet audited, and a window shorter than the bound the IUT is
-> granted would turn slowness into a `fail`; so the donedata audit still refuses
-> `observed_quiescence` until Q3 lands.
+> **Status (Phase Q, Section 8).** Q1–Q3 are in the tree: the
+> `observed_quiescence` role, its reach and bound rules, and the run-time gate on
+> S, H1, H2 and H3. Q4 (migrating the `liveness` guards) is in progress.
 
 **Quiescence is an observation.** In the input/output conformance theory the
 suite is grounded in (ioco, Tretmans), the absence of any output — quiescence,
@@ -108,7 +106,7 @@ does not hold, the run says nothing about the IUT.
 | **S** | the stimulus that obliges or forbids the emission was performed | the unperformed-stimulus record (`tc8::UnperformedStimulus`) | `inconclusive`, reason names the stimulus |
 | **H1** | the IUT was live and able to answer through the window's end | a **liveness anchor**: after the window, an exchange the IUT must answer, chosen to be independent of the requirement under test, answered on the wire | `inconclusive`, `liveness_anchor_*` reason |
 | **H2** | the observation channel saw the whole window | capture completeness: no ring or interface drop, no snaplen truncation, every multicast group held (`tc8::captureProvenComplete`) | `inconclusive`, `capture_*` reason |
-| **H3** | the window M is not shorter than the bound the requirement grants the IUT | a declared bound per guard — a specification value with its citation, or an implementation parameter the operator supplies (IXIT) — checked statically against the case's deadline | the case is invalid: the audit rejects it |
+| **H3** | the window M is not shorter than the bound the requirement grants the IUT | the deciding final declares its bound in donedata — `"bound":"ParamListenTime"` (the tester's IXIT, default 10 s, set per run with `--expect ixit.param_listen_time_ms=`) or a literal `"<n>ms"` / `"<n>s"` the requirement states — and the run **measures** the window it closed | `inconclusive`, `window_shorter_than_bound` / `absence_bound_*` reason; the audit also rejects a window shorter than its bound at the default IXIT |
 
 **Where each is enforced.**
 - S, H1 and H2 are run facts. They are enforced in one place, the CLI's verdict
@@ -120,8 +118,18 @@ does not hold, the run says nothing about the IUT.
   ("the DUT stayed silent despite the fault" is a quiescence claim too). Case
   authors never re-state them; an invariant handed to every author is one that
   gets forgotten.
-- H3 is a property of the case and its specification. It is enforced by the
-  audit (`tools/negative_coverage_audit.py`) over the registry's declared bounds.
+- H3 is enforced twice. At run time, by the same qualification: the window is the
+  deciding transition's source-state dwell (`ITestRunner::finalWindowUs`) — a
+  measurement that can only read short of the timer that ran, so its error costs
+  a conclusion and never forges one — compared with the bound resolved through
+  the run's IXIT values. Statically, by the donedata audit
+  (`tools/verdict_drift_audit.py`): an `observed_quiescence` final must declare a
+  bound, and every window timer deciding it must be at least that long at the
+  default IXIT. An operator who raises `ParamListenTime` above a case's window gets
+  `inconclusive` from that case, not a `fail` for a DUT it allowed more time.
+- An absence `pass` is held to a bound only when its final declares one. Declaring
+  it is part of migrating the case (Phase Q4); until then such a pass is judged
+  under S, H1 and H2 alone.
 
 **The anchor.** Two kinds, run by the harness after the window on a capture
 handle of their own (the case's filter often keeps their answer out, and widening
@@ -486,14 +494,23 @@ tree does not have.
   or `fail`, positive or `_neg` — needs S, H1 and H2". This is the step that also
   tightens every existing `conformant_absence` pass: a dead DUT no longer passes
   a "must not send" case.
-- **Q3 — H3 in the registry.** The `required_emission` class with a declared
-  bound per guard (a cited specification value or a named IXIT parameter), and the
-  audit check that the case's test-body deadline is not shorter.
+- **Q3 — H3.** The bound lives with the verdict it qualifies, in the final's
+  donedata, not in a side register: the donedata is already the per-final SSOT the
+  runner reads, so the run and the audit read one declaration. `ParamListenTime`
+  becomes a tester IXIT (`IxitConfig`, `--expect ixit.param_listen_time_ms=`) with
+  the specification's default of 10 s, the CLI measures the deciding window, and
+  the donedata audit checks each window timer against its bound.
 - **Q4 — migration.** Each `liveness` guard moves to `required_emission`: its
   test-body deadline final becomes `observed_quiescence`, its preamble deadlines
   stay `precondition_unmet`, and where a fixture can suppress the emission a `_neg`
-  ships with it. The migration ledger lists the guards still to move and may only
-  shrink. Pilot: the §4.2.4.2 ARP Request-reception cases and `IPv4_TTL_05`.
+  ships with it. The migration ledger (`tools/liveness_migration_pending.txt`)
+  lists the guards still to move and may only shrink. Pilot, done: the §4.2.4.2
+  ARP Request-reception cases ARP_20/26/36 (with `_neg` cases on the lwIP fixture's
+  `kArpFaultIgnoreWellFormedRequest`, so they are `FAULT_INJECTION`) and
+  `IPv4_TTL_05`, whose TTL=1 iteration was never on the wire before (two guards,
+  `REGISTRY` until a fixture flavor drops low-TTL datagrams). Each window is
+  `ParamListenTime` plus `<ParamToleranceTime>`, the slack the specification adds
+  to every listen, so a window never measures short of its bound.
 
 ---
 
