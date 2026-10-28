@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.9 TCP_MSS_OPTIONS_05 negative (iteration 1) — lwIP egress-fault
+  self-validation of the positive's unanswered-probe guard. The positive fails the
+  DUT when the liveness Echo sent after the ilen=0 SYN,ACK is not answered within
+  ParamListenTime; a probe is answered only by an Echo Reply carrying the probe's
+  identifier. The fixture cannot drop an Echo Reply, so this case arms
+  kIcmpFaultEchoIdWrong: the lwIP link-output hook XOR-flips the identifier of the
+  DUT's Echo Reply (gated on type 0, so no other frame is touched), which leaves the
+  probe unanswered in the positive's sense and makes its
+  `fail_dut_unresponsive_after_ilen0` final reachable.
+  Pass = a DUT Echo Reply for probe 1 that does not carry the probe's identifier;
+  fail_compliant = the DUT answered with the identifier despite the flavor (fault
+  inert). lwIP-only (capability-gated on kCapEgressFault). The positive's drive is
+  reused unchanged; the iteration 2 twin is the _NEG2.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_mss_options_05_neg"
+       sce:transition-table="emit"
+       datamodel="null"
+       initial="awaiting_corrupted_reply">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpLivenessCaptured"
+               cpp:include="sce_integration/tcp_case_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="awaiting_corrupted_reply">
+    <onentry>
+      <send event="corrupted_reply_window_elapsed" delay="11s"/>
+    </onentry>
+    <transition event="dut_echo_reply_wrong_id"
+                cond="cpp:captured.liveness_echo_seq == 1U"
+                target="pass"/>
+    <transition event="dut_echo_reply"
+                cond="cpp:captured.liveness_echo_seq == 1U"
+                target="fail_compliant"/>
+    <transition event="corrupted_reply_window_elapsed" target="inconclusive_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_compliant">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_echoed_probe_id_despite_flavor","role":"fault_injection_inert"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_timeout">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_echo_reply_within_listen_window","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+</scxml>

@@ -5794,6 +5794,14 @@
           "kind": "implements"
         },
         {
+          "file": "tests/tcp_mss_options_05_neg/tcp_mss_options_05_neg.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_mss_options_05_neg2/tcp_mss_options_05_neg2.scxml",
+          "kind": "implements"
+        },
+        {
           "file": "tests/tcp_mss_options_09_neg/tcp_mss_options_09_neg.scxml",
           "kind": "implements"
         },

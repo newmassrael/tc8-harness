@@ -4461,9 +4461,19 @@ the ACK: its requirement is that the DUT survives, which needs evidence of its o
   TCP and ICMP (`BpfGroup::TcpAndIcmpv4`).
 
 Verified on single-pc (the 15 cases pass, the negative set 78/78) and on lwIP (`TCP_MSS_OPTIONS_01`
-and `_05` pass). The liveness fail is not yet driven on the wire. The lwIP fixture's Echo identifier
-fault (`kIcmpFaultEchoIdWrong`) can drive it, since a reply with the wrong identifier is no answer
-to the probe.
+and `_05` pass). The unanswered-probe fail of `TCP_MSS_OPTIONS_05` is driven on the wire by two
+lwIP `_NEG` cases: the fixture cannot drop an Echo Reply, but `kIcmpFaultEchoIdWrong` flips its
+identifier, and a reply that does not carry the probe's identifier is no answer to the probe.
+`TCP_MSS_OPTIONS_05_NEG` arms the fault before iteration 1 and `_NEG2` between the iterations, so
+each fail final has its own proof and the case moved from the registry to `FAULT_INJECTION`.
+`TCP_MSS_OPTIONS_01` stays on the registry: it also fails when the DUT does not reach ESTABLISHED,
+which no fixture fault reaches, so a `_NEG` pair could not cover all its fail finals.
+
+Adding the two cases exposed a defect in nine ARP `_NEG` headers that called the fault-arm helpers
+without including them. They built only while another header in the same registrar chunk pulled the
+include in, and the new cases changed the chunk layout. Each now includes what it uses; compiling
+all 801 case headers one at a time passes, and the same check fails on `arp_27_neg.h` with the
+include removed.
 
 ## TD-66 — SOMEIP_ETS_097 can pass without the first connect having been refused
 

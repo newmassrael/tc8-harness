@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <optional>
 #include <string_view>
 #include <variant>
 
@@ -53,19 +54,60 @@ inline void emitLivenessEcho(const ::tc8::TestConfig& cfg, std::string_view ifac
     ::tc8::stimulus::emitIcmpMessage(iface, spec, ::tc8::stimulus::IcmpBootTiming{});
 }
 
-// The sequence number of the liveness probe a DUT Echo Reply answers, or 0 when
-// the event is not one. The identifier and sequence number are the first and
-// second 16-bit words of the ICMP rest-of-header, network order.
-inline std::uint16_t livenessEchoReplySeq(const ::tc8::CapturedEvent& ev, std::uint32_t dut_ip_be) {
+// The rest-of-header word of an Echo Reply the DUT sent, or nothing when the event
+// is any other frame. The identifier and sequence number are its first and second
+// 16-bit words, network order.
+inline std::optional<std::uint32_t> dutEchoReplyWord(const ::tc8::CapturedEvent& ev,
+                                                     std::uint32_t dut_ip_be) {
     const auto* f = std::get_if<::tc8::Icmpv4Frame>(&ev);
     if (f == nullptr || dut_ip_be == 0U || f->src_ip != dut_ip_be || f->type != kIcmpEchoReply) {
+        return std::nullopt;
+    }
+    return f->rest_of_header;
+}
+
+// The sequence number of the liveness probe a DUT Echo Reply answers, or 0 when
+// the event is not one.
+inline std::uint16_t livenessEchoReplySeq(const ::tc8::CapturedEvent& ev, std::uint32_t dut_ip_be) {
+    const auto word = dutEchoReplyWord(ev, dut_ip_be);
+    if (!word || static_cast<std::uint16_t>(*word >> 16) != kLivenessEchoId) {
         return 0;
     }
-    const std::uint32_t word = f->rest_of_header;
-    if (static_cast<std::uint16_t>(word >> 16) != kLivenessEchoId) {
+    return static_cast<std::uint16_t>(*word & 0xFFFFU);
+}
+
+// The sequence number of a DUT Echo Reply that does NOT carry the liveness
+// identifier, or 0 when the event is not one. The DUT answered, but not as the probe
+// asked, so livenessEchoReplySeq takes no notice of it and the probe goes
+// unanswered. Only the `_NEG` self-validation cases look for it: the lwIP fixture's
+// Echo identifier fault produces exactly this reply, which proves the positive's
+// unanswered-probe fail reachable.
+inline std::uint16_t livenessEchoReplyWrongIdSeq(const ::tc8::CapturedEvent& ev,
+                                                 std::uint32_t dut_ip_be) {
+    const auto word = dutEchoReplyWord(ev, dut_ip_be);
+    if (!word || static_cast<std::uint16_t>(*word >> 16) == kLivenessEchoId) {
         return 0;
     }
-    return static_cast<std::uint16_t>(word & 0xFFFFU);
+    return static_cast<std::uint16_t>(*word & 0xFFFFU);
+}
+
+// Raise `answered` for a DUT Echo Reply that carries the probe's identifier and
+// `wrong_id` for one that does not, with the sequence number it carries left in
+// `c.liveness_echo_seq` for the machine's guards. Any other event raises nothing. The
+// `_NEG` self-validations dispatch through this; the positives need only `answered`.
+template <typename StateMachine, typename CapturedT, typename EventT>
+void raiseLivenessEchoReplies(CapturedT& c, StateMachine& sm, const ::tc8::CapturedEvent& ev,
+                              EventT answered, EventT wrong_id) {
+    if (const std::uint16_t seq = livenessEchoReplySeq(ev, c.liveness_dut_ip); seq != 0U) {
+        c.liveness_echo_seq = seq;
+        sm.raiseExternal(answered);
+        sm.step();
+    } else if (const std::uint16_t wrong = livenessEchoReplyWrongIdSeq(ev, c.liveness_dut_ip);
+               wrong != 0U) {
+        c.liveness_echo_seq = wrong;
+        sm.raiseExternal(wrong_id);
+        sm.step();
+    }
 }
 
 inline ObservationPredicate livenessEchoReplyFrom(std::uint32_t dut_ip_be, std::uint16_t seq) {

@@ -2687,20 +2687,6 @@
         }
       ]
     },
-    "TCP_MSS_OPTIONS_05": {
-      "guards": [
-        {
-          "class": "required_emission",
-          "fail_reason": "dut_unresponsive_after_synack_with_ilen0_mss",
-          "property": "DUT must still answer the liveness ICMP Echo (RFC 1122 section 3.2.2.6) within ParamListenTime after a SYN,ACK with an ilen=0 MSS option: it has not crashed (RFC 1122 section 4.2.2.5); binary present/absent"
-        },
-        {
-          "class": "required_emission",
-          "fail_reason": "dut_unresponsive_after_synack_with_ilen5_mss",
-          "property": "DUT must still answer the liveness ICMP Echo (RFC 1122 section 3.2.2.6) within ParamListenTime after a SYN,ACK with an ilen=5 MSS option: it has not crashed (RFC 1122 section 4.2.2.5); binary present/absent"
-        }
-      ]
-    },
     "TCP_NAGLE_02": {
       "guards": [
         {
