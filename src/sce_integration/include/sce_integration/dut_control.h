@@ -280,9 +280,8 @@ public:
         return r && r->status == ut::kStatusOk;
     }
 
-    std::optional<std::vector<std::uint8_t>> receiveTcp(
-        DutSocket sock, std::uint16_t max_len,
-        const std::function<void()> &trigger) override {
+    DutReceiveOutcome receiveTcp(DutSocket sock, std::uint16_t max_len,
+                                 const std::function<void()> &trigger) override {
         // The opcode UT has no arm: the kernel queues inbound data, so drive the
         // trigger first, then query OpReceiveTcpData for what was received.
         constexpr std::uint16_t kRecvTimeoutMs = 2000;
@@ -294,8 +293,11 @@ public:
             stimulus::buildReceiveTcpDataRequest(nextReqId(), static_cast<std::uint8_t>(sock.id),
                                                  max_len, kRecvTimeoutMs),
             port_, timeout_ms_ + kRecvTimeoutMs, src_ip_be_);
-        if (!r || r->status != ut::kStatusOk) {
-            return std::nullopt;
+        if (!r) {
+            return DutReceiveOutcome::noAnswer();
+        }
+        if (r->status != ut::kStatusOk) {
+            return DutReceiveOutcome::refused();
         }
         // recv_len(u16 BE) offset owned by ut::decodeResponseBody (TD-06); the
         // payload follows the 2-byte length. Clamp to bytes actually present — a
@@ -304,12 +306,13 @@ public:
         resp.request_opcode = ut::OpReceiveTcpData;
         ut::decodeResponseBody(resp, r->data.data(), static_cast<std::uint32_t>(r->data.size()));
         if (!resp.recv_len_valid) {
-            return std::nullopt;
+            // A reply the tester cannot read answers nothing it can grade.
+            return DutReceiveOutcome::noAnswer();
         }
         const std::size_t avail = r->data.size() - 2;
         const std::size_t take = resp.recv_len < avail ? resp.recv_len : avail;
-        return std::vector<std::uint8_t>(
-            r->data.begin() + 2, r->data.begin() + 2 + static_cast<std::ptrdiff_t>(take));
+        return DutReceiveOutcome::received(std::vector<std::uint8_t>(
+            r->data.begin() + 2, r->data.begin() + 2 + static_cast<std::ptrdiff_t>(take)));
     }
 
     bool shutdownTcpWr(DutSocket sock) override {
@@ -450,8 +453,7 @@ public:
                      int timeout_ms)
         : dut_ip_be_(dut_ip_be), port_(port), src_ip_be_(src_ip_be), timeout_ms_(timeout_ms) {}
 
-    std::optional<std::vector<std::uint8_t>> receiveTcpOob(DutSocket sock,
-                                                           std::uint16_t max_len) override {
+    DutReceiveOutcome receiveTcpOob(DutSocket sock, std::uint16_t max_len) override {
         // OpReceiveTcpDataOob: recv(MSG_OOB). Response body mirrors
         // OpReceiveTcpData — receivedLen(u16 BE) + payload — so the parse matches
         // OpcodeTcpControl::receiveTcp. The urgent data is already queued (the
@@ -462,19 +464,22 @@ public:
             stimulus::buildReceiveTcpDataOobRequest(nextReqId(), static_cast<std::uint8_t>(sock.id),
                                                     max_len, kRecvTimeoutMs),
             port_, timeout_ms_ + kRecvTimeoutMs, src_ip_be_);
-        if (!r || r->status != ut::kStatusOk) {
-            return std::nullopt;
+        if (!r) {
+            return DutReceiveOutcome::noAnswer();
+        }
+        if (r->status != ut::kStatusOk) {
+            return DutReceiveOutcome::refused();
         }
         ut::UtResponse resp;
         resp.request_opcode = ut::OpReceiveTcpDataOob;
         ut::decodeResponseBody(resp, r->data.data(), static_cast<std::uint32_t>(r->data.size()));
         if (!resp.recv_len_valid) {
-            return std::nullopt;
+            return DutReceiveOutcome::noAnswer();
         }
         const std::size_t avail = r->data.size() - 2;
         const std::size_t take = resp.recv_len < avail ? resp.recv_len : avail;
-        return std::vector<std::uint8_t>(
-            r->data.begin() + 2, r->data.begin() + 2 + static_cast<std::ptrdiff_t>(take));
+        return DutReceiveOutcome::received(std::vector<std::uint8_t>(
+            r->data.begin() + 2, r->data.begin() + 2 + static_cast<std::ptrdiff_t>(take)));
     }
 
 private:

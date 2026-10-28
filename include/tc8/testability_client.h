@@ -187,6 +187,8 @@ TestabilityAcceptEvent testabilityTcpListenAndAccept(const TestabilityConfig &cf
 // connection-oriented).
 struct TestabilityForwardResult {
     bool ok = false;                    // arm request round-tripped and returned E_OK
+    bool responded = false;             // a Response to the arm arrived, whatever its RID
+    std::uint8_t rid = 0;               // that Response's RID (PRS_TPSP §6.8)
     std::uint16_t drop_cnt = 0;         // inactive-phase bytes consumed before the arm
     std::uint16_t full_len = 0;         // total length the DUT received across the Events
     std::vector<std::uint8_t> payload;  // reassembled forwarded payload (<= max_len)

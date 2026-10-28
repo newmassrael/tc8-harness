@@ -762,8 +762,8 @@ TEST_F(TestabilityServerTest, TcpControlSeamReceiveForwardsInbound) {
     const std::vector<std::uint8_t> body = {'R', 'X', 'd', 'a', 't', 'a'};
     const auto got = tcp->receiveTcp(conn->socket, static_cast<std::uint16_t>(body.size()),
                                      [&] { ::send(afd, body.data(), body.size(), 0); });
-    ASSERT_TRUE(got.has_value());
-    EXPECT_EQ(*got, body);
+    ASSERT_TRUE(got.answered());
+    EXPECT_TRUE(got.returned(body));
 
     EXPECT_TRUE(tcp->closeTcp(conn->socket).isDone());
     ::close(afd);

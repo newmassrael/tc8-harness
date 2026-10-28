@@ -45,6 +45,19 @@ struct TestCaseTraits<cases::TcpCallReceive04SM>
     static constexpr std::uint16_t kPayloadLen      =
         kSegmentSize * kSegmentCount;
 
+    // What a phase's RECEIVE answered, for its SCXML: kPayloadLen when it returned
+    // the reassembled stream; 0 when the DUT answered anything else, a refusal
+    // included (it did not return the data, observed_violation); the 0xFFFF
+    // sentinel when no answer came (inconclusive; the decorator records it as an
+    // unperformed stimulus).
+    static std::uint16_t gradeReceive(const ::tc8::sce::DutReceiveOutcome &received,
+                                      const std::vector<std::uint8_t> &expected) {
+        if (!received.answered()) {
+            return 0xFFFFU;
+        }
+        return received.returned(expected) ? kPayloadLen : 0U;
+    }
+
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
@@ -154,9 +167,7 @@ private:
                     cfg, iface, remote_port, local_port,
                     seq->snd_nxt, seq->rcv_nxt, /*pattern=*/0xC0U);
             });
-        if (received && *received == expected_payload) {
-            c.ut_received_payload_len_p1 = kPayloadLen;
-        }
+        c.ut_received_payload_len_p1 = gradeReceive(received, expected_payload);
 
         silentlyCloseTesterFd(tester_fd);
     }
@@ -207,9 +218,7 @@ private:
                     cfg, iface, remote_port, local_port,
                     seq->snd_nxt, seq->rcv_nxt, /*pattern=*/0xD0U);
             });
-        if (received && *received == expected_payload) {
-            c.ut_received_payload_len_p2 = kPayloadLen;
-        }
+        c.ut_received_payload_len_p2 = gradeReceive(received, expected_payload);
 
         // Tester fd intentionally leaked through case end — closing would either
         // emit FIN (drives DUT FW1→CLOSING) or silentlyCloseTesterFd would
@@ -261,9 +270,7 @@ private:
                     cfg, iface, remote_port, local_port,
                     seq->snd_nxt, seq->rcv_nxt, /*pattern=*/0xE0U);
             });
-        if (received && *received == expected_payload) {
-            c.ut_received_payload_len_p3 = kPayloadLen;
-        }
+        c.ut_received_payload_len_p3 = gradeReceive(received, expected_payload);
 
         silentlyCloseTesterFd(tester_fd);
     }

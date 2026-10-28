@@ -163,6 +163,10 @@ struct ArmedEventResult {
 // owns the open fd and must ::close it.
 struct ArmedSocket {
     bool armed = false;
+    // A well-formed Response to this SP arrived, whatever its RID: the Upper
+    // Tester answered. `rid` is that RID; `armed` is the E_OK case.
+    bool responded = false;
+    std::uint8_t rid = 0;
     std::vector<std::uint8_t> resp_dat;
     int fd = -1;
 };
@@ -223,8 +227,14 @@ ArmedSocket armEventSocket(const TestabilityConfig &cfg, std::uint8_t gid, std::
     const auto resp = (n >= static_cast<ssize_t>(tp::kHeaderSize))
                           ? tp::parseHeader(buf, static_cast<std::size_t>(n))
                           : std::nullopt;
-    if (!resp || resp->tid != tp::kTidResponse || resp->rid != tp::kRidEOk ||
-        tp::gidOf(resp->method_id) != gid || tp::pidOf(resp->method_id) != pid) {
+    if (!resp || resp->tid != tp::kTidResponse || tp::gidOf(resp->method_id) != gid ||
+        tp::pidOf(resp->method_id) != pid) {
+        ::close(fd);
+        return res;
+    }
+    res.responded = true;
+    res.rid = resp->rid;
+    if (resp->rid != tp::kRidEOk) {
         ::close(fd);
         return res;
     }
@@ -565,6 +575,8 @@ TestabilityForwardResult testabilityReceiveAndForward(
     ArmedSocket arm = armEventSocket(cfg, tp::kGidTcp, tp::kPidReceiveAndForward, dat, on_armed,
                                      resp_timeout_ms, src_ip_be);
     res.ok = arm.armed;
+    res.responded = arm.responded;
+    res.rid = arm.rid;
     if (arm.resp_dat.size() >= 2) {
         res.drop_cnt = tp::readU16(arm.resp_dat.data());  // Response DAT: dropCnt(u16)
     }

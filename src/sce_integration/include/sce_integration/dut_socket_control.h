@@ -81,6 +81,28 @@ struct DutCallOutcome {
     bool isDone() const { return kind == Kind::kDone; }
 };
 
+// The answer to a RECEIVE: the bytes the DUT's application got, a refusal (the
+// Upper Tester answered that the receive failed), or no answer. A case grading the
+// DUT's delivery reads `data` only when answered; a refusal is also the DUT's
+// answer (it did not deliver); no answer says nothing about the DUT, and the
+// decorator records it as an unperformed stimulus.
+struct DutReceiveOutcome {
+    DutCallOutcome::Kind kind = DutCallOutcome::Kind::kNoAnswer;
+    std::vector<std::uint8_t> data;  // what RECEIVE returned, when kDone
+
+    static DutReceiveOutcome received(std::vector<std::uint8_t> bytes) {
+        return {DutCallOutcome::Kind::kDone, std::move(bytes)};
+    }
+    static DutReceiveOutcome refused() { return {DutCallOutcome::Kind::kRefused, {}}; }
+    static DutReceiveOutcome noAnswer() { return {DutCallOutcome::Kind::kNoAnswer, {}}; }
+
+    bool answered() const { return kind != DutCallOutcome::Kind::kNoAnswer; }
+    // The DUT returned exactly `expected`.
+    bool returned(const std::vector<std::uint8_t> &expected) const {
+        return kind == DutCallOutcome::Kind::kDone && data == expected;
+    }
+};
+
 // Handle-based TCP data plane — both backends support it.
 class ITcpControl {
 public:
@@ -155,13 +177,12 @@ public:
     // RECEIVE_AND_FORWARD before invoking trigger so the forwarded bytes are
     // captured, while the opcode backend invokes trigger then queries
     // OpReceiveTcpData (its kernel already queued the bytes). Returns the bytes
-    // the DUT received (<= max_len); nullopt when the seam call itself failed
-    // (arm / round-trip error or no Event within the timeout), and an empty
-    // vector when the DUT genuinely received zero bytes — the same nullopt
-    // failure model and at-most-once `trigger` call-count contract as acceptTcp,
-    // which the arm-then-trigger control flow mirrors.
-    virtual std::optional<std::vector<std::uint8_t>> receiveTcp(
-        DutSocket sock, std::uint16_t max_len, const std::function<void()> &trigger) = 0;
+    // the DUT received (<= max_len; empty when it received none), a refusal when
+    // the Upper Tester answered that the RECEIVE failed, or no answer when the
+    // request never came back — the at-most-once `trigger` call-count contract of
+    // acceptTcp, which the arm-then-trigger control flow mirrors.
+    virtual DutReceiveOutcome receiveTcp(DutSocket sock, std::uint16_t max_len,
+                                         const std::function<void()> &trigger) = 0;
     // Half-close the write direction: the DUT calls shutdown(SHUT_WR) on the
     // socket — the kernel emits FIN (EST -> FIN-WAIT-1) while the read side
     // stays open so a later receive still drains inbound bytes. Distinct from
@@ -279,9 +300,9 @@ public:
     // (recv(MSG_OOB)). The urgent data must already have been delivered, so this
     // is a pure query — no trigger, unlike ITcpControl::receiveTcp's armed
     // receive. Returns the urgent bytes the DUT surfaced (1 per URG segment under
-    // default sysctl), or nullopt on query failure.
-    virtual std::optional<std::vector<std::uint8_t>> receiveTcpOob(DutSocket sock,
-                                                                   std::uint16_t max_len) = 0;
+    // default sysctl), a refusal when the Upper Tester answered the receive
+    // failed, or no answer.
+    virtual DutReceiveOutcome receiveTcpOob(DutSocket sock, std::uint16_t max_len) = 0;
 };
 
 // AUTOSAR Testability backend of ITcpControl — thin adapter over the typed free
@@ -391,19 +412,22 @@ public:
             .eok();
     }
 
-    std::optional<std::vector<std::uint8_t>> receiveTcp(
-        DutSocket sock, std::uint16_t max_len,
-        const std::function<void()> &trigger) override {
+    DutReceiveOutcome receiveTcp(DutSocket sock, std::uint16_t max_len,
+                                 const std::function<void()> &trigger) override {
         // Arm RECEIVE_AND_FORWARD (maxFwd = maxLen, so one Event carries the whole
         // bulk), drive the inbound data via trigger, collect the forwarded
-        // payload. nullopt only when the arm itself failed to round-trip.
+        // payload. An arm that got no Response is no answer; one refused (a RID
+        // other than E_OK) is the DUT's answer.
         const auto res = testability::testabilityReceiveAndForward(
             cfg_, sock.id, max_len, max_len, trigger, timeout_ms_, /*event_timeout_ms=*/2000,
             src_ip_be_);
-        if (!res.ok) {
-            return std::nullopt;
+        if (!res.responded) {
+            return DutReceiveOutcome::noAnswer();
         }
-        return res.payload;
+        if (!res.ok) {
+            return DutReceiveOutcome::refused();
+        }
+        return DutReceiveOutcome::received(res.payload);
     }
 
     bool shutdownTcpWr(DutSocket sock) override {

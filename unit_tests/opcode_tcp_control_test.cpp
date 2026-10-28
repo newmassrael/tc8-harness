@@ -179,10 +179,8 @@ TEST(OpcodeTcpControl, ReceiveInvokesTriggerThenQueriesReceiveOpcode) {
                                        /*max_len=*/16, [&] { triggered = true; });
     EXPECT_TRUE(triggered);
     EXPECT_EQ(server.lastOpcode(), static_cast<std::uint8_t>(ut::OpReceiveTcpData));
-    ASSERT_TRUE(bytes.has_value());
-    ASSERT_EQ(bytes->size(), 2u);
-    EXPECT_EQ((*bytes)[0], 'R');
-    EXPECT_EQ((*bytes)[1], 'X');
+    ASSERT_TRUE(bytes.answered());
+    EXPECT_TRUE(bytes.returned({'R', 'X'}));
 }
 
 TEST(OpcodeUdpControl, SendDatagramUsesTriggerSendUdpOpcode) {

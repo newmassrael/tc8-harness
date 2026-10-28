@@ -134,9 +134,10 @@ public:
                           ::tc8::sce::TcpSendFlags) override {
         return false;
     }
-    std::optional<std::vector<std::uint8_t>> receiveTcp(::tc8::sce::DutSocket, std::uint16_t,
-                                                        const std::function<void()> &) override {
-        return std::nullopt;
+    // Answered, with nothing received.
+    ::tc8::sce::DutReceiveOutcome receiveTcp(::tc8::sce::DutSocket, std::uint16_t,
+                                             const std::function<void()> &) override {
+        return ::tc8::sce::DutReceiveOutcome::received({});
     }
     bool shutdownTcpWr(::tc8::sce::DutSocket) override { return false; }
     // Refused for "connection does not exist", the answer RFC 793 3.9 requires on a
@@ -225,9 +226,30 @@ TEST_F(UnperformedStimulusTest, ACleanupCallBearsOnNoVerdict) {
 TEST_F(UnperformedStimulusTest, ADutControlQueryAnswerIsAnObservationNotAFailure) {
     // "Nothing arrived" and "no peer connected" are what the DUT did.
     ::tc8::sce::RecordingDutControl dut(std::make_unique<FailingOpenDutControl>());
-    EXPECT_FALSE(dut.tcpControl()->receiveTcp(::tc8::sce::DutSocket{1}, 16, {}).has_value());
+    EXPECT_TRUE(dut.tcpControl()->receiveTcp(::tc8::sce::DutSocket{1}, 16, {}).returned({}));
     EXPECT_FALSE(dut.tcpControl()->acceptTcp(::tc8::sce::BindSpec{}, {}).has_value());
     EXPECT_FALSE(UnperformedStimulus::any());
+}
+
+TEST_F(UnperformedStimulusTest, AReceiveThatGotNoAnswerIsRecorded) {
+    // The question never came back, which says nothing about the DUT.
+    // An opcode backend pointed at a loopback port nothing serves: every request
+    // times out unanswered.
+    struct Unanswered final : ::tc8::sce::IDutControl {
+        bool probe() override { return true; }
+        bool startTest() override { return true; }
+        bool endTest() override { return true; }
+        const char *backendName() const override { return "unit-test-unanswered"; }
+        std::uint16_t controlPort() const override { return 0; }
+        ::tc8::sce::DutCapabilities capabilities() const override {
+            return ::tc8::sce::kCapTcpControl;
+        }
+        ::tc8::sce::ITcpControl *tcpControl() override { return &tcp; }
+        ::tc8::sce::OpcodeTcpControl tcp{0x0100007FU, /*port=*/1, 0, /*timeout_ms=*/100};
+    };
+    ::tc8::sce::RecordingDutControl dut(std::make_unique<Unanswered>());
+    EXPECT_FALSE(dut.tcpControl()->receiveTcp(::tc8::sce::DutSocket{1}, 16, {}).answered());
+    EXPECT_EQ(UnperformedStimulus::reason(), "stimulus_dut_control_receive_tcp_not_performed");
 }
 
 TEST_F(UnperformedStimulusTest, TheDecoratorIsAbsentWhereTheBackendHasNoInterface) {

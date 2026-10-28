@@ -10,6 +10,7 @@
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_tcp_seam.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_call_intent.h"
 #include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
@@ -89,13 +90,20 @@ struct TestCaseTraits<cases::TcpUrgentPtr04SM>
         // structurally (the 5 non-urgent bytes stay queued for a separate normal
         // recv()). seamTcpRecvOob asserts non-null: the capability gate has
         // already skipped any backend lacking kCapTcpRecvOob.
+        // The answer is graded: 1 when the RECEIVE returned the urgent byte alone,
+        // 0 when the DUT answered anything else (a refusal included: it did not
+        // deliver the urgent data), and the 0xFFFF sentinel left in place when no
+        // answer came, which the decorator records as an unperformed stimulus.
         const auto received = seamTcpRecvOob(ctx.dut).receiveTcpOob(
             open.conn->socket, static_cast<std::uint16_t>(kUrgPayload.size()));
-        if (received && received->size() == 1U && (*received)[0] == kExpectedUrgentByte) {
-            c.ut_received_payload_len = 1U;
+        if (received.answered()) {
+            c.ut_received_payload_len = received.returned({kExpectedUrgentByte}) ? 1U : 0U;
         }
 
-        seamTcpControl(ctx.dut).closeTcp(open.conn->socket);
+        {
+            const ::tc8::sce::DutCallIntentScope cleanup(::tc8::sce::DutCallIntent::kCleanup);
+            seamTcpControl(ctx.dut).closeTcp(open.conn->socket);
+        }
         silentlyCloseTesterFd(tester_fd);
     }
 };

@@ -33,11 +33,12 @@ namespace tc8::sce {
 // the case relies on, an answer it grades, or cleanup after the graded part
 // (DutCallIntent, dut_call_intent.h, set by a DutCallIntentScope around the call).
 //
-// Only actions record. A query's answer is an observation of the DUT, whatever it
-// says: acceptTcp (whether a peer connected), receiveTcp (what arrived),
-// queryReceived, queryCommittedAddress, the state probe and the OOB receive pass
-// through untouched, as do probe/startTest/endTest, which the start-order barrier
-// already accounts for.
+// A query's answer is an observation of the DUT, whatever it says: acceptTcp
+// (whether a peer connected), queryReceived, queryCommittedAddress and the state
+// probe pass through untouched, as do probe/startTest/endTest, which the
+// start-order barrier already accounts for. The two receives say apart an answer
+// from no answer (DutReceiveOutcome), so for them no answer, and only that, is
+// recorded: the question never came back.
 class RecordingDutControl final : public IDutControl {
 public:
     explicit RecordingDutControl(std::unique_ptr<IDutControl> inner) : inner_(std::move(inner)) {}
@@ -64,9 +65,10 @@ public:
     }
     IArpControl *arpControl() override { return arp_.bind(inner_->arpControl()); }
 
-    // Queries only: nothing to record.
+    // A query whose answer, any answer, is the observation: nothing to record.
     ITcpStateProbe *tcpStateProbe() override { return inner_->tcpStateProbe(); }
-    ITcpRecvOob *tcpRecvOob() override { return inner_->tcpRecvOob(); }
+    // A receive: only no answer is recorded, as for receiveTcp.
+    ITcpRecvOob *tcpRecvOob() override { return recv_oob_.bind(inner_->tcpRecvOob()); }
 
 private:
     static void record(const char *operation) {
@@ -80,6 +82,15 @@ private:
             record(operation);
         }
         return performed;
+    }
+
+    // A query: whatever the DUT answered is an observation, so only no answer at all
+    // is recorded (the question did not come back, which is the tester's loss).
+    static DutReceiveOutcome receivedOrRecord(DutReceiveOutcome outcome, const char *operation) {
+        if (!outcome.answered() && DutCallIntentScope::current() != DutCallIntent::kCleanup) {
+            record(operation);
+        }
+        return outcome;
     }
 
     // A typed action: what is recorded follows the call's intent (dut_call_intent.h).
@@ -147,9 +158,9 @@ private:
             return performedOrRecord(inner->sendTcpPattern(sock, pattern, total_len),
                                      "send_tcp_pattern");
         }
-        std::optional<std::vector<std::uint8_t>> receiveTcp(
-            DutSocket sock, std::uint16_t max_len, const std::function<void()> &trigger) override {
-            return inner->receiveTcp(sock, max_len, trigger);
+        DutReceiveOutcome receiveTcp(DutSocket sock, std::uint16_t max_len,
+                                     const std::function<void()> &trigger) override {
+            return receivedOrRecord(inner->receiveTcp(sock, max_len, trigger), "receive_tcp");
         }
         bool shutdownTcpWr(DutSocket sock) override {
             return performedOrRecord(inner->shutdownTcpWr(sock), "shutdown_tcp_wr");
@@ -159,6 +170,12 @@ private:
         }
         DutCallOutcome abortTcp(DutSocket sock) override {
             return accountFor(inner->abortTcp(sock), "abort_tcp");
+        }
+    };
+
+    struct RecvOob final : Bound<ITcpRecvOob> {
+        DutReceiveOutcome receiveTcpOob(DutSocket sock, std::uint16_t max_len) override {
+            return receivedOrRecord(inner->receiveTcpOob(sock, max_len), "receive_tcp_oob");
         }
     };
 
@@ -217,6 +234,7 @@ private:
 
     std::unique_ptr<IDutControl> inner_;
     Tcp tcp_;
+    RecvOob recv_oob_;
     Udp udp_;
     UdpReceive udp_receive_;
     Dhcp dhcp_;

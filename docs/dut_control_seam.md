@@ -58,6 +58,10 @@ E_ISD, and for the opcode UT's unknown-socket status), because RFC 793 3.9
 makes "CLOSE on a connection that does not exist is refused" a requirement a
 case can grade. `createTcp` (testability CREATE_AND_BIND alone, gated by
 `kCapTcpCreateClosed`) gives such a case a connection in CLOSED to ask about.
+RECEIVE (normal and urgent) returns a `DutReceiveOutcome`: the bytes the DUT's
+application got, a refusal, or no answer. A case grading delivery fails a wrong
+answer or a refusal and stays inconclusive on no answer, because only an answer
+says something about the DUT.
 
 Every backend is handed out inside a `RecordingDutControl`
 (`recording_dut_control.h`, applied by `makeDutControl`), which turns an action
@@ -67,8 +71,10 @@ ignores a result cannot grade the tester's failure as the DUT's silence
 the call was made, which the case states with a `DutCallIntentScope`
 (`dut_call_intent.h`): a stimulus by default (anything short of done is
 recorded), a graded call (only no answer is recorded; a refusal is the DUT's
-answer), or cleanup after the graded part (nothing is recorded). Queries
-(accept, receive, the state probe) are observations and record nothing.
+answer), or cleanup after the graded part (nothing is recorded). A receive is
+a query: whatever the DUT answered is an observation, so only no answer is
+recorded, outside cleanup. Accept and the state probe are observations and
+record nothing.
 
 ## How a case receives the seam
 

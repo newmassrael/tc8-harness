@@ -111,7 +111,7 @@ struct TestCaseTraits<cases::TcpClosing07SM>
                 emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, data,
                              /*initial_wait=*/std::chrono::milliseconds(0));
             });
-        if (received && *received == payload) {
+        if (received.returned(payload)) {
             c.ut_received_payload_len = kPayloadLen;
         }
 
