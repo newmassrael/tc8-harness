@@ -11,6 +11,7 @@
 
 #include "tc8/unperformed_stimulus.h"
 
+#include "sce_integration/dut_call_intent.h"
 #include "sce_integration/dut_control.h"
 #include "sce_integration/tcp_pilot_common.h"
 #include "sce_integration/test_config.h"
@@ -210,6 +211,8 @@ class HeldDutConnection {
 public:
     explicit HeldDutConnection(::tc8::sce::IDutControl &dut) : dut_(&dut) {}
     ~HeldDutConnection() {
+        // Release, after whatever the case grades: its answer bears on no verdict.
+        const ::tc8::sce::DutCallIntentScope cleanup(::tc8::sce::DutCallIntent::kCleanup);
         if (conn_) dut_->tcpControl()->closeTcp(conn_->socket);
     }
     HeldDutConnection(const HeldDutConnection &)            = delete;

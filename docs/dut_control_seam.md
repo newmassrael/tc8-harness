@@ -48,6 +48,28 @@ cases are therefore not portable to a Testability DUT. That is a limit of the
 standard, stated honestly, not a defect of the seam. This tree does not invent
 wire primitives the standard does not define (see docs/tech-debt.md TD-16).
 
+## What an answer means, and who records it
+
+A DUT-control call has three outcomes, and a `bool` cannot tell two of them
+apart: the DUT did it, the DUT refused (and why), or no answer came. CLOSE and
+ABORT return a `DutCallOutcome` with all three, the refusal reason in
+backend-neutral terms (`kConnectionDoesNotExist` for PRS_TPSP E_TCP_CNE or
+E_ISD, and for the opcode UT's unknown-socket status), because RFC 793 3.9
+makes "CLOSE on a connection that does not exist is refused" a requirement a
+case can grade. `createTcp` (testability CREATE_AND_BIND alone, gated by
+`kCapTcpCreateClosed`) gives such a case a connection in CLOSED to ask about.
+
+Every backend is handed out inside a `RecordingDutControl`
+(`recording_dut_control.h`, applied by `makeDutControl`), which turns an action
+the case needed and did not get into an unperformed stimulus, so a case that
+ignores a result cannot grade the tester's failure as the DUT's silence
+(docs/verdict_policy.md Section 2.1, hypothesis S). What counts depends on why
+the call was made, which the case states with a `DutCallIntentScope`
+(`dut_call_intent.h`): a stimulus by default (anything short of done is
+recorded), a graded call (only no answer is recorded; a refusal is the DUT's
+answer), or cleanup after the graded part (nothing is recorded). Queries
+(accept, receive, the state probe) are observations and record nothing.
+
 ## How a case receives the seam
 
 A case opts in with a stimulus overload that takes `IDutControl&`

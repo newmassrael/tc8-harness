@@ -81,6 +81,16 @@ enum DutCapability : std::uint32_t {
     // about what addresses it holds. Adding a property there would make the bitmap
     // mean two things (docs/tech-debt.md TD-25).
     kCapSecondaryDutAddress = 1u << 13,
+    // ITcpControl::createTcp — a TCP socket created (and optionally bound) but
+    // neither connected nor listening: a connection in CLOSED, which RFC 793 3.9
+    // CLOSE / ABORT on CLOSED needs. Backend-static: the testability backend maps it
+    // to CREATE_AND_BIND alone; the opcode UT opens a socket only by connecting or
+    // listening, so it leaves the bit unset and the case skips there.
+    kCapTcpCreateClosed = 1u << 14,
+    // ITcpControl::sendTcpWithFlags — a send that states PUSH / URGENT (PRS_TPSP
+    // SEND_DATA flags). Backend-static: testability carries the flags byte; the
+    // opcode OpSendTcpData has none.
+    kCapTcpSendFlags = 1u << 15,
 };
 using DutCapabilities = std::uint32_t;
 

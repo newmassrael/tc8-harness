@@ -4,6 +4,7 @@
 
 #include "sce_integration/dut_control.h"
 #include "sce_integration/dut_control_backend.h"
+#include "sce_integration/recording_dut_control.h"
 #include "sce_integration/test_config.h"
 #include "tc8/testability_client.h"
 #include "tc8/testability_protocol.h"
@@ -11,8 +12,10 @@
 
 namespace tc8::sce {
 
-std::unique_ptr<IDutControl> makeDutControl(const ::tc8::TestConfig &cfg, std::string_view iface,
-                                            int timeout_ms) {
+namespace {
+
+std::unique_ptr<IDutControl> makeBackend(const ::tc8::TestConfig &cfg, std::string_view iface,
+                                         int timeout_ms) {
     // Both backends reach the DUT at its capture-iface IPv4 — the same address
     // the opcode UT inject path targets (cfg.ipv4.dut_iface_ip). Source IP is
     // left kernel-chosen (0), matching `ut-ping` / `testability-probe`.
@@ -49,6 +52,16 @@ std::unique_ptr<IDutControl> makeDutControl(const ::tc8::TestConfig &cfg, std::s
     return std::make_unique<OpcodeUtControl>(dut_ip_be, ut::kPort, /*src_ip_be=*/0, timeout_ms,
                                              /*cap_probe_src_ip_be=*/cfg.ipv4.tester_alias_ip,
                                              std::move(raw));
+}
+
+}  // namespace
+
+std::unique_ptr<IDutControl> makeDutControl(const ::tc8::TestConfig &cfg, std::string_view iface,
+                                            int timeout_ms) {
+    // Every backend is handed out decorated, so a DUT-control action the DUT did
+    // not perform is an unperformed stimulus whichever backend ran it and whether
+    // or not the case looked at the result (recording_dut_control.h).
+    return std::make_unique<RecordingDutControl>(makeBackend(cfg, iface, timeout_ms));
 }
 
 DutCapabilities topologyCapabilities(const ::tc8::TestConfig &cfg) {

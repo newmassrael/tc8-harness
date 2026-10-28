@@ -245,6 +245,18 @@ public:
         return DutSocket{open->data[0]};
     }
 
+    bool sendTcpWithFlags(DutSocket /*sock*/, const std::vector<std::uint8_t> & /*data*/,
+                          TcpSendFlags /*flags*/) override {
+        // OpSendTcpData carries no flags; kCapTcpSendFlags is not advertised.
+        return false;
+    }
+
+    std::optional<DutSocket> createTcp(const BindSpec & /*local*/) override {
+        // The opcode UT opens a TCP socket only by connecting (OpOpenTcpSocket
+        // Active) or listening (Passive); kCapTcpCreateClosed is not advertised.
+        return std::nullopt;
+    }
+
     bool sendTcp(DutSocket sock, const std::vector<std::uint8_t> &data) override {
         // OpSendTcpData (0x06): literal payload, capped at kMaxPayload (256 B).
         const auto r = stimulus::upperTesterRoundTrip(
@@ -311,22 +323,20 @@ public:
         return r && r->status == ut::kStatusOk;
     }
 
-    bool closeTcp(DutSocket sock) override {
-        const auto r = stimulus::upperTesterRoundTrip(
+    DutCallOutcome closeTcp(DutSocket sock) override {
+        return outcomeOf(stimulus::upperTesterRoundTrip(
             dut_ip_be_,
             stimulus::buildCloseTcpSocketRequest(nextReqId(), static_cast<std::uint8_t>(sock.id)),
-            port_, timeout_ms_, src_ip_be_);
-        return r && r->status == ut::kStatusOk;
+            port_, timeout_ms_, src_ip_be_));
     }
 
-    bool abortTcp(DutSocket sock) override {
+    DutCallOutcome abortTcp(DutSocket sock) override {
         // OpAbortTcpSocket (0x09): the DUT applies SO_LINGER {1,0} + close so the
         // kernel emits RST (the abortive counterpart of closeTcp's graceful FIN).
-        const auto r = stimulus::upperTesterRoundTrip(
+        return outcomeOf(stimulus::upperTesterRoundTrip(
             dut_ip_be_,
             stimulus::buildAbortTcpSocketRequest(nextReqId(), static_cast<std::uint8_t>(sock.id)),
-            port_, timeout_ms_, src_ip_be_);
-        return r && r->status == ut::kStatusOk;
+            port_, timeout_ms_, src_ip_be_));
     }
 
 private:
@@ -347,6 +357,20 @@ private:
 
     static constexpr int kAcceptPolls = 20;
     static constexpr int kAcceptPollMs = 25;  // up to ~500 ms for the accept
+
+    // No reply is no answer; kStatusOk is done; kStatusUnknownSocket (the id is not
+    // in the UT's socket map) is the opcode form of "connection does not exist".
+    static DutCallOutcome outcomeOf(const std::optional<stimulus::UtReply> &r) {
+        if (!r) {
+            return DutCallOutcome::noAnswer();
+        }
+        if (r->status == ut::kStatusOk) {
+            return DutCallOutcome::done();
+        }
+        return DutCallOutcome::refused(r->status == ut::kStatusUnknownSocket
+                                           ? DutCallOutcome::Refusal::kConnectionDoesNotExist
+                                           : DutCallOutcome::Refusal::kOther);
+    }
 
     std::uint32_t dut_ip_be_;
     std::uint16_t port_;
@@ -933,7 +957,9 @@ public:
     // The standard socket SPs (CREATE_AND_BIND/CONNECT/LISTEN_AND_ACCEPT/
     // SEND_DATA/CLOSE_SOCKET) are all implemented, so both data-plane
     // sub-interfaces are available on every testability DUT.
-    DutCapabilities capabilities() const override { return kCapTcpControl | kCapUdpControl; }
+    DutCapabilities capabilities() const override {
+        return kCapTcpControl | kCapUdpControl | kCapTcpCreateClosed | kCapTcpSendFlags;
+    }
     ITcpControl *tcpControl() override { return &tcp_ctrl_; }
     IUdpControl *udpControl() override { return &udp_ctrl_; }
 

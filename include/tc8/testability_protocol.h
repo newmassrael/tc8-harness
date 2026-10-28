@@ -150,6 +150,10 @@ inline constexpr std::uint16_t kCfgMss = 0x0005;               // 2B: TCP MSS 50
 inline constexpr std::uint16_t kCfgNagle = 0x0006;             // 1B: Nagle enable=1 (TCP only)
 inline constexpr std::uint16_t kCfgUdpChecksum = 0x0007;       // 1B: UDP checksum tx enable=1 (UDP)
 
+// PRS_TPSP §6.10 SEND_DATA (TCP) flags byte.
+inline constexpr std::uint8_t kSendFlagPsh = 0x08;  // bit 3: PSH
+inline constexpr std::uint8_t kSendFlagUrg = 0x20;  // bit 5: URG
+
 // PRS_TPSP §6.8 Result IDs (RID) — carried in the SOME/IP return_code byte.
 inline constexpr std::uint8_t kRidEOk = 0x00;   // performed successfully
 inline constexpr std::uint8_t kRidENok = 0x01;  // general error
@@ -164,6 +168,10 @@ inline constexpr std::uint8_t kRidEIsd = 0xEF;  // invalid socket ID
 inline constexpr std::uint8_t kRidEUcs = 0xEE;  // unable to create / no free socket
 inline constexpr std::uint8_t kRidEUbs = 0xED;  // unable to bind, port taken
 inline constexpr std::uint8_t kRidEIif = 0xEC;  // invalid network / virtual interface
+// TCP errors (PRS_TPSP §6.8, the RFC 793 3.9 error strings):
+inline constexpr std::uint8_t kRidETcpCoc = 0xE6;  // "connection closing"
+inline constexpr std::uint8_t kRidETcpCne = 0xE5;  // "connection does not exist"
+inline constexpr std::uint8_t kRidETcpCre = 0xE4;  // "connection reset"
 
 // Project a socket-seam capability outcome (tc8::net::OpStatus) onto the Result
 // ID a Response carries. The seam is protocol-neutral by design, so the reading

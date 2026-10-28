@@ -11,12 +11,14 @@
 
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <thread>
 #include <vector>
 
 #include "sce_integration/cases/_tcp_seam.h"
+#include "sce_integration/recording_dut_control.h"
 #include "stimulus/reliable_method_session.h"
 #include "stimulus/tx_observer.h"
 #include "stimulus/udp_emit.h"
@@ -121,8 +123,15 @@ public:
     std::optional<::tc8::sce::DutSocket> listenTcp(const ::tc8::sce::BindSpec &) override {
         return std::nullopt;
     }
+    std::optional<::tc8::sce::DutSocket> createTcp(const ::tc8::sce::BindSpec &) override {
+        return std::nullopt;
+    }
     bool sendTcp(::tc8::sce::DutSocket, const std::vector<std::uint8_t> &) override { return false; }
     bool sendTcpPattern(::tc8::sce::DutSocket, std::uint8_t, std::uint16_t) override {
+        return false;
+    }
+    bool sendTcpWithFlags(::tc8::sce::DutSocket, const std::vector<std::uint8_t> &,
+                          ::tc8::sce::TcpSendFlags) override {
         return false;
     }
     std::optional<std::vector<std::uint8_t>> receiveTcp(::tc8::sce::DutSocket, std::uint16_t,
@@ -130,8 +139,16 @@ public:
         return std::nullopt;
     }
     bool shutdownTcpWr(::tc8::sce::DutSocket) override { return false; }
-    bool closeTcp(::tc8::sce::DutSocket) override { return false; }
-    bool abortTcp(::tc8::sce::DutSocket) override { return false; }
+    // Refused for "connection does not exist", the answer RFC 793 3.9 requires on a
+    // closed connection.
+    ::tc8::sce::DutCallOutcome closeTcp(::tc8::sce::DutSocket) override { return refusal(); }
+    ::tc8::sce::DutCallOutcome abortTcp(::tc8::sce::DutSocket) override { return refusal(); }
+
+private:
+    static ::tc8::sce::DutCallOutcome refusal() {
+        return ::tc8::sce::DutCallOutcome::refused(
+            ::tc8::sce::DutCallOutcome::Refusal::kConnectionDoesNotExist);
+    }
 };
 
 class FailingOpenDutControl final : public ::tc8::sce::IDutControl {
@@ -172,6 +189,54 @@ TEST_F(UnperformedStimulusTest, TheSeamOpenRecordNamesTheOpenNotTheCase) {
     (void)::tc8::sce::tcp::seamConnectTcp(dut, cfg, 1u, 2u, "first");
     (void)::tc8::sce::tcp::seamConnectTcp(dut, cfg, 3u, 4u, "second");
     EXPECT_EQ(UnperformedStimulus::reason(), "stimulus_tcp_seam_open_not_performed");
+}
+
+// The DUT-control decorator every backend is built inside (makeDutControl).
+TEST_F(UnperformedStimulusTest, ADutControlActionTheDutDidNotPerformIsRecorded) {
+    // abortTcp's result is what TCP_CALL_ABORT_03 discarded in all three phases: a
+    // refused abort followed by "the DUT sent no RST" graded the tester's request.
+    ::tc8::sce::RecordingDutControl dut(std::make_unique<FailingOpenDutControl>());
+    EXPECT_FALSE(dut.tcpControl()->abortTcp(::tc8::sce::DutSocket{1}).isDone());
+    EXPECT_EQ(UnperformedStimulus::reason(), "stimulus_dut_control_abort_tcp_not_performed");
+}
+
+TEST_F(UnperformedStimulusTest, ARefusalTheCaseGradesIsTheDutsAnswer) {
+    // TCP_CALL_CLOSE / _ABORT on a closed connection: the refusal is the verdict's
+    // input, so it must not turn the run inconclusive.
+    ::tc8::sce::RecordingDutControl dut(std::make_unique<FailingOpenDutControl>());
+    const ::tc8::sce::DutCallIntentScope graded(::tc8::sce::DutCallIntent::kGraded);
+    const auto outcome = dut.tcpControl()->closeTcp(::tc8::sce::DutSocket{1});
+    EXPECT_EQ(outcome.refusal, ::tc8::sce::DutCallOutcome::Refusal::kConnectionDoesNotExist);
+    EXPECT_FALSE(UnperformedStimulus::any());
+}
+
+TEST_F(UnperformedStimulusTest, ACleanupCallBearsOnNoVerdict) {
+    ::tc8::sce::RecordingDutControl dut(std::make_unique<FailingOpenDutControl>());
+    {
+        const ::tc8::sce::DutCallIntentScope cleanup(::tc8::sce::DutCallIntent::kCleanup);
+        (void)dut.tcpControl()->closeTcp(::tc8::sce::DutSocket{1});
+    }
+    EXPECT_FALSE(UnperformedStimulus::any());
+    // The scope ended: the next call is a stimulus again.
+    (void)dut.tcpControl()->closeTcp(::tc8::sce::DutSocket{1});
+    EXPECT_TRUE(UnperformedStimulus::any());
+}
+
+TEST_F(UnperformedStimulusTest, ADutControlQueryAnswerIsAnObservationNotAFailure) {
+    // "Nothing arrived" and "no peer connected" are what the DUT did.
+    ::tc8::sce::RecordingDutControl dut(std::make_unique<FailingOpenDutControl>());
+    EXPECT_FALSE(dut.tcpControl()->receiveTcp(::tc8::sce::DutSocket{1}, 16, {}).has_value());
+    EXPECT_FALSE(dut.tcpControl()->acceptTcp(::tc8::sce::BindSpec{}, {}).has_value());
+    EXPECT_FALSE(UnperformedStimulus::any());
+}
+
+TEST_F(UnperformedStimulusTest, TheDecoratorIsAbsentWhereTheBackendHasNoInterface) {
+    // The capability gate must see the backend unchanged.
+    ::tc8::sce::RecordingDutControl dut(std::make_unique<FailingOpenDutControl>());
+    EXPECT_NE(dut.tcpControl(), nullptr);
+    EXPECT_EQ(dut.udpControl(), nullptr);
+    EXPECT_EQ(dut.arpControl(), nullptr);
+    EXPECT_EQ(dut.capabilities(), ::tc8::sce::kCapTcpControl);
 }
 
 // An interface name no host carries, so a send from it fails without any privilege.

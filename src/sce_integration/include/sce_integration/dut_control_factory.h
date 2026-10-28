@@ -24,7 +24,9 @@ class IDutControl;
 // the DUT endpoint carried in `cfg` (`cfg.ipv4.dut_iface_ip`):
 //   kOpcode      -> OpcodeUtControl on the opcode UT port (30600).
 //   kTestability -> TestabilityControl on the testability port (30700).
-// `timeout_ms` bounds each control round trip. Never returns null.
+// `timeout_ms` bounds each control round trip. Never returns null. The backend is
+// returned inside a RecordingDutControl (recording_dut_control.h), so an action the
+// DUT did not perform is recorded as an unperformed stimulus.
 //
 // `iface` is the tester NIC the opcode backend injects its UT requests on. It is
 // a construction parameter rather than a `TestConfig` field because it names the

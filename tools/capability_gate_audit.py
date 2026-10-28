@@ -96,6 +96,9 @@ BIT_DEMANDS = {
         "driveSeamCloseToTimeWaitClosing", "driveSeamRawPassiveAccept",
     },
     "kCapTcpSynSentOpen": {"driveSeamSynSentOpen"},
+    # The verb is the demand: a socket in CLOSED exists only through createTcp.
+    "kCapTcpCreateClosed": {"createTcp"},
+    "kCapTcpSendFlags": {"sendTcpWithFlags"},
     "kCapTcpStateProbe": {"tcpStateProbe"},
     "kCapTcpRecvOob": {"tcpRecvOob", "seamTcpRecvOob"},
     "kCapUdpControl": {"udpControl"},

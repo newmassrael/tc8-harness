@@ -253,6 +253,13 @@ int LwipSocketBackend::send(int fd, const void *buf, std::size_t len) {
     return static_cast<int>(lwip_send(fd, buf, len, 0));
 }
 
+int LwipSocketBackend::sendUrgent(int /*fd*/, const void * /*buf*/, std::size_t /*len*/) {
+    // lwIP's sockets.h marks MSG_OOB "Unimplemented", and its tcp_write has no
+    // urgent flag: the stack cannot send urgent data, so say so rather than send
+    // the bytes without URG and let a case read them as urgent.
+    return -1;
+}
+
 bool LwipSocketBackend::connectBoundedV4(int fd, const Endpoint &dst, int timeout_ms,
                                          const std::atomic<bool> *cancel) {
     sockaddr_in d{};

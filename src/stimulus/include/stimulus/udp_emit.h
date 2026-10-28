@@ -42,7 +42,8 @@ inline std::array<std::uint8_t, 6> ipv4MulticastMac(std::uint32_t group_be) {
 // The socket is opened, used once, and closed (stimulus is one-shot). Returns 0
 // on success, or a negative errno-derived sentinel on failure (logged to
 // stderr): -1 socket, -2 interface has no IPv4 address, -6 sendto, -7 bind /
-// SO_REUSEADDR.
+// SO_REUSEADDR, -8 destination 0.0.0.0 (an unresolved default: the datagram
+// would be delivered to the tester itself and never reach the wire).
 // `source_ip_be` (network byte order; 0 = the interface primary IPv4) overrides the
 // bound source address, so a caller can originate from a configured secondary/alias
 // address on `iface_name` (a second client the DUT discriminates by Sender IP)

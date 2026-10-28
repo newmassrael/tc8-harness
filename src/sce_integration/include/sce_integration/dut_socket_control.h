@@ -51,6 +51,36 @@ struct DutConnection {
     Endpoint peer;
 };
 
+// The request bits of a TCP send (PRS_TPSP §6.10 SEND_DATA flags).
+struct TcpSendFlags {
+    bool push = false;    // PSH: deliver without waiting for more data
+    bool urgent = false;  // URG: the last byte of the send is urgent
+};
+
+// The answer a DUT-control call got, in three outcomes a bool cannot tell apart:
+// the DUT did it; the DUT answered that it would not (and why, in backend-neutral
+// terms); or no answer came, which says nothing about the DUT. A case that grades
+// the answer itself (RFC 793 3.9: CLOSE or ABORT on a connection that does not
+// exist must be refused) needs the refusal and its reason, and must not mistake a
+// lost request for one.
+struct DutCallOutcome {
+    enum class Kind : std::uint8_t { kDone, kRefused, kNoAnswer };
+    enum class Refusal : std::uint8_t {
+        kNone,                    // not refused
+        kConnectionDoesNotExist,  // the socket names no connection the DUT holds
+        kOther,                   // refused for any other reason
+    };
+
+    Kind kind = Kind::kNoAnswer;
+    Refusal refusal = Refusal::kNone;
+
+    static DutCallOutcome done() { return {Kind::kDone, Refusal::kNone}; }
+    static DutCallOutcome refused(Refusal why) { return {Kind::kRefused, why}; }
+    static DutCallOutcome noAnswer() { return {Kind::kNoAnswer, Refusal::kNone}; }
+
+    bool isDone() const { return kind == Kind::kDone; }
+};
+
 // Handle-based TCP data plane — both backends support it.
 class ITcpControl {
 public:
@@ -92,6 +122,11 @@ public:
     // confirmation would never arrive. Returns the listening socket handle (for
     // a later closeTcp), or nullopt on failure.
     virtual std::optional<DutSocket> listenTcp(const BindSpec &listen) = 0;
+    // Create (and bind, when local.do_bind) a socket that neither connects nor
+    // listens: a connection in CLOSED, for RFC 793 3.9 CLOSE / ABORT on CLOSED.
+    // testability CREATE_AND_BIND alone. A backend that cannot returns nullopt and
+    // leaves kCapTcpCreateClosed unset, so a case needing it skips.
+    virtual std::optional<DutSocket> createTcp(const BindSpec &local) = 0;
     // Transmit exactly `data` on the connected socket — a literal send
     // (opcode OpSendTcpData / testability SEND_DATA with totalLen == size).
     // For a bulk fill past the literal-payload cap use sendTcpPattern.
@@ -107,6 +142,14 @@ public:
     // would make sendTcp a partial function on the opcode backend).
     virtual bool sendTcpPattern(DutSocket sock, std::uint8_t pattern,
                                 std::uint16_t total_len) = 0;
+    // A literal send that also states the request bits a case grades: PUSH (RFC
+    // 1122 4.2.2.2, PRS_TPSP SEND_DATA flags bit 3) and URGENT (bit 5, the
+    // urgent pointer at the last byte). Its own verb because only the testability
+    // backend can say it: the opcode OpSendTcpData has no flags field, so that
+    // backend returns false and does not advertise kCapTcpSendFlags, and a case
+    // needing it skips there. A plain sendTcp promises neither bit either way.
+    virtual bool sendTcpWithFlags(DutSocket sock, const std::vector<std::uint8_t> &data,
+                                  TcpSendFlags flags) = 0;
     // Receive up to `max_len` bytes the DUT has on `sock`. `trigger` drives the
     // inbound data (e.g. inject a tester segment): the testability backend ARMS
     // RECEIVE_AND_FORWARD before invoking trigger so the forwarded bytes are
@@ -131,14 +174,16 @@ public:
     // function on both. Add RD/RDWR verbs if a case ever needs them (YAGNI).
     virtual bool shutdownTcpWr(DutSocket sock) = 0;
     // Close a TCP socket gracefully (FIN).
-    virtual bool closeTcp(DutSocket sock) = 0;
+    virtual DutCallOutcome closeTcp(DutSocket sock) = 0;
     // Abortive close: the DUT closes the socket immediately with a RST (no
     // graceful FIN), not waiting for outstanding transmissions/acknowledgements —
     // the application ABORT primitive (RFC 793 §3.9). opcode OpAbortTcpSocket
     // (SO_LINGER {1,0} + close), testability CLOSE_SOCKET with the abort flag set
     // (PRS_TPSP §6.10 CLOSE_SOCKET abort param). Split from closeTcp's graceful
     // ::close so each verb is a total function both backends implement faithfully.
-    virtual bool abortTcp(DutSocket sock) = 0;
+    // Both return the typed outcome (DutCallOutcome), because "the DUT refused" is
+    // an answer a case may grade and "no answer" is not.
+    virtual DutCallOutcome abortTcp(DutSocket sock) = 0;
 };
 
 // One-shot UDP send — no handle, matching the opcode UT's port-based model.
@@ -306,11 +351,32 @@ public:
         return DutSocket{*listen_id};
     }
 
+    std::optional<DutSocket> createTcp(const BindSpec &local) override {
+        const auto id = testability::testabilityCreateAndBind(
+            cfg_, testability::kGidTcp, local.do_bind, local.local_port, local.local_addr_be,
+            timeout_ms_, src_ip_be_);
+        if (!id) {
+            return std::nullopt;
+        }
+        return DutSocket{*id};
+    }
+
     bool sendTcp(DutSocket sock, const std::vector<std::uint8_t> &data) override {
         // SEND_DATA with totalLen == size: a literal send, no repeat.
         return testability::testabilityTcpSendData(cfg_, sock.id,
                                                 static_cast<std::uint16_t>(data.size()),
                                                 /*flags=*/0, data, timeout_ms_, src_ip_be_)
+            .eok();
+    }
+
+    bool sendTcpWithFlags(DutSocket sock, const std::vector<std::uint8_t> &data,
+                          TcpSendFlags flags) override {
+        const std::uint8_t bits =
+            static_cast<std::uint8_t>((flags.push ? testability::kSendFlagPsh : 0U) |
+                                      (flags.urgent ? testability::kSendFlagUrg : 0U));
+        return testability::testabilityTcpSendData(cfg_, sock.id,
+                                                static_cast<std::uint16_t>(data.size()), bits,
+                                                data, timeout_ms_, src_ip_be_)
             .eok();
     }
 
@@ -348,21 +414,37 @@ public:
             .eok();
     }
 
-    bool closeTcp(DutSocket sock) override {
-        return testability::testabilityCloseSocket(cfg_, testability::kGidTcp, sock.id, timeout_ms_,
-                                                src_ip_be_)
-            .eok();
+    DutCallOutcome closeTcp(DutSocket sock) override {
+        return outcomeOf(testability::testabilityCloseSocket(cfg_, testability::kGidTcp, sock.id,
+                                                             timeout_ms_, src_ip_be_));
     }
 
-    bool abortTcp(DutSocket sock) override {
+    DutCallOutcome abortTcp(DutSocket sock) override {
         // CLOSE_SOCKET with abort=true: immediate RST close, no wait for
         // outstanding tx/acks (PRS_TPSP §6.10 CLOSE_SOCKET abort param).
-        return testability::testabilityAbortSocket(cfg_, testability::kGidTcp, sock.id, timeout_ms_,
-                                                src_ip_be_)
-            .eok();
+        return outcomeOf(testability::testabilityAbortSocket(cfg_, testability::kGidTcp, sock.id,
+                                                             timeout_ms_, src_ip_be_));
     }
 
 private:
+    // PRS_TPSP §6.8: a response that never came is no answer; E_OK is done.
+    // CLOSE_SOCKET lists E_TCP_CNE ("connection does not exist") for the RFC 793
+    // 3.9 case, and E_ISD (invalid socket id) is what a server answers for an id it
+    // no longer holds; both say the connection does not exist.
+    static DutCallOutcome outcomeOf(const testability::TestabilityResponse &r) {
+        if (!r.ok) {
+            return DutCallOutcome::noAnswer();
+        }
+        if (r.rid == testability::kRidEOk) {
+            return DutCallOutcome::done();
+        }
+        const bool no_connection =
+            r.rid == testability::kRidETcpCne || r.rid == testability::kRidEIsd;
+        return DutCallOutcome::refused(no_connection
+                                           ? DutCallOutcome::Refusal::kConnectionDoesNotExist
+                                           : DutCallOutcome::Refusal::kOther);
+    }
+
     testability::TestabilityConfig cfg_;
     int timeout_ms_;
     std::uint32_t src_ip_be_;

@@ -72,6 +72,7 @@ public:
     }
     int recv(int, void*, std::size_t) override { return -1; }
     int send(int, const void*, std::size_t) override { return -1; }
+    int sendUrgent(int, const void*, std::size_t) override { return -1; }
     bool connectBoundedV4(int, const tc8::net::Endpoint&, int,
                           const std::atomic<bool>*) override { return false; }
     bool listen(int, int) override { return false; }

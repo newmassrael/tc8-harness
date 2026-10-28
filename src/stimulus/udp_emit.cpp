@@ -80,6 +80,18 @@ int sendUdpUnicast(const std::vector<std::uint8_t> &datagram, std::string_view i
                    std::uint16_t src_port, std::uint32_t dst_ip_be, std::uint16_t dst_port,
                    std::uint32_t source_ip_be) {
     TC8_TX_SCOPE();
+    // 0.0.0.0 is no host on the wire: Linux delivers it to the local host, so the
+    // datagram never leaves the tester while sendto() reports success. A caller
+    // that passes it holds an unresolved "derive it" sentinel (a default-built
+    // destination), and its case would grade the DUT on a request it never got.
+    if (dst_ip_be == 0U) {
+        std::fprintf(stderr,
+                     "stimulus: unicast send to 0.0.0.0:%u refused — the destination is an "
+                     "unresolved default, not a DUT address\n",
+                     dst_port);
+        reportTxFailed("udp_unicast");
+        return -8;
+    }
     const BoundSocket bs = openBoundUdpSocket(iface_name, src_port, source_ip_be);
     if (bs.fd < 0) {
         return bs.fd;

@@ -753,7 +753,8 @@ std::uint8_t ProtocolServer::sendDataTcp(const std::uint8_t *dat, std::size_t da
     }
     const std::uint16_t socket_id = readU16(dat);
     const std::uint16_t total_len = readU16(dat + 2);
-    std::size_t off = 5;  // skip flags(u8) at dat[4]
+    const std::uint8_t flags = dat[4];
+    std::size_t off = 5;
     const std::uint8_t *data_body = nullptr;
     std::uint16_t data_len = 0;
     if (!readVint8(dat, dat_len, off, data_body, data_len)) {
@@ -767,7 +768,13 @@ std::uint8_t ProtocolServer::sendDataTcp(const std::uint8_t *dat, std::size_t da
 
     const std::vector<std::uint8_t> payload =
         buildRepeatedPayload(data_body, data_len, total_len);
-    const int sent = backend_->send(*fd, payload.data(), payload.size());
+    // The flags byte: URG (bit 5) is honoured by sending urgent data; PSH (bit 3)
+    // asks for the data to go out without waiting, which a plain send already
+    // does on every stack this server runs on (none of them holds data back for a
+    // later send), so it needs no other call.
+    const int sent = (flags & kSendFlagUrg) != 0U
+                         ? backend_->sendUrgent(*fd, payload.data(), payload.size())
+                         : backend_->send(*fd, payload.data(), payload.size());
     return sent < 0 ? kRidENok : kRidEOk;
 }
 

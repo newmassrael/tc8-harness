@@ -111,6 +111,10 @@ public:
     // Stream I/O. < 0 error, 0 peer close, else byte count.
     virtual int recv(int fd, void *buf, std::size_t len) = 0;
     virtual int send(int fd, const void *buf, std::size_t len) = 0;
+    // Send with the urgent pointer set (BSD MSG_OOB: the last byte is the urgent
+    // one), the URG bit of PRS_TPSP SEND_DATA. < 0 on error, including a stack that
+    // cannot send urgent data at all; then the caller reports the send failed.
+    virtual int sendUrgent(int fd, const void *buf, std::size_t len) = 0;
 
     // Bounded active connect (non-blocking connect + wait up to timeout_ms,
     // fd left blocking on return). true on an established connection. The

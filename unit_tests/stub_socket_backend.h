@@ -45,6 +45,7 @@ public:
     }
     int recv(int, void *, std::size_t) override { return -1; }
     int send(int, const void *, std::size_t len) override { return static_cast<int>(len); }
+    int sendUrgent(int, const void *, std::size_t len) override { return static_cast<int>(len); }
     bool connectBoundedV4(int, const net::Endpoint &, int, const std::atomic<bool> *) override {
         return false;
     }

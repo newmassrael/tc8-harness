@@ -528,6 +528,25 @@ TEST_F(TestabilityServerTest, UdpReceiveAndForwardEmitsDatagramSourceEvent) {
 
 // ── Tier 2 seam: ITcpControl / IUdpControl over the real testability server ──
 
+// RFC 793 3.9 CLOSE on CLOSED, the shape the consumer's TCP_CALL_CLOSE case drives:
+// a socket created and bound but never connected closes (E_OK), and a second CLOSE
+// is refused because the connection does not exist.
+TEST_F(TestabilityServerTest, TcpControlSeamCreateThenCloseTwice) {
+    sce::TestabilityControl ctrl(loopbackConfig());
+    EXPECT_EQ(ctrl.capabilities() & sce::kCapTcpCreateClosed, sce::kCapTcpCreateClosed);
+    sce::ITcpControl *tcp = ctrl.tcpControl();
+    ASSERT_NE(tcp, nullptr);
+
+    sce::BindSpec bind{};
+    bind.do_bind = true;
+    const auto sock = tcp->createTcp(bind);
+    ASSERT_TRUE(sock.has_value());
+    EXPECT_TRUE(tcp->closeTcp(*sock).isDone());
+    const auto again = tcp->closeTcp(*sock);
+    EXPECT_EQ(again.kind, sce::DutCallOutcome::Kind::kRefused);
+    EXPECT_EQ(again.refusal, sce::DutCallOutcome::Refusal::kConnectionDoesNotExist);
+}
+
 // TCP control: capability bit set, active open against a tester listener (read
 // back the DUT's send), driven through the backend-agnostic ITcpControl.
 TEST_F(TestabilityServerTest, TcpControlSeamActiveOpenAndSend) {
@@ -566,7 +585,67 @@ TEST_F(TestabilityServerTest, TcpControlSeamActiveOpenAndSend) {
     const ssize_t n = ::recv(afd, buf, sizeof(buf), 0);
     EXPECT_EQ(n, 3);
 
-    EXPECT_TRUE(tcp->closeTcp(conn->socket));
+    EXPECT_TRUE(tcp->closeTcp(conn->socket).isDone());
+    // Closed, the id names no connection: a second CLOSE is refused with that
+    // reason (RFC 793 3.9), which the testability server answers as E_ISD.
+    const auto again = tcp->closeTcp(conn->socket);
+    EXPECT_EQ(again.kind, sce::DutCallOutcome::Kind::kRefused);
+    EXPECT_EQ(again.refusal, sce::DutCallOutcome::Refusal::kConnectionDoesNotExist);
+    ::close(afd);
+    ::close(lfd);
+}
+
+// SEND_DATA with the URG flag: the server sends urgent data, so the tester reads
+// the last byte out of band; PSH alone is a plain prompt send.
+TEST_F(TestabilityServerTest, TcpControlSeamSendWithFlagsHonoursUrgent) {
+    sce::TestabilityControl ctrl(loopbackConfig());
+    EXPECT_EQ(ctrl.capabilities() & sce::kCapTcpSendFlags, sce::kCapTcpSendFlags);
+    sce::ITcpControl *tcp = ctrl.tcpControl();
+    ASSERT_NE(tcp, nullptr);
+
+    const int lfd = ::socket(AF_INET, SOCK_STREAM, 0);
+    ASSERT_GE(lfd, 0);
+    int on = 1;
+    ::setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+    sockaddr_in la{};
+    la.sin_family = AF_INET;
+    la.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
+    ASSERT_EQ(::bind(lfd, reinterpret_cast<sockaddr *>(&la), sizeof(la)), 0);
+    ASSERT_EQ(::listen(lfd, 1), 0);
+    socklen_t ll = sizeof(la);
+    ASSERT_EQ(::getsockname(lfd, reinterpret_cast<sockaddr *>(&la), &ll), 0);
+    timeval tv{};
+    tv.tv_sec = 2;
+    ::setsockopt(lfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    const auto conn = tcp->connectTcp(sce::Endpoint{::htonl(INADDR_LOOPBACK), ntohs(la.sin_port)});
+    ASSERT_TRUE(conn.has_value());
+    const int afd = ::accept(lfd, nullptr, nullptr);
+    ASSERT_GE(afd, 0);
+    ::setsockopt(afd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    sce::TcpSendFlags push{};
+    push.push = true;
+    EXPECT_TRUE(tcp->sendTcpWithFlags(conn->socket, {'P', 'S'}, push));
+    std::uint8_t buf[8];
+    EXPECT_EQ(::recv(afd, buf, sizeof(buf), 0), 2);
+
+    sce::TcpSendFlags urgent{};
+    urgent.urgent = true;
+    EXPECT_TRUE(tcp->sendTcpWithFlags(conn->socket, {'a', 'b', '!'}, urgent));
+    // The urgent byte arrives out of band, ahead of a normal read of the rest.
+    std::uint8_t oob = 0;
+    ssize_t n = -1;
+    for (int i = 0; i < 50 && n < 0; ++i) {
+        n = ::recv(afd, &oob, 1, MSG_OOB);
+        if (n < 0) {
+            ::usleep(20000);
+        }
+    }
+    ASSERT_EQ(n, 1);
+    EXPECT_EQ(oob, '!');
+
+    EXPECT_TRUE(tcp->closeTcp(conn->socket).isDone());
     ::close(afd);
     ::close(lfd);
 }
@@ -607,7 +686,7 @@ TEST_F(TestabilityServerTest, TcpControlSeamShutdownWrEmitsFin) {
     const ssize_t n = ::recv(afd, buf, sizeof(buf), 0);
     EXPECT_EQ(n, 0) << "DUT did not FIN on shutdownTcpWr (tester saw no EOF)";
 
-    EXPECT_TRUE(tcp->closeTcp(conn->socket));
+    EXPECT_TRUE(tcp->closeTcp(conn->socket).isDone());
     ::close(afd);
     ::close(lfd);
 }
@@ -642,7 +721,7 @@ TEST_F(TestabilityServerTest, TcpControlSeamAbortEmitsRst) {
     tv.tv_sec = 2;
     ::setsockopt(afd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
-    EXPECT_TRUE(tcp->abortTcp(conn->socket));
+    EXPECT_TRUE(tcp->abortTcp(conn->socket).isDone());
     // A graceful FIN would surface as recv == 0 (EOF); the RST surfaces as
     // recv == -1 / ECONNRESET.
     std::uint8_t buf[16];
@@ -686,7 +765,7 @@ TEST_F(TestabilityServerTest, TcpControlSeamReceiveForwardsInbound) {
     ASSERT_TRUE(got.has_value());
     EXPECT_EQ(*got, body);
 
-    EXPECT_TRUE(tcp->closeTcp(conn->socket));
+    EXPECT_TRUE(tcp->closeTcp(conn->socket).isDone());
     ::close(afd);
     ::close(lfd);
 }
@@ -730,7 +809,7 @@ TEST_F(TestabilityServerTest, TcpControlSeamActiveOpenWithLocalBind) {
     EXPECT_EQ(ntohs(peer.sin_port), kLocalBindPort)
         << "DUT did not source the bound local port";
 
-    EXPECT_TRUE(tcp->closeTcp(conn->socket));
+    EXPECT_TRUE(tcp->closeTcp(conn->socket).isDone());
     ::close(afd);
     ::close(lfd);
 }
@@ -768,7 +847,7 @@ TEST_F(TestabilityServerTest, TcpControlSeamPassiveOpen) {
     if (cfd >= 0) {
         ::close(cfd);
     }
-    EXPECT_TRUE(tcp->closeTcp(conn->socket));
+    EXPECT_TRUE(tcp->closeTcp(conn->socket).isDone());
 }
 
 // UDP control: capability bit set, one-shot sendDatagram emits an observable

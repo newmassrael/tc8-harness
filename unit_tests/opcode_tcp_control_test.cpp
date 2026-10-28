@@ -70,7 +70,10 @@ private:
             last_opcode_.store(opcode);
             std::vector<std::uint8_t> resp = {
                 static_cast<std::uint8_t>(opcode | ut::kResponseBit), buf[1], ut::kStatusOk};
-            if (opcode == ut::OpOpenTcpSocket) {
+            const bool closes = opcode == ut::OpCloseTcpSocket || opcode == ut::OpAbortTcpSocket;
+            if (closes && (n < 3 || buf[2] != kSocketId)) {
+                resp[2] = ut::kStatusUnknownSocket;  // a socket this UT never opened
+            } else if (opcode == ut::OpOpenTcpSocket) {
                 resp.push_back(kSocketId);
             } else if (opcode == ut::OpQueryTcpEstablished) {
                 resp.push_back(0x01);  // established
@@ -135,7 +138,7 @@ TEST(OpcodeTcpControl, SendAndCloseSucceed) {
     auto ctrl = makeControl(server.port());
     const std::vector<std::uint8_t> body = {'T', 'C', '8'};
     EXPECT_TRUE(ctrl.sendTcp(sce::DutSocket{MockOpcodeResponder::kSocketId}, body));
-    EXPECT_TRUE(ctrl.closeTcp(sce::DutSocket{MockOpcodeResponder::kSocketId}));
+    EXPECT_TRUE(ctrl.closeTcp(sce::DutSocket{MockOpcodeResponder::kSocketId}).isDone());
 }
 
 TEST(OpcodeTcpControl, SendLiteralUsesSendTcpDataOpcode) {
@@ -195,12 +198,24 @@ TEST(OpcodeUdpControl, SendDatagramUsesTriggerSendUdpOpcode) {
     EXPECT_EQ(server.lastOpcode(), static_cast<std::uint8_t>(ut::OpTriggerSendUdp));
 }
 
+TEST(OpcodeTcpControl, CloseOrAbortOfAnUnknownSocketIsARefusalNamingIt) {
+    // RFC 793 3.9: CLOSE or ABORT on a connection that does not exist is refused,
+    // and the case grading that needs the reason, not a bare false.
+    MockOpcodeResponder server;
+    auto ctrl = makeControl(server.port());
+    for (const auto outcome : {ctrl.closeTcp(sce::DutSocket{0x01}), ctrl.abortTcp(sce::DutSocket{0x01})}) {
+        EXPECT_EQ(outcome.kind, sce::DutCallOutcome::Kind::kRefused);
+        EXPECT_EQ(outcome.refusal, sce::DutCallOutcome::Refusal::kConnectionDoesNotExist);
+    }
+}
+
 TEST(OpcodeTcpControl, NoServerFailsGracefully) {
     // Nothing listening on this loopback port — the round trip times out.
     auto ctrl = sce::OpcodeTcpControl(::htonl(INADDR_LOOPBACK), /*port=*/1, 0, /*timeout_ms=*/150);
     EXPECT_FALSE(
         ctrl.connectTcp(sce::Endpoint{::htonl(INADDR_LOOPBACK), 80}, sce::BindSpec{}).has_value());
-    EXPECT_FALSE(ctrl.closeTcp(sce::DutSocket{1}));
+    // A lost request is no answer, never the DUT's refusal.
+    EXPECT_EQ(ctrl.closeTcp(sce::DutSocket{1}).kind, sce::DutCallOutcome::Kind::kNoAnswer);
 }
 
 }  // namespace

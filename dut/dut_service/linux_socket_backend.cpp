@@ -474,6 +474,11 @@ int LinuxSocketBackend::send(int fd, const void *buf, std::size_t len) {
     return static_cast<int>(::send(fd, buf, len, MSG_NOSIGNAL));
 }
 
+int LinuxSocketBackend::sendUrgent(int fd, const void *buf, std::size_t len) {
+    // MSG_OOB: the kernel sets URG and points the urgent pointer at the last byte.
+    return static_cast<int>(::send(fd, buf, len, MSG_OOB | MSG_NOSIGNAL));
+}
+
 bool LinuxSocketBackend::connectBoundedV4(int fd, const Endpoint &dst, int timeout_ms,
                                           const std::atomic<bool> *cancel) {
     sockaddr_in d{};
