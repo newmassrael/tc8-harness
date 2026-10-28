@@ -93,6 +93,7 @@ TEST(BpfFilter, ExpressionForIsVlanAwareWrapOfPerGroupFunction) {
     EXPECT_EQ(expressionFor(BpfGroup::ArpAndUdp), vlanAware(arpAndUdp()));
     EXPECT_EQ(expressionFor(BpfGroup::ArpAndDhcpv4), vlanAware(arpAndDhcpv4()));
     EXPECT_EQ(expressionFor(BpfGroup::UdpAndDhcpv4), vlanAware(udpAndDhcpv4()));
+    EXPECT_EQ(expressionFor(BpfGroup::TcpAndIcmpv4), vlanAware(tcpAndIcmpv4()));
 }
 
 TEST(BpfFilter, BareExpressionForIsThePerGroupFunctionUnwrapped) {
@@ -192,7 +193,7 @@ TEST(BpfFilter, EveryExpressionCompilesUnderLibpcap) {
         BpfGroup::Arp,        BpfGroup::Icmpv4,      BpfGroup::Ipv4,
         BpfGroup::Udp,        BpfGroup::Dhcpv4,      BpfGroup::Tcp,
         BpfGroup::SomeIp,     BpfGroup::ArpAndUdp,   BpfGroup::ArpAndDhcpv4,
-        BpfGroup::UdpAndDhcpv4,
+        BpfGroup::UdpAndDhcpv4, BpfGroup::TcpAndIcmpv4,
     };
     for (const auto g : groups) {
         const std::string expr = expressionFor(g);

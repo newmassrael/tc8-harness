@@ -28,6 +28,10 @@ enum class BpfGroup {
                   //  SD multicast UDP 30490 noise that bare `udp` would
                   //  otherwise pass on a netns shared with §5.1
                   //  emulation.
+    TcpAndIcmpv4, // TCP_MSS_OPTIONS_01/_05 cross-protocol — the
+                  //  TCP case's own segments AND the ICMP Echo Reply
+                  //  to the DUT liveness probe (dut_liveness.h) that
+                  //  grades "the DUT has not crashed".
 };
 
 }  // namespace tc8

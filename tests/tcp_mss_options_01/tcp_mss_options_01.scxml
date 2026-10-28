@@ -29,16 +29,17 @@
                      then a state-probe read of whether the
                      connection reached ESTABLISHED.
 
-  Pass guard (single tcp_observed edge): DUT-emitted SYN+ACK on the
-  verification port quad with captured.ut_established == 0x01. If
-  either malformed-iter SYN crashed the DUT, the verify-phase
-  handshake fails — no SYN+ACK arrives, and the SCXML deadline
-  expires on `no_dut_syn_ack_within_listen_window`.
+  "The DUT has not crashed" is graded by the DUT liveness probe
+  (dut_liveness.h): after each malformed SYN the tester sends an ICMP
+  Echo Request numbered by the iteration, which a running DUT answers
+  (RFC 1122 §3.2.2.6, MUST). A probe unanswered for ParamListenTime
+  fails that iteration (observed_quiescence), and the stimulus stops
+  there, so the following DUT-control calls cannot turn the crash
+  into an unperformed stimulus.
 
-  Both malformed iterations are exercised before the single
-  verification, since "DUT not crashed" is a global state assertion;
-  the verification handshake succeeds iff the DUT survived BOTH
-  malformed inputs intact.
+  Then the verification handshake asks whether the DUT's TCP stack
+  still works: DUT-emitted SYN+ACK on the verification port quad with
+  captured.ut_established == 0x01 passes; == 0x00 fails.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -47,15 +48,35 @@
        name="tcp_mss_options_01"
        sce:transition-table="emit"
        datamodel="null"
-       initial="listening">
+       initial="awaiting_liveness_ilen0">
 
   <sce:context id="captured"
-               cpp:type="tc8::TcpCaptured"
-               cpp:include="sce_integration/tcp_captured.h"/>
+               cpp:type="tc8::TcpLivenessCaptured"
+               cpp:include="sce_integration/tcp_case_captured.h"/>
 
   <sce:context id="expected"
                cpp:type="tc8::Ipv4Expected"
                cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="awaiting_liveness_ilen0">
+    <onentry>
+      <send event="ilen0_liveness_window_elapsed" delay="11s"/>
+    </onentry>
+    <transition event="dut_echo_reply"
+                cond="cpp:captured.liveness_echo_seq == 1U"
+                target="awaiting_liveness_ilen5"/>
+    <transition event="ilen0_liveness_window_elapsed" target="fail_dut_unresponsive_after_ilen0"/>
+  </state>
+
+  <state id="awaiting_liveness_ilen5">
+    <onentry>
+      <send event="ilen5_liveness_window_elapsed" delay="11s"/>
+    </onentry>
+    <transition event="dut_echo_reply"
+                cond="cpp:captured.liveness_echo_seq == 2U"
+                target="listening"/>
+    <transition event="ilen5_liveness_window_elapsed" target="fail_dut_unresponsive_after_ilen5"/>
+  </state>
 
   <state id="listening">
     <onentry>
@@ -73,6 +94,18 @@
   <final id="pass">
     <donedata>
       <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_dut_unresponsive_after_ilen0">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_unresponsive_after_syn_with_ilen0_mss","role":"observed_quiescence","bound":"ParamListenTime"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_dut_unresponsive_after_ilen5">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_unresponsive_after_syn_with_ilen5_mss","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 

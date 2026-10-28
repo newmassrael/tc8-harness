@@ -101,6 +101,12 @@ std::string arpAndDhcpv4() {
            std::to_string(::tc8::kDhcpClientPort) + "))";
 }
 
+std::string tcpAndIcmpv4() {
+    // TCP_MSS_OPTIONS_01/_05: the TCP group's frames AND ICMP, so the
+    // Echo Reply to the DUT liveness probe (dut_liveness.h) reaches the case.
+    return "(" + tcp() + ") or " + icmpv4();
+}
+
 std::string udpAndDhcpv4() {
     // §4.7.6.7 CM_05/_06: observe BOTH the DHCPv4 lifecycle AND the
     // post-BOUND DUT-emitted UDP datagram on a non-DHCP data port.
@@ -181,6 +187,8 @@ std::string bareExpressionFor(::tc8::BpfGroup group) {
         return arpAndDhcpv4();
     case ::tc8::BpfGroup::UdpAndDhcpv4:
         return udpAndDhcpv4();
+    case ::tc8::BpfGroup::TcpAndIcmpv4:
+        return tcpAndIcmpv4();
     }
     __builtin_unreachable();
 }

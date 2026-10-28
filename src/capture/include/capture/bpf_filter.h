@@ -51,6 +51,10 @@ std::string arpAndDhcpv4();
 // to IP-UNUSED-ADDRESS (192.168.99.42).
 std::string udpAndDhcpv4();
 
+// TCP_MSS_OPTIONS_01/_05 cross-protocol — the TCP group's frames and
+// the ICMP Echo Reply to the DUT liveness probe.
+std::string tcpAndIcmpv4();
+
 // Primitive: "udp portrange lo-hi or tcp portrange lo-hi".
 std::string portRange(std::uint16_t lo, std::uint16_t hi);
 

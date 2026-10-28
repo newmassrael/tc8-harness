@@ -12,28 +12,29 @@
     handshake-reply counterpart of MSS_OPTIONS_01.
 
   Iterations: ilen=0 (less than RFC 793 §3.1 MSS opsize=4) and ilen=5
-  (more than). Both encoded as a 2-phase compound on distinct port
-  quads.
+  (more than), on distinct port quads.
 
-  Observable interaction per phase:
+  Per phase:
     - The tester suppresses its own automatic RST that would
       otherwise answer the DUT's pure SYN arriving at a tester port
       with no listening socket.
-    - The DUT's ISN_d is learned from the active-OPEN SYN it emits.
+    - The DUT's ISN_d is learned from the active-OPEN SYN it emits
+      (no SYN: recorded unperformed, the case is inconclusive).
     - The tester sends SYN+ACK with seq=tester_isn, ack=ISN_d+1, and
       options carrying the malformed MSS bytes.
-    - A conformant DUT skips the bad-length MSS option, proceeds with
-      the rest of the SYN+ACK, transitions SYN-SENT → ESTABLISHED,
-      and emits the third-leg pure ACK.
+    - The tester sends the DUT liveness probe numbered by the phase
+      (dut_liveness.h): an ICMP Echo Request, which a running DUT
+      answers (RFC 1122 §3.2.2.6, MUST).
 
-  Pass guard: observe the DUT-emitted pure ACK on each phase's
-  4-tuple. Survive-only assertion — the third-leg ACK is the cardinal
-  evidence the DUT processed the malformed SYN+ACK without crashing
-  or dropping the connection.
+  What the DUT does with the malformed SYN+ACK itself is not graded: it
+  may complete the handshake, reset or drop it, and none of those is a
+  crash. The criterion is the Echo Reply.
 
-  Per-phase fail_timeout terminals mirror the BASICS_04/05 split-fail
-  diagnostic granularity: a stuck-at phase-1 fault is distinguishable
-  from a phase-2 regression.
+  Verdicts: both probes answered → pass; a probe unanswered for
+  ParamListenTime → fail for that phase (observed_quiescence: the DUT
+  is no longer running). The stimulus stops at the first unanswered
+  probe, so a crash in phase 1 is not hidden by phase 2's DUT-control
+  calls going unanswered.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -42,34 +43,34 @@
        name="tcp_mss_options_05"
        sce:transition-table="emit"
        datamodel="null"
-       initial="listening_phase1">
+       initial="awaiting_liveness_phase1">
 
   <sce:context id="captured"
-               cpp:type="tc8::TcpCaptured"
-               cpp:include="sce_integration/tcp_captured.h"/>
+               cpp:type="tc8::TcpLivenessCaptured"
+               cpp:include="sce_integration/tcp_case_captured.h"/>
 
   <sce:context id="expected"
                cpp:type="tc8::Ipv4Expected"
                cpp:include="sce_integration/ipv4_expected.h"/>
 
-  <state id="listening_phase1">
+  <state id="awaiting_liveness_phase1">
     <onentry>
-      <send event="deadline_exceeded" delay="6s"/>
+      <send event="phase1_liveness_window_elapsed" delay="11s"/>
     </onentry>
-    <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpMssOptions05Phase1LocalOffset), static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpMssOptions05Phase1LocalOffset))"
-                target="listening_phase2"/>
-    <transition event="deadline_exceeded" target="inconclusive_timeout_phase1"/>
+    <transition event="dut_echo_reply"
+                cond="cpp:captured.liveness_echo_seq == 1U"
+                target="awaiting_liveness_phase2"/>
+    <transition event="phase1_liveness_window_elapsed" target="fail_dut_unresponsive_after_ilen0"/>
   </state>
 
-  <state id="listening_phase2">
+  <state id="awaiting_liveness_phase2">
     <onentry>
-      <send event="deadline_exceeded" delay="6s"/>
+      <send event="phase2_liveness_window_elapsed" delay="11s"/>
     </onentry>
-    <transition event="tcp_observed"
-                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpMssOptions05Phase2LocalOffset), static_cast&lt;std::uint16_t&gt;(::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpMssOptions05Phase2LocalOffset))"
+    <transition event="dut_echo_reply"
+                cond="cpp:captured.liveness_echo_seq == 2U"
                 target="pass"/>
-    <transition event="deadline_exceeded" target="inconclusive_timeout_phase2"/>
+    <transition event="phase2_liveness_window_elapsed" target="fail_dut_unresponsive_after_ilen5"/>
   </state>
 
   <final id="pass">
@@ -78,15 +79,15 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_timeout_phase1">
+  <final id="fail_dut_unresponsive_after_ilen0">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_synack_with_ilen0_mss","role":"precondition_unmet"}</content>
+      <content>{"verdict":"fail","reason":"dut_unresponsive_after_synack_with_ilen0_mss","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 
-  <final id="inconclusive_timeout_phase2">
+  <final id="fail_dut_unresponsive_after_ilen5">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_synack_with_ilen5_mss","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"dut_unresponsive_after_synack_with_ilen5_mss","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </scxml>

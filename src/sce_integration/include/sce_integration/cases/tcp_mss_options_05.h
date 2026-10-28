@@ -11,7 +11,9 @@
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_tcp_seam.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/dut_call_intent.h"
 #include "sce_integration/dut_control.h"
+#include "sce_integration/dut_liveness.h"
 #include "sce_integration/tcp_observation.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
@@ -40,14 +42,17 @@ struct TestCaseTraits<cases::TcpMssOptions05SM>
     // testability CONNECT SP requires the handshake to establish and so cannot
     // hold a socket in SYN-SENT, while the opcode non-blocking worker can —
     // kCapTcpSynSentOpen makes the CLI capability gate honestly SKIP this case
-    // on a testability backend (Tier 2 2b#4) instead of failing it. The DUT
-    // third-leg ACK is observed on pcap, so no state probe is required.
+    // on a testability backend (Tier 2 2b#4) instead of failing it. Whether
+    // the DUT survived is graded by the liveness probe (dut_liveness.h), not
+    // by a state query, which a crashed DUT could not answer.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
         ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpSynSentOpen;
+    // The case's segments and the Echo Reply to its liveness probe.
+    static constexpr ::tc8::BpfGroup kBpfGroup = ::tc8::BpfGroup::TcpAndIcmpv4;
 
     // Drive one iteration of the spec procedure: active OPEN, capture
-    // DUT SYN, raw-inject SYN+ACK carrying `bad_options` bytes, wait
-    // for the DUT third-leg ACK to land on pcap, close the socket.
+    // DUT SYN, raw-inject SYN+ACK carrying `bad_options` bytes, give the
+    // DUT time to process it, close the socket.
     // The TesterAutoRstDrop scope spans the SYN-SENT period only —
     // after the DUT reaches ESTABLISHED via our injection, dropping
     // RST is no longer needed, and tearing the rule down before UT
@@ -93,20 +98,25 @@ struct TestCaseTraits<cases::TcpMssOptions05SM>
                              /*initial_wait=*/std::chrono::milliseconds(0));
             }
 
-            // 200 ms grace for the DUT TCB to process SYN+ACK and
-            // emit the third-leg ACK on the wire (where SCXML
-            // observes it).
+            // 200 ms grace for the DUT TCB to process the SYN+ACK
+            // (its answer, if any, is in the pcap; it is not graded).
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
         }
 
-        if (open) dut.tcpControl()->closeTcp(open->socket);
+        if (open) {
+            // Releasing the connection bears on no verdict; the liveness probe
+            // after this phase is what grades whether the DUT survived.
+            const ::tc8::sce::DutCallIntentScope cleanup(::tc8::sce::DutCallIntent::kCleanup);
+            dut.tcpControl()->closeTcp(open->socket);
+        }
         std::this_thread::sleep_for(kTcpUtRpcWait);
     }
 
-    static void stimulus(Captured& /*c*/,
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
+        c.liveness_dut_ip = cfg.dut.ip;
 
         // Iteration 1: ilen=0 (less than RFC 793 §3.1 MSS opsize=4).
         // Wire bytes [0x02 0x00] padded with NOP×2 → 4 B. Linux's
@@ -115,6 +125,8 @@ struct TestCaseTraits<cases::TcpMssOptions05SM>
         runPhase(ctx.dut, cfg, ctx.iface, ctx.observer, cfg.dut.mac,
                  kTcpMssOptions05Phase1LocalOffset,
                  std::vector<std::uint8_t>{0x02U, 0x00U, 0x01U, 0x01U});
+        const std::chrono::milliseconds listen(cfg.ixit.param_listen_time_ms);
+        if (!::tc8::sce::liveness::probeLiveness(cfg, ctx.iface, ctx.observer, 1, listen)) return;
 
         // Iteration 2: ilen=5 (more than actual). Wire bytes
         // [0x02 0x05 0xAA 0xBB 0xCC] — kind=2, length=5 (3 data
@@ -124,6 +136,17 @@ struct TestCaseTraits<cases::TcpMssOptions05SM>
         runPhase(ctx.dut, cfg, ctx.iface, ctx.observer, cfg.dut.mac,
                  kTcpMssOptions05Phase2LocalOffset,
                  std::vector<std::uint8_t>{0x02U, 0x05U, 0xAAU, 0xBBU, 0xCCU});
+        ::tc8::sce::liveness::probeLiveness(cfg, ctx.iface, ctx.observer, 2, listen);
+    }
+
+    // The case grades only the DUT's answers to its liveness probes; its own TCP
+    // segments are recorded in the pcap and bear on no transition.
+    static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {
+        const std::uint16_t seq = ::tc8::sce::liveness::livenessEchoReplySeq(ev, c.liveness_dut_ip);
+        if (seq == 0U) return;
+        c.liveness_echo_seq = seq;
+        sm.raiseExternal(Event::Dut_echo_reply);
+        sm.step();
     }
 };
 

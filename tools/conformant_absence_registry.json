@@ -2633,6 +2633,16 @@
     "TCP_MSS_OPTIONS_01": {
       "guards": [
         {
+          "class": "required_emission",
+          "fail_reason": "dut_unresponsive_after_syn_with_ilen0_mss",
+          "property": "DUT must still answer the liveness ICMP Echo (RFC 1122 section 3.2.2.6) within ParamListenTime after a SYN with an ilen=0 MSS option: it has not crashed (RFC 1122 section 4.2.2.5); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "dut_unresponsive_after_syn_with_ilen5_mss",
+          "property": "DUT must still answer the liveness ICMP Echo (RFC 1122 section 3.2.2.6) within ParamListenTime after a SYN with an ilen=5 MSS option: it has not crashed (RFC 1122 section 4.2.2.5); binary present/absent"
+        },
+        {
           "class": "incorrect_emission",
           "fail_reason": "dut_did_not_reach_established",
           "property": "DUT must complete the handshake and reach ESTABLISHED for a valid SYN; fail iff it emits a response showing it did not establish"
@@ -2660,8 +2670,14 @@
     "TCP_MSS_OPTIONS_05": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit an ACK to the SYN,ACK; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "dut_unresponsive_after_synack_with_ilen0_mss",
+          "property": "DUT must still answer the liveness ICMP Echo (RFC 1122 section 3.2.2.6) within ParamListenTime after a SYN,ACK with an ilen=0 MSS option: it has not crashed (RFC 1122 section 4.2.2.5); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "dut_unresponsive_after_synack_with_ilen5_mss",
+          "property": "DUT must still answer the liveness ICMP Echo (RFC 1122 section 3.2.2.6) within ParamListenTime after a SYN,ACK with an ilen=5 MSS option: it has not crashed (RFC 1122 section 4.2.2.5); binary present/absent"
         }
       ]
     },
