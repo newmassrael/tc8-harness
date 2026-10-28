@@ -63,13 +63,16 @@ packages = ["libpcap-dev", "libtins-dev"]
 min_ram_gb  = 16
 min_free_gb = 40
 
-# Per-compile-job peak for the thread-budget calculation. Measured 2026-10-27:
-# a -j7 full build (harness + unit tests) on a build machine with a 28 GB run
-# ceiling peaked at 19.7 GB and was ended by that ceiling, about 2.8 GB a job. The registrar chunking
-# (TC8_CASES_PER_TU=32) keeps each case TU modest, but the generated-SM TUs and
-# the tester link run alongside them. The earlier figure of 1 GB was an estimate
-# and let bx place seven jobs where three fit.
-peak_gb_per_task = 3
+# Per-compile-job peak for the thread-budget calculation. Measured 2026-10-28:
+# a Release full build (harness + unit tests) given 23 jobserver slots peaked at
+# 85.2 GB, 3.7 GB a job. The 2026-10-27 figure was 2.8 GB a job (19.7 GB at
+# -j7). Until 2026-10-28 the declared commands set no build type, and a build
+# with none optimises nothing and compiles in less memory. They now build Release
+# (see [commands]). The registrar
+# chunking (TC8_CASES_PER_TU=32) keeps each case TU modest, but the generated-SM
+# TUs and the tester link run alongside them. The earlier figure of 1 GB was an
+# estimate and let bx place seven jobs where three fit.
+peak_gb_per_task = 4
 
 [commands]
 # ⚠ MOCK DUT OFF, deliberately, and this is a real limitation rather than a
@@ -81,12 +84,46 @@ peak_gb_per_task = 3
 #
 # What it therefore does NOT cover: the vsomeip/CommonAPI ETS mock DUT under
 # dut/ets. That build stays local until a machine carries CommonAPI.
-build  = "cmake -S . -B build -DTC8_BUILD_MOCK_DUT=OFF -DTC8_BUILD_UNIT_TESTS=ON && cmake --build build"
+#
+# Release, as every lane that verifies the tree builds it (build-test, the shared
+# build-harness action the smoke lane uses). With no build type CMake compiles
+# unoptimised. Measured 2026-10-28: a 679 MB tester against Release's 128 MB,
+# whose capture-ready signal missed the orchestrator's 5 s barrier on all 15
+# cases of a single-pc run, where the Release tester missed it on none of 80.
+build  = "cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DTC8_BUILD_MOCK_DUT=OFF -DTC8_BUILD_UNIT_TESTS=ON && cmake --build build"
 # The privileged neighbour test self-wraps in an unprivileged user+net namespace
 # and SKIPs (exit 77) where userns is unavailable, so this is safe on a machine
 # with no netns provisioning. `--no-tests=error` because ctest EXIT-0s an empty
 # suite, which would pass this gate vacuously.
 verify = "ctest --test-dir build --output-on-failure --no-tests=error"
+
+# The tester built on a build machine for an on-wire run on this one. The wire
+# lanes (single-pc, lwip-tap) need this machine's namespaces and tap devices, so
+# only the build goes away: run it as
+#   bx --command harness-remote --artifact build-remote/tc8-harness
+# and point the orchestrator at what comes back (HARNESS=build-remote/tc8-harness).
+# The binary carries no path of the tree it was built in and links only libpcap,
+# libtins and the C++ runtime, so it runs here when the two machines' packages
+# match; bx's `packages` check names the two libraries.
+#
+# `build-remote/` and not `build/`: a binary fetched into `build/` would sit beside
+# objects it was not linked from, so that tree would no longer hold one build. The
+# DUT binaries stay local builds (the mock DUT needs vsomeip and CommonAPI, see
+# above); a change that touches them needs `build` here as before.
+#
+# No `-j`, as in `build`: bx bounds the run through the jobserver it puts in
+# MAKEFLAGS, and an explicit `-j` makes make start a pool of its own. Measured
+# 2026-10-28: `-j7` on a build machine bx had given two threads peaked at 19.6 GB.
+
+# The hosted `build-test` job's configuration, for a check before a push: GCC 11
+# (the hosted runner's compiler, while these machines default to GCC 13), Release,
+# the embedded SCE snapshot and no mock DUT. A tree that builds on GCC 13 can still
+# fail there, and one commit stayed red on the hosted job for two days before
+# anyone read it. g++-11 is not in `needs`, which would keep every machine without it from
+# every build; the command names it first so a machine without it is refused by name.
+hosted-ci = "command -v g++-11 && CC=gcc-11 CXX=g++-11 cmake -S . -B build-gcc11 -DCMAKE_BUILD_TYPE=Release -DTC8_SCE_FIND_PACKAGE=OFF -DTC8_BUILD_MOCK_DUT=OFF && cmake --build build-gcc11 && ctest --test-dir build-gcc11 --output-on-failure --no-tests=error"
+
+harness-remote = "cmake -S . -B build-remote -DCMAKE_BUILD_TYPE=Release -DTC8_BUILD_MOCK_DUT=OFF -DTC8_BUILD_UNIT_TESTS=ON && cmake --build build-remote && ctest --test-dir build-remote --output-on-failure --no-tests=error"
 
 # ⚠ NO `exclude` KEY, and that is deliberate: bx never read one, and bx.toml
 # refuses a key bx does not define. Only what git tracks is sent, so the
