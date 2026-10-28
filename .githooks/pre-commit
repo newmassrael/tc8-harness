@@ -101,6 +101,16 @@ if ! python3 "$HERE/../tools/debt_census.py" --check >/dev/null; then
     exit 1
 fi
 
+# NDA boundary: a staged addition may not carry what the nda_hygiene CTest bans
+# (confidentiality banners, OEM identifiers, the lab's own machine names). That CTest reads
+# tracked files when ctest runs, which is after a push; this applies the same list, READ from
+# cmake/check-nda-hygiene.cmake so the two cannot disagree, while the commit can still be
+# stopped. The commit-msg hook does the same for the message.
+if ! python3 "$HERE/../tools/nda_boundary_audit.py" --staged; then
+    echo "pre-commit: NDA boundary check FAILED — see above." >&2
+    exit 1
+fi
+
 # Spec-quotation ratchet: a staged hunk may not add eight consecutive words of
 # the TC8 spec body unless it cites the public standard the sentence states.
 # This repository is public and that document is not. Lives only here, not in

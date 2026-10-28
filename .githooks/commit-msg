@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
-# commit-msg hook — validates the message against COMMIT_FORMAT.md.
+# commit-msg hook — validates the message against COMMIT_FORMAT.md, then against the NDA
+# boundary (tools/nda_boundary_audit.py: the same ban list the nda_hygiene CTest holds,
+# which reads file contents only and never a commit message).
 # Activate once per clone:
 #     git config core.hooksPath .githooks
 set -e
-exec python3 "$(dirname "$0")/check-commit-msg.py" "$1"
+HERE="$(dirname "$0")"
+python3 "$HERE/check-commit-msg.py" "$1"
+exec python3 "$HERE/../tools/nda_boundary_audit.py" --message "$1"

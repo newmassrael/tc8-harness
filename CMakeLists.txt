@@ -309,6 +309,15 @@ if(TC8_BUILD_UNIT_TESTS)
         COMMAND ${CMAKE_COMMAND}
             -DTC8_SOURCE_DIR=${PROJECT_SOURCE_DIR}
             -P ${PROJECT_SOURCE_DIR}/cmake/check-nda-hygiene.cmake)
+
+    # The commit-time twin of nda_hygiene: tools/nda_boundary_audit.py applies the SAME ban list
+    # (read from cmake/check-nda-hygiene.cmake) to commit messages and staged lines. Its
+    # self-test plants a token and watches the audit refuse it, so a hook that has quietly
+    # stopped catching anything fails here instead of passing every commit.
+    if(TC8_PYTHON3)
+        add_test(NAME nda_boundary_audit_selftest
+            COMMAND ${TC8_PYTHON3} ${PROJECT_SOURCE_DIR}/tools/nda_boundary_audit.py --self-test)
+    endif()
 endif()
 
 # ── Out-of-tree UTM SDK (PRS_TPSP §6.6) — the find_package(tc8-utm) install/export,

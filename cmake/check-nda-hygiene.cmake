@@ -36,7 +36,13 @@ set(_banners "CONFIDENTIAL|DO NOT DISTRIBUTE|INTERNAL USE ONLY|RESTRICTED DISTRI
 # in a shell/awk comment is exactly how it previously slipped a case-sensitive
 # `HKMC`. The DS_ / CAN families stay upper-anchored (they are upper-case by spec).
 set(_oem_ids "DS_[A-Z][A-Z]_[0-9]|[Hh][Kk][Mm][Cc]|SOMEIPSRV_CAN_[0-9]")
-set(_markers "${_banners}|${_oem_ids}")
+# Site identifiers: names of the lab's own machines and the family they belong to. A build
+# machine is described here by what it provides ("a 15 GB build machine"), never by its
+# alias, and the family below is not to appear in this public repo at all. Matched
+# case-insensitively like the OEM name, and without a trailing digit so the bare family
+# is caught too; as of this entry no tracked file, commit message or pushed history held it.
+set(_site_ids "[Hh][Kk][Ll]")
+set(_markers "${_banners}|${_oem_ids}|${_site_ids}")
 # Interface/case-definition files (.fidl/.fdepl/.scxml) and the X-macro SSOT .def
 # files are scanned too: they are exactly the surfaces whose public/OEM boundary the
 # ETS, case, and wire-SSOT headers document, so a banner or OEM id pasted into a
