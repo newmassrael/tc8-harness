@@ -3347,7 +3347,7 @@ repository was competing with its own push gate: a cache-warm harness build insi
 The declaration now exists and is honest. What it revealed is that **neither registered machine
 can build this repository**, measured 2026-09-25:
 
-| requirement | pc2 | pc3 | needed for |
+| requirement | machine A | machine B | needed for |
 |---|---|---|---|
 | cmake / make / g++ / python3 / git | ok | ok | everything |
 | libpcap | ok | ok | capture |
@@ -3357,8 +3357,8 @@ can build this repository**, measured 2026-09-25:
 | **CommonAPI / CommonAPI-SomeIP** | missing | missing | the ETS mock DUT |
 | cargo | missing | missing | the orchestrator (6 s locally; not worth sending) |
 
-`bx` now selects pc2 on its own merits and then refuses by name —
-``host pc2 cannot RUN `sce-codegen` — existence is not usability`` — instead of silently
+`bx` now selects machine A on its own merits and then refuses by name —
+``host <A> cannot RUN `sce-codegen` — existence is not usability`` — instead of silently
 building here. That refusal is the repayment's first half working: the gap is named rather than
 absorbed.
 
@@ -3385,7 +3385,7 @@ declines to build for the same reason — so it is deliberately last.
 
 **Progress, 2026-09-25 — the machine gap is closed and a THIRD obstacle appeared behind it.**
 
-pc2 now meets the declaration's package and executable requirements:
+Machine A now meets the declaration's package and executable requirements:
 
 - `libtins-dev 4.5-1build2` installed, which is byte-for-byte the version this workstation
   carries (both are Ubuntu noble `universe`), so the dissectors compile against the same library
@@ -3430,7 +3430,7 @@ submodule leg sends the submodule and then runs, on the remote,
 `git submodule update --recursive --force` followed by `git submodule foreach 'git clean -qfd'`.
 A forced update RESETS each submodule's working tree to its recorded commit, so any local
 modification the transfer carried is discarded by the next line of the same command. Measured on
-pc2 on 2026-09-25: the remote `third_party/vsomeip` is populated, at HEAD `6171fdfe`, with
+machine A on 2026-09-25: the remote `third_party/vsomeip` is populated, at HEAD `6171fdfe`, with
 **zero** porcelain lines — while this side holds four modified tracked files. The equality proof
 then correctly reports a difference it can never not report.
 
@@ -3480,7 +3480,7 @@ NOT `/usr/local`, which a separate note records as breaking SOME/IP when clobber
 And then the thing the entry exists for:
 
 ```
-bx: WHERE=remote host=pc2
+bx: WHERE=remote host=<A>
 bx: trees agree: HEAD dabf2e50, working state identical
 bx: exit=0 in 32s
 ```
@@ -3643,7 +3643,7 @@ Positives re-run after the migration, across every family that reads the moved f
 `UDP_FIELDS_01`, `UDP_FIELDS_04`, `UDP_PADDING_02`, `UDP_USER_INTERFACE_04/05/07`,
 `TCP_CHECKSUM_02`, `TCP_CHECKSUM_03`, `TCP_HEADER_11`, `IPv4_FRAGMENTS_05`, `ARP_48` — all PASS.
 
-⚠ And the compile was proven on a build machine rather than here: `bx` sent the tree to pc2
+⚠ And the compile was proven on a build machine rather than here: `bx` sent the tree to machine A
 (`trees agree: HEAD 4aaf0496, working state identical`, uncommitted edits included) and built it
 cold in **107 s** while this workstation sat at load 29 with two free cores. That is TD-50
 paying for itself on the first change after it landed.
@@ -3701,7 +3701,7 @@ not about the case. Two measurements corrected it:
 Measured after: `--list-neg-rows` 76 → 78, and
 `--negative ARP_33 ARP_35` → **PASS ARP_33, PASS ARP_33#1, PASS ARP_35, PASS ARP_35#1**, each on
 its own declared final. `negative_coverage_audit.py`: 0 undisposed, 0/518 unproven, deferred
-4 → 2. The compile was proven on pc2 first, where `-Wshadow` caught a shadowed local in 35 s.
+4 → 2. The compile was proven on machine A first, where `-Wshadow` caught a shadowed local in 35 s.
 
 **Done when:** a case with two expectation-graded fail finals proves both by rows, with the run
 named here — MET.
@@ -3912,7 +3912,7 @@ anything left?"). This is the same shape as the rule `tools/deferred_negatives.j
 a fact that only a human re-reading old entries would find is not tracked.
 
 ⚠ It is ACCEPTED rather than open because the repair is provisioning a runner on a build
-machine — `pc2`/`pc3` now both meet this repository's declaration (TD-50), so the toolchain side
+machine — both registered build machines now meet this repository's declaration (TD-50), so the toolchain side
 is ready — and registering a self-hosted runner with the GitHub repository is the owner's action,
 not an agent's. Should that happen, close this and drop the clause from TD-50's Done-when.
 

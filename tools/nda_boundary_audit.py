@@ -122,12 +122,14 @@ def self_test() -> int:
     banned = {
         "site family": j(["h", "k", "l"]) + "9",
         "site family, upper case": j(["H", "K", "L"]),
+        "machine alias": "build on " + j(["p", "c"]) + "7 now",
+        "machine alias at line start": j(["P", "C"]) + "12",
         "oem name, mixed case": j(["H", "k", "M", "c"]),
         "oem requirement id": j(["D", "S", "_", "C", "N", "_", "1"]),
         "oem case family": j(["SOMEIPSRV", "_", "CAN", "_", "3"]),
         "banner": j(["CONFIDENT", "IAL"]),
     }
-    clean = ["pc2 and pc3", "RFC 6298 section 5", "a 15 GB build machine", "SOMEIPSRV_RPC_18",
+    clean = ["two build machines", "ipc2 and " + j(["x", "pc"]) + "9", "pc without a number", "RFC 6298 section 5", "a 15 GB build machine", "SOMEIPSRV_RPC_18",
              j(["h", "k", "m"]), j(["h", "k"]) + " " + j(["l", "ine"])]
     failures: list[str] = []
     checks = 0

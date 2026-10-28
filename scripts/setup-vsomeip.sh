@@ -34,7 +34,7 @@ PATCHES_DIR="$REPO_ROOT/patches/vsomeip"
 # could not send this repository to a build machine AT ALL — its transfer runs
 # `git submodule update --force` on the far side, which resets each submodule to
 # its recorded commit, so a submodule carrying deliberate local modifications can
-# never satisfy the equality proof that follows. Measured on pc2: the remote
+# never satisfy the equality proof that follows. Measured on a build machine: the remote
 # submodule at HEAD with zero porcelain lines while this side held four modified
 # files (docs/tech-debt.md TD-50).
 #
