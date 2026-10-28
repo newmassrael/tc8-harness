@@ -109,7 +109,7 @@ protected:
         Traits::dispatch(captured, sm, ::tc8::CapturedEvent{seg});
     }
 
-    ::tc8::SomeIpCaptured captured{};
+    ::tc8::SomeIpEts097Captured captured{};
     ::tc8::SomeIpExpected expected{};
     SM sm{captured, expected};
 };

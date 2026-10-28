@@ -37,22 +37,22 @@ struct TestCaseTraits<cases::SomeipEts171SM> : SomeIpAnyBase<cases::SomeipEts171
         "Tester unicast FindService — DUT responds with OfferService";
 
     static void stimulus(Captured& /*c*/,
-                         const ::tc8::TestConfig& /*cfg*/,
+                         const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         // Wait for DUT initial SD startup (vsomeip initial_delay_min/max
         // typically settles within ~1.5 s).
         std::this_thread::sleep_for(std::chrono::milliseconds(1500));
 
-        // DUT SD endpoint is the canonical 172.16.0.2:30490 (matches
-        // SubscribeDestination's default).
-        const ::tc8::stimulus::SubscribeDestination dut_sd{};
-
+        // The DUT's SD endpoint: the address this run targets, on the SD port. A
+        // default-built SubscribeDestination holds 0 ("derive it"), which only the
+        // Subscribe emitters resolve; sent raw it addressed 0.0.0.0 and the Finds
+        // never reached the wire.
         for (std::uint16_t sid = 0x0001; sid <= 0x0003; ++sid) {
             ::tc8::stimulus::FindServiceParams p{};
             p.session_id = sid;
             p.sd_flags = 0xC0;
             const auto datagram = ::tc8::stimulus::buildFindService(p);
-            ::tc8::stimulus::sendSdUnicast(datagram, ctx.iface, dut_sd.ipv4_be, dut_sd.port);
+            ::tc8::stimulus::sendSdUnicast(datagram, ctx.iface, cfg.dut.ip, ::tc8::dut::kSdPort);
             std::this_thread::sleep_for(std::chrono::milliseconds(700));
         }
     }

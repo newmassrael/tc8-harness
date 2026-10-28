@@ -181,8 +181,9 @@
     "SOMEIP_ETS_060": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit offer service with udp and tcp endpoints"
+          "class": "required_emission",
+          "fail_reason": "no_unicast_offer_service_with_udp_and_tcp_endpoints_within_listen_window",
+          "property": "DUT must answer the tester's multicast FindService within ParamListenTime with a unicast OfferService listing a UDP and a TCP endpoint; binary present/absent"
         }
       ]
     },
@@ -653,8 +654,9 @@
     "SOMEIP_ETS_118": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit offer service"
+          "class": "required_emission",
+          "fail_reason": "no_unicast_offer_service_within_listen_window",
+          "property": "DUT must ignore the endpoint options of the tester's FindServices and answer with at least one unicast OfferService within ParamListenTime; binary present/absent"
         }
       ]
     },
@@ -724,8 +726,9 @@
     "SOMEIP_ETS_127": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit offer service"
+          "class": "required_emission",
+          "fail_reason": "no_unicast_offer_service_within_listen_window",
+          "property": "DUT must answer the tester's multicast FindService burst with at least one unicast OfferService within ParamListenTime; binary present/absent"
         }
       ]
     },
@@ -976,8 +979,9 @@
     "SOMEIP_ETS_171": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit offer service"
+          "class": "required_emission",
+          "fail_reason": "no_unicast_offer_service_within_listen_window",
+          "property": "DUT must answer the tester's unicast FindServices with at least one unicast OfferService within ParamListenTime; binary present/absent"
         }
       ]
     },

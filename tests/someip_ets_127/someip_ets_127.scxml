@@ -5,19 +5,22 @@
   Tester sends 10 multicast FindService at 100 ms intervals; DUT must
   respond with at least one OfferService per PRS_SOMEIPSD_00422 / 00423
   (the ids in TC8's Reference row — 00305 / 00306 / 00307 / 00261 — are
-  option- and header-format requirements, not the duty to answer). Spec
-  wording is "unicast OfferService" but Linux
-  DUT (vsomeip) responds with multicast OfferService when the FindService
-  burst falls within 1/2 cyclic of the last cyclic Offer (per
-  SD_BEHAVIOR_03/_04 cadence rules). Lenient verdict accepts any
-  OfferService observation; the stimulus's burst exercise is what
-  distinguishes ETS_127 from passive observation, not the wire-shape
-  unicast/multicast discriminator.
+  option- and header-format requirements, not the duty to answer). The
+  pass criteria ask for at least one UNICAST OfferService. A server may
+  answer one multicast FindService with a multicast Offer (the SD
+  cadence rules of SD_BEHAVIOR_03/_04), but across a 10-message burst at
+  least one answer is unicast; the reference DUT gives one (measured on
+  single-pc 2026-10-28). Accepting any Offer would let the DUT's cyclic
+  multicast Offers pass the case without an answer to the burst.
 
-    Phase 1 (listening_phase1): An OfferService for SERVICE-ID-1
-            (Type 0x01 entry, ttl > 0) -> pass. Phase 1 deadline only
-            fires if the DUT crashed/hung under the FindService burst
-            and stopped responding entirely.
+    Phase 1 (listening_phase1): a UNICAST OfferService for SERVICE-ID-1
+            (Type 0x01 entry, ttl > 0, captured.dst_is_unicast()) -> pass.
+
+  That Offer is the DUT's answer the procedure requires, so a window that
+  elapses without it is the DUT's silence where it must answer:
+  observed_quiescence, judged against <ParamListenTime>
+  (docs/verdict_policy.md Section 2.1, H3), over a window of
+  ParamListenTime plus <ParamToleranceTime> (10 s + 1 s at the defaults).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -38,12 +41,12 @@
 
   <state id="listening_phase1">
     <onentry>
-      <send event="phase1_deadline_exceeded" delay="8s"/>
+      <send event="phase1_deadline_exceeded" delay="11s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.sd_entries[0].ttl &gt; 0"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.sd_entries[0].ttl &gt; 0 and captured.dst_is_unicast()"
                 target="pass"/>
-    <transition event="phase1_deadline_exceeded" target="inconclusive_phase1_no_offer"/>
+    <transition event="phase1_deadline_exceeded" target="fail_no_unicast_offer"/>
   </state>
 
   <final id="pass">
@@ -52,9 +55,9 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_phase1_no_offer">
+  <final id="fail_no_unicast_offer">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_offer_service_within_listen_window","role":"precondition_unmet"}</content>
+      <content>{"verdict":"fail","reason":"no_unicast_offer_service_within_listen_window","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </scxml>

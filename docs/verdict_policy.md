@@ -83,8 +83,8 @@ Environmental shortfalls never red the gate.
 
 > **Status (Phase Q, Section 8).** Q1–Q3 are in the tree: the
 > `observed_quiescence` role, its reach and bound rules, and the run-time gate on
-> S, H1, H2 and H3. Q4 (migrating the `liveness` guards) is in progress: 98 moved,
-> 24 on the ledger.
+> S, H1, H2 and H3. Q4 (migrating the `liveness` guards) is in progress: 102 moved,
+> 20 on the ledger.
 
 **Quiescence is an observation.** In the input/output conformance theory the
 suite is grounded in (ioco, Tretmans), the absence of any output — quiescence,
@@ -567,10 +567,12 @@ tree does not have.
     period holds) is stated in the case beside S, H1, H2 and H3
     (`docs/tech-debt.md` TD-66).
 
-  The 24 that remain each have a recorded reason in `docs/tech-debt.md` TD-65: the
-  silence is in a preamble only, the bound is DUT-specific with no specification
-  ceiling, the check is a UT state query rather than a wire silence, or a shared
-  template final would need a per-case parameter.
+  Four of the 24 then left (`SOMEIP_ETS_060`, `_118`, `_127`, `_171`): their
+  "preamble-only" silence was the unicast OfferService the procedure grades. The
+  20 that remain each have a recorded reason in `docs/tech-debt.md` TD-65: the
+  bound is DUT-specific with no specification ceiling, the check is a UT state
+  query rather than a wire silence, or a shared template final would need a
+  per-case parameter.
 
 ---
 

@@ -1,15 +1,12 @@
 #pragma once
 
-#include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <thread>
-
-#include <poll.h>
-#include <sys/socket.h>
-#include <unistd.h>
+#include <vector>
 
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_someipsrv_traits_base.h"
@@ -17,6 +14,7 @@
 
 #include "stimulus/someip_rpc_builder.h"
 #include "stimulus/someip_sd_builder.h"
+#include "stimulus/tcp_accept_service.h"
 #include "stimulus/tcp_server.h"
 
 #include "someip_ets_081_sm.h"
@@ -37,8 +35,8 @@ namespace tc8::sce {
 //
 // The verdict relies on the tester-side TCP listener counting handshakes:
 // after offer #1 the DUT establishes conn #1; after the reboot offer #2
-// (lower session_id) the DUT must establish conn #2. The detached accept
-// thread sits on the listener and bumps `c.tcp_handshake_count` per accept,
+// (lower session_id) the DUT must establish conn #2. The runner-owned accept
+// service bumps `c.tcp_handshake_count` (SomeIpEts081Captured) per accept,
 // so the deadline cond reads `tcp_handshake_count >= 2` to assert renewal.
 //
 // Reuses ets3 + ClientModeProxyRunner from ETS_097 + ETS_084 with no new
@@ -79,9 +77,22 @@ struct TestCaseTraits<cases::SomeipEts081SM> : SomeIpAnyBase<cases::SomeipEts081
         // SD Subscribe until the TCP handshake completes; once an EOF
         // arrives on the connection it triggers ON_STOP_OFFER_SERVICE
         // before the queued Subscribe is serialised. Therefore the
-        // accepted connections must outlive the SCXML walk — a detached
-        // thread accepts up to two and holds them for 30 s.
-        const int listen_fd = ::tc8::stimulus::openTcpListener(ctx.iface, 30509);
+        // accepted connections must outlive the SCXML walk: the runner owns
+        // the listener for the whole run (TcpAcceptService, polled on the
+        // capture thread, the thread that dispatches into `c`), and each
+        // accepted connection is held until teardown. A listener that cannot
+        // be opened is recorded as an unperformed stimulus by the primitive.
+        auto held = std::make_shared<std::vector<::tc8::stimulus::TcpConnection>>();
+        auto listener = std::make_unique<::tc8::stimulus::TcpAcceptService>(
+            ctx.iface, kTesterReliablePort, [&c, held](::tc8::stimulus::TcpConnection conn) {
+                held->push_back(std::move(conn));
+                c.tcp_handshake_count = static_cast<std::uint8_t>(held->size());
+            });
+        const bool listening = listener->ok();
+        ctx.services.adoptService(std::move(listener));
+        if (!listening) {
+            return;
+        }
 
         // Tester-side OfferService #1 for ets3 with TCP endpoint.
         ::tc8::stimulus::OfferServiceWithEndpointTarget offer1{};
@@ -93,56 +104,10 @@ struct TestCaseTraits<cases::SomeipEts081SM> : SomeIpAnyBase<cases::SomeipEts081
         // (rb=1, sid=2) does not trip is_reboot here (2 < 10), so vsomeip
         // processes offer #1 as a normal first-time offer.
         offer1.service.session_id    = 0x000A;
-        offer1.endpoint.port         = 30509;
+        offer1.endpoint.port         = kTesterReliablePort;
         offer1.endpoint.l4proto      = 0x06;     // TCP (matches ets3.fdepl)
         ::tc8::stimulus::emitOfferServiceMulticastWithEndpoint(
             ctx.iface, offer1, std::chrono::milliseconds(500));
-
-        // Detached accept thread: poll the listener, accept each inbound
-        // handshake, increment c.tcp_handshake_count, hold all accepted
-        // fds open for 30 s (outlives phase1 6 + phase2 12 + phase3 12 =
-        // 30 s SCXML walk so neither connection EOFs mid-test).
-        if (listen_fd >= 0) {
-            Captured *cp = &c;
-            std::thread([listen_fd, cp]() {
-                int accepted_fds[4] = {-1, -1, -1, -1};
-                int accepted_count  = 0;
-                const auto deadline =
-                    std::chrono::steady_clock::now() + std::chrono::seconds(30);
-
-                while (accepted_count < 4) {
-                    const auto now = std::chrono::steady_clock::now();
-                    if (now >= deadline) {
-                        break;
-                    }
-                    const auto remaining = std::chrono::duration_cast<
-                        std::chrono::milliseconds>(deadline - now).count();
-                    pollfd pfd{};
-                    pfd.fd     = listen_fd;
-                    pfd.events = POLLIN;
-                    const int rc = ::poll(&pfd, 1,
-                                          static_cast<int>(remaining));
-                    if (rc <= 0) {
-                        break;
-                    }
-                    const int fd = ::accept(listen_fd, nullptr, nullptr);
-                    if (fd < 0) {
-                        break;
-                    }
-                    accepted_fds[accepted_count++] = fd;
-                    cp->tcp_handshake_count =
-                        static_cast<std::uint8_t>(accepted_count);
-                }
-
-                std::this_thread::sleep_for(std::chrono::seconds(30));
-                for (int fd : accepted_fds) {
-                    if (fd >= 0) {
-                        ::close(fd);
-                    }
-                }
-                ::close(listen_fd);
-            }).detach();
-        }
 
         // Schedule the reboot OfferService on phase 3 entry — i.e.
         // immediately after the harness observes DUT's first wire
@@ -160,12 +125,15 @@ struct TestCaseTraits<cases::SomeipEts081SM> : SomeIpAnyBase<cases::SomeipEts081
                 offer2.service.major_version = 0x01;
                 offer2.service.ttl           = 5;
                 offer2.service.session_id    = 0x0005;  // < offer1.sid (0x0A) → reboot
-                offer2.endpoint.port         = 30509;
+                offer2.endpoint.port         = kTesterReliablePort;
                 offer2.endpoint.l4proto      = 0x06;
                 ::tc8::stimulus::emitOfferServiceMulticastWithEndpoint(
                     iface_copy, offer2, std::chrono::milliseconds(0));
             });
     }
+
+    // The tester's reliable endpoint both Offers advertise.
+    static constexpr std::uint16_t kTesterReliablePort = 30509;
 };
 
 }  // namespace tc8::sce

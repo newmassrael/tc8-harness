@@ -4371,7 +4371,8 @@ residual of ETS_097 was logged as TD-66, since resolved.
 ## TD-65 — 24 liveness guards need a modelling decision before they can migrate
 
 **Status:** OPEN. **Logged:** 2026-10-28, from the Phase Q4 sweep. The other 24 cases on
-`tools/liveness_migration_pending.txt`.
+`tools/liveness_migration_pending.txt`; 20 remain after the four SD cases below were found
+misclassified and migrated.
 
 **What it is.** Each guard's registry property says the DUT must emit something, but the case as
 written cannot grade that emission's absence as a fail. The reasons fall into five groups:
@@ -4382,8 +4383,13 @@ written cannot grade that emission's absence as a fail. The reasons fall into fi
   `_11`, `_12`, `_13`, `IPv4_AUTOCONF_ANNOUNCING_05`, `IPv4_AUTOCONF_CONFLICT_06` to `_10`) share
   window timers across states or grade a requirement RFC 3927 states as MAY. `_CONFLICT_10`
   also has to leave the `ipv4_linklocal_defender_cease` template before its final can change role.
-- **The silence is only in a preamble.** `SOMEIP_ETS_060`, `_118`, `_127` and `_171` have no
-  test-body deadline: every timer-decided final is a preamble miss, which is `precondition_unmet`.
+- ~~**The silence is only in a preamble.**~~ Wrong, and resolved 2026-10-28. `SOMEIP_ETS_060`,
+  `_118`, `_127` and `_171` grade the DUT's unicast OfferService in answer to the tester's
+  FindService: that Offer is the test body, not a preamble. The machines accepted any Offer, so
+  the DUT's cyclic multicast Offers passed them, and `_171`'s unicast Finds were addressed to
+  0.0.0.0 and never left the tester. Each now requires a unicast Offer
+  (`SomeIpCaptured::dst_is_unicast`) and fails on its absence (`observed_quiescence`); a unicast
+  send to 0.0.0.0 is refused by the primitive (`sendUdpUnicast`, recorded as unperformed).
 - **No specification bound exists.** `TCP_PROBING_WINDOWS_04` and `_05` time zero-window probes
   that follow the DUT's own retransmission timeout, and RFC 1122 section 4.2.2.17 sets no ceiling.
   `SOMEIP_ETS_130` grades an SD timing the case does not bound.

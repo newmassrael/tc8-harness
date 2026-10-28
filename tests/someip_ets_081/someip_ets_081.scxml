@@ -14,16 +14,17 @@
   old_sid >= new_sid) treats it as a server reboot, expires the local
   endpoint state, and re-attempts the TCP handshake. Per
   PRS_SOMEIPSD_00385 the DUT MUST close the old TCP and open a new one;
-  the tester's detached-thread fd holder accepts the second connect on
-  the same listener and bumps `tcp_handshake_count` to 2.
+  the tester's runner-owned listener accepts the second connect and
+  bumps `tcp_handshake_count` to 2.
 
   Stimulus chain (see src/sce_integration/include/sce_integration/cases/someip_ets_081.h):
     1. emitFindServiceBoot — SERVICE-ID-1 server warm-up.
     2. emitMethodRequestAfter(clientServiceActivate, 0x2F).
     3. Sleep 800 ms (proxy buildProxy() registration delay).
     4. emitMethodRequestAfter(clientServiceSubscribeEventgroup, 0x32).
-    5. openTcpListener(:30509) + detached thread accepting up to 2 conns,
-       writing `c.tcp_handshake_count` after each accept.
+    5. A listener on :30509 the runner owns for the whole run
+       (TcpAcceptService, polled on the capture thread), counting each
+       accept in `c.tcp_handshake_count` and holding the connection.
     6. emitOfferServiceMulticastWithEndpoint(ets3, TCP, sid=0x0A, rb=1).
     7. State-entry observer on listening_phase3_renewed_handshake fires
        emitOfferServiceMulticastWithEndpoint(ets3, TCP, sid=0x05, rb=1)
@@ -63,8 +64,8 @@
        initial="listening_phase1">
 
   <sce:context id="captured"
-               cpp:type="tc8::SomeIpCaptured"
-               cpp:include="sce_integration/someip_captured.h"/>
+               cpp:type="tc8::SomeIpEts081Captured"
+               cpp:include="sce_integration/someip_case_captured.h"/>
 
   <sce:context id="expected"
                cpp:type="tc8::SomeIpExpected"
@@ -99,9 +100,10 @@
       <send event="phase3_deadline_exceeded" delay="12s"/>
     </onentry>
     <!-- The trait-side scheduleAfterStateEntry callback fires the reboot
-         OfferService on this phase's entry; the detached accept thread
-         increments `tcp_handshake_count` whenever a fresh inbound TCP
-         handshake completes. Cond on the deadline reads the slot once. -->
+         OfferService on this phase's entry; the runner-owned accept
+         service increments `tcp_handshake_count` whenever it accepts a
+         fresh inbound TCP connection. Cond on the deadline reads the slot
+         once. -->
     <transition event="phase3_deadline_exceeded"
                 cond="cpp:captured.tcp_handshake_count >= 2"
                 target="pass"/>

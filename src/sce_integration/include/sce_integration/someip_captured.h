@@ -1,5 +1,7 @@
 #pragma once
 
+#include <arpa/inet.h>
+
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -207,39 +209,10 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     // `payload_snapshot[0]` (0 when the frame carried no payload), so no
     // dedicated `payload_byte0` slot is needed.
 
-    // Tester-side TCP socket state populated by §5.1.6 SOMEIP_ETS_037
-    // stimulus before SCXML start(). Set from
-    // `getsockopt(SOL_TCP, TCP_INFO).tcpi_state` after the post-reset
-    // observation window — TCP_ESTABLISHED (=1) means the DUT did NOT
-    // emit FIN per spec; TCP_CLOSE_WAIT (=8) means the DUT emitted FIN
-    // (= test failure shape). Default 0 keeps the field a no-op for
-    // every other case; `fillSomeIpCapturedFromFrame` never overwrites
-    // it so subsequent SOME/IP frame dispatches preserve the verdict
-    // signal across phase 2 → phase 3 transitions.
-    std::uint8_t tcp_peer_state = 0;
-
-    // §5.1.6 SOMEIP_ETS_097 slots: was the DUT's reconnect an answer to the
-    // tester's second OfferService? All three are pcap-domain microseconds
-    // (`CapturedFrameTiming::observed_ts_us`) and, like `tcp_peer_state`,
-    // survive SOME/IP frame dispatches.
-    //   - reconnect_offer_ts_us: when the stimulus sent the second Offer; 0 if
-    //     it never did.
-    //   - spontaneous_retry_earliest_ts_us: the earliest instant the DUT's own
-    //     retry timer, as the stimulus measured it while refusing, could fire
-    //     again. 0 when the DUT was observed quiet for a whole window instead,
-    //     so no retry of its own is due.
-    //   - dut_syn_ts_us: the arrival of the DUT SYN being dispatched, written
-    //     just before its `dut_reconnect_syn` event.
-    std::int64_t reconnect_offer_ts_us = 0;
-    std::int64_t spontaneous_retry_earliest_ts_us = 0;
-    std::int64_t dut_syn_ts_us = 0;
-
-    // §5.1.6 SOMEIP_ETS_081 verdict slot — incremented by the stimulus
-    // chain's detached accept thread on every successful inbound TCP
-    // handshake, so server-reboot recovery cases can assert "DUT closed
-    // the old connection and opened a new one" via `tcp_handshake_count
-    // >= 2` rather than a binary completed/not-completed flag.
-    std::uint8_t tcp_handshake_count = 0;
+    // A slot only one case writes and reads does not belong here, where every
+    // SOME/IP case and every consumer case can reach it and come to depend on it:
+    // it lives in that case's own Captured type (someip_case_captured.h), which
+    // its SCXML names as the `captured` context.
 
     // SD payload fields (sd_flags / sd_reserved / sd_entries_len / sd_options_len,
     // the parsed sd_entries[] / sd_options[] / sd_config_items[] arrays and their
@@ -345,6 +318,16 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
         return headerIsSd() && sd_entry_count >= 1 &&
                sd_entries[0].type == sd_entry_type::kFindService &&
                (want_service_id == 0xFFFF || sd_entries[0].service_id == want_service_id);
+    }
+
+    // The frame was sent to one host rather than to a group: its IPv4 destination is
+    // neither multicast (224.0.0.0/4), broadcast nor unset. Read from the address
+    // itself, so it needs no configured tester address. The SD cases whose pass
+    // criteria ask for a UNICAST OfferService in answer to a FindService grade this,
+    // because the DUT's cyclic Offers to the SD group would otherwise satisfy them.
+    bool dst_is_unicast() const {
+        const std::uint32_t host = ntohl(dst_ip);
+        return host != 0U && host != 0xFFFFFFFFU && (host >> 28) != 0xEU;
     }
 
     // DUT SubscribeEventgroup for `(want_service_id, want_eventgroup_id)` with a
@@ -502,8 +485,9 @@ inline constexpr std::uint16_t kMethodId     = 0xFFFE;
 // (service/method/client/session ids + msg_type + return_code +
 // transport 4-tuple) without enumerating the bulky SD entry/option
 // arrays — those rarely drive verdict-decider disclosure.
-inline void appendCapturedJson(std::string &out, const SomeIpCaptured &c) {
-    out.append("{");
+// The members of the record below without its braces, so a case's own Captured
+// type (someip_case_captured.h) can extend the record rather than restate it.
+inline void appendSomeIpCapturedMembersJson(std::string &out, const SomeIpCaptured &c) {
     ::tc8::sce::appendUintJson(out, "\"service_id\":", c.service_id);
     ::tc8::sce::appendUintJson(out, ",\"method_id\":", c.method_id);
     ::tc8::sce::appendUintJson(out, ",\"client_id\":", c.client_id);
@@ -522,14 +506,11 @@ inline void appendCapturedJson(std::string &out, const SomeIpCaptured &c) {
     if (c.sd_start_ts_us != 0) {
         ::tc8::sce::appendI64Json(out, ",\"delta_from_sd_start_us\":", c.delta_from_sd_start_us());
     }
-    // ETS_097's attribution instants, only on the case that sets them, so the trace
-    // shows what a reconnect SYN was judged against.
-    if (c.reconnect_offer_ts_us != 0) {
-        ::tc8::sce::appendI64Json(out, ",\"reconnect_offer_ts_us\":", c.reconnect_offer_ts_us);
-        ::tc8::sce::appendI64Json(out, ",\"spontaneous_retry_earliest_ts_us\":",
-                                  c.spontaneous_retry_earliest_ts_us);
-        ::tc8::sce::appendI64Json(out, ",\"dut_syn_ts_us\":", c.dut_syn_ts_us);
-    }
+}
+
+inline void appendCapturedJson(std::string &out, const SomeIpCaptured &c) {
+    out.append("{");
+    appendSomeIpCapturedMembersJson(out, c);
     out.append("}");
 }
 

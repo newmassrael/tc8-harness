@@ -13,8 +13,10 @@
   Iterations: <wst> ∈ {CLOSING, LAST-ACK, TIME-WAIT}.
 
   Mechanism (3 phases × distinct port quads):
-    * Phase 1 CLOSING (+91): drive the DUT EST→FW1→CLOSING (tester
-      auto-ACK withheld). DUT application ABORT → DUT RST egress.
+    * Phase 1 CLOSING (+91): the DUT application half-closes its write
+      side (its socket stays open), the tester auto-ACK is withheld and
+      a FIN+ACK short of the DUT's FIN drives it EST→FW1→CLOSING. DUT
+      application ABORT on that socket → DUT RST egress.
     * Phase 2 LAST-ACK (+92): with the tester auto-ACK withheld from
       before the handshake → tester half-close → DUT EST→CW (DUT
       acks tester FIN). The DUT application half-closes its write side

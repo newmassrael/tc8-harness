@@ -10,7 +10,17 @@
   entry- and option-format requirements covering the encoding this case
   exercises, not the duty to answer.
 
-    Phase 1 (listening_phase1): observe Type 0x01 OfferService.
+    Phase 1 (listening_phase1): a UNICAST Type 0x01 OfferService
+            (captured.dst_is_unicast(): the DUT's cyclic multicast Offers
+            do not count) -> pass.
+
+  That Offer is the DUT's answer the procedure requires, so a window that
+  elapses without it is the DUT's silence where it must answer:
+  observed_quiescence, judged against <ParamListenTime>
+  (docs/verdict_policy.md Section 2.1, H3), over a window of
+  ParamListenTime plus <ParamToleranceTime> (10 s + 1 s at the defaults).
+  Accepting any Offer had hidden that the Finds never left the tester
+  (they were addressed to 0.0.0.0) until 2026-10-28.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -31,12 +41,12 @@
 
   <state id="listening_phase1">
     <onentry>
-      <send event="phase1_deadline_exceeded" delay="6s"/>
+      <send event="phase1_deadline_exceeded" delay="11s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id and captured.dst_is_unicast()"
                 target="pass"/>
-    <transition event="phase1_deadline_exceeded" target="inconclusive_phase1_no_offer"/>
+    <transition event="phase1_deadline_exceeded" target="fail_no_unicast_offer"/>
   </state>
 
   <final id="pass">
@@ -45,9 +55,9 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_phase1_no_offer">
+  <final id="fail_no_unicast_offer">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_offer_service_within_listen_window","role":"precondition_unmet"}</content>
+      <content>{"verdict":"fail","reason":"no_unicast_offer_service_within_listen_window","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </scxml>

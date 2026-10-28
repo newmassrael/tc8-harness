@@ -61,8 +61,8 @@
        initial="listening_phase1">
 
   <sce:context id="captured"
-               cpp:type="tc8::SomeIpCaptured"
-               cpp:include="sce_integration/someip_captured.h"/>
+               cpp:type="tc8::SomeIpEts097Captured"
+               cpp:include="sce_integration/someip_case_captured.h"/>
 
   <sce:context id="expected"
                cpp:type="tc8::SomeIpExpected"

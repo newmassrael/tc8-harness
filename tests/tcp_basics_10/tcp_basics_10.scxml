@@ -10,20 +10,18 @@
 
   Both iterations share the wire-observable assertion (DUT: Send ACK)
   and reach the precondition state via the same procedure prefix
-  (handshake + DUT close + tester FIN). The only difference is the
-  pre-FIN delay — phase 1 issues the tester FIN immediately after UT
-  close so the tester's auto-ACK of DUT's FIN may race with the tester
-  FIN, leaving DUT in FINWAIT-1 internally; phase 2 waits for the
-  tester ACK to land at DUT (FINWAIT-2 confirmed) before issuing the
-  tester FIN.
-
-  Note: under a Linux tester kernel both phases collapse to the same
-  observable sequence at the wire level — Linux always emits the
-  auto-ACK of incoming FIN before the userland-driven FIN, so the DUT
-  is already in FINWAIT-2 by the time the tester FIN arrives. The two
-  phases are encoded for spec faithfulness; their FSM-internal
-  distinction would require iptables-driven ACK suppression, which is
-  beyond the scope of this case.
+  (handshake + DUT close + tester FIN). They differ in what the DUT's
+  FIN meets:
+    1. FINWAIT-1: the tester kernel's ACK of the DUT's FIN is dropped,
+       so the DUT stays in FINWAIT-1, and the tester FIN is injected raw
+       with an ACK field short of the DUT's FIN. A kernel FIN would
+       acknowledge the DUT's FIN and move it past FINWAIT-1 before the
+       FIN arrived.
+    2. FINWAIT-2: the tester kernel ACKs the DUT's FIN, and 100 ms later
+       sends its own FIN.
+  In both, the ACK graded is the one that acknowledges the tester FIN:
+  ack number = the FIN's sequence number plus one, which the stimulus
+  records (captured.expected_ack_num, expected_ack_num_phase2).
 
   Each phase uses a 2-state sub-chain to distinguish the DUT's close
   FIN (the marker that signals the procedure has reached the
@@ -82,7 +80,7 @@
       <send event="deadline_p1_ack" delay="11s"/>
     </onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == (::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpBasics10Phase1LocalOffset) and captured.dst_port == (::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpBasics10Phase1LocalOffset) and (captured.flags &amp; 0x01) == 0 and (captured.flags &amp; 0x02) == 0 and (captured.flags &amp; 0x04) == 0 and (captured.flags &amp; 0x10) != 0"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == (::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpBasics10Phase1LocalOffset) and captured.dst_port == (::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpBasics10Phase1LocalOffset) and (captured.flags &amp; 0x01) == 0 and (captured.flags &amp; 0x02) == 0 and (captured.flags &amp; 0x04) == 0 and (captured.flags &amp; 0x10) != 0 and captured.expected_ack_num != 0 and captured.ack_num == captured.expected_ack_num"
                 target="listening_p2_fin"/>
     <transition event="deadline_p1_ack" target="fail_timeout_p1_ack"/>
   </state>
@@ -102,7 +100,7 @@
       <send event="deadline_p2_ack" delay="11s"/>
     </onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == (::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpBasics10Phase2LocalOffset) and captured.dst_port == (::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpBasics10Phase2LocalOffset) and (captured.flags &amp; 0x01) == 0 and (captured.flags &amp; 0x02) == 0 and (captured.flags &amp; 0x04) == 0 and (captured.flags &amp; 0x10) != 0"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == (::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpBasics10Phase2LocalOffset) and captured.dst_port == (::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpBasics10Phase2LocalOffset) and (captured.flags &amp; 0x01) == 0 and (captured.flags &amp; 0x02) == 0 and (captured.flags &amp; 0x04) == 0 and (captured.flags &amp; 0x10) != 0 and captured.expected_ack_num_phase2 != 0 and captured.ack_num == captured.expected_ack_num_phase2"
                 target="pass"/>
     <transition event="deadline_p2_ack" target="fail_timeout_p2_ack"/>
   </state>

@@ -118,12 +118,15 @@ private:
             });
     }
 
-    // Phase 1 CLOSING: driveSeamCloseToClosing drives the DUT through FW1 →
-    // CLOSING (caller-managed AckDrop scope). The seam close that reaches CLOSING
-    // disposes the DUT-side socket, so the trailing abort is a no-op (preserving
-    // the original's abort-in-CLOSING intent); the verify-probe is the
-    // load-bearing CLOSED proof. silentlyCloseTesterFd disposes the tester fd;
-    // the AckDrop dtor at scope end removes the iptables rule.
+    // Phase 1 CLOSING: the DUT sends its FIN through shutdownTcpWr, not closeTcp,
+    // and the CLOSING core (driveToClosingState, caller-managed AckDrop scope)
+    // answers it with a FIN+ACK that does not ack it, so the DUT is in CLOSING
+    // with its socket still held. The ABORT then reaches a connection the DUT
+    // has, which is what the step asks. A closeTcp here would release the socket
+    // first: the Upper Tester then refuses the ABORT as an unknown socket, so the
+    // abort-in-CLOSING was never performed (measured on single-pc 2026-10-28,
+    // status 0x05). The verify-probe proves CLOSED. silentlyCloseTesterFd
+    // disposes the tester fd; the AckDrop dtor at scope end removes the rule.
     static void runPhase1Closing(const ::tc8::TestConfig& cfg,
                                  std::string_view iface,
                                  ::tc8::sce::IDutControl& dut) {
@@ -139,13 +142,15 @@ private:
         if (tester_fd < 0) return;
         if (!open.conn) return;
 
-        const auto info = driveSeamCloseToClosing(
-            dut, cfg, iface, tester_fd, open.conn->socket,
-            local_port, remote_port);
+        auto& tcp = seamTcpControl(dut);
+        const ::tc8::sce::DutSocket sock = open.conn->socket;
+        const auto info = driveToClosingState(
+            cfg, iface, cfg.dut.mac, tester_fd, local_port, remote_port,
+            [&tcp, sock]() { tcp.shutdownTcpWr(sock); });
         if (!info.ok) return;
-        // DUT now in CLOSING.
+        // DUT now in CLOSING, its socket still open.
 
-        seamTcpControl(dut).abortTcp(open.conn->socket);
+        tcp.abortTcp(sock);
         std::this_thread::sleep_for(std::chrono::milliseconds(150));
 
         silentlyCloseTesterFd(tester_fd);

@@ -10,7 +10,9 @@
 
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_tcp_seam.h"
+#include "sce_integration/cases/_tcp_seam_time_wait_prelude.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/tcp_pilot_common.h"
 #include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
 
@@ -49,39 +51,50 @@ struct TestCaseTraits<cases::TcpBasics10SM>
     //
     // Phase 2 inserts a 100 ms grace between UT close and the tester
     // FIN so the tester-kernel's auto-ACK of the DUT's FIN reaches the
-    // DUT first — a faithful FINWAIT-2 entry. Phase 1 issues the
-    // tester FIN immediately, but Linux's combined-segment optimisation
-    // pins the ACK ahead of the FIN on the wire regardless, so phase 1
-    // collapses to FINWAIT-2 in practice (see SCXML preamble for
-    // commentary). The harness encodes both phases for spec faithfulness;
-    // genuine FINWAIT-1 entry would require iptables-driven ACK
-    // suppression on the tester side.
+    // DUT first — a faithful FINWAIT-2 entry. Phase 1 holds the DUT in
+    // FINWAIT-1: the tester's ACK of the DUT's FIN is dropped
+    // (TesterAutoAckDrop) and the tester FIN is injected with an ACK
+    // field short of the DUT's FIN (driveSeamCloseToClosing). Each phase
+    // grades the DUT's ACK of THAT FIN: its ack number is the FIN's
+    // sequence number plus one (captured.expected_ack_num /
+    // expected_ack_num_phase2).
     // Migrated onto the Tier-2 DUT-control seam: both phases' active opens
     // run through `driveSeamActiveOpen` and both DUT closes through `closeTcp`,
     // so the case runs unchanged on whichever backend `--dut-control` selected
     // (opcode UT or AUTOSAR testability). The tester-side accept/shutdown that
     // drives the FIN stays case-owned harness infrastructure; the DUT socket id
     // is threaded from each phase's connection (no hardcoded id).
-    static void stimulus(Captured& /*c*/,
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
 
         // -------- Phase 1: FINWAIT-1 entry --------
         {
-            auto open1 = driveSeamActiveOpen(
-                ctx.dut, cfg,
-                kBasicsActiveLocalPort  + kTcpBasics10Phase1LocalOffset,
-                kBasicsActiveRemotePort + kTcpBasics10Phase1LocalOffset);
+            // The tester kernel's ACK of the DUT's FIN is dropped for the whole
+            // phase, so the DUT stays in FINWAIT-1, and the tester's FIN is
+            // injected raw with an ACK field that does not cover the DUT's FIN
+            // (driveSeamCloseToClosing): the FIN the DUT must acknowledge
+            // arrives while it is in FINWAIT-1, which it leaves for CLOSING as
+            // it answers. A kernel FIN cannot do this, because it would
+            // acknowledge the DUT's FIN and move the DUT straight to TIME-WAIT.
+            TesterAutoAckDrop ack_drop(cfg);
+            (void)ack_drop;
+            constexpr std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpBasics10Phase1LocalOffset;
+            constexpr std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpBasics10Phase1LocalOffset;
+            auto open1 = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
 
             const int tester_fd = acceptPreambleConnection(open1);
-
-            // Order: DUT close (enters FINWAIT-1, sends FIN) then
-            // immediate tester FIN. No pre-FIN delay — phase 2 is
-            // where we wait for the tester ACK to settle.
-            if (open1.conn) ctx.dut.tcpControl()->closeTcp(open1.conn->socket);
-            if (tester_fd >= 0) {
-                ::shutdown(tester_fd, SHUT_WR);
+            if (open1.conn && tester_fd >= 0) {
+                const auto info = driveSeamCloseToClosing(ctx.dut, cfg, ctx.iface, tester_fd,
+                                                          open1.conn->socket, local_port,
+                                                          remote_port);
+                if (info.ok) {
+                    // The ACK of that FIN: its sequence number plus one.
+                    c.expected_ack_num = info.tester_seq_post_fin;
+                    silentlyCloseTesterFd(tester_fd);
+                }
+            } else if (tester_fd >= 0) {
                 ::close(tester_fd);
             }
             std::this_thread::sleep_for(kTcpPilotPhaseGap);
@@ -101,6 +114,11 @@ struct TestCaseTraits<cases::TcpBasics10SM>
             if (open2.conn) ctx.dut.tcpControl()->closeTcp(open2.conn->socket);
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             if (tester_fd >= 0) {
+                // The kernel FIN takes the tester's next sequence number, so its
+                // ACK carries that plus one.
+                if (const auto seq = queryTcpSeqRange(tester_fd)) {
+                    c.expected_ack_num_phase2 = seq->snd_nxt + 1U;
+                }
                 ::shutdown(tester_fd, SHUT_WR);
                 ::close(tester_fd);
             }
