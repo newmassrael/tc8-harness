@@ -1144,8 +1144,24 @@
     "UDP_FIELDS_05": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must confirm receipt from each Topology-2 host via UT; binary present/absent"
+          "class": "incorrect_emission",
+          "fail_reason": "dut_reported_no_receipt_from_host1",
+          "property": "DUT must deliver Host-1's datagram; fail iff its UT confirmation reports no receipt"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_reported_wrong_src_ip_for_host1",
+          "property": "DUT must report Host-1-IP as the source; fail iff its UT confirmation names another"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_reported_no_receipt_from_host2",
+          "property": "DUT must deliver Host-2's datagram to the same port; fail iff its UT confirmation reports no receipt"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_reported_wrong_src_ip_for_host2",
+          "property": "DUT must report Host-2-IP as the source; fail iff its UT confirmation names another"
         }
       ]
     },
@@ -2051,8 +2067,9 @@
     "TCP_BASICS_03": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit an ACK to the tester's FIN; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "required_emission",
+          "fail_reason": "no_dut_ack_to_tester_fin_within_listen_window",
+          "property": "DUT in ESTABLISHED must ACK the tester's FIN (ack = FIN seq + 1) within ParamListenTime (RFC 793 3.2); binary present/absent"
         }
       ]
     },
@@ -2197,8 +2214,19 @@
     "TCP_CALL_RECEIVE_04": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "incorrect_emission",
+          "fail_reason": "dut_did_not_return_reassembled_data_phase1_est",
+          "property": "A RECEIVE in ESTABLISHED must return the queued segments reassembled (RFC 793 3.9); a wrong answer, or a refusal, fails, and no answer is inconclusive"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_did_not_return_reassembled_data_phase2_fw1",
+          "property": "A RECEIVE in FIN-WAIT-1 must return the queued segments reassembled (RFC 793 3.9); a wrong answer, or a refusal, fails, and no answer is inconclusive"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "dut_did_not_return_reassembled_data_phase3_fw2",
+          "property": "A RECEIVE in FIN-WAIT-2 must return the queued segments reassembled (RFC 793 3.9); a wrong answer, or a refusal, fails, and no answer is inconclusive"
         }
       ]
     },
@@ -2914,8 +2942,9 @@
     "TCP_URGENT_PTR_04": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit the handshake ACK completing the three-way handshake; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "incorrect_emission",
+          "fail_reason": "dut_did_not_isolate_urgent_data",
+          "property": "The DUT's RECEIVE must return the urgent byte alone, not with the non-urgent data after it (RFC 793 3.7); a wrong answer, or a refusal, fails, and no answer is inconclusive"
         }
       ]
     },

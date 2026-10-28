@@ -30,9 +30,21 @@
     * captured.src_ip    == expected.dut_iface_ip
     * captured.dst_ip    == expected.tester_ip
     * captured.src_port  == 12345
-    * (captured.flags & ACK) != 0
-    * (captured.flags & SYN) == 0
-    * (captured.flags & FIN) == 0
+    * (captured.flags & ACK) != 0, SYN, FIN and RST clear
+    * captured.ack_num   == captured.expected_ack_num: the ACK covers the
+      tester's FIN (its sequence number plus one, read from the tester
+      socket before the half-close)
+
+  Two windows, because the two things the case waits for are not alike:
+  the DUT's SYN,ACK is the preamble (its absence leaves nothing to test,
+  precondition_unmet), and the ACK of the FIN is the test body. That ACK
+  is mandated, so its window elapsing is the DUT's silence where it must
+  answer: observed_quiescence, judged against <ParamListenTime>
+  (docs/verdict_policy.md Section 2.1, H3), over a window of
+  ParamListenTime plus <ParamToleranceTime> (10 s + 1 s at the defaults).
+  A FIN the tester could not send (no established connection) is recorded
+  as an unperformed stimulus, so the run is inconclusive rather than a
+  silence graded against the DUT.
 
   Iteration coverage: spec lists only one iteration for BASICS_03.
 -->
@@ -53,14 +65,29 @@
                cpp:type="tc8::Ipv4Expected"
                cpp:include="sce_integration/ipv4_expected.h"/>
 
+  <!-- The preamble: the DUT's SYN,ACK of the tester's connect, which puts the
+       connection in ESTABLISHED. Its absence leaves nothing for the FIN to test. -->
   <state id="listening">
     <onentry>
-      <send event="deadline_exceeded" delay="5s"/>
+      <send event="handshake_deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and (captured.flags &amp; 0x10) != 0 and (captured.flags &amp; 0x02) == 0 and (captured.flags &amp; 0x01) == 0"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and (captured.flags &amp; 0x12) == 0x12"
+                target="awaiting_ack_of_fin"/>
+    <transition event="handshake_deadline_exceeded" target="inconclusive_timeout"/>
+  </state>
+
+  <!-- The test body: the DUT's ACK of the tester's FIN, whose ack number is the
+       FIN's sequence number plus one (captured.expected_ack_num, set by the
+       stimulus from the tester socket's send sequence). -->
+  <state id="awaiting_ack_of_fin">
+    <onentry>
+      <send event="ack_window_elapsed" delay="11s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and (captured.flags &amp; 0x10) != 0 and (captured.flags &amp; 0x02) == 0 and (captured.flags &amp; 0x01) == 0 and (captured.flags &amp; 0x04) == 0 and captured.expected_ack_num != 0 and captured.ack_num == captured.expected_ack_num"
                 target="pass"/>
-    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
+    <transition event="ack_window_elapsed" target="fail_no_ack_of_fin"/>
   </state>
 
   <final id="pass">
@@ -71,7 +98,13 @@
 
   <final id="inconclusive_timeout">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_ack_to_tester_fin_within_listen_window","role":"precondition_unmet"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_dut_synack_to_tester_connect","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_ack_of_fin">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_ack_to_tester_fin_within_listen_window","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </scxml>

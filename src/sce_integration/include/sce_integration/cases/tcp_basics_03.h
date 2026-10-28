@@ -10,6 +10,9 @@
 
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_tcp_seam_passive_open.h"
+#include "sce_integration/dut_call_intent.h"
+#include "sce_integration/tcp_pilot_common.h"
+#include "tc8/unperformed_stimulus.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
 #include "sce_integration/dut_control.h"
 #include "sce_integration/test_runner.h"
@@ -56,19 +59,33 @@ struct TestCaseTraits<cases::TcpBasics03SM>
     // later-arriving DUT segment would RST (benign here — the ACK is already
     // observed — but cleaner to avoid). A 100 ms wait after shutdown lets the
     // DUT kernel process the FIN and emit the ACK before teardown.
-    static void stimulus(Captured& /*c*/,
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
 
         auto open = driveSeamPassiveOpen(ctx.dut, cfg, kBasicsListenPort);
 
-        if (open.tester_fd >= 0) {
+        if (open.tester_fd < 0) {
+            // No established connection, so no FIN to send: the step the case
+            // grades never happened. (driveSeamPassiveOpen leaves this to the
+            // caller, because TCP_BASICS_01 grades that same missing handshake.)
+            ::tc8::UnperformedStimulus::record("tester_fin_in_established");
+        } else {
+            // The FIN takes the tester's next sequence number; its ACK carries
+            // that plus one. A failed query records itself.
+            if (const auto seq = queryTcpSeqRange(open.tester_fd)) {
+                c.expected_ack_num = seq->snd_nxt + 1U;
+            }
             ::shutdown(open.tester_fd, SHUT_WR);
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             ::close(open.tester_fd);
         }
-        if (open.conn) ctx.dut.tcpControl()->closeTcp(open.conn->socket);
+        if (open.conn) {
+            // Release, after the graded ACK: its answer bears on no verdict.
+            const ::tc8::sce::DutCallIntentScope cleanup(::tc8::sce::DutCallIntent::kCleanup);
+            ctx.dut.tcpControl()->closeTcp(open.conn->socket);
+        }
     }
 };
 

@@ -4371,8 +4371,8 @@ residual of ETS_097 was logged as TD-66, since resolved.
 ## TD-65 — 24 liveness guards need a modelling decision before they can migrate
 
 **Status:** OPEN. **Logged:** 2026-10-28, from the Phase Q4 sweep. The other 24 cases on
-`tools/liveness_migration_pending.txt`; 20 remain after the four SD cases below were found
-misclassified and migrated.
+`tools/liveness_migration_pending.txt`; 16 remain after the four SD cases below were found
+misclassified and migrated, and the four "state query" and "two things" cases were redesigned.
 
 **What it is.** Each guard's registry property says the DUT must emit something, but the case as
 written cannot grade that emission's absence as a fail. The reasons fall into five groups:
@@ -4393,13 +4393,19 @@ written cannot grade that emission's absence as a fail. The reasons fall into fi
 - **No specification bound exists.** `TCP_PROBING_WINDOWS_04` and `_05` time zero-window probes
   that follow the DUT's own retransmission timeout, and RFC 1122 section 4.2.2.17 sets no ceiling.
   `SOMEIP_ETS_130` grades an SD timing the case does not bound.
-- **The check is a state query, not a wire silence.** `UDP_FIELDS_05` and `TCP_URGENT_PTR_04`
-  judge a value the Upper Tester reports, which is an `observed_violation` if anything.
-  `TCP_CALL_RECEIVE_04` merges "the query returned nothing" with the no-answer sentinel in one
-  final.
-- **The emission is not mandated, or one window covers two things.** `TCP_MSS_OPTIONS_05` waits
-  for a third-leg ACK that RFC 1122 section 4.2.2.5 does not require (a DUT may reset or drop
-  instead). `TCP_BASICS_03` has one window covering both the preamble and the body.
+- ~~**The check is a state query, not a wire silence.**~~ Resolved 2026-10-28. `UDP_FIELDS_05`,
+  `TCP_URGENT_PTR_04` and `TCP_CALL_RECEIVE_04` judge a value the DUT reports. Each now fails an
+  answer carrying the wrong value (`observed_violation`, registry class `incorrect_emission`) and
+  keeps no answer inconclusive. For the two TCP cases the receive returns a typed outcome
+  (`DutReceiveOutcome`) so a refusal, a wrong payload and no answer are told apart, and the
+  decorator records no answer as an unperformed stimulus. `UDP_FIELDS_05` follows
+  `UDP_USER_INTERFACE_04`. `negative_coverage_audit.py` read their conditional evaluation timers
+  as "silence passes"; it now takes the silence meaning from the unconditional deadline only.
+- **The emission is not mandated.** `TCP_MSS_OPTIONS_05` waits for a third-leg ACK that RFC 1122
+  section 4.2.2.5 does not require (a DUT may reset or drop instead). ~~`TCP_BASICS_03` has one
+  window covering both the preamble and the body.~~ Resolved 2026-10-28: the handshake is a
+  preamble with its own deadline (`precondition_unmet`), and the ACK of the tester's FIN is graded
+  over a ParamListenTime window (`observed_quiescence`).
 
 **Risk if left.** None in the false-fail direction. The registry text for the "not mandated" and
 "state query" groups overstates what the case grades, so a reader of the registry is misled.

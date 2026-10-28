@@ -83,8 +83,8 @@ Environmental shortfalls never red the gate.
 
 > **Status (Phase Q, Section 8).** Q1–Q3 are in the tree: the
 > `observed_quiescence` role, its reach and bound rules, and the run-time gate on
-> S, H1, H2 and H3. Q4 (migrating the `liveness` guards) is in progress: 102 moved,
-> 20 on the ledger.
+> S, H1, H2 and H3. Q4 (migrating the `liveness` guards) is in progress: 106 off
+> the ledger, 16 on it.
 
 **Quiescence is an observation.** In the input/output conformance theory the
 suite is grounded in (ioco, Tretmans), the absence of any output — quiescence,
@@ -568,11 +568,15 @@ tree does not have.
     (`docs/tech-debt.md` TD-66).
 
   Four of the 24 then left (`SOMEIP_ETS_060`, `_118`, `_127`, `_171`): their
-  "preamble-only" silence was the unicast OfferService the procedure grades. The
-  20 that remain each have a recorded reason in `docs/tech-debt.md` TD-65: the
-  bound is DUT-specific with no specification ceiling, the check is a UT state
-  query rather than a wire silence, or a shared template final would need a
-  per-case parameter.
+  "preamble-only" silence was the unicast OfferService the procedure grades.
+  Four more left as their machines were redesigned: `TCP_BASICS_03` split its one
+  window into a handshake preamble and the ACK-of-FIN body and migrated, and
+  `TCP_CALL_RECEIVE_04`, `TCP_URGENT_PTR_04` and `UDP_FIELDS_05` now fail an
+  answer that carries the wrong value (`incorrect_emission`, `observed_violation`)
+  while no answer stays inconclusive. The 16 that remain each have a recorded
+  reason in `docs/tech-debt.md` TD-65: the bound is DUT-specific with no
+  specification ceiling, a shared template final would need a per-case
+  parameter, or the emission is not mandated.
 
 ---
 

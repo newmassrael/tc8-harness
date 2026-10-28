@@ -18,6 +18,8 @@
                        Host-1-IP → transition to listening_phase2.
     listening_phase2 — UT-Confirmation reports DUT received from
                        Host-2-IP → pass.
+  In either phase a Confirmation reporting no receipt, or a receipt
+  from another source, fails; no Confirmation is inconclusive.
 
   tc8-dut's data listener is single-slot per (port, dst_ip), so the
   trait fires phase 2's probe + UT query on s2 entry — the second
@@ -49,9 +51,19 @@
     <transition event="udp_observed"
                 cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x81 and captured.ut_status == 0 and captured.ut_received == 1 and captured.ut_recv_src_ip == expected.tester_ip"
                 target="listening_phase2"/>
+    <transition event="udp_observed"
+                cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x81 and captured.ut_status == 0 and captured.ut_received == 1 and captured.ut_recv_src_ip != expected.tester_ip"
+                target="fail_phase1_wrong_src_ip"/>
+    <transition event="udp_observed"
+                cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x81 and captured.ut_status == 0 and captured.ut_received == 0"
+                target="fail_phase1_no_host1_receipt"/>
     <transition event="phase1_deadline" target="inconclusive_phase1_no_host1_receipt"/>
   </state>
 
+  <!-- The receipt slot holds the last datagram, so after Host-2's probe an
+       answer naming Host-1 says the DUT did not deliver Host-2's datagram, or
+       delivered it with the wrong source: either way the user interface did not
+       tell the two senders apart. -->
   <state id="listening_phase2">
     <onentry>
       <send event="phase2_deadline" delay="5s"/>
@@ -59,12 +71,44 @@
     <transition event="udp_observed"
                 cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x81 and captured.ut_status == 0 and captured.ut_received == 1 and captured.ut_recv_src_ip == 0x030010AC"
                 target="pass"/>
+    <transition event="udp_observed"
+                cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x81 and captured.ut_status == 0 and captured.ut_received == 1 and captured.ut_recv_src_ip != 0x030010AC"
+                target="fail_phase2_wrong_src_ip"/>
+    <transition event="udp_observed"
+                cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x81 and captured.ut_status == 0 and captured.ut_received == 0"
+                target="fail_phase2_no_host2_receipt"/>
     <transition event="phase2_deadline" target="inconclusive_phase2_no_host2_receipt"/>
   </state>
 
   <final id="pass">
     <donedata>
       <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <!-- The Upper Tester answered: a value judgment on that answer, as in
+       UDP_USER_INTERFACE_04. No answer at all stays inconclusive below. -->
+  <final id="fail_phase1_wrong_src_ip">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_reported_wrong_src_ip_for_host1","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase1_no_host1_receipt">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_reported_no_receipt_from_host1","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_wrong_src_ip">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_reported_wrong_src_ip_for_host2","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_no_host2_receipt">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_reported_no_receipt_from_host2","role":"observed_violation"}</content>
     </donedata>
   </final>
 

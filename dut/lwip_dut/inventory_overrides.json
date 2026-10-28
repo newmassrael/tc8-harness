@@ -232,7 +232,7 @@
     },
     "TCP_URGENT_PTR_04": {
       "platform_known_fail": true,
-      "platform_known_fail_verdict": "inconclusive:dut_did_not_isolate_urgent_data",
+      "platform_known_fail_verdict": "fail:dut_did_not_isolate_urgent_data",
       "platform_known_fail_ref": "dut/lwip_dut/README.md",
       "reason": "TCP urgent/out-of-band data path not implemented (RFC 793 section 3.7 URG); the UT answers OpReceiveTcpDataOob with zero bytes by design"
     },

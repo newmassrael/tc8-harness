@@ -40,11 +40,16 @@
       the active-OPEN port quad.
     * listening_oob_check — 1 s deadline. ut_received_payload_len
       == 1U signals that the OOB recv returned exactly the urgent
-      byte (spec pass criterion). The stimulus runs synchronously
-      before start(), so the field is already populated when the
-      SCXML enters this state; the deadline fires almost
-      immediately and the cond evaluates against the populated
-      value.
+      byte (spec pass criterion); 0 that the DUT answered anything
+      else, a refusal included (observed_violation: the RECEIVE did
+      not isolate the urgent data); the 0xFFFF sentinel that no
+      answer came (inconclusive, and recorded as an unperformed
+      stimulus). The stimulus runs synchronously before start(), so
+      the field is already populated when the SCXML enters this
+      state; the deadline fires almost immediately and the cond
+      evaluates against the populated value. The judgment is of an
+      answered value, not of a silence, so the timer that decides it
+      is an evaluation step, not an observation window.
 
   Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
   is_pure_dut_ack(...)'s src_ip conjunct unreachable; case lands on
@@ -84,6 +89,9 @@
     <transition event="deadline_oob_check"
                 cond="cpp:captured.ut_received_payload_len == 1U"
                 target="pass"/>
+    <transition event="deadline_oob_check"
+                cond="cpp:captured.ut_received_payload_len != 0xFFFFU"
+                target="fail_urgent_data_not_isolated"/>
     <transition event="deadline_oob_check" target="inconclusive_no_proper_urgent_data"/>
   </state>
 
@@ -101,7 +109,13 @@
 
   <final id="inconclusive_no_proper_urgent_data">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"dut_did_not_isolate_urgent_data","role":"property_unobserved"}</content>
+      <content>{"verdict":"inconclusive","reason":"no_answer_to_the_urgent_receive","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_urgent_data_not_isolated">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_did_not_isolate_urgent_data","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

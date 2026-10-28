@@ -81,6 +81,9 @@
     <transition event="deadline_p1_complete"
                 cond="cpp:captured.ut_received_payload_len_p1 == 128U"
                 target="listening_p2_handshake_ack"/>
+    <transition event="deadline_p1_complete"
+                cond="cpp:captured.ut_received_payload_len_p1 != 0xFFFFU"
+                target="fail_p1_data_not_reassembled"/>
     <transition event="deadline_p1_complete" target="inconclusive_p1_no_proper_data"/>
   </state>
 
@@ -105,6 +108,9 @@
     <transition event="deadline_p2_complete"
                 cond="cpp:captured.ut_received_payload_len_p2 == 128U"
                 target="listening_p3_handshake_ack"/>
+    <transition event="deadline_p2_complete"
+                cond="cpp:captured.ut_received_payload_len_p2 != 0xFFFFU"
+                target="fail_p2_data_not_reassembled"/>
     <transition event="deadline_p2_complete" target="inconclusive_p2_no_proper_data"/>
   </state>
 
@@ -129,6 +135,9 @@
     <transition event="deadline_p3_complete"
                 cond="cpp:captured.ut_received_payload_len_p3 == 128U"
                 target="pass"/>
+    <transition event="deadline_p3_complete"
+                cond="cpp:captured.ut_received_payload_len_p3 != 0xFFFFU"
+                target="fail_p3_data_not_reassembled"/>
     <transition event="deadline_p3_complete" target="inconclusive_p3_no_proper_data"/>
   </state>
 
@@ -166,5 +175,21 @@
 
   <final id="inconclusive_p3_no_proper_data">
     <donedata><content>{"verdict":"inconclusive","reason":"dut_did_not_receive_proper_data_phase3_fw2","role":"property_unobserved"}</content></donedata>
+  </final>
+
+  <!-- The RECEIVE answered, with anything but the reassembled stream (or a
+       refusal): the DUT did not return the data it queued. A value judgment
+       on an answer, not a silence, so the timer deciding it is an evaluation
+       step. -->
+  <final id="fail_p1_data_not_reassembled">
+    <donedata><content>{"verdict":"fail","reason":"dut_did_not_return_reassembled_data_phase1_est","role":"observed_violation"}</content></donedata>
+  </final>
+
+  <final id="fail_p2_data_not_reassembled">
+    <donedata><content>{"verdict":"fail","reason":"dut_did_not_return_reassembled_data_phase2_fw1","role":"observed_violation"}</content></donedata>
+  </final>
+
+  <final id="fail_p3_data_not_reassembled">
+    <donedata><content>{"verdict":"fail","reason":"dut_did_not_return_reassembled_data_phase3_fw2","role":"observed_violation"}</content></donedata>
   </final>
 </scxml>

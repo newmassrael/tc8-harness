@@ -556,7 +556,11 @@ def _derive_guard_classes(case_lower: str) -> dict[str, set[str]]:
                 continue
             sid = _subst(st.get("id", ""), b)
             rows = [
-                (tr.get("event", "") or "", _subst(tr.get("target", ""), b).lower())
+                (
+                    tr.get("event", "") or "",
+                    _subst(tr.get("target", ""), b).lower(),
+                    bool(tr.get("cond")),
+                )
                 for tr in st
                 if _local(tr.tag) == "transition"
             ]
@@ -573,18 +577,21 @@ def _derive_guard_classes(case_lower: str) -> dict[str, set[str]]:
             continue
         cls = None
         for sid, rows in states.items():
-            if not any(tgt == fid for _ev, tgt in rows):
+            if not any(tgt == fid for _ev, tgt, _cond in rows):
                 continue
             # Deadline/silence transitions in the fail's source state. The target
             # is `pass` (silence is the conformant verdict) or an onward progress
             # state (silence completes a window and the conformant flow continues,
             # e.g. a rate-limit silence -> re-pick) -> silence is conformant ->
             # prohibited_emission. A deadline reaching `inconclusive` (the DUT must
-            # emit; absence is non-conclusive) -> incorrect_emission.
+            # emit; absence is non-conclusive) -> incorrect_emission. A deadline
+            # with a `cond` grades a value the case already holds (the timer is an
+            # evaluation step), so only an unconditional deadline says what
+            # silence means.
             dl = [
                 (done.get(tgt, ("?", "", ""))[0], tgt)
-                for ev, tgt in rows
-                if any(k in ev for k in _DEADLINE_EVENTS)
+                for ev, tgt, cond in rows
+                if not cond and any(k in ev for k in _DEADLINE_EVENTS)
             ]
             if any(c == "pass" or (c == "?" and t) for c, t in dl):
                 cls = "prohibited_emission"

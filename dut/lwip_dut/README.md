@@ -173,7 +173,8 @@ TCP:
   SYN-RCVD (RFC 793 §3.9).
 - **`TCP_URGENT_PTR_04` — urgent/OOB path not implemented** (RFC 793
   §3.7). The UT answers `OpReceiveTcpDataOob` with zero bytes by
-  design, loudly logged.
+  design, loudly logged; an answer without the urgent byte is graded
+  `fail:dut_did_not_isolate_urgent_data`.
 - **`TCP_RETRANSMISSION_TO_05` — no exponential SYN-RTO backoff.** The
   case asserts the SYN-retransmission RTO grows (RFC 1122 §4.2.3.1 /
   RFC 6298 §5). lwIP excludes SYN_SENT from RTO doubling (`tcp.c`
