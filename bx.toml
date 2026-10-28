@@ -60,19 +60,25 @@ needs = ["cmake", "make", "g++", "python3", "git"]
 # every dissector, so a machine without either builds no tester at all.
 packages = ["libpcap-dev", "libtins-dev"]
 
-min_ram_gb  = 16
+# RAM a machine must have at all. 15, by the owner's decision of 2026-10-28, so the
+# 15 GB machines in the fleet take this repository. Measured on such a machine
+# (a 14.2 GB run ceiling): one job builds the whole tester and its unit tests at a
+# peak of 4.5 GB, so the floor is met with room to spare when the commands below
+# size their job count from the grant (scripts/bx-build-jobs.sh). Left to bx's
+# jobserver the same machine was ended by its ceiling, so the count is not left
+# there.
+min_ram_gb  = 15
 min_free_gb = 40
 
-# Per-compile-job peak for the thread-budget calculation. Measured 2026-10-28:
-# a Release full build (harness + unit tests) given 23 jobserver slots peaked at
-# 85.2 GB, 3.7 GB a job. The 2026-10-27 figure was 2.8 GB a job (19.7 GB at
-# -j7). Until 2026-10-28 the declared commands set no build type, and a build
-# with none optimises nothing and compiles in less memory. They now build Release
-# (see [commands]). The registrar
-# chunking (TC8_CASES_PER_TU=32) keeps each case TU modest, but the generated-SM
-# TUs and the tester link run alongside them. The earlier figure of 1 GB was an
-# estimate and let bx place seven jobs where three fit.
-peak_gb_per_task = 4
+# What ONE compile job peaks at, in whole GB; scripts/bx-build-jobs.sh divides a run's
+# granted memory by it to get the build's job count, and bx uses it to place a run.
+# Measured 2026-10-28 on a 15 GB machine: one job, the whole Release tester and its unit
+# tests, peaked at 4.46 GB (the case registrar units are the heavy ones, the generated
+# state machines and the tester link run beside them), so 5. The figure had been 3, then
+# 4, from averages: 85 GB over 23 jobs on a large machine (3.7 GB a job) hides the peak
+# of any one of them. Release since 2026-10-28; the commands set no build type before,
+# and a build with none compiles in less memory.
+peak_gb_per_task = 5
 
 [commands]
 # ⚠ MOCK DUT OFF, deliberately, and this is a real limitation rather than a
@@ -90,7 +96,10 @@ peak_gb_per_task = 4
 # unoptimised. Measured 2026-10-28: a 679 MB tester against Release's 128 MB,
 # whose capture-ready signal missed the orchestrator's 5 s barrier on all 15
 # cases of a single-pc run, where the Release tester missed it on none of 80.
-build  = "cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DTC8_BUILD_MOCK_DUT=OFF -DTC8_BUILD_UNIT_TESTS=ON && cmake --build build"
+#
+# The job count comes from scripts/bx-build-jobs.sh (the run's granted memory over
+# peak_gb_per_task, capped by its granted cores), here and in the commands below.
+build  = "cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DTC8_BUILD_MOCK_DUT=OFF -DTC8_BUILD_UNIT_TESTS=ON && cmake --build build -j\"$(bash scripts/bx-build-jobs.sh)\""
 # The privileged neighbour test self-wraps in an unprivileged user+net namespace
 # and SKIPs (exit 77) where userns is unavailable, so this is safe on a machine
 # with no netns provisioning. `--no-tests=error` because ctest EXIT-0s an empty
@@ -110,10 +119,6 @@ verify = "ctest --test-dir build --output-on-failure --no-tests=error"
 # objects it was not linked from, so that tree would no longer hold one build. The
 # DUT binaries stay local builds (the mock DUT needs vsomeip and CommonAPI, see
 # above); a change that touches them needs `build` here as before.
-#
-# No `-j`, as in `build`: bx bounds the run through the jobserver it puts in
-# MAKEFLAGS, and an explicit `-j` makes make start a pool of its own. Measured
-# 2026-10-28: `-j7` on a build machine bx had given two threads peaked at 19.6 GB.
 
 # The hosted `build-test` job's configuration, for a check before a push: GCC 11
 # (the hosted runner's compiler, while these machines default to GCC 13), Release,
@@ -121,9 +126,9 @@ verify = "ctest --test-dir build --output-on-failure --no-tests=error"
 # fail there, and one commit stayed red on the hosted job for two days before
 # anyone read it. g++-11 is not in `needs`, which would keep every machine without it from
 # every build; the command names it first so a machine without it is refused by name.
-hosted-ci = "command -v g++-11 && CC=gcc-11 CXX=g++-11 cmake -S . -B build-gcc11 -DCMAKE_BUILD_TYPE=Release -DTC8_SCE_FIND_PACKAGE=OFF -DTC8_BUILD_MOCK_DUT=OFF && cmake --build build-gcc11 && ctest --test-dir build-gcc11 --output-on-failure --no-tests=error"
+hosted-ci = "command -v g++-11 && CC=gcc-11 CXX=g++-11 cmake -S . -B build-gcc11 -DCMAKE_BUILD_TYPE=Release -DTC8_SCE_FIND_PACKAGE=OFF -DTC8_BUILD_MOCK_DUT=OFF && cmake --build build-gcc11 -j\"$(bash scripts/bx-build-jobs.sh)\" && ctest --test-dir build-gcc11 --output-on-failure --no-tests=error"
 
-harness-remote = "cmake -S . -B build-remote -DCMAKE_BUILD_TYPE=Release -DTC8_BUILD_MOCK_DUT=OFF -DTC8_BUILD_UNIT_TESTS=ON && cmake --build build-remote && ctest --test-dir build-remote --output-on-failure --no-tests=error"
+harness-remote = "cmake -S . -B build-remote -DCMAKE_BUILD_TYPE=Release -DTC8_BUILD_MOCK_DUT=OFF -DTC8_BUILD_UNIT_TESTS=ON && cmake --build build-remote -j\"$(bash scripts/bx-build-jobs.sh)\" && ctest --test-dir build-remote --output-on-failure --no-tests=error"
 
 # ⚠ NO `exclude` KEY, and that is deliberate: bx never read one, and bx.toml
 # refuses a key bx does not define. Only what git tracks is sent, so the
