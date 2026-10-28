@@ -2,10 +2,10 @@
 <!--
   TC8 v3.0 §5.1.6 SOMEIP_ETS_097: SD_Client_restarts_tcp_connection.
 
-  Per PRS_SOMEIPSD_00527: when the DUT-as-client tries to subscribe to a
-  TCP-reliable eventgroup and the first TCP connect attempt is refused,
-  vsomeip must re-attempt the connect when it receives another OfferService
-  Message for the same service.
+  Per PRS_SOMEIPSD_00527 and the pass criteria: when the DUT-as-client tries
+  to subscribe to a TCP-reliable eventgroup and its first TCP connect is
+  refused, it must re-engage the connection with a second SYN as soon as it
+  receives another OfferService for the same service.
 
   Stimulus chain (see src/sce_integration/include/sce_integration/cases/someip_ets_097.h):
     1. emitFindServiceBoot — SERVICE-ID-1 server warm-up.
@@ -19,28 +19,35 @@
        the first connect was made and refused (a miss is an unperformed
        stimulus, so a DUT that never made a first attempt is not graded
        as having restarted one).
-    6. A listener on :30509 that the runner owns for the rest of the run
-       (TcpAcceptService) + emitOfferServiceMulticastWithEndpoint(offer2) —
-       second OfferService triggers vsomeip's offer-driven reconnect. Each
-       accept sets c.tcp_handshake_completed=1 and holds the connection.
+    6. Still refusing, watch the DUT's own retries, and record when its
+       next one could come (captured.spontaneous_retry_earliest_ts_us; 0
+       when the DUT was quiet for a whole window).
+    7. A listener on :30509 opened immediately before offer2, owned by the
+       runner for the rest of the run, then offer2, its send instant
+       recorded (captured.reconnect_offer_ts_us).
 
-  Verdict (3-state):
+  A DUT SYN to :30509 raises dut_reconnect_syn with its arrival in
+  captured.dut_syn_ts_us. A SYN after the second Offer is the DUT's answer to
+  it when no retry of its own was due by then (quiet, or before the earliest
+  instant its observed retry period allows); otherwise it may be that retry,
+  and the run is inconclusive (property_unobserved) rather than a pass. A SYN
+  before the second Offer is a refused retry and is ignored.
+
     Phase 1 (listening_phase1, 6 s): tester-side server warm-up — observe
             an OfferService for SERVICE-ID-1.
-    Phase 2 (listening_phase2_subscribe_seen, 12 s): observe DUT
-            SubscribeEventgroup for SERVICE-ID 0xF4E9 carrying an IPv4
-            Endpoint Option with l4_proto = 0x06 (TCP).
-    Phase 3 (listening_phase3_handshake, 11 s): the deadline reads
-            `c.tcp_handshake_completed`.
+    Phase 2 (awaiting_*): the DUT's SubscribeEventgroup for SERVICE-ID
+            0xF4E9 carrying an IPv4 Endpoint Option with l4_proto = 0x06
+            (TCP), and its reconnect SYN after the second Offer, in either
+            order: the Subscribe can come after the connection completes.
 
-  Phases 2 and 3 are the DUT's answers the procedure requires (a Subscribe
-  to the Offer, a reconnect after the second Offer), so a window that
-  elapses without one is the DUT's silence where it must act:
-  observed_quiescence, judged against <ParamListenTime>
-  (docs/verdict_policy.md Section 2.1, H3), over a window of at least
-  ParamListenTime plus <ParamToleranceTime> (10 s + 1 s at the defaults).
-  The listener is open from before the second Offer until teardown, so the
-  DUT's reconnect is heard at any point in that window.
+  Both are answers the procedure requires, so a window that elapses with
+  one owed is the DUT's silence where it must act: observed_quiescence,
+  judged against <ParamListenTime> (docs/verdict_policy.md Section 2.1, H3),
+  over a window of at least ParamListenTime plus <ParamToleranceTime>
+  (10 s + 1 s at the defaults). Each window has its own event name, because
+  SCXML does not cancel a delayed send when its state exits. The listener is
+  open from just before the second Offer until teardown, so the DUT's
+  reconnect is heard at any point in the window.
 
   Reference: PRS_SOMEIPSD_00527.
 -->
@@ -67,35 +74,50 @@
     </onentry>
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
-                target="listening_phase2_subscribe_seen"/>
+                target="awaiting_subscribe_and_reconnect"/>
     <transition event="phase1_deadline_exceeded" target="inconclusive_phase1_no_offer"/>
   </state>
 
-  <state id="listening_phase2_subscribe_seen">
+  <!-- DUT-emitted SubscribeEventgroup for ets3 (SERVICE-ID 0xF4E9) carrying
+       an IPv4 Endpoint option whose l4_proto is TCP (0x06). The bundled
+       option index is 0 (single-option subscribe with #Opt1=1). -->
+  <state id="awaiting_subscribe_and_reconnect">
     <onentry>
-      <send event="phase2_deadline_exceeded" delay="12s"/>
+      <send event="subscribe_and_reconnect_window_elapsed" delay="12s"/>
     </onentry>
-    <!-- DUT-emitted SubscribeEventgroup for ets3 (SERVICE-ID 0xF4E9) carrying
-         an IPv4 Endpoint option whose l4_proto is TCP (0x06). The bundled
-         option index is 0 (single-option subscribe with #Opt1=1). -->
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x06 and captured.sd_entries[0].service_id == 0xF4E9 and captured.sd_option_count >= 1 and captured.sd_options[0].type == 0x04 and captured.sd_options[0].l4_proto == 0x06"
-                target="listening_phase3_handshake"/>
-    <transition event="phase2_deadline_exceeded" target="fail_phase2_no_subscribe_with_tcp_option"/>
+                target="awaiting_reconnect"/>
+    <transition event="dut_reconnect_syn"
+                cond="cpp:captured.reconnect_offer_ts_us != 0 and captured.dut_syn_ts_us &gt; captured.reconnect_offer_ts_us and (captured.spontaneous_retry_earliest_ts_us == 0 or captured.dut_syn_ts_us &lt; captured.spontaneous_retry_earliest_ts_us)"
+                target="awaiting_subscribe"/>
+    <transition event="dut_reconnect_syn"
+                cond="cpp:captured.reconnect_offer_ts_us != 0 and captured.dut_syn_ts_us &gt; captured.reconnect_offer_ts_us and captured.spontaneous_retry_earliest_ts_us != 0 and captured.dut_syn_ts_us &gt;= captured.spontaneous_retry_earliest_ts_us"
+                target="inconclusive_reconnect_not_attributable_to_offer"/>
+    <transition event="subscribe_and_reconnect_window_elapsed" target="fail_no_subscribe_and_no_reconnect"/>
   </state>
 
-  <state id="listening_phase3_handshake">
+  <state id="awaiting_reconnect">
     <onentry>
-      <send event="phase3_deadline_exceeded" delay="11s"/>
+      <send event="reconnect_window_elapsed" delay="11s"/>
     </onentry>
-    <!-- The tester's accept service writes c.tcp_handshake_completed = 1
-         when it accepts the DUT's connection, at any point in the run. Cond
-         on the deadline reads the slot once and routes to pass / fail. -->
-    <transition event="phase3_deadline_exceeded"
-                cond="cpp:captured.tcp_handshake_completed == 1"
+    <transition event="dut_reconnect_syn"
+                cond="cpp:captured.reconnect_offer_ts_us != 0 and captured.dut_syn_ts_us &gt; captured.reconnect_offer_ts_us and (captured.spontaneous_retry_earliest_ts_us == 0 or captured.dut_syn_ts_us &lt; captured.spontaneous_retry_earliest_ts_us)"
                 target="pass"/>
-    <transition event="phase3_deadline_exceeded"
-                target="fail_phase3_no_tcp_handshake_after_second_offer"/>
+    <transition event="dut_reconnect_syn"
+                cond="cpp:captured.reconnect_offer_ts_us != 0 and captured.dut_syn_ts_us &gt; captured.reconnect_offer_ts_us and captured.spontaneous_retry_earliest_ts_us != 0 and captured.dut_syn_ts_us &gt;= captured.spontaneous_retry_earliest_ts_us"
+                target="inconclusive_reconnect_not_attributable_to_offer"/>
+    <transition event="reconnect_window_elapsed" target="fail_no_reconnect_after_second_offer"/>
+  </state>
+
+  <state id="awaiting_subscribe">
+    <onentry>
+      <send event="subscribe_window_elapsed" delay="11s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x06 and captured.sd_entries[0].service_id == 0xF4E9 and captured.sd_option_count >= 1 and captured.sd_options[0].type == 0x04 and captured.sd_options[0].l4_proto == 0x06"
+                target="pass"/>
+    <transition event="subscribe_window_elapsed" target="fail_no_subscribe_with_tcp_option"/>
   </state>
 
   <final id="pass">
@@ -110,15 +132,27 @@
     </donedata>
   </final>
 
-  <final id="fail_phase2_no_subscribe_with_tcp_option">
+  <final id="inconclusive_reconnect_not_attributable_to_offer">
     <donedata>
-      <content>{"verdict":"fail","reason":"no_dut_subscribe_with_tcp_option_within_listen_window","role":"observed_quiescence","bound":"ParamListenTime"}</content>
+      <content>{"verdict":"inconclusive","reason":"dut_reconnect_may_be_its_own_retry_not_an_answer_to_the_offer","role":"property_unobserved"}</content>
     </donedata>
   </final>
 
-  <final id="fail_phase3_no_tcp_handshake_after_second_offer">
+  <final id="fail_no_subscribe_and_no_reconnect">
     <donedata>
-      <content>{"verdict":"fail","reason":"dut_did_not_complete_tcp_handshake_after_second_offer","role":"observed_quiescence","bound":"ParamListenTime"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_subscribe_and_no_reconnect_after_second_offer","role":"observed_quiescence","bound":"ParamListenTime"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_reconnect_after_second_offer">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_reconnect_after_second_offer","role":"observed_quiescence","bound":"ParamListenTime"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_subscribe_with_tcp_option">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_subscribe_with_tcp_option_within_listen_window","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </scxml>

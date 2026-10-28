@@ -527,6 +527,15 @@ target_compile_definitions(run_capture_test PRIVATE
     TC8_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 target_link_libraries(run_capture_test PRIVATE sce_base ${LIBTINS_LIBRARY} ${PCAP_LIBRARY})
 
+# SOMEIP_ETS_097's reconnect attribution: the case's own machine and dispatch,
+# generated from its committed SCXML, driven through the arms the reference DUT
+# never reaches on the wire (it retries a refused connect without limit).
+tc8_add_unit_test(someip_ets_097_attribution_test)
+sce_add_state_machine(
+    TARGET     someip_ets_097_attribution_test
+    SCXML_FILE ${PROJECT_SOURCE_DIR}/tests/someip_ets_097/someip_ets_097.scxml)
+target_link_libraries(someip_ets_097_attribution_test PRIVATE sce_base)
+
 # IEtsExtension / IEtsEventSink seam: a fake sink drives the in-tree demo
 # extension hermetically (no vsomeip, no DUT), proving the offer/notify/onMethod
 # contract. Compiles the demo's TC8_ETS_EXTENSION_SRC slot file too, so the OEM

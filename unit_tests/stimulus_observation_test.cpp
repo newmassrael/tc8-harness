@@ -170,6 +170,34 @@ TEST_F(StimulusObservationTest, AFailedCaptureIsRecorded) {
     EXPECT_TRUE(::tc8::UnperformedStimulus::any());
 }
 
+// observeWithin: the silence is what the case asked to learn, so an elapsed bound is
+// an observation and records nothing...
+TEST_F(StimulusObservationTest, AQuiescenceWaitThatElapsesRecordsNothing) {
+    obs.bindPump(&pump);
+    const auto seen = obs.observeWithin("dut_spontaneous_retry", ObservationCursor{},
+                                        fromPort(1), 100ms);
+    EXPECT_FALSE(seen.has_value());
+    EXPECT_FALSE(::tc8::UnperformedStimulus::any())
+        << "a DUT observed quiet was recorded as a stimulus the tester failed to perform";
+    EXPECT_GE(pump.now.time_since_epoch(), 100ms);
+}
+
+// ...but a capture that ended did not observe the silence, so it is recorded as an
+// await's would be: absence that was not watched is no quiescence.
+TEST_F(StimulusObservationTest, AQuiescenceWaitOverAnEndedCaptureIsRecorded) {
+    pump.script({{}, Status::kEndOfCapture});
+    obs.bindPump(&pump);
+    EXPECT_FALSE(obs.observeWithin("x", ObservationCursor{}, fromPort(2), 1000ms));
+    EXPECT_EQ(::tc8::UnperformedStimulus::reason(), "stimulus_x_not_performed");
+}
+
+TEST_F(StimulusObservationTest, AQuiescenceWaitStillReturnsTheFrameWhenOneComes) {
+    pump.script({{udpFrom(7)}});
+    obs.bindPump(&pump);
+    EXPECT_TRUE(obs.observeWithin("x", ObservationCursor{}, fromPort(7), 1000ms).has_value());
+    EXPECT_FALSE(::tc8::UnperformedStimulus::any());
+}
+
 // An interrupted run reports error:interrupted, which outranks a precondition
 // note, so the wait records nothing of its own.
 TEST_F(StimulusObservationTest, AnInterruptedRunRecordsNothing) {

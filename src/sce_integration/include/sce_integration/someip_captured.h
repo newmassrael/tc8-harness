@@ -218,20 +218,27 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     // signal across phase 2 → phase 3 transitions.
     std::uint8_t tcp_peer_state = 0;
 
-    // §5.1.6 SOMEIP_ETS_097 verdict slot — set to 1 by the stimulus chain
-    // when the tester-side TCP listener accepts an inbound SYN within the
-    // accept timeout window. Stays 0 if the DUT never retried the connection
-    // after the first refusal (= test failure shape). Like `tcp_peer_state`
-    // it is preserved across SOME/IP frame dispatches.
-    std::uint8_t tcp_handshake_completed = 0;
+    // §5.1.6 SOMEIP_ETS_097 slots: was the DUT's reconnect an answer to the
+    // tester's second OfferService? All three are pcap-domain microseconds
+    // (`CapturedFrameTiming::observed_ts_us`) and, like `tcp_peer_state`,
+    // survive SOME/IP frame dispatches.
+    //   - reconnect_offer_ts_us: when the stimulus sent the second Offer; 0 if
+    //     it never did.
+    //   - spontaneous_retry_earliest_ts_us: the earliest instant the DUT's own
+    //     retry timer, as the stimulus measured it while refusing, could fire
+    //     again. 0 when the DUT was observed quiet for a whole window instead,
+    //     so no retry of its own is due.
+    //   - dut_syn_ts_us: the arrival of the DUT SYN being dispatched, written
+    //     just before its `dut_reconnect_syn` event.
+    std::int64_t reconnect_offer_ts_us = 0;
+    std::int64_t spontaneous_retry_earliest_ts_us = 0;
+    std::int64_t dut_syn_ts_us = 0;
 
     // §5.1.6 SOMEIP_ETS_081 verdict slot — incremented by the stimulus
     // chain's detached accept thread on every successful inbound TCP
     // handshake, so server-reboot recovery cases can assert "DUT closed
     // the old connection and opened a new one" via `tcp_handshake_count
-    // >= 2` rather than a binary completed/not-completed flag. Distinct
-    // from `tcp_handshake_completed` so ETS_097's existing exact-match
-    // verdict semantics stay untouched.
+    // >= 2` rather than a binary completed/not-completed flag.
     std::uint8_t tcp_handshake_count = 0;
 
     // SD payload fields (sd_flags / sd_reserved / sd_entries_len / sd_options_len,
@@ -514,6 +521,14 @@ inline void appendCapturedJson(std::string &out, const SomeIpCaptured &c) {
     ::tc8::sce::appendTimingJson(out, c);
     if (c.sd_start_ts_us != 0) {
         ::tc8::sce::appendI64Json(out, ",\"delta_from_sd_start_us\":", c.delta_from_sd_start_us());
+    }
+    // ETS_097's attribution instants, only on the case that sets them, so the trace
+    // shows what a reconnect SYN was judged against.
+    if (c.reconnect_offer_ts_us != 0) {
+        ::tc8::sce::appendI64Json(out, ",\"reconnect_offer_ts_us\":", c.reconnect_offer_ts_us);
+        ::tc8::sce::appendI64Json(out, ",\"spontaneous_retry_earliest_ts_us\":",
+                                  c.spontaneous_retry_earliest_ts_us);
+        ::tc8::sce::appendI64Json(out, ",\"dut_syn_ts_us\":", c.dut_syn_ts_us);
     }
     out.append("}");
 }

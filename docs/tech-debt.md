@@ -4451,6 +4451,54 @@ the RST on a timer of its own, and the listener, opened 200 ms before the second
 that retry before the Offer went out. The pass criteria ask for the second SYN as the answer to
 another OfferService, so the listener now opens immediately before the second Offer, with no wait
 between them. The port refuses until that Offer is sent, and the SYN the case accepts comes after
-it. What the case cannot tell apart is a DUT that reconnects because of the Offer from one whose
-own retry timer happens to fire after it; the criteria give no bound tighter than the listen time
-that would separate the two.
+it.
+
+That left a third question, answered in the same change: was the SYN after the Offer an answer to
+it, or the DUT's own retry firing after it? The two are one segment on the wire, and the criteria
+give no bound tighter than the listen time, so the case establishes, before the Offer, an instant
+at which no retry of the DUT's own is due, and attributes only a SYN that comes before it. Still
+refusing after the first RST, the stimulus watches the DUT's unprompted SYNs (`observeWithin`, a
+wait whose elapsed bound is an observation, not an unperformed stimulus):
+
+- **Quiet** for a whole window (`ParamListenTime` plus `ParamToleranceTime`): no own retry is
+  due, and any SYN after the Offer within the window is the answer. The test hypothesis this rests
+  on, stated rather than observed: a DUT quiet for a window does not retry on its own in the next.
+- **Steady** retries at a period P (three, the two periods within a quarter of each other): the
+  Offer goes out half a period after the last one, and a SYN before three quarters of a period is
+  the answer. The hypothesis: the period holds across the Offer.
+- **Unsteady** retries: no instant is known free of an own retry, so no SYN can be attributed.
+
+The machine grades the SYN against those instants (`reconnect_offer_ts_us`,
+`spontaneous_retry_earliest_ts_us`, both in the trace): an answer passes, a SYN that may be the
+DUT's own retry is `property_unobserved`, and no SYN at all within the window is
+`observed_quiescence`. The Subscribe and the SYN are awaited in either order, because the DUT can
+subscribe after its connection completes. `someip_ets_097_attribution_test` drives the case's
+machine and dispatch through every arm. On the reference DUT the case is now inconclusive, which
+TD-67 records.
+
+## TD-67 — the reference DUT's TCP client retries a refused connect without limit, so SOMEIP_ETS_097 cannot conclude there
+
+**Status:** OPEN (accepted). **Logged:** 2026-10-28, while resolving TD-66.
+
+**What it is.** `SOMEIP_ETS_097` passes only on a SYN it can attribute to the second Offer
+(TD-66). The reference DUT's vsomeip TCP client retries a refused connect every 100 ms, doubling
+after 30 attempts up to 1.6 s, and its `tcp_client_endpoint_impl::get_max_allowed_reconnects`
+returns `MAX_RECONNECTS_UNLIMITED` whatever the configuration says. So it is never quiet for a
+window, and its retries are steady: the case sends the Offer half a period after a retry and waits
+for a SYN before three quarters of a period. Measured over three runs on single-pc (period
+100.3 ms), the SYN came 50 ms after the Offer, on the DUT's own retry tick, past the 25 ms in which
+an answer to the Offer could be told from it. The verdict is
+`inconclusive:dut_reconnect_may_be_its_own_retry_not_an_answer_to_the_offer`, registered as the
+case's platform known-fail.
+
+**Why it is accepted.** The verdict is the truth about this DUT. Its retry timer fires so often
+that whether it also reacts to an Offer cannot be observed, and before TD-66 the case passed it
+on the timing of a retry alone. Making it pass would mean weakening the case for every DUT, and
+failing it would need a requirement the pass criteria do not state ("as soon as" has no bound).
+
+**What would close it.** A reference DUT whose client either waits for the next Offer after a
+refusal or stops retrying, which is a change to the vendored vsomeip and outside this repository;
+or an ETS client-mode configuration that disables the retry timer, if vsomeip ever exposes one.
+
+**Done when:** `SOMEIP_ETS_097` passes on the reference DUT through the attribution of TD-66, and
+its platform known-fail entry is removed.

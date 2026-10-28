@@ -491,8 +491,13 @@
         },
         {
           "class": "required_emission",
-          "fail_reason": "dut_did_not_complete_tcp_handshake_after_second_offer",
-          "property": "DUT client must reconnect its refused TCP connection after the second OfferService within ParamListenTime (PRS_SOMEIPSD_00527); binary present/absent"
+          "fail_reason": "no_dut_reconnect_after_second_offer",
+          "property": "DUT client must send a new SYN for its refused TCP connection after the second OfferService within ParamListenTime (PRS_SOMEIPSD_00527); binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_dut_subscribe_and_no_reconnect_after_second_offer",
+          "property": "DUT client must both subscribe with a TCP endpoint option and reconnect after the second OfferService within ParamListenTime; binary present/absent"
         }
       ]
     },

@@ -131,6 +131,18 @@ const ::tc8::CapturedEvent *StimulusObservation::scan(std::size_t &position,
 std::optional<OwnedCapturedEvent> StimulusObservation::awaitObservation(
     std::string_view name, ObservationCursor from, const ObservationPredicate &predicate,
     std::chrono::milliseconds bound) {
+    return wait(name, from, predicate, bound, BoundElapsed::kUnperformed);
+}
+
+std::optional<OwnedCapturedEvent> StimulusObservation::observeWithin(
+    std::string_view name, ObservationCursor from, const ObservationPredicate &predicate,
+    std::chrono::milliseconds bound) {
+    return wait(name, from, predicate, bound, BoundElapsed::kQuiescence);
+}
+
+std::optional<OwnedCapturedEvent> StimulusObservation::wait(
+    std::string_view name, ObservationCursor from, const ObservationPredicate &predicate,
+    std::chrono::milliseconds bound, BoundElapsed on_bound) {
     requirePump(name);
     const auto started = clock_();
     const auto deadline = started + bound;
@@ -168,6 +180,14 @@ std::optional<OwnedCapturedEvent> StimulusObservation::awaitObservation(
         }
         const auto now = clock_();
         if (now >= deadline) {
+            if (on_bound == BoundElapsed::kQuiescence) {
+                // The capture was drained to the deadline and held no match: the
+                // DUT stayed silent, which is what the caller asked to learn.
+                std::printf("stimulus : '%.*s' quiescent for %lld ms\n",
+                            static_cast<int>(name.size()), name.data(),
+                            msBetween(started, now));
+                return std::nullopt;
+            }
             return not_seen("bound elapsed");
         }
         pump_->waitForInput(std::min(

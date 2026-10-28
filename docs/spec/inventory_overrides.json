@@ -788,7 +788,10 @@
       "vsomeip_env": [
         "TC8_DUT_CLIENT_MODE=1"
       ],
-      "vsomeip_variant_ref": "dut/env/vsomeip_variants.md"
+      "vsomeip_variant_ref": "dut/env/vsomeip_variants.md",
+      "platform_known_fail": true,
+      "platform_known_fail_ref": "docs/tech-debt.md TD-67",
+      "platform_known_fail_verdict": "inconclusive:dut_reconnect_may_be_its_own_retry_not_an_answer_to_the_offer"
     },
     "SOMEIP_ETS_084": {
       "vsomeip_env": [

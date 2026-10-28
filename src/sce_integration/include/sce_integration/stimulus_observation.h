@@ -117,6 +117,20 @@ public:
         std::chrono::milliseconds bound) {
         return awaitObservation(name, mark(), predicate, bound);
     }
+
+    // Wait as `awaitObservation` does, for a frame whose ABSENCE within `bound` is
+    // itself what the stimulus needs to learn: that the DUT stayed quiescent. So the
+    // bound elapsing returns nullopt and records nothing. A capture that ended or
+    // failed is still recorded as an unperformed stimulus named `name`, because then
+    // the absence was not observed, only not seen.
+    //
+    // Use it only where the case acts on the silence itself, such as establishing
+    // that the DUT is quiet before a stimulus whose effect is the frame it would
+    // otherwise send unprompted. A wait whose miss means the stimulus cannot go on is
+    // `awaitObservation`.
+    virtual std::optional<OwnedCapturedEvent> observeWithin(
+        std::string_view name, ObservationCursor from, const ObservationPredicate &predicate,
+        std::chrono::milliseconds bound) = 0;
 };
 
 // --- Reacting to an observation once the listen window is open ---------------
@@ -212,8 +226,20 @@ public:
     std::optional<OwnedCapturedEvent> awaitObservation(
         std::string_view name, ObservationCursor from, const ObservationPredicate &predicate,
         std::chrono::milliseconds bound) override;
+    std::optional<OwnedCapturedEvent> observeWithin(
+        std::string_view name, ObservationCursor from, const ObservationPredicate &predicate,
+        std::chrono::milliseconds bound) override;
 
 private:
+    // What a wait's bound elapsing means: the stimulus could not go on, or the DUT
+    // was observed quiet.
+    enum class BoundElapsed { kUnperformed, kQuiescence };
+
+    std::optional<OwnedCapturedEvent> wait(std::string_view name, ObservationCursor from,
+                                           const ObservationPredicate &predicate,
+                                           std::chrono::milliseconds bound,
+                                           BoundElapsed on_bound);
+
     // Scan held frames in [position, end) for the first one `predicate` accepts;
     // advances `position` to the end either way.
     const ::tc8::CapturedEvent *scan(std::size_t &position,

@@ -556,6 +556,17 @@ tree does not have.
     the case called (`reportTxFailed`, `stimulus/tx_observer.h`). Outcomes that are
     observations, such as a receive that timed out, are not recorded.
 
+  - **An answer the DUT also sends unprompted is attributed, not assumed.** Where
+    the emission graded as the answer to a stimulus is one the DUT may also send on
+    its own schedule (`SOMEIP_ETS_097`: a reconnect SYN, also sent by a retry
+    timer), the stimulus first observes the DUT unprompted and fixes an instant
+    before which no unprompted emission is due (`IStimulusObserver::observeWithin`,
+    a wait whose elapsed bound is an observation). Only an emission before that
+    instant passes; one after it is `property_unobserved`. The hypothesis the
+    instant rests on (a quiet window predicts a quiet window, or an observed
+    period holds) is stated in the case beside S, H1, H2 and H3
+    (`docs/tech-debt.md` TD-66).
+
   The 24 that remain each have a recorded reason in `docs/tech-debt.md` TD-65: the
   silence is in a preamble only, the bound is DUT-specific with no specification
   ceiling, the check is a UT state query rather than a wire silence, or a shared

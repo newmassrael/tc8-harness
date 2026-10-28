@@ -26,3 +26,4 @@ TD-33   the Linux kernel kills an overlapped fragment queue whole and reports no
 TD-46   arming is control-plane traffic, and answering it is the resolution under test
 TD-56   the runner is installed on this box; relocating it is the owner's, not an agent's
 TD-57   the mechanism is guarded and cheap; its consumer withdrew, its shape did not
+TD-67   vsomeip's TCP client hardcodes unlimited 100 ms retries; the vendored stack is not ours
