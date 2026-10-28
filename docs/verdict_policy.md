@@ -83,8 +83,8 @@ Environmental shortfalls never red the gate.
 
 > **Status (Phase Q, Section 8).** Q1–Q3 are in the tree: the
 > `observed_quiescence` role, its reach and bound rules, and the run-time gate on
-> S, H1, H2 and H3. Q4 (migrating the `liveness` guards) is in progress: 106 off
-> the ledger, 16 on it.
+> S, H1, H2 and H3. Q4 (migrating the `liveness` guards) is complete: the
+> ledger is empty.
 
 **Quiescence is an observation.** In the input/output conformance theory the
 suite is grounded in (ioco, Tretmans), the absence of any output — quiescence,
@@ -311,6 +311,18 @@ has not yet been migrated (Section 8, Phase Q): its absence still lands on an
 `inconclusive` final, so it has no `fail` and is not faultable until it moves. The
 audit accepts it only from the migration ledger, which may only shrink.
 
+**`optional_emission`** is the guard of a case whose behaviour a conformant DUT may
+omit: a MAY, or a duty the normative sources disagree on. In ioco terms quiescence
+is among the specified outputs after the stimulus, so no test can fail on it; the
+case passes when the behaviour is shown and is `inconclusive`
+(`property_unobserved`) when it is not. The guard names no `fail` final, cites the
+requirement id that makes the behaviour optional (`basis`), and names the
+inconclusive final its case lands on without it (`absence_reason`). It is
+permanent, unlike `liveness`, and not faultable. A choice between permitted
+responses is not this class: where the requirement is "one of (a) or (b)", silence
+answers neither and is a `required_emission` fail, and the permitted branch the
+case does not exercise is `inconclusive` (`IPv4_AUTOCONF_CONFLICT_10`).
+
 `malformed_rejection` is the named case of `prohibited_emission` where the
 forbidden frame is an OK echo of malformed input; the ISO 9646 stimulus class
 (valid / invalid / inopportune) is descriptive context carried in each entry's
@@ -355,7 +367,8 @@ is also structurally validated: every `fail` final is covered by a guard; a
 non-`liveness` guard names a real `fail` final; a `required_emission` guard's final
 carries the `observed_quiescence` role and declares its H3 bound; a transitional
 `liveness` guard names none, the case has none, and the case is on the migration
-ledger.
+ledger; an `optional_emission` guard names none, cites a requirement id, and names
+a `property_unobserved` final of its case.
 
 Honesty boundary: the registry records *structural* non-vacuity and the
 behavioural property each guard protects. **Empirical** validation of
@@ -573,10 +586,16 @@ tree does not have.
   window into a handshake preamble and the ACK-of-FIN body and migrated, and
   `TCP_CALL_RECEIVE_04`, `TCP_URGENT_PTR_04` and `UDP_FIELDS_05` now fail an
   answer that carries the wrong value (`incorrect_emission`, `observed_violation`)
-  while no answer stays inconclusive. The 16 that remain each have a recorded
-  reason in `docs/tech-debt.md` TD-65: the bound is DUT-specific with no
-  specification ceiling, a shared template final would need a per-case
-  parameter, or the emission is not mandated.
+  while no answer stays inconclusive. `TCP_PROBING_WINDOWS_04` and `_05` grade
+  what RFC 1122 does bound: an abort while probes are acknowledged, and a probe
+  sooner than the DUT's own retransmission timeout.
+
+  The last 14 closed the ledger (`docs/tech-debt.md` TD-65). The link-local
+  cases gave each waiting state its own window. The DHCP template takes its
+  window as a parameter. The two "without crashing" MSS cases grade survival
+  with an ICMP Echo probe. And `SOMEIP_ETS_130`, whose normative sources
+  disagree on whether the DUT answers, became the first `optional_emission`
+  guard (Section 6).
 
 ---
 

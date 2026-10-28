@@ -4370,9 +4370,9 @@ residual of ETS_097 was logged as TD-66, since resolved.
 
 ## TD-65 — 24 liveness guards need a modelling decision before they can migrate
 
-**Status:** OPEN. **Logged:** 2026-10-28, from the Phase Q4 sweep. The other 24 cases on
-`tools/liveness_migration_pending.txt`; 16 remain after the four SD cases below were found
-misclassified and migrated, and the four "state query" and "two things" cases were redesigned.
+**Status:** RESOLVED (2026-10-28). **Logged:** 2026-10-28, from the Phase Q4 sweep. The other 24
+cases on `tools/liveness_migration_pending.txt`. The entry below is the debt as logged, with the
+groups struck through as they closed; **Resolution** at its end records how the last 14 closed.
 
 **What it is.** Each guard's registry property says the DUT must emit something, but the case as
 written cannot grade that emission's absence as a fail. The reasons fall into five groups:
@@ -4427,6 +4427,43 @@ reclassification.
 
 **Done when:** `tools/liveness_migration_pending.txt` lists none of these 24 names and the registry
 has no `liveness` guard for any of them.
+
+**Resolution.** The ledger is empty and the registry has no `liveness` guard. Two of the readings
+above were wrong. The link-local cases do not grade a MAY. And `TCP_MSS_OPTIONS_05` was never about
+the ACK: its requirement is that the DUT survives, which needs evidence of its own.
+
+- **Link-local, ten cases.** Each state that waits for a mandated emission now arms its own window
+  timer, named for that state, so no earlier state's timer can close it. The window is
+  `ParamListenTime` plus `<ParamToleranceTime>`, and silence over it fails (`observed_quiescence`):
+  `_SELECTION_09` the second or third of three probes, `_SELECTION_11` to `_13` the repick after a
+  conflicting ARP, `_ANNOUNCING_05` the second announcement, `_CONFLICT_06` to `_09` the re-probe.
+  `_CONFLICT_10` left the defender template for a machine of its own. RFC 3927 section 2.5 lets a
+  host answer a conflict either by reconfiguring or by defending once, so a probe for a new address
+  passes, a defending announcement is `property_unobserved` (the case grades reconfiguration), and
+  neither one fails. The committed-address query the windows depend on records an unperformed stimulus
+  when it gets no address.
+- **DHCP, two cases.** The template takes the state 4 window as a parameter, used both as the delay
+  and as the bound: the time until the DUT is back in INIT, then RFC 2131 section 4.4.1's random wait
+  of up to 10 s, then `<ToleranceTime>`. That is 11 s for `DHCPv4_CLIENT_ALLOCATING_09` and 14 s for
+  `DHCPv4_CLIENT_REACQUISITION_08`.
+- **`SOMEIP_ETS_130`.** TC8 asks for an answer to the multicast FindService, and PRS_SOMEIPSD_00843
+  (R22-11) asks the DUT to ignore it. A silent DUT therefore conforms to one of the two sources, and no
+  fail is sound. The guard moved to a new registry class, `optional_emission`. It names no fail, its
+  basis must cite a requirement id, and silence must land on an inconclusive final with the role
+  `property_unobserved`. `negative_coverage_audit.py` checks all three (`docs/verdict_policy.md`
+  Section 6).
+- **`TCP_MSS_OPTIONS_05`, and `TCP_MSS_OPTIONS_01` with it.** Both require handling an illegal MSS
+  length without crashing. The evidence is now an ICMP Echo Request after each malformed segment
+  (`dut_liveness.h`), which a running host must answer (RFC 1122 section 3.2.2.6). It does not
+  depend on the DUT-control channel, which a crashed DUT could not answer either. A probe unanswered
+  for `ParamListenTime` fails that iteration (`observed_quiescence`), and the stimulus stops there,
+  so later DUT-control calls cannot turn the crash into an unperformed stimulus. Both cases capture
+  TCP and ICMP (`BpfGroup::TcpAndIcmpv4`).
+
+Verified on single-pc (the 15 cases pass, the negative set 78/78) and on lwIP (`TCP_MSS_OPTIONS_01`
+and `_05` pass). The liveness fail is not yet driven on the wire. The lwIP fixture's Echo identifier
+fault (`kIcmpFaultEchoIdWrong`) can drive it, since a reply with the wrong identifier is no answer
+to the probe.
 
 ## TD-66 — SOMEIP_ETS_097 can pass without the first connect having been refused
 

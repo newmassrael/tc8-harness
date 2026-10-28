@@ -307,6 +307,20 @@ def fail_reason_roles(case: str) -> dict[str, str]:
     }
 
 
+def inconclusive_reason_roles(case: str) -> dict[str, str]:
+    """inconclusive reason -> declared role, for a case's .scxml (template-resolved).
+    An `optional_emission` guard names the final its case lands on when the optional
+    behaviour is not shown, and this is where that name is checked."""
+    scxml = TESTS_DIR / case / f"{case}.scxml"
+    if not scxml.is_file():
+        return {}
+    return {
+        reason: role
+        for cls, reason, role in extract_donedata(scxml).values()
+        if cls == "inconclusive" and reason
+    }
+
+
 def final_classes(case: str) -> set[str]:
     """The set of verdict classes the case's .scxml finals carry (pass / fail /
     inconclusive / error). Unlike reason_classes this counts reason-less finals
@@ -450,6 +464,38 @@ def fault_by_dut(m: Model) -> dict[str, int]:
     return out
 
 
+# The clause an `optional_emission` guard rests on must name a standard's own
+# requirement id, so the reason a silence cannot fail is checkable against the text
+# that grants it, not a paraphrase of it.
+_OPTIONAL_BASIS_RE = re.compile(r"\bRFC \d+\b|\bPRS_[A-Z]+_\d+\b|\bSWS_[A-Z]+_\d+\b")
+
+
+def optional_emission_findings(case_id: str, guard: dict) -> list[str]:
+    """An `optional_emission` guard (docs/verdict_policy.md Section 6) is a case whose
+    behaviour a conformant DUT may omit, so its absence lands on an inconclusive
+    final and no fail final stands for it. The guard names no fail final, cites the
+    clause that makes the behaviour optional (`basis`), and names the inconclusive
+    final the case lands on without it (`absence_reason`), which must say the
+    property went unobserved."""
+    findings: list[str] = []
+    if guard.get("fail_reason"):
+        findings.append(f"REGISTRY_INVALID: {case_id} optional_emission guard names a fail_reason; "
+                        "an optional behaviour's absence is not a fail")
+    basis = guard.get("basis", "")
+    if not _OPTIONAL_BASIS_RE.search(basis):
+        findings.append(f"REGISTRY_INVALID: {case_id} optional_emission guard's basis '{basis}' "
+                        "cites no requirement id (RFC n, PRS_x_n, SWS_x_n)")
+    absence = guard.get("absence_reason", "")
+    role = inconclusive_reason_roles(case_id.lower()).get(absence)
+    if role is None:
+        findings.append(f"REGISTRY_INVALID: {case_id} optional_emission absence_reason '{absence}' "
+                        "is not an inconclusive final")
+    elif role != "property_unobserved":
+        findings.append(f"REGISTRY_INVALID: {case_id} optional_emission absence_reason '{absence}' "
+                        f"has role '{role}'; the behaviour not shown is property_unobserved")
+    return findings
+
+
 def validate_registry(cases: dict[str, dict], classes: dict[str, str],
                       partial_ok: set[str] = frozenset()) -> list[str]:
     """Structural validation of each registry entry (docs/verdict_policy.md Section
@@ -484,6 +530,9 @@ def validate_registry(cases: dict[str, dict], classes: dict[str, str],
                     findings.append(f"REGISTRY_INVALID: {case_id} liveness guard names a fail_reason")
                 elif case_fail_reasons:
                     findings.append(f"REGISTRY_INVALID: {case_id} is liveness but the case has fail finals")
+                continue
+            if cls == "optional_emission":
+                findings.extend(optional_emission_findings(case_id, g))
                 continue
             reason = g.get("fail_reason")
             if not reason:
@@ -620,7 +669,7 @@ def check_class_structure(cases: dict[str, dict]) -> list[str]:
         for g in entry.get("guards", []):
             cls = g.get("class")
             reason = g.get("fail_reason")
-            if cls == "liveness" or not reason:
+            if cls in _NO_FAIL_CLASSES or not reason:
                 continue
             want = derived.get(reason)
             if want and cls not in want:
@@ -1075,15 +1124,20 @@ def cross_findings(m: Model) -> list[str]:
     return findings
 
 
-def is_liveness_only(entry: dict) -> bool:
-    """A registry case whose every guard is `liveness` has no reachable `fail` final
-    (docs/verdict_policy.md Section 6: absence is `inconclusive`, Section 2 clause 4),
-    so it is structurally NOT empirically faultable and can never be promoted to
-    FAULT_INJECTION. It stays terminal in REGISTRY by policy — excluded from the
-    Phase F faultable target, exactly as the kernel-stack guards are. The registry
-    `class` is the SSOT for faultability."""
+# Guard classes that name no fail final: `liveness` (transitional, Phase Q4) and
+# `optional_emission` (the behaviour may be omitted, so its absence cannot fail).
+_NO_FAIL_CLASSES = frozenset({"liveness", "optional_emission"})
+
+
+def is_unfaultable(entry: dict) -> bool:
+    """A registry case whose every guard names no fail final (`_NO_FAIL_CLASSES`)
+    has no reachable `fail` (docs/verdict_policy.md Section 6: absence is
+    `inconclusive`, Section 2 clause 4), so it is structurally NOT empirically
+    faultable and can never be promoted to FAULT_INJECTION. It stays terminal in
+    REGISTRY by policy — excluded from the Phase F faultable target, exactly as the
+    kernel-stack guards are. The registry `class` is the SSOT for faultability."""
     guards = entry.get("guards", [])
-    return bool(guards) and all(g.get("class") == "liveness" for g in guards)
+    return bool(guards) and all(g.get("class") in _NO_FAIL_CLASSES for g in guards)
 
 
 def phase_f_report(m: Model) -> int:
@@ -1100,7 +1154,7 @@ def phase_f_report(m: Model) -> int:
     fw_fault, fw_live, kn_fault, kn_live = [], [], [], []
     for case_id, entry in m.registry.items():
         c = case_id.lower()
-        live = is_liveness_only(entry)
+        live = is_unfaultable(entry)
         bucket = (fw_live if live else fw_fault) if case_family(c) in fw_fams \
             else (kn_live if live else kn_fault)
         bucket.append(c)
@@ -1276,13 +1330,34 @@ def _self_test() -> int:
     checks.append(("a per-final deferral outside SOUND_ROW is rejected",
                    any(x.startswith(f"DEFERRED_INVALID: {fi_key}") for x in f)))
 
-    live = next(c for c, e in sorted(base.registry.items()) if is_liveness_only(e))
+    live = next(c for c, e in sorted(base.registry.items()) if is_unfaultable(e))
 
     def undispose(m: Model) -> None:
         m.registry.pop(live)
         m.disposition[live.lower()] = "UNDISPOSED"
     u, _ = variant(undispose)
     checks.append(("an undisposed case with no fail final is a bare unit", live.lower() in u))
+
+    # An optional_emission guard stands for no fail final, so each of its own fields
+    # is the only thing keeping it honest; each malformed one must be refused.
+    optional = next((c for c, e in sorted(base.registry.items())
+                     if any(g.get("class") == "optional_emission" for g in e.get("guards", []))), None)
+    if optional is None:
+        checks.append(("an optional_emission guard exists to test on", False))
+    else:
+        good = next(g for g in base.registry[optional]["guards"] if g.get("class") == "optional_emission")
+        for label, bad in (
+            ("an optional_emission guard naming a fail_reason is refused",
+             {**good, "fail_reason": "x"}),
+            ("an optional_emission guard citing no requirement id is refused",
+             {**good, "basis": "the specification says so"}),
+            ("an optional_emission guard naming no inconclusive final is refused",
+             {**good, "absence_reason": "no_such_final"}),
+        ):
+            found = validate_registry({optional: {"guards": [bad]}}, base.reg_classes)
+            checks.append((label, any(x.startswith(f"REGISTRY_INVALID: {optional}") for x in found)))
+        found = validate_registry({optional: base.registry[optional]}, base.reg_classes)
+        checks.append(("the live optional_emission guard is accepted", not found))
 
     failures = [label for label, ok in checks if not ok]
     for label in failures:

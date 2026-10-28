@@ -8,4 +8,3 @@
 # final, and its line leaves this file. negative_coverage_audit.py --check refuses
 # a liveness guard not listed here and a listed case that is no longer liveness,
 # so this file only shrinks.
-SOMEIP_ETS_130
