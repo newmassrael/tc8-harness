@@ -27,5 +27,6 @@
        sce:transition-table="emit"
        datamodel="null"
        initial="listening_for_discover">
-  <sce:use template="../_templates/dhcpv4_post_bound_discover.sce-template.xml"/>
+  <sce:use template="../_templates/dhcpv4_post_bound_discover.sce-template.xml"
+           second_discover_window="11s"/>
 </scxml>

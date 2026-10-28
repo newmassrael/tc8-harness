@@ -1,15 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   TC8 §4.5.6.4 IPv4_AUTOCONF_CONFLICT_10: receiving a conflicting
-  ARP packet (RFC 3927 §2.5 MAY-immediate-cease). Tester injects a
-  single ARP Reply with sender_ip == target_ip == DUT's committed
-  LL; the test exercises the immediate-cease branch (RFC 3927 §2.5
-  method 1). Pass criterion: fresh DUT Probe whose target ≠
-  original LL lands within the post_claim deadline.
+  ARP packet (RFC 3927 §2.5). Tester injects a single ARP Reply with
+  sender_ip == target_ip == DUT's committed LL. RFC 3927 §2.5 obliges
+  the host to answer a conflict one of two ways: (a) configure a new
+  address at once, which is the MAY branch this case exercises, or
+  (b) defend by broadcasting one ARP Announcement of its address.
+
+  Verdicts:
+    * a Probe for a different address → pass (branch (a));
+    * an Announcement of the committed address → inconclusive: the
+      DUT took branch (b), also conformant, so (a) is not exercised;
+    * neither within ParamListenTime → fail: the DUT answered the
+      conflict in neither of the two ways the RFC requires.
+
+  The conflict waits for the DUT's second Announcement (ANNOUNCE_NUM = 2,
+  RFC 3927 §2.4) so the announcing phase is over before it lands: an
+  Announcement seen afterwards is then a defence, not the tail of the
+  claim.
 
   Trait wiring (see ipv4_autoconf_conflict_10.h):
     scheduleDefenderCeaseConflicts(opcode1=Reply, opcode2=0)
-    on listening_post_claim entry — single-shot, no second emit.
+    on listening_post_conflict entry — single-shot.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -19,5 +31,75 @@
        sce:transition-table="emit"
        datamodel="null"
        initial="listening_pre_claim">
-  <sce:use template="../_templates/ipv4_linklocal_defender_cease.sce-template.xml"/>
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="listening_pre_claim">
+    <onentry>
+      <send event="claim_deadline" delay="6s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_announce()"
+                target="listening_second_announce"/>
+    <transition event="claim_deadline" target="inconclusive_no_claim"/>
+  </state>
+
+  <state id="listening_second_announce">
+    <onentry>
+      <send event="second_announce_deadline" delay="4s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_announce()"
+                target="listening_post_conflict"/>
+    <transition event="second_announce_deadline" target="inconclusive_no_second_announce"/>
+  </state>
+
+  <state id="listening_post_conflict">
+    <onentry>
+      <send event="response_window_elapsed" delay="11s"/>
+    </onentry>
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_probe() and captured.expected_responder_sender_ip_be != 0 and captured.target_proto_ip != captured.expected_responder_sender_ip_be"
+                target="pass"/>
+    <transition event="arp_observed"
+                cond="cpp:captured.is_arp_announce() and captured.expected_responder_sender_ip_be != 0 and captured.sender_proto_ip == captured.expected_responder_sender_ip_be"
+                target="inconclusive_dut_defended"/>
+    <transition event="response_window_elapsed" target="fail_no_response_to_conflict"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_claim">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"dut_did_not_announce_committed_link_local_address","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_second_announce">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"dut_did_not_send_second_announcement","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_dut_defended">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"dut_defended_instead_of_reconfiguring","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_no_response_to_conflict">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_neither_reconfigured_nor_defended_after_conflict","role":"observed_quiescence","bound":"ParamListenTime"}</content>
+    </donedata>
+  </final>
 </scxml>

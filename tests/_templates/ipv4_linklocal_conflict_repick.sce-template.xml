@@ -10,10 +10,11 @@
       └ deadline → inconclusive_no_initial_probe (no probe at all: precondition_unmet)
 
     await_repick (entered at probe1; trait observer fires conflict
-                  ARP injection on entry)
+                  ARP injection on entry; its own 11 s window)
       └ DUT-emitted Probe with target_proto_ip ≠ first probe's
         → pass
-      └ deadline → inconclusive_no_repick (probed but no repick seen: property_unobserved)
+      └ window → fail_no_repick (no re-pick within ParamListenTime of
+        the conflict: observed_quiescence)
 
   The trait's dispatch helper snapshots the first probe's
   target_proto_ip into `captured.first_probe_target_proto_ip` on
@@ -46,11 +47,14 @@
   </state>
 
   <state id="await_repick">
+    <onentry>
+      <send event="repick_window_elapsed" delay="11s"/>
+    </onentry>
     <transition event="arp_observed"
                 cond="cpp:captured.is_arp_probe()
                       and captured.target_proto_ip != captured.first_probe_target_proto_ip"
                 target="pass"/>
-    <transition event="deadline_exceeded" target="inconclusive_no_repick"/>
+    <transition event="repick_window_elapsed" target="fail_no_repick"/>
   </state>
 
   <final id="pass">
@@ -65,9 +69,9 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_no_repick">
+  <final id="fail_no_repick">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"dut_did_not_repick_after_conflict_arp","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"dut_did_not_repick_after_conflict_arp","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </sce:template>

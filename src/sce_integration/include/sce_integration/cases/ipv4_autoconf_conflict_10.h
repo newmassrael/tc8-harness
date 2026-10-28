@@ -37,7 +37,7 @@ struct TestCaseTraits<cases::Ipv4AutoconfConflict10SM>
         ::tc8::sce::linklocal::emitStartLLAutoconfFast(ctx.dut);
         ::tc8::sce::linklocal::scheduleDefenderCeaseConflicts(
             ctx.scheduler,
-            static_cast<int>(State::Listening_post_claim),
+            static_cast<int>(State::Listening_post_conflict),
             ctx.iface, cfg, ctx.dut, c,
             /*opcode1=*/0x0002,  // ARP Reply
             /*opcode2=*/0);      // single-shot — disable second emit

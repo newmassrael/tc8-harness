@@ -14,8 +14,9 @@
     listening_for_renewing_request (ACK injected on entry, s3_deadline 8 s)
       on dhcp_observed: is_request + chaddr_match → listening_for_second_discover
     listening_for_second_discover (per-trait stimulus on entry,
-                                    s4_deadline 10 s)
+                                    window second_discover_window)
       on dhcp_observed: is_discover + chaddr_match → pass
+      on the window: fail_no_second_discover (observed_quiescence)
       on dhcp_observed: is_request  + chaddr_match → stays (intervening
                                                      REBINDING REQUEST
                                                      in the REACQ_08
@@ -40,7 +41,10 @@
     * REACQ_08: state 4 entry → +2 s (T2 fires, REBINDING REQUEST) →
                  +1 s (lease_end) → INIT restart + DISCOVER #2 emit ≈
                  3 s after state 4 entry; total ≈ state 3 entry + 6 s.
-  s4_deadline 10 s leaves 4 s margin for worker scheduling jitter.
+  The state 4 window is the allowance RFC 2131 gives, not a margin over
+  the reference DUT: ALLOC_09 11 s (back in INIT on the NAK, then up to
+  10 s, plus ToleranceTime), REACQ_08 14 s (lease end 3 s after the
+  RENEWING REQUEST, then the same 10 s and ToleranceTime).
 
   Per-state deadline event names (s1/s2/s3/s4) match the precedent set
   by `dhcpv4_renewing_request_field` and `dhcpv4_rebinding_request_field`
@@ -51,6 +55,12 @@
               xmlns="http://www.w3.org/2005/07/scxml"
               xmlns:cpp="urn:sce:cpp"
               name="dhcpv4_post_bound_discover">
+
+  <!-- How long the DUT is allowed, from state 4's entry, to send its second
+       DHCPDISCOVER: the time until it is back in INIT, plus RFC 2131 4.4.1's
+       random wait of up to 10 s before the DISCOVER, plus ToleranceTime. It
+       is both the window and the bound its silence is judged against. -->
+  <sce:param name="second_discover_window" required="true"/>
 
   <sce:context id="captured"
                cpp:type="tc8::Dhcpv4Captured"
@@ -92,12 +102,12 @@
 
   <state id="listening_for_second_discover">
     <onentry>
-      <send event="s4_deadline" delay="10s"/>
+      <send event="s4_window_elapsed" delay="{$second_discover_window}"/>
     </onentry>
     <transition event="dhcp_observed"
                 cond="cpp:captured.is_dhcp_discover() and captured.chaddr_matches_dut_mac(expected.dut_iface_mac)"
                 target="pass"/>
-    <transition event="s4_deadline" target="inconclusive_no_second_discover"/>
+    <transition event="s4_window_elapsed" target="fail_no_second_discover"/>
   </state>
 
   <final id="pass">
@@ -124,9 +134,9 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_no_second_discover">
+  <final id="fail_no_second_discover">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_dut_second_discover_after_init_return","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"no_dut_second_discover_after_init_return","role":"observed_quiescence","bound":"{$second_discover_window}"}</content>
     </donedata>
   </final>
 </sce:template>

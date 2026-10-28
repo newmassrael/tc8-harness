@@ -478,11 +478,17 @@ inline void dispatchArpFrameWithRepeatedConflictEmit(
 // could not answer at all, and because it bypassed `IDutControl` it bypassed
 // the capability gate too, so such a backend produced a TIMEOUT where an honest
 // capability skip was owed.
+// Both callers build their stimulus on the answer, so no address (no seam, no
+// answer, or none committed) means the stimulus is not sent, and is recorded as
+// such: the DUT's silence afterwards is not an answer to a conflict it never got.
 inline std::uint32_t queryCommittedLLAddress(::tc8::sce::IDutControl& dut) {
     auto* ll = dut.linkLocalControl();
-    if (ll == nullptr) return 0;
     std::uint32_t addr_be = 0;
-    if (ll->queryCommittedAddress(addr_be) != ::tc8::net::OpStatus::Ok) return 0;
+    if (ll == nullptr || ll->queryCommittedAddress(addr_be) != ::tc8::net::OpStatus::Ok ||
+        addr_be == 0) {
+        ::tc8::UnperformedStimulus::record("committed_link_local_query");
+        return 0;
+    }
     return addr_be;
 }
 

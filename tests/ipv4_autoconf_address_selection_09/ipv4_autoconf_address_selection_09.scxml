@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.5.6.2 IPv4_AUTOCONF_ADDRESS_SELECTION_09: DUT emits exactly
+  TC8 §4.5.6.2 IPv4_AUTOCONF_ADDRESS_SELECTION_09: DUT emits
   PROBE_NUM = 3 ARP Probes during the link-local probing phase
-  (RFC 3927 §2.2.1).
+  (RFC 3927 §2.2.1). The first Probe is the preamble; each later one
+  has its own ParamListenTime window, and its absence fails.
 
   Case shape:
     1-4. DUT brings up iface and sends DHCPDISCOVER.
@@ -49,17 +50,23 @@
   </state>
 
   <state id="seen_1">
+    <onentry>
+      <send event="second_probe_window_elapsed" delay="11s"/>
+    </onentry>
     <transition event="arp_observed"
                 cond="cpp:captured.is_arp_probe()"
                 target="seen_2"/>
-    <transition event="deadline_exceeded" target="inconclusive_too_few_probes"/>
+    <transition event="second_probe_window_elapsed" target="fail_one_probe_only"/>
   </state>
 
   <state id="seen_2">
+    <onentry>
+      <send event="third_probe_window_elapsed" delay="11s"/>
+    </onentry>
     <transition event="arp_observed"
                 cond="cpp:captured.is_arp_probe()"
                 target="pass"/>
-    <transition event="deadline_exceeded" target="inconclusive_too_few_probes"/>
+    <transition event="third_probe_window_elapsed" target="fail_two_probes_only"/>
   </state>
 
   <final id="pass">
@@ -74,9 +81,17 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_too_few_probes">
+  <!-- Each probe after the first is due within PROBE_MAX of the one before; a
+       window of ParamListenTime without it is the DUT's silence. -->
+  <final id="fail_one_probe_only">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"fewer_than_3_arp_probes_within_deadline","role":"property_unobserved"}</content>
+      <content>{"verdict":"fail","reason":"dut_sent_one_arp_probe_of_three","role":"observed_quiescence","bound":"ParamListenTime"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_two_probes_only">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_sent_two_arp_probes_of_three","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 </scxml>

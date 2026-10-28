@@ -1213,80 +1213,95 @@
     "IPv4_AUTOCONF_ADDRESS_SELECTION_09": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit 3 ARP Probes during the link-local probing phase (RFC 3927 §2.2.1 PROBE_NUM); binary present/absent"
+          "class": "required_emission",
+          "fail_reason": "dut_sent_one_arp_probe_of_three",
+          "property": "DUT must emit its second ARP Probe of PROBE_NUM (RFC 3927 §2.2.1) within ParamListenTime of the first; binary present/absent"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "dut_sent_two_arp_probes_of_three",
+          "property": "DUT must emit its third ARP Probe of PROBE_NUM (RFC 3927 §2.2.1) within ParamListenTime of the second; binary present/absent"
         }
       ]
     },
     "IPv4_AUTOCONF_ADDRESS_SELECTION_11": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must select a new link-local address and emit a fresh ARP Probe after a probing-window conflict ARP Request (RFC 3927 §2.2.1); binary present/absent"
+          "class": "required_emission",
+          "fail_reason": "dut_did_not_repick_after_conflict_arp",
+          "property": "DUT must select a new link-local address and emit a fresh ARP Probe after a probing-window conflict ARP Request (RFC 3927 §2.2.1) within ParamListenTime; binary present/absent"
         }
       ]
     },
     "IPv4_AUTOCONF_ADDRESS_SELECTION_12": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must select a new link-local address and emit a fresh ARP Probe after a probing-window conflict ARP Reply (RFC 3927 §2.2.1); binary present/absent"
+          "class": "required_emission",
+          "fail_reason": "dut_did_not_repick_after_conflict_arp",
+          "property": "DUT must select a new link-local address and emit a fresh ARP Probe after a probing-window conflict ARP Reply (RFC 3927 §2.2.1) within ParamListenTime; binary present/absent"
         }
       ]
     },
     "IPv4_AUTOCONF_ADDRESS_SELECTION_13": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must select a new link-local address and emit a fresh ARP Probe after a probing-window conflict ARP Probe (RFC 3927 §2.2.1 clause b); binary present/absent"
+          "class": "required_emission",
+          "fail_reason": "dut_did_not_repick_after_conflict_arp",
+          "property": "DUT must select a new link-local address and emit a fresh ARP Probe after a probing-window conflict ARP Probe (RFC 3927 §2.2.1 clause b) within ParamListenTime; binary present/absent"
         }
       ]
     },
     "IPv4_AUTOCONF_ANNOUNCING_05": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit 2 ARP Announcements after the Probe phase (RFC 3927 §2.4 ANNOUNCE_NUM); binary present/absent"
+          "class": "required_emission",
+          "fail_reason": "dut_sent_one_arp_announcement_of_two",
+          "property": "DUT must emit its second ARP Announcement of ANNOUNCE_NUM (RFC 3927 §2.4) within ParamListenTime of the first; binary present/absent"
         }
       ]
     },
     "IPv4_AUTOCONF_CONFLICT_06": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must cease the committed link-local address and emit a fresh ARP Probe after two conflicting ARP Requests (RFC 3927 §2.5 cease); binary present/absent"
+          "class": "required_emission",
+          "fail_reason": "dut_did_not_reprobe_after_conflicting_arp",
+          "property": "DUT must cease the committed link-local address and emit a fresh ARP Probe after two conflicting ARP Requests (RFC 3927 §2.5 cease) within ParamListenTime; binary present/absent"
         }
       ]
     },
     "IPv4_AUTOCONF_CONFLICT_07": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must cease the committed link-local address and emit a fresh ARP Probe after two conflicting ARP Replies (RFC 3927 §2.5 cease); binary present/absent"
+          "class": "required_emission",
+          "fail_reason": "dut_did_not_reprobe_after_conflicting_arp",
+          "property": "DUT must cease the committed link-local address and emit a fresh ARP Probe after two conflicting ARP Replies (RFC 3927 §2.5 cease) within ParamListenTime; binary present/absent"
         }
       ]
     },
     "IPv4_AUTOCONF_CONFLICT_08": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must cease the committed link-local address and emit a fresh ARP Probe after conflicting Request+Reply frames (RFC 3927 §2.5 cease); binary present/absent"
+          "class": "required_emission",
+          "fail_reason": "dut_did_not_reprobe_after_conflicting_arp",
+          "property": "DUT must cease the committed link-local address and emit a fresh ARP Probe after conflicting Request+Reply frames (RFC 3927 §2.5 cease) within ParamListenTime; binary present/absent"
         }
       ]
     },
     "IPv4_AUTOCONF_CONFLICT_09": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must cease the committed link-local address and emit a fresh ARP Probe after conflicting Reply+Request frames (RFC 3927 §2.5 cease); binary present/absent"
+          "class": "required_emission",
+          "fail_reason": "dut_did_not_reprobe_after_conflicting_arp",
+          "property": "DUT must cease the committed link-local address and emit a fresh ARP Probe after conflicting Reply+Request frames (RFC 3927 §2.5 cease) within ParamListenTime; binary present/absent"
         }
       ]
     },
     "IPv4_AUTOCONF_CONFLICT_10": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must cease the committed link-local address and emit a fresh ARP Probe after a single conflicting ARP Reply (RFC 3927 §2.5 immediate cease); binary present/absent"
+          "class": "required_emission",
+          "fail_reason": "dut_neither_reconfigured_nor_defended_after_conflict",
+          "property": "DUT must answer a single conflicting ARP Reply within ParamListenTime by configuring a new address or by defending with one Announcement (RFC 3927 §2.5 (a) or (b)); a defence is inconclusive here, silence fails"
         }
       ]
     },
@@ -1330,8 +1345,9 @@
     "DHCPv4_CLIENT_ALLOCATING_09": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must restart the configuration process on receiving a DHCPNAK (RFC 2131 §3.1); binary present/absent"
+          "class": "required_emission",
+          "fail_reason": "no_dut_second_discover_after_init_return",
+          "property": "DUT must restart the configuration process on receiving a DHCPNAK (RFC 2131 §3.1): a DHCPDISCOVER within 11 s (the §4.4.1 random wait of up to 10 s plus ToleranceTime); binary present/absent"
         }
       ]
     },
@@ -1398,8 +1414,9 @@
     "DHCPv4_CLIENT_REACQUISITION_08": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must move to INIT and restart network initialization if the lease expires before a DHCPACK (RFC 2131 §4.4.5); binary present/absent"
+          "class": "required_emission",
+          "fail_reason": "no_dut_second_discover_after_init_return",
+          "property": "DUT must move to INIT and restart network initialization if the lease expires before a DHCPACK (RFC 2131 §4.4.5): a DHCPDISCOVER within 14 s of its RENEWING REQUEST (lease end 3 s later, then the §4.4.1 wait of up to 10 s, plus ToleranceTime); binary present/absent"
         }
       ]
     },
