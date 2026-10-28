@@ -201,7 +201,7 @@ TEST_F(UnperformedStimulusTest, ADutControlActionTheDutDidNotPerformIsRecorded) 
 }
 
 TEST_F(UnperformedStimulusTest, ARefusalTheCaseGradesIsTheDutsAnswer) {
-    // TCP_CALL_CLOSE / _ABORT on a closed connection: the refusal is the verdict's
+    // RFC 793 3.9 CLOSE / ABORT on a closed connection: the refusal is the verdict's
     // input, so it must not turn the run inconclusive.
     ::tc8::sce::RecordingDutControl dut(std::make_unique<FailingOpenDutControl>());
     const ::tc8::sce::DutCallIntentScope graded(::tc8::sce::DutCallIntent::kGraded);

@@ -528,9 +528,9 @@ TEST_F(TestabilityServerTest, UdpReceiveAndForwardEmitsDatagramSourceEvent) {
 
 // ── Tier 2 seam: ITcpControl / IUdpControl over the real testability server ──
 
-// RFC 793 3.9 CLOSE on CLOSED, the shape the consumer's TCP_CALL_CLOSE case drives:
-// a socket created and bound but never connected closes (E_OK), and a second CLOSE
-// is refused because the connection does not exist.
+// RFC 793 3.9 CLOSE on CLOSED: a socket created and bound but never connected
+// closes (E_OK), and a second CLOSE is refused because the connection does not
+// exist.
 TEST_F(TestabilityServerTest, TcpControlSeamCreateThenCloseTwice) {
     sce::TestabilityControl ctrl(loopbackConfig());
     EXPECT_EQ(ctrl.capabilities() & sce::kCapTcpCreateClosed, sce::kCapTcpCreateClosed);
