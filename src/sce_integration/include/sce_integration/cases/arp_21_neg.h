@@ -6,6 +6,7 @@
 #include "tc8/upper_tester_protocol.h"
 
 #include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_fault_flavor_arm.h"
 #include "sce_integration/cases/_arp_traits_base.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/arp_builder.h"
