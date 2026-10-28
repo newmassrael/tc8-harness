@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <string>
@@ -53,6 +54,53 @@ private:
     }
 };
 
+// TCP_PROBING_WINDOWS_06: does the interval between zero-window probes keep growing?
+// RFC 1122 asks for an exponentially growing interval BETWEEN successive probes and
+// names no base, so the case compares one inter-probe interval with the one before it
+// instead of with a number tuned to one stack's timer. Three probes give two such
+// intervals, probe 1 to probe 2 and probe 2 to probe 3; the wait before probe 1 is not
+// one of them (and is not measurable from the wire alone: the persist timer starts
+// when data is queued behind the closed window, which the tester does not see).
+// Pcap-domain microseconds (`observed_ts_us`):
+//   - fired_ts_us: the capture times of the frames that advanced the machine, in
+//     order: the first data segment, probe 1, probe 2. Recorded as each transition
+//     fires, so the guard on probe 3 finds the earlier probes' times here.
+// The second interval has to exceed the first by a factor of 7/4: a doubling schedule
+// clears it with room, a linear one has fallen to 3/2 by then and does not, and a
+// constant one never does.
+struct TcpProbingWindows06Captured : TcpCaptured {
+    std::array<std::int64_t, 3> fired_ts_us{};
+    std::uint8_t fired_count = 0;
+
+    // Hides CapturedFrameTiming::snapshotFired, which the shared dispatch calls
+    // through this type, to record the fired frame's time before the base advances.
+    void snapshotFired() noexcept {
+        if (fired_count < fired_ts_us.size()) {
+            fired_ts_us[fired_count++] = observed_ts_us;
+        }
+        TcpCaptured::snapshotFired();
+    }
+
+    // Probe 3 is being dispatched: the data segment, probe 1 and probe 2 have fired.
+    bool probe_interval_grew() const noexcept {
+        return measured() && grew(observed_ts_us - fired_ts_us[2],
+                                  fired_ts_us[2] - fired_ts_us[1]);
+    }
+    bool probe_interval_did_not_grow() const noexcept {
+        return measured() && !grew(observed_ts_us - fired_ts_us[2],
+                                   fired_ts_us[2] - fired_ts_us[1]);
+    }
+
+private:
+    bool measured() const noexcept {
+        return fired_count >= 3 && fired_ts_us[2] > fired_ts_us[1];
+    }
+    // `next` exceeds `previous` by more than 7/4, compared in integers.
+    static constexpr bool grew(std::int64_t next, std::int64_t previous) noexcept {
+        return next * 4 > previous * 7;
+    }
+};
+
 // TCP_MSS_OPTIONS_01 / _05, the DUT liveness probe (dut_liveness.h):
 //   - liveness_dut_ip: the DUT identity address (`TestConfig::dut.ip`, network
 //     order) the probe went to, written by the stimulus, so the dispatch can tell
@@ -69,6 +117,14 @@ inline void appendCapturedJson(std::string &out, const TcpLivenessCaptured &c) {
     out.append("{");
     appendTcpCapturedMembersJson(out, c);
     ::tc8::sce::appendUintJson(out, ",\"liveness_echo_seq\":", c.liveness_echo_seq);
+    out.append("}");
+}
+
+inline void appendCapturedJson(std::string &out, const TcpProbingWindows06Captured &c) {
+    out.append("{");
+    appendTcpCapturedMembersJson(out, c);
+    ::tc8::sce::appendI64Json(out, ",\"probe1_ts_us\":", c.fired_ts_us[1]);
+    ::tc8::sce::appendI64Json(out, ",\"probe2_ts_us\":", c.fired_ts_us[2]);
     out.append("}");
 }
 

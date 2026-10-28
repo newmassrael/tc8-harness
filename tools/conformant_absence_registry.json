@@ -2786,13 +2786,8 @@
       "guards": [
         {
           "class": "incorrect_emission",
-          "fail_reason": "probe2_delta_not_greater_than_initial_probe_rto",
-          "property": "DUT's second zero-window probe must back off (delta > initial probe RTO); fail iff it does not"
-        },
-        {
-          "class": "incorrect_emission",
-          "fail_reason": "probe3_delta_not_greater_than_probe2_lower_bound",
-          "property": "DUT's third zero-window probe must back off beyond probe 2; fail iff it does not"
+          "fail_reason": "probe_interval_not_longer_than_the_previous_interval",
+          "property": "The interval between the DUT's second and third zero-window probes must exceed the interval between its first and second by a factor of 7/4 (RFC 1122 asks for an exponentially growing interval); fail iff it does not"
         }
       ]
     },

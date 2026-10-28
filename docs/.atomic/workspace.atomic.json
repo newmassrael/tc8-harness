@@ -4586,10 +4586,6 @@
           "kind": "implements"
         },
         {
-          "file": "tests/tcp_probing_windows_06/tcp_probing_windows_06.scxml",
-          "kind": "implements"
-        },
-        {
           "file": "tests/tcp_retransmission_to_03/tcp_retransmission_to_03.scxml",
           "kind": "implements"
         },

@@ -5,6 +5,7 @@
 #include <gtest/gtest.h>
 
 #include "sce_integration/tcp_captured.h"
+#include "sce_integration/tcp_case_captured.h"
 #include "tc8/protocol_frames/tcp_frame.h"
 
 // Coverage for TcpCaptured::is_zero_window_probe — the §4.8.6.12
@@ -213,6 +214,76 @@ TEST(TcpPayloadBytesEq, EmptyExpectationMatchesAnyCapture) {
     TcpCaptured c{};
     fillTcpCapturedFromFrame(c, f);
     EXPECT_TRUE(c.payload_bytes_eq({}));
+}
+
+// TCP_PROBING_WINDOWS_06: the interval between probes 2 and 3 has to exceed the interval
+// between probes 1 and 2 by a factor of 7/4. The helpers play the shared dispatch: a frame
+// lands (observed_ts_us), and the machine fires on it (snapshotFired).
+constexpr std::int64_t kMs = 1000;  // pcap microseconds per millisecond
+
+void fireAt(TcpProbingWindows06Captured &c, std::int64_t ts_us) {
+    c.observed_ts_us = ts_us;
+    c.snapshotFired();
+}
+
+// The data segment fires at 0 and probe 1 at 300 ms; probe 2 follows after `first_ms` and
+// probe 3, which is the one being dispatched, after `second_ms` more.
+struct ProbeRun {
+    TcpProbingWindows06Captured c{};
+    ProbeRun(std::int64_t first_ms, std::int64_t second_ms) {
+        fireAt(c, 0);
+        fireAt(c, 300 * kMs);
+        fireAt(c, 300 * kMs + first_ms * kMs);
+        c.observed_ts_us = 300 * kMs + first_ms * kMs + second_ms * kMs;
+    }
+};
+
+TEST(ProbingWindows06Backoff, LinuxDoublingPasses) {  // measured: about 441 ms, then double
+    ProbeRun r(441, 882);
+    EXPECT_TRUE(r.c.probe_interval_grew());
+    EXPECT_FALSE(r.c.probe_interval_did_not_grow());
+}
+
+TEST(ProbingWindows06Backoff, LwipDoublingPasses) {  // about 3.0 s, then 6.0 s
+    ProbeRun r(3000, 6000);
+    EXPECT_TRUE(r.c.probe_interval_grew());
+}
+
+// The absolute gates this replaced (more than 300 ms, then more than 600 ms) failed this.
+TEST(ProbingWindows06Backoff, ConformantDoublingFromASmallBasePasses) {
+    ProbeRun r(100, 200);
+    EXPECT_TRUE(r.c.probe_interval_grew());
+}
+
+// ...and passed this: both intervals clear both absolute bounds, yet nothing grows.
+TEST(ProbingWindows06Backoff, ConstantIntervalFails) {
+    ProbeRun r(1200, 1200);
+    EXPECT_FALSE(r.c.probe_interval_grew());
+    EXPECT_TRUE(r.c.probe_interval_did_not_grow());
+}
+
+TEST(ProbingWindows06Backoff, LinearGrowthFails) {  // waits of 1 s, 2 s, 3 s: 3 s over 2 s is 3/2
+    ProbeRun r(2000, 3000);
+    EXPECT_FALSE(r.c.probe_interval_grew());
+    EXPECT_TRUE(r.c.probe_interval_did_not_grow());
+}
+
+// A growth just under the factor does not pass, and one just over does.
+TEST(ProbingWindows06Backoff, FactorBoundary) {
+    ProbeRun under(400, 699);
+    EXPECT_FALSE(under.c.probe_interval_grew());
+    ProbeRun over(400, 701);
+    EXPECT_TRUE(over.c.probe_interval_grew());
+}
+
+// Nothing is graded until probes 1 and 2 have fired.
+TEST(ProbingWindows06Backoff, UnmeasuredGradesNeither) {
+    TcpProbingWindows06Captured c{};
+    fireAt(c, 0);
+    fireAt(c, 500 * kMs);
+    c.observed_ts_us = 900 * kMs;
+    EXPECT_FALSE(c.probe_interval_grew());
+    EXPECT_FALSE(c.probe_interval_did_not_grow());
 }
 
 }  // namespace
