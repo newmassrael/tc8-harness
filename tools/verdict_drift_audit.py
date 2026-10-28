@@ -372,9 +372,12 @@ def quiescence_findings(done: dict[str, Verdict], reached: dict[str, set[str]],
 # --------------------------------------------------------------------------
 
 
-def audit_case(name: str) -> CaseReport:
+def audit_case(name: str, scxml_path: Path | None = None) -> CaseReport:
+    """Audit one case's machine: the in-tree `tests/<name>/<name>.scxml` unless
+    `scxml_path` names another (a consumer's case root, `--case-dir`)."""
     rep = CaseReport(name=name)
-    scxml_path = TESTS_DIR / name / f"{name}.scxml"
+    if scxml_path is None:
+        scxml_path = TESTS_DIR / name / f"{name}.scxml"
     if not scxml_path.is_file():
         rep.findings.append("NO_SCXML")
         return rep
@@ -432,6 +435,20 @@ def all_case_names() -> list[str]:
             continue
         names.append(h.stem)
     return names
+
+
+def cases_in_root(root: Path) -> list[tuple[str, Path]]:
+    """The cases a consumer case root holds, shaped as `TC8_EXTRA_CASE_DIRS` and
+    `TC8_CASE_OVERRIDE_DIRS` require (README): one `<case_id>/` subdirectory per
+    case, its machine at `<case_id>/<case_id>.scxml`. A subdirectory holding only an
+    `.alias` pointer runs an in-tree machine, which the in-tree audit covers, so it
+    is skipped; any other subdirectory without its machine is reported NO_SCXML."""
+    out = []
+    for sub in sorted(p for p in root.iterdir() if p.is_dir()):
+        if (sub / f"{sub.name}.alias").is_file():
+            continue
+        out.append((sub.name, sub / f"{sub.name}.scxml"))
+    return out
 
 
 def _self_test_final(fid: str, bound: str | None = "5s", role: str = "observed_quiescence",
@@ -516,11 +533,24 @@ def main() -> int:
     ap.add_argument("cases", nargs="*", help="case names to audit (default: all)")
     ap.add_argument("--summary", action="store_true", help="print only per-finding-type counts")
     ap.add_argument("--self-test", action="store_true", help="run the trigger-classification self-test")
+    ap.add_argument(
+        "--case-dir", action="append", default=[], type=Path, metavar="DIR",
+        help="audit the cases of a consumer case root (a TC8_EXTRA_CASE_DIRS or "
+             "TC8_CASE_OVERRIDE_DIRS entry) instead of the in-tree ones; repeatable",
+    )
     args = ap.parse_args()
     if args.self_test:
         return _self_test()
 
-    reports = [audit_case(n) for n in (args.cases or all_case_names())]
+    if args.case_dir:
+        if args.cases:
+            ap.error("name cases or give --case-dir, not both")
+        missing = [str(d) for d in args.case_dir if not d.is_dir()]
+        if missing:
+            ap.error(f"--case-dir is not a directory: {', '.join(missing)}")
+        reports = [audit_case(n, p) for d in args.case_dir for n, p in cases_in_root(d)]
+    else:
+        reports = [audit_case(n) for n in (args.cases or all_case_names())]
 
     counts: dict[str, int] = {}
     for rep in reports:

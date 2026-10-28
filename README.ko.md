@@ -785,6 +785,13 @@ FetchContent, git 서브모듈, 벤더링 스냅샷 모두 가능합니다. 두 
   경로(`src/`, `include/`)를 보므로 trait 베이스, stimulus 빌더,
   `TC8_REGISTER_CASE()` 레지스트라를 그대로 재사용할 수 있습니다.
 
+in-tree 케이스가 통과하는 donedata 감사(verdict 클래스와 role,
+`observed_quiescence`의 도달·bound 규칙, 창마다 다른 이벤트 이름)는
+out-of-tree 루트에도 그대로 돌릴 수 있습니다. `python3
+tools/verdict_drift_audit.py --case-dir <dir>`이 그 아래의 모든
+`<case_id>/<case_id>.scxml`을 감사합니다. 루트마다 플래그를 반복하고,
+`.alias`만 있는 케이스는 in-tree 기계를 실행하므로 건너뜁니다.
+
 out-of-tree 케이스가 닫힌 `BpfGroup` enum 밖의 캡처 필터가 필요하면
 (예: OEM 프로토콜이 비표준 포트), traits 헤더에 optional `static
 constexpr std::string_view kBpfExpression`을 선언하세요 — `kBpfGroup`

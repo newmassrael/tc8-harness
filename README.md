@@ -1057,6 +1057,12 @@ Traits header resolution for every collected case tries
   cases (`src/`, `include/`), so it can reuse the trait bases, stimulus
   builders, and `TC8_REGISTER_CASE()` registrar.
 
+The donedata audit the in-tree cases pass (verdict classes and roles, the
+`observed_quiescence` reach and bound rules, one event name per window) runs
+on an out-of-tree root too: `python3 tools/verdict_drift_audit.py --case-dir
+<dir>` audits every `<case_id>/<case_id>.scxml` under it (repeat the flag per
+root; an `.alias`-only case runs an in-tree machine and is skipped).
+
 If an out-of-tree case needs a capture filter outside the closed
 `BpfGroup` enum (e.g. an OEM protocol on a non-standard port), declare an
 optional `static constexpr std::string_view kBpfExpression` in its traits
