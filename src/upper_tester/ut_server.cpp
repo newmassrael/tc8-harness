@@ -4,6 +4,8 @@
 #include <cstring>
 #include <utility>
 
+#include "tc8/dut_listen_backlog.h"
+
 namespace tc8::ut {
 
 namespace {
@@ -648,18 +650,11 @@ std::optional<std::uint8_t> UpperTesterServer::openTcpPassive(std::uint16_t loca
         backend_->closeFd(fd);
         return std::nullopt;
     }
-    // §4.8.6.1 BASICS need only ONE connection per listener, but a backlog is a
-    // ceiling rather than a requirement and some cases deliberately offer several
-    // at once: TCP_CONNECTION_ESTAB_01 sends three SYNs from three source ports to
-    // a single listener and expects a SYN+ACK for each.
-    //
-    // MEASURED: backlog 1 passed on the Linux DUT, whose accept queue is lenient
-    // about the value, and silently lost legs 2 and 3 on the lwIP fixture, which
-    // enforces it exactly (tcp_listen_with_backlog). The case then reported
-    // `no_dut_synack_for_leg2` — a DUT-shaped reason for a listener the harness
-    // itself had under-provisioned. 8 covers the widest simultaneous offer in the
-    // suite (3) with headroom; no case asserts a backlog refusal.
-    if (!backend_->listen(fd, 8)) {
+    // §4.8.6.1 BASICS need only ONE connection per listener, but other cases offer
+    // several at once, so the backlog is the harness-wide one
+    // (tc8/dut_listen_backlog.h, which records why it is not 1): the Testability
+    // adapter passes the same value.
+    if (!backend_->listen(fd, ::tc8::kDutPassiveListenBacklog)) {
         backend_->closeFd(fd);
         return std::nullopt;
     }

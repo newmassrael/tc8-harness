@@ -5,6 +5,7 @@
 #include <optional>
 #include <vector>
 
+#include "tc8/dut_listen_backlog.h"
 #include "tc8/testability_client.h"
 #include "tc8/testability_protocol.h"
 
@@ -338,8 +339,8 @@ public:
             return std::nullopt;
         }
         const auto ev = testability::testabilityTcpListenAndAccept(
-            cfg_, *listen_id, /*max_con=*/1, trigger, timeout_ms_, /*event_timeout_ms=*/2000,
-            src_ip_be_);
+            cfg_, *listen_id, static_cast<std::uint16_t>(::tc8::kDutPassiveListenBacklog), trigger,
+            timeout_ms_, /*event_timeout_ms=*/2000, src_ip_be_);
         // The listen socket has done its job; the accepted connection lives on.
         testability::testabilityCloseSocket(cfg_, testability::kGidTcp, *listen_id, timeout_ms_,
                                          src_ip_be_);
@@ -358,14 +359,18 @@ public:
             return std::nullopt;
         }
         // LISTEN_AND_ACCEPT, listen-only: the synchronous E_OK leaves the DUT in
-        // LISTEN; the async accept Event is intentionally not awaited. max_con=1
-        // for parity with acceptTcp and the opcode listen(fd, 1). The server's
+        // LISTEN; the async accept Event is intentionally not awaited. The backlog
+        // is the harness-wide one the opcode listen passes too
+        // (tc8/dut_listen_backlog.h): a case that offers several connections at
+        // once, such as TCP_CONNECTION_ESTAB_01's three SYNs, loses all but the
+        // first on a stack that enforces the backlog exactly. The server's
         // accept thread also drains the accept queue, so a listen-only case whose
         // injected stimulus completes a handshake (e.g. FLAGS_PROCESSING_05's
         // SYN+ACK third-leg) does not back the queue up and block later SYNs; the
         // thread's lifetime is bounded by the socket (server stopWorker on close).
-        if (!testability::testabilityTcpListen(cfg_, *listen_id, /*max_con=*/1, timeout_ms_,
-                                            src_ip_be_)
+        if (!testability::testabilityTcpListen(
+                 cfg_, *listen_id, static_cast<std::uint16_t>(::tc8::kDutPassiveListenBacklog),
+                 timeout_ms_, src_ip_be_)
                  .eok()) {
             return std::nullopt;
         }
