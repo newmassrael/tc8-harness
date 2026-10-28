@@ -49,6 +49,21 @@ inline ObservationPredicate dutSynAckTo(std::uint32_t dut_ip_be, std::uint16_t t
     };
 }
 
+// The DUT's data segment from its local port `dut_port` carrying `len` bytes at
+// sequence number `seq`, captured after `after_ts_us` (pcap microseconds; 0 for
+// any). The same predicate with the first copy's arrival as `after_ts_us`
+// matches its retransmission.
+inline ObservationPredicate dutDataSegmentAt(std::uint32_t dut_ip_be, std::uint16_t dut_port,
+                                             std::uint32_t seq, std::uint32_t len,
+                                             std::int64_t after_ts_us = 0) {
+    return [dut_ip_be, dut_port, seq, len, after_ts_us](const ::tc8::CapturedEvent &ev) {
+        const auto *t = std::get_if<::tc8::TcpFrame>(&ev);
+        return t != nullptr && dut_ip_be != 0U && t->src_ip == dut_ip_be &&
+               t->src_port == dut_port && t->seq_num == seq && t->payload_len == len &&
+               (t->flags & 0x07U) == 0U && t->observed_ts_us > after_ts_us;
+    };
+}
+
 // The TCP segment of an event a TCP predicate matched. Such an event is always a
 // TcpFrame, so this cannot fail for one returned by the waits above.
 inline const ::tc8::TcpFrame &segmentOf(const ::tc8::CapturedEvent &ev) {

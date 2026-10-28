@@ -24,8 +24,12 @@
        full-window kernel ACK to seg1 would race ahead of the
        harness's window=0 ACK and the DUT would never enter persist
        mode).
-    5. A data SEND of N B — DUT emits seg1.
-    6. Settle ~150 ms; the tester sends an ACK at seg1_seq+N with
+    5. A data SEND of N B — DUT emits seg1. The tester leaves it
+       unacknowledged until the DUT retransmits it: the gap is the
+       DUT's retransmission timeout on this connection, the bound
+       step 7 grades against (no retransmission within
+       ParamListenTime: inconclusive, the bound is unknown).
+    6. The tester sends an ACK at seg1_seq+N with
        `window=0`. The DUT advances snd_una to seg1_seq+N, sets
        snd_wnd=0, and starts the persist timer.
     7. A second data SEND of M B — the DUT enqueues M bytes;
@@ -47,9 +51,11 @@
     * listening_seg1   — observe seg1 (DUT data segment with
       payload>0).
     * listening_probe  — observe the DUT zero-window probe via
-      `is_zero_window_probe(...)`. 6 s deadline covers both Linux's
-      first-probe RTO (~200 ms..1 s) and lwIP's slower persist timer
-      (~1.2 s) with comfortable margin.
+      `is_zero_window_probe(...)`. It passes when it came at least
+      the measured timeout after the zero-window ACK, less TC8's
+      millisecond tolerance (`waited_out_rto`), and fails when it
+      came sooner. The 11 s deadline covers the longest timeout
+      the case accepts (ParamListenTime) plus ToleranceTime.
 
   Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
   is_dut_data_segment(...)'s src_ip conjunct unreachable; case lands
@@ -65,8 +71,8 @@
        initial="listening_seg1">
 
   <sce:context id="captured"
-               cpp:type="tc8::TcpCaptured"
-               cpp:include="sce_integration/tcp_captured.h"/>
+               cpp:type="tc8::TcpProbingWindows05Captured"
+               cpp:include="sce_integration/tcp_case_captured.h"/>
 
   <sce:context id="expected"
                cpp:type="tc8::Ipv4Expected"
@@ -84,13 +90,26 @@
 
   <state id="listening_probe">
     <onentry>
-      <send event="deadline_probe" delay="6s"/>
+      <send event="deadline_probe" delay="11s"/>
     </onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_zero_window_probe(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows05LocalOffset)"
+                cond="cpp:captured.is_zero_window_probe(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows05LocalOffset) and captured.waited_out_rto()"
                 target="pass"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_zero_window_probe(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows05LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows05LocalOffset) and captured.came_before_rto()"
+                target="fail_probe_before_rto"/>
     <transition event="deadline_probe" target="inconclusive_no_zero_window_probe"/>
   </state>
+
+  <!-- The first probe came sooner after the zero window began than the DUT's
+       own retransmission timeout, less the tolerance: it did not wait the
+       timeout out. A probe that never comes stays inconclusive below, because
+       nothing bounds how late it may be. -->
+  <final id="fail_probe_before_rto">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_probed_zero_window_before_retransmission_timeout","role":"observed_violation"}</content>
+    </donedata>
+  </final>
 
   <final id="pass">
     <donedata>

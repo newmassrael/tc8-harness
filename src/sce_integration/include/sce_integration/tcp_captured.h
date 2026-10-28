@@ -486,9 +486,10 @@ inline void fillTcpCapturedFromFrame(TcpCaptured &c, const TcpFrame &f) {
 
 // Trace-recording hook (Evidence Export). See arp_captured.h for the
 // design overview; this overload exposes the TCP cond-gating subset
-// (4-tuple + flags + seq/ack + MSS option + ut_established).
-inline void appendCapturedJson(std::string &out, const TcpCaptured &c) {
-    out.append("{");
+// (4-tuple + flags + seq/ack + MSS option + ut_established). The members are
+// split out so a case-private type (tcp_case_captured.h) records them beside
+// its own slots.
+inline void appendTcpCapturedMembersJson(std::string &out, const TcpCaptured &c) {
     ::tc8::sce::appendL3EndpointsJson(out, c);
     ::tc8::sce::appendL4PortsJson(out, c);
     ::tc8::sce::appendUintJson(out, ",\"seq_num\":", c.seq_num);
@@ -504,6 +505,11 @@ inline void appendCapturedJson(std::string &out, const TcpCaptured &c) {
         ::tc8::sce::appendUintJson(out, ",\"ut_established\":", c.ut_established);
     }
     ::tc8::sce::appendTimingJson(out, c);
+}
+
+inline void appendCapturedJson(std::string &out, const TcpCaptured &c) {
+    out.append("{");
+    appendTcpCapturedMembersJson(out, c);
     out.append("}");
 }
 

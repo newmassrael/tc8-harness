@@ -524,6 +524,7 @@ CLASS_STRUCTURE_EXCEPTIONS = {
     "SOMEIP_ETS_096": "prohibited: forbidden SubscribeAck; PASS requires observing a NACK, so silence reaches inconclusive (not pass)",
     "ARP_39": "prohibited: forbidden UDP before the DUT's own ARP Request; PASS requires observing that Request, so silence reaches inconclusive (not pass)",
     "ARP_40": "prohibited: forbidden UDP before the DUT's own ARP Request; PASS requires observing that Request, so silence reaches inconclusive (not pass)",
+    "TCP_PROBING_WINDOWS_04": "prohibited: forbidden RST on a zero-window connection whose probes are acknowledged; PASS requires observing three probes, so silence reaches inconclusive (not pass)",
 }
 
 

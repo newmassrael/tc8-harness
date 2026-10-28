@@ -7,11 +7,14 @@
 #include <string_view>
 #include <thread>
 #include <unistd.h>
+#include <variant>
 
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_tcp_seam.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
 #include "sce_integration/dut_control.h"
+#include "sce_integration/stimulus_observation.h"
+#include "sce_integration/tcp_observation.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
 
@@ -50,11 +53,11 @@ struct TestCaseTraits<cases::TcpProbingWindows05SM>
     static constexpr std::array<std::uint8_t, 8> kSeg2Payload = {
         'P','5','S','2','d','a','t','a'};
 
-    // Settle wait between seg1 SEND and the window=0 ACK inject so
-    // the kernel has flushed seg1 onto the wire before we ack it
-    // (and so the SCXML observes seg1 before the SM may transition
-    // to listening_probe via post-stimulus dispatch).
-    static constexpr std::chrono::milliseconds kPostSendSettle{150};
+    // How long the stimulus waits for seg1, and for the tester's own
+    // zero-window ACK to show in the capture (it is on the wire once
+    // emitted, so this only covers capture latency).
+    static constexpr std::chrono::milliseconds kSeg1Bound{5000};
+    static constexpr std::chrono::milliseconds kOwnFrameBound{1000};
 
     // Settle wait between window=0 inject and second SEND so the
     // DUT's tcp_ack_update_window has fired (snd_wnd=0, persist
@@ -69,10 +72,9 @@ struct TestCaseTraits<cases::TcpProbingWindows05SM>
     // tester kernel's auto-ACK to seg1 would race ahead of the
     // harness's window=0 ACK with full window, the DUT's snd_wnd
     // would never collapse to zero, and the probe path would not
-    // be exercised. 8 s comfortably exceeds the 5 s seg1 phase
-    // deadline plus the 6 s probe phase deadline less the typical
-    // ~200 ms..1 s probe-firing latency on local veth.
-    static constexpr std::chrono::milliseconds kAckDropHold{8000};
+    // be exercised. 12 s outlasts the 11 s probe phase deadline, which
+    // opens as the listen window does.
+    static constexpr std::chrono::milliseconds kAckDropHold{12000};
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
@@ -106,12 +108,32 @@ struct TestCaseTraits<cases::TcpProbingWindows05SM>
         auto ack_drop = std::make_shared<TesterAutoAckDrop>(cfg);
 
         // Spec step 2/3: SEND 1 → DUT seg1.
+        const std::uint32_t seg1_len = static_cast<std::uint32_t>(kSeg1Payload.size());
+        const ::tc8::sce::ObservationCursor first_send = ctx.observer.mark();
         seamSendTcp(ctx.dut, open.conn->socket, kSeg1Payload);
-        std::this_thread::sleep_for(kPostSendSettle);
+        const auto seg1 = ctx.observer.awaitObservation(
+            "dut_first_data_segment", first_send,
+            dutDataSegmentAt(cfg.dut.ip, local_port, seg1_seq, seg1_len), kSeg1Bound);
+        if (!seg1) return;
+        const std::int64_t seg1_ts = segmentOf(seg1->view()).observed_ts_us;
+
+        // Step 7 grades the probe against "the retransmission timeout", which is
+        // the DUT's own. The tester learns it the only way the wire shows it:
+        // seg1 stays unacknowledged until the DUT retransmits it, and the gap is
+        // the DUT's timeout on this connection. The DUT is granted
+        // ParamListenTime to retransmit; a timeout longer than that leaves the
+        // probe's bound unknown, so the case is inconclusive (recorded below).
+        const auto retransmission = ctx.observer.awaitObservation(
+            "dut_first_data_segment_retransmission", first_send,
+            dutDataSegmentAt(cfg.dut.ip, local_port, seg1_seq, seg1_len, seg1_ts),
+            std::chrono::milliseconds(cfg.ixit.param_listen_time_ms));
+        if (!retransmission) return;
+        c.dut_rto_us = segmentOf(retransmission->view()).observed_ts_us - seg1_ts;
 
         // Spec step 4: tester ACKs seg1 with `window=0`. snd_una
-        // advances to seg1_seq + |seg1|; snd_wnd = 0. Linux enters
-        // persist mode and arms the probe timer.
+        // advances to seg1_seq + |seg1|; snd_wnd = 0. The zero window
+        // begins when this ACK is on the wire, so its capture time is
+        // what the probe's wait is measured from.
         {
             ::tc8::stimulus::TcpSegmentSpec ack_seg{};
             ack_seg.src_port = remote_port;
@@ -120,8 +142,23 @@ struct TestCaseTraits<cases::TcpProbingWindows05SM>
             ack_seg.ack_num  = snd_una_post_ack;
             ack_seg.flags    = ::tc8::stimulus::kTcpFlagAck;
             ack_seg.window   = 0U;
+            const ::tc8::sce::ObservationCursor before_ack = ctx.observer.mark();
             emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, ack_seg,
                          /*initial_wait=*/std::chrono::milliseconds(0));
+            // Keyed on the tester's own address, its identity, not on the DUT
+            // address the frame is sent to, which negative rows flip.
+            const std::uint32_t tester_ip = cfg.tester.ip;
+            const auto zero_window_ack = ctx.observer.awaitObservation(
+                "tester_zero_window_ack", before_ack,
+                [tester_ip, local_port, remote_port, snd_una_post_ack](const ::tc8::CapturedEvent &ev) {
+                    const auto *t = std::get_if<::tc8::TcpFrame>(&ev);
+                    return t != nullptr && t->src_ip == tester_ip && t->dst_port == local_port &&
+                           t->src_port == remote_port && t->flags == ::tc8::stimulus::kTcpFlagAck &&
+                           t->window == 0U && t->ack_num == snd_una_post_ack;
+                },
+                kOwnFrameBound);
+            if (!zero_window_ack) return;
+            c.zero_window_since_ts_us = segmentOf(zero_window_ack->view()).observed_ts_us;
         }
         std::this_thread::sleep_for(kPostInjectSettle);
 

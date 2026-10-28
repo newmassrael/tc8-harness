@@ -4390,8 +4390,16 @@ written cannot grade that emission's absence as a fail. The reasons fall into fi
   0.0.0.0 and never left the tester. Each now requires a unicast Offer
   (`SomeIpCaptured::dst_is_unicast`) and fails on its absence (`observed_quiescence`); a unicast
   send to 0.0.0.0 is refused by the primitive (`sendUdpUnicast`, recorded as unperformed).
-- **No specification bound exists.** `TCP_PROBING_WINDOWS_04` and `_05` time zero-window probes
-  that follow the DUT's own retransmission timeout, and RFC 1122 section 4.2.2.17 sets no ceiling.
+- **No specification bound exists.** ~~`TCP_PROBING_WINDOWS_04` and `_05` time zero-window probes
+  that follow the DUT's own retransmission timeout, and RFC 1122 section 4.2.2.17 sets no ceiling.~~
+  Resolved 2026-10-28 by grading what the requirement does bound. `_04`'s MUST is that the
+  connection stays open while probes are acknowledged, so a DUT RST during the probe chain fails
+  (`prohibited_emission`); `_05`'s procedure checks that the first probe waited at least the
+  retransmission timeout, so the stimulus measures the DUT's own timeout from its retransmission
+  of the first segment and a probe sooner than that, less `<MillisecToleranceTime>`, fails
+  (`incorrect_emission`). A probe that never comes stays inconclusive in both: no ceiling exists.
+  Measured three runs each: Linux timeout 202-207 ms, probe after 359 ms; lwIP 667-669 ms,
+  probe after 1.50 s.
   `SOMEIP_ETS_130` grades an SD timing the case does not bound.
 - ~~**The check is a state query, not a wire silence.**~~ Resolved 2026-10-28. `UDP_FIELDS_05`,
   `TCP_URGENT_PTR_04` and `TCP_CALL_RECEIVE_04` judge a value the DUT reports. Each now fails an

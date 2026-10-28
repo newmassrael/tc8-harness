@@ -2745,16 +2745,18 @@
     "TCP_PROBING_WINDOWS_04": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit its first data segment; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "prohibited_emission",
+          "fail_reason": "dut_aborted_connection_while_probes_acknowledged",
+          "property": "DUT must not reset a zero-window connection whose probes the tester acknowledges (RFC 1122 section 4.2.2.17); fail iff it does. A missing probe is inconclusive: the interval has no specified ceiling"
         }
       ]
     },
     "TCP_PROBING_WINDOWS_05": {
       "guards": [
         {
-          "class": "liveness",
-          "property": "DUT must emit its first data segment; present/absent with no wrong-value variant, so its absence over the window is inconclusive (no reachable fail final)"
+          "class": "incorrect_emission",
+          "fail_reason": "dut_probed_zero_window_before_retransmission_timeout",
+          "property": "DUT's first zero-window probe must wait out its own retransmission timeout, measured from its retransmission of seg1, less MillisecToleranceTime (RFC 1122 section 4.2.2.17); fail iff it comes sooner. A missing probe is inconclusive: no ceiling is specified"
         }
       ]
     },

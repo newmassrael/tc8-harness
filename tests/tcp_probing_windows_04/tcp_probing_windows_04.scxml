@@ -58,6 +58,11 @@
     * listening_probe3   — 4 s deadline; probe 3 fires after the
       4× inter-probe interval (~800 ms..4 s).
 
+  Verdict: a DUT RST on the connection in any probe state fails (the
+  connection was given up). A missing probe is inconclusive: RFC 1122
+  section 4.2.2.17 makes the probe interval grow and sets no ceiling, so
+  no window can be called long enough to hold the DUT's silence against it.
+
   Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes
   is_dut_data_segment(...)'s src_ip conjunct unreachable; case lands
   on inconclusive_no_seg1 via the 5 s phase-1 deadline.
@@ -96,6 +101,9 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_zero_window_probe(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows04LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows04LocalOffset)"
                 target="listening_probe2"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows04LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows04LocalOffset)"
+                target="fail_dut_aborted_zero_window_connection"/>
     <transition event="deadline_probe1" target="inconclusive_no_probe1"/>
   </state>
 
@@ -106,6 +114,9 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_zero_window_probe(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows04LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows04LocalOffset)"
                 target="listening_probe3"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows04LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows04LocalOffset)"
+                target="fail_dut_aborted_zero_window_connection"/>
     <transition event="deadline_probe2" target="inconclusive_no_probe2"/>
   </state>
 
@@ -116,8 +127,21 @@
     <transition event="tcp_observed"
                 cond="cpp:captured.is_zero_window_probe(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows04LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows04LocalOffset)"
                 target="pass"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpProbingWindows04LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpProbingWindows04LocalOffset)"
+                target="fail_dut_aborted_zero_window_connection"/>
     <transition event="deadline_probe3" target="inconclusive_no_probe3"/>
   </state>
+
+  <!-- The DUT reset the connection while the tester kept its window shut and
+       acknowledged every probe: it gave the connection up, which the
+       requirement forbids. A probe that never comes stays inconclusive below,
+       because the probe interval grows without a specified ceiling. -->
+  <final id="fail_dut_aborted_zero_window_connection">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_aborted_connection_while_probes_acknowledged","role":"observed_violation"}</content>
+    </donedata>
+  </final>
 
   <final id="pass">
     <donedata>
