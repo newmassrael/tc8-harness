@@ -67,6 +67,10 @@ public:
     IServicePrimitiveControl *servicePrimitiveControl() override {
         return primitive_.bind(inner_->servicePrimitiveControl());
     }
+    ISocketConfigControl *socketConfigControl() override {
+        return socket_config_.bind(inner_->socketConfigControl());
+    }
+    IIcmpControl *icmpControl() override { return icmp_.bind(inner_->icmpControl()); }
 
     // A query whose answer, any answer, is the observation: nothing to record.
     ITcpStateProbe *tcpStateProbe() override { return inner_->tcpStateProbe(); }
@@ -247,6 +251,31 @@ private:
         }
     };
 
+    // Socket options are an action, accounted by the caller's intent. A TCP option's record
+    // names the option, so an inconclusive run says which option the DUT did not take; a
+    // configured datagram's record names the send, since several options may ride it.
+    struct SocketConfig final : Bound<ISocketConfigControl> {
+        DutCallOutcome configureTcp(DutSocket sock, SocketOption option,
+                                    std::uint32_t value) override {
+            const std::string operation = std::string("configure_socket_") + socketOptionName(option);
+            return accountFor(inner->configureTcp(sock, option, value), operation.c_str());
+        }
+        DutCallOutcome sendConfiguredDatagram(const Endpoint &src, const Endpoint &dest,
+                                              const std::vector<std::uint8_t> &data,
+                                              const std::vector<SocketSetting> &settings) override {
+            return accountFor(inner->sendConfiguredDatagram(src, dest, data, settings),
+                              "send_configured_datagram");
+        }
+    };
+
+    // The DUT's Echo Request is a stimulus the case relies on: the DUT must take it.
+    struct Icmp final : Bound<IIcmpControl> {
+        DutCallOutcome echoRequest(std::uint32_t dest_addr_be,
+                                   const std::vector<std::uint8_t> &data) override {
+            return accountFor(inner->echoRequest(dest_addr_be, data), "icmp_echo_request");
+        }
+    };
+
     std::unique_ptr<IDutControl> inner_;
     Tcp tcp_;
     RecvOob recv_oob_;
@@ -256,6 +285,8 @@ private:
     LinkLocal link_local_;
     Arp arp_;
     Primitive primitive_;
+    SocketConfig socket_config_;
+    Icmp icmp_;
 };
 
 }  // namespace tc8::sce

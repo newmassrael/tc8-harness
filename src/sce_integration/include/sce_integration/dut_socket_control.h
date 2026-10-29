@@ -69,6 +69,7 @@ struct DutCallOutcome {
     enum class Refusal : std::uint8_t {
         kNone,                    // not refused
         kConnectionDoesNotExist,  // the socket names no connection the DUT holds
+        kUnsupported,             // the DUT does not serve what was asked (an option it lacks)
         kOther,                   // refused for any other reason
     };
 

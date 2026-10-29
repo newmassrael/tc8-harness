@@ -511,6 +511,17 @@ TestabilityResponse testabilityShutdown(const TestabilityConfig &cfg, std::uint8
     return testabilityCall(cfg, gid, tp::kPidShutdown, dat, timeout_ms, src_ip_be);
 }
 
+TestabilityResponse testabilityConfigureSocket(const TestabilityConfig &cfg, std::uint8_t gid,
+                                               std::uint16_t socket_id, std::uint16_t param_id,
+                                               const std::vector<std::uint8_t> &value,
+                                               int timeout_ms, std::uint32_t src_ip_be) {
+    std::vector<std::uint8_t> dat;
+    tp::appendU16(dat, socket_id);  // socketId(uint16)
+    tp::appendU16(dat, param_id);   // paramId(uint16)
+    tp::appendVint8(dat, value.empty() ? nullptr : value.data(), value.size());  // paramVal
+    return testabilityCall(cfg, gid, tp::kPidConfigureSocket, dat, timeout_ms, src_ip_be);
+}
+
 TestabilityResponse testabilityTcpListen(const TestabilityConfig &cfg,
                                          std::uint16_t listen_socket_id, std::uint16_t max_con,
                                          int timeout_ms, std::uint32_t src_ip_be) {

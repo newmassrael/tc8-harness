@@ -95,6 +95,13 @@ enum DutCapability : std::uint32_t {
     // number, for a DUT that serves primitives of its own. Backend-static: the testability
     // backend frames any primitive; the opcode UT has no such call.
     kCapServicePrimitive = 1u << 16,
+    // ISocketConfigControl — set a socket option (TTL, TOS, Nagle, ...) before the traffic
+    // under test. Backend-static: the testability backend maps each to CONFIGURE_SOCKET;
+    // the opcode UT has no socket-option request.
+    kCapSocketConfigure = 1u << 17,
+    // IIcmpControl — the DUT originates an ICMPv4 Echo Request. Backend-static: testability
+    // ICMP ECHO_REQUEST; the opcode UT has no such request.
+    kCapIcmpEcho = 1u << 18,
 };
 using DutCapabilities = std::uint32_t;
 

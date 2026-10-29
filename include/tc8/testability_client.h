@@ -140,6 +140,17 @@ TestabilityResponse testabilityShutdown(const TestabilityConfig &cfg, std::uint8
                                         std::uint16_t socket_id, std::uint8_t type_id,
                                         int timeout_ms = 1000, std::uint32_t src_ip_be = 0);
 
+// CONFIGURE_SOCKET (UDP/TCP / PID 0x06, PRS_TPSP §6.10.10): set the socket option
+// `param_id` (testability::kCfg*) on the DUT socket to `value` (paramVal, vint8: its width
+// is the parameter's — one byte for most, two for the TCP MSS). `gid` selects the group;
+// the request shape — socketId(uint16) + paramId(uint16) + paramVal — is identical for
+// both. The typed seam (sce::ISocketConfigControl) is the case-facing way in.
+TestabilityResponse testabilityConfigureSocket(const TestabilityConfig &cfg, std::uint8_t gid,
+                                               std::uint16_t socket_id, std::uint16_t param_id,
+                                               const std::vector<std::uint8_t> &value,
+                                               int timeout_ms = 1000,
+                                               std::uint32_t src_ip_be = 0);
+
 // LISTEN_AND_ACCEPT (TCP / PID 0x04), listen-only: mark `listen_socket_id` (a
 // bound TCP socket) as listening with backlog `max_con` and return the
 // synchronous E_OK Response — WITHOUT awaiting the asynchronous accept Event.

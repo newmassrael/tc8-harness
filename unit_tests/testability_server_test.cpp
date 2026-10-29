@@ -546,6 +546,113 @@ TEST_F(TestabilityServerTest, ServicePrimitiveControlCallsAPrimitiveByNumber) {
     EXPECT_FALSE(unknown.succeeded());
 }
 
+// ISocketConfigControl over the real testability server. The options ride a one-shot UDP
+// send, and the tester reads what reached the wire: the TOS and TTL bytes of the datagram.
+// A server that dropped an option would read back the kernel default (TOS 0, TTL 64), so this
+// is also the negative control for "the backend ignores the option".
+TEST_F(TestabilityServerTest, SocketConfigControlOptionsReachTheConfiguredDatagram) {
+    sce::TestabilityControl ctrl(loopbackConfig());
+    EXPECT_EQ(ctrl.capabilities() & sce::kCapSocketConfigure, sce::kCapSocketConfigure);
+    sce::ISocketConfigControl *config = ctrl.socketConfigControl();
+    ASSERT_NE(config, nullptr);
+
+    const int rfd = ::socket(AF_INET, SOCK_DGRAM, 0);
+    ASSERT_GE(rfd, 0);
+    int on = 1;
+    ASSERT_EQ(::setsockopt(rfd, IPPROTO_IP, IP_RECVTOS, &on, sizeof(on)), 0);
+    ASSERT_EQ(::setsockopt(rfd, IPPROTO_IP, IP_RECVTTL, &on, sizeof(on)), 0);
+    sockaddr_in ra{};
+    ra.sin_family = AF_INET;
+    ra.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
+    ASSERT_EQ(::bind(rfd, reinterpret_cast<sockaddr *>(&ra), sizeof(ra)), 0);
+    socklen_t rl = sizeof(ra);
+    ASSERT_EQ(::getsockname(rfd, reinterpret_cast<sockaddr *>(&ra), &rl), 0);
+    timeval tv{};
+    tv.tv_sec = 2;
+    ::setsockopt(rfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    const auto outcome = config->sendConfiguredDatagram(
+        sce::Endpoint{/*addr_be=*/0, /*port=*/0xFFFF},
+        sce::Endpoint{::htonl(INADDR_LOOPBACK), ntohs(ra.sin_port)}, {'C', 'F', 'G'},
+        {{sce::SocketOption::kTos, 0x28}, {sce::SocketOption::kTtl, 9}});
+    EXPECT_TRUE(outcome.isDone());
+
+    std::uint8_t buf[16];
+    iovec iov{};
+    iov.iov_base = buf;
+    iov.iov_len = sizeof(buf);
+    std::uint8_t ctl[CMSG_SPACE(sizeof(int)) * 2];
+    msghdr msg{};
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+    msg.msg_control = ctl;
+    msg.msg_controllen = sizeof(ctl);
+    ASSERT_EQ(::recvmsg(rfd, &msg, 0), 3) << "the configured datagram did not arrive";
+    int tos = -1;
+    int ttl = -1;
+    for (cmsghdr *c = CMSG_FIRSTHDR(&msg); c != nullptr; c = CMSG_NXTHDR(&msg, c)) {
+        if (c->cmsg_level == IPPROTO_IP && c->cmsg_type == IP_TOS) {
+            std::uint8_t v = 0;
+            std::memcpy(&v, CMSG_DATA(c), sizeof(v));
+            tos = v;
+        }
+        if (c->cmsg_level == IPPROTO_IP && c->cmsg_type == IP_TTL) {
+            int v = 0;
+            std::memcpy(&v, CMSG_DATA(c), sizeof(v));
+            ttl = v;
+        }
+    }
+    EXPECT_EQ(tos, 0x28) << "kTos did not reach the datagram";
+    EXPECT_EQ(ttl, 9) << "kTtl did not reach the datagram";
+    ::close(rfd);
+}
+
+TEST_F(TestabilityServerTest, SocketConfigControlTcpOptionsAndTheAnswersACaseCanTellApart) {
+    sce::TestabilityControl ctrl(loopbackConfig());
+    sce::ISocketConfigControl *config = ctrl.socketConfigControl();
+    ASSERT_NE(config, nullptr);
+    const auto sock = ctrl.tcpControl()->createTcp(sce::BindSpec{});
+    ASSERT_TRUE(sock.has_value());
+
+    EXPECT_TRUE(config->configureTcp(*sock, sce::SocketOption::kNagle, 0).isDone());
+    EXPECT_TRUE(config->configureTcp(*sock, sce::SocketOption::kMss, 1200).isDone());
+    // A socket the DUT does not hold is the DUT's refusal, an answer and not a lost request.
+    const auto unknown = config->configureTcp(sce::DutSocket{0xBEEF}, sce::SocketOption::kTtl, 5);
+    EXPECT_EQ(unknown.kind, sce::DutCallOutcome::Kind::kRefused);
+    // A value the option cannot carry is refused before anything is sent.
+    const auto too_big = config->configureTcp(*sock, sce::SocketOption::kNagle, 2);
+    EXPECT_EQ(too_big.kind, sce::DutCallOutcome::Kind::kRefused);
+    EXPECT_EQ(too_big.refusal, sce::DutCallOutcome::Refusal::kOther);
+    EXPECT_TRUE(ctrl.tcpControl()->closeTcp(*sock).isDone());
+}
+
+// A result id the DUT answers is told apart: success, "I do not serve that" (E_NTF), any
+// other refusal, and nothing coming back.
+TEST_F(TestabilityServerTest, ATestabilityAnswerMapsToTheOutcomeACaseGrades) {
+    testability::TestabilityResponse r;
+    r.ok = true;
+    r.rid = tp::kRidEOk;
+    EXPECT_TRUE(sce::outcomeOfTestabilityResponse(r).isDone());
+    r.rid = tp::kRidENtf;
+    EXPECT_EQ(sce::outcomeOfTestabilityResponse(r).refusal, sce::DutCallOutcome::Refusal::kUnsupported);
+    r.rid = tp::kRidENok;
+    EXPECT_EQ(sce::outcomeOfTestabilityResponse(r).refusal, sce::DutCallOutcome::Refusal::kOther);
+    r.ok = false;
+    EXPECT_EQ(sce::outcomeOfTestabilityResponse(r).kind, sce::DutCallOutcome::Kind::kNoAnswer);
+}
+
+// IIcmpControl: the DUT takes the request. Whether the DUT can emit an ICMP Echo here depends
+// on the host's ping-socket policy, so the test pins only that the seam delivers an answer
+// (done, or a refusal) and never reports a request as lost.
+TEST_F(TestabilityServerTest, IcmpControlDeliversTheEchoRequestAndAnAnswerComesBack) {
+    sce::TestabilityControl ctrl(loopbackConfig());
+    EXPECT_EQ(ctrl.capabilities() & sce::kCapIcmpEcho, sce::kCapIcmpEcho);
+    sce::IIcmpControl *icmp = ctrl.icmpControl();
+    ASSERT_NE(icmp, nullptr);
+    const auto outcome = icmp->echoRequest(::htonl(INADDR_LOOPBACK), {'p', 'i', 'n', 'g'});
+    EXPECT_NE(outcome.kind, sce::DutCallOutcome::Kind::kNoAnswer);
+}
+
 // RFC 793 3.9 CLOSE on CLOSED: a socket created and bound but never connected
 // closes (E_OK), and a second CLOSE is refused because the connection does not
 // exist.

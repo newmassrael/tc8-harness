@@ -367,6 +367,85 @@ TEST_F(UnperformedStimulusTest, TheRecordNamesTheOperationNotThePrimitiveNumbers
     EXPECT_EQ(UnperformedStimulus::reason(), "stimulus_dut_control_service_primitive_not_performed");
 }
 
+// A backend whose socket options and ICMP echo answer what the test scripts.
+class ScriptedConfigDutControl final : public ::tc8::sce::IDutControl {
+public:
+    explicit ScriptedConfigDutControl(::tc8::sce::DutCallOutcome answer) : config_(answer), icmp_(answer) {}
+
+    bool probe() override { return true; }
+    bool startTest() override { return true; }
+    bool endTest() override { return true; }
+    const char *backendName() const override { return "unit-test-scripted-config"; }
+    std::uint16_t controlPort() const override { return 0; }
+    ::tc8::sce::DutCapabilities capabilities() const override {
+        return ::tc8::sce::kCapSocketConfigure | ::tc8::sce::kCapIcmpEcho;
+    }
+    ::tc8::sce::ISocketConfigControl *socketConfigControl() override { return &config_; }
+    ::tc8::sce::IIcmpControl *icmpControl() override { return &icmp_; }
+
+private:
+    struct Config final : ::tc8::sce::ISocketConfigControl {
+        explicit Config(::tc8::sce::DutCallOutcome a) : answer(a) {}
+        ::tc8::sce::DutCallOutcome configureTcp(::tc8::sce::DutSocket, ::tc8::sce::SocketOption,
+                                                std::uint32_t) override {
+            return answer;
+        }
+        ::tc8::sce::DutCallOutcome sendConfiguredDatagram(
+            const ::tc8::sce::Endpoint &, const ::tc8::sce::Endpoint &,
+            const std::vector<std::uint8_t> &,
+            const std::vector<::tc8::sce::SocketSetting> &) override {
+            return answer;
+        }
+        ::tc8::sce::DutCallOutcome answer;
+    };
+    struct Icmp final : ::tc8::sce::IIcmpControl {
+        explicit Icmp(::tc8::sce::DutCallOutcome a) : answer(a) {}
+        ::tc8::sce::DutCallOutcome echoRequest(std::uint32_t,
+                                               const std::vector<std::uint8_t> &) override {
+            return answer;
+        }
+        ::tc8::sce::DutCallOutcome answer;
+    };
+    Config config_;
+    Icmp icmp_;
+};
+
+TEST_F(UnperformedStimulusTest, AnOptionTheDutDoesNotServeIsAStimulusThatDidNotTakeAndNamesTheOption) {
+    using Outcome = ::tc8::sce::DutCallOutcome;
+    ::tc8::sce::RecordingDutControl dut(std::make_unique<ScriptedConfigDutControl>(
+        Outcome::refused(Outcome::Refusal::kUnsupported)));
+    (void)dut.socketConfigControl()->configureTcp(::tc8::sce::DutSocket{1},
+                                                  ::tc8::sce::SocketOption::kNagle, 0);
+    EXPECT_EQ(UnperformedStimulus::reason(), "stimulus_dut_control_configure_socket_nagle_not_performed");
+}
+
+TEST_F(UnperformedStimulusTest, AnOptionTheDutTookRecordsNothing) {
+    ::tc8::sce::RecordingDutControl dut(std::make_unique<ScriptedConfigDutControl>(
+        ::tc8::sce::DutCallOutcome::done()));
+    EXPECT_TRUE(dut.socketConfigControl()
+                    ->configureTcp(::tc8::sce::DutSocket{1}, ::tc8::sce::SocketOption::kTtl, 5)
+                    .isDone());
+    EXPECT_TRUE(dut.socketConfigControl()
+                    ->sendConfiguredDatagram({}, {}, {}, {{::tc8::sce::SocketOption::kTos, 8}})
+                    .isDone());
+    EXPECT_TRUE(dut.icmpControl()->echoRequest(0x0100007FU, {}).isDone());
+    EXPECT_FALSE(UnperformedStimulus::any());
+}
+
+TEST_F(UnperformedStimulusTest, ATestedRefusalOfAnOptionIsTheDutsAnswerOnlyWhenTheCaseGradesIt) {
+    using Outcome = ::tc8::sce::DutCallOutcome;
+    ::tc8::sce::RecordingDutControl dut(std::make_unique<ScriptedConfigDutControl>(
+        Outcome::refused(Outcome::Refusal::kOther)));
+    {
+        const ::tc8::sce::DutCallIntentScope graded(::tc8::sce::DutCallIntent::kGraded);
+        (void)dut.socketConfigControl()->configureTcp(::tc8::sce::DutSocket{1},
+                                                      ::tc8::sce::SocketOption::kMss, 100);
+    }
+    EXPECT_FALSE(UnperformedStimulus::any());
+    (void)dut.icmpControl()->echoRequest(0x0100007FU, {});
+    EXPECT_EQ(UnperformedStimulus::reason(), "stimulus_dut_control_icmp_echo_request_not_performed");
+}
+
 TEST_F(UnperformedStimulusTest, ABackendWithoutServicePrimitivesHasNoSuchInterface) {
     ::tc8::sce::RecordingDutControl dut(std::make_unique<FailingOpenDutControl>());
     EXPECT_EQ(dut.servicePrimitiveControl(), nullptr);

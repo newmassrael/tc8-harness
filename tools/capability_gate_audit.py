@@ -105,6 +105,8 @@ BIT_DEMANDS = {
     "kCapUdpReceiveControl": {"udpReceiveControl"},
     "kCapArpConditioning": {"arpControl"},
     "kCapServicePrimitive": {"servicePrimitiveControl"},
+    "kCapSocketConfigure": {"socketConfigControl"},
+    "kCapIcmpEcho": {"icmpControl"},
     "kCapLinkLocalControl": {"linkLocalControl"},
     "kCapDhcpClientControl": {"dhcpClientControl"},
     "kCapEgressFault": {"emitEgressFlavorArm", "emitEgressFlavorArmMidStream"},
