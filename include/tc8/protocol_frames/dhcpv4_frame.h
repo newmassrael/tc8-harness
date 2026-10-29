@@ -4,6 +4,7 @@
 #include <cstdint>
 
 #include "tc8/protocol_frames/dot1q_tag.h"
+#include "tc8/protocol_frames/ipv4_envelope.h"
 
 namespace tc8 {
 
@@ -32,7 +33,7 @@ inline constexpr bool isDhcpPortPair(std::uint16_t src_port, std::uint16_t dst_p
 // shape" (yiaddr / chaddr / options) and "the carrying-frame shape"
 // (DUT MAC source, IP source-zero invariant for DHCPDISCOVER) without
 // hopping between two captured contexts.
-struct Dhcpv4Frame {
+struct Dhcpv4Frame : Ipv4Envelope {
     // Encapsulating Ethernet header. Source = DUT MAC for DUT-emitted
     // requests; destination = ff:ff:ff:ff:ff:ff for DISCOVER/REQUEST
     // pre-binding (RFC 2131 §4.1).
@@ -43,8 +44,6 @@ struct Dhcpv4Frame {
     // (CONSTRUCTING_MESSAGES_03) and dst_ip = 255.255.255.255.
     std::uint32_t src_ip = 0;
     std::uint32_t dst_ip = 0;
-    std::uint8_t  ip_flags = 0;
-    std::uint16_t ip_fragment_offset = 0;
 
     // UDP envelope. Server bind = 67, client bind = 68.
     std::uint16_t src_port = 0;

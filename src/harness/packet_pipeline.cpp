@@ -29,6 +29,18 @@ using namespace Tins;
 
 namespace {
 
+// The carrying IPv4 header's TOS, Identification, flags and fragment offset, read once
+// per packet and copied into every L4 frame the packet yields. The one site that moves
+// these four fields, so a new L4 frame cannot carry some of them and forget the rest.
+::tc8::Ipv4Envelope ipv4EnvelopeFrom(const IP &ip) {
+    ::tc8::Ipv4Envelope env{};
+    env.ip_tos = static_cast<std::uint8_t>(ip.tos());
+    env.ip_identification = ip.id();
+    env.ip_flags = static_cast<std::uint8_t>(ip.flags());
+    env.ip_fragment_offset = ip.fragment_offset();
+    return env;
+}
+
 // Extract the IEEE 802.1Q tag from a captured Ethernet frame, if any.
 // Single decode site for the VLAN wire contract — every frame variant
 // the pipeline emits copies the result, so the tag is read exactly once
@@ -324,14 +336,13 @@ void PacketPipeline::processFrame(const pcap_pkthdr &hdr, const std::uint8_t *by
             // invoked afterwards on the same payload — listeners that only
             // care about SomeIp ignore the UdpFrame variant via std::get_if.
             ::tc8::UdpFrame uf{};
+            static_cast<::tc8::Ipv4Envelope &>(uf) = ipv4EnvelopeFrom(*ip);
             uf.src_ip = static_cast<std::uint32_t>(ip->src_addr());
             uf.dst_ip = static_cast<std::uint32_t>(ip->dst_addr());
             uf.src_port = udp->sport();
             uf.dst_port = udp->dport();
             uf.length = udp->length();
             uf.checksum = udp->checksum();
-            uf.ip_flags = static_cast<std::uint8_t>(ip->flags());
-            uf.ip_fragment_offset = ip->fragment_offset();
             const auto eth_src = eth.src_addr();
             const auto eth_dst = eth.dst_addr();
             std::copy(eth_src.begin(), eth_src.end(), uf.eth_src.begin());
@@ -359,8 +370,7 @@ void PacketPipeline::processFrame(const pcap_pkthdr &hdr, const std::uint8_t *by
                 df.eth_dst = uf.eth_dst;
                 df.src_ip = uf.src_ip;
                 df.dst_ip = uf.dst_ip;
-                df.ip_flags = uf.ip_flags;
-                df.ip_fragment_offset = uf.ip_fragment_offset;
+                static_cast<::tc8::Ipv4Envelope &>(df) = uf;  // the datagram's own IPv4 header
                 df.vlan = uf.vlan;  // L2 tag inherited from the carrying frame
                 df.src_port = uf.src_port;
                 df.dst_port = uf.dst_port;
@@ -437,6 +447,7 @@ void PacketPipeline::processFrame(const pcap_pkthdr &hdr, const std::uint8_t *by
         // or the other, not both.
         if (const TCP *tcp = eth.find_pdu<TCP>()) {
             ::tc8::TcpFrame tf{};
+            static_cast<::tc8::Ipv4Envelope &>(tf) = ipv4EnvelopeFrom(*ip);
             tf.src_ip      = static_cast<std::uint32_t>(ip->src_addr());
             tf.dst_ip      = static_cast<std::uint32_t>(ip->dst_addr());
             tf.src_port    = tcp->sport();

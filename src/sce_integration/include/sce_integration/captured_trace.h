@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "sce_integration/captured_frame_timing.h"
+#include "sce_integration/captured_ipv4_envelope.h"
 #include "sce_integration/captured_l3_endpoints.h"
 #include "sce_integration/captured_l4_ports.h"
 #include "tc8/wire/wire_format.h"  // tc8::wire::macToHex / ipv4ToDotted (neutral leaf, TD-10)
@@ -189,6 +190,17 @@ inline void appendL4PortsJson(std::string &out,
                               const tc8::CapturedL4Ports &p) {
     appendUintJson(out, ",\"src_port\":", p.src_port);
     appendUintJson(out, ",\"dst_port\":", p.dst_port);
+}
+
+// Append the carrying IPv4 header's four envelope fields as
+// ``,"ip_tos":N,"ip_identification":N,"ip_flags":N,"ip_fragment_offset":N`` (leading
+// separator, after the L3/L4 identity). Shared by every Named Context that derives from
+// CapturedIpv4Envelope (TCP / UDP).
+inline void appendIpv4EnvelopeJson(std::string &out, const tc8::CapturedIpv4Envelope &e) {
+    appendUintJson(out, ",\"ip_tos\":", e.ip_tos);
+    appendUintJson(out, ",\"ip_identification\":", e.ip_identification);
+    appendUintJson(out, ",\"ip_flags\":", e.ip_flags);
+    appendUintJson(out, ",\"ip_fragment_offset\":", e.ip_fragment_offset);
 }
 
 }  // namespace tc8::sce

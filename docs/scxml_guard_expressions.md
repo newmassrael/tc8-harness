@@ -32,7 +32,7 @@ What follows from it:
   (`this->expected_->payload_view` comes from the `ExpectedPayload` base). The
   captured mixins (`captured_l3_endpoints.h`, `captured_l4_ports.h`,
   `captured_payload_snapshot.h`, `captured_frame_timing.h`,
-  `captured_ip_fragmentation.h`) and the `*Expected : *Expectations` contexts
+  `captured_ipv4_envelope.h`) and the `*Expected : *Expectations` contexts
   are built this way for that reason. The bases are public, non-virtual and
   data-only, so the context stays a C++17 aggregate and `Expected{}` still
   value-initialises.

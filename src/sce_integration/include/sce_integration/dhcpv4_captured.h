@@ -9,7 +9,7 @@
 #include "tc8/protocol_frames/dhcpv4_frame.h"
 
 #include "sce_integration/captured_frame_timing.h"
-#include "sce_integration/captured_ip_fragmentation.h"
+#include "sce_integration/captured_ipv4_envelope.h"
 #include "sce_integration/captured_l3_endpoints.h"
 #include "sce_integration/captured_l4_ports.h"
 #include "sce_integration/captured_trace.h"
@@ -32,15 +32,16 @@ namespace tc8 {
 // covers every check uniformly — same pattern as
 // `ArpCaptured::is_arp_probe()` and `Ipv4Captured::header_checksum_valid()`.
 struct Dhcpv4Captured : CapturedFrameTiming, CapturedL3Endpoints,
-                        CapturedL4Ports, CapturedIpFragmentation {
+                        CapturedL4Ports, CapturedIpv4Envelope {
     // Encapsulating Ethernet header.
     std::array<std::uint8_t, 6> eth_src{};
     std::array<std::uint8_t, 6> eth_dst{};
 
     // IPv4 / UDP envelope is fully inherited: `src_ip` / `dst_ip`
     // (network byte order) from `CapturedL3Endpoints`, `src_port` /
-    // `dst_port` from `CapturedL4Ports`, and `ip_flags` /
-    // `ip_fragment_offset` from `CapturedIpFragmentation`.
+    // `dst_port` from `CapturedL4Ports`, and the IPv4 envelope (`ip_tos`,
+    // `ip_identification`, `ip_flags`, `ip_fragment_offset`) from
+    // `CapturedIpv4Envelope`.
 
     // BOOTP fixed body.
     std::uint8_t  op    = 0;
@@ -560,8 +561,7 @@ inline void fillDhcpv4CapturedFromFrame(Dhcpv4Captured &c, const Dhcpv4Frame &f)
     c.eth_dst = f.eth_dst;
     c.src_ip = f.src_ip;
     c.dst_ip = f.dst_ip;
-    c.ip_flags = f.ip_flags;
-    c.ip_fragment_offset = f.ip_fragment_offset;
+    copyIpv4Envelope(c, f);
     c.src_port = f.src_port;
     c.dst_port = f.dst_port;
     c.op = f.op;
@@ -601,6 +601,7 @@ inline void appendCapturedJson(std::string &out, const Dhcpv4Captured &c) {
     out.append(",");
     ::tc8::sce::appendL3EndpointsJson(out, c);
     ::tc8::sce::appendL4PortsJson(out, c);
+    ::tc8::sce::appendIpv4EnvelopeJson(out, c);
     out.append(",\"ciaddr\":");
     ::tc8::sce::appendIpv4Json(out, c.ciaddr);
     out.append(",\"yiaddr\":");

@@ -4,6 +4,7 @@
 #include <cstdint>
 
 #include "tc8/protocol_frames/dot1q_tag.h"
+#include "tc8/protocol_frames/ipv4_envelope.h"
 
 namespace tc8 {
 
@@ -15,20 +16,17 @@ namespace tc8 {
 // payload pointer is non-owning and valid only during the
 // ITestRunner::onCaptured() call.
 //
-// `ip_flags` / `ip_fragment_offset` mirror the carrying IPv4 header's
-// fragmentation fields (RFC 791 §3.1). §4.4.4.6 FRAGMENTS_05 asserts
-// MF=0 + offset=0 on a DUT-originated UDP datagram, and pushing the
-// fields down to UdpFrame lets the SCXML watch one Captured context
-// (UdpCaptured) instead of correlating across Ipv4Frame + UdpFrame.
-struct UdpFrame {
+// The carrying IPv4 header's TOS, Identification, flags and fragment offset ride in the
+// `Ipv4Envelope` base (RFC 791 §3.1). §4.4.4.6 FRAGMENTS_05 asserts MF=0 + offset=0 on a
+// DUT-originated UDP datagram, and carrying the fields on the frame lets the SCXML watch
+// one Captured context (UdpCaptured) instead of correlating across Ipv4Frame + UdpFrame.
+struct UdpFrame : Ipv4Envelope {
     std::uint32_t src_ip   = 0;
     std::uint32_t dst_ip   = 0;
     std::uint16_t src_port = 0;
     std::uint16_t dst_port = 0;
     std::uint16_t length   = 0;   // UDP header length field (RFC 768)
     std::uint16_t checksum = 0;
-    std::uint8_t  ip_flags = 0;           // 3-bit: Reserved / DF / MF
-    std::uint16_t ip_fragment_offset = 0; // 13-bit, 8-octet units
     std::array<std::uint8_t, 6> eth_src{};
     std::array<std::uint8_t, 6> eth_dst{};
     const std::uint8_t* payload_data = nullptr;

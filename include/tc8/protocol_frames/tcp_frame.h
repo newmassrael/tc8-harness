@@ -3,6 +3,7 @@
 #include <cstdint>
 
 #include "tc8/protocol_frames/dot1q_tag.h"
+#include "tc8/protocol_frames/ipv4_envelope.h"
 
 namespace tc8 {
 
@@ -12,7 +13,11 @@ namespace tc8 {
 // both the per-segment header view and the parsed MSS option are exposed.
 // Longer option parsing (SACK, Timestamp, Window Scale) is deferred to
 // per-case dispatch via `options_data`.
-struct TcpFrame {
+//
+// The carrying IPv4 header's TOS, Identification, flags and fragment offset ride in the
+// `Ipv4Envelope` base, so a case that grades a retransmission's Identification reads it
+// from the segment it grades and not from a separate Ipv4Frame.
+struct TcpFrame : Ipv4Envelope {
     std::uint32_t src_ip   = 0;
     std::uint32_t dst_ip   = 0;
     std::uint16_t src_port = 0;

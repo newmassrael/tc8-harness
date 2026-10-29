@@ -284,3 +284,83 @@ TEST(PacketPipelineStimulusMarker, NeverCutFromTrafficUnderTest) {
     EXPECT_TRUE(marks.empty());
     tc8::StimulusMarkers::reset();
 }
+
+// The carrying IPv4 header's TOS, Identification and flags reach every L4 frame the
+// packet yields, from one helper in the pipeline. A case grading a TCP retransmission's
+// Identification, a UDP datagram's TOS or a DHCP message's flags reads them on the frame
+// it grades; before this the TCP frame carried none of them.
+namespace {
+
+constexpr std::uint8_t kEnvTos = 0xB8;           // DSCP EF
+constexpr std::uint16_t kEnvIdentification = 0xBEEF;
+
+void stampEnvelope(Tins::IP &ip) {
+    ip.tos(kEnvTos);
+    ip.id(kEnvIdentification);
+    ip.flags(Tins::IP::DONT_FRAGMENT);
+}
+
+std::vector<std::uint8_t> serialisedEth(Tins::IP &ip) {
+    Tins::EthernetII eth(kDutMac, kTesterMac);
+    eth.inner_pdu(ip);
+    const auto ser = eth.serialize();
+    return std::vector<std::uint8_t>(ser.begin(), ser.end());
+}
+
+template <typename Frame>
+void expectEnvelope(const Frame &f) {
+    EXPECT_EQ(f.ip_tos, kEnvTos);
+    EXPECT_EQ(f.ip_identification, kEnvIdentification);
+    EXPECT_EQ(f.ip_flags, static_cast<std::uint8_t>(Tins::IP::DONT_FRAGMENT));
+    EXPECT_EQ(f.ip_fragment_offset, 0u);
+}
+
+}  // namespace
+
+TEST(PacketPipelineIpv4Envelope, ATcpSegmentCarriesTheIpHeadersFields) {
+    std::vector<tc8::TcpFrame> seen;
+    tc8::dissect::PacketPipeline pipe([&](const tc8::CapturedEvent &ev) {
+        if (const auto *f = std::get_if<tc8::TcpFrame>(&ev)) {
+            seen.push_back(*f);
+        }
+    });
+    Tins::TCP tcp(30501, 50001);
+    tcp.set_flag(Tins::TCP::SYN, 1);
+    Tins::IP ip(kDutIp, kTesterIp);
+    stampEnvelope(ip);
+    ip.inner_pdu(tcp);
+    feed(pipe, 1000, serialisedEth(ip));
+
+    ASSERT_EQ(seen.size(), 1u);
+    expectEnvelope(seen[0]);
+}
+
+TEST(PacketPipelineIpv4Envelope, AUdpDatagramAndTheDhcpMessageInItCarryTheSameFields) {
+    std::vector<tc8::UdpFrame> udp;
+    std::vector<tc8::Dhcpv4Frame> dhcp;
+    tc8::dissect::PacketPipeline pipe([&](const tc8::CapturedEvent &ev) {
+        if (const auto *f = std::get_if<tc8::UdpFrame>(&ev)) {
+            udp.push_back(*f);
+        }
+        if (const auto *d = std::get_if<tc8::Dhcpv4Frame>(&ev)) {
+            dhcp.push_back(*d);
+        }
+    });
+    // A BOOTP-shaped body: the 240-byte fixed header ends in the magic cookie.
+    std::vector<std::uint8_t> bootp(240, 0);
+    bootp[236] = 0x63;
+    bootp[237] = 0x82;
+    bootp[238] = 0x53;
+    bootp[239] = 0x63;
+    Tins::UDP datagram(67, 68);
+    datagram.inner_pdu(Tins::RawPDU(bootp.data(), bootp.size()));
+    Tins::IP ip(kDutIp, kTesterIp);
+    stampEnvelope(ip);
+    ip.inner_pdu(datagram);
+    feed(pipe, 1000, serialisedEth(ip));
+
+    ASSERT_EQ(udp.size(), 1u);
+    expectEnvelope(udp[0]);
+    ASSERT_EQ(dhcp.size(), 1u);
+    expectEnvelope(dhcp[0]);
+}

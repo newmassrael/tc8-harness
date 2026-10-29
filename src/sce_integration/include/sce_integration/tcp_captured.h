@@ -7,6 +7,7 @@
 #include "tc8/protocol_frames/tcp_frame.h"
 
 #include "sce_integration/captured_frame_timing.h"
+#include "sce_integration/captured_ipv4_envelope.h"
 #include "sce_integration/captured_l3_endpoints.h"
 #include "sce_integration/captured_l4_ports.h"
 #include "sce_integration/captured_payload_snapshot.h"
@@ -48,7 +49,7 @@ enum class RtoCeilingOutcome : std::uint8_t {
 // `src_port` / `dst_port` let SCXML guards filter out SOME/IP-over-TCP
 // traffic on the same interface (vsomeip port range 30490..30510).
 struct TcpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
-                     CapturedL3Endpoints, CapturedL4Ports {
+                     CapturedL3Endpoints, CapturedL4Ports, CapturedIpv4Envelope {
     std::uint32_t seq_num        = 0;
     std::uint32_t ack_num        = 0;
     std::uint8_t  data_offset    = 0;  // header length in 32-bit words
@@ -478,6 +479,7 @@ inline void fillTcpCapturedFromFrame(TcpCaptured &c, const TcpFrame &f) {
     c.checksum_valid = f.checksum_valid;
     c.mss            = f.mss;
     c.observed_ts_us = f.observed_ts_us;
+    copyIpv4Envelope(c, f);
 
     // Snapshot the leading segment payload bytes for application-layer-
     // over-TCP wire verification — shared bounded copy from the base.
@@ -492,6 +494,7 @@ inline void fillTcpCapturedFromFrame(TcpCaptured &c, const TcpFrame &f) {
 inline void appendTcpCapturedMembersJson(std::string &out, const TcpCaptured &c) {
     ::tc8::sce::appendL3EndpointsJson(out, c);
     ::tc8::sce::appendL4PortsJson(out, c);
+    ::tc8::sce::appendIpv4EnvelopeJson(out, c);
     ::tc8::sce::appendUintJson(out, ",\"seq_num\":", c.seq_num);
     ::tc8::sce::appendUintJson(out, ",\"ack_num\":", c.ack_num);
     ::tc8::sce::appendUintJson(out, ",\"flags\":", c.flags);

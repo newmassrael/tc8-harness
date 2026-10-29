@@ -11,7 +11,7 @@
 #include "tc8/upper_tester_protocol.h"
 
 #include "sce_integration/captured_frame_timing.h"
-#include "sce_integration/captured_ip_fragmentation.h"
+#include "sce_integration/captured_ipv4_envelope.h"
 #include "sce_integration/captured_l3_endpoints.h"
 #include "sce_integration/captured_l4_ports.h"
 #include "sce_integration/captured_payload_snapshot.h"
@@ -47,7 +47,7 @@ namespace tc8 {
 // from OUR UT server."
 struct UdpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
                      CapturedL3Endpoints, CapturedL4Ports,
-                     CapturedIpFragmentation {
+                     CapturedIpv4Envelope {
     std::uint16_t length             = 0;   // RFC 768 Length (header+payload)
     std::uint16_t checksum           = 0;
 
@@ -198,8 +198,7 @@ inline void fillUdpCapturedFromFrame(UdpCaptured &c, const UdpFrame &f) {
     c.dst_port           = f.dst_port;
     c.length             = f.length;
     c.checksum           = f.checksum;
-    c.ip_flags           = f.ip_flags;
-    c.ip_fragment_offset = f.ip_fragment_offset;
+    copyIpv4Envelope(c, f);
     c.eth_src            = f.eth_src;
     c.eth_dst            = f.eth_dst;
     c.observed_ts_us     = f.observed_ts_us;
@@ -266,6 +265,7 @@ inline void appendCapturedJson(std::string &out, const UdpCaptured &c) {
     out.append("{");
     ::tc8::sce::appendL3EndpointsJson(out, c);
     ::tc8::sce::appendL4PortsJson(out, c);
+    ::tc8::sce::appendIpv4EnvelopeJson(out, c);
     ::tc8::sce::appendUintJson(out, ",\"length\":", c.length);
     ::tc8::sce::appendUintJson(out, ",\"checksum\":", c.checksum);
     if (c.ut_opcode != 0 || c.ut_req_id != 0) {
