@@ -111,17 +111,20 @@ std::optional<std::vector<std::uint8_t>> utReplyPayload(const std::uint8_t *fram
 }
 
 // Wait on `tap` until `timeout_ms` for the reply correlated with `request`
-// (<opcode|0x80> <req_id>). Returns its status byte (0..255), or kNoReply.
-constexpr int kNoReply = -1;
-int awaitUtReply(int tap, const std::vector<std::uint8_t> &request, std::uint32_t dut_ip_be,
-                 std::uint32_t tester_ip_be, std::uint16_t tester_port, int timeout_ms) {
+// (<opcode|0x80> <req_id>). Returns the whole UT payload of that reply
+// (<opcode|0x80> <req_id> <status> <body...>), or nullopt when none was heard.
+std::optional<std::vector<std::uint8_t>> awaitUtReply(int tap,
+                                                      const std::vector<std::uint8_t> &request,
+                                                      std::uint32_t dut_ip_be,
+                                                      std::uint32_t tester_ip_be,
+                                                      std::uint16_t tester_port, int timeout_ms) {
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
     std::uint8_t buf[2048];
     for (;;) {
         const auto left = std::chrono::duration_cast<std::chrono::milliseconds>(
             deadline - std::chrono::steady_clock::now());
         if (left.count() <= 0) {
-            return kNoReply;
+            return std::nullopt;
         }
         pollfd pfd{tap, POLLIN, 0};
         if (::poll(&pfd, 1, static_cast<int>(left.count())) <= 0) {
@@ -138,10 +141,21 @@ int awaitUtReply(int tap, const std::vector<std::uint8_t> &request, std::uint32_
                                             tester_ip_be, tester_port);
         if (payload && payload->size() >= 3 &&
             (*payload)[0] == (request[0] | ut::kResponseBit) && (*payload)[1] == request[1]) {
-            return static_cast<int>((*payload)[2]);
+            return payload;
         }
     }
 }
+
+// The reply of one awaited request: `code` is the DUT's status byte, or a
+// negative value for a transport failure (the send's own error, -4 on bind / tap
+// failure, no correlated reply in time). `body` is what follows
+// <opcode|0x80> <req_id> <status>, empty unless the DUT answered.
+struct AwaitedExchange {
+    int code = -4;
+    std::vector<std::uint8_t> body;
+};
+
+constexpr int kAwaitedTransportFailure = -4;
 
 }  // namespace
 
@@ -692,17 +706,21 @@ int sendUpperTesterRequest(std::string_view iface,
     return sendRawEthernet(frame, iface);
 }
 
-int sendUpperTesterRequestAwaited(std::string_view iface,
-                                  std::uint32_t tester_ip_be,
-                                  std::uint32_t dut_ip_be,
-                                  const std::array<std::uint8_t, 6> &dut_mac,
-                                  std::uint16_t tester_src_port,
-                                  const std::vector<std::uint8_t> &ut_payload,
-                                  int timeout_ms,
-                                  std::string_view stimulus_name) {
-    TC8_TX_SCOPE();
+// The one awaited exchange behind both public entry points: send the raw request,
+// hear the correlated reply on the tap, and hand back its status AND its body.
+// Everything that makes an awaited request what it is (the tap, the bound socket,
+// the stimulus marker, the unperformed-stimulus record) lives here once, so the
+// status-only and the body-returning callers cannot disagree about it.
+static AwaitedExchange awaitedExchange(std::string_view iface,
+                                       std::uint32_t tester_ip_be,
+                                       std::uint32_t dut_ip_be,
+                                       const std::array<std::uint8_t, 6> &dut_mac,
+                                       std::uint16_t tester_src_port,
+                                       const std::vector<std::uint8_t> &ut_payload,
+                                       int timeout_ms,
+                                       std::string_view stimulus_name) {
     if (ut_payload.size() < 2) {
-        return -4;  // no opcode/req_id to correlate a reply against
+        return {kAwaitedTransportFailure, {}};  // no opcode/req_id to correlate a reply against
     }
     // The reply is HEARD at L2, not received on a UDP socket. A kernel socket gets
     // only frames addressed to this interface's own MAC, and the DUT addresses its
@@ -720,7 +738,7 @@ int sendUpperTesterRequestAwaited(std::string_view iface,
     // answers within ~500 us.
     const int fd = ::socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
     if (fd < 0) {
-        return -4;
+        return {kAwaitedTransportFailure, {}};
     }
     sockaddr_in src{};
     src.sin_family      = AF_INET;
@@ -730,14 +748,14 @@ int sendUpperTesterRequestAwaited(std::string_view iface,
         std::fprintf(stderr, "stimulus: UT await bind(:%u) failed: %s\n",
                      tester_src_port, std::strerror(errno));
         ::close(fd);
-        return -4;
+        return {kAwaitedTransportFailure, {}};
     }
     const int tap = openUtReplyTap(iface);
     if (tap < 0) {
         std::fprintf(stderr, "stimulus: UT await tap on '%.*s' failed: %s\n",
                      static_cast<int>(iface.size()), iface.data(), std::strerror(errno));
         ::close(fd);
-        return -4;
+        return {kAwaitedTransportFailure, {}};
     }
 
     // A named step also becomes a stimulus MARKER (tc8/stimulus_marker.h): its
@@ -763,26 +781,29 @@ int sendUpperTesterRequestAwaited(std::string_view iface,
                                             tester_src_port, ut_payload);
     // Correlate on <opcode|kResponseBit> <req_id>, the same rule dgramUtRoundTrip
     // uses. A stray datagram on this port must not be read as our acknowledgement.
-    const int heard = sent < 0 ? kNoReply
-                               : awaitUtReply(tap, ut_payload, dut_ip_be, tester_ip_be,
-                                              tester_src_port, timeout_ms);
+    std::optional<std::vector<std::uint8_t>> reply;
+    if (sent >= 0) {
+        reply = awaitUtReply(tap, ut_payload, dut_ip_be, tester_ip_be, tester_src_port,
+                             timeout_ms);
+    }
     ::close(tap);
     ::close(fd);
+    const bool applied = reply && (*reply)[2] == ut::kStatusOk;
     // A step that was not confirmed applied must never mark a boundary.
-    if (marker && heard != ut::kStatusOk) {
+    if (marker && !applied) {
         ::tc8::StimulusMarkers::withdraw(*marker);
     }
     if (sent < 0) {
-        return sent;
+        return {sent, {}};
     }
-    if (heard == kNoReply) {
+    if (!reply) {
         std::fprintf(stderr,
                      "stimulus: UT opcode 0x%02x got no correlated reply in %d ms"
                      " — the DUT may not have applied it before the next step\n",
                      ut_payload[0], timeout_ms);
-        return -4;
+        return {kAwaitedTransportFailure, {}};
     }
-    const auto status = static_cast<std::uint8_t>(heard);
+    const std::uint8_t status = (*reply)[2];
     if (status != ut::kStatusOk) {
         // The DUT answered, and its answer is "I did not do that". Name the
         // stimulus so the verdict points at the step that did not happen instead
@@ -798,7 +819,38 @@ int sendUpperTesterRequestAwaited(std::string_view iface,
                      ut_payload[0], status, name.c_str());
         ::tc8::UnperformedStimulus::record(name);
     }
-    return status;
+    return {status, std::vector<std::uint8_t>(reply->begin() + 3, reply->end())};
+}
+
+int sendUpperTesterRequestAwaited(std::string_view iface,
+                                  std::uint32_t tester_ip_be,
+                                  std::uint32_t dut_ip_be,
+                                  const std::array<std::uint8_t, 6> &dut_mac,
+                                  std::uint16_t tester_src_port,
+                                  const std::vector<std::uint8_t> &ut_payload,
+                                  int timeout_ms,
+                                  std::string_view stimulus_name) {
+    TC8_TX_SCOPE();
+    return awaitedExchange(iface, tester_ip_be, dut_ip_be, dut_mac, tester_src_port, ut_payload,
+                           timeout_ms, stimulus_name)
+        .code;
+}
+
+std::optional<UtReply> upperTesterRequestAwaited(std::string_view iface,
+                                                 std::uint32_t tester_ip_be,
+                                                 std::uint32_t dut_ip_be,
+                                                 const std::array<std::uint8_t, 6> &dut_mac,
+                                                 std::uint16_t tester_src_port,
+                                                 const std::vector<std::uint8_t> &ut_payload,
+                                                 int timeout_ms,
+                                                 std::string_view stimulus_name) {
+    TC8_TX_SCOPE();
+    auto ex = awaitedExchange(iface, tester_ip_be, dut_ip_be, dut_mac, tester_src_port,
+                              ut_payload, timeout_ms, stimulus_name);
+    if (ex.code < 0) {
+        return std::nullopt;  // transport failure: no DUT answer to hand back
+    }
+    return UtReply{static_cast<std::uint8_t>(ex.code), std::move(ex.body)};
 }
 
 int emitTriggerSendUdpBoot(std::string_view iface,

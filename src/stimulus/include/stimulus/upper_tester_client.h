@@ -652,6 +652,25 @@ int sendUpperTesterRequestAwaited(std::string_view iface,
                                   int timeout_ms = kAwaitedUtTimeoutMs,
                                   std::string_view stimulus_name = {});
 
+// As `sendUpperTesterRequestAwaited` (same transport, same marker, same
+// unperformed-stimulus record), but returns what the DUT said instead of only its
+// status byte: the status and the reply body after <opcode|0x80> <req_id>
+// <status>. For a request whose ANSWER the caller grades (GetReceivedUdp's
+// received flag and trailer), not just one whose effect it depends on.
+//
+// nullopt is a transport failure (the send failed, no tap, no correlated reply
+// in time): no DUT answer exists to hand back, the case the status-only entry
+// reports as a negative return. A non-OK status is a reply, so it is returned
+// (and recorded as the status-only entry records it).
+std::optional<UtReply> upperTesterRequestAwaited(std::string_view iface,
+                                                 std::uint32_t tester_ip_be,
+                                                 std::uint32_t dut_ip_be,
+                                                 const std::array<std::uint8_t, 6> &dut_mac,
+                                                 std::uint16_t tester_src_port,
+                                                 const std::vector<std::uint8_t> &ut_payload,
+                                                 int timeout_ms = kAwaitedUtTimeoutMs,
+                                                 std::string_view stimulus_name = {});
+
 // DUT-side source port of the datagram a boot-cadence OpTriggerSendUdp
 // asks for. Disjoint from the §4.6 UDP_FIELDS per-case literals (20001+)
 // and from `ut::kDataPort` (20000) so a pcap reader can attribute the

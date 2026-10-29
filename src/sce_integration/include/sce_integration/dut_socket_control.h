@@ -1,5 +1,7 @@
 #pragma once
 
+#include <algorithm>
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <optional>
@@ -232,17 +234,63 @@ public:
                               const std::vector<std::uint8_t> &data) = 0;
 };
 
+// One datagram the DUT's UDP socket delivered to its application.
+struct DutReceivedDatagram {
+    Endpoint source;                    // who sent it (address, port)
+    std::uint16_t full_len = 0;         // its true length, forwarded or not
+    std::vector<std::uint8_t> payload;  // the bytes the DUT reported (<= the arm's max_fwd)
+};
+
+// The payload of the well-formed datagram a receive window sends after the probe
+// (see IUdpReceiveControl::receiveUdp). Defined with the seam, not by the helper
+// that sends it, so a backend recognises the sentinel by the same bytes the
+// sender used and a probe can never be mistaken for one.
+inline constexpr std::array<std::uint8_t, 8> kUdpReceiveSentinelPayload{'T', 'C', '8', '-',
+                                                                        'S', 'N', 'T', 'L'};
+
+// What one receive window observed on the DUT's UDP socket.
+//
+// `datagrams` are the datagrams the socket delivered during the window, in arrival
+// order, the sentinel left out. `path_proven` says the backend demonstrated that
+// its receive path worked across the window. It is what turns an empty list into
+// an OBSERVED discard instead of a silence: a forward loop that is dead delivers
+// nothing, exactly as a DUT that dropped the probe does, and only a datagram that
+// was meant to arrive and did separates the two.
+struct DutUdpReceiveOutcome {
+    DutCallOutcome::Kind kind = DutCallOutcome::Kind::kNoAnswer;
+    std::vector<DutReceivedDatagram> datagrams;
+    bool path_proven = false;
+
+    static DutUdpReceiveOutcome noAnswer() { return {}; }
+    static DutUdpReceiveOutcome refused() {
+        DutUdpReceiveOutcome o;
+        o.kind = DutCallOutcome::Kind::kRefused;
+        return o;
+    }
+    static DutUdpReceiveOutcome observed(std::vector<DutReceivedDatagram> datagrams,
+                                         bool path_proven) {
+        DutUdpReceiveOutcome o;
+        o.kind = DutCallOutcome::Kind::kDone;
+        o.datagrams = std::move(datagrams);
+        o.path_proven = path_proven;
+        return o;
+    }
+
+    bool answered() const { return kind != DutCallOutcome::Kind::kNoAnswer; }
+    // The socket delivered the probe: a datagram arrived, so the path worked.
+    bool received() const { return kind == DutCallOutcome::Kind::kDone && !datagrams.empty(); }
+    // The probe did not arrive and the path is proven live: the DUT discarded it.
+    bool discarded() const {
+        return kind == DutCallOutcome::Kind::kDone && datagrams.empty() && path_proven;
+    }
+};
+
 // The RECEIVE direction of the DUT's UDP data plane: open listening ports, and
-// ask afterwards what arrived on one.
+// observe what arrives on one.
 //
 // A separate sub-interface rather than two more methods on IUdpControl, because
 // a backend can provide one direction and not the other and the gate has to be
-// able to say so. PRS_TPSP does define RECEIVE_AND_FORWARD, so a testability
-// implementation is possible — but its "forward what you get" shape is not the
-// same question as the opcode's "did you receive THIS, scoped to this
-// destination", and mapping one onto the other on a guess would answer a
-// different question than the case asked. Until that mapping is worked out from
-// the spec, testability provides no implementation and the cases skip honestly.
+// able to say so.
 class IUdpReceiveControl {
 public:
     virtual ~IUdpReceiveControl() = default;
@@ -253,8 +301,31 @@ public:
     // Ask the DUT what it received on `listen.port`, scoped to datagrams whose
     // destination address was `listen.addr_be` (0 = any). The ANSWER reaches the
     // case through its own capture/verdict path, not through this return value —
-    // true here means only that the DUT accepted the question.
+    // true here means only that the DUT accepted the question. Superseded by
+    // receiveUdp, whose answer comes back in-process; kept until the cases that
+    // grade the wire-borne answer have moved over.
     virtual bool queryReceived(const Endpoint &listen) = 0;
+
+    // Observe what the DUT's socket on `listen` receives while `probe` runs.
+    // `probe` sends the datagram under test; `sentinel` sends one well-formed
+    // datagram (kUdpReceiveSentinelPayload) to the same endpoint and is called
+    // after `probe`, at most once. The arm-then-trigger shape ITcpControl::
+    // receiveTcp has: a backend that must be listening BEFORE the datagram
+    // arrives arms first, and one whose kernel already queued it asks after.
+    //
+    // A backend whose answer to "did you receive it" is affirmative (the opcode
+    // UT says received=0) has no use for the sentinel and does not call it. A
+    // backend that only reports what arrived (testability RECEIVE_AND_FORWARD)
+    // calls it after the probe: the sentinel arrives or the path is not proven,
+    // and the premise is one the socket keeps, that its receive queue preserves
+    // arrival order, so a sentinel delivered after the probe means a probe that
+    // reached the socket would already have been delivered.
+    //
+    // The outcome is kRefused when the DUT answered that it could not listen, and
+    // kNoAnswer when no answer came, which says nothing about the DUT.
+    virtual DutUdpReceiveOutcome receiveUdp(const Endpoint &listen,
+                                            const std::function<void()> &probe,
+                                            const std::function<void()> &sentinel) = 0;
 };
 
 // Live kernel TCP_INFO snapshot of a DUT socket. Mirrors the four fields the
@@ -510,6 +581,110 @@ public:
     }
 
 private:
+    testability::TestabilityConfig cfg_;
+    int timeout_ms_;
+    std::uint32_t src_ip_be_;
+};
+
+// AUTOSAR Testability backend of IUdpReceiveControl: CREATE_AND_BIND the endpoint
+// under test, arm RECEIVE_AND_FORWARD on it (PRS_TPSP §6.10), run the probe and
+// then the sentinel, and collect the forwarded datagrams. The arm is made BEFORE
+// the probe runs, which is why the verb is arm-then-trigger: an Event can only be
+// forwarded for a datagram that arrives after the arm.
+//
+// What it reports is what the DUT forwarded, so an empty list alone is a silence
+// (a dead forward loop forwards nothing either). The sentinel is what makes it an
+// observation: it is well formed, sent to the same bound endpoint after the probe,
+// and a DUT whose forward loop works delivers it. `path_proven` is true when it was
+// delivered, or when the probe itself was (a delivered datagram proves the path).
+class TestabilityUdpReceiveControl final : public IUdpReceiveControl {
+public:
+    TestabilityUdpReceiveControl(const testability::TestabilityConfig &cfg, int timeout_ms,
+                                 std::uint32_t src_ip_be)
+        : cfg_(cfg), timeout_ms_(timeout_ms), src_ip_be_(src_ip_be) {}
+
+    bool createReceivePorts(std::uint8_t count) override {
+        // `count` sockets bound at once, then released: capacity is proven by holding
+        // them together, not by creating one at a time.
+        std::vector<std::uint16_t> held;
+        for (std::uint8_t i = 0; i < count; ++i) {
+            const auto id = testability::testabilityCreateAndBind(
+                cfg_, testability::kGidUdp, /*do_bind=*/true, /*local_port=*/0xFFFF,
+                /*local_addr_be=*/0, timeout_ms_, src_ip_be_);
+            if (!id) {
+                break;
+            }
+            held.push_back(*id);
+        }
+        for (const std::uint16_t id : held) {
+            testability::testabilityCloseSocket(cfg_, testability::kGidUdp, id, timeout_ms_,
+                                                src_ip_be_);
+        }
+        return held.size() == count;
+    }
+
+    // The wire-borne question has no testability form: PRS_TPSP reports what a
+    // socket received as an Event, it does not log receipts to be asked about later.
+    bool queryReceived(const Endpoint & /*listen*/) override { return false; }
+
+    DutUdpReceiveOutcome receiveUdp(const Endpoint &listen, const std::function<void()> &probe,
+                                    const std::function<void()> &sentinel) override {
+        const auto id = testability::testabilityCreateAndBind(
+            cfg_, testability::kGidUdp, /*do_bind=*/true, listen.port, listen.addr_be,
+            timeout_ms_, src_ip_be_);
+        if (!id) {
+            return DutUdpReceiveOutcome::noAnswer();
+        }
+        bool sentinel_seen = false;
+        const auto got = testability::testabilityReceiveDatagrams(
+            cfg_, *id, kMaxForward,
+            [&] {
+                if (probe) {
+                    probe();
+                }
+                if (sentinel) {
+                    sentinel();
+                }
+            },
+            [&](const testability::TestabilityDatagram &d) {
+                // The sentinel ends the window: it was sent after the probe, so a
+                // probe that reached the socket has been delivered by now.
+                sentinel_seen = isSentinel(d);
+                return sentinel_seen;
+            },
+            timeout_ms_, kWindowMs, src_ip_be_);
+        testability::testabilityCloseSocket(cfg_, testability::kGidUdp, *id, timeout_ms_,
+                                            src_ip_be_);
+        if (!got.responded) {
+            return DutUdpReceiveOutcome::noAnswer();
+        }
+        if (!got.ok) {
+            return DutUdpReceiveOutcome::refused();
+        }
+        std::vector<DutReceivedDatagram> delivered;
+        for (const auto &d : got.datagrams) {
+            if (isSentinel(d)) {
+                continue;
+            }
+            delivered.push_back(DutReceivedDatagram{Endpoint{d.src_addr_be, d.src_port},
+                                                    d.full_len, d.payload});
+        }
+        const bool path_proven = sentinel_seen || !delivered.empty();
+        return DutUdpReceiveOutcome::observed(std::move(delivered), path_proven);
+    }
+
+private:
+    // Forwarded-payload cap of the arm: the most a datagram's bytes the Event
+    // carries. A datagram longer than this still reports its true `full_len`.
+    static constexpr std::uint16_t kMaxForward = 2048;
+    // How long the window waits for the sentinel, and so for the probe ahead of it.
+    static constexpr int kWindowMs = 2000;
+
+    static bool isSentinel(const testability::TestabilityDatagram &d) {
+        return d.payload.size() == kUdpReceiveSentinelPayload.size() &&
+               std::equal(d.payload.begin(), d.payload.end(), kUdpReceiveSentinelPayload.begin());
+    }
+
     testability::TestabilityConfig cfg_;
     int timeout_ms_;
     std::uint32_t src_ip_be_;

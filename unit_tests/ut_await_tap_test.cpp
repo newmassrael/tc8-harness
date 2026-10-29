@@ -74,9 +74,10 @@ std::array<std::uint8_t, 6> macOf(const char *ifname) {
 class FakeDut {
 public:
     FakeDut(const char *ifname, std::uint32_t dut_ip_be, std::array<std::uint8_t, 6> reply_dst,
-            std::uint8_t status, bool corrupt_req_id = false)
+            std::uint8_t status, bool corrupt_req_id = false,
+            std::vector<std::uint8_t> body = {})
         : ifname_(ifname), dut_ip_be_(dut_ip_be), reply_dst_(reply_dst), status_(status),
-          corrupt_req_id_(corrupt_req_id) {
+          corrupt_req_id_(corrupt_req_id), body_(std::move(body)) {
         sk_ = ::socket(AF_PACKET, SOCK_RAW | SOCK_CLOEXEC, htons(ETH_P_IP));
         sockaddr_ll ll{};
         ll.sll_family = AF_PACKET;
@@ -129,9 +130,10 @@ private:
             std::memcpy(&tester_ip_be, ip + 12, 4);
             const auto tester_port = static_cast<std::uint16_t>((udp[0] << 8) | udp[1]);
             const std::uint8_t *req = udp + 8;
-            const std::uint8_t reply[3] = {
+            std::vector<std::uint8_t> reply = {
                 static_cast<std::uint8_t>(req[0] | ut::kResponseBit),
                 static_cast<std::uint8_t>(corrupt_req_id_ ? req[1] ^ 0xFFU : req[1]), status_};
+            reply.insert(reply.end(), body_.begin(), body_.end());
             Ipv4FrameSpec spec{};
             spec.dst_mac = reply_dst_;
             spec.src_mac = macOf(ifname_);
@@ -139,8 +141,8 @@ private:
             spec.dst_ip = tester_ip_be;
             spec.ip_protocol = 17;
             const auto frame = buildIpv4Frame(
-                spec, buildUdpDatagram(dut_ip_be_, tester_ip_be, ut::kPort, tester_port, reply,
-                                       sizeof(reply)));
+                spec, buildUdpDatagram(dut_ip_be_, tester_ip_be, ut::kPort, tester_port,
+                                       reply.data(), reply.size()));
             {
                 std::lock_guard<std::mutex> lk(mu_);
                 last_reply_ = frame;
@@ -154,6 +156,7 @@ private:
     std::array<std::uint8_t, 6> reply_dst_;
     std::uint8_t status_;
     bool corrupt_req_id_;
+    std::vector<std::uint8_t> body_;
     int sk_ = -1;
     bool ok_ = false;
     std::atomic<bool> stop_{false};
@@ -253,6 +256,43 @@ TEST_F(UtAwaitTap, ARefusedStepLeavesNoMarker) {
     const auto ack = dut.lastReply();
     ASSERT_FALSE(ack.empty());
     EXPECT_EQ(::tc8::StimulusMarkers::take(ack.data(), ack.size()), std::nullopt);
+}
+
+// The answer a case grades is the reply BODY, not only its status: the awaited
+// exchange hands both back, heard at L2 like the status-only entry's.
+TEST_F(UtAwaitTap, ReturnsTheReplyBodyNotOnlyTheStatus) {
+    const std::vector<std::uint8_t> body{0x01, 0xAC, 0x10, 0x00, 0x01};
+    FakeDut dut(kDutIf, dutIpBe(), kForeignMac, ut::kStatusOk, /*corrupt_req_id=*/false, body);
+    ASSERT_TRUE(dut.ok());
+    const std::vector<std::uint8_t> req{ut::OpGetReceivedUdp, nextUtReqId(), 0x00};
+    const auto reply = upperTesterRequestAwaited(kTesterIf, ::inet_addr("10.77.0.1"),
+                                                 ::inet_addr("10.77.0.2"), macOf(kDutIf),
+                                                 ut::kTesterSrcPort, req, 1000, "await_tap_body");
+    ASSERT_TRUE(reply.has_value());
+    EXPECT_EQ(reply->status, ut::kStatusOk);
+    EXPECT_EQ(reply->data, body);
+}
+
+// A non-OK status is still the DUT's reply, so it is returned; only a transport
+// failure has no reply to hand back.
+TEST_F(UtAwaitTap, AReplyWithAFailingStatusIsReturnedAndNoReplyIsNullopt) {
+    {
+        FakeDut dut(kDutIf, dutIpBe(), kForeignMac, ut::kStatusNotPerformed);
+        ASSERT_TRUE(dut.ok());
+        const std::vector<std::uint8_t> req{ut::OpGetReceivedUdp, nextUtReqId(), 0x00};
+        const auto reply = upperTesterRequestAwaited(
+            kTesterIf, ::inet_addr("10.77.0.1"), ::inet_addr("10.77.0.2"), macOf(kDutIf),
+            ut::kTesterSrcPort, req, 1000, "await_tap_refused");
+        ASSERT_TRUE(reply.has_value());
+        EXPECT_EQ(reply->status, ut::kStatusNotPerformed);
+    }
+    FakeDut dut(kDutIf, dutIpBe(), kForeignMac, ut::kStatusOk, /*corrupt_req_id=*/true);
+    ASSERT_TRUE(dut.ok());
+    const std::vector<std::uint8_t> req{ut::OpGetReceivedUdp, nextUtReqId(), 0x00};
+    EXPECT_FALSE(upperTesterRequestAwaited(kTesterIf, ::inet_addr("10.77.0.1"),
+                                           ::inet_addr("10.77.0.2"), macOf(kDutIf),
+                                           ut::kTesterSrcPort, req, 300, "await_tap_lost")
+                     .has_value());
 }
 
 // The allocator never hands out 0 and does not repeat within a window of 255.

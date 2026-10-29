@@ -220,6 +220,39 @@ TestabilityForwardResult testabilityReceiveAndForward(
     std::uint16_t max_len, const std::function<void()> &on_armed, int resp_timeout_ms = 1000,
     int event_timeout_ms = 2000, std::uint32_t src_ip_be = 0);
 
+// One datagram forwarded by a UDP RECEIVE_AND_FORWARD socket (PRS_TPSP §6.10
+// Event: fullLen + srcPort + srcAddr + payload).
+struct TestabilityDatagram {
+    std::uint16_t full_len = 0;         // the datagram's true length, forwarded or not
+    std::uint16_t src_port = 0;
+    std::uint32_t src_addr_be = 0;      // network byte order
+    std::vector<std::uint8_t> payload;  // forwarded bytes (<= max_fwd)
+};
+
+// What a UDP RECEIVE_AND_FORWARD arm collected. The datagram list is in arrival
+// order; an empty list with `ok` set means the window elapsed with nothing
+// forwarded, which is an absence and not yet an observation (a caller that must
+// tell a discard from a dead forward loop sends a sentinel and reads `done`).
+struct TestabilityDatagramsResult {
+    bool ok = false;         // the arm round-tripped and returned E_OK
+    bool responded = false;  // a Response to the arm arrived, whatever its RID
+    std::uint8_t rid = 0;    // that Response's RID (PRS_TPSP §6.8)
+    std::uint16_t drop_cnt = 0;  // bytes queued before the arm and consumed by it
+    std::vector<TestabilityDatagram> datagrams;
+};
+
+// RECEIVE_AND_FORWARD (UDP / PID 0x03): arm `socket_id` (a bound UDP socket) to
+// forward every datagram it receives as an Event, drive the inbound traffic
+// through `on_armed`, and collect the Events for up to `window_ms`. `done`, when
+// set, is asked after each datagram and ends the collection early by returning
+// true. The arm is limitless (maxLen 0xFFFF): a datagram is never withheld by a
+// byte budget. Uses the UDP control transport.
+TestabilityDatagramsResult testabilityReceiveDatagrams(
+    const TestabilityConfig &cfg, std::uint16_t socket_id, std::uint16_t max_fwd,
+    const std::function<void()> &on_armed,
+    const std::function<bool(const TestabilityDatagram &)> &done, int resp_timeout_ms = 1000,
+    int window_ms = 2000, std::uint32_t src_ip_be = 0);
+
 // ECHO_REQUEST (ICMP / PID 0x00, PRS_TPSP §6.10): issue a single ICMP Echo
 // Request from the DUT toward `dest_addr_be` over interface `iface` (empty =>
 // kernel-chosen egress). `payload` is the Echo data. Fire-and-forget — the DUT

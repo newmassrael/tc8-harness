@@ -644,7 +644,60 @@ public:
                     "GetReceivedUdp");
     }
 
+    // The opcode UT's data listener logs each receipt on its own thread and answers
+    // "did you receive THIS" affirmatively, received=0 included, so the window needs
+    // no sentinel: the probe runs, the listener is given the time to log it, and
+    // GetReceivedUdp is asked and its answer read here, in-process.
+    DutUdpReceiveOutcome receiveUdp(const Endpoint &listen, const std::function<void()> &probe,
+                                    const std::function<void()> & /*sentinel*/) override {
+        if (probe) {
+            probe();
+        }
+        std::this_thread::sleep_for(kReceiptLogDelay);
+        const auto req =
+            stimulus::buildGetReceivedUdpRequest(nextReqId(), listen.port, listen.addr_be);
+        const auto reply =
+            raw_.iface.empty()
+                ? stimulus::upperTesterRoundTrip(dut_ip_be_, req, port_, timeout_ms_, src_ip_be_)
+                : stimulus::upperTesterRequestAwaited(raw_.iface, raw_.tester_ip_be, dut_ip_be_,
+                                                      raw_.dut_mac, raw_.tester_src_port, req,
+                                                      timeout_ms_, "GetReceivedUdp");
+        if (!reply) {
+            return DutUdpReceiveOutcome::noAnswer();
+        }
+        if (reply->status != ut::kStatusOk) {
+            return DutUdpReceiveOutcome::refused();
+        }
+        // The received flag and the trailer offsets are owned by decodeResponseBody.
+        ut::UtResponse resp;
+        resp.request_opcode = ut::OpGetReceivedUdp;
+        ut::decodeResponseBody(resp, reply->data.data(),
+                               static_cast<std::uint32_t>(reply->data.size()));
+        if (!resp.received_valid) {
+            return DutUdpReceiveOutcome::noAnswer();  // a reply the tester cannot read
+        }
+        std::vector<DutReceivedDatagram> got;
+        if (resp.received != 0) {
+            DutReceivedDatagram d;
+            if (resp.recv_trailer_valid) {
+                d.source = Endpoint{resp.recv_src_ip, resp.recv_src_port};
+                d.full_len = resp.recv_payload_len;
+                const std::size_t take = resp.recv_payload_len < resp.recv_payload_avail
+                                             ? resp.recv_payload_len
+                                             : resp.recv_payload_avail;
+                d.payload.assign(resp.recv_payload, resp.recv_payload + take);
+            }
+            got.push_back(std::move(d));
+        }
+        // The DUT answered, so its receive path is proven whatever it reported.
+        return DutUdpReceiveOutcome::observed(std::move(got), /*path_proven=*/true);
+    }
+
 private:
+    // Time the data listener is given to log a receipt before it is asked. The
+    // value the probe-then-query helpers slept before the verb existed.
+    static constexpr std::chrono::milliseconds kReceiptLogDelay{200};
+
     bool send(const std::vector<std::uint8_t> &req, const char *name) {
         if (raw_.iface.empty()) {
             const auto r =

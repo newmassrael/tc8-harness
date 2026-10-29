@@ -22,6 +22,7 @@
 
 #include <gtest/gtest.h>
 
+#include "sce_integration/dut_control.h"
 #include "tc8/linux_socket_backend.h"
 #include "posix_stack_probe.h"
 #include "tc8/upper_tester_protocol.h"
@@ -437,6 +438,58 @@ TEST(UtServerExtensionTest, RegisteredOpcodeDispatchesAndAdvertises) {
     EXPECT_TRUE(ut::capabilityBitSet(caps.data() + 4, caps[3], ut::OpStartLLAutoconf));
 
     server.stop();
+}
+
+// ---- the receive window over the opcode backend ------------------------------------
+
+// The opcode UT answers "did you receive THIS" affirmatively, so the window runs
+// the probe, asks, and reads the answer in-process; the datagram it reports is the
+// one the data listener logged, with the source and length the DUT recorded.
+TEST_F(UtServerTest, ReceiveWindowReportsTheDatagramTheListenerLogged) {
+    ::tc8::sce::OpcodeUdpReceiveControl rx(::htonl(INADDR_LOOPBACK), kUtPort, /*src_ip_be=*/0,
+                                           /*timeout_ms=*/2000);
+    bool sentinel_called = false;
+    const auto out = rx.receiveUdp(
+        ::tc8::sce::Endpoint{::htonl(INADDR_LOOPBACK), kDataPort},
+        [] {
+            int s = ::socket(AF_INET, SOCK_DGRAM, 0);
+            sockaddr_in d{};
+            d.sin_family = AF_INET;
+            d.sin_port = ::htons(kDataPort);
+            d.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
+            ::sendto(s, "ping", 4, 0, reinterpret_cast<sockaddr *>(&d), sizeof(d));
+            ::close(s);
+        },
+        [&] { sentinel_called = true; });
+    ASSERT_TRUE(out.answered());
+    ASSERT_TRUE(out.received());
+    ASSERT_EQ(out.datagrams.size(), 1u);
+    EXPECT_EQ(std::string(out.datagrams[0].payload.begin(), out.datagrams[0].payload.end()),
+              "ping");
+    EXPECT_EQ(out.datagrams[0].full_len, 4u);
+    EXPECT_EQ(out.datagrams[0].source.addr_be, ::htonl(INADDR_LOOPBACK));
+    EXPECT_TRUE(out.path_proven);
+    EXPECT_FALSE(sentinel_called) << "an affirmative backend has no use for the sentinel";
+}
+
+// received=0 is the DUT's own answer, so an empty window is an observed discard on
+// this backend without any sentinel.
+TEST_F(UtServerTest, ReceiveWindowReportsNothingReceivedAsAnObservedDiscard) {
+    ::tc8::sce::OpcodeUdpReceiveControl rx(::htonl(INADDR_LOOPBACK), kUtPort, 0, 2000);
+    const auto out = rx.receiveUdp(::tc8::sce::Endpoint{::htonl(INADDR_LOOPBACK), kDataPort},
+                                   [] {}, [] {});
+    ASSERT_TRUE(out.answered());
+    EXPECT_TRUE(out.discarded());
+    EXPECT_FALSE(out.received());
+}
+
+// No UT server on the port: no answer, which says nothing about the DUT.
+TEST(UtServerNoServer, ReceiveWindowWithNoUtServerIsNoAnswer) {
+    ::tc8::sce::OpcodeUdpReceiveControl rx(::htonl(INADDR_LOOPBACK), kUtPort + 1, 0, 300);
+    const auto out = rx.receiveUdp(::tc8::sce::Endpoint{::htonl(INADDR_LOOPBACK), kDataPort},
+                                   [] {}, [] {});
+    EXPECT_FALSE(out.answered());
+    EXPECT_FALSE(out.discarded());
 }
 
 }  // namespace

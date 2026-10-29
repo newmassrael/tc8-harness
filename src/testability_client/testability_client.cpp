@@ -632,4 +632,72 @@ TestabilityForwardResult testabilityReceiveAndForward(
     return res;
 }
 
+TestabilityDatagramsResult testabilityReceiveDatagrams(
+    const TestabilityConfig &cfg, std::uint16_t socket_id, std::uint16_t max_fwd,
+    const std::function<void()> &on_armed,
+    const std::function<bool(const TestabilityDatagram &)> &done, int resp_timeout_ms,
+    int window_ms, std::uint32_t src_ip_be) {
+    TestabilityDatagramsResult res;
+
+    // RECEIVE_AND_FORWARD request: socketId(u16) + maxFwd(u16) + maxLen(u16).
+    std::vector<std::uint8_t> dat;
+    tp::appendU16(dat, socket_id);
+    tp::appendU16(dat, max_fwd);
+    tp::appendU16(dat, 0xFFFF);  // limitless: no byte budget withholds a datagram
+    ArmedSocket arm = armEventSocket(cfg, tp::kGidUdp, tp::kPidReceiveAndForward, dat, on_armed,
+                                     resp_timeout_ms, src_ip_be);
+    res.ok = arm.armed;
+    res.responded = arm.responded;
+    res.rid = arm.rid;
+    if (arm.resp_dat.size() >= 2) {
+        res.drop_cnt = tp::readU16(arm.resp_dat.data());  // Response DAT: dropCnt(u16)
+    }
+    if (!arm.armed) {
+        return res;
+    }
+
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(window_ms);
+    for (;;) {
+        const auto now = std::chrono::steady_clock::now();
+        if (now >= deadline) {
+            break;
+        }
+        const auto remaining =
+            std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now).count();
+        setRecvTimeout(arm.fd, static_cast<int>(remaining > 0 ? remaining : 1));
+        const auto ev = recvSpEvent(arm.fd, tp::kGidUdp, tp::kPidReceiveAndForward);
+        if (!ev) {
+            break;  // timeout or a frame that is not this SP's Event
+        }
+        // Event DAT (UDP): fullLen(u16) + srcPort(u16) + srcAddr(ipxaddr) +
+        // payload(vint8). A short or unparsable Event is not a datagram the
+        // caller can grade, so it ends the collection like a timeout does.
+        if (ev->size() < 4) {
+            break;
+        }
+        TestabilityDatagram d;
+        d.full_len = tp::readU16(ev->data());
+        d.src_port = tp::readU16(ev->data() + 2);
+        std::size_t off = 4;
+        const std::uint8_t *addr = nullptr;
+        std::uint16_t addr_len = 0;
+        if (!tp::readVint8(ev->data(), ev->size(), off, addr, addr_len) || addr_len != 4) {
+            break;
+        }
+        std::memcpy(&d.src_addr_be, addr, 4);
+        const std::uint8_t *body = nullptr;
+        std::uint16_t body_len = 0;
+        if (!tp::readVint8(ev->data(), ev->size(), off, body, body_len)) {
+            break;
+        }
+        d.payload.assign(body, body + body_len);
+        res.datagrams.push_back(std::move(d));
+        if (done && done(res.datagrams.back())) {
+            break;
+        }
+    }
+    ::close(arm.fd);
+    return res;
+}
+
 }  // namespace tc8::testability

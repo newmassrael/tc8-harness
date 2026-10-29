@@ -1015,6 +1015,120 @@ TEST_F(TestabilityServerTest, UdpControlSeamOneShotSend) {
     ::close(rfd);
 }
 
+// A tester-side datagram sender on loopback: one socket, so the probe and the
+// sentinel leave from the same source port and arrive in the order they were sent.
+class LoopbackSender {
+public:
+    LoopbackSender() {
+        fd_ = ::socket(AF_INET, SOCK_DGRAM, 0);
+        sockaddr_in sa{};
+        sa.sin_family = AF_INET;
+        sa.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
+        sa.sin_port = 0;
+        ::bind(fd_, reinterpret_cast<sockaddr *>(&sa), sizeof(sa));
+        socklen_t sl = sizeof(sa);
+        ::getsockname(fd_, reinterpret_cast<sockaddr *>(&sa), &sl);
+        port_ = ntohs(sa.sin_port);
+    }
+    ~LoopbackSender() { ::close(fd_); }
+    LoopbackSender(const LoopbackSender &) = delete;
+    LoopbackSender &operator=(const LoopbackSender &) = delete;
+
+    std::uint16_t port() const { return port_; }
+    void sendTo(std::uint16_t to_port, const std::uint8_t *data, std::size_t n) const {
+        sockaddr_in to{};
+        to.sin_family = AF_INET;
+        to.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
+        to.sin_port = htons(to_port);
+        ::sendto(fd_, data, n, 0, reinterpret_cast<sockaddr *>(&to), sizeof(to));
+    }
+
+private:
+    int fd_ = -1;
+    std::uint16_t port_ = 0;
+};
+
+constexpr std::uint16_t kReceiveWindowPort = 31702;
+TC8_STATIC_ASSERT_TEST_PORT(kReceiveWindowPort);
+
+// The receive window arms RECEIVE_AND_FORWARD BEFORE the probe, delivers the probe
+// as the DUT forwarded it (source, length, bytes), and leaves its own sentinel out
+// of the list: a case reads datagrams it sent, never the helper's.
+TEST_F(TestabilityServerTest, UdpReceiveWindowDeliversTheProbeAndLeavesTheSentinelOut) {
+    sce::TestabilityUdpReceiveControl rx(loopbackConfig(), /*timeout_ms=*/1000, /*src_ip_be=*/0);
+    LoopbackSender tester;
+    const std::vector<std::uint8_t> probe = {'P', 'R', 'O', 'B', 'E'};
+    const auto out = rx.receiveUdp(
+        sce::Endpoint{::htonl(INADDR_LOOPBACK), kReceiveWindowPort},
+        [&] { tester.sendTo(kReceiveWindowPort, probe.data(), probe.size()); },
+        [&] {
+            tester.sendTo(kReceiveWindowPort, sce::kUdpReceiveSentinelPayload.data(),
+                          sce::kUdpReceiveSentinelPayload.size());
+        });
+    ASSERT_TRUE(out.answered());
+    ASSERT_TRUE(out.received());
+    EXPECT_TRUE(out.path_proven);
+    EXPECT_FALSE(out.discarded());
+    ASSERT_EQ(out.datagrams.size(), 1u) << "the sentinel must not appear in the list";
+    EXPECT_EQ(out.datagrams[0].payload, probe);
+    EXPECT_EQ(out.datagrams[0].full_len, probe.size());
+    EXPECT_EQ(out.datagrams[0].source.port, tester.port());
+    EXPECT_EQ(out.datagrams[0].source.addr_be, ::htonl(INADDR_LOOPBACK));
+}
+
+// "Not received" is an observation only with a proven path: the probe never
+// reaches the socket (stood in for here by not sending it), the sentinel does, and
+// the window reports a discard.
+TEST_F(TestabilityServerTest, UdpReceiveWindowReportsADiscardWhenTheSentinelProvesThePath) {
+    sce::TestabilityUdpReceiveControl rx(loopbackConfig(), 1000, 0);
+    LoopbackSender tester;
+    const auto out = rx.receiveUdp(
+        sce::Endpoint{::htonl(INADDR_LOOPBACK), kReceiveWindowPort}, [] {},
+        [&] {
+            tester.sendTo(kReceiveWindowPort, sce::kUdpReceiveSentinelPayload.data(),
+                          sce::kUdpReceiveSentinelPayload.size());
+        });
+    ASSERT_TRUE(out.answered());
+    EXPECT_TRUE(out.discarded());
+    EXPECT_FALSE(out.received());
+    EXPECT_TRUE(out.datagrams.empty());
+}
+
+// The defect the sentinel exists for: a window in which NOTHING was forwarded
+// proves nothing about the DUT, so it is an answer without a premise, not a discard.
+TEST_F(TestabilityServerTest, UdpReceiveWindowWithNothingForwardedIsASilenceNotADiscard) {
+    sce::TestabilityUdpReceiveControl rx(loopbackConfig(), 1000, 0);
+    const auto out = rx.receiveUdp(sce::Endpoint{::htonl(INADDR_LOOPBACK), kReceiveWindowPort},
+                                   [] {}, [] {});
+    ASSERT_TRUE(out.answered());
+    EXPECT_FALSE(out.path_proven);
+    EXPECT_FALSE(out.discarded());
+    EXPECT_FALSE(out.received());
+}
+
+// The socket is released after the window, so the next window on the same port
+// binds again (a leaked bind would make the second CREATE_AND_BIND fail).
+TEST_F(TestabilityServerTest, UdpReceiveWindowReleasesItsSocket) {
+    sce::TestabilityUdpReceiveControl rx(loopbackConfig(), 1000, 0);
+    LoopbackSender tester;
+    for (int round = 0; round < 2; ++round) {
+        const auto out = rx.receiveUdp(
+            sce::Endpoint{::htonl(INADDR_LOOPBACK), kReceiveWindowPort}, [] {},
+            [&] {
+                tester.sendTo(kReceiveWindowPort, sce::kUdpReceiveSentinelPayload.data(),
+                              sce::kUdpReceiveSentinelPayload.size());
+            });
+        EXPECT_TRUE(out.discarded()) << "round " << round;
+    }
+}
+
+// CREATE_AND_BIND holds `count` ports at once and releases them.
+TEST_F(TestabilityServerTest, UdpCreateReceivePortsHoldsTheCountAtOnce) {
+    sce::TestabilityUdpReceiveControl rx(loopbackConfig(), 1000, 0);
+    EXPECT_TRUE(rx.createReceivePorts(10));
+    EXPECT_TRUE(rx.createReceivePorts(10)) << "the first call must release what it bound";
+}
+
 // CONFIGURE_SOCKET TTL (PRS_TPSP §6.10.10 paramId 0x0000) must set IP_TTL on the
 // DUT socket, observable as the TTL of a datagram it subsequently emits — the
 // tester receiver reads the delivered TTL via IP_RECVTTL / recvmsg. This proves

@@ -201,6 +201,17 @@ private:
             return performedOrRecord(inner->createReceivePorts(count), "create_receive_ports");
         }
         bool queryReceived(const Endpoint &listen) override { return inner->queryReceived(listen); }
+        // A receive window is an observation like receiveTcp: whatever the DUT
+        // answered, a refusal and an empty list included, is the finding. Only no
+        // answer at all (the request never came back) is the tester's loss.
+        DutUdpReceiveOutcome receiveUdp(const Endpoint &listen, const std::function<void()> &probe,
+                                        const std::function<void()> &sentinel) override {
+            auto outcome = inner->receiveUdp(listen, probe, sentinel);
+            if (!outcome.answered() && DutCallIntentScope::current() != DutCallIntent::kCleanup) {
+                record("receive_udp");
+            }
+            return outcome;
+        }
     };
 
     struct Dhcp final : Bound<IDhcpClientControl> {
