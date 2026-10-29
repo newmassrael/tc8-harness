@@ -64,6 +64,9 @@ public:
         return udp_receive_.bind(inner_->udpReceiveControl());
     }
     IArpControl *arpControl() override { return arp_.bind(inner_->arpControl()); }
+    IServicePrimitiveControl *servicePrimitiveControl() override {
+        return primitive_.bind(inner_->servicePrimitiveControl());
+    }
 
     // A query whose answer, any answer, is the observation: nothing to record.
     ITcpStateProbe *tcpStateProbe() override { return inner_->tcpStateProbe(); }
@@ -232,6 +235,18 @@ private:
         }
     };
 
+    // A service primitive is an action whose meaning is the caller's, so what is
+    // recorded follows the caller's intent (accountFor). The record names the operation
+    // and not the primitive: the numbers belong to the DUT's owner.
+    struct Primitive final : Bound<IServicePrimitiveControl> {
+        DutPrimitiveReply call(std::uint8_t gid, std::uint8_t pid,
+                               const std::vector<std::uint8_t> &dat) override {
+            DutPrimitiveReply reply = inner->call(gid, pid, dat);
+            accountFor(reply.outcome(), "service_primitive");
+            return reply;
+        }
+    };
+
     std::unique_ptr<IDutControl> inner_;
     Tcp tcp_;
     RecvOob recv_oob_;
@@ -240,6 +255,7 @@ private:
     Dhcp dhcp_;
     LinkLocal link_local_;
     Arp arp_;
+    Primitive primitive_;
 };
 
 }  // namespace tc8::sce

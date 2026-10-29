@@ -252,6 +252,126 @@ TEST_F(UnperformedStimulusTest, AReceiveThatGotNoAnswerIsRecorded) {
     EXPECT_EQ(UnperformedStimulus::reason(), "stimulus_dut_control_receive_tcp_not_performed");
 }
 
+// A backend whose service primitive answers what the test scripts.
+class ScriptedPrimitiveDutControl final : public ::tc8::sce::IDutControl {
+public:
+    explicit ScriptedPrimitiveDutControl(::tc8::sce::DutPrimitiveReply reply) : prim_(std::move(reply)) {}
+
+    bool probe() override { return true; }
+    bool startTest() override { return true; }
+    bool endTest() override { return true; }
+    const char *backendName() const override { return "unit-test-scripted-primitive"; }
+    std::uint16_t controlPort() const override { return 0; }
+    ::tc8::sce::DutCapabilities capabilities() const override {
+        return ::tc8::sce::kCapServicePrimitive;
+    }
+    ::tc8::sce::IServicePrimitiveControl *servicePrimitiveControl() override { return &prim_; }
+
+    struct Prim final : ::tc8::sce::IServicePrimitiveControl {
+        explicit Prim(::tc8::sce::DutPrimitiveReply r) : reply(std::move(r)) {}
+        ::tc8::sce::DutPrimitiveReply call(std::uint8_t gid, std::uint8_t pid,
+                                           const std::vector<std::uint8_t> &dat) override {
+            seen_gid = gid;
+            seen_pid = pid;
+            seen_dat = dat;
+            return reply;
+        }
+        ::tc8::sce::DutPrimitiveReply reply;
+        std::uint8_t seen_gid = 0;
+        std::uint8_t seen_pid = 0;
+        std::vector<std::uint8_t> seen_dat;
+    };
+    Prim &prim() { return prim_; }
+
+private:
+    Prim prim_;
+};
+
+::tc8::sce::DutPrimitiveReply primitiveReply(::tc8::sce::DutCallOutcome::Kind kind,
+                                             std::uint8_t result_id = 0,
+                                             std::vector<std::uint8_t> data = {}) {
+    ::tc8::sce::DutPrimitiveReply r;
+    r.kind = kind;
+    r.result_id = result_id;
+    r.data = std::move(data);
+    return r;
+}
+
+TEST_F(UnperformedStimulusTest, AServicePrimitivePassesItsBytesAndItsReplyThroughUntouched) {
+    using Kind = ::tc8::sce::DutCallOutcome::Kind;
+    auto backend = std::make_unique<ScriptedPrimitiveDutControl>(
+        primitiveReply(Kind::kDone, 0x00, {0xAA, 0xBB}));
+    ScriptedPrimitiveDutControl &raw = *backend;
+    ::tc8::sce::RecordingDutControl dut(std::move(backend));
+
+    const auto reply = dut.servicePrimitiveControl()->call(0x7A, 0x42, {1, 2, 3});
+    EXPECT_TRUE(reply.succeeded());
+    EXPECT_EQ(reply.data, (std::vector<std::uint8_t>{0xAA, 0xBB}));
+    EXPECT_EQ(raw.prim().seen_gid, 0x7A);
+    EXPECT_EQ(raw.prim().seen_pid, 0x42);
+    EXPECT_EQ(raw.prim().seen_dat, (std::vector<std::uint8_t>{1, 2, 3}));
+    EXPECT_FALSE(UnperformedStimulus::any());
+}
+
+TEST_F(UnperformedStimulusTest, AServicePrimitiveStimulusNeedsTheDutToSucceed) {
+    using Kind = ::tc8::sce::DutCallOutcome::Kind;
+    {
+        ::tc8::sce::RecordingDutControl dut(std::make_unique<ScriptedPrimitiveDutControl>(
+            primitiveReply(Kind::kRefused, 0x05)));
+        (void)dut.servicePrimitiveControl()->call(1, 2, {});
+        EXPECT_EQ(UnperformedStimulus::reason(),
+                  "stimulus_dut_control_service_primitive_not_performed");
+    }
+    UnperformedStimulus::reset();
+    {
+        ::tc8::sce::RecordingDutControl dut(std::make_unique<ScriptedPrimitiveDutControl>(
+            primitiveReply(Kind::kNoAnswer)));
+        (void)dut.servicePrimitiveControl()->call(1, 2, {});
+        EXPECT_TRUE(UnperformedStimulus::any());
+    }
+}
+
+TEST_F(UnperformedStimulusTest, AServicePrimitiveStateReadIsAnObservationWhateverTheDutSays) {
+    using Kind = ::tc8::sce::DutCallOutcome::Kind;
+    const ::tc8::sce::DutCallIntentScope graded(::tc8::sce::DutCallIntent::kGraded);
+    {
+        ::tc8::sce::RecordingDutControl dut(std::make_unique<ScriptedPrimitiveDutControl>(
+            primitiveReply(Kind::kRefused, 0x05)));
+        (void)dut.servicePrimitiveControl()->call(1, 2, {});
+        EXPECT_FALSE(UnperformedStimulus::any()) << "a refusal the case grades is the DUT's answer";
+    }
+    {
+        ::tc8::sce::RecordingDutControl dut(std::make_unique<ScriptedPrimitiveDutControl>(
+            primitiveReply(Kind::kNoAnswer)));
+        (void)dut.servicePrimitiveControl()->call(1, 2, {});
+        EXPECT_TRUE(UnperformedStimulus::any()) << "a question that never came back is the tester's";
+    }
+}
+
+TEST_F(UnperformedStimulusTest, AServicePrimitiveCleanupBearsOnNoVerdict) {
+    using Kind = ::tc8::sce::DutCallOutcome::Kind;
+    ::tc8::sce::RecordingDutControl dut(std::make_unique<ScriptedPrimitiveDutControl>(
+        primitiveReply(Kind::kNoAnswer)));
+    const ::tc8::sce::DutCallIntentScope cleanup(::tc8::sce::DutCallIntent::kCleanup);
+    (void)dut.servicePrimitiveControl()->call(1, 2, {});
+    EXPECT_FALSE(UnperformedStimulus::any());
+}
+
+TEST_F(UnperformedStimulusTest, TheRecordNamesTheOperationNotThePrimitiveNumbers) {
+    using Kind = ::tc8::sce::DutCallOutcome::Kind;
+    ::tc8::sce::RecordingDutControl dut(std::make_unique<ScriptedPrimitiveDutControl>(
+        primitiveReply(Kind::kNoAnswer)));
+    (void)dut.servicePrimitiveControl()->call(0x7A, 0x42, {});
+    // The numbers are the DUT owner's: they must not travel into a report, so the
+    // record is the operation's name and nothing of the call.
+    EXPECT_EQ(UnperformedStimulus::reason(), "stimulus_dut_control_service_primitive_not_performed");
+}
+
+TEST_F(UnperformedStimulusTest, ABackendWithoutServicePrimitivesHasNoSuchInterface) {
+    ::tc8::sce::RecordingDutControl dut(std::make_unique<FailingOpenDutControl>());
+    EXPECT_EQ(dut.servicePrimitiveControl(), nullptr);
+}
+
 TEST_F(UnperformedStimulusTest, TheDecoratorIsAbsentWhereTheBackendHasNoInterface) {
     // The capability gate must see the backend unchanged.
     ::tc8::sce::RecordingDutControl dut(std::make_unique<FailingOpenDutControl>());

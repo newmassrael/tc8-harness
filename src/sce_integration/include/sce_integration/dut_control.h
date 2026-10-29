@@ -13,6 +13,7 @@
 #include "sce_integration/dut_arp_control.h"
 #include "sce_integration/dut_dhcp_control.h"
 #include "sce_integration/dut_linklocal_control.h"
+#include "sce_integration/dut_service_primitive_control.h"
 #include "sce_integration/dut_socket_control.h"
 #include "tc8/testability_client.h"
 #include "stimulus/upper_tester_client.h"
@@ -147,6 +148,12 @@ public:
 
     // DUT ARP-plane actions, or nullptr when the backend cannot drive them.
     virtual IArpControl *arpControl() { return nullptr; }
+
+    // A service primitive called by group and primitive number, or nullptr when the
+    // backend has no such call (the opcode UT). For primitives the DUT's owner defines
+    // and this repository has no typed seam for; a case declaring kCapServicePrimitive is
+    // capability-skipped on a backend that returns nullptr.
+    virtual IServicePrimitiveControl *servicePrimitiveControl() { return nullptr; }
 };
 
 // Seam-case convenience: fetch the DUT's TCP control sub-interface as a
@@ -936,12 +943,42 @@ private:
 // Besides the IDutControl lifecycle it exposes the protocol's generic
 // `call(gid, pid, dat)` engine, which OEM-specific typed service-primitive
 // wrappers (written out of tree) build on.
+// Testability backend of IServicePrimitiveControl: any primitive, by number, through
+// the generic engine. The standard primitives have typed wrappers of their own
+// (testability_client.h); this is the way in for the ones that have none.
+class TestabilityServicePrimitiveControl final : public IServicePrimitiveControl {
+public:
+    TestabilityServicePrimitiveControl(const testability::TestabilityConfig &cfg, int timeout_ms,
+                                       std::uint32_t src_ip_be)
+        : cfg_(cfg), timeout_ms_(timeout_ms), src_ip_be_(src_ip_be) {}
+
+    DutPrimitiveReply call(std::uint8_t gid, std::uint8_t pid,
+                           const std::vector<std::uint8_t> &dat) override {
+        const testability::TestabilityResponse r =
+            testability::testabilityCall(cfg_, gid, pid, dat, timeout_ms_, src_ip_be_);
+        DutPrimitiveReply reply;
+        if (!r.ok) {
+            return reply;  // nothing usable came back: no answer
+        }
+        reply.kind = r.eok() ? DutCallOutcome::Kind::kDone : DutCallOutcome::Kind::kRefused;
+        reply.result_id = r.rid;
+        reply.data = r.dat;
+        return reply;
+    }
+
+private:
+    testability::TestabilityConfig cfg_;
+    int timeout_ms_;
+    std::uint32_t src_ip_be_;
+};
+
 class TestabilityControl final : public IDutControl {
 public:
     explicit TestabilityControl(const testability::TestabilityConfig &cfg, int timeout_ms = 1000,
                                 std::uint32_t src_ip_be = 0)
         : cfg_(cfg), timeout_ms_(timeout_ms), src_ip_be_(src_ip_be),
-          tcp_ctrl_(cfg, timeout_ms, src_ip_be), udp_ctrl_(cfg, timeout_ms, src_ip_be) {}
+          tcp_ctrl_(cfg, timeout_ms, src_ip_be), udp_ctrl_(cfg, timeout_ms, src_ip_be),
+          primitive_ctrl_(cfg, timeout_ms, src_ip_be) {}
 
     bool probe() override { return getVersion().has_value(); }
     bool startTest() override {
@@ -963,18 +1000,22 @@ public:
     // SEND_DATA/CLOSE_SOCKET) are all implemented, so both data-plane
     // sub-interfaces are available on every testability DUT.
     DutCapabilities capabilities() const override {
-        return kCapTcpControl | kCapUdpControl | kCapTcpCreateClosed | kCapTcpSendFlags;
+        return kCapTcpControl | kCapUdpControl | kCapTcpCreateClosed | kCapTcpSendFlags |
+               kCapServicePrimitive;
     }
     ITcpControl *tcpControl() override { return &tcp_ctrl_; }
     IUdpControl *udpControl() override { return &udp_ctrl_; }
+    IServicePrimitiveControl *servicePrimitiveControl() override { return &primitive_ctrl_; }
 
     // GET_VERSION (GENERAL/0x01).
     std::optional<testability::TestabilityVersion> getVersion() {
         return testability::testabilityGetVersion(cfg_, timeout_ms_, src_ip_be_);
     }
 
-    // Generic service-primitive call — the OEM-specific extension surface
-    // (non-standard SPs build on this directly).
+    // Generic service-primitive call — the extension surface for non-standard SPs.
+    // A case does not hold this class (the factory hands out the recording decorator),
+    // so it reaches the same call through servicePrimitiveControl() and gets the
+    // decorator's accounting.
     testability::TestabilityResponse call(std::uint8_t gid, std::uint8_t pid,
                                        const std::vector<std::uint8_t> &dat = {}) {
         return testability::testabilityCall(cfg_, gid, pid, dat, timeout_ms_, src_ip_be_);
@@ -993,6 +1034,7 @@ private:
     std::uint32_t src_ip_be_;
     TestabilityTcpControl tcp_ctrl_;
     TestabilityUdpControl udp_ctrl_;
+    TestabilityServicePrimitiveControl primitive_ctrl_;
 };
 
 }  // namespace tc8::sce

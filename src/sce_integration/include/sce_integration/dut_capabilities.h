@@ -91,6 +91,10 @@ enum DutCapability : std::uint32_t {
     // SEND_DATA flags). Backend-static: testability carries the flags byte; the
     // opcode OpSendTcpData has none.
     kCapTcpSendFlags = 1u << 15,
+    // IServicePrimitiveControl — a service primitive called by group and primitive
+    // number, for a DUT that serves primitives of its own. Backend-static: the testability
+    // backend frames any primitive; the opcode UT has no such call.
+    kCapServicePrimitive = 1u << 16,
 };
 using DutCapabilities = std::uint32_t;
 

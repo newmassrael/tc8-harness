@@ -528,6 +528,24 @@ TEST_F(TestabilityServerTest, UdpReceiveAndForwardEmitsDatagramSourceEvent) {
 
 // ── Tier 2 seam: ITcpControl / IUdpControl over the real testability server ──
 
+// The service-primitive pass-through reaches a primitive by number: GET_VERSION is
+// served, a primitive the server does not know is answered with a refusal (the DUT
+// answered, so it is not "no answer").
+TEST_F(TestabilityServerTest, ServicePrimitiveControlCallsAPrimitiveByNumber) {
+    sce::TestabilityControl ctrl(loopbackConfig());
+    EXPECT_EQ(ctrl.capabilities() & sce::kCapServicePrimitive, sce::kCapServicePrimitive);
+    sce::IServicePrimitiveControl *prim = ctrl.servicePrimitiveControl();
+    ASSERT_NE(prim, nullptr);
+
+    const sce::DutPrimitiveReply version = prim->call(tp::kGidGeneral, tp::kPidGetVersion, {});
+    EXPECT_TRUE(version.succeeded());
+    EXPECT_EQ(version.data.size(), 6u);  // major/minor/patch, uint16 each
+
+    const sce::DutPrimitiveReply unknown = prim->call(0x7E, 0x7E, {});
+    EXPECT_TRUE(unknown.answered());
+    EXPECT_FALSE(unknown.succeeded());
+}
+
 // RFC 793 3.9 CLOSE on CLOSED: a socket created and bound but never connected
 // closes (E_OK), and a second CLOSE is refused because the connection does not
 // exist.
