@@ -175,6 +175,11 @@ TC8_EXPECT_KEY(dut, MAC,  mac)
 // kCapSecondaryDutAddress and is capability-skipped where it is absent
 // (docs/tech-debt.md TD-25).
 TC8_EXPECT_KEY(dut, IPV4, secondary_ip)
+// An address the DUT answers on in a DIFFERENT subnet of its primary interface, or absent for a
+// DUT without one. Unlike `secondary_ip`, which is an alias inside the primary subnet. The
+// topology that provisions it emits this; a case needing it declares kCapSecondSubnetAddress
+// and is capability-skipped where it is absent.
+TC8_EXPECT_KEY(dut, IPV4, second_subnet_ip)
 
 // --- Tester wire identity (TesterIdentity, "tester." prefix) ----------------
 // A second address the TESTER answers on, or absent for a tester with one. The
@@ -184,6 +189,9 @@ TC8_EXPECT_KEY(dut, IPV4, secondary_ip)
 // what a `--negative` row flips (docs/tech-debt.md TD-49).
 TC8_EXPECT_KEY(tester, IPV4, ip)
 TC8_EXPECT_KEY(tester, IPV4, secondary_ip)
+// The tester's address on that second subnet: the mirror of `dut.second_subnet_ip`, read by the
+// stimulus that has the DUT send to it and by the tester that answers the DUT's ARP for it.
+TC8_EXPECT_KEY(tester, IPV4, second_subnet_ip)
 
 // --- DUT SOME/IP service identity (SomeIpIdentity, "someip_dut." prefix) -----
 // What a Method Request is ADDRESSED to. The same four values also exist as

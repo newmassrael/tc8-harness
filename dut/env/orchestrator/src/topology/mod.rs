@@ -260,6 +260,25 @@ pub trait Topology {
     fn dut_has_secondary_address(&self) -> bool {
         false
     }
+    /// Whether this topology's DUT answers on an address in a SECOND SUBNET of its
+    /// primary interface (RFC 1122 §4.1.3.5 multihoming). `true` makes dispatch emit a
+    /// global `--expect dut.second_subnet_ip=<cfg.dut_subnet2_ip4>`, from which the
+    /// harness advertises `kCapSecondSubnetAddress`.
+    ///
+    /// A fact separate from `dut_has_secondary_address`, whose alias sits INSIDE the
+    /// primary subnet: there a stack has no rule to choose a source by (Linux picks the
+    /// primary), so a case cannot tell a correct choice from a wrong one. Two networks
+    /// can.
+    ///
+    /// Who says so: `SinglePc` from its netns transport, which provisions the pair;
+    /// `External` / `SshRemote` from the operator's `site.wire.dut_subnet2_ip` (and its
+    /// tester counterpart, always given together); `LwipTap` not at all, because an lwIP
+    /// netif holds one IPv4 address, so the skip names the fixture. Default `false`: a
+    /// topology that provides the pair must say so, and one that stays silent loses only
+    /// the cases that need it, which is the safe direction.
+    fn dut_has_second_subnet_address(&self) -> bool {
+        false
+    }
     /// Whether the orchestrator rebuilds this worker's netns before EVERY case —
     /// bash run_case's `TOPOLOGY_DUT_CONDITIONING`-gated per-case tear-down +
     /// bring-up (smoke-test.sh). `true` only for a topology that OWNS and REUSES a

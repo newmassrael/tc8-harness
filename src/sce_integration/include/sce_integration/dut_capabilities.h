@@ -107,6 +107,12 @@ enum DutCapability : std::uint32_t {
     // testability CREATE_AND_BIND / SEND_DATA / CLOSE_SOCKET; the opcode UT's UDP is
     // port-based and has only the one-shot IUdpControl send.
     kCapUdpSocket = 1u << 19,
+    // The DUT holds an address in a DIFFERENT subnet of its primary interface (RFC 1122
+    // §4.1.3.5). A topology fact answered by `topologyCapabilities()` from
+    // `dut.second_subnet_ip`, like kCapSecondaryDutAddress and for the same reason, but its own
+    // bit: the same-subnet alias cannot show which address a stack chooses as a source, and
+    // UDP_USER_INTERFACE_07 relies on that one keeping its meaning.
+    kCapSecondSubnetAddress = 1u << 20,
 };
 using DutCapabilities = std::uint32_t;
 

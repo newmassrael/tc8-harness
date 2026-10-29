@@ -37,6 +37,12 @@ pub const TESTER_ALIAS_IP: &str = "172.16.0.4";
 /// fixture answers ARP for it from the tap (/32). One value, two consumers.
 pub const HOST2_IP: &str = "172.16.0.3";
 
+/// DUT-side address on the second subnet of the primary interface.
+pub const DUT_SUBNET2_IP: &str = "172.18.0.2";
+
+/// Tester-side address on the second subnet of the primary interface.
+pub const TESTER_SUBNET2_IP: &str = "172.18.0.1";
+
 /// `kDefaultServerIdBe` — the Option-3 router the DHCPv4 CM_05/_06 conditioning pins.
 pub const DHCPV4_SERVER1_IP4: &str = "172.16.0.10";
 

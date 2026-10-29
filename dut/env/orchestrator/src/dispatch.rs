@@ -706,6 +706,14 @@ fn run_case_impl_row(
         args.push("--expect".to_string());
         args.push(format!("dut.secondary_ip={}", cfg.dut_alias_ip4));
     }
+    // The DUT's address on a second SUBNET of its primary interface, when this topology
+    // provisions one. Absent, the harness advertises no kCapSecondSubnetAddress and a case
+    // needing it is capability-skipped. A separate fact from the alias above: an alias
+    // inside the primary subnet cannot show which address a stack chooses as a source.
+    if topo.dut_has_second_subnet_address() {
+        args.push("--expect".to_string());
+        args.push(format!("dut.second_subnet_ip={}", cfg.dut_subnet2_ip4));
+    }
     // ⚠ The TESTER's second address is NOT emitted here. It is unconditional —
     // every topology in this tree stands the tester up itself — so it is a static
     // key->source row and belongs in tools/expect_surface.def, which generates it

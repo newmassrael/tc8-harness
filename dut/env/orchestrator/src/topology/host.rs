@@ -314,6 +314,11 @@ impl Topology for External<'_> {
         // has already copied it into the config this reports on.
         self.site.wire.dut_alias_ip.is_some()
     }
+    fn dut_has_second_subnet_address(&self) -> bool {
+        // The operator's site declaration answers, as for the alias above. resolve() has
+        // already checked the DUT and tester addresses come as a pair.
+        self.site.wire.dut_subnet2_ip.is_some()
+    }
 
     fn preflight(&self) -> Result<()> {
         // Preconditions only. Required config vars (iface/dut_ip/tester_ip) are
@@ -467,6 +472,10 @@ impl Topology for SshRemote<'_> {
         // Same answer and the same reason as `External` above: the operator's
         // site declaration is the only thing that knows a remote DUT's addresses.
         self.site.wire.dut_alias_ip.is_some()
+    }
+    fn dut_has_second_subnet_address(&self) -> bool {
+        // Same answer and the same reason as `External` above.
+        self.site.wire.dut_subnet2_ip.is_some()
     }
 
     fn preflight(&self) -> Result<()> {

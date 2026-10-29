@@ -127,6 +127,15 @@ pub fn setup(p: &NetnsParams) -> Result<()> {
     ip(&["-n", &p.dut_ns, "addr", "add", &p.dut_ip, "dev", dut_l3if])?;
     ip(&["-n", &p.dut_ns, "addr", "add", &dut_alias, "dev", dut_l3if])?;
     ip(&["-n", &p.tester_ns, "addr", "add", &tester_alias, "dev", tester_l3if])?;
+    // A second SUBNET on the same interface (RFC 1122 §4.1.3.5 multihoming): a /24
+    // disjoint from the primary one, so a stack choosing a source for a datagram to the
+    // tester's address there has a rule to choose by. The aliases above sit INSIDE the
+    // primary subnet, where it has none. Both ends hold their address, so the tester's
+    // kernel answers the DUT's ARP for it. Bare IPs from wire, /24 derived here.
+    let dut_subnet2 = format!("{}/24", wire::DUT_SUBNET2_IP);
+    let tester_subnet2 = format!("{}/24", wire::TESTER_SUBNET2_IP);
+    ip(&["-n", &p.dut_ns, "addr", "add", &dut_subnet2, "dev", dut_l3if])?;
+    ip(&["-n", &p.tester_ns, "addr", "add", &tester_subnet2, "dev", tester_l3if])?;
 
     // --- Disable veth TX checksum offload (setup-netns.sh) — best-effort
     //     (bash `|| true`). veth reports CHECKSUM_PARTIAL on TX, so without this

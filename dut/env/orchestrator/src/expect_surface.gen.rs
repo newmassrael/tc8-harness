@@ -91,6 +91,12 @@ fn append_l2l3_identity(e: &mut Vec<String>, cfg: &Config, dut_mac: &str) {
     // unconditional, and hand-mirroring this list is what TD-12 was
     // (docs/tech-debt.md TD-49).
     ex(e, "tester.secondary_ip", &cfg.tester_alias_ip4);
+    // The tester's address on the second SUBNET of the primary interface (RFC 1122 §4.1.3.5
+    // multihoming), under the TESTER IDENTITY key. Unconditional like the one above: every
+    // topology stands the tester up itself. The DUT's counterpart, `dut.second_subnet_ip`, is
+    // emitted by dispatch.rs only for a topology that provisions it, because that is control
+    // flow (a capability), not a static row.
+    ex(e, "tester.second_subnet_ip", &cfg.tester_subnet2_ip4);
 }
 
 /// The per-worker DUT-MAC `--expect` keys (kernel-assigned veth MAC,

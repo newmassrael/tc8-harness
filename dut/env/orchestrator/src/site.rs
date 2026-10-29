@@ -277,6 +277,13 @@ struct SiteConf {
     /// precisely why they need to be real fields.
     dut_alias_ip: Option<String>,
     tester_alias_ip: Option<String>,
+    /// The addresses on a SECOND SUBNET of the primary interface, for the cases that
+    /// grade which source a stack picks between two networks (RFC 1122 §4.1.3.5). Absent
+    /// = no second subnet: an in-tree netns provisions its own from wire.def, and a real
+    /// external DUT has one only if its operator configured it, so the operator has to be
+    /// able to say. Both must be given together; one without the other is no pair.
+    dut_subnet2_ip: Option<String>,
+    tester_subnet2_ip: Option<String>,
 
     // --- ssh-remote only ---
     /// user@host for the DUT machine.
@@ -358,6 +365,10 @@ pub struct WireSite {
     /// netns defaults `Config` was seeded with.
     pub dut_alias_ip: Option<String>,
     pub tester_alias_ip: Option<String>,
+    /// The addresses on a second subnet of the primary interface; `None` = the site has
+    /// none. Always both or neither (checked at resolve).
+    pub dut_subnet2_ip: Option<String>,
+    pub tester_subnet2_ip: Option<String>,
     /// Verification fixture to provision (kind compatibility already checked).
     pub fixture: Option<FixtureSpec>,
 }
@@ -482,6 +493,8 @@ impl SiteConf {
             preflight_src_ip,
             dut_alias_ip,
             tester_alias_ip,
+            dut_subnet2_ip,
+            tester_subnet2_ip,
             require_ut: _, // bool — no ${} to expand
             ssh_target,
             ssh_opts,
@@ -504,6 +517,8 @@ impl SiteConf {
             preflight_src_ip,
             dut_alias_ip,
             tester_alias_ip,
+            dut_subnet2_ip,
+            tester_subnet2_ip,
             ssh_target,
             ssh_opts,
             remote_dut_bin,
@@ -563,6 +578,8 @@ impl SiteConf {
             preflight_src_ip,
             dut_alias_ip,
             tester_alias_ip,
+            dut_subnet2_ip,
+            tester_subnet2_ip,
             require_ut,
             ssh_target,
             ssh_opts,
@@ -585,6 +602,17 @@ impl SiteConf {
         let preflight_src_ip = ne(preflight_src_ip);
         let dut_alias_ip = ne(dut_alias_ip);
         let tester_alias_ip = ne(tester_alias_ip);
+        let dut_subnet2_ip = ne(dut_subnet2_ip);
+        let tester_subnet2_ip = ne(tester_subnet2_ip);
+        // A second subnet is a PAIR: the DUT's address without the tester's gives the tester
+        // nothing to answer the DUT's ARP with, and the tester's without the DUT's names no
+        // capability. One alone is a conf mistake, not a half-provisioned topology.
+        if dut_subnet2_ip.is_some() != tester_subnet2_ip.is_some() {
+            bail!(
+                "dut_subnet2_ip and tester_subnet2_ip are a pair: give both or neither \
+                 (the second subnet of the primary interface needs an address on each end)"
+            );
+        }
         let ssh_target = ne(ssh_target);
         let ssh_opts = ne(ssh_opts);
         let remote_dut_bin = ne(remote_dut_bin);
@@ -610,7 +638,7 @@ impl SiteConf {
         // topology-specific field consumed by one arm but FORGOTTEN here would not be
         // rejected when set under a different topology — keep it in sync with the
         // struct's topology-specific fields.
-        let all_fields: [(&str, bool); 15] = [
+        let all_fields: [(&str, bool); 17] = [
             ("iface", iface.is_some()),
             ("dut_ip", dut_ip.is_some()),
             ("tester_ip", tester_ip.is_some()),
@@ -619,6 +647,8 @@ impl SiteConf {
             ("preflight_src_ip", preflight_src_ip.is_some()),
             ("dut_alias_ip", dut_alias_ip.is_some()),
             ("tester_alias_ip", tester_alias_ip.is_some()),
+            ("dut_subnet2_ip", dut_subnet2_ip.is_some()),
+            ("tester_subnet2_ip", tester_subnet2_ip.is_some()),
             ("require_ut", require_ut),
             ("ssh_target", ssh_target.is_some()),
             ("ssh_opts", ssh_opts.is_some()),
@@ -668,7 +698,7 @@ impl SiteConf {
                     &all_fields,
                     &["iface", "dut_ip", "tester_ip", "dut_mac", "iface_secondary",
                       "preflight_src_ip", "dut_alias_ip", "tester_alias_ip",
-                      "require_ut"],
+                      "dut_subnet2_ip", "tester_subnet2_ip", "require_ut"],
                 )?;
                 let mut missing: Vec<&str> = Vec::new();
                 if iface.is_none() {
@@ -691,6 +721,8 @@ impl SiteConf {
                         iface_secondary,
                         dut_alias_ip,
                         tester_alias_ip,
+                        dut_subnet2_ip,
+                        tester_subnet2_ip,
                         fixture,
                     },
                     preflight_src_ip,
@@ -703,6 +735,7 @@ impl SiteConf {
                     &all_fields,
                     &["iface", "dut_ip", "tester_ip", "dut_mac", "iface_secondary",
                       "dut_alias_ip", "tester_alias_ip",
+                      "dut_subnet2_ip", "tester_subnet2_ip",
                       "ssh_target", "ssh_opts", "remote_dut_bin", "remote_vsomeip_cfg",
                       "remote_capi_cfg", "remote_wrap"],
                 )?;
@@ -739,6 +772,8 @@ impl SiteConf {
                         iface_secondary,
                         dut_alias_ip,
                         tester_alias_ip,
+                        dut_subnet2_ip,
+                        tester_subnet2_ip,
                         fixture,
                     },
                     ssh_target: ssh_target.unwrap(),
@@ -904,6 +939,49 @@ mod tests {
             }
             other => panic!("expected External, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn a_second_subnet_is_a_pair_the_site_may_declare() {
+        // Absent by default: a real external DUT has no second subnet unless its operator
+        // configured one, so the topology advertises nothing and the case skips.
+        match external_triple().resolve(TopologyKind::External).unwrap().conf {
+            TopologyConf::External(e) => {
+                assert!(e.wire.dut_subnet2_ip.is_none());
+                assert!(e.wire.tester_subnet2_ip.is_none());
+            }
+            other => panic!("expected External, got {other:?}"),
+        }
+        let both = SiteConf {
+            dut_subnet2_ip: Some("10.20.0.2".into()),
+            tester_subnet2_ip: Some("10.20.0.1".into()),
+            ..external_triple()
+        };
+        match both.resolve(TopologyKind::External).unwrap().conf {
+            TopologyConf::External(e) => {
+                assert_eq!(e.wire.dut_subnet2_ip.as_deref(), Some("10.20.0.2"));
+                assert_eq!(e.wire.tester_subnet2_ip.as_deref(), Some("10.20.0.1"));
+            }
+            other => panic!("expected External, got {other:?}"),
+        }
+        // One end alone is no pair: it is refused, not half-provisioned.
+        let dut_only = SiteConf { dut_subnet2_ip: Some("10.20.0.2".into()), ..external_triple() };
+        assert!(dut_only.resolve(TopologyKind::External).unwrap_err().to_string().contains("pair"));
+        let tester_only =
+            SiteConf { tester_subnet2_ip: Some("10.20.0.1".into()), ..external_triple() };
+        assert!(tester_only.resolve(TopologyKind::External).unwrap_err().to_string().contains("pair"));
+    }
+
+    #[test]
+    fn a_second_subnet_is_foreign_to_the_wire_fixed_topologies() {
+        // single-pc builds its second subnet itself from wire.def; a site value would be
+        // silently outranked, so it is refused like the aliases are.
+        let conf = SiteConf {
+            dut_subnet2_ip: Some("10.20.0.2".into()),
+            tester_subnet2_ip: Some("10.20.0.1".into()),
+            ..SiteConf::default()
+        };
+        assert!(conf.resolve(TopologyKind::SinglePc).unwrap_err().to_string().contains("dut_subnet2_ip"));
     }
 
     #[test]

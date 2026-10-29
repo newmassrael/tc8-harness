@@ -40,8 +40,9 @@ std::unique_ptr<IDutControl> makeDutControl(const ::tc8::TestConfig &cfg,
                                             std::string_view iface = {},
                                             int timeout_ms = 1000);
 
-// The capability bits the TOPOLOGY answers — today kCapSecondaryDutAddress, set
-// when the topology emitted `dut.secondary_ip`. Deliberately NOT folded into any
+// The capability bits the TOPOLOGY answers — kCapSecondaryDutAddress, set when the topology
+// emitted `dut.secondary_ip`, and kCapSecondSubnetAddress, set when it emitted
+// `dut.second_subnet_ip`. Deliberately NOT folded into any
 // backend: the fact holds or not whichever backend `makeDutControl` builds, so a
 // backend that is handed it can also fail to be, and one did. The capability gate
 // ORs this with the backend's own answer. No DUT I/O.

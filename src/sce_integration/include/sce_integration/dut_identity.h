@@ -44,6 +44,16 @@ struct DutIdentity {
     // guard is load-bearing. Deriving a capability from a field a negative row
     // rewrites would let a row silently change which cases run.
     std::uint32_t secondary_ip = 0;
+    // An address the DUT answers on in a DIFFERENT subnet of its primary interface, network
+    // byte order, or 0 for a DUT without one (`--expect dut.second_subnet_ip=<dotted>`).
+    //
+    // Not `secondary_ip`: an alias inside the primary subnet cannot show which of two
+    // addresses a stack chooses as the source of a datagram, because RFC 1122 §4.1.3.5 gives
+    // it no rule to choose by there (Linux picks the primary). A DUT on two NETWORKS can: the
+    // source must be the address on the network that reaches the destination. The topology
+    // that provisions it emits the key, and a case needing it is capability-skipped
+    // (kCapSecondSubnetAddress) where it is absent.
+    std::uint32_t second_subnet_ip = 0;
 };
 
 }  // namespace tc8

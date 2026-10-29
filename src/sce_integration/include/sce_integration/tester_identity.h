@@ -47,6 +47,13 @@ struct TesterIdentity {
     // is load-bearing. Sourcing the ask from it would move both sides together
     // and make that negative vacuous.
     std::uint32_t secondary_ip = 0;
+
+    // The tester's address on the SECOND SUBNET of the primary interface, network byte order,
+    // or 0 for a tester without one (`--expect tester.second_subnet_ip=<dotted>`): the mirror
+    // of `DutIdentity::second_subnet_ip`. A stimulus has the DUT send there, and the tester
+    // answers the DUT's ARP for it. Kept apart from `secondary_ip` for the same reason the DUT
+    // pair is: that one is an alias inside the primary subnet.
+    std::uint32_t second_subnet_ip = 0;
 };
 
 }  // namespace tc8

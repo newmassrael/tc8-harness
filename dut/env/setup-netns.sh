@@ -117,6 +117,14 @@ ip -n "$DUT_NS"    addr add "$DUT_IP"    dev "$DUT_L3IF"
 ip -n "$DUT_NS"    addr add "$TC8_WIRE_DUT_ALIAS_IP/24" dev "$DUT_L3IF"
 ip -n "$TESTER_NS" addr add "$TC8_WIRE_TESTER_ALIAS_IP/24" dev "$TESTER_L3IF"
 
+# A second SUBNET on the same interface (RFC 1122 §4.1.3.5 multihoming): a /24 disjoint from
+# the primary one (and from SECOND_VETH's), so a stack choosing a source address for a
+# datagram to the tester's address there has a rule to choose by. The aliases above sit
+# INSIDE the primary subnet, where it has none. Both ends hold their address, so the
+# tester's kernel answers the DUT's ARP for it. The orchestrator's netns.rs does the same.
+ip -n "$DUT_NS"    addr add "$TC8_WIRE_DUT_SUBNET2_IP/24" dev "$DUT_L3IF"
+ip -n "$TESTER_NS" addr add "$TC8_WIRE_TESTER_SUBNET2_IP/24" dev "$TESTER_L3IF"
+
 # TX checksum offload is NOT disabled here. veth transmits CHECKSUM_PARTIAL, so
 # a pcap capture would otherwise see only the pseudo-header partial sum and the
 # sender-checksum conformance case would read an invalid L4 checksum. The disable

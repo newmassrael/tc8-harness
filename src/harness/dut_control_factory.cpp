@@ -72,7 +72,11 @@ DutCapabilities topologyCapabilities(const ::tc8::TestConfig &cfg) {
     // `dut.secondary_ip` or does not, and a case that needs one is
     // capability-skipped where it is absent rather than reporting a standing
     // non-conclusion (docs/tech-debt.md TD-25).
-    return (cfg.dut.secondary_ip != 0U) ? kCapSecondaryDutAddress : DutCapabilities{0};
+    // The same holds for an address on a second SUBNET of the primary interface
+    // (`dut.second_subnet_ip`, kCapSecondSubnetAddress): a separate fact, so a separate bit.
+    return static_cast<DutCapabilities>(
+        ((cfg.dut.secondary_ip != 0U) ? kCapSecondaryDutAddress : DutCapabilities{0}) |
+        ((cfg.dut.second_subnet_ip != 0U) ? kCapSecondSubnetAddress : DutCapabilities{0}));
 }
 
 }  // namespace tc8::sce

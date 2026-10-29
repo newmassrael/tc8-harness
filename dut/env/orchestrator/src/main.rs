@@ -156,6 +156,13 @@ fn apply_alias_overrides(cfg: &mut Config, wire: &site::WireSite) {
     if let Some(ip) = &wire.tester_alias_ip {
         cfg.tester_alias_ip4 = ip.clone();
     }
+    // The second-subnet pair: resolve() guarantees both or neither.
+    if let Some(ip) = &wire.dut_subnet2_ip {
+        cfg.dut_subnet2_ip4 = ip.clone();
+    }
+    if let Some(ip) = &wire.tester_subnet2_ip {
+        cfg.tester_subnet2_ip4 = ip.clone();
+    }
 }
 
 /// The source tree this binary was compiled from, and what `build.rs` recorded

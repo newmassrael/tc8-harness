@@ -128,6 +128,9 @@ BIT_DEMANDS = {
     # bit about the DUT. The owner is the whole distinction here, so the token
     # carries it.
     "kCapSecondaryDutAddress": {"dut.secondary_ip"},
+    # The second-subnet sibling: the demand is the same kind of FIELD, QUALIFIED by its owner,
+    # and for the same reason (the tester has a field of the same name).
+    "kCapSecondSubnetAddress": {"dut.second_subnet_ip"},
 }
 
 BIT_RE = re.compile(r"\b(kCap[A-Za-z]+)\b")

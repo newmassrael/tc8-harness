@@ -86,6 +86,12 @@ impl Topology for SinglePc<'_> {
         // DUT is spawned into it (docs/tech-debt.md TD-25).
         true
     }
+    fn dut_has_second_subnet_address(&self) -> bool {
+        // The netns transport adds `wire::DUT_SUBNET2_IP` / `wire::TESTER_SUBNET2_IP` (a
+        // /24 disjoint from the primary one) to the veths, whichever DUT is spawned into
+        // the pair; see `netns::setup`.
+        true
+    }
     fn rebuild_netns_per_case(&self) -> bool {
         // The transport owns and REUSES a per-worker netns pair across the bucket, so
         // it MUST rebuild between cases (bash TOPOLOGY_DUT_CONDITIONING=1).

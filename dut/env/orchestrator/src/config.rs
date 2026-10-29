@@ -84,6 +84,11 @@ pub struct Config {
     /// surface.
     pub tester_alias_ip4: String,
     pub dut_alias_ip4: String,
+    /// The addresses on a SECOND SUBNET of the primary interface (RFC 1122 §4.1.3.5
+    /// multihoming), one for each end. Seeded from wire.def like the aliases and carried as
+    /// Config fields for the same reason: a site with a second subnet of its own names it.
+    pub tester_subnet2_ip4: String,
+    pub dut_subnet2_ip4: String,
     /// Operator-supplied extra `--expect` tokens ("key=value", NO `--expect`
     /// prefix) from a `--topology-conf` — DUT values vsomeip.json cannot supply
     /// (timing / endpoint constants). Empty by default; folded into the `--expect`
@@ -249,6 +254,8 @@ impl Config {
             // names different aliases.
             tester_alias_ip4: crate::wire::TESTER_ALIAS_IP.into(),
             dut_alias_ip4: crate::wire::DUT_ALIAS_IP.into(),
+            tester_subnet2_ip4: crate::wire::TESTER_SUBNET2_IP.into(),
+            dut_subnet2_ip4: crate::wire::DUT_SUBNET2_IP.into(),
             identity,
             sd_timing,
             backstop_sec: crate::wire::BACKSTOP_SEC,
@@ -311,6 +318,8 @@ pub(crate) fn fake_cfg() -> Config {
         dut_ip4: "172.16.0.2".into(),
         tester_alias_ip4: crate::wire::TESTER_ALIAS_IP.into(),
         dut_alias_ip4: crate::wire::DUT_ALIAS_IP.into(),
+        tester_subnet2_ip4: crate::wire::TESTER_SUBNET2_IP.into(),
+        dut_subnet2_ip4: crate::wire::DUT_SUBNET2_IP.into(),
         identity: DutIdentity {
             service_id: "0xF4E7".into(),
             instance_id: "0x0001".into(),
