@@ -43,6 +43,7 @@ import argparse
 import json
 import re
 import sys
+import tempfile
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -442,9 +443,16 @@ def cases_in_root(root: Path) -> list[tuple[str, Path]]:
     `TC8_CASE_OVERRIDE_DIRS` require (README): one `<case_id>/` subdirectory per
     case, its machine at `<case_id>/<case_id>.scxml`. A subdirectory holding only an
     `.alias` pointer runs an in-tree machine, which the in-tree audit covers, so it
-    is skipped; any other subdirectory without its machine is reported NO_SCXML."""
+    is skipped; any other subdirectory without its machine is reported NO_SCXML.
+
+    A subdirectory whose name starts with an underscore is auxiliary (`_templates/`
+    holds `sce:template` fragments, not a case): the build's case discovery skips it
+    (src/harness/CMakeLists.txt, `case_id MATCHES "^_"`), so this audit enumerates the
+    same set the build registers and skips it too."""
     out = []
     for sub in sorted(p for p in root.iterdir() if p.is_dir()):
+        if sub.name.startswith("_"):
+            continue
         if (sub / f"{sub.name}.alias").is_file():
             continue
         out.append((sub.name, sub / f"{sub.name}.scxml"))
@@ -523,6 +531,27 @@ def _self_test() -> int:
         ok = len(findings) == want
         bad += 0 if ok else 1
         print(f"{'ok  ' if ok else 'FAIL'} {label}: {len(findings)} finding(s), want {want}")
+
+    # The case set a consumer root yields must be the set the build registers: an
+    # underscore directory (auxiliary, holds template fragments) and an alias-only
+    # directory are not cases; a directory with no machine of its own still is, and
+    # is what NO_SCXML reports.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        for name, files in (("_templates", ["foo.sce-template.xml"]),
+                            ("_shared", []),
+                            ("real_case", ["real_case.scxml"]),
+                            ("aliased", ["aliased.alias"]),
+                            ("no_machine", ["notes.txt"])):
+            (root / name).mkdir()
+            for f in files:
+                (root / name / f).write_text("", encoding="utf-8")
+        (root / "stray_file.txt").write_text("", encoding="utf-8")
+        got = [n for n, _ in cases_in_root(root)]
+    want_ids = ["no_machine", "real_case"]
+    ok = got == want_ids
+    bad += 0 if ok else 1
+    print(f"{'ok  ' if ok else 'FAIL'} case root enumeration: {got}, want {want_ids}")
     return 1 if bad else 0
 
 
