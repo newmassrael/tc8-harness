@@ -27,7 +27,7 @@ struct TestCaseTraits<cases::UdpFields16SM>
         "'no checksum computed' sentinel; RFC 1122 §4.1.3.4 SHOULD "
         "default to checksumming on but MUST allow zero-cksum bypass)";
 
-    static void stimulus(Captured& /*c*/,
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::udp::UdpStimulusOverrides ov{};
@@ -36,8 +36,8 @@ struct TestCaseTraits<cases::UdpFields16SM>
         // checksum computed"; receivers MAY accept it and Linux
         // (default sysctl) does.
         ov.udp.checksum_field = std::uint16_t{0x0000};
-        ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, ctx.iface, ctx.dut,
+        ::tc8::sce::udp::emitIngressProbeAndObserve(
+            c, cfg, ctx.iface, ctx.dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size(),
             ::tc8::sce::udp::kDataPeerPort, ov);

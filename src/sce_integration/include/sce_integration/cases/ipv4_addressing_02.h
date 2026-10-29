@@ -49,29 +49,29 @@ struct TestCaseTraits<cases::Ipv4Addressing02SM> {
     // As ipv4_addressing_01: the verdict rests on the DUT's receipt answer.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
         ::tc8::sce::kCapUdpReceiveControl;
-    // As ipv4_addressing_01: the Confirmation is the graded frame, so the control
-    // channel stays visible to this case.
-    static constexpr ::tc8::sce::ControlPlaneRole kControlPlaneRole =
-        ::tc8::sce::ControlPlaneRole::kEvidence;
 
     using Captured = typename SM::CapturedType;
     using Expected = typename SM::ExpectedType;
 
     // Shared stimulus body with IPv4_ADDRESSING_01 via
-    // `emitAddressingProbeAndQuery`. The SCXML's
+    // `emitAddressingProbeAndObserve`. The SCXML's
     // `{$expected_received}=0` parameter flips this case's polarity;
     // the probe's `dst_ip = <directedBroadcastAddress>` is the only
     // wire-level difference from ADDRESSING_01.
-    static void stimulus(Captured& /*c*/,
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
-        ::tc8::sce::udp::emitAddressingProbeAndQuery(
-            cfg, ctx.iface, ctx.dut, cases::kDirectedBroadcastBe);
+        ::tc8::sce::udp::emitAddressingProbeAndObserve(
+            c, cfg, ctx.iface, ctx.dut, cases::kDirectedBroadcastBe);
     }
 
-    static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {
-        ::tc8::sce::udp::dispatchUdpFrame<SM>(c, sm, ev);
+    // As ipv4_addressing_01: the answer is read in-process.
+    static void onStimulusSettled(Captured& /*c*/, SM& sm) {
+        ::tc8::sce::udp::raiseReceiveAnswered(sm);
     }
+
+    // As ipv4_addressing_01: no wire frame is dispatched.
+    static void dispatch(Captured& /*c*/, SM& /*sm*/, const ::tc8::CapturedEvent& /*ev*/) {}
 };
 
 }  // namespace tc8::sce

@@ -634,14 +634,22 @@ public:
         : dut_ip_be_(dut_ip_be), port_(port), src_ip_be_(src_ip_be), timeout_ms_(timeout_ms),
           raw_(std::move(raw)) {}
 
-    bool createReceivePorts(std::uint8_t count) override {
-        return send(stimulus::buildCreateUdpReceivePortsRequest(nextReqId(), count),
-                    "CreateUdpReceivePorts");
-    }
-
-    bool queryReceived(const Endpoint &listen) override {
-        return send(stimulus::buildGetReceivedUdpRequest(nextReqId(), listen.port, listen.addr_be),
-                    "GetReceivedUdp");
+    // The reply names how many ports the DUT opened; it is read here, in-process,
+    // so the case grades the DUT's count and not a wire frame that carried it.
+    std::optional<std::uint8_t> createReceivePorts(std::uint8_t count) override {
+        const auto req = stimulus::buildCreateUdpReceivePortsRequest(nextReqId(), count);
+        const auto reply = exchange(req, "CreateUdpReceivePorts");
+        if (!reply || reply->status != ut::kStatusOk) {
+            return std::nullopt;
+        }
+        ut::UtResponse resp;
+        resp.request_opcode = ut::OpCreateUdpReceivePorts;
+        ut::decodeResponseBody(resp, reply->data.data(),
+                               static_cast<std::uint32_t>(reply->data.size()));
+        if (!resp.create_count_valid) {
+            return std::nullopt;  // a reply the tester cannot read
+        }
+        return resp.create_actual_count;
     }
 
     // The opcode UT's data listener logs each receipt on its own thread and answers
@@ -656,12 +664,7 @@ public:
         std::this_thread::sleep_for(kReceiptLogDelay);
         const auto req =
             stimulus::buildGetReceivedUdpRequest(nextReqId(), listen.port, listen.addr_be);
-        const auto reply =
-            raw_.iface.empty()
-                ? stimulus::upperTesterRoundTrip(dut_ip_be_, req, port_, timeout_ms_, src_ip_be_)
-                : stimulus::upperTesterRequestAwaited(raw_.iface, raw_.tester_ip_be, dut_ip_be_,
-                                                      raw_.dut_mac, raw_.tester_src_port, req,
-                                                      timeout_ms_, "GetReceivedUdp");
+        const auto reply = exchange(req, "GetReceivedUdp");
         if (!reply) {
             return DutUdpReceiveOutcome::noAnswer();
         }
@@ -698,15 +701,16 @@ private:
     // value the probe-then-query helpers slept before the verb existed.
     static constexpr std::chrono::milliseconds kReceiptLogDelay{200};
 
-    bool send(const std::vector<std::uint8_t> &req, const char *name) {
+    // One request and its reply, status and body. A non-OK status is returned as a
+    // reply, not hidden: the caller tells a refusal from no answer.
+    std::optional<stimulus::UtReply> exchange(const std::vector<std::uint8_t> &req, const char *name) {
         if (raw_.iface.empty()) {
-            const auto r =
-                stimulus::upperTesterRoundTrip(dut_ip_be_, req, port_, timeout_ms_, src_ip_be_);
-            return r && r->status == ut::kStatusOk;
+            return stimulus::upperTesterRoundTrip(dut_ip_be_, req, port_, timeout_ms_,
+                                                  src_ip_be_);
         }
-        return stimulus::sendUpperTesterRequestAwaited(raw_.iface, raw_.tester_ip_be, dut_ip_be_,
-                                                       raw_.dut_mac, raw_.tester_src_port, req,
-                                                       timeout_ms_, name) == 0;
+        return stimulus::upperTesterRequestAwaited(raw_.iface, raw_.tester_ip_be, dut_ip_be_,
+                                                   raw_.dut_mac, raw_.tester_src_port, req,
+                                                   timeout_ms_, name);
     }
     std::uint8_t nextReqId() { return stimulus::nextUtReqId(); }
 
@@ -1191,7 +1195,8 @@ public:
         : cfg_(cfg), timeout_ms_(timeout_ms), src_ip_be_(src_ip_be),
           tcp_ctrl_(cfg, timeout_ms, src_ip_be), udp_ctrl_(cfg, timeout_ms, src_ip_be),
           primitive_ctrl_(cfg, timeout_ms, src_ip_be), socket_config_ctrl_(cfg, timeout_ms, src_ip_be),
-          icmp_ctrl_(cfg, timeout_ms, src_ip_be), udp_socket_ctrl_(cfg, timeout_ms, src_ip_be) {}
+          icmp_ctrl_(cfg, timeout_ms, src_ip_be), udp_socket_ctrl_(cfg, timeout_ms, src_ip_be),
+          udp_recv_ctrl_(cfg, timeout_ms, src_ip_be) {}
 
     bool probe() override { return getVersion().has_value(); }
     bool startTest() override {
@@ -1214,10 +1219,12 @@ public:
     // sub-interfaces are available on every testability DUT.
     DutCapabilities capabilities() const override {
         return kCapTcpControl | kCapUdpControl | kCapTcpCreateClosed | kCapTcpSendFlags |
-               kCapServicePrimitive | kCapSocketConfigure | kCapIcmpEcho | kCapUdpSocket;
+               kCapServicePrimitive | kCapSocketConfigure | kCapIcmpEcho | kCapUdpSocket |
+               kCapUdpReceiveControl;
     }
     ITcpControl *tcpControl() override { return &tcp_ctrl_; }
     IUdpControl *udpControl() override { return &udp_ctrl_; }
+    IUdpReceiveControl *udpReceiveControl() override { return &udp_recv_ctrl_; }
     IServicePrimitiveControl *servicePrimitiveControl() override { return &primitive_ctrl_; }
     ISocketConfigControl *socketConfigControl() override { return &socket_config_ctrl_; }
     IIcmpControl *icmpControl() override { return &icmp_ctrl_; }
@@ -1254,6 +1261,7 @@ private:
     TestabilitySocketConfigControl socket_config_ctrl_;
     TestabilityIcmpControl icmp_ctrl_;
     TestabilityUdpSocketControl udp_socket_ctrl_;
+    TestabilityUdpReceiveControl udp_recv_ctrl_;
 };
 
 }  // namespace tc8::sce

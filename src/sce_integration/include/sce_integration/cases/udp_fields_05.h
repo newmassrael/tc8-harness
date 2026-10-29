@@ -30,36 +30,34 @@ struct TestCaseTraits<cases::UdpFields05SM>
         "source IP per RFC 768 'Fields' / 'User Interface' MUST";
     static constexpr int              kTopology    = 2;
 
-    // Phase 1 (synchronous): probe with src_ip=Host-1-IP +
-    // OpGetReceivedUdp query. Phase 2 (scheduled on Listening_phase2
-    // entry): probe with src_ip=Host-2-IP + query. tc8-dut's
-    // last_receipt slot is overwritten on each probe; the SCXML
-    // observes only the Confirmation that carries the per-phase
-    // expected src_ip.
-    static void stimulus(Captured& /*c*/,
+    // Phase 1: a receive window for a probe with src_ip=Host-1-IP. Phase 2: a
+    // second window, once the first's answer is read, for a probe with
+    // src_ip=Host-2-IP. tc8-dut's last_receipt slot is overwritten on each probe,
+    // which is why the windows run in turn; the SCXML grades the two recorded
+    // answers against the per-phase expected src_ip.
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
-        ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, ctx.iface, ctx.dut,
+        ::tc8::sce::udp::emitIngressProbeAndObserve(
+            c, cfg, ctx.iface, ctx.dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size(),
             ::tc8::sce::udp::kDataPeerPort,
             ::tc8::sce::udp::UdpStimulusOverrides{});
 
-        std::string iface_copy(ctx.iface);
-        ::tc8::TestConfig cfg_copy = cfg;
-        ctx.scheduler.scheduleAfterStateEntry(
-            static_cast<int>(State::Listening_phase2),
-            [iface_copy, cfg_copy, dut = &ctx.dut]() {
-                ::tc8::sce::udp::UdpStimulusOverrides ov{};
-                ov.src_ip_override = ::tc8::sce::udp::kUdpHost2IpBe;
-                ::tc8::sce::udp::emitIngressProbeAndQuery(
-                    cfg_copy, iface_copy, *dut,
+        ::tc8::sce::udp::UdpStimulusOverrides ov{};
+        ov.src_ip_override = ::tc8::sce::udp::kUdpHost2IpBe;
+        ::tc8::sce::udp::observeSecondUdpReceive(
+            c, ctx.dut,
+            ::tc8::sce::Endpoint{cfg.ipv4.dut_iface_ip, ::tc8::sce::udp::kDataPort},
+            [&] {
+                ::tc8::sce::udp::emitUdpStimulus(
+                    cfg, ctx.iface, cfg.ipv4.dut_iface_ip,
+                    ::tc8::sce::udp::kDataPeerPort, ::tc8::sce::udp::kDataPort,
                     ::tc8::sce::udp::kUdpDefaultData.data(),
-                    ::tc8::sce::udp::kUdpDefaultData.size(),
-                    ::tc8::sce::udp::kDataPeerPort,
-                    ov);
-            });
+                    ::tc8::sce::udp::kUdpDefaultData.size(), ov);
+            },
+            [&] { ::tc8::sce::udp::emitReceiveSentinel(cfg, ctx.iface); });
     }
 };
 

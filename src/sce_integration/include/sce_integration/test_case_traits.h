@@ -234,6 +234,32 @@ inline constexpr bool has_stimulus_applied_hook_v =
     has_stimulus_applied_hook<TestCaseTraits<StateMachine>, StateMachine>::value;
 
 // Detects whether TestCaseTraits<SM> declares the optional
+// `static void onStimulusSettled(Captured&, StateMachine&)`. A case declares it
+// when its stimulus LEARNS something from the DUT in-process (a seam call's
+// answer, written into Captured) and the state machine has to grade that answer
+// without waiting for a frame that may never come. The runner calls it once, in
+// `start()`, after the held frames are replayed and before the first poll: the
+// case raises the SCXML event that lets the machine read what the stimulus
+// recorded. Without it the answer would sit in Captured with no event to carry it
+// to a guard — the machine's events are frame-driven — and an eventless
+// transition cannot stand in, because one that fires during `initialize()` leaves
+// no transition for the trace to show (the machine would appear to start in its
+// final state). Keyed on the state-machine type explicitly, as the hook above.
+template <typename Traits, typename StateMachine, typename = void>
+struct has_stimulus_settled_hook : std::false_type {};
+
+template <typename Traits, typename StateMachine>
+struct has_stimulus_settled_hook<
+    Traits, StateMachine,
+    std::void_t<decltype(Traits::onStimulusSettled(
+        std::declval<typename Traits::Captured &>(), std::declval<StateMachine &>()))>>
+    : std::true_type {};
+
+template <typename StateMachine>
+inline constexpr bool has_stimulus_settled_hook_v =
+    has_stimulus_settled_hook<TestCaseTraits<StateMachine>, StateMachine>::value;
+
+// Detects whether TestCaseTraits<SM> declares the optional
 // `static constexpr std::string_view kBpfExpression` capture-filter
 // override (see the contract above). `bpfExpressionOf<T>()` returns it
 // when present and an empty view otherwise, so the registrar can carry
@@ -365,9 +391,10 @@ enum class ControlPlaneRole : bool {
 // The distinction is not new; the SCXML has always drawn it, one backend's
 // framing at a time. A case grading the DUT's own emission gates the control
 // channel OUT (`!captured.has_ut_response`, `_templates/udp_field_check`),
-// while a case asking the DUT what it received gates it IN
-// (`captured.has_ut_response and captured.ut_opcode == 0x81`,
-// `_templates/ipv4_udp_ut_presence`). Both guards spell "control channel" as
+// while a case that grades a control-channel response gates it IN (the UDP
+// receive family did, with `captured.has_ut_response and captured.ut_opcode ==
+// 0x81`, until its answer moved in-process through the seam and no case read it
+// off the wire). Both guards spell "control channel" as
 // "decodes as an opcode Upper Tester response", which is a property of one
 // backend's wire format — a testability response is SOME/IP-framed and matches
 // neither.

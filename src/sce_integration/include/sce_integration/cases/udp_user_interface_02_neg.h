@@ -23,7 +23,7 @@ namespace tc8::sce {
 
 // Self-validation of UDP_USER_INTERFACE_02: the §4.6.5.5 received-data-octets report is a
 // receive-operation property — the stack delivers the correct payload and the application
-// surfaces it in the GetReceivedUdp Confirmation. The kAppFaultReportWrongPayload app fault
+// surfaces it in the receive answer the stimulus records. The kAppFaultReportWrongPayload app fault
 // corrupts the first reported octet (the only faithful site), so a buggy DUT surfaces wrong
 // data. lwIP-only (kCapAppFault via UdpAppFaultNegBase).
 template <>
@@ -35,15 +35,15 @@ struct TestCaseTraits<cases::UdpUserInterface02NegSM>
         "fault makes the Confirmation report a corrupted payload byte; a conformant DUT "
         "reports the data the datagram carried";
 
-    // Arm the payload report fault, then drive the same probe + UT GetReceivedUdp query the
-    // positive uses (the wire-level payload is unchanged; the flavor corrupts only the first
-    // reported octet), so the Confirmation surfaces ut_recv_payload_first16[0] != 0x10.
-    static void stimulus(Captured& /*c*/,
+    // Arm the payload report fault, then drive the same probe + in-process receive answer
+    // the positive uses (the wire-level payload is unchanged; the flavor corrupts only the
+    // first reported octet), so the answer surfaces ut_recv_payload_first16[0] != 0x10.
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         emitAppFlavorArm(cfg, ctx.iface, ::tc8::ut::kAppFaultReportWrongPayload);
-        ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, ctx.iface, ctx.dut,
+        ::tc8::sce::udp::emitIngressProbeAndObserve(
+            c, cfg, ctx.iface, ctx.dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size());
     }

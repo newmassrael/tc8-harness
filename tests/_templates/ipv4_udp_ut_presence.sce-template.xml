@@ -1,31 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  §4.4.4.5 UDP-receipt presence/absence shape driven by §4.8.5 Upper
-  Tester Confirmation. Shared body for IPv4_ADDRESSING_01 (positive,
-  limited broadcast, expected_received=1) and IPv4_ADDRESSING_02
+  §4.4.4.5 UDP-receipt presence/absence shape driven by the DUT's answer to
+  the receive question the case put through the Tier-2 seam
+  (IUdpReceiveControl::receiveUdp). Shared body for IPv4_ADDRESSING_01
+  (positive, limited broadcast, expected_received=1) and IPv4_ADDRESSING_02
   (negative, directed broadcast, expected_received=0).
 
-  The SCXML watches UdpFrame events and ignores any whose payload
-  does not decode as a UT response (captured.has_ut_response == false
-  handles the tester's own probe + UT request + any SOME/IP SD UDP
-  multicast that falls through the BPF). When a Confirmation arrives
-  for our GetReceivedUdp opcode (0x01 | 0x80 = 0x81), the
-  ut_received byte is the pass/fail hinge.
+  The stimulus records the answer in the captured context (receive_answered,
+  ut_received) and the runner's stimulus-settled hook raises
+  `receive_answered` once, so the machine grades the DUT's own answer and not a
+  wire frame that happened to carry it (on the opcode backend, the §4.8.5 Upper
+  Tester Confirmation; the §4.4 IPv4 pilot graded that frame before the seam). `receive_answered` is true only for an
+  answer the verdict may rest on: the probe was delivered, or its discard was
+  proven (the DUT said received=0, or a sentinel datagram sent after the probe
+  was delivered and the probe was not). A silence, a refusal and a lost request
+  record no answer.
 
-    * pass — Confirmation says the DUT's application layer {$observed_desc},
-      matching the spec-prescribed outcome.
-    * fail_wrong_receipt — Confirmation says the opposite. Fires only
-      on GetReceivedUdp responses, so a TriggerSendUdp Confirmation
-      arriving in parallel (same-port UT session) is ignored.
-    * inconclusive_timeout — no Confirmation within 5 s. Either the DUT's UT
-      channel is absent, or the tester's GetReceivedUdp request never
-      reached it.
-
-  The 5 s listen window encompasses: 200 ms tester stimulus wait +
-  UDP probe emit + 200 ms quiet before UT request + UT request emit
-  + tc8-dut log write + UT response emit + pcap delivery. Typical
-  in-netns round-trip is < 100 ms; 5 s absorbs CI scheduler jitter
-  with the same headroom the §4.4 IPv4 pilot uses.
+    * pass — the DUT's application layer {$observed_desc}, matching the
+      spec-prescribed outcome.
+    * fail_wrong_receipt — the DUT answered the opposite.
+    * inconclusive_timeout — no answer within 5 s: the DUT's control path is
+      absent, the question never reached it, or the window observed nothing it
+      could call a discard.
 -->
 <sce:template xmlns:sce="http://sce.dev/ext"
               xmlns="http://www.w3.org/2005/07/scxml"
@@ -62,11 +58,11 @@
     <onentry>
       <send event="deadline_exceeded" delay="5s"/>
     </onentry>
-    <transition event="udp_observed"
-                cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x81 and captured.ut_status == 0 and captured.ut_received == {$expected_received}"
+    <transition event="receive_answered"
+                cond="cpp:captured.receive_answered and captured.ut_received == {$expected_received}"
                 target="pass"/>
-    <transition event="udp_observed"
-                cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x81 and captured.ut_status == 0 and captured.ut_received != {$expected_received}"
+    <transition event="receive_answered"
+                cond="cpp:captured.receive_answered and captured.ut_received != {$expected_received}"
                 target="fail_wrong_receipt"/>
     <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>

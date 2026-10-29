@@ -23,7 +23,7 @@ namespace tc8::sce {
 
 // Self-validation of UDP_USER_INTERFACE_04: the §4.6.5.5 source-IP report is a receive-
 // operation property — the stack delivers the correct src IP and the application surfaces it
-// in the GetReceivedUdp Confirmation. The kAppFaultReportWrongSrcIp app fault corrupts that
+// in the receive answer the stimulus records. The kAppFaultReportWrongSrcIp app fault corrupts that
 // report (the only faithful site), so a buggy DUT surfaces a wrong IP. lwIP-only
 // (kCapAppFault via UdpAppFaultNegBase).
 template <>
@@ -35,15 +35,15 @@ struct TestCaseTraits<cases::UdpUserInterface04NegSM>
         "fault makes the Confirmation report a wrong source IP; a conformant DUT reports the "
         "IP the datagram carried";
 
-    // Arm the source-IP report fault, then drive the same probe + UT GetReceivedUdp query
+    // Arm the source-IP report fault, then drive the same probe + in-process receive answer
     // the positive uses (the wire-level src IP is unchanged; the flavor corrupts only the
-    // reported value), so the Confirmation surfaces a src IP != tester_ip.
-    static void stimulus(Captured& /*c*/,
+    // reported value), so the answer surfaces a src IP != tester_ip.
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         emitAppFlavorArm(cfg, ctx.iface, ::tc8::ut::kAppFaultReportWrongSrcIp);
-        ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, ctx.iface, ctx.dut,
+        ::tc8::sce::udp::emitIngressProbeAndObserve(
+            c, cfg, ctx.iface, ctx.dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size());
     }

@@ -26,11 +26,11 @@ struct TestCaseTraits<cases::UdpUserInterface02SM>
         "Receive operations return the data octets correctly (RFC 768 "
         "'User Interface' MUST)";
 
-    static void stimulus(Captured& /*c*/,
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
-        ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, ctx.iface, ctx.dut,
+        ::tc8::sce::udp::emitIngressProbeAndObserve(
+            c, cfg, ctx.iface, ctx.dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size());
     }

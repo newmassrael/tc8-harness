@@ -31,16 +31,17 @@ struct TestCaseTraits<cases::UdpDatagramLength01NegSM>
         "ingress flavor makes the DUT accept a datagram whose Length is smaller than the "
         "payload; a conformant DUT drops it";
     // Arm the ingress acceptance fault, then drive the same understated-Length ingress
-    // probe + UT GetReceivedUdp query the positive uses. With the flavor armed the
+    // probe the positive uses and record the DUT's receive answer in-process (a receive
+    // window through the Tier-2 seam) for the SCXML to grade. With the flavor armed the
     // input hook zeroes the checksum so lwIP delivers the datagram (ut_received == 1).
-    static void stimulus(Captured& /*c*/,
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         emitIngressFlavorArm(cfg, ctx.iface, ::tc8::ut::kUdpFaultAcceptBadChecksum);
         ::tc8::sce::udp::UdpStimulusOverrides ov{};
         ov.udp.length_field = std::uint16_t{8U};
-        ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, ctx.iface, ctx.dut,
+        ::tc8::sce::udp::emitIngressProbeAndObserve(
+            c, cfg, ctx.iface, ctx.dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size(),
             ::tc8::sce::udp::kDataPeerPort, ov);

@@ -33,11 +33,11 @@ struct TestCaseTraits<cases::UdpIntroduction01SM>
         "(RFC 1122 §4.1.1, spec inverts the SHOULD-allow per security "
         "negotiation note)";
 
-    static void stimulus(Captured& /*c*/,
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
-        ::tc8::sce::udp::emitAddressingProbeAndQuery(
-            cfg, ctx.iface, ctx.dut, cases::kIntro01DirectedBroadcastBe);
+        ::tc8::sce::udp::emitAddressingProbeAndObserve(
+            c, cfg, ctx.iface, ctx.dut, cases::kIntro01DirectedBroadcastBe);
     }
 };
 

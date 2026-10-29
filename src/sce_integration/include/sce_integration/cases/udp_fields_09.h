@@ -26,13 +26,13 @@ struct TestCaseTraits<cases::UdpFields09SM>
         "DUT discards a UDP datagram with Length field == 0 (RFC 768 "
         "'Fields' MUST)";
 
-    static void stimulus(Captured& /*c*/,
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::udp::UdpStimulusOverrides ov{};
         ov.udp.length_field = std::uint16_t{0x0000};
-        ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, ctx.iface, ctx.dut,
+        ::tc8::sce::udp::emitIngressProbeAndObserve(
+            c, cfg, ctx.iface, ctx.dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size(),
             ::tc8::sce::udp::kDataPeerPort, ov);

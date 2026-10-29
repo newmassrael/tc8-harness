@@ -1076,6 +1076,31 @@ TEST_F(TestabilityServerTest, UdpReceiveWindowDeliversTheProbeAndLeavesTheSentin
     EXPECT_EQ(out.datagrams[0].source.addr_be, ::htonl(INADDR_LOOPBACK));
 }
 
+// A datagram longer than the arm's forward cap still arrives as ONE answer: the
+// Event carries the first max_fwd bytes and the true length, and the largest Event
+// the arm can produce is read whole (a receive buffer sized to the payload cap
+// truncates exactly that Event, and the window then reports a silence).
+TEST_F(TestabilityServerTest, UdpReceiveWindowReadsTheLargestEventAndTheTrueLength) {
+    sce::TestabilityUdpReceiveControl rx(loopbackConfig(), 1000, 0);
+    LoopbackSender tester;
+    std::vector<std::uint8_t> probe(3000);
+    for (std::size_t i = 0; i < probe.size(); ++i) {
+        probe[i] = static_cast<std::uint8_t>(i & 0xFFU);
+    }
+    const auto out = rx.receiveUdp(
+        sce::Endpoint{::htonl(INADDR_LOOPBACK), kReceiveWindowPort},
+        [&] { tester.sendTo(kReceiveWindowPort, probe.data(), probe.size()); },
+        [&] {
+            tester.sendTo(kReceiveWindowPort, sce::kUdpReceiveSentinelPayload.data(),
+                          sce::kUdpReceiveSentinelPayload.size());
+        });
+    ASSERT_TRUE(out.received());
+    ASSERT_EQ(out.datagrams.size(), 1u);
+    EXPECT_EQ(out.datagrams[0].full_len, 3000u);
+    EXPECT_EQ(out.datagrams[0].payload.size(), 2048u);
+    EXPECT_EQ(out.datagrams[0].payload[2047], static_cast<std::uint8_t>(2047 & 0xFFU));
+}
+
 // "Not received" is an observation only with a proven path: the probe never
 // reaches the socket (stood in for here by not sending it), the sentinel does, and
 // the window reports a discard.
@@ -1125,8 +1150,8 @@ TEST_F(TestabilityServerTest, UdpReceiveWindowReleasesItsSocket) {
 // CREATE_AND_BIND holds `count` ports at once and releases them.
 TEST_F(TestabilityServerTest, UdpCreateReceivePortsHoldsTheCountAtOnce) {
     sce::TestabilityUdpReceiveControl rx(loopbackConfig(), 1000, 0);
-    EXPECT_TRUE(rx.createReceivePorts(10));
-    EXPECT_TRUE(rx.createReceivePorts(10)) << "the first call must release what it bound";
+    ASSERT_TRUE(rx.createReceivePorts(10).has_value());
+    EXPECT_EQ(*rx.createReceivePorts(10), 10U) << "the first call must release what it bound";
 }
 
 // CONFIGURE_SOCKET TTL (PRS_TPSP §6.10.10 paramId 0x0000) must set IP_TTL on the

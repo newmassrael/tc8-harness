@@ -26,8 +26,8 @@ namespace tc8::sce {
 // flavor makes the input hook swallow the inbound limited-broadcast datagram (never
 // forwards it to lwIP), so the receive-counting app never sees one the DUT must receive;
 // a conformant DUT still receives it (ut_received == 1, the fault-inert branch). lwIP-only
-// (kCapIngressFault via UdpIngressFaultNegBase — the observation is a UDP UT confirmation,
-// so it shares the UDP dispatch base despite sitting in the IPv4 addressing section).
+// (kCapIngressFault via UdpIngressFaultNegBase — the observation is the DUT's UDP receive
+// answer, so it shares the UDP dispatch base despite sitting in the IPv4 addressing section).
 template <>
 struct TestCaseTraits<cases::Ipv4Addressing01NegSM>
     : UdpIngressFaultNegBase<cases::Ipv4Addressing01NegSM> {
@@ -36,12 +36,12 @@ struct TestCaseTraits<cases::Ipv4Addressing01NegSM>
         "Self-validation of IPv4_ADDRESSING_01: the lwIP kUdpFaultRejectValid ingress "
         "flavor makes the DUT drop a limited-broadcast datagram; a conformant DUT receives it";
 
-    static void stimulus(Captured& /*c*/,
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         emitIngressFlavorArm(cfg, ctx.iface, ::tc8::ut::kUdpFaultRejectValid);
-        ::tc8::sce::udp::emitAddressingProbeAndQuery(
-            cfg, ctx.iface, ctx.dut, cases::kLimitedBroadcastBe);
+        ::tc8::sce::udp::emitAddressingProbeAndObserve(
+            c, cfg, ctx.iface, ctx.dut, cases::kLimitedBroadcastBe);
     }
 };
 

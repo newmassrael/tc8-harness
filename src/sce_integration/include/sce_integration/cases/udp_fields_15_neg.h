@@ -29,18 +29,19 @@ struct TestCaseTraits<cases::UdpFields15NegSM>
         "Self-validation of UDP_FIELDS_15: the lwIP kUdpFaultAcceptBadChecksum ingress "
         "flavor makes the DUT accept a non-zero invalid-checksum datagram; a conformant "
         "DUT drops it";
-    // Arm the ingress acceptance fault, then drive the same bad-checksum ingress probe +
-    // UT GetReceivedUdp query the positive uses. With the flavor armed the input hook
-    // zeroes the checksum so lwIP's validation gate skips and delivers it
+    // Arm the ingress acceptance fault, then drive the same bad-checksum ingress probe
+    // the positive uses and record the DUT's receive answer in-process (a receive window
+    // through the Tier-2 seam) for the SCXML to grade. With the flavor armed the input
+    // hook zeroes the checksum so lwIP's validation gate skips and delivers it
     // (ut_received == 1).
-    static void stimulus(Captured& /*c*/,
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         emitIngressFlavorArm(cfg, ctx.iface, ::tc8::ut::kUdpFaultAcceptBadChecksum);
         ::tc8::sce::udp::UdpStimulusOverrides ov{};
         ov.udp.checksum_field = std::uint16_t{0xDEAD};
-        ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, ctx.iface, ctx.dut,
+        ::tc8::sce::udp::emitIngressProbeAndObserve(
+            c, cfg, ctx.iface, ctx.dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size(),
             ::tc8::sce::udp::kDataPeerPort, ov);

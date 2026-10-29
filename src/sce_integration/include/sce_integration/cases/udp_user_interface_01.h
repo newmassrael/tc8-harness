@@ -27,10 +27,10 @@ struct TestCaseTraits<cases::UdpUserInterface01SM>
         "(RFC 768 'User Interface' MUST). Spec asserts DUT can create "
         "10 receive ports on demand via OpCreateUdpReceivePorts.";
 
-    static void stimulus(Captured& /*c*/,
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& /*cfg*/,
                          ::tc8::sce::StimulusContext& ctx) {
-        ::tc8::sce::udp::emitCreateUdpReceivePorts(ctx.dut, /*count=*/10);
+        ::tc8::sce::udp::emitCreateUdpReceivePorts(c, ctx.dut, /*count=*/10);
     }
 };
 

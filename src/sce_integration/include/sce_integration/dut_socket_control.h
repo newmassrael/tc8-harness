@@ -295,18 +295,18 @@ class IUdpReceiveControl {
 public:
     virtual ~IUdpReceiveControl() = default;
 
-    // Have the DUT open `count` UDP receive ports. true on success.
-    virtual bool createReceivePorts(std::uint8_t count) = 0;
-
-    // Ask the DUT what it received on `listen.port`, scoped to datagrams whose
-    // destination address was `listen.addr_be` (0 = any). The ANSWER reaches the
-    // case through its own capture/verdict path, not through this return value —
-    // true here means only that the DUT accepted the question. Superseded by
-    // receiveUdp, whose answer comes back in-process; kept until the cases that
-    // grade the wire-borne answer have moved over.
-    virtual bool queryReceived(const Endpoint &listen) = 0;
+    // Have the DUT open `count` UDP receive ports, and report how many it opened.
+    // nullopt when the request got no answer or was refused; a count below
+    // `count` is the DUT's answer that it could not open them all, which is the
+    // finding the case grades.
+    virtual std::optional<std::uint8_t> createReceivePorts(std::uint8_t count) = 0;
 
     // Observe what the DUT's socket on `listen` receives while `probe` runs.
+    // `listen.port` is the port under test. `listen.addr_be` scopes the opcode
+    // backend's receipt log to datagrams sent to that destination (0 = any); the
+    // testability backend binds the port on any address, so that the sentinel,
+    // which goes to the DUT's unicast address, proves the path even when the probe
+    // went to an address the DUT is expected to refuse.
     // `probe` sends the datagram under test; `sentinel` sends one well-formed
     // datagram (kUdpReceiveSentinelPayload) to the same endpoint and is called
     // after `probe`, at most once. The arm-then-trigger shape ITcpControl::
@@ -603,7 +603,7 @@ public:
                                  std::uint32_t src_ip_be)
         : cfg_(cfg), timeout_ms_(timeout_ms), src_ip_be_(src_ip_be) {}
 
-    bool createReceivePorts(std::uint8_t count) override {
+    std::optional<std::uint8_t> createReceivePorts(std::uint8_t count) override {
         // `count` sockets bound at once, then released: capacity is proven by holding
         // them together, not by creating one at a time.
         std::vector<std::uint16_t> held;
@@ -620,17 +620,21 @@ public:
             testability::testabilityCloseSocket(cfg_, testability::kGidUdp, id, timeout_ms_,
                                                 src_ip_be_);
         }
-        return held.size() == count;
+        // Not even the first socket: the client cannot tell a refusal from no
+        // answer, so this is not a count the DUT gave and is not graded as one.
+        if (held.empty() && count != 0) {
+            return std::nullopt;
+        }
+        return static_cast<std::uint8_t>(held.size());
     }
-
-    // The wire-borne question has no testability form: PRS_TPSP reports what a
-    // socket received as an Event, it does not log receipts to be asked about later.
-    bool queryReceived(const Endpoint & /*listen*/) override { return false; }
 
     DutUdpReceiveOutcome receiveUdp(const Endpoint &listen, const std::function<void()> &probe,
                                     const std::function<void()> &sentinel) override {
+        // Bound on any address (see IUdpReceiveControl::receiveUdp): the port is the
+        // scope, and the sentinel is what proves the path whatever the probe's
+        // destination address was.
         const auto id = testability::testabilityCreateAndBind(
-            cfg_, testability::kGidUdp, /*do_bind=*/true, listen.port, listen.addr_be,
+            cfg_, testability::kGidUdp, /*do_bind=*/true, listen.port, /*local_addr_be=*/0,
             timeout_ms_, src_ip_be_);
         if (!id) {
             return DutUdpReceiveOutcome::noAnswer();

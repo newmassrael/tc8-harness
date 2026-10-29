@@ -27,13 +27,13 @@ struct TestCaseTraits<cases::UdpInvalidAddresses01SM>
         "DUT discards a UDP datagram whose Source IP Address is "
         "all-systems multicast (RFC 1122 §4.1.3.6 + §3.2.1.3 MUST)";
 
-    static void stimulus(Captured& /*c*/,
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::udp::UdpStimulusOverrides ov{};
         ov.src_ip_override = cases::kAllSystemsMcastBe;
-        ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, ctx.iface, ctx.dut,
+        ::tc8::sce::udp::emitIngressProbeAndObserve(
+            c, cfg, ctx.iface, ctx.dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size(),
             ::tc8::sce::udp::kDataPeerPort, ov);

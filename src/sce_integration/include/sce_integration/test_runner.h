@@ -555,6 +555,7 @@ public:
         // The CLI sets the slot before every frame it dispatches; clear it so no
         // transition can inherit a replayed frame's index.
         next_pcap_frame_idx_ = -1;
+        settleStimulus();
     }
 
     void onCaptured(const ::tc8::CapturedEvent &ev) override {
@@ -650,8 +651,12 @@ public:
         // `pcap_frame_idx >= 0` is precisely "a retained frame drove this step"
         // — recordTransition stamps -1 for a tick (deadline_exceeded) and for a
         // frame the saved pcap did not retain, both of which are absences as far
-        // as the evidence record goes.
-        return !trace_.empty() && trace_.back().pcap_frame_idx >= 0;
+        // as the evidence record goes. A step the stimulus-settled hook caused is
+        // the exception: it graded an answer the DUT gave in-process, which the
+        // trace carries, so it is evidence and not a silence.
+        return !trace_.empty() &&
+               (trace_.back().pcap_frame_idx >= 0 ||
+                trace_.back().step_idx == settled_step_idx_);
     }
 
     std::optional<std::int64_t> finalWindowUs() const override {
@@ -869,6 +874,28 @@ private:
         // ``processFrame``, which is the SSOT.
     }
 
+    // Hand the case's optional `onStimulusSettled` hook the moment the stimulus's
+    // in-process findings may be graded (test_case_traits.h has the contract). A
+    // transition the hook causes is recorded as such, and is remembered as
+    // decided by an observation: the DUT's answer, held in the trace's captured
+    // context, is its evidence, so the verdict claims no absence
+    // (`finalTransitionWasFrameDriven`). Nothing runs once the machine is done.
+    void settleStimulus() {
+        if constexpr (has_stimulus_settled_hook_v<StateMachine>) {
+            if (isDone()) {
+                return;
+            }
+            const State before = sm_.getCurrentState();
+            Traits::onStimulusSettled(captured_, sm_);
+            const State after = sm_.getCurrentState();
+            if (before != after) {
+                settled_step_idx_ = static_cast<int>(trace_.size());
+                recordTransition(before, after, /*event_name=*/"stimulus_settled",
+                                 /*pcap_frame_idx=*/-1);
+            }
+        }
+    }
+
     // A stimulus marker into the case's optional hook; shared by the live path and
     // the replay for the same reason as dispatchToMachine.
     void applyStimulusMarker(std::string_view name) {
@@ -1067,6 +1094,8 @@ private:
     std::vector<ScheduledStimulus>     stim_queue_;
     std::vector<StateEntryObserver>    state_entry_observers_;
     int                                last_state_id_ = -1;
+    // The trace step the stimulus-settled hook caused, -1 when it caused none.
+    int                                settled_step_idx_ = -1;
     std::string                        iface_;
     // Frames and markers an awaiting stimulus drained before the listen window
     // opened, and the waits over them; released into the SM by `start()`.

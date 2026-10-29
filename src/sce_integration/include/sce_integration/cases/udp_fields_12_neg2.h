@@ -34,13 +34,13 @@ struct TestCaseTraits<cases::UdpFields12Neg2SM>
         "the Confirmation report no receipt; a conformant DUT reports the maximum-length "
         "datagram it reassembled";
 
-    // Arm the receipt-loss fault, then drive the same 65 507 B fragmented stimulus + UT
-    // GetReceivedUdp query the positive uses, so the Confirmation surfaces ut_received == 0.
-    static void stimulus(Captured& /*c*/,
+    // Arm the receipt-loss fault, then drive the same 65 507 B fragmented stimulus +
+    // receive window the positive uses, so the answer surfaces ut_received == 0.
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         emitAppFlavorArm(cfg, ctx.iface, ::tc8::ut::kAppFaultReportNoReceipt);
-        cases::emitMaxLengthDatagramAndQuery(cfg, ctx.iface, ctx.dut);
+        cases::emitMaxLengthDatagramAndObserve(c, cfg, ctx.iface, ctx.dut);
     }
 };
 

@@ -2,18 +2,16 @@
 <!--
   TC8 §4.6.5.5 UDP_USER_INTERFACE_01: A user interface should allow the
   creation of new receive ports (RFC 768 'User Interface' MUST). Tester
-  drives DUT via the §4.8.5 OpCreateUdpReceivePorts opcode (0x14)
-  asking for 10 receive ports; tc8-dut binds 10 SOCK_DGRAM sockets to
-  (INADDR_ANY, ephemeral port=0) and replies with the actual_count
-  successfully bound. Pass guard: ut_create_actual_count == 10.
+  asks the DUT, through the Tier-2 seam (IUdpReceiveControl::
+  createReceivePorts), to open 10 receive ports. The DUT reports how many it
+  opened (opcode UT, §4.8.5 OpCreateUdpReceivePorts: the reply's actual_count;
+  testability: sockets bound at once) and the stimulus records it in
+  ut_create_actual_count. Pass guard:
+  ut_create_actual_count == 10.
 
-  3-state inline (no template) — sole consumer of the 0x94 response
-  shape. The opcode + status guard mirrors udp_ut_received_check but
-  pivots on a different captured field.
-
-  BPF: BpfGroup::Udp. SD multicast (UDP 30490) reaches the pipeline
-  but fails has_ut_response (gate: src_port == ut::kPort = 30600), so
-  it cannot drive any transition.
+  3-state inline (no template) — sole consumer of the port-count answer. The
+  runner's stimulus-settled hook raises receive_answered once; the machine does
+  not react to wire frames, so none can drive a transition.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -36,11 +34,11 @@
     <onentry>
       <send event="deadline_exceeded" delay="5s"/>
     </onentry>
-    <transition event="udp_observed"
-                cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x94 and captured.ut_status == 0 and captured.ut_create_actual_count == 10"
+    <transition event="receive_answered"
+                cond="cpp:captured.receive_answered and captured.ut_create_actual_count == 10"
                 target="pass"/>
-    <transition event="udp_observed"
-                cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x94 and captured.ut_status == 0 and captured.ut_create_actual_count != 10"
+    <transition event="receive_answered"
+                cond="cpp:captured.receive_answered and captured.ut_create_actual_count != 10"
                 target="fail_wrong_port_count"/>
     <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>

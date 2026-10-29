@@ -27,8 +27,8 @@ namespace tc8::sce {
 // INADDR_ANY data-listener socket and the listener drops it on the recovered
 // destination. kAppFaultAcceptDirectedBroadcast makes the listener skip the discard, so
 // a buggy DUT counts the datagram the positive proves dropped. lwIP-only (kCapAppFault
-// via UdpAppFaultNegBase — the observation is a UDP UT confirmation, so it shares the UDP
-// dispatch base despite sitting in the IPv4 addressing section). Sibling of udp_introduction_02_neg.
+// via UdpAppFaultNegBase — the observation is the DUT's UDP receive answer, so it shares the
+// UDP dispatch base despite sitting in the IPv4 addressing section). Sibling of udp_introduction_02_neg.
 template <>
 struct TestCaseTraits<cases::Ipv4Addressing02NegSM>
     : UdpAppFaultNegBase<cases::Ipv4Addressing02NegSM> {
@@ -38,16 +38,17 @@ struct TestCaseTraits<cases::Ipv4Addressing02NegSM>
         "app fault makes the data listener count a directed-broadcast datagram; a "
         "conformant DUT discards it at the application layer";
 
-    // Arm the app-layer acceptance fault, then drive the same directed-broadcast probe +
-    // UT GetReceivedUdp query the positive uses; the SCXML's expected_received=1 flip and
-    // the armed flavor are what make it a negative. With the flavor armed the data
+    // Arm the app-layer acceptance fault, then drive the same directed-broadcast probe the
+    // positive uses and record the DUT's receive answer in-process (a receive window
+    // through the Tier-2 seam) for the SCXML to grade; the SCXML's expected_received=1 flip
+    // and the armed flavor are what make it a negative. With the flavor armed the data
     // listener skips its discard so ut_received == 1.
-    static void stimulus(Captured& /*c*/,
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         emitAppFlavorArm(cfg, ctx.iface, ::tc8::ut::kAppFaultAcceptDirectedBroadcast);
-        ::tc8::sce::udp::emitAddressingProbeAndQuery(
-            cfg, ctx.iface, ctx.dut, cases::kDirectedBroadcastBe);
+        ::tc8::sce::udp::emitAddressingProbeAndObserve(
+            c, cfg, ctx.iface, ctx.dut, cases::kDirectedBroadcastBe);
     }
 };
 

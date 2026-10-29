@@ -357,6 +357,9 @@ tc8_add_unit_test(udp_emit_test)
 # Reassembler) proves the emitted segments are spec-valid.
 tc8_add_unit_test(someip_tp_emit_test)
 tc8_add_unit_test(udp_captured_test)
+# The DUT's receive answer as the cases grade it: when a window's outcome counts
+# as an answer, and what it carries into UdpCaptured.
+tc8_add_unit_test(udp_receive_answer_test)
 tc8_add_unit_test(someip_captured_test)
 # decode-pcap presentation layer (cli/packet_summary.*, TD-08): per-protocol
 # summary builders + makeCandidate in isolation. Covers the shared UT decoder

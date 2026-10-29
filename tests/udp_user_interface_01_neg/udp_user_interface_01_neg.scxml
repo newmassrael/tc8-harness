@@ -6,7 +6,7 @@
   off-by-one over-report). Pass = the wrong count observed (ut_create_actual_count != 10);
   fail_compliant = the DUT reported the correct count despite the flavor (fault inert).
   lwIP-only (capability-gated on kCapAppFault). Inline 3-state mirror of the positive (sole
-  consumer of the 0x94 response shape).
+  consumer of the port-count answer).
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -29,11 +29,11 @@
     <onentry>
       <send event="deadline_exceeded" delay="5s"/>
     </onentry>
-    <transition event="udp_observed"
-                cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x94 and captured.ut_status == 0 and captured.ut_create_actual_count != 10"
+    <transition event="receive_answered"
+                cond="cpp:captured.receive_answered and captured.ut_create_actual_count != 10"
                 target="pass"/>
-    <transition event="udp_observed"
-                cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x94 and captured.ut_status == 0 and captured.ut_create_actual_count == 10"
+    <transition event="receive_answered"
+                cond="cpp:captured.receive_answered and captured.ut_create_actual_count == 10"
                 target="fail_compliant"/>
     <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>

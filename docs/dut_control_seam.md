@@ -63,6 +63,20 @@ application got, a refusal, or no answer. A case grading delivery fails a wrong
 answer or a refusal and stays inconclusive on no answer, because only an answer
 says something about the DUT.
 
+The UDP receive question has the same arm-then-trigger shape (`receiveUdp`). A
+case gives it the probe and a sentinel, both as callbacks; the answer comes back
+in-process and the stimulus records it in `Captured` (`udp_receive_answer.h`).
+The opcode backend runs the probe and asks the DUT, whose `received=0` is an
+affirmative answer. The testability backend binds the port, arms
+RECEIVE_AND_FORWARD before the probe, and sends a well-formed sentinel datagram
+after it. "Sentinel forwarded, probe not" is an observed discard; "neither
+forwarded" is a silence, which is no answer and leaves the case inconclusive. The
+premise is that a socket's receive queue keeps arrival order. The socket is bound
+on any address so the sentinel, sent to the DUT's unicast address, proves the path
+even when the probe went to an address the DUT is expected to refuse. A case's
+machine reacts to the runner's stimulus-settled hook (`onStimulusSettled`), not to
+a wire frame, so no control-channel frame is evidence for this family.
+
 Every backend is handed out inside a `RecordingDutControl`
 (`recording_dut_control.h`, applied by `makeDutControl`), which turns an action
 the case needed and did not get into an unperformed stimulus, so a case that

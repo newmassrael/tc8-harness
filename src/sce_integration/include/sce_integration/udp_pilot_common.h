@@ -3,6 +3,7 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string_view>
 #include <thread>
@@ -13,6 +14,7 @@
 #include "sce_integration/dut_control.h"
 #include "sce_integration/test_config.h"
 #include "sce_integration/udp_captured.h"
+#include "sce_integration/udp_receive_answer.h"
 #include "stimulus/ipv4_frame_builder.h"
 #include "stimulus/udp_datagram_builder.h"
 #include "stimulus/upper_tester_client.h"
@@ -207,52 +209,67 @@ inline int emitFragmentedUdpStimulus(const ::tc8::TestConfig& cfg,
     return 0;
 }
 
-// Emit an Upper Tester GetReceivedUdp request. The tc8-dut's UT
-// server replies on the UDP port we source from, so the tester's
-// capture pipeline observes the Confirmation as a UdpFrame whose
-// `has_ut_response` decodes to true.
-//
-// `expected_dst_ip_be` is the IP destination the original probed UDP
-// carried (limited broadcast 0xFFFFFFFF for ADDRESSING_01, directed
-// broadcast for ADDRESSING_02). The tc8-dut narrows its log lookup
-// by that value, so ADDRESSING_02's "was it received as directed
-// broadcast?" query is a structurally distinct event from a unicast
-// receipt on the same port.
-// Ask the DUT what it received on `listen_port`, scoped to datagrams whose
-// destination was `expected_dst_ip_be`. Routed over the Tier-2 seam; false means
-// the backend cannot ask, or the DUT declined — a non-conclusion, not a verdict.
-inline bool emitGetReceivedUdp(::tc8::sce::IDutControl& dut,
-                                std::uint16_t listen_port,
-                                std::uint32_t expected_dst_ip_be,
-                                std::chrono::milliseconds initial_wait =
-                                    std::chrono::milliseconds(0)) {
-    if (initial_wait.count() > 0) {
-        std::this_thread::sleep_for(initial_wait);
-    }
+// The sentinel of a receive window: one well-formed datagram to the DUT's unicast
+// address and the port under test, sent after the probe. A backend that only
+// reports what the socket delivered (testability) needs it to tell a discard from a
+// silent forward loop; the opcode backend ignores it (IUdpReceiveControl::
+// receiveUdp). It goes to the DUT's own address whatever the probe's destination
+// was, so that a probe aimed at an address the DUT is expected to refuse (a
+// directed broadcast, a multicast group) is still followed by a datagram it must
+// accept.
+inline void emitReceiveSentinel(const ::tc8::TestConfig& cfg, std::string_view iface) {
+    emitUdpStimulus(cfg, iface, cfg.ipv4.dut_iface_ip, kDataPeerPort, kDataPort,
+                    ::tc8::sce::kUdpReceiveSentinelPayload.data(),
+                    ::tc8::sce::kUdpReceiveSentinelPayload.size());
+}
+
+// Observe what the DUT receives on `listen` while `probe` runs, and record the
+// answer in `c` (udp_receive_answer.h). Routed over the Tier-2 seam; a backend
+// that cannot be asked, or an answer that never came, leaves the case unanswered —
+// a non-conclusion, not a verdict.
+inline void observeUdpReceive(UdpCaptured& c,
+                              ::tc8::sce::IDutControl& dut,
+                              const ::tc8::sce::Endpoint& listen,
+                              const std::function<void()>& probe,
+                              const std::function<void()>& sentinel) {
     auto *rx = dut.udpReceiveControl();
     if (rx == nullptr) {
-        // The selected backend has no receive-answer sub-interface, so the DUT is
-        // never asked. Naming it keeps the case from reporting a verdict about a
+        // The selected backend has no receive sub-interface, so the DUT is never
+        // asked. Naming it keeps the case from reporting a verdict about a
         // question that was not put: the gate should have skipped this case (see
         // kCapUdpReceiveControl), and if it did not, the case must not pass or
         // fail silently on a stimulus that never happened.
         ::tc8::UnperformedStimulus::record("dut_udp_receive_control_absent");
-        return false;
+        return;
     }
-    return rx->queryReceived(::tc8::sce::Endpoint{expected_dst_ip_be, listen_port});
+    recordReceiveAnswer(c, rx->receiveUdp(listen, probe, sentinel));
 }
 
-// Emit an Upper Tester CreateUdpReceivePorts request — §4.6.5.5
-// UDP_USER_INTERFACE_01 procedure step 1.
-// Have the DUT open `count` UDP receive ports, over the Tier-2 seam.
-inline bool emitCreateUdpReceivePorts(::tc8::sce::IDutControl& dut,
-                                       std::uint8_t count) {
+// As observeUdpReceive, recorded as the case's second window (UDP_FIELDS_05).
+inline void observeSecondUdpReceive(UdpCaptured& c,
+                                    ::tc8::sce::IDutControl& dut,
+                                    const ::tc8::sce::Endpoint& listen,
+                                    const std::function<void()>& probe,
+                                    const std::function<void()>& sentinel) {
     auto *rx = dut.udpReceiveControl();
     if (rx == nullptr) {
         ::tc8::UnperformedStimulus::record("dut_udp_receive_control_absent");
-        return false;
+        return;
     }
-    return rx->createReceivePorts(count);
+    recordSecondReceiveAnswer(c, rx->receiveUdp(listen, probe, sentinel));
+}
+
+// §4.6.5.5 UDP_USER_INTERFACE_01 procedure step 1: have the DUT open `count` UDP
+// receive ports, over the Tier-2 seam, and record how many it reports it opened.
+inline void emitCreateUdpReceivePorts(UdpCaptured& c,
+                                      ::tc8::sce::IDutControl& dut,
+                                      std::uint8_t count) {
+    auto *rx = dut.udpReceiveControl();
+    if (rx == nullptr) {
+        ::tc8::UnperformedStimulus::record("dut_udp_receive_control_absent");
+        return;
+    }
+    recordPortsAnswer(c, rx->createReceivePorts(count));
 }
 
 // Ask the DUT to originate one UDP datagram — §4.4.4.6 FRAGMENTS_05 procedure
@@ -287,71 +304,57 @@ inline bool emitTriggerSendUdp(::tc8::sce::IDutControl& dut,
         std::vector<std::uint8_t>(payload, payload + payload_len));
 }
 
-// ADDRESSING_01/02 shared stimulus: send a UDP probe carrying
-// `kUdpDefaultData` to `broadcast_ip_be` on `kDataPort`, wait 200 ms
-// for the tc8-dut data listener to log the receipt (or drop it per
-// directed-broadcast rule), then send a UT GetReceivedUdp query
-// scoped to `(kDataPort, broadcast_ip_be)`. The two consumers differ
-// only in which broadcast literal they pass and in the SCXML
-// `{$expected_received}` polarity — kept here in one place so drift
-// between the probe's dst_ip and the UT query's expected_dst_ip is
-// impossible by construction.
+// ADDRESSING_01/02 shared stimulus: a UDP probe carrying `kUdpDefaultData` to
+// `broadcast_ip_be` on `kDataPort`, observed as a receive window on
+// `(kDataPort, broadcast_ip_be)`. The two consumers differ only in which
+// broadcast literal they pass and in the SCXML `{$expected_received}` polarity —
+// kept here in one place so drift between the probe's dst_ip and the window's
+// scope is impossible by construction.
 // Keeps `cfg`/`iface` because the PROBE half is a tester-side wire emission, and
-// takes `dut` because the QUERY half asks the DUT a question. The two halves are
+// takes `dut` because the WINDOW asks the DUT a question. The two halves are
 // different kinds of act, which is why both stay in the signature.
-inline void emitAddressingProbeAndQuery(const ::tc8::TestConfig& cfg,
-                                         std::string_view iface,
-                                         ::tc8::sce::IDutControl& dut,
-                                         std::uint32_t broadcast_ip_be) {
-    emitUdpStimulus(
-        cfg, iface,
-        broadcast_ip_be,
-        kDataPeerPort,
-        kDataPort,
-        kUdpDefaultData.data(),
-        kUdpDefaultData.size());
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
-
-    emitGetReceivedUdp(dut, /*listen_port=*/kDataPort,
-                       /*expected_dst_ip_be=*/broadcast_ip_be);
+inline void emitAddressingProbeAndObserve(UdpCaptured& c,
+                                           const ::tc8::TestConfig& cfg,
+                                           std::string_view iface,
+                                           ::tc8::sce::IDutControl& dut,
+                                           std::uint32_t broadcast_ip_be) {
+    observeUdpReceive(
+        c, dut, ::tc8::sce::Endpoint{broadcast_ip_be, kDataPort},
+        [&] {
+            emitUdpStimulus(cfg, iface, broadcast_ip_be, kDataPeerPort, kDataPort,
+                            kUdpDefaultData.data(), kUdpDefaultData.size());
+        },
+        [&] { emitReceiveSentinel(cfg, iface); });
 }
 
-// §4.6.5.4 / §4.6.5.7 shared "ingress check via UT" pattern. Tester
-// injects ONE UDP probe (dst=DUT_IP:kDataPort) carrying `payload`
-// applied through `ov` (length / checksum / truncate / src_ip
-// overrides), waits 200 ms for the DUT data listener to log (or drop)
-// the receipt, then issues OpGetReceivedUdp scoped to
-// (kDataPort, DUT_IP). Consumer SCXML reads `ut_received` to assert
-// accept / discard.
+// §4.6.5.4 / §4.6.5.7 shared "ingress check" pattern. Tester injects ONE UDP
+// probe (dst=DUT_IP:kDataPort) carrying `payload` applied through `ov` (length /
+// checksum / truncate / src_ip overrides), observed as a receive window on
+// (kDataPort, DUT_IP). Consumer SCXML reads `ut_received` to assert accept /
+// discard.
 //
 // Used by every C2 ingress case (FIELDS_03/_08/_09/_10/_15/_16),
 // INVALID_ADDRESSES_01/_02, DatagramLength_01, MessageFormat_02, and
-// USER_INTERFACE_02/_03/_04 — drift between probe dst_ip and UT query
-// expected_dst_ip is impossible by construction.
-// As emitAddressingProbeAndQuery: the probe is a tester-side emission, the query
-// is a question for the DUT, so the signature carries both halves' needs.
-inline void emitIngressProbeAndQuery(const ::tc8::TestConfig& cfg,
-                                      std::string_view iface,
-                                      ::tc8::sce::IDutControl& dut,
-                                      const std::uint8_t *payload,
-                                      std::size_t payload_len,
-                                      std::uint16_t src_port = kDataPeerPort,
-                                      const UdpStimulusOverrides &ov =
-                                          UdpStimulusOverrides{}) {
-    emitUdpStimulus(
-        cfg, iface,
-        cfg.ipv4.dut_iface_ip,
-        src_port,
-        kDataPort,
-        payload,
-        payload_len,
-        ov);
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
-
-    emitGetReceivedUdp(dut, /*listen_port=*/kDataPort,
-                       /*expected_dst_ip_be=*/cfg.ipv4.dut_iface_ip);
+// USER_INTERFACE_02/_03/_04 — drift between the probe's dst_ip and the window's
+// scope is impossible by construction.
+// As emitAddressingProbeAndObserve: the probe is a tester-side emission, the
+// window is a question for the DUT, so the signature carries both halves' needs.
+inline void emitIngressProbeAndObserve(UdpCaptured& c,
+                                        const ::tc8::TestConfig& cfg,
+                                        std::string_view iface,
+                                        ::tc8::sce::IDutControl& dut,
+                                        const std::uint8_t *payload,
+                                        std::size_t payload_len,
+                                        std::uint16_t src_port = kDataPeerPort,
+                                        const UdpStimulusOverrides &ov =
+                                            UdpStimulusOverrides{}) {
+    observeUdpReceive(
+        c, dut, ::tc8::sce::Endpoint{cfg.ipv4.dut_iface_ip, kDataPort},
+        [&] {
+            emitUdpStimulus(cfg, iface, cfg.ipv4.dut_iface_ip, src_port, kDataPort,
+                            payload, payload_len, ov);
+        },
+        [&] { emitReceiveSentinel(cfg, iface); });
 }
 
 // Dispatch helper: select the UdpFrame variant, mirror into `c`, raise

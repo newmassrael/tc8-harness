@@ -26,7 +26,7 @@ namespace tc8::sce {
 // lwIP), so the receive-counting app never sees one the DUT must accept; a conformant
 // DUT still accepts it (ut_received == 1, the fault-inert branch). lwIP-only
 // (kCapIngressFault via UdpIngressFaultNegBase). Drives the same well-formed ingress
-// probe + UT GetReceivedUdp query the positive uses.
+// probe + in-process receive answer the positive uses.
 template <>
 struct TestCaseTraits<cases::UdpMessageFormat02NegSM>
     : UdpIngressFaultNegBase<cases::UdpMessageFormat02NegSM> {
@@ -35,12 +35,12 @@ struct TestCaseTraits<cases::UdpMessageFormat02NegSM>
         "Self-validation of UDP_MessageFormat_02: the lwIP kUdpFaultRejectValid ingress "
         "flavor makes the DUT drop a well-formed datagram; a conformant DUT accepts it";
 
-    static void stimulus(Captured& /*c*/,
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         emitIngressFlavorArm(cfg, ctx.iface, ::tc8::ut::kUdpFaultRejectValid);
-        ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, ctx.iface, ctx.dut,
+        ::tc8::sce::udp::emitIngressProbeAndObserve(
+            c, cfg, ctx.iface, ctx.dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size());
     }

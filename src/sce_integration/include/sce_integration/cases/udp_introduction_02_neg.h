@@ -38,16 +38,16 @@ struct TestCaseTraits<cases::UdpIntroduction02NegSM>
         "conformant DUT denies it at the application layer";
 
     // Arm the app-layer acceptance fault, then drive the same all-systems multicast
-    // probe + UT GetReceivedUdp query the positive uses (the multicast destination is
+    // probe + in-process receive answer the positive uses (the multicast destination is
     // the only wire-level shape; the SCXML's {$expected_received}=1 flip and the armed
     // flavor make it a negative). With the flavor armed the data listener skips its
     // multicast deny so ut_received == 1.
-    static void stimulus(Captured& /*c*/,
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         emitAppFlavorArm(cfg, ctx.iface, ::tc8::ut::kAppFaultAcceptMulticast);
-        ::tc8::sce::udp::emitAddressingProbeAndQuery(
-            cfg, ctx.iface, ctx.dut, cases::kAllSystemsMcastBe);
+        ::tc8::sce::udp::emitAddressingProbeAndObserve(
+            c, cfg, ctx.iface, ctx.dut, cases::kAllSystemsMcastBe);
     }
 };
 

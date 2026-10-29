@@ -34,11 +34,11 @@ namespace tc8::sce {
 // (DutCallIntent, dut_call_intent.h, set by a DutCallIntentScope around the call).
 //
 // A query's answer is an observation of the DUT, whatever it says: acceptTcp
-// (whether a peer connected), queryReceived, queryCommittedAddress and the state
-// probe pass through untouched, as do probe/startTest/endTest, which the
-// start-order barrier already accounts for. The two receives say apart an answer
-// from no answer (DutReceiveOutcome), so for them no answer, and only that, is
-// recorded: the question never came back.
+// (whether a peer connected), queryCommittedAddress and the state probe pass
+// through untouched, as do probe/startTest/endTest, which the start-order barrier
+// already accounts for. The two receives (TCP and UDP) say apart an answer from
+// no answer, so for them no answer, and only that, is recorded: the question
+// never came back.
 class RecordingDutControl final : public IDutControl {
 public:
     explicit RecordingDutControl(std::unique_ptr<IDutControl> inner) : inner_(std::move(inner)) {}
@@ -197,10 +197,11 @@ private:
     };
 
     struct UdpReceive final : Bound<IUdpReceiveControl> {
-        bool createReceivePorts(std::uint8_t count) override {
-            return performedOrRecord(inner->createReceivePorts(count), "create_receive_ports");
+        std::optional<std::uint8_t> createReceivePorts(std::uint8_t count) override {
+            const auto opened = inner->createReceivePorts(count);
+            performedOrRecord(opened.has_value(), "create_receive_ports");
+            return opened;
         }
-        bool queryReceived(const Endpoint &listen) override { return inner->queryReceived(listen); }
         // A receive window is an observation like receiveTcp: whatever the DUT
         // answered, a refusal and an empty list included, is the finding. Only no
         // answer at all (the request never came back) is the tester's loss.

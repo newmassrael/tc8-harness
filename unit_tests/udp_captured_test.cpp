@@ -59,83 +59,80 @@ TEST(UdpCapturedTrailerDecode, NoUtResponseWhenResponseBitClear) {
     EXPECT_FALSE(c.has_ut_response);
 }
 
-TEST(UdpCapturedTrailerDecode, UtReceivedZeroLeavesTrailerUnpopulated) {
-    // received=0 → no trailer; ut_recv_* must remain zeroed.
-    const std::array<std::uint8_t, 4> body{kGetRespOpcode, 0x07, 0x00, 0x00};
-    const auto f = makeBaseFrame(kUtPort, body.data(), body.size());
+TEST(UdpCapturedTrailerDecode, FillLeavesTheRecordedReceiveAnswerAlone) {
+    // The receive answer is written by the case's stimulus from the seam call and
+    // graded after the stimulus-settled hook; a frame replayed later (the tester's
+    // own probe, the UT reply) must not erase it, whatever the frame carries.
     UdpCaptured c{};
-    fillUdpCapturedFromFrame(c, f);
+    c.receive_answered = true;
+    c.ut_received = 1;
+    c.ut_recv_src_ip = 0x0102A8C0U;
+    c.ut_recv_src_port = 20000;
+    c.ut_recv_payload_len = 8;
+    c.ut_recv_payload_first16[0] = 0x10;
+    c.ut_create_actual_count = 10;
+    c.receive2_answered = true;
+    c.ut_received_p2 = 1;
+    c.ut_recv_src_ip_p2 = 0x030010ACU;
+
+    const std::array<std::uint8_t, 4> body{kGetRespOpcode, 0x07, 0x00, 0x00};
+    fillUdpCapturedFromFrame(c, makeBaseFrame(kUtPort, body.data(), body.size()));
+
+    EXPECT_TRUE(c.receive_answered);
+    EXPECT_EQ(c.ut_received, 1U);
+    EXPECT_EQ(c.ut_recv_src_ip, 0x0102A8C0U);
+    EXPECT_EQ(c.ut_recv_src_port, 20000U);
+    EXPECT_EQ(c.ut_recv_payload_len, 8U);
+    EXPECT_EQ(c.ut_recv_payload_first16[0], 0x10U);
+    EXPECT_EQ(c.ut_create_actual_count, 10U);
+    EXPECT_TRUE(c.receive2_answered);
+    EXPECT_EQ(c.ut_received_p2, 1U);
+    EXPECT_EQ(c.ut_recv_src_ip_p2, 0x030010ACU);
+    // The frame's own UT decode is still filled: the egress cases read it.
     EXPECT_TRUE(c.has_ut_response);
-    EXPECT_EQ(c.ut_opcode, kGetRespOpcode);
-    EXPECT_EQ(c.ut_received, 0U);
-    EXPECT_EQ(c.ut_recv_src_ip, 0U);
-    EXPECT_EQ(c.ut_recv_src_port, 0U);
-    EXPECT_EQ(c.ut_recv_payload_len, 0U);
-    for (const auto b : c.ut_recv_payload_first16) EXPECT_EQ(b, 0U);
 }
 
-TEST(UdpCapturedTrailerDecode, ValidTrailerWithFullPayload) {
-    // Body shape: opcode(0x81) + req_id(0x07) + status(0x00) +
-    //             received(0x01) +
-    //             src_ip BE = 0xC0A80201 (192.168.2.1 wire bytes
-    //             C0 A8 02 01 ; harness reads back as NBO uint32 0x0102A8C0) +
-    //             src_port BE = 0x4E20 (20000) +
-    //             payload_len BE = 0x0008 +
-    //             8 B body 0x10..0x80
-    std::vector<std::uint8_t> body{
+// The GetReceivedUdp / CreateUdpReceivePorts response bodies are decoded by
+// ut::decodeResponse, the single owner of their offsets. The opcode backend of the
+// receive seam reads its reply through the same decoder, so these pin the offsets
+// the answer the cases grade is built from.
+TEST(UtResponseDecode, ReceivedZeroHasNoTrailer) {
+    const std::array<std::uint8_t, 4> body{kGetRespOpcode, 0x07, 0x00, 0x00};
+    const auto r = ut::decodeResponse(body.data(), body.size());
+    EXPECT_TRUE(r.received_valid);
+    EXPECT_EQ(r.received, 0U);
+    EXPECT_FALSE(r.recv_trailer_valid);
+}
+
+TEST(UtResponseDecode, ValidTrailerWithFullPayload) {
+    // opcode(0x81) req_id(0x07) status(0x00) received(0x01)
+    // src_ip C0 A8 02 01 (192.168.2.1 on the wire, NBO uint32 0x0102A8C0)
+    // src_port 0x4E20 (20000), payload_len 8, 8 B body 0x10..0x80
+    const std::vector<std::uint8_t> body{
         kGetRespOpcode, 0x07, 0x00, 0x01,
         0xC0, 0xA8, 0x02, 0x01,
         0x4E, 0x20,
         0x00, 0x08,
         0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0x80};
-    const auto f = makeBaseFrame(kUtPort, body.data(),
-                                  static_cast<std::uint32_t>(body.size()));
-    UdpCaptured c{};
-    fillUdpCapturedFromFrame(c, f);
-    EXPECT_TRUE(c.has_ut_response);
-    EXPECT_EQ(c.ut_received, 1U);
-    EXPECT_EQ(c.ut_recv_src_ip, 0x0102A8C0U);
-    EXPECT_EQ(c.ut_recv_src_port, 20000U);
-    EXPECT_EQ(c.ut_recv_payload_len, 8U);
-    const std::array<std::uint8_t, 8> expected_payload{
-        0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0x80};
-    EXPECT_TRUE(c.ut_recv_payload_equals(expected_payload.data(),
-                                          expected_payload.size()));
+    const auto r = ut::decodeResponse(body.data(), static_cast<std::uint32_t>(body.size()));
+    EXPECT_TRUE(r.received_valid);
+    EXPECT_EQ(r.received, 1U);
+    ASSERT_TRUE(r.recv_trailer_valid);
+    EXPECT_EQ(r.recv_src_ip, 0x0102A8C0U);
+    EXPECT_EQ(r.recv_src_port, 20000U);
+    EXPECT_EQ(r.recv_payload_len, 8U);
+    EXPECT_EQ(r.recv_payload_avail, 8U);
+    EXPECT_EQ(r.recv_payload[0], 0x10U);
+    EXPECT_EQ(r.recv_payload[7], 0x80U);
 }
 
-TEST(UdpCapturedTrailerDecode, ShortTrailerLeavesPayloadUnpopulated) {
-    // received=1 but body too short (< 12 bytes) — trailer skipped.
-    std::vector<std::uint8_t> body{
-        kGetRespOpcode, 0x09, 0x00, 0x01, 0xDE, 0xAD};
-    const auto f = makeBaseFrame(kUtPort, body.data(),
-                                  static_cast<std::uint32_t>(body.size()));
-    UdpCaptured c{};
-    fillUdpCapturedFromFrame(c, f);
-    EXPECT_TRUE(c.has_ut_response);
-    EXPECT_EQ(c.ut_received, 1U);
-    EXPECT_EQ(c.ut_recv_src_ip, 0U);
-    EXPECT_EQ(c.ut_recv_payload_len, 0U);
-}
-
-TEST(UdpCapturedTrailerDecode, OversizedPayloadCappedAtFirst16Bytes) {
-    // payload_len reports 32 but the harness's first16 array bounds the
-    // copy. Confirms the 16-byte cap is enforced and indices [0..15]
-    // hold the leading wire bytes.
-    std::vector<std::uint8_t> body{
-        kGetRespOpcode, 0x01, 0x00, 0x01,
-        0x0A, 0x00, 0x00, 0x01,  // src_ip 10.0.0.1 wire bytes
-        0x4E, 0x21,                 // src_port 20001
-        0x00, 0x20};                // payload_len 32
-    for (std::uint8_t i = 0; i < 32; ++i) body.push_back(static_cast<std::uint8_t>(0xA0 + i));
-    const auto f = makeBaseFrame(kUtPort, body.data(),
-                                  static_cast<std::uint32_t>(body.size()));
-    UdpCaptured c{};
-    fillUdpCapturedFromFrame(c, f);
-    EXPECT_EQ(c.ut_recv_payload_len, 32U);
-    for (std::size_t i = 0; i < 16; ++i) {
-        EXPECT_EQ(c.ut_recv_payload_first16[i],
-                  static_cast<std::uint8_t>(0xA0 + i)) << "i=" << i;
-    }
+TEST(UtResponseDecode, ShortTrailerIsNotValid) {
+    // received=1 but the body ends before the trailer is complete.
+    const std::vector<std::uint8_t> body{kGetRespOpcode, 0x09, 0x00, 0x01, 0xDE, 0xAD};
+    const auto r = ut::decodeResponse(body.data(), static_cast<std::uint32_t>(body.size()));
+    EXPECT_TRUE(r.received_valid);
+    EXPECT_EQ(r.received, 1U);
+    EXPECT_FALSE(r.recv_trailer_valid);
 }
 
 // Helper: build a real UDP datagram via the production builder and
@@ -208,35 +205,25 @@ TEST(UdpCapturedPseudoHeaderChecksum, MismatchedLengthReturnsFalse) {
 }
 
 // §4.6.5.5 UDP_USER_INTERFACE_01: response opcode 0x94 carries
-// <actual_count:u8> at body[3]. The harness mirror this into
-// `ut_create_actual_count` only when ut_opcode matches; cross-talk
-// between OpGetReceivedUdp's ut_received slot and OpCreateUdpReceive
-// Ports' ut_create_actual_count slot must NOT happen.
-TEST(UdpCapturedTrailerDecode, CreateUdpReceivePortsActualCountDecoded) {
+// <actual_count:u8> at body[3]. Cross-talk between OpGetReceivedUdp's received
+// slot and OpCreateUdpReceivePorts' count slot must NOT happen.
+TEST(UtResponseDecode, CreateUdpReceivePortsActualCountDecoded) {
     constexpr std::uint8_t kCreateRespOpcode = static_cast<std::uint8_t>(
         ut::OpCreateUdpReceivePorts | ut::kResponseBit);
     const std::array<std::uint8_t, 4> body{kCreateRespOpcode, 0x55, 0x00, 0x0A};
-    const auto f = makeBaseFrame(kUtPort, body.data(), body.size());
-    UdpCaptured c{};
-    fillUdpCapturedFromFrame(c, f);
-    EXPECT_TRUE(c.has_ut_response);
-    EXPECT_EQ(c.ut_opcode, kCreateRespOpcode);
-    EXPECT_EQ(c.ut_status, 0x00U);
-    EXPECT_EQ(c.ut_create_actual_count, 0x0AU);
-    EXPECT_EQ(c.ut_received, 0U);  // Distinct slot — must stay zero.
+    const auto r = ut::decodeResponse(body.data(), body.size());
+    EXPECT_TRUE(r.create_count_valid);
+    EXPECT_EQ(r.create_actual_count, 0x0AU);
+    EXPECT_FALSE(r.received_valid);  // Distinct slot — must stay unset.
 }
 
-TEST(UdpCapturedTrailerDecode, CreateUdpReceivePortsShortBodyLeavesCountZero) {
+TEST(UtResponseDecode, CreateUdpReceivePortsShortBodyHasNoCount) {
     constexpr std::uint8_t kCreateRespOpcode = static_cast<std::uint8_t>(
         ut::OpCreateUdpReceivePorts | ut::kResponseBit);
-    // Only opcode + req_id + status — no actual_count byte. Decoder
-    // must keep ut_create_actual_count at default 0.
+    // Only opcode + req_id + status — no actual_count byte.
     const std::array<std::uint8_t, 3> body{kCreateRespOpcode, 0x55, 0x00};
-    const auto f = makeBaseFrame(kUtPort, body.data(), body.size());
-    UdpCaptured c{};
-    fillUdpCapturedFromFrame(c, f);
-    EXPECT_TRUE(c.has_ut_response);
-    EXPECT_EQ(c.ut_create_actual_count, 0U);
+    const auto r = ut::decodeResponse(body.data(), body.size());
+    EXPECT_FALSE(r.create_count_valid);
 }
 
 }  // namespace

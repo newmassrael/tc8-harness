@@ -45,34 +45,35 @@ struct TestCaseTraits<cases::Ipv4Addressing01SM> {
     // rather than inherited from UdpReceiveDrivenBase.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
         ::tc8::sce::kCapUdpReceiveControl;
-    // That answer arrives as an Upper Tester Confirmation on the wire and the
-    // SCXML grades it, so the capture path must let the control channel through
-    // for this case. Declared alongside the capability for the same reason it is:
-    // standalone traits inherit neither.
-    static constexpr ::tc8::sce::ControlPlaneRole kControlPlaneRole =
-        ::tc8::sce::ControlPlaneRole::kEvidence;
 
     using Captured = typename SM::CapturedType;
     using Expected = typename SM::ExpectedType;
 
     // Case shape:
     //   1. TESTER sends a UDP Message to <limitedBroadcastAddress>.
-    //   2. TESTER verifies via Upper Tester that the DUT received it.
+    //   2. TESTER observes, through the DUT's receive answer, that the DUT
+    //      received it.
     //
     // Shared stimulus body with IPv4_ADDRESSING_02 in udp_pilot_common's
-    // `emitAddressingProbeAndQuery` — both cases are structurally
+    // `emitAddressingProbeAndObserve` — both cases are structurally
     // identical except for the broadcast literal and the SCXML's
     // `{$expected_received}` polarity.
-    static void stimulus(Captured& /*c*/,
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
-        ::tc8::sce::udp::emitAddressingProbeAndQuery(
-            cfg, ctx.iface, ctx.dut, cases::kLimitedBroadcastBe);
+        ::tc8::sce::udp::emitAddressingProbeAndObserve(
+            c, cfg, ctx.iface, ctx.dut, cases::kLimitedBroadcastBe);
     }
 
-    static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {
-        ::tc8::sce::udp::dispatchUdpFrame<SM>(c, sm, ev);
+    // The answer is read in-process, as for UdpReceiveDrivenBase (standalone traits
+    // inherit neither this nor the capability above).
+    static void onStimulusSettled(Captured& /*c*/, SM& sm) {
+        ::tc8::sce::udp::raiseReceiveAnswered(sm);
     }
+
+    // No wire frame is graded, so none is dispatched (the SCXML declares no
+    // `udp_observed`).
+    static void dispatch(Captured& /*c*/, SM& /*sm*/, const ::tc8::CapturedEvent& /*ev*/) {}
 };
 
 }  // namespace tc8::sce

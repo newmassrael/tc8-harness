@@ -26,13 +26,13 @@ struct TestCaseTraits<cases::UdpFields08SM>
         "DUT discards a truncated UDP datagram (wire region < 8 bytes) "
         "(RFC 768 'Fields' MUST)";
 
-    static void stimulus(Captured& /*c*/,
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::udp::UdpStimulusOverrides ov{};
         ov.udp.truncate_to = std::size_t{4};
-        ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, ctx.iface, ctx.dut,
+        ::tc8::sce::udp::emitIngressProbeAndObserve(
+            c, cfg, ctx.iface, ctx.dut,
             /*payload=*/nullptr, /*payload_len=*/0,
             ::tc8::sce::udp::kDataPeerPort, ov);
     }

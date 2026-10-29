@@ -13,19 +13,17 @@
     Host-2-IP             → 172.16.0.3 (kUdpHost2IpBe)
     unusedUDPDstPort1     → kDataPort = 20000
 
-  Two-phase observation:
-    listening_phase1 — UT-Confirmation reports DUT received from
-                       Host-1-IP → transition to listening_phase2.
-    listening_phase2 — UT-Confirmation reports DUT received from
-                       Host-2-IP → pass.
-  In either phase a Confirmation reporting no receipt, or a receipt
-  from another source, fails; no Confirmation is inconclusive.
+  Two-phase observation, one receive window per sender (the stimulus runs
+  them in turn and records both answers):
+    phase 1 — the DUT's answer says it received from Host-1-IP.
+    phase 2 — the DUT's answer says it received from Host-2-IP → pass.
+  In either phase an answer reporting no receipt, or a receipt from
+  another source, fails; no answer is inconclusive, named for the phase
+  that gave none.
 
-  tc8-dut's data listener is single-slot per (port, dst_ip), so the
-  trait fires phase 2's probe + UT query on s2 entry — the second
-  receipt overwrites the first, and the second query returns
-  Host-2-IP. Phase 1 query already drained Host-1-IP's value before
-  the overwrite.
+  tc8-dut's data listener is single-slot per (port, dst_ip), so phase 2's
+  window starts only after phase 1's answer was read — the second receipt
+  overwrites the first, and the second answer reports Host-2-IP.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -34,7 +32,7 @@
        name="udp_fields_05"
        sce:transition-table="emit"
        datamodel="null"
-       initial="listening_phase1">
+       initial="listening">
 
   <sce:context id="captured"
                cpp:type="tc8::UdpCaptured"
@@ -44,40 +42,37 @@
                cpp:type="tc8::Ipv4Expected"
                cpp:include="sce_integration/ipv4_expected.h"/>
 
-  <state id="listening_phase1">
+  <!-- Both senders' windows have run by the time the machine is graded, so the
+       two phases are read in order from one state: Host-1's answer first, and
+       Host-2's only once Host-1's was delivered from the right source. A phase
+       whose window gave no answer is the one the deadline names. -->
+  <state id="listening">
     <onentry>
-      <send event="phase1_deadline" delay="5s"/>
+      <send event="deadline" delay="5s"/>
     </onentry>
-    <transition event="udp_observed"
-                cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x81 and captured.ut_status == 0 and captured.ut_received == 1 and captured.ut_recv_src_ip == expected.tester_ip"
-                target="listening_phase2"/>
-    <transition event="udp_observed"
-                cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x81 and captured.ut_status == 0 and captured.ut_received == 1 and captured.ut_recv_src_ip != expected.tester_ip"
+    <transition event="receive_answered"
+                cond="cpp:captured.receive_answered and captured.ut_received == 1 and captured.ut_recv_src_ip != expected.tester_ip"
                 target="fail_phase1_wrong_src_ip"/>
-    <transition event="udp_observed"
-                cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x81 and captured.ut_status == 0 and captured.ut_received == 0"
+    <transition event="receive_answered"
+                cond="cpp:captured.receive_answered and captured.ut_received == 0"
                 target="fail_phase1_no_host1_receipt"/>
-    <transition event="phase1_deadline" target="inconclusive_phase1_no_host1_receipt"/>
-  </state>
-
-  <!-- The receipt slot holds the last datagram, so after Host-2's probe an
-       answer naming Host-1 says the DUT did not deliver Host-2's datagram, or
-       delivered it with the wrong source: either way the user interface did not
-       tell the two senders apart. -->
-  <state id="listening_phase2">
-    <onentry>
-      <send event="phase2_deadline" delay="5s"/>
-    </onentry>
-    <transition event="udp_observed"
-                cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x81 and captured.ut_status == 0 and captured.ut_received == 1 and captured.ut_recv_src_ip == 0x030010AC"
+    <!-- The receipt slot holds the last datagram, so after Host-2's probe an
+         answer naming Host-1 says the DUT did not deliver Host-2's datagram, or
+         delivered it with the wrong source: either way the user interface did not
+         tell the two senders apart. -->
+    <transition event="receive_answered"
+                cond="cpp:captured.receive_answered and captured.receive2_answered and captured.ut_received_p2 == 1 and captured.ut_recv_src_ip_p2 == 0x030010AC"
                 target="pass"/>
-    <transition event="udp_observed"
-                cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x81 and captured.ut_status == 0 and captured.ut_received == 1 and captured.ut_recv_src_ip != 0x030010AC"
+    <transition event="receive_answered"
+                cond="cpp:captured.receive_answered and captured.receive2_answered and captured.ut_received_p2 == 1 and captured.ut_recv_src_ip_p2 != 0x030010AC"
                 target="fail_phase2_wrong_src_ip"/>
-    <transition event="udp_observed"
-                cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x81 and captured.ut_status == 0 and captured.ut_received == 0"
+    <transition event="receive_answered"
+                cond="cpp:captured.receive_answered and captured.receive2_answered and captured.ut_received_p2 == 0"
                 target="fail_phase2_no_host2_receipt"/>
-    <transition event="phase2_deadline" target="inconclusive_phase2_no_host2_receipt"/>
+    <transition event="deadline"
+                cond="cpp:!captured.receive_answered"
+                target="inconclusive_phase1_no_host1_receipt"/>
+    <transition event="deadline" target="inconclusive_phase2_no_host2_receipt"/>
   </state>
 
   <final id="pass">

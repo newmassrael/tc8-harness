@@ -26,7 +26,7 @@ struct TestCaseTraits<cases::UdpDatagramLength01SM>
         "DUT discards a truncated UDP datagram (Length field smaller "
         "than actual data) (RFC 768 'Format' + automotive frame integrity)";
 
-    static void stimulus(Captured& /*c*/,
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         // Wire region carries 8 B header + 8 B payload (16 B total) but
@@ -35,8 +35,8 @@ struct TestCaseTraits<cases::UdpDatagramLength01SM>
         // dispatch.
         ::tc8::sce::udp::UdpStimulusOverrides ov{};
         ov.udp.length_field = std::uint16_t{8U};
-        ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, ctx.iface, ctx.dut,
+        ::tc8::sce::udp::emitIngressProbeAndObserve(
+            c, cfg, ctx.iface, ctx.dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size(),
             ::tc8::sce::udp::kDataPeerPort, ov);

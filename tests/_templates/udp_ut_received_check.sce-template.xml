@@ -1,24 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  §4.6.5.5 UDP_USER_INTERFACE 4-state UT-Confirmation field-check shape:
-  TESTER injects one UDP probe at the DUT's data port, then queries the
-  Upper Tester's GetReceivedUdp opcode whose response carries the DUT's
-  observed src_ip / src_port / payload bytes back to the harness.
+  §4.6.5.5 UDP_USER_INTERFACE field-check shape on the DUT's receive answer:
+  TESTER injects one UDP probe at the DUT's data port inside a receive window
+  (IUdpReceiveControl::receiveUdp), whose answer carries the DUT's observed
+  src_ip / src_port / payload bytes back to the harness in-process. The
+  stimulus records it in the captured context and the runner's stimulus-settled
+  hook raises `receive_answered` once for the machine to grade.
 
   Conformance verdict model (ISO/IEC 9646 / TTCN-3, same as SOMEIP_ETS_152).
   The verdict is SOUND: it FAILs only on an observed field violation, never
   because the environment failed to drive the DUT into the precondition.
 
-    * pass — Confirmation arrives with ut_opcode == 0x81, ut_status == 0,
-      ut_received == 1, AND {$pass_expr} (per-case predicate over the
-      `ut_recv_*` fields).
-    * fail_field_mismatch (fail) — Confirmation arrives correctly but
-      {$pass_expr} evaluates false: the DUT received the datagram but the
-      harness's view of an asserted field disagrees — an observed violation.
-    * no_receipt_state — Confirmation arrives correctly but carries
-      ut_received == 0: the DUT ANSWERED, and its answer is that it did not
-      receive the datagram. That is a DUT report, not a failed observation
-      vehicle, so it never shares the deadline's reason. What it means is
+    * pass — the DUT answered (receive_answered), ut_received == 1, AND
+      {$pass_expr} (per-case predicate over the `ut_recv_*` fields).
+    * fail_field_mismatch (fail) — the DUT answered that it received the
+      datagram but {$pass_expr} evaluates false: the harness's view of an
+      asserted field disagrees — an observed violation.
+    * no_receipt_state — the DUT answered with ut_received == 0: its answer is
+      that it did not receive the datagram, proven as a discard (its own
+      received=0, or a sentinel delivered after the probe while the probe was
+      not). That is a DUT report, not a failed observation vehicle, so it never
+      shares the deadline's reason. What it means is
       the consumer's to bind, and there are exactly two coherent bindings:
         - a positive injects a datagram the DUT is REQUIRED to receive, so
           the report is an observed violation: fail_no_receipt / fail /
@@ -29,22 +31,21 @@
           demonstrated nor shown inert: inconclusive_no_receipt /
           inconclusive / precondition_unmet. A `_neg` carries exactly one
           fail final (negative_coverage_audit.py), and it is fail_compliant.
-    * deadline -> inconclusive (inconclusive_no_ut_confirmation): no UT
-      GetReceivedUdp Confirmation arrived within the 5 s window at all, so
-      the DUT's reception report — the sole observation vehicle — never
-      materialised. A precondition fault (DUT/UT path produced no result),
-      not a field defect. Does not red the conformance gate. It means only
-      that: no Confirmation, whatever it would have said, lands here.
+    * deadline -> inconclusive (inconclusive_no_ut_confirmation): no answer
+      the verdict may rest on within the 5 s window, so the DUT's reception
+      report — the sole observation vehicle — never materialised: the DUT's
+      control path produced no result, or the window saw neither the probe
+      nor a sentinel (a silence is not a discard). A precondition fault, not
+      a field defect. Does not red the conformance gate. It means only
+      that: no answer, whatever it would have said, lands here.
 
   Distinct from `ipv4_udp_ut_presence` whose single hinge is
   `ut_received == {$expected_received}`. UDP_USER_INTERFACE_02/_03/_04
   need both `ut_received == 1` AND a second-axis assertion on the
-  payload / src_port / src_ip the DUT exposed in the Confirmation
-  trailer.
+  payload / src_port / src_ip the DUT reported for the delivered datagram.
 
-  BPF: consumers use `BpfGroup::Udp`. SD multicast (UDP 30490) reaches
-  the pipeline but fails `has_ut_response` (the gate fires only on
-  src_port == ut::kPort = 30600), so SD frames cannot drive any
+  The machine reacts to the stimulus-settled event only, not to wire
+  frames, so no frame on the capture (SD multicast included) can drive a
   transition.
 -->
 <sce:template xmlns:sce="http://sce.dev/ext"
@@ -81,14 +82,14 @@
     <onentry>
       <send event="deadline_exceeded" delay="5s"/>
     </onentry>
-    <transition event="udp_observed"
-                cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x81 and captured.ut_status == 0 and captured.ut_received == 1 and ({$pass_expr})"
+    <transition event="receive_answered"
+                cond="cpp:captured.receive_answered and captured.ut_received == 1 and ({$pass_expr})"
                 target="pass"/>
-    <transition event="udp_observed"
-                cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x81 and captured.ut_status == 0 and captured.ut_received == 1 and !({$pass_expr})"
+    <transition event="receive_answered"
+                cond="cpp:captured.receive_answered and captured.ut_received == 1 and !({$pass_expr})"
                 target="{$fail_state}"/>
-    <transition event="udp_observed"
-                cond="cpp:captured.has_ut_response and captured.ut_opcode == 0x81 and captured.ut_status == 0 and captured.ut_received == 0"
+    <transition event="receive_answered"
+                cond="cpp:captured.receive_answered and captured.ut_received == 0"
                 target="{$no_receipt_state}"/>
     <transition event="deadline_exceeded" target="inconclusive_no_ut_confirmation"/>
   </state>

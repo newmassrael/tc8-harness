@@ -29,16 +29,16 @@ struct TestCaseTraits<cases::UdpFields16NegSM>
         "Self-validation of UDP_FIELDS_16: the lwIP kUdpFaultRejectValid ingress flavor "
         "makes the DUT drop a valid zero-checksum datagram; a conformant DUT accepts it";
     // Arm the ingress rejection fault, then drive the same valid zero-checksum ingress
-    // probe + UT GetReceivedUdp query the positive uses. With the flavor armed the
+    // probe + in-process receive answer the positive uses. With the flavor armed the
     // input hook swallows the datagram so lwIP never delivers it (ut_received == 0).
-    static void stimulus(Captured& /*c*/,
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         emitIngressFlavorArm(cfg, ctx.iface, ::tc8::ut::kUdpFaultRejectValid);
         ::tc8::sce::udp::UdpStimulusOverrides ov{};
         ov.udp.checksum_field = std::uint16_t{0x0000};
-        ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, ctx.iface, ctx.dut,
+        ::tc8::sce::udp::emitIngressProbeAndObserve(
+            c, cfg, ctx.iface, ctx.dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size(),
             ::tc8::sce::udp::kDataPeerPort, ov);

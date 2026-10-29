@@ -38,12 +38,12 @@ struct TestCaseTraits<cases::UdpIntroduction01NegSM>
         "app fault makes the data listener count a directed-broadcast datagram; a "
         "conformant DUT denies it at the application layer";
 
-    static void stimulus(Captured& /*c*/,
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         emitAppFlavorArm(cfg, ctx.iface, ::tc8::ut::kAppFaultAcceptDirectedBroadcast);
-        ::tc8::sce::udp::emitAddressingProbeAndQuery(
-            cfg, ctx.iface, ctx.dut, cases::kIntro01DirectedBroadcastBe);
+        ::tc8::sce::udp::emitAddressingProbeAndObserve(
+            c, cfg, ctx.iface, ctx.dut, cases::kIntro01DirectedBroadcastBe);
     }
 };
 

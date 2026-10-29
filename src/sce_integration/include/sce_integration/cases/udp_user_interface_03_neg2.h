@@ -23,7 +23,7 @@ using UdpUserInterface03Neg2SM =
 namespace tc8::sce {
 
 // Self-validation of UDP_USER_INTERFACE_03's receipt guard: the positive injects a datagram
-// the DUT must receive, so a Confirmation reporting received=0 is an observed violation. The
+// the DUT must receive, so a receive answer reporting received=0 is an observed violation. The
 // kAppFaultReportNoReceipt app fault makes the shared data listener lose the datagram the
 // stack delivered (the only faithful site), so a buggy DUT reports no receipt. lwIP-only
 // (kCapAppFault via UdpAppFaultNegBase).
@@ -36,14 +36,14 @@ struct TestCaseTraits<cases::UdpUserInterface03Neg2SM>
         "fault makes the Confirmation report no receipt; a conformant DUT reports the "
         "datagram it received";
 
-    // Arm the receipt-loss fault, then drive the same probe (src port 20019) + UT
-    // GetReceivedUdp query the positive uses, so the Confirmation surfaces ut_received == 0.
-    static void stimulus(Captured& /*c*/,
+    // Arm the receipt-loss fault, then drive the same probe (src port 20019) + in-process
+    // receive answer the positive uses, so the answer surfaces ut_received == 0.
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         emitAppFlavorArm(cfg, ctx.iface, ::tc8::ut::kAppFaultReportNoReceipt);
-        ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, ctx.iface, ctx.dut,
+        ::tc8::sce::udp::emitIngressProbeAndObserve(
+            c, cfg, ctx.iface, ctx.dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size(),
             cases::kUserInterface03SrcPort);

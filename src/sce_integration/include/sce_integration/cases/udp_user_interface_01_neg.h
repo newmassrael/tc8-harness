@@ -23,9 +23,10 @@ using UdpUserInterface01NegSM =
 namespace tc8::sce {
 
 // Self-validation of UDP_USER_INTERFACE_01: the §4.6.5.5 receive-port count is a receive-
-// interface property — the application binds the ports and reports the count in the
-// CreateUdpReceivePorts Confirmation. The kAppFaultMiscountPorts app fault makes it
-// over-report by one, so a buggy DUT surfaces a wrong count. lwIP-only (kCapAppFault via
+// interface property — the application binds the ports and the stimulus records the
+// reported count in-process (a receive window through the Tier-2 seam) for the SCXML to
+// grade. The kAppFaultMiscountPorts app fault makes it over-report by one, so a buggy DUT
+// surfaces a wrong count. lwIP-only (kCapAppFault via
 // UdpAppFaultNegBase).
 template <>
 struct TestCaseTraits<cases::UdpUserInterface01NegSM>
@@ -37,12 +38,12 @@ struct TestCaseTraits<cases::UdpUserInterface01NegSM>
         "the count it bound";
 
     // Arm the miscount fault, then drive the same CreateUdpReceivePorts request the positive
-    // uses (10 ports), so the Confirmation surfaces ut_create_actual_count != 10.
-    static void stimulus(Captured& /*c*/,
+    // uses (10 ports), so the recorded answer surfaces ut_create_actual_count != 10.
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         emitAppFlavorArm(cfg, ctx.iface, ::tc8::ut::kAppFaultMiscountPorts);
-        ::tc8::sce::udp::emitCreateUdpReceivePorts(ctx.dut, /*count=*/10);
+        ::tc8::sce::udp::emitCreateUdpReceivePorts(c, ctx.dut, /*count=*/10);
     }
 };
 

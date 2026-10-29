@@ -177,17 +177,23 @@ struct ArmedSocket {
 // The Event-parse SSOT shared by the single-Event (accept) and accumulating
 // (receive-and-forward) collectors.
 std::optional<std::vector<std::uint8_t>> recvSpEvent(int fd, std::uint8_t gid, std::uint8_t pid) {
-    std::uint8_t buf[2048];
-    const ssize_t n = ::recv(fd, buf, sizeof(buf), 0);
+    // Room for any UDP datagram: an Event carries a forwarded payload of up to the
+    // arm's max_fwd plus its header and fields, so a buffer sized to a typical
+    // payload truncates exactly the Events that forward the most, and a truncated
+    // vint8 does not parse.
+    static constexpr std::size_t kMaxDatagram = 65535;
+    std::vector<std::uint8_t> buf(kMaxDatagram);
+    const ssize_t n = ::recv(fd, buf.data(), buf.size(), 0);
     if (n < static_cast<ssize_t>(tp::kHeaderSize)) {
         return std::nullopt;
     }
-    const auto evh = tp::parseHeader(buf, static_cast<std::size_t>(n));
+    const auto evh = tp::parseHeader(buf.data(), static_cast<std::size_t>(n));
     if (!evh || evh->tid != tp::kTidEvent || !tp::isEvent(evh->method_id) ||
         tp::gidOf(evh->method_id) != gid || tp::pidOf(evh->method_id) != pid) {
         return std::nullopt;
     }
-    return std::vector<std::uint8_t>(buf + tp::kHeaderSize, buf + n);
+    return std::vector<std::uint8_t>(buf.begin() + static_cast<std::ptrdiff_t>(tp::kHeaderSize),
+                                     buf.begin() + n);
 }
 
 // Arm an async-event SP over one persistent UDP socket — the SSOT for the

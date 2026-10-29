@@ -26,7 +26,7 @@ struct TestCaseTraits<cases::UdpFields15SM>
         "DUT silently discards a UDP datagram with non-zero invalid "
         "checksum (RFC 1122 §4.1.3.4 MUST)";
 
-    static void stimulus(Captured& /*c*/,
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         ::tc8::sce::udp::UdpStimulusOverrides ov{};
@@ -34,8 +34,8 @@ struct TestCaseTraits<cases::UdpFields15SM>
         // RFC 1071 sum over the (tester, DUT) pseudo-header / 8 B
         // payload region.
         ov.udp.checksum_field = std::uint16_t{0xDEAD};
-        ::tc8::sce::udp::emitIngressProbeAndQuery(
-            cfg, ctx.iface, ctx.dut,
+        ::tc8::sce::udp::emitIngressProbeAndObserve(
+            c, cfg, ctx.iface, ctx.dut,
             ::tc8::sce::udp::kUdpDefaultData.data(),
             ::tc8::sce::udp::kUdpDefaultData.size(),
             ::tc8::sce::udp::kDataPeerPort, ov);

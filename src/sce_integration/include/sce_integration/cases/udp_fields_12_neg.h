@@ -36,15 +36,15 @@ struct TestCaseTraits<cases::UdpFields12NegSM>
         "makes the Confirmation over-report the reassembled payload length; a conformant DUT "
         "reports the length the datagram carried";
 
-    // Arm the length-report fault, then drive the same 65 507 B fragmented stimulus + UT
-    // GetReceivedUdp query the positive uses (the wire-level reassembly is unchanged; the
-    // flavor corrupts only the reported length), so the Confirmation surfaces a
+    // Arm the length-report fault, then drive the same 65 507 B fragmented stimulus +
+    // receive window the positive uses (the wire-level reassembly is unchanged; the
+    // flavor corrupts only the reported length), so the answer surfaces a
     // ut_recv_payload_len != 65507.
-    static void stimulus(Captured& /*c*/,
+    static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         emitAppFlavorArm(cfg, ctx.iface, ::tc8::ut::kAppFaultReportWrongLength);
-        cases::emitMaxLengthDatagramAndQuery(cfg, ctx.iface, ctx.dut);
+        cases::emitMaxLengthDatagramAndObserve(c, cfg, ctx.iface, ctx.dut);
     }
 };
 

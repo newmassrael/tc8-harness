@@ -30,8 +30,8 @@ namespace tc8 {
 //
 // §4.4.4.6 IPv4_FRAGMENTS_05 watches `ip_flags` / `ip_fragment_offset`
 // to assert MF=0 + offset=0 on a DUT-emitted UDP datagram. §4.4.4.5
-// IPv4_ADDRESSING_01/02 watch the `has_ut_response` / `ut_received`
-// pair to decode a §4.8.5 Confirmation from the UDP payload.
+// IPv4_ADDRESSING_01/02 read the `receive_answered` / `ut_received`
+// pair, which the stimulus writes from the DUT's receive answer.
 //
 // UT decode: populated only when the datagram's `src_port` equals
 // `ut::kPort` (tc8-dut's UT RPC port) AND `payload[0]` has the
@@ -59,29 +59,39 @@ struct UdpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     std::array<std::uint8_t, 6> eth_src{};
     std::array<std::uint8_t, 6> eth_dst{};
 
-    // Derived UT decode. Populated only when payload[0] has bit 7 set.
+    // Derived UT decode of an Upper Tester response frame. Populated only when
+    // payload[0] has bit 7 set. The egress cases read `has_ut_response` to tell a
+    // TriggerSendUdp Confirmation from the datagram the DUT was asked to send.
     bool          has_ut_response    = false;
     std::uint8_t  ut_opcode          = 0;
     std::uint8_t  ut_req_id          = 0;
     std::uint8_t  ut_status          = 0;
-    std::uint8_t  ut_received        = 0;  // only valid for GetReceivedUdp resp
 
-    // §4.6.5.5 UDP_USER_INTERFACE_02/_03/_04 ingress field readback.
-    // Populated only when ut_opcode == (OpGetReceivedUdp | kResponseBit)
-    // AND ut_received == 1 AND the response body carries the optional
-    // trailer (src_ip:u32 + src_port:u16 + payload_len:u16 + payload[]).
-    // tc8-dut emits the trailer for every populated receipt; the harness
-    // surfaces it here so SCXML cond expressions can directly assert
-    // "the DUT's app layer saw src_ip / src_port / payload bytes equal
-    // to <expected>".
+    // The DUT's answer to the receive question a case put through
+    // IUdpReceiveControl (receiveUdp, createReceivePorts). Written by the case's
+    // stimulus from the call's in-process outcome (udp_receive_answer.h), never
+    // decoded from a frame, so the same fields hold the answer whichever backend
+    // gave it: an opcode reply body (the §4.8.5 Confirmation) or a testability
+    // Event. `fillUdpCapturedFromFrame`
+    // leaves every field below alone.
+    //
+    // `receive_answered` is false until the DUT gave an answer the verdict may
+    // grade: a window that observed the probe, or a discard the sentinel proved.
+    // A refusal, a lost request and a silence stay false, and the case ends on its
+    // deadline as inconclusive.
+    bool          receive_answered   = false;
+    std::uint8_t  ut_received        = 0;  // 1 = the probe was delivered, 0 = discarded
+
+    // UDP_USER_INTERFACE_02/_03/_04 ingress field readback: what the DUT's
+    // application saw of the delivered datagram. Zero when `ut_received` is 0.
+    // SCXML conds assert "the app layer saw src_ip / src_port / payload bytes equal
+    // to <expected>" directly on these.
     std::uint32_t ut_recv_src_ip       = 0;   // network byte order
     std::uint16_t ut_recv_src_port     = 0;
     std::uint16_t ut_recv_payload_len  = 0;
-    // §4.6.5.5 UDP_USER_INTERFACE_01 surface. Populated only when
-    // ut_opcode == (OpCreateUdpReceivePorts | kResponseBit) AND the
-    // response body carries the actual_count byte (status + 1 = 4
-    // bytes minimum). Spec asserts the DUT created the requested
-    // count of UDP receive ports; harness compares this against 10.
+    // UDP_USER_INTERFACE_01: how many receive ports the DUT reports it opened
+    // (createReceivePorts). Valid when `receive_answered`; the spec asserts the
+    // requested count, which the SCXML compares against.
     std::uint8_t  ut_create_actual_count = 0;
     // First 16 B of the received payload, zero-padded if shorter. UDP
     // test cases (§4.6.5.5 _02) ship 8 B `kUdpDefaultData`; capping at
@@ -89,6 +99,11 @@ struct UdpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     // verify a 16-byte digest. Caller-side member helper
     // `ut_recv_payload_equals` does fixed-len byte equality.
     std::array<std::uint8_t, 16> ut_recv_payload_first16{};
+    // UDP_FIELDS_05 observes two senders in turn (Host-1, then Host-2): the second
+    // window's answer, in the same terms as the first's.
+    bool          receive2_answered  = false;
+    std::uint8_t  ut_received_p2     = 0;
+    std::uint32_t ut_recv_src_ip_p2  = 0;   // network byte order
 
     // The UDP-body snapshot (`payload_snapshot` / `payload_snapshot_len`,
     // capacity `kMaxPayloadSnapshot`) is inherited from
@@ -207,13 +222,6 @@ inline void fillUdpCapturedFromFrame(UdpCaptured &c, const UdpFrame &f) {
     c.ut_opcode       = 0;
     c.ut_req_id       = 0;
     c.ut_status       = 0;
-    c.ut_received     = 0;
-
-    c.ut_recv_src_ip      = 0;
-    c.ut_recv_src_port    = 0;
-    c.ut_recv_payload_len = 0;
-    c.ut_recv_payload_first16.fill(0);
-    c.ut_create_actual_count = 0;
 
     // Snapshot the leading payload bytes for §4.6.5.4 UDP_FIELDS_13/_14
     // pseudo-header checksum reconstruction — shared bounded copy from
@@ -228,33 +236,15 @@ inline void fillUdpCapturedFromFrame(UdpCaptured &c, const UdpFrame &f) {
     // gate on top: `has_ut_response` means "a UT response from OUR UT server"
     // (see the src_port note above), so only a kPort-sourced response populates
     // these fields. This struct keeps just the subset the §4.6 guards assert on.
+    // The receive answer (GetReceivedUdp, CreateUdpReceivePorts) is NOT decoded
+    // here: the case reads it in-process from the seam call, so the verdict does
+    // not depend on which frame happened to carry it.
     const ut::UtResponse r = ut::decodeResponse(f.payload_data, f.payload_len);
     if (f.src_port == ut::kPort && r.is_response && r.has_status) {
         c.has_ut_response = true;
         c.ut_opcode       = r.opcode;
         c.ut_req_id       = r.req_id;
         c.ut_status       = r.status;
-        if (r.request_opcode == ut::OpCreateUdpReceivePorts && r.create_count_valid) {
-            c.ut_create_actual_count = r.create_actual_count;
-        }
-        if (r.request_opcode == ut::OpGetReceivedUdp && r.received_valid) {
-            c.ut_received = r.received;
-            // Optional trailer (src_ip / src_port / payload_len / payload),
-            // present only for a populated receipt (received == 1) that carried
-            // the full trailer. Offsets owned by decodeResponse.
-            if (r.recv_trailer_valid) {
-                c.ut_recv_src_ip      = r.recv_src_ip;
-                c.ut_recv_src_port    = r.recv_src_port;
-                c.ut_recv_payload_len = r.recv_payload_len;
-                const std::size_t copy_len = std::min<std::size_t>(
-                    {static_cast<std::size_t>(c.ut_recv_payload_len),
-                     c.ut_recv_payload_first16.size(),
-                     static_cast<std::size_t>(r.recv_payload_avail)});
-                for (std::size_t i = 0; i < copy_len; ++i) {
-                    c.ut_recv_payload_first16[i] = r.recv_payload[i];
-                }
-            }
-        }
     }
 }
 
@@ -272,6 +262,19 @@ inline void appendCapturedJson(std::string &out, const UdpCaptured &c) {
         ::tc8::sce::appendUintJson(out, ",\"ut_opcode\":", c.ut_opcode);
         ::tc8::sce::appendUintJson(out, ",\"ut_req_id\":", c.ut_req_id);
         ::tc8::sce::appendUintJson(out, ",\"ut_status\":", c.ut_status);
+    }
+    // The receive answer is the evidence of the cases that grade one (it rode a
+    // wire frame once; now it rides the seam call), so the trace must carry it.
+    if (c.receive_answered || c.receive2_answered) {
+        ::tc8::sce::appendUintJson(out, ",\"ut_received\":", c.ut_received);
+        ::tc8::sce::appendUintJson(out, ",\"ut_recv_src_ip\":", c.ut_recv_src_ip);
+        ::tc8::sce::appendUintJson(out, ",\"ut_recv_src_port\":", c.ut_recv_src_port);
+        ::tc8::sce::appendUintJson(out, ",\"ut_recv_payload_len\":", c.ut_recv_payload_len);
+        ::tc8::sce::appendUintJson(out, ",\"ut_create_actual_count\":", c.ut_create_actual_count);
+        if (c.receive2_answered) {
+            ::tc8::sce::appendUintJson(out, ",\"ut_received_p2\":", c.ut_received_p2);
+            ::tc8::sce::appendUintJson(out, ",\"ut_recv_src_ip_p2\":", c.ut_recv_src_ip_p2);
+        }
     }
     ::tc8::sce::appendTimingJson(out, c);
     out.append("}");
