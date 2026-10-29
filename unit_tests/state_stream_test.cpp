@@ -531,7 +531,7 @@ TEST(TxObserver, AConnectReportsTheSynAndTheAckWithTheirOwnSteps) {
     // held to the connection that made it.
     const auto connectOnce = [&]() -> std::uint16_t {
         std::uint16_t local_port = 0;
-        const int fd = ::tc8::stimulus::connectTcpFromIface("lo", dut, 0, &local_port);
+        const int fd = ::tc8::stimulus::connectTcpFromIface("lo", dut, {}, &local_port);
         EXPECT_GE(fd, 0);
         if (fd >= 0) ::close(fd);
         return local_port;

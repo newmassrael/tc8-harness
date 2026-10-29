@@ -16,9 +16,11 @@
 namespace tc8::stimulus {
 
 int connectTcpFromIface(std::string_view iface, const Endpoint &dst,
-                        std::uint32_t source_ip_be, std::uint16_t *out_local_port,
-                        bool nonblocking, std::uint16_t source_port) {
+                        const TcpConnectOptions &options, std::uint16_t *out_local_port) {
     TC8_TX_SCOPE();
+    const std::uint32_t source_ip_be = options.source_ip_be;
+    const std::uint16_t source_port = options.source_port;
+    const bool nonblocking = options.nonblocking;
     if (out_local_port != nullptr) {
         *out_local_port = 0;
     }

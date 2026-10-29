@@ -504,10 +504,13 @@ std::uint8_t LwipSocketBackend::configureOption(int fd, std::uint16_t param_id,
         case tp::kCfgIpTimestampOption:  // IP option-4 bytes (Linux IP_OPTIONS)
         case tp::kCfgMss:                // TCP MSS clamp (Linux TCP_MAXSEG)
             // lwIP's socket layer exposes no DF-bit, IP-options or MSS-clamp
-            // setsockopt — answer E_NOK so a tester sees the rejection rather
-            // than a false success (a case depending on one would be ledgered
-            // platform_known_fail, like the OOB / reassembly gaps).
-            return tp::kRidENok;
+            // setsockopt — answer E_NTF, "not served here", so a tester sees the
+            // rejection rather than a false success, and the seam can tell a
+            // parameter this stack structurally cannot set from a general error
+            // (the reading ridFromOpStatus gives Unsupported, testability_protocol.h).
+            // A case depending on one would be ledgered platform_known_fail, like
+            // the OOB / reassembly gaps.
+            return tp::kRidENtf;
         default:
             return tp::kRidENtf;  // unknown / non-standard parameter not served here
     }

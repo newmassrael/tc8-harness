@@ -544,10 +544,13 @@ TEST_F(TestabilityServerTest, ServicePrimitiveControlCallsAPrimitiveByNumber) {
     const sce::DutPrimitiveReply unknown = prim->call(0x7E, 0x7E, {});
     EXPECT_TRUE(unknown.answered());
     EXPECT_FALSE(unknown.succeeded());
+    // The same classification a socket option's refusal carries: "I do not serve that".
+    EXPECT_EQ(unknown.refusal, sce::DutCallOutcome::Refusal::kUnsupported);
 }
 
-// ISocketConfigControl over the real testability server. The options ride a one-shot UDP
-// send, and the tester reads what reached the wire: the TOS and TTL bytes of the datagram.
+// ISocketConfigControl over the real testability server. The options are set on an open UDP
+// socket (IUdpSocketControl), and the tester reads what reached the wire: the TOS and TTL
+// bytes of the datagram.
 // A server that dropped an option would read back the kernel default (TOS 0, TTL 64), so this
 // is also the negative control for "the backend ignores the option".
 TEST_F(TestabilityServerTest, SocketConfigControlOptionsReachTheConfiguredDatagram) {
@@ -571,11 +574,17 @@ TEST_F(TestabilityServerTest, SocketConfigControlOptionsReachTheConfiguredDatagr
     tv.tv_sec = 2;
     ::setsockopt(rfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
-    const auto outcome = config->sendConfiguredDatagram(
-        sce::Endpoint{/*addr_be=*/0, /*port=*/0xFFFF},
-        sce::Endpoint{::htonl(INADDR_LOOPBACK), ntohs(ra.sin_port)}, {'C', 'F', 'G'},
-        {{sce::SocketOption::kTos, 0x28}, {sce::SocketOption::kTtl, 9}});
-    EXPECT_TRUE(outcome.isDone());
+    sce::IUdpSocketControl *udp = ctrl.udpSocketControl();
+    ASSERT_NE(udp, nullptr);
+    EXPECT_EQ(ctrl.capabilities() & sce::kCapUdpSocket, sce::kCapUdpSocket);
+    const auto sock = udp->openUdp(sce::Endpoint{/*addr_be=*/0, /*port=*/0xFFFF});
+    ASSERT_TRUE(sock.has_value());
+    EXPECT_TRUE(config->configureUdp(*sock, sce::SocketOption::kTos, 0x28).isDone());
+    EXPECT_TRUE(config->configureUdp(*sock, sce::SocketOption::kTtl, 9).isDone());
+    EXPECT_TRUE(udp->sendUdp(*sock, sce::Endpoint{::htonl(INADDR_LOOPBACK), ntohs(ra.sin_port)},
+                             {'C', 'F', 'G'})
+                    .isDone());
+    EXPECT_TRUE(udp->closeUdp(*sock).isDone());
 
     std::uint8_t buf[16];
     iovec iov{};

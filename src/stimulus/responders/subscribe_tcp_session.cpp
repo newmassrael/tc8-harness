@@ -46,8 +46,11 @@ SubscribeEventgroupTcpSession::SubscribeEventgroupTcpSession(std::string_view if
 
     // Non-blocking so onReadable() drains without stalling the single capture thread;
     // local_port_ is the connection identity advertised in the Subscribe option.
-    const int sock = connectTcpFromIface(iface, dut_reliable, src_ip_be_, &local_port_,
-                                         /*nonblocking=*/true, source_port);
+    TcpConnectOptions connect;
+    connect.source_ip_be = src_ip_be_;
+    connect.source_port = source_port;
+    connect.nonblocking = true;
+    const int sock = connectTcpFromIface(iface, dut_reliable, connect, &local_port_);
     if (sock < 0) {
         return;  // connectTcpFromIface logged the failure.
     }

@@ -102,6 +102,11 @@ enum DutCapability : std::uint32_t {
     // IIcmpControl — the DUT originates an ICMPv4 Echo Request. Backend-static: testability
     // ICMP ECHO_REQUEST; the opcode UT has no such request.
     kCapIcmpEcho = 1u << 18,
+    // IUdpSocketControl — a UDP socket the case holds between opening and sending (to set an
+    // option on it, or to send from one source port more than once). Backend-static:
+    // testability CREATE_AND_BIND / SEND_DATA / CLOSE_SOCKET; the opcode UT's UDP is
+    // port-based and has only the one-shot IUdpControl send.
+    kCapUdpSocket = 1u << 19,
 };
 using DutCapabilities = std::uint32_t;
 

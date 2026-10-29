@@ -615,8 +615,10 @@ ETH (0x0B) — the same set the Linux endpoint serves.
   `SIOCADDRT` with an `in6_ifreq` / `in6_rtmsg` on an AF_INET6 socket.
 - `CONFIGURE_SOCKET` maps TTL/TOS/Nagle to `lwip_setsockopt`; the DF
   (`IP_MTU_DISCOVER`), IP timestamp-option (`IP_OPTIONS`) and MSS
-  (`TCP_MAXSEG`) parameters have no lwIP socket option and answer E_NOK
-  — surfaced, not silently accepted.
+  (`TCP_MAXSEG`) parameters have no lwIP socket option and answer E_NTF
+  ("not served here", the reading `ridFromOpStatus` gives an unsupported
+  operation), which the DUT-control seam reports as an unsupported refusal —
+  surfaced, not silently accepted.
 - The network-management backend ops an out-of-tree middleware module composes
   (`net::SocketBackend`, not PRS_TPSP primitives) split by capability.
   These six answer `net::OpStatus` (`include/tc8/net/op_status.h`), not a bool,

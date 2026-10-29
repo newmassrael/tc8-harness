@@ -43,11 +43,6 @@ inline const char *socketOptionName(SocketOption option) {
     return "unknown";
 }
 
-struct SocketSetting {
-    SocketOption option;
-    std::uint32_t value;
-};
-
 class ISocketConfigControl {
 public:
     virtual ~ISocketConfigControl() = default;
@@ -59,14 +54,10 @@ public:
     virtual DutCallOutcome configureTcp(DutSocket sock, SocketOption option,
                                         std::uint32_t value) = 0;
 
-    // A UDP socket has no handle in this seam (IUdpControl::sendDatagram opens, sends and
-    // closes), so the options ride the send: the DUT opens a socket bound to `src`, applies
-    // every setting in order, sends `data` to `dest`, and closes. Nothing is sent unless
-    // every setting took, so a datagram a case grades never left a half-configured socket.
-    // The outcome is the first setting that did not take, else the send's.
-    virtual DutCallOutcome sendConfiguredDatagram(const Endpoint &src, const Endpoint &dest,
-                                                  const std::vector<std::uint8_t> &data,
-                                                  const std::vector<SocketSetting> &settings) = 0;
+    // The same for a UDP socket the case opened through IUdpSocketControl (the one-shot
+    // IUdpControl::sendDatagram has no socket to configure). The outcomes are as above.
+    virtual DutCallOutcome configureUdp(DutSocket sock, SocketOption option,
+                                        std::uint32_t value) = 0;
 };
 
 }  // namespace tc8::sce

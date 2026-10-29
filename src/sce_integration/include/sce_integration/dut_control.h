@@ -17,6 +17,7 @@
 #include "sce_integration/dut_socket_config_control.h"
 #include "sce_integration/dut_service_primitive_control.h"
 #include "sce_integration/dut_socket_control.h"
+#include "sce_integration/dut_udp_socket_control.h"
 #include "tc8/testability_client.h"
 #include "stimulus/upper_tester_client.h"
 #include "tc8/testability_protocol.h"
@@ -165,6 +166,11 @@ public:
     // The DUT originates an ICMPv4 Echo Request, or nullptr when the backend has no such
     // request (the opcode UT); a case declaring kCapIcmpEcho is capability-skipped there.
     virtual IIcmpControl *icmpControl() { return nullptr; }
+
+    // A UDP socket the case holds between opening and sending, or nullptr when the backend's
+    // UDP is the one-shot IUdpControl send alone (the opcode UT); a case declaring
+    // kCapUdpSocket is capability-skipped there.
+    virtual IUdpSocketControl *udpSocketControl() { return nullptr; }
 };
 
 // Seam-case convenience: fetch the DUT's TCP control sub-interface as a
@@ -954,6 +960,23 @@ private:
 // Besides the IDutControl lifecycle it exposes the protocol's generic
 // `call(gid, pid, dat)` engine, which OEM-specific typed service-primitive
 // wrappers (written out of tree) build on.
+// What a testability response means as a DUT-control outcome — the ONE place the result id
+// is classified, for every testability-backed sub-interface: E_OK is done; E_NTF (the DUT
+// does not serve what was asked: a parameter, a primitive) is an unsupported refusal; any
+// other result id is a refusal for another reason; a response that never came back is no
+// answer.
+inline DutCallOutcome outcomeOfTestabilityResponse(const testability::TestabilityResponse &r) {
+    if (!r.ok) {
+        return DutCallOutcome::noAnswer();
+    }
+    if (r.eok()) {
+        return DutCallOutcome::done();
+    }
+    return DutCallOutcome::refused(r.rid == testability::kRidENtf
+                                       ? DutCallOutcome::Refusal::kUnsupported
+                                       : DutCallOutcome::Refusal::kOther);
+}
+
 // Testability backend of IServicePrimitiveControl: any primitive, by number, through
 // the generic engine. The standard primitives have typed wrappers of their own
 // (testability_client.h); this is the way in for the ones that have none.
@@ -967,13 +990,14 @@ public:
                            const std::vector<std::uint8_t> &dat) override {
         const testability::TestabilityResponse r =
             testability::testabilityCall(cfg_, gid, pid, dat, timeout_ms_, src_ip_be_);
+        const DutCallOutcome outcome = outcomeOfTestabilityResponse(r);
         DutPrimitiveReply reply;
-        if (!r.ok) {
-            return reply;  // nothing usable came back: no answer
+        reply.kind = outcome.kind;
+        reply.refusal = outcome.refusal;
+        if (r.ok) {
+            reply.result_id = r.rid;
+            reply.data = r.dat;
         }
-        reply.kind = r.eok() ? DutCallOutcome::Kind::kDone : DutCallOutcome::Kind::kRefused;
-        reply.result_id = r.rid;
-        reply.data = r.dat;
         return reply;
     }
 
@@ -982,21 +1006,6 @@ private:
     int timeout_ms_;
     std::uint32_t src_ip_be_;
 };
-
-// What a testability response means as a DUT-control outcome: E_OK is done; E_NTF (the
-// DUT does not serve the parameter) is an unsupported refusal; any other result id is a
-// refusal for another reason; a response that never came back is no answer.
-inline DutCallOutcome outcomeOfTestabilityResponse(const testability::TestabilityResponse &r) {
-    if (!r.ok) {
-        return DutCallOutcome::noAnswer();
-    }
-    if (r.eok()) {
-        return DutCallOutcome::done();
-    }
-    return DutCallOutcome::refused(r.rid == testability::kRidENtf
-                                       ? DutCallOutcome::Refusal::kUnsupported
-                                       : DutCallOutcome::Refusal::kOther);
-}
 
 // Testability backend of ISocketConfigControl: each SocketOption is one CONFIGURE_SOCKET
 // parameter (PRS_TPSP §6.10.10), its value encoded at the parameter's width.
@@ -1011,30 +1020,9 @@ public:
         return apply(testability::kGidTcp, sock.id, option, value);
     }
 
-    DutCallOutcome sendConfiguredDatagram(const Endpoint &src, const Endpoint &dest,
-                                          const std::vector<std::uint8_t> &data,
-                                          const std::vector<SocketSetting> &settings) override {
-        const auto id = testability::testabilityCreateAndBind(
-            cfg_, testability::kGidUdp, /*do_bind=*/true, src.port, src.addr_be, timeout_ms_,
-            src_ip_be_);
-        if (!id) {
-            return DutCallOutcome::noAnswer();
-        }
-        DutCallOutcome outcome = DutCallOutcome::done();
-        for (const SocketSetting &s : settings) {
-            outcome = apply(testability::kGidUdp, *id, s.option, s.value);
-            if (!outcome.isDone()) {
-                break;  // nothing is sent from a socket that is not as the case asked
-            }
-        }
-        if (outcome.isDone()) {
-            outcome = outcomeOfTestabilityResponse(testability::testabilityUdpSendData(
-                cfg_, *id, static_cast<std::uint16_t>(data.size()), dest.port, dest.addr_be, data,
-                timeout_ms_, src_ip_be_));
-        }
-        testability::testabilityCloseSocket(cfg_, testability::kGidUdp, *id, timeout_ms_,
-                                            src_ip_be_);
-        return outcome;
+    DutCallOutcome configureUdp(DutSocket sock, SocketOption option,
+                                std::uint32_t value) override {
+        return apply(testability::kGidUdp, sock.id, option, value);
     }
 
 private:
@@ -1085,6 +1073,44 @@ private:
     std::uint32_t src_ip_be_;
 };
 
+// Testability backend of IUdpSocketControl: CREATE_AND_BIND, SEND_DATA and CLOSE_SOCKET of the
+// UDP group, the same three primitives the one-shot IUdpControl::sendDatagram strings together.
+class TestabilityUdpSocketControl final : public IUdpSocketControl {
+public:
+    TestabilityUdpSocketControl(const testability::TestabilityConfig &cfg, int timeout_ms,
+                                std::uint32_t src_ip_be)
+        : cfg_(cfg), timeout_ms_(timeout_ms), src_ip_be_(src_ip_be) {}
+
+    std::optional<DutSocket> openUdp(const Endpoint &local) override {
+        // `local.addr_be` IS the bind address: 0 keeps INADDR_ANY (the DUT's own choice of
+        // egress address), non-zero pins the source the case asked for.
+        const auto id = testability::testabilityCreateAndBind(
+            cfg_, testability::kGidUdp, /*do_bind=*/true, local.port, local.addr_be, timeout_ms_,
+            src_ip_be_);
+        if (!id) {
+            return std::nullopt;
+        }
+        return DutSocket{*id};
+    }
+
+    DutCallOutcome sendUdp(DutSocket sock, const Endpoint &dest,
+                           const std::vector<std::uint8_t> &data) override {
+        return outcomeOfTestabilityResponse(testability::testabilityUdpSendData(
+            cfg_, sock.id, static_cast<std::uint16_t>(data.size()), dest.port, dest.addr_be, data,
+            timeout_ms_, src_ip_be_));
+    }
+
+    DutCallOutcome closeUdp(DutSocket sock) override {
+        return outcomeOfTestabilityResponse(testability::testabilityCloseSocket(
+            cfg_, testability::kGidUdp, sock.id, timeout_ms_, src_ip_be_));
+    }
+
+private:
+    testability::TestabilityConfig cfg_;
+    int timeout_ms_;
+    std::uint32_t src_ip_be_;
+};
+
 // Testability backend of IIcmpControl: ICMP ECHO_REQUEST toward `dest`, interface left to
 // the DUT's routing (an empty ifName is "any", PRS_TPSP §6.10).
 class TestabilityIcmpControl final : public IIcmpControl {
@@ -1112,7 +1138,7 @@ public:
         : cfg_(cfg), timeout_ms_(timeout_ms), src_ip_be_(src_ip_be),
           tcp_ctrl_(cfg, timeout_ms, src_ip_be), udp_ctrl_(cfg, timeout_ms, src_ip_be),
           primitive_ctrl_(cfg, timeout_ms, src_ip_be), socket_config_ctrl_(cfg, timeout_ms, src_ip_be),
-          icmp_ctrl_(cfg, timeout_ms, src_ip_be) {}
+          icmp_ctrl_(cfg, timeout_ms, src_ip_be), udp_socket_ctrl_(cfg, timeout_ms, src_ip_be) {}
 
     bool probe() override { return getVersion().has_value(); }
     bool startTest() override {
@@ -1135,13 +1161,14 @@ public:
     // sub-interfaces are available on every testability DUT.
     DutCapabilities capabilities() const override {
         return kCapTcpControl | kCapUdpControl | kCapTcpCreateClosed | kCapTcpSendFlags |
-               kCapServicePrimitive | kCapSocketConfigure | kCapIcmpEcho;
+               kCapServicePrimitive | kCapSocketConfigure | kCapIcmpEcho | kCapUdpSocket;
     }
     ITcpControl *tcpControl() override { return &tcp_ctrl_; }
     IUdpControl *udpControl() override { return &udp_ctrl_; }
     IServicePrimitiveControl *servicePrimitiveControl() override { return &primitive_ctrl_; }
     ISocketConfigControl *socketConfigControl() override { return &socket_config_ctrl_; }
     IIcmpControl *icmpControl() override { return &icmp_ctrl_; }
+    IUdpSocketControl *udpSocketControl() override { return &udp_socket_ctrl_; }
 
     // GET_VERSION (GENERAL/0x01).
     std::optional<testability::TestabilityVersion> getVersion() {
@@ -1173,6 +1200,7 @@ private:
     TestabilityServicePrimitiveControl primitive_ctrl_;
     TestabilitySocketConfigControl socket_config_ctrl_;
     TestabilityIcmpControl icmp_ctrl_;
+    TestabilityUdpSocketControl udp_socket_ctrl_;
 };
 
 }  // namespace tc8::sce

@@ -71,6 +71,9 @@ public:
         return socket_config_.bind(inner_->socketConfigControl());
     }
     IIcmpControl *icmpControl() override { return icmp_.bind(inner_->icmpControl()); }
+    IUdpSocketControl *udpSocketControl() override {
+        return udp_socket_.bind(inner_->udpSocketControl());
+    }
 
     // A query whose answer, any answer, is the observation: nothing to record.
     ITcpStateProbe *tcpStateProbe() override { return inner_->tcpStateProbe(); }
@@ -251,20 +254,35 @@ private:
         }
     };
 
-    // Socket options are an action, accounted by the caller's intent. A TCP option's record
-    // names the option, so an inconclusive run says which option the DUT did not take; a
-    // configured datagram's record names the send, since several options may ride it.
+    // Socket options are an action, accounted by the caller's intent. The record names the
+    // option, so an inconclusive run says which option the DUT did not take.
     struct SocketConfig final : Bound<ISocketConfigControl> {
         DutCallOutcome configureTcp(DutSocket sock, SocketOption option,
                                     std::uint32_t value) override {
             const std::string operation = std::string("configure_socket_") + socketOptionName(option);
             return accountFor(inner->configureTcp(sock, option, value), operation.c_str());
         }
-        DutCallOutcome sendConfiguredDatagram(const Endpoint &src, const Endpoint &dest,
-                                              const std::vector<std::uint8_t> &data,
-                                              const std::vector<SocketSetting> &settings) override {
-            return accountFor(inner->sendConfiguredDatagram(src, dest, data, settings),
-                              "send_configured_datagram");
+        DutCallOutcome configureUdp(DutSocket sock, SocketOption option,
+                                    std::uint32_t value) override {
+            const std::string operation = std::string("configure_socket_") + socketOptionName(option);
+            return accountFor(inner->configureUdp(sock, option, value), operation.c_str());
+        }
+    };
+
+    // A UDP socket the case holds: opening and sending are stimuli, closing is cleanup of the
+    // case's own making (a refused close of a socket the case opened bears on no verdict).
+    struct UdpSocket final : Bound<IUdpSocketControl> {
+        std::optional<DutSocket> openUdp(const Endpoint &local) override {
+            auto sock = inner->openUdp(local);
+            performedOrRecord(sock.has_value(), "open_udp");
+            return sock;
+        }
+        DutCallOutcome sendUdp(DutSocket sock, const Endpoint &dest,
+                               const std::vector<std::uint8_t> &data) override {
+            return accountFor(inner->sendUdp(sock, dest, data), "send_udp");
+        }
+        DutCallOutcome closeUdp(DutSocket sock) override {
+            return inner->closeUdp(sock);  // cleanup: passes through unaccounted
         }
     };
 
@@ -287,6 +305,7 @@ private:
     Primitive primitive_;
     SocketConfig socket_config_;
     Icmp icmp_;
+    UdpSocket udp_socket_;
 };
 
 }  // namespace tc8::sce

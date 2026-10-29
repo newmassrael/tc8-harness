@@ -22,6 +22,14 @@ namespace {
 
 using tc8::stimulus::connectTcpFromIface;
 using tc8::stimulus::Endpoint;
+using tc8::stimulus::TcpConnectOptions;
+
+// Options naming 127.0.0.1 as the source: the explicit-source-address path, no interface lookup.
+TcpConnectOptions fromLoopback() {
+    TcpConnectOptions options;
+    options.source_ip_be = htonl(INADDR_LOOPBACK);
+    return options;
+}
 
 // A loopback TCP listener on 127.0.0.1:ephemeral. fd < 0 on failure.
 struct Listener {
@@ -61,8 +69,9 @@ TEST(ConnectTcpFromIface, ConnectsBindsSourceIpAndReportsLocalPort) {
 
     std::uint16_t local_port = 0;
     // Explicit source IP (127.0.0.1) exercises the alias/second-client bind path.
-    const int fd = connectTcpFromIface("lo", loopback(listener.port),
-                                       htonl(INADDR_LOOPBACK), &local_port, /*nonblocking=*/true);
+    TcpConnectOptions options = fromLoopback();
+    options.nonblocking = true;
+    const int fd = connectTcpFromIface("lo", loopback(listener.port), options, &local_port);
     EXPECT_GE(fd, 0);
     EXPECT_GT(local_port, 0);  // the connection identity a reliable Subscribe advertises
 
@@ -80,7 +89,7 @@ TEST(ConnectTcpFromIface, RefusedConnectReturnsNegative) {
     const std::uint16_t dead_port = listener.port;
     ::close(listener.fd);
 
-    const int rc = connectTcpFromIface("lo", loopback(dead_port), htonl(INADDR_LOOPBACK));
+    const int rc = connectTcpFromIface("lo", loopback(dead_port), fromLoopback());
     EXPECT_LT(rc, 0);
 }
 
@@ -113,8 +122,9 @@ TEST_F(NamedSourcePort, TheConnectionLeavesFromThePortTheCaseNamed) {
     ASSERT_NE(wanted, 0);
 
     std::uint16_t local_port = 0;
-    const int fd = connectTcpFromIface("lo", loopback(listener.port), htonl(INADDR_LOOPBACK),
-                                       &local_port, /*nonblocking=*/false, wanted);
+    TcpConnectOptions options = fromLoopback();
+    options.source_port = wanted;
+    const int fd = connectTcpFromIface("lo", loopback(listener.port), options, &local_port);
     ASSERT_GE(fd, 0);
     EXPECT_EQ(local_port, wanted);
 
@@ -136,8 +146,8 @@ TEST_F(NamedSourcePort, ZeroKeepsTheEphemeralBehaviour) {
     ASSERT_GE(listener.fd, 0);
 
     std::uint16_t local_port = 0;
-    const int fd = connectTcpFromIface("lo", loopback(listener.port), htonl(INADDR_LOOPBACK),
-                                       &local_port, /*nonblocking=*/false, /*source_port=*/0);
+    const int fd =
+        connectTcpFromIface("lo", loopback(listener.port), fromLoopback(), &local_port);
     ASSERT_GE(fd, 0);
     EXPECT_GT(local_port, 0);
 
@@ -151,8 +161,9 @@ TEST_F(NamedSourcePort, APortAnotherSocketHoldsIsAnUnperformedStimulusNotADutFau
     ASSERT_GE(target.fd, 0);
     ASSERT_GE(holder.fd, 0);
 
-    const int rc = connectTcpFromIface("lo", loopback(target.port), htonl(INADDR_LOOPBACK),
-                                       nullptr, /*nonblocking=*/false, holder.port);
+    TcpConnectOptions options = fromLoopback();
+    options.source_port = holder.port;
+    const int rc = connectTcpFromIface("lo", loopback(target.port), options);
     EXPECT_EQ(rc, -3);
     EXPECT_TRUE(::tc8::UnperformedStimulus::any())
         << "a connection that never left the tester left no record, so the run would be graded";

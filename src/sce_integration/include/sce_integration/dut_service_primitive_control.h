@@ -37,6 +37,9 @@ namespace tc8::sce {
 // success); or nothing usable came back, which says nothing about the DUT.
 struct DutPrimitiveReply {
     DutCallOutcome::Kind kind = DutCallOutcome::Kind::kNoAnswer;
+    // Why the DUT refused, in the seam's backend-neutral terms (the same classification a
+    // socket option's refusal carries: a primitive the DUT does not serve is kUnsupported).
+    DutCallOutcome::Refusal refusal = DutCallOutcome::Refusal::kNone;
     std::uint8_t result_id = 0;      // the DUT's result id, when it answered
     std::vector<std::uint8_t> data;  // the parameter data of the answer, when it answered
 
@@ -44,17 +47,7 @@ struct DutPrimitiveReply {
     bool succeeded() const { return kind == DutCallOutcome::Kind::kDone; }
 
     // The outcome in the shape the decorator accounts.
-    DutCallOutcome outcome() const {
-        switch (kind) {
-            case DutCallOutcome::Kind::kDone:
-                return DutCallOutcome::done();
-            case DutCallOutcome::Kind::kRefused:
-                return DutCallOutcome::refused(DutCallOutcome::Refusal::kOther);
-            case DutCallOutcome::Kind::kNoAnswer:
-                break;
-        }
-        return DutCallOutcome::noAnswer();
-    }
+    DutCallOutcome outcome() const { return DutCallOutcome{kind, refusal}; }
 };
 
 class IServicePrimitiveControl {

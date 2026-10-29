@@ -184,9 +184,9 @@ namespace {
 int requestOnceTcp(const SomeIpRpcMessage &target, std::uint16_t session_id, std::string_view iface,
                    const MethodEndpoint &dest, std::chrono::milliseconds linger,
                    std::uint16_t source_port) {
-    const int sock = connectTcpFromIface(iface, dest, /*source_ip_be=*/0,
-                                         /*out_local_port=*/nullptr, /*nonblocking=*/false,
-                                         source_port);
+    TcpConnectOptions connect;
+    connect.source_port = source_port;
+    const int sock = connectTcpFromIface(iface, dest, connect);
     if (sock < 0) {
         return sock;  // connectTcpFromIface logged the failure (-1..-4).
     }
@@ -245,9 +245,9 @@ int emitMethodRequestTcpAndHold(std::string_view iface, const SomeIpRpcMessage &
     TC8_TX_SCOPE();
     std::this_thread::sleep_for(pre_emit_wait);
 
-    const int sock = connectTcpFromIface(iface, dest, /*source_ip_be=*/0,
-                                         /*out_local_port=*/nullptr, /*nonblocking=*/false,
-                                         source_port);
+    TcpConnectOptions connect;
+    connect.source_port = source_port;
+    const int sock = connectTcpFromIface(iface, dest, connect);
     if (sock < 0) {
         return sock;  // connectTcpFromIface logged the failure (-1..-4).
     }

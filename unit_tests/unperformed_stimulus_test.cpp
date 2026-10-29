@@ -390,10 +390,8 @@ private:
                                                 std::uint32_t) override {
             return answer;
         }
-        ::tc8::sce::DutCallOutcome sendConfiguredDatagram(
-            const ::tc8::sce::Endpoint &, const ::tc8::sce::Endpoint &,
-            const std::vector<std::uint8_t> &,
-            const std::vector<::tc8::sce::SocketSetting> &) override {
+        ::tc8::sce::DutCallOutcome configureUdp(::tc8::sce::DutSocket, ::tc8::sce::SocketOption,
+                                                std::uint32_t) override {
             return answer;
         }
         ::tc8::sce::DutCallOutcome answer;
@@ -426,7 +424,7 @@ TEST_F(UnperformedStimulusTest, AnOptionTheDutTookRecordsNothing) {
                     ->configureTcp(::tc8::sce::DutSocket{1}, ::tc8::sce::SocketOption::kTtl, 5)
                     .isDone());
     EXPECT_TRUE(dut.socketConfigControl()
-                    ->sendConfiguredDatagram({}, {}, {}, {{::tc8::sce::SocketOption::kTos, 8}})
+                    ->configureUdp(::tc8::sce::DutSocket{2}, ::tc8::sce::SocketOption::kTos, 8)
                     .isDone());
     EXPECT_TRUE(dut.icmpControl()->echoRequest(0x0100007FU, {}).isDone());
     EXPECT_FALSE(UnperformedStimulus::any());

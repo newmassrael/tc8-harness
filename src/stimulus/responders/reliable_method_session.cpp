@@ -26,9 +26,10 @@ ReliableMethodSession::ReliableMethodSession(std::string_view iface, const Endpo
     }
     // Non-blocking after the connect, so onReadable() drains without stalling the
     // single capture thread.
-    const int sock = connectTcpFromIface(iface, dut_reliable, /*source_ip_be=*/0,
-                                         /*out_local_port=*/nullptr, /*nonblocking=*/true,
-                                         source_port);
+    TcpConnectOptions connect;
+    connect.source_port = source_port;
+    connect.nonblocking = true;
+    const int sock = connectTcpFromIface(iface, dut_reliable, connect);
     if (sock < 0) {
         return;  // connectTcpFromIface logged the failure.
     }
