@@ -223,10 +223,17 @@ struct MethodRequestTcpDwell {
     std::chrono::milliseconds linger{300};
 };
 
+//
+// `source_port` names the tester's TCP source port (0 is an ephemeral one,
+// stimulus/tcp_client.h). Every emit opens its own connection, so with a named port a
+// second emit reconnects the four-tuple the first just closed, which the kernel refuses
+// while that one is in TIME-WAIT: a case that names a port sends one request
+// (`timing.total_emits == 1`).
 int emitMethodRequestTcpAfter(std::string_view iface, const SomeIpRpcMessage &target,
                               const MethodRequestTiming &timing,
                               const MethodEndpoint &dest,
-                              const MethodRequestTcpDwell &dwell = {});
+                              const MethodRequestTcpDwell &dwell = {},
+                              std::uint16_t source_port = 0);
 
 // §5.1.6 SOMEIP_ETS_037 helper. Variant of `emitMethodRequestTcpAfter`
 // that sleeps `pre_emit_wait`, opens a SOCK_STREAM bound to an ephemeral
@@ -243,12 +250,16 @@ int emitMethodRequestTcpAfter(std::string_view iface, const SomeIpRpcMessage &ta
 // whether the DUT honored the reset by emitting FIN
 // (= TCP_CLOSE_WAIT on the tester's socket) or ignored it per spec
 // (= TCP_ESTABLISHED).
+//
+// `source_port` names the tester's TCP source port (0 is an ephemeral one,
+// stimulus/tcp_client.h).
 int emitMethodRequestTcpAndHold(std::string_view iface, const SomeIpRpcMessage &target,
                                 const MethodEndpoint &dest,
                                 std::chrono::milliseconds pre_emit_wait =
                                     std::chrono::milliseconds(500),
                                 std::chrono::milliseconds dwell_after_send =
-                                    std::chrono::milliseconds(1000));
+                                    std::chrono::milliseconds(1000),
+                                std::uint16_t source_port = 0);
 
 // §5.1.6 SOMEIP_ETS_068/_069 — several SOME/IP Method Requests in one L4
 // packet. The spec body for both cases ("send three SOMEIP messages in one

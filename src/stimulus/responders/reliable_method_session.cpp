@@ -12,7 +12,8 @@
 
 namespace tc8::stimulus {
 
-ReliableMethodSession::ReliableMethodSession(std::string_view iface, const Endpoint &dut_reliable)
+ReliableMethodSession::ReliableMethodSession(std::string_view iface, const Endpoint &dut_reliable,
+                                             std::uint16_t source_port)
     : iface_(iface), dut_reliable_(dut_reliable) {
     // No literal fallback: an unconfigured DUT endpoint is a 0.0.0.0:0 sentinel, and
     // connecting somewhere baked in would grade a DUT the case was not pointed at.
@@ -26,7 +27,8 @@ ReliableMethodSession::ReliableMethodSession(std::string_view iface, const Endpo
     // Non-blocking after the connect, so onReadable() drains without stalling the
     // single capture thread.
     const int sock = connectTcpFromIface(iface, dut_reliable, /*source_ip_be=*/0,
-                                         /*out_local_port=*/nullptr, /*nonblocking=*/true);
+                                         /*out_local_port=*/nullptr, /*nonblocking=*/true,
+                                         source_port);
     if (sock < 0) {
         return;  // connectTcpFromIface logged the failure.
     }

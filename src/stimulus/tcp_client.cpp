@@ -17,7 +17,7 @@ namespace tc8::stimulus {
 
 int connectTcpFromIface(std::string_view iface, const Endpoint &dst,
                         std::uint32_t source_ip_be, std::uint16_t *out_local_port,
-                        bool nonblocking) {
+                        bool nonblocking, std::uint16_t source_port) {
     TC8_TX_SCOPE();
     if (out_local_port != nullptr) {
         *out_local_port = 0;
@@ -41,12 +41,29 @@ int connectTcpFromIface(std::string_view iface, const Endpoint &dst,
         return -2;
     }
 
+    if (source_port != 0) {
+        // A named source port is one the case may have used a moment ago: let the bind
+        // take it while the earlier connection is closing.
+        const int on = 1;
+        if (::setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) < 0) {
+            std::fprintf(stderr, "stimulus: tcp SO_REUSEADDR failed: %s\n", std::strerror(errno));
+            ::close(sock);
+            reportTxFailed("tcp_connect");
+            return -3;
+        }
+    }
+
     sockaddr_in bind_addr{};
     bind_addr.sin_family = AF_INET;
-    bind_addr.sin_port = 0;
+    bind_addr.sin_port = htons(source_port);
     bind_addr.sin_addr.s_addr = bind_ip;
     if (::bind(sock, reinterpret_cast<sockaddr *>(&bind_addr), sizeof(bind_addr)) < 0) {
-        std::fprintf(stderr, "stimulus: tcp bind(ephemeral) failed: %s\n", std::strerror(errno));
+        if (source_port != 0) {
+            std::fprintf(stderr, "stimulus: tcp bind(source port %u) failed: %s\n", source_port,
+                         std::strerror(errno));
+        } else {
+            std::fprintf(stderr, "stimulus: tcp bind(ephemeral) failed: %s\n", std::strerror(errno));
+        }
         ::close(sock);
         reportTxFailed("tcp_connect");
         return -3;

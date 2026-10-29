@@ -31,11 +31,14 @@ namespace tc8::stimulus {
 // receive window open (tc8/pollable_service.h).
 class ReliableMethodSession : public ::tc8::IPollableService {
   public:
-    // Connect from `iface`'s primary IPv4 (ephemeral source port) to `dut_reliable`.
+    // Connect from `iface`'s primary IPv4 to `dut_reliable`, from an ephemeral source
+    // port or from `source_port` when that is non-zero (stimulus/tcp_client.h, for a
+    // DUT that identifies the peer by its source port).
     // On failure valid() is false and the cause is logged; pollFd() is then -1, so
     // the capture loop skips the session. A case records the failure as an
     // unperformed stimulus: nothing it sends afterwards reaches the DUT.
-    ReliableMethodSession(std::string_view iface, const Endpoint &dut_reliable);
+    ReliableMethodSession(std::string_view iface, const Endpoint &dut_reliable,
+                          std::uint16_t source_port = 0);
     ~ReliableMethodSession() override;
 
     ReliableMethodSession(const ReliableMethodSession &) = delete;

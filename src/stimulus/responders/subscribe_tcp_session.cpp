@@ -18,7 +18,8 @@ namespace tc8::stimulus {
 
 SubscribeEventgroupTcpSession::SubscribeEventgroupTcpSession(std::string_view iface,
                                                              const Endpoint &dut_reliable,
-                                                             std::uint32_t source_ip_be)
+                                                             std::uint32_t source_ip_be,
+                                                             std::uint16_t source_port)
     : iface_(iface), dut_reliable_(dut_reliable) {
     // A distinct source IP (a configured tester alias) originates a second client;
     // otherwise use the interface's primary IPv4. Resolved here (not left to the
@@ -46,7 +47,7 @@ SubscribeEventgroupTcpSession::SubscribeEventgroupTcpSession(std::string_view if
     // Non-blocking so onReadable() drains without stalling the single capture thread;
     // local_port_ is the connection identity advertised in the Subscribe option.
     const int sock = connectTcpFromIface(iface, dut_reliable, src_ip_be_, &local_port_,
-                                         /*nonblocking=*/true);
+                                         /*nonblocking=*/true, source_port);
     if (sock < 0) {
         return;  // connectTcpFromIface logged the failure.
     }

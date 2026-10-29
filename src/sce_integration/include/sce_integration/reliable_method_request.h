@@ -17,10 +17,15 @@ namespace tc8::sce {
 // A connection or a write that fails is recorded by the session as an unperformed
 // stimulus (stimulus/tx_observer.h, reportTxFailed), so the run is inconclusive rather
 // than a Response's absence the tester caused. Returns whether the requests went out.
+//
+// `source_port` names the tester's TCP source port (0, the default, is an ephemeral one),
+// for a DUT that identifies the peer by it (stimulus/tcp_client.h).
 inline bool sendOnHeldReliableConnection(StimulusContext &ctx,
                                          const ::tc8::stimulus::Endpoint &dest,
-                                         const std::vector<::tc8::stimulus::SomeIpRpcMessage> &requests) {
-    auto session = std::make_unique<::tc8::stimulus::ReliableMethodSession>(ctx.iface, dest);
+                                         const std::vector<::tc8::stimulus::SomeIpRpcMessage> &requests,
+                                         std::uint16_t source_port = 0) {
+    auto session =
+        std::make_unique<::tc8::stimulus::ReliableMethodSession>(ctx.iface, dest, source_port);
     const bool sent = session->valid() && session->send(requests) == 0;
     // Adopted either way: a connection whose write failed is still the runner's to close.
     ctx.services.adoptService(std::move(session));

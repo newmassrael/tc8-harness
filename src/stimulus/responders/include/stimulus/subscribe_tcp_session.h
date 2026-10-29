@@ -47,11 +47,14 @@ class SubscribeEventgroupTcpSession : public ::tc8::IPollableService {
     // SECOND client from a distinct source IP (so the DUT holds two independent
     // reliable subscriptions), or the default 0 to use `iface`'s primary IPv4. The
     // chosen source IP is what the Subscribe option advertises, so the DUT tracks
-    // the two clients apart. On
+    // the two clients apart. `source_port` is the tester's TCP source port, or the
+    // default 0 for an ephemeral one (stimulus/tcp_client.h); localPort() reports the
+    // port in use either way. On
     // failure valid() is false and the errno is logged; pollFd() then returns -1 so
     // the capture loop skips the session (it is still owned and torn down normally).
     SubscribeEventgroupTcpSession(std::string_view iface, const Endpoint &dut_reliable,
-                                  std::uint32_t source_ip_be = 0);
+                                  std::uint32_t source_ip_be = 0,
+                                  std::uint16_t source_port = 0);
     ~SubscribeEventgroupTcpSession() override;
 
     SubscribeEventgroupTcpSession(const SubscribeEventgroupTcpSession &) = delete;

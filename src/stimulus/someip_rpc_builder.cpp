@@ -182,8 +182,11 @@ int emitMethodRequestFromSourceIp(std::string_view iface, const SomeIpRpcMessage
 namespace {
 
 int requestOnceTcp(const SomeIpRpcMessage &target, std::uint16_t session_id, std::string_view iface,
-                   const MethodEndpoint &dest, std::chrono::milliseconds linger) {
-    const int sock = connectTcpFromIface(iface, dest);
+                   const MethodEndpoint &dest, std::chrono::milliseconds linger,
+                   std::uint16_t source_port) {
+    const int sock = connectTcpFromIface(iface, dest, /*source_ip_be=*/0,
+                                         /*out_local_port=*/nullptr, /*nonblocking=*/false,
+                                         source_port);
     if (sock < 0) {
         return sock;  // connectTcpFromIface logged the failure (-1..-4).
     }
@@ -217,7 +220,7 @@ int requestOnceTcp(const SomeIpRpcMessage &target, std::uint16_t session_id, std
 
 int emitMethodRequestTcpAfter(std::string_view iface, const SomeIpRpcMessage &target,
                               const MethodRequestTiming &timing, const MethodEndpoint &dest,
-                              const MethodRequestTcpDwell &dwell) {
+                              const MethodRequestTcpDwell &dwell, std::uint16_t source_port) {
     TC8_TX_SCOPE();
     std::this_thread::sleep_for(timing.pre_emit_wait);
 
@@ -226,7 +229,7 @@ int emitMethodRequestTcpAfter(std::string_view iface, const SomeIpRpcMessage &ta
             std::this_thread::sleep_for(timing.retry_interval);
         }
         const std::uint16_t session_id = static_cast<std::uint16_t>(target.session_id + i);
-        const int rc = requestOnceTcp(target, session_id, iface, dest, dwell.linger);
+        const int rc = requestOnceTcp(target, session_id, iface, dest, dwell.linger, source_port);
         if (rc != 0) {
             return rc;
         }
@@ -237,11 +240,14 @@ int emitMethodRequestTcpAfter(std::string_view iface, const SomeIpRpcMessage &ta
 int emitMethodRequestTcpAndHold(std::string_view iface, const SomeIpRpcMessage &target,
                                 const MethodEndpoint &dest,
                                 std::chrono::milliseconds pre_emit_wait,
-                                std::chrono::milliseconds dwell_after_send) {
+                                std::chrono::milliseconds dwell_after_send,
+                                std::uint16_t source_port) {
     TC8_TX_SCOPE();
     std::this_thread::sleep_for(pre_emit_wait);
 
-    const int sock = connectTcpFromIface(iface, dest);
+    const int sock = connectTcpFromIface(iface, dest, /*source_ip_be=*/0,
+                                         /*out_local_port=*/nullptr, /*nonblocking=*/false,
+                                         source_port);
     if (sock < 0) {
         return sock;  // connectTcpFromIface logged the failure (-1..-4).
     }
