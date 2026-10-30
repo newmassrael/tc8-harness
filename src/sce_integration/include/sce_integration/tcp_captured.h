@@ -212,17 +212,6 @@ struct TcpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     // mirrors `ut_established`'s 0xFF semantics.
     std::uint16_t ut_received_payload_len = 0xFFFFU;
 
-    // §4.8.6.4 TCP_CALL_RECEIVE_04 phase-specific recv-length fields.
-    // The 3-iter compound (EST / FW1 / FW2) needs an independent
-    // pass/fail verdict per phase — a single shared field would let
-    // a phase 1 success spuriously satisfy phase 2's deadline conjunct
-    // when phase 2's actual recv timed out. Mirrors
-    // `ut_received_payload_len`'s sentinel-based design (0xFFFFU =
-    // not yet matched; payload length on full byte-match).
-    std::uint16_t ut_received_payload_len_p1 = 0xFFFFU;
-    std::uint16_t ut_received_payload_len_p2 = 0xFFFFU;
-    std::uint16_t ut_received_payload_len_p3 = 0xFFFFU;
-
     // §4.8.6.2 TCP_CHECKSUM_04 stimulus-populated fields. The case
     // drives two consecutive active-OPEN cycles on the same 4-tuple
     // (each aborted by tester-kernel auto-RST against an unbound

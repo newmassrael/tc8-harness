@@ -5248,10 +5248,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/sce_integration/include/sce_integration/tcp_captured.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/include/sce_integration/cases/tcp_call_receive_05_neg.h",
           "kind": "implements"
         },
