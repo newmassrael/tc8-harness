@@ -97,9 +97,13 @@
       "echo_seq_mismatch_after_overlap_reassembly": "IPv4_REASSEMBLY_13_NEG3",
       "reassembled_echo_data_mismatch_overlap": "IPv4_REASSEMBLY_13_NEG4"
     },
-    "TCP_BASICS_04": {
-      "dut_rst_seq_not_zero_after_syn": "TCP_BASICS_04_NEG",
-      "dut_rst_seq_not_zero_after_fin": "TCP_BASICS_04_NEG2",
+    "TCP_BASICS_04_IT1": {
+      "dut_rst_seq_not_zero_after_syn": "TCP_BASICS_04_NEG"
+    },
+    "TCP_BASICS_04_IT2": {
+      "dut_rst_seq_not_zero_after_fin": "TCP_BASICS_04_NEG2"
+    },
+    "TCP_BASICS_04_IT3": {
       "dut_rst_seq_not_zero_after_data": "TCP_BASICS_04_NEG3"
     },
     "TCP_BASICS_05": {

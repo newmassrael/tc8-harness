@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   TC8 §4.8.6.1 TCP_BASICS_04 negative (SYN-phase variant) — lwIP egress-fault
-  self-validation of the positive _04 closed-port RST seq==0 guard. The trait arms
-  kTcpFaultRstSeqWrong and raw-injects a SYN to the closed port; the lwIP link-output
-  hook XOR-flips the DUT RST's sequence off zero (gated on the RST flag; the flag stays
-  set so the filter still selects it). Proves the positive's `dut_rst_seq_not_zero_
-  after_syn` fail-final reachable (fault_injection_coverage.json). The _NEG2 / _NEG3
+  self-validation of the closed-port RST seq==0 guard of iteration 1 of TCP_BASICS_04. The
+  trait arms kTcpFaultRstSeqWrong and raw-injects a SYN to the closed port; the lwIP
+  link-output hook XOR-flips the DUT RST's sequence off zero (gated on the RST flag; the
+  flag stays set so the filter still selects it). Proves that iteration's `dut_rst_seq_not_
+  zero_after_syn` fail-final reachable (fault_injection_coverage.json). The _NEG2 / _NEG3
   siblings cover the FIN / Data iterations. Pass = the non-zero sequence observed;
   fail_compliant = the DUT sent SEQ=0 despite the flavor (fault inert). lwIP-only
   (capability-gated on kCapEgressFault). Envelope: tcp_egress_field_check.

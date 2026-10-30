@@ -1,0 +1,35 @@
+#pragma once
+
+#include <string_view>
+
+#include "sce_integration/case_registry.h"
+#include "sce_integration/cases/_tcp_basics_04_common.h"
+#include "sce_integration/cases/_tcp_traits_base.h"
+#include "sce_integration/test_runner.h"
+
+#include "tcp_basics_04_it3_sm.h"
+
+namespace tc8::sce::cases {
+
+using TcpBasics04It3SM = ::SCE::Generated::tcp_basics_04_it3::tcp_basics_04_it3;
+
+}  // namespace tc8::sce::cases
+
+namespace tc8::sce {
+
+template <>
+struct TestCaseTraits<cases::TcpBasics04It3SM> : TcpAnyBase<cases::TcpBasics04It3SM> {
+    static constexpr std::string_view kCaseId = "TCP_BASICS_04_IT3";
+    static constexpr std::string_view kDescription =
+        "Iteration 3 of TCP_BASICS_04: a data segment with no control bits, sent to a CLOSED "
+        "port, is answered with a RST whose SEQ is zero";
+
+    static void stimulus(Captured & /*c*/, const ::tc8::TestConfig &cfg,
+                         ::tc8::sce::StimulusContext &ctx) {
+        cases::driveBasics04Iteration(cfg, ctx, cases::Basics04Segment::kData);
+    }
+};
+
+}  // namespace tc8::sce
+
+TC8_REGISTER_CASE(::tc8::sce::cases::TcpBasics04It3SM, tcp_basics_04_it3)

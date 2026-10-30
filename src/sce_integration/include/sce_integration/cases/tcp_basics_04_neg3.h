@@ -34,14 +34,14 @@ struct TestCaseTraits<cases::TcpBasics04Neg3SM>
         "egress flavor flips the closed-port RST sequence off zero; a conformant DUT "
         "sends SEQ=0";
 
-    // Same fixed body the positive's third iteration sends — a "Data segment" (no ACK,
-    // no RST) carrying payload; opaque to the spec (the assertion is on the RST seq).
+    // Same fixed body the third iteration of TCP_BASICS_04 sends — a "Data segment" (no
+    // ACK, no RST) carrying payload; opaque to the spec (the assertion is on the RST seq).
     static constexpr std::array<std::uint8_t, 4> kIter3DataPayload = {
         0xAAU, 0xBBU, 0xCCU, 0xDDU};
 
     // Data-iteration sibling of tcp_basics_04_neg: arm the RST-seq fault, then raw-inject
-    // one no-flag Data segment to the closed port — the positive's third iteration. The
-    // flavor flips the resulting DUT RST's seq off zero, proving the positive's
+    // one no-flag Data segment to the closed port — the third iteration of TCP_BASICS_04.
+    // The flavor flips the resulting DUT RST's seq off zero, proving that iteration's
     // `dut_rst_seq_not_zero_after_data` fail-final reachable.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,

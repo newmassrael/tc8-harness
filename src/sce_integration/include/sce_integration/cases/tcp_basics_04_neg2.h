@@ -33,8 +33,8 @@ struct TestCaseTraits<cases::TcpBasics04Neg2SM>
         "sends SEQ=0";
 
     // FIN-iteration sibling of tcp_basics_04_neg: arm the RST-seq fault, then raw-inject
-    // one FIN (no ACK, no RST) to the closed port — the positive's second iteration. The
-    // flavor flips the resulting DUT RST's seq off zero, proving the positive's
+    // one FIN (no ACK, no RST) to the closed port — the second iteration of TCP_BASICS_04.
+    // The flavor flips the resulting DUT RST's seq off zero, proving that iteration's
     // `dut_rst_seq_not_zero_after_fin` fail-final reachable.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,

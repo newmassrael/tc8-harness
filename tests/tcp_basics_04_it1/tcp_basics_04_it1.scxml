@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.1 TCP_BASICS_04, iteration 1 of 3: in CLOSED state, DUT's TCP stack MUST send
+  an RST with SEQ=0 in response to an incoming segment not containing RST and ACK flags.
+  Derived from RFC 793 §3.9 p65 Event Processing (CLOSED-state segment arrival). This
+  iteration's segment is a bare SYN.
+
+  A case of its own beside tcp_basics_04_it2 (FIN) and tcp_basics_04_it3 (Data); the three
+  differ only in the segment sent. Each lands on the same RFC 793 §3.9 rule, and spec
+  literalism mandates each is exercised in turn.
+
+  Pass guard conjuncts:
+    * captured.src_ip   == expected.dut_iface_ip    - DUT-origin frame
+    * captured.dst_ip   == expected.tester_ip       - addressed back
+    * captured.src_port == kBasicsClosedPort (54321) - provoked port
+    * captured.flags    & RST (0x04)                 - spec-mandated
+    * captured.seq_num  == 0                         - spec "zero SEQ"
+
+  The tester-origin probe (src_ip == tester_ip) reaches this SCXML on the same `tcp_observed`
+  pump but matches no transition in the listening state, so it is silently passed over while
+  the state waits for the DUT RST. This is the same src_ip-conjunct filtering pattern §4.3
+  ICMP cases use against tester-origin Echo Requests.
+
+  The fail reason names the segment the DUT answered wrongly, so smoke-test triage can tell
+  the iterations apart without re-reading the SCXML.
+
+  Deadline: 5 s for the DUT to answer.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_basics_04_it1"
+       sce:transition-table="emit"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsClosedPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num == 0"
+                target="pass"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsClosedPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num != 0"
+                target="fail_wrong_seq"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_wrong_seq">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_rst_seq_not_zero_after_syn","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_timeout">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_rst_after_syn","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+</scxml>

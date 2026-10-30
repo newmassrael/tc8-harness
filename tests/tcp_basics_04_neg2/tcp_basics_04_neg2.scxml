@@ -3,7 +3,7 @@
   TC8 §4.8.6.1 TCP_BASICS_04 negative (FIN-phase variant) — sibling of
   tcp_basics_04_neg. The trait arms kTcpFaultRstSeqWrong and raw-injects a FIN to the
   closed port; the lwIP link-output hook flips the DUT RST's sequence off zero. Proves
-  the positive's `dut_rst_seq_not_zero_after_fin` fail-final reachable
+  the `dut_rst_seq_not_zero_after_fin` fail-final of iteration 2 of TCP_BASICS_04 reachable
   (fault_injection_coverage.json). Pass = the non-zero sequence observed;
   fail_compliant = the DUT sent SEQ=0 despite the flavor (fault inert). lwIP-only
   (capability-gated on kCapEgressFault). Envelope: tcp_egress_field_check.

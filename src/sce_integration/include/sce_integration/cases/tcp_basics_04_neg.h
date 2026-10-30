@@ -31,13 +31,14 @@ struct TestCaseTraits<cases::TcpBasics04NegSM>
         "Self-validation of TCP_BASICS_04: the lwIP kTcpFaultRstSeqWrong egress flavor "
         "flips the closed-port RST sequence off zero; a conformant DUT sends SEQ=0";
 
-    // Arm the RST-seq fault, then provoke a single closed-port RST the way the
-    // positive's first iteration does — raw-inject one SYN to the closed port (no Upper
+    // Arm the RST-seq fault, then provoke a single closed-port RST the way the first
+    // iteration of TCP_BASICS_04 does — raw-inject one SYN to the closed port (no Upper
     // Tester setup needed; CLOSED is the default for an un-bound port). The flavor flips
     // the DUT RST's seq off zero (RST flag intact, so the case 4-tuple + RST conjuncts
-    // still select it) — the injected violation the positive forbids. One iteration
-    // suffices: the positive's three iterations (SYN/FIN/Data) all land on the identical
-    // RFC 793 §3.9 seq==0 guard, so a single corrupted RST self-validates it.
+    // still select it) — the injected violation that iteration forbids. The _NEG2 / _NEG3
+    // siblings mirror the other two iterations (SYN/FIN/Data all land on the identical
+    // RFC 793 §3.9 seq==0 guard). Which iteration each mirrors is declared in
+    // tools/fault_injection_coverage.json.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
