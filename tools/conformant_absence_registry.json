@@ -2888,13 +2888,17 @@
         }
       ]
     },
-    "TCP_UNACCEPTABLE_09": {
+    "TCP_UNACCEPTABLE_09_IT1": {
       "guards": [
         {
           "class": "required_emission",
           "fail_reason": "no_dut_ack_to_otw_seq_finwait1",
           "property": "DUT in FIN-WAIT-1 must return an empty ACK with proper SEQ/ACK to an OTW-SEQ data segment within ParamListenTime (RFC 793 section 3.4); binary present/absent"
-        },
+        }
+      ]
+    },
+    "TCP_UNACCEPTABLE_09_IT2": {
+      "guards": [
         {
           "class": "required_emission",
           "fail_reason": "no_dut_ack_to_unacceptable_ack_finwait1",

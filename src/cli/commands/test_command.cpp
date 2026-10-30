@@ -44,6 +44,7 @@
 #include "sce_integration/dut_control.h"
 #include "sce_integration/dut_control_extension.h"
 #include "sce_integration/dut_control_factory.h"
+#include "sce_integration/iteration_verdict.h"
 #include "sce_integration/spec_coverage.h"
 #include "sce_integration/spec_inventory.h"
 #include "sce_integration/state_stream.h"
@@ -907,22 +908,6 @@ std::string iterationPath(const std::string &path, int n) {
     return path.substr(0, dot) + tag + path.substr(dot);
 }
 
-// The verdict class token of a `verdict  : <class>[:<reason>]` value.
-std::string verdictClassToken(const std::string &value) {
-    const std::size_t colon = value.find(':');
-    return colon == std::string::npos ? value : value.substr(0, colon);
-}
-
-// How bad a class is for the conjunction: a fail outranks everything, then an error (the
-// test system broke), then an inconclusive, then a capability skip. A pass is the floor.
-int verdictSeverity(const std::string &cls) {
-    if (cls == "fail") return 4;
-    if (cls == "error") return 3;
-    if (cls == "inconclusive") return 2;
-    if (cls == "skip") return 1;
-    return cls == "pass" ? 0 : 4;  // an unreadable verdict is not a pass
-}
-
 }  // namespace
 
 int TestCommand::runComposite(const sce::CaseEntry &entry, std::optional<std::string> bpf_override) {
@@ -1012,27 +997,18 @@ int TestCommand::runComposite(const sce::CaseEntry &entry, std::optional<std::st
     pcap_dump_path_ = saved_pcap;
     state_stream_path_ = saved_stream;
 
-    // The conjunction: the worst iteration decides, the first of equals. An iteration that
-    // printed no verdict line did not conclude, which is a fail as for any run.
-    int worst = -1;
-    int worst_severity = -1;
-    for (std::size_t i = 0; i < units.size(); ++i) {
-        const std::string cls = verdictClassToken(units[i].verdict);
-        const int sev = units[i].verdict.empty() ? 4 : verdictSeverity(cls);
-        if (sev > worst_severity) {
-            worst_severity = sev;
-            worst = static_cast<int>(i);
-        }
+    // The conjunction (iteration_verdict.h): the worst iteration decides, the first of equals.
+    std::vector<sce::IterationOutcome> outcomes;
+    for (const Unit &u : units) {
+        outcomes.push_back({u.verdict, u.exit_code});
     }
-    if (units.size() < entry.iterations.size() && worst_severity < 2) {
-        // Stopped by a signal before every iteration ran: not a conclusion about the case.
-        std::printf("verdict  : error:interrupted_before_all_iterations_ran\n");
-        return ::tc8::sce::verdictExitCode(::tc8::sce::VerdictClass::Error);
-    }
+    const sce::ConjoinedVerdict conjoined = sce::conjoinIterations(
+        outcomes, entry.iterations.size(), sce::verdictExitCode(sce::VerdictClass::Error));
 
     // The deciding iteration's evidence is kept under the case's own name, so a reader of
-    // `<id>.pcap` and `<id>.trace.json` finds the frames behind the verdict.
-    const int deciding = worst >= 0 ? worst : 0;
+    // `<id>.pcap` and `<id>.trace.json` finds the frames behind the verdict. A case that
+    // passed keeps its first iteration's.
+    const int deciding = conjoined.deciding >= 0 ? conjoined.deciding : 0;
     if (!saved_pcap.empty() && !units.empty()) {
         std::error_code ec;
         const std::string from_pcap = iterationPath(saved_pcap, deciding + 1);
@@ -1052,21 +1028,8 @@ int TestCommand::runComposite(const sce::CaseEntry &entry, std::optional<std::st
                                    std::filesystem::copy_options::overwrite_existing, ec);
     }
 
-    std::string verdict = "pass";
-    int exit_code = 0;
-    if (worst_severity > 0) {
-        const Unit &u = units[static_cast<std::size_t>(deciding)];
-        const std::string cls = u.verdict.empty() ? "fail" : verdictClassToken(u.verdict);
-        const std::size_t colon = u.verdict.find(':');
-        const std::string reason =
-            u.verdict.empty() ? "did_not_return_pass_verdict"
-                              : (colon == std::string::npos ? "" : u.verdict.substr(colon + 1));
-        verdict = cls + ":iteration_" + std::to_string(deciding + 1) +
-                  (reason.empty() ? "" : "_" + reason);
-        exit_code = u.exit_code;
-    }
-    std::printf("verdict  : %s\n", verdict.c_str());
-    return exit_code;
+    std::printf("verdict  : %s\n", conjoined.verdict.c_str());
+    return conjoined.exit_code;
 }
 
 int TestCommand::runCase(std::optional<std::string> bpf_override) {

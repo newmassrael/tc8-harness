@@ -34,6 +34,7 @@ struct IteratedCaseRegistrar {
 
 #define TC8_ITERATED_CONCAT_INNER(a, b) a##b
 #define TC8_ITERATED_CONCAT(a, b) TC8_ITERATED_CONCAT_INNER(a, b)
+// Written without a trailing semicolon, like TC8_REGISTER_CASE.
 #define TC8_REGISTER_ITERATED_CASE(id, description)                                   \
     static const ::tc8::sce::IteratedCaseRegistrar TC8_ITERATED_CONCAT(               \
-        tc8_iterated_case_registrar_, __COUNTER__)(TC8_CASE_SUITE, id, description)
+        tc8_iterated_case_registrar_, __COUNTER__)(TC8_CASE_SUITE, id, description);

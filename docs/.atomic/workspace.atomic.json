@@ -5126,10 +5126,6 @@
           "kind": "implements"
         },
         {
-          "file": "tests/tcp_unacceptable_09/tcp_unacceptable_09.scxml",
-          "kind": "implements"
-        },
-        {
           "file": "tests/tcp_unacceptable_10/tcp_unacceptable_10.scxml",
           "kind": "implements"
         },
@@ -5175,6 +5171,14 @@
         },
         {
           "file": "src/sce_integration/include/sce_integration/cases/tcp_unacceptable_10_neg.h",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_unacceptable_09_it1/tcp_unacceptable_09_it1.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_unacceptable_09_it2/tcp_unacceptable_09_it2.scxml",
           "kind": "implements"
         }
       ]
