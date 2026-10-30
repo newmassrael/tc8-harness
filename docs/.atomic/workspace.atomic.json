@@ -5356,10 +5356,6 @@
           "kind": "implements"
         },
         {
-          "file": "tests/tcp_flags_invalid_05/tcp_flags_invalid_05.scxml",
-          "kind": "implements"
-        },
-        {
           "file": "tests/tcp_flags_invalid_07/tcp_flags_invalid_07.scxml",
           "kind": "implements"
         },
@@ -5545,6 +5541,14 @@
         },
         {
           "file": "tests/tcp_flags_invalid_06_it2/tcp_flags_invalid_06_it2.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_invalid_05_it1/tcp_flags_invalid_05_it1.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_invalid_05_it2/tcp_flags_invalid_05_it2.scxml",
           "kind": "implements"
         }
       ]

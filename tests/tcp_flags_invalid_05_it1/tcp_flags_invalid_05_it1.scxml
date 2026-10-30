@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.6 TCP_FLAGS_INVALID_05, iteration 1 of 2: TCP, in SYN-SENT state, MUST move on
+  to CLOSED state after receiving a segment with ACK and RST and acceptable ACK number.
+  Derived from RFC 793 §3.9 p67 Event Processing (MUST). This iteration's flag set is
+  SYN,ACK together with RST.
+
+  A case of its own beside tcp_flags_invalid_05_it2 (ACK with RST); the two differ only in
+  the flag set and in their port quads.
+
+  The stimulus drives the DUT into SYN-SENT via active-OPEN to an unbound tester port
+  (kBasicsActiveLocalPort + N and kBasicsActiveRemotePort + N), so the CLOSED transition is
+  observed on its own 4-tuple. ISN_d is learned from the DUT-emitted pure SYN; the injected
+  RST carries ack=ISN_d+1, the only acceptable ACK in SYN-SENT (SND.UNA = ISN_d,
+  SND.NXT = ISN_d + 1, RFC 793 §3.4).
+
+  Pass is observed indirectly via absence: a DUT that correctly transitioned to CLOSED on
+  RST+acceptable-ACK will NOT retransmit its SYN, because it cancels the retransmit the
+  moment it processes the injected RST. The 3 s absence window catches the non-conformant
+  case where the DUT either ignored the RST (continued SYN retx at ~1 s cadence) or treated
+  the SYN+ACK fragment as a connection completion and emitted an ACK (pure ACK on the
+  4-tuple from the DUT side).
+
+  The DUT accepts the ACK (in [SND.UNA, SND.NXT] = {ISN_d + 1}), then honours the RST: it
+  transitions the connection to CLOSED, cancels its SYN retransmit, and reports the reset to
+  the application. The SYN bit is harmless because the RST is processed before any SYN
+  handling.
+
+  Fail terminals:
+    fail_dut_continued   - DUT continued SYN retransmits or emitted a pure ACK during the
+                           3 s absence, indicating the injected RST was not honored.
+    inconclusive_no_dut_syn - DUT did not enter SYN-SENT.
+
+  Port-quad selection, kBasicsActiveLocalPort + 22: clear of the other FLAGS_INVALID cases,
+  whose offsets leave tester-side TCP state on a single-worker cluster run. A fresh
+  active-OPEN on a leftover tuple draws a stray ACK that triggers RFC 793 §3.4
+  RST(seq=incoming.ack) from the SYN-SENT DUT and contaminates the prelude.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_flags_invalid_05_it1"
+       sce:transition-table="emit"
+       datamodel="null"
+       initial="listening_dut_syn">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_dut_syn">
+    <onentry>
+      <send event="deadline_dut_syn" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid05Phase1LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid05Phase1LocalOffset)"
+                target="listening_absence"/>
+    <transition event="deadline_dut_syn" target="inconclusive_no_dut_syn"/>
+  </state>
+
+  <state id="listening_absence">
+    <onentry>
+      <send event="deadline_absence" delay="3s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid05Phase1LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid05Phase1LocalOffset) or captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid05Phase1LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid05Phase1LocalOffset)"
+                target="fail_dut_continued"/>
+    <transition event="deadline_absence" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_dut_syn">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_syn_phase1_syn_ack_rst","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_dut_continued">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_did_not_close_on_syn_ack_rst_with_acceptable_ack","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+</scxml>
