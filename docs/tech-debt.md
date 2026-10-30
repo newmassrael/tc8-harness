@@ -2055,15 +2055,17 @@ answering it, so the reference DUT passes `TCP_FLAGS_INVALID_15` and the mark is
 **Status:** OPEN (accepted). **Logged:** 2026-09-24, from a run of the Linux known-fail set.
 
 **What it is.** `TCP_UNACCEPTABLE_10` closes the DUT's side, lets the tester acknowledge the
-FIN so the DUT reaches FIN-WAIT-2, and then sends two segments. The first has an
-out-of-window SEQ. The second has an in-window SEQ, four bytes of data and an unacceptable
-ACK. RFC 793 §3.9 answers both with an empty ACK, and TC8 grades that. Linux has already
+FIN so the DUT reaches FIN-WAIT-2, and then sends a segment. The case is made of two
+iterations, one per segment. The first has an out-of-window SEQ. The second has an in-window
+SEQ, four bytes of data and an unacceptable ACK. RFC 793 §3.9 answers both with an empty
+ACK, and TC8 grades that. The mark is about the second iteration. Linux has already
 replaced the closed connection with a timewait socket in its FIN-WAIT-2 substate, and
 `tcp_timewait_state_process` (`net/ipv4/tcp_minisocks.c`) resets any segment that brings new
 data after a half-duplex close. It checks for new data before it looks at the ACK, so the
-second segment gets a RST. Measured on 2026-09-24 on kernel 7.0.0-31-generic, single-pc: the
-first segment drew an ACK 80 µs later, the second drew `Flags [R]` 74 µs later, and the case
-landed `fail:dut_rst_to_unacc_ack_finwait2`.
+second segment gets a RST. Measured on 2026-09-24 on kernel 7.0.0-31-generic, single-pc, when
+both segments were sent on one connection: the first segment drew an ACK 80 µs later, the
+second drew `Flags [R]` 74 µs later, and the case landed `fail:dut_rst_to_unacc_ack_finwait2`
+(now `fail:iteration_2_dut_rst_to_unacc_ack_finwait2`).
 
 RFC 1122 §4.2.2.13 says a TCP SHOULD send a RST when data arrives after the application has
 closed, so the kernel is following one RFC's rule where TC8 grades another's. The conflict

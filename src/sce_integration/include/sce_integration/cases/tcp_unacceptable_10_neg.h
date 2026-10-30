@@ -27,14 +27,15 @@ using TcpUnacceptable10NegSM =
 
 namespace tc8::sce {
 
-// Self-validation of §4.8.6.3 TCP_UNACCEPTABLE_10: a conformant DUT in FIN-WAIT-2 MUST return an
-// empty ACK (not a RST) to a segment carrying an unacceptable ACK and stay in FIN-WAIT-2 (RFC 793
-// §3.4). kTcpSynthRstOnDisruptive makes the lwIP netif input hook synthesize the prohibited RST on
-// the connection's 4-tuple when the PSH-bearing unacc-ACK segment arrives, so the
+// Self-validation of §4.8.6.3 TCP_UNACCEPTABLE_10, iteration 2: a conformant DUT in FIN-WAIT-2 MUST
+// return an empty ACK (not a RST) to a segment carrying an unacceptable ACK and stay in FIN-WAIT-2
+// (RFC 793 §3.4). kTcpSynthRstOnDisruptive makes the lwIP netif input hook synthesize the
+// prohibited RST on the connection's 4-tuple when the PSH-bearing unacc-ACK segment arrives, so the
 // dut_rst_to_unacc_ack_finwait2 fail-final (is_dut_rst) is reachable; the case passes only when
-// that synthesized RST is observed. lwIP-only (kCapIngressFault). The positive is a Linux
-// known-deviation (Linux FW2 substate RSTs), but the lwIP fixture is conformant (positive passes),
-// so this _neg is a faithful self-validation. Single fail-final, so no coverage.json entry.
+// that synthesized RST is observed. lwIP-only (kCapIngressFault). That iteration is a Linux
+// known-deviation (Linux FW2 substate RSTs), but the lwIP fixture is conformant (it passes), so
+// this _neg is a faithful self-validation. TCP_UNACCEPTABLE_10 is made of iterations, so which one
+// this mirrors is declared in tools/fault_injection_coverage.json, not read off the name.
 template <>
 struct TestCaseTraits<cases::TcpUnacceptable10NegSM>
     : TcpIngressFaultNegDrivenBase<cases::TcpUnacceptable10NegSM> {
@@ -44,18 +45,18 @@ struct TestCaseTraits<cases::TcpUnacceptable10NegSM>
         "makes the DUT emit a RST to an unacceptable-ACK segment in FIN-WAIT-2; a conformant DUT "
         "returns an empty ACK";
 
-    // Mirrors the positive's prelude (active OPEN -> ESTABLISHED -> DUT CLOSE -> FIN-WAIT-1 ->
+    // Mirrors the prelude of iteration 2 (active OPEN -> ESTABLISHED -> DUT CLOSE -> FIN-WAIT-1 ->
     // tester auto-ACK -> FIN-WAIT-2), then arms the synth flavor and injects a single PSH-bearing
-    // unacc-ACK segment so the hook fabricates the prohibited RST. Phase 1 (the OTW-SEQ data ACK)
-    // is omitted: the synthesis is stateless and fires on the armed PSH gate, so reaching FIN-WAIT-2
-    // and injecting one disruptive segment is sufficient to drive the phase-2 fail-final.
+    // unacc-ACK segment so the hook fabricates the prohibited RST. The synthesis is stateless and
+    // fires on the armed PSH gate, so reaching FIN-WAIT-2 and injecting one disruptive segment is
+    // sufficient to drive that iteration's fail-final.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
 
-        const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpUnacceptable10LocalOffset;
-        const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpUnacceptable10LocalOffset;
+        const std::uint16_t local_port  = kBasicsActiveLocalPort  + kTcpUnacceptable10Phase2LocalOffset;
+        const std::uint16_t remote_port = kBasicsActiveRemotePort + kTcpUnacceptable10Phase2LocalOffset;
 
         auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
@@ -82,8 +83,8 @@ struct TestCaseTraits<cases::TcpUnacceptable10NegSM>
         unacc.ack_num  = seq_range->rcv_nxt + kUnacceptableAckOffset;  // unacceptable ACK
         unacc.flags    = ::tc8::stimulus::kTcpFlagPsh | ::tc8::stimulus::kTcpFlagAck;
         // Filler payload — the synth-RST gate fires on the PSH flag, not the bytes, so this is not
-        // an SSOT dependency on the positive's kCorruptPayload (a per-case member, not a shared
-        // invariant); 4 bytes mirror the positive's data-segment shape for fidelity.
+        // an SSOT dependency on the iteration's payload; 4 bytes mirror its data-segment shape for
+        // fidelity.
         unacc.payload  = std::vector<std::uint8_t>{0xCAU, 0xFEU, 0xBAU, 0xBEU};
         emitTcpFrame(cfg, ctx.iface, cfg.dut.mac, unacc, /*initial_wait=*/kFlavorArmSettle);
 

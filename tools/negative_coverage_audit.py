@@ -141,6 +141,27 @@ VERDICT_CLASSES = frozenset({"fail", "inconclusive", "error"})
 # and to derive the positive base a `_neg<n>` validates.
 _NEG_RE = re.compile(r"_neg\d*$")
 
+# An iteration unit of a TC8 case made of iterations (`<case>_it<n>`, case_iteration.h).
+_IT_RE = re.compile(r"_it[1-9]$")
+
+
+def neg_base(neg: str) -> str:
+    """The case a `_neg` / `_neg<n>` is a sibling of."""
+    return _NEG_RE.sub("", neg)
+
+
+def iteration_parent(unit: str) -> str:
+    """The TC8 case an iteration unit belongs to; the unit itself when it names none."""
+    return _IT_RE.sub("", unit)
+
+
+def neg_pairs_with(neg: str, unit: str) -> bool:
+    """Whether `neg` may validate `unit`. A `_neg` is a sibling of a TC8 case: it validates
+    that case's own machine, or -- when the case is made of iterations and has no machine of
+    its own -- ONE of its iterations. Nothing in the name says which iteration the fault
+    mirrors, so that is declared in fault_injection_coverage.json and checked there."""
+    return neg_base(neg) in (unit, iteration_parent(unit))
+
 # The role every `_neg` fail final MUST carry. A `_neg` lands on `fail` only when
 # the conformant DUT did NOT change behaviour under the injected fault — the fault
 # was inert, a test-suite (fault-wiring) regression, NOT a DUT conformance
@@ -801,7 +822,7 @@ def compute_final_proofs(m: Model) -> dict[str, dict[str, list[str]]]:
         if c in coverage:
             for reason, neg in coverage[c].items():
                 neg_l = neg.lower()
-                if reason in p and neg_l in neg_set and _NEG_RE.sub("", neg_l) == c:
+                if reason in p and neg_l in neg_set and neg_pairs_with(neg_l, c):
                     p[reason].append(PROOF_NEG)
         elif c in m.fault_bases and len(finals) == 1:
             p[next(iter(finals))].append(PROOF_NEG)
@@ -846,10 +867,16 @@ def build_model() -> Model:
     names = all_case_names()
     neg_names = [n for n in names if _NEG_RE.search(n)]
     positives = [n for n in names if not _NEG_RE.search(n)]
-    fault_bases = {_NEG_RE.sub("", n) for n in neg_names}
     registry, reg_classes = load_registry()
     deferred = load_deferred()
     fault_coverage = load_fault_coverage()
+    # The cases a `_neg` validates: its sibling, or -- for a case made of iterations -- the
+    # iteration the coverage SSOT declares it mirrors.
+    fault_bases = {neg_base(n) for n in neg_names if neg_base(n) in positives}
+    for base, mapping in fault_coverage.items():
+        if base.lower() in positives and any(
+                neg_pairs_with(neg.lower(), base.lower()) for neg in mapping.values()):
+            fault_bases.add(base.lower())
     reg_lower = {k.lower() for k in registry}
     # Only a case-level key disposes a case; a `CASE:final` key proves one final.
     def_lower = {k.lower() for k in deferred if split_unit(k)[1] is None}
@@ -938,7 +965,7 @@ def validate_fault_coverage(m: Model) -> list[str]:
                     f"FAULT_COVERAGE_INVALID: {base} reason '{reason}' -> '{neg}' is not a registered _neg case"
                 )
                 continue
-            if _NEG_RE.sub("", neg_l) != base_l:
+            if not neg_pairs_with(neg_l, base_l):
                 findings.append(
                     f"FAULT_COVERAGE_INVALID: {neg} (reason '{reason}') is not a _neg variant of base {base}"
                 )
@@ -1115,10 +1142,20 @@ def cross_findings(m: Model) -> list[str]:
 
     # Every _neg / _neg<n> mechanism must pair with a registered positive base and be
     # able to fail (a negative with no `fail` final catches nothing).
+    declared_negs = {n.lower() for mp in m.fault_coverage.values() for n in mp.values()}
+    parents = {iteration_parent(p) for p in pos}
     for neg in m.neg_names:
-        base = _NEG_RE.sub("", neg)
-        if base not in pos:
+        base = neg_base(neg)
+        if base not in parents:
             findings.append(f"ORPHAN_NEG: {neg} has no registered positive base case")
+        elif base not in pos and neg not in declared_negs:
+            # The base is a case made of iterations: no machine of its own, so nothing but a
+            # coverage entry says which iteration this fault mirrors. Without one the _neg
+            # would prove nothing and nothing would say so.
+            findings.append(
+                f"NEG_ITERATION_UNDECLARED: {neg} is a sibling of {base}, which is made of "
+                f"iterations; fault_injection_coverage.json must name the iteration it mirrors"
+            )
         neg_rc = reason_classes(neg)
         if neg_rc is not None and not any("fail" in v for v in neg_rc.values()):
             findings.append(f"NEG_NO_FAIL: {neg} has no fail final; it cannot catch a fault")

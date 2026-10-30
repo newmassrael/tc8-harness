@@ -713,7 +713,7 @@
     "TCP_UNACCEPTABLE_10": {
       "platform_known_fail": true,
       "platform_known_fail_ref": "docs/tech-debt.md TD-31",
-      "platform_known_fail_verdict": "fail:dut_rst_to_unacc_ack_finwait2"
+      "platform_known_fail_verdict": "fail:iteration_2_dut_rst_to_unacc_ack_finwait2"
     },
     "UDP_USER_INTERFACE_07": {
       "neg_wrong_token": "ipv4.dut_alias_ip=10.99.99.99",

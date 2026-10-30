@@ -1,5 +1,5 @@
 {
-  "_doc": "Phase F per-fail-final coverage SSOT (docs/verdict_policy.md Section 6.1). A multi-guard positive case whose guards are mutually exclusive in a single run cannot be promoted to FAULT_INJECTION by one _neg (one run reaches one final). Each entry maps every fail-final reason of the base case to the _neg<n> variant that proves it reachable. negative_coverage_audit.py cross-checks the keys against the base .scxml fail-finals (completeness) and that each variant is a real _neg sibling. Single-guard cases need no entry. A SOUND_ROW case (disposed by its negative row, which a _neg never promotes) may carry a PARTIAL entry naming only the finals a _neg proves because no --expect flip reaches them; its keys must be real fail finals (docs/tech-debt.md TD-41).",
+  "_doc": "Phase F per-fail-final coverage SSOT (docs/verdict_policy.md Section 6.1). A multi-guard positive case whose guards are mutually exclusive in a single run cannot be promoted to FAULT_INJECTION by one _neg (one run reaches one final). Each entry maps every fail-final reason of the base case to the _neg<n> variant that proves it reachable. negative_coverage_audit.py cross-checks the keys against the base .scxml fail-finals (completeness) and that each variant is a real _neg sibling. Single-guard cases need no entry, except that a case made of iterations has no machine of its own, so the entry is keyed by the iteration unit (<ID>_IT<n>) the _neg mirrors and is the only thing that says which. A SOUND_ROW case (disposed by its negative row, which a _neg never promotes) may carry a PARTIAL entry naming only the finals a _neg proves because no --expect flip reaches them; its keys must be real fail finals (docs/tech-debt.md TD-41).",
   "cases": {
     "ARP_04": {
       "dut_arp_request_after_cache_populated": "ARP_04_NEG"
@@ -151,6 +151,9 @@
     "TCP_MSS_OPTIONS_09": {
       "phase1_segment_size_not_advertised_mss_200": "TCP_MSS_OPTIONS_09_NEG",
       "phase2_segment_size_not_dut_mss_1460": "TCP_MSS_OPTIONS_09_NEG2"
+    },
+    "TCP_UNACCEPTABLE_10_IT2": {
+      "dut_rst_to_unacc_ack_finwait2": "TCP_UNACCEPTABLE_10_NEG"
     },
     "UDP_FIELDS_12": {
       "dut_received_udp_with_unexpected_payload_length": "UDP_FIELDS_12_NEG",

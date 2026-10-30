@@ -5126,10 +5126,6 @@
           "kind": "implements"
         },
         {
-          "file": "tests/tcp_unacceptable_10/tcp_unacceptable_10.scxml",
-          "kind": "implements"
-        },
-        {
           "file": "tests/tcp_unacceptable_14/tcp_unacceptable_14.scxml",
           "kind": "implements"
         },
@@ -5207,6 +5203,14 @@
         },
         {
           "file": "tests/tcp_unacceptable_08_it2/tcp_unacceptable_08_it2.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_unacceptable_10_it1/tcp_unacceptable_10_it1.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_unacceptable_10_it2/tcp_unacceptable_10_it2.scxml",
           "kind": "implements"
         }
       ]
