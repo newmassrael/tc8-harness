@@ -106,8 +106,10 @@
     "TCP_BASICS_04_IT3": {
       "dut_rst_seq_not_zero_after_data": "TCP_BASICS_04_NEG3"
     },
-    "TCP_BASICS_05": {
-      "dut_rst_seq_not_synack_ack_literal": "TCP_BASICS_05_NEG",
+    "TCP_BASICS_05_IT1": {
+      "dut_rst_seq_not_synack_ack_literal": "TCP_BASICS_05_NEG"
+    },
+    "TCP_BASICS_05_IT2": {
       "dut_rst_seq_not_ack_phase_ack_literal": "TCP_BASICS_05_NEG2"
     },
     "TCP_CALL_RECEIVE_05": {

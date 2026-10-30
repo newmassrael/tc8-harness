@@ -3,8 +3,9 @@
   TC8 §4.8.6.1 TCP_BASICS_05 negative (bare-ACK-phase variant) — sibling of
   tcp_basics_05_neg. The trait arms kTcpFaultRstSeqWrong and raw-injects a bare ACK
   whose ACK is the phase literal 0xDEADBEEF to the closed port; the lwIP link-output
-  hook XOR-flips the DUT RST's sequence off that echoed value. Proves the positive's
-  `dut_rst_seq_not_ack_phase_ack_literal` fail-final reachable. Pass = the corrupted
+  hook XOR-flips the DUT RST's sequence off that echoed value. Proves the
+  `dut_rst_seq_not_ack_phase_ack_literal` fail-final of iteration 2 of TCP_BASICS_05
+  reachable. Pass = the corrupted
   sequence observed (seq != incoming ACK); fail_compliant = the DUT echoed the ACK into
   SEQ despite the flavor (fault inert). lwIP-only (capability-gated on kCapEgressFault).
   Envelope: tcp_egress_field_check.

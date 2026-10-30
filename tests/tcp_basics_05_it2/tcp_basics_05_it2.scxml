@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.1 TCP_BASICS_05, iteration 2 of 2: in CLOSED state, DUT's TCP stack MUST send
+  an RST whose SEQ field is taken from the incoming segment's ACK number, in response to a
+  segment containing ACK and not containing RST. Derived from RFC 793 §3.9 p65 Event
+  Processing (CLOSED-state arrival, ACK-bearing branch). This iteration's segment is a bare
+  ACK.
+
+  A case of its own beside tcp_basics_05_it1, which holds the shared description and the
+  pass guard conjuncts; the two differ only in the segment sent and its ACK number
+  (0xDEADBEEF here).
+
+  Deadline: 5 s for the DUT to answer.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_basics_05_it2"
+       sce:transition-table="emit"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsClosedPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num == ::tc8::sce::tcp::kTesterPilotAckPhaseAck"
+                target="pass"/>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsClosedPort and (captured.flags &amp; 0x04) != 0 and captured.seq_num != ::tc8::sce::tcp::kTesterPilotAckPhaseAck"
+                target="fail_wrong_seq"/>
+    <transition event="deadline_exceeded" target="inconclusive_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_wrong_seq">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_rst_seq_not_ack_phase_ack_literal","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_timeout">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_rst_after_ack","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+</scxml>

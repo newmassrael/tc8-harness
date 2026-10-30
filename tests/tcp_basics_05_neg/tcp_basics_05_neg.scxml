@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   TC8 §4.8.6.1 TCP_BASICS_05 negative (SYN,ACK-phase variant) — lwIP egress-fault
-  self-validation of the positive _05 "RST SEQ = incoming.ACK" guard. The trait arms
+  self-validation of the "RST SEQ = incoming.ACK" guard of iteration 1 of TCP_BASICS_05. The trait arms
   kTcpFaultRstSeqWrong (shared with BASICS_04) and raw-injects a SYN,ACK whose ACK is
   the phase literal 0xC0FFEE00 to the closed port; the lwIP link-output hook XOR-flips
   the DUT RST's sequence off that echoed value (gated on the RST flag). Proves the
-  positive's `dut_rst_seq_not_synack_ack_literal` fail-final reachable
+  that iteration's `dut_rst_seq_not_synack_ack_literal` fail-final reachable
   (fault_injection_coverage.json); the _NEG2 sibling covers the bare-ACK phase. Pass =
   the corrupted sequence observed (seq != incoming ACK); fail_compliant = the DUT echoed
   the ACK into SEQ despite the flavor (fault inert). lwIP-only (capability-gated on
