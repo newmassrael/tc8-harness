@@ -138,6 +138,16 @@ void reportTcpConnected(std::string_view iface, int fd) {
                         steps.active ? steps.ack : t_spec_step);
 }
 
+void reportTcpSynSent(std::string_view iface, std::uint32_t dst_ip_be, std::uint16_t dst_port,
+                      std::uint16_t src_port) {
+    if (g_observer.load(std::memory_order_relaxed) == nullptr) {
+        return;
+    }
+    const ConnectSteps &steps = t_connect_steps;
+    deliver("tcp_connect", iface, dst_ip_be, dst_port, src_port, 0,
+            steps.active ? steps.syn : t_spec_step);
+}
+
 void reportTcpAccepted(int fd, std::uint32_t peer_ip_be, std::uint16_t peer_port) {
     if (g_observer.load(std::memory_order_relaxed) == nullptr) {
         return;

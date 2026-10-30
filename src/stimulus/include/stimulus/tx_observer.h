@@ -126,6 +126,14 @@ void reportTxConnected(const char *transport, int fd, std::size_t bytes,
 // both with the current TxSpecStep. `iface` may be empty.
 void reportTcpConnected(std::string_view iface, int fd);
 
+// A connect() ended on the PEER's verdict (refused, reset, no answer) after the kernel took
+// the attempt: reports "tcp_connect" alone, the SYN, with the steps a TxConnectSteps names
+// for it, or else the current TxSpecStep. There is no "tcp_connect_ack": the handshake did
+// not complete. The connection is named by the caller's ends because the socket never
+// connected, so it has no peer to ask. `iface` may be empty.
+void reportTcpSynSent(std::string_view iface, std::uint32_t dst_ip_be, std::uint16_t dst_port,
+                      std::uint16_t src_port);
+
 // accept() returned `fd` for a connection from `peer_ip_be` (network byte order) and
 // `peer_port` (host order), as accept() itself reported them: reports "tcp_accept" with
 // the current TxSpecStep. The peer comes from the caller and is not asked of the socket,

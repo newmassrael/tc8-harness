@@ -5,10 +5,12 @@
 // case-named source port, and failure sentinels run end-to-end with no DUT and no netns.
 
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include <chrono>
 #include <cstdint>
 
 #include <gtest/gtest.h>
@@ -170,6 +172,122 @@ TEST_F(NamedSourcePort, APortAnotherSocketHoldsIsAnUnperformedStimulusNotADutFau
 
     ::close(target.fd);
     ::close(holder.fd);
+}
+
+// A connect that is the subject of a case: the peer's answer is a result, not a failure of the
+// tester (TcpConnectOptions::peer_verdict_is_outcome).
+class PeerVerdict : public ::testing::Test {
+protected:
+    void SetUp() override { ::tc8::UnperformedStimulus::reset(); }
+    void TearDown() override { ::tc8::UnperformedStimulus::reset(); }
+
+    static TcpConnectOptions measuring() {
+        TcpConnectOptions options = fromLoopback();
+        options.peer_verdict_is_outcome = true;
+        return options;
+    }
+};
+
+TEST_F(PeerVerdict, ARefusedSynIsAPerformedStimulusWithAResult) {
+    const std::uint16_t dead_port = aFreeLoopbackPort();
+    ASSERT_NE(dead_port, 0);
+
+    std::uint16_t local_port = 0;
+    const auto result =
+        ::tc8::stimulus::connectTcp("lo", loopback(dead_port), measuring(), &local_port);
+    EXPECT_EQ(result.end, ::tc8::stimulus::TcpConnectEnd::kRefused);
+    EXPECT_EQ(result.fd, ::tc8::stimulus::kTcpConnectPeerVerdict);
+    EXPECT_GT(local_port, 0) << "the SYN carried a port, and the capture names the connection by it";
+    EXPECT_FALSE(::tc8::UnperformedStimulus::any())
+        << "the SYN went out and the peer refused it: the run has a result to grade";
+}
+
+TEST_F(PeerVerdict, TheIntFormReturnsTheVerdictSentinelOnlyWhenAsked) {
+    const std::uint16_t dead_port = aFreeLoopbackPort();
+    ASSERT_NE(dead_port, 0);
+
+    EXPECT_EQ(connectTcpFromIface("lo", loopback(dead_port), measuring()),
+              ::tc8::stimulus::kTcpConnectPeerVerdict);
+    EXPECT_FALSE(::tc8::UnperformedStimulus::any());
+
+    // The default is the preamble's: nothing to grade when the connect does not complete.
+    EXPECT_EQ(connectTcpFromIface("lo", loopback(dead_port), fromLoopback()), -4);
+    EXPECT_TRUE(::tc8::UnperformedStimulus::any());
+}
+
+TEST_F(PeerVerdict, ATestersOwnFailureStaysUnperformedEvenWhenAsked) {
+    const Listener target = openLoopbackListener();
+    const Listener holder = openLoopbackListener();  // listening: the port is taken
+    ASSERT_GE(target.fd, 0);
+    ASSERT_GE(holder.fd, 0);
+
+    TcpConnectOptions options = measuring();
+    options.source_port = holder.port;
+    const auto result = ::tc8::stimulus::connectTcp("lo", loopback(target.port), options);
+    EXPECT_EQ(result.end, ::tc8::stimulus::TcpConnectEnd::kNotPerformed);
+    EXPECT_EQ(result.fd, -3);
+    EXPECT_TRUE(::tc8::UnperformedStimulus::any());
+
+    ::close(target.fd);
+    ::close(holder.fd);
+}
+
+TEST_F(PeerVerdict, ASynTheListenerDropsEndsAtTheCasesOwnBound) {
+    // A listener with no room in its accept queue drops further SYNs without answering: the
+    // silent peer. backlog 0 holds one completed connection, so the second connect is dropped.
+    const int fd = ::socket(AF_INET, SOCK_STREAM, 0);
+    ASSERT_GE(fd, 0);
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    ASSERT_EQ(::bind(fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)), 0);
+    ASSERT_EQ(::listen(fd, 0), 0);
+    sockaddr_in got{};
+    socklen_t len = sizeof(got);
+    ASSERT_EQ(::getsockname(fd, reinterpret_cast<sockaddr *>(&got), &len), 0);
+    const std::uint16_t port = ntohs(got.sin_port);
+
+    const int filler = connectTcpFromIface("lo", loopback(port), fromLoopback());
+    ASSERT_GE(filler, 0);
+
+    TcpConnectOptions options = measuring();
+    options.connect_timeout_ms = 300;
+    const auto began = std::chrono::steady_clock::now();
+    const auto result = ::tc8::stimulus::connectTcp("lo", loopback(port), options);
+    const auto waited = std::chrono::steady_clock::now() - began;
+    EXPECT_EQ(result.end, ::tc8::stimulus::TcpConnectEnd::kTimedOut);
+    EXPECT_GE(waited, std::chrono::milliseconds(250));
+    EXPECT_LT(waited, std::chrono::seconds(5)) << "the kernel's own bound is about two minutes";
+    EXPECT_FALSE(::tc8::UnperformedStimulus::any());
+
+    // Without the opt-in the same bound is a failed connect, as the kernel's would be.
+    TcpConnectOptions preamble = fromLoopback();
+    preamble.connect_timeout_ms = 300;
+    EXPECT_EQ(connectTcpFromIface("lo", loopback(port), preamble), -4);
+    EXPECT_TRUE(::tc8::UnperformedStimulus::any());
+
+    ::close(filler);
+    ::close(fd);
+}
+
+TEST_F(PeerVerdict, ABoundedConnectLeavesTheSocketAsBlockingAsAskedFor) {
+    const Listener listener = openLoopbackListener();
+    ASSERT_GE(listener.fd, 0);
+
+    TcpConnectOptions options = measuring();
+    options.connect_timeout_ms = 1000;
+    const auto blocking = ::tc8::stimulus::connectTcp("lo", loopback(listener.port), options);
+    ASSERT_EQ(blocking.end, ::tc8::stimulus::TcpConnectEnd::kEstablished);
+    EXPECT_EQ(::fcntl(blocking.fd, F_GETFL, 0) & O_NONBLOCK, 0);
+
+    options.nonblocking = true;
+    const auto polled = ::tc8::stimulus::connectTcp("lo", loopback(listener.port), options);
+    ASSERT_EQ(polled.end, ::tc8::stimulus::TcpConnectEnd::kEstablished);
+    EXPECT_NE(::fcntl(polled.fd, F_GETFL, 0) & O_NONBLOCK, 0);
+
+    ::close(blocking.fd);
+    ::close(polled.fd);
+    ::close(listener.fd);
 }
 
 TEST_F(NamedSourcePort, TheSessionHelpersTakeTheSamePort) {

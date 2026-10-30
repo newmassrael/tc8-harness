@@ -3,6 +3,7 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <netinet/in.h>
+#include <poll.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -15,8 +16,75 @@
 
 namespace tc8::stimulus {
 
-int connectTcpFromIface(std::string_view iface, const Endpoint &dst,
-                        const TcpConnectOptions &options, std::uint16_t *out_local_port) {
+namespace {
+
+bool setNonBlocking(int sock, bool on) {
+    const int flags = ::fcntl(sock, F_GETFL, 0);
+    if (flags < 0) {
+        return false;
+    }
+    const int wanted = on ? (flags | O_NONBLOCK) : (flags & ~O_NONBLOCK);
+    return wanted == flags || ::fcntl(sock, F_SETFL, wanted) == 0;
+}
+
+// connect() bounded by `timeout_ms` (0: the kernel's own bound). Returns 0 once the handshake
+// completed, else the errno that ended it; ETIMEDOUT when the bound elapsed first. The socket
+// is blocking again on return, whatever the outcome.
+int connectWithin(int sock, const sockaddr_in &peer, std::uint32_t timeout_ms) {
+    if (timeout_ms == 0) {
+        return ::connect(sock, reinterpret_cast<const sockaddr *>(&peer), sizeof(peer)) == 0
+                   ? 0
+                   : errno;
+    }
+    if (!setNonBlocking(sock, true)) {
+        return errno;
+    }
+    int err = 0;
+    if (::connect(sock, reinterpret_cast<const sockaddr *>(&peer), sizeof(peer)) < 0) {
+        err = errno;
+    }
+    if (err == EINPROGRESS) {
+        pollfd waiting{sock, POLLOUT, 0};
+        int ready;
+        do {
+            ready = ::poll(&waiting, 1, static_cast<int>(timeout_ms));
+        } while (ready < 0 && errno == EINTR);
+        if (ready == 0) {
+            err = ETIMEDOUT;
+        } else if (ready < 0) {
+            err = errno;
+        } else {
+            socklen_t len = sizeof(err);
+            if (::getsockopt(sock, SOL_SOCKET, SO_ERROR, &err, &len) < 0) {
+                err = errno;
+            }
+        }
+    }
+    if (err == 0 && !setNonBlocking(sock, false)) {
+        err = errno;
+    }
+    return err;
+}
+
+// Whether `err` is the answer of the peer (or its silence) and not a failure of the tester.
+bool isPeerVerdict(int err, TcpConnectEnd &end) {
+    switch (err) {
+        case ECONNREFUSED: end = TcpConnectEnd::kRefused; return true;
+        case ECONNRESET:   end = TcpConnectEnd::kReset;   return true;
+        case ETIMEDOUT:    end = TcpConnectEnd::kTimedOut; return true;
+        default:           return false;
+    }
+}
+
+TcpConnectResult notPerformed(int sentinel) {
+    reportTxFailed("tcp_connect");
+    return {sentinel, TcpConnectEnd::kNotPerformed};
+}
+
+}  // namespace
+
+TcpConnectResult connectTcp(std::string_view iface, const Endpoint &dst,
+                            const TcpConnectOptions &options, std::uint16_t *out_local_port) {
     TC8_TX_SCOPE();
     const std::uint32_t source_ip_be = options.source_ip_be;
     const std::uint16_t source_port = options.source_port;
@@ -28,8 +96,7 @@ int connectTcpFromIface(std::string_view iface, const Endpoint &dst,
     const int sock = ::socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
         std::fprintf(stderr, "stimulus: tcp socket() failed: %s\n", std::strerror(errno));
-        reportTxFailed("tcp_connect");
-        return -1;
+        return notPerformed(-1);
     }
 
     const std::uint32_t bind_ip = source_ip_be != 0 ? source_ip_be : ipv4OfInterface(iface);
@@ -39,8 +106,7 @@ int connectTcpFromIface(std::string_view iface, const Endpoint &dst,
                      "tester source for tcp connect\n",
                      static_cast<int>(iface.size()), iface.data());
         ::close(sock);
-        reportTxFailed("tcp_connect");
-        return -2;
+        return notPerformed(-2);
     }
 
     if (source_port != 0) {
@@ -50,8 +116,7 @@ int connectTcpFromIface(std::string_view iface, const Endpoint &dst,
         if (::setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) < 0) {
             std::fprintf(stderr, "stimulus: tcp SO_REUSEADDR failed: %s\n", std::strerror(errno));
             ::close(sock);
-            reportTxFailed("tcp_connect");
-            return -3;
+            return notPerformed(-3);
         }
     }
 
@@ -67,44 +132,57 @@ int connectTcpFromIface(std::string_view iface, const Endpoint &dst,
             std::fprintf(stderr, "stimulus: tcp bind(ephemeral) failed: %s\n", std::strerror(errno));
         }
         ::close(sock);
-        reportTxFailed("tcp_connect");
-        return -3;
+        return notPerformed(-3);
     }
 
     sockaddr_in peer{};
     peer.sin_family = AF_INET;
     peer.sin_port = htons(dst.port);
     peer.sin_addr.s_addr = dst.ipv4_be;
-    if (::connect(sock, reinterpret_cast<sockaddr *>(&peer), sizeof(peer)) < 0) {
-        std::fprintf(stderr, "stimulus: tcp connect(dut:%u) failed: %s\n",
-                     dst.port, std::strerror(errno));
+    const int connect_err = connectWithin(sock, peer, options.connect_timeout_ms);
+
+    // The ephemeral port the kernel chose is known once the bind has run, so it is read for
+    // a connect that failed as well: the SYN carried it.
+    std::uint16_t local_port = 0;
+    sockaddr_in local{};
+    socklen_t local_len = sizeof(local);
+    if (::getsockname(sock, reinterpret_cast<sockaddr *>(&local), &local_len) == 0) {
+        local_port = ntohs(local.sin_port);
+    }
+    if (out_local_port != nullptr) {
+        *out_local_port = local_port;
+    }
+
+    if (connect_err != 0) {
+        std::fprintf(stderr, "stimulus: tcp connect(dut:%u) failed: %s\n", dst.port,
+                     std::strerror(connect_err));
         ::close(sock);
-        reportTxFailed("tcp_connect");
-        return -4;
+        TcpConnectEnd end = TcpConnectEnd::kNotPerformed;
+        if (options.peer_verdict_is_outcome && isPeerVerdict(connect_err, end)) {
+            // The kernel sent its SYN and the peer answered it, or did not: the stimulus
+            // was performed, and what the peer did with it is the measurement.
+            reportTcpSynSent(iface, dst.ipv4_be, dst.port, local_port);
+            return {kTcpConnectPeerVerdict, end};
+        }
+        return notPerformed(-4);
     }
     // The SYN and the completing ACK are the kernel's; what the tester did is this
     // connect (tx_observer.h).
     reportTcpConnected(iface, sock);
 
-    if (out_local_port != nullptr) {
-        sockaddr_in local{};
-        socklen_t local_len = sizeof(local);
-        if (::getsockname(sock, reinterpret_cast<sockaddr *>(&local), &local_len) == 0) {
-            *out_local_port = ntohs(local.sin_port);
-        }
+    if (nonblocking && !setNonBlocking(sock, true)) {
+        std::fprintf(stderr, "stimulus: tcp O_NONBLOCK failed: %s\n", std::strerror(errno));
+        ::close(sock);
+        return notPerformed(-3);
     }
 
-    if (nonblocking) {
-        const int flags = ::fcntl(sock, F_GETFL, 0);
-        if (flags < 0 || ::fcntl(sock, F_SETFL, flags | O_NONBLOCK) < 0) {
-            std::fprintf(stderr, "stimulus: tcp O_NONBLOCK failed: %s\n", std::strerror(errno));
-            ::close(sock);
-            reportTxFailed("tcp_connect");
-            return -3;
-        }
-    }
+    return {sock, TcpConnectEnd::kEstablished};
+}
 
-    return sock;
+int connectTcpFromIface(std::string_view iface, const Endpoint &dst,
+                        const TcpConnectOptions &options, std::uint16_t *out_local_port) {
+    TC8_TX_SCOPE();
+    return connectTcp(iface, dst, options, out_local_port).fd;
 }
 
 }  // namespace tc8::stimulus
