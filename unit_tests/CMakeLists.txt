@@ -556,6 +556,15 @@ target_include_directories(demo_ets_extension_test PRIVATE
     ${PROJECT_SOURCE_DIR}/dut/dut_service
     ${PROJECT_SOURCE_DIR}/examples/demo_ets_extension)
 
+# The demo DUT-control extension (examples/demo_dut_extension): the translation from a DUT's own
+# primitive to the seam's vocabulary, and the negative control that a claim is read by its
+# answer. Hermetic: a canned primitive stands in for the backend.
+tc8_add_unit_test(demo_dut_extension_test)
+target_sources(demo_dut_extension_test PRIVATE
+    ${PROJECT_SOURCE_DIR}/examples/demo_dut_extension/demo_dut_extension.cpp)
+target_include_directories(demo_dut_extension_test PRIVATE
+    ${PROJECT_SOURCE_DIR}/examples/demo_dut_extension)
+
 # Boot-time regression guard for the PRODUCTION ETS event-sink (makeEtsEventSink).
 # The demo test above drives the seam logic with a fake sink (vsomeip-free), but
 # cannot prove the real VsomeipEtsEventSink retrieves the CommonAPI-owned vsomeip
