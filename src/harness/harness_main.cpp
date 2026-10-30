@@ -25,6 +25,15 @@ int main(int argc, char** argv) {
     // command, so no command ever holds a registry pointer across the additions.
     // A failure is a build whose configure-time check and registry disagree, and
     // stops everything rather than run a catalog missing its aliases.
+    // Iterated cases first: an alias may name one of their iterations, and an
+    // iteration entry is only a unit until the case that owns it has been composed.
+    {
+        std::string err;
+        if (!tc8::sce::CaseRegistry::instance().composeIterations(&err)) {
+            std::fprintf(stderr, "error: %s\n", err.c_str());
+            return 2;
+        }
+    }
     for (const auto& alias : tc8::sce::declaredCaseAliases()) {
         std::string err;
         if (!tc8::sce::CaseRegistry::instance().addAlias(alias, &err)) {

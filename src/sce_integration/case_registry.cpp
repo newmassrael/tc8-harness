@@ -145,6 +145,23 @@ bool CaseRegistry::addAlias(const CaseAlias &alias, std::string *err) {
     if (target->isAlias()) {
         return fail("the target is itself an alias; name the case it resolves to");
     }
+    if (alias.iteration != 0) {
+        // The id asks about ONE iteration: the target's own iteration entry, a case
+        // of its own. A target with no iterations has none to name.
+        if (!target->isComposite()) {
+            return fail("the pointer names an iteration, but the target is not made of "
+                        "iterations");
+        }
+        const std::size_t n = static_cast<std::size_t>(alias.iteration);
+        if (n > target->iterations.size()) {
+            return fail("the pointer names an iteration the target does not have");
+        }
+        const CaseEntry *unit = find(alias.target_suite, target->iterations[n - 1]);
+        if (unit == nullptr) {
+            return fail("the target's iteration entry is not registered");
+        }
+        target = unit;
+    }
     if (find(alias.suite, alias.id) != nullptr) {
         return fail("that (suite, id) is already registered");
     }
@@ -201,11 +218,93 @@ DutRequirements CaseRegistry::requirementsUnderTest(const CaseEntry &entry) cons
     return defaultRequirementsUnderTest(positive_id);
 }
 
-std::vector<const CaseEntry *> CaseRegistry::listSorted(bool include_deprecated) const {
+bool CaseRegistry::composeIterations(std::string *err) {
+    const auto fail = [&](std::string_view id, const std::string &why) {
+        *err = "iterated case " + std::string(id) + ": " + why;
+        return false;
+    };
+    // Every iteration entry belongs to a declared case.
+    for (const auto &e : entries_) {
+        if (!e.isIteration()) {
+            continue;
+        }
+        const std::string_view parent = iterationParent(e.id);
+        bool declared = false;
+        for (const auto &d : iterated_) {
+            declared = declared || (equalsIgnoreAsciiCase(d.suite, e.suite) &&
+                                    equalsIgnoreAsciiCase(d.id, parent));
+        }
+        if (!declared) {
+            return fail(parent, "iteration '" + std::string(e.id) +
+                                    "' is registered but the case is not declared "
+                                    "(TC8_REGISTER_ITERATED_CASE)");
+        }
+    }
+    std::vector<CaseEntry> composed;
+    for (const auto &d : iterated_) {
+        std::vector<const CaseEntry *> units;
+        for (const auto &e : entries_) {
+            if (e.isIteration() && equalsIgnoreAsciiCase(e.suite, d.suite) &&
+                equalsIgnoreAsciiCase(iterationParent(e.id), d.id)) {
+                units.push_back(&e);
+            }
+        }
+        if (units.empty()) {
+            return fail(d.id, "declared with no iteration registered");
+        }
+        std::sort(units.begin(), units.end(), [](const CaseEntry *a, const CaseEntry *b) {
+            return iterationOf(a->id) < iterationOf(b->id);
+        });
+        for (std::size_t i = 0; i < units.size(); ++i) {
+            if (iterationOf(units[i]->id) != static_cast<int>(i) + 1) {
+                return fail(d.id, "its iterations are not numbered 1.." +
+                                      std::to_string(units.size()) + " without a gap");
+            }
+        }
+        if (find(d.suite, d.id) != nullptr) {
+            return fail(d.id, "the id is also registered as a case with a state machine of "
+                              "its own; a case is either made of iterations or it is not");
+        }
+        // One case is one question asked of one setup: the iterations share what the
+        // capture and the control channel are set up for.
+        const CaseEntry &first = *units[0];
+        CaseEntry c = first;
+        std::uint32_t caps = 0;
+        c.iterations.clear();
+        for (const CaseEntry *u : units) {
+            if (u->topology != first.topology || u->bpf_group != first.bpf_group ||
+                u->bpf_expression != first.bpf_expression ||
+                u->control_plane_role != first.control_plane_role) {
+                return fail(d.id, "iteration '" + std::string(u->id) +
+                                      "' differs from the first in topology, capture filter "
+                                      "or control-plane role");
+            }
+            caps |= u->required_capabilities;
+            c.iterations.push_back(u->id);
+        }
+        c.id = d.id;
+        c.suite = d.suite;
+        c.category = deriveCategory(d.id);
+        c.description = d.description;
+        c.required_capabilities = caps;  // the whole case needs what any iteration needs
+        c.factory = nullptr;             // no state machine of its own
+        composed.push_back(std::move(c));
+    }
+    for (auto &c : composed) {
+        entries_.push_back(std::move(c));
+    }
+    return true;
+}
+
+std::vector<const CaseEntry *> CaseRegistry::listSorted(bool include_deprecated,
+                                                        bool include_iterations) const {
     std::vector<const CaseEntry *> out;
     out.reserve(entries_.size());
     for (const auto &e : entries_) {
         if (e.deprecated && !include_deprecated) {
+            continue;
+        }
+        if (e.isIteration() && !include_iterations) {
             continue;
         }
         out.push_back(&e);

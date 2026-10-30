@@ -84,6 +84,19 @@ CaseSpec resolveCaseSpec(const SpecInventory &inventory, const CaseEntry &entry)
     out.own = inventory.find(entry.suite, entry.id);
     out.execution =
         entry.isAlias() ? inventory.find(entry.alias_of.suite, entry.alias_of.id) : out.own;
+    // An iteration is a unit of a TC8 case, not a case of the inventory: its spec section
+    // and every execution axis (stimulus overrides, serial timing, the negative row) are
+    // the case's, read through its parent exactly as a variant reads the positive's.
+    if (entry.isIteration() && out.own == nullptr) {
+        out.own = inventory.find(entry.suite, iterationParent(entry.id));
+        if (out.execution == nullptr) {
+            out.execution = out.own;
+        }
+    }
+    // An alias that names an iteration runs that iteration, whose axes are its case's.
+    if (entry.isAlias() && out.execution == nullptr && iterationOf(entry.alias_of.id) != 0) {
+        out.execution = inventory.find(entry.alias_of.suite, iterationParent(entry.alias_of.id));
+    }
     return out;
 }
 

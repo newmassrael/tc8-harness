@@ -12,8 +12,11 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <thread>
 #include <vector>
+
+#include <unistd.h>
 
 
 #include <pcap/pcap.h>
@@ -887,6 +890,185 @@ int TestCommand::runVsSpecReport() const {
     return 0;
 }
 
+namespace {
+
+// "X.pcap" -> "X.it2.pcap": an iteration writes its own files, so the second iteration
+// never overwrites the first's evidence. A path with no extension just gains the tag.
+std::string iterationPath(const std::string &path, int n) {
+    if (path.empty()) {
+        return path;
+    }
+    const std::string tag = ".it" + std::to_string(n);
+    const std::size_t dot = path.rfind('.');
+    const std::size_t slash = path.find_last_of('/');
+    if (dot == std::string::npos || (slash != std::string::npos && dot < slash)) {
+        return path + tag;
+    }
+    return path.substr(0, dot) + tag + path.substr(dot);
+}
+
+// The verdict class token of a `verdict  : <class>[:<reason>]` value.
+std::string verdictClassToken(const std::string &value) {
+    const std::size_t colon = value.find(':');
+    return colon == std::string::npos ? value : value.substr(0, colon);
+}
+
+// How bad a class is for the conjunction: a fail outranks everything, then an error (the
+// test system broke), then an inconclusive, then a capability skip. A pass is the floor.
+int verdictSeverity(const std::string &cls) {
+    if (cls == "fail") return 4;
+    if (cls == "error") return 3;
+    if (cls == "inconclusive") return 2;
+    if (cls == "skip") return 1;
+    return cls == "pass" ? 0 : 4;  // an unreadable verdict is not a pass
+}
+
+}  // namespace
+
+int TestCommand::runComposite(const sce::CaseEntry &entry, std::optional<std::string> bpf_override) {
+    struct Unit {
+        std::string id;
+        std::string verdict;  // the value after `verdict  : `
+        int exit_code = 0;
+        std::string output;
+    };
+    const std::string saved_case = case_id_;
+    const std::string saved_pcap = pcap_dump_path_;
+    const std::string saved_stream = state_stream_path_;
+
+    std::string inv_err;
+    bool stripped = false;
+    const auto inv = loadInventory(&inv_err, &stripped);
+    if (!inv.has_value() && !stripped) {
+        std::fprintf(stderr, "error: %s\n", inv_err.c_str());
+        return 2;
+    }
+    const sce::CaseSpec spec = specCaseFor(inv, entry);
+    std::printf("case     : %.*s  (§%s)\n", static_cast<int>(entry.id.size()), entry.id.data(),
+                sectionOf(spec.own).c_str());
+    std::printf("iterations: %zu, each run as a case of its own; the verdict is their conjunction\n",
+                entry.iterations.size());
+
+    std::vector<Unit> units;
+    int n = 0;
+    for (const std::string_view unit_id : entry.iterations) {
+        ++n;
+        if (SignalGuard::stopRequested()) {
+            break;
+        }
+        Unit u;
+        u.id = std::string(unit_id);
+        case_id_ = std::string(entry.suite) + ":" + u.id;
+        pcap_dump_path_ = iterationPath(saved_pcap, n);
+        state_stream_path_ = iterationPath(saved_stream, n);
+        ::tc8::UnperformedStimulus::reset();
+
+        // The unit prints its own report to stdout, including its `verdict  :` line. The
+        // harness contract is exactly one such line per run, so the unit's output is held
+        // and re-printed under a prefix; the conjunction below prints the one line.
+        std::fflush(stdout);
+        const int saved_fd = ::dup(STDOUT_FILENO);
+        std::FILE *held = std::tmpfile();
+        if (held == nullptr || saved_fd < 0 || ::dup2(::fileno(held), STDOUT_FILENO) < 0) {
+            std::fprintf(stderr, "error: cannot hold iteration %d's output\n", n);
+            if (saved_fd >= 0) ::close(saved_fd);
+            if (held != nullptr) std::fclose(held);
+            case_id_ = saved_case;
+            pcap_dump_path_ = saved_pcap;
+            state_stream_path_ = saved_stream;
+            return 2;
+        }
+        u.exit_code = runCase(bpf_override);
+        std::fflush(stdout);
+        ::dup2(saved_fd, STDOUT_FILENO);
+        ::close(saved_fd);
+        std::rewind(held);
+        char buf[4096];
+        std::size_t got = 0;
+        while ((got = std::fread(buf, 1, sizeof buf, held)) > 0) {
+            u.output.append(buf, got);
+        }
+        std::fclose(held);
+
+        constexpr std::string_view kVerdictPrefix = "verdict  : ";
+        std::size_t from = 0;
+        while (from < u.output.size()) {
+            const std::size_t to = u.output.find('\n', from);
+            const std::string line =
+                u.output.substr(from, to == std::string::npos ? std::string::npos : to - from);
+            if (u.verdict.empty() && line.rfind(kVerdictPrefix, 0) == 0) {
+                u.verdict = line.substr(kVerdictPrefix.size());
+                while (!u.verdict.empty() && (u.verdict.back() == ' ' || u.verdict.back() == '\r')) {
+                    u.verdict.pop_back();
+                }
+            }
+            std::printf("  [IT%d] %s\n", n, line.c_str());
+            if (to == std::string::npos) break;
+            from = to + 1;
+        }
+        units.push_back(std::move(u));
+    }
+    case_id_ = saved_case;
+    pcap_dump_path_ = saved_pcap;
+    state_stream_path_ = saved_stream;
+
+    // The conjunction: the worst iteration decides, the first of equals. An iteration that
+    // printed no verdict line did not conclude, which is a fail as for any run.
+    int worst = -1;
+    int worst_severity = -1;
+    for (std::size_t i = 0; i < units.size(); ++i) {
+        const std::string cls = verdictClassToken(units[i].verdict);
+        const int sev = units[i].verdict.empty() ? 4 : verdictSeverity(cls);
+        if (sev > worst_severity) {
+            worst_severity = sev;
+            worst = static_cast<int>(i);
+        }
+    }
+    if (units.size() < entry.iterations.size() && worst_severity < 2) {
+        // Stopped by a signal before every iteration ran: not a conclusion about the case.
+        std::printf("verdict  : error:interrupted_before_all_iterations_ran\n");
+        return ::tc8::sce::verdictExitCode(::tc8::sce::VerdictClass::Error);
+    }
+
+    // The deciding iteration's evidence is kept under the case's own name, so a reader of
+    // `<id>.pcap` and `<id>.trace.json` finds the frames behind the verdict.
+    const int deciding = worst >= 0 ? worst : 0;
+    if (!saved_pcap.empty() && !units.empty()) {
+        std::error_code ec;
+        const std::string from_pcap = iterationPath(saved_pcap, deciding + 1);
+        std::filesystem::copy_file(from_pcap, saved_pcap,
+                                   std::filesystem::copy_options::overwrite_existing, ec);
+        std::string from_trace = from_pcap;
+        std::string to_trace = saved_pcap;
+        for (std::string *p : {&from_trace, &to_trace}) {
+            const std::size_t suffix = p->rfind(".pcap");
+            if (suffix != std::string::npos && suffix + 5 == p->size()) {
+                p->replace(suffix, 5, ".trace.json");
+            } else {
+                p->append(".trace.json");
+            }
+        }
+        std::filesystem::copy_file(from_trace, to_trace,
+                                   std::filesystem::copy_options::overwrite_existing, ec);
+    }
+
+    std::string verdict = "pass";
+    int exit_code = 0;
+    if (worst_severity > 0) {
+        const Unit &u = units[static_cast<std::size_t>(deciding)];
+        const std::string cls = u.verdict.empty() ? "fail" : verdictClassToken(u.verdict);
+        const std::size_t colon = u.verdict.find(':');
+        const std::string reason =
+            u.verdict.empty() ? "did_not_return_pass_verdict"
+                              : (colon == std::string::npos ? "" : u.verdict.substr(colon + 1));
+        verdict = cls + ":iteration_" + std::to_string(deciding + 1) +
+                  (reason.empty() ? "" : "_" + reason);
+        exit_code = u.exit_code;
+    }
+    std::printf("verdict  : %s\n", verdict.c_str());
+    return exit_code;
+}
+
 int TestCommand::runCase(std::optional<std::string> bpf_override) {
     if (case_id_.empty()) {
         std::fprintf(stderr, "error: --case <ID> is required (try --list-cases)\n");
@@ -926,6 +1108,11 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     if (entry->deprecated) {
         std::fprintf(stderr, "error: case '%s' is marked deprecated in the spec\n", case_id_.c_str());
         return 2;
+    }
+    // A case made of iterations has no state machine of its own: each iteration runs as
+    // a case of its own, and the verdict is their conjunction.
+    if (entry->isComposite()) {
+        return runComposite(*entry, std::move(bpf_override));
     }
 
     // Live progress stream. Opened as soon as the case is resolved, well before the

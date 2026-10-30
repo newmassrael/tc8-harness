@@ -110,10 +110,31 @@ struct CaseEntry {
     // The alias's pinned target surface (CaseAlias::pinned_surface); empty for an
     // authored case and for an alias that pins none.
     std::string_view alias_surface_pin = {};
+    // For a TC8 case that is the ordered set of its iterations (case_iteration.h):
+    // the ids of its iteration entries, 1..N. Empty for every other entry. Such an
+    // entry has no state machine of its own, so its `factory` is empty; running it
+    // runs each iteration as a case of its own and conjoins their verdicts.
+    std::vector<std::string_view> iterations = {};
 
     bool isAlias() const {
         return !alias_of.id.empty();
     }
+    // One iteration of a TC8 case, registered as a case of its own ("<id>_IT<n>").
+    bool isIteration() const {
+        return iterationOf(id) != 0;
+    }
+    // A TC8 case made of iterations, composed by CaseRegistry::composeIterations.
+    bool isComposite() const {
+        return !iterations.empty();
+    }
+};
+
+// A TC8 case declared as the ordered set of its iterations (case_iteration.h). Carries
+// what only the case itself can say; everything else is read off its iterations.
+struct IteratedCaseDecl {
+    std::string_view suite = kDefaultSuite;
+    std::string_view id;           // the TC8 case id, "TCP_BASICS_04"
+    std::string_view description;  // the whole case's, not any one iteration's
 };
 
 // Meyers-singleton registry populated at static-init time by each case
@@ -135,6 +156,18 @@ public:
     // alias id is malformed, or when its (suite, id) is taken.
     bool addAlias(const CaseAlias &alias, std::string *err);
 
+    // Declares `decl` as a TC8 case made of iterations. Static-init time, like add().
+    void addIteratedCase(IteratedCaseDecl decl) { iterated_.push_back(decl); }
+
+    // Registers each declared iterated case as a composite entry over its iteration
+    // entries, once every authored case is registered (harness_main does it before the
+    // aliases, which may name an iteration). Returns false with *err set, adding
+    // nothing further, when a declaration has no iterations, when an iteration entry
+    // has no declaration, when a case's iterations are not numbered 1..N without a
+    // gap, or when its iterations disagree on what the case runs on (topology, capture
+    // filter, control-plane role): one case is one question asked of one setup.
+    bool composeIterations(std::string *err);
+
     // Unqualified lookup: resolves an id that is unique across all suites.
     // Returns nullptr if no match OR if the id is ambiguous (present in more
     // than one suite) — callers then qualify via find(suite, id).
@@ -147,7 +180,12 @@ public:
     // valid for the lifetime of the program: the registry is mutated only
     // during static init and by harness_main's addAlias pass, both of which
     // complete before any command takes a pointer.
-    std::vector<const CaseEntry *> listSorted(bool include_deprecated = false) const;
+    //
+    // An iteration is a unit of a TC8 case and not a case of the catalog: it is left
+    // out unless `include_iterations`, so the listing, the spec coverage and every
+    // lane that dispatches by the listing see the TC8 ids and nothing else.
+    std::vector<const CaseEntry *> listSorted(bool include_deprecated = false,
+                                              bool include_iterations = false) const;
 
     // The requirements `entry` grades, for choosing its liveness anchor
     // (dut_requirements.h). Its own declaration when it has one. Otherwise an
@@ -168,6 +206,7 @@ public:
 
 private:
     std::vector<CaseEntry> entries_;
+    std::vector<IteratedCaseDecl> iterated_;
 };
 
 // The case-id SHAPE primitives — kKnownVariantTags, stripVariantTag,

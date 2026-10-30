@@ -709,9 +709,25 @@ while(_tc8_alias_i LESS _tc8_alias_n)
     file(STRINGS ${_pointer} _lines ENCODING UTF-8)
     set(_tokens "")
     set(_surface "")
+    set(_iteration 0)
     foreach(_l IN LISTS _lines)
         string(STRIP "${_l}" _l)
         if(_l STREQUAL "" OR _l MATCHES "^#")
+            continue()
+        endif()
+        # Optional: the id asks about ONE iteration of the target. The target's TC8 id
+        # is the ordered set of its iterations (case_iteration.h), and the iteration is
+        # a case of its own, so the alias points at a real unit and not at a slice.
+        if(_l MATCHES "^iteration[ \t]")
+            if(NOT _iteration EQUAL 0)
+                message(FATAL_ERROR "${_where}: more than one `iteration` line")
+            endif()
+            string(REGEX MATCH "^iteration[ \t]+([1-9])$" _im "${_l}")
+            if(_im STREQUAL "")
+                message(FATAL_ERROR
+                    "${_where}: `${_l}` is not `iteration <1-9>`")
+            endif()
+            set(_iteration "${CMAKE_MATCH_1}")
             continue()
         endif()
         # Optional: the target's execution surface the consumer last reviewed,
@@ -766,7 +782,7 @@ while(_tc8_alias_i LESS _tc8_alias_n)
     endif()
     message(STATUS "TC8: alias '${_suite}:${case_id}' -> '${_tokens}' (${case_dir})")
     string(APPEND _tc8_alias_decls
-        "        {\"${_suite}\", \"${case_id}\", \"${_target_suite}\", \"${_target_id}\", \"${_surface}\"},\n")
+        "        {\"${_suite}\", \"${case_id}\", \"${_target_suite}\", \"${_target_id}\", \"${_surface}\", ${_iteration}},\n")
 endwhile()
 
 # Emitted on every configure, empty or not, so declaredCaseAliases() always links;

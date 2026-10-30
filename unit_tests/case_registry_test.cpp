@@ -508,6 +508,153 @@ TEST(StimulusSignature, OnlyTheContextFormIsCallableAndAnyOtherIsSeen) {
     static_assert(!has_context_stimulus_v<TraitsWithoutStimulus>);
 }
 
+// ---- A TC8 case made of iterations ------------------------------------------
+
+TEST(IterationId, NamesTheIterationAndItsCase) {
+    EXPECT_TRUE(isWellFormedCaseId("TCP_BASICS_04_IT2"));
+    EXPECT_EQ(iterationOf("TCP_BASICS_04_IT2"), 2);
+    EXPECT_EQ(iterationParent("TCP_BASICS_04_IT2"), "TCP_BASICS_04");
+    EXPECT_EQ(deriveCategory("TCP_BASICS_04_IT2"), "TCP_BASICS");
+    EXPECT_EQ(iterationOf("TCP_BASICS_04"), 0);
+    EXPECT_EQ(iterationParent("TCP_BASICS_04"), "TCP_BASICS_04");
+    EXPECT_EQ(iterationOf("TCP_BASICS_04_IT0"), 0) << "iterations are numbered from 1";
+    EXPECT_EQ(iterationOf("TCP_BASICS_04_NEG"), 0);
+}
+
+CaseEntry makeIteration(std::string_view id, std::uint32_t caps = 0U) {
+    CaseEntry e = makeEntry(id);
+    e.required_capabilities = caps;
+    return e;
+}
+
+// The TC8 case is the ordered set of its iterations and needs what any of them needs;
+// the iterations are units, not cases of the catalog.
+TEST(CaseRegistryIterations, AComposedCaseIsTheOrderedSetOfItsIterations) {
+    CaseRegistry reg;
+    reg.add(makeIteration("TCP_FLAGS_PROCESSING_08_IT2", 0x2U));
+    reg.add(makeIteration("TCP_FLAGS_PROCESSING_08_IT1", 0x1U));
+    reg.add(makeIteration("TCP_FLAGS_PROCESSING_08_IT3", 0x20U));
+    reg.addIteratedCase({kDefaultSuite, "TCP_FLAGS_PROCESSING_08", "the whole case"});
+    std::string err;
+    ASSERT_TRUE(reg.composeIterations(&err)) << err;
+
+    const CaseEntry *whole = reg.find("TCP_FLAGS_PROCESSING_08");
+    ASSERT_NE(whole, nullptr);
+    EXPECT_TRUE(whole->isComposite());
+    EXPECT_FALSE(whole->isIteration());
+    EXPECT_EQ(whole->description, "the whole case");
+    EXPECT_EQ(whole->required_capabilities, 0x23U) << "the case needs what any iteration needs";
+    ASSERT_EQ(whole->iterations.size(), 3U);
+    EXPECT_EQ(whole->iterations[0], "TCP_FLAGS_PROCESSING_08_IT1");
+    EXPECT_EQ(whole->iterations[2], "TCP_FLAGS_PROCESSING_08_IT3");
+    EXPECT_FALSE(static_cast<bool>(whole->factory)) << "it has no state machine of its own";
+
+    // An iteration gates on its own capabilities alone, and is found by its id.
+    const CaseEntry *unit = reg.find("TCP_FLAGS_PROCESSING_08_IT2");
+    ASSERT_NE(unit, nullptr);
+    EXPECT_TRUE(unit->isIteration());
+    EXPECT_EQ(unit->required_capabilities, 0x2U);
+
+    // The catalog lists the TC8 case; the units appear only when asked for.
+    EXPECT_EQ(reg.listSorted(true).size(), 1U);
+    EXPECT_EQ(reg.listSorted(true)[0]->id, "TCP_FLAGS_PROCESSING_08");
+    EXPECT_EQ(reg.listSorted(true, /*include_iterations=*/true).size(), 4U);
+}
+
+TEST(CaseRegistryIterations, ARefusedCompositionAddsNothingAndNamesTheCase) {
+    {
+        CaseRegistry reg;  // a gap
+        reg.add(makeIteration("TCP_BASICS_04_IT1"));
+        reg.add(makeIteration("TCP_BASICS_04_IT3"));
+        reg.addIteratedCase({kDefaultSuite, "TCP_BASICS_04", "d"});
+        std::string err;
+        EXPECT_FALSE(reg.composeIterations(&err));
+        EXPECT_NE(err.find("TCP_BASICS_04"), std::string::npos) << err;
+        EXPECT_EQ(reg.find("TCP_BASICS_04"), nullptr);
+    }
+    {
+        CaseRegistry reg;  // an iteration of a case nobody declared
+        reg.add(makeIteration("TCP_BASICS_04_IT1"));
+        std::string err;
+        EXPECT_FALSE(reg.composeIterations(&err));
+    }
+    {
+        CaseRegistry reg;  // declared, with nothing to run
+        reg.addIteratedCase({kDefaultSuite, "TCP_BASICS_04", "d"});
+        std::string err;
+        EXPECT_FALSE(reg.composeIterations(&err));
+    }
+    {
+        CaseRegistry reg;  // iterations that are not one setup
+        reg.add(makeIteration("TCP_BASICS_04_IT1"));
+        CaseEntry other = makeIteration("TCP_BASICS_04_IT2");
+        other.topology = 2;
+        reg.add(other);
+        reg.addIteratedCase({kDefaultSuite, "TCP_BASICS_04", "d"});
+        std::string err;
+        EXPECT_FALSE(reg.composeIterations(&err));
+        EXPECT_NE(err.find("TCP_BASICS_04_IT2"), std::string::npos) << err;
+    }
+    {
+        CaseRegistry reg;  // a case is made of iterations OR has a state machine of its own
+        reg.add(makeEntry("TCP_BASICS_04"));
+        reg.add(makeIteration("TCP_BASICS_04_IT1"));
+        reg.addIteratedCase({kDefaultSuite, "TCP_BASICS_04", "d"});
+        std::string err;
+        EXPECT_FALSE(reg.composeIterations(&err));
+    }
+}
+
+// A consumer id that asks about one iteration is an alias of that iteration, a case of
+// its own: it gates on the iteration's capabilities, not on every iteration's.
+TEST(CaseRegistryIterations, AnAliasNamingAnIterationResolvesToThatUnit) {
+    CaseRegistry reg;
+    reg.add(makeIteration("TCP_FLAGS_PROCESSING_08_IT1", 0x1U));
+    reg.add(makeIteration("TCP_FLAGS_PROCESSING_08_IT2", 0x2U));
+    reg.addIteratedCase({kDefaultSuite, "TCP_FLAGS_PROCESSING_08", "d"});
+    std::string err;
+    ASSERT_TRUE(reg.composeIterations(&err)) << err;
+
+    CaseAlias alias{"vendorx", "VX_TCP_08", kDefaultSuite, "TCP_FLAGS_PROCESSING_08", {}, 2};
+    ASSERT_TRUE(reg.addAlias(alias, &err)) << err;
+    const CaseEntry *a = reg.find("vendorx", "VX_TCP_08");
+    ASSERT_NE(a, nullptr);
+    EXPECT_TRUE(a->isAlias());
+    EXPECT_EQ(a->alias_of.id, "TCP_FLAGS_PROCESSING_08_IT2");
+    EXPECT_EQ(a->required_capabilities, 0x2U);
+    EXPECT_FALSE(a->isComposite());
+}
+
+TEST(CaseRegistryIterations, AnAliasNamingAnIterationTheTargetLacksIsRefused) {
+    CaseRegistry reg;
+    reg.add(makeIteration("TCP_BASICS_04_IT1"));
+    reg.addIteratedCase({kDefaultSuite, "TCP_BASICS_04", "d"});
+    reg.add(makeEntry("ARP_03"));
+    std::string err;
+    ASSERT_TRUE(reg.composeIterations(&err)) << err;
+    EXPECT_FALSE(reg.addAlias({"vendorx", "VX_A", kDefaultSuite, "TCP_BASICS_04", {}, 2}, &err))
+        << "the case has one iteration";
+    EXPECT_FALSE(reg.addAlias({"vendorx", "VX_B", kDefaultSuite, "ARP_03", {}, 1}, &err))
+        << "a case that is not made of iterations has none to name";
+}
+
+// The pointer without a line for it asks about the whole case: an alias of a composed
+// case runs the case, iteration by iteration.
+TEST(CaseRegistryIterations, AnAliasOfTheWholeCaseRunsTheWholeCase) {
+    CaseRegistry reg;
+    reg.add(makeIteration("TCP_BASICS_04_IT1"));
+    reg.add(makeIteration("TCP_BASICS_04_IT2"));
+    reg.addIteratedCase({kDefaultSuite, "TCP_BASICS_04", "d"});
+    std::string err;
+    ASSERT_TRUE(reg.composeIterations(&err)) << err;
+    ASSERT_TRUE(reg.addAlias({"vendorx", "VX_TCP_04", kDefaultSuite, "TCP_BASICS_04", {}, 0}, &err))
+        << err;
+    const CaseEntry *a = reg.find("vendorx", "VX_TCP_04");
+    ASSERT_NE(a, nullptr);
+    EXPECT_TRUE(a->isComposite());
+    EXPECT_EQ(a->iterations.size(), 2U);
+}
+
 // The premise fails in exactly one cell: the case requires the barrier and the
 // run was not given one. A case that does not require it is never marked, with or
 // without the flag — the flag's absence is not by itself a defect.

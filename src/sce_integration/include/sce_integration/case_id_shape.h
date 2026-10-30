@@ -37,12 +37,39 @@ namespace tc8::sce {
 //                      number; `tools/fault_injection_coverage.json`
 //                      is the SSOT for which fail-final each proves.
 //
+//   _IT1 .. _IT9    — one ITERATION of the TC8 case, registered as a case of
+//                      its own (case_iteration.h). The TC8 case id is the ordered
+//                      set of its iterations and its verdict their conjunction;
+//                      an iteration is the unit a consumer's reference tester
+//                      runs and reports, and the unit that carries its own
+//                      capabilities. Not a self-validation sibling: it proves
+//                      the property the case grades, for one iteration of it.
+//
 // Adding a new variant tag is a deliberate one-line addition to
 // `kKnownVariantTags`; the function shape stays unchanged. The numeric
 // suffix keeps the case id a pure identity — the guard each variant
 // proves lives in the coverage SSOT, not the file name.
 inline constexpr std::string_view kKnownVariantTags[] = {
-    "_NEG", "_NEG2", "_NEG3", "_NEG4", "_NEG5", "_NEG6", "_NEG7", "_NEG8"};
+    "_NEG", "_NEG2", "_NEG3", "_NEG4", "_NEG5", "_NEG6", "_NEG7", "_NEG8",
+    "_IT1", "_IT2", "_IT3", "_IT4", "_IT5", "_IT6", "_IT7", "_IT8", "_IT9"};
+
+// The 1-based iteration a case id names ("<ID>_IT2" -> 2), or 0 when it names none.
+constexpr int iterationOf(std::string_view id) {
+    if (id.size() > 4 && id[id.size() - 4] == '_' && id[id.size() - 3] == 'I' &&
+        id[id.size() - 2] == 'T') {
+        const char d = id.back();
+        if (d >= '1' && d <= '9') {
+            return d - '0';
+        }
+    }
+    return 0;
+}
+
+// The TC8 case an iteration belongs to ("<ID>_IT2" -> "<ID>"); the id itself when it
+// names no iteration.
+constexpr std::string_view iterationParent(std::string_view id) {
+    return iterationOf(id) != 0 ? id.substr(0, id.size() - 4) : id;
+}
 
 constexpr std::string_view stripVariantTag(std::string_view id) {
     for (auto tag : kKnownVariantTags) {

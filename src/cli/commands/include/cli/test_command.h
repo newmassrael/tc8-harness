@@ -9,6 +9,10 @@
 
 #include "sce_integration/spec_inventory.h"
 
+namespace tc8::sce {
+struct CaseEntry;
+}
+
 namespace tc8::cli {
 
 class TestCommand {
@@ -30,6 +34,9 @@ private:
     int runListVsomeipVariants() const;
     int runVsSpecReport() const;
     int runCase(std::optional<std::string> bpf_override);
+    // A TC8 case made of iterations (case_iteration.h): runs each iteration as a case of
+    // its own and reports the conjunction of their verdicts as the one verdict line.
+    int runComposite(const ::tc8::sce::CaseEntry &entry, std::optional<std::string> bpf_override);
     // Whether a case of `suite` falls inside `--suite` (always, when unset).
     bool inSuiteScope(std::string_view suite) const;
 
