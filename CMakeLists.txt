@@ -310,6 +310,15 @@ if(TC8_BUILD_UNIT_TESTS)
             -DTC8_SOURCE_DIR=${PROJECT_SOURCE_DIR}
             -P ${PROJECT_SOURCE_DIR}/cmake/check-nda-hygiene.cmake)
 
+    # The configure-time alias pointer check (src/harness/CMakeLists.txt, Pass 4) is a
+    # function so it can run against a fixture tree: a pointer at a case made of
+    # iterations was once refused at configure while the run-time registry accepted it.
+    add_test(NAME alias_target_units
+        COMMAND ${CMAKE_COMMAND}
+            -DTC8_SOURCE_DIR=${PROJECT_SOURCE_DIR}
+            -DTC8_WORK_DIR=${CMAKE_BINARY_DIR}/alias_target_units_fixture
+            -P ${PROJECT_SOURCE_DIR}/cmake/test-alias-target-units.cmake)
+
     # The commit-time twin of nda_hygiene: tools/nda_boundary_audit.py applies the SAME ban list
     # (read from cmake/check-nda-hygiene.cmake) to commit messages and staged lines. Its
     # self-test plants a token and watches the audit refuse it, so a hook that has quietly

@@ -655,6 +655,8 @@ foreach(extra_root ${TC8_EXTRA_CASE_DIRS})
     math(EXPR _tc8_extra_root_index "${_tc8_extra_root_index} + 1")
 endforeach()
 
+include(${PROJECT_SOURCE_DIR}/cmake/tc8_alias_target.cmake)
+
 # Pass 4 — case aliases (src/sce_integration/include/sce_integration/case_alias.h).
 # An injected case directory whose only content is `<case_id>.alias` declares that
 # `<suite>:<case_id>` IS an in-tree case. The file holds one token, the target as
@@ -767,19 +769,22 @@ while(_tc8_alias_i LESS _tc8_alias_n)
             "'${TC8_DEFAULT_SUITE}'; only an in-tree case can be aliased, because "
             "the in-tree catalog is the only one whose cases configure can verify")
     endif()
-    # tests/ directories are the lower-cased case ids.
+    # tests/ directories are the lower-cased case ids, or for a case made of iterations
+    # one per iteration (tc8_alias_target_units).
     string(TOLOWER "${_target_id}" _target_dir)
-    if(NOT IS_DIRECTORY ${PROJECT_SOURCE_DIR}/tests/${_target_dir})
-        message(FATAL_ERROR
-            "${_where}: target '${_tokens}' names no in-tree case "
-            "(no tests/${_target_dir}/)")
+    tc8_alias_target_units(${PROJECT_SOURCE_DIR}/tests "${_target_dir}" "${_tokens}"
+                           "${_iteration}" _target_units _target_error)
+    if(_target_error)
+        message(FATAL_ERROR "${_where}: ${_target_error}")
     endif()
-    if(_target_dir IN_LIST _tc8_override_ids)
-        message(STATUS
-            "TC8: alias '${_suite}:${case_id}' targets '${_tokens}', which "
-            "TC8_CASE_OVERRIDE_DIRS replaces in this build; the alias runs the "
-            "replacement")
-    endif()
+    foreach(_unit IN LISTS _target_units)
+        if(_unit IN_LIST _tc8_override_ids)
+            message(STATUS
+                "TC8: alias '${_suite}:${case_id}' targets '${_tokens}', whose "
+                "'${_unit}' TC8_CASE_OVERRIDE_DIRS replaces in this build; the alias "
+                "runs the replacement")
+        endif()
+    endforeach()
     message(STATUS "TC8: alias '${_suite}:${case_id}' -> '${_tokens}' (${case_dir})")
     string(APPEND _tc8_alias_decls
         "        {\"${_suite}\", \"${case_id}\", \"${_target_suite}\", \"${_target_id}\", \"${_surface}\", ${_iteration}},\n")
