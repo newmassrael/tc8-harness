@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.8.6.7 TCP_FLAGS_PROCESSING_08 negative (phase 2 / LISTEN) — lwIP TCP
-  behavioral-synthesis self-validation of the positive _08 no-response-to-FIN guard in LISTEN.
-  The positive opens a passive LISTEN and injects a bare FIN the DUT MUST silently drop. This
+  TC8 §4.8.6.7 TCP_FLAGS_PROCESSING_08 negative (iteration 2 / LISTEN) — lwIP TCP
+  behavioral-synthesis self-validation of the no-response-to-FIN guard in LISTEN of iteration 2
+  of TCP_FLAGS_PROCESSING_08. That iteration opens a passive LISTEN and injects a bare FIN the
+  DUT MUST silently drop. This
   negative arms kTcpSynthRstOnDisruptive so the lwIP netif input hook synthesizes the prohibited
   RST as the FIN arrives. Pass = that RST observed; fail_compliant = DUT stayed silent despite
   the flavor (fault inert). lwIP-only (kCapIngressFault).
@@ -30,7 +31,7 @@
   <state id="listening_rst_watch">
     <onentry><send event="deadline_rst_watch" delay="8s"/></onentry>
     <transition event="tcp_observed"
-                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsListenPort + 14U, ::tc8::sce::tcp::kBasicsTesterPort + 71U)"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kTcpFlagsProcessing08ListenPort, ::tc8::sce::tcp::kTcpFlagsProcessing08ListenTesterPort)"
                 target="pass"/>
     <transition event="deadline_rst_watch" target="fail_compliant"/>
   </state>

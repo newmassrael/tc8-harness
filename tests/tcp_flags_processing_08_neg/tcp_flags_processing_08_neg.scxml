@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TC8 §4.8.6.7 TCP_FLAGS_PROCESSING_08 negative (phase 1 / CLOSED) — lwIP self-validation of
-  the positive _08 RST-seq=0 guard in CLOSED. The positive sends a bare FIN to a closed port;
+  TC8 §4.8.6.7 TCP_FLAGS_PROCESSING_08 negative (iteration 1 / CLOSED) — lwIP self-validation
+  of the RST-seq=0 guard in CLOSED of iteration 1 of TCP_FLAGS_PROCESSING_08. That iteration
+  sends a bare FIN to a closed port;
   the DUT MUST reply RST with seq=0 (RFC 793 §3.9). This negative arms the egress
   kTcpFaultRstSeqWrong flavor (NOT the ingress synthesis — the conformant DUT genuinely emits a
   RST here, so the fault corrupts its sequence) and raw-injects the FIN; the lwIP link-output

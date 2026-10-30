@@ -9,6 +9,7 @@
 
 #include "sce_integration/case_registry.h"
 #include "sce_integration/cases/_fault_flavor_arm.h"
+#include "sce_integration/cases/_tcp_flags_processing_08_common.h"
 #include "sce_integration/cases/_tcp_seam.h"
 #include "sce_integration/cases/_tcp_seam_passive_open.h"
 #include "sce_integration/cases/_tcp_traits_base.h"
@@ -49,8 +50,8 @@ struct TestCaseTraits<cases::TcpFlagsProcessing08Neg2SM>
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
 
-        constexpr std::uint16_t kListenPort = kBasicsListenPort + 14U;
-        constexpr std::uint16_t kTesterPort = kBasicsTesterPort + 71U;
+        constexpr std::uint16_t kListenPort = kTcpFlagsProcessing08ListenPort;
+        constexpr std::uint16_t kTesterPort = kTcpFlagsProcessing08ListenTesterPort;
 
         (void)driveSeamListen(ctx.dut, kListenPort);
 

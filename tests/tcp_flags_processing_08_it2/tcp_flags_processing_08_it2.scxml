@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.7 TCP_FLAGS_PROCESSING_08, iteration 2 of 3: TCP, in CLOSED, LISTEN or SYN-SENT
+  state, MUST not process a FIN. Derived from RFC 793 §3.9 p75 Event Processing (MUST). This
+  iteration's state is LISTEN: the DUT MUST NOT respond.
+
+  A case of its own beside tcp_flags_processing_08_it1 (CLOSED) and _it3 (SYN-SENT). The DUT
+  enters a passive LISTEN on kBasicsListenPort + 14; the tester injects a bare FIN from
+  kBasicsTesterPort + 71. The DUT's LISTEN handler drops a segment that is not a SYN, so the
+  DUT stays silent. The 3 s absence guard catches any DUT-emitted segment on the 4-tuple.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_flags_processing_08_it2"
+       sce:transition-table="emit"
+       datamodel="null"
+       initial="listening_silence">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_silence">
+    <onentry><send event="deadline_silence" delay="3s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kTcpFlagsProcessing08ListenPort and captured.dst_port == ::tc8::sce::tcp::kTcpFlagsProcessing08ListenTesterPort"
+                target="fail_unexpected_response"/>
+    <transition event="deadline_silence" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata><content>{"verdict":"pass"}</content></donedata>
+  </final>
+
+  <final id="fail_unexpected_response">
+    <donedata><content>{"verdict":"fail","reason":"dut_emitted_response_to_fin_in_listen","role":"observed_violation"}</content></donedata>
+  </final>
+</scxml>

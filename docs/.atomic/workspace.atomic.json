@@ -5570,10 +5570,6 @@
           "kind": "implements"
         },
         {
-          "file": "tests/tcp_flags_processing_08/tcp_flags_processing_08.scxml",
-          "kind": "implements"
-        },
-        {
           "file": "tests/tcp_flags_processing_09/tcp_flags_processing_09.scxml",
           "kind": "implements"
         },
@@ -5711,6 +5707,18 @@
         },
         {
           "file": "tests/tcp_flags_processing_05_it2/tcp_flags_processing_05_it2.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_processing_08_it1/tcp_flags_processing_08_it1.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_processing_08_it2/tcp_flags_processing_08_it2.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_processing_08_it3/tcp_flags_processing_08_it3.scxml",
           "kind": "implements"
         }
       ]
