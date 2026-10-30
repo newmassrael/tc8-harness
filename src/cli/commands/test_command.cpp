@@ -1447,6 +1447,20 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // ledger. Only consulted for a case that declares a requirement: capabilities()
     // may probe the DUT (OpQueryCapabilities) to resolve DUT-derived fault caps,
     // so a case needing nothing pays no extra I/O and is never gated.
+    // A case written for one configuration of the DUT says so
+    // (TestCaseTraits<>::applicability, case_applicability.h), and a DUT in another
+    // configuration gives it nothing to grade: a skip of its own, not a stimulus that was
+    // never performed. Asked before the capability check, since a case that does not apply
+    // has no use for a seam. Only an affirmative answer skips; one that could not learn
+    // the configuration returns empty and the case runs.
+    if (entry->applicability != nullptr) {
+        if (const std::optional<std::string> reason = entry->applicability(config, *dut_control);
+            reason.has_value()) {
+            std::printf("verdict  : %s\n",
+                        ::tc8::sce::applicabilitySkipVerdict(*reason).c_str());
+            return 2;  // the same skip exit code as the capability gate
+        }
+    }
     if (entry->required_capabilities != 0U) {
         // Only a DUT-DERIVED requirement is worth the OpQueryCapabilities round
         // trip. Its reply makes the DUT ARP-resolve the probe's source, and that

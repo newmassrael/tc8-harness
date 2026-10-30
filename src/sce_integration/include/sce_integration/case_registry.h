@@ -12,6 +12,7 @@
 #include "tc8/bpf_group.h"
 
 #include "case_alias.h"
+#include "case_applicability.h"
 #include "case_id_shape.h"
 #include "case_suite.h"  // kDefaultSuite — the in-tree catalog name's SSOT
 #include "test_case_traits.h"
@@ -115,6 +116,11 @@ struct CaseEntry {
     // entry has no state machine of its own, so its `factory` is empty; running it
     // runs each iteration as a case of its own and conjoins their verdicts.
     std::vector<std::string_view> iterations = {};
+    // Whether the case applies to the DUT's configuration (TestCaseTraits<>::
+    // applicability; case_applicability.h), or nullptr when it always does. Last, and set
+    // after construction, so a positional initialiser written before this field existed
+    // keeps its meaning. An alias copies it with the rest of the entry.
+    ApplicabilityFn applicability = nullptr;
 
     bool isAlias() const {
         return !alias_of.id.empty();
@@ -231,8 +237,7 @@ template <typename StateMachine> struct CaseRegistrar {
         using T = TestCaseTraits<StateMachine>;
         static_assert(isWellFormedCaseId(T::kCaseId), "TestCaseTraits<SM>::kCaseId must end in '_<digits>', "
                                                       "e.g. 'SOMEIPSRV_FORMAT_01' or 'SOMEIP_ETS_025'");
-        CaseRegistry::instance().add(
-            CaseEntry{T::kCaseId, deriveCategory(T::kCaseId), T::kDescription, T::kDeprecated,
+        CaseEntry entry{T::kCaseId, deriveCategory(T::kCaseId), T::kDescription, T::kDeprecated,
                       T::kTopology, T::kBpfGroup, bpfExpressionOf<T>(),
                       extraCaptureUdpPortsData<T>(), extraCaptureUdpPortsCount<T>(),
                       requiredCapabilitiesOf<T>(), controlPlaneRoleOf<T>(),
@@ -240,7 +245,9 @@ template <typename StateMachine> struct CaseRegistrar {
                       [](const ::tc8::TestConfig &cfg) {
                           return std::unique_ptr<ITestRunner>(new TestRunner<StateMachine>(cfg));
                       },
-                      TC8_CASE_SUITE});
+                      TC8_CASE_SUITE};
+        entry.applicability = applicabilityOf<T>();
+        CaseRegistry::instance().add(std::move(entry));
     }
 };
 

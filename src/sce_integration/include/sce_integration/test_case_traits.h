@@ -47,6 +47,12 @@ struct StimulusContext;
 //   own VLAN-awareness (see `vlanAware`). kBpfGroup stays required (it is
 //   the reporting bucket) but is unused for the filter when this is set.
 //
+//   Optional applicability to the DUT's configuration (case_applicability.h):
+//     static std::optional<std::string> applicability(const ::tc8::TestConfig&,
+//                                                    ::tc8::sce::IDutControl&);
+//   Empty = the case applies; a string = why it does not, and the run ends as
+//   `skip:not_applicable_<reason>`. Only an affirmative answer skips.
+//
 //   (Category is derived from kCaseId — everything before the final
 //   "_<digits>" suffix — so there is no separate kCategory field. The
 //   registrar static_asserts the required shape.)

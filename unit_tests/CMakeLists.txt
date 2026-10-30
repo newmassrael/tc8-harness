@@ -325,6 +325,8 @@ tc8_add_unit_test(tcp_client_test)
 # The TCP trait base's frame dispatch over a machine with and without a `tcp_observed`
 # event: a case that moves on events of its own must still compile.
 tc8_add_unit_test(tcp_dispatch_test)
+# A case's applicability to the DUT's configuration: trait detection and the skip verdict.
+tc8_add_unit_test(case_applicability_test)
 # Tester server-role RPC reply builders (buildMethodResponse/buildMethodError):
 # byte-level assertions pin the SOME/IP header per PRS_SOMEIP_00701/00757 and
 # the Request-ID echo the DUT client correlates on.
