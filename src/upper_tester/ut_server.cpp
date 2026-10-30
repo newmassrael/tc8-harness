@@ -483,6 +483,7 @@ void UpperTesterServer::handleReceiveTcpData(const std::uint8_t *p, std::size_t 
         return;
     }
     const int fd = slotConnFd(socket_id);
+    std::uint8_t end_byte = kRecvEndNone;
     std::vector<std::uint8_t> bytes;
     if (fd >= 0 && expected_len != 0) {
         bytes.resize(expected_len);
@@ -495,10 +496,18 @@ void UpperTesterServer::handleReceiveTcpData(const std::uint8_t *p, std::size_t 
             const auto remaining =
                 std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now);
             backend_->setRecvTimeoutMs(fd, static_cast<int>(remaining.count()));
-            const int rc = backend_->recv(fd, bytes.data() + total, expected_len - total);
+            tc8::net::RecvEnd end = tc8::net::RecvEnd::kNone;
+            const int rc =
+                backend_->recvEnd(fd, bytes.data() + total, expected_len - total, end);
             if (rc > 0) {
                 total = static_cast<std::uint16_t>(total + rc);
                 continue;
+            }
+            // The read that ends the stream says how: a reset, or the peer's FIN.
+            if (end == tc8::net::RecvEnd::kReset) {
+                end_byte = kRecvEndReset;
+            } else if (end == tc8::net::RecvEnd::kPeerClosed) {
+                end_byte = kRecvEndPeerClosed;
             }
             break;  // peer close (0) or timeout/error (<0)
         }
@@ -506,6 +515,7 @@ void UpperTesterServer::handleReceiveTcpData(const std::uint8_t *p, std::size_t 
     }
     writeBe16(body, static_cast<std::uint16_t>(bytes.size()));
     body.insert(body.end(), bytes.begin(), bytes.end());
+    body.push_back(end_byte);
 }
 
 void UpperTesterServer::handleShutdownTcpSocketWr(const std::uint8_t *p, std::size_t n,

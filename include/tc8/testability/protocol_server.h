@@ -157,8 +157,12 @@ private:
     bool acceptOne(EventWatch &w);                // kAccept body; false => stop the worker
     bool recvForwardTcpOne(EventWatch &w);        // kRecvTcp body; false => stop
     bool recvForwardUdpOne(EventWatch &w);        // kRecvUdp body; false => stop
+    // `rid` is the Event header's Result ID. PRS_TPSP lets one ride an Event, and a
+    // forward stream uses it to say how the stream ended (E_TCP_CRE after a reset,
+    // E_TCP_COC after the peer's FIN); an ordinary data Event carries E_OK.
     void emitEvent(std::uint16_t service_id, std::uint8_t gid, std::uint8_t pid,
-                   const std::vector<std::uint8_t> &dat, const Endpoint &peer);
+                   const std::vector<std::uint8_t> &dat, const Endpoint &peer,
+                   std::uint8_t rid = 0x00);
 
     std::uint16_t registerSocket(int fd);
     std::optional<int> lookupSocket(std::uint16_t id) const;

@@ -204,6 +204,24 @@ TEST(UdpCapturedPseudoHeaderChecksum, MismatchedLengthReturnsFalse) {
     EXPECT_FALSE(c.pseudo_header_checksum_valid());
 }
 
+// OpReceiveTcpData's byte after the payload names how the stream ended; a reply
+// without it (an older DUT) and the OOB reply read as "not ended".
+TEST(UtResponseDecode, ReceiveTcpDataEndByteIsReadAfterThePayload) {
+    constexpr std::uint8_t kRespOpcode =
+        static_cast<std::uint8_t>(ut::OpReceiveTcpData | ut::kResponseBit);
+    const std::array<std::uint8_t, 8> reset{kRespOpcode, 0x01, 0x00, 0x00, 0x02, 'h', 'i',
+                                            ut::kRecvEndReset};
+    const auto r = ut::decodeResponse(reset.data(), reset.size());
+    EXPECT_TRUE(r.recv_len_valid);
+    EXPECT_EQ(r.recv_len, 2U);
+    EXPECT_EQ(r.recv_end, ut::kRecvEndReset);
+
+    const std::array<std::uint8_t, 7> old_reply{kRespOpcode, 0x01, 0x00, 0x00, 0x02, 'h', 'i'};
+    const auto o = ut::decodeResponse(old_reply.data(), old_reply.size());
+    EXPECT_TRUE(o.recv_len_valid);
+    EXPECT_EQ(o.recv_end, ut::kRecvEndNone);
+}
+
 // §4.6.5.5 UDP_USER_INTERFACE_01: response opcode 0x94 carries
 // <actual_count:u8> at body[3]. Cross-talk between OpGetReceivedUdp's received
 // slot and OpCreateUdpReceivePorts' count slot must NOT happen.

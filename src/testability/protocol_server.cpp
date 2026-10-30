@@ -996,9 +996,22 @@ bool ProtocolServer::recvForwardTcpOne(EventWatch &w) {
             want = remaining;
         }
     }
-    const int n = backend_->recv(w.fd, buf, want);
+    tc8::net::RecvEnd end = tc8::net::RecvEnd::kNone;
+    const int n = backend_->recvEnd(w.fd, buf, want, end);
+    if (end != tc8::net::RecvEnd::kNone) {
+        // The stream ended. A forward Event with no payload and the Result ID that
+        // says how (PRS_TPSP §6.10 lists E_TCP_COC for this SP, and lets a Result ID
+        // ride an Event), so the collector can tell a reset and a close from a quiet
+        // line. Then the watch stops: there is nothing more to forward.
+        std::vector<std::uint8_t> end_dat;
+        appendU16(end_dat, 0);
+        appendVint8(end_dat, nullptr, 0);
+        emitEvent(w.service_id, kGidTcp, kPidReceiveAndForward, end_dat, w.peer,
+                  end == tc8::net::RecvEnd::kReset ? kRidETcpCre : kRidETcpCoc);
+        return false;
+    }
     if (n <= 0) {
-        return n != 0;  // n==0 peer close -> stop; n<0 spurious -> keep watching
+        return true;  // n<0 spurious (timeout / EAGAIN) -> keep watching
     }
     w.consumed += static_cast<std::uint32_t>(n);
     const std::uint16_t full_len = static_cast<std::uint16_t>(n);
@@ -1047,7 +1060,8 @@ bool ProtocolServer::recvForwardUdpOne(EventWatch &w) {
 }
 
 void ProtocolServer::emitEvent(std::uint16_t service_id, std::uint8_t gid, std::uint8_t pid,
-                               const std::vector<std::uint8_t> &dat, const Endpoint &peer) {
+                               const std::vector<std::uint8_t> &dat, const Endpoint &peer,
+                               std::uint8_t rid) {
     // PRS_TPSP §6.2 Event: EVB-set method id for group `gid` + TID 0x02. Emitted on
     // the reactor loop (a module callback or worker handler), the same thread as the
     // control responses, so the shared egress needs no lock.
@@ -1055,7 +1069,7 @@ void ProtocolServer::emitEvent(std::uint16_t service_id, std::uint8_t gid, std::
     ev.service_id = service_id;
     ev.method_id = methodId(gid, pid, /*event=*/true);
     ev.tid = kTidEvent;
-    ev.rid = kRidEOk;
+    ev.rid = rid;
     const auto out = buildMessage(ev, dat.data(), dat.size());
     backend_->sendToV4(fd_, out.data(), out.size(), peer);
 }

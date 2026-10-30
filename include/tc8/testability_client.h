@@ -196,8 +196,14 @@ TestabilityAcceptEvent testabilityTcpListenAndAccept(const TestabilityConfig &cf
 // request returned E_OK; `payload` is empty if no Event arrived within the
 // timeout. TCP carries fullLen + payload only (no srcPort/srcAddr —
 // connection-oriented).
+// How a TCP forward stream ended, when the DUT said so: its last Event carries
+// E_TCP_CRE (reset) or E_TCP_COC (the peer's FIN) as the Event's Result ID. A DUT that
+// says nothing leaves kNone, which is not an observation of either.
+enum class TestabilityForwardEnd : std::uint8_t { kNone, kPeerClosed, kReset };
+
 struct TestabilityForwardResult {
     bool ok = false;                    // arm request round-tripped and returned E_OK
+    TestabilityForwardEnd end = TestabilityForwardEnd::kNone;  // set by a terminating Event
     bool responded = false;             // a Response to the arm arrived, whatever its RID
     std::uint8_t rid = 0;               // that Response's RID (PRS_TPSP §6.8)
     std::uint16_t drop_cnt = 0;         // inactive-phase bytes consumed before the arm

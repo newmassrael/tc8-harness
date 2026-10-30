@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <cerrno>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -8,6 +9,17 @@
 #include "tc8/net/op_status.h"
 
 namespace tc8::net {
+
+// How a stream's read side ended, as a read reports it. A reset and an orderly
+// close both end the stream and mean different things to RFC 793 3.9 (RECEIVE after
+// a RST is "connection reset"; after the peer's FIN it is "connection closing"), so
+// the read that ends a stream names which one it was instead of collapsing both into
+// "no more data".
+enum class RecvEnd : std::uint8_t {
+    kNone,        // not ended: data arrived, or the read timed out
+    kPeerClosed,  // the peer's FIN: an orderly end of the stream
+    kReset,       // the connection was reset
+};
 
 // How long a bounded connect waits before re-reading its cancellation flag. Short
 // enough that a teardown is not perceptibly delayed, long enough that the wait is
@@ -110,6 +122,18 @@ public:
 
     // Stream I/O. < 0 error, 0 peer close, else byte count.
     virtual int recv(int fd, void *buf, std::size_t len) = 0;
+    // recv, and how the stream ended when the read ended it (RecvEnd). The default
+    // reads the errno recv leaves: both in-tree backends (the kernel's sockets and
+    // lwIP's) set ECONNRESET for a reset connection. A backend that reports a reset
+    // some other way overrides this.
+    virtual int recvEnd(int fd, void *buf, std::size_t len, RecvEnd &end) {
+        errno = 0;
+        const int n = recv(fd, buf, len);
+        const int err = errno;
+        end = (n == 0) ? RecvEnd::kPeerClosed
+                       : ((n < 0 && err == ECONNRESET) ? RecvEnd::kReset : RecvEnd::kNone);
+        return n;
+    }
     virtual int send(int fd, const void *buf, std::size_t len) = 0;
     // Send with the urgent pointer set (BSD MSG_OOB: the last byte is the urgent
     // one), the URG bit of PRS_TPSP SEND_DATA. < 0 on error, including a stack that

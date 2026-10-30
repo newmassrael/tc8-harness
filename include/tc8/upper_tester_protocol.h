@@ -815,6 +815,12 @@ inline constexpr std::uint8_t kTcpStateListen      = 10;
 inline constexpr std::uint8_t kTcpStateClosing     = 11;
 
 // Response status byte.
+// OpReceiveTcpData's trailing byte (after the payload): how the stream's read side
+// ended during the call. None is also what an absent byte means.
+inline constexpr std::uint8_t kRecvEndNone       = 0x00;
+inline constexpr std::uint8_t kRecvEndPeerClosed = 0x01;  // the peer's FIN
+inline constexpr std::uint8_t kRecvEndReset      = 0x02;  // the connection was reset
+
 inline constexpr std::uint8_t kStatusOk              = 0x00;
 inline constexpr std::uint8_t kStatusMalformed       = 0x01;  // short frame / bad len
 inline constexpr std::uint8_t kStatusUnknownOpcode   = 0x02;
@@ -1041,6 +1047,7 @@ struct UtResponse {
 
     bool recv_len_valid = false;                 // Receive(Tcp|Oob): body >= 2
     std::uint16_t recv_len = 0;
+    std::uint8_t recv_end = 0;                   // ReceiveTcpData: kRecvEnd* byte after the payload
 
     bool ll_address_valid = false;              // QueryLLAddress: body >= 4
     std::uint32_t ll_address = 0;                // NBO (octet 0 low)
@@ -1091,6 +1098,13 @@ inline void decodeResponseBody(UtResponse &r, const std::uint8_t *body, std::uin
             if (blen >= 2) {
                 r.recv_len_valid = true;
                 r.recv_len = readU16(body);
+                // OpReceiveTcpData appends one byte after the payload: how the stream
+                // ended (kRecvEnd*). A reply without it (an older DUT, or the OOB reply)
+                // says nothing about the end, which reads as kRecvEndNone.
+                const std::uint32_t after = 2u + r.recv_len;
+                if (blen > after) {
+                    r.recv_end = body[after];
+                }
             }
             break;
         case OpQueryLLAddress:

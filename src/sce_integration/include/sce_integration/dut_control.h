@@ -291,8 +291,17 @@ public:
         }
         const std::size_t avail = r->data.size() - 2;
         const std::size_t take = resp.recv_len < avail ? resp.recv_len : avail;
-        return DutReceiveOutcome::received(std::vector<std::uint8_t>(
-            r->data.begin() + 2, r->data.begin() + 2 + static_cast<std::ptrdiff_t>(take)));
+        // The byte after the payload names how the stream ended (decodeResponseBody
+        // reads it); a DUT that appends none leaves kNone.
+        const auto end = resp.recv_end == ut::kRecvEndReset
+                             ? DutReceiveOutcome::End::kReset
+                             : (resp.recv_end == ut::kRecvEndPeerClosed
+                                    ? DutReceiveOutcome::End::kPeerClosed
+                                    : DutReceiveOutcome::End::kNone);
+        return DutReceiveOutcome::received(
+            std::vector<std::uint8_t>(r->data.begin() + 2,
+                                      r->data.begin() + 2 + static_cast<std::ptrdiff_t>(take)),
+            end);
     }
 
     bool shutdownTcpWr(DutSocket sock) override {

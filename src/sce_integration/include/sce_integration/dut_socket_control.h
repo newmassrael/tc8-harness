@@ -91,14 +91,29 @@ struct DutCallOutcome {
 // answer (it did not deliver); no answer says nothing about the DUT, and the
 // decorator records it as an unperformed stimulus.
 struct DutReceiveOutcome {
+    // How the connection's read side ended while RECEIVE was pending, when the DUT
+    // said so (RFC 793 3.9: a RECEIVE after a RST is "connection reset", after the
+    // peer's FIN "connection closing"). kNone is not an observation of either: a
+    // DUT that does not report how a stream ended leaves it there, and a case that
+    // grades a reset stays inconclusive on it, never failed.
+    enum class End : std::uint8_t { kNone, kPeerClosed, kReset };
+
     DutCallOutcome::Kind kind = DutCallOutcome::Kind::kNoAnswer;
     std::vector<std::uint8_t> data;  // what RECEIVE returned, when kDone
+    End end = End::kNone;
 
-    static DutReceiveOutcome received(std::vector<std::uint8_t> bytes) {
-        return {DutCallOutcome::Kind::kDone, std::move(bytes)};
+    static DutReceiveOutcome received(std::vector<std::uint8_t> bytes, End end = End::kNone) {
+        return {DutCallOutcome::Kind::kDone, std::move(bytes), end};
     }
-    static DutReceiveOutcome refused() { return {DutCallOutcome::Kind::kRefused, {}}; }
-    static DutReceiveOutcome noAnswer() { return {DutCallOutcome::Kind::kNoAnswer, {}}; }
+    static DutReceiveOutcome refused() { return {DutCallOutcome::Kind::kRefused, {}, End::kNone}; }
+    static DutReceiveOutcome noAnswer() { return {DutCallOutcome::Kind::kNoAnswer, {}, End::kNone}; }
+
+    // The DUT reported that the connection was reset while the RECEIVE was pending.
+    bool reset() const { return kind == DutCallOutcome::Kind::kDone && end == End::kReset; }
+    // The DUT reported the peer's orderly close.
+    bool closedByPeer() const {
+        return kind == DutCallOutcome::Kind::kDone && end == End::kPeerClosed;
+    }
 
     bool answered() const { return kind != DutCallOutcome::Kind::kNoAnswer; }
     // The DUT returned exactly `expected`.
@@ -559,7 +574,12 @@ public:
         if (!res.ok) {
             return DutReceiveOutcome::refused();
         }
-        return DutReceiveOutcome::received(res.payload);
+        using FwdEnd = testability::TestabilityForwardEnd;
+        const auto end = res.end == FwdEnd::kReset
+                             ? DutReceiveOutcome::End::kReset
+                             : (res.end == FwdEnd::kPeerClosed ? DutReceiveOutcome::End::kPeerClosed
+                                                               : DutReceiveOutcome::End::kNone);
+        return DutReceiveOutcome::received(res.payload, end);
     }
 
     bool shutdownTcpWr(DutSocket sock) override {

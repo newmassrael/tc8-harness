@@ -278,11 +278,12 @@ TEST_F(UtServerTest, TcpPassiveSendReceiveClose) {
     appendBe16(rp, 5);     // expected_len
     appendBe16(rp, 1000);  // timeout_ms
     auto rcv = rt(ut::OpReceiveTcpData, rp);
-    ASSERT_EQ(rcv.size(), 3u + 2u + 5u);
+    ASSERT_EQ(rcv.size(), 3u + 2u + 5u + 1u);  // status + len + payload + end byte
     EXPECT_EQ(rcv[2], ut::kStatusOk);
     const std::uint16_t rl = static_cast<std::uint16_t>((rcv[3] << 8) | rcv[4]);
     EXPECT_EQ(rl, 5u);
-    EXPECT_EQ(std::string(rcv.begin() + 5, rcv.end()), "world");
+    EXPECT_EQ(std::string(rcv.begin() + 5, rcv.end() - 1), "world");
+    EXPECT_EQ(rcv.back(), ut::kRecvEndNone) << "the stream had not ended";
 
     auto cl = rt(ut::OpCloseTcpSocket, {sid});
     ASSERT_EQ(cl.size(), 3u);
@@ -291,6 +292,45 @@ TEST_F(UtServerTest, TcpPassiveSendReceiveClose) {
     auto gone = rt(ut::OpQueryTcpEstablished, {sid});
     EXPECT_EQ(gone[2], ut::kStatusUnknownSocket);
     ::close(c);
+}
+
+// OpReceiveTcpData's trailing byte says how the stream ended: the peer's FIN, or a
+// reset. A connection that simply has nothing to say yet leaves it at None.
+TEST_F(UtServerTest, TcpReceiveNamesHowTheStreamEnded) {
+    struct Case {
+        std::uint16_t port;
+        bool reset;
+        std::uint8_t expected;
+    };
+    for (const Case c : {Case{30761, false, ut::kRecvEndPeerClosed},
+                         Case{30762, true, ut::kRecvEndReset}}) {
+        auto open = rt(ut::OpOpenTcpSocket,
+                       {ut::kSocketTypePassive, static_cast<std::uint8_t>(c.port >> 8),
+                        static_cast<std::uint8_t>(c.port & 0xFF)});
+        ASSERT_EQ(open.size(), 4u);
+        ASSERT_EQ(open[2], ut::kStatusOk);
+        const std::uint8_t sid = open[3];
+        const int peer = connectLoopbackTcp(c.port);
+        ASSERT_GE(peer, 0);
+        settle();
+        rt(ut::OpQueryTcpEstablished, {sid});  // completes the accept
+
+        if (c.reset) {
+            linger lg{1, 0};
+            ::setsockopt(peer, SOL_SOCKET, SO_LINGER, &lg, sizeof(lg));
+        }
+        ::close(peer);
+        settle();
+
+        std::vector<std::uint8_t> rp{sid};
+        appendBe16(rp, 8);     // expected_len: more than will ever come
+        appendBe16(rp, 1000);  // timeout_ms
+        const auto rcv = rt(ut::OpReceiveTcpData, rp);
+        ASSERT_EQ(rcv.size(), 3u + 2u + 0u + 1u) << "reset=" << c.reset;
+        EXPECT_EQ(rcv[2], ut::kStatusOk);
+        EXPECT_EQ(rcv.back(), c.expected) << "reset=" << c.reset;
+        rt(ut::OpCloseTcpSocket, {sid});
+    }
 }
 
 TEST_F(UtServerTest, TcpQueryInfoEstablished) {

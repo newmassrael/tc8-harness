@@ -82,6 +82,9 @@ private:
                 resp.push_back(0x02);
                 resp.push_back('R');   // payload "RX"
                 resp.push_back('X');
+                if (end_byte_.load() != kNoEndByte) {
+                    resp.push_back(end_byte_.load());  // how the stream ended
+                }
             }
             ::sendto(fd_, resp.data(), resp.size(), 0, reinterpret_cast<sockaddr *>(&peer),
                      plen);
@@ -93,6 +96,13 @@ private:
     std::thread thread_;
     std::atomic<bool> stop_{false};
     std::atomic<std::uint8_t> last_opcode_{0};
+    std::atomic<std::uint8_t> end_byte_{kNoEndByte};
+
+public:
+    // The byte OpReceiveTcpData's reply carries after the payload; by default none, as
+    // an older DUT sends.
+    static constexpr std::uint8_t kNoEndByte = 0xFF;
+    void replyWithEndByte(std::uint8_t b) { end_byte_.store(b); }
 };
 
 sce::OpcodeTcpControl makeControl(std::uint16_t port) {
@@ -181,6 +191,28 @@ TEST(OpcodeTcpControl, ReceiveInvokesTriggerThenQueriesReceiveOpcode) {
     EXPECT_EQ(server.lastOpcode(), static_cast<std::uint8_t>(ut::OpReceiveTcpData));
     ASSERT_TRUE(bytes.answered());
     EXPECT_TRUE(bytes.returned({'R', 'X'}));
+}
+
+TEST(OpcodeTcpControl, ReceiveReportsHowTheStreamEndedWhenTheDutSaysSo) {
+    MockOpcodeResponder server;
+    auto ctrl = makeControl(server.port());
+    const sce::DutSocket sock{MockOpcodeResponder::kSocketId};
+
+    // An older DUT appends no end byte: nothing is said about how the stream ended.
+    auto none = ctrl.receiveTcp(sock, 16, [] {});
+    ASSERT_TRUE(none.answered());
+    EXPECT_FALSE(none.reset());
+    EXPECT_FALSE(none.closedByPeer());
+
+    server.replyWithEndByte(ut::kRecvEndReset);
+    const auto reset = ctrl.receiveTcp(sock, 16, [] {});
+    EXPECT_TRUE(reset.reset());
+    EXPECT_TRUE(reset.returned({'R', 'X'}));
+
+    server.replyWithEndByte(ut::kRecvEndPeerClosed);
+    const auto closed = ctrl.receiveTcp(sock, 16, [] {});
+    EXPECT_TRUE(closed.closedByPeer());
+    EXPECT_FALSE(closed.reset());
 }
 
 TEST(OpcodeUdpControl, SendDatagramUsesTriggerSendUdpOpcode) {

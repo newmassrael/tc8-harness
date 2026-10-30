@@ -346,6 +346,86 @@ TEST_F(TestabilityServerTest, TcpReceiveAndForwardConsumesThenForwards) {
     EXPECT_TRUE(testability::testabilityCloseSocket(cfg, tp::kGidTcp, *sock).eok());
 }
 
+// How a forward stream ended rides the last Event's Result ID: the peer's FIN is
+// E_TCP_COC and a reset is E_TCP_CRE (PRS_TPSP §6.10), so a case that grades "RECEIVE
+// ended with connection reset" can tell a reset from a close and from a quiet line.
+TEST_F(TestabilityServerTest, TcpReceiveAndForwardReportsThePeersCloseAndAReset) {
+    const auto cfg = loopbackConfig();
+    for (const bool reset : {false, true}) {
+        const int lfd = ::socket(AF_INET, SOCK_STREAM, 0);
+        ASSERT_GE(lfd, 0);
+        int on = 1;
+        ::setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+        sockaddr_in la{};
+        la.sin_family = AF_INET;
+        la.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
+        ASSERT_EQ(::bind(lfd, reinterpret_cast<sockaddr *>(&la), sizeof(la)), 0);
+        ASSERT_EQ(::listen(lfd, 1), 0);
+        socklen_t ll = sizeof(la);
+        ASSERT_EQ(::getsockname(lfd, reinterpret_cast<sockaddr *>(&la), &ll), 0);
+
+        const auto sock = testability::testabilityCreateAndBind(cfg, tp::kGidTcp, false, 0xFFFF, 0);
+        ASSERT_TRUE(sock.has_value());
+        ASSERT_TRUE(testability::testabilityTcpConnect(cfg, *sock, ntohs(la.sin_port),
+                                                       ::htonl(INADDR_LOOPBACK))
+                        .eok());
+        const int afd = ::accept(lfd, nullptr, nullptr);
+        ASSERT_GE(afd, 0);
+
+        const std::vector<std::uint8_t> body = {'a', 'b', 'c'};
+        const auto res = testability::testabilityReceiveAndForward(
+            cfg, *sock, /*max_fwd=*/16, /*max_len=*/32, [&] {
+                ::send(afd, body.data(), body.size(), 0);
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                if (reset) {
+                    linger lg{1, 0};  // close with RST
+                    ::setsockopt(afd, SOL_SOCKET, SO_LINGER, &lg, sizeof(lg));
+                }
+                ::close(afd);
+            });
+
+        ASSERT_TRUE(res.ok) << "reset=" << reset;
+        EXPECT_EQ(res.payload, body) << "reset=" << reset;
+        EXPECT_EQ(res.end, reset ? testability::TestabilityForwardEnd::kReset
+                                 : testability::TestabilityForwardEnd::kPeerClosed)
+            << "reset=" << reset;
+        ::close(lfd);
+        testability::testabilityCloseSocket(cfg, tp::kGidTcp, *sock);
+    }
+}
+
+// A stream that simply goes quiet says nothing about how it ended.
+TEST_F(TestabilityServerTest, TcpReceiveAndForwardOfAQuietLineReportsNoEnd) {
+    const auto cfg = loopbackConfig();
+    const int lfd = ::socket(AF_INET, SOCK_STREAM, 0);
+    ASSERT_GE(lfd, 0);
+    int on = 1;
+    ::setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+    sockaddr_in la{};
+    la.sin_family = AF_INET;
+    la.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
+    ASSERT_EQ(::bind(lfd, reinterpret_cast<sockaddr *>(&la), sizeof(la)), 0);
+    ASSERT_EQ(::listen(lfd, 1), 0);
+    socklen_t ll = sizeof(la);
+    ASSERT_EQ(::getsockname(lfd, reinterpret_cast<sockaddr *>(&la), &ll), 0);
+    const auto sock = testability::testabilityCreateAndBind(cfg, tp::kGidTcp, false, 0xFFFF, 0);
+    ASSERT_TRUE(sock.has_value());
+    ASSERT_TRUE(testability::testabilityTcpConnect(cfg, *sock, ntohs(la.sin_port),
+                                                   ::htonl(INADDR_LOOPBACK))
+                    .eok());
+    const int afd = ::accept(lfd, nullptr, nullptr);
+    ASSERT_GE(afd, 0);
+
+    const auto res = testability::testabilityReceiveAndForward(
+        cfg, *sock, 16, 32, [] {}, /*resp_timeout_ms=*/1000, /*event_timeout_ms=*/300);
+    EXPECT_TRUE(res.ok);
+    EXPECT_TRUE(res.payload.empty());
+    EXPECT_EQ(res.end, testability::TestabilityForwardEnd::kNone);
+    ::close(afd);
+    ::close(lfd);
+    testability::testabilityCloseSocket(cfg, tp::kGidTcp, *sock);
+}
+
 // RECEIVE_AND_FORWARD aggregation: a stream the DUT reads as several recv()s
 // (each forwarded as its own Event) is reassembled by the client into one
 // max_len buffer — the seam receiveTcp's multi-segment reassembly contract

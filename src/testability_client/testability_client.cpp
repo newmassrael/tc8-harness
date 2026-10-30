@@ -176,7 +176,12 @@ struct ArmedSocket {
 // after the 16-byte header) or nullopt on timeout / malformed / wrong-SP frame.
 // The Event-parse SSOT shared by the single-Event (accept) and accumulating
 // (receive-and-forward) collectors.
-std::optional<std::vector<std::uint8_t>> recvSpEvent(int fd, std::uint8_t gid, std::uint8_t pid) {
+struct SpEvent {
+    std::uint8_t rid = tp::kRidEOk;  // the Event header's Result ID
+    std::vector<std::uint8_t> dat;
+};
+
+std::optional<SpEvent> recvSpEventWithRid(int fd, std::uint8_t gid, std::uint8_t pid) {
     // Room for any UDP datagram: an Event carries a forwarded payload of up to the
     // arm's max_fwd plus its header and fields, so a buffer sized to a typical
     // payload truncates exactly the Events that forward the most, and a truncated
@@ -192,8 +197,18 @@ std::optional<std::vector<std::uint8_t>> recvSpEvent(int fd, std::uint8_t gid, s
         tp::gidOf(evh->method_id) != gid || tp::pidOf(evh->method_id) != pid) {
         return std::nullopt;
     }
-    return std::vector<std::uint8_t>(buf.begin() + static_cast<std::ptrdiff_t>(tp::kHeaderSize),
-                                     buf.begin() + n);
+    SpEvent ev;
+    ev.rid = evh->rid;
+    ev.dat.assign(buf.begin() + static_cast<std::ptrdiff_t>(tp::kHeaderSize), buf.begin() + n);
+    return ev;
+}
+
+std::optional<std::vector<std::uint8_t>> recvSpEvent(int fd, std::uint8_t gid, std::uint8_t pid) {
+    auto ev = recvSpEventWithRid(fd, gid, pid);
+    if (!ev) {
+        return std::nullopt;
+    }
+    return std::move(ev->dat);
 }
 
 // Arm an async-event SP over one persistent UDP socket — the SSOT for the
@@ -620,17 +635,27 @@ TestabilityForwardResult testabilityReceiveAndForward(
         const auto remaining =
             std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now).count();
         setRecvTimeout(arm.fd, static_cast<int>(remaining > 0 ? remaining : 1));
-        const auto ev = recvSpEvent(arm.fd, tp::kGidTcp, tp::kPidReceiveAndForward);
-        if (!ev || ev->size() < 2) {
+        const auto ev = recvSpEventWithRid(arm.fd, tp::kGidTcp, tp::kPidReceiveAndForward);
+        if (!ev || ev->dat.size() < 2) {
             break;  // timeout / malformed — stop with what we have
+        }
+        // An Event whose Result ID is not E_OK ends the stream: E_TCP_CRE after a
+        // reset, E_TCP_COC after the peer's FIN. It carries no data to append.
+        if (ev->rid == tp::kRidETcpCre) {
+            res.end = TestabilityForwardEnd::kReset;
+            break;
+        }
+        if (ev->rid == tp::kRidETcpCoc) {
+            res.end = TestabilityForwardEnd::kPeerClosed;
+            break;
         }
         // Event DAT: fullLen(u16) + payload(vint8). fullLen is THIS recv()'s
         // length; sum them for the bulk total, append each forwarded chunk.
-        res.full_len = static_cast<std::uint16_t>(res.full_len + tp::readU16(ev->data()));
+        res.full_len = static_cast<std::uint16_t>(res.full_len + tp::readU16(ev->dat.data()));
         std::size_t off = 2;
         const std::uint8_t *body = nullptr;
         std::uint16_t body_len = 0;
-        if (tp::readVint8(ev->data(), ev->size(), off, body, body_len)) {
+        if (tp::readVint8(ev->dat.data(), ev->dat.size(), off, body, body_len)) {
             res.payload.insert(res.payload.end(), body, body + body_len);
         }
     }
