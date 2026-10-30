@@ -33,12 +33,12 @@ struct TestCaseTraits<cases::TcpFlagsProcessing11SM>
         "(RFC 793 §3.9 p72 Event Processing)";
 
     // The ESTABLISHED verdict reads DUT kernel TCP_INFO state (opcode-only);
-    // kCapTcpStateProbe makes the CLI capability gate honestly SKIP this case
+    // kCapTcpStateQuery makes the CLI capability gate honestly SKIP this case
     // on a testability backend (Tier 2 2b#4) instead of failing it. The active
     // OPEN itself completes a normal handshake against a tester listener, which
     // both backends support.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
-        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpStateProbe;
+        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpStateQuery;
 
     // Active-OPEN handshake on (kBasicsActiveLocalPort + 50,
     // kBasicsActiveRemotePort + 50) → DUT in ESTABLISHED. Snapshot
@@ -75,7 +75,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing11SM>
         // testability is capability-skipped). utEstablishedByte owns the
         // tristate-to-byte encoding.
         c.ut_established = open.conn
-            ? utEstablishedByte(ctx.dut.tcpStateProbe()->isEstablished(open.conn->socket))
+            ? utEstablishedByte(ctx.dut.tcpStateQuery()->queryState(open.conn->socket))
             : 0xFFU;
 
         ::tc8::stimulus::TcpSegmentSpec dup_ack{};

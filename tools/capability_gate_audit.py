@@ -99,9 +99,11 @@ BIT_DEMANDS = {
     # The verb is the demand: a socket in CLOSED exists only through createTcp.
     "kCapTcpCreateClosed": {"createTcp"},
     "kCapTcpSendFlags": {"sendTcpWithFlags"},
-    "kCapTcpStateProbe": {"tcpStateProbe"},
+    "kCapTcpStateQuery": {"tcpStateQuery"},
+    "kCapTcpInfoProbe": {"tcpInfoProbe"},
     "kCapTcpRecvOob": {"tcpRecvOob", "seamTcpRecvOob"},
     "kCapUdpControl": {"udpControl"},
+    "kCapUdpUnacknowledgedSend": {"sendDatagramUnacknowledged"},
     "kCapUdpReceiveControl": {"udpReceiveControl"},
     "kCapArpConditioning": {"arpControl"},
     "kCapServicePrimitive": {"servicePrimitiveControl"},

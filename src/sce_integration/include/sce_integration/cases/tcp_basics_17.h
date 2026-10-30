@@ -36,10 +36,10 @@ struct TestCaseTraits<cases::TcpBasics17SM>
     // DUT is held in SYN-SENT with no tester listener until the simultaneous-
     // open SYN+ACK establishes it (kCapTcpSynSentOpen — the testability CONNECT
     // SP cannot hold a socket in SYN-SENT), and the ESTABLISHED verdict reads
-    // kernel TCP_INFO state (kCapTcpStateProbe). The opcode backend exposes
+    // kernel TCP_INFO state (kCapTcpStateQuery). The opcode backend exposes
     // both, so it runs; testability lacks them and is honestly skipped.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
-        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpStateProbe |
+        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpStateQuery |
         ::tc8::sce::kCapTcpSynSentOpen;
 
     static void stimulus(Captured& c,
@@ -105,12 +105,12 @@ struct TestCaseTraits<cases::TcpBasics17SM>
         }
 
         // Read kernel TCP_INFO state into Captured before SCXML's first
-        // dispatch (same synchronous pattern as BASICS_07). tcpStateProbe() is
+        // dispatch (same synchronous pattern as BASICS_07). tcpStateQuery() is
         // non-null by contract: the capability gate skips this case if the
-        // backend lacks kCapTcpStateProbe. utEstablishedByte owns the
+        // backend lacks kCapTcpStateQuery. utEstablishedByte owns the
         // tristate-to-byte encoding.
         c.ut_established = open
-            ? utEstablishedByte(ctx.dut.tcpStateProbe()->isEstablished(open->socket))
+            ? utEstablishedByte(ctx.dut.tcpStateQuery()->queryState(open->socket))
             : 0xFFU;
 
         if (open) ctx.dut.tcpControl()->closeTcp(open->socket);

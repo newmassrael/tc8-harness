@@ -124,10 +124,14 @@ public:
     virtual ITcpControl *tcpControl() { return nullptr; }
     virtual IUdpControl *udpControl() { return nullptr; }
 
-    // Kernel-state probe — opcode-only (no standard testability SP reads kernel
-    // TCP state). nullptr on a backend without it; a case declaring
-    // kCapTcpStateProbe is capability-skipped there (Tier 2 2b#4).
-    virtual ITcpStateProbe *tcpStateProbe() { return nullptr; }
+    // TCP connection-state query — opcode, or a registered extension (no standard
+    // testability SP reads a socket's state). nullptr on a backend without it; a
+    // case declaring kCapTcpStateQuery is capability-skipped there (Tier 2 2b#4).
+    virtual ITcpStateQuery *tcpStateQuery() { return nullptr; }
+
+    // Kernel TCP_INFO probe — opcode-only. nullptr on a backend without it; a case
+    // declaring kCapTcpInfoProbe is capability-skipped there (Tier 2 2b#4).
+    virtual ITcpInfoProbe *tcpInfoProbe() { return nullptr; }
 
     // Out-of-band (urgent) TCP receive — opcode-only (no standard testability SP
     // reads urgent data). nullptr on a backend without it; a case declaring
@@ -405,17 +409,19 @@ private:
     int timeout_ms_;
 };
 
-// Opcode-UT backend of ITcpStateProbe — synchronous OpQueryTcpEstablished
-// (0x05) and OpQueryTcpInfo (0x13) round-trips over the bound UT socket. No
-// AUTOSAR testability counterpart (the standard exposes no kernel-state SP), so
-// this sub-interface gates kCapTcpStateProbe.
-class OpcodeTcpStateProbe final : public ITcpStateProbe {
+// Opcode-UT backend of ITcpStateQuery — one synchronous OpQueryTcpEstablished
+// (0x05) round trip over the bound UT socket. The opcode answers a yes/no
+// question, so a socket that is not established is reported as
+// kOtherThanEstablished: the state it is in is not something this DUT names.
+// No AUTOSAR testability counterpart (the standard exposes no kernel-state SP),
+// so this sub-interface gates kCapTcpStateQuery.
+class OpcodeTcpStateQuery final : public ITcpStateQuery {
 public:
-    OpcodeTcpStateProbe(std::uint32_t dut_ip_be, std::uint16_t port, std::uint32_t src_ip_be,
+    OpcodeTcpStateQuery(std::uint32_t dut_ip_be, std::uint16_t port, std::uint32_t src_ip_be,
                         int timeout_ms)
         : dut_ip_be_(dut_ip_be), port_(port), src_ip_be_(src_ip_be), timeout_ms_(timeout_ms) {}
 
-    std::optional<bool> isEstablished(DutSocket sock) override {
+    std::optional<DutTcpState> queryState(DutSocket sock) override {
         const auto r = stimulus::upperTesterRoundTrip(
             dut_ip_be_,
             stimulus::buildQueryTcpEstablishedRequest(nextReqId(),
@@ -430,8 +436,27 @@ public:
         if (!resp.established_valid) {
             return std::nullopt;
         }
-        return resp.established != 0;
+        return resp.established != 0 ? DutTcpState::kEstablished
+                                     : DutTcpState::kOtherThanEstablished;
     }
+
+private:
+    std::uint8_t nextReqId() { return stimulus::nextUtReqId(); }
+
+    std::uint32_t dut_ip_be_;
+    std::uint16_t port_;
+    std::uint32_t src_ip_be_;
+    int timeout_ms_;
+};
+
+// Opcode-UT backend of ITcpInfoProbe — one synchronous OpQueryTcpInfo (0x13)
+// round trip over the bound UT socket. No AUTOSAR testability counterpart, so
+// this sub-interface gates kCapTcpInfoProbe.
+class OpcodeTcpInfoProbe final : public ITcpInfoProbe {
+public:
+    OpcodeTcpInfoProbe(std::uint32_t dut_ip_be, std::uint16_t port, std::uint32_t src_ip_be,
+                       int timeout_ms)
+        : dut_ip_be_(dut_ip_be), port_(port), src_ip_be_(src_ip_be), timeout_ms_(timeout_ms) {}
 
     std::optional<DutTcpInfo> queryInfo(DutSocket sock) override {
         const auto r = stimulus::upperTesterRoundTrip(
@@ -575,6 +600,24 @@ public:
                                                        timeout_ms_, "TriggerSendUdp") == 0;
     }
 
+    // The raw inject without the wait for the reply. Without a raw transport the
+    // request would go through the tester's kernel, whose own ARP resolution would
+    // land in exactly the window this call exists to keep cold, so that is refused
+    // rather than quietly sent.
+    bool sendDatagramUnacknowledged(const Endpoint &src, const Endpoint &dest,
+                                    const std::vector<std::uint8_t> &data) override {
+        if (raw_.iface.empty()) {
+            return false;
+        }
+        const auto req =
+            stimulus::buildTriggerSendUdpRequest(nextReqId(), src.port, dest.addr_be, dest.port,
+                                                 data.empty() ? nullptr : data.data(),
+                                                 static_cast<std::uint16_t>(data.size()),
+                                                 src.addr_be);
+        return stimulus::sendUpperTesterRequest(raw_.iface, raw_.tester_ip_be, dut_ip_be_,
+                                                raw_.dut_mac, raw_.tester_src_port, req) == 0;
+    }
+
 private:
     std::uint8_t nextReqId() { return stimulus::nextUtReqId(); }
 
@@ -599,14 +642,10 @@ public:
     OpcodeArpControl(std::uint32_t dut_ip_be, OpcodeRawTransport raw = {})
         : dut_ip_be_(dut_ip_be), raw_(std::move(raw)) {}
 
-    int provokeEgress(const ::tc8::stimulus::BootTiming &timing) override {
-        return stimulus::emitTriggerSendUdpBoot(raw_.iface, raw_.tester_ip_be, dut_ip_be_,
-                                                raw_.dut_mac, timing);
-    }
-
-    int conditionCache(std::uint8_t action, std::uint16_t param) override {
+    int ageCacheBySeconds(std::uint16_t seconds) override {
         return stimulus::emitConditionArpCache(raw_.iface, raw_.tester_ip_be, dut_ip_be_,
-                                               raw_.dut_mac, action, param);
+                                               raw_.dut_mac, ::tc8::ut::kArpConditionAgeBySeconds,
+                                               seconds);
     }
 
     int addStaticEntry(std::uint32_t ip_be, const std::array<std::uint8_t, 6> &mac) override {
@@ -870,8 +909,10 @@ public:
         : dut_ip_be_(dut_ip_be), port_(port), src_ip_be_(src_ip_be), timeout_ms_(timeout_ms),
           cap_probe_src_ip_be_(cap_probe_src_ip_be),
           tcp_ctrl_(dut_ip_be, port, src_ip_be, timeout_ms),
-          state_probe_(dut_ip_be, port, src_ip_be,
+          state_query_(dut_ip_be, port, src_ip_be,
                        timeout_ms < kStateProbeTimeoutMs ? timeout_ms : kStateProbeTimeoutMs),
+          info_probe_(dut_ip_be, port, src_ip_be,
+                      timeout_ms < kStateProbeTimeoutMs ? timeout_ms : kStateProbeTimeoutMs),
           recv_oob_(dut_ip_be, port, src_ip_be, timeout_ms),
           udp_ctrl_(dut_ip_be, port, src_ip_be, timeout_ms, raw),
           dhcp_ctrl_(dut_ip_be, port, src_ip_be, timeout_ms, raw),
@@ -899,9 +940,10 @@ public:
     // I/O, so a case requiring only these is gated in silence.
     DutCapabilities staticCapabilities() const override {
         return static_cast<DutCapabilities>(
-            kCapTcpControl | kCapUdpControl | kCapTcpStateProbe | kCapTcpSynSentOpen |
+            kCapTcpControl | kCapUdpControl | kCapTcpStateQuery | kCapTcpInfoProbe |
+            kCapTcpSynSentOpen |
             kCapTcpRecvOob | kCapDhcpClientControl | kCapLinkLocalControl |
-            kCapUdpReceiveControl | kCapArpConditioning);
+            kCapUdpReceiveControl | kCapArpConditioning | kCapUdpUnacknowledgedSend);
     }
 
     DutCapabilities capabilities() const override {
@@ -921,7 +963,8 @@ public:
     }
     ITcpControl *tcpControl() override { return &tcp_ctrl_; }
     IUdpControl *udpControl() override { return &udp_ctrl_; }
-    ITcpStateProbe *tcpStateProbe() override { return &state_probe_; }
+    ITcpStateQuery *tcpStateQuery() override { return &state_query_; }
+    ITcpInfoProbe *tcpInfoProbe() override { return &info_probe_; }
     ITcpRecvOob *tcpRecvOob() override { return &recv_oob_; }
     IDhcpClientControl *dhcpClientControl() override { return &dhcp_ctrl_; }
     ILinkLocalControl *linkLocalControl() override { return &ll_ctrl_; }
@@ -1004,7 +1047,8 @@ private:
     mutable bool caps16_resolved_ = false;   // DUT gave a usable 0x16 bitmap
     mutable std::uint32_t fault_caps_ = 0;   // derived DUT fault caps
     OpcodeTcpControl tcp_ctrl_;
-    OpcodeTcpStateProbe state_probe_;
+    OpcodeTcpStateQuery state_query_;
+    OpcodeTcpInfoProbe info_probe_;
     OpcodeTcpRecvOob recv_oob_;
     OpcodeUdpControl udp_ctrl_;
     OpcodeDhcpClientControl dhcp_ctrl_;

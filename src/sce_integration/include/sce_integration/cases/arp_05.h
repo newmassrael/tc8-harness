@@ -22,6 +22,10 @@ struct TestCaseTraits<cases::Arp05SM>
     : ArpDutProvokedBase<cases::Arp05SM> {
     static constexpr ::tc8::BpfGroup kBpfGroup = ::tc8::BpfGroup::ArpAndUdp;
 
+    // The DUT's cache is cold for the tester, so its reply to the provocation
+    // cannot be waited for (emitArpColdCacheProvocation).
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapUdpControl | ::tc8::sce::kCapUdpUnacknowledgedSend;
     static constexpr std::string_view kCaseId = "ARP_05";
     static constexpr std::string_view kDescription =
         "ARP entry learned on gratuitous ARP Response — DUT must NOT emit an "
@@ -36,7 +40,7 @@ struct TestCaseTraits<cases::Arp05SM>
                          ::tc8::sce::StimulusContext &ctx) {
         ::tc8::stimulus::emitArpLearningBoot(ctx.iface, cfg.arp.tester_ip, cfg.dut.ip,
                                              ::tc8::stimulus::ArpLearningVariant::GratuitousResponse);
-        emitArpEgressProvocation(ctx.dut, cfg.stimulus_timing);
+        emitArpColdCacheProvocation(ctx.dut, cfg, cfg.stimulus_timing);
     }
 };
 

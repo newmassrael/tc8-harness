@@ -37,7 +37,7 @@ namespace tc8::sce {
 enum DutCapability : std::uint32_t {
     kCapTcpControl = 1u << 0,        // ITcpControl (handle-based TCP data plane)
     kCapUdpControl = 1u << 1,        // IUdpControl (one-shot UDP send)
-    kCapTcpStateProbe = 1u << 2,     // TCP kernel-state query (opcode only)
+    kCapTcpInfoProbe = 1u << 2,      // TCP_INFO counters: rto / retransmits / unacked (opcode only)
     kCapArpConditioning = 1u << 3,   // ARP cache conditioning (opcode only)
     kCapLinkLocalControl = 1u << 4,  // link-local autoconf control (opcode only)
     kCapTcpSynSentOpen = 1u << 5,    // active open left in SYN-SENT, non-establishing (opcode only)
@@ -113,6 +113,16 @@ enum DutCapability : std::uint32_t {
     // bit: the same-subnet alias cannot show which address a stack chooses as a source, and
     // UDP_USER_INTERFACE_07 relies on that one keeping its meaning.
     kCapSecondSubnetAddress = 1u << 20,
+    // ITcpStateQuery — which RFC 793 state a DUT socket is in. Backend-STATIC and
+    // separate from kCapTcpInfoProbe: a DUT can name a socket's state without
+    // serving the TCP_INFO counters, and a claim must cover exactly what the
+    // backend answers (opcode: yes; a registered extension: its own choice).
+    kCapTcpStateQuery = 1u << 21,
+    // IUdpControl::sendDatagramUnacknowledged — make the DUT send without waiting
+    // for its reply, for a case that holds the DUT's ARP cache cold so the reply
+    // cannot come yet. Backend-STATIC: the opcode UT's raw transport can; a
+    // protocol whose socket id comes back in a response (testability) cannot.
+    kCapUdpUnacknowledgedSend = 1u << 22,
 };
 using DutCapabilities = std::uint32_t;
 

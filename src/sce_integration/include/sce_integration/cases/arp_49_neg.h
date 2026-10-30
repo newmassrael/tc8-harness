@@ -29,6 +29,11 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Arp49NegSM>
     : ArpFaultNegUdpBase<cases::Arp49NegSM, ::tc8::sce::kCapEgressFault> {
+    // The base declares the fault seam and the UDP provocation; this case also ages the
+    // ARP cache between its two datagrams.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapEgressFault | ::tc8::sce::kCapUdpControl |
+        ::tc8::sce::kCapArpConditioning;
     static constexpr std::string_view kCaseId      = "ARP_49_NEG";
     static constexpr std::string_view kDescription =
         "Self-validation of ARP_49's second-UDP guard: kEthFaultUdpEgressDstWrong is armed "
@@ -50,7 +55,7 @@ struct TestCaseTraits<cases::Arp49NegSM>
         ut1.initial_wait = std::chrono::milliseconds(1500);
         ut1.retry_interval = std::chrono::milliseconds(0);
         ut1.total_emits = 1;
-        emitArpEgressProvocation(ctx.dut, ut1);
+        emitArpEgressProvocation(ctx.dut, cfg, ut1);
 
         emitEgressFlavorArmMidStream(cfg, ctx.iface, ::tc8::ut::kEthFaultUdpEgressDstWrong);
         std::this_thread::sleep_for(kFlavorArmSettle);
@@ -60,15 +65,14 @@ struct TestCaseTraits<cases::Arp49NegSM>
         // so the frame this negative corrupts is the one the positive grades.
         const std::uint16_t timeout_s = cfg.arp_stimulus.ut_cache_conditioning_s;
         if (timeout_s > 0) {
-            emitArpCacheConditioning(ctx.dut, ::tc8::ut::kArpConditionAgeBySeconds,
-                                     static_cast<std::uint16_t>(timeout_s / 2));
+            emitArpCacheAge(ctx.dut, static_cast<std::uint16_t>(timeout_s / 2));
         }
 
         ::tc8::stimulus::BootTiming ut2;
         ut2.initial_wait = std::chrono::milliseconds(500);
         ut2.retry_interval = std::chrono::milliseconds(0);
         ut2.total_emits = 1;
-        emitArpEgressProvocation(ctx.dut, ut2);
+        emitArpEgressProvocation(ctx.dut, cfg, ut2);
     }
 };
 

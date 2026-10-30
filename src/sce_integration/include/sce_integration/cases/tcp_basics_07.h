@@ -32,13 +32,13 @@ struct TestCaseTraits<cases::TcpBasics07SM>
     // This case verifies the DUT reached ESTABLISHED, which it can only
     // confirm by reading kernel socket state — a capability the opcode UT has
     // (OpQueryTcpEstablished) but the standard AUTOSAR testability protocol
-    // does not (no state-introspection SP). Declaring kCapTcpStateProbe makes
+    // does not (no state-introspection SP). Declaring kCapTcpStateQuery makes
     // the CLI capability-skip gate honestly SKIP this case on a testability
     // backend (Tier 2 2b#4) rather than fail it — the standard's limit, not a
     // DUT fault. kCapTcpControl covers the active open itself. This is the
     // first case on the seam whose verdict depends on the state-probe.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
-        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpStateProbe;
+        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpStateQuery;
 
     // Case shape:
     //   1. TESTER: Cause DUT SYN-SENT — active OPEN.
@@ -63,12 +63,12 @@ struct TestCaseTraits<cases::TcpBasics07SM>
             kBasicsActiveLocalPort  + kTcpBasics07LocalOffset,
             kBasicsActiveRemotePort + kTcpBasics07LocalOffset);
 
-        // tcpStateProbe() is non-null by contract: the capability gate skipped
-        // this case before stimulus if the backend lacked kCapTcpStateProbe.
+        // tcpStateQuery() is non-null by contract: the capability gate skipped
+        // this case before stimulus if the backend lacked kCapTcpStateQuery.
         // utEstablishedByte maps the tristate (and a nullopt open) onto the
         // ut_established byte (utEstablishedByte is the byte-encoding SSOT).
         c.ut_established = open.conn
-            ? utEstablishedByte(ctx.dut.tcpStateProbe()->isEstablished(open.conn->socket))
+            ? utEstablishedByte(ctx.dut.tcpStateQuery()->queryState(open.conn->socket))
             : 0xFFU;
         if (open.conn) ctx.dut.tcpControl()->closeTcp(open.conn->socket);
     }

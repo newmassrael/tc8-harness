@@ -34,12 +34,12 @@ struct TestCaseTraits<cases::TcpBasics02SM>
     // which it can only do by reading kernel socket state — a capability the
     // opcode UT has (OpQueryTcpEstablished) but the standard AUTOSAR
     // testability protocol does not (no state-introspection SP). Declaring
-    // kCapTcpStateProbe makes the CLI capability-skip gate honestly SKIP this
+    // kCapTcpStateQuery makes the CLI capability-skip gate honestly SKIP this
     // case on a testability backend (Tier 2 2b#4) rather than fail it — the
     // standard's limit, not a DUT fault. kCapTcpControl covers the passive open
     // itself.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
-        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpStateProbe;
+        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpStateQuery;
 
     // Case shape:
     //   1. TESTER: Send a SYN   — passive open on the DUT, then a kernel
@@ -50,7 +50,7 @@ struct TestCaseTraits<cases::TcpBasics02SM>
     //
     // Migrated onto the Tier-2 DUT-control seam: the passive open runs through
     // `driveSeamPassiveOpen` (ITcpControl::acceptTcp), and the ESTABLISHED
-    // check through `tcpStateProbe()->isEstablished`. The tester connection is
+    // check through `tcpStateQuery()->queryState`. The tester connection is
     // kept open across the probe (the seam returns its fd) so the DUT's
     // accepted socket does not race a tester-side RST before the query reads
     // its state. The probe's tristate lands in `c.ut_established` BEFORE the
@@ -64,12 +64,12 @@ struct TestCaseTraits<cases::TcpBasics02SM>
 
         auto open = driveSeamPassiveOpen(ctx.dut, cfg, kBasicsListenPort);
 
-        // tcpStateProbe() is non-null by contract: the capability gate skipped
-        // this case before stimulus if the backend lacked kCapTcpStateProbe.
+        // tcpStateQuery() is non-null by contract: the capability gate skipped
+        // this case before stimulus if the backend lacked kCapTcpStateQuery.
         // utEstablishedByte maps the tristate (and a nullopt open) onto the
         // ut_established byte (utEstablishedByte is the byte-encoding SSOT).
         c.ut_established = open.conn
-            ? utEstablishedByte(ctx.dut.tcpStateProbe()->isEstablished(open.conn->socket))
+            ? utEstablishedByte(ctx.dut.tcpStateQuery()->queryState(open.conn->socket))
             : 0xFFU;
 
         if (open.tester_fd >= 0) ::close(open.tester_fd);

@@ -28,7 +28,7 @@ struct TestCaseTraits<cases::Arp08NegSM>
         "Self-validation of ARP_08: the lwIP ArpFaultHwTypeWrong egress "
         "flavor corrupts the Hardware Type of the DUT's ARP Request "
         "(RFC 826 Ethernet 0x0001); a conformant DUT emits 0x0001";
-    // Arm the egress fault, then drive the UT 0x02 egress provocation the
+    // Arm the egress fault, then drive the UDP egress provocation the
     // positive uses so the lwIP DUT emits a (corrupted) cache-miss Request.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,

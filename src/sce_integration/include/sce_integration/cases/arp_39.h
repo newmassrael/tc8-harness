@@ -22,6 +22,10 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Arp39SM>
     : ArpAndUdpBase<cases::Arp39SM> {
+    // The DUT's cache is cold for the tester, so its reply to the provocation
+    // cannot be waited for (emitArpColdCacheProvocation).
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapUdpControl | ::tc8::sce::kCapUdpUnacknowledgedSend;
     static constexpr std::string_view kCaseId = "ARP_39";
     static constexpr std::string_view kDescription =
         "ARP learning via received Request — DUT must populate cache from "
@@ -56,7 +60,7 @@ struct TestCaseTraits<cases::Arp39SM>
         ut_timing.initial_wait = std::chrono::milliseconds(1500);
         ut_timing.retry_interval = std::chrono::milliseconds(0);
         ut_timing.total_emits = 1;
-        emitArpEgressProvocation(ctx.dut, ut_timing);
+        emitArpColdCacheProvocation(ctx.dut, cfg, ut_timing);
 
         // emitArpFromTester's default 200 ms settle gives the DUT's
         // own broadcast Request time to reach pcap before our injection.

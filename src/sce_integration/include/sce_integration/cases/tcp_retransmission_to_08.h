@@ -72,11 +72,11 @@ struct TestCaseTraits<cases::TcpRetransmissionTo08SM> {
     // The verdict reads the DUT's kernel RTO plateau (tcpi_rto) — a
     // state introspection the opcode UT exposes (OpQueryTcpInfo) but the
     // standard AUTOSAR testability protocol does not. Declaring
-    // kCapTcpStateProbe makes the CLI capability gate honestly SKIP this
+    // kCapTcpInfoProbe makes the CLI capability gate honestly SKIP this
     // case on a testability backend (Tier 2 2b#4) instead of failing it;
     // kCapTcpControl covers the active open + data send themselves.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
-        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpStateProbe;
+        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpInfoProbe;
 
     using Captured = typename SM::CapturedType;
     using Expected = typename SM::ExpectedType;

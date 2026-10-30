@@ -23,6 +23,9 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Arp48SM>
     : ArpAndUdpBase<cases::Arp48SM> {
+    // Provokes with a UDP send and, on a UT-conditioned DUT, ages its ARP cache.
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapUdpControl | ::tc8::sce::kCapArpConditioning;
     static constexpr std::string_view kCaseId = "ARP_48";
     static constexpr std::string_view kDescription =
         "ARP cache entry ages out when idle — DUT must re-ARP on next "
@@ -65,22 +68,20 @@ struct TestCaseTraits<cases::Arp48SM>
         ut_timing.initial_wait = std::chrono::milliseconds(1500);
         ut_timing.retry_interval = std::chrono::milliseconds(0);
         ut_timing.total_emits = 1;
-        emitArpEgressProvocation(ctx.dut, ut_timing);
+        emitArpEgressProvocation(ctx.dut, cfg, ut_timing);
 
         if (cfg.arp_stimulus.ut_cache_conditioning_s > 0) {
             // UDP1 wire-drain margin, then expire (aging by exactly
             // the timeout reaches the stack's `age >= timeout` free
             // condition) and provoke the post-timeout egress.
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
-            emitArpCacheConditioning(ctx.dut,
-                                     ::tc8::ut::kArpConditionAgeBySeconds,
-                                     cfg.arp_stimulus.ut_cache_conditioning_s);
+            emitArpCacheAge(ctx.dut, cfg.arp_stimulus.ut_cache_conditioning_s);
 
             ::tc8::stimulus::BootTiming ut2;
             ut2.initial_wait = std::chrono::milliseconds(500);
             ut2.retry_interval = std::chrono::milliseconds(0);
             ut2.total_emits = 1;
-            emitArpEgressProvocation(ctx.dut, ut2);
+            emitArpEgressProvocation(ctx.dut, cfg, ut2);
 
             // ARP-Request drain before the SCXML deadline starts.
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));

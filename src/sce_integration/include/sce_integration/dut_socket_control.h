@@ -232,6 +232,19 @@ public:
     // address answers a different question than the one that was asked.
     virtual bool sendDatagram(const Endpoint &src, const Endpoint &dest,
                               const std::vector<std::uint8_t> &data) = 0;
+
+    // As sendDatagram, but returns once the request has left the tester, without
+    // waiting for the DUT's reply. For a case whose point is that the DUT cannot
+    // reply yet: it holds a cold ARP cache for the tester, so its answer to the
+    // request is queued behind the very resolution the case then provokes, and
+    // waiting for it would wait for something only the case's next step produces.
+    // The cost is that a request the DUT never applied is not noticed here, which
+    // is why a case uses it only when the wire shows the effect (the datagram the
+    // DUT was asked to send). A backend whose protocol cannot send without a
+    // reply (testability: the socket id comes from a response) returns false, and
+    // the case is gated on kCapUdpUnacknowledgedSend so it is skipped there.
+    virtual bool sendDatagramUnacknowledged(const Endpoint &src, const Endpoint &dest,
+                                            const std::vector<std::uint8_t> &data) = 0;
 };
 
 // One datagram the DUT's UDP socket delivered to its application.
@@ -338,25 +351,67 @@ struct DutTcpInfo {
     std::uint32_t unacked     = 0;  // tcpi_unacked (tp->packets_out)
 };
 
-// Kernel-state probe — query the DUT's live socket state. This is the FIRST
-// genuinely opcode-only sub-interface: no standard AUTOSAR testability service
-// primitive exposes kernel TCP state (the standard surface is connection
-// lifecycle + data, not introspection). A backend that cannot answer returns
-// nullptr from IDutControl::tcpStateProbe(), and a case that declares
-// kCapTcpStateProbe is capability-skipped on that backend rather than failed
-// (Tier 2 2b#4) — the honest expression of the standard's limit. See
-// docs/dut_control_seam.md.
-class ITcpStateProbe {
-public:
-    virtual ~ITcpStateProbe() = default;
+// The RFC 793 state of a DUT socket, as a DUT reports it.
+//
+// `kOtherThanEstablished` is for a DUT that can say a socket is NOT in
+// ESTABLISHED and cannot name the state it is in (the opcode UT's establishment
+// query is a yes/no question). A case that needs a named state declares a bit a
+// backend can honour only when it names them; one that needs only establishment
+// compares against kEstablished and is indifferent to the rest.
+enum class DutTcpState : std::uint8_t {
+    kClosed,
+    kListen,
+    kSynSent,
+    kSynReceived,
+    kEstablished,
+    kFinWait1,
+    kFinWait2,
+    kCloseWait,
+    kClosing,
+    kLastAck,
+    kTimeWait,
+    kOtherThanEstablished,
+};
 
-    // Has the DUT's socket reached ESTABLISHED? nullopt on query failure
-    // (the case treats that as a third state, distinct from true/false).
-    virtual std::optional<bool> isEstablished(DutSocket sock) = 0;
+// TCP connection-state query — which RFC 793 state a DUT socket is in. No
+// standard AUTOSAR testability service primitive exposes it (the standard
+// surface is connection lifecycle + data, not introspection), so a backend that
+// cannot answer returns nullptr from IDutControl::tcpStateQuery(), and a case
+// that declares kCapTcpStateQuery is capability-skipped on that backend rather
+// than failed (Tier 2 2b#4) — the honest expression of the standard's limit. A
+// DUT that serves the query through a registered extension provides it here
+// without having to answer TCP_INFO. See docs/dut_control_seam.md.
+class ITcpStateQuery {
+public:
+    virtual ~ITcpStateQuery() = default;
+
+    // The state of the DUT's socket, or nullopt on query failure (the case
+    // treats that as a third answer, distinct from established and not).
+    virtual std::optional<DutTcpState> queryState(DutSocket sock) = 0;
+};
+
+// Kernel TCP_INFO probe — the retransmission-timeout, retransmit count and
+// unacked counters of a DUT socket. Opcode-only for the same reason as
+// ITcpStateQuery and a separate sub-interface because a DUT can answer one
+// question and not the other: a backend that answers the state alone must not
+// claim this one, or the retransmission cases would run into nullopt instead of
+// skipping. Gated by kCapTcpInfoProbe.
+class ITcpInfoProbe {
+public:
+    virtual ~ITcpInfoProbe() = default;
 
     // Live TCP_INFO snapshot of the DUT's socket, or nullopt on query failure.
     virtual std::optional<DutTcpInfo> queryInfo(DutSocket sock) = 0;
 };
+
+// Whether an answered state query says ESTABLISHED. nullopt (the query failed)
+// stays nullopt, so a case keeps its third answer.
+inline std::optional<bool> isEstablished(const std::optional<DutTcpState> &state) {
+    if (!state.has_value()) {
+        return std::nullopt;
+    }
+    return *state == DutTcpState::kEstablished;
+}
 
 // Out-of-band (urgent) TCP receive — an opcode-only sub-interface. The standard
 // AUTOSAR testability protocol exposes no urgent/OOB receive primitive (its
@@ -559,6 +614,13 @@ public:
     TestabilityUdpControl(const testability::TestabilityConfig &cfg, int timeout_ms,
                           std::uint32_t src_ip_be)
         : cfg_(cfg), timeout_ms_(timeout_ms), src_ip_be_(src_ip_be) {}
+
+    // Not available: CREATE_AND_BIND's response carries the socket id SEND_DATA
+    // needs, so there is no sending without a reply.
+    bool sendDatagramUnacknowledged(const Endpoint & /*src*/, const Endpoint & /*dest*/,
+                                    const std::vector<std::uint8_t> & /*data*/) override {
+        return false;
+    }
 
     bool sendDatagram(const Endpoint &src, const Endpoint &dest,
                       const std::vector<std::uint8_t> &data) override {

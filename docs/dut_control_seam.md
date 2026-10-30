@@ -26,7 +26,7 @@ that pins the DUT's source port can still say so through the standard
 primitives.
 
 The operations are grouped into sub-interfaces by capability (`ITcpControl`,
-`IUdpControl`, `ITcpStateProbe`, `ITcpRecvOob`, `IDhcpClientControl`,
+`IUdpControl`, `ITcpStateQuery`, `ITcpInfoProbe`, `ITcpRecvOob`, `IDhcpClientControl`,
 `ILinkLocalControl`, `IUdpReceiveControl`, `IArpControl`). `IDutControl`
 returns each one, or `nullptr` where the backend has no such capability. The
 alternative, one fat interface whose unsupported calls return "unsupported",

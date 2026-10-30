@@ -22,6 +22,7 @@
 #include "tc8/captured_event.h"
 #include "tc8/unperformed_stimulus.h"  // record a filter that would not install.
 #include "tc8/upper_tester_protocol.h"
+#include "sce_integration/dut_socket_control.h"  // DutTcpState / isEstablished for the state byte.
 #include "sce_integration/stimulus_observation.h"
 #include "sce_integration/tcp_captured.h"
 #include "sce_integration/tcp_observation.h"
@@ -493,7 +494,7 @@ inline constexpr auto kTcpActiveHandshakeGrace = std::chrono::milliseconds(50);
 // Returns 0 on success, -1 on any syscall failure. Prints errno on
 // failure so smoke-test debug logs show the root cause instead of
 // silent "connect returned non-zero".
-// Encode a seam state-probe result (`ITcpStateProbe::isEstablished`) into the
+// Encode a seam state-query result (`ITcpStateQuery::queryState`) into the
 // `ut_established` byte the SCXML guards read — the single source of truth for
 // the tristate contract the SCXML established-guards consume:
 //   0x01 — established,
@@ -506,9 +507,12 @@ inline std::uint8_t utEstablishedByte(std::optional<bool> est) {
     return static_cast<std::uint8_t>(
         !est.has_value() ? 0xFFU : (*est ? 0x01U : 0x00U));
 }
+inline std::uint8_t utEstablishedByte(std::optional<::tc8::sce::DutTcpState> state) {
+    return utEstablishedByte(::tc8::sce::isEstablished(state));
+}
 
 // Kernel-side TCP_INFO probing for the §4.8.6.11 RETRANSMISSION_TO
-// cluster now goes through the Tier-2 seam: `IDutControl::tcpStateProbe()
+// cluster now goes through the Tier-2 seam: `IDutControl::tcpInfoProbe()
 // ->queryInfo()` returns a `DutTcpInfo` snapshot (see
 // sce_integration/dut_socket_control.h and dut_control.h). The former
 // direct `queryTcpInfoSync` / `TcpInfoSnapshot` helpers were retired once

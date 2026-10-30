@@ -34,7 +34,7 @@ struct TestCaseTraits<cases::Arp07SM>
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
-        emitArpEgressProvocation(ctx.dut, cfg.stimulus_timing);
+        emitArpEgressProvocation(ctx.dut, cfg, cfg.stimulus_timing);
     }
 };
 

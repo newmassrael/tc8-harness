@@ -51,7 +51,7 @@ struct TestCaseTraits<cases::Arp38SM>
         // sender — matches the spec's silence on target_hw content for
         // this specific case).
         ::tc8::stimulus::emitArpFromTester(ctx.iface, spec);
-        emitArpEgressProvocation(ctx.dut, cfg.stimulus_timing);
+        emitArpEgressProvocation(ctx.dut, cfg, cfg.stimulus_timing);
     }
 };
 

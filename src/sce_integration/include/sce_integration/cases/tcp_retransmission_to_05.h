@@ -49,14 +49,14 @@ struct TestCaseTraits<cases::TcpRetransmissionTo05SM> {
     // across three retransmissions (tcpi_rto, tcpi_retransmits) — a state
     // introspection the opcode UT exposes (OpQueryTcpInfo) but the
     // standard AUTOSAR testability protocol does not. Declaring
-    // kCapTcpStateProbe makes the CLI capability gate honestly SKIP this
+    // kCapTcpInfoProbe makes the CLI capability gate honestly SKIP this
     // case on a testability backend (Tier 2 2b#4) instead of failing it.
     // kCapTcpSynSentOpen additionally covers the non-establishing SYN-SENT
     // open (driveSeamSynSentOpen): the testability CONNECT SP requires the
     // handshake to establish and so cannot hold a socket in SYN-SENT, while
     // the opcode non-blocking worker can.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
-        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpStateProbe |
+        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpInfoProbe |
         ::tc8::sce::kCapTcpSynSentOpen;
 
     using Captured = typename SM::CapturedType;
@@ -130,7 +130,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo05SM> {
         const auto probe_start = std::chrono::steady_clock::now();
         while (true) {
             std::this_thread::sleep_for(kPollInterval);
-            const auto probe = ctx.dut.tcpStateProbe()->queryInfo(dut_sock);
+            const auto probe = ctx.dut.tcpInfoProbe()->queryInfo(dut_sock);
             if (!probe) {
                 if (std::chrono::steady_clock::now() - probe_start >= kSynSentProbeDeadline) break;
                 continue;
@@ -157,7 +157,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo05SM> {
         bool p1_valid = false;
         while (true) {
             std::this_thread::sleep_for(kPollInterval);
-            const auto probe = ctx.dut.tcpStateProbe()->queryInfo(dut_sock);
+            const auto probe = ctx.dut.tcpInfoProbe()->queryInfo(dut_sock);
             if (probe) {
                 p1 = *probe;
                 p1_valid = true;
@@ -180,7 +180,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo05SM> {
         bool p2_valid = false;
         while (true) {
             std::this_thread::sleep_for(kPollInterval);
-            const auto probe = ctx.dut.tcpStateProbe()->queryInfo(dut_sock);
+            const auto probe = ctx.dut.tcpInfoProbe()->queryInfo(dut_sock);
             if (probe) {
                 p2 = *probe;
                 p2_valid = true;
@@ -203,7 +203,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo05SM> {
         bool p3_valid = false;
         while (true) {
             std::this_thread::sleep_for(kPollInterval);
-            const auto probe = ctx.dut.tcpStateProbe()->queryInfo(dut_sock);
+            const auto probe = ctx.dut.tcpInfoProbe()->queryInfo(dut_sock);
             if (probe) {
                 p3 = *probe;
                 p3_valid = true;

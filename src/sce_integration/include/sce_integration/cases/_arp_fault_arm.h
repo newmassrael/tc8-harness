@@ -28,7 +28,7 @@
 namespace tc8::sce {
 
 // Request-shape egress `_neg` stimulus (ARP_07..12): arm the egress fault, then drive
-// the same UT 0x02 egress provocation the positive case uses so the lwIP DUT emits a
+// the same UDP egress provocation the positive case uses so the lwIP DUT emits a
 // cache-miss ARP Request the hook corrupts. The provocation's own bring-up wait is
 // suppressed — `emitEgressFlavorArm` already paid it, and the UT server is now proven
 // up — so the two emits do not double the pause. The deadline does not arm until
@@ -41,7 +41,11 @@ inline void emitEgressFlavorRequestProvocation(const ::tc8::TestConfig &cfg,
     emitEgressFlavorArm(cfg, iface, flavor);
     ::tc8::stimulus::BootTiming timing = cfg.stimulus_timing;
     timing.initial_wait = std::chrono::milliseconds{0};
-    emitArpEgressProvocation(dut, timing);
+    // Unacknowledged: the armed fault corrupts the very ARP Request the DUT must
+    // resolve the tester with, so the resolution never completes and the DUT's
+    // reply to this request is queued behind it for good. The corrupted Request is
+    // what the wire shows.
+    emitArpColdCacheProvocation(dut, cfg, timing);
 }
 
 }  // namespace tc8::sce

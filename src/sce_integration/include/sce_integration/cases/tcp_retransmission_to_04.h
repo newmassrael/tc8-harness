@@ -49,11 +49,11 @@ struct TestCaseTraits<cases::TcpRetransmissionTo04SM> {
     // three retransmissions (tcpi_rto, tcpi_retransmits) — a state
     // introspection the opcode UT exposes (OpQueryTcpInfo) but the
     // standard AUTOSAR testability protocol does not. Declaring
-    // kCapTcpStateProbe makes the CLI capability gate honestly SKIP this
+    // kCapTcpInfoProbe makes the CLI capability gate honestly SKIP this
     // case on a testability backend (Tier 2 2b#4) instead of failing it;
     // kCapTcpControl covers the active open + data send themselves.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
-        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpStateProbe;
+        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpInfoProbe;
 
     using Captured = typename SM::CapturedType;
     using Expected = typename SM::ExpectedType;
@@ -153,7 +153,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo04SM> {
         bool p1_valid = false, p2_valid = false, p3_valid = false;
         while (true) {
             std::this_thread::sleep_for(kPollInterval);
-            const auto probe = ctx.dut.tcpStateProbe()->queryInfo(dut_sock);
+            const auto probe = ctx.dut.tcpInfoProbe()->queryInfo(dut_sock);
             const auto now = std::chrono::steady_clock::now();
             if (probe) {
                 if (!p1_valid && probe->retransmits >= 1) {

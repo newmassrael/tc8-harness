@@ -28,7 +28,7 @@ struct TestCaseTraits<cases::Arp11NegSM>
         "Self-validation of ARP_11: the lwIP ArpFaultProtoLenWrong egress "
         "flavor corrupts the Protocol Address Length of the DUT's ARP "
         "Request (RFC 826 IPv4 4); a conformant DUT emits 4";
-    // Arm the egress fault, then drive the UT 0x02 egress provocation the
+    // Arm the egress fault, then drive the UDP egress provocation the
     // positive uses so the lwIP DUT emits a (corrupted) cache-miss Request.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,

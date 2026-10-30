@@ -48,7 +48,7 @@ struct TestCaseTraits<cases::Arp38NegSM>
         ::tc8::stimulus::emitArpFromTester(ctx.iface, spec);
         // Full provocation wait (mirrors the positive ARP_38): the gap lets the
         // ingress hook land the static entry before the UT-provoked UDP egress.
-        emitArpEgressProvocation(ctx.dut, cfg.stimulus_timing);
+        emitArpEgressProvocation(ctx.dut, cfg, cfg.stimulus_timing);
     }
 };
 

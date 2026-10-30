@@ -20,6 +20,10 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Arp34SM>
     : ArpAndUdpBase<cases::Arp34SM> {
+    // The DUT's cache is cold for the tester, so its reply to the provocation
+    // cannot be waited for (emitArpColdCacheProvocation).
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapUdpControl | ::tc8::sce::kCapUdpUnacknowledgedSend;
     static constexpr std::string_view kCaseId = "ARP_34";
     static constexpr std::string_view kDescription =
         "ARP cache entry merge on Request-then-Response — DUT UDP egress "
@@ -55,7 +59,7 @@ struct TestCaseTraits<cases::Arp34SM>
         spec2.target_ip_be = cfg.arp.tester_ip;
         ::tc8::stimulus::emitArpFromTester(ctx.iface, spec2);
 
-        emitArpEgressProvocation(ctx.dut, cfg.stimulus_timing);
+        emitArpColdCacheProvocation(ctx.dut, cfg, cfg.stimulus_timing);
     }
 };
 

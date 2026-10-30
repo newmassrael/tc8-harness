@@ -35,7 +35,7 @@ struct TestCaseTraits<cases::Arp28SM>
         spec.sender_ip_be = cfg.arp.tester_ip;
         spec.target_ip_be = cfg.arp.tester_ip;
         ::tc8::stimulus::emitArpFromTester(ctx.iface, spec);
-        emitArpEgressProvocation(ctx.dut, cfg.stimulus_timing);
+        emitArpEgressProvocation(ctx.dut, cfg, cfg.stimulus_timing);
     }
 };
 

@@ -22,6 +22,10 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Arp40SM>
     : ArpAndUdpBase<cases::Arp40SM> {
+    // The DUT's cache is cold for the tester, so its reply to the provocation
+    // cannot be waited for (emitArpColdCacheProvocation).
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapUdpControl | ::tc8::sce::kCapUdpUnacknowledgedSend;
     static constexpr std::string_view kCaseId = "ARP_40";
     static constexpr std::string_view kDescription =
         "ARP learning via received Response — DUT must populate cache "
@@ -41,7 +45,7 @@ struct TestCaseTraits<cases::Arp40SM>
         ut_timing.initial_wait = std::chrono::milliseconds(1500);
         ut_timing.retry_interval = std::chrono::milliseconds(0);
         ut_timing.total_emits = 1;
-        emitArpEgressProvocation(ctx.dut, ut_timing);
+        emitArpColdCacheProvocation(ctx.dut, cfg, ut_timing);
 
         ::tc8::stimulus::ArpFrameSpec spec;
         spec.opcode = 0x0002;  // Response — spec ARP_40 inject form

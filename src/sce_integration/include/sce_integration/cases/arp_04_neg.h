@@ -23,6 +23,11 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Arp04NegSM>
     : ArpIngressFaultNegProvokedBase<cases::Arp04NegSM> {
+    // The DUT's cache is cold for the tester, so its reply to the provocation
+    // cannot be waited for (emitArpColdCacheProvocation).
+    static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
+        ::tc8::sce::kCapIngressFault | ::tc8::sce::kCapUdpControl |
+        ::tc8::sce::kCapUdpUnacknowledgedSend;
     static constexpr std::string_view kCaseId      = "ARP_04_NEG";
     static constexpr std::string_view kDescription =
         "Self-validation of ARP_04: the lwIP kArpFaultIgnoreLearn ingress flavor "
@@ -36,7 +41,7 @@ struct TestCaseTraits<cases::Arp04NegSM>
         emitIngressFlavorArm(cfg, ctx.iface, ::tc8::ut::kArpFaultIgnoreLearn);
         ::tc8::stimulus::emitArpLearningBoot(ctx.iface, cfg.arp.tester_ip, cfg.dut.ip,
                                              ::tc8::stimulus::ArpLearningVariant::Request);
-        emitArpEgressProvocation(ctx.dut, cfg.stimulus_timing);
+        emitArpColdCacheProvocation(ctx.dut, cfg, cfg.stimulus_timing);
     }
 };
 

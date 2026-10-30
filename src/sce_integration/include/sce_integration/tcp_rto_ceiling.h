@@ -53,7 +53,7 @@ inline RtoCeilingObservation observeRtoCeiling(IDutControl& dut,
     const auto start = std::chrono::steady_clock::now();
     while (std::chrono::steady_clock::now() - start < budget) {
         std::this_thread::sleep_for(poll);
-        const auto probe = dut.tcpStateProbe()->queryInfo(sock);
+        const auto probe = dut.tcpInfoProbe()->queryInfo(sock);
         if (!probe) {
             if (obs.valid) {
                 obs.outcome = ::tc8::RtoCeilingOutcome::SocketLost;

@@ -44,7 +44,7 @@ struct TestCaseTraits<cases::TcpMssOptions02SM>
     // confirmed accept IS the "reached ESTABLISHED" verdict on either
     // backend (opcode: an OpQueryTcpEstablished poll; testability: the
     // LISTEN_AND_ACCEPT Event), so this case now PASSes on both — no
-    // kCapTcpStateProbe asymmetry. c.ut_established is written before
+    // kCapTcpStateQuery asymmetry. c.ut_established is written before
     // TestRunner::start() arms the listen window, the same synchronous
     // pattern BASICS_02 uses with connectToDutTcp.
     static void stimulus(Captured& c,

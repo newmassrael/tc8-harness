@@ -49,12 +49,12 @@ struct TestCaseTraits<cases::TcpRetransmissionTo03SM> {
     // The verdict reads the DUT's kernel RTO/retransmit counters
     // (tcpi_rto, tcpi_retransmits, tcpi_unacked) — a state introspection
     // the opcode UT exposes (OpQueryTcpInfo) but the standard AUTOSAR
-    // testability protocol does not. Declaring kCapTcpStateProbe makes the
+    // testability protocol does not. Declaring kCapTcpInfoProbe makes the
     // CLI capability gate honestly SKIP this case on a testability backend
     // (Tier 2 2b#4) instead of failing it; kCapTcpControl covers the active
     // open + data send themselves.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
-        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpStateProbe;
+        ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpInfoProbe;
 
     using Captured = typename SM::CapturedType;
     using Expected = typename SM::ExpectedType;
@@ -147,7 +147,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo03SM> {
             // phase1_query_failed when the next poll 50 ms later would
             // have succeeded; only a persistent failure to the deadline
             // leaves p1_valid false.
-            const auto probe = ctx.dut.tcpStateProbe()->queryInfo(dut_sock);
+            const auto probe = ctx.dut.tcpInfoProbe()->queryInfo(dut_sock);
             if (probe) {
                 p1 = *probe;
                 p1_valid = true;
@@ -192,7 +192,7 @@ struct TestCaseTraits<cases::TcpRetransmissionTo03SM> {
         bool p2_valid = false;
         while (true) {
             std::this_thread::sleep_for(kPhase2PollInterval);
-            const auto probe = ctx.dut.tcpStateProbe()->queryInfo(dut_sock);
+            const auto probe = ctx.dut.tcpInfoProbe()->queryInfo(dut_sock);
             if (probe) {
                 p2 = *probe;
                 p2_valid = true;

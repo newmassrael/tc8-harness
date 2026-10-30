@@ -76,7 +76,8 @@ public:
     }
 
     // A query whose answer, any answer, is the observation: nothing to record.
-    ITcpStateProbe *tcpStateProbe() override { return inner_->tcpStateProbe(); }
+    ITcpStateQuery *tcpStateQuery() override { return inner_->tcpStateQuery(); }
+    ITcpInfoProbe *tcpInfoProbe() override { return inner_->tcpInfoProbe(); }
     // A receive: only no answer is recorded, as for receiveTcp.
     ITcpRecvOob *tcpRecvOob() override { return recv_oob_.bind(inner_->tcpRecvOob()); }
 
@@ -194,6 +195,11 @@ private:
                           const std::vector<std::uint8_t> &data) override {
             return performedOrRecord(inner->sendDatagram(src, dest, data), "send_datagram");
         }
+        bool sendDatagramUnacknowledged(const Endpoint &src, const Endpoint &dest,
+                                        const std::vector<std::uint8_t> &data) override {
+            return performedOrRecord(inner->sendDatagramUnacknowledged(src, dest, data),
+                                     "send_datagram_unacknowledged");
+        }
     };
 
     struct UdpReceive final : Bound<IUdpReceiveControl> {
@@ -232,14 +238,9 @@ private:
 
     // The ARP operations return the backend's status: 0 is done, anything else is not.
     struct Arp final : Bound<IArpControl> {
-        int provokeEgress(const ::tc8::stimulus::BootTiming &timing) override {
-            const int rc = inner->provokeEgress(timing);
-            performedOrRecord(rc == 0, "provoke_arp_egress");
-            return rc;
-        }
-        int conditionCache(std::uint8_t action, std::uint16_t param) override {
-            const int rc = inner->conditionCache(action, param);
-            performedOrRecord(rc == 0, "condition_arp_cache");
+        int ageCacheBySeconds(std::uint16_t seconds) override {
+            const int rc = inner->ageCacheBySeconds(seconds);
+            performedOrRecord(rc == 0, "age_arp_cache");
             return rc;
         }
         int addStaticEntry(std::uint32_t ip_be, const std::array<std::uint8_t, 6> &mac) override {

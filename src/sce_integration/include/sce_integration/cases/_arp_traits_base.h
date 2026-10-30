@@ -6,7 +6,9 @@
 #include <string_view>
 #include <thread>
 #include <variant>
+#include <vector>
 
+#include "stimulus/boot_timing.h"
 #include "tc8/bpf_group.h"
 #include "tc8/captured_event.h"
 
@@ -59,53 +61,86 @@ namespace tc8::sce {
 
 // Shared §4.2.4 egress-provocation step: the spec's "DUT CONFIGURE:
 // Configure DUT to send a UDP Message from <DIface-0> (src=<DIface-0-IP>,
-// dst=<HOST-1-IP>)" as a UT 0x02 boot emit. A free function (not a base
-// member — see the SFINAE note above) so per-case `stimulus` bodies
+// dst=<HOST-1-IP>)" as a boot-cadence UDP send through the seam. A free function
+// (not a base member — see the SFINAE note above) so per-case `stimulus` bodies
 // compose it with their injections.
 //
-// This is the single place that selects the UT envelope identities:
-// TOPOLOGY values (`cfg.tester.ip` + `cfg.arp.dut_real_*`), never
-// the `arp.tester_ip` / `arp.dut_iface_*` SCXML-expectation knobs — a
-// `--negative` override must shift only the SCXML comparison, not
-// silence the DUT (see `emitTriggerSendUdpBoot` in
-// stimulus/upper_tester_client.h for the full rationale).
-// Routed over the Tier-2 seam. The UT-envelope identity rules above now hold in
-// ONE place — the backend was built with them — instead of being restated at
-// every call. Returns the send's status, 0 on success, as before.
+// It is a UDP send, not an ARP operation, so it rides IUdpControl: a backend that
+// can send a datagram can provoke, whether or not it can also age the ARP cache.
+// The datagram is the one `isEgressProvocationDatagram` recognises (DUT
+// `kEgressBootDutSrcPort` to the tester's `ut::kDataPort`), and it goes to the
+// TOPOLOGY tester address (`cfg.tester.ip`), never the `arp.tester_ip` SCXML
+// expectation knob — a `--negative` override must shift only the SCXML
+// comparison, not silence the DUT. Returns 0 when every emit was done, as the
+// boot cadence does (stimulus/boot_timing.h).
+// Payload content carries no verdict weight (§4.2 guards compare dst_ip + Eth-dst
+// only); a recognisable literal helps pcap readers.
+inline const std::vector<std::uint8_t> &egressProvocationPayload() {
+    static const std::vector<std::uint8_t> kPayload{'T', 'C', '8', '-', 'E', 'G',
+                                                    'R', 'E', 'S', 'S'};
+    return kPayload;
+}
+
 inline int emitArpEgressProvocation(::tc8::sce::IDutControl &dut,
+                                    const ::tc8::TestConfig &cfg,
                                     const ::tc8::stimulus::BootTiming &timing) {
-    auto *arp = dut.arpControl();
-    if (arp == nullptr) {
-        // The backend cannot provoke the DUT, so no ARP Request is coming. Left
+    auto *udp = dut.udpControl();
+    if (udp == nullptr) {
+        // The backend cannot make the DUT send, so no ARP Request is coming. Left
         // unnamed this produced `no_arp_request_within_listen_window` — a
         // non-conclusion that reads like a DUT fault. Naming it points at the
         // step that did not happen instead. The gate should have skipped the case
-        // first (kCapArpConditioning); this is what keeps a case that forgot the
+        // first (kCapUdpControl); this is what keeps a case that forgot the
         // declaration honest rather than silent.
-        ::tc8::UnperformedStimulus::record("dut_arp_control_absent");
+        ::tc8::UnperformedStimulus::record("dut_udp_control_absent");
         return -1;
     }
-    return arp->provokeEgress(timing);
+    return ::tc8::stimulus::runBootCadence(timing, [&](int /*attempt*/) {
+        return udp->sendDatagram(
+                   Endpoint{/*addr_be=*/0, ::tc8::stimulus::kEgressBootDutSrcPort},
+                   Endpoint{cfg.tester.ip, ::tc8::ut::kDataPort}, egressProvocationPayload())
+                   ? 0
+                   : -1;
+    });
 }
 
-// §4.2.4.2 ARP_48/49 mid-stimulus cache-conditioning step (UT 0x17)
-// for topologies whose DUT advertises OpConditionArpCache —
-// `cfg.arp_stimulus.ut_cache_conditioning_s > 0` is the caller-side gate. Same
-// UT-envelope identity rules as `emitArpEgressProvocation` above:
-// TOPOLOGY values, never the SCXML-expectation knobs.
-inline int emitArpCacheConditioning(::tc8::sce::IDutControl &dut,
-                                    std::uint8_t action, std::uint16_t param) {
+// The provocation for a case that holds the DUT's ARP cache COLD for the tester
+// (ARP_39/40: the tester teaches the DUT only after the DUT has had to ask). The
+// DUT's answer to the request is queued behind the resolution the case provokes
+// next, so it cannot be waited for; the datagram the DUT was asked to send is what
+// the wire shows. Gate the case on kCapUdpUnacknowledgedSend.
+inline int emitArpColdCacheProvocation(::tc8::sce::IDutControl &dut,
+                                       const ::tc8::TestConfig &cfg,
+                                       const ::tc8::stimulus::BootTiming &timing) {
+    auto *udp = dut.udpControl();
+    if (udp == nullptr) {
+        ::tc8::UnperformedStimulus::record("dut_udp_control_absent");
+        return -1;
+    }
+    return ::tc8::stimulus::runBootCadence(timing, [&](int /*attempt*/) {
+        return udp->sendDatagramUnacknowledged(
+                   Endpoint{/*addr_be=*/0, ::tc8::stimulus::kEgressBootDutSrcPort},
+                   Endpoint{cfg.tester.ip, ::tc8::ut::kDataPort}, egressProvocationPayload())
+                   ? 0
+                   : -1;
+    });
+}
+
+// §4.2.4.2 ARP_48/49 mid-stimulus cache-aging step, for topologies whose DUT can
+// age its ARP cache — `cfg.arp_stimulus.ut_cache_conditioning_s > 0` is the
+// caller-side gate. Gate the case on kCapArpConditioning.
+inline int emitArpCacheAge(::tc8::sce::IDutControl &dut, std::uint16_t seconds) {
     auto *arp = dut.arpControl();
     if (arp == nullptr) {
         ::tc8::UnperformedStimulus::record("dut_arp_control_absent");
         return -1;
     }
-    return arp->conditionCache(action, param);
+    return arp->ageCacheBySeconds(seconds);
 }
 
 // Install / take out a permanent DUT ARP entry — TC8 §4.2.3's configuration and
 // cleanup operations (UT 0x17 AddStatic / RemoveStatic), for the same topologies as
-// `emitArpCacheConditioning` — gate the case on kCapArpConditioning. The entry is
+// `emitArpCacheAge` — gate the case on kCapArpConditioning. The entry is
 // the case's to name: pass the address and MAC the procedure pins (its HOST-1 IP
 // and the MAC it expects the DUT to address), never the SCXML expectation knobs.
 inline int emitArpStaticEntryAdd(::tc8::sce::IDutControl &dut, std::uint32_t ip_be,
@@ -187,18 +222,18 @@ struct ArpAndUdpBase : ArpAnyBase<StateMachine> {
 
     static constexpr ::tc8::BpfGroup kBpfGroup = ::tc8::BpfGroup::ArpAndUdp;
 
-    // Every case on this base drives the DUT through IArpControl (the UT 0x02
-    // egress provocation, and for ARP_48/49 the 0x17 cache conditioning), so it
-    // is only measurable on a backend that provides that sub-interface.
+    // Every case on this base provokes the DUT with a UDP send through the seam
+    // (`emitArpEgressProvocation`), so it is only measurable on a backend that
+    // provides IUdpControl. ARP_48/49 also age the DUT's ARP cache and declare
+    // kCapArpConditioning beside it.
     //
     // Without the declaration the gate cannot fire, and on a backend without it
     // `emitArpEgressProvocation` returns -1, the DUT is never provoked, and the
     // case sits out its listen window and reports `no_arp_request_within_...` —
     // a non-conclusion that reads like a DUT fault when the truth is that the
-    // stimulus never happened. Measured on the AUTOSAR testability backend,
-    // whose capabilities() is kCapTcpControl|kCapUdpControl alone.
+    // stimulus never happened.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
-        ::tc8::sce::kCapArpConditioning;
+        ::tc8::sce::kCapUdpControl;
 
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {
         if (const auto* f = std::get_if<::tc8::ArpFrame>(&ev)) {
@@ -220,9 +255,8 @@ struct ArpAndUdpBase : ArpAnyBase<StateMachine> {
 };
 
 // Base for the §4.2 cases that DRIVE the DUT over the seam while observing ARP
-// alone — the UT 0x02 egress provocation, and ARP_48/49's 0x17 cache
-// conditioning. Same ArpFrame dispatch as ArpAnyBase, plus the declaration that
-// makes the capability gate able to fire.
+// alone — the UDP egress provocation. Same ArpFrame dispatch as ArpAnyBase, plus
+// the declaration that makes the capability gate able to fire.
 //
 // Separate from ArpAnyBase rather than folded into it because only 11 of that
 // base's 28 cases drive the DUT at all; the rest observe traffic the tester
@@ -232,7 +266,7 @@ struct ArpAndUdpBase : ArpAnyBase<StateMachine> {
 template <typename StateMachine>
 struct ArpDutProvokedBase : ArpAnyBase<StateMachine> {
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
-        ::tc8::sce::kCapArpConditioning;
+        ::tc8::sce::kCapUdpControl;
 };
 
 // Base for the §4.2 ARP EGRESS field-fault `_NEG` cases (ARP_07..12 / 46/47). Adds
@@ -256,8 +290,11 @@ struct ArpEgressFaultNegBase : ArpAnyBase<StateMachine> {
 // ArpEgressFaultNegBase.
 template <typename StateMachine>
 struct ArpEgressFaultNegProvokedBase : ArpAnyBase<StateMachine> {
+    // Unacknowledged send: the fault corrupts the Request the DUT resolves the
+    // tester with, so its reply to the provocation never comes (_arp_fault_arm.h).
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
-        ::tc8::sce::kCapEgressFault | ::tc8::sce::kCapArpConditioning;
+        ::tc8::sce::kCapEgressFault | ::tc8::sce::kCapUdpControl |
+        ::tc8::sce::kCapUdpUnacknowledgedSend;
 };
 
 // Base for the §4.2.4.2 reply-absence INGRESS `_NEG` cases (ARP_21/27/37/42). Same
@@ -284,7 +321,7 @@ struct ArpIngressFaultNegBase : ArpAnyBase<StateMachine> {
 template <typename StateMachine>
 struct ArpIngressFaultNegProvokedBase : ArpAnyBase<StateMachine> {
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
-        ::tc8::sce::kCapIngressFault | ::tc8::sce::kCapArpConditioning;
+        ::tc8::sce::kCapIngressFault | ::tc8::sce::kCapUdpControl;
 };
 
 // Base for the §4.2.4.2 drop-and-emit INGRESS `_NEG` cases (ARP_22/28/38). These
@@ -312,11 +349,11 @@ struct ArpFaultNegUdpBase : ArpAndUdpBase<StateMachine> {
 
     // Shadows ArpAndUdpBase's declaration rather than extending it, so the seam
     // bit has to be restated here — dropping it would silently un-gate the very
-    // provocation these cases depend on. kCapArpConditioning is not part of the
+    // provocation these cases depend on. kCapUdpControl is not part of the
     // parameter because it is what the egress provocation itself needs, whichever
     // seam the fault uses.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
-        FaultSeam | ::tc8::sce::kCapArpConditioning;
+        FaultSeam | ::tc8::sce::kCapUdpControl;
 
     static void dispatch(Captured& c, SM& sm, const ::tc8::CapturedEvent& ev) {
         if (const auto* u = std::get_if<::tc8::UdpFrame>(&ev)) {

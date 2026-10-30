@@ -28,7 +28,7 @@ struct TestCaseTraits<cases::Arp07NegSM>
         "Self-validation of ARP_07: the lwIP ArpFaultOpcodeWrong egress "
         "flavor corrupts the Operation Code of the DUT's cache-miss ARP "
         "Request (RFC 826); a conformant DUT emits opcode 1";
-    // Arm the egress fault, then drive the UT 0x02 egress provocation the
+    // Arm the egress fault, then drive the UDP egress provocation the
     // positive uses so the lwIP DUT emits a (corrupted) cache-miss Request.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,

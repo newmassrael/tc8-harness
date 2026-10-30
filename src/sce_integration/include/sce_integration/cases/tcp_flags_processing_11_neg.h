@@ -46,7 +46,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing11NegSM>
     // duplicate-ACK inject), with the fault armed after the handshake so only the duplicate ACK
     // elicits the synthesized RST (the handshake SYN,ACK is not a pure ACK and the DUT third-leg
     // ACK is egress, both excluded by the pure-ACK gate). The _neg reads the wire for the
-    // ESTABLISHED precondition, so it needs no kCapTcpStateProbe ut_established read.
+    // ESTABLISHED precondition, so it needs no kCapTcpStateQuery ut_established read.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
