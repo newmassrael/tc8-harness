@@ -5,6 +5,8 @@
 # case made of iterations (which has only tests/<id>_it<n>/) was refused at configure, with
 # "names no in-tree case", while CaseRegistry::addAlias accepted it at run time.
 
+cmake_minimum_required(VERSION 3.16)  # script mode sets no policies of its own.
+
 include(${TC8_SOURCE_DIR}/cmake/tc8_alias_target.cmake)
 
 set(_tests "${TC8_WORK_DIR}/tests")

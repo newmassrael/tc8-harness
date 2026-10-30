@@ -29,6 +29,9 @@ function(tc8_alias_target_units tests_dir target_dir target_label iteration unit
     file(GLOB _it_dirs LIST_DIRECTORIES true RELATIVE "${tests_dir}"
          "${tests_dir}/${target_dir}_it[1-9]")
     list(SORT _it_dirs)
+    # list(FIND), not `IN_LIST`: this runs under `cmake -P` in the test, where policy
+    # CMP0057 is unset and IN_LIST is not an operator, as well as under the project.
+    list(FIND _it_dirs "${target_dir}_it${iteration}" _at)
 
     if(IS_DIRECTORY "${tests_dir}/${target_dir}")
         if(NOT iteration EQUAL 0)
@@ -40,7 +43,7 @@ function(tc8_alias_target_units tests_dir target_dir target_label iteration unit
     elseif(_it_dirs)
         if(iteration EQUAL 0)
             set(_units ${_it_dirs})
-        elseif("${target_dir}_it${iteration}" IN_LIST _it_dirs)
+        elseif(NOT _at EQUAL -1)
             set(_units "${target_dir}_it${iteration}")
         else()
             list(JOIN _it_dirs ", " _have)
