@@ -2111,17 +2111,21 @@
         }
       ]
     },
-    "TCP_BASICS_08": {
+    "TCP_BASICS_08_IT1": {
       "guards": [
         {
           "class": "required_emission",
           "fail_reason": "no_dut_fin_from_established",
           "property": "DUT must emit a FIN on CLOSE in ESTABLISHED within ParamListenTime (iteration 1); binary present/absent"
-        },
+        }
+      ]
+    },
+    "TCP_BASICS_08_IT3": {
+      "guards": [
         {
           "class": "required_emission",
           "fail_reason": "no_dut_fin_from_close_wait",
-          "property": "DUT must emit a FIN on CLOSE in CLOSE-WAIT within ParamListenTime (iteration 2); binary present/absent"
+          "property": "DUT must emit a FIN on CLOSE in CLOSE-WAIT within ParamListenTime (iteration 3); binary present/absent"
         }
       ]
     },
@@ -2139,16 +2143,20 @@
         }
       ]
     },
-    "TCP_BASICS_10": {
+    "TCP_BASICS_10_IT1": {
       "guards": [
         {
           "class": "required_emission",
-          "fail_reason": "no_dut_ack_to_tester_fin_phase1",
+          "fail_reason": "no_dut_ack_to_tester_fin",
           "property": "DUT must ACK a FIN received in FINWAIT-1 within ParamListenTime (iteration 1); binary present/absent"
-        },
+        }
+      ]
+    },
+    "TCP_BASICS_10_IT2": {
+      "guards": [
         {
           "class": "required_emission",
-          "fail_reason": "no_dut_ack_to_tester_fin_phase2",
+          "fail_reason": "no_dut_ack_to_tester_fin",
           "property": "DUT must ACK a FIN received in FINWAIT-2 within ParamListenTime (iteration 2); binary present/absent"
         }
       ]
@@ -2212,18 +2220,26 @@
         }
       ]
     },
-    "TCP_CALL_ABORT_03": {
+    "TCP_CALL_ABORT_03_IT1": {
       "guards": [
         {
           "class": "required_emission",
           "fail_reason": "dut_did_not_close_after_abort_in_closing",
           "property": "DUT, CLOSED after ABORT in CLOSING, must RST the verify-probe ACK within ParamListenTime (RFC 793 section 3.9); binary present/absent"
-        },
+        }
+      ]
+    },
+    "TCP_CALL_ABORT_03_IT2": {
+      "guards": [
         {
           "class": "required_emission",
           "fail_reason": "dut_did_not_close_after_abort_in_last_ack",
           "property": "DUT, CLOSED after ABORT in LAST-ACK, must RST the verify-probe ACK within ParamListenTime (RFC 793 section 3.9); binary present/absent"
-        },
+        }
+      ]
+    },
+    "TCP_CALL_ABORT_03_IT3": {
+      "guards": [
         {
           "class": "required_emission",
           "fail_reason": "dut_did_not_close_after_abort_in_time_wait",
@@ -2231,21 +2247,29 @@
         }
       ]
     },
-    "TCP_CALL_RECEIVE_04": {
+    "TCP_CALL_RECEIVE_04_IT1": {
       "guards": [
         {
           "class": "incorrect_emission",
-          "fail_reason": "dut_did_not_return_reassembled_data_phase1_est",
+          "fail_reason": "dut_did_not_return_reassembled_data",
           "property": "A RECEIVE in ESTABLISHED must return the queued segments reassembled (RFC 793 3.9); a wrong answer, or a refusal, fails, and no answer is inconclusive"
-        },
+        }
+      ]
+    },
+    "TCP_CALL_RECEIVE_04_IT2": {
+      "guards": [
         {
           "class": "incorrect_emission",
-          "fail_reason": "dut_did_not_return_reassembled_data_phase2_fw1",
+          "fail_reason": "dut_did_not_return_reassembled_data",
           "property": "A RECEIVE in FIN-WAIT-1 must return the queued segments reassembled (RFC 793 3.9); a wrong answer, or a refusal, fails, and no answer is inconclusive"
-        },
+        }
+      ]
+    },
+    "TCP_CALL_RECEIVE_04_IT3": {
+      "guards": [
         {
           "class": "incorrect_emission",
-          "fail_reason": "dut_did_not_return_reassembled_data_phase3_fw2",
+          "fail_reason": "dut_did_not_return_reassembled_data",
           "property": "A RECEIVE in FIN-WAIT-2 must return the queued segments reassembled (RFC 793 3.9); a wrong answer, or a refusal, fails, and no answer is inconclusive"
         }
       ]
@@ -2348,17 +2372,21 @@
         }
       ]
     },
-    "TCP_FLAGS_INVALID_06": {
+    "TCP_FLAGS_INVALID_06_IT1": {
+      "guards": [
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "dut_emitted_response_to_bare_ack_with_acceptable_ack",
+          "property": "Silence is conformant: DUT must not respond to a bare ACK carrying an acceptable ACK; fail iff it emits a reply"
+        }
+      ]
+    },
+    "TCP_FLAGS_INVALID_06_IT2": {
       "guards": [
         {
           "class": "prohibited_emission",
           "fail_reason": "dut_emitted_response_to_ack_with_payload_acceptable_ack",
           "property": "Silence is conformant: DUT must not respond to a bare ACK-with-payload carrying an acceptable ACK; fail iff it emits a reply"
-        },
-        {
-          "class": "prohibited_emission",
-          "fail_reason": "dut_emitted_response_to_bare_ack_with_acceptable_ack",
-          "property": "Silence is conformant: DUT must not respond to a bare ACK carrying an acceptable ACK; fail iff it emits a reply"
         }
       ]
     },
@@ -2579,28 +2607,44 @@
         }
       ]
     },
-    "TCP_FLAGS_PROCESSING_02": {
+    "TCP_FLAGS_PROCESSING_02_IT1": {
       "guards": [
         {
           "class": "required_emission",
           "fail_reason": "dut_did_not_emit_rst_after_rst_in_syn_rcvd",
           "property": "DUT must RST the verify ACK sent after an in-window RST in SYN-RCVD within ParamListenTime, showing it went CLOSED (RFC 793 section 3.9); binary present/absent"
-        },
+        }
+      ]
+    },
+    "TCP_FLAGS_PROCESSING_02_IT2": {
+      "guards": [
         {
           "class": "required_emission",
           "fail_reason": "dut_did_not_emit_rst_after_rst_in_est",
           "property": "DUT must RST the verify ACK sent after an in-window RST in ESTABLISHED within ParamListenTime, showing it went CLOSED (RFC 793 section 3.9); binary present/absent"
-        },
+        }
+      ]
+    },
+    "TCP_FLAGS_PROCESSING_02_IT3": {
+      "guards": [
         {
           "class": "required_emission",
           "fail_reason": "dut_did_not_emit_rst_after_rst_in_fw1",
           "property": "DUT must RST the verify ACK sent after an in-window RST in FIN-WAIT-1 within ParamListenTime, showing it went CLOSED (RFC 793 section 3.9); binary present/absent"
-        },
+        }
+      ]
+    },
+    "TCP_FLAGS_PROCESSING_02_IT4": {
+      "guards": [
         {
           "class": "required_emission",
           "fail_reason": "dut_did_not_emit_rst_after_rst_in_fw2",
           "property": "DUT must RST the verify ACK sent after an in-window RST in FIN-WAIT-2 within ParamListenTime, showing it went CLOSED (RFC 793 section 3.9); binary present/absent"
-        },
+        }
+      ]
+    },
+    "TCP_FLAGS_PROCESSING_02_IT5": {
+      "guards": [
         {
           "class": "required_emission",
           "fail_reason": "dut_did_not_emit_rst_after_rst_in_cw",
@@ -2608,13 +2652,17 @@
         }
       ]
     },
-    "TCP_FLAGS_PROCESSING_05": {
+    "TCP_FLAGS_PROCESSING_05_IT1": {
       "guards": [
         {
           "class": "required_emission",
           "fail_reason": "no_dut_synack_to_verify_syn_after_in_window_syn",
           "property": "DUT must answer a fresh verify SYN with a SYN,ACK within ParamListenTime after an in-window SYN in SYN-RCVD, showing it returned to LISTEN (RFC 1122 section 4.2.2.20); binary present/absent"
-        },
+        }
+      ]
+    },
+    "TCP_FLAGS_PROCESSING_05_IT2": {
+      "guards": [
         {
           "class": "required_emission",
           "fail_reason": "no_dut_synack_to_verify_syn_after_in_window_synack",
@@ -2842,13 +2890,17 @@
         }
       ]
     },
-    "TCP_UNACCEPTABLE_05": {
+    "TCP_UNACCEPTABLE_05_IT1": {
       "guards": [
         {
           "class": "required_emission",
           "fail_reason": "no_dut_rst_to_listen_synack",
           "property": "DUT in LISTEN must send an RST to a SYN,ACK carrying an unacceptable ACK within ParamListenTime (RFC 793 section 3.4); binary present/absent"
-        },
+        }
+      ]
+    },
+    "TCP_UNACCEPTABLE_05_IT2": {
+      "guards": [
         {
           "class": "required_emission",
           "fail_reason": "no_dut_rst_to_listen_naked_ack",
@@ -2874,16 +2926,20 @@
         }
       ]
     },
-    "TCP_UNACCEPTABLE_08": {
+    "TCP_UNACCEPTABLE_08_IT1": {
       "guards": [
         {
           "class": "required_emission",
-          "fail_reason": "no_dut_rst_phase1_synack_with_unacceptable_ack",
+          "fail_reason": "no_dut_rst_synack_with_unacceptable_ack",
           "property": "DUT in SYN-SENT must send an RST with SEQ = incoming ACK for a SYN,ACK with an unacceptable ACK within ParamListenTime (RFC 793 section 3.4); binary present/absent"
-        },
+        }
+      ]
+    },
+    "TCP_UNACCEPTABLE_08_IT2": {
+      "guards": [
         {
           "class": "required_emission",
-          "fail_reason": "no_dut_rst_phase2_ack_with_unacceptable_ack",
+          "fail_reason": "no_dut_rst_ack_with_unacceptable_ack",
           "property": "DUT in SYN-SENT must send an RST with SEQ = incoming ACK for a bare ACK with an unacceptable ACK within ParamListenTime (RFC 793 section 3.4); binary present/absent"
         }
       ]
@@ -2906,13 +2962,17 @@
         }
       ]
     },
-    "TCP_UNACCEPTABLE_11": {
+    "TCP_UNACCEPTABLE_11_IT1": {
       "guards": [
         {
           "class": "required_emission",
           "fail_reason": "no_dut_ack_to_otw_seq_in_closing",
           "property": "DUT in CLOSING must return an empty ACK with proper SEQ/ACK to an OTW-SEQ data segment within ParamListenTime (RFC 793 section 3.4); binary present/absent"
-        },
+        }
+      ]
+    },
+    "TCP_UNACCEPTABLE_11_IT2": {
+      "guards": [
         {
           "class": "required_emission",
           "fail_reason": "no_dut_ack_to_unacceptable_ack_in_closing",
@@ -2920,13 +2980,17 @@
         }
       ]
     },
-    "TCP_UNACCEPTABLE_12": {
+    "TCP_UNACCEPTABLE_12_IT1": {
       "guards": [
         {
           "class": "required_emission",
           "fail_reason": "no_dut_ack_to_otw_seq_in_last_ack",
           "property": "DUT in LAST-ACK must return an empty ACK with proper SEQ/ACK to an OTW-SEQ data segment within ParamListenTime (RFC 793 section 3.4); binary present/absent"
-        },
+        }
+      ]
+    },
+    "TCP_UNACCEPTABLE_12_IT2": {
+      "guards": [
         {
           "class": "required_emission",
           "fail_reason": "no_dut_ack_to_unacceptable_ack_in_last_ack",
@@ -2934,13 +2998,17 @@
         }
       ]
     },
-    "TCP_UNACCEPTABLE_13": {
+    "TCP_UNACCEPTABLE_13_IT1": {
       "guards": [
         {
           "class": "required_emission",
           "fail_reason": "no_dut_ack_to_otw_seq_in_time_wait",
           "property": "DUT in TIME-WAIT must return an empty ACK with proper SEQ/ACK to an OTW-SEQ data segment within ParamListenTime (RFC 793 section 3.4); binary present/absent"
-        },
+        }
+      ]
+    },
+    "TCP_UNACCEPTABLE_13_IT2": {
+      "guards": [
         {
           "class": "required_emission",
           "fail_reason": "no_dut_ack_to_unacceptable_ack_in_time_wait",

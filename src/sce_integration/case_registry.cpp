@@ -152,13 +152,17 @@ bool CaseRegistry::addAlias(const CaseAlias &alias, std::string *err) {
             return fail("the pointer names an iteration, but the target is not made of "
                         "iterations");
         }
-        const std::size_t n = static_cast<std::size_t>(alias.iteration);
-        if (n > target->iterations.size()) {
-            return fail("the pointer names an iteration the target does not have");
+        // By the spec's number, which is the number in the iteration's id: a case whose
+        // spec skips a number has no iteration at that position.
+        const CaseEntry *unit = nullptr;
+        for (const std::string_view unit_id : target->iterations) {
+            if (iterationOf(unit_id) == alias.iteration) {
+                unit = find(alias.target_suite, unit_id);
+                break;
+            }
         }
-        const CaseEntry *unit = find(alias.target_suite, target->iterations[n - 1]);
         if (unit == nullptr) {
-            return fail("the target's iteration entry is not registered");
+            return fail("the pointer names an iteration the target does not have");
         }
         target = unit;
     }
@@ -255,11 +259,26 @@ bool CaseRegistry::composeIterations(std::string *err) {
         std::sort(units.begin(), units.end(), [](const CaseEntry *a, const CaseEntry *b) {
             return iterationOf(a->id) < iterationOf(b->id);
         });
-        for (std::size_t i = 0; i < units.size(); ++i) {
-            if (iterationOf(units[i]->id) != static_cast<int>(i) + 1) {
-                return fail(d.id, "its iterations are not numbered 1.." +
-                                      std::to_string(units.size()) + " without a gap");
+        // The numbers the iterations must carry: the declared spec numbers, or 1..N.
+        std::string expected_numbers;
+        if (d.numbers.empty()) {
+            for (std::size_t i = 0; i < units.size(); ++i) {
+                expected_numbers.push_back(static_cast<char>('1' + i));
             }
+        } else {
+            expected_numbers = std::string(d.numbers);
+        }
+        std::string found_numbers;
+        for (const CaseEntry *u : units) {
+            found_numbers.push_back(static_cast<char>('0' + iterationOf(u->id)));
+        }
+        if (found_numbers != expected_numbers) {
+            return fail(d.id, "its iterations are numbered " + found_numbers + ", expected " +
+                                  expected_numbers +
+                                  (d.numbers.empty()
+                                       ? " (1..N without a gap; declare the spec's numbers if "
+                                         "it skips one)"
+                                       : " as declared"));
         }
         if (find(d.suite, d.id) != nullptr) {
             return fail(d.id, "the id is also registered as a case with a state machine of "

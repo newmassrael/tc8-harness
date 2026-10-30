@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.1 TCP_BASICS_10, iteration 2 of 2: a DUT that has closed its side and has had
+  its FIN acknowledged, so it sits in FINWAIT-2, MUST acknowledge the tester's FIN when it
+  arrives (RFC 793 §3.2 p23).
+
+  The tester kernel ACKs the DUT's FIN, and 100 ms later sends its own FIN. The ACK graded is
+  the one that acknowledges the tester FIN: ack number = the FIN's sequence number plus one,
+  which the stimulus records (captured.expected_ack_num).
+
+  A case of its own beside tcp_basics_10_it1, which holds the DUT in FINWAIT-1 instead and
+  carries the shared description and the observation order; the two differ in how the tester
+  FIN is delivered, and in their port quads. A 2-state sub-chain tells the DUT's close FIN
+  (the marker that the procedure has reached FINWAIT-2) from the spec-target ACK (the
+  response to the tester FIN):
+
+    listening_fin:    wait for DUT FIN+ACK on the iteration's ports
+                      -> listening_ack
+    listening_ack:    wait for DUT pure ACK (no FIN/SYN/RST) on the same ports
+                      -> pass
+
+  The ACK to the tester FIN is the Pass Criteria, and the TCP chapter states no time for it,
+  so a listening_ack window that elapses without it is the DUT's silence where it must
+  answer: observed_quiescence, judged against <ParamListenTime>
+  (docs/verdict_policy.md Section 2.1, H3); the window is ParamListenTime plus
+  <ParamToleranceTime> (10 s + 1 s at the defaults). The close FIN that marks FINWAIT-2 is
+  the precondition, so its silence is precondition_unmet: nothing earlier in this case has
+  shown the DUT able to close. Every state arms its own timer event so an earlier state's
+  timer cannot close a later window.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_basics_10_it2"
+       sce:transition-table="emit"
+       datamodel="null"
+       initial="listening_fin">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_fin">
+    <onentry>
+      <send event="deadline_fin" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == (::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpBasics10Phase2LocalOffset) and captured.dst_port == (::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpBasics10Phase2LocalOffset) and (captured.flags &amp; 0x01) != 0"
+                target="listening_ack"/>
+    <transition event="deadline_fin" target="inconclusive_timeout_fin"/>
+  </state>
+
+  <state id="listening_ack">
+    <onentry>
+      <send event="deadline_ack" delay="11s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == (::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpBasics10Phase2LocalOffset) and captured.dst_port == (::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpBasics10Phase2LocalOffset) and (captured.flags &amp; 0x01) == 0 and (captured.flags &amp; 0x02) == 0 and (captured.flags &amp; 0x04) == 0 and (captured.flags &amp; 0x10) != 0 and captured.expected_ack_num != 0 and captured.ack_num == captured.expected_ack_num"
+                target="pass"/>
+    <transition event="deadline_ack" target="fail_timeout_ack"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_timeout_fin">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_close_fin","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout_ack">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_ack_to_tester_fin","role":"observed_quiescence","bound":"ParamListenTime"}</content>
+    </donedata>
+  </final>
+</scxml>

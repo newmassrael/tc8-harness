@@ -738,6 +738,39 @@ PROOF_KNOWN_FAIL = "known_fail"
 EXCLUSIVE_PROOFS = (PROOF_REGISTRY, PROOF_DEFERRED)
 
 
+_ITERATION_REASON_RE = re.compile(r"^iteration_([1-9])_(.+)$")
+
+
+def resolve_known_fail(key: str, reason: str, positives) -> tuple[str, str]:
+    """The positive case a known-fail mark is about, and the final reason it names.
+
+    A TC8 case made of iterations has no SCXML of its own: its mark is keyed by the TC8 id
+    and records the CONJUNCTION's verdict, `fail:iteration_<n>_<reason>`, where <reason> is a
+    fail final of the case's n-th iteration (`<case>_it<n>`). The mark is therefore about that
+    iteration and that final. Anything else resolves to itself."""
+    if key in positives:
+        return key, reason
+    it = _ITERATION_REASON_RE.match(reason)
+    if it and f"{key}_it{it.group(1)}" in positives:
+        return f"{key}_it{it.group(1)}", it.group(2)
+    return key, reason
+
+
+def known_fail_marks_for(m: Model, case: str, pos) -> list[tuple[str, str, str]]:
+    """(file, class, reason) for each known-fail mark that is about `case`, whether it
+    is keyed by the case itself or by the TC8 id of a case made of iterations."""
+    out: list[tuple[str, str, str]] = []
+    for key, per_file in m.known_fail_verdicts.items():
+        for rel, verdict in per_file.items():
+            cls, sep, reason = verdict.partition(":")
+            if not sep:
+                continue
+            target, resolved = resolve_known_fail(key, reason, pos)
+            if target == case:
+                out.append((rel, cls, resolved))
+    return out
+
+
 def compute_final_proofs(m: Model) -> dict[str, dict[str, list[str]]]:
     """For every positive case with a `fail` final, which mechanisms prove each
     final. A mechanism counts only where its link is real: a row only if SOUND
@@ -781,10 +814,9 @@ def compute_final_proofs(m: Model) -> dict[str, dict[str, list[str]]]:
         # exercised and proves nothing about a fail final -- and only from a file some
         # lane actually asserts, or the claim is never re-measured and the account rots
         # into a vacuous pass the moment the platform is fixed.
-        for rel, verdict in m.known_fail_verdicts.get(c, {}).items():
+        for rel, cls, reason in known_fail_marks_for(m, c, set(m.positives)):
             if rel not in m.known_fail_lanes:
                 continue
-            cls, _, reason = verdict.partition(":")
             if cls == "fail" and reason in p:
                 p[reason].append(PROOF_KNOWN_FAIL)
         for f in p:
@@ -1002,15 +1034,18 @@ def cross_findings(m: Model) -> list[str]:
                     f"not a {'/'.join(sorted(VERDICT_CLASSES))} class:reason token"
                 )
                 continue
-            if c not in pos:
+            # A case made of iterations is marked by its TC8 id with the conjunction's
+            # verdict; the mark is about the iteration it names (resolve_known_fail).
+            target, reason = resolve_known_fail(c, reason, pos)
+            if target not in pos:
                 findings.append(f"KNOWN_FAIL_NOT_POSITIVE: {c} ({rel}) is not a registered positive case")
                 continue
-            if cls == "fail" and not fail_reasons_of(c):
+            if cls == "fail" and not fail_reasons_of(target):
                 findings.append(
                     f"KNOWN_FAIL_NO_FAIL_FINAL: {c} ({rel}) records a fail verdict but the "
                     f"case has no fail final; it cannot be suppressing one"
                 )
-            elif cls == "fail" and reason not in fail_reasons_of(c):
+            elif cls == "fail" and reason not in fail_reasons_of(target):
                 findings.append(
                     f"KNOWN_FAIL_STALE: {c} ({rel}) records 'fail:{reason}', which is not a "
                     f"fail final of the case"

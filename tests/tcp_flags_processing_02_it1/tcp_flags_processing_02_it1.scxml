@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.7 TCP_FLAGS_PROCESSING_02, iteration 1 of 5: a DUT whose connection is in
+  SYN-RCVD MUST return to CLOSED on a RESET. Derived from RFC 793 §3.9 p70 Event
+  Processing (MUST).
+
+  The iteration is a case of its own: the TC8 case is the ordered set of its iterations and
+  its verdict their conjunction (case_iteration.h). The other four iterations walk the DUT
+  into ESTABLISHED, FIN-WAIT-1, FIN-WAIT-2 and CLOSE-WAIT (tcp_flags_processing_02_it2 to
+  tcp_flags_processing_02_it5); they share one stimulus body and differ in the state the
+  DUT is walked into.
+
+  Wire-observable "DUT moved to CLOSED": the DUT is put into LISTEN, the tester sends a
+  SYN, the DUT answers SYN+ACK and so holds a half-open connection entry. The tester then
+  injects an in-window RST and, on the SAME 4-tuple, a verify-probe ACK. If the DUT honoured
+  the spec, the half-open entry is gone: the LISTEN socket survives, but a bare ACK matches
+  no connection there and is answered with an RST. That DUT RST is the proof the entry was
+  destroyed. A DUT that ignored the RST would still be in SYN-RCVD and would consume the ACK
+  as the third leg of the handshake, silently.
+
+  The procedure states no listen time, so the general input parameter ParamListenTime bounds
+  the wait for the verify RST. A verify window that elapses without it is the DUT's silence
+  where it must answer: observed_quiescence, judged against that bound (H3), over
+  ParamListenTime plus ParamToleranceTime (10 s + 1 s at the defaults). The window that walks
+  the DUT into SYN-RCVD stays inconclusive: it sets up the state the RST tests. Whether a
+  silence stands as a fail is the CLI's call on the run's hypotheses.
+
+  Ports: listen +12, tester +76 (passive).
+
+  SCXML chain (2 listening states):
+    listening_prelude_synack: wait for DUT SYN+ACK on the iteration's ports
+                              -> listening_verify_rst
+    listening_verify_rst:     wait for DUT RST on the same ports -> pass
+
+  Negative IP-flip path: the src_ip conjunct is unreachable on the initial state, so the
+  machine lands on inconclusive_no_prelude_synack at the 5 s deadline.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_flags_processing_02_it1"
+       sce:transition-table="emit"
+       datamodel="null"
+       initial="listening_prelude_synack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_prelude_synack">
+    <onentry><send event="deadline_prelude_synack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort + 12U and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort + 76U and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0"
+                target="listening_verify_rst"/>
+    <transition event="deadline_prelude_synack" target="inconclusive_no_prelude_synack"/>
+  </state>
+  <state id="listening_verify_rst">
+    <onentry><send event="deadline_verify_rst" delay="11s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsListenPort + 12U, ::tc8::sce::tcp::kBasicsTesterPort + 76U)"
+                target="pass"/>
+    <transition event="deadline_verify_rst" target="fail_no_verify_rst"/>
+  </state>
+
+  <final id="pass"><donedata><content>{"verdict":"pass"}</content></donedata></final>
+
+  <final id="inconclusive_no_prelude_synack"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_synack_syn_rcvd","role":"precondition_unmet"}</content></donedata></final>
+  <final id="fail_no_verify_rst"><donedata><content>{"verdict":"fail","reason":"dut_did_not_emit_rst_after_rst_in_syn_rcvd","role":"observed_quiescence","bound":"ParamListenTime"}</content></donedata></final>
+</scxml>

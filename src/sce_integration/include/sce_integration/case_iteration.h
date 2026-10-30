@@ -25,8 +25,9 @@ namespace tc8::sce {
 
 struct IteratedCaseRegistrar {
     IteratedCaseRegistrar(std::string_view suite, std::string_view id,
-                          std::string_view description) {
-        CaseRegistry::instance().addIteratedCase(IteratedCaseDecl{suite, id, description});
+                          std::string_view description, std::string_view numbers = {}) {
+        CaseRegistry::instance().addIteratedCase(
+            IteratedCaseDecl{suite, id, description, numbers});
     }
 };
 
@@ -38,3 +39,11 @@ struct IteratedCaseRegistrar {
 #define TC8_REGISTER_ITERATED_CASE(id, description)                                   \
     static const ::tc8::sce::IteratedCaseRegistrar TC8_ITERATED_CONCAT(               \
         tc8_iterated_case_registrar_, __COUNTER__)(TC8_CASE_SUITE, id, description);
+
+// For a case whose spec does not number its iterations 1..N: `numbers` is the digits of the
+// numbers it does use ("13" for a procedure with iterations 1 and 3). The iteration entries
+// carry those numbers in their ids (<id>_IT1, <id>_IT3), so a consumer's pointer line
+// `iteration 3` means what the spec means by it.
+#define TC8_REGISTER_ITERATED_CASE_NUMBERED(id, description, numbers)                  \
+    static const ::tc8::sce::IteratedCaseRegistrar TC8_ITERATED_CONCAT(               \
+        tc8_iterated_case_registrar_, __COUNTER__)(TC8_CASE_SUITE, id, description, numbers);

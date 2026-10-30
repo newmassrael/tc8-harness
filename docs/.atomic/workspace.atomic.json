@@ -4470,15 +4470,7 @@
           "kind": "implements"
         },
         {
-          "file": "tests/tcp_basics_08/tcp_basics_08.scxml",
-          "kind": "implements"
-        },
-        {
           "file": "tests/tcp_basics_09/tcp_basics_09.scxml",
-          "kind": "implements"
-        },
-        {
-          "file": "tests/tcp_basics_10/tcp_basics_10.scxml",
           "kind": "implements"
         },
         {
@@ -4543,6 +4535,22 @@
         },
         {
           "file": "src/harness/packet_pipeline.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_basics_10_it1/tcp_basics_10_it1.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_basics_10_it2/tcp_basics_10_it2.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_basics_08_it1/tcp_basics_08_it1.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_basics_08_it3/tcp_basics_08_it3.scxml",
           "kind": "implements"
         }
       ]
@@ -5110,10 +5118,6 @@
           "kind": "implements"
         },
         {
-          "file": "tests/tcp_unacceptable_05/tcp_unacceptable_05.scxml",
-          "kind": "implements"
-        },
-        {
           "file": "tests/tcp_unacceptable_06/tcp_unacceptable_06.scxml",
           "kind": "implements"
         },
@@ -5122,23 +5126,7 @@
           "kind": "implements"
         },
         {
-          "file": "tests/tcp_unacceptable_08/tcp_unacceptable_08.scxml",
-          "kind": "implements"
-        },
-        {
           "file": "tests/tcp_unacceptable_10/tcp_unacceptable_10.scxml",
-          "kind": "implements"
-        },
-        {
-          "file": "tests/tcp_unacceptable_11/tcp_unacceptable_11.scxml",
-          "kind": "implements"
-        },
-        {
-          "file": "tests/tcp_unacceptable_12/tcp_unacceptable_12.scxml",
-          "kind": "implements"
-        },
-        {
-          "file": "tests/tcp_unacceptable_13/tcp_unacceptable_13.scxml",
           "kind": "implements"
         },
         {
@@ -5180,6 +5168,46 @@
         {
           "file": "tests/tcp_unacceptable_09_it2/tcp_unacceptable_09_it2.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_unacceptable_11_it1/tcp_unacceptable_11_it1.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_unacceptable_11_it2/tcp_unacceptable_11_it2.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_unacceptable_12_it1/tcp_unacceptable_12_it1.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_unacceptable_12_it2/tcp_unacceptable_12_it2.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_unacceptable_13_it1/tcp_unacceptable_13_it1.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_unacceptable_13_it2/tcp_unacceptable_13_it2.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_unacceptable_05_it1/tcp_unacceptable_05_it1.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_unacceptable_05_it2/tcp_unacceptable_05_it2.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_unacceptable_08_it1/tcp_unacceptable_08_it1.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_unacceptable_08_it2/tcp_unacceptable_08_it2.scxml",
+          "kind": "implements"
         }
       ]
     },
@@ -5187,10 +5215,6 @@
       "parent_doc": "tc8-spec",
       "intent": "TC8 §4.8.6.4 — TCP — Call Receive. 2 active cases. SSOT: doc/spec/case_inventory.json.",
       "bindings": [
-        {
-          "file": "tests/tcp_call_receive_04/tcp_call_receive_04.scxml",
-          "kind": "implements"
-        },
         {
           "file": "tests/tcp_call_receive_05/tcp_call_receive_05.scxml",
           "kind": "implements"
@@ -5234,6 +5258,18 @@
         {
           "file": "include/tc8/upper_tester_fault_catalog.h",
           "kind": "references"
+        },
+        {
+          "file": "tests/tcp_call_receive_04_it1/tcp_call_receive_04_it1.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_call_receive_04_it2/tcp_call_receive_04_it2.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_call_receive_04_it3/tcp_call_receive_04_it3.scxml",
+          "kind": "implements"
         }
       ]
     },
@@ -5250,10 +5286,6 @@
           "kind": "implements"
         },
         {
-          "file": "tests/tcp_call_abort_03/tcp_call_abort_03.scxml",
-          "kind": "implements"
-        },
-        {
           "file": "src/stimulus/include/stimulus/upper_tester_client.h",
           "kind": "implements"
         },
@@ -5262,7 +5294,27 @@
           "kind": "implements"
         },
         {
-          "file": "src/sce_integration/include/sce_integration/cases/tcp_call_abort_03.h",
+          "file": "tests/tcp_call_abort_03_it1/tcp_call_abort_03_it1.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_call_abort_03_it2/tcp_call_abort_03_it2.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_call_abort_03_it3/tcp_call_abort_03_it3.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/cases/tcp_call_abort_03_it1.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/cases/tcp_call_abort_03_it2.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/cases/tcp_call_abort_03_it3.h",
           "kind": "implements"
         }
       ]
@@ -5289,10 +5341,6 @@
         },
         {
           "file": "tests/tcp_flags_invalid_05/tcp_flags_invalid_05.scxml",
-          "kind": "implements"
-        },
-        {
-          "file": "tests/tcp_flags_invalid_06/tcp_flags_invalid_06.scxml",
           "kind": "implements"
         },
         {
@@ -5474,6 +5522,14 @@
         {
           "file": "include/tc8/upper_tester_fault_catalog.h",
           "kind": "references"
+        },
+        {
+          "file": "tests/tcp_flags_invalid_06_it1/tcp_flags_invalid_06_it1.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_invalid_06_it2/tcp_flags_invalid_06_it2.scxml",
+          "kind": "implements"
         }
       ]
     },
@@ -5483,14 +5539,6 @@
       "bindings": [
         {
           "file": "tests/tcp_call_abort_02/tcp_call_abort_02.scxml",
-          "kind": "implements"
-        },
-        {
-          "file": "tests/tcp_flags_processing_02/tcp_flags_processing_02.scxml",
-          "kind": "implements"
-        },
-        {
-          "file": "tests/tcp_flags_processing_05/tcp_flags_processing_05.scxml",
           "kind": "implements"
         },
         {
@@ -5616,6 +5664,34 @@
         {
           "file": "include/tc8/upper_tester_fault_catalog.h",
           "kind": "references"
+        },
+        {
+          "file": "tests/tcp_flags_processing_02_it1/tcp_flags_processing_02_it1.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_processing_02_it2/tcp_flags_processing_02_it2.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_processing_02_it3/tcp_flags_processing_02_it3.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_processing_02_it4/tcp_flags_processing_02_it4.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_processing_02_it5/tcp_flags_processing_02_it5.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_processing_05_it1/tcp_flags_processing_05_it1.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_processing_05_it2/tcp_flags_processing_05_it2.scxml",
+          "kind": "implements"
         }
       ]
     },

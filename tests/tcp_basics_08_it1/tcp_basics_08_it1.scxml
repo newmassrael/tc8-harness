@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.1 TCP_BASICS_08, iteration 1 of 1 and 3: in ESTABLISHED state, a CLOSE call MUST
+  cause the DUT's TCP to emit a FIN. Derived from RFC 793 §3.2 p23 Terminology. This
+  iteration is the case's own iteration 1; the other, on CLOSE-WAIT, is the case's own
+  iteration 3, held by tcp_basics_08_it3 (the spec numbers them 1 and 3).
+
+  A case of its own beside tcp_basics_08_it3; the two share the pass criterion (a DUT FIN)
+  and differ in how the precondition state is reached, and in their port quads.
+
+  Procedure: handshake to ESTABLISHED, then a CLOSE on the DUT side. The DUT's FIN is the
+  Pass Criteria.
+
+  Pass guard conjuncts:
+    * captured.src_ip   == expected.dut_iface_ip
+    * captured.dst_ip   == expected.tester_ip
+    * captured.src_port == the iteration's local port
+    * captured.dst_port == the iteration's remote port
+    * (captured.flags & FIN) != 0 (the spec-mandated FIN bit)
+
+  Tester-origin segments and DUT non-FIN segments (handshake SYN/ACK) reach tcp_observed but
+  match no transition and are silently passed over.
+
+  The FIN is the Pass Criteria and the TCP chapter states no time for it, so a window that
+  elapses without it is the DUT's silence where it must emit: observed_quiescence,
+  judged against <ParamListenTime> (docs/verdict_policy.md Section 2.1, H3). The window is
+  ParamListenTime plus <ParamToleranceTime> (10 s + 1 s at the defaults).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_basics_08_it1"
+       sce:transition-table="emit"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline" delay="11s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == (::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpBasics08Phase1LocalOffset) and captured.dst_port == (::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpBasics08Phase1LocalOffset) and (captured.flags &amp; 0x01) != 0"
+                target="pass"/>
+    <transition event="deadline" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_fin_from_established","role":"observed_quiescence","bound":"ParamListenTime"}</content>
+    </donedata>
+  </final>
+</scxml>

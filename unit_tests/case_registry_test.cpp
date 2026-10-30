@@ -638,6 +638,46 @@ TEST(CaseRegistryIterations, AnAliasNamingAnIterationTheTargetLacksIsRefused) {
         << "a case that is not made of iterations has none to name";
 }
 
+// A spec that skips an iteration number declares the numbers it uses; an iteration is named by
+// the number the spec gives it, so a consumer's `iteration 3` means the spec's third.
+TEST(CaseRegistryIterations, ACaseWhoseSpecSkipsANumberDeclaresTheNumbersItUses) {
+    CaseRegistry reg;
+    reg.add(makeIteration("TCP_BASICS_08_IT1", 0x1U));
+    reg.add(makeIteration("TCP_BASICS_08_IT3", 0x2U));
+    reg.addIteratedCase({kDefaultSuite, "TCP_BASICS_08", "d", "13"});
+    std::string err;
+    ASSERT_TRUE(reg.composeIterations(&err)) << err;
+    const CaseEntry *whole = reg.find("TCP_BASICS_08");
+    ASSERT_NE(whole, nullptr);
+    ASSERT_EQ(whole->iterations.size(), 2U);
+    EXPECT_EQ(whole->iterations[1], "TCP_BASICS_08_IT3");
+
+    ASSERT_TRUE(reg.addAlias({"vendorx", "VX_B_08", kDefaultSuite, "TCP_BASICS_08", {}, 3}, &err))
+        << err;
+    EXPECT_EQ(reg.find("vendorx", "VX_B_08")->alias_of.id, "TCP_BASICS_08_IT3");
+    EXPECT_FALSE(reg.addAlias({"vendorx", "VX_B_09", kDefaultSuite, "TCP_BASICS_08", {}, 2}, &err))
+        << "the spec has no iteration 2";
+}
+
+TEST(CaseRegistryIterations, ADeclaredNumberThatIsMissingOrExtraIsRefused) {
+    {
+        CaseRegistry reg;  // a declared iteration with no unit
+        reg.add(makeIteration("TCP_BASICS_08_IT1"));
+        reg.addIteratedCase({kDefaultSuite, "TCP_BASICS_08", "d", "13"});
+        std::string err;
+        EXPECT_FALSE(reg.composeIterations(&err));
+    }
+    {
+        CaseRegistry reg;  // numbered 1 and 3 without declaring it: a gap
+        reg.add(makeIteration("TCP_BASICS_08_IT1"));
+        reg.add(makeIteration("TCP_BASICS_08_IT3"));
+        reg.addIteratedCase({kDefaultSuite, "TCP_BASICS_08", "d"});
+        std::string err;
+        EXPECT_FALSE(reg.composeIterations(&err));
+        EXPECT_NE(err.find("declare"), std::string::npos) << err;
+    }
+}
+
 // The pointer without a line for it asks about the whole case: an alias of a composed
 // case runs the case, iteration by iteration.
 TEST(CaseRegistryIterations, AnAliasOfTheWholeCaseRunsTheWholeCase) {

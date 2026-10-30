@@ -40,10 +40,10 @@ namespace tc8::sce {
 //   _IT1 .. _IT9    — one ITERATION of the TC8 case, registered as a case of
 //                      its own (case_iteration.h). The TC8 case id is the ordered
 //                      set of its iterations and its verdict their conjunction;
-//                      an iteration is the unit a consumer's reference tester
-//                      runs and reports, and the unit that carries its own
-//                      capabilities. Not a self-validation sibling: it proves
-//                      the property the case grades, for one iteration of it.
+//                      an iteration is the unit that carries its own
+//                      capabilities and that an alias can name. Not a
+//                      self-validation sibling: it proves the property the
+//                      case grades, for one iteration of it.
 //
 // Adding a new variant tag is a deliberate one-line addition to
 // `kKnownVariantTags`; the function shape stays unchanged. The numeric

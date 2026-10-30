@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.3 TCP_UNACCEPTABLE_05, iteration 2 of 2: TCP in LISTEN state MUST send a
+  RST after receiving a segment carrying an unacceptable ACK (a bare ACK here) and
+  remain in the same state. Derived from RFC 793 §3.4 p36 Establishing a
+  Connection (MUST).
+
+  A case of its own beside tcp_unacceptable_05_it1, which holds the mechanism and the
+  reasoning on the listener ports; the two differ in the flags the segment carries and in
+  their DUT listener port (12346 here).
+
+  Pass guard: match a DUT-origin RST on (src_port=12346, dst_port=49152).
+
+  The window is bounded by the general input parameter <ParamListenTime>; a window that
+  elapses without the RST is observed_quiescence, judged against that bound (H3), over
+  ParamListenTime plus <ParamToleranceTime>.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_unacceptable_05_it2"
+       sce:transition-table="emit"
+       datamodel="null"
+       initial="listening_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_ack">
+    <onentry>
+      <send event="deadline" delay="11s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort + 1U and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort and (captured.flags &amp; 0x04) != 0"
+                target="pass"/>
+    <transition event="deadline" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_rst_to_listen_naked_ack","role":"observed_quiescence","bound":"ParamListenTime"}</content>
+    </donedata>
+  </final>
+</scxml>

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.3 TCP_UNACCEPTABLE_05, iteration 1 of 2: TCP in LISTEN state MUST send a
+  RST after receiving a segment carrying an unacceptable ACK (a SYN,ACK here) and
+  remain in the same state. Derived from RFC 793 §3.4 p36 Establishing a
+  Connection (MUST).
+
+  Mechanism: a passive-listener DUT receives an ACK-bearing segment with no prior SYN-RCVD
+  context. RFC 793 §3.4 p36 specifies LISTEN responds with RST when the incoming segment
+  carries an ACK acknowledging something that was never sent, which any ACK is in LISTEN,
+  since LISTEN has emitted no data. The second iteration sends a bare ACK instead; this
+  one sends SYN,ACK.
+
+  Each iteration uses a DISTINCT DUT listener port (12345 here, 12346 in the second), so one
+  iteration's RST emission cannot contaminate the other's listen window via a stray
+  retransmit, and one listener bind cannot collide with the other's still-being-closed
+  listener.
+
+  Pass guard: match a DUT-origin RST on (src_port=12345, dst_port=49152).
+
+  The procedure states no listen time, so the general input parameter <ParamListenTime>
+  bounds the wait for the RST. A window that elapses without it is the DUT's silence where
+  it must answer: observed_quiescence, judged against that bound (H3), over ParamListenTime
+  plus <ParamToleranceTime> (10 s + 1 s at the defaults). Whether a silence stands as a
+  fail is the CLI's call on the run's hypotheses.
+
+  Deadline: 11 s.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_unacceptable_05_it1"
+       sce:transition-table="emit"
+       datamodel="null"
+       initial="listening_synack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_synack">
+    <onentry>
+      <send event="deadline" delay="11s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort and (captured.flags &amp; 0x04) != 0"
+                target="pass"/>
+    <transition event="deadline" target="fail_timeout"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_timeout">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_dut_rst_to_listen_synack","role":"observed_quiescence","bound":"ParamListenTime"}</content>
+    </donedata>
+  </final>
+</scxml>

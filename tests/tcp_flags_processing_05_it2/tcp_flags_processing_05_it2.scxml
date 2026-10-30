@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.7 TCP_FLAGS_PROCESSING_05, iteration 2 of 2: a DUT whose connection is in
+  SYN-RCVD and which receives an in-window SYN+ACK MUST go to LISTEN. Derived from
+  RFC 1122 §4.2.2.20(e) p94 (MUST).
+
+  The iteration is a case of its own: the TC8 case is the ordered set of its iterations
+  and its verdict their conjunction (case_iteration.h). The first iteration, an in-window
+  SYN, is tcp_flags_processing_05_it1; they share one stimulus body and differ only in the
+  segment injected into the half-open connection.
+
+  ## Wire-observable assertion
+
+  "DUT goes to LISTEN" is asserted indirectly: after the spec-prescribed inject, the tester
+  sends a fresh SYN from a DIFFERENT source port. If the DUT-side LISTEN socket survived,
+  the DUT takes the LISTEN-arrival path for the new SYN, opens a fresh half-open connection,
+  and emits SYN+ACK on the new 4-tuple. The verify SYN+ACK observation on
+  (listen_port, verify_tester_port) confirms the LISTEN socket is alive, irrespective of
+  whether the SYN-RCVD instance for the original 4-tuple reverted to LISTEN per spec or was
+  destroyed and replaced (a SYN+ACK with a valid ack may complete the handshake to
+  ESTABLISHED). The LISTEN survival is the testable invariant, not the precise instance
+  disposition.
+
+  Port quad: listen +11, prelude tester +74, verify tester +75. The listen port is clear of
+  FLAGS_INVALID_07's +0..+4 reservation and the tester source ports are clear of
+  MSS_OPTIONS's +52..+63.
+
+  ## SCXML chain (2 listening states + pass + 2 finals)
+
+    prelude_synack -> verify_synack -> pass
+
+  The stimulus runs synchronously before the listen window: it puts the DUT into LISTEN,
+  provokes the half-open connection, injects the in-window SYN+ACK acknowledging the DUT's
+  initial sequence number, and sends the verify SYN.
+
+  The procedure states no listen time, so the general input parameter ParamListenTime
+  bounds the wait for the verify SYN+ACK. A verify window that elapses without it is the
+  DUT's silence where its LISTEN socket must answer: observed_quiescence, judged against
+  that bound (H3), over ParamListenTime plus ParamToleranceTime (10 s + 1 s at the
+  defaults). The prelude SYN+ACK window stays inconclusive: it sets up the SYN-RCVD state
+  the inject tests. Whether a silence stands as a fail is the CLI's call on the run's
+  hypotheses.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_flags_processing_05_it2"
+       sce:transition-table="emit"
+       datamodel="null"
+       initial="listening_prelude_synack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <!-- SYN+ACK in window. listen +11, prelude tester +74, verify tester +75 -->
+  <state id="listening_prelude_synack">
+    <onentry><send event="deadline_prelude_synack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort + 11U and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort + 74U and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0"
+                target="listening_verify_synack"/>
+    <transition event="deadline_prelude_synack" target="inconclusive_no_prelude_synack"/>
+  </state>
+  <state id="listening_verify_synack">
+    <onentry><send event="deadline_verify_synack" delay="11s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.src_ip == expected.dut_iface_ip and captured.dst_ip == expected.tester_ip and captured.src_port == ::tc8::sce::tcp::kBasicsListenPort + 11U and captured.dst_port == ::tc8::sce::tcp::kBasicsTesterPort + 75U and (captured.flags &amp; 0x02) != 0 and (captured.flags &amp; 0x10) != 0"
+                target="pass"/>
+    <transition event="deadline_verify_synack" target="fail_no_verify_synack"/>
+  </state>
+
+  <final id="pass"><donedata><content>{"verdict":"pass"}</content></donedata></final>
+
+  <final id="inconclusive_no_prelude_synack"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_synack_to_prelude_syn","role":"precondition_unmet"}</content></donedata></final>
+  <final id="fail_no_verify_synack"><donedata><content>{"verdict":"fail","reason":"no_dut_synack_to_verify_syn_after_in_window_synack","role":"observed_quiescence","bound":"ParamListenTime"}</content></donedata></final>
+</scxml>

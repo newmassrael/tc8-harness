@@ -135,6 +135,13 @@ struct IteratedCaseDecl {
     std::string_view suite = kDefaultSuite;
     std::string_view id;           // the TC8 case id, "TCP_BASICS_04"
     std::string_view description;  // the whole case's, not any one iteration's
+    // The spec's own iteration numbers, as digits ("13"), when it does not number them
+    // 1..N. An iteration is named by the number the spec gives it, because that is the
+    // number a consumer's pointer line (`iteration <n>`) means; a case whose spec skips a
+    // number (a procedure that has iterations 1 and 3 and no 2) declares which exist, so
+    // that a forgotten iteration is still told from a number the spec never had. Empty =
+    // 1..N without a gap.
+    std::string_view numbers = {};
 };
 
 // Meyers-singleton registry populated at static-init time by each case

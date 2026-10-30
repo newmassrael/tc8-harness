@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.4 TCP_CALL_RECEIVE_04, iteration 3 of 3: a RECEIVE call made while the DUT's
+  connection is in FIN-WAIT-2 has to be handed the segments queued behind it, joined into one
+  in-order stream (RFC 793 §3.9 p58 Event Processing).
+
+  Case shape: the tester walks the DUT into the connection state under test and sends 4
+  small segments of 32 bytes each. A DUT-side receive with a buffer larger than the whole run
+  then has to come back with the 128 bytes joined in order; segment boundaries are the
+  network's business, not the application's.
+
+  A case of its own beside tcp_call_receive_04_it1 (ESTABLISHED) and tcp_call_receive_04_it2
+  (FIN-WAIT-1); the three differ in the state the DUT is in when the data arrives, and in
+  their port quads.
+
+  Mechanism: the DUT application half-closes its write side and emits its FIN; the tester's
+  automatic ACK (not withheld here) drives the DUT from FIN-WAIT-1 to FIN-WAIT-2. The tester
+  then injects the 4 x 32 B run with ack = rcv_nxt, which already acknowledges the DUT's FIN,
+  and the DUT application's RECEIVE drains the 128 bytes; the stimulus compares them with what
+  was injected and records captured.ut_received_payload_len.
+
+  SCXML chain (3 listening states + 4 inconclusive terminals + 1 fail terminal + pass):
+    listening_handshake_ack -> listening_dut_fin -> listening_complete -> pass
+
+  listening_complete has a 5 s deadline; its transition's conjunct checks
+  ut_received_payload_len == 128U on the deadline. The sentinel 0xFFFFU otherwise routes to
+  inconclusive_no_proper_data. The state intentionally has NO tcp_observed transition: the
+  DUT's data ACK(s) during the receive window are absorbed without affecting the verdict; the
+  data ACK is implicit in "the receive returned the bytes". The handshake ACK and the DUT FIN
+  are the setup that puts the DUT in FIN-WAIT-2, so their silence stays inconclusive as a
+  precondition.
+
+  Negative IP-flip path: the src_ip conjunct on listening_handshake_ack becomes unreachable
+  -> inconclusive_no_handshake_ack.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_call_receive_04_it3"
+       sce:transition-table="emit"
+       datamodel="null"
+       initial="listening_handshake_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_handshake_ack">
+    <onentry><send event="deadline_handshake_ack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpCallReceive04Phase3LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpCallReceive04Phase3LocalOffset)"
+                target="listening_dut_fin"/>
+    <transition event="deadline_handshake_ack" target="inconclusive_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_dut_fin">
+    <onentry><send event="deadline_dut_fin" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpCallReceive04Phase3LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpCallReceive04Phase3LocalOffset)"
+                target="listening_complete"/>
+    <transition event="deadline_dut_fin" target="inconclusive_no_dut_fin"/>
+  </state>
+
+  <state id="listening_complete">
+    <onentry><send event="deadline_complete" delay="5s"/></onentry>
+    <transition event="deadline_complete"
+                cond="cpp:captured.ut_received_payload_len == 128U"
+                target="pass"/>
+    <transition event="deadline_complete"
+                cond="cpp:captured.ut_received_payload_len != 0xFFFFU"
+                target="fail_data_not_reassembled"/>
+    <transition event="deadline_complete" target="inconclusive_no_proper_data"/>
+  </state>
+
+  <final id="pass">
+    <donedata><content>{"verdict":"pass"}</content></donedata>
+  </final>
+
+  <final id="inconclusive_no_handshake_ack">
+    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack","role":"precondition_unmet"}</content></donedata>
+  </final>
+
+  <final id="inconclusive_no_dut_fin">
+    <donedata><content>{"verdict":"inconclusive","reason":"no_dut_fin","role":"precondition_unmet"}</content></donedata>
+  </final>
+
+  <final id="inconclusive_no_proper_data">
+    <donedata><content>{"verdict":"inconclusive","reason":"dut_did_not_receive_proper_data","role":"property_unobserved"}</content></donedata>
+  </final>
+
+  <!-- The RECEIVE answered, with anything but the reassembled stream (or a
+       refusal): the DUT did not return the data it queued. A value judgment
+       on an answer, not a silence, so the timer deciding it is an evaluation
+       step. -->
+  <final id="fail_data_not_reassembled">
+    <donedata><content>{"verdict":"fail","reason":"dut_did_not_return_reassembled_data","role":"observed_violation"}</content></donedata>
+  </final>
+</scxml>

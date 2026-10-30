@@ -220,7 +220,7 @@
     },
     "TCP_FLAGS_INVALID_06": {
       "platform_known_fail": true,
-      "platform_known_fail_verdict": "fail:dut_emitted_response_to_bare_ack_with_acceptable_ack",
+      "platform_known_fail_verdict": "fail:iteration_1_dut_emitted_response_to_bare_ack_with_acceptable_ack",
       "platform_known_fail_ref": "dut/lwip_dut/README.md",
       "reason": "SYN-SENT answers an acceptable bare ACK with RST where RFC 793 p66 says discard-and-stay (Linux silently drops)"
     },

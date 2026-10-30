@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.6 TCP_FLAGS_INVALID_06, iteration 1 of 2: a DUT in SYN-SENT MUST drop a segment
+  with neither SYN nor RST flag set and remain in the same state, even if the ACK number is
+  acceptable. Derived from RFC 793 §3.9 p68 Event Processing (MUST).
+
+  The iteration is a case of its own: the TC8 case is the ordered set of its iterations and
+  its verdict their conjunction (case_iteration.h). The other iteration sends the same probe
+  carrying data (tcp_flags_invalid_06_it2); the two share one stimulus body and differ in
+  whether the segment carries a payload, and in their port quads.
+
+  This iteration: <stp> = no data (a bare ACK, no payload), with an acceptable ACK (= ISN_d + 1
+  in SYN-SENT) and neither SYN nor RST set.
+
+  The stimulus drives the DUT into SYN-SENT via active-OPEN to an unbound tester port. ISN_d
+  is learned from the DUT-emitted pure SYN; the injected probe carries ack=ISN_d+1
+  (acceptable per RFC 793 §3.4).
+
+  Pass criterion (per spec step 4): the DUT sends no SYN,ACK and remains in SYN-SENT.
+  Operationally: the absence guard catches DUT-emitted RST or pure ACK on the 4-tuple. DUT SYN retransmits (~1 s cadence) are tolerated — the spec explicitly allows the
+  DUT to remain in SYN-SENT, so it keeps retransmitting its SYN.
+
+  ## Observed discard
+
+  The DUT accepts the ACK, finds no RST so skips the connection-reset path, then finds no
+  SYN either. For a segment with neither SYN nor RST, the DUT discards it without emitting an
+  RST, an active reset, or a challenge-ACK. SYN retransmit cadence continues.
+  RFC 793 §3.9 p68 conformant.
+
+  ## Port-quad selection — kBasicsActiveLocalPort + 24
+
+  Cross-case isolation: 15's +0..+6 offsets leave tester-side TCP state on a single-worker
+  cluster run, and a fresh active-OPEN on the same tuple draws a stray ACK that triggers
+  RFC 793 §3.4 RST(seq=incoming.ack) from the SYN-SENT DUT, contaminating this case's
+  prelude. +24 is clear of 15 and FLAGS_INVALID_03/04/05.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_flags_invalid_06_it1"
+       sce:transition-table="emit"
+       datamodel="null"
+       initial="listening_dut_syn">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <!-- Bare ACK on (kBasicsActiveLocalPort + 0, kBasicsActiveRemotePort + 0) -->
+  <state id="listening_dut_syn">
+    <onentry>
+      <send event="deadline_dut_syn" delay="5s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_syn(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid06Phase1LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid06Phase1LocalOffset)"
+                target="listening_absence"/>
+    <transition event="deadline_dut_syn" target="inconclusive_no_dut_syn"/>
+  </state>
+
+  <state id="listening_absence">
+    <onentry>
+      <send event="deadline_absence" delay="3s"/>
+    </onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid06Phase1LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid06Phase1LocalOffset) or captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsInvalid06Phase1LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsInvalid06Phase1LocalOffset)"
+                target="fail_unexpected_response"/>
+    <transition event="deadline_absence" target="pass"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_dut_syn">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_dut_syn_bare_ack","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+  <final id="fail_unexpected_response">
+    <donedata>
+      <content>{"verdict":"fail","reason":"dut_emitted_response_to_bare_ack_with_acceptable_ack","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+</scxml>
