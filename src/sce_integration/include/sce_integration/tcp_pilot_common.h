@@ -9,6 +9,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -446,6 +447,15 @@ inline void emitTcpStimulus(const ::tc8::TestConfig &cfg,
 // each of the dispatch helpers that share it. §4.8.6.11
 // RETRANSMISSION_TO_04/_05/_06 + §4.8.6.12 PROBING_WINDOWS_06 depend on
 // this contract.
+//
+// A machine that declares no `tcp_observed` transition has no such event. Such a case
+// reads no segment (it moves on other events, or on a timer), so there is nothing to
+// raise; the frame is still mirrored into `c`.
+template <typename Event, typename = void>
+struct DeclaresTcpObserved : std::false_type {};
+template <typename Event>
+struct DeclaresTcpObserved<Event, std::void_t<decltype(Event::Tcp_observed)>> : std::true_type {};
+
 template <typename SM>
 inline void dispatchTcpFrame(typename SM::CapturedType &c, SM &sm,
                              const ::tc8::CapturedEvent &ev) {
@@ -453,7 +463,9 @@ inline void dispatchTcpFrame(typename SM::CapturedType &c, SM &sm,
     if (f == nullptr) return;
     ::tc8::fillTcpCapturedFromFrame(c, *f);
     const auto state_before = sm.getCurrentState();
-    sm.raiseExternal(SM::PolicyType::Event::Tcp_observed);
+    if constexpr (DeclaresTcpObserved<typename SM::PolicyType::Event>::value) {
+        sm.raiseExternal(SM::PolicyType::Event::Tcp_observed);
+    }
     sm.step();
     const auto state_after = sm.getCurrentState();
     if (state_after != state_before) {

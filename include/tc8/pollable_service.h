@@ -18,6 +18,12 @@ namespace tc8 {
 // the fd until the next drain. The CLI capture loop also folds pollFd() into the
 // set it waits on, so input wakes it.
 //
+// THE CALL IS NOT A READINESS SIGNAL. Every adopted service is called on every drain,
+// whether or not its own fd is readable (the loop does not poll per service to decide
+// whom to call). An onReadable() that finds nothing to read returns: a non-blocking read
+// that would block is the normal case, not an error, and a service must not take being
+// called as proof that its fd has data.
+//
 // A SERVICE DOES NOT KNOW THE RUN'S PHASE, AND MUST NOT INFER IT. Being polled says
 // only that the capture was drained. It says nothing about whether the listen window
 // is open or whether the case has done what the service reacts to, and when that
