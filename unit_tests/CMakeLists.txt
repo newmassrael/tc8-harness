@@ -363,6 +363,8 @@ tc8_add_unit_test(udp_receive_answer_test)
 # The TCP state query's vocabulary (establishment derived from a named state) and
 # the unacknowledged UDP send's refusals.
 tc8_add_unit_test(dut_tcp_state_test)
+# Composition of a backend with registered DUT-control extensions (dut_control_compose.h).
+tc8_add_unit_test(dut_control_extension_test)
 tc8_add_unit_test(someip_captured_test)
 # decode-pcap presentation layer (cli/packet_summary.*, TD-08): per-protocol
 # summary builders + makeCandidate in isolation. Covers the shared UT decoder

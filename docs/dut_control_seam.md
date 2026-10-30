@@ -90,6 +90,42 @@ a query: whatever the DUT answered is an observation, so only no answer is
 recorded, outside cleanup. Accept and the state probe are observations and
 record nothing.
 
+## Seams a DUT's owner provides
+
+A DUT can serve primitives this repository has no numbers for (PRS_TPSP reserves
+groups without defining their primitives), and the harness must not hold numbers
+that belong to the DUT's owner. The owner registers an extension from a translation
+unit linked into the runner, the way extra cases are:
+
+```cpp
+TC8_REGISTER_DUT_CONTROL_EXTENSION(
+    ::tc8::sce::DutControlBackend::kTestability,
+    [](::tc8::sce::IServicePrimitiveControl &transport) {
+        return std::make_unique<MyDutExtension>(transport);
+    });
+```
+
+An extension derives from `DutControlExtension` (`dut_control_extension.h`), overrides
+any of the optional seam accessors every backend shares (`IDutControlSeams`), and
+reports the capability bits for exactly those seams. It is built over the backend's
+service-primitive call, bound to the run's endpoint, timeout and source address, and
+over nothing else, so it cannot drift from the control channel the run uses.
+
+`makeDutControl` composes the registered extensions into the handle
+(`dut_control_compose.h`). Each rule is a startup error, so a run ends before any
+case sends rather than grading a DUT through code nobody named: an extension adds a
+seam and never replaces the backend's; two extensions never offer one seam; an
+extension's bits equal the seams it provides (a claim wider than the answer would run
+cases into a nullptr, a narrower one would hide a seam). The handle returns an
+extension's answer as given, so a wrong answer goes red in the case that declares the
+bit. The run header names the extension behind each seam.
+
+The seams an extension is likely to provide were split along their methods for this:
+the TCP state query (`ITcpStateQuery`, `kCapTcpStateQuery`) answers an RFC 793 state
+and is separate from the TCP_INFO counters (`ITcpInfoProbe`, `kCapTcpInfoProbe`); the
+ARP seam holds the operations that change the DUT's cache (age, add and remove a
+static entry) and no longer the provocation, which is a UDP send.
+
 ## How a case receives the seam
 
 A case opts in with a stimulus overload that takes `IDutControl&`

@@ -4,6 +4,7 @@
 
 #include "sce_integration/dut_control.h"
 #include "sce_integration/dut_control_backend.h"
+#include "sce_integration/dut_control_compose.h"
 #include "sce_integration/recording_dut_control.h"
 #include "sce_integration/test_config.h"
 #include "tc8/testability_client.h"
@@ -58,10 +59,17 @@ std::unique_ptr<IDutControl> makeBackend(const ::tc8::TestConfig &cfg, std::stri
 
 std::unique_ptr<IDutControl> makeDutControl(const ::tc8::TestConfig &cfg, std::string_view iface,
                                             int timeout_ms) {
+    // The extensions registered for the backend are composed in before the
+    // decorator, so the seams they provide are accounted for like any other. With
+    // none registered this is the backend itself. A registration the run cannot
+    // honour throws DutControlExtensionError here, before any case sends anything.
+    auto backend = composeDutControlExtensions(makeBackend(cfg, iface, timeout_ms),
+                                               cfg.dut_control_backend,
+                                               DutControlExtensionRegistry::instance().all());
     // Every backend is handed out decorated, so a DUT-control action the DUT did
     // not perform is an unperformed stimulus whichever backend ran it and whether
     // or not the case looked at the result (recording_dut_control.h).
-    return std::make_unique<RecordingDutControl>(makeBackend(cfg, iface, timeout_ms));
+    return std::make_unique<RecordingDutControl>(std::move(backend));
 }
 
 DutCapabilities topologyCapabilities(const ::tc8::TestConfig &cfg) {

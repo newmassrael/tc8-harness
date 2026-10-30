@@ -39,6 +39,7 @@
 #include "sce_integration/case_registry.h"
 #include "sce_integration/case_spec.h"
 #include "sce_integration/dut_control.h"
+#include "sce_integration/dut_control_extension.h"
 #include "sce_integration/dut_control_factory.h"
 #include "sce_integration/spec_coverage.h"
 #include "sce_integration/spec_inventory.h"
@@ -1262,7 +1263,26 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // Tier-2 DUT-control backend (--dut-control). Owned here for the run's
     // lifetime and forwarded to seam-routed stimulus; cases that drive the
     // opcode builders directly never touch it. Built once, not per-case.
-    std::unique_ptr<sce::IDutControl> dut_control = sce::makeDutControl(config, iface_);
+    std::unique_ptr<sce::IDutControl> dut_control;
+    try {
+        dut_control = sce::makeDutControl(config, iface_);
+    } catch (const sce::DutControlExtensionError &e) {
+        // A registered extension the run cannot honour (a seam claimed twice, a
+        // capability claim wider than its answer): ended here, before any case sends,
+        // so no verdict is graded through code nobody named.
+        std::printf("verdict  : error:dut_control_extension_rejected: %s\n", e.what());
+        return ::tc8::sce::verdictExitCode(::tc8::sce::VerdictClass::Error);
+    }
+    // Whose code drives each seam an extension provides, so the run states it.
+    if (const std::string provenance = dut_control->seamProvenance(); !provenance.empty()) {
+        std::printf("dut-ctl  : seams provided by registered extensions\n");
+        std::size_t from = 0;
+        while (from < provenance.size()) {
+            const std::size_t to = provenance.find('\n', from);
+            std::printf("           %s\n", provenance.substr(from, to - from).c_str());
+            from = (to == std::string::npos) ? provenance.size() : to + 1;
+        }
+    }
 
     // Tier-2 2b#4 capability-skip gate. A case may declare the DUT-control
     // capabilities it needs (TestCaseTraits<>::kRequiredCapabilities, mirrored

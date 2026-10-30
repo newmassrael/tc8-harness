@@ -76,6 +76,7 @@ public:
     }
 
     // A query whose answer, any answer, is the observation: nothing to record.
+    std::string seamProvenance() const override { return inner_->seamProvenance(); }
     ITcpStateQuery *tcpStateQuery() override { return inner_->tcpStateQuery(); }
     ITcpInfoProbe *tcpInfoProbe() override { return inner_->tcpInfoProbe(); }
     // A receive: only no answer is recorded, as for receiveTcp.
