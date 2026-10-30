@@ -147,10 +147,14 @@
     "TCP_FLAGS_PROCESSING_08_IT3": {
       "dut_emitted_response_to_fin_in_syn_sent": "TCP_FLAGS_PROCESSING_08_NEG3"
     },
-    "TCP_FLAGS_PROCESSING_09": {
-      "dut_emitted_rst_after_dup_fin_ack_in_closing": "TCP_FLAGS_PROCESSING_09_NEG",
-      "dut_emitted_rst_after_dup_fin_ack_in_la": "TCP_FLAGS_PROCESSING_09_NEG2",
+    "TCP_FLAGS_PROCESSING_09_IT1": {
       "dut_state_changed_after_dup_fin_ack_in_cw": "TCP_FLAGS_PROCESSING_09_NEG3"
+    },
+    "TCP_FLAGS_PROCESSING_09_IT2": {
+      "dut_emitted_rst_after_dup_fin_ack_in_closing": "TCP_FLAGS_PROCESSING_09_NEG"
+    },
+    "TCP_FLAGS_PROCESSING_09_IT3": {
+      "dut_emitted_rst_after_dup_fin_ack_in_la": "TCP_FLAGS_PROCESSING_09_NEG2"
     },
     "TCP_MSS_OPTIONS_05": {
       "dut_unresponsive_after_synack_with_ilen0_mss": "TCP_MSS_OPTIONS_05_NEG",

@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TC8 §4.8.6.7 TCP_FLAGS_PROCESSING_09, iteration 1 of 3: TCP, in CLOSE-WAIT, CLOSING or
+  LAST-ACK state, MUST not change state after receiving a FIN segment with ACK flag set.
+  Derived from RFC 793 §3.9 p75 Event Processing (MUST). This iteration's state is
+  CLOSE-WAIT, with a valid ACK number.
+
+  A case of its own beside tcp_flags_processing_09_it2 (CLOSING) and _it3 (LAST-ACK).
+
+  A duplicate FIN+ACK arrives carrying a valid ack (= DUT.snd_nxt). The DUT in CLOSE-WAIT had
+  already received the original tester FIN, ACK'd it, and advanced rcv_nxt; the duplicate
+  FIN's seq is below rcv_nxt, so it is "old data" the DUT drops or quick-ACKs. The valid ACK
+  matches DUT.snd_nxt (the DUT has sent no FIN of its own, since no CLOSE was issued), so it is
+  consumed as a duplicate ACK. State stays CLOSE-WAIT. The DUT may emit a dup-ACK but does not
+  emit a FIN (CLOSE-WAIT to LAST-ACK happens only on a DUT-side CLOSE, which this iteration
+  does not issue).
+
+  Absence guard (3 s): fail on DUT FIN+ACK or DUT RST. CLOSE-WAIT to LAST-ACK would emit FIN;
+  CLOSE-WAIT to CLOSED would emit RST. A pure ACK retransmit is tolerated.
+
+  Port quad (kBasicsActiveLocalPort + 57, kBasicsActiveRemotePort + 57), clear of the
+  active-OPEN cluster reservations of the other TCP cases.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="tcp_flags_processing_09_it1"
+       sce:transition-table="emit"
+       datamodel="null"
+       initial="listening_handshake_ack">
+
+  <sce:context id="captured"
+               cpp:type="tc8::TcpCaptured"
+               cpp:include="sce_integration/tcp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::Ipv4Expected"
+               cpp:include="sce_integration/ipv4_expected.h"/>
+
+  <state id="listening_handshake_ack">
+    <onentry><send event="deadline_handshake_ack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsProcessing09Phase1LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsProcessing09Phase1LocalOffset)"
+                target="listening_close_wait_ack"/>
+    <transition event="deadline_handshake_ack" target="inconclusive_no_handshake_ack"/>
+  </state>
+
+  <state id="listening_close_wait_ack">
+    <onentry><send event="deadline_close_wait_ack" delay="5s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_pure_dut_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsProcessing09Phase1LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsProcessing09Phase1LocalOffset)"
+                target="listening_absence"/>
+    <transition event="deadline_close_wait_ack" target="inconclusive_no_close_wait_ack"/>
+  </state>
+
+  <state id="listening_absence">
+    <onentry><send event="deadline_absence" delay="3s"/></onentry>
+    <transition event="tcp_observed"
+                cond="cpp:captured.is_dut_fin_ack(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsProcessing09Phase1LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsProcessing09Phase1LocalOffset) or captured.is_dut_rst(expected.dut_iface_ip, expected.tester_ip, ::tc8::sce::tcp::kBasicsActiveLocalPort + ::tc8::sce::tcp::kTcpFlagsProcessing09Phase1LocalOffset, ::tc8::sce::tcp::kBasicsActiveRemotePort + ::tc8::sce::tcp::kTcpFlagsProcessing09Phase1LocalOffset)"
+                target="fail_unexpected_state_change"/>
+    <transition event="deadline_absence" target="pass"/>
+  </state>
+
+  <final id="pass"><donedata><content>{"verdict":"pass"}</content></donedata></final>
+
+  <final id="inconclusive_no_handshake_ack"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_handshake_ack_phase1_cw","role":"precondition_unmet"}</content></donedata></final>
+  <final id="inconclusive_no_close_wait_ack"><donedata><content>{"verdict":"inconclusive","reason":"no_dut_close_wait_ack_phase1_cw","role":"precondition_unmet"}</content></donedata></final>
+  <final id="fail_unexpected_state_change"><donedata><content>{"verdict":"fail","reason":"dut_state_changed_after_dup_fin_ack_in_cw","role":"observed_violation"}</content></donedata></final>
+</scxml>

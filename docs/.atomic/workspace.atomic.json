@@ -4224,10 +4224,6 @@
           "kind": "implements"
         },
         {
-          "file": "src/sce_integration/include/sce_integration/cases/tcp_flags_processing_09.h",
-          "kind": "implements"
-        },
-        {
           "file": "src/sce_integration/include/sce_integration/cases/tcp_retransmission_to_06.h",
           "kind": "implements"
         },
@@ -5570,10 +5566,6 @@
           "kind": "implements"
         },
         {
-          "file": "tests/tcp_flags_processing_09/tcp_flags_processing_09.scxml",
-          "kind": "implements"
-        },
-        {
           "file": "tests/tcp_flags_processing_10/tcp_flags_processing_10.scxml",
           "kind": "implements"
         },
@@ -5719,6 +5711,18 @@
         },
         {
           "file": "tests/tcp_flags_processing_08_it3/tcp_flags_processing_08_it3.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_processing_09_it1/tcp_flags_processing_09_it1.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_processing_09_it2/tcp_flags_processing_09_it2.scxml",
+          "kind": "implements"
+        },
+        {
+          "file": "tests/tcp_flags_processing_09_it3/tcp_flags_processing_09_it3.scxml",
           "kind": "implements"
         }
       ]

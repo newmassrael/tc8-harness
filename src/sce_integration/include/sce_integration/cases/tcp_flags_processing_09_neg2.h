@@ -44,7 +44,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing09Neg2SM>
         "kTcpSynthRstOnDisruptive ingress flavor makes the DUT emit a RST to a duplicate FIN+ACK "
         "in LAST-ACK; a conformant DUT stays silent";
 
-    // Mirrors the positive's LAST-ACK phase (TesterAutoAckDrop + seam active OPEN + tester
+    // Mirrors iteration 3 of TCP_FLAGS_PROCESSING_09, LAST-ACK (TesterAutoAckDrop + seam active OPEN + tester
     // half-close -> DUT CLOSE-WAIT + DUT closeTcp -> LAST-ACK, AckDrop holding it there), with
     // the fault armed before the duplicate FIN+ACK inject. The duplicate replays the original
     // tester FIN (seq = snd_nxt - 1, ack = rcv_nxt - 1: acceptable but does NOT acknowledge the

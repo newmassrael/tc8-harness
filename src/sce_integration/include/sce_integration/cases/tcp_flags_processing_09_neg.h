@@ -45,7 +45,7 @@ struct TestCaseTraits<cases::TcpFlagsProcessing09NegSM>
         "ingress flavor makes the DUT emit a RST to a duplicate FIN+ACK in CLOSING; a conformant "
         "DUT stays silent";
 
-    // Mirrors the positive's CLOSING phase (TesterAutoAckDrop + seam active OPEN + seam
+    // Mirrors iteration 2 of TCP_FLAGS_PROCESSING_09, CLOSING (TesterAutoAckDrop + seam active OPEN + seam
     // close-to-CLOSING), with the fault armed after the seam reaches CLOSING and before the
     // duplicate FIN+ACK inject, so only that segment elicits the synthesized RST. The duplicate
     // replays the helper-injected FIN (seq = tester_seq_post_fin - 1, ack = tester_ack_post_fin
