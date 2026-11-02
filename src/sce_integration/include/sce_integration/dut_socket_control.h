@@ -99,8 +99,10 @@ struct DutReceiveOutcome {
     // said so (RFC 793 3.9: a RECEIVE after a RST is "connection reset", after the
     // peer's FIN "connection closing"). kNone is not an observation of either: a
     // DUT that does not report how a stream ended leaves it there, and a case that
-    // grades a reset stays inconclusive on it, never failed.
-    enum class End : std::uint8_t { kNone, kPeerClosed, kReset };
+    // grades a reset stays inconclusive on it, never failed. kError is a stream the
+    // DUT ended with some other error: neither a reset nor a close, and a case that
+    // does not branch on it treats it as it treats kNone.
+    enum class End : std::uint8_t { kNone, kPeerClosed, kReset, kError };
 
     DutCallOutcome::Kind kind = DutCallOutcome::Kind::kNoAnswer;
     std::vector<std::uint8_t> data;  // what RECEIVE returned, when kDone
@@ -117,6 +119,10 @@ struct DutReceiveOutcome {
     // The DUT reported the peer's orderly close.
     bool closedByPeer() const {
         return kind == DutCallOutcome::Kind::kDone && end == End::kPeerClosed;
+    }
+    // The DUT ended the stream with an error that is neither of the two above.
+    bool endedWithError() const {
+        return kind == DutCallOutcome::Kind::kDone && end == End::kError;
     }
 
     bool answered() const { return kind != DutCallOutcome::Kind::kNoAnswer; }
@@ -635,10 +641,19 @@ public:
             return DutReceiveOutcome::refused();
         }
         using FwdEnd = testability::TestabilityForwardEnd;
-        const auto end = res.end == FwdEnd::kReset
-                             ? DutReceiveOutcome::End::kReset
-                             : (res.end == FwdEnd::kPeerClosed ? DutReceiveOutcome::End::kPeerClosed
-                                                               : DutReceiveOutcome::End::kNone);
+        const auto end = [&res] {
+            switch (res.end) {
+                case FwdEnd::kReset:
+                    return DutReceiveOutcome::End::kReset;
+                case FwdEnd::kPeerClosed:
+                    return DutReceiveOutcome::End::kPeerClosed;
+                case FwdEnd::kError:
+                    return DutReceiveOutcome::End::kError;
+                case FwdEnd::kNone:
+                    break;
+            }
+            return DutReceiveOutcome::End::kNone;
+        }();
         return DutReceiveOutcome::received(res.payload, end);
     }
 

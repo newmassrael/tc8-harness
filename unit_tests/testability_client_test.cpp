@@ -257,6 +257,16 @@ public:
     }
     std::uint16_t port() const { return port_; }
 
+    // Events to send after the Response to a RECEIVE_AND_FORWARD, in this order.
+    struct ScriptedEvent {
+        std::uint8_t rid;
+        std::vector<std::uint8_t> dat;
+    };
+    void scriptForward(std::vector<ScriptedEvent> events) {
+        std::lock_guard<std::mutex> lk(mu_);
+        forward_events_ = std::move(events);
+    }
+
     // The DAT (parameter bytes after the 16-byte header) of the last request.
     std::vector<std::uint8_t> lastRequestDat() {
         std::lock_guard<std::mutex> lk(mu_);
@@ -327,6 +337,23 @@ private:
                 ::sendto(fd_, evout.data(), evout.size(), 0,
                          reinterpret_cast<sockaddr *>(&peer), plen);
             }
+
+            if (pid == tp::kPidReceiveAndForward) {
+                std::vector<ScriptedEvent> events;
+                {
+                    std::lock_guard<std::mutex> lk(mu_);
+                    events = forward_events_;
+                }
+                for (const ScriptedEvent &e : events) {
+                    tp::Header eh = *req;
+                    eh.method_id = tp::methodId(gid, pid, /*event=*/true);
+                    eh.tid = tp::kTidEvent;
+                    eh.rid = e.rid;
+                    const auto evout = tp::buildMessage(eh, e.dat.data(), e.dat.size());
+                    ::sendto(fd_, evout.data(), evout.size(), 0,
+                             reinterpret_cast<sockaddr *>(&peer), plen);
+                }
+            }
         }
     }
 
@@ -336,6 +363,7 @@ private:
     std::atomic<bool> stop_{false};
     std::mutex mu_;
     std::vector<std::uint8_t> last_req_dat_;
+    std::vector<ScriptedEvent> forward_events_;
 };
 
 TestabilityConfig loopbackConfig(std::uint16_t port) {
@@ -490,6 +518,83 @@ TEST(TestabilityClient, ListenAndAcceptEncodesRequestAndParsesEvent) {
     EXPECT_EQ(dat[1], 0x42u);
     EXPECT_EQ(dat[2], 0x00u);
     EXPECT_EQ(dat[3], 0x02u);
+}
+
+// The Event DAT of one forwarded chunk: fullLen(u16) + payload(vint8).
+std::vector<std::uint8_t> tcpForwardDat(std::uint16_t full_len,
+                                        const std::vector<std::uint8_t> &payload) {
+    std::vector<std::uint8_t> dat;
+    tp::appendU16(dat, full_len);
+    tp::appendVint8(dat, payload.data(), static_cast<std::uint16_t>(payload.size()));
+    return dat;
+}
+
+// An Event with a non-E_OK Result ID ends the stream, whatever that Result ID is. It is
+// not data: its fullLen is not counted, however large, and the stream does not go on.
+TEST(TestabilityClient, ForwardEventWithAnErrorResultIdEndsTheStream) {
+    LoopbackResponder server;
+    const std::vector<std::uint8_t> chunk{0x11, 0x22};
+    server.scriptForward({{tp::kRidEOk, tcpForwardDat(2, chunk)},
+                          {tp::kRidENok, tcpForwardDat(0xFFFF, {})},
+                          {tp::kRidEOk, tcpForwardDat(2, chunk)}});
+
+    const auto r = testabilityReceiveAndForward(loopbackConfig(server.port()), /*socket_id=*/1,
+                                                /*max_fwd=*/64, /*max_len=*/32, nullptr,
+                                                /*resp_timeout_ms=*/1000,
+                                                /*event_timeout_ms=*/300);
+    EXPECT_TRUE(r.ok);
+    EXPECT_EQ(r.full_len, 2u) << "the error Event's fullLen was counted as data";
+    EXPECT_EQ(r.payload, chunk) << "the stream went on after the error Event";
+    EXPECT_EQ(r.end, TestabilityForwardEnd::kError);
+    EXPECT_EQ(r.end_rid, tp::kRidENok);
+}
+
+// An error Event with no fields ends the stream too, and is not mistaken for a
+// malformed Event that merely stops the collection.
+TEST(TestabilityClient, ForwardEventWithAnErrorResultIdNeedsNoDat) {
+    LoopbackResponder server;
+    server.scriptForward({{tp::kRidETcpCor, {}}});
+    const auto r = testabilityReceiveAndForward(loopbackConfig(server.port()), /*socket_id=*/1,
+                                                /*max_fwd=*/64, /*max_len=*/32, nullptr,
+                                                /*resp_timeout_ms=*/1000,
+                                                /*event_timeout_ms=*/300);
+    EXPECT_EQ(r.end, TestabilityForwardEnd::kError);
+    EXPECT_EQ(r.end_rid, tp::kRidETcpCor);
+}
+
+// The two reported endings keep their own names.
+TEST(TestabilityClient, ForwardEventNamesAResetAndAClose) {
+    LoopbackResponder server;
+    server.scriptForward({{tp::kRidETcpCre, tcpForwardDat(0, {})}});
+    auto r = testabilityReceiveAndForward(loopbackConfig(server.port()), 1, 64, 32, nullptr, 1000,
+                                          300);
+    EXPECT_EQ(r.end, TestabilityForwardEnd::kReset);
+
+    server.scriptForward({{tp::kRidETcpCoc, tcpForwardDat(0, {})}});
+    r = testabilityReceiveAndForward(loopbackConfig(server.port()), 1, 64, 32, nullptr, 1000, 300);
+    EXPECT_EQ(r.end, TestabilityForwardEnd::kPeerClosed);
+}
+
+// The UDP collector used a reader that dropped the Result ID, so an error Event read as
+// a datagram, or as a malformed one. It ends the window and the Result ID is kept.
+TEST(TestabilityClient, UdpForwardEventWithAnErrorResultIdEndsTheWindow) {
+    LoopbackResponder server;
+    std::vector<std::uint8_t> datagram;
+    tp::appendU16(datagram, 2);
+    tp::appendU16(datagram, 0x1234);
+    tp::appendIpv4Addr(datagram, ::htonl(INADDR_LOOPBACK));
+    const std::vector<std::uint8_t> body{0x33, 0x44};
+    tp::appendVint8(datagram, body.data(), static_cast<std::uint16_t>(body.size()));
+    server.scriptForward({{tp::kRidEOk, datagram},
+                          {tp::kRidENok, datagram},
+                          {tp::kRidEOk, datagram}});
+
+    const auto r = testabilityReceiveDatagrams(loopbackConfig(server.port()), /*socket_id=*/1,
+                                               /*max_fwd=*/64, nullptr, nullptr,
+                                               /*resp_timeout_ms=*/1000, /*window_ms=*/300);
+    EXPECT_TRUE(r.ok);
+    EXPECT_EQ(r.datagrams.size(), 1u) << "the error Event was read as a datagram";
+    EXPECT_EQ(r.end_rid, tp::kRidENok);
 }
 
 }  // namespace

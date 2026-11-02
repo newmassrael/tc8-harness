@@ -533,8 +533,10 @@ TEST_F(TestabilityServerTest, TcpReceiveAndForwardConsumesThenForwards) {
 }
 
 // How a forward stream ended rides the last Event's Result ID: the peer's FIN is
-// E_TCP_COC and a reset is E_TCP_CRE (PRS_TPSP §6.10), so a case that grades "RECEIVE
-// ended with connection reset" can tell a reset from a close and from a quiet line.
+// E_TCP_COC, which the primitive's own result list names (PRS_TPSP §6.10), and a reset
+// is E_TCP_CRE from the general Result ID table (PRS_TPSP §6.8), so a case that grades
+// "RECEIVE ended with connection reset" can tell a reset from a close and from a quiet
+// line.
 TEST_F(TestabilityServerTest, TcpReceiveAndForwardReportsThePeersCloseAndAReset) {
     const auto cfg = loopbackConfig();
     for (const bool reset : {false, true}) {

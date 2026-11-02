@@ -1170,9 +1170,10 @@ bool ProtocolServer::recvForwardTcpOne(EventWatch &w) {
     const int n = backend_->recvEnd(w.fd, buf, want, end);
     if (end != tc8::net::RecvEnd::kNone) {
         // The stream ended. A forward Event with no payload and the Result ID that
-        // says how (PRS_TPSP §6.10 lists E_TCP_COC for this SP, and lets a Result ID
-        // ride an Event), so the collector can tell a reset and a close from a quiet
-        // line. Then the watch stops: there is nothing more to forward.
+        // says how (PRS_TPSP §6.10 lists E_TCP_COC for this SP; E_TCP_CRE comes from
+        // the general table, PRS_TPSP §6.8, and a Result ID may ride an Event), so the
+        // collector can tell a reset and a close from a quiet line. Then the watch
+        // stops: there is nothing more to forward.
         std::vector<std::uint8_t> end_dat;
         appendU16(end_dat, 0);
         appendVint8(end_dat, nullptr, 0);

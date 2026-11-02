@@ -690,17 +690,21 @@ TestabilityForwardResult testabilityReceiveAndForward(
             std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now).count();
         setRecvTimeout(arm.fd, static_cast<int>(remaining > 0 ? remaining : 1));
         const auto ev = recvSpEventWithRid(arm.fd, tp::kGidTcp, tp::kPidReceiveAndForward);
-        if (!ev || ev->dat.size() < 2) {
+        if (!ev) {
             break;  // timeout / malformed — stop with what we have
         }
-        // An Event whose Result ID is not E_OK ends the stream: E_TCP_CRE after a
-        // reset, E_TCP_COC after the peer's FIN. It carries no data to append.
-        if (ev->rid == tp::kRidETcpCre) {
-            res.end = TestabilityForwardEnd::kReset;
+        // An Event whose Result ID is not E_OK ends the stream, and its fields are not
+        // data: E_TCP_CRE after a reset, E_TCP_COC after the peer's FIN, anything else
+        // an error the DUT reported. Read before the DAT, which such an Event need not
+        // carry.
+        if (ev->rid != tp::kRidEOk) {
+            res.end_rid = ev->rid;
+            res.end = ev->rid == tp::kRidETcpCre   ? TestabilityForwardEnd::kReset
+                      : ev->rid == tp::kRidETcpCoc ? TestabilityForwardEnd::kPeerClosed
+                                                   : TestabilityForwardEnd::kError;
             break;
         }
-        if (ev->rid == tp::kRidETcpCoc) {
-            res.end = TestabilityForwardEnd::kPeerClosed;
+        if (ev->dat.size() < 2) {
             break;
         }
         // Event DAT: fullLen(u16) + payload(vint8). fullLen is THIS recv()'s
@@ -750,29 +754,36 @@ TestabilityDatagramsResult testabilityReceiveDatagrams(
         const auto remaining =
             std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now).count();
         setRecvTimeout(arm.fd, static_cast<int>(remaining > 0 ? remaining : 1));
-        const auto ev = recvSpEvent(arm.fd, tp::kGidUdp, tp::kPidReceiveAndForward);
+        const auto ev = recvSpEventWithRid(arm.fd, tp::kGidUdp, tp::kPidReceiveAndForward);
         if (!ev) {
             break;  // timeout or a frame that is not this SP's Event
+        }
+        // An Event whose Result ID is not E_OK reports an error, not a datagram, and
+        // ends the collection as it ends a TCP stream.
+        if (ev->rid != tp::kRidEOk) {
+            res.end_rid = ev->rid;
+            break;
         }
         // Event DAT (UDP): fullLen(u16) + srcPort(u16) + srcAddr(ipxaddr) +
         // payload(vint8). A short or unparsable Event is not a datagram the
         // caller can grade, so it ends the collection like a timeout does.
-        if (ev->size() < 4) {
+        const std::vector<std::uint8_t> &edat = ev->dat;
+        if (edat.size() < 4) {
             break;
         }
         TestabilityDatagram d;
-        d.full_len = tp::readU16(ev->data());
-        d.src_port = tp::readU16(ev->data() + 2);
+        d.full_len = tp::readU16(edat.data());
+        d.src_port = tp::readU16(edat.data() + 2);
         std::size_t off = 4;
         const std::uint8_t *addr = nullptr;
         std::uint16_t addr_len = 0;
-        if (!tp::readVint8(ev->data(), ev->size(), off, addr, addr_len) || addr_len != 4) {
+        if (!tp::readVint8(edat.data(), edat.size(), off, addr, addr_len) || addr_len != 4) {
             break;
         }
         std::memcpy(&d.src_addr_be, addr, 4);
         const std::uint8_t *body = nullptr;
         std::uint16_t body_len = 0;
-        if (!tp::readVint8(ev->data(), ev->size(), off, body, body_len)) {
+        if (!tp::readVint8(edat.data(), edat.size(), off, body, body_len)) {
             break;
         }
         d.payload.assign(body, body + body_len);
