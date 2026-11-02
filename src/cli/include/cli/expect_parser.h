@@ -16,6 +16,7 @@
 #include "sce_integration/ipv4_expectations.h"
 #include "sce_integration/ixit_config.h"
 #include "sce_integration/someip_expectations.h"
+#include "sce_integration/tcp_declarations.h"
 
 namespace tc8::cli {
 
@@ -96,6 +97,11 @@ bool applyExpectToken(std::string_view token, ::tc8::ArpStimulusConfig &e);
 // must carry (never guard-compared; see `IxitConfig`). Prefix and keys are the
 // SSOT in tc8_expect_keys.def. Returns false as the other appliers do.
 bool applyExpectToken(std::string_view token, ::tc8::IxitConfig &e);
+
+// Applies a single `--expect tcp.<key>=<value>` token to `e` — what the operator
+// declares about the DUT's TCP implementation (tcp_declarations.h). Returns false as
+// the other appliers do, including for an initial window of 0 or an empty name.
+bool applyExpectToken(std::string_view token, ::tc8::TcpDeclarations &e);
 
 // Applies a single `--expect icmpv4.<key>=<value>` token to `e`. The `icmpv4.`
 // prefix and key set are the SSOT in tc8_expect_keys.def. Semantic note:

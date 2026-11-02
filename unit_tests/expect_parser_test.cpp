@@ -512,5 +512,45 @@ TEST(ApplyExpectTokens, RoutesToOemContextViaAdl) {
     EXPECT_EQ(e.applied, 1);  // only the oem.* token was consumed
 }
 
+// The operator's TCP declarations have no default: unset until declared, so a case can
+// tell "not declared" from any value, and 0 is a declared delay but not a declared window.
+TEST(ApplyExpectToken_Tcp, ADeclarationStaysUnsetUntilDeclared) {
+    ::tc8::TcpDeclarations d;
+    EXPECT_FALSE(d.initial_cwnd_segments.has_value());
+    EXPECT_FALSE(d.congestion_control.has_value());
+    EXPECT_FALSE(d.tx_buffer_delay_ms.has_value());
+
+    EXPECT_TRUE(applyExpectToken("tcp.initial_cwnd_segments=10", d));
+    EXPECT_TRUE(applyExpectToken("tcp.congestion_control=new_reno", d));
+    EXPECT_TRUE(applyExpectToken("tcp.tx_buffer_delay_ms=0", d));
+    EXPECT_EQ(d.initial_cwnd_segments, 10u);
+    EXPECT_EQ(d.congestion_control, "new_reno");
+    EXPECT_EQ(d.tx_buffer_delay_ms, 0u);
+}
+
+TEST(ApplyExpectToken_Tcp, RefusesAValueThatDeclaresNothing) {
+    ::tc8::TcpDeclarations d;
+    EXPECT_FALSE(applyExpectToken("tcp.initial_cwnd_segments=0", d));
+    EXPECT_FALSE(applyExpectToken("tcp.initial_cwnd_segments=abc", d));
+    EXPECT_FALSE(applyExpectToken("tcp.congestion_control=", d));
+    EXPECT_FALSE(applyExpectToken("tcp.tx_buffer_delay_ms=-1", d));
+    EXPECT_FALSE(applyExpectToken("tcp.unknown_key=1", d));
+    EXPECT_FALSE(d.initial_cwnd_segments.has_value());
+    EXPECT_FALSE(d.congestion_control.has_value());
+}
+
+// An undeclared value names itself in the skip, and a declared one does not skip.
+TEST(TcpDeclarations, AnUndeclaredValueIsAReasonThatNamesIt) {
+    ::tc8::TcpDeclarations d;
+    EXPECT_EQ(::tc8::tcpDeclarationMissing(d, ::tc8::TcpDeclaration::kInitialCwnd),
+              "undeclared_tcp_initial_cwnd_segments");
+    d.initial_cwnd_segments = 1;
+    EXPECT_FALSE(::tc8::tcpDeclarationMissing(d, ::tc8::TcpDeclaration::kInitialCwnd));
+    EXPECT_EQ(::tc8::tcpDeclarationMissing(d, ::tc8::TcpDeclaration::kCongestionControl),
+              "undeclared_tcp_congestion_control");
+    EXPECT_EQ(::tc8::tcpDeclarationMissing(d, ::tc8::TcpDeclaration::kTxBufferDelay),
+              "undeclared_tcp_tx_buffer_delay_ms");
+}
+
 }  // namespace
 }  // namespace tc8::cli

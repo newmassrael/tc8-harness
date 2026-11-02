@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iterator>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -104,7 +105,7 @@ namespace {
 
 // Value kinds. U24 (SD TTL) and U32 members are both uint32; the kind only
 // narrows the accepted numeric range.
-enum class EKind { U8, U16, U24, U32, IPV4, MAC };
+enum class EKind { U8, U16, U24, U32, IPV4, MAC, OPT_U32, OPT_U32_MIN1, OPT_TEXT };
 
 constexpr std::uint64_t ekindMax(EKind k) {
     switch (k) {
@@ -148,6 +149,23 @@ bool applyField(std::string_view v, M &member) {
         static_assert(std::is_same_v<M, std::array<std::uint8_t, 6>>,
                       "MAC key must target a std::array<uint8_t, 6> member");
         return parseMac(v, member);
+    } else if constexpr (K == EKind::OPT_U32 || K == EKind::OPT_U32_MIN1) {
+        static_assert(std::is_same_v<M, std::optional<std::uint32_t>>,
+                      "OPT_U32 key must target a std::optional<uint32> member");
+        std::uint64_t n = 0;
+        if (!parseNumeric(v, n) || n > 0xFFFFFFFFull || (K == EKind::OPT_U32_MIN1 && n == 0)) {
+            return false;
+        }
+        member = static_cast<std::uint32_t>(n);
+        return true;
+    } else if constexpr (K == EKind::OPT_TEXT) {
+        static_assert(std::is_same_v<M, std::optional<std::string>>,
+                      "OPT_TEXT key must target a std::optional<string> member");
+        if (v.empty()) {
+            return false;
+        }
+        member = std::string(v);
+        return true;
     } else {
         static_assert(std::is_integral_v<M> && std::is_unsigned_v<M>,
                       "numeric key must target an unsigned integral member");
@@ -312,6 +330,15 @@ bool applyExpectToken(std::string_view token, ::tc8::IxitConfig &e) {
 #undef TC8_EK_ixit
     };
     return matchExpect(token, ekPrefix_ixit, e, kKeys, std::size(kKeys));
+}
+
+bool applyExpectToken(std::string_view token, ::tc8::TcpDeclarations &e) {
+    static constexpr EKey<::tc8::TcpDeclarations> kKeys[] = {
+#define TC8_EK_tcp(kind, name) TC8_EK_ROW(TcpDeclarations, kind, name)
+#include "tc8_expect_keys.def"
+#undef TC8_EK_tcp
+    };
+    return matchExpect(token, ekPrefix_tcp, e, kKeys, std::size(kKeys));
 }
 
 bool applyExpectToken(std::string_view token, ::tc8::Icmpv4Expectations &e) {

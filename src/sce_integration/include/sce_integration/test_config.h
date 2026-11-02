@@ -13,6 +13,7 @@
 #include "ipv4_expectations.h"
 #include "someip_expectations.h"
 #include "someip_identity.h"
+#include "tcp_declarations.h"
 #include "tester_identity.h"
 #include "stimulus/someip_sd_builder.h"
 
@@ -51,6 +52,8 @@ struct TestConfig {
     ArpStimulusConfig arp_stimulus{};
     // The tester's IXIT parameters (not guard-compared); see `IxitConfig`.
     IxitConfig ixit{};
+    // What the operator declared about the DUT's TCP implementation; unset by default.
+    TcpDeclarations tcp_declared{};
     Icmpv4Expectations icmpv4{};
     Ipv4Expectations ipv4{};
     Dhcpv4Expectations dhcpv4{};
