@@ -4580,3 +4580,75 @@ or an ETS client-mode configuration that disables the retry timer, if vsomeip ev
 
 **Done when:** `SOMEIP_ETS_097` passes on the reference DUT through the attribution of TD-66, and
 its platform known-fail entry is removed.
+
+---
+
+## TD-68 — two negative rows of one case shared every per-case file under `--log-dir`, so each could grade the other's verdict
+
+**Status:** RESOLVED (2026-11-02), the same day it was logged. **Logged:** 2026-11-02, from the
+question "why are the two repayable items not repaid?" asked of the two deferred negatives TD-53
+had left behind.
+
+**What it was.** The orchestrator named every file a case's run reads or writes from the bare case
+id: the harness log (the verdict is read back from it), the DUT log (the DUT-ready marker is read
+from it), the `--ready-file` / `--go-file` handshake, the pcap and the state stream. TD-53 let a
+case author extra negative rows and carried the row index inside the schedule key (`ARP_35#1`);
+`run_negative_row` split the index off and passed the bare id on, and from there the bare id named
+both the case the harness runs and every file. So `ARP_35` and `ARP_35#1` wrote one
+`ARP_35.harness.log`. The round-robin distribution over a sorted schedule puts a case's rows on
+adjacent workers, so they ran at the same moment by construction, and each read back whichever
+verdict landed last.
+
+The scratch layout (no `--log-dir`) names files under the worker's own directory, so there the two
+rows stayed apart by accident. CI's negative step passes `--log-dir smoke-logs/negative`.
+
+**Why it read as a DUT defect for five weeks.** The two September failures (smoke runs 36220640037
+and 36226887642) each reported the sibling row's correct verdict, and for this template that is
+also exactly what the row itself returns when the DUT keeps the first MAC. TD-53's table is right
+about the second fact and never considered the first. The DUT account was then defended against
+every local run that failed to reproduce it — 80/80 at CI's parallelism, then 200 more under load
+and on four workers on 2026-10-29 — by calling the CI environment special. None of those local runs
+passed `--log-dir`, which was the one thing that differed.
+
+What did discriminate was already in the run history: before the revert, 2 failures in 8 row-runs;
+after it, single rows only, about 140 row-runs across 70 smoke runs with none. A DUT that flaked at
+the first rate could not have produced the second.
+
+**Measured 2026-11-02, single-pc, Linux reference DUT,** the negative lane for `ARP_33 ARP_35`
+(four units) on four workers, five rounds per arm, varying only `--log-dir`:
+
+| orchestrator | `--log-dir` | units passing |
+|---|---|---:|
+| before | yes | 10 of 20 — every round failed, exactly one row of each pair, carrying its sibling's verdict |
+| before | no | 20 of 20 |
+| after | yes | 20 of 20 |
+| after | no | 20 of 20 |
+
+**How it was repaired.**
+
+- `unit::UnitId` is the schedulable unit: the case and the row, as two fields. The schedule, the
+  worker buckets and the asserted-verdict map hold units; the `#N` string is now only how a unit is
+  rendered, and nothing parses it back. `run_negative_row`'s split and the positional filter's own
+  copy of it are gone; the filter matches `unit.case_id()`.
+- `dispatch::UnitArtifacts` is the one place a run's file names are made, all from the rendered
+  unit. Row 0 keeps the names a single-row case has always written. A test asserts that two rows of
+  one case share no path in either layout, and it was checked against the defect: with the stem
+  taken from the case again it fails on `ARP_35.harness.log`.
+- `unit::refuse_duplicates` refuses a schedule naming one unit twice (case-insensitively, as the
+  harness resolves cases), before any host state is touched. That closes the same collision for a
+  positive run given one case twice, which used to run it twice into one set of files.
+- A unit above row 0 reaching a positive or known-fail run is refused by name rather than run as
+  the case's primary under the row's name.
+- The row index the harness receives is the unit's field; the old split fell back to row 0 on an
+  unparsable suffix (`unwrap_or(0)`), which would have run and reported the wrong row.
+
+`ARP_33` and `ARP_35` carry both rows again (the TD-53 form), `tools/deferred_negatives.json` is
+empty, and TD-57 has its consumer.
+
+**Done when:** a case's two negative rows run concurrently under `--log-dir` and each lands its own
+final, with the runs named here — MET by the table above.
+
+⚠ The same five weeks produced a general lesson that was wrong and got written down as a rule: that
+a local run at CI's parallelism is not a matching environment because CI carries an hour of build
+and 754 positives first. The environment differed in a command-line flag. Before concluding that a
+failure needs the environment, diff the invocations.

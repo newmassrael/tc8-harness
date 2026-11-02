@@ -17,6 +17,7 @@ use crate::config::Config;
 use crate::dispatch::{self, Verdict};
 use crate::junit::{CaseRecord, Status};
 use crate::topology::{Topology, WorkerCtx};
+use crate::unit::UnitId;
 
 /// Which authored expectation an asserted run drives, and therefore what has to be
 /// injected to reach it. Both modes assert one `class:reason` verdict per case and share
@@ -36,13 +37,13 @@ pub enum AssertMode {
     KnownFail,
 }
 
-/// An asserted schedule: `case_id -> expected class:reason`, plus the mode saying how each
-/// case is driven. `None` = an ordinary positive run. Threaded by reference into the
+/// An asserted schedule: `unit -> expected class:reason`, plus the mode saying how each
+/// unit is driven. `None` = an ordinary positive run. Threaded by reference into the
 /// scoped worker threads (it is `Sync` and outlives the scope), so `distribute` stays over
-/// plain case-id strings.
+/// plain units.
 pub struct AssertSchedule {
     pub mode: AssertMode,
-    pub expect: HashMap<String, String>,
+    pub expect: HashMap<UnitId, String>,
 }
 
 pub type NegSchedule<'a> = Option<&'a AssertSchedule>;
@@ -93,12 +94,17 @@ fn is_negative_case(case: &str) -> bool {
     upper[idx + "_NEG".len()..].chars().all(|c| c.is_ascii_digit())
 }
 
-/// Round-robin the cases into `workers` buckets — bash `distribute` (`i % WORKERS`).
+/// Round-robin the units into `workers` buckets — bash `distribute` (`i % WORKERS`).
 /// Precondition: `workers >= 1` (the caller clamps to the schedule size and clap
 /// enforces `range(1..)`); asserted here so the modulo can never divide by zero.
-pub fn distribute(cases: &[String], workers: u32) -> Vec<Vec<String>> {
+///
+/// ⚠ Over a sorted schedule this puts a case's rows on ADJACENT workers, so they run at
+/// the same moment by construction. Correct only because every unit's files are named
+/// from the unit (`dispatch::UnitArtifacts`); when they were named from the case, this
+/// distribution is what made the collision near-certain (docs/tech-debt.md TD-68).
+pub fn distribute(cases: &[UnitId], workers: u32) -> Vec<Vec<UnitId>> {
     assert!(workers >= 1, "distribute requires workers >= 1");
-    let mut buckets: Vec<Vec<String>> = (0..workers).map(|_| Vec::new()).collect();
+    let mut buckets: Vec<Vec<UnitId>> = (0..workers).map(|_| Vec::new()).collect();
     for (i, case) in cases.iter().enumerate() {
         buckets[i % workers as usize].push(case.clone());
     }
@@ -174,7 +180,7 @@ fn run_worker(
     cfg: &Config,
     topo: &(dyn Topology + Sync),
     w: u32,
-    bucket: Vec<String>,
+    bucket: Vec<UnitId>,
     dut_first: bool,
     neg: NegSchedule,
 ) -> WorkerResult {
@@ -257,7 +263,7 @@ fn run_worker(
         // bash names a negative testcase `<case>_neg` in the junit stream. A known-fail
         // assertion keeps the plain case name: it runs the case exactly as the positive
         // lane would, so a report reader should see the same testcase identity.
-        let rec_name = if negative { format!("{case}_neg") } else { case.clone() };
+        let rec_name = if negative { format!("{case}_neg") } else { case.to_string() };
         // Derive the report status + message per outcome (a non-conclusion renders
         // as a skip carrying its reason, matching bash; a dispatch fault as an error).
         let (status, message) = match outcome {
@@ -267,12 +273,12 @@ fn run_worker(
             }
             Ok(Verdict::Fail(reason)) => {
                 println!("[w{w}] FAIL {case} — {reason}");
-                r.fails.push(case.clone());
+                r.fails.push(case.to_string());
                 (Status::Fail, reason)
             }
             Ok(Verdict::Skip(reason)) => {
                 println!("[w{w}] SKIP {case} — {reason}");
-                r.skips.push(Skip { case: case.clone(), reason: reason.clone() });
+                r.skips.push(Skip { case: case.to_string(), reason: reason.clone() });
                 (Status::Skip, reason)
             }
             // A NEGATIVE that did not conclude is a hard failure, unlike every other
@@ -291,17 +297,17 @@ fn run_worker(
             // negatives the lwIP sweep runs PASS, with zero non-conclusions, so this
             // turns nothing green into red today. It exists to catch the first one
             // that regresses.
-            Ok(Verdict::NonConclusion(reason)) if is_negative_case(case) => {
+            Ok(Verdict::NonConclusion(reason)) if is_negative_case(case.case_id()) => {
                 let reason = format!(
                     "negative did not exercise its guard, so it proves nothing: {reason}"
                 );
                 println!("[w{w}] FAIL {case} — {reason}");
-                r.fails.push(case.clone());
+                r.fails.push(case.to_string());
                 (Status::Fail, reason)
             }
             Ok(Verdict::NonConclusion(reason)) => {
                 println!("[w{w}] SKIP* {case} — {reason}  (non-conclusion)");
-                r.nonconclusions.push(Skip { case: case.clone(), reason: reason.clone() });
+                r.nonconclusions.push(Skip { case: case.to_string(), reason: reason.clone() });
                 (Status::Skip, reason)
             }
             Err(e) => {
@@ -313,7 +319,7 @@ fn run_worker(
                 // refusal such as TD-17's, and hiding either loses the case.
                 let reason = format!("dispatch_fault: {e:#}");
                 println!("[w{w}] ERROR {case} — {reason}  (not dispatched)");
-                r.undispatched.push(Skip { case: case.clone(), reason: reason.clone() });
+                r.undispatched.push(Skip { case: case.to_string(), reason: reason.clone() });
                 (Status::Error, reason)
             }
         };
@@ -329,7 +335,7 @@ fn run_worker(
 pub fn run_all(
     cfg: &Config,
     topo: &(dyn Topology + Sync),
-    buckets: Vec<Vec<String>>,
+    buckets: Vec<Vec<UnitId>>,
     dut_first: bool,
     neg: NegSchedule,
 ) -> Vec<WorkerResult> {
@@ -358,8 +364,12 @@ pub fn run_all(
 mod tests {
     use super::*;
 
-    fn cases(n: usize) -> Vec<String> {
-        (0..n).map(|i| format!("C{i}")).collect()
+    fn cases(n: usize) -> Vec<UnitId> {
+        (0..n).map(|i| UnitId::case(format!("C{i}"))).collect()
+    }
+
+    fn names(bucket: &[UnitId]) -> Vec<String> {
+        bucket.iter().map(ToString::to_string).collect()
     }
 
     #[test]
@@ -384,8 +394,8 @@ mod tests {
         let buckets = distribute(&c, 2);
         assert_eq!(buckets.len(), 2);
         // i % 2: bucket0 = C0,C2,C4 ; bucket1 = C1,C3
-        assert_eq!(buckets[0], vec!["C0", "C2", "C4"]);
-        assert_eq!(buckets[1], vec!["C1", "C3"]);
+        assert_eq!(names(&buckets[0]), ["C0", "C2", "C4"]);
+        assert_eq!(names(&buckets[1]), ["C1", "C3"]);
         let total: usize = buckets.iter().map(Vec::len).sum();
         assert_eq!(total, c.len());
     }
@@ -402,8 +412,8 @@ mod tests {
     fn distribute_more_workers_than_cases_leaves_empty_buckets() {
         let buckets = distribute(&cases(2), 4);
         assert_eq!(buckets.len(), 4);
-        assert_eq!(buckets[0], vec!["C0"]);
-        assert_eq!(buckets[1], vec!["C1"]);
+        assert_eq!(names(&buckets[0]), ["C0"]);
+        assert_eq!(names(&buckets[1]), ["C1"]);
         assert!(buckets[2].is_empty());
         assert!(buckets[3].is_empty());
     }

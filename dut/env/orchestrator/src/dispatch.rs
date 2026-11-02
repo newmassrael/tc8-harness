@@ -5,13 +5,14 @@
 use anyhow::Result;
 use std::fs;
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Child;
 use std::thread::sleep;
 use std::time::Duration;
 
 use crate::config::Config;
 use crate::topology::{Topology, WorkerCtx};
+use crate::unit::UnitId;
 use crate::wire;
 
 /// Disposition of one case, mapped from the harness verdict line via the
@@ -354,10 +355,26 @@ pub fn run_case(
     topo: &dyn Topology,
     w: u32,
     ctx: &WorkerCtx,
-    case_id: &str,
+    unit: &UnitId,
     dut_first: bool,
 ) -> Result<Verdict> {
-    run_case_impl(cfg, topo, w, ctx, case_id, dut_first, false)
+    refuse_a_row_outside_the_negative_lane(unit)?;
+    run_case_impl(cfg, topo, w, ctx, unit, dut_first, false)
+}
+
+/// Only the negative lane drives a row above 0: `list_negative_rows` is the one
+/// producer of such a unit. Reaching a positive or known-fail run with one is a
+/// schedule construction bug, and running the case's primary under that unit's name
+/// would report a row that never ran.
+fn refuse_a_row_outside_the_negative_lane(unit: &UnitId) -> Result<()> {
+    if unit.row() != 0 {
+        anyhow::bail!(
+            "{unit} names negative row {} of {}, but this lane runs cases, not negative rows",
+            unit.row(),
+            unit.case_id()
+        );
+    }
+    Ok(())
 }
 
 /// Run a case as its authored NEGATIVE row: the harness flips one `--expect`
@@ -382,21 +399,13 @@ pub fn run_negative_row(
     topo: &dyn Topology,
     w: u32,
     ctx: &WorkerCtx,
-    case_id: &str,
+    unit: &UnitId,
     expected_fail: &str,
 ) -> Result<Verdict> {
     // Negative rows run DUT-first — the deliberate mis-expectation plus start-order
     // control bash's negative path uses (a topology that supports negatives spawns
     // the reference DUT, so dut_first is always valid here).
-    //
-    // `case_id` may carry a `#N` row suffix (see `parse_neg_rows_output`). The
-    // harness knows the case by its bare name and the row by an index, so the
-    // two are split apart here — the one place that has to know the encoding.
-    let (bare, row_index) = match case_id.split_once('#') {
-        Some((c, n)) => (c, n.parse::<u32>().unwrap_or(0)),
-        None => (case_id, 0),
-    };
-    let raw = run_case_impl_row(cfg, topo, w, ctx, bare, true, true, row_index)?;
+    let raw = run_case_impl(cfg, topo, w, ctx, unit, true, true)?;
     Ok(map_negative_verdict(raw, expected_fail))
 }
 
@@ -429,24 +438,26 @@ pub fn run_known_fail(
     topo: &dyn Topology,
     w: u32,
     ctx: &WorkerCtx,
-    case_id: &str,
+    unit: &UnitId,
     expected: &str,
 ) -> Result<Verdict> {
+    refuse_a_row_outside_the_negative_lane(unit)?;
     // dut_first like the negative path: these cases are graded against a spawned DUT, and
     // the start-order control is what makes the first frames observable.
-    let raw = run_case_impl(cfg, topo, w, ctx, case_id, true, false)?;
+    let raw = run_case_impl(cfg, topo, w, ctx, unit, true, false)?;
     Ok(map_negative_verdict(raw, expected))
 }
 
 /// The platform known-fail set: every case whose overrides carry a MEASURED landed
 /// verdict, read from the harness's `--list-known-fails` (`CASE|class:reason`). Returns
-/// `(case_id, expected_verdict)`. The sibling of `list_negative_rows`, and the same
-/// one-home rule: the harness owns the axis, the driver only iterates it.
+/// `(unit, expected_verdict)`, one row-0 unit per case. The sibling of
+/// `list_negative_rows`, and the same one-home rule: the harness owns the axis, the
+/// driver only iterates it.
 ///
 /// Unlike the negative set, an EMPTY list is not an error here. A platform may genuinely
 /// have no registered deviation, and a lane that refused to start would make the clean
 /// case the unrepresentable one.
-pub fn list_known_fails(cfg: &Config) -> Result<Vec<(String, String)>> {
+pub fn list_known_fails(cfg: &Config) -> Result<Vec<(UnitId, String)>> {
     use anyhow::{bail, Context};
     let out = cfg
         .harness_test()
@@ -465,10 +476,10 @@ pub fn list_known_fails(cfg: &Config) -> Result<Vec<(String, String)>> {
     parse_known_fails_output(&text)
 }
 
-/// Parse `CASE|class:reason` into `(case_id, expected)`. Pure over the text so it is
+/// Parse `CASE|class:reason` into `(unit, expected)`. Pure over the text so it is
 /// unit-tested without invoking the harness. `splitn(2)` keeps the verdict intact even
 /// though a reason could in principle hold a colon.
-fn parse_known_fails_output(text: &str) -> Result<Vec<(String, String)>> {
+fn parse_known_fails_output(text: &str) -> Result<Vec<(UnitId, String)>> {
     use anyhow::bail;
     let mut rows = Vec::new();
     for line in text.lines() {
@@ -479,7 +490,7 @@ fn parse_known_fails_output(text: &str) -> Result<Vec<(String, String)>> {
         let mut it = line.splitn(2, '|');
         match (it.next(), it.next()) {
             (Some(case), Some(expected)) if !case.is_empty() && expected.contains(':') => {
-                rows.push((case.to_string(), expected.to_string()));
+                rows.push((UnitId::case(case), expected.to_string()));
             }
             _ => bail!("--list-known-fails produced a malformed row: {line:?}"),
         }
@@ -514,12 +525,12 @@ fn map_negative_verdict(raw: Verdict, expected_fail: &str) -> Verdict {
 
 /// The negative set: every case carrying an authored negative row, read from the
 /// harness's `--list-neg-rows` (which prints the inventory overrides' sixth axis in
-/// the historical `CASE|wrong_token|fail:reason` grammar). Returns `(case_id,
-/// expected_fail)`; the `wrong_token` is informational (the harness applies it), so
-/// it is dropped here. This is the SAME source the bash driver and
-/// `negative_coverage_audit.py` read — one home, no drift. A non-zero exit or an
+/// the `CASE|INDEX|wrong_token|fail:reason` grammar). Returns `(unit,
+/// expected_fail)`, one unit per authored row; the `wrong_token` is informational (the
+/// harness applies it), so it is dropped here. This is the SAME source
+/// `negative_coverage_audit.py` reads — one home, no drift. A non-zero exit or an
 /// empty list is a hard error: an empty negative run would pass by vacuity.
-pub fn list_negative_rows(cfg: &Config) -> Result<Vec<(String, String)>> {
+pub fn list_negative_rows(cfg: &Config) -> Result<Vec<(UnitId, String)>> {
     use anyhow::{bail, Context};
     let out = cfg
         .harness_test()
@@ -538,11 +549,11 @@ pub fn list_negative_rows(cfg: &Config) -> Result<Vec<(String, String)>> {
     parse_neg_rows_output(&text)
 }
 
-/// Parse the `CASE|wrong_token|class:reason` lines into `(case_id, expected_fail)`.
+/// Parse the `CASE|INDEX|wrong_token|class:reason` lines into `(unit, expected_fail)`.
 /// Pure over the text so it is unit-tested without invoking the harness. A
 /// malformed row or an empty set is a hard error (an empty negative run would pass
 /// by vacuity).
-fn parse_neg_rows_output(text: &str) -> Result<Vec<(String, String)>> {
+fn parse_neg_rows_output(text: &str) -> Result<Vec<(UnitId, String)>> {
     use anyhow::bail;
     let mut rows = Vec::new();
     for line in text.lines() {
@@ -568,19 +579,11 @@ fn parse_neg_rows_output(text: &str) -> Result<Vec<(String, String)>> {
                 let n: u32 = idx.parse().map_err(|_| {
                     anyhow::anyhow!("--list-neg-rows row index is not a number: {line:?}")
                 })?;
-                // Row 0 keeps the bare case id, so every existing row, every
-                // schedule key and every report line is unchanged. Only a case
-                // that authors extras grows `#N` ids, and `run_negative_row`
-                // splits the suffix back off before naming the case to the
-                // harness. Encoding it here rather than widening the tuple keeps
-                // the schedule keyed by one string, which is what makes a row a
-                // schedulable unit at all.
-                let id = if n == 0 {
-                    case.to_string()
-                } else {
-                    format!("{case}#{n}")
-                };
-                rows.push((id, expected.to_string()));
+                // The case and the row stay two fields from here on. They were once
+                // one string (`ARP_35#1`) split apart again before dispatch, and the
+                // bare half then named every artifact, so a case's two rows wrote one
+                // set of files (docs/tech-debt.md TD-68).
+                rows.push((UnitId::negative_row(case, n), expected.to_string()));
             }
             _ => bail!("--list-neg-rows produced a malformed row: {line:?}"),
         }
@@ -591,45 +594,84 @@ fn parse_neg_rows_output(text: &str) -> Result<Vec<(String, String)>> {
     Ok(rows)
 }
 
+/// Every file one unit's run reads or writes, and the one place their names are made.
+///
+/// Each is named from the UNIT, never from the case alone. Two of them are inputs the
+/// run DECIDES on, not just evidence: the verdict is read back from `harness_log`, and
+/// the DUT-ready marker from `dut_log`. Two others are a handshake (`ready`, `go`). So
+/// two concurrent units sharing a name do not merely clobber a log; one unit grades
+/// the other's verdict and starts on the other's DUT signal. That happened to a case's
+/// two negative rows under `--log-dir`, whose names carried only the case, while the
+/// scratch names stayed apart by accident, through the worker directory
+/// (docs/tech-debt.md TD-68). Uniqueness across the schedule is
+/// `unit::refuse_duplicates`'s job; this type makes every name follow from the unit.
+#[derive(Debug, PartialEq, Eq)]
+struct UnitArtifacts {
+    /// The harness's stdout and stderr; the verdict is read from here.
+    harness_log: PathBuf,
+    /// The DUT's output; the DUT-ready marker is read from here.
+    dut_log: PathBuf,
+    /// The harness's capture-armed signal (`--ready-file`).
+    ready: PathBuf,
+    /// The orchestrator's DUT-ready signal to the harness (`--go-file`).
+    go: PathBuf,
+    /// Every captured frame, kept for post-mortem. Only with `--log-dir`.
+    pcap: Option<PathBuf>,
+    /// The live state stream a watcher tails. Only with `--log-dir`.
+    states: Option<PathBuf>,
+}
+
+impl UnitArtifacts {
+    /// `--log-dir` keeps the files in the run's log directory; without it they are
+    /// scratch under the worker's directory in `work_root`, removed at run end.
+    fn new(cfg: &Config, w: u32, unit: &UnitId) -> Self {
+        let stem = unit.to_string();
+        let dir = match &cfg.log_dir {
+            Some(dir) => dir.clone(),
+            None => cfg.work_root.join(w.to_string()),
+        };
+        let kept = cfg.log_dir.is_some();
+        Self {
+            harness_log: dir.join(format!("{stem}.harness.log")),
+            dut_log: dir.join(format!("{stem}.dut.log")),
+            ready: dir.join(format!("{stem}.harness.ready")),
+            go: dir.join(format!("{stem}.harness.go")),
+            pcap: kept.then(|| dir.join(format!("{stem}.pcap"))),
+            states: kept.then(|| dir.join(format!("{stem}.states.ndjson"))),
+        }
+    }
+
+    /// Every path, for the tests that assert the property this type exists for.
+    #[cfg(test)]
+    fn paths(&self) -> Vec<&Path> {
+        let mut all = vec![
+            self.harness_log.as_path(),
+            self.dut_log.as_path(),
+            self.ready.as_path(),
+            self.go.as_path(),
+        ];
+        all.extend(self.pcap.as_deref());
+        all.extend(self.states.as_deref());
+        all
+    }
+}
+
+/// Run one unit: its case, and for the negative lane the authored row the unit names.
+/// The harness is given the bare case (`--case`) and the row index separately; every
+/// per-case table (conditioning, flavor, the secondary-interface set) keys on the case,
+/// and every file keys on the unit.
 fn run_case_impl(
     cfg: &Config,
     topo: &dyn Topology,
     w: u32,
     ctx: &WorkerCtx,
-    case_id: &str,
+    unit: &UnitId,
     dut_first: bool,
     negative_row: bool,
 ) -> Result<Verdict> {
-    run_case_impl_row(cfg, topo, w, ctx, case_id, dut_first, negative_row, 0)
-}
-
-/// As `run_case_impl`, plus WHICH authored negative row to run. Only the negative
-/// lane passes a non-zero index; every other caller means the primary row and
-/// says so by going through the wrapper above rather than spelling a 0.
-#[allow(clippy::too_many_arguments)]
-fn run_case_impl_row(
-    cfg: &Config,
-    topo: &dyn Topology,
-    w: u32,
-    ctx: &WorkerCtx,
-    case_id: &str,
-    dut_first: bool,
-    negative_row: bool,
-    negative_row_index: u32,
-) -> Result<Verdict> {
-    // --log-dir redirects the per-case logs to a KEPT directory (bash smoke-test.sh
-    // keep_logs=1); otherwise they are scratch under work_root, removed at run end.
-    // The verdict is read from hlog either way, so classification is unaffected.
-    let (hlog, dlog) = match &cfg.log_dir {
-        Some(dir) => (
-            dir.join(format!("{case_id}.harness.log")),
-            dir.join(format!("{case_id}.dut.log")),
-        ),
-        None => (
-            cfg.work_root.join(format!("{w}/{case_id}.harness.log")),
-            cfg.work_root.join(format!("{w}/{case_id}.dut.log")),
-        ),
-    };
+    let case_id = unit.case_id();
+    let UnitArtifacts { harness_log: hlog, dut_log: dlog, ready, go, pcap, states } =
+        UnitArtifacts::new(cfg, w, unit);
     let iface = topo.tester_iface(w);
 
     // TC8 Topology 2 cases need a second tester interface — data-driven from the
@@ -735,9 +777,9 @@ fn run_case_impl_row(
         // Only spelled when it is not the primary, so every existing invocation
         // is byte-identical to what it was and a diff of two runs shows the row
         // that actually differs (docs/tech-debt.md TD-53).
-        if negative_row_index != 0 {
+        if unit.row() != 0 {
             args.push("--negative-row-index".to_string());
-            args.push(negative_row_index.to_string());
+            args.push(unit.row().to_string());
         }
     }
     // --dut-control backend passthrough (bash smoke-test.sh): seam-migrated cases
@@ -756,17 +798,17 @@ fn run_case_impl_row(
     if cfg.no_multicast_membership {
         args.push("--no-multicast-membership".to_string());
     }
-    // --log-dir also saves every captured frame to a per-case pcap for post-mortem
-    // (bash smoke-test.sh appends --pcap-dump under $LOG_DIR).
-    if let Some(dir) = &cfg.log_dir {
+    // --log-dir also saves every captured frame to a per-unit pcap for post-mortem.
+    if let Some(pcap) = &pcap {
         args.push("--pcap-dump".to_string());
-        args.push(dir.join(format!("{case_id}.pcap")).to_string_lossy().into_owned());
-        // The live state stream beside it: a watcher tailing --log-dir learns that a
-        // case has begun and which state it is in, where the pcap and the trace exist
-        // only once it ends. One file per case, so concurrent workers never share one.
-        // Progress only — the verdict is still read from the harness log (hlog).
+        args.push(pcap.to_string_lossy().into_owned());
+    }
+    // The live state stream beside it: a watcher tailing --log-dir learns that a unit
+    // has begun and which state it is in, where the pcap and the trace exist only once
+    // it ends. Progress only — the verdict is still read from the harness log.
+    if let Some(states) = &states {
         args.push("--state-stream".to_string());
-        args.push(dir.join(format!("{case_id}.states.ndjson")).to_string_lossy().into_owned());
+        args.push(states.to_string_lossy().into_owned());
     }
 
     // Spawn order: harness first so its pcap is open before the DUT's first
@@ -788,10 +830,6 @@ fn run_case_impl_row(
     // signal that never comes. `Established` — a fixture that has already probed — is
     // published before the harness starts, so its wait returns on its first poll.
     let readiness = topo.dut_readiness();
-    // The harness's inbound signal path, declared here so the cleanup below can name
-    // it whichever start order ran.
-    let go = hlog.with_extension("go");
-
     let mut procs = CaseProcs::new(topo, w);
     if dut_first {
         procs.dut = topo.start_dut(w, &dlog, &vcfg, &flavor_env)?;
@@ -846,7 +884,6 @@ fn run_case_impl_row(
         //
         // Anchoring both ends to an observed state, not wall time, is robust to load
         // (and faster on the common path).
-        let ready = hlog.with_extension("ready");
         let _ = fs::remove_file(&ready);
         let _ = fs::remove_file(&go);
         let mut hargs = args.clone();
@@ -1167,25 +1204,87 @@ mod tests {
         )
         .expect("well-formed rows parse");
         assert_eq!(rows.len(), 2);
-        assert_eq!(rows[0].0, "SOMEIPSRV_FORMAT_14");
+        assert_eq!(rows[0].0, UnitId::case("SOMEIPSRV_FORMAT_14"));
         assert_eq!(rows[0].1, "fail:entry_service_id_mismatch");
-        assert_eq!(rows[1].0, "ARP_03");
+        assert_eq!(rows[1].0, UnitId::case("ARP_03"));
     }
 
-    /// Row 0 keeps the bare id and an extra row carries `#N`, which is what lets
-    /// a schedule keyed by one string hold both rows of one case. Asserted in one
-    /// test with both, because the property that matters is that they DIFFER.
+    /// A case's two rows parse to two units of ONE case: the harness is still handed
+    /// the bare case, and the row travels as its own field rather than as a suffix
+    /// something later has to split off again.
     #[test]
-    fn parse_neg_rows_encodes_only_extra_rows_with_a_suffix() {
+    fn parse_neg_rows_keeps_the_case_and_the_row_apart() {
         let rows = parse_neg_rows_output(
             "ARP_35|0|arp.tester_mac=02:00:00:00:00:A2|fail:udp_eth_dst_is_mac1_not_mac2\n\
              ARP_35|1|arp.tester_mac2=de:ad:be:ef:00:00|fail:udp_eth_dst_neither_mac1_nor_mac2\n",
         )
         .expect("well-formed rows parse");
         assert_eq!(rows.len(), 2);
-        assert_eq!(rows[0].0, "ARP_35");
-        assert_eq!(rows[1].0, "ARP_35#1");
+        assert_eq!(rows[0].0, UnitId::case("ARP_35"));
+        assert_eq!(rows[1].0, UnitId::negative_row("ARP_35", 1));
+        assert_eq!(rows[1].0.case_id(), "ARP_35");
+        assert_eq!(rows[1].0.to_string(), "ARP_35#1");
         assert_ne!(rows[0].1, rows[1].1);
+    }
+
+    /// The property TD-68 broke: two units of one case, on two workers at once, must
+    /// not share any file. Under `--log-dir` every unit writes into ONE directory, so
+    /// only the unit's own name can keep them apart; the scratch layout is checked too,
+    /// so neither branch can regress into keying on the case.
+    #[test]
+    fn two_rows_of_one_case_share_no_artifact() {
+        let primary = UnitId::case("ARP_35");
+        let extra = UnitId::negative_row("ARP_35", 1);
+
+        let mut cfg = fake_cfg();
+        cfg.log_dir = Some(PathBuf::from("/kept/logs"));
+        for (w0, w1) in [(0, 1), (2, 2)] {
+            let a = UnitArtifacts::new(&cfg, w0, &primary);
+            let b = UnitArtifacts::new(&cfg, w1, &extra);
+            for pa in a.paths() {
+                assert!(!b.paths().contains(&pa), "kept logs: both rows write {}", pa.display());
+            }
+            assert!(a.pcap.is_some() && a.states.is_some(), "kept logs carry the pcap and states");
+        }
+
+        cfg.log_dir = None;
+        let a = UnitArtifacts::new(&cfg, 0, &primary);
+        let b = UnitArtifacts::new(&cfg, 0, &extra);
+        for pa in a.paths() {
+            assert!(!b.paths().contains(&pa), "scratch: both rows write {}", pa.display());
+        }
+        assert!(a.pcap.is_none() && a.states.is_none(), "scratch keeps no pcap or states");
+    }
+
+    /// Row 0's names are the ones a single-row case has always written, so a reader of
+    /// an evidence directory finds the same files as before.
+    #[test]
+    fn a_primary_unit_keeps_the_names_it_always_had() {
+        let mut cfg = fake_cfg();
+        cfg.log_dir = Some(PathBuf::from("/kept/logs"));
+        let a = UnitArtifacts::new(&cfg, 3, &UnitId::case("ARP_03"));
+        assert_eq!(a.harness_log, Path::new("/kept/logs/ARP_03.harness.log"));
+        assert_eq!(a.dut_log, Path::new("/kept/logs/ARP_03.dut.log"));
+        assert_eq!(a.ready, Path::new("/kept/logs/ARP_03.harness.ready"));
+        assert_eq!(a.go, Path::new("/kept/logs/ARP_03.harness.go"));
+        assert_eq!(a.pcap.as_deref(), Some(Path::new("/kept/logs/ARP_03.pcap")));
+        assert_eq!(a.states.as_deref(), Some(Path::new("/kept/logs/ARP_03.states.ndjson")));
+
+        cfg.log_dir = None;
+        let s = UnitArtifacts::new(&cfg, 3, &UnitId::case("ARP_03"));
+        assert_eq!(s.harness_log, cfg.work_root.join("3/ARP_03.harness.log"));
+        assert_eq!(s.dut_log, cfg.work_root.join("3/ARP_03.dut.log"));
+    }
+
+    /// A row above 0 belongs to the negative lane alone; a positive or known-fail run
+    /// handed one would run the case's primary and report it under the row's name.
+    #[test]
+    fn a_negative_row_is_refused_outside_the_negative_lane() {
+        assert!(refuse_a_row_outside_the_negative_lane(&UnitId::case("ARP_35")).is_ok());
+        let err = refuse_a_row_outside_the_negative_lane(&UnitId::negative_row("ARP_35", 1))
+            .expect_err("row 1 outside the negative lane")
+            .to_string();
+        assert!(err.contains("ARP_35#1"), "the refusal names the unit: {err}");
     }
 
     #[test]

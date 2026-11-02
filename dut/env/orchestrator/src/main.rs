@@ -39,6 +39,7 @@ mod proc;
 mod site;
 mod source_digest;
 mod topology;
+mod unit;
 mod worker;
 
 /// Wire/fixture constants generated from tools/wire.def — the
@@ -64,7 +65,7 @@ mod taxonomy {
 
 use anyhow::{bail, Context, Result};
 use clap::Parser;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -72,6 +73,7 @@ use std::path::Path;
 use config::Config;
 use site::{ResolvedSite, TopologyConf, TopologyKind};
 use topology::{External, SinglePc, SshRemote, Topology};
+use unit::UnitId;
 use worker::WorkerResult;
 
 /// Orchestrate TC8 conformance cases against a DUT (smoke-test.sh successor).
@@ -228,10 +230,12 @@ fn stale_binary_refusal(now: &str, head: &str) -> Option<String> {
 fn main() -> Result<()> {
     refuse_a_stale_binary()?;
     let cli = Cli::parse();
-    let mut cases: Vec<String> = if cli.cases.is_empty() {
-        vec!["SOMEIPSRV_FORMAT_01".to_string()]
+    // The schedule, one unit per run. A positive run's units are the named cases; the
+    // negative and known-fail lanes below replace them with the units they list.
+    let mut cases: Vec<UnitId> = if cli.cases.is_empty() {
+        vec![UnitId::case("SOMEIPSRV_FORMAT_01")]
     } else {
-        cli.cases.clone()
+        cli.cases.iter().map(UnitId::case).collect()
     };
 
     // clap parsed --topology into a TopologyKind (Copy), so the valid set is
@@ -313,7 +317,7 @@ fn main() -> Result<()> {
         cfg.secondary_iface_cases = list_secondary_iface_cases(&cfg)?;
         cases
             .iter()
-            .any(|c| cfg.secondary_iface_cases.contains(&c.to_uppercase()))
+            .any(|c| cfg.secondary_iface_cases.contains(&c.case_id().to_uppercase()))
     };
 
     let topo: Box<dyn Topology + Sync> = match &site {
@@ -346,12 +350,12 @@ fn main() -> Result<()> {
         // The known-fail set is the harness's --list-known-fails (the platform overrides'
         // measured landed verdicts) — the SAME one-home rule the negative set follows.
         let rows = dispatch::list_known_fails(&cfg)?;
-        let filtered: Vec<(String, String)> = if cli.cases.is_empty() {
+        let filtered: Vec<(UnitId, String)> = if cli.cases.is_empty() {
             rows
         } else {
             let want: HashSet<String> = cli.cases.iter().map(|c| c.to_uppercase()).collect();
             rows.into_iter()
-                .filter(|(case, _)| want.contains(&case.to_uppercase()))
+                .filter(|(unit, _)| want.contains(&unit.case_id().to_uppercase()))
                 .collect()
         };
         if filtered.is_empty() {
@@ -373,27 +377,23 @@ fn main() -> Result<()> {
         // A positional case list narrows the run to those rows (rapid per-case
         // iteration); bare --negative runs the whole curated set. Case-insensitive,
         // matching the harness registry.
-        let filtered: Vec<(String, String)> = if cli.cases.is_empty() {
+        let filtered: Vec<(UnitId, String)> = if cli.cases.is_empty() {
             rows
         } else {
             let want: HashSet<String> = cli.cases.iter().map(|c| c.to_uppercase()).collect();
             rows.into_iter()
-                // Match the CASE, not the row: a case's extra rows carry a `#N`
-                // suffix, and naming `ARP_35` means every row it authors. Without
-                // the split, asking for a case ran only its primary — the run
-                // looked complete while proving half of what it had listed
-                // (docs/tech-debt.md TD-53).
-                .filter(|(case, _)| {
-                    let base = case.split('#').next().unwrap_or(case);
-                    want.contains(&base.to_uppercase())
-                })
+                // Match the CASE, not the unit: naming `ARP_35` means every row it
+                // authors. Matching the unit ran only the primary, and the run looked
+                // complete while proving half of what it had listed (docs/tech-debt.md
+                // TD-53).
+                .filter(|(unit, _)| want.contains(&unit.case_id().to_uppercase()))
                 .collect()
         };
         if filtered.is_empty() {
             bail!("--negative: none of the requested case(s) carry an authored negative row");
         }
-        // Sorted case-id schedule (deterministic worker distribution + summary),
-        // plus the case_id -> expected_fail map the workers assert against.
+        // Sorted unit schedule (deterministic worker distribution + summary), plus
+        // the unit -> expected_fail map the workers assert against.
         cases = filtered.iter().map(|(case, _)| case.clone()).collect();
         cases.sort();
         Some(worker::AssertSchedule {
@@ -403,6 +403,10 @@ fn main() -> Result<()> {
     } else {
         None
     };
+    // Every unit's files are named from the unit, so a unit scheduled twice would have
+    // its two runs overwrite each other and grade whichever verdict landed last.
+    // Refused here, before any host state is touched (docs/tech-debt.md TD-68).
+    unit::refuse_duplicates(&cases)?;
     // Load the DUT vsomeip flavor table once from the harness (the SSOT:
     // --list-vsomeip-variants, the seventh inventory-overrides axis — the SAME
     // source bash reads). Positive runs look it up per case; a negative run keeps
