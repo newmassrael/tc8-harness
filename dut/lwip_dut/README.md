@@ -495,6 +495,14 @@ behaviour-shaping ones:
 - `LWIP_TCP_TIMESTAMPS 1` — RFC 7323; makes tester-side TIME-WAIT
   reopening deterministic when multi-phase cases reuse port quads
   (seq-only comparison against a random ISN is a coin flip).
+
+  These three belong to the conformance fixture. `tc8-lwip-utm` builds from
+  `utm/lwipopts.h`, which inherits none of them on purpose, so a UTM run over
+  testability differs from a fixture run in three cases that pass on the
+  fixture over the same backend. `TCP_BASICS_11/_12` replay at 72 s into the
+  UTM's 120 s TIME-WAIT and draw an ACK, and `TCP_PROBING_WINDOWS_05` sees the
+  zero-window probe at 1.5 s, before the 2.5 s retransmission a 3 s RTO gives.
+  None of the three is a stack defect or a backend one.
 - `LWIP_HOOK_TCP_ISN` + contrib `tcp_isn` addon — RFC 6528 ISN
   randomisation, seeded by `getrandom` in the bring-up through the
   product-neutral `tc8_lwip_isn.h` seam. lwIP's default ISN is a

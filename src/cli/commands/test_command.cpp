@@ -33,6 +33,7 @@
 #include "capture/passive_tap.h"
 #include "capture/pcap_source.h"
 #include "tc8/dut_config.h"  // kSdMcastGroup — the SD group's compiled-in default
+#include "stimulus/arp_builder.h"  // setRawFrameVlan
 #include "tc8/net/link_control.h"  // captureSnaplenFor
 #include "cli/expect_parser.h"
 #include "cli/liveness_anchor.h"
@@ -1300,6 +1301,9 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
         if (applyExpectToken(tok, config.tcp_declared)) {
             continue;
         }
+        if (applyExpectToken(tok, config.network)) {
+            continue;
+        }
         if (applyExpectToken(tok, config.icmpv4)) {
             continue;
         }
@@ -1374,6 +1378,12 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
                     number(tcp.initial_cwnd_segments).c_str(),
                     tcp.congestion_control ? tcp.congestion_control->c_str() : "undeclared",
                     number(tcp.tx_buffer_delay_ms).c_str());
+    }
+    // On a tagged network a raw frame must carry the tag or the DUT's subinterface never
+    // sees it, and the case would then grade a silence the tester caused.
+    ::tc8::stimulus::setRawFrameVlan(config.network.vlan_id);
+    if (config.network.vlan_id) {
+        std::printf("network  : vlan_id=%u\n", static_cast<unsigned>(*config.network.vlan_id));
     }
     // NOTE — a settle interval was tried here and REMOVED as disproven.
     //

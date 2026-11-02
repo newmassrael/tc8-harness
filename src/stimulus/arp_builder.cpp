@@ -1,8 +1,10 @@
 #include "tc8/net/raw_packet_socket.h"
 
 #include "stimulus/arp_builder.h"
+#include "stimulus/dot1q.h"
 #include "stimulus/tx_observer.h"
 
+#include <atomic>
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
@@ -100,7 +102,30 @@ std::vector<std::uint8_t> buildGratuitousArpResponse(const std::array<std::uint8
     return buildArpFrame(spec);
 }
 
-int sendRawEthernet(const std::vector<std::uint8_t> &frame, std::string_view iface) {
+namespace {
+// -1 = untagged. Atomic because stimulus threads read it; set once before they start.
+std::atomic<int> raw_frame_vlan{-1};
+}  // namespace
+
+void setRawFrameVlan(std::optional<std::uint16_t> vid) {
+    raw_frame_vlan.store(vid ? static_cast<int>(*vid) : -1, std::memory_order_relaxed);
+}
+
+std::vector<std::uint8_t> frameForWire(const std::vector<std::uint8_t> &frame) {
+    const int vid = raw_frame_vlan.load(std::memory_order_relaxed);
+    constexpr std::size_t kEtherTypeOffset = 12;
+    const bool already_tagged =
+        frame.size() > kEtherTypeOffset + 1 &&
+        frame[kEtherTypeOffset] == static_cast<std::uint8_t>(::tc8::kDot1QTpid >> 8) &&
+        frame[kEtherTypeOffset + 1] == static_cast<std::uint8_t>(::tc8::kDot1QTpid & 0xFF);
+    if (vid < 0 || already_tagged) {
+        return frame;
+    }
+    return withDot1QTag(frame, /*pcp=*/0, /*dei=*/false, static_cast<std::uint16_t>(vid));
+}
+
+int sendRawEthernet(const std::vector<std::uint8_t> &unfitted, std::string_view iface) {
+    const std::vector<std::uint8_t> frame = frameForWire(unfitted);
     // One socket per thread, reused across emits, instead of one per frame.
     // The teardown of a per-frame AF_PACKET socket costs a synchronize_net()
     // RCU grace period (measured p50 32 ms) and lands inside whatever cadence

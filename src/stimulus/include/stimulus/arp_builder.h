@@ -3,6 +3,7 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
+#include <optional>
 #include <string_view>
 #include <vector>
 
@@ -124,6 +125,17 @@ std::vector<std::uint8_t> buildGratuitousArpResponse(const std::array<std::uint8
 // action in the current harness, same as `sendSdMulticast` in
 // `someip_sd_builder.cpp`.
 int sendRawEthernet(const std::vector<std::uint8_t> &frame, std::string_view iface);
+
+// The VLAN every raw frame of this run goes out on, or nullopt for an untagged network.
+// Set once, before any stimulus. A raw frame bypasses the VLAN subinterface the kernel's
+// path goes through, so on a tagged network it must carry the tag itself, or the DUT
+// never sees it and the case grades a silence the tester caused. Lives on the one
+// injection path, so no builder has to know.
+void setRawFrameVlan(std::optional<std::uint16_t> vid);
+
+// `frame` as it goes on the wire: tagged when a VLAN is set, unchanged otherwise. A frame
+// a case already tagged keeps its own tag: that is the stimulus.
+std::vector<std::uint8_t> frameForWire(const std::vector<std::uint8_t> &frame);
 
 // High-level TESTER boot-time ARP Learning emit used by §4.2.4.1 cases
 // ARP_03..06. Sleeps `initial_wait`, then builds and injects the frame

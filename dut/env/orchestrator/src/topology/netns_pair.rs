@@ -23,7 +23,7 @@ use std::process::{Child, Command, Stdio};
 
 use crate::conditioning::{self, CondDir, CondStep, Side};
 use crate::config::Config;
-use crate::netns::{self, NetnsParams, SecondVeth};
+use crate::netns::{self, NetnsParams, SecondVeth, Vlan};
 use crate::wire;
 
 use super::{
@@ -82,8 +82,8 @@ impl<'a> NetnsPair<'a> {
 
         // The Topology-2 second veth pair (DIface-1 / TIface-1, 172.17.0.0/24 from
         // wire.def — the same source bash's setup-netns.sh SECOND_VETH path reads) is
-        // provisioned only when the schedule needs it (self.secondary_iface). vlan
-        // stays None (no 802.1Q on a netns pair). netns::setup implements both.
+        // provisioned only when the schedule needs it (self.secondary_iface). A VLAN is
+        // the site's (`vlan_id`), and netns::setup implements both.
         let second_veth = self.secondary_iface.then(|| SecondVeth {
             veth_t2: veth_tester2(w),
             veth_d2: veth_dut2(w),
@@ -98,7 +98,11 @@ impl<'a> NetnsPair<'a> {
             tester_ip: format!("{}/24", cfg.tester_ip4),
             dut_ip: format!("{}/24", cfg.dut_ip4),
             second_veth,
-            vlan: None,
+            vlan: cfg.vlan_id.map(|id| Vlan {
+                id,
+                tester_vlan_if: vlan_tester(w),
+                dut_vlan_if: vlan_dut(w),
+            }),
         })
         .with_context(|| format!("bringing up netns for worker {w}"))?;
 
@@ -111,9 +115,14 @@ impl<'a> NetnsPair<'a> {
 
         // Neigh pins mirror single-pc.conf: pin <DUT_IP, dut_mac> on the tester
         // side (keeps the ARP cold-cache premise) and <HOST2_IP, tester_mac>
-        // on the DUT side (Host-2 emulation for UDP_FIELDS_04/05).
-        ip_neigh_replace(&netns_tester(w), &cfg.dut_ip4, &dut_mac, &veth_tester(w))?;
-        ip_neigh_replace(&netns_dut(w), wire::HOST2_IP, &tester_mac, &veth_dut(w))?;
+        // on the DUT side (Host-2 emulation for UDP_FIELDS_04/05). A neighbour entry
+        // belongs to the interface carrying L3, which on a tagged network is the
+        // subinterface: pinned on the bare veth it would sit there unused.
+        let vlan = cfg.vlan_id.is_some();
+        let (tester_ns, tester_l3) = side_ns_iface(w, vlan, Side::Tester);
+        let (dut_ns, dut_l3) = side_ns_iface(w, vlan, Side::Dut);
+        ip_neigh_replace(&tester_ns, &cfg.dut_ip4, &dut_mac, &tester_l3)?;
+        ip_neigh_replace(&dut_ns, wire::HOST2_IP, &tester_mac, &dut_l3)?;
 
         Ok(WorkerCtx { dut_mac, tester_mac })
     }
@@ -181,7 +190,7 @@ impl<'a> NetnsPair<'a> {
     /// Render+run one semantic conditioning step in `dir` against this worker's
     /// namespaces. `None` = a no-op direction (a flush or a no-undo pin has no restore).
     pub(crate) fn exec_cond_step(&self, w: u32, step: &CondStep, dir: CondDir) -> Result<()> {
-        match render_cond_step(w, step, dir) {
+        match render_cond_step(w, self.cfg.vlan_id.is_some(), step, dir) {
             Some(argv) => {
                 let refs: Vec<&str> = argv.iter().map(String::as_str).collect();
                 netns::ip(&refs)
@@ -200,6 +209,13 @@ fn veth_tester(w: u32) -> String {
 fn veth_dut(w: u32) -> String {
     format!("veth-dut-{w}")
 }
+// The 802.1Q subinterfaces on those veths, on a site that declares a VLAN.
+fn vlan_tester(w: u32) -> String {
+    format!("vlan-tester-{w}")
+}
+fn vlan_dut(w: u32) -> String {
+    format!("vlan-dut-{w}")
+}
 // Topology-2 second pair (TIface-1 / DIface-1), worker-scoped like the first pair
 // so parallel workers never contend. Provisioned only when secondary_iface is set.
 fn veth_tester2(w: u32) -> String {
@@ -214,11 +230,16 @@ fn veth_dut2(w: u32) -> String {
 // worker. Kept pure (no I/O) so the rendering is unit-tested directly, separate
 // from the case→toggle policy.
 
-/// The (namespace, L3 interface) a logical `Side` resolves to on worker `w`.
-fn side_ns_iface(w: u32, side: Side) -> (String, String) {
-    match side {
-        Side::Dut => (netns_dut(w), veth_dut(w)),
-        Side::Tester => (netns_tester(w), veth_tester(w)),
+/// The (namespace, L3 interface) a logical `Side` resolves to on worker `w`. On a tagged
+/// network that is the subinterface: a sysctl or neighbour operation on the bare veth
+/// would succeed and change nothing, and a flush that misses would keep a warm ARP entry
+/// behind every cold-cache case.
+fn side_ns_iface(w: u32, vlan: bool, side: Side) -> (String, String) {
+    match (side, vlan) {
+        (Side::Dut, false) => (netns_dut(w), veth_dut(w)),
+        (Side::Dut, true) => (netns_dut(w), vlan_dut(w)),
+        (Side::Tester, false) => (netns_tester(w), veth_tester(w)),
+        (Side::Tester, true) => (netns_tester(w), vlan_tester(w)),
     }
 }
 
@@ -229,25 +250,25 @@ fn sysctl_argv(ns: String, kv: String) -> Vec<String> {
 
 /// Render one semantic step to an `ip` argv for `dir`, or `None` when the
 /// direction is a no-op (a flush or a no-undo pin has no restore action).
-fn render_cond_step(w: u32, step: &CondStep, dir: CondDir) -> Option<Vec<String>> {
+fn render_cond_step(w: u32, vlan: bool, step: &CondStep, dir: CondDir) -> Option<Vec<String>> {
     match step {
         CondStep::SysctlIface { side, table, leaf, on, off } => {
-            let (ns, iface) = side_ns_iface(w, *side);
+            let (ns, iface) = side_ns_iface(w, vlan, *side);
             let val = match dir { CondDir::Apply => on, CondDir::Restore => off };
             Some(sysctl_argv(ns, format!("net.ipv4.{}.{iface}.{leaf}={val}", table.as_str())))
         }
         CondStep::SysctlConfAll { side, leaf, on, off } => {
-            let (ns, _) = side_ns_iface(w, *side);
+            let (ns, _) = side_ns_iface(w, vlan, *side);
             let val = match dir { CondDir::Apply => on, CondDir::Restore => off };
             Some(sysctl_argv(ns, format!("net.ipv4.conf.all.{leaf}={val}")))
         }
         CondStep::SysctlGlobal { side, key, on, off } => {
-            let (ns, _) = side_ns_iface(w, *side);
+            let (ns, _) = side_ns_iface(w, vlan, *side);
             let val = match dir { CondDir::Apply => on, CondDir::Restore => off };
             Some(sysctl_argv(ns, format!("net.ipv4.{key}={val}")))
         }
         CondStep::NeighPin { side, ip, mac, undo } => {
-            let (ns, iface) = side_ns_iface(w, *side);
+            let (ns, iface) = side_ns_iface(w, vlan, *side);
             match dir {
                 CondDir::Apply => Some(vec![
                     "-n".into(), ns, "neigh".into(), "replace".into(), ip.clone(),
@@ -261,7 +282,7 @@ fn render_cond_step(w: u32, step: &CondStep, dir: CondDir) -> Option<Vec<String>
         }
         CondStep::NeighFlush { side } => match dir {
             CondDir::Apply => {
-                let (ns, iface) = side_ns_iface(w, *side);
+                let (ns, iface) = side_ns_iface(w, vlan, *side);
                 Some(vec!["-n".into(), ns, "neigh".into(), "flush".into(), "dev".into(), iface])
             }
             CondDir::Restore => None,
@@ -309,6 +330,23 @@ mod tests {
 
     fn vs(parts: &[&str]) -> Vec<String> {
         parts.iter().map(|s| s.to_string()).collect()
+    }
+
+    // The untagged rendering, which every test below reads.
+    fn render_cond_step(w: u32, step: &CondStep, dir: CondDir) -> Option<Vec<String>> {
+        super::render_cond_step(w, false, step, dir)
+    }
+
+    // On a tagged network a flush on the bare veth would succeed and clear nothing,
+    // keeping a warm entry behind every cold-cache case.
+    #[test]
+    fn on_a_tagged_network_conditioning_reaches_the_subinterface() {
+        let flush = CondStep::NeighFlush { side: Side::Dut };
+        assert_eq!(
+            super::render_cond_step(1, true, &flush, CondDir::Apply).unwrap(),
+            vs(&["-n", "tc8-dut-1", "neigh", "flush", "dev", "vlan-dut-1"])
+        );
+        assert_eq!(side_ns_iface(1, true, Side::Tester).1, "vlan-tester-1");
     }
 
     #[test]

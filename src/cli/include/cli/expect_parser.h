@@ -15,6 +15,7 @@
 #include "sce_integration/icmpv4_expectations.h"
 #include "sce_integration/ipv4_expectations.h"
 #include "sce_integration/ixit_config.h"
+#include "sce_integration/network_declarations.h"
 #include "sce_integration/someip_expectations.h"
 #include "sce_integration/tcp_declarations.h"
 
@@ -102,6 +103,11 @@ bool applyExpectToken(std::string_view token, ::tc8::IxitConfig &e);
 // declares about the DUT's TCP implementation (tcp_declarations.h). Returns false as
 // the other appliers do, including for an initial window of 0 or an empty name.
 bool applyExpectToken(std::string_view token, ::tc8::TcpDeclarations &e);
+
+// Applies a single `--expect network.<key>=<value>` token to `e` — what the operator
+// declares about the test network (network_declarations.h). Returns false as the other
+// appliers do, including for a VLAN identifier 802.1Q reserves (0, 4095).
+bool applyExpectToken(std::string_view token, ::tc8::NetworkDeclarations &e);
 
 // Applies a single `--expect icmpv4.<key>=<value>` token to `e`. The `icmpv4.`
 // prefix and key set are the SSOT in tc8_expect_keys.def. Semantic note:

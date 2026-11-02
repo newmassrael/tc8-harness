@@ -105,7 +105,7 @@ namespace {
 
 // Value kinds. U24 (SD TTL) and U32 members are both uint32; the kind only
 // narrows the accepted numeric range.
-enum class EKind { U8, U16, U24, U32, IPV4, MAC, OPT_U32, OPT_U32_MIN1, OPT_TEXT };
+enum class EKind { U8, U16, U24, U32, IPV4, MAC, OPT_U32, OPT_U32_MIN1, OPT_TEXT, OPT_VLAN_ID };
 
 constexpr std::uint64_t ekindMax(EKind k) {
     switch (k) {
@@ -165,6 +165,16 @@ bool applyField(std::string_view v, M &member) {
             return false;
         }
         member = std::string(v);
+        return true;
+    } else if constexpr (K == EKind::OPT_VLAN_ID) {
+        static_assert(std::is_same_v<M, std::optional<std::uint16_t>>,
+                      "OPT_VLAN_ID key must target a std::optional<uint16> member");
+        std::uint64_t n = 0;
+        // 802.1Q reserves 0 and 4095, so neither names a VLAN a network can be on.
+        if (!parseNumeric(v, n) || n < 1 || n > 4094) {
+            return false;
+        }
+        member = static_cast<std::uint16_t>(n);
         return true;
     } else {
         static_assert(std::is_integral_v<M> && std::is_unsigned_v<M>,
@@ -339,6 +349,15 @@ bool applyExpectToken(std::string_view token, ::tc8::TcpDeclarations &e) {
 #undef TC8_EK_tcp
     };
     return matchExpect(token, ekPrefix_tcp, e, kKeys, std::size(kKeys));
+}
+
+bool applyExpectToken(std::string_view token, ::tc8::NetworkDeclarations &e) {
+    static constexpr EKey<::tc8::NetworkDeclarations> kKeys[] = {
+#define TC8_EK_network(kind, name) TC8_EK_ROW(NetworkDeclarations, kind, name)
+#include "tc8_expect_keys.def"
+#undef TC8_EK_network
+    };
+    return matchExpect(token, ekPrefix_network, e, kKeys, std::size(kKeys));
 }
 
 bool applyExpectToken(std::string_view token, ::tc8::Icmpv4Expectations &e) {

@@ -714,6 +714,12 @@ fn run_case_impl_row(
         args.push("--expect".to_string());
         args.push(format!("dut.second_subnet_ip={}", cfg.dut_subnet2_ip4));
     }
+    // The network's VLAN, when the site declared one. Control flow, like the address
+    // above: an untagged network emits nothing, and the harness then expects no tag.
+    if let Some(id) = cfg.vlan_id {
+        args.push("--expect".to_string());
+        args.push(format!("network.vlan_id={id}"));
+    }
     // ⚠ The TESTER's second address is NOT emitted here. It is unconditional —
     // every topology in this tree stands the tester up itself — so it is a static
     // key->source row and belongs in tools/expect_surface.def, which generates it

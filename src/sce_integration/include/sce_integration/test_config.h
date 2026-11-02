@@ -11,6 +11,7 @@
 #include "dut_identity.h"
 #include "icmpv4_expectations.h"
 #include "ipv4_expectations.h"
+#include "network_declarations.h"
 #include "someip_expectations.h"
 #include "someip_identity.h"
 #include "tcp_declarations.h"
@@ -54,6 +55,8 @@ struct TestConfig {
     IxitConfig ixit{};
     // What the operator declared about the DUT's TCP implementation; unset by default.
     TcpDeclarations tcp_declared{};
+    // What the operator declared about the test network; unset means untagged.
+    NetworkDeclarations network{};
     Icmpv4Expectations icmpv4{};
     Ipv4Expectations ipv4{};
     Dhcpv4Expectations dhcpv4{};

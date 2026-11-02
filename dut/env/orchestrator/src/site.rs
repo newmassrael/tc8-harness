@@ -333,6 +333,14 @@ struct SiteConf {
     #[serde(default)]
     extra_expect: Vec<String>,
 
+    /// The test network is 802.1Q tagged with this VLAN identifier (1..=4094). Absent
+    /// means an untagged network and no expectation. Declared to every case, and the
+    /// harness tags what it injects raw. On single-pc it also builds the network: L3
+    /// homes on a VLAN subinterface on each end, while capture stays on the bare veth so
+    /// the tags stay visible. Elsewhere the wire is the operator's, so this only says what
+    /// it carries. lwip-tap has no such wire and refuses it.
+    vlan_id: Option<u16>,
+
     /// Decline the capture's IGMP memberships (harness `--no-multicast-membership`).
     ///
     /// Topology-agnostic, like `extra_expect`: it describes the WIRE, and every
@@ -433,6 +441,8 @@ pub struct ResolvedSite {
     pub extra_expect: Vec<String>,
     /// Site declines the capture's IGMP memberships; false (hold them) by default.
     pub no_multicast_membership: bool,
+    /// The network's VLAN identifier; `None` = untagged, no expectation.
+    pub vlan_id: Option<u16>,
 }
 
 impl TopologyConf {
@@ -507,6 +517,7 @@ impl SiteConf {
             dut,
             extra_expect,
             no_multicast_membership: _, // bool — no ${} to expand
+            vlan_id: _,                 // number — no ${} to expand
         } = self;
         let strings = [
             iface,
@@ -592,7 +603,17 @@ impl SiteConf {
             dut,
             extra_expect,
             no_multicast_membership,
+            vlan_id,
         } = self;
+        // 0 and 4095 are reserved by 802.1Q, so neither names a VLAN a network can be on.
+        if let Some(id) = vlan_id {
+            if !(1..=4094).contains(&id) {
+                bail!("vlan_id {id} is not a VLAN identifier (1..=4094)");
+            }
+            if topology == TopologyKind::LwipTap {
+                bail!("vlan_id is not valid for --topology lwip-tap: its tap carries no VLAN");
+            }
+        }
         let ne = |o: Option<String>| o.filter(|s| !s.is_empty());
         let iface = ne(iface);
         let dut_ip = ne(dut_ip);
@@ -785,7 +806,7 @@ impl SiteConf {
                 })
             }
         };
-        Ok(ResolvedSite { conf, extra_expect, no_multicast_membership })
+        Ok(ResolvedSite { conf, extra_expect, no_multicast_membership, vlan_id })
     }
 }
 
@@ -907,6 +928,24 @@ mod tests {
             tester_ip: Some("172.16.0.1".into()),
             ..SiteConf::default()
         }
+    }
+
+    #[test]
+    fn vlan_id_is_carried_and_only_a_real_identifier_is_taken() {
+        let tagged = |id| SiteConf { vlan_id: Some(id), ..SiteConf::default() };
+        assert_eq!(tagged(100).resolve(TopologyKind::SinglePc).unwrap().vlan_id, Some(100));
+        assert_eq!(SiteConf::default().resolve(TopologyKind::SinglePc).unwrap().vlan_id, None);
+        for id in [0, 4095] {
+            let err = tagged(id).resolve(TopologyKind::SinglePc).unwrap_err().to_string();
+            assert!(err.contains("vlan_id"), "{err}");
+        }
+    }
+
+    #[test]
+    fn vlan_id_is_refused_on_a_wire_that_cannot_carry_it() {
+        let conf = SiteConf { vlan_id: Some(100), ..SiteConf::default() };
+        let err = conf.resolve(TopologyKind::LwipTap).unwrap_err().to_string();
+        assert!(err.contains("lwip-tap"), "{err}");
     }
 
     #[test]

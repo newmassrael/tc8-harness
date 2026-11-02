@@ -1,0 +1,12 @@
+# A tagged test network on the single-pc topology.
+#
+#   sudo dut/env/orchestrator/run-isolated.sh \
+#        dut/env/orchestrator/target/debug/tc8-orchestrator \
+#        --topology-conf dut/env/orchestrator/examples/vlan-single-pc.toml \
+#        ARP_03 TCP_BASICS_01 SOMEIPSRV_BASIC_01
+#
+# L3 homes on a VLAN subinterface on each end, and capture stays on the bare veth so a
+# case sees the tags. The harness tags what it injects raw and reads its source address
+# from the subinterface. Every case gets `network.vlan_id`, so one that grades a tag can
+# tell an untagged frame on this network from an untagged network.
+vlan_id = 100

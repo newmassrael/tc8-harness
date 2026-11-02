@@ -101,6 +101,9 @@ pub struct Config {
     /// `--no-multicast-membership`). Default false — the safe behaviour must not
     /// require a site to know about its own switch's snooping.
     pub no_multicast_membership: bool,
+    /// The site's 802.1Q VLAN identifier; `None` = an untagged network. Populated by
+    /// main() from the site conf.
+    pub vlan_id: Option<u16>,
     /// DUT SOME/IP identity derived from vsomeip.json.
     pub identity: DutIdentity,
     /// DUT SOME/IP-SD start-up timing derived from vsomeip.json.
@@ -266,6 +269,7 @@ impl Config {
             // safe one on purpose — a site that never heard of this field still
             // gets the memberships that make its absence-based passes mean something.
             no_multicast_membership: false,
+            vlan_id: None,
             // Populated by main() from the CLI flags, parallel to extra_expect.
             log_dir: None,
             dut_control: None,
@@ -340,6 +344,7 @@ pub(crate) fn fake_cfg() -> Config {
         backstop_sec: 240,
         extra_expect: Vec::new(),
         no_multicast_membership: false,
+        vlan_id: None,
         log_dir: None,
         dut_control: None,
         inventory_overrides: None,

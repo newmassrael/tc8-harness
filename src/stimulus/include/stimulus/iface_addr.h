@@ -7,6 +7,8 @@
 #include <string_view>
 
 #include <ifaddrs.h>
+#include <linux/if_vlan.h>
+#include <linux/sockios.h>
 #include <net/if.h>
 #include <netinet/in.h>
 #include <sys/ioctl.h>
@@ -28,29 +30,55 @@ inline std::uint32_t ipv4FromWire(const std::uint8_t *p) {
     return v;
 }
 
+// Whether `upper` is an 802.1Q interface stacked on `real_dev`. Asks the kernel, which
+// answers unprivileged, and false for an interface that is not a VLAN at all.
+inline bool isVlanOf(const char *upper, std::string_view real_dev) {
+    const int sock = ::socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
+    if (sock < 0) {
+        return false;
+    }
+    vlan_ioctl_args args{};
+    args.cmd = GET_VLAN_REALDEV_NAME_CMD;
+    std::strncpy(args.device1, upper, sizeof(args.device1) - 1);
+    const bool is_vlan = ::ioctl(sock, SIOCGIFVLAN, &args) == 0;
+    ::close(sock);
+    return is_vlan && real_dev == args.u.device2;
+}
+
 // The IPv4 address (network byte order) assigned to `iface_name`, or 0 if the
 // interface has no IPv4 address (or does not exist). Shared by the UDP emit
 // helpers and the SD/RPC builders so a stimulus binds to the intended leg of a
 // veth pair instead of relying on the default route. Header-only (the body is a
 // single getifaddrs scan) so every stimulus translation unit shares one
 // definition rather than re-deriving its own.
+//
+// On a tagged network the capture stays on the bare interface, where the tags are
+// visible, and the address lives on the VLAN interface above it. So an interface with
+// no address of its own answers with that of a VLAN stacked on it: that is the address
+// its traffic carries. The first found, on an interface carrying more than one VLAN.
 inline std::uint32_t ipv4OfInterface(std::string_view iface_name) {
     ifaddrs *head = nullptr;
     if (getifaddrs(&head) != 0 || head == nullptr) {
         return 0;
     }
     std::uint32_t addr = 0;
+    std::uint32_t vlan_addr = 0;
     for (ifaddrs *a = head; a != nullptr; a = a->ifa_next) {
-        if (a->ifa_addr == nullptr || a->ifa_addr->sa_family != AF_INET) {
+        if (a->ifa_addr == nullptr || a->ifa_addr->sa_family != AF_INET ||
+            a->ifa_name == nullptr) {
             continue;
         }
-        if (a->ifa_name != nullptr && iface_name == a->ifa_name) {
-            addr = reinterpret_cast<sockaddr_in *>(a->ifa_addr)->sin_addr.s_addr;
+        const std::uint32_t here = reinterpret_cast<sockaddr_in *>(a->ifa_addr)->sin_addr.s_addr;
+        if (iface_name == a->ifa_name) {
+            addr = here;
             break;
+        }
+        if (vlan_addr == 0 && isVlanOf(a->ifa_name, iface_name)) {
+            vlan_addr = here;
         }
     }
     freeifaddrs(head);
-    return addr;
+    return addr != 0 ? addr : vlan_addr;
 }
 
 // The 6-byte Ethernet hardware (MAC) address of `iface_name`, or std::nullopt

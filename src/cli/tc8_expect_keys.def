@@ -29,8 +29,9 @@
 //       group has no prefix). `group` is the C-identifier dispatch tag.
 //   TC8_EXPECT_KEY(group, kind, name)
 //       A scalar / IPv4 / MAC key. `kind` in
-//       U8 | U16 | U24 | U32 | IPV4 | MAC | OPT_U32 | OPT_U32_MIN1 | OPT_TEXT and
-//       selects parser + range; the target member is `name` (key == member name).
+//       U8 | U16 | U24 | U32 | IPV4 | MAC | OPT_U32 | OPT_U32_MIN1 | OPT_TEXT |
+//       OPT_VLAN_ID and selects parser + range; the target member is `name` (key ==
+//       member name).
 //       U24 (SD TTL) and U32 members are both uint32; the kind only narrows the
 //       accepted range. The OPT_ kinds target a std::optional member, for a value
 //       that has no default and may stay undeclared.
@@ -84,6 +85,10 @@
 #define TC8_EK_tcp(kind, name)
 #define TC8_EK_tcp_DEFAULTED
 #endif
+#ifndef TC8_EK_network
+#define TC8_EK_network(kind, name)
+#define TC8_EK_network_DEFAULTED
+#endif
 #ifndef TC8_EK_arp_stimulus
 #define TC8_EK_arp_stimulus(kind, name)
 #define TC8_EK_arp_stimulus_DEFAULTED
@@ -114,6 +119,7 @@ TC8_EXPECT_GROUP(someip_dut,   "someip_dut.")
 TC8_EXPECT_GROUP(arp_stimulus, "arp_stimulus.")
 TC8_EXPECT_GROUP(ixit,         "ixit.")
 TC8_EXPECT_GROUP(tcp,          "tcp.")
+TC8_EXPECT_GROUP(network,      "network.")
 TC8_EXPECT_GROUP(icmpv4,       "icmpv4.")
 TC8_EXPECT_GROUP(ipv4,         "ipv4.")
 TC8_EXPECT_GROUP(dhcpv4,       "dhcpv4.")
@@ -224,6 +230,10 @@ TC8_EXPECT_KEY(tcp, OPT_U32_MIN1, initial_cwnd_segments)
 TC8_EXPECT_KEY(tcp, OPT_TEXT, congestion_control)
 TC8_EXPECT_KEY(tcp, OPT_U32, tx_buffer_delay_ms)
 
+// --- Operator's network declarations (NetworkDeclarations, "network." prefix) ---
+// Unset means an untagged network: see network_declarations.h.
+TC8_EXPECT_KEY(network, OPT_VLAN_ID, vlan_id)
+
 // --- ICMPv4 (Icmpv4Expectations, "icmpv4." prefix) --------------------------
 TC8_EXPECT_KEY(icmpv4, IPV4, tester_ip)
 TC8_EXPECT_KEY(icmpv4, IPV4, dut_iface_ip)
@@ -282,6 +292,10 @@ TC8_EXPECT_KEY(dhcpv4, MAC, dut_iface_mac)
 #ifdef TC8_EK_tcp_DEFAULTED
 #undef TC8_EK_tcp_DEFAULTED
 #undef TC8_EK_tcp
+#endif
+#ifdef TC8_EK_network_DEFAULTED
+#undef TC8_EK_network_DEFAULTED
+#undef TC8_EK_network
 #endif
 #ifdef TC8_EK_icmpv4_DEFAULTED
 #undef TC8_EK_icmpv4_DEFAULTED

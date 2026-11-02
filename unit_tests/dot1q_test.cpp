@@ -5,6 +5,7 @@
 // decode side cannot drift apart. The remaining tests pin the exact wire
 // byte layout, the PCP/VID field masking, and the short-frame no-op.
 
+#include "stimulus/arp_builder.h"
 #include "stimulus/dot1q.h"
 
 #include <gtest/gtest.h>
@@ -31,6 +32,30 @@ std::vector<std::uint8_t> buildUntaggedArpFrame() {
     eth /= arp;
     const auto buf = eth.serialize();
     return std::vector<std::uint8_t>(buf.begin(), buf.end());
+}
+
+// On a tagged network every raw frame goes out tagged. On an untagged one the bytes are
+// the builder's, and a frame a case tagged itself keeps that tag.
+TEST(RawFrameVlan, TagsARawFrameOnlyOnATaggedNetwork) {
+    using tc8::stimulus::frameForWire;
+    using tc8::stimulus::setRawFrameVlan;
+    const auto untagged = buildUntaggedArpFrame();
+
+    setRawFrameVlan(std::nullopt);
+    EXPECT_EQ(frameForWire(untagged), untagged);
+
+    setRawFrameVlan(100);
+    const auto tagged = frameForWire(untagged);
+    EXPECT_EQ(tagged.size(), untagged.size() + 4);
+    const EthernetII decoded(tagged.data(), static_cast<std::uint32_t>(tagged.size()));
+    const auto *tag = decoded.find_pdu<Dot1Q>();
+    ASSERT_NE(tag, nullptr);
+    EXPECT_EQ(tag->id(), 100u);
+
+    const auto own = tc8::stimulus::withDot1QTag(untagged, 0, false, 200);
+    EXPECT_EQ(frameForWire(own), own) << "a case's own tag is the stimulus";
+
+    setRawFrameVlan(std::nullopt);
 }
 
 TEST(Dot1QBuilder, RoundTripThroughLibtins) {

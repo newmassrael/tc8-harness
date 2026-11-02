@@ -539,6 +539,19 @@ TEST(ApplyExpectToken_Tcp, RefusesAValueThatDeclaresNothing) {
     EXPECT_FALSE(d.congestion_control.has_value());
 }
 
+// A network is untagged until declared, and 802.1Q reserves 0 and 4095.
+TEST(ApplyExpectToken_Network, TakesOnlyAVlanANetworkCanBeOn) {
+    ::tc8::NetworkDeclarations d;
+    EXPECT_FALSE(d.vlan_id.has_value());
+    EXPECT_TRUE(applyExpectToken("network.vlan_id=100", d));
+    EXPECT_EQ(d.vlan_id, 100u);
+
+    ::tc8::NetworkDeclarations bad;
+    EXPECT_FALSE(applyExpectToken("network.vlan_id=0", bad));
+    EXPECT_FALSE(applyExpectToken("network.vlan_id=4095", bad));
+    EXPECT_FALSE(bad.vlan_id.has_value());
+}
+
 // An undeclared value names itself in the skip, and a declared one does not skip.
 TEST(TcpDeclarations, AnUndeclaredValueIsAReasonThatNamesIt) {
     ::tc8::TcpDeclarations d;

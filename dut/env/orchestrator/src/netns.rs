@@ -17,10 +17,8 @@
 //! case, and `DHCPv4_CLIENT_USAGE_01` runs on it and passes — it no longer SKIPs
 //! for want of a second interface.
 //!
-//! `Vlan` (the 802.1Q OEM profile) is the branch that remains unexercised in
-//! tree: every in-tree topology passes `vlan: None`, so the code is ported
-//! faithfully and never run here. An OEM profile that sets it is the first thing
-//! that will prove it, and that is the honest status — not "pending a stage".
+//! `Vlan` (802.1Q) is selected by a site's `vlan_id`. L3 homes on the subinterfaces,
+//! capture stays on the bare veth, so the tags stay visible to a case.
 
 use anyhow::{bail, Context, Result};
 use std::process::Command;
