@@ -23,13 +23,10 @@ echo "[suite-producer] configuring ${build_dir} with examples/demo-suite (suite=
 # same cold-build cost the main build-harness path already offloads to ccache. It
 # shares the caller's ~/.cache/ccache and the same Release flags as that build, so
 # most core objects cross-hit the already-warm entries; only the demo-suite /
-# MOCK_DUT-off variants miss until they populate. Omitted when ccache is absent so
-# a local build without it is byte-for-byte unchanged.
-ccache_args=()
-if command -v ccache >/dev/null 2>&1; then
-    ccache_args=(-DCMAKE_C_COMPILER_LAUNCHER=ccache
-                 -DCMAKE_CXX_COMPILER_LAUNCHER=ccache)
-fi
+# MOCK_DUT-off variants miss until they populate. The launcher and its settings
+# come from scripts/ccache-launcher.sh, the one place they are decided; it prints
+# nothing when ccache is absent, so a local build without it is unchanged.
+mapfile -t ccache_args < <("${repo_root}/scripts/ccache-launcher.sh")
 # -DTC8_SCE_FIND_PACKAGE=OFF matches both CI jobs (embed the vendored SCE);
 # MOCK_DUT/UNIT_TESTS OFF keep this to a harness-only build. CMAKE_EXTRA_ARGS
 # lets a caller append environment-specific flags (e.g. CMAKE_PREFIX_PATH-driven),

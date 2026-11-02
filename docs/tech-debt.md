@@ -3907,6 +3907,13 @@ relocation, not the closing condition: the Done-when below still needs a run tha
 work and a quiet run, both cache-warm, to show no build inflation. With the repair inside reach,
 the id left `tools/debt_accepted.txt`.
 
+⚠ The second run there (`1a78a3f0`) built in 18m53s, so it was not cache-warm either, and that was
+a defect of this repository rather than of the machine. The case-registration units never entered
+ccache: the SCE generator's `#line N "<case>.scxml"` markers name a file ccache cannot find in its
+default mode, and only the workstation's own `ccache.conf` had depend mode on. The launcher now
+carries depend mode itself (`scripts/ccache-launcher.sh`). The measurement must use runs after that
+change, the first of which still populates the cache.
+
 **What it is.** The `[self-hosted, netns]` runner is installed on this workstation, so every
 smoke run's own build competes for cores with whatever a session is doing here. TD-50 moved THIS
 repository's builds off the box, which is what a session controls; it cannot move the runner's,
