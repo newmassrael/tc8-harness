@@ -20,10 +20,9 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::Arp33SM>
     : ArpAndUdpBase<cases::Arp33SM> {
-    // The DUT's cache is cold for the tester, so its reply to the provocation
-    // cannot be waited for (emitArpColdCacheProvocation).
+    // The tester teaches the DUT first, so the DUT's reply can be awaited at L2.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
-        ::tc8::sce::kCapUdpControl | ::tc8::sce::kCapUdpUnacknowledgedSend;
+        ::tc8::sce::kCapUdpControl | ::tc8::sce::kCapUdpSendHeardAtL2;
     static constexpr std::string_view kCaseId = "ARP_33";
     static constexpr std::string_view kDescription =
         "ARP cache entry merge on two gratuitous Responses from different "
@@ -61,7 +60,7 @@ struct TestCaseTraits<cases::Arp33SM>
         spec2.target_ip_be = cfg.arp.tester_ip;
         ::tc8::stimulus::emitArpFromTester(ctx.iface, spec2);
 
-        emitArpColdCacheProvocation(ctx.dut, cfg, cfg.stimulus_timing);
+        emitArpLearnedEntryProvocation(ctx.dut, cfg, cfg.stimulus_timing);
     }
 };
 

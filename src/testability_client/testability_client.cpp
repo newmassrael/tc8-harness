@@ -307,8 +307,9 @@ TestabilityResponse testabilityCall(const TestabilityConfig &cfg, std::uint8_t g
     const std::vector<std::uint8_t> req =
         tp::buildMessage(h, dat.empty() ? nullptr : dat.data(), dat.size());
 
-    const auto resp = cfg.use_tcp ? tcpRoundTrip(cfg, req, timeout_ms, src_ip_be)
-                                  : udpRoundTrip(cfg, req, timeout_ms, src_ip_be);
+    const auto resp = cfg.exchange  ? cfg.exchange(req, timeout_ms)
+                      : cfg.use_tcp ? tcpRoundTrip(cfg, req, timeout_ms, src_ip_be)
+                                    : udpRoundTrip(cfg, req, timeout_ms, src_ip_be);
     if (!resp) {
         return out;  // ok = false
     }

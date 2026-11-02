@@ -23,7 +23,12 @@ struct TestabilityConfig {
     std::uint16_t service_id = testability::kDefaultServiceId;  // PRS_TPSP §6.1 SID
     std::uint32_t dut_ip_be = 0;                                // DUT IPv4 (network byte order)
     std::uint16_t dut_port = testability::kDefaultPort;         // PRS_TPSP §5.1 deployment port
-    bool use_tcp = false;                                       // false = UDP (default), true = TCP
+    // When set, carries each request/response in place of the kernel-routed round trip,
+    // for a case that must keep the tester's kernel out of the wire under test. Given the
+    // request bytes and a timeout, it answers with the response bytes or nullopt.
+    std::function<std::optional<std::vector<std::uint8_t>>(const std::vector<std::uint8_t> &, int)>
+        exchange;
+    bool use_tcp = false;                                       // false = UDP (default), true =TCP
 };
 
 // Decoded testability response (PRS_TPSP §6.1 / PRS_TPSP §6.2). `ok` is false on socket error,

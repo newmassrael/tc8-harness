@@ -104,6 +104,28 @@ inline int emitArpEgressProvocation(::tc8::sce::IDutControl &dut,
     });
 }
 
+// The provocation for a case that taught the DUT a MAC for the tester first and now
+// grades that the DUT used it (ARP_03..06, ARP_32..35). Nothing has to exist on the DUT
+// before the teaching, so a backend whose send needs a socket can make one here: its
+// reply is the DUT's first frame to the tester and already uses what was taught. Gate
+// the case on kCapUdpSendHeardAtL2.
+inline int emitArpLearnedEntryProvocation(::tc8::sce::IDutControl &dut,
+                                          const ::tc8::TestConfig &cfg,
+                                          const ::tc8::stimulus::BootTiming &timing) {
+    auto *udp = dut.udpControl();
+    if (udp == nullptr) {
+        ::tc8::UnperformedStimulus::record("dut_udp_control_absent");
+        return -1;
+    }
+    return ::tc8::stimulus::runBootCadence(timing, [&](int /*attempt*/) {
+        return udp->sendDatagramHeardAtL2(
+                   Endpoint{/*addr_be=*/0, ::tc8::stimulus::kEgressBootDutSrcPort},
+                   Endpoint{cfg.tester.ip, ::tc8::ut::kDataPort}, egressProvocationPayload())
+                   ? 0
+                   : -1;
+    });
+}
+
 // The provocation for a case that holds the DUT's ARP cache COLD for the tester
 // (ARP_39/40: the tester teaches the DUT only after the DUT has had to ask). The
 // DUT's answer to the request is queued behind the resolution the case provokes

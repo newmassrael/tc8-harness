@@ -46,5 +46,47 @@ TEST(DutUdpUnacknowledgedSend, TestabilityCannot) {
     EXPECT_FALSE(udp.sendDatagramUnacknowledged(Endpoint{0, 1}, Endpoint{0, 2}, {1, 2, 3}));
 }
 
+// The L2 send exists to keep the tester's kernel out of the window, so neither backend
+// falls back to it without a wire, and a backend with no wire does not claim the bit.
+TEST(DutUdpSendHeardAtL2, NoBackendSendsItWithoutAWire) {
+    OpcodeUdpControl opcode(/*dut_ip_be=*/0, /*port=*/1, /*src_ip_be=*/0, /*timeout_ms=*/10);
+    EXPECT_FALSE(opcode.sendDatagramHeardAtL2(Endpoint{0, 1}, Endpoint{0, 2}, {1, 2, 3}));
+
+    TestabilityUdpControl testability_udp(testability::TestabilityConfig{}, /*timeout_ms=*/10,
+                                          /*src_ip_be=*/0);
+    EXPECT_FALSE(testability_udp.sendDatagramHeardAtL2(Endpoint{0, 1}, Endpoint{0, 2}, {1, 2, 3}));
+
+    TestabilityControl no_wire(testability::TestabilityConfig{});
+    EXPECT_EQ(no_wire.capabilities() & kCapUdpSendHeardAtL2, 0u);
+
+    RawTransport wire;
+    wire.iface = "unused-here";
+    TestabilityControl with_wire(testability::TestabilityConfig{}, 10, 0, wire);
+    EXPECT_NE(with_wire.capabilities() & kCapUdpSendHeardAtL2, 0u);
+}
+
+// With a wire, the three primitives go through the exchange in order and nothing else
+// does: a kernel-routed step here would put the tester's ARP in the graded window.
+TEST(DutUdpSendHeardAtL2, TestabilityCarriesItsThreePrimitivesOverTheExchange) {
+    std::vector<std::uint8_t> pids;
+    testability::TestabilityConfig wire_cfg;
+    wire_cfg.exchange = [&pids](const std::vector<std::uint8_t> &req, int /*timeout_ms*/) {
+        const auto h = testability::parseHeader(req.data(), req.size());
+        pids.push_back(testability::pidOf(h->method_id));
+        testability::Header resp = *h;
+        resp.tid = testability::kTidResponse;
+        resp.rid = testability::kRidEOk;
+        const std::vector<std::uint8_t> socket_id{0x00, 0x07};
+        return std::optional<std::vector<std::uint8_t>>(
+            testability::buildMessage(resp, socket_id.data(), socket_id.size()));
+    };
+    TestabilityUdpControl udp(testability::TestabilityConfig{}, /*timeout_ms=*/10,
+                              /*src_ip_be=*/0, wire_cfg);
+    EXPECT_TRUE(udp.sendDatagramHeardAtL2(Endpoint{0, 1}, Endpoint{0, 2}, {1, 2, 3}));
+    EXPECT_EQ(pids, (std::vector<std::uint8_t>{testability::kPidCreateAndBind,
+                                               testability::kPidSendData,
+                                               testability::kPidCloseSocket}));
+}
+
 }  // namespace
 }  // namespace tc8::sce

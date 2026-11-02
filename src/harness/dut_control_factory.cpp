@@ -27,7 +27,12 @@ std::unique_ptr<IDutControl> makeBackend(const ::tc8::TestConfig &cfg, std::stri
             testability::TestabilityConfig tcfg;
             tcfg.dut_ip_be = dut_ip_be;
             tcfg.dut_port = testability::kDefaultPort;
-            return std::make_unique<TestabilityControl>(tcfg, timeout_ms);
+            RawTransport raw;
+            raw.iface = std::string(iface);
+            raw.tester_ip_be = cfg.tester.ip;
+            raw.dut_mac = cfg.dut.mac;
+            return std::make_unique<TestabilityControl>(tcfg, timeout_ms, /*src_ip_be=*/0,
+                                                        std::move(raw));
         }
         case DutControlBackend::kOpcode:
             break;
@@ -42,11 +47,11 @@ std::unique_ptr<IDutControl> makeBackend(const ::tc8::TestConfig &cfg, std::stri
     // leaving the cold-cache premise intact. 0 (no alias configured) falls back to
     // kernel-chosen, harmless on backends/DUTs where no `_NEG` runs.
     // Raw-injection transport for the sub-interfaces that must not provoke a
-    // tester-side ARP (see OpcodeRawTransport). The DUT MAC and tester IP are the
+    // tester-side ARP (see RawTransport). The DUT MAC and tester IP are the
     // same identities the direct opcode-builder stimulus paths already inject
     // with, so a case routed over the seam puts the SAME frame on the wire as the
     // legacy path it replaces.
-    OpcodeRawTransport raw;
+    RawTransport raw;
     raw.iface = std::string(iface);
     raw.tester_ip_be = cfg.tester.ip;
     raw.dut_mac = cfg.dut.mac;

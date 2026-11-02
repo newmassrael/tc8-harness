@@ -204,6 +204,11 @@ private:
             return performedOrRecord(inner->sendDatagramUnacknowledged(src, dest, data),
                                      "send_datagram_unacknowledged");
         }
+        bool sendDatagramHeardAtL2(const Endpoint &src, const Endpoint &dest,
+                                   const std::vector<std::uint8_t> &data) override {
+            return performedOrRecord(inner->sendDatagramHeardAtL2(src, dest, data),
+                                     "send_datagram_heard_at_l2");
+        }
     };
 
     struct UdpReceive final : Bound<IUdpReceiveControl> {

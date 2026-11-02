@@ -466,6 +466,11 @@ TestabilityProbeCommand::TestabilityProbeCommand(CLI::App &app) {
                      "Testability Service ID (default: 0x0105)");
     sub_->add_option("-t,--timeout", timeout_ms_, "Reply timeout in milliseconds")
         ->capture_default_str();
+    sub_->add_option("--source-ip", source_ip_,
+                     "Bind the GENERAL lifecycle's source to this local IPv4 address (default: "
+                     "kernel-chosen). A fixture whose DUT cannot be ARP-flushed per case passes "
+                     "a tester alias, so the probe's replies do not warm the DUT's ARP entry for "
+                     "the primary tester IP");
     sub_->add_flag("--tcp", use_tcp_, "Carry SOME/IP over TCP instead of UDP");
     sub_->add_flag("--no-data", skip_data_,
                    "Probe only the GENERAL lifecycle (skip the UDP data-plane loop)");
@@ -518,6 +523,12 @@ int TestabilityProbeCommand::run() {
     if (::inet_pton(AF_INET, dut_ip_.c_str(), &addr) != 1) {
         std::fprintf(stderr, "testability-probe: invalid DUT IPv4 address '%s'\n",
                      dut_ip_.c_str());
+        return 1;
+    }
+    in_addr src_addr{};
+    if (!source_ip_.empty() && ::inet_pton(AF_INET, source_ip_.c_str(), &src_addr) != 1) {
+        std::fprintf(stderr, "testability-probe: invalid source IPv4 address '%s'\n",
+                     source_ip_.c_str());
         return 1;
     }
 
@@ -625,7 +636,7 @@ int TestabilityProbeCommand::run() {
 
     // Lifecycle goes through the IDutControl seam (backend-agnostic); data-plane
     // service primitives use the typed free-function wrappers with cfg.
-    sce::TestabilityControl ctrl(cfg, timeout_ms_);
+    sce::TestabilityControl ctrl(cfg, timeout_ms_, src_addr.s_addr);
     sce::IDutControl &dut = ctrl;
 
     // GET_VERSION (GENERAL/0x01) — also the channel-liveness probe.

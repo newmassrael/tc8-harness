@@ -74,13 +74,14 @@ int openUtReplyTap(std::string_view iface) {
     return fd;
 }
 
-// The UT payload of `frame` when it is a UDP datagram from the DUT's UT port to
-// the tester's `tester_port`, else nullopt. Untagged IPv4, unfragmented — the
-// shape of every reply to a request this file builds.
+// The UDP payload of `frame` when it is a datagram from the DUT's `dut_port` to the
+// tester's `tester_port`, else nullopt. Untagged IPv4, unfragmented — the shape of
+// every reply to a request this file builds.
 std::optional<std::vector<std::uint8_t>> utReplyPayload(const std::uint8_t *frame, std::size_t n,
                                                         std::uint32_t dut_ip_be,
                                                         std::uint32_t tester_ip_be,
-                                                        std::uint16_t tester_port) {
+                                                        std::uint16_t tester_port,
+                                                        std::uint16_t dut_port = ut::kPort) {
     constexpr std::size_t kEth = 14;
     if (n < kEth + 20 || frame[12] != 0x08 || frame[13] != 0x00) {
         return std::nullopt;
@@ -99,7 +100,7 @@ std::optional<std::vector<std::uint8_t>> utReplyPayload(const std::uint8_t *fram
     const auto be16 = [](const std::uint8_t *p) {
         return static_cast<std::uint16_t>((p[0] << 8) | p[1]);
     };
-    if (src != dut_ip_be || dst != tester_ip_be || be16(udp) != ut::kPort ||
+    if (src != dut_ip_be || dst != tester_ip_be || be16(udp) != dut_port ||
         be16(udp + 2) != tester_port) {
         return std::nullopt;
     }
@@ -144,6 +145,22 @@ std::optional<std::vector<std::uint8_t>> awaitUtReply(int tap,
             return payload;
         }
     }
+}
+
+// Put `payload` on the wire as a UDP datagram to the DUT's `dut_port`, raw, so the
+// tester's kernel resolves nothing.
+int sendRawUdpToDut(std::string_view iface, std::uint32_t tester_ip_be, std::uint32_t dut_ip_be,
+                    const std::array<std::uint8_t, 6> &dut_mac, std::uint16_t tester_src_port,
+                    std::uint16_t dut_port, const std::vector<std::uint8_t> &payload) {
+    const auto udp = buildUdpDatagram(tester_ip_be, dut_ip_be, tester_src_port, dut_port,
+                                      payload.data(), payload.size());
+    Ipv4FrameSpec spec{};
+    spec.dst_mac     = dut_mac;
+    spec.src_ip      = tester_ip_be;
+    spec.dst_ip      = dut_ip_be;
+    spec.ip_protocol = kIpProtoUdp;
+    const auto frame = buildIpv4Frame(spec, udp);
+    return sendRawEthernet(frame, iface);
 }
 
 // The reply of one awaited request: `code` is the DUT's status byte, or a
@@ -693,17 +710,73 @@ int sendUpperTesterRequest(std::string_view iface,
                            std::uint16_t tester_src_port,
                            const std::vector<std::uint8_t> &ut_payload) {
     TC8_TX_SCOPE();
-    const auto udp = buildUdpDatagram(tester_ip_be, dut_ip_be,
-                                       tester_src_port, ut::kPort,
-                                       ut_payload.data(), ut_payload.size());
+    return sendRawUdpToDut(iface, tester_ip_be, dut_ip_be, dut_mac, tester_src_port, ut::kPort,
+                           ut_payload);
+}
 
-    Ipv4FrameSpec spec{};
-    spec.dst_mac     = dut_mac;
-    spec.src_ip      = tester_ip_be;
-    spec.dst_ip      = dut_ip_be;
-    spec.ip_protocol = kIpProtoUdp;
-    const auto frame = buildIpv4Frame(spec, udp);
-    return sendRawEthernet(frame, iface);
+std::optional<std::vector<std::uint8_t>> udpExchangeHeardAtL2(
+    std::string_view iface, std::uint32_t tester_ip_be, std::uint32_t dut_ip_be,
+    const std::array<std::uint8_t, 6> &dut_mac, std::uint16_t tester_src_port,
+    std::uint16_t dut_port, const std::vector<std::uint8_t> &request, int timeout_ms,
+    const std::function<bool(const std::vector<std::uint8_t> &)> &is_answer) {
+    TC8_TX_SCOPE();
+    // Bound for the reason awaitedExchange binds, and both open before the send: the
+    // DUT answers within a millisecond.
+    const int fd = ::socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
+    if (fd < 0) {
+        return std::nullopt;
+    }
+    sockaddr_in src{};
+    src.sin_family      = AF_INET;
+    src.sin_port        = htons(tester_src_port);
+    src.sin_addr.s_addr = tester_ip_be;
+    if (::bind(fd, reinterpret_cast<const sockaddr *>(&src), sizeof(src)) < 0) {
+        std::fprintf(stderr, "stimulus: L2 exchange bind(:%u) failed: %s\n", tester_src_port,
+                     std::strerror(errno));
+        ::close(fd);
+        return std::nullopt;
+    }
+    const int tap = openUtReplyTap(iface);
+    if (tap < 0) {
+        std::fprintf(stderr, "stimulus: L2 exchange tap on '%.*s' failed: %s\n",
+                     static_cast<int>(iface.size()), iface.data(), std::strerror(errno));
+        ::close(fd);
+        return std::nullopt;
+    }
+
+    std::optional<std::vector<std::uint8_t>> answer;
+    if (sendRawUdpToDut(iface, tester_ip_be, dut_ip_be, dut_mac, tester_src_port, dut_port,
+                        request) >= 0) {
+        const auto deadline =
+            std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+        std::uint8_t buf[2048];
+        while (!answer) {
+            const auto left = std::chrono::duration_cast<std::chrono::milliseconds>(
+                deadline - std::chrono::steady_clock::now());
+            if (left.count() <= 0) {
+                break;
+            }
+            pollfd pfd{tap, POLLIN, 0};
+            if (::poll(&pfd, 1, static_cast<int>(left.count())) <= 0) {
+                continue;  // timeout re-checks the deadline; EINTR retries
+            }
+            sockaddr_ll from{};
+            socklen_t fromlen = sizeof(from);
+            const ssize_t n = ::recvfrom(tap, buf, sizeof(buf), MSG_DONTWAIT,
+                                         reinterpret_cast<sockaddr *>(&from), &fromlen);
+            if (n <= 0 || from.sll_pkttype == PACKET_OUTGOING) {
+                continue;  // our own request leaving, or nothing after all
+            }
+            auto payload = utReplyPayload(buf, static_cast<std::size_t>(n), dut_ip_be,
+                                          tester_ip_be, tester_src_port, dut_port);
+            if (payload && is_answer(*payload)) {
+                answer = std::move(payload);
+            }
+        }
+    }
+    ::close(tap);
+    ::close(fd);
+    return answer;
 }
 
 // The one awaited exchange behind both public entry points: send the raw request,

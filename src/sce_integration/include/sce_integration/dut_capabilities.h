@@ -123,6 +123,12 @@ enum DutCapability : std::uint32_t {
     // cannot come yet. Backend-STATIC: the opcode UT's raw transport can; a
     // protocol whose socket id comes back in a response (testability) cannot.
     kCapUdpUnacknowledgedSend = 1u << 22,
+    // IUdpControl::sendDatagramHeardAtL2 — make the DUT send with the requests raw and
+    // the replies heard at L2, for a case that taught the DUT a MAC for the tester first.
+    // Separate from the bit above: the opcode UT has both, and testability has this one,
+    // because a socket created after the teaching step cannot warm what the case grades.
+    // Needs a wire, so a backend without one does not claim it.
+    kCapUdpSendHeardAtL2 = 1u << 23,
 };
 using DutCapabilities = std::uint32_t;
 

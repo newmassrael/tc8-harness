@@ -291,6 +291,19 @@ public:
     // the case is gated on kCapUdpUnacknowledgedSend so it is skipped there.
     virtual bool sendDatagramUnacknowledged(const Endpoint &src, const Endpoint &dest,
                                             const std::vector<std::uint8_t> &data) = 0;
+
+    // As sendDatagram, with every request sent raw and every reply heard at L2. For a
+    // case that taught the DUT a MAC for the tester and then grades that the DUT used
+    // it: the tester's kernel must not resolve anything in the window, and the DUT's
+    // reply goes to the taught MAC, which no kernel socket receives. Awaited, so a
+    // request the DUT did not apply is noticed. It is not for a cache held cold: there
+    // the reply cannot come until the case's next step (sendDatagramUnacknowledged).
+    //
+    // A DUT that did not learn must resolve the tester before it can answer, and that
+    // resolution is what such a case grades, so a reply here proves nothing about
+    // learning and the wire does. False without a raw transport.
+    virtual bool sendDatagramHeardAtL2(const Endpoint &src, const Endpoint &dest,
+                                       const std::vector<std::uint8_t> &data) = 0;
 };
 
 // One datagram the DUT's UDP socket delivered to its application.
@@ -720,9 +733,12 @@ private:
 // seam asks for over the connection-table SPs.
 class TestabilityUdpControl final : public IUdpControl {
 public:
+    // `wire_cfg` is `cfg` with a raw `exchange`, when the run has a wire. Without one
+    // the L2 form is refused rather than sent through the tester's kernel.
     TestabilityUdpControl(const testability::TestabilityConfig &cfg, int timeout_ms,
-                          std::uint32_t src_ip_be)
-        : cfg_(cfg), timeout_ms_(timeout_ms), src_ip_be_(src_ip_be) {}
+                          std::uint32_t src_ip_be, testability::TestabilityConfig wire_cfg = {})
+        : cfg_(cfg), wire_cfg_(std::move(wire_cfg)), timeout_ms_(timeout_ms),
+          src_ip_be_(src_ip_be) {}
 
     // Not available: CREATE_AND_BIND's response carries the socket id SEND_DATA
     // needs, so there is no sending without a reply.
@@ -733,9 +749,23 @@ public:
 
     bool sendDatagram(const Endpoint &src, const Endpoint &dest,
                       const std::vector<std::uint8_t> &data) override {
+        return sendOver(cfg_, src, dest, data);
+    }
+
+    // The same three primitives, carried raw. The socket exists only after the case's
+    // teaching step, so CREATE_AND_BIND's response is the DUT's first frame to the
+    // tester and already uses what the DUT learned.
+    bool sendDatagramHeardAtL2(const Endpoint &src, const Endpoint &dest,
+                               const std::vector<std::uint8_t> &data) override {
+        return wire_cfg_.exchange && sendOver(wire_cfg_, src, dest, data);
+    }
+
+private:
+    bool sendOver(const testability::TestabilityConfig &cfg, const Endpoint &src,
+                  const Endpoint &dest, const std::vector<std::uint8_t> &data) {
         // `src.addr_be` IS the bind address: 0 keeps INADDR_ANY (the DUT's own
         // choice of egress address), non-zero pins the source the case asked for.
-        const auto id = testability::testabilityCreateAndBind(cfg_, testability::kGidUdp,
+        const auto id = testability::testabilityCreateAndBind(cfg, testability::kGidUdp,
                                                            /*do_bind=*/true, src.port,
                                                            src.addr_be,
                                                            timeout_ms_, src_ip_be_);
@@ -743,16 +773,16 @@ public:
             return false;
         }
         const bool ok = testability::testabilityUdpSendData(
-                            cfg_, *id, static_cast<std::uint16_t>(data.size()), dest.port,
+                            cfg, *id, static_cast<std::uint16_t>(data.size()), dest.port,
                             dest.addr_be, data, timeout_ms_, src_ip_be_)
                             .eok();
-        testability::testabilityCloseSocket(cfg_, testability::kGidUdp, *id, timeout_ms_,
+        testability::testabilityCloseSocket(cfg, testability::kGidUdp, *id, timeout_ms_,
                                          src_ip_be_);
         return ok;
     }
 
-private:
     testability::TestabilityConfig cfg_;
+    testability::TestabilityConfig wire_cfg_;
     int timeout_ms_;
     std::uint32_t src_ip_be_;
 };

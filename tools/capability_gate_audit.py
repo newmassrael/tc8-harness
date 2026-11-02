@@ -104,6 +104,7 @@ BIT_DEMANDS = {
     "kCapTcpRecvOob": {"tcpRecvOob", "seamTcpRecvOob"},
     "kCapUdpControl": {"udpControl"},
     "kCapUdpUnacknowledgedSend": {"sendDatagramUnacknowledged"},
+    "kCapUdpSendHeardAtL2": {"sendDatagramHeardAtL2"},
     "kCapUdpReceiveControl": {"udpReceiveControl"},
     "kCapArpConditioning": {"arpControl"},
     "kCapServicePrimitive": {"servicePrimitiveControl"},
@@ -135,7 +136,7 @@ BIT_DEMANDS = {
     "kCapSecondSubnetAddress": {"dut.second_subnet_ip"},
 }
 
-BIT_RE = re.compile(r"\b(kCap[A-Za-z]+)\b")
+BIT_RE = re.compile(r"\b(kCap[A-Za-z0-9]+)\b")
 DECL_RE = re.compile(r"kRequiredCapabilities\s*=\s*([^;]+);", re.S)
 # A case writes `struct TestCaseTraits<cases::Arp03SM>\n    : ArpDutProvokedBase<...> {`
 # -- the specialisation argument sits between the name and the base list, and the
@@ -225,7 +226,7 @@ def brace_body(text: str, open_idx: int) -> str:
 
 def defined_bits() -> list[str]:
     src = strip_comments(CAPS_HEADER.read_text(encoding="utf-8"))
-    return [m.group(1) for m in re.finditer(r"\b(kCap[A-Za-z]+)\s*=\s*1u\s*<<", src)]
+    return [m.group(1) for m in re.finditer(r"\b(kCap[A-Za-z0-9]+)\s*=\s*1u\s*<<", src)]
 
 
 def advertised_bits() -> set[str]:

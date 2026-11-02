@@ -28,12 +28,13 @@ class IDutControl;
 // returned inside a RecordingDutControl (recording_dut_control.h), so an action the
 // DUT did not perform is recorded as an unperformed stimulus.
 //
-// `iface` is the tester NIC the opcode backend injects its UT requests on. It is
-// a construction parameter rather than a `TestConfig` field because it names the
-// tester's own deployment, not the DUT the case is written against — and because
-// only the opcode backend needs it (the testability backend is kernel-routed by
-// design). Passing it is what lets that backend deliver a control request without
-// the tester's stack ARP-resolving the DUT; see `OpcodeRawTransport`. Empty is
+// `iface` is the tester NIC a backend injects raw requests on. It is a construction
+// parameter rather than a `TestConfig` field because it names the tester's own
+// deployment, not the DUT the case is written against. The opcode backend sends its
+// UT requests this way; the testability backend is kernel-routed except for the one
+// send that must stay off the tester's stack. Passing it is what lets a backend
+// deliver a control request without the tester's stack ARP-resolving the DUT; see
+// `RawTransport`. Empty is
 // accepted and selects the kernel-routed path, which is what a loopback unit test
 // wants.
 std::unique_ptr<IDutControl> makeDutControl(const ::tc8::TestConfig &cfg,

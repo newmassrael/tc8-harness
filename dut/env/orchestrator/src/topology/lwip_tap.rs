@@ -294,16 +294,18 @@ impl<'a> LwipTap<'a> {
     fn probe_ready(&self) -> bool {
         let h = &self.cfg.harness;
         match self.ready_probe {
-            // GET_VERSION lifecycle only (--no-data); no --source-ip (a UTM fixture
-            // runs no cold-cache case, so a warm primary-IP ARP entry is harmless).
-            ReadyProbe::Testability => crate::proc::run_ok(
-                Command::new(h)
-                    .args(["testability-probe", "--dut-ip", DUT_IP, "--timeout", PROBE_TIMEOUT_MS, "--no-data"]),
-            ),
-            // --source-ip pins the probe to the tester ALIAS, not the primary IP:
-            // the DUT ARP-resolves the probe's source and this fixture cannot flush
-            // the lwIP ARP table per case, so a primary-IP probe would warm the
-            // <172.16.0.1> entry the cold-cache ARP cases assert is absent.
+            // Both probes pin --source-ip to the tester ALIAS, not the primary IP: the
+            // DUT ARP-resolves the probe's source and this fixture cannot flush the
+            // lwIP ARP table per case, so a primary-IP probe would warm the
+            // <172.16.0.1> entry the learned-entry ARP cases need the tester to teach.
+            // Measured on the UTM: ARP_05, which this stack fails, passed with no ARP
+            // Request on the wire while the probe warmed that entry.
+            //
+            // GET_VERSION lifecycle only (--no-data).
+            ReadyProbe::Testability => crate::proc::run_ok(Command::new(h).args([
+                "testability-probe", "--dut-ip", DUT_IP, "--timeout", PROBE_TIMEOUT_MS, "--no-data",
+                "--source-ip", wire::TESTER_ALIAS_IP,
+            ])),
             ReadyProbe::Opcode => crate::proc::run_ok(Command::new(h).args([
                 "ut-ping", "--dut-ip", DUT_IP, "--timeout", PROBE_TIMEOUT_MS, "--source-ip", wire::TESTER_ALIAS_IP,
             ])),

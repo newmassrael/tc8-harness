@@ -30,6 +30,7 @@ private:
     int port_ = 0;          // 0 -> testability::kDefaultPort, resolved in run()
     int service_id_ = -1;   // <0 -> testability::kDefaultServiceId
     int timeout_ms_ = 1000;
+    std::string source_ip_;  // empty -> kernel-chosen; applies to the GENERAL lifecycle
     bool use_tcp_ = false;   // SOME/IP over TCP instead of UDP
     bool skip_data_ = false; // GENERAL lifecycle only (no UDP data-plane loop)
     bool tcp_data_ = false;  // also exercise the TCP-group active-open SP loop

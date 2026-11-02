@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string_view>
 #include <vector>
@@ -670,6 +671,21 @@ std::optional<UtReply> upperTesterRequestAwaited(std::string_view iface,
                                                  const std::vector<std::uint8_t> &ut_payload,
                                                  int timeout_ms = kAwaitedUtTimeoutMs,
                                                  std::string_view stimulus_name = {});
+
+// One UDP request to the DUT's `dut_port`, sent raw, with its answer heard on the L2
+// tap: the transport of `sendUpperTesterRequestAwaited` for a control channel that is
+// not the Upper Tester's. Raw, so the tester's kernel starts no ARP resolution in a
+// window a case grades. Heard at L2, because the DUT addresses its answer by the MAC
+// its ARP table holds for the tester, which in such a case is one the case injected.
+//
+// `is_answer` correlates, since a channel's framing is its own. nullopt when the send
+// failed or nothing correlated arrived in time. Unlike the Upper Tester entry points
+// this records nothing: the caller knows what the answer means.
+std::optional<std::vector<std::uint8_t>> udpExchangeHeardAtL2(
+    std::string_view iface, std::uint32_t tester_ip_be, std::uint32_t dut_ip_be,
+    const std::array<std::uint8_t, 6> &dut_mac, std::uint16_t tester_src_port,
+    std::uint16_t dut_port, const std::vector<std::uint8_t> &request, int timeout_ms,
+    const std::function<bool(const std::vector<std::uint8_t> &)> &is_answer);
 
 // DUT-side source port of the datagram a boot-cadence OpTriggerSendUdp
 // asks for. Disjoint from the §4.6 UDP_FIELDS per-case literals (20001+)

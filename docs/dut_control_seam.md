@@ -56,6 +56,15 @@ connection gets it from the tester's accept or from the wire. A failed open
 arrives as a CONNECT Event on a Testability DUT, and `ITcpControl::connectEnd`
 reads it.
 
+Nor is a case that teaches the DUT a MAC for the tester and then grades that the
+DUT used it. Nothing has to exist on the DUT before the teaching, so the standard
+CREATE_AND_BIND, SEND_DATA and CLOSE_SOCKET run after it: sent raw, so the tester's
+kernel resolves nothing, with each response heard at L2, because it goes to the
+taught MAC (`IUdpControl::sendDatagramHeardAtL2`). A DUT that did not learn has to
+ask before it can answer, and that ARP Request is what the case grades. A case
+where the tester teaches only after the DUT has asked stays on the opcode backend:
+there the reply is queued behind the resolution, so no socket id can come back.
+
 ## What an answer means, and who records it
 
 A DUT-control call has three outcomes, and a `bool` cannot tell two of them

@@ -517,12 +517,31 @@ private:
 // over loopback). The kernel-routed round trip is then the only option and is used
 // instead, which is sound there precisely because a loopback test asserts nothing
 // about ARP.
-struct OpcodeRawTransport {
+struct RawTransport {
     std::string                 iface;                 // empty = no wire (loopback tests)
     std::uint32_t               tester_ip_be = 0;
     std::array<std::uint8_t, 6> dut_mac{};
     std::uint16_t               tester_src_port = ut::kTesterSrcPort;
 };
+
+// `cfg` with its requests carried over `raw`: sent raw and answered at L2. The answer
+// is the Response to the same primitive, which is what testabilityCall checks again.
+inline testability::TestabilityConfig rawTestabilityConfig(testability::TestabilityConfig cfg,
+                                                           RawTransport raw) {
+    cfg.exchange = [raw = std::move(raw), dut_ip_be = cfg.dut_ip_be, dut_port = cfg.dut_port](
+                       const std::vector<std::uint8_t> &req, int timeout_ms) {
+        const auto sent = testability::parseHeader(req.data(), req.size());
+        const std::uint16_t method_id = sent ? sent->method_id : 0;
+        return stimulus::udpExchangeHeardAtL2(
+            raw.iface, raw.tester_ip_be, dut_ip_be, raw.dut_mac, raw.tester_src_port, dut_port,
+            req, timeout_ms, [method_id](const std::vector<std::uint8_t> &answer) {
+                const auto got = testability::parseHeader(answer.data(), answer.size());
+                return got && got->tid == testability::kTidResponse &&
+                       got->method_id == method_id;
+            });
+    };
+    return cfg;
+}
 
 // Opcode-UT backend of IUdpControl — one self-contained OpTriggerSendUdp per send.
 // The opcode UDP model is port-based (no socket handle), which matches
@@ -537,7 +556,7 @@ struct OpcodeRawTransport {
 class OpcodeUdpControl final : public IUdpControl {
 public:
     OpcodeUdpControl(std::uint32_t dut_ip_be, std::uint16_t port, std::uint32_t src_ip_be,
-                     int timeout_ms, OpcodeRawTransport raw = {})
+                     int timeout_ms, RawTransport raw = {})
         : dut_ip_be_(dut_ip_be), port_(port), src_ip_be_(src_ip_be), timeout_ms_(timeout_ms),
           raw_(std::move(raw)) {}
 
@@ -559,6 +578,13 @@ public:
         return stimulus::sendUpperTesterRequestAwaited(raw_.iface, raw_.tester_ip_be, dut_ip_be_,
                                                        raw_.dut_mac, raw_.tester_src_port, req,
                                                        timeout_ms_, "TriggerSendUdp") == 0;
+    }
+
+    // sendDatagram already is this form on a wire. Without one it would go through the
+    // tester's kernel, so it is refused here.
+    bool sendDatagramHeardAtL2(const Endpoint &src, const Endpoint &dest,
+                               const std::vector<std::uint8_t> &data) override {
+        return !raw_.iface.empty() && sendDatagram(src, dest, data);
     }
 
     // The raw inject without the wait for the reply. Without a raw transport the
@@ -586,7 +612,7 @@ private:
     std::uint16_t port_;
     std::uint32_t src_ip_be_;
     int timeout_ms_;
-    OpcodeRawTransport raw_;
+    RawTransport raw_;
 };
 
 // Opcode-UT backend of IArpControl. Both operations keep the RAW inject path the
@@ -600,7 +626,7 @@ private:
 // DUT that ignores it answers non-zero, which the caller already branches on.
 class OpcodeArpControl final : public IArpControl {
 public:
-    OpcodeArpControl(std::uint32_t dut_ip_be, OpcodeRawTransport raw = {})
+    OpcodeArpControl(std::uint32_t dut_ip_be, RawTransport raw = {})
         : dut_ip_be_(dut_ip_be), raw_(std::move(raw)) {}
 
     int ageCacheBySeconds(std::uint16_t seconds) override {
@@ -621,7 +647,7 @@ public:
 
 private:
     std::uint32_t dut_ip_be_;
-    OpcodeRawTransport raw_;
+    RawTransport raw_;
 };
 
 // Opcode-UT backend of IUdpReceiveControl. Raw + awaited for the same reason the
@@ -630,7 +656,7 @@ private:
 class OpcodeUdpReceiveControl final : public IUdpReceiveControl {
 public:
     OpcodeUdpReceiveControl(std::uint32_t dut_ip_be, std::uint16_t port, std::uint32_t src_ip_be,
-                            int timeout_ms, OpcodeRawTransport raw = {})
+                            int timeout_ms, RawTransport raw = {})
         : dut_ip_be_(dut_ip_be), port_(port), src_ip_be_(src_ip_be), timeout_ms_(timeout_ms),
           raw_(std::move(raw)) {}
 
@@ -718,7 +744,7 @@ private:
     std::uint16_t port_;
     std::uint32_t src_ip_be_;
     int timeout_ms_;
-    OpcodeRawTransport raw_;
+    RawTransport raw_;
 };
 
 // Opcode-UT backend of IDhcpClientControl — one OpStartDhcpClient carrying the
@@ -733,7 +759,7 @@ private:
 class OpcodeDhcpClientControl final : public IDhcpClientControl {
 public:
     OpcodeDhcpClientControl(std::uint32_t dut_ip_be, std::uint16_t port, std::uint32_t src_ip_be,
-                            int timeout_ms, OpcodeRawTransport raw = {})
+                            int timeout_ms, RawTransport raw = {})
         : dut_ip_be_(dut_ip_be), port_(port), src_ip_be_(src_ip_be), timeout_ms_(timeout_ms),
           raw_(std::move(raw)) {}
 
@@ -766,7 +792,7 @@ private:
     std::uint16_t port_;
     std::uint32_t src_ip_be_;
     int timeout_ms_;
-    OpcodeRawTransport raw_;
+    RawTransport raw_;
 };
 
 // Opcode-UT backend of ILinkLocalControl. Two opcodes share one operation: the
@@ -781,7 +807,7 @@ private:
 class OpcodeLinkLocalControl final : public ILinkLocalControl {
 public:
     OpcodeLinkLocalControl(std::uint32_t dut_ip_be, std::uint16_t port, std::uint32_t src_ip_be,
-                           int timeout_ms, OpcodeRawTransport raw = {})
+                           int timeout_ms, RawTransport raw = {})
         : dut_ip_be_(dut_ip_be), port_(port), src_ip_be_(src_ip_be), timeout_ms_(timeout_ms),
           raw_(std::move(raw)) {}
 
@@ -848,7 +874,7 @@ private:
     std::uint16_t port_;
     std::uint32_t src_ip_be_;
     int timeout_ms_;
-    OpcodeRawTransport raw_;
+    RawTransport raw_;
 };
 
 // Adapter over the in-house opcode Upper Tester (upper_tester_client.h). Wraps
@@ -866,7 +892,7 @@ public:
     explicit OpcodeUtControl(std::uint32_t dut_ip_be, std::uint16_t port = ut::kPort,
                              std::uint32_t src_ip_be = 0, int timeout_ms = 1000,
                              std::uint32_t cap_probe_src_ip_be = 0,
-                             OpcodeRawTransport raw = {})
+                             RawTransport raw = {})
         : dut_ip_be_(dut_ip_be), port_(port), src_ip_be_(src_ip_be), timeout_ms_(timeout_ms),
           cap_probe_src_ip_be_(cap_probe_src_ip_be),
           tcp_ctrl_(dut_ip_be, port, src_ip_be, timeout_ms),
@@ -904,7 +930,8 @@ public:
             kCapTcpControl | kCapUdpControl | kCapTcpStateQuery | kCapTcpInfoProbe |
             kCapTcpSynSentOpen |
             kCapTcpRecvOob | kCapDhcpClientControl | kCapLinkLocalControl |
-            kCapUdpReceiveControl | kCapArpConditioning | kCapUdpUnacknowledgedSend);
+            kCapUdpReceiveControl | kCapArpConditioning | kCapUdpUnacknowledgedSend |
+            kCapUdpSendHeardAtL2);
     }
 
     DutCapabilities capabilities() const override {
@@ -1195,10 +1222,15 @@ private:
 
 class TestabilityControl final : public IDutControl {
 public:
+    // `raw` is the wire, when the run has one; see RawTransport. A unit test over
+    // loopback leaves it empty and the L2 send is then not advertised.
     explicit TestabilityControl(const testability::TestabilityConfig &cfg, int timeout_ms = 1000,
-                                std::uint32_t src_ip_be = 0)
+                                std::uint32_t src_ip_be = 0, RawTransport raw = {})
         : cfg_(cfg), timeout_ms_(timeout_ms), src_ip_be_(src_ip_be),
-          tcp_ctrl_(cfg, timeout_ms, src_ip_be), udp_ctrl_(cfg, timeout_ms, src_ip_be),
+          has_wire_(!raw.iface.empty()), tcp_ctrl_(cfg, timeout_ms, src_ip_be),
+          udp_ctrl_(cfg, timeout_ms, src_ip_be,
+                    has_wire_ ? rawTestabilityConfig(cfg, std::move(raw))
+                              : testability::TestabilityConfig{}),
           primitive_ctrl_(cfg, timeout_ms, src_ip_be), socket_config_ctrl_(cfg, timeout_ms, src_ip_be),
           icmp_ctrl_(cfg, timeout_ms, src_ip_be), udp_socket_ctrl_(cfg, timeout_ms, src_ip_be),
           udp_recv_ctrl_(cfg, timeout_ms, src_ip_be) {}
@@ -1227,7 +1259,8 @@ public:
     DutCapabilities capabilities() const override {
         return kCapTcpControl | kCapUdpControl | kCapTcpCreateClosed | kCapTcpSendFlags |
                kCapServicePrimitive | kCapSocketConfigure | kCapIcmpEcho | kCapUdpSocket |
-               kCapUdpReceiveControl | kCapTcpSynSentOpen;
+               kCapUdpReceiveControl | kCapTcpSynSentOpen |
+               (has_wire_ ? kCapUdpSendHeardAtL2 : DutCapabilities{0});
     }
     ITcpControl *tcpControl() override { return &tcp_ctrl_; }
     IUdpControl *udpControl() override { return &udp_ctrl_; }
@@ -1262,6 +1295,7 @@ private:
     testability::TestabilityConfig cfg_;
     int timeout_ms_;
     std::uint32_t src_ip_be_;
+    bool has_wire_;
     TestabilityTcpControl tcp_ctrl_;
     TestabilityUdpControl udp_ctrl_;
     TestabilityServicePrimitiveControl primitive_ctrl_;

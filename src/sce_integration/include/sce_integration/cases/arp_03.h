@@ -22,10 +22,9 @@ struct TestCaseTraits<cases::Arp03SM>
     : ArpDutProvokedBase<cases::Arp03SM> {
     static constexpr ::tc8::BpfGroup kBpfGroup = ::tc8::BpfGroup::ArpAndUdp;
 
-    // The DUT's cache is cold for the tester, so its reply to the provocation
-    // cannot be waited for (emitArpColdCacheProvocation).
+    // The tester teaches the DUT first, so the DUT's reply can be awaited at L2.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
-        ::tc8::sce::kCapUdpControl | ::tc8::sce::kCapUdpUnacknowledgedSend;
+        ::tc8::sce::kCapUdpControl | ::tc8::sce::kCapUdpSendHeardAtL2;
 
     // UDP is in the capture filter (ArpAndUdp BPF group) but ARP_03's
     // pass criterion is absence of ARP Request; UDP observation is
@@ -50,7 +49,7 @@ struct TestCaseTraits<cases::Arp03SM>
                          ::tc8::sce::StimulusContext &ctx) {
         ::tc8::stimulus::emitArpLearningBoot(ctx.iface, cfg.arp.tester_ip, cfg.dut.ip,
                                              ::tc8::stimulus::ArpLearningVariant::Request);
-        emitArpColdCacheProvocation(ctx.dut, cfg, cfg.stimulus_timing);
+        emitArpLearnedEntryProvocation(ctx.dut, cfg, cfg.stimulus_timing);
     }
 };
 
