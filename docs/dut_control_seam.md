@@ -65,6 +65,18 @@ ask before it can answer, and that ARP Request is what the case grades. A case
 where the tester teaches only after the DUT has asked stays on the opcode backend:
 there the reply is queued behind the resolution, so no socket id can come back.
 
+The service-primitive call is carried the same way whenever the run has a wire. It is
+the channel a registered extension implements DUT operations through, and one of them
+pins a static ARP entry (`IArpStaticEntry`): from then on the DUT answers a MAC no
+tester interface owns, starting with the install's own acknowledgement, which a
+kernel-routed exchange would never hear. The other Testability controls stay
+kernel-routed on purpose: the plain UDP send is the default its L2 form is told apart
+from, and the TCP control's Events arrive on sockets of their own. A call that
+completes a named step (`IServicePrimitiveControl::callAsStep`, names in
+`tc8/stimulus_step_names.h`) also marks its E_OK Response, so a case waiting on the
+step learns where in the capture it took effect, as it does from the opcode path's
+awaited request.
+
 ## What an answer means, and who records it
 
 A DUT-control call has three outcomes, and a `bool` cannot tell two of them

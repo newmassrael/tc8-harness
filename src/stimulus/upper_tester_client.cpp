@@ -21,12 +21,14 @@
 #include <unistd.h>
 
 #include "tc8/stimulus_marker.h"
+#include "tc8/stimulus_step_names.h"
 #include "tc8/unperformed_stimulus.h"
 
 #include "stimulus/arp_builder.h"  // sendRawEthernet
 #include "stimulus/ipv4_frame_builder.h"
 #include "stimulus/tx_observer.h"
 #include "stimulus/udp_datagram_builder.h"
+#include "stimulus/udp_frame_view.h"
 
 namespace tc8::stimulus {
 
@@ -82,33 +84,12 @@ std::optional<std::vector<std::uint8_t>> utReplyPayload(const std::uint8_t *fram
                                                         std::uint32_t tester_ip_be,
                                                         std::uint16_t tester_port,
                                                         std::uint16_t dut_port = ut::kPort) {
-    constexpr std::size_t kEth = 14;
-    if (n < kEth + 20 || frame[12] != 0x08 || frame[13] != 0x00) {
+    const auto v = viewUdpFrame(frame, n);
+    if (!v || v->src_ip_be != dut_ip_be || v->dst_ip_be != tester_ip_be ||
+        v->src_port != dut_port || v->dst_port != tester_port) {
         return std::nullopt;
     }
-    const std::uint8_t *ip = frame + kEth;
-    const std::size_t ihl = static_cast<std::size_t>(ip[0] & 0x0FU) * 4U;
-    if ((ip[0] >> 4) != 4 || ihl < 20 || ip[9] != 17 || n < kEth + ihl + 8 ||
-        ((ip[6] & 0x3FU) | ip[7]) != 0) {  // MF set or a non-zero offset: a fragment
-        return std::nullopt;
-    }
-    std::uint32_t src = 0;
-    std::uint32_t dst = 0;
-    std::memcpy(&src, ip + 12, 4);
-    std::memcpy(&dst, ip + 16, 4);
-    const std::uint8_t *udp = ip + ihl;
-    const auto be16 = [](const std::uint8_t *p) {
-        return static_cast<std::uint16_t>((p[0] << 8) | p[1]);
-    };
-    if (src != dut_ip_be || dst != tester_ip_be || be16(udp) != dut_port ||
-        be16(udp + 2) != tester_port) {
-        return std::nullopt;
-    }
-    const std::size_t udp_len = be16(udp + 4);
-    if (udp_len < 8 || kEth + ihl + udp_len > n) {
-        return std::nullopt;
-    }
-    return std::vector<std::uint8_t>(udp + 8, udp + udp_len);
+    return std::vector<std::uint8_t>(v->payload, v->payload + v->payload_len);
 }
 
 // Wait on `tap` until `timeout_ms` for the reply correlated with `request`
@@ -970,7 +951,7 @@ int emitArpAddStatic(std::string_view iface,
                                          ut::kTesterSrcPort,
                                          buildArpAddStaticRequest(nextUtReqId(), entry_ip_be,
                                                                   entry_mac),
-                                         kAwaitedUtTimeoutMs, "dut_arp_static_entry_add");
+                                         kAwaitedUtTimeoutMs, ::tc8::step::kArpStaticEntryAdd);
 }
 
 int emitArpRemoveStatic(std::string_view iface,
@@ -982,7 +963,7 @@ int emitArpRemoveStatic(std::string_view iface,
     return sendUpperTesterRequestAwaited(iface, tester_ip_be, dut_ip_be, dut_mac,
                                          ut::kTesterSrcPort,
                                          buildArpRemoveStaticRequest(nextUtReqId(), entry_ip_be),
-                                         kAwaitedUtTimeoutMs, "dut_arp_static_entry_remove");
+                                         kAwaitedUtTimeoutMs, ::tc8::step::kArpStaticEntryRemove);
 }
 
 int emitSetEgressFlavor(std::string_view iface,

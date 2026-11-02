@@ -215,8 +215,9 @@ inline constexpr bool has_iface_dispatch_v =
 // whose precondition is itself a DUT-control request, where the DUT's own
 // traffic while that request is being answered would otherwise be graded
 // (tc8/stimulus_marker.h has the measured instance). `name` is the stimulus's
-// stable identifier (the one an awaited request records if the step fails, e.g.
-// "dut_arp_static_entry_add"); the case raises its own SCXML event for the one
+// stable identifier, defined once in tc8/stimulus_step_names.h (e.g.
+// `::tc8::step::kArpStaticEntryAdd`) so every backend marks the same name and the
+// case compares against the same constant; the case raises its own SCXML event for the one
 // it waits on and ignores the rest. Declaring the hook also makes the CLI admit
 // the DUT-control port into the capture filter, since the acknowledgement is a
 // frame the capture has to see for its position to be known.

@@ -6,6 +6,7 @@
 #include <cstring>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -20,7 +21,9 @@
 #include "sce_integration/dut_socket_control.h"
 #include "sce_integration/dut_udp_socket_control.h"
 #include "tc8/testability_client.h"
+#include "stimulus/udp_frame_view.h"
 #include "stimulus/upper_tester_client.h"
+#include "tc8/stimulus_marker.h"
 #include "tc8/testability_protocol.h"
 #include "tc8/upper_tester_protocol.h"
 
@@ -635,9 +638,6 @@ public:
                                                seconds);
     }
 
-    int addStaticEntry(std::uint32_t ip_be, const std::array<std::uint8_t, 6> &mac) override {
-        return stimulus::emitArpAddStatic(raw_.iface, raw_.tester_ip_be, dut_ip_be_, raw_.dut_mac,
-                                          ip_be, mac);
 private:
     std::uint32_t dut_ip_be_;
     RawTransport raw_;
@@ -648,6 +648,9 @@ public:
     OpcodeArpStaticEntry(std::uint32_t dut_ip_be, RawTransport raw = {})
         : dut_ip_be_(dut_ip_be), raw_(std::move(raw)) {}
 
+    int addStaticEntry(std::uint32_t ip_be, const std::array<std::uint8_t, 6> &mac) override {
+        return stimulus::emitArpAddStatic(raw_.iface, raw_.tester_ip_be, dut_ip_be_, raw_.dut_mac,
+                                          ip_be, mac);
     }
 
     int removeStaticEntry(std::uint32_t ip_be) override {
@@ -1057,10 +1060,11 @@ private:
     OpcodeArpStaticEntry arp_static_;
 };
 
-// Adapter over the AUTOSAR Testability Protocol client (testability_client.h).
-// Besides the IDutControl lifecycle it exposes the protocol's generic
-// `call(gid, pid, dat)` engine, which OEM-specific typed service-primitive
-// wrappers (written out of tree) build on.
+// The testability backend's sub-interfaces follow, then TestabilityControl, the adapter
+// over the AUTOSAR Testability Protocol client (testability_client.h). Typed
+// service-primitive wrappers written out of tree build on its generic primitive call,
+// servicePrimitiveControl().
+//
 // What a testability response means as a DUT-control outcome — the ONE place the result id
 // is classified, for every testability-backed sub-interface: E_OK is done; E_NTF (the DUT
 // does not serve what was asked: a parameter, a primitive) is an unsupported refusal; any
@@ -1098,6 +1102,36 @@ public:
         if (r.ok) {
             reply.result_id = r.rid;
             reply.data = r.dat;
+        }
+        return reply;
+    }
+
+    // The Response is the step's acknowledgement, so the marker is matched on the
+    // identity testabilityCall correlates on: a Response from the DUT's control
+    // endpoint, for this service and this primitive, with result E_OK. Registered
+    // BEFORE the request goes out, because the capture pipeline may meet the Response
+    // before this call returns; withdrawn when the answer is anything but E_OK, so a
+    // step the DUT did not apply never marks a boundary. The same contract as the
+    // opcode path's awaited request (sendUpperTesterRequestAwaited).
+    DutPrimitiveReply callAsStep(std::string_view step, std::uint8_t gid, std::uint8_t pid,
+                                 const std::vector<std::uint8_t> &dat) override {
+        const std::uint32_t dut_ip_be = cfg_.dut_ip_be;
+        const std::uint16_t dut_port = cfg_.dut_port;
+        const std::uint16_t service_id = cfg_.service_id;
+        const std::uint16_t method_id = testability::methodId(gid, pid);
+        const std::uint64_t marker = ::tc8::StimulusMarkers::expect(
+            std::string(step), [=](const std::uint8_t *frame, std::size_t len) {
+                const auto v = stimulus::viewUdpFrame(frame, len);
+                if (!v || v->src_ip_be != dut_ip_be || v->src_port != dut_port) {
+                    return false;
+                }
+                const auto h = testability::parseHeader(v->payload, v->payload_len);
+                return h && h->service_id == service_id && h->tid == testability::kTidResponse &&
+                       h->method_id == method_id && h->rid == testability::kRidEOk;
+            });
+        DutPrimitiveReply reply = call(gid, pid, dat);
+        if (!reply.succeeded()) {
+            ::tc8::StimulusMarkers::withdraw(marker);
         }
         return reply;
     }
@@ -1236,14 +1270,29 @@ class TestabilityControl final : public IDutControl {
 public:
     // `raw` is the wire, when the run has one; see RawTransport. A unit test over
     // loopback leaves it empty and the L2 send is then not advertised.
+    //
+    // WHICH sub-controls are carried over the wire is decided here, by what each one's
+    // contract needs, not by where the wire happened to be wired first:
+    //   - the UDP control's L2 form (sendDatagramHeardAtL2), whose whole point is to be
+    //     heard after a case taught the DUT a MAC for the tester;
+    //   - the service-primitive call, because it is the channel an extension implements
+    //     arbitrary DUT operations through, including ones that change the DUT's
+    //     neighbour state (IArpStaticEntry). Once a static entry maps the tester to a MAC
+    //     no tester interface owns, every reply goes to that MAC, starting with the
+    //     install's own acknowledgement, and a kernel-routed exchange never hears it.
+    // The rest stay kernel-routed on purpose. The plain UDP send is the default the
+    // L2 form is distinguished from (kCapUdpSendHeardAtL2), the testability cold-ARP
+    // cases rely on that difference, and the TCP control's Events arrive on sockets of
+    // their own, which a request-response exchange cannot carry.
     explicit TestabilityControl(const testability::TestabilityConfig &cfg, int timeout_ms = 1000,
                                 std::uint32_t src_ip_be = 0, RawTransport raw = {})
         : cfg_(cfg), timeout_ms_(timeout_ms), src_ip_be_(src_ip_be),
-          has_wire_(!raw.iface.empty()), tcp_ctrl_(cfg, timeout_ms, src_ip_be),
-          udp_ctrl_(cfg, timeout_ms, src_ip_be,
-                    has_wire_ ? rawTestabilityConfig(cfg, std::move(raw))
+          has_wire_(!raw.iface.empty()),
+          wire_cfg_(has_wire_ ? rawTestabilityConfig(cfg, std::move(raw))
                               : testability::TestabilityConfig{}),
-          primitive_ctrl_(cfg, timeout_ms, src_ip_be), socket_config_ctrl_(cfg, timeout_ms, src_ip_be),
+          tcp_ctrl_(cfg, timeout_ms, src_ip_be), udp_ctrl_(cfg, timeout_ms, src_ip_be, wire_cfg_),
+          primitive_ctrl_(has_wire_ ? wire_cfg_ : cfg, timeout_ms, src_ip_be),
+          socket_config_ctrl_(cfg, timeout_ms, src_ip_be),
           icmp_ctrl_(cfg, timeout_ms, src_ip_be), udp_socket_ctrl_(cfg, timeout_ms, src_ip_be),
           udp_recv_ctrl_(cfg, timeout_ms, src_ip_be) {}
 
@@ -1287,14 +1336,9 @@ public:
         return testability::testabilityGetVersion(cfg_, timeout_ms_, src_ip_be_);
     }
 
-    // Generic service-primitive call — the extension surface for non-standard SPs.
-    // A case does not hold this class (the factory hands out the recording decorator),
-    // so it reaches the same call through servicePrimitiveControl() and gets the
-    // decorator's accounting.
-    testability::TestabilityResponse call(std::uint8_t gid, std::uint8_t pid,
-                                       const std::vector<std::uint8_t> &dat = {}) {
-        return testability::testabilityCall(cfg_, gid, pid, dat, timeout_ms_, src_ip_be_);
-    }
+    // The generic service-primitive call — the extension surface for non-standard SPs —
+    // is servicePrimitiveControl() and nothing else. A second entry here would bypass
+    // the decorator's accounting and the transport chosen for that call above.
 
     // Standard typed service primitives are NOT re-exposed here: they are the
     // free functions in testability_client.h (the single source of truth for SP
@@ -1308,6 +1352,9 @@ private:
     int timeout_ms_;
     std::uint32_t src_ip_be_;
     bool has_wire_;
+    // `cfg_` carried raw and answered at L2, when the run has a wire; empty (no
+    // `exchange`) without one. Declared before the sub-controls that take it.
+    testability::TestabilityConfig wire_cfg_;
     TestabilityTcpControl tcp_ctrl_;
     TestabilityUdpControl udp_ctrl_;
     TestabilityServicePrimitiveControl primitive_ctrl_;

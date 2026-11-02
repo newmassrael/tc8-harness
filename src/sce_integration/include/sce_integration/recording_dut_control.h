@@ -280,6 +280,15 @@ private:
             accountFor(reply.outcome(), "service_primitive");
             return reply;
         }
+        // Forwarded, never folded into call(): only the backend can see the
+        // acknowledgement on the wire, so dropping the step here would silently cost
+        // every case its marker. The record names the step, which IS the operation.
+        DutPrimitiveReply callAsStep(std::string_view step, std::uint8_t gid, std::uint8_t pid,
+                                     const std::vector<std::uint8_t> &dat) override {
+            DutPrimitiveReply reply = inner->callAsStep(step, gid, pid, dat);
+            accountFor(reply.outcome(), std::string(step).c_str());
+            return reply;
+        }
     };
 
     // Socket options are an action, accounted by the caller's intent. The record names the

@@ -484,6 +484,18 @@ if(TARGET tc8_upper_tester_server AND TARGET tc8_testability_server)
             $<TARGET_FILE:ut_await_tap_test>
             --gtest_filter=UtAwaitTap.*)
     set_tests_properties(ut_await_tap_privileged PROPERTIES SKIP_RETURN_CODE 77)
+    # The testability counterpart: the service-primitive call hears its answer at L2
+    # when the run has a wire, and a call that completes a named step marks the
+    # answer. Same veth + foreign-MAC fake DUT; the tester pins the DUT's MAC through
+    # the reference LinuxSocketBackend so the kernel-routed negative control fails on
+    # the reply alone. Links tc8_testability_server for that backend.
+    tc8_add_unit_test(testability_tap_test)
+    target_link_libraries(testability_tap_test PRIVATE tc8_testability_server)
+    add_test(NAME testability_tap_privileged
+        COMMAND ${PROJECT_SOURCE_DIR}/scripts/run-netns-test.sh
+            $<TARGET_FILE:testability_tap_test>
+            --gtest_filter=TestabilityTap.*)
+    set_tests_properties(testability_tap_privileged PROPERTIES SKIP_RETURN_CODE 77)
 endif()
 # Opcode-UT TCP control adapter, driven against a mock UT responder (the real
 # opcode server needs a netns/veth topology, not loopback).

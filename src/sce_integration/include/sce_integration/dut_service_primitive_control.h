@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string_view>
 #include <vector>
 
 #include "sce_integration/dut_socket_control.h"
@@ -58,6 +59,25 @@ public:
     // DUT's answer.
     virtual DutPrimitiveReply call(std::uint8_t gid, std::uint8_t pid,
                                    const std::vector<std::uint8_t> &dat) = 0;
+
+    // The same call, as the one that completes stimulus step `step` of a seam
+    // operation (a name from tc8/stimulus_step_names.h). When the DUT answers success,
+    // that answer is the step's acknowledgement: the backend marks it, so a case
+    // waiting for the step (`onStimulusApplied`) learns where in the capture the step
+    // took effect. An answer other than success marks nothing.
+    //
+    // The caller names the step on the call that COMPLETES it, which is why the name
+    // travels with the call: an operation that takes several primitives marks only
+    // its last, and the case must not open its window after the first.
+    //
+    // The default makes the plain call and marks nothing, which fails closed: the case
+    // never learns the step was applied and reports a non-conclusion, never a verdict
+    // on a step nobody confirmed. A backend that can see its acknowledgement on the
+    // wire overrides it.
+    virtual DutPrimitiveReply callAsStep(std::string_view /*step*/, std::uint8_t gid,
+                                         std::uint8_t pid, const std::vector<std::uint8_t> &dat) {
+        return call(gid, pid, dat);
+    }
 };
 
 }  // namespace tc8::sce
