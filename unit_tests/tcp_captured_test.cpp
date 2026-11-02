@@ -291,12 +291,14 @@ TEST(ProbingWindows06Backoff, UnmeasuredGradesNeither) {
 TEST(TcpIpv4Envelope, TheContextCarriesTheSegmentsEnvelopeAndItsTraceShowsIt) {
     TcpFrame f;
     f.ip_tos = 0xB8;
+    f.ip_ttl = 3;
     f.ip_identification = 0x1234;
     f.ip_flags = 0x2;  // DF
     f.ip_fragment_offset = 0;
     TcpCaptured c;
     fillTcpCapturedFromFrame(c, f);
     EXPECT_EQ(c.ip_tos, 0xB8);
+    EXPECT_EQ(c.ip_ttl, 3);
     EXPECT_EQ(c.ip_identification, 0x1234);
     EXPECT_EQ(c.ip_flags, 0x2);
 
@@ -304,6 +306,7 @@ TEST(TcpIpv4Envelope, TheContextCarriesTheSegmentsEnvelopeAndItsTraceShowsIt) {
     appendCapturedJson(json, c);
     EXPECT_NE(json.find("\"ip_identification\":4660"), std::string::npos) << json;
     EXPECT_NE(json.find("\"ip_tos\":184"), std::string::npos) << json;
+    EXPECT_NE(json.find("\"ip_ttl\":3"), std::string::npos) << json;
 }
 
 }  // namespace

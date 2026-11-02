@@ -39,7 +39,7 @@ struct Dhcpv4Captured : CapturedFrameTiming, CapturedL3Endpoints,
 
     // IPv4 / UDP envelope is fully inherited: `src_ip` / `dst_ip`
     // (network byte order) from `CapturedL3Endpoints`, `src_port` /
-    // `dst_port` from `CapturedL4Ports`, and the IPv4 envelope (`ip_tos`,
+    // `dst_port` from `CapturedL4Ports`, and the IPv4 envelope (`ip_tos`, `ip_ttl`,
     // `ip_identification`, `ip_flags`, `ip_fragment_offset`) from
     // `CapturedIpv4Envelope`.
 

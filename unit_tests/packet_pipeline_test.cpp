@@ -293,9 +293,11 @@ namespace {
 
 constexpr std::uint8_t kEnvTos = 0xB8;           // DSCP EF
 constexpr std::uint16_t kEnvIdentification = 0xBEEF;
+constexpr std::uint8_t kEnvTtl = 3;  // not a stack default
 
 void stampEnvelope(Tins::IP &ip) {
     ip.tos(kEnvTos);
+    ip.ttl(kEnvTtl);
     ip.id(kEnvIdentification);
     ip.flags(Tins::IP::DONT_FRAGMENT);
 }
@@ -310,6 +312,7 @@ std::vector<std::uint8_t> serialisedEth(Tins::IP &ip) {
 template <typename Frame>
 void expectEnvelope(const Frame &f) {
     EXPECT_EQ(f.ip_tos, kEnvTos);
+    EXPECT_EQ(f.ip_ttl, kEnvTtl);
     EXPECT_EQ(f.ip_identification, kEnvIdentification);
     EXPECT_EQ(f.ip_flags, static_cast<std::uint8_t>(Tins::IP::DONT_FRAGMENT));
     EXPECT_EQ(f.ip_fragment_offset, 0u);

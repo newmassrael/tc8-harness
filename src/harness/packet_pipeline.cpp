@@ -29,12 +29,13 @@ using namespace Tins;
 
 namespace {
 
-// The carrying IPv4 header's TOS, Identification, flags and fragment offset, read once
-// per packet and copied into every L4 frame the packet yields. The one site that moves
-// these four fields, so a new L4 frame cannot carry some of them and forget the rest.
+// The carrying IPv4 header's TOS, TTL, Identification, flags and fragment offset, read
+// once per packet and copied into every L4 frame the packet yields. The one site that
+// moves these fields, so a new L4 frame cannot carry some of them and forget the rest.
 ::tc8::Ipv4Envelope ipv4EnvelopeFrom(const IP &ip) {
     ::tc8::Ipv4Envelope env{};
     env.ip_tos = static_cast<std::uint8_t>(ip.tos());
+    env.ip_ttl = ip.ttl();
     env.ip_identification = ip.id();
     env.ip_flags = static_cast<std::uint8_t>(ip.flags());
     env.ip_fragment_offset = ip.fragment_offset();

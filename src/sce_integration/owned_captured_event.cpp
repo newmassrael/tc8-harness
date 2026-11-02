@@ -23,8 +23,8 @@ static_assert(sizeof(::tc8::Icmpv4Frame) == 56,
               "Icmpv4Frame changed: review its borrowed regions (owned_captured_event.cpp)");
 static_assert(sizeof(::tc8::Ipv4Frame) == 56,
               "Ipv4Frame changed: review its borrowed regions (owned_captured_event.cpp)");
-// UdpFrame and TcpFrame grew by the four scalar Ipv4Envelope fields (reviewed: no pointer
-// among them, so the borrowed regions below are unchanged).
+// UdpFrame and TcpFrame grew by the scalar Ipv4Envelope fields (reviewed: no pointer among
+// them, so the borrowed regions below are unchanged).
 static_assert(sizeof(::tc8::UdpFrame) == 72,
               "UdpFrame changed: review its borrowed regions (owned_captured_event.cpp)");
 static_assert(sizeof(::tc8::Dhcpv4Frame) == 112,
