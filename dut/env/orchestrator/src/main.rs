@@ -227,17 +227,68 @@ fn stale_binary_refusal(now: &str, head: &str) -> Option<String> {
     ))
 }
 
+/// The units a lane runs, and for an asserted lane the verdict each must land.
+///
+/// A positive run's units are the named cases (default `SOMEIPSRV_FORMAT_01`). The
+/// known-fail and negative lanes list theirs from the harness, which owns both axes, and
+/// a positional case list narrows them. The schedule is sorted, which fixes the worker
+/// distribution and the summary order.
+///
+/// One function for all three lanes, called before the topology exists, because
+/// everything sized from the schedule — the second veth pair today — has to see the
+/// units that will actually run.
+fn resolve_schedule(
+    cli: &Cli,
+    cfg: &Config,
+) -> Result<(Vec<UnitId>, Option<worker::AssertSchedule>)> {
+    let asserted = |rows: Vec<(UnitId, String)>, mode, empty: &str| {
+        let filtered = narrow_to_named_cases(rows, &cli.cases);
+        if filtered.is_empty() {
+            bail!("{empty}");
+        }
+        let mut units: Vec<UnitId> = filtered.iter().map(|(unit, _)| unit.clone()).collect();
+        units.sort();
+        Ok((units, Some(worker::AssertSchedule { mode, expect: filtered.into_iter().collect() })))
+    };
+    if cli.known_fail {
+        // The harness's --list-known-fails: the platform overrides' measured landed
+        // verdicts — the SAME one-home rule the negative set follows.
+        asserted(
+            dispatch::list_known_fails(cfg)?,
+            worker::AssertMode::KnownFail,
+            "--known-fail: no case carries a registered platform_known_fail_verdict (narrow the case list, or measure one first)",
+        )
+    } else if cli.negative {
+        // The harness's --list-neg-rows: the inventory overrides' sixth axis — the SAME
+        // source the coverage audit reads.
+        asserted(
+            dispatch::list_negative_rows(cfg)?,
+            worker::AssertMode::NegativeRow,
+            "--negative: none of the requested case(s) carry an authored negative row",
+        )
+    } else if cli.cases.is_empty() {
+        Ok((vec![UnitId::case("SOMEIPSRV_FORMAT_01")], None))
+    } else {
+        Ok((cli.cases.iter().map(UnitId::case).collect(), None))
+    }
+}
+
+/// Narrow a listed lane to the cases named on the command line; with none named, the
+/// whole lane runs. Matches the CASE, not the unit, case-insensitively as the harness
+/// registry does: naming `ARP_35` means every row it authors. Matching the unit ran only
+/// the primary, and the run looked complete while proving half of what it had listed
+/// (docs/tech-debt.md TD-53).
+fn narrow_to_named_cases(rows: Vec<(UnitId, String)>, named: &[String]) -> Vec<(UnitId, String)> {
+    if named.is_empty() {
+        return rows;
+    }
+    let want: HashSet<String> = named.iter().map(|c| c.to_uppercase()).collect();
+    rows.into_iter().filter(|(unit, _)| want.contains(&unit.case_id().to_uppercase())).collect()
+}
+
 fn main() -> Result<()> {
     refuse_a_stale_binary()?;
     let cli = Cli::parse();
-    // The schedule, one unit per run. A positive run's units are the named cases; the
-    // negative and known-fail lanes below replace them with the units they list.
-    let mut cases: Vec<UnitId> = if cli.cases.is_empty() {
-        vec![UnitId::case("SOMEIPSRV_FORMAT_01")]
-    } else {
-        cli.cases.iter().map(UnitId::case).collect()
-    };
-
     // clap parsed --topology into a TopologyKind (Copy), so the valid set is
     // enforced at parse time — no stringly-typed re-validation here.
     let topology = cli.topology;
@@ -304,20 +355,28 @@ fn main() -> Result<()> {
     // needs a fixture-owned per-case respawn (drain → SIGTERM-slot-abort → respawn)
     // a persistent External does not do; it self-provisions the tap + DUT in
     // provision_run and reaps them in teardown_run.
+    // The run's schedule — every unit this lane runs, and for an asserted lane the verdict
+    // each must land — resolved BEFORE the topology is built, because the topology is
+    // sized from it (below). ONLY for actual case runs: it shells the harness, and
+    // --print-expect must stay a pure identity dump with no harness dependency.
+    let schedule = if cli.print_expect { None } else { Some(resolve_schedule(&cli, &cfg)?) };
+
     // The requires_secondary_iface set (harness axis). Stored on cfg so run_case can
     // pass --interface-secondary per-case; single-pc also provisions the second veth
-    // pair only when a SCHEDULED case is in it (bash's sticky NEED_SECOND_VETH), so
-    // the common single-pair run pays nothing. ONLY for actual case runs: it shells
-    // the harness, and --print-expect must stay a pure identity dump with no harness
-    // dependency (the flag it feeds is unused on that path — the topology's
-    // ut_arp_cache_timeout is all --print-expect reads).
-    let schedule_needs_secondary = if cli.print_expect {
-        false
-    } else {
-        cfg.secondary_iface_cases = list_secondary_iface_cases(&cfg)?;
-        cases
-            .iter()
-            .any(|c| cfg.secondary_iface_cases.contains(&c.case_id().to_uppercase()))
+    // pair only when a SCHEDULED unit's case is in it (bash's sticky NEED_SECOND_VETH),
+    // so the common single-pair run pays nothing. Read from the schedule the run will
+    // actually execute: it was once read from the positive case list before the
+    // negative and known-fail lanes replaced it, so those lanes sized the topology for
+    // cases they were not going to run. (--print-expect has no schedule; the flag is
+    // unused on that path — the topology's ut_arp_cache_timeout is all it reads.)
+    let schedule_needs_secondary = match &schedule {
+        None => false,
+        Some((cases, _)) => {
+            cfg.secondary_iface_cases = list_secondary_iface_cases(&cfg)?;
+            cases
+                .iter()
+                .any(|c| cfg.secondary_iface_cases.contains(&c.case_id().to_uppercase()))
+        }
     };
 
     let topo: Box<dyn Topology + Sync> = match &site {
@@ -341,68 +400,13 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
+    let (cases, neg_schedule) = schedule.expect("every path but --print-expect resolved one");
+
     // Contract gates (smoke-test.sh) — BEFORE provisioning a fixture, so a
     // rejected invocation never executes side-effectful host setup.
-    // A `--negative` run dispatches each case as its authored negative row instead
-    // of positively. Built here (after the topology gate) so the schedule and the
-    // worker cap below see the negative case set, not the positive default.
-    let neg_schedule: Option<worker::AssertSchedule> = if cli.known_fail {
-        // The known-fail set is the harness's --list-known-fails (the platform overrides'
-        // measured landed verdicts) — the SAME one-home rule the negative set follows.
-        let rows = dispatch::list_known_fails(&cfg)?;
-        let filtered: Vec<(UnitId, String)> = if cli.cases.is_empty() {
-            rows
-        } else {
-            let want: HashSet<String> = cli.cases.iter().map(|c| c.to_uppercase()).collect();
-            rows.into_iter()
-                .filter(|(unit, _)| want.contains(&unit.case_id().to_uppercase()))
-                .collect()
-        };
-        if filtered.is_empty() {
-            bail!("--known-fail: no case carries a registered platform_known_fail_verdict (narrow the case list, or measure one first)");
-        }
-        cases = filtered.iter().map(|(case, _)| case.clone()).collect();
-        cases.sort();
-        Some(worker::AssertSchedule {
-            mode: worker::AssertMode::KnownFail,
-            expect: filtered.into_iter().collect(),
-        })
-    } else if cli.negative {
-        if !topo.supports_negative() {
-            bail!("--negative requires a topology with a spawned reference DUT (deliberate mis-expectations + start-order control); topology '{topology}' does not support it");
-        }
-        // The negative set is the harness's --list-neg-rows (the inventory
-        // overrides' sixth axis) — the SAME source bash and the coverage audit read.
-        let rows = dispatch::list_negative_rows(&cfg)?;
-        // A positional case list narrows the run to those rows (rapid per-case
-        // iteration); bare --negative runs the whole curated set. Case-insensitive,
-        // matching the harness registry.
-        let filtered: Vec<(UnitId, String)> = if cli.cases.is_empty() {
-            rows
-        } else {
-            let want: HashSet<String> = cli.cases.iter().map(|c| c.to_uppercase()).collect();
-            rows.into_iter()
-                // Match the CASE, not the unit: naming `ARP_35` means every row it
-                // authors. Matching the unit ran only the primary, and the run looked
-                // complete while proving half of what it had listed (docs/tech-debt.md
-                // TD-53).
-                .filter(|(unit, _)| want.contains(&unit.case_id().to_uppercase()))
-                .collect()
-        };
-        if filtered.is_empty() {
-            bail!("--negative: none of the requested case(s) carry an authored negative row");
-        }
-        // Sorted unit schedule (deterministic worker distribution + summary), plus
-        // the unit -> expected_fail map the workers assert against.
-        cases = filtered.iter().map(|(case, _)| case.clone()).collect();
-        cases.sort();
-        Some(worker::AssertSchedule {
-            mode: worker::AssertMode::NegativeRow,
-            expect: filtered.into_iter().collect(),
-        })
-    } else {
-        None
-    };
+    if cli.negative && !topo.supports_negative() {
+        bail!("--negative requires a topology with a spawned reference DUT (deliberate mis-expectations + start-order control); topology '{topology}' does not support it");
+    }
     // Every unit's files are named from the unit, so a unit scheduled twice would have
     // its two runs overwrite each other and grade whichever verdict landed last.
     // Refused here, before any host state is touched (docs/tech-debt.md TD-68).
@@ -689,6 +693,41 @@ mod tests {
 
     fn skip(case: &str, reason: &str) -> Skip {
         Skip { case: case.into(), reason: reason.into() }
+    }
+
+    fn listed(units: &[UnitId]) -> Vec<(UnitId, String)> {
+        units.iter().map(|u| (u.clone(), format!("fail:{u}"))).collect()
+    }
+
+    /// Naming a case selects every row it authors, whatever its spelling, and nothing
+    /// else; naming nothing selects the whole lane.
+    #[test]
+    fn a_named_case_narrows_the_lane_to_all_of_its_rows() {
+        let lane = [
+            UnitId::case("ARP_33"),
+            UnitId::negative_row("ARP_33", 1),
+            UnitId::case("ARP_34"),
+        ];
+        let kept = narrow_to_named_cases(listed(&lane), &["arp_33".to_string()]);
+        let names: Vec<String> = kept.iter().map(|(u, _)| u.to_string()).collect();
+        assert_eq!(names, ["ARP_33", "ARP_33#1"]);
+        assert_eq!(narrow_to_named_cases(listed(&lane), &[]).len(), lane.len());
+    }
+
+    /// A positive run's schedule is the named cases as row-0 units, or the default when
+    /// none is named, with no asserted verdicts. (The asserted lanes list theirs from the
+    /// harness and share `narrow_to_named_cases`, tested above.)
+    #[test]
+    fn a_positive_run_schedules_the_named_cases() {
+        let cfg = config::fake_cfg();
+        let cli = Cli::try_parse_from(["tc8-orchestrator", "ARP_03", "ARP_04"]).expect("parse");
+        let (units, asserted) = resolve_schedule(&cli, &cfg).expect("positive schedule");
+        assert_eq!(units, [UnitId::case("ARP_03"), UnitId::case("ARP_04")]);
+        assert!(asserted.is_none());
+
+        let cli = Cli::try_parse_from(["tc8-orchestrator"]).expect("parse");
+        let (units, _) = resolve_schedule(&cli, &cfg).expect("default schedule");
+        assert_eq!(units, [UnitId::case("SOMEIPSRV_FORMAT_01")]);
     }
 
     /// The consumer's run (TD-59): 5 of 261 not dispatched, 1.9%, under the 5%
