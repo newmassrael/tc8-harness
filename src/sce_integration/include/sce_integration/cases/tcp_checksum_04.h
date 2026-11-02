@@ -47,13 +47,11 @@ struct TestCaseTraits<cases::TcpChecksum04SM> {
     static constexpr ::tc8::BpfGroup  kBpfGroup   = ::tc8::BpfGroup::Tcp;
 
     // Both ISN cycles drive the DUT into SYN-SENT (no tester listener; the
-    // tester kernel's RST closes each cycle). The testability CONNECT SP
-    // requires the handshake to establish and so cannot hold a socket in
-    // SYN-SENT, while the opcode non-blocking worker can — kCapTcpSynSentOpen
-    // makes the CLI capability gate honestly SKIP this case on a testability
-    // backend (Tier 2 2b#4) instead of failing it. The ISNs are read from
-    // the DUT SYNs the stimulus awaits on the case's own capture, so no
-    // state probe is required.
+    // tester kernel's RST closes each cycle). kCapTcpSynSentOpen says the
+    // backend's open returns with the socket in SYN-SENT; the CLI capability
+    // gate skips the case on one that cannot (Tier 2 2b#4) instead of failing
+    // it. The ISNs are read from the DUT SYNs the stimulus awaits on the case's
+    // own capture, so no state probe is required.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
         ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpSynSentOpen;
 

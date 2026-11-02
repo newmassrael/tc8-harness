@@ -32,13 +32,11 @@ struct TestCaseTraits<cases::TcpFlagsInvalid04SM>
         "(RFC 793 §3.9 p67 Event Processing)";
 
     // The DUT's active open is left in SYN-SENT (no tester listener), then the
-    // bare RST is injected into that state and absence-of-response asserted. The
-    // testability CONNECT SP requires the handshake to establish and so cannot
-    // hold a socket in SYN-SENT, while the opcode non-blocking worker can —
-    // kCapTcpSynSentOpen makes the CLI capability gate honestly SKIP this case
-    // on a testability backend (Tier 2 2b#4) instead of failing it. No state
-    // probe is needed: the DUT SYN is observed on pcap and the verdict is the
-    // SCXML absence window.
+    // bare RST is injected into that state and absence-of-response asserted.
+    // kCapTcpSynSentOpen says the backend's open returns with the socket in
+    // SYN-SENT; the CLI capability gate skips the case on one that cannot (Tier 2
+    // 2b#4) instead of failing it. No state probe is needed: the DUT SYN is
+    // observed on pcap and the verdict is the SCXML absence window.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
         ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpSynSentOpen;
 

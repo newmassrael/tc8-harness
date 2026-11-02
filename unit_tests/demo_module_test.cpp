@@ -75,6 +75,12 @@ public:
     int sendUrgent(int, const void*, std::size_t) override { return -1; }
     bool connectBoundedV4(int, const tc8::net::Endpoint&, int,
                           const std::atomic<bool>*) override { return false; }
+    tc8::net::ConnectProgress connectStartV4(int, const tc8::net::Endpoint&) override {
+        return tc8::net::ConnectProgress::kFailed;
+    }
+    tc8::net::ConnectProgress connectProgress(int) override {
+        return tc8::net::ConnectProgress::kFailed;
+    }
     bool listen(int, int) override { return false; }
     int accept(int, tc8::net::Endpoint&) override { return -1; }
     bool shutdown(int, int) override { return true; }

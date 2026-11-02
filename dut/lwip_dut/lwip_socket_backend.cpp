@@ -310,6 +310,77 @@ bool LwipSocketBackend::connectBoundedV4(int fd, const Endpoint &dst, int timeou
     return ok;
 }
 
+namespace {
+tc8::net::ConnectProgress connectEndFromErrno(int err) {
+    using tc8::net::ConnectProgress;
+    switch (err) {
+        case ECONNREFUSED:
+        case ECONNRESET:
+            // lwIP has one error for a reset, ERR_RST, and takes no path through
+            // SYN-RECEIVED on an active open, so a reset that ends an attempt is the
+            // reset that answered its SYN. That is a refusal, which the kernel
+            // backend reports as ECONNREFUSED.
+            return ConnectProgress::kRefused;
+        case ETIMEDOUT:
+        case ECONNABORTED:  // ERR_ABRT: the retransmission limit aborts the pcb
+            return ConnectProgress::kTimedOut;
+        default:
+            return ConnectProgress::kFailed;
+    }
+}
+}  // namespace
+
+tc8::net::ConnectProgress LwipSocketBackend::connectStartV4(int fd, const Endpoint &dst) {
+    using tc8::net::ConnectProgress;
+    sockaddr_in d{};
+    d.sin_family = AF_INET;
+    d.sin_addr.s_addr = dst.addr_be;
+    d.sin_port = lwip_htons(dst.port);
+
+    setNonBlocking(fd, true);
+    if (lwip_connect(fd, reinterpret_cast<sockaddr *>(&d), sizeof(d)) == 0) {
+        return ConnectProgress::kEstablished;
+    }
+    switch (errno) {
+        case EINPROGRESS:
+            return ConnectProgress::kInProgress;
+        case EALREADY:
+        case EISCONN:
+            return ConnectProgress::kAlreadyConnected;
+        default:
+            return ConnectProgress::kFailed;  // no route and the like: no SYN went out
+    }
+}
+
+tc8::net::ConnectProgress LwipSocketBackend::connectProgress(int fd) {
+    using tc8::net::ConnectProgress;
+    fd_set wset;
+    FD_ZERO(&wset);
+    FD_SET(fd, &wset);
+    timeval tv{};
+    const int ready = lwip_select(fd + 1, nullptr, &wset, nullptr, &tv);
+    if (ready == 0) {
+        return ConnectProgress::kInProgress;
+    }
+    if (ready < 0) {
+        return errno == EINTR ? ConnectProgress::kInProgress : ConnectProgress::kFailed;
+    }
+    int err = 0;
+    socklen_t l = sizeof(err);
+    if (lwip_getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &l) != 0) {
+        return ConnectProgress::kFailed;
+    }
+    if (err != 0) {
+        return connectEndFromErrno(err);
+    }
+    sockaddr_in peer{};
+    socklen_t pl = sizeof(peer);
+    if (lwip_getpeername(fd, reinterpret_cast<sockaddr *>(&peer), &pl) != 0) {
+        return ConnectProgress::kFailed;  // no error and no peer: shut down mid-attempt
+    }
+    return ConnectProgress::kEstablished;
+}
+
 bool LwipSocketBackend::listen(int fd, int backlog) {
     return lwip_listen(fd, backlog) == 0;
 }
@@ -351,9 +422,11 @@ int LwipSocketBackend::waitReadable(int fd, int timeout_us) {
     return 1;
 }
 
-int LwipSocketBackend::poll(const int *fds, std::size_t n, int timeout_ms,
-                            std::vector<int> &readable) {
+int LwipSocketBackend::poll(const int *read_fds, std::size_t read_n, const int *write_fds,
+                            std::size_t write_n, int timeout_ms, std::vector<int> &readable,
+                            std::vector<int> &writable) {
     readable.clear();
+    writable.clear();
     // lwIP socket fds are small contiguous indices, so FD_SETSIZE bounds them
     // comfortably and lwip_select is the natural multiplexer (mirrors waitReadable
     // and connectBoundedV4). A negative timeout_ms is an indefinite wait (NULL
@@ -361,18 +434,25 @@ int LwipSocketBackend::poll(const int *fds, std::size_t n, int timeout_ms,
     // backend: lwip_select is an fd_set API with no per-fd revents, so a
     // hung-up/errored watched socket is NOT surfaced as readable here (the reactor
     // contract requires unwatch-before-close, so a watched fd is never left closed
-    // in the set).
+    // in the set). A failed connection attempt still surfaces on the write set: lwIP's
+    // error callback raises the send event to release a waiting select.
     fd_set rset;
+    fd_set wset;
     FD_ZERO(&rset);
+    FD_ZERO(&wset);
     int maxfd = -1;
-    for (std::size_t i = 0; i < n; ++i) {
-        if (fds[i] >= 0) {
-            FD_SET(fds[i], &rset);
-            if (fds[i] > maxfd) {
-                maxfd = fds[i];
+    const auto add = [&maxfd](fd_set &set, const int *fds, std::size_t n) {
+        for (std::size_t i = 0; i < n; ++i) {
+            if (fds[i] >= 0) {
+                FD_SET(fds[i], &set);
+                if (fds[i] > maxfd) {
+                    maxfd = fds[i];
+                }
             }
         }
-    }
+    };
+    add(rset, read_fds, read_n);
+    add(wset, write_fds, write_n);
     timeval tv{};
     timeval *ptv = nullptr;
     if (timeout_ms >= 0) {
@@ -380,16 +460,21 @@ int LwipSocketBackend::poll(const int *fds, std::size_t n, int timeout_ms,
         tv.tv_usec = (timeout_ms % 1000) * 1000;
         ptv = &tv;
     }
-    const int sr = lwip_select(maxfd + 1, &rset, nullptr, nullptr, ptv);
+    const int sr = lwip_select(maxfd + 1, &rset, &wset, nullptr, ptv);
     if (sr <= 0) {
         return (sr < 0 && errno != EINTR) ? -1 : 0;  // EINTR -> treat as a timeout
     }
-    for (std::size_t i = 0; i < n; ++i) {
-        if (fds[i] >= 0 && FD_ISSET(fds[i], &rset)) {
-            readable.push_back(fds[i]);
+    for (std::size_t i = 0; i < read_n; ++i) {
+        if (read_fds[i] >= 0 && FD_ISSET(read_fds[i], &rset)) {
+            readable.push_back(read_fds[i]);
         }
     }
-    return static_cast<int>(readable.size());
+    for (std::size_t i = 0; i < write_n; ++i) {
+        if (write_fds[i] >= 0 && FD_ISSET(write_fds[i], &wset)) {
+            writable.push_back(write_fds[i]);
+        }
+    }
+    return static_cast<int>(readable.size() + writable.size());
 }
 
 namespace {

@@ -4311,6 +4311,15 @@ That job belongs to `kDutReadyBarrier`, and the consumer will remove the settle 
 barrier once that commit reaches its pin. The TCP SYN-SENT half of the gap was already expressible
 on the opcode backend, and the testability backend's CONNECT is fixed by its standard.
 
+**Correction (2026-11-02).** The last sentence above, and "the AUTOSAR testability vocabulary is
+fixed by its standard" as a reason under **Why it exists**, are wrong about CONNECT. The vocabulary
+is fixed, but the blocking was ours. The specification's section 6.2 forbids a service primitive
+from waiting between request and response, and its CONNECT only triggers the open and lists the
+open's failures as Event results. `ProtocolServer` held the request for up to a second and turned
+the outcome into the Response. It now answers at once and reports a failure as an Event, the
+testability backend advertises `kCapTcpSynSentOpen`, and a case can state a SYN-SENT socket there
+through the same `connectTcp` as on the opcode backend.
+
 ## TD-64 — nine SOME/IP cases give the DUT less than ParamListenTime, or demand an order
 
 **Status:** RESOLVED (2026-10-28). **Logged:** 2026-10-28, from the Phase Q4 sweep

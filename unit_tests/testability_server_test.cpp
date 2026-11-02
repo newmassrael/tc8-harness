@@ -201,21 +201,207 @@ TEST_F(TestabilityServerTest, TcpSendDataRepeatsUpToTotalLen) {
     EXPECT_TRUE(testability::testabilityCloseSocket(cfg, tp::kGidTcp, *sock).eok());
 }
 
-// CONNECT to a port with no listener must fail (bounded, not hang) and not
-// stall later requests on the single server thread.
-TEST_F(TestabilityServerTest, TcpConnectToDeadPortReturnsError) {
+// A listener whose accept queue is full, so the kernel drops the next SYN and the
+// connecting socket stays in SYN-SENT, retransmitting, without leaving loopback. The
+// attempt completes once the queue is drained and the next retransmission lands.
+class SilentPeer {
+public:
+    SilentPeer() {
+        listener_ = ::socket(AF_INET, SOCK_STREAM, 0);
+        sockaddr_in la{};
+        la.sin_family = AF_INET;
+        la.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
+        if (::bind(listener_, reinterpret_cast<sockaddr *>(&la), sizeof(la)) != 0 ||
+            ::listen(listener_, 0) != 0) {
+            ADD_FAILURE() << "silent peer listener setup";
+            return;
+        }
+        socklen_t ll = sizeof(la);
+        ::getsockname(listener_, reinterpret_cast<sockaddr *>(&la), &ll);
+        port_ = ntohs(la.sin_port);
+        // A zero backlog admits one connection; these fill the queue.
+        for (int &fd : fillers_) {
+            fd = ::socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
+            ::connect(fd, reinterpret_cast<sockaddr *>(&la), sizeof(la));
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds{50});
+    }
+    ~SilentPeer() {
+        for (const int fd : fillers_) {
+            ::close(fd);
+        }
+        ::close(listener_);
+    }
+    SilentPeer(const SilentPeer &) = delete;
+    SilentPeer &operator=(const SilentPeer &) = delete;
+
+    std::uint16_t port() const { return port_; }
+
+    // Empty the queue, then accept the connection that was held in SYN-SENT. Returns
+    // its fd, or -1 if it never arrived within `wait_s`.
+    int admitHeldConnection(int wait_s) {
+        ::timeval tv{};
+        tv.tv_sec = wait_s;
+        ::setsockopt(listener_, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+        for (;;) {
+            sockaddr_in cli{};
+            socklen_t cl = sizeof(cli);
+            const int fd = ::accept(listener_, reinterpret_cast<sockaddr *>(&cli), &cl);
+            if (fd < 0) {
+                return -1;
+            }
+            bool filler = false;
+            for (const int f : fillers_) {
+                sockaddr_in own{};
+                socklen_t ol = sizeof(own);
+                ::getsockname(f, reinterpret_cast<sockaddr *>(&own), &ol);
+                filler = filler || own.sin_port == cli.sin_port;
+            }
+            if (!filler) {
+                return fd;
+            }
+            ::close(fd);
+        }
+    }
+
+private:
+    int listener_ = -1;
+    std::uint16_t port_ = 0;
+    int fillers_[3] = {-1, -1, -1};
+};
+
+// PRS_TPSP section 6.2: CONNECT answers at once. A peer that never answers the SYN
+// leaves the socket in SYN-SENT and the request thread free, which is the whole
+// point: with the old bounded wait this took a second and answered E_NOK.
+TEST_F(TestabilityServerTest, TcpConnectToSilentPeerAnswersAtOnce) {
+    SilentPeer peer;
+    const auto cfg = loopbackConfig();
+    const auto sock = testability::testabilityCreateAndBind(cfg, tp::kGidTcp, false, 0xFFFF, 0);
+    ASSERT_TRUE(sock.has_value());
+
+    const auto before = std::chrono::steady_clock::now();
+    const auto co = testability::testabilityTcpConnect(cfg, *sock, peer.port(),
+                                                       ::htonl(INADDR_LOOPBACK));
+    const auto took = std::chrono::steady_clock::now() - before;
+    EXPECT_TRUE(co.eok()) << "rid=" << static_cast<int>(co.rid);
+    EXPECT_LT(took, std::chrono::milliseconds{500});
+
+    // RFC 793 3.9 OPEN on a connection already opening.
+    const auto again = testability::testabilityTcpConnect(cfg, *sock, peer.port(),
+                                                          ::htonl(INADDR_LOOPBACK));
+    EXPECT_TRUE(again.ok);
+    EXPECT_EQ(again.rid, tp::kRidETcpCae);
+
+    EXPECT_TRUE(testability::testabilityStartTest(cfg).eok()) << "server stayed responsive";
+    EXPECT_TRUE(testability::testabilityCloseSocket(cfg, tp::kGidTcp, *sock).eok());
+}
+
+// RFC 793 3.9 SEND in SYN-SENT: queued until ESTABLISHED. It must neither block the
+// request thread (a blocking send on a SYN-SENT socket waits for the handshake) nor
+// fail, and the bytes must arrive once the connection is up.
+TEST_F(TestabilityServerTest, TcpSendInSynSentIsQueuedUntilEstablished) {
+    SilentPeer peer;
+    const auto cfg = loopbackConfig();
+    const auto sock = testability::testabilityCreateAndBind(cfg, tp::kGidTcp, false, 0xFFFF, 0);
+    ASSERT_TRUE(sock.has_value());
+    ASSERT_TRUE(testability::testabilityTcpConnect(cfg, *sock, peer.port(),
+                                                   ::htonl(INADDR_LOOPBACK))
+                    .eok());
+
+    const std::vector<std::uint8_t> data{0x51, 0x52, 0x53};
+    const auto before = std::chrono::steady_clock::now();
+    const auto sent = testability::testabilityTcpSendData(
+        cfg, *sock, static_cast<std::uint16_t>(data.size()), /*flags=*/0, data);
+    EXPECT_TRUE(sent.eok()) << "rid=" << static_cast<int>(sent.rid);
+    EXPECT_LT(std::chrono::steady_clock::now() - before, std::chrono::milliseconds{500});
+
+    const int conn = peer.admitHeldConnection(/*wait_s=*/5);
+    ASSERT_GE(conn, 0) << "the held SYN never completed";
+    ::timeval tv{};
+    tv.tv_sec = 3;
+    ::setsockopt(conn, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    std::uint8_t got[8] = {};
+    const ssize_t n = ::recv(conn, got, sizeof(got), 0);
+    ::close(conn);
+    ASSERT_EQ(n, static_cast<ssize_t>(data.size()));
+    EXPECT_EQ(std::vector<std::uint8_t>(got, got + n), data);
+
+    EXPECT_TRUE(testability::testabilityCloseSocket(cfg, tp::kGidTcp, *sock).eok());
+}
+
+// RFC 793 3.9 RECEIVE in SYN-SENT: queued until ESTABLISHED, then forwarded.
+TEST_F(TestabilityServerTest, TcpForwardArmedInSynSentRunsOnceEstablished) {
+    SilentPeer peer;
+    const auto cfg = loopbackConfig();
+    const auto sock = testability::testabilityCreateAndBind(cfg, tp::kGidTcp, false, 0xFFFF, 0);
+    ASSERT_TRUE(sock.has_value());
+    ASSERT_TRUE(testability::testabilityTcpConnect(cfg, *sock, peer.port(),
+                                                   ::htonl(INADDR_LOOPBACK))
+                    .eok());
+
+    const std::vector<std::uint8_t> sent{0x61, 0x62};
+    const auto fwd = testability::testabilityReceiveAndForward(
+        cfg, *sock, /*max_fwd=*/64, /*max_len=*/static_cast<std::uint16_t>(sent.size()),
+        [&] {
+            const int conn = peer.admitHeldConnection(/*wait_s=*/5);
+            ASSERT_GE(conn, 0) << "the held SYN never completed";
+            ::send(conn, sent.data(), sent.size(), 0);
+            std::this_thread::sleep_for(std::chrono::milliseconds{100});
+            ::close(conn);
+        });
+    EXPECT_TRUE(fwd.ok);
+    EXPECT_EQ(fwd.payload, sent);
+}
+
+// A refused CONNECT answers E_OK and then reports the refusal as an Event, because
+// CONNECT's result list marks E_TCP_COR "in Event". The server stays responsive.
+TEST_F(TestabilityServerTest, TcpConnectToDeadPortReportsRefusalInEvent) {
     const auto cfg = loopbackConfig();
     const auto sock = testability::testabilityCreateAndBind(cfg, tp::kGidTcp, false, 0xFFFF, 0);
     ASSERT_TRUE(sock.has_value());
     // Port 1 on loopback: nothing listening -> connection refused.
-    const auto co = testability::testabilityTcpConnect(cfg, *sock, /*dest_port=*/1,
-                                                    ::htonl(INADDR_LOOPBACK),
-                                                    /*timeout_ms=*/1500);
-    EXPECT_TRUE(co.ok);              // the SP itself round-tripped
-    EXPECT_NE(co.rid, tp::kRidEOk);  // but reported a non-success result
+    auto attempt = testability::testabilityTcpConnectAttempt(cfg, *sock, /*dest_port=*/1,
+                                                             ::htonl(INADDR_LOOPBACK));
+    EXPECT_TRUE(attempt.response().eok()) << "rid=" << static_cast<int>(attempt.response().rid);
+    const auto failure = attempt.awaitFailure(/*wait_ms=*/1500);
+    ASSERT_TRUE(failure.has_value()) << "no Event";
+    EXPECT_EQ(*failure, tp::kRidETcpCor);
+    EXPECT_EQ(attempt.awaitFailure(0), failure) << "a read Event stays readable";
 
-    // The server thread is still responsive afterwards.
     EXPECT_TRUE(testability::testabilityCloseSocket(cfg, tp::kGidTcp, *sock).eok());
+    EXPECT_TRUE(testability::testabilityStartTest(cfg).eok());
+}
+
+// The seam carries the same report, in the seam's terms.
+TEST_F(TestabilityServerTest, SeamConnectEndNamesTheRefusal) {
+    sce::TestabilityControl control(loopbackConfig());
+    auto *tcp = control.tcpControl();
+    const auto conn = tcp->connectTcp(sce::Endpoint{::htonl(INADDR_LOOPBACK), 1});
+    ASSERT_TRUE(conn.has_value()) << "E_OK is the issue, not the handshake";
+    EXPECT_EQ(tcp->connectEnd(conn->socket, std::chrono::milliseconds{1500}),
+              sce::DutConnectEnd::kRefused);
+    EXPECT_EQ(tcp->closeTcp(conn->socket).kind, sce::DutCallOutcome::Kind::kDone);
+}
+
+// A case that closes its own attempt gets no report for it, and END_TEST with an
+// attempt pending leaves the server serving.
+TEST_F(TestabilityServerTest, ClosingAPendingConnectEndsItSilently) {
+    SilentPeer peer;
+    const auto cfg = loopbackConfig();
+    const auto sock = testability::testabilityCreateAndBind(cfg, tp::kGidTcp, false, 0xFFFF, 0);
+    ASSERT_TRUE(sock.has_value());
+    auto attempt = testability::testabilityTcpConnectAttempt(cfg, *sock, peer.port(),
+                                                             ::htonl(INADDR_LOOPBACK));
+    ASSERT_TRUE(attempt.response().eok());
+    EXPECT_TRUE(testability::testabilityCloseSocket(cfg, tp::kGidTcp, *sock).eok());
+    EXPECT_FALSE(attempt.awaitFailure(/*wait_ms=*/200).has_value());
+
+    const auto second = testability::testabilityCreateAndBind(cfg, tp::kGidTcp, false, 0xFFFF, 0);
+    ASSERT_TRUE(second.has_value());
+    ASSERT_TRUE(testability::testabilityTcpConnect(cfg, *second, peer.port(),
+                                                   ::htonl(INADDR_LOOPBACK))
+                    .eok());
+    EXPECT_TRUE(testability::testabilityEndTest(cfg, 0, "test").eok());
     EXPECT_TRUE(testability::testabilityStartTest(cfg).eok());
 }
 

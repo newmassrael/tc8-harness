@@ -176,7 +176,19 @@ public:
             return kNoWatch;
         }
         const std::uint64_t id = next_watch_id_++;
-        watches_[id] = Watch{fd, std::move(fn)};  // picked up on the next poll
+        watches_[id] = Watch{fd, std::move(fn), /*on_write=*/false};  // picked up on the next poll
+        return static_cast<WatchId>(id);
+    }
+    // Fires when `fd` is writable, which is how a pending connect reports that it has
+    // finished. Level-triggered like addWatch, so the handler removes the watch once
+    // it has what it came for, or the loop spins on a socket that stays writable.
+    WatchId addWriteWatch(int fd, std::function<void()> fn) {
+        assertOnLoop();
+        if (fd < 0) {
+            return kNoWatch;
+        }
+        const std::uint64_t id = next_watch_id_++;
+        watches_[id] = Watch{fd, std::move(fn), /*on_write=*/true};
         return static_cast<WatchId>(id);
     }
     void removeWatch(WatchId id) {
@@ -204,6 +216,7 @@ private:
     struct Watch {
         int fd;
         std::function<void()> fn;
+        bool on_write;  // fires on writable rather than readable
     };
 
     // The lock-free timer/watch state is safe only because every mutator runs on
@@ -298,13 +311,15 @@ public:
             fn();
             return true;  // re-scan: the handler may have armed/cancelled timers
         }
-        // Build the poll set: the wake fd plus every watched fd.
+        // Build the poll sets: the wake fd plus every watched fd, each in the set its
+        // watch waits on.
         poll_fds_.clear();
+        poll_write_fds_.clear();
         if (waker_) {
             poll_fds_.push_back(waker_->pollFd());
         }
         for (const auto &kv : watches_) {
-            poll_fds_.push_back(kv.second.fd);
+            (kv.second.on_write ? poll_write_fds_ : poll_fds_).push_back(kv.second.fd);
         }
         int timeout_ms = max_wait_ms;
         if (earliest) {
@@ -321,7 +336,8 @@ public:
                 timeout_ms = until;
             }
         }
-        mux_.poll(poll_fds_.data(), poll_fds_.size(), timeout_ms, readable_);
+        mux_.poll(poll_fds_.data(), poll_fds_.size(), poll_write_fds_.data(),
+                  poll_write_fds_.size(), timeout_ms, readable_, writable_);
         // Collect the watch IDs to fire, then dispatch by re-looking-up each — a
         // handler may unwatch another watch readable this round, so membership is
         // re-checked at fire time. The wake fd is drained, never dispatched.
@@ -332,7 +348,14 @@ public:
                 continue;
             }
             for (const auto &kv : watches_) {
-                if (kv.second.fd == fd) {
+                if (kv.second.fd == fd && !kv.second.on_write) {
+                    fire_.push_back(kv.first);
+                }
+            }
+        }
+        for (const int fd : writable_) {
+            for (const auto &kv : watches_) {
+                if (kv.second.fd == fd && kv.second.on_write) {
                     fire_.push_back(kv.first);
                 }
             }
@@ -365,7 +388,9 @@ private:
     std::map<std::uint64_t, Watch> watches_;
     std::uint64_t next_watch_id_ = 1;
     std::vector<int> poll_fds_;
+    std::vector<int> poll_write_fds_;
     std::vector<int> readable_;
+    std::vector<int> writable_;
     std::vector<std::uint64_t> fire_;  // watch ids to dispatch this round
 };
 

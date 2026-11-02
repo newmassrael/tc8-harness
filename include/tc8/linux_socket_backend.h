@@ -74,13 +74,15 @@ public:
     int sendUrgent(int fd, const void *buf, std::size_t len) override;
     bool connectBoundedV4(int fd, const tc8::net::Endpoint &dst, int timeout_ms,
                           const std::atomic<bool> *cancel) override;
+    tc8::net::ConnectProgress connectStartV4(int fd, const tc8::net::Endpoint &dst) override;
+    tc8::net::ConnectProgress connectProgress(int fd) override;
     bool listen(int fd, int backlog) override;
     int accept(int fd, tc8::net::Endpoint &client) override;
     bool shutdown(int fd, int how) override;
     void setNonBlocking(int fd, bool on) override;
     int waitReadable(int fd, int timeout_us) override;
-    int poll(const int *fds, std::size_t n, int timeout_ms,
-             std::vector<int> &readable) override;
+    int poll(const int *read_fds, std::size_t read_n, const int *write_fds, std::size_t write_n,
+             int timeout_ms, std::vector<int> &readable, std::vector<int> &writable) override;
     std::unique_ptr<tc8::testability::Waker> createWaker() override;
     void closeFd(int fd) override;
     void closeWithAbort(int fd) override;
@@ -107,6 +109,7 @@ private:
         sockaddr_in peer{};
     };
     static void destroyTimeWaitResidual(const TcpConnTuple &t);
+    void recordConnTuple(int fd, const sockaddr_in &peer);
 
     std::mutex tuples_mu_;
     std::map<int, TcpConnTuple> tuples_;  // fd -> connected 4-tuple (active opens)

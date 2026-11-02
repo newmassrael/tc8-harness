@@ -2,8 +2,12 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <functional>
+#include <map>
+#include <memory>
+#include <mutex>
 #include <optional>
 #include <vector>
 
@@ -122,6 +126,16 @@ struct DutReceiveOutcome {
     }
 };
 
+// How a DUT reported an active open ended, in the terms of PRS_TPSP CONNECT's Event
+// results.
+enum class DutConnectEnd : std::uint8_t {
+    kNotReported,  // no report: see ITcpControl::connectEnd
+    kRefused,      // E_TCP_COR, "connection refused"
+    kReset,        // E_TCP_CRE, "connection reset"
+    kTimedOut,     // E_TCP_CAT, "connection aborted due to user timeout"
+    kOther,        // any other Result ID
+};
+
 // Handle-based TCP data plane — both backends support it.
 class ITcpControl {
 public:
@@ -132,7 +146,10 @@ public:
     // Cases whose guard pins the DUT's source port need the bind (standard
     // CREATE_AND_BIND + CONNECT); the default (`do_bind=false`) leaves the
     // local endpoint to the DUT (ephemeral port, route-chosen source IP).
-    // Returns the DUT's connected socket, or nullopt on failure.
+    // Returns the DUT's socket once the open has been issued, or nullopt when it could
+    // not be. Both backends return while the socket may still be in SYN-SENT, so a
+    // value does not prove the connection is established: a case that needs that
+    // reads it from the wire or from the tester's accept.
     //
     // The `= {}` default is declared here ONLY (not on the overrides) per C++
     // Core Guidelines C.140 — a default on a virtual is resolved by the static
@@ -141,6 +158,14 @@ public:
     // the parameter plain.
     virtual std::optional<DutConnection> connectTcp(const Endpoint &peer,
                                                     const BindSpec &local = {}) = 0;
+
+    // How an active open failed, when the DUT reported it within `wait`. kNotReported
+    // is not success: a DUT reports only failures, a socket in SYN-SENT has nothing to
+    // report yet, and the opcode backend has no such report at all.
+    virtual DutConnectEnd connectEnd(DutSocket /*sock*/, std::chrono::milliseconds /*wait*/) {
+        return DutConnectEnd::kNotReported;
+    }
+
     // Passive open: the DUT binds+listens per `listen`; `trigger` drives one
     // inbound connection once the DUT is listening; returns the accepted
     // connection (with the client endpoint when the backend reports it), or
@@ -464,12 +489,47 @@ public:
         if (!id) {
             return std::nullopt;
         }
-        if (!testability::testabilityTcpConnect(cfg_, *id, peer.port, peer.addr_be, timeout_ms_,
-                                             src_ip_be_)
-                 .eok()) {
+        auto attempt = std::make_shared<testability::TestabilityConnectAttempt>(
+            testability::testabilityTcpConnectAttempt(cfg_, *id, peer.port, peer.addr_be,
+                                                      timeout_ms_, src_ip_be_));
+        if (!attempt->response().eok()) {
             return std::nullopt;
         }
+        const std::lock_guard<std::mutex> lk(attempts_mu_);
+        attempts_[*id] = std::move(attempt);
         return DutConnection{DutSocket{*id}, peer};
+    }
+
+    DutConnectEnd connectEnd(DutSocket sock, std::chrono::milliseconds wait) override {
+        std::shared_ptr<testability::TestabilityConnectAttempt> attempt;
+        {
+            const std::lock_guard<std::mutex> lk(attempts_mu_);
+            const auto it = attempts_.find(sock.id);
+            if (it == attempts_.end()) {
+                return DutConnectEnd::kNotReported;
+            }
+            attempt = it->second;  // the wait below must not hold the lock
+        }
+        const auto rid = attempt->awaitFailure(static_cast<int>(wait.count()));
+        if (!rid) {
+            return DutConnectEnd::kNotReported;
+        }
+        switch (*rid) {
+            case testability::kRidETcpCor:
+                return DutConnectEnd::kRefused;
+            case testability::kRidETcpCre:
+                return DutConnectEnd::kReset;
+            case testability::kRidETcpCat:
+                return DutConnectEnd::kTimedOut;
+            default:
+                return DutConnectEnd::kOther;
+        }
+    }
+
+    // END_TEST ended every attempt on the DUT, so their Event sockets can go.
+    void releaseConnectAttempts() {
+        const std::lock_guard<std::mutex> lk(attempts_mu_);
+        attempts_.clear();
     }
 
     std::optional<DutConnection> acceptTcp(const BindSpec &listen,
@@ -591,18 +651,27 @@ public:
     }
 
     DutCallOutcome closeTcp(DutSocket sock) override {
-        return outcomeOf(testability::testabilityCloseSocket(cfg_, testability::kGidTcp, sock.id,
-                                                             timeout_ms_, src_ip_be_));
+        const DutCallOutcome out = outcomeOf(testability::testabilityCloseSocket(
+            cfg_, testability::kGidTcp, sock.id, timeout_ms_, src_ip_be_));
+        forgetAttempt(sock);
+        return out;
     }
 
     DutCallOutcome abortTcp(DutSocket sock) override {
         // CLOSE_SOCKET with abort=true: immediate RST close, no wait for
         // outstanding tx/acks (PRS_TPSP §6.10 CLOSE_SOCKET abort param).
-        return outcomeOf(testability::testabilityAbortSocket(cfg_, testability::kGidTcp, sock.id,
-                                                             timeout_ms_, src_ip_be_));
+        const DutCallOutcome out = outcomeOf(testability::testabilityAbortSocket(
+            cfg_, testability::kGidTcp, sock.id, timeout_ms_, src_ip_be_));
+        forgetAttempt(sock);
+        return out;
     }
 
 private:
+    void forgetAttempt(DutSocket sock) {
+        const std::lock_guard<std::mutex> lk(attempts_mu_);
+        attempts_.erase(sock.id);
+    }
+
     // PRS_TPSP §6.8: a response that never came is no answer; E_OK is done.
     // CLOSE_SOCKET lists E_TCP_CNE ("connection does not exist") for the RFC 793
     // 3.9 case, and E_ISD (invalid socket id) is what a server answers for an id it
@@ -624,6 +693,10 @@ private:
     testability::TestabilityConfig cfg_;
     int timeout_ms_;
     std::uint32_t src_ip_be_;
+    // Each active open's Event socket, by DUT socket id. A case's scheduled action can
+    // close a connection from another thread, hence the lock.
+    std::mutex attempts_mu_;
+    std::map<std::uint16_t, std::shared_ptr<testability::TestabilityConnectAttempt>> attempts_;
 };
 
 // AUTOSAR Testability backend of IUdpControl — a one-shot CREATE_AND_BIND (to

@@ -404,6 +404,60 @@ TestabilityResponse testabilityTcpConnect(const TestabilityConfig &cfg, std::uin
     return testabilityCall(cfg, tp::kGidTcp, tp::kPidConnect, dat, timeout_ms, src_ip_be);
 }
 
+TestabilityConnectAttempt::~TestabilityConnectAttempt() {
+    if (fd_ >= 0) {
+        ::close(fd_);
+    }
+}
+
+TestabilityConnectAttempt::TestabilityConnectAttempt(TestabilityConnectAttempt &&other) noexcept
+    : response_(std::move(other.response_)), fd_(other.fd_),
+      failure_(std::move(other.failure_)) {
+    other.fd_ = -1;
+}
+
+TestabilityConnectAttempt &TestabilityConnectAttempt::operator=(
+    TestabilityConnectAttempt &&other) noexcept {
+    if (this != &other) {
+        if (fd_ >= 0) {
+            ::close(fd_);
+        }
+        response_ = std::move(other.response_);
+        fd_ = other.fd_;
+        failure_ = std::move(other.failure_);
+        other.fd_ = -1;
+    }
+    return *this;
+}
+
+std::optional<std::uint8_t> TestabilityConnectAttempt::awaitFailure(int wait_ms) {
+    if (!failure_ && fd_ >= 0) {
+        setRecvTimeout(fd_, wait_ms);
+        if (const auto ev = recvSpEventWithRid(fd_, tp::kGidTcp, tp::kPidConnect)) {
+            failure_ = ev->rid;
+        }
+    }
+    return failure_;
+}
+
+TestabilityConnectAttempt testabilityTcpConnectAttempt(const TestabilityConfig &cfg,
+                                                       std::uint16_t socket_id,
+                                                       std::uint16_t dest_port,
+                                                       std::uint32_t dest_addr_be, int timeout_ms,
+                                                       std::uint32_t src_ip_be) {
+    std::vector<std::uint8_t> dat;
+    tp::appendU16(dat, socket_id);
+    tp::appendU16(dat, dest_port);
+    tp::appendIpv4Addr(dat, dest_addr_be);
+    ArmedSocket arm = armEventSocket(cfg, tp::kGidTcp, tp::kPidConnect, dat,
+                                     /*on_armed=*/nullptr, timeout_ms, src_ip_be);
+    TestabilityConnectAttempt attempt;
+    attempt.response_.ok = arm.responded;
+    attempt.response_.rid = arm.rid;
+    attempt.fd_ = arm.fd;  // open only for an E_OK Response, which is what can have an Event
+    return attempt;
+}
+
 TestabilityResponse testabilityTcpSendData(const TestabilityConfig &cfg, std::uint16_t socket_id,
                                            std::uint16_t total_len, std::uint8_t flags,
                                            const std::vector<std::uint8_t> &data, int timeout_ms,

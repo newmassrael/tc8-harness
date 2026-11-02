@@ -1208,9 +1208,11 @@ public:
         return testability::testabilityStartTest(cfg_, timeout_ms_, src_ip_be_).eok();
     }
     bool endTest() override {
-        return testability::testabilityEndTest(cfg_, /*tc_id=*/0, "tc8-harness", timeout_ms_,
-                                            src_ip_be_)
-            .eok();
+        const bool ok = testability::testabilityEndTest(cfg_, /*tc_id=*/0, "tc8-harness",
+                                                        timeout_ms_, src_ip_be_)
+                            .eok();
+        tcp_ctrl_.releaseConnectAttempts();
+        return ok;
     }
     const char *backendName() const override { return "autosar-testability"; }
 
@@ -1225,7 +1227,7 @@ public:
     DutCapabilities capabilities() const override {
         return kCapTcpControl | kCapUdpControl | kCapTcpCreateClosed | kCapTcpSendFlags |
                kCapServicePrimitive | kCapSocketConfigure | kCapIcmpEcho | kCapUdpSocket |
-               kCapUdpReceiveControl;
+               kCapUdpReceiveControl | kCapTcpSynSentOpen;
     }
     ITcpControl *tcpControl() override { return &tcp_ctrl_; }
     IUdpControl *udpControl() override { return &udp_ctrl_; }

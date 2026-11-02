@@ -24,11 +24,9 @@ template <>
 struct TestCaseTraits<cases::TcpFlagsProcessing08It3SM>
     : TcpAnyBase<cases::TcpFlagsProcessing08It3SM> {
     // Drives the DUT to SYN-SENT through a non-establishing active OPEN (the SYN goes
-    // unanswered). The opcode UT's non-blocking openTcpActive worker leaves the socket in
-    // SYN-SENT and returns at once; the AUTOSAR testability CONNECT SP instead blocks until the
-    // handshake establishes (or times out) and so cannot represent a sustained SYN-SENT.
-    // Declaring kCapTcpSynSentOpen makes the CLI capability gate honestly SKIP this case on a
-    // testability backend rather than fail it: the standard's limit, not a DUT fault.
+    // unanswered). Both backends' opens return at once and leave the socket in SYN-SENT.
+    // kCapTcpSynSentOpen makes the CLI capability gate skip this case on a backend that cannot,
+    // rather than fail it.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
         ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpSynSentOpen;
     static constexpr std::string_view kCaseId = "TCP_FLAGS_PROCESSING_08_IT3";
@@ -54,9 +52,9 @@ struct TestCaseTraits<cases::TcpFlagsProcessing08It3SM>
         TesterAutoRstDrop rst_drop(cfg);
         (void)rst_drop;
 
-        // Non-establishing active OPEN: fire the SYN and (on the opcode non-blocking worker)
-        // return with the socket in SYN-SENT. The handle is unused: the case observes the DUT
-        // SYN on the wire and the absence of any response to the bare FIN below.
+        // Non-establishing active OPEN: fire the SYN and return with the socket in SYN-SENT.
+        // The handle is unused: the case observes the DUT SYN on the wire and the absence of
+        // any response to the bare FIN below.
         (void)driveSeamSynSentOpen(ctx.dut, cfg, kLocalPort, kRemotePort);
         cases::emitBareFin(cfg, ctx.iface, kRemotePort, kLocalPort);
     }

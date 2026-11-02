@@ -36,13 +36,11 @@ struct TestCaseTraits<cases::TcpMssOptions09SM>
         "(smaller), Mv=2000 (larger).";
 
     // Each iteration holds the DUT's active open in SYN-SENT (no tester
-    // listener) until the crafted SYN+ACK injection establishes it. The
-    // testability CONNECT SP requires the handshake to establish and so cannot
-    // hold a socket in SYN-SENT, while the opcode non-blocking worker can —
-    // kCapTcpSynSentOpen makes the CLI capability gate honestly SKIP this case
-    // on a testability backend (Tier 2 2b#4) instead of failing it. The DUT
-    // third-leg ACK and the clamped data segments are observed on pcap, so no
-    // state probe is required.
+    // listener) until the crafted SYN+ACK injection establishes it.
+    // kCapTcpSynSentOpen says the backend's open returns with the socket in
+    // SYN-SENT; the CLI capability gate skips the case on one that cannot (Tier 2
+    // 2b#4) instead of failing it. The DUT third-leg ACK and the clamped data
+    // segments are observed on pcap, so no state probe is required.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
         ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpSynSentOpen;
 

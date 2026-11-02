@@ -30,12 +30,10 @@ namespace tc8::sce {
 template <>
 struct TestCaseTraits<cases::TcpFlagsInvalid05It1SM>
     : TcpAnyBase<cases::TcpFlagsInvalid05It1SM> {
-    // The iteration leaves the DUT's active open in SYN-SENT (no tester listener). The
-    // testability CONNECT SP requires the handshake to establish and so cannot hold a socket in
-    // SYN-SENT, while the opcode non-blocking worker can; kCapTcpSynSentOpen makes the CLI
-    // capability gate honestly SKIP this case on a testability backend instead of failing it.
-    // No state probe is needed: the DUT SYN is observed on pcap and the verdict is the SCXML
-    // absence window.
+    // The iteration leaves the DUT's active open in SYN-SENT (no tester listener).
+    // kCapTcpSynSentOpen says the backend's open returns with the socket in SYN-SENT; the CLI
+    // capability gate skips the case on one that cannot instead of failing it. No state probe
+    // is needed: the DUT SYN is observed on pcap and the verdict is the SCXML absence window.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
         ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpSynSentOpen;
     static constexpr std::string_view kCaseId = "TCP_FLAGS_INVALID_05_IT1";

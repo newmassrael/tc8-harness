@@ -1,5 +1,6 @@
 #include "tc8/testability/protocol_server.h"
 
+#include <chrono>
 #include <cstring>
 #include <stdexcept>
 #include <string>
@@ -10,6 +11,10 @@
 namespace tc8::testability {
 
 namespace {
+
+// How much SEND_DATA a socket in SYN-SENT may queue before E_TCP_INR. One maximal
+// SEND_DATA (totalLen is a uint16) fits, which is all a request can ask for at once.
+constexpr std::size_t kMaxQueuedConnectSend = 0xFFFF;
 
 // PRS_TPSP §6.10 SEND_DATA totalLen rule, shared by the UDP and TCP backends:
 // repeat `data` up to `total_len` bytes; if total_len < data_len send the full
@@ -357,7 +362,7 @@ void ProtocolServer::dispatch(const Header &req, const std::uint8_t *dat, std::s
                 respondCreateAndBind(/*tcp=*/true, dat, dat_len, rid_out, resp_dat);
                 return;
             case kPidConnect:
-                rid_out = connectTcp(dat, dat_len);
+                rid_out = connectTcp(dat, dat_len, req.service_id, peer);
                 return;
             case kPidListenAndAccept:
                 rid_out = listenAndAcceptTcp(dat, dat_len, req.service_id, peer);
@@ -715,7 +720,8 @@ std::uint8_t ProtocolServer::staticRouteV6(const std::uint8_t *dat, std::size_t 
     return backend_->setStaticRouteV6(ifname, subnet_body, prefix, gw_body);
 }
 
-std::uint8_t ProtocolServer::connectTcp(const std::uint8_t *dat, std::size_t dat_len) {
+std::uint8_t ProtocolServer::connectTcp(const std::uint8_t *dat, std::size_t dat_len,
+                                        std::uint16_t service_id, const Endpoint &peer) {
     // PRS_TPSP §6.10 CONNECT (TCP): socketId + destPort + destAddr(ipxaddr).
     if (dat_len < 2 + 2) {
         return kRidEInv;
@@ -734,16 +740,155 @@ std::uint8_t ProtocolServer::connectTcp(const std::uint8_t *dat, std::size_t dat
         return kRidEIsd;  // invalid socket id
     }
 
-    const Endpoint dst = endpointFromWire(addr_body, dest_port);
-    // Bounded so an absent peer times out instead of freezing the dispatch loop.
-    // The backend records whatever it needs (e.g. the 4-tuple) for a later abort.
-    // No cancellation: this call runs ON the request thread rather than in a worker
-    // another request tears down, so there is no second party to abandon it. The
-    // 1 s bound is the whole story here.
-    if (!backend_->connectBoundedV4(*fd, dst, /*timeout_ms=*/1000, /*cancel=*/nullptr)) {
-        return kRidENok;  // connection refused / unreachable / timed out
+    if (pending_connects_.count(socket_id) != 0) {
+        return kRidETcpCae;  // RFC 793 3.9 OPEN on a connection that is opening
     }
+
+    const Endpoint dst = endpointFromWire(addr_body, dest_port);
+    const net::ConnectProgress started = backend_->connectStartV4(*fd, dst);
+    // connectStartV4 leaves the fd non-blocking. A forward armed earlier needs it so;
+    // every other caller expects the blocking socket a connect has always left.
+    const auto settle_mode = [this, fd, socket_id] {
+        if (event_watches_.count(socket_id) == 0) {
+            backend_->setNonBlocking(*fd, false);
+        }
+    };
+    switch (started) {
+        case net::ConnectProgress::kEstablished:
+            settle_mode();
+            return kRidEOk;
+        case net::ConnectProgress::kAlreadyConnected:
+            settle_mode();
+            return kRidETcpCae;
+        case net::ConnectProgress::kFailed:
+            settle_mode();
+            return kRidENok;  // no attempt started, so there is nothing to report later
+        default:
+            break;
+    }
+
+    PendingConnect pending;
+    pending.fd = *fd;
+    pending.service_id = service_id;
+    pending.peer = peer;
+    // A forward armed on the socket before CONNECT waits like one armed after it: its
+    // watch would otherwise read the attempt's error off the socket first.
+    if (const auto armed = event_watches_.find(socket_id); armed != event_watches_.end()) {
+        pending.forward = armed->second;
+        stopWorker(socket_id);
+    }
+    if (started == net::ConnectProgress::kInProgress) {
+        pending.watch =
+            reactor_.addWriteWatch(*fd, [this, socket_id] { onConnectWritable(socket_id); });
+    } else {
+        // The attempt ended inside the call, as a refusal on loopback does. It is still
+        // an Event, and the Response has to go first, so the report waits for the loop.
+        pending.ended = started;
+        pending.report = reactor_.armOnce(std::chrono::milliseconds{0}, [this, socket_id] {
+            reportFailedConnect(socket_id);
+        });
+    }
+    pending_connects_[socket_id] = std::move(pending);
     return kRidEOk;
+}
+
+void ProtocolServer::onConnectWritable(std::uint16_t socket_id) {
+    const auto it = pending_connects_.find(socket_id);
+    if (it == pending_connects_.end()) {
+        return;
+    }
+    const net::ConnectProgress now = backend_->connectProgress(it->second.fd);
+    if (now != net::ConnectProgress::kInProgress) {
+        finishConnect(socket_id, now);
+    }
+}
+
+void ProtocolServer::reportFailedConnect(std::uint16_t socket_id) {
+    const auto it = pending_connects_.find(socket_id);
+    if (it != pending_connects_.end()) {
+        it->second.report = kNoTimer;  // this firing is the timer
+        finishConnect(socket_id, it->second.ended);
+    }
+}
+
+void ProtocolServer::finishConnect(std::uint16_t socket_id, net::ConnectProgress end) {
+    const auto it = pending_connects_.find(socket_id);
+    if (it == pending_connects_.end()) {
+        return;
+    }
+    PendingConnect pending = std::move(it->second);
+    if (pending.watch != kNoWatch) {
+        reactor_.removeWatch(pending.watch);
+    }
+    pending_connects_.erase(it);
+
+    if (end == net::ConnectProgress::kEstablished) {
+        // A queued forward needs the fd to stay non-blocking; everything else expects
+        // the blocking socket a completed connect has always left.
+        if (!pending.forward) {
+            backend_->setNonBlocking(pending.fd, false);
+        }
+        for (const QueuedSend &send : pending.sends) {
+            issueSend(pending.fd, send.payload, send.urgent);
+        }
+        if (pending.forward) {
+            armEventWatch(socket_id, *pending.forward);
+        }
+        return;
+    }
+
+    std::uint8_t rid = kRidENok;
+    switch (end) {
+        case net::ConnectProgress::kRefused:
+            rid = kRidETcpCor;
+            break;
+        case net::ConnectProgress::kReset:
+            rid = kRidETcpCre;
+            break;
+        case net::ConnectProgress::kTimedOut:
+            rid = kRidETcpCat;
+            break;
+        default:
+            break;
+    }
+    backend_->setNonBlocking(pending.fd, false);
+    // CONNECT defines no Event parameters: the Result ID is the whole report.
+    emitEvent(pending.service_id, kGidTcp, kPidConnect, {}, pending.peer, rid);
+    if (pending.forward) {
+        // RFC 793 3.9: the RECEIVEs queued on a failed open get the same error.
+        std::vector<std::uint8_t> end_dat;
+        appendU16(end_dat, 0);
+        appendVint8(end_dat, nullptr, 0);
+        emitEvent(pending.forward->service_id, kGidTcp, kPidReceiveAndForward, end_dat,
+                  pending.forward->peer, rid);
+    }
+}
+
+void ProtocolServer::dropPendingConnect(std::uint16_t socket_id) {
+    const auto it = pending_connects_.find(socket_id);
+    if (it == pending_connects_.end()) {
+        return;
+    }
+    if (it->second.watch != kNoWatch) {
+        reactor_.removeWatch(it->second.watch);
+    }
+    if (it->second.report != kNoTimer) {
+        reactor_.cancel(it->second.report);
+    }
+    pending_connects_.erase(it);
+}
+
+void ProtocolServer::dropAllPendingConnects() {
+    while (!pending_connects_.empty()) {
+        dropPendingConnect(pending_connects_.begin()->first);
+    }
+}
+
+std::uint8_t ProtocolServer::issueSend(int fd, const std::vector<std::uint8_t> &payload,
+                                       bool urgent) {
+    const int sent = urgent ? backend_->sendUrgent(fd, payload.data(), payload.size())
+                            : backend_->send(fd, payload.data(), payload.size());
+    return sent < 0 ? kRidENok : kRidEOk;
 }
 
 std::uint8_t ProtocolServer::sendDataTcp(const std::uint8_t *dat, std::size_t dat_len) {
@@ -772,10 +917,21 @@ std::uint8_t ProtocolServer::sendDataTcp(const std::uint8_t *dat, std::size_t da
     // asks for the data to go out without waiting, which a plain send already
     // does on every stack this server runs on (none of them holds data back for a
     // later send), so it needs no other call.
-    const int sent = (flags & kSendFlagUrg) != 0U
-                         ? backend_->sendUrgent(*fd, payload.data(), payload.size())
-                         : backend_->send(*fd, payload.data(), payload.size());
-    return sent < 0 ? kRidENok : kRidEOk;
+    const bool urgent = (flags & kSendFlagUrg) != 0U;
+
+    if (const auto it = pending_connects_.find(socket_id); it != pending_connects_.end()) {
+        // RFC 793 3.9 SEND in SYN-SENT: queue until ESTABLISHED, and answer "insufficient
+        // resources" when there is no room. A positive Response says the send was
+        // issued, not transmitted (PRS_TPSP SEND_DATA), so E_OK is honest here.
+        PendingConnect &pending = it->second;
+        if (pending.queued_bytes + payload.size() > kMaxQueuedConnectSend) {
+            return kRidETcpInr;
+        }
+        pending.queued_bytes += payload.size();
+        pending.sends.push_back(QueuedSend{payload, urgent});
+        return kRidEOk;
+    }
+    return issueSend(*fd, payload, urgent);
 }
 
 std::uint8_t ProtocolServer::listenAndAcceptTcp(const std::uint8_t *dat, std::size_t dat_len,
@@ -908,6 +1064,8 @@ std::uint8_t ProtocolServer::shutdownSocket(const std::uint8_t *dat, std::size_t
     if (!fd) {
         return kRidEIsd;  // invalid socket id
     }
+    // The caller is ending the attempt itself, so nothing is left to report.
+    dropPendingConnect(socket_id);
     return backend_->shutdown(*fd, how) ? kRidEOk : kRidENok;
 }
 
@@ -950,6 +1108,26 @@ std::uint8_t ProtocolServer::receiveAndForward(const std::uint8_t *dat, std::siz
         return kRidEIsd;  // invalid socket id
     }
 
+    const auto make_watch = [&] {
+        EventWatch w;
+        w.kind = udp ? EventWatch::kRecvUdp : EventWatch::kRecvTcp;
+        w.fd = *fd;
+        w.service_id = service_id;
+        w.peer = peer;
+        w.max_fwd = max_fwd;
+        w.max_len = max_len;
+        w.limitless = (max_len == 0xFFFF);  // PRS_TPSP §6.10 maxLen 0xFFFF
+        return w;
+    };
+
+    if (const auto it = pending_connects_.find(socket_id); it != pending_connects_.end()) {
+        // RFC 793 3.9 RECEIVE in SYN-SENT: queue until ESTABLISHED. Nothing can have
+        // arrived yet, so the inactive phase has nothing to drop.
+        it->second.forward = make_watch();
+        appendU16(resp_dat, 0);
+        return kRidEOk;
+    }
+
     // PRS_TPSP §6.10 inactive-phase drain: consume the bytes queued before this
     // call and report the count as dropCnt. Non-blocking so an empty queue does
     // not stall the dispatch loop.
@@ -972,15 +1150,7 @@ std::uint8_t ProtocolServer::receiveAndForward(const std::uint8_t *dat, std::siz
     // handler never stalls the shared loop. Re-arm the slot first.
     stopWorker(socket_id);
     backend_->setNonBlocking(*fd, true);
-    EventWatch w;
-    w.kind = udp ? EventWatch::kRecvUdp : EventWatch::kRecvTcp;
-    w.fd = *fd;
-    w.service_id = service_id;
-    w.peer = peer;
-    w.max_fwd = max_fwd;
-    w.max_len = max_len;
-    w.limitless = (max_len == 0xFFFF);  // PRS_TPSP §6.10 maxLen 0xFFFF
-    armEventWatch(socket_id, w);
+    armEventWatch(socket_id, make_watch());
     return kRidEOk;
 }
 
@@ -1092,6 +1262,7 @@ bool ProtocolServer::eraseSocket(std::uint16_t id, bool abort) {
     // Remove this socket's async-event watch (if any) BEFORE closing the fd, so the
     // watch can never fire on a closed (and possibly reused) fd. All on the loop.
     stopWorker(id);
+    dropPendingConnect(id);
 
     const auto it = sockets_.find(id);
     if (it == sockets_.end()) {
@@ -1128,6 +1299,7 @@ void ProtocolServer::stopAllWorkers() {
         reactor_.removeWatch(kv.second.id);
     }
     event_watches_.clear();
+    dropAllPendingConnects();
 }
 
 }  // namespace tc8::testability

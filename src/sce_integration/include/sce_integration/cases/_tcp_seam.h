@@ -75,11 +75,15 @@ struct SeamActiveOpen {
 // stimulus runs — a silent return here would mis-report as a timeout FAIL, not a
 // SKIP. The deref is therefore contract-guaranteed; the assert documents it.
 //
-// connectTcp returns nullopt only on failure (RPC timeout, bind collision, a
-// refused connect); the stderr line names the backend so a dual-backend smoke
-// run points at the right side and a failed open does not mis-report downstream
-// as a DUT "no SYN / no FIN" timeout. Matches the fprintf-on-failure convention
-// of the other tcp-pilot tester helpers (TesterTcpListener, connectToDutTcp).
+// connectTcp returns nullopt only when the open could not be issued (RPC timeout,
+// bind collision). It does not wait for the handshake on either backend, so a peer
+// that refuses, or never answers, is not a failure here: a case that needs the
+// connection established gets that from the tester's accept or from the wire, and
+// ITcpControl::connectEnd reads how a failed open ended where the backend reports
+// it. The stderr line names the backend so a dual-backend smoke run points at the
+// right side and a failed open does not mis-report downstream as a DUT "no SYN / no
+// FIN" timeout. Matches the fprintf-on-failure convention of the other tcp-pilot
+// tester helpers (TesterTcpListener, connectToDutTcp).
 inline std::optional<::tc8::sce::DutConnection> seamConnectTcp(
     ::tc8::sce::IDutControl &dut, const ::tc8::TestConfig &cfg,
     std::uint16_t local_port, std::uint16_t remote_port, const char *phase) {

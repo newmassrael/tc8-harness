@@ -49,6 +49,10 @@ public:
     bool connectBoundedV4(int, const net::Endpoint &, int, const std::atomic<bool> *) override {
         return false;
     }
+    net::ConnectProgress connectStartV4(int, const net::Endpoint &) override {
+        return net::ConnectProgress::kFailed;
+    }
+    net::ConnectProgress connectProgress(int) override { return net::ConnectProgress::kFailed; }
     bool listen(int, int) override { return true; }
     int accept(int, net::Endpoint &) override { return -1; }
     bool shutdown(int, int) override { return true; }

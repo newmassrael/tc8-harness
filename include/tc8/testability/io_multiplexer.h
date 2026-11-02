@@ -32,11 +32,16 @@ class IoMultiplexer {
 public:
     virtual ~IoMultiplexer() = default;
 
-    // Block until an fd in `fds[0..n)` is readable or `timeout_ms` elapses
-    // (`timeout_ms` < 0 = indefinite). `readable` is cleared and filled with the
-    // readable subset. Returns the readable count (0 on timeout), or -1 on error.
-    virtual int poll(const int *fds, std::size_t n, int timeout_ms,
-                     std::vector<int> &readable) = 0;
+    // Block until an fd in `read_fds[0..read_n)` is readable, an fd in
+    // `write_fds[0..write_n)` is writable, or `timeout_ms` elapses (`timeout_ms` < 0 =
+    // indefinite). `readable` and `writable` are cleared and filled with the ready
+    // subsets. Returns the total ready count (0 on timeout), or -1 on error.
+    //
+    // A socket whose connection attempt failed counts as writable: that is the only
+    // readiness a pending connect has, and its handler reads the failure from it.
+    virtual int poll(const int *read_fds, std::size_t read_n, const int *write_fds,
+                     std::size_t write_n, int timeout_ms, std::vector<int> &readable,
+                     std::vector<int> &writable) = 0;
 
     // A Waker to include in poll()'s set, or nullptr if this backend has none (the
     // Reactor then falls back to its bounded liveness wait). Caller owns it.

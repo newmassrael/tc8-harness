@@ -117,7 +117,8 @@ private:
                               std::uint8_t &rid_out, std::vector<std::uint8_t> &resp_dat);
     std::uint8_t sendDataUdp(const std::uint8_t *dat, std::size_t dat_len);
     std::uint8_t sendDataTcp(const std::uint8_t *dat, std::size_t dat_len);
-    std::uint8_t connectTcp(const std::uint8_t *dat, std::size_t dat_len);
+    std::uint8_t connectTcp(const std::uint8_t *dat, std::size_t dat_len,
+                            std::uint16_t service_id, const Endpoint &peer);
     std::uint8_t listenAndAcceptTcp(const std::uint8_t *dat, std::size_t dat_len,
                                     std::uint16_t service_id, const Endpoint &peer);
     std::uint8_t closeSocket(const std::uint8_t *dat, std::size_t dat_len);
@@ -164,6 +165,39 @@ private:
                    const std::vector<std::uint8_t> &dat, const Endpoint &peer,
                    std::uint8_t rid = 0x00);
 
+    // A CONNECT whose attempt has not ended. PRS_TPSP section 6.2 forbids waiting
+    // between request and response, so the Response says only that the attempt was
+    // issued, and a failure is reported later as an Event (CONNECT's result list marks
+    // E_TCP_CRE, E_TCP_CAT and E_TCP_COR "in Event"). The stack decides how long the
+    // attempt lasts: a bound here would end the SYN retransmissions a case grades.
+    //
+    // Separate from event_watches_, which holds one watch per socket: a case may arm
+    // RECEIVE_AND_FORWARD on a socket whose connect is still pending. RFC 793 3.9
+    // queues a SEND or RECEIVE issued in SYN-SENT until the connection is established,
+    // so they wait here and neither blocks the loop. Calling recv early would also
+    // consume the socket's pending error before the attempt could report it.
+    struct QueuedSend {
+        std::vector<std::uint8_t> payload;
+        bool urgent = false;
+    };
+    struct PendingConnect {
+        int fd = -1;
+        std::uint16_t service_id = 0;
+        Endpoint peer{};                   // the Event's target (the requester)
+        WatchId watch = kNoWatch;          // write watch while the attempt runs
+        TimerId report = kNoTimer;         // set when the attempt ended inside CONNECT
+        net::ConnectProgress ended = net::ConnectProgress::kInProgress;
+        std::vector<QueuedSend> sends;     // SEND_DATA issued in SYN-SENT
+        std::size_t queued_bytes = 0;
+        std::optional<EventWatch> forward; // RECEIVE_AND_FORWARD issued in SYN-SENT
+    };
+    void onConnectWritable(std::uint16_t socket_id);
+    void reportFailedConnect(std::uint16_t socket_id);
+    void finishConnect(std::uint16_t socket_id, net::ConnectProgress end);
+    void dropPendingConnect(std::uint16_t socket_id);
+    void dropAllPendingConnects();
+    std::uint8_t issueSend(int fd, const std::vector<std::uint8_t> &payload, bool urgent);
+
     std::uint16_t registerSocket(int fd);
     std::optional<int> lookupSocket(std::uint16_t id) const;
     bool eraseSocket(std::uint16_t id, bool abort = false);
@@ -181,6 +215,9 @@ private:
     // Async-event workers, keyed by the socket_id they serve (the listen socket for
     // kAccept, the forwarded socket for kRecv*). All touched only on the loop.
     std::map<std::uint16_t, EventWatch> event_watches_;
+
+    // Attempts that have not ended, keyed by socket id. Touched only on the loop.
+    std::map<std::uint16_t, PendingConnect> pending_connects_;
 
     std::map<std::uint16_t, int> sockets_;
     std::uint16_t next_socket_id_ = 1;

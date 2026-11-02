@@ -528,16 +528,90 @@ bool LinuxSocketBackend::connectBoundedV4(int fd, const Endpoint &dst, int timeo
     }
     ::fcntl(fd, F_SETFL, flags);  // restore blocking mode
     if (ok) {
-        // Record the connected 4-tuple so a later abort can SOCK_DESTROY a
-        // TIME-WAIT residual (by then the tw_sock no longer maps to the fd).
-        sockaddr_in local{};
-        socklen_t ll = sizeof(local);
-        if (::getsockname(fd, reinterpret_cast<sockaddr *>(&local), &ll) == 0) {
-            std::lock_guard<std::mutex> lk(tuples_mu_);
-            tuples_[fd] = TcpConnTuple{local, d};
-        }
+        recordConnTuple(fd, d);
     }
     return ok;
+}
+
+void LinuxSocketBackend::recordConnTuple(int fd, const sockaddr_in &peer) {
+    // Record the connected 4-tuple so a later abort can SOCK_DESTROY a TIME-WAIT
+    // residual (by then the tw_sock no longer maps to the fd).
+    sockaddr_in local{};
+    socklen_t ll = sizeof(local);
+    if (::getsockname(fd, reinterpret_cast<sockaddr *>(&local), &ll) == 0) {
+        std::lock_guard<std::mutex> lk(tuples_mu_);
+        tuples_[fd] = TcpConnTuple{local, peer};
+    }
+}
+
+namespace {
+tc8::net::ConnectProgress connectEndFromErrno(int err) {
+    using tc8::net::ConnectProgress;
+    switch (err) {
+        case ECONNREFUSED:
+            return ConnectProgress::kRefused;
+        case ECONNRESET:
+            return ConnectProgress::kReset;
+        case ETIMEDOUT:
+            return ConnectProgress::kTimedOut;
+        default:
+            return ConnectProgress::kFailed;
+    }
+}
+}  // namespace
+
+tc8::net::ConnectProgress LinuxSocketBackend::connectStartV4(int fd, const Endpoint &dst) {
+    using tc8::net::ConnectProgress;
+    sockaddr_in d{};
+    d.sin_family = AF_INET;
+    d.sin_addr.s_addr = dst.addr_be;
+    d.sin_port = htons(dst.port);
+
+    setNonBlocking(fd, true);
+    if (::connect(fd, reinterpret_cast<sockaddr *>(&d), sizeof(d)) == 0) {
+        recordConnTuple(fd, d);  // immediate (loopback) connect
+        return ConnectProgress::kEstablished;
+    }
+    switch (errno) {
+        case EINPROGRESS:
+            return ConnectProgress::kInProgress;
+        case EALREADY:
+        case EISCONN:
+            return ConnectProgress::kAlreadyConnected;
+        case ECONNREFUSED:
+        case ECONNRESET:
+        case ETIMEDOUT:
+            return connectEndFromErrno(errno);  // on loopback the attempt can end inside connect
+        default:
+            return ConnectProgress::kFailed;  // ENETUNREACH and the like: no SYN went out
+    }
+}
+
+tc8::net::ConnectProgress LinuxSocketBackend::connectProgress(int fd) {
+    using tc8::net::ConnectProgress;
+    pollfd p{fd, POLLOUT, 0};
+    const int ready = ::poll(&p, 1, 0);
+    if (ready == 0) {
+        return ConnectProgress::kInProgress;
+    }
+    if (ready < 0) {
+        return errno == EINTR ? ConnectProgress::kInProgress : ConnectProgress::kFailed;
+    }
+    int err = 0;
+    socklen_t l = sizeof(err);
+    if (::getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &l) != 0) {
+        return ConnectProgress::kFailed;
+    }
+    if (err != 0) {
+        return connectEndFromErrno(err);
+    }
+    sockaddr_in peer{};
+    socklen_t pl = sizeof(peer);
+    if (::getpeername(fd, reinterpret_cast<sockaddr *>(&peer), &pl) != 0) {
+        return ConnectProgress::kFailed;  // no error and no peer: shut down mid-attempt
+    }
+    recordConnTuple(fd, peer);
+    return ConnectProgress::kEstablished;
 }
 
 bool LinuxSocketBackend::listen(int fd, int backlog) {
@@ -581,30 +655,45 @@ int LinuxSocketBackend::waitReadable(int fd, int timeout_us) {
     return 1;
 }
 
-int LinuxSocketBackend::poll(const int *fds, std::size_t n, int timeout_ms,
-                             std::vector<int> &readable) {
+int LinuxSocketBackend::poll(const int *read_fds, std::size_t read_n, const int *write_fds,
+                             std::size_t write_n, int timeout_ms, std::vector<int> &readable,
+                             std::vector<int> &writable) {
     readable.clear();
+    writable.clear();
     // ::poll (not select) so a long-lived UTM with many sockets is not bounded by
     // FD_SETSIZE. POLLHUP/POLLERR are treated as readable so a closed/errored
     // watched fd surfaces to its handler (whose recv() then sees 0 / -1) instead
-    // of spinning silently.
+    // of spinning silently. The same two count as writable for an fd in the write
+    // set, which is how a failed connection attempt surfaces. An fd in both sets
+    // takes one entry each, so its two watches stay independent.
     std::vector<pollfd> pfds;
-    pfds.reserve(n);
-    for (std::size_t i = 0; i < n; ++i) {
-        if (fds[i] >= 0) {
-            pfds.push_back(pollfd{fds[i], POLLIN, 0});
+    pfds.reserve(read_n + write_n);
+    for (std::size_t i = 0; i < read_n; ++i) {
+        if (read_fds[i] >= 0) {
+            pfds.push_back(pollfd{read_fds[i], POLLIN, 0});
+        }
+    }
+    const std::size_t first_write = pfds.size();
+    for (std::size_t i = 0; i < write_n; ++i) {
+        if (write_fds[i] >= 0) {
+            pfds.push_back(pollfd{write_fds[i], POLLOUT, 0});
         }
     }
     const int sr = ::poll(pfds.data(), static_cast<nfds_t>(pfds.size()), timeout_ms);
     if (sr <= 0) {
         return (sr < 0 && errno != EINTR) ? -1 : 0;  // EINTR -> treat as a timeout
     }
-    for (const pollfd &p : pfds) {
-        if ((p.revents & (POLLIN | POLLHUP | POLLERR)) != 0) {
-            readable.push_back(p.fd);
+    for (std::size_t i = 0; i < pfds.size(); ++i) {
+        const pollfd &p = pfds[i];
+        if (i < first_write) {
+            if ((p.revents & (POLLIN | POLLHUP | POLLERR)) != 0) {
+                readable.push_back(p.fd);
+            }
+        } else if ((p.revents & (POLLOUT | POLLHUP | POLLERR)) != 0) {
+            writable.push_back(p.fd);
         }
     }
-    return static_cast<int>(readable.size());
+    return static_cast<int>(readable.size() + writable.size());
 }
 
 namespace {

@@ -169,9 +169,13 @@ inline constexpr std::uint8_t kRidEUcs = 0xEE;  // unable to create / no free so
 inline constexpr std::uint8_t kRidEUbs = 0xED;  // unable to bind, port taken
 inline constexpr std::uint8_t kRidEIif = 0xEC;  // invalid network / virtual interface
 // TCP errors (PRS_TPSP §6.8, the RFC 793 3.9 error strings):
+inline constexpr std::uint8_t kRidETcpInr = 0xE8;  // "insufficient resources"
+inline constexpr std::uint8_t kRidETcpCae = 0xE7;  // "connection already exists"
 inline constexpr std::uint8_t kRidETcpCoc = 0xE6;  // "connection closing"
 inline constexpr std::uint8_t kRidETcpCne = 0xE5;  // "connection does not exist"
 inline constexpr std::uint8_t kRidETcpCre = 0xE4;  // "connection reset"
+inline constexpr std::uint8_t kRidETcpCat = 0xE3;  // "connection aborted due to user timeout"
+inline constexpr std::uint8_t kRidETcpCor = 0xE2;  // "connection refused"
 
 // Project a socket-seam capability outcome (tc8::net::OpStatus) onto the Result
 // ID a Response carries. The seam is protocol-neutral by design, so the reading

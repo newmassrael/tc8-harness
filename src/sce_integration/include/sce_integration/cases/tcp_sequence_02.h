@@ -33,12 +33,10 @@ struct TestCaseTraits<cases::TcpSequence02SM>
         "ACK with ack_num == tester_seq + 1 (RFC 793 §3.4).";
 
     // The DUT's active open is held in SYN-SENT (no tester listener, so the
-    // injected SYN+ACK can carry a custom Sequence Number). The testability
-    // CONNECT SP requires the handshake to establish and so cannot hold a
-    // socket in SYN-SENT, while the opcode non-blocking worker can —
-    // kCapTcpSynSentOpen makes the CLI capability gate honestly SKIP this case
-    // on a testability backend (Tier 2 2b#4) instead of failing it. The DUT
-    // ACK is observed on pcap, so no state probe is required.
+    // injected SYN+ACK can carry a custom Sequence Number). kCapTcpSynSentOpen
+    // says the backend's open returns with the socket in SYN-SENT; the CLI
+    // capability gate skips the case on one that cannot (Tier 2 2b#4) instead of
+    // failing it. The DUT ACK is observed on pcap, so no state probe is required.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
         ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpSynSentOpen;
 

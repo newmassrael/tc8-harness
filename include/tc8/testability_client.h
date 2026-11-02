@@ -106,10 +106,51 @@ TestabilityResponse testabilityUdpSendData(const TestabilityConfig &cfg, std::ui
                                            const std::vector<std::uint8_t> &data,
                                            int timeout_ms = 1000, std::uint32_t src_ip_be = 0);
 
-// CONNECT (TCP / PID 0x05): active-open `socket_id` to (dest_addr_be, dest_port).
+// CONNECT (TCP / PID 0x05): trigger an active open of `socket_id` to (dest_addr_be,
+// dest_port). E_OK says the attempt was issued, not that it finished: the
+// specification's CONNECT only triggers, and PRS_TPSP section 6.2 forbids waiting
+// before the Response. The attempt's failure arrives later as an Event, which this
+// one-shot form does not collect; testabilityTcpConnectAttempt does.
 TestabilityResponse testabilityTcpConnect(const TestabilityConfig &cfg, std::uint16_t socket_id,
                                           std::uint16_t dest_port, std::uint32_t dest_addr_be,
                                           int timeout_ms = 1000, std::uint32_t src_ip_be = 0);
+
+// A CONNECT whose requesting socket stays open, because the DUT sends the attempt's
+// failure Event to the address the request came from. Closing that socket would turn
+// the Event into an ICMP port unreachable from the tester, inside the capture. Move
+// only; the destructor closes the socket. Uses the UDP control transport.
+class TestabilityConnectAttempt {
+public:
+    TestabilityConnectAttempt() = default;
+    ~TestabilityConnectAttempt();
+    TestabilityConnectAttempt(TestabilityConnectAttempt &&other) noexcept;
+    TestabilityConnectAttempt &operator=(TestabilityConnectAttempt &&other) noexcept;
+    TestabilityConnectAttempt(const TestabilityConnectAttempt &) = delete;
+    TestabilityConnectAttempt &operator=(const TestabilityConnectAttempt &) = delete;
+
+    const TestabilityResponse &response() const { return response_; }
+
+    // The Result ID of the attempt's failure Event, waiting up to `wait_ms` for it.
+    // nullopt means no such Event arrived in that time, which is not success: a DUT
+    // sends nothing when an attempt succeeds, and nothing yet while it is in SYN-SENT.
+    std::optional<std::uint8_t> awaitFailure(int wait_ms);
+
+private:
+    friend TestabilityConnectAttempt testabilityTcpConnectAttempt(const TestabilityConfig &,
+                                                                  std::uint16_t, std::uint16_t,
+                                                                  std::uint32_t, int,
+                                                                  std::uint32_t);
+    TestabilityResponse response_;
+    int fd_ = -1;
+    std::optional<std::uint8_t> failure_;  // kept: an Event can be read only once
+};
+
+TestabilityConnectAttempt testabilityTcpConnectAttempt(const TestabilityConfig &cfg,
+                                                       std::uint16_t socket_id,
+                                                       std::uint16_t dest_port,
+                                                       std::uint32_t dest_addr_be,
+                                                       int timeout_ms = 1000,
+                                                       std::uint32_t src_ip_be = 0);
 
 // SEND_DATA (TCP / PID 0x02): transmit `data` on the connected socket, repeated
 // up to total_len bytes (PRS_TPSP §6.10; total_len < data sends data in full).

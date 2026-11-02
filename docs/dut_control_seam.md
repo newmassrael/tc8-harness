@@ -48,6 +48,14 @@ cases are therefore not portable to a Testability DUT. That is a limit of the
 standard, stated honestly, not a defect of the seam. This tree does not invent
 wire primitives the standard does not define (see docs/tech-debt.md TD-16).
 
+Holding a socket in SYN-SENT is not one of these limits. The standard's CONNECT
+only triggers the open, and service primitives may not wait, so both backends
+return from `connectTcp` before the handshake ends. A returned socket is
+therefore an issued open, not an established connection: a case that needs the
+connection gets it from the tester's accept or from the wire. A failed open
+arrives as a CONNECT Event on a Testability DUT, and `ITcpControl::connectEnd`
+reads it.
+
 ## What an answer means, and who records it
 
 A DUT-control call has three outcomes, and a `bool` cannot tell two of them

@@ -21,6 +21,19 @@ enum class RecvEnd : std::uint8_t {
     kReset,       // the connection was reset
 };
 
+// Where a connection attempt stands, read without waiting. The failures keep the
+// meanings RFC 793 3.9 gives the user, because a caller reports them onward and a
+// refusal, a reset and a timeout are different answers.
+enum class ConnectProgress : std::uint8_t {
+    kInProgress,        // the attempt is under way and has not finished
+    kEstablished,       // the handshake finished
+    kRefused,           // the peer refused: a reset answered the SYN
+    kReset,             // the attempt was reset after the SYN was answered
+    kTimedOut,          // the stack stopped retransmitting and gave up
+    kAlreadyConnected,  // connectStartV4 only: the socket has a connection or an attempt
+    kFailed,            // ended for any other reason
+};
+
 // How long a bounded connect waits before re-reading its cancellation flag. Short
 // enough that a teardown is not perceptibly delayed, long enough that the wait is
 // still a wait rather than a spin: at 50 ms a 5 s connect costs 100 wakeups.
@@ -162,6 +175,25 @@ public:
     // resolved statically, so an override could disagree with it unnoticed).
     virtual bool connectBoundedV4(int fd, const Endpoint &dst, int timeout_ms,
                                   const std::atomic<bool> *cancel) = 0;
+
+    // Non-blocking active connect, for a caller that cannot give up a thread to the
+    // handshake: a server on one event loop, whose service primitives may not wait
+    // (PRS_TPSP section 6.2). connectStartV4 issues the attempt and returns without
+    // waiting; kFailed means no attempt started. An attempt that ended at once on
+    // loopback answers with how it ended.
+    //
+    // The fd is left non-blocking, because a blocking fd would turn the caller's next
+    // send on a socket in SYN-SENT into the wait this call exists to avoid. Once the
+    // attempt ends, the caller chooses the mode with setNonBlocking.
+    //
+    // connectProgress reads where the attempt stands, without waiting. The fd turns
+    // writable when the attempt ends, so an event loop calls this from a write watch.
+    // It reads the end only once: a stack clears its pending error when reporting it.
+    // Established is the backend's own check that the socket has a peer, not just the
+    // absence of an error, so a socket shut down mid-attempt reads kFailed. The backend
+    // captures here whatever per-fd state a later abortive close needs.
+    virtual ConnectProgress connectStartV4(int fd, const Endpoint &dst) = 0;
+    virtual ConnectProgress connectProgress(int fd) = 0;
 
     virtual bool listen(int fd, int backlog) = 0;
     // accept: new fd, or < 0 if none ready (fills `client` on success).

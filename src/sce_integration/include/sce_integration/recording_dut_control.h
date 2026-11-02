@@ -143,6 +143,9 @@ private:
             performedOrRecord(conn.has_value(), "connect_tcp");
             return conn;
         }
+        DutConnectEnd connectEnd(DutSocket sock, std::chrono::milliseconds wait) override {
+            return inner->connectEnd(sock, wait);
+        }
         std::optional<DutConnection> acceptTcp(const BindSpec &listen,
                                                const std::function<void()> &trigger) override {
             return inner->acceptTcp(listen, trigger);

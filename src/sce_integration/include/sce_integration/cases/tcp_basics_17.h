@@ -32,12 +32,11 @@ struct TestCaseTraits<cases::TcpBasics17SM>
         "TCP MUST support simultaneous OPEN attempts (RFC 1122 "
         "§4.2.2.10 p87, RFC 793 §3.4 simultaneous-open path).";
 
-    // Two opcode-only dependencies force a testability SKIP (Tier 2 2b#4): the
-    // DUT is held in SYN-SENT with no tester listener until the simultaneous-
-    // open SYN+ACK establishes it (kCapTcpSynSentOpen — the testability CONNECT
-    // SP cannot hold a socket in SYN-SENT), and the ESTABLISHED verdict reads
-    // kernel TCP_INFO state (kCapTcpStateQuery). The opcode backend exposes
-    // both, so it runs; testability lacks them and is honestly skipped.
+    // The DUT is held in SYN-SENT with no tester listener until the simultaneous-
+    // open SYN+ACK establishes it (kCapTcpSynSentOpen), and the ESTABLISHED verdict
+    // reads kernel TCP_INFO state (kCapTcpStateQuery). The second is the opcode
+    // backend's alone, so the capability gate skips this case on testability
+    // (Tier 2 2b#4).
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
         ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpStateQuery |
         ::tc8::sce::kCapTcpSynSentOpen;

@@ -32,11 +32,10 @@ template <>
 struct TestCaseTraits<cases::TcpUnacceptable08It1SM>
     : TcpAnyBase<cases::TcpUnacceptable08It1SM> {
     // The iteration leaves the DUT's active open in SYN-SENT (no tester listener) and injects
-    // the unacceptable-ACK segment into that state. The testability CONNECT SP requires the
-    // handshake to establish and so cannot hold a socket in SYN-SENT, while the opcode
-    // non-blocking worker can — kCapTcpSynSentOpen makes the CLI capability gate honestly
-    // SKIP this case on a testability backend instead of failing it. The DUT RST is observed
-    // on pcap, so no state probe is required.
+    // the unacceptable-ACK segment into that state. kCapTcpSynSentOpen says the backend's open
+    // returns with the socket in SYN-SENT; the CLI capability gate skips the case on one that
+    // cannot instead of failing it. The DUT RST is observed on pcap, so no state probe is
+    // required.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
         ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpSynSentOpen;
     static constexpr std::string_view kCaseId = "TCP_UNACCEPTABLE_08_IT1";

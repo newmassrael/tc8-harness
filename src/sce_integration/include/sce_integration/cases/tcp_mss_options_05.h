@@ -29,13 +29,12 @@ struct TestCaseTraits<cases::TcpMssOptions05SM>
         "ilen=0 and ilen=5.";
 
     // Each iteration holds the DUT's active open in SYN-SENT (no tester
-    // listener) until the crafted SYN+ACK injection establishes it. The
-    // testability CONNECT SP requires the handshake to establish and so cannot
-    // hold a socket in SYN-SENT, while the opcode non-blocking worker can —
-    // kCapTcpSynSentOpen makes the CLI capability gate honestly SKIP this case
-    // on a testability backend (Tier 2 2b#4) instead of failing it. Whether
-    // the DUT survived is graded by the liveness probe (dut_liveness.h), not
-    // by a state query, which a crashed DUT could not answer.
+    // listener) until the crafted SYN+ACK injection establishes it.
+    // kCapTcpSynSentOpen says the backend's open returns with the socket in
+    // SYN-SENT; the CLI capability gate skips the case on one that cannot (Tier 2
+    // 2b#4) instead of failing it. Whether the DUT survived is graded by the
+    // liveness probe (dut_liveness.h), not by a state query, which a crashed DUT
+    // could not answer.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
         ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpSynSentOpen;
     // The case's segments and the Echo Reply to its liveness probe.

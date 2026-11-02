@@ -40,7 +40,7 @@ enum DutCapability : std::uint32_t {
     kCapTcpInfoProbe = 1u << 2,      // TCP_INFO counters: rto / retransmits / unacked (opcode only)
     kCapArpConditioning = 1u << 3,   // ARP cache conditioning (opcode only)
     kCapLinkLocalControl = 1u << 4,  // link-local autoconf control (opcode only)
-    kCapTcpSynSentOpen = 1u << 5,    // active open left in SYN-SENT, non-establishing (opcode only)
+    kCapTcpSynSentOpen = 1u << 5,    // active open left in SYN-SENT, non-establishing
     kCapTcpRecvOob = 1u << 6,        // out-of-band (urgent) TCP receive (opcode only)
     kCapEgressFault = 1u << 7,       // egress field fault (OpSetEgressFlavor) — DUT-derived
     kCapIngressFault = 1u << 8,      // ingress reaction fault — ARP/ICMP/TCP prohibited emission + UDP acceptance/rejection (OpSetIngressFlavor) — DUT-derived
