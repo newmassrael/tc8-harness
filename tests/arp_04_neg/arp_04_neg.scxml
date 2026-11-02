@@ -8,7 +8,7 @@
   opcode-1 ARP Request the positive's `dut_arp_request_after_cache_populated`
   final forbids. Pass = that Request observed; fail_compliant = none within the
   window, meaning the DUT resolved from cache anyway and the fault was inert.
-  lwIP-only (capability-gated on kCapIngressFault + kCapArpConditioning).
+  lwIP-only; the case header's kRequiredCapabilities names the bits.
   Envelope: arp_cache_staleness_neg.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"

@@ -75,8 +75,10 @@ public:
                               backend_->linkLocalControl(), &IDutControlSeams::linkLocalControl);
         udp_receive_ = resolve("udpReceiveControl", kCapUdpReceiveControl,
                                backend_->udpReceiveControl(), &IDutControlSeams::udpReceiveControl);
-        arp_ = resolve("arpControl", kCapArpConditioning, backend_->arpControl(),
-                       &IDutControlSeams::arpControl);
+        arp_aging_ = resolve("arpCacheAging", kCapArpCacheAging, backend_->arpCacheAging(),
+                             &IDutControlSeams::arpCacheAging);
+        arp_static_ = resolve("arpStaticEntry", kCapArpStaticEntry, backend_->arpStaticEntry(),
+                              &IDutControlSeams::arpStaticEntry);
         primitive_ = resolve("servicePrimitiveControl", kCapServicePrimitive,
                              backend_->servicePrimitiveControl(),
                              &IDutControlSeams::servicePrimitiveControl);
@@ -125,7 +127,8 @@ public:
     IDhcpClientControl *dhcpClientControl() override { return dhcp_; }
     ILinkLocalControl *linkLocalControl() override { return link_local_; }
     IUdpReceiveControl *udpReceiveControl() override { return udp_receive_; }
-    IArpControl *arpControl() override { return arp_; }
+    IArpCacheAging *arpCacheAging() override { return arp_aging_; }
+    IArpStaticEntry *arpStaticEntry() override { return arp_static_; }
     IServicePrimitiveControl *servicePrimitiveControl() override { return primitive_; }
     ISocketConfigControl *socketConfigControl() override { return socket_config_; }
     IIcmpControl *icmpControl() override { return icmp_; }
@@ -193,7 +196,8 @@ private:
     IDhcpClientControl *dhcp_ = nullptr;
     ILinkLocalControl *link_local_ = nullptr;
     IUdpReceiveControl *udp_receive_ = nullptr;
-    IArpControl *arp_ = nullptr;
+    IArpCacheAging *arp_aging_ = nullptr;
+    IArpStaticEntry *arp_static_ = nullptr;
     IServicePrimitiveControl *primitive_ = nullptr;
     ISocketConfigControl *socket_config_ = nullptr;
     IIcmpControl *icmp_ = nullptr;

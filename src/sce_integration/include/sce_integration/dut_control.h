@@ -615,18 +615,18 @@ private:
     RawTransport raw_;
 };
 
-// Opcode-UT backend of IArpControl. Both operations keep the RAW inject path the
-// §4.2 cases have always used, and deliberately so: these run inside cases whose
-// verdict is the DUT's own ARP behaviour, and a kernel-routed control request
-// would put the tester's ARP resolution on the wire in the middle of it.
+// Opcode-UT backends of the two ARP-plane interfaces. Every operation keeps the RAW
+// inject path the §4.2 cases have always used, and deliberately so: these run inside
+// cases whose verdict is the DUT's own ARP behaviour, and a kernel-routed control
+// request would put the tester's ARP resolution on the wire in the middle of it.
 //
-// Cache conditioning is DUT-derived in spirit — only a DUT implementing the
-// conditioning opcode can act on it — but it is gated as backend-static here
-// because the opcode UT is the only backend that carries the request at all; a
-// DUT that ignores it answers non-zero, which the caller already branches on.
-class OpcodeArpControl final : public IArpControl {
+// Cache aging is DUT-derived in spirit — only a DUT implementing the conditioning
+// opcode can act on it — but it is gated as backend-static here because the opcode
+// UT is the only backend that carries the request at all; a DUT that ignores it
+// answers non-zero, which the caller already branches on.
+class OpcodeArpCacheAging final : public IArpCacheAging {
 public:
-    OpcodeArpControl(std::uint32_t dut_ip_be, RawTransport raw = {})
+    OpcodeArpCacheAging(std::uint32_t dut_ip_be, RawTransport raw = {})
         : dut_ip_be_(dut_ip_be), raw_(std::move(raw)) {}
 
     int ageCacheBySeconds(std::uint16_t seconds) override {
@@ -638,6 +638,16 @@ public:
     int addStaticEntry(std::uint32_t ip_be, const std::array<std::uint8_t, 6> &mac) override {
         return stimulus::emitArpAddStatic(raw_.iface, raw_.tester_ip_be, dut_ip_be_, raw_.dut_mac,
                                           ip_be, mac);
+private:
+    std::uint32_t dut_ip_be_;
+    RawTransport raw_;
+};
+
+class OpcodeArpStaticEntry final : public IArpStaticEntry {
+public:
+    OpcodeArpStaticEntry(std::uint32_t dut_ip_be, RawTransport raw = {})
+        : dut_ip_be_(dut_ip_be), raw_(std::move(raw)) {}
+
     }
 
     int removeStaticEntry(std::uint32_t ip_be) override {
@@ -905,7 +915,7 @@ public:
           dhcp_ctrl_(dut_ip_be, port, src_ip_be, timeout_ms, raw),
           ll_ctrl_(dut_ip_be, port, src_ip_be, timeout_ms, raw),
           udp_recv_(dut_ip_be, port, src_ip_be, timeout_ms, raw),
-          arp_ctrl_(dut_ip_be, std::move(raw)) {}
+          arp_aging_(dut_ip_be, raw), arp_static_(dut_ip_be, std::move(raw)) {}
 
     bool probe() override {
         return stimulus::pingUpperTester(dut_ip_be_, port_, timeout_ms_, src_ip_be_)
@@ -930,8 +940,8 @@ public:
             kCapTcpControl | kCapUdpControl | kCapTcpStateQuery | kCapTcpInfoProbe |
             kCapTcpSynSentOpen |
             kCapTcpRecvOob | kCapDhcpClientControl | kCapLinkLocalControl |
-            kCapUdpReceiveControl | kCapArpConditioning | kCapUdpUnacknowledgedSend |
-            kCapUdpSendHeardAtL2);
+            kCapUdpReceiveControl | kCapArpCacheAging | kCapArpStaticEntry |
+            kCapUdpUnacknowledgedSend | kCapUdpSendHeardAtL2);
     }
 
     DutCapabilities capabilities() const override {
@@ -957,7 +967,8 @@ public:
     IDhcpClientControl *dhcpClientControl() override { return &dhcp_ctrl_; }
     ILinkLocalControl *linkLocalControl() override { return &ll_ctrl_; }
     IUdpReceiveControl *udpReceiveControl() override { return &udp_recv_; }
-    IArpControl *arpControl() override { return &arp_ctrl_; }
+    IArpCacheAging *arpCacheAging() override { return &arp_aging_; }
+    IArpStaticEntry *arpStaticEntry() override { return &arp_static_; }
 
 private:
     // Fail-fast ceiling for the kernel-state probe, independent of the
@@ -1042,7 +1053,8 @@ private:
     OpcodeDhcpClientControl dhcp_ctrl_;
     OpcodeLinkLocalControl ll_ctrl_;
     OpcodeUdpReceiveControl udp_recv_;
-    OpcodeArpControl arp_ctrl_;
+    OpcodeArpCacheAging arp_aging_;
+    OpcodeArpStaticEntry arp_static_;
 };
 
 // Adapter over the AUTOSAR Testability Protocol client (testability_client.h).

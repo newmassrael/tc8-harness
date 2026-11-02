@@ -13,7 +13,7 @@
   ARP_35 has no stale-MAC sibling for the same reason: with no first entry to keep,
   kArpFaultIgnoreUpdate would find nothing already held and swallow nothing.
 
-  lwIP-only (kCapIngressFault + kCapArpConditioning). Envelope: arp_cache_staleness_neg.
+  lwIP-only; the case header's kRequiredCapabilities names the bits. Envelope: arp_cache_staleness_neg.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"

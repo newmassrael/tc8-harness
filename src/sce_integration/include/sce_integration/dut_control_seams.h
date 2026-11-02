@@ -56,8 +56,11 @@ public:
     // no mapping for the question (see IUdpReceiveControl).
     virtual IUdpReceiveControl *udpReceiveControl() { return nullptr; }
 
-    // DUT ARP-plane actions, or nullptr when the provider cannot drive them.
-    virtual IArpControl *arpControl() { return nullptr; }
+    // DUT ARP-plane actions, one accessor per operation family, each nullptr when the
+    // provider cannot drive it; a case declaring kCapArpCacheAging / kCapArpStaticEntry
+    // is capability-skipped there. See dut_arp_control.h for why they are two.
+    virtual IArpCacheAging *arpCacheAging() { return nullptr; }
+    virtual IArpStaticEntry *arpStaticEntry() { return nullptr; }
 
     // A service primitive called by group and primitive number, or nullptr when the
     // backend has no such call (the opcode UT). For primitives the DUT's owner defines

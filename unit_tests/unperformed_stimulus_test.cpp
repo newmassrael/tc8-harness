@@ -454,7 +454,8 @@ TEST_F(UnperformedStimulusTest, TheDecoratorIsAbsentWhereTheBackendHasNoInterfac
     ::tc8::sce::RecordingDutControl dut(std::make_unique<FailingOpenDutControl>());
     EXPECT_NE(dut.tcpControl(), nullptr);
     EXPECT_EQ(dut.udpControl(), nullptr);
-    EXPECT_EQ(dut.arpControl(), nullptr);
+    EXPECT_EQ(dut.arpCacheAging(), nullptr);
+    EXPECT_EQ(dut.arpStaticEntry(), nullptr);
     EXPECT_EQ(dut.capabilities(), ::tc8::sce::kCapTcpControl);
 }
 

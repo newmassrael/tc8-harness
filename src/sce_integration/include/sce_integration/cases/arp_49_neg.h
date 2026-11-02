@@ -33,7 +33,7 @@ struct TestCaseTraits<cases::Arp49NegSM>
     // ARP cache between its two datagrams.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
         ::tc8::sce::kCapEgressFault | ::tc8::sce::kCapUdpControl |
-        ::tc8::sce::kCapArpConditioning;
+        ::tc8::sce::kCapArpCacheAging;
     static constexpr std::string_view kCaseId      = "ARP_49_NEG";
     static constexpr std::string_view kDescription =
         "Self-validation of ARP_49's second-UDP guard: kEthFaultUdpEgressDstWrong is armed "

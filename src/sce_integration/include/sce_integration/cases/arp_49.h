@@ -25,7 +25,7 @@ struct TestCaseTraits<cases::Arp49SM>
     : ArpAndUdpBase<cases::Arp49SM> {
     // Provokes with a UDP send and, on a UT-conditioned DUT, ages its ARP cache.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
-        ::tc8::sce::kCapUdpControl | ::tc8::sce::kCapArpConditioning;
+        ::tc8::sce::kCapUdpControl | ::tc8::sce::kCapArpCacheAging;
     static constexpr std::string_view kCaseId = "ARP_49";
     static constexpr std::string_view kDescription =
         "ARP cache entry ages out even when in use — DUT must re-ARP "

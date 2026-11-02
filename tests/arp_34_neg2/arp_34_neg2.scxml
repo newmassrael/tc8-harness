@@ -18,7 +18,7 @@
   Request instead, leaving no entry at all, and TD-32's FIND_ONLY semantics mean the
   gratuitous Response cannot make up for it.
 
-  lwIP-only (kCapIngressFault + kCapArpConditioning). Envelope: arp_cache_stale_mac_neg.
+  lwIP-only; the case header's kRequiredCapabilities names the bits. Envelope: arp_cache_stale_mac_neg.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"

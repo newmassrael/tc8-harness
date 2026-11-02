@@ -106,7 +106,8 @@ BIT_DEMANDS = {
     "kCapUdpUnacknowledgedSend": {"sendDatagramUnacknowledged"},
     "kCapUdpSendHeardAtL2": {"sendDatagramHeardAtL2"},
     "kCapUdpReceiveControl": {"udpReceiveControl"},
-    "kCapArpConditioning": {"arpControl"},
+    "kCapArpCacheAging": {"arpCacheAging"},
+    "kCapArpStaticEntry": {"arpStaticEntry"},
     "kCapServicePrimitive": {"servicePrimitiveControl"},
     "kCapSocketConfigure": {"socketConfigControl"},
     "kCapIcmpEcho": {"icmpControl"},
@@ -242,7 +243,7 @@ def helper_bodies() -> dict[str, str]:
     pilot-helper headers. These are what a case reaches the seam THROUGH."""
     bodies: dict[str, str] = {}
     # The traits-base files hold FREE FUNCTIONS as well as structs -- the ARP
-    # base's shared stimulus calls `dut.arpControl()` from a helper beside the
+    # base's shared stimulus calls `dut.arpCacheAging()` from a helper beside the
     # struct, not from inside it. Scanning only the parent directory missed
     # those and reported 33 ARP cases as declaring a bit they never demand.
     paths = [p for d in SEAM_DIRS for p in sorted(d.glob("*.h"))]

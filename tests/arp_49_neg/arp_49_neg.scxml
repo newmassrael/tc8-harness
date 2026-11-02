@@ -22,7 +22,7 @@
   phase can still be in flight here; consuming it as a verdict would make this negative
   report on a frame it never armed against. The deadline is the honest judge.
 
-  lwIP-only (kCapEgressFault + kCapArpConditioning).
+  lwIP-only; the case header's kRequiredCapabilities names the bits.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"

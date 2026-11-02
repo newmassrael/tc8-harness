@@ -84,7 +84,8 @@ TEST(DemoDutExtension, ClaimsExactlyTheSeamItProvides) {
     EXPECT_EQ(ext->capabilities(), kCapTcpStateQuery);
     EXPECT_NE(ext->tcpStateQuery(), nullptr);
     EXPECT_EQ(ext->tcpInfoProbe(), nullptr);
-    EXPECT_EQ(ext->arpControl(), nullptr);
+    EXPECT_EQ(ext->arpCacheAging(), nullptr);
+    EXPECT_EQ(ext->arpStaticEntry(), nullptr);
 }
 
 // The negative control: an extension that claims the state query and misreports an

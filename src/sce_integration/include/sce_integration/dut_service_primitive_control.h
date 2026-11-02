@@ -6,7 +6,7 @@
 #include "sce_integration/dut_socket_control.h"
 
 // Service-primitive pass-through of the Tier-2 DUT-control seam: the untyped
-// complement of the typed sub-interfaces (ITcpControl, IArpControl, ...).
+// complement of the typed sub-interfaces (ITcpControl, IArpStaticEntry, ...).
 //
 // A typed sub-interface names an operation the harness understands, so a case speaks
 // the operation and the backend maps it to its wire. A DUT can also serve primitives

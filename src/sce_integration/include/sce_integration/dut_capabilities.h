@@ -38,7 +38,7 @@ enum DutCapability : std::uint32_t {
     kCapTcpControl = 1u << 0,        // ITcpControl (handle-based TCP data plane)
     kCapUdpControl = 1u << 1,        // IUdpControl (one-shot UDP send)
     kCapTcpInfoProbe = 1u << 2,      // TCP_INFO counters: rto / retransmits / unacked (opcode only)
-    kCapArpConditioning = 1u << 3,   // ARP cache conditioning (opcode only)
+    kCapArpCacheAging = 1u << 3,     // IArpCacheAging: age dynamic ARP entries (opcode only)
     kCapLinkLocalControl = 1u << 4,  // link-local autoconf control (opcode only)
     kCapTcpSynSentOpen = 1u << 5,    // active open left in SYN-SENT, non-establishing
     kCapTcpRecvOob = 1u << 6,        // out-of-band (urgent) TCP receive (opcode only)
@@ -129,6 +129,13 @@ enum DutCapability : std::uint32_t {
     // because a socket created after the teaching step cannot warm what the case grades.
     // Needs a wire, so a backend without one does not claim it.
     kCapUdpSendHeardAtL2 = 1u << 23,
+    // IArpStaticEntry — install and take out a permanent DUT ARP entry (the operations
+    // dut_arp_control.h maps to the specification).
+    // Backend-STATIC, and separate from kCapArpCacheAging: a DUT can serve a static
+    // neighbour add and remove without any operation that ages its cache, and a claim
+    // must cover exactly what the provider answers. Bit 3 covered both until
+    // 2026-11-02; it kept the aging half because every in-tree case on it ages.
+    kCapArpStaticEntry = 1u << 24,
 };
 using DutCapabilities = std::uint32_t;
 

@@ -13,7 +13,7 @@
   both teachings so no entry exists at all. Keeping the two faults separate is what
   stops either negative from satisfying both guards.
 
-  lwIP-only (kCapIngressFault + kCapArpConditioning). Envelope: arp_cache_stale_mac_neg.
+  lwIP-only; the case header's kRequiredCapabilities names the bits. Envelope: arp_cache_stale_mac_neg.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"

@@ -27,7 +27,7 @@ primitives.
 
 The operations are grouped into sub-interfaces by capability (`ITcpControl`,
 `IUdpControl`, `ITcpStateQuery`, `ITcpInfoProbe`, `ITcpRecvOob`, `IDhcpClientControl`,
-`ILinkLocalControl`, `IUdpReceiveControl`, `IArpControl`). `IDutControl`
+`ILinkLocalControl`, `IUdpReceiveControl`, `IArpCacheAging`, `IArpStaticEntry`). `IDutControl`
 returns each one, or `nullptr` where the backend has no such capability. The
 alternative, one fat interface whose unsupported calls return "unsupported",
 was rejected: it hides the asymmetry below instead of stating it. Adapters are
@@ -140,8 +140,12 @@ bit. The run header names the extension behind each seam.
 The seams an extension is likely to provide were split along their methods for this:
 the TCP state query (`ITcpStateQuery`, `kCapTcpStateQuery`) answers an RFC 793 state
 and is separate from the TCP_INFO counters (`ITcpInfoProbe`, `kCapTcpInfoProbe`); the
-ARP seam holds the operations that change the DUT's cache (age, add and remove a
-static entry) and no longer the provocation, which is a UDP send.
+ARP plane is two seams, aging the cache (`IArpCacheAging`, `kCapArpCacheAging`) and
+adding and removing a static entry (`IArpStaticEntry`, `kCapArpStaticEntry`), because a
+DUT can pin a neighbour without any operation that ages its cache. Neither carries the
+provocation, which is a UDP send. Until 2026-11-02 one seam and one bit held all three
+operations, so a provider of the static half could not claim it without also claiming
+aging it does not serve.
 
 ## How a case receives the seam
 

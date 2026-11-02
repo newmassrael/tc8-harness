@@ -46,11 +46,14 @@
 //
 // A SECOND axis crosses those dispatch shapes: whether the case DRIVES the DUT
 // over the Tier-2 seam or only observes what the tester provokes from the wire.
-// Driving needs `IArpControl`, so those cases declare kCapArpConditioning and the
-// gate can decline a backend that has none — ArpDutProvokedBase (ArpFrame-only)
+// Driving means a UDP send through the seam (the DUT originating traffic is what
+// makes its ARP resolution observable), so those cases declare kCapUdpControl and
+// the gate can decline a backend that has none — ArpDutProvokedBase (ArpFrame-only)
 // and ArpEgressFaultNegProvokedBase (its fault-armed sibling) carry it, and
-// ArpAndUdpBase carries it for all of its cases. The axis is separate because
-// the two are independent: ArpAnyBase has 28 cases and only 11 drive the DUT.
+// ArpAndUdpBase carries it for all of its cases. A case that also changes the DUT's
+// ARP plane declares that operation family's own bit beside it: kCapArpCacheAging
+// to age the cache (ARP_48/49), kCapArpStaticEntry to pin an entry. The axis is
+// separate because the two are independent: most ArpAnyBase cases only observe.
 //
 // Stimulus is intentionally NOT provided here — every §4.2 case has its
 // own per-case stimulus (ARP-learning probe, UT egress provocation, ...)
@@ -150,38 +153,38 @@ inline int emitArpColdCacheProvocation(::tc8::sce::IDutControl &dut,
 
 // §4.2.4.2 ARP_48/49 mid-stimulus cache-aging step, for topologies whose DUT can
 // age its ARP cache — `cfg.arp_stimulus.ut_cache_conditioning_s > 0` is the
-// caller-side gate. Gate the case on kCapArpConditioning.
+// caller-side gate. Gate the case on kCapArpCacheAging.
 inline int emitArpCacheAge(::tc8::sce::IDutControl &dut, std::uint16_t seconds) {
-    auto *arp = dut.arpControl();
-    if (arp == nullptr) {
-        ::tc8::UnperformedStimulus::record("dut_arp_control_absent");
+    auto *aging = dut.arpCacheAging();
+    if (aging == nullptr) {
+        ::tc8::UnperformedStimulus::record("dut_arp_cache_aging_absent");
         return -1;
     }
-    return arp->ageCacheBySeconds(seconds);
+    return aging->ageCacheBySeconds(seconds);
 }
 
 // Install / take out a permanent DUT ARP entry — TC8 §4.2.3's configuration and
-// cleanup operations (UT 0x17 AddStatic / RemoveStatic), for the same topologies as
-// `emitArpCacheAge` — gate the case on kCapArpConditioning. The entry is
-// the case's to name: pass the address and MAC the procedure pins (its HOST-1 IP
-// and the MAC it expects the DUT to address), never the SCXML expectation knobs.
+// cleanup operations (UT 0x17 AddStatic / RemoveStatic on the opcode backend) —
+// gate the case on kCapArpStaticEntry. The entry is the case's to name: pass the
+// address and MAC the procedure pins (its HOST-1 IP and the MAC it expects the DUT
+// to address), never the SCXML expectation knobs.
 inline int emitArpStaticEntryAdd(::tc8::sce::IDutControl &dut, std::uint32_t ip_be,
                                  const std::array<std::uint8_t, 6> &mac) {
-    auto *arp = dut.arpControl();
-    if (arp == nullptr) {
-        ::tc8::UnperformedStimulus::record("dut_arp_control_absent");
+    auto *entries = dut.arpStaticEntry();
+    if (entries == nullptr) {
+        ::tc8::UnperformedStimulus::record("dut_arp_static_entry_absent");
         return -1;
     }
-    return arp->addStaticEntry(ip_be, mac);
+    return entries->addStaticEntry(ip_be, mac);
 }
 
 inline int emitArpStaticEntryRemove(::tc8::sce::IDutControl &dut, std::uint32_t ip_be) {
-    auto *arp = dut.arpControl();
-    if (arp == nullptr) {
-        ::tc8::UnperformedStimulus::record("dut_arp_control_absent");
+    auto *entries = dut.arpStaticEntry();
+    if (entries == nullptr) {
+        ::tc8::UnperformedStimulus::record("dut_arp_static_entry_absent");
         return -1;
     }
-    return arp->removeStaticEntry(ip_be);
+    return entries->removeStaticEntry(ip_be);
 }
 
 // emitEgressFlavorArm / emitIngressFlavorArm (the generic UT 0x18 / 0x19 arming) live
@@ -247,7 +250,7 @@ struct ArpAndUdpBase : ArpAnyBase<StateMachine> {
     // Every case on this base provokes the DUT with a UDP send through the seam
     // (`emitArpEgressProvocation`), so it is only measurable on a backend that
     // provides IUdpControl. ARP_48/49 also age the DUT's ARP cache and declare
-    // kCapArpConditioning beside it.
+    // kCapArpCacheAging beside it.
     //
     // Without the declaration the gate cannot fire, and on a backend without it
     // `emitArpEgressProvocation` returns -1, the DUT is never provoked, and the

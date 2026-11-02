@@ -22,15 +22,14 @@ public:
     }
 };
 
-class FakeArp final : public IArpControl {
+class FakeArpStatic final : public IArpStaticEntry {
 public:
-    int ageCacheBySeconds(std::uint16_t) override { return 0; }
     int addStaticEntry(std::uint32_t, const std::array<std::uint8_t, 6> &) override { return 0; }
     int removeStaticEntry(std::uint32_t) override { return 0; }
 };
 
 // A backend with a primitive call (what extensions are built over) and, optionally,
-// an ARP seam of its own.
+// an ARP static-entry seam of its own.
 class FakeBackend final : public IDutControl {
 public:
     explicit FakeBackend(bool has_primitive = true, bool has_arp = false)
@@ -42,18 +41,18 @@ public:
     const char *backendName() const override { return "fake-backend"; }
     std::uint16_t controlPort() const override { return 4242; }
     DutCapabilities capabilities() const override {
-        return (has_primitive_ ? kCapServicePrimitive : 0U) | (has_arp_ ? kCapArpConditioning : 0U);
+        return (has_primitive_ ? kCapServicePrimitive : 0U) | (has_arp_ ? kCapArpStaticEntry : 0U);
     }
     IServicePrimitiveControl *servicePrimitiveControl() override {
         return has_primitive_ ? &primitive_ : nullptr;
     }
-    IArpControl *arpControl() override { return has_arp_ ? &arp_ : nullptr; }
+    IArpStaticEntry *arpStaticEntry() override { return has_arp_ ? &arp_ : nullptr; }
 
 private:
     bool has_primitive_;
     bool has_arp_;
     FakePrimitive primitive_;
-    FakeArp arp_;
+    FakeArpStatic arp_;
 };
 
 // An extension answering the TCP state query with a fixed state.
@@ -80,14 +79,16 @@ private:
     DutCapabilities claimed_;
 };
 
+// Serves the static-entry operations and nothing else — the shape of a DUT whose
+// own primitives can pin a neighbour but cannot age a cache.
 class ArpExtension final : public DutControlExtension {
 public:
     std::string_view name() const override { return "arp-ext"; }
-    DutCapabilities capabilities() const override { return kCapArpConditioning; }
-    IArpControl *arpControl() override { return &arp_; }
+    DutCapabilities capabilities() const override { return kCapArpStaticEntry; }
+    IArpStaticEntry *arpStaticEntry() override { return &arp_; }
 
 private:
-    FakeArp arp_;
+    FakeArpStatic arp_;
 };
 
 DutControlExtensionFactory stateExt(std::string name, DutTcpState answer,
@@ -155,6 +156,18 @@ TEST(DutControlExtension, AnExtensionCannotReplaceABackendSeam) {
     EXPECT_THROW(compose(std::make_unique<FakeBackend>(true, /*has_arp=*/true),
                          {[](IServicePrimitiveControl &) { return std::make_unique<ArpExtension>(); }}),
                  DutControlExtensionError);
+}
+
+// The reason the ARP seam is two: a provider of the static-entry operations alone
+// claims exactly that bit, and the aging seam stays absent, so the cases that age the
+// cache keep skipping on that DUT instead of running into an operation nobody serves.
+TEST(DutControlExtension, AStaticEntryProviderDoesNotClaimCacheAging) {
+    auto handle = compose(std::make_unique<FakeBackend>(),
+                          {[](IServicePrimitiveControl &) { return std::make_unique<ArpExtension>(); }});
+    EXPECT_NE(handle->arpStaticEntry(), nullptr);
+    EXPECT_EQ(handle->arpCacheAging(), nullptr);
+    EXPECT_NE(handle->capabilities() & kCapArpStaticEntry, 0U);
+    EXPECT_EQ(handle->capabilities() & kCapArpCacheAging, 0U);
 }
 
 TEST(DutControlExtension, TwoExtensionsCannotOfferTheSameSeam) {

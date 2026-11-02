@@ -63,7 +63,10 @@ public:
     IUdpReceiveControl *udpReceiveControl() override {
         return udp_receive_.bind(inner_->udpReceiveControl());
     }
-    IArpControl *arpControl() override { return arp_.bind(inner_->arpControl()); }
+    IArpCacheAging *arpCacheAging() override { return arp_aging_.bind(inner_->arpCacheAging()); }
+    IArpStaticEntry *arpStaticEntry() override {
+        return arp_static_.bind(inner_->arpStaticEntry());
+    }
     IServicePrimitiveControl *servicePrimitiveControl() override {
         return primitive_.bind(inner_->servicePrimitiveControl());
     }
@@ -246,12 +249,15 @@ private:
     };
 
     // The ARP operations return the backend's status: 0 is done, anything else is not.
-    struct Arp final : Bound<IArpControl> {
+    struct ArpAging final : Bound<IArpCacheAging> {
         int ageCacheBySeconds(std::uint16_t seconds) override {
             const int rc = inner->ageCacheBySeconds(seconds);
             performedOrRecord(rc == 0, "age_arp_cache");
             return rc;
         }
+    };
+
+    struct ArpStatic final : Bound<IArpStaticEntry> {
         int addStaticEntry(std::uint32_t ip_be, const std::array<std::uint8_t, 6> &mac) override {
             const int rc = inner->addStaticEntry(ip_be, mac);
             performedOrRecord(rc == 0, "add_static_arp_entry");
@@ -323,7 +329,8 @@ private:
     UdpReceive udp_receive_;
     Dhcp dhcp_;
     LinkLocal link_local_;
-    Arp arp_;
+    ArpAging arp_aging_;
+    ArpStatic arp_static_;
     Primitive primitive_;
     SocketConfig socket_config_;
     Icmp icmp_;
