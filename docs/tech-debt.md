@@ -3895,10 +3895,17 @@ premise given up, and the deferred-negative ledger is empty — MET.
 
 ## TD-56 — the push gate compiles on the workstation it gates, and no register counted that
 
-**Status:** OPEN (accepted) — the repair is an infrastructure action outside this repository, and
-the exposure is recorded here so it is counted rather than remembered.
+**Status:** OPEN — no longer accepted: the infrastructure action it waited on has happened, and
+what remains is the measurement in its closing condition.
 **Logged:** 2026-09-26, from a sweep answering "is anything left?" after all four registers read
 zero.
+
+**Update (2026-11-02).** The owner moved the `[self-hosted, netns]` runner to a separate build
+machine; the workstation's runner is stopped and kept registered only as a fallback. The first run
+there, on `221cb9fb`, was green in 46m18s with a cold-cache build of 19m15s. That is the
+relocation, not the closing condition: the Done-when below still needs a run that overlaps local
+work and a quiet run, both cache-warm, to show no build inflation. With the repair inside reach,
+the id left `tools/debt_accepted.txt`.
 
 **What it is.** The `[self-hosted, netns]` runner is installed on this workstation, so every
 smoke run's own build competes for cores with whatever a session is doing here. TD-50 moved THIS
