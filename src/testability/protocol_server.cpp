@@ -86,6 +86,10 @@ struct ProtocolServer::ModuleRuntime final : MiddlewareContext {
 
     net::SocketBackend &backend() override { return *server_->backend_; }
 
+    std::optional<int> socketHandle(std::uint16_t socket_id) const override {
+        return server_->lookupSocket(socket_id);
+    }
+
     TimerId scheduleEvery(std::chrono::milliseconds period, std::function<void()> fn) override {
         return server_->reactor_.armEvery(period, std::move(fn));
     }

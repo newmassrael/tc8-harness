@@ -111,6 +111,7 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
     install(FILES
             ${PROJECT_SOURCE_DIR}/include/tc8/net/socket_backend.h
             ${PROJECT_SOURCE_DIR}/include/tc8/net/op_status.h
+            ${PROJECT_SOURCE_DIR}/include/tc8/net/tcp_info_reader.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/tc8/net COMPONENT utm-sdk)
     install(FILES
             ${PROJECT_SOURCE_DIR}/include/tc8/wire/icmp_echo.h
@@ -124,6 +125,7 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
     install(FILES ${_tc8_autosar_headers}
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/tc8/autosar COMPONENT utm-sdk)
     install(FILES ${PROJECT_SOURCE_DIR}/include/tc8/linux_socket_backend.h
+            ${PROJECT_SOURCE_DIR}/include/tc8/linux_tcp_info_reader.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/tc8 COMPONENT utm-sdk)
 
     # ── The SDK's runnable tool: tc8-testability-send ──
@@ -167,8 +169,10 @@ if(TC8_UTM_INSTALL AND TARGET tc8_testability_server)
     # lwip/lwipopts.h, and links tc8::tc8_testability_core (the backend-agnostic
     # core, no POSIX adapter).
     install(FILES ${PROJECT_SOURCE_DIR}/dut/lwip_dut/lwip_socket_backend.h
+            ${PROJECT_SOURCE_DIR}/dut/lwip_dut/lwip_tcp_info_reader.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT utm-sdk-lwip)
     install(FILES ${PROJECT_SOURCE_DIR}/dut/lwip_dut/lwip_socket_backend.cpp
+            ${PROJECT_SOURCE_DIR}/dut/lwip_dut/lwip_tcp_info_reader.cpp
         DESTINATION ${CMAKE_INSTALL_DATADIR}/tc8-utm/lwip COMPONENT utm-sdk-lwip)
     # The UTM lwIP config: lwipopts_base.h (the product-neutral infra shared with
     # the conformance fixture — single source of truth) + the utm/ layer (LWIP_IGMP

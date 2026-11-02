@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <vector>
 
 #include "tc8/net/socket_backend.h"
@@ -98,6 +99,21 @@ public:
     // collapsed every cause onto E_NOK and made a typo indistinguishable from a
     // permanent platform limit.
     virtual net::SocketBackend &backend() = 0;
+
+    // The backend handle behind a testability socket id, the id CREATE_AND_BIND and
+    // LISTEN_AND_ACCEPT handed the tester, so a module can serve a query about a socket
+    // the tester names. nullopt when the id names no socket. Read-only: the table, its
+    // numbering and each socket's lifetime stay the server's, so a module must not close
+    // the handle or keep it past the current callback.
+    //
+    // The handle alone says nothing about the connection. The read is a
+    // net::TcpInfoReader (tc8/net/tcp_info_reader.h), which the hosting application
+    // builds for its stack and gives to the module.
+    //
+    // Not pure so a module's test double need not implement it.
+    virtual std::optional<int> socketHandle(std::uint16_t /*socket_id*/) const {
+        return std::nullopt;
+    }
 
     // Periodic timer: invoke `fn` every `period` until cancel() / onStop(). The
     // first fire is one `period` out. Delivered on the module executor.

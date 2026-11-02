@@ -437,11 +437,12 @@ public:
 };
 
 // Kernel TCP_INFO probe — the retransmission-timeout, retransmit count and
-// unacked counters of a DUT socket. Opcode-only for the same reason as
-// ITcpStateQuery and a separate sub-interface because a DUT can answer one
-// question and not the other: a backend that answers the state alone must not
-// claim this one, or the retransmission cases would run into nullopt instead of
-// skipping. Gated by kCapTcpInfoProbe.
+// unacked counters of a DUT socket. No standard primitive exposes these either, so a
+// Testability DUT serves it only through a registered extension (a module reads the
+// counters with net::TcpInfoReader; these fields are its TcpInfo). A separate
+// sub-interface because a DUT can answer one question and not the other: a backend
+// that answers the state alone must not claim this one, or the retransmission cases
+// would run into nullopt instead of skipping. Gated by kCapTcpInfoProbe.
 class ITcpInfoProbe {
 public:
     virtual ~ITcpInfoProbe() = default;

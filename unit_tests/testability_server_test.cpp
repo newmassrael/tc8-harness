@@ -24,6 +24,7 @@
 #include "netns_test_util.h"
 #include "test_port_util.h"
 #include "tc8/linux_socket_backend.h"
+#include "tc8/linux_tcp_info_reader.h"
 #include "sce_integration/dut_control.h"
 #include "tc8/testability_client.h"
 #include "tc8/testability_protocol.h"
@@ -2236,6 +2237,7 @@ constexpr std::uint8_t kProbePidReadCount = 0x03;
 constexpr std::uint8_t kProbePidArmEvent = 0x04;
 constexpr std::uint8_t kProbePidArmRx = 0x05;    // open+bind a data socket, watchReadable it
 constexpr std::uint8_t kProbePidReadRx = 0x06;   // return the last datagram the watch consumed
+constexpr std::uint8_t kProbePidTcpState = 0x07;  // TCP state of the socket id in the request
 constexpr std::uint16_t kProbeRxPort = 31902;    // the module's data-plane UDP port
 TC8_STATIC_ASSERT_TEST_PORT(kProbeRxPort);
 constexpr std::size_t kProbeRxBufLen = 256;      // inbound datagram read buffer
@@ -2299,6 +2301,24 @@ public:
                 resp = last_rx_;  // executor thread — same thread as onRx, no lock
                 rid = tp::kRidEOk;
                 return;
+            case kProbePidTcpState: {
+                // What a consumer's state query does: the tester names the socket by
+                // its testability id, the module turns that into the backend's handle
+                // and asks the stack.
+                const auto handle = ctx_->socketHandle(tp::readU16(dat));
+                if (!handle) {
+                    rid = tp::kRidEIsd;
+                    return;
+                }
+                tc8::net::TcpInfo info;
+                if (!tcp_info_.queryTcpInfo(*handle, info)) {
+                    rid = tp::kRidENok;
+                    return;
+                }
+                resp.push_back(info.state);
+                rid = tp::kRidEOk;
+                return;
+            }
             default:
                 rid = tp::kRidENtf;
                 return;
@@ -2323,6 +2343,7 @@ private:
     int rx_sock_ = -1;
     testability::WatchId rx_watch_ = testability::kNoWatch;
     std::vector<std::uint8_t> last_rx_;
+    LinuxTcpInfoReader tcp_info_;
 };
 
 // A module that (illegally) claims the core GENERAL group — for the fail-fast test.
@@ -2468,6 +2489,59 @@ TEST(MiddlewareSeam, RegisterModuleRejectsDuplicateAndCoreGid) {
     server.registerModule(std::make_unique<SeamProbeModule>());
     EXPECT_THROW(server.registerModule(std::make_unique<SeamProbeModule>()), std::invalid_argument);
     EXPECT_THROW(server.registerModule(std::make_unique<CoreGidModule>()), std::invalid_argument);
+}
+
+// A module reads the TCP state of a socket the tester names by its testability id, and
+// the read follows the connection: ESTABLISHED, then CLOSE-WAIT after the peer's FIN. An
+// id that names no socket is the module's to refuse, and nothing here creates or closes
+// a socket on the server's behalf.
+TEST_F(MiddlewareSeamTest, AModuleReadsTheTcpStateOfASocketTheTesterNames) {
+    const int lfd = ::socket(AF_INET, SOCK_STREAM, 0);
+    ASSERT_GE(lfd, 0);
+    sockaddr_in la{};
+    la.sin_family = AF_INET;
+    la.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
+    ASSERT_EQ(::bind(lfd, reinterpret_cast<sockaddr *>(&la), sizeof(la)), 0);
+    ASSERT_EQ(::listen(lfd, 1), 0);
+    socklen_t ll = sizeof(la);
+    ASSERT_EQ(::getsockname(lfd, reinterpret_cast<sockaddr *>(&la), &ll), 0);
+
+    const auto sock = testability::testabilityCreateAndBind(cfg_, tp::kGidTcp, false, 0xFFFF, 0);
+    ASSERT_TRUE(sock.has_value());
+    ASSERT_TRUE(testability::testabilityTcpConnect(cfg_, *sock, ntohs(la.sin_port),
+                                                   ::htonl(INADDR_LOOPBACK))
+                    .eok());
+    const int conn = ::accept(lfd, nullptr, nullptr);
+    ASSERT_GE(conn, 0);
+
+    const auto stateOf = [this](std::uint16_t id) {
+        std::vector<std::uint8_t> req;
+        tp::appendU16(req, id);
+        return testability::testabilityCall(cfg_, kProbeGid, kProbePidTcpState, req);
+    };
+    const auto established = stateOf(*sock);
+    ASSERT_TRUE(established.eok());
+    ASSERT_EQ(established.dat.size(), 1u);
+    EXPECT_EQ(established.dat[0], tc8::net::kTcpStateEstablished);
+
+    ::close(conn);
+    std::uint8_t state = 0;
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while (state != tc8::net::kTcpStateCloseWait &&
+           std::chrono::steady_clock::now() < deadline) {
+        const auto r = stateOf(*sock);
+        ASSERT_TRUE(r.eok());
+        state = r.dat.at(0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+    EXPECT_EQ(state, tc8::net::kTcpStateCloseWait);
+
+    const auto unknown = stateOf(0x7FFF);
+    EXPECT_TRUE(unknown.ok);
+    EXPECT_EQ(unknown.rid, tp::kRidEIsd);
+
+    EXPECT_TRUE(testability::testabilityCloseSocket(cfg_, tp::kGidTcp, *sock).eok());
+    ::close(lfd);
 }
 
 // The rx reactor end to end over real loopback sockets: ARM_RX opens a data

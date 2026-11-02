@@ -4,6 +4,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "tc8/net/tcp_info_reader.h"
+
 // TC8 §4.8.5 Upper Tester wire protocol.
 //
 // §4.8.5 asks for a second channel into the IUT, separate from the one
@@ -799,20 +801,21 @@ inline constexpr std::uint8_t kMaxProtocolOpcode = OpSetEtsFlavor;
 // equivalence at the pass-through site, and non-Linux DUTs translate
 // their stack's own state enum to these constants (e.g. lwIP's
 // tcpbase.h numbers the same FSM differently —
-// dut/lwip_dut/lwip_stack_probe.cpp wireTcpState). Frozen wire ABI:
+// dut/lwip_dut/lwip_tcp_info_reader.cpp commonTcpState). Frozen wire ABI:
 // SCXML conds pin these values numerically and cannot include this
-// header, so the numbers must never change.
-inline constexpr std::uint8_t kTcpStateEstablished = 1;
-inline constexpr std::uint8_t kTcpStateSynSent     = 2;
-inline constexpr std::uint8_t kTcpStateSynRecv     = 3;
-inline constexpr std::uint8_t kTcpStateFinWait1    = 4;
-inline constexpr std::uint8_t kTcpStateFinWait2    = 5;
-inline constexpr std::uint8_t kTcpStateTimeWait    = 6;
-inline constexpr std::uint8_t kTcpStateClose       = 7;
-inline constexpr std::uint8_t kTcpStateCloseWait   = 8;
-inline constexpr std::uint8_t kTcpStateLastAck     = 9;
-inline constexpr std::uint8_t kTcpStateListen      = 10;
-inline constexpr std::uint8_t kTcpStateClosing     = 11;
+// header, so the numbers must never change. tc8/net/tcp_info_reader.h
+// defines them, so the SDK carries them without this header.
+inline constexpr std::uint8_t kTcpStateEstablished = net::kTcpStateEstablished;
+inline constexpr std::uint8_t kTcpStateSynSent     = net::kTcpStateSynSent;
+inline constexpr std::uint8_t kTcpStateSynRecv     = net::kTcpStateSynRecv;
+inline constexpr std::uint8_t kTcpStateFinWait1    = net::kTcpStateFinWait1;
+inline constexpr std::uint8_t kTcpStateFinWait2    = net::kTcpStateFinWait2;
+inline constexpr std::uint8_t kTcpStateTimeWait    = net::kTcpStateTimeWait;
+inline constexpr std::uint8_t kTcpStateClose       = net::kTcpStateClose;
+inline constexpr std::uint8_t kTcpStateCloseWait   = net::kTcpStateCloseWait;
+inline constexpr std::uint8_t kTcpStateLastAck     = net::kTcpStateLastAck;
+inline constexpr std::uint8_t kTcpStateListen      = net::kTcpStateListen;
+inline constexpr std::uint8_t kTcpStateClosing     = net::kTcpStateClosing;
 
 // Response status byte.
 // OpReceiveTcpData's trailing byte (after the payload): how the stream's read side

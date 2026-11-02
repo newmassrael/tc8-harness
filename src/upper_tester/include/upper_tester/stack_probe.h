@@ -4,21 +4,15 @@
 #include <cstdint>
 
 #include "tc8/net/socket_backend.h"
+#include "tc8/net/tcp_info_reader.h"
 
 namespace tc8::ut {
 
 // The four TCP-info fields the §4.8.6.11 RETRANSMISSION_TO cluster verdicts on
 // (OpQueryTcpInfo 0x13) and the established-state probe (OpQueryTcpEstablished
-// 0x05) read. `state` uses the frozen wire numbering in upper_tester_protocol.h
-// (kTcpState*), which equals the Linux kernel's TCP FSM numbering — the POSIX
-// probe passes tcpi_state through verbatim (static_asserting the equivalence),
-// a non-Linux stack translates its own enum to these constants.
-struct TcpInfo {
-    std::uint8_t  state       = 0;  // kTcpState* (1 = ESTABLISHED, ...)
-    std::uint32_t rto_us      = 0;  // retransmission timeout, microseconds
-    std::uint8_t  retransmits = 0;  // retransmits fired since connection start
-    std::uint32_t unacked     = 0;  // segments outstanding
-};
+// 0x05) read. net::TcpInfo owns them, so a middleware module reads the same fields
+// without the Upper Tester.
+using TcpInfo = net::TcpInfo;
 
 // The Upper-Tester-specific extension of the platform stack seam: the operations
 // the UT server needs that are NOT plain socket primitives (those live in
@@ -30,14 +24,11 @@ struct TcpInfo {
 // A Linux (POSIX) and an lwIP adapter implement this once; the core is written
 // against it. Socket descriptors are the same opaque `int` handles the core
 // stores via SocketBackend.
-class StackProbe {
+//
+// queryTcpInfo, for OpQueryTcpInfo and OpQueryTcpEstablished, comes from
+// net::TcpInfoReader.
+class StackProbe : public net::TcpInfoReader {
 public:
-    virtual ~StackProbe() = default;
-
-    // OpQueryTcpInfo / OpQueryTcpEstablished: read the connection's TCP_INFO.
-    // true on success (fills `out`); false if the stack cannot report it.
-    virtual bool queryTcpInfo(int fd, TcpInfo &out) = 0;
-
     // OpReceiveTcpDataOob: drain up to `len` urgent bytes within `timeout_ms`.
     // Byte count read (>= 0), or < 0 on error. A stack without an out-of-band
     // path returns 0 (surfaced as an empty receive, not an error).

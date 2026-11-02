@@ -50,6 +50,7 @@ tc8_enable_strict_warnings(tc8_testability_core)
 # never on the core. Its own dir is PUBLIC so consumers find linux_socket_backend.h.
 add_library(tc8_linux_backend STATIC
     linux_socket_backend.cpp
+    linux_tcp_info_reader.cpp
 )
 # Its header is public API and lives at include/tc8/linux_socket_backend.h, so the
 # public root is what consumers need; this dir no longer carries a public header.

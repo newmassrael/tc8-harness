@@ -90,6 +90,7 @@ include(${LWIP_CONTRIB_DIR}/ports/unix/Filelists.cmake)
 # extension), not by the UTM.
 set(_tc8_lwip_common_srcs
     lwip_stack_bringup.cpp
+    lwip_tcp_info_reader.cpp
     lwip_socket_backend.cpp
     # The fixture fault seams (lwip_egress_fault / lwip_ingress_fault) are NOT
     # here: they are conformance-DUT only and are carried by tc8-lwip-dut's own
@@ -157,7 +158,7 @@ set_source_files_properties(${LWIP_DIR}/src/netif/ppp/polarssl/md5.c
 #   * -Wmissing-prototypes — the set lists it both ungated and C-guarded; only
 #     the ungated entry reaches C++. Dropping it leaves the C-guarded form.
 #   * -Wswitch-default — conflicts with the deliberate no-default,
-#     -Wswitch-exhaustive enum switch (wireTcpState) that surfaces an upstream
+#     -Wswitch-exhaustive enum switch (commonTcpState) that surfaces an upstream
 #     state addition instead of masking it with a default.
 set(_tc8_lwip_flags ${LWIP_COMPILER_FLAGS})
 list(REMOVE_ITEM _tc8_lwip_flags

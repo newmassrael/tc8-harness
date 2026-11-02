@@ -10,12 +10,11 @@
 #include <cerrno>
 #include <cstring>
 
-#include "tc8/upper_tester_protocol.h"
+#include "tc8/linux_tcp_info_reader.h"
 
 namespace tc8::dut {
 
 namespace {
-namespace ut = ::tc8::ut;
 
 // §4.6.5.4 UDP_FIELDS_12: the data listener must accept a 65 507 B max-length
 // UDP datagram. SO_RCVBUF keeps the headroom deterministic across distro /
@@ -23,34 +22,8 @@ namespace ut = ::tc8::ut;
 constexpr int kDataRcvBuf = 131072;
 }  // namespace
 
-bool PosixStackProbe::queryTcpInfo(int fd, ut::TcpInfo &out) {
-    struct tcp_info info{};
-    socklen_t info_len = sizeof(info);
-    if (::getsockopt(fd, IPPROTO_TCP, TCP_INFO, &info, &info_len) < 0) {
-        return false;
-    }
-    // tcpi_state passes through verbatim because the wire encoding
-    // (upper_tester_protocol.h kTcpState*) is defined as the kernel's TCP FSM
-    // numbering; pin the equivalence so a divergence breaks the build here
-    // instead of silently re-encoding the wire.
-    static_assert(ut::kTcpStateEstablished == TCP_ESTABLISHED &&
-                      ut::kTcpStateSynSent == TCP_SYN_SENT &&
-                      ut::kTcpStateSynRecv == TCP_SYN_RECV &&
-                      ut::kTcpStateFinWait1 == TCP_FIN_WAIT1 &&
-                      ut::kTcpStateFinWait2 == TCP_FIN_WAIT2 &&
-                      ut::kTcpStateTimeWait == TCP_TIME_WAIT &&
-                      ut::kTcpStateClose == TCP_CLOSE &&
-                      ut::kTcpStateCloseWait == TCP_CLOSE_WAIT &&
-                      ut::kTcpStateLastAck == TCP_LAST_ACK &&
-                      ut::kTcpStateListen == TCP_LISTEN &&
-                      ut::kTcpStateClosing == TCP_CLOSING,
-                  "wire TCP state encoding must equal the kernel's TCP FSM "
-                  "numbering (tcpi_state pass-through)");
-    out.state = info.tcpi_state;
-    out.rto_us = info.tcpi_rto;
-    out.retransmits = info.tcpi_retransmits;
-    out.unacked = info.tcpi_unacked;
-    return true;
+bool PosixStackProbe::queryTcpInfo(int fd, tc8::net::TcpInfo &out) {
+    return LinuxTcpInfoReader{}.queryTcpInfo(fd, out);
 }
 
 int PosixStackProbe::recvOob(int fd, void *buf, std::size_t len, int timeout_ms) {
