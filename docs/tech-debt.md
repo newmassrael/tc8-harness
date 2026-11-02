@@ -3754,6 +3754,18 @@ only the positive and read as a fix.
 The second final is deferred with the DUT-nondeterminism reason, which is a legitimate deferral by
 the rule `tools/deferred_negatives.json` carries: it names the DUT, not this harness.
 
+**Correction (2026-11-02).** The DUT account above is wrong, and so is everything this entry built
+on it after "CI found it": the revert, both deferrals, "the whole family shares the
+nondeterminism", and the claim that the long-standing single row is green "because the merge
+usually happens". The two rows were not each other's failure mode. They wrote one harness log,
+because the orchestrator named a run's files from the case and not the row, and each graded
+whichever verdict landed last (TD-68). The table above is correct about what a non-merging DUT
+would return, and that is why the failure messages fit it; it never asked what the sibling row
+returns, which is the same string. The "not reproducible locally" paragraph is the tell: no local
+run had passed `--log-dir`. With the file names fixed, both rows run again on `ARP_33` and
+`ARP_35`, and the negative lane under `--log-dir` passed 20 of 20 units where the same lane before
+the fix passed 10 of 20.
+
 ---
 
 ## TD-54 — the DUT's SOME/IP service identity is an expectation, so the cases that grade an endpoint could not fault it
@@ -3930,9 +3942,15 @@ inflation against the quiet baseline — with both runs named here.
 
 ## TD-57 — multi-row negatives exist and nothing uses them
 
-**Status:** OPEN (accepted) — kept deliberately, with the reason written down so the next reader
-does not have to reconstruct it. **Logged:** 2026-09-26, the same day the mechanism landed and
-the same day its only consumer was withdrawn.
+**Status:** RESOLVED (2026-11-02) — the consumer came back. **Logged:** 2026-09-26, the same day
+the mechanism landed and the same day its only consumer was withdrawn.
+
+**Resolution.** The withdrawal rested on a DUT account that was a harness defect: the two rows of a
+case shared every file the orchestrator wrote for it (TD-68). With that fixed, `ARP_33` and
+`ARP_35` author both rows again, and `--list-neg-rows` prints index 1 for each. The closing
+condition below is met on a lane that is not load-fragile — the four units passed 20 of 20 under
+`--log-dir` on four workers. The text below is the entry as it stood; its "the finding that
+withdrew its consumer is about the DUT" is the sentence TD-68 corrects.
 
 **What it is.** TD-53 added extra negative rows per case: `neg_extra_wrong_tokens` /
 `neg_extra_expect_fails` in the inventory, `CASE|INDEX|token|verdict` from `--list-neg-rows`,
