@@ -1,11 +1,17 @@
 #pragma once
 
+#include <linux/netlink.h>
+#include <linux/rtnetlink.h>
 #include <net/if.h>
+#include <poll.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include <chrono>
+#include <cstdint>
 #include <cstring>
+#include <optional>
 #include <string>
 
 #include "tc8/net/rtnetlink.h"
@@ -86,6 +92,90 @@ inline bool setLinkState(const std::string &ifname, bool up) {
     req.ifi.ifi_flags = up ? static_cast<unsigned>(IFF_UP) : 0U;
     req.ifi.ifi_change = IFF_UP;  // only the IFF_UP bit is being changed
     return rtnl::sendRequestCheckAck(&req, req.nlh.nlmsg_len, /*enoent_ok=*/false);
+}
+
+// An interface's link state as the kernel reports it. `carrier` is IFF_RUNNING: the
+// interface is up and its lower layer has a link, so on a veth it follows the peer's
+// administrative state and on a NIC the PHY. They differ when an interface is up with
+// nothing on the other end.
+struct LinkState {
+    bool admin_up = false;
+    bool carrier = false;
+};
+
+// The current link state of `ifname`, or nullopt when it cannot be read (unknown
+// interface). Unprivileged.
+inline std::optional<LinkState> readLinkState(const std::string &ifname) {
+    const int fd = ::socket(AF_INET, SOCK_DGRAM, 0);
+    if (fd < 0) {
+        return std::nullopt;
+    }
+    ifreq ifr{};
+    std::strncpy(ifr.ifr_name, ifname.c_str(), IFNAMSIZ - 1);
+    const int rc = ::ioctl(fd, SIOCGIFFLAGS, &ifr);
+    ::close(fd);
+    if (rc < 0) {
+        return std::nullopt;
+    }
+    LinkState state;
+    state.admin_up = (ifr.ifr_flags & IFF_UP) != 0;
+    state.carrier = (ifr.ifr_flags & IFF_RUNNING) != 0;
+    return state;
+}
+
+// How a bounded wait for a carrier state ended. The first two are observations of the
+// link. kNotObserved is not: the state could not be read, so it says nothing about the
+// link and a case must not grade it.
+enum class CarrierWait : std::uint8_t { kReached, kBoundElapsed, kNotObserved };
+
+// Wait up to `bound` for the carrier of `ifname` to become `want`. Driven by the kernel's
+// link notifications, opened BEFORE the first read, so a change between the read and the
+// wait is not missed and a brief drop is not slept through. Unprivileged.
+//
+// kBoundElapsed from a DUT asked to drop its link is the DUT keeping it up, which is a
+// finding. A DUT that was never asked is the caller's to record as an unperformed
+// stimulus; this function cannot tell the two apart.
+inline CarrierWait awaitCarrier(const std::string &ifname, bool want,
+                                std::chrono::milliseconds bound) {
+    const int nl = ::socket(AF_NETLINK, SOCK_RAW | SOCK_CLOEXEC, NETLINK_ROUTE);
+    if (nl < 0) {
+        return CarrierWait::kNotObserved;
+    }
+    sockaddr_nl addr{};
+    addr.nl_family = AF_NETLINK;
+    addr.nl_groups = RTMGRP_LINK;
+    if (::bind(nl, reinterpret_cast<const sockaddr *>(&addr), sizeof(addr)) < 0) {
+        ::close(nl);
+        return CarrierWait::kNotObserved;
+    }
+    const auto deadline = std::chrono::steady_clock::now() + bound;
+    CarrierWait result = CarrierWait::kBoundElapsed;
+    for (;;) {
+        const auto state = readLinkState(ifname);
+        if (!state) {
+            result = CarrierWait::kNotObserved;
+            break;
+        }
+        if (state->carrier == want) {
+            result = CarrierWait::kReached;
+            break;
+        }
+        const auto left = std::chrono::ceil<std::chrono::milliseconds>(
+            deadline - std::chrono::steady_clock::now());
+        if (left.count() <= 0) {
+            break;
+        }
+        pollfd pfd{nl, POLLIN, 0};
+        if (::poll(&pfd, 1, static_cast<int>(left.count())) > 0) {
+            // Any notification means "read again"; which link it names is not needed,
+            // and a backlog is emptied so the next poll waits for a new one.
+            char drain[8192];
+            while (::recv(nl, drain, sizeof(drain), MSG_DONTWAIT) > 0) {
+            }
+        }
+    }
+    ::close(nl);
+    return result;
 }
 
 }  // namespace tc8::net
