@@ -3910,7 +3910,7 @@ the id left `tools/debt_accepted.txt`.
 a defect of this repository rather than of the machine. The case-registration units never entered
 ccache: the SCE generator's `#line N "<case>.scxml"` markers name a file ccache cannot find in its
 default mode, and only the workstation's own `ccache.conf` had depend mode on. The launcher now
-carries depend mode itself (`scripts/ccache-launcher.sh`). The measurement must use runs after that
+carries depend mode itself (`scripts/compiler-launcher.sh`). The measurement must use runs after that
 change, the first of which still populates the cache.
 
 **What it is.** The `[self-hosted, netns]` runner is installed on this workstation, so every

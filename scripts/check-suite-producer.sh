@@ -18,19 +18,18 @@ build_dir="${1:-${repo_root}/build-suite-producer-check}"
 jobs="${2:-4}"
 
 echo "[suite-producer] configuring ${build_dir} with examples/demo-suite (suite=demo)"
-# Content-addressed compiler cache when ccache is on PATH. This step configures a
-# FRESH tree every run, so without ccache it cold-rebuilds the whole harness — the
-# same cold-build cost the main build-harness path already offloads to ccache. It
-# shares the caller's ~/.cache/ccache and the same Release flags as that build, so
-# most core objects cross-hit the already-warm entries; only the demo-suite /
-# MOCK_DUT-off variants miss until they populate. The launcher and its settings
-# come from scripts/ccache-launcher.sh, the one place they are decided; it prints
-# nothing when ccache is absent, so a local build without it is unchanged.
-mapfile -t ccache_args < <("${repo_root}/scripts/ccache-launcher.sh")
+# Content-addressed compiler cache. This step configures a FRESH tree every run, so
+# without a cache it cold-rebuilds the whole harness. It goes through the same
+# launcher as every other build of this tree (scripts/compiler-launcher.sh, the one
+# place the cache is chosen), which runs the compiler unchanged when no cache exists.
+# Measured on the smoke runner on 2026-11-03: 16m52 on the run that populated its
+# entries, 56 s on the next. Its tree sits outside the repository, so the first run
+# does not share entries with the main build.
+mapfile -t launcher_args < <("${repo_root}/scripts/compiler-launcher-args.sh")
 # -DTC8_SCE_FIND_PACKAGE=OFF matches both CI jobs (embed the vendored SCE);
 # MOCK_DUT/UNIT_TESTS OFF keep this to a harness-only build. CMAKE_EXTRA_ARGS
 # lets a caller append environment-specific flags (e.g. CMAKE_PREFIX_PATH-driven),
-# appended last so an explicit caller override still wins over the ccache launcher.
+# appended last so an explicit caller override still wins over the launcher.
 cmake -S "${repo_root}" -B "${build_dir}" \
     -DCMAKE_BUILD_TYPE=Release \
     -DTC8_SCE_FIND_PACKAGE=OFF \
@@ -38,7 +37,7 @@ cmake -S "${repo_root}" -B "${build_dir}" \
     -DTC8_BUILD_UNIT_TESTS=OFF \
     -DTC8_EXTRA_CASE_DIRS="${repo_root}/examples/demo-suite" \
     -DTC8_EXTRA_CASE_SUITES="demo" \
-    "${ccache_args[@]}" \
+    "${launcher_args[@]}" \
     ${CMAKE_EXTRA_ARGS:-}
 
 echo "[suite-producer] building tc8-harness (-j${jobs})"

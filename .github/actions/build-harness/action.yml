@@ -69,20 +69,20 @@ runs:
       # content-addressed cache the 500+ case-stub objects recompile cold every
       # time — ~16 min idle, minutes-to-hours under host contention. Its
       # ~/.cache/ccache store lives outside the workspace, so the wipe never
-      # touches it. scripts/ccache-launcher.sh owns the launcher and the settings
-      # it carries (depend mode, base directory, no hash dir) and says why each is
-      # needed; they ride the launcher into the build tree rather than this job's
-      # environment or the runner's own ccache.conf. Absent ccache the configure
-      # is unchanged.
+      # touches it. scripts/compiler-launcher.sh is the launcher: it carries the
+      # ccache settings (depend mode, base directory, no hash dir) and says why each
+      # is needed, so they ride into the build tree rather than this job's
+      # environment or the runner's own ccache.conf. Absent ccache it runs the
+      # compiler unchanged.
       shell: bash
       run: |
         export CMAKE_PREFIX_PATH=/opt/someip-stack${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}
-        mapfile -t ccache_args < <(scripts/ccache-launcher.sh)
+        mapfile -t launcher_args < <(scripts/compiler-launcher-args.sh)
         cmake -S . -B build \
           -DCMAKE_BUILD_TYPE=Release \
           -DTC8_SCE_FIND_PACKAGE=OFF \
           -DSCE_CODEGEN="${SCE_CODEGEN}" \
-          "${ccache_args[@]}"
+          "${launcher_args[@]}"
 
     - name: Build harness + tc8-dut
       shell: bash
