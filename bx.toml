@@ -99,7 +99,14 @@ peak_gb_per_task = 5
 #
 # The job count comes from scripts/bx-build-jobs.sh (the run's granted memory over
 # peak_gb_per_task, capped by its granted cores), here and in the commands below.
-build  = "cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DTC8_BUILD_MOCK_DUT=OFF -DTC8_BUILD_UNIT_TESTS=ON && cmake --build build -j\"$(bash scripts/bx-build-jobs.sh)\""
+#
+# Every configure names scripts/compiler-launcher.sh as the compiler launcher
+# (through scripts/compiler-launcher-args.sh), so a compile on a build machine goes
+# through the run's own sccache server and the fleet's shared store. Without it the
+# server bx starts for every run took no request at all: measured 2026-11-03, a
+# `harness-remote` on an 8-core machine made 0 requests and compiled for 58 minutes at
+# the one job its memory grant allows.
+build  = "mapfile -t launcher_args < <(bash scripts/compiler-launcher-args.sh) && cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DTC8_BUILD_MOCK_DUT=OFF -DTC8_BUILD_UNIT_TESTS=ON \"${launcher_args[@]}\" && cmake --build build -j\"$(bash scripts/bx-build-jobs.sh)\""
 # The privileged neighbour test self-wraps in an unprivileged user+net namespace
 # and SKIPs (exit 77) where userns is unavailable, so this is safe on a machine
 # with no netns provisioning. `--no-tests=error` because ctest EXIT-0s an empty
@@ -125,10 +132,15 @@ verify = "ctest --test-dir build --output-on-failure --no-tests=error"
 # the embedded SCE snapshot and no mock DUT. A tree that builds on GCC 13 can still
 # fail there, and one commit stayed red on the hosted job for two days before
 # anyone read it. g++-11 is not in `needs`, which would keep every machine without it from
-# every build; the command names it first so a machine without it is refused by name.
-hosted-ci = "command -v g++-11 && CC=gcc-11 CXX=g++-11 cmake -S . -B build-gcc11 -DCMAKE_BUILD_TYPE=Release -DTC8_SCE_FIND_PACKAGE=OFF -DTC8_BUILD_MOCK_DUT=OFF && cmake --build build-gcc11 -j\"$(bash scripts/bx-build-jobs.sh)\" && ctest --test-dir build-gcc11 --output-on-failure --no-tests=error"
+# every build of this repository; it is this command's requirement alone, `[tools.gcc-11]`
+# below, so placement refuses a machine without it by name before anything is sent.
+# Until 2026-11-03 the command itself began with `command -v g++-11 &&`, which a comment
+# here called "refused by name": it printed nothing and exited 1 in 5 s on such a machine.
+# The check that stays in the command is for a run placement does not vet (`--local`),
+# and it says what is missing.
+hosted-ci = "{ command -v g++-11 >/dev/null || { echo 'hosted-ci: no g++-11 on this machine (the hosted runner compiler); bx.toml declares it as a tool' >&2; exit 2; }; } && mapfile -t launcher_args < <(bash scripts/compiler-launcher-args.sh) && CC=gcc-11 CXX=g++-11 cmake -S . -B build-gcc11 -DCMAKE_BUILD_TYPE=Release -DTC8_SCE_FIND_PACKAGE=OFF -DTC8_BUILD_MOCK_DUT=OFF \"${launcher_args[@]}\" && cmake --build build-gcc11 -j\"$(bash scripts/bx-build-jobs.sh)\" && ctest --test-dir build-gcc11 --output-on-failure --no-tests=error"
 
-harness-remote = "cmake -S . -B build-remote -DCMAKE_BUILD_TYPE=Release -DTC8_BUILD_MOCK_DUT=OFF -DTC8_BUILD_UNIT_TESTS=ON && cmake --build build-remote -j\"$(bash scripts/bx-build-jobs.sh)\" && ctest --test-dir build-remote --output-on-failure --no-tests=error"
+harness-remote = "mapfile -t launcher_args < <(bash scripts/compiler-launcher-args.sh) && cmake -S . -B build-remote -DCMAKE_BUILD_TYPE=Release -DTC8_BUILD_MOCK_DUT=OFF -DTC8_BUILD_UNIT_TESTS=ON \"${launcher_args[@]}\" && cmake --build build-remote -j\"$(bash scripts/bx-build-jobs.sh)\" && ctest --test-dir build-remote --output-on-failure --no-tests=error"
 
 # ⚠ NO `exclude` KEY, and that is deliberate: bx never read one, and bx.toml
 # refuses a key bx does not define. Only what git tracks is sent, so the
@@ -154,3 +166,19 @@ path            = "~/.local/bin/sce-codegen"
 install         = "bash scripts/install-sce-codegen.sh {prefix}"
 install_inputs  = ["scripts/install-sce-codegen.sh", "third_party/sce/VERSION"]
 prefix_file     = "bin/sce-codegen"
+
+# GCC 11, the hosted runner's compiler, which only `hosted-ci` runs (`needed_by` matches
+# its command line), so a machine without it still takes every other run.
+#
+# The compiler is the distribution's package, not a build of bx's: `packages` installs
+# it where the tool is missing, and the install only links it into the tool store,
+# because a tool's `path` must lie under the run account's home. That link is what lets
+# placement RUN `g++-11 --version` on each candidate instead of trusting a name.
+[tools.gcc-11]
+version     = "11"
+check       = "{version}."
+path        = "~/.local/bin/g++-11"
+install     = 'mkdir -p {prefix}/bin && ln -s /usr/bin/g++-11 {prefix}/bin/g++-11'
+prefix_file = "bin/g++-11"
+packages    = ["g++-11"]
+needed_by   = ["CXX=g++-11"]
