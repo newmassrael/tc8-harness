@@ -3895,10 +3895,9 @@ premise given up, and the deferred-negative ledger is empty — MET.
 
 ## TD-56 — the push gate compiles on the workstation it gates, and no register counted that
 
-**Status:** OPEN — no longer accepted: the infrastructure action it waited on has happened, and
-what remains is the measurement in its closing condition.
+**Status:** RESOLVED (2026-11-03) — the closing measurement was taken on the relocated runner.
 **Logged:** 2026-09-26, from a sweep answering "is anything left?" after all four registers read
-zero.
+zero. **Resolution** at the end names the two runs.
 
 **Update (2026-11-02).** The owner moved the `[self-hosted, netns]` runner to a separate build
 machine; the workstation's runner is stopped and kept registered only as a fallback. The first run
@@ -3951,6 +3950,33 @@ lane's own evidence was the thing at stake.
 
 **Done when:** a smoke run that overlaps deliberate local work in this repository shows no build
 inflation against the quiet baseline — with both runs named here.
+
+**Resolution (2026-11-03).** Both runs are dispatched on `20a8525e`, after the ccache launcher
+change, and each followed a run that had already populated the cache, so both builds are warm and
+of the same tree:
+
+| run | what else the runner machine did | `Build harness` | coexistence ratchet | positive smoke | job |
+|---|---|---:|---:|---:|---:|
+| 41537191907 | nothing of this session's | **1m01** | 16m52 (its first run since the launcher change: populate) | 11m46 | 44m52 |
+| 41544673520 | a `bx --host <runner machine> --command harness-remote` build, compiling for the whole job | **1m07** | 0m56 | 11m54 | 29m10 |
+
+The overlap was sampled, not assumed: during the contended run's harness build the bx unit's
+`cc1plus` and the runner's `sce-codegen` were on the CPU at the same moment, and the bx build kept
+compiling until 58 minutes after it began, well past the job's end. The push run before them
+(41530463260) built in 17m06, the cache-populating build; the two runs before the launcher
+change built in 19m15 and 18m53.
+
+What the contended run does and does not show:
+
+- The load was this repository's own build as bx places it. That is one compile job:
+  `scripts/bx-build-jobs.sh` bounds jobs by grant memory over `peak_gb_per_task`, and a 9.3 GB
+  grant over 5 GB gives 1. So "deliberate local work in this repository" never exceeds one core
+  on that machine.
+- A heavier tenant from another repository was not measured. Its bound is structural: the build
+  fleet's slice there carries `CPUWeight=20` against the runner slice's default 100, and each
+  bx job is held to its reservation.
+- The coexistence ratchet has no warm quiet figure, because its quiet run was its populate run.
+  The contended figure, 56 s, bounds any inflation there from above.
 
 ---
 
