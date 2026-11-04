@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "tc8/capture_stats.h"
+#include "tc8/dissection_stats.h"
 #include "tc8/captured_event.h"
 #include "tc8/pollable_service.h"
 
@@ -305,6 +306,13 @@ public:
     // rather than claiming a clean capture.
     virtual void setCaptureStats(std::vector<::tc8::CaptureStats> stats) = 0;
 
+    // The dissector's accounting for this run (tc8/dissection_stats.h), pushed by the
+    // CLI at teardown with the capture accounting above and for the same reason: a
+    // frame the capture delivered and no decoder could read is a gap the capture
+    // counters cannot show, and the evidence record must be able to show it. A run
+    // that never pushes one reports all zeroes with `frames_seen` 0.
+    virtual void setDissectionStats(const ::tc8::DissectionStats &stats) = 0;
+
     // Did an observed FRAME decide the run's last transition, or did a timer?
     //
     // The distinction is what a verdict's soundness rests on when the capture
@@ -355,13 +363,15 @@ public:
     // Serialize the recorded transition trace as a JSON object compatible
     // with site/scripts/generate_messages.py's ``captured_trace`` schema.
     // Always returns valid JSON — at minimum
-    // ``{"schema_version":2,"final_state":"…","capture":[],"steps":[]}`` for a
-    // case that fired no transitions before its deadline.
+    // ``{"schema_version":3,"final_state":"…","capture":[],"dissection":{…},"steps":[]}``
+    // for a case that fired no transitions before its deadline.
     //
     // Schema 2 adds the run-level ``capture`` array (see `setCaptureStats`); it
     // is purely additive, so a reader of the schema-1 keys is unaffected, and
     // the version distinguishes "this trace can report capture loss" from an
-    // older one that simply could not.
+    // older one that simply could not. Schema 3 adds the run-level ``dissection``
+    // object (see `setDissectionStats`) on the same terms: a schema-2 trace could
+    // not say whether a captured frame went unread.
     virtual std::string dumpTraceJson() const = 0;
 
     // The run-scoped pollable services a case adopted during kickStimulus (via
@@ -630,6 +640,10 @@ public:
         capture_stats_ = std::move(stats);
     }
 
+    void setDissectionStats(const ::tc8::DissectionStats &stats) override {
+        dissection_stats_ = stats;
+    }
+
     void setStateStream(StateStream *stream) override {
         state_stream_ = stream;
         // The case's own steps, right after case_begin and before anything it does: a
@@ -673,7 +687,7 @@ public:
     std::string dumpTraceJson() const override {
         std::string out;
         out.reserve(256 + trace_.size() * 192);
-        out.append("{\"schema_version\":2");
+        out.append("{\"schema_version\":3");
         out.append(",\"final_state\":\"");
         ::tc8::sce::appendJsonEscaped(
             out, StateMachine::PolicyType::getStateName(sm_.getCurrentState()));
@@ -730,7 +744,32 @@ public:
             }
             out.append("}");
         }
-        out.append("],\"steps\":[");
+        // Run-level dissection accounting (schema 3; tc8/dissection_stats.h): what
+        // became of the frames the capture delivered. Always emitted, every count
+        // included even at zero, since a reader asking "was the reply captured but
+        // not read?" needs the zero as much as a non-zero. The first undissectable
+        // frame and the first consumer fault are named by their saved-pcap index.
+        const ::tc8::DissectionStats &ds = dissection_stats_;
+        out.append("],\"dissection\":{");
+        ::tc8::sce::appendU64Json(out, "\"frames_seen\":", ds.frames_seen);
+        ::tc8::sce::appendU64Json(out, ",\"frames_truncated\":", ds.frames_truncated);
+        ::tc8::sce::appendU64Json(out, ",\"frames_undissectable\":", ds.frames_undissectable);
+        ::tc8::sce::appendU64Json(out, ",\"frames_undissectable_possibly_dut\":",
+                                  ds.frames_undissectable_possibly_dut);
+        if (ds.first_undissectable_frame) {
+            ::tc8::sce::appendU64Json(out, ",\"first_undissectable_frame\":", *ds.first_undissectable_frame);
+            out.append(",\"first_undissectable_reason\":\"");
+            ::tc8::sce::appendJsonEscaped(out, ds.first_undissectable_reason);
+            out.append("\"");
+        }
+        ::tc8::sce::appendU64Json(out, ",\"consumer_faults\":", ds.consumer_faults);
+        if (ds.first_consumer_fault_frame) {
+            ::tc8::sce::appendU64Json(out, ",\"first_consumer_fault_frame\":", *ds.first_consumer_fault_frame);
+            out.append(",\"first_consumer_fault_reason\":\"");
+            ::tc8::sce::appendJsonEscaped(out, ds.first_consumer_fault_reason);
+            out.append("\"");
+        }
+        out.append("},\"steps\":[");
         for (std::size_t i = 0; i < trace_.size(); ++i) {
             if (i != 0) out.append(",");
             const auto &s = trace_[i];
@@ -1139,6 +1178,7 @@ private:
     // only reads it; never resets it.
     int                                next_pcap_frame_idx_ = -1;
     std::vector<::tc8::CaptureStats>   capture_stats_;
+    ::tc8::DissectionStats             dissection_stats_;
     // Run-scoped background services a case adopted (via adoptService /
     // adoptObservingService): owns each pollable, RAII-destroyed here at TestRunner
     // teardown after the capture loop has returned, and fans captured frames out to

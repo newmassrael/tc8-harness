@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cstring>
+#include <exception>
+#include <stdexcept>
 
 #include <tins/arp.h>
 #include <tins/dot1q.h>
@@ -83,10 +85,49 @@ bool isControlPlanePacket(const EthernetII &eth, std::uint16_t port) {
     return false;
 }
 
+// What the listener threw, re-raised under a type of its own so `processFrame` can
+// tell a failure of the consumer from a failure of a decoder: both used to land in
+// one `catch` that counted nothing, and an exception from the case's own state
+// machine was read as a malformed frame. The listener is called from more than one
+// place (the dispatcher and the TCP stream follower take it too), so the type is
+// given at the one place they all share, the listener itself.
+class ConsumerFault : public std::runtime_error {
+public:
+    using std::runtime_error::runtime_error;
+};
+
 }  // namespace
 
-PacketPipeline::PacketPipeline(Listener listener) : listener_(std::move(listener)) {
+PacketPipeline::PacketPipeline(Listener listener)
+    : listener_([inner = std::move(listener)](const ::tc8::CapturedEvent &ev) {
+          try {
+              inner(ev);
+          } catch (const std::exception &e) {
+              throw ConsumerFault(e.what());
+          } catch (...) {
+              throw ConsumerFault("the listener threw a non-standard exception");
+          }
+      }) {
     follower_.new_stream_callback([this](TCPIP::Stream &s) { onNewStream(s); });
+}
+
+void PacketPipeline::noteUndissectable(const pcap_pkthdr &hdr, const std::uint8_t *bytes,
+                                       std::uint64_t frame_idx, const char *reason) {
+    ++stats_.frames_undissectable;
+    // The tester's own malformed stimulus is told apart by the Ethernet source. A run
+    // that named no DUT MAC, or a frame too short to carry a source, cannot tell, and
+    // counts it as possibly the DUT's.
+    constexpr std::size_t kEthSrcOffset = 6;
+    const bool dut_mac_named = dut_mac_ != std::array<std::uint8_t, 6>{};
+    if (dut_mac_named && hdr.caplen >= kEthSrcOffset + dut_mac_.size() &&
+        !std::equal(dut_mac_.begin(), dut_mac_.end(), bytes + kEthSrcOffset)) {
+        return;
+    }
+    ++stats_.frames_undissectable_possibly_dut;
+    if (!stats_.first_undissectable_frame) {
+        stats_.first_undissectable_frame = frame_idx;
+        stats_.first_undissectable_reason = reason;
+    }
 }
 
 void PacketPipeline::onNewStream(TCPIP::Stream &s) {
@@ -127,6 +168,9 @@ void PacketPipeline::onServerData(TCPIP::Stream &s) {
 }
 
 void PacketPipeline::processFrame(const pcap_pkthdr &hdr, const std::uint8_t *bytes, int datalink_type) {
+    // Counted before anything can return, so a frame's position here is its index in
+    // the saved pcap (tc8::DissectionStats::frames_seen).
+    const std::uint64_t frame_idx = stats_.frames_seen++;
     if (datalink_type != DLT_EN10MB) {
         return;
     }
@@ -134,9 +178,9 @@ void PacketPipeline::processFrame(const pcap_pkthdr &hdr, const std::uint8_t *by
     // bytes, so a frame longer than the snaplen does not fail — it decodes
     // SHORT and looks plausible. Dropping it keeps a fabricated observation out
     // of the verdict; the count is what tells the run its capture was not the
-    // wire (see truncatedFrames()).
+    // wire (see dissectionStats()).
     if (hdr.caplen < hdr.len) {
-        ++truncated_frames_;
+        ++stats_.frames_truncated;
         return;
     }
     // Wall-clock arrival timestamp normalised to microseconds for
@@ -525,8 +569,20 @@ void PacketPipeline::processFrame(const pcap_pkthdr &hdr, const std::uint8_t *by
             follower_.process_packet(eth);
             return;
         }
-    } catch (const std::exception &) {
-        // malformed frame — skip
+    } catch (const ConsumerFault &e) {
+        // The frame was read; the case's own code failed on it.
+        ++stats_.consumer_faults;
+        if (!stats_.first_consumer_fault_frame) {
+            stats_.first_consumer_fault_frame = frame_idx;
+            stats_.first_consumer_fault_reason = e.what();
+        }
+    } catch (const std::exception &e) {
+        // A decoder could not read the frame. It is not dissected further, and it is
+        // counted: a frame that vanished here without a count turned a reply on the
+        // wire into "no reply" (tc8/dissection_stats.h).
+        noteUndissectable(hdr, bytes, frame_idx, e.what());
+    } catch (...) {
+        noteUndissectable(hdr, bytes, frame_idx, "a decoder threw a non-standard exception");
     }
 }
 

@@ -1550,6 +1550,9 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // TcpFrame.observed_ts_us stays in microseconds for both live
     // (default MICRO) and offline-replay (NANO) capture sources.
     pipeline.setTstampPrecision(src->tstampPrecision());
+    // So an unreadable frame of the tester's own malformed stimulus is not taken for
+    // an unreadable frame of the DUT's (PacketPipeline::dissectionStats).
+    pipeline.setDutMac(config.dut.mac);
     // Keep the harness's own DUT-control traffic out of the verdict. The seam's
     // request/response frames ride the same wire as the protocol under test, and
     // a case that grades the first datagram in its listen window would otherwise
@@ -1757,6 +1760,7 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
         capture_stats.back().multicast_groups_failed = membership2.failed();
     }
     runner->setCaptureStats(capture_stats);
+    runner->setDissectionStats(pipeline.dissectionStats());
 
     ::tc8::sce::Verdict verdict = runner->verdict();
     if (!runner->isDone()) {
@@ -1791,8 +1795,9 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // "The capture represents the wire" has THREE independent halves, and an
     // absence-based pass needs all of them: nothing was DROPPED (the kernel's
     // own counters), nothing was CUT SHORT (a frame past the snaplen, which the
-    // dissector refuses rather than mis-decodes — see
-    // PacketPipeline::truncatedFrames), and nothing was never DELIVERED because
+    // dissector refuses rather than mis-decodes), nothing of the DUT's was left
+    // UNREAD (a whole frame no decoder could read — both counted in
+    // PacketPipeline::dissectionStats), and nothing was never DELIVERED because
     // we did not hold its multicast group (tc8::CaptureStats::multicast_groups).
     // They are different holes in the same claim, so they answer the same
     // question here.
@@ -1835,10 +1840,20 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
         verdict = ::tc8::sce::Verdict{::tc8::sce::VerdictClass::Inconclusive,
                                       ::tc8::UnperformedStimulus::reason()};
     }
+    // A frame the case's own code failed on was lost by the harness, not the wire:
+    // whatever the machine concluded, it concluded without that event. A test-system
+    // fault, so it outranks every verdict but another error.
+    const ::tc8::DissectionStats &dissection = pipeline.dissectionStats();
+    if (verdict.cls != ::tc8::sce::VerdictClass::Error && dissection.consumer_faults != 0) {
+        verdict = ::tc8::sce::Verdict{::tc8::sce::VerdictClass::Error,
+                                      "harness_fault_handling_a_captured_frame", "test_system_fault"};
+    }
     const bool capture_whole =
-        ::tc8::captureProvenComplete(capture_stats) && pipeline.truncatedFrames() == 0;
-    const char *capture_reason = pipeline.truncatedFrames() != 0
+        ::tc8::captureProvenComplete(capture_stats) && dissection.observationComplete();
+    const char *capture_reason = dissection.frames_truncated != 0
                                      ? "capture_truncated_frames_absence_unproven"
+                                 : dissection.frames_undissectable_possibly_dut != 0
+                                     ? "capture_undissectable_frames_absence_unproven"
                                  : ::tc8::anySourceLostFrames(capture_stats)
                                      ? "capture_lost_frames_absence_unproven"
                                  : ::tc8::anySourceMissingMulticastMembership(capture_stats)
@@ -1900,11 +1915,35 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // A truncation is loud on its own line, not folded into a per-source one:
     // it is a run-level snaplen fact, and it means frames were REFUSED — the
     // reader must not mistake a clean drop=0 for a complete capture.
-    if (pipeline.truncatedFrames() != 0) {
+    if (dissection.frames_truncated != 0) {
         std::printf("capture  : %llu frame(s) exceeded the snaplen and were REFUSED — "
                     "segmentation offload is likely on; this capture does not represent "
                     "the wire\n",
-                    static_cast<unsigned long long>(pipeline.truncatedFrames()));
+                    static_cast<unsigned long long>(dissection.frames_truncated));
+    }
+    // Loud for the same reason: a frame that was captured and not read is the one
+    // that turns a reply on the wire into "no reply". The tester's own malformed
+    // stimulus is counted but named apart, since it hides nothing about the DUT.
+    if (dissection.frames_undissectable_possibly_dut != 0) {
+        std::printf("capture  : %llu frame(s) that may be the DUT's could NOT be dissected "
+                    "(first: saved-pcap frame index %llu, %s) — an absence on this run is "
+                    "unproven\n",
+                    static_cast<unsigned long long>(dissection.frames_undissectable_possibly_dut),
+                    static_cast<unsigned long long>(dissection.first_undissectable_frame.value_or(0)),
+                    dissection.first_undissectable_reason.c_str());
+    }
+    if (dissection.frames_undissectable != dissection.frames_undissectable_possibly_dut) {
+        std::printf("capture  : %llu undissectable frame(s) came from a source other than the "
+                    "DUT's MAC (the tester's own malformed stimulus); not an observation gap\n",
+                    static_cast<unsigned long long>(dissection.frames_undissectable -
+                                                    dissection.frames_undissectable_possibly_dut));
+    }
+    if (dissection.consumer_faults != 0) {
+        std::printf("capture  : the harness FAILED on %llu captured frame(s) (first: saved-pcap "
+                    "frame index %llu, %s) — the verdict is an error\n",
+                    static_cast<unsigned long long>(dissection.consumer_faults),
+                    static_cast<unsigned long long>(dissection.first_consumer_fault_frame.value_or(0)),
+                    dissection.first_consumer_fault_reason.c_str());
     }
     // Informational, and deliberately NOT a verdict qualifier: these frames were
     // captured and saved, they were simply not offered to the state machine. It

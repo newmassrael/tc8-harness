@@ -122,6 +122,15 @@ inline void appendUintJson(std::string &out, const char *key, unsigned v) {
     out.append(buf);
 }
 
+// Unsigned 64-bit emitter — run-level frame counts and saved-pcap indices, which a
+// long capture can take past what the 32-bit `appendUintJson` holds.
+inline void appendU64Json(std::string &out, const char *key, std::uint64_t v) {
+    char buf[24];
+    out.append(key);
+    std::snprintf(buf, sizeof(buf), "%llu", static_cast<unsigned long long>(v));
+    out.append(buf);
+}
+
 // Signed 64-bit emitter — timing slots (microsecond timestamps / deltas)
 // overflow the 32-bit `appendUintJson`.
 inline void appendI64Json(std::string &out, const char *key, std::int64_t v) {

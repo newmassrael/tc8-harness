@@ -5,7 +5,9 @@
 // the packet currently in follower_.process_packet. Without the fix these frames
 // read observed_ts_us == 0, so frame_delta_us() is structurally 0 for consecutive
 // TCP SOME/IP frames and every reliable-transport inter-frame timing guard fails.
+#include <array>
 #include <cstdint>
+#include <stdexcept>
 #include <string>
 #include <variant>
 #include <vector>
@@ -366,4 +368,124 @@ TEST(PacketPipelineIpv4Envelope, AUdpDatagramAndTheDhcpMessageInItCarryTheSameFi
     expectEnvelope(udp[0]);
     ASSERT_EQ(dhcp.size(), 1u);
     expectEnvelope(dhcp[0]);
+}
+
+// --- Dissection accounting: no captured frame leaves without a count ------------
+
+namespace {
+
+const std::array<std::uint8_t, 6> kDutMacBytes = {0x02, 0x00, 0x00, 0x00, 0x00, 0x02};
+const std::array<std::uint8_t, 6> kTesterMacBytes = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
+
+// An Ethernet + IPv4 + ICMP Echo Reply frame laid out byte by byte, so the IPv4
+// header can be one no encoder would produce. `ver_ihl` is the first header byte and
+// `options` the bytes after the fixed 20; the Total Length counts them.
+std::vector<std::uint8_t> icmpEchoReplyFrame(const std::array<std::uint8_t, 6> &src_mac,
+                                             std::uint8_t ver_ihl,
+                                             const std::vector<std::uint8_t> &options) {
+    const std::array<std::uint8_t, 6> &dst_mac =
+        src_mac == kDutMacBytes ? kTesterMacBytes : kDutMacBytes;
+    std::vector<std::uint8_t> f(dst_mac.begin(), dst_mac.end());
+    f.insert(f.end(), src_mac.begin(), src_mac.end());
+    f.push_back(0x08);
+    f.push_back(0x00);
+    const std::size_t total = 20 + options.size() + 8;
+    const std::vector<std::uint8_t> ip = {
+        ver_ihl, 0x00, static_cast<std::uint8_t>(total >> 8), static_cast<std::uint8_t>(total),
+        0x12, 0x34, 0x00, 0x00, 0x40, 0x01, 0x00, 0x00,
+        192, 168, 0, 1,     // src
+        192, 168, 0, 10};   // dst
+    f.insert(f.end(), ip.begin(), ip.end());
+    f.insert(f.end(), options.begin(), options.end());
+    const std::vector<std::uint8_t> icmp = {0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01};
+    f.insert(f.end(), icmp.begin(), icmp.end());
+    return f;
+}
+
+// IHL 4: a header shorter than the 20 bytes every IPv4 header has. No decoder can
+// read it, whichever reading of the options it takes.
+std::vector<std::uint8_t> unreadableFrom(const std::array<std::uint8_t, 6> &src_mac) {
+    return icmpEchoReplyFrame(src_mac, 0x44, {});
+}
+
+}  // namespace
+
+TEST(PacketPipelineDissection, AnUnreadableFrameOfTheDutsIsAGapNamedByItsPcapIndex) {
+    tc8::dissect::PacketPipeline pipe([](const tc8::CapturedEvent &) {});
+    pipe.setDutMac(kDutMacBytes);
+    feed(pipe, 1000, icmpEchoReplyFrame(kDutMacBytes, 0x45, {}));  // index 0, readable
+    feed(pipe, 2000, unreadableFrom(kDutMacBytes));                   // index 1
+
+    const tc8::DissectionStats &ds = pipe.dissectionStats();
+    EXPECT_EQ(ds.frames_seen, 2u);
+    EXPECT_EQ(ds.frames_undissectable, 1u);
+    EXPECT_EQ(ds.frames_undissectable_possibly_dut, 1u);
+    ASSERT_TRUE(ds.first_undissectable_frame.has_value());
+    EXPECT_EQ(*ds.first_undissectable_frame, 1u);
+    EXPECT_FALSE(ds.first_undissectable_reason.empty());
+    EXPECT_FALSE(ds.observationComplete());
+}
+
+// The tester sends malformed headers on purpose and the capture sees them. An
+// unreadable copy of its own stimulus is counted, and it is no gap.
+TEST(PacketPipelineDissection, TheTestersOwnMalformedStimulusIsCountedButIsNoGap) {
+    tc8::dissect::PacketPipeline pipe([](const tc8::CapturedEvent &) {});
+    pipe.setDutMac(kDutMacBytes);
+    feed(pipe, 1000, unreadableFrom(kTesterMacBytes));
+
+    const tc8::DissectionStats &ds = pipe.dissectionStats();
+    EXPECT_EQ(ds.frames_undissectable, 1u);
+    EXPECT_EQ(ds.frames_undissectable_possibly_dut, 0u);
+    EXPECT_FALSE(ds.first_undissectable_frame.has_value());
+    EXPECT_TRUE(ds.observationComplete());
+}
+
+// Without the DUT's MAC nothing tells the two apart, so the frame counts against the
+// observation: a conclusion may be lost, none forged.
+TEST(PacketPipelineDissection, WithoutADutMacEveryUnreadableFrameIsAPossibleGap) {
+    tc8::dissect::PacketPipeline pipe([](const tc8::CapturedEvent &) {});
+    feed(pipe, 1000, unreadableFrom(kTesterMacBytes));
+
+    const tc8::DissectionStats &ds = pipe.dissectionStats();
+    EXPECT_EQ(ds.frames_undissectable_possibly_dut, 1u);
+    EXPECT_FALSE(ds.observationComplete());
+}
+
+// A throw from the case's own code is the harness failing on a frame it read; it
+// used to be swallowed as a malformed frame.
+TEST(PacketPipelineDissection, AListenerThrowIsAConsumerFaultNotAnUnreadableFrame) {
+    tc8::dissect::PacketPipeline pipe([](const tc8::CapturedEvent &ev) {
+        if (std::holds_alternative<tc8::Icmpv4Frame>(ev)) {
+            throw std::out_of_range("guard read past a vector");
+        }
+    });
+    pipe.setDutMac(kDutMacBytes);
+    feed(pipe, 1000, icmpEchoReplyFrame(kDutMacBytes, 0x45, {}));
+
+    const tc8::DissectionStats &ds = pipe.dissectionStats();
+    EXPECT_EQ(ds.frames_undissectable, 0u);
+    EXPECT_EQ(ds.consumer_faults, 1u);
+    ASSERT_TRUE(ds.first_consumer_fault_frame.has_value());
+    EXPECT_EQ(*ds.first_consumer_fault_frame, 0u);
+    EXPECT_EQ(ds.first_consumer_fault_reason, "guard read past a vector");
+    EXPECT_TRUE(ds.observationComplete());
+}
+
+// RFC 791 §3.1: an options area may end with End of Option List followed by zero
+// padding to the 32-bit boundary. An embedded target answers an Echo Request whose
+// options end that way with a reply carrying the same options. This pins how the
+// decoder treats that reply today; it must at least be counted, never lost.
+TEST(PacketPipelineDissection, OptionsEndingInEolAndPaddingAreAtLeastCounted) {
+    std::vector<tc8::Icmpv4Frame> replies;
+    tc8::dissect::PacketPipeline pipe([&replies](const tc8::CapturedEvent &ev) {
+        if (const auto *f = std::get_if<tc8::Icmpv4Frame>(&ev)) {
+            replies.push_back(*f);
+        }
+    });
+    pipe.setDutMac(kDutMacBytes);
+    feed(pipe, 1000, icmpEchoReplyFrame(kDutMacBytes, 0x46, {0x00, 0x00, 0x00, 0x00}));
+
+    const tc8::DissectionStats &ds = pipe.dissectionStats();
+    EXPECT_EQ(replies.size(), 0u) << "libtins read the EOL-and-padding options after all";
+    EXPECT_EQ(ds.frames_undissectable_possibly_dut, 1u);
 }

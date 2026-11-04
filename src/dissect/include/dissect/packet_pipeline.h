@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -8,6 +9,7 @@
 #include <tins/tcp_ip/stream_follower.h>
 
 #include "tc8/captured_event.h"
+#include "tc8/dissection_stats.h"
 
 #include "dissect/someip_dispatcher.h"
 
@@ -33,31 +35,44 @@ public:
 
     explicit PacketPipeline(Listener listener);
 
-    // Dissect one captured frame. A frame the capture TRUNCATED
-    // (`hdr.caplen < hdr.len`) is counted and dropped rather than dissected —
-    // see `truncatedFrames()`.
+    // Dissect one captured frame. Every frame leaves a count in
+    // `dissectionStats()`: none is dropped without one.
     void processFrame(const pcap_pkthdr &hdr, const std::uint8_t *bytes, int datalink_type);
 
-    // Frames this run refused because the capture did not retain all of them.
+    // What became of every frame this run handed in (tc8/dissection_stats.h).
     //
-    // The dissector parses `hdr.caplen` bytes and every offset/length check
-    // below is written against that, so a frame longer than the snaplen would
+    // TRUNCATED. The dissector parses `hdr.caplen` bytes and every offset/length
+    // check below is written against that, so a frame longer than the snaplen would
     // not fail — it would parse SHORT and yield a plausible, wrong decode: a
     // truncated TCP payload reads as a smaller segment, a cut option list as a
-    // shorter one. That is a fabricated observation, which is worse than a
-    // dropped frame (a drop is at least an absence). So the frame is refused
-    // here, once, for every caller — the live capture loop and `decode-pcap`
-    // replaying a saved file alike.
+    // shorter one. That is a fabricated observation, which is worse than a dropped
+    // frame (a drop is at least an absence). So the frame is refused here, once,
+    // for every caller — the live capture loop and `decode-pcap` replaying a saved
+    // file alike. Run-level, not per-source, because the snaplen is a property of
+    // the run: both capture sources are opened with the same one. Non-zero means
+    // the capture cannot represent the wire — today's snaplen is 65535 while a GSO
+    // super-frame can reach 65536+, so this is reachable wherever segmentation
+    // offload is on (the netns veths cap it; an externally-owned interface may not).
     //
-    // Run-level, not per-source, because the snaplen is a property of the run:
-    // both capture sources are opened with the same one, so attributing a
-    // truncation to an interface would add no information.
+    // UNDISSECTABLE. The frame is whole and a decoder could not read it. Counted
+    // twice: every such frame, and those that could have been the DUT's (its
+    // Ethernet source is the DUT's MAC, or the run named no DUT MAC to tell; see
+    // `setDutMac`). Only the second count is an observation gap. The tester sends
+    // malformed frames on purpose (a header the DUT must discard), and the capture
+    // sees them too; the tester knows what it sent, so an unreadable copy of its own
+    // stimulus hides nothing about the DUT.
     //
-    // Non-zero means the capture cannot represent the wire — today's snaplen is
-    // 65535 while a GSO super-frame can reach 65536+, so this is reachable
-    // wherever segmentation offload is on (the netns veths cap it; an
-    // externally-owned interface may not).
-    std::uint64_t truncatedFrames() const noexcept { return truncated_frames_; }
+    // CONSUMER FAULT. The frame was read and the listener (the case's state machine)
+    // threw on an event made from it. Counted apart from the two above because it is
+    // not a property of the frame: the event was lost by the harness, not the wire.
+    const ::tc8::DissectionStats &dissectionStats() const noexcept { return stats_; }
+
+    // The DUT's MAC (over-the-wire order), so an undissectable frame can be told
+    // apart from the tester's own malformed stimulus by its Ethernet source. All
+    // zero (the default) means the run did not name one: every undissectable frame
+    // then counts as possibly the DUT's, which can cost a conclusion but never
+    // forge one.
+    void setDutMac(const std::array<std::uint8_t, 6> &mac) noexcept { dut_mac_ = mac; }
 
     // libpcap's `pcap_pkthdr::ts.tv_usec` carries microseconds when the
     // capture handle was opened with the default precision and
@@ -117,7 +132,7 @@ public:
     void setControlPlanePort(std::uint16_t port) noexcept { control_plane_port_ = port; }
 
     // Packets dropped by `setControlPlanePort`. Run-level for the same reason as
-    // `truncatedFrames()`: the control channel is a property of the run, not of
+    // the truncation count: the control channel is a property of the run, not of
     // one interface. Zero on a run whose cases never drove the seam.
     std::uint64_t controlPlaneFrames() const noexcept { return control_plane_frames_; }
 
@@ -136,14 +151,18 @@ private:
     void onNewStream(Tins::TCPIP::Stream &stream);
     void onClientData(Tins::TCPIP::Stream &stream);
     void onServerData(Tins::TCPIP::Stream &stream);
+    void noteUndissectable(const pcap_pkthdr &hdr, const std::uint8_t *bytes, std::uint64_t frame_idx,
+                           const char *reason);
 
     Listener listener_;
     SomeIpDispatcher dispatcher_;
     Tins::TCPIP::StreamFollower follower_;
     int tstamp_precision_ = PCAP_TSTAMP_PRECISION_MICRO;
 
-    // See truncatedFrames(). Counted, never reset — it describes the run.
-    std::uint64_t truncated_frames_ = 0;
+    // See dissectionStats(). Counted, never reset — it describes the run.
+    ::tc8::DissectionStats stats_;
+    // See setDutMac(). All zero = not named.
+    std::array<std::uint8_t, 6> dut_mac_{};
     // See setControlPlanePort(). 0 = this caller grades nothing, or has no
     // control channel to exclude, so every packet reaches the listener.
     std::uint16_t control_plane_port_ = 0;

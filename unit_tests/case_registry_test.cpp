@@ -41,12 +41,14 @@ public:
 
     void setCaptureStats(std::vector<::tc8::CaptureStats> /*stats*/) override {}
 
+    void setDissectionStats(const ::tc8::DissectionStats & /*stats*/) override {}
+
     bool finalTransitionWasFrameDriven() const override {
         return false;
     }
 
     std::string dumpTraceJson() const override {
-        return "{\"schema_version\":2,\"capture\":[],\"steps\":[]}";
+        return "{\"schema_version\":3,\"capture\":[],\"dissection\":{},\"steps\":[]}";
     }
 
     std::vector<::tc8::IPollableService *> pollableServices() override {
