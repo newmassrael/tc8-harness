@@ -353,6 +353,8 @@ tc8_add_unit_test(ipv4_frame_builder_test)
 tc8_add_unit_test(icmp_echo_test)
 tc8_add_unit_test(icmpv4_builder_test)
 tc8_add_unit_test(ipv4_decode_test)
+# The RFC 791 header walk the capture path reads options with (tc8/wire/ipv4_header.h).
+tc8_add_unit_test(ipv4_header_test)
 tc8_add_unit_test(tcp_segment_builder_test)
 tc8_add_unit_test(udp_datagram_builder_test)
 # Fixed source-port UDP emit (sendUdpUnicast): loopback round-trip asserts the

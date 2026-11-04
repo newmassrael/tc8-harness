@@ -4710,3 +4710,35 @@ final, with the runs named here — MET by the table above.
 a local run at CI's parallelism is not a matching environment because CI carries an hour of build
 and 754 positives first. The environment differed in a command-line flag. Before concluding that a
 failure needs the environment, diff the invocations.
+
+## TD-69 — the capture path still reads every frame through libtins, whose parsers are stricter than the RFCs a tester must accept
+
+**Status:** OPEN. **Logged:** 2026-11-05, from a consumer request: an embedded target's Echo Reply
+to a request whose IPv4 options end with End of Option List and zero padding was on the wire 122 us
+after the request, and three cases graded it "no reply".
+
+**What was found.** `PacketPipeline` builds one libtins `EthernetII` per frame, and libtins'
+`IP` constructor refuses an options area whose End of Option List is not its last byte, which is
+the normal RFC 791 §3.1 shape (End of Option List, then zero padding to the 32-bit boundary). The
+throw landed in a `catch` that counted nothing, so the reply vanished. Two things are repaired:
+
+- No frame leaves the dissector without a count (`tc8::DissectionStats`, trace schema 3). An
+  unreadable frame that may be the DUT's makes an absence unproven (H2); the tester's own malformed
+  stimulus is told apart by its Ethernet source. A throw from the case's own code is an `error`
+  verdict instead of a lost frame.
+- The IPv4 header is read with the harness's own RFC 791 walk (`tc8/wire/ipv4_header.h`), and a
+  frame whose options end with End of Option List before the header does is handed to libtins with
+  that padding read as No-Operation options, which RFC 791 gives the same meaning.
+
+**What stays open.** The second item adapts the input to one libtins limit; it does not remove the
+dependence. Every other layer (Ethernet and 802.1Q, ARP, ICMP, UDP, TCP and its options) is still
+decoded by libtins, so any other place where libtins is stricter than the RFC loses a frame the same
+way. It is no longer silent: such a frame is counted and an absence on its run is unproven, so the
+cost is a lost conclusion, never a forged one.
+
+**Done when:** each layer the cases observe is decoded by the harness's own decoders, total over
+every input the RFC allows and recording deviations as facts rather than refusing them, and libtins
+is left only where replacing it buys nothing (TCP stream reassembly for SOME/IP over TCP); the
+RFC 791 padding adapter is then deleted. A golden-pcap corpus of boundary frames (options with
+padding, Record Route and Security options, TCP option lists ending in End of Option List) guards
+each decoder as it is moved.

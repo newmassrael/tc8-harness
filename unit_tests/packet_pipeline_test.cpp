@@ -473,19 +473,45 @@ TEST(PacketPipelineDissection, AListenerThrowIsAConsumerFaultNotAnUnreadableFram
 
 // RFC 791 §3.1: an options area may end with End of Option List followed by zero
 // padding to the 32-bit boundary. An embedded target answers an Echo Request whose
-// options end that way with a reply carrying the same options. This pins how the
-// decoder treats that reply today; it must at least be counted, never lost.
-TEST(PacketPipelineDissection, OptionsEndingInEolAndPaddingAreAtLeastCounted) {
+// options end that way with a reply carrying the same options, 122 us later; libtins
+// alone refused it and the cases graded "no reply". The reply must reach the case,
+// with the header fields as captured.
+TEST(PacketPipelineDissection, OptionsEndingInEolAndPaddingAreRead) {
     std::vector<tc8::Icmpv4Frame> replies;
-    tc8::dissect::PacketPipeline pipe([&replies](const tc8::CapturedEvent &ev) {
+    std::vector<tc8::Ipv4Frame> headers;
+    tc8::dissect::PacketPipeline pipe([&](const tc8::CapturedEvent &ev) {
         if (const auto *f = std::get_if<tc8::Icmpv4Frame>(&ev)) {
             replies.push_back(*f);
         }
+        if (const auto *f = std::get_if<tc8::Ipv4Frame>(&ev)) {
+            headers.push_back(*f);
+        }
     });
     pipe.setDutMac(kDutMacBytes);
+    // EOL and padding; Record Route, two No-Operations, EOL and padding (a zero inside
+    // the Record Route data is data); EOL as the very last byte (always readable).
     feed(pipe, 1000, icmpEchoReplyFrame(kDutMacBytes, 0x46, {0x00, 0x00, 0x00, 0x00}));
+    feed(pipe, 2000, icmpEchoReplyFrame(kDutMacBytes, 0x48,
+                                        {0x07, 0x07, 0x04, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x00,
+                                         0x00, 0x00}));
+    feed(pipe, 3000, icmpEchoReplyFrame(kDutMacBytes, 0x46, {0x01, 0x01, 0x01, 0x00}));
 
     const tc8::DissectionStats &ds = pipe.dissectionStats();
-    EXPECT_EQ(replies.size(), 0u) << "libtins read the EOL-and-padding options after all";
-    EXPECT_EQ(ds.frames_undissectable_possibly_dut, 1u);
+    EXPECT_EQ(ds.frames_undissectable, 0u);
+    ASSERT_EQ(replies.size(), 3u);
+    ASSERT_EQ(headers.size(), 3u);
+    EXPECT_EQ(headers[0].ihl, 6);
+    EXPECT_EQ(headers[0].total_length, 32);
+    EXPECT_EQ(headers[0].header_checksum, 0x0000);  // the captured field, not a recomputed one
+    EXPECT_EQ(headers[1].ihl, 8);
+    EXPECT_EQ(replies[1].rest_of_header, 0x00010001u);
+}
+
+// An options area whose option runs past it is not one RFC 791 allows; that frame is
+// still refused, and counted.
+TEST(PacketPipelineDissection, OptionsRunningPastTheAreaStayUnreadableAndCounted) {
+    tc8::dissect::PacketPipeline pipe([](const tc8::CapturedEvent &) {});
+    pipe.setDutMac(kDutMacBytes);
+    feed(pipe, 1000, icmpEchoReplyFrame(kDutMacBytes, 0x46, {0x07, 0x09, 0x04, 0x00}));
+    EXPECT_EQ(pipe.dissectionStats().frames_undissectable_possibly_dut, 1u);
 }

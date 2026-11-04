@@ -2,8 +2,10 @@
 
 #include <algorithm>
 #include <cstring>
+#include <cstddef>
 #include <exception>
 #include <stdexcept>
+#include <vector>
 
 #include <tins/arp.h>
 #include <tins/dot1q.h>
@@ -24,6 +26,8 @@
 
 #include "sce_integration/dhcpv4_wire.h"
 #include "tc8/wire/ip_checksum.h"  // tc8::wire::tcpChecksumValid (RFC 793 pseudo-header SSOT)
+#include "tc8/wire/ipv4_header.h"  // tc8::wire::decodeIpv4Header (the RFC 791 options walk)
+#include "tc8/wire/wire_read.h"
 
 namespace tc8::dissect {
 
@@ -83,6 +87,50 @@ bool isControlPlanePacket(const EthernetII &eth, std::uint16_t port) {
         return tcp->sport() == port || tcp->dport() == port;
     }
     return false;
+}
+
+// The frame as libtins can read it: `bytes` itself, or a copy in `scratch` whose IPv4
+// options padding is rewritten.
+//
+// libtins refuses an IPv4 options area whose End of Option List is not its last byte
+// (it throws `malformed_packet`), which is the normal RFC 791 §3.1 shape of every
+// options area that does not fill a multiple of four bytes by itself: the list ends
+// with End of Option List and zero padding follows to the 32-bit boundary. The header
+// is read with the harness's own RFC 791 walk (tc8/wire/ipv4_header.h), which finds a
+// real End of Option List and not a zero byte inside another option's data; when it
+// finds one before the end of the area, the copy carries No-Operation options from
+// there on. RFC 791 gives both the same meaning (no further options), and nothing
+// libtins reports changes: the Total Length, IHL and header checksum fields are the
+// captured ones, and the harness reads no option out of libtins. A header the walk
+// cannot read, or whose options run past the area, is left as it is for libtins to
+// refuse, and is counted as undissectable.
+const std::uint8_t *libtinsReadableFrame(const std::uint8_t *bytes, std::size_t caplen,
+                                         std::vector<std::uint8_t> &scratch) {
+    constexpr std::size_t kEthHeaderLen = 14;
+    constexpr std::size_t kDot1QTagLen = 4;
+    constexpr std::uint16_t kEtherTypeIpv4 = 0x0800;
+    if (caplen < kEthHeaderLen) {
+        return bytes;
+    }
+    std::size_t l3 = kEthHeaderLen;
+    auto ether_type = static_cast<std::uint16_t>(::tc8::wire::readBe(bytes + 12, 2));
+    // One 802.1Q tag, the depth libtins itself descends (dot1qTagFrom above).
+    if (ether_type == ::tc8::kDot1QTpid && caplen >= kEthHeaderLen + kDot1QTagLen) {
+        ether_type = static_cast<std::uint16_t>(::tc8::wire::readBe(bytes + 16, 2));
+        l3 += kDot1QTagLen;
+    }
+    if (ether_type != kEtherTypeIpv4) {
+        return bytes;
+    }
+    const auto ip = ::tc8::wire::decodeIpv4Header(bytes + l3, caplen - l3);
+    if (!ip || !ip->end_of_list_at || *ip->end_of_list_at + 1 == ip->headerLen()) {
+        return bytes;
+    }
+    scratch.assign(bytes, bytes + caplen);
+    std::fill(scratch.begin() + static_cast<std::ptrdiff_t>(l3 + *ip->end_of_list_at),
+              scratch.begin() + static_cast<std::ptrdiff_t>(l3 + ip->headerLen()),
+              ::tc8::wire::kIpv4OptNoOperation);
+    return scratch.data();
 }
 
 // What the listener threw, re-raised under a type of its own so `processFrame` can
@@ -202,7 +250,8 @@ void PacketPipeline::processFrame(const pcap_pkthdr &hdr, const std::uint8_t *by
     // reassembled Transport (the UDP path sets t.observed_ts_us inline instead).
     last_packet_ts_us_ = observed_ts_us;
     try {
-        EthernetII eth(bytes, hdr.caplen);
+        std::vector<std::uint8_t> rfc791_view;
+        EthernetII eth(libtinsReadableFrame(bytes, hdr.caplen, rfc791_view), hdr.caplen);
 
         // IEEE 802.1Q tag (if any), decoded once and copied into every
         // frame variant emitted below. libtins's `find_pdu<>` descends
