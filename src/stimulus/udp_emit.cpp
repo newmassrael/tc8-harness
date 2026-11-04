@@ -12,6 +12,7 @@
 
 #include "stimulus/iface_addr.h"
 #include "stimulus/ipv4_frame_builder.h"
+#include "stimulus/sd_session.h"
 #include "stimulus/tx_observer.h"
 #include "stimulus/udp_datagram_builder.h"
 
@@ -115,6 +116,10 @@ int sendUdpUnicast(const std::vector<std::uint8_t> &datagram, std::string_view i
         return -6;
     }
     reportTx("udp_unicast", iface_name, dst_ip_be, dst_port, datagram.size());
+    // An SD datagram moves its stream's Session counter (stimulus/sd_session.h), by
+    // whichever route it was built.
+    noteSdDatagramSent(source_ip_be != 0 ? source_ip_be : bs.if_addr, dst_ip_be,
+                       datagram.data(), datagram.size());
     return 0;
 }
 
@@ -169,6 +174,7 @@ int sendUdpMulticast(const std::vector<std::uint8_t> &datagram, std::string_view
         return -6;
     }
     reportTx("udp_multicast", iface_name, dst.sin_addr.s_addr, mcast_port, datagram.size());
+    noteSdDatagramSent(bs.if_addr, dst.sin_addr.s_addr, datagram.data(), datagram.size());
     return 0;
 }
 
@@ -194,7 +200,11 @@ int sendUdpFromSourceIp(const std::vector<std::uint8_t> &payload, std::string_vi
     TC8_TX_SCOPE();
     const std::vector<std::uint8_t> frame = buildUdpFromSourceIpFrame(
         payload, src_ip_be, src_port, dst_ip_be, dst_port, dst_mac, src_mac);
-    return sendRawEthernet(frame, iface);
+    const int rc = sendRawEthernet(frame, iface);
+    if (rc == 0) {
+        noteSdDatagramSent(src_ip_be, dst_ip_be, payload.data(), payload.size());
+    }
+    return rc;
 }
 
 }  // namespace tc8::stimulus

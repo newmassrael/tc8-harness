@@ -40,7 +40,9 @@ namespace {
 // E_OK; only `session_id`, `length`, `flags`, `reserved` and `entries_len` vary.
 // This is the single source of truth for the preamble layout — the per-builder
 // hand-rolled copies are gone, so a header-field change lands in one place.
-void appendSdHeader(std::vector<std::uint8_t> &b, std::uint16_t session_id,
+// An unset `session_id` is written as kSdSessionFirst: a builder knows no stream, and the
+// emitters fill it from the stream's counter before they build (drawSdSessionIfUnset).
+void appendSdHeader(std::vector<std::uint8_t> &b, std::optional<std::uint16_t> session_id,
                     std::uint32_t length, std::uint8_t flags, std::uint32_t entries_len,
                     std::uint32_t reserved = 0, std::uint16_t method_id = someip::kSdMethodId) {
     someip::Header h;
@@ -48,7 +50,7 @@ void appendSdHeader(std::vector<std::uint8_t> &b, std::uint16_t session_id,
     h.method_id = method_id;
     h.length = length;
     h.client_id = 0x0000;
-    h.session_id = session_id;
+    h.session_id = session_id.value_or(kSdSessionFirst);
     h.protocol_version = 0x01;
     h.interface_version = 0x01;
     h.message_type = static_cast<std::uint8_t>(someip::MessageType::NOTIFICATION);
@@ -59,6 +61,30 @@ void appendSdHeader(std::vector<std::uint8_t> &b, std::uint16_t session_id,
     b.push_back(flags);
     putBe24(b, reserved);
     putBe32(b, entries_len);
+}
+
+// Fill an unset Session, and the Reboot bit of `sd_flags` with it, from the stream the
+// datagram is about to travel on (stimulus/sd_session.h). A Session the caller set is
+// left as given; the send primitive reports it and the stream continues from it.
+void drawSdSessionIfUnset(std::optional<std::uint16_t> &session_id, std::uint8_t &sd_flags,
+                          std::uint32_t src_ipv4_be, std::uint32_t dst_ipv4_be) {
+    if (session_id.has_value()) {
+        return;
+    }
+    const SdSession s = nextSdSession(src_ipv4_be, dst_ipv4_be);
+    session_id = s.session_id;
+    sd_flags = sdFlagsWithReboot(sd_flags, s.reboot);
+}
+
+// The SD multicast group in network byte order: the destination half of the tester's
+// multicast stream key. 0 only if the SSOT literal were malformed, which the multicast
+// send would then refuse as well.
+std::uint32_t sdMulticastGroupBe() {
+    in_addr group{};
+    if (::inet_pton(AF_INET, tc8::dut::kSdMcastGroup, &group) != 1) {
+        return 0;
+    }
+    return group.s_addr;
 }
 
 // The #Opt1/#Opt2 option-run count byte of an SD entry (byte 3): #Opt1 in the high
@@ -350,7 +376,10 @@ int emitOfferServiceMulticast(std::string_view iface, const OfferServiceTarget &
     if (pre_emit_wait.count() > 0) {
         std::this_thread::sleep_for(pre_emit_wait);
     }
-    return sendSdMulticast(buildOfferService(target), iface);
+    OfferServiceTarget stamped = target;
+    drawSdSessionIfUnset(stamped.session_id, stamped.sd_flags, ipv4OfInterface(iface),
+                         sdMulticastGroupBe());
+    return sendSdMulticast(buildOfferService(stamped), iface);
 }
 
 std::vector<std::uint8_t>
@@ -472,6 +501,8 @@ int emitOfferServiceMulticastWithEndpoint(std::string_view iface,
             return -2;
         }
     }
+    drawSdSessionIfUnset(filled.service.session_id, filled.service.sd_flags,
+                         ipv4OfInterface(iface), sdMulticastGroupBe());
     return sendSdMulticast(buildOfferServiceWithEndpoint(filled), iface);
 }
 
@@ -537,17 +568,19 @@ int sendSdUnicast(const std::vector<std::uint8_t> &datagram, std::string_view if
 
 int emitFindServiceBoot(std::string_view iface, const FindServiceTarget &target, const BootTiming &timing) {
     TC8_TX_SCOPE();
-    // SD §4.2.1: Reboot=1 stays set until Session ID wraps 0xFFFF -> 0x0000.
-    // This helper only runs the pre-wrap boot window (session 0x0001 up to
-    // timing.total_emits, always < 0xFFFF in practice), so Reboot stays 1 on
-    // every emit and the Unicast-only (sd_flags::kUnicast) value is unused here.
-    constexpr std::uint8_t kSdFlagsBoot = ::tc8::sd_flags::kRebootUnicast;
+    // Each Find takes the next Session of the tester's multicast stream, with that
+    // stream's Reboot flag (set until the 0xFFFF -> 0x0001 wrap, SD §4.2.1). It used
+    // to count 0x0001 + i on every call, so a case that booted twice, or sent its own
+    // first SD message at 0x0001 after the boot, announced a tester reboot it never
+    // meant and the DUT expired the tester's state (stimulus/sd_session.h).
+    const std::uint32_t src = ipv4OfInterface(iface);
+    const std::uint32_t group = sdMulticastGroupBe();
 
-    return runBootCadence(timing, [&](int i) {
+    return runBootCadence(timing, [&](int /*i*/) {
         FindServiceParams p{};
         p.target = target;
-        p.session_id = static_cast<std::uint16_t>(0x0001 + i);
-        p.sd_flags = kSdFlagsBoot;
+        p.sd_flags = ::tc8::sd_flags::kRebootUnicast;
+        drawSdSessionIfUnset(p.session_id, p.sd_flags, src, group);
         return sendSdMulticast(buildFindService(p), iface);
     });
 }
@@ -744,8 +777,10 @@ std::uint32_t resolveDestIpv4(const SubscribeDestination &dest) {
     return site;
 }
 
-int subscribeOnce(const SubscribeEventgroupTarget &target, std::uint8_t sd_flags, std::uint16_t session_id,
-                  std::string_view iface, const SubscribeDestination &dest, std::uint8_t l4proto = 0x11) {
+// `session_id` unset: the next Session of the stream to `dest` (sd_session.h).
+int subscribeOnce(const SubscribeEventgroupTarget &target, std::uint8_t sd_flags,
+                  std::optional<std::uint16_t> session_id, std::string_view iface,
+                  const SubscribeDestination &dest, std::uint8_t l4proto = 0x11) {
     // The tester's own IPv4 is advertised inside the Subscribe option (the DUT
     // replies to it), so resolve it for the payload before delegating the wire
     // send to sendUdpUnicast (which re-resolves it to bind the SD source port).
@@ -770,6 +805,7 @@ int subscribeOnce(const SubscribeEventgroupTarget &target, std::uint8_t sd_flags
     if (dst == 0) {
         return -7;
     }
+    drawSdSessionIfUnset(p.session_id, p.sd_flags, if_addr, dst);
     return sendUdpUnicast(buildSubscribeEventgroup(p), iface, /*src_port=*/kSdPort, dst, dest.port);
 }
 
@@ -868,12 +904,12 @@ int emitMultiSubscribeEventgroup(std::string_view iface,
     p.tester_endpoint.ipv4_be = if_addr;
     p.tester_endpoint.port = kSdPort;
     p.tester_endpoint.l4proto = 0x11;
-    p.session_id = 0x0001;
     p.sd_flags = ::tc8::sd_flags::kRebootUnicast;
     const std::uint32_t dst = resolveDestIpv4(dest);
     if (dst == 0) {
         return -7;
     }
+    drawSdSessionIfUnset(p.session_id, p.sd_flags, if_addr, dst);
     return sendUdpUnicast(buildMultiSubscribeEventgroup(p), iface, /*src_port=*/kSdPort, dst,
                           dest.port);
 }
@@ -911,6 +947,7 @@ int emitMultiSubscribeEventgroupRaw(std::string_view iface,
     if (dst == 0) {
         return -7;
     }
+    drawSdSessionIfUnset(params.session_id, params.sd_flags, if_addr, dst);
     return sendUdpUnicast(buildMultiSubscribeEventgroup(params), iface, /*src_port=*/kSdPort, dst,
                           dest.port);
 }
@@ -920,9 +957,8 @@ int emitSubscribeEventgroupBoot(std::string_view iface, const SubscribeEventgrou
     TC8_TX_SCOPE();
     constexpr std::uint8_t kSdFlagsBoot = ::tc8::sd_flags::kRebootUnicast;
 
-    return runBootCadence(timing, [&](int i) {
-        return subscribeOnce(target, kSdFlagsBoot,
-                             static_cast<std::uint16_t>(0x0001 + i), iface, dest);
+    return runBootCadence(timing, [&](int /*i*/) {
+        return subscribeOnce(target, kSdFlagsBoot, std::nullopt, iface, dest);
     });
 }
 
@@ -932,10 +968,8 @@ int emitSubscribeEventgroupBootTcpOption(std::string_view iface, const Subscribe
     constexpr std::uint8_t kSdFlagsBoot = ::tc8::sd_flags::kRebootUnicast;
     constexpr std::uint8_t kL4ProtoTcp = 0x06;
 
-    return runBootCadence(timing, [&](int i) {
-        return subscribeOnce(target, kSdFlagsBoot,
-                             static_cast<std::uint16_t>(0x0001 + i), iface, dest,
-                             kL4ProtoTcp);
+    return runBootCadence(timing, [&](int /*i*/) {
+        return subscribeOnce(target, kSdFlagsBoot, std::nullopt, iface, dest, kL4ProtoTcp);
     });
 }
 
@@ -1011,8 +1045,13 @@ int emitSubscribeEventgroupAck(std::string_view iface, const SubscribeEventgroup
     TC8_TX_SCOPE();
     // Server answer: source port = SD port (the tester's server SD endpoint),
     // destination = the DUT client's SD endpoint. sendSdUnicast binds the SD
-    // source port so the DUT accepts the message as valid SD.
-    return sendSdUnicast(buildSubscribeEventgroupAck(p), iface, client_sd_dest.ipv4_be,
+    // source port so the DUT accepts the message as valid SD. An unset Session is
+    // the next of the tester's unicast stream to that client, the same stream the
+    // tester's own unicast Offers to it travel on.
+    SubscribeEventgroupAckParams stamped = p;
+    drawSdSessionIfUnset(stamped.session_id, stamped.sd_flags, ipv4OfInterface(iface),
+                         client_sd_dest.ipv4_be);
+    return sendSdUnicast(buildSubscribeEventgroupAck(stamped), iface, client_sd_dest.ipv4_be,
                          client_sd_dest.port);
 }
 
@@ -1048,6 +1087,10 @@ int emitSubscribeEventgroupRaw(std::string_view iface,
     if (dst == 0) {
         return -7;
     }
+    // The stream is keyed by the address the datagram really leaves from: an alias
+    // source is a distinct sender with a counter of its own.
+    drawSdSessionIfUnset(params.session_id, params.sd_flags,
+                         source_ip_be != 0 ? source_ip_be : if_addr, dst);
     return sendUdpUnicast(buildSubscribeEventgroup(params), iface, /*src_port=*/kSdPort, dst,
                           dest.port, source_ip_be);
 }

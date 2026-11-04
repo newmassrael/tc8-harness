@@ -358,6 +358,10 @@ tc8_add_unit_test(udp_datagram_builder_test)
 # Fixed source-port UDP emit (sendUdpUnicast): loopback round-trip asserts the
 # datagram leaves from the caller-chosen source port.
 tc8_add_unit_test(udp_emit_test)
+# The per-stream SD Session counter every SD emitter draws from: numbering, wrap, a
+# chosen Session moving the stream, and a late report of a drawn one not moving it back;
+# plus a loopback round-trip through emitSubscribeEventgroupRaw.
+tc8_add_unit_test(sd_session_test)
 # SOME/IP-TP tester-side emit: loopback round-trip (Segmenter -> sendUdpUnicast ->
 # Reassembler) proves the emitted segments are spec-valid.
 tc8_add_unit_test(someip_tp_emit_test)

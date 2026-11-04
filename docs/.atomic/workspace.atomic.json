@@ -218,6 +218,14 @@
         {
           "file": "src/stimulus/include/stimulus/someip_sd_builder.h",
           "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/include/stimulus/sd_session.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/stimulus/sd_session.cpp",
+          "kind": "implements"
         }
       ]
     },

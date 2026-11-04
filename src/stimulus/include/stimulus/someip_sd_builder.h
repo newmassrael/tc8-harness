@@ -12,6 +12,7 @@
 
 #include "tc8/someip/sd_wire_constants.h"  // sd_flags::kRebootUnicast — SD header flags SSOT.
 #include "stimulus/boot_timing.h"
+#include "stimulus/sd_session.h"  // the per-stream SD Session counter every emitter draws from
 #include "tc8/dut_config.h"  // kSdPort / kSdMcastGroup — SD port/group SSOT.
 
 namespace tc8::stimulus {
@@ -35,12 +36,16 @@ struct FindServiceTarget {
 struct FindServiceParams {
     FindServiceTarget target{};
 
-    // SD Session ID for this FindService. Starts at 0x0001 per SD §4.2.1
-    // and mirrors FORMAT_02's requirement on the DUT side.
-    std::uint16_t session_id = 0x0001;
+    // SD Session ID for this FindService. Unset (the default): an emitter draws it, with
+    // the Reboot flag, from the stream's counter (stimulus/sd_session.h); set: sent as
+    // given, and the stream continues from it. A builder alone knows no stream, so it
+    // writes kSdSessionFirst for an unset value; a caller that sends a builder's bytes
+    // itself draws with nextSdSession first.
+    std::optional<std::uint16_t> session_id;
 
-    // Reboot=1 Unicast=1 until Session ID wraps 0xFFFF -> 0x0000 per SD §4.2.1;
-    // drops to Unicast-only (sd_flags::kUnicast) only after the wrap.
+    // Reboot=1 Unicast=1 until Session ID wraps 0xFFFF -> 0x0001 per SD §4.2.1;
+    // drops to Unicast-only (sd_flags::kUnicast) only after the wrap. With an unset
+    // session_id an emitter replaces the Reboot bit by the stream's and keeps the rest.
     std::uint8_t sd_flags = ::tc8::sd_flags::kRebootUnicast;
 
     // SD header 24-bit Reserved field (the 3 bytes after the Flags byte).
@@ -117,9 +122,10 @@ int sendSdUnicast(const std::vector<std::uint8_t> &datagram, std::string_view if
 
 // High-level TESTER boot-time FindService emit sequence used by §5.1
 // stimulus-driven cases (FORMAT_12/13). Waits for the DUT to come up,
-// then sends `timing.total_emits` FindService datagrams, incrementing
-// the SD Session ID (0x0001, 0x0002, ...) and keeping Reboot=1 for the
-// entire pre-wrap run per SD §4.2.1.
+// then sends `timing.total_emits` FindService datagrams, each with the next
+// Session and Reboot flag of the tester's multicast stream (sd_session.h). A
+// second call continues that stream; it does not start again at 0x0001, which
+// the DUT would read as a reboot of the tester.
 //
 // Blocks the calling thread for the full `timing` envelope. Returns 0
 // if every emit succeeded, or the first negative return from
@@ -237,7 +243,8 @@ struct SubscribeEventgroupParams {
     // a single-option Subscribe to such an eventgroup, requiring one UDP and one
     // TCP endpoint option. `setDualEndpointSubscribe` wires both in one call.
     std::optional<Ipv4Endpoint> second_endpoint;
-    std::uint16_t session_id = 0x0001;
+    // Unset: drawn from the stream's counter by the emitter (FindServiceParams::session_id).
+    std::optional<std::uint16_t> session_id;
     std::uint8_t sd_flags = ::tc8::sd_flags::kRebootUnicast;  // same cadence as FindService
     std::uint32_t entries_len_override = 0;  // 0 → canonical 16; non-zero overrides EntriesLen.
     std::optional<std::uint32_t> length_override;
@@ -337,9 +344,9 @@ struct SubscribeDestination {
 // §5.1 FORMAT_19..28. Waits for the DUT to come up, then for each emit
 // opens a fresh UDP socket bound to an ephemeral port on `iface`,
 // advertises that port inside the SD IPv4 Endpoint option, and sends a
-// SubscribeEventgroup unicast to the DUT's SD endpoint. Session ID
-// increments per emit; SD Reboot=1 stays set for the entire pre-wrap
-// run per SD §4.2.1.
+// SubscribeEventgroup unicast to the DUT's SD endpoint. Each emit takes the
+// next Session and Reboot flag of the tester's unicast stream to that
+// endpoint (sd_session.h).
 //
 // The build-and-send step lives on a single socket so the port embedded
 // in the option always matches the actual source port the DUT sees —
@@ -408,12 +415,14 @@ struct OfferServiceTarget {
     // ttl > 0 = OfferService; ttl == 0 = StopOfferService per SD §4.2.
     std::uint32_t ttl           = 3;
     std::uint32_t minor_version = 0;
-    std::uint16_t session_id    = 0x0001;
+    // Unset: drawn from the stream's counter by the emitter (FindServiceParams::session_id).
+    std::optional<std::uint16_t> session_id;
     // SD Flags byte (Reboot bit7 | Unicast bit6). Default kRebootUnicast = the
     // canonical post-boot Offer. A server-role case overrides the Reboot flag (e.g.
     // sd_flags::kUnicast alone, Reboot=0) so the DUT's reboot-detection tracker is
-    // exercised across an Offer stream; the session_id above is the matching
-    // counter (TR_SOMEIP §4.2.1 reboot semantics).
+    // exercised across an Offer stream; it then sets the session_id above as the
+    // matching counter (TR_SOMEIP §4.2.1 reboot semantics), since a drawn Session
+    // brings the stream's own Reboot flag.
     std::uint8_t  sd_flags      = ::tc8::sd_flags::kRebootUnicast;
     // SD header 24-bit Reserved field (the 3 bytes after the Flags byte). Canonically
     // 0; a case sets non-zero bits to verify a receiver ignores undefined Reserved bits
@@ -519,7 +528,7 @@ int emitOfferServiceMulticastWithEndpoint(std::string_view iface,
 struct MultiOfferServiceParams {
     std::vector<OfferServiceTarget> entries;   // one Type-1 OfferService entry each
     Ipv4Endpoint  endpoint{};                  // the shared data endpoint every entry references
-    std::uint16_t session_id  = 0x0001;
+    std::optional<std::uint16_t> session_id;   // unset: kSdSessionFirst (a pure builder)
     std::uint8_t  sd_flags    = ::tc8::sd_flags::kRebootUnicast;
     std::uint32_t sd_reserved = 0;
 };
@@ -551,7 +560,8 @@ struct MultiSubscribeEventgroupParams {
     // mixed-reliability eventgroup (dual) with unreliable ones (UDP-only), as the
     // reference does, instead of binding the unreliable entries reliably too.
     std::vector<std::uint8_t> per_entry_num_options_first;
-    std::uint16_t session_id = 0x0001;
+    // Unset: drawn from the stream's counter by the emitter (FindServiceParams::session_id).
+    std::optional<std::uint16_t> session_id;
     std::uint8_t sd_flags = ::tc8::sd_flags::kRebootUnicast;
     // §5.1.6 SOMEIP_ETS_114 helper: override the EntriesLen field. Default
     // (0) means "auto-compute from entries.size() * 16". Non-zero overrides
@@ -566,8 +576,9 @@ buildMultiSubscribeEventgroup(const MultiSubscribeEventgroupParams &p);
 // Single-shot multi-entry Subscribe emit. Caller is responsible for
 // having driven SD up first (e.g. via emitFindServiceBoot). Sleeps
 // `pre_emit_wait`, opens a UDP socket bound to the SD port (vsomeip
-// drops SD packets from ephemeral source ports), sends the bundle,
-// closes. Returns 0 on success, negative on failure.
+// drops SD packets from ephemeral source ports), sends the bundle with the
+// next Session of the stream to `dest` (sd_session.h), closes. Returns 0 on
+// success, negative on failure.
 int emitMultiSubscribeEventgroup(std::string_view iface,
                                  const std::vector<SubscribeEventgroupTarget> &entries,
                                  std::chrono::milliseconds pre_emit_wait =
@@ -627,7 +638,9 @@ struct SubscribeEventgroupAckTarget {
 // server-side emit state. Used by the low-level `buildSubscribeEventgroupAck`.
 struct SubscribeEventgroupAckParams {
     SubscribeEventgroupAckTarget target{};
-    std::uint16_t session_id = 0x0001;     // server SD session counter.
+    // Server SD Session. Unset: drawn from the stream's counter by the emitter
+    // (FindServiceParams::session_id).
+    std::optional<std::uint16_t> session_id;
     std::uint8_t sd_flags = ::tc8::sd_flags::kRebootUnicast;  // same cadence as Offer.
 };
 
