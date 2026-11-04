@@ -621,12 +621,22 @@ ETH (0x0B) — the same set the Linux endpoint serves.
   route path — surfaced the same way the ICMPv6 echo is, with an unknown
   interface still E_IIF. The Linux backend assigns / routes via `SIOCSIFADDR` /
   `SIOCADDRT` with an `in6_ifreq` / `in6_rtmsg` on an AF_INET6 socket.
-- `CONFIGURE_SOCKET` maps TTL/TOS/Nagle to `lwip_setsockopt`; the DF
-  (`IP_MTU_DISCOVER`), IP timestamp-option (`IP_OPTIONS`) and MSS
-  (`TCP_MAXSEG`) parameters have no lwIP socket option and answer E_NTF
-  ("not served here", the reading `ridFromOpStatus` gives an unsupported
-  operation), which the DUT-control seam reports as an unsupported refusal —
-  surfaced, not silently accepted.
+- `CONFIGURE_SOCKET` maps TTL/TOS/Nagle to `lwip_setsockopt`. DF has no lwIP
+  setting and needs none to be clear: every packet the stack originates leaves
+  `ip4_output_if_opt_src` with flags and fragment offset 0. So DF = 0 answers
+  E_OK (the case that asks still checks the bit on the wire) and DF = 1 answers
+  E_NTF. The IP timestamp-option (`IP_OPTIONS`) and MSS (`TCP_MAXSEG`)
+  parameters have no lwIP socket option and answer E_NTF ("not served here",
+  the reading `ridFromOpStatus` gives an unsupported operation), which the
+  DUT-control seam reports as an unsupported refusal — surfaced, not silently
+  accepted.
+- `recvFromV4` answers the datagram's whole length, as the contract asks
+  (`tc8/net/socket_backend.h`), although `lwip_recvfrom` ignores `MSG_TRUNC` as
+  an input flag and answers only the bytes copied: a zero-byte `MSG_PEEK` holds
+  the datagram as the socket's `lastdata`, its `p->tot_len` is read, and the
+  read that follows consumes it.
+- `LwipTcpInfoReader` reads a TCP socket whose pcb lwIP has freed (after a RST
+  or an abort) as CLOSED, as Linux's `TCP_INFO` does.
 - The network-management backend ops an out-of-tree middleware module composes
   (`net::SocketBackend`, not PRS_TPSP primitives) split by capability.
   These six answer `net::OpStatus` (`include/tc8/net/op_status.h`), not a bool,
@@ -641,9 +651,13 @@ ETH (0x0B) — the same set the Linux endpoint serves.
   (`ETHARP_SUPPORT_STATIC_ENTRIES`, on in both cores), with the named interface
   required to be the route to the address — no such netif is `UnknownInterface`,
   a netif that exists but does not route to the address is `InvalidArgument`.
-  Two lwIP limits are surfaced as `Unsupported`, not masked: `removeNeighbor`
-  drops only *static* entries (lwIP has no public per-IP dynamic-entry removal,
-  the same gap as `flushDynamicArp`), and `setNeighborReachableMs` cannot work at
+  lwIP removes only a static entry by address, so `removeNeighbor` first turns a
+  learned (STABLE) entry static through the public API, in one core-lock
+  section: `etharp_find_addr` gives its MAC and `etharp_add_static_entry` with
+  that MAC rewrites the same slot. lwIP itself is not patched. A PENDING
+  entry (a request in flight, nothing learned yet) is left to expire, since
+  giving it a MAC would release the packets queued on it. One lwIP limit is
+  surfaced as `Unsupported`, not masked: `setNeighborReachableMs` cannot work at
   all — lwIP ages ARP on a fixed compile-time `ARP_MAXAGE`, with no per-interface
   runtime knob. A module forwarding those to the wire reaches `E_NTF` through
   `testability::ridFromOpStatus`, which is what tells a test system "this target

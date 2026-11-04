@@ -1,5 +1,6 @@
 #include "lwip_socket_backend.h"
 
+#include <algorithm>
 #include <cerrno>
 #include <cstring>
 #include <memory>
@@ -79,15 +80,36 @@ bool LwipSocketBackend::bindV4(int fd, std::uint32_t addr_be, std::uint16_t port
 }
 
 int LwipSocketBackend::recvFromV4(int fd, void *buf, std::size_t len, Endpoint &src) {
+    // The contract answers the datagram's whole length, even past `len`
+    // (tc8/net/socket_backend.h). lwIP's recvfrom ignores MSG_TRUNC as an input flag
+    // and answers the bytes it copied, so a 65507-byte datagram read into a 2048-byte
+    // buffer reported 2048 and a case graded the DUT for a length it never received.
+    // The length is read from the datagram itself, without patching lwIP: a zero-byte
+    // MSG_PEEK receives the datagram (waiting exactly as the read would, under the
+    // socket's own timeout) and leaves it held as the socket's `lastdata`, whose pbuf
+    // chain's tot_len is the whole datagram; the read that follows consumes it.
+    std::uint8_t none = 0;
+    if (lwip_recvfrom(fd, &none, 0, MSG_PEEK, nullptr, nullptr) < 0) {
+        return -1;
+    }
+    std::size_t whole = 0;
+    LOCK_TCPIP_CORE();
+    if (struct lwip_sock *s = lwip_socket_dbg_get_socket(fd);
+        s != nullptr && s->lastdata.netbuf != nullptr && s->lastdata.netbuf->p != nullptr) {
+        whole = s->lastdata.netbuf->p->tot_len;
+    }
+    UNLOCK_TCPIP_CORE();
+
     sockaddr_in sa{};
     socklen_t sl = sizeof(sa);
     const ssize_t n =
-        lwip_recvfrom(fd, buf, len, MSG_TRUNC, reinterpret_cast<sockaddr *>(&sa), &sl);
-    if (n >= 0) {
-        src.addr_be = sa.sin_addr.s_addr;
-        src.port = lwip_ntohs(sa.sin_port);
+        lwip_recvfrom(fd, buf, len, 0, reinterpret_cast<sockaddr *>(&sa), &sl);
+    if (n < 0) {
+        return -1;
     }
-    return static_cast<int>(n);
+    src.addr_be = sa.sin_addr.s_addr;
+    src.port = lwip_ntohs(sa.sin_port);
+    return static_cast<int>(std::max(static_cast<std::size_t>(n), whole));
 }
 
 int LwipSocketBackend::sendToV4(int fd, const void *buf, std::size_t len, const Endpoint &dst) {
@@ -213,16 +235,32 @@ tc8::net::OpStatus LwipSocketBackend::removeNeighbor(const std::string &ifname,
     } else if (ip4_route(&ip) != nif) {
         status = tc8::net::OpStatus::InvalidArgument;
     } else {
-        // ERR_OK = a static entry was removed; ERR_MEM = none was there. Both leave
-        // the end-state "no static entry for this IP", so both are success
-        // (idempotent, matching the POSIX backend). ERR_ARG means a *dynamic* entry
-        // exists and lwIP has no public per-IP dynamic-entry removal, so the entry
-        // persists: Unsupported, because that is a permanent limit of this stack
-        // for this kind of entry rather than a transient failure. Surfaced, not
-        // masked. See the README known-limitation.
+        // The contract removes the entry of one address whatever its kind (a learned
+        // one included: the tester's entry is learned as soon as the tester has pinged
+        // the DUT). lwIP removes only a static entry by address, so a learned one is
+        // made static first, through the public API and under the one core lock:
+        // etharp_find_addr gives its MAC, etharp_add_static_entry with that same MAC
+        // turns the very slot static (etharp_update_arp_entry finds the existing entry
+        // for the address), and etharp_remove_static_entry frees it. No moment exists
+        // in which the address resolves differently, and lwIP itself is not patched.
+        //
+        // etharp_find_addr reports a STABLE or STATIC entry only. A PENDING entry (a
+        // request in flight, nothing learned yet) is left to expire on its own timer:
+        // it holds no address the DUT could be steered by, and giving it a MAC to
+        // remove it would release the packets queued on it to that MAC.
+        struct eth_addr *found_mac = nullptr;
+        const ip4_addr_t *found_ip = nullptr;
+        if (etharp_find_addr(nif, &ip, &found_mac, &found_ip) >= 0) {
+            struct eth_addr mac = *found_mac;  // the slot is rewritten below
+            (void)etharp_add_static_entry(&ip, &mac);
+        }
+        // ERR_OK = the entry was removed; ERR_MEM = none was there. Both leave the
+        // end-state "no entry for this IP", so both are success (idempotent, matching
+        // the POSIX backend). ERR_ARG would mean the entry is still not static, which
+        // the conversion above rules out; it is reported as a failure, not masked.
         const err_t e = etharp_remove_static_entry(&ip);
         if (e != ERR_OK && e != ERR_MEM) {
-            status = tc8::net::OpStatus::Unsupported;
+            status = tc8::net::OpStatus::Failed;
         }
     }
     UNLOCK_TCPIP_CORE();
@@ -585,10 +623,18 @@ std::uint8_t LwipSocketBackend::configureOption(int fd, std::uint16_t param_id,
         case tp::kCfgUdpChecksum:  // UDP cksum tx enable=1 -> SO_NO_CHECK is its inverse
             if (!fixed(1)) return tp::kRidEInv;
             return setIntOpt(SOL_SOCKET, SO_NO_CHECK, val[0] ? 0 : 1);
-        case tp::kCfgDontFragment:       // IP DF bit (Linux IP_MTU_DISCOVER)
+        case tp::kCfgDontFragment:  // IP DF bit (Linux IP_MTU_DISCOVER)
+            // lwIP has no setting for DF, and needs none to CLEAR it: every packet the
+            // stack originates leaves ip4_output_if_opt_src with flags and fragment
+            // offset written as 0, and IP_DF is read only on the forwarding path. So a
+            // request for DF clear describes this stack as it already is and is
+            // answered E_OK, which the case that asks still checks on the wire. A
+            // request to SET it is one this stack cannot honour: E_NTF.
+            if (!fixed(1)) return tp::kRidEInv;
+            return val[0] == 0 ? tp::kRidEOk : tp::kRidENtf;
         case tp::kCfgIpTimestampOption:  // IP option-4 bytes (Linux IP_OPTIONS)
         case tp::kCfgMss:                // TCP MSS clamp (Linux TCP_MAXSEG)
-            // lwIP's socket layer exposes no DF-bit, IP-options or MSS-clamp
+            // lwIP's socket layer exposes no IP-options or MSS-clamp
             // setsockopt — answer E_NTF, "not served here", so a tester sees the
             // rejection rather than a false success, and the seam can tell a
             // parameter this stack structurally cannot set from a general error

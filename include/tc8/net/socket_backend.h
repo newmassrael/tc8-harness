@@ -72,8 +72,12 @@ public:
     // addr_be == 0 means "any address". true on success.
     virtual bool bindV4(int fd, std::uint32_t addr_be, std::uint16_t port) = 0;
 
-    // Datagram I/O. recvFromV4: byte count, or < 0 on timeout/error (fills
-    // `src` on success). sendToV4: byte count, or < 0 on failure.
+    // Datagram I/O. recvFromV4: the received datagram's WHOLE length, which may
+    // exceed `len` (only the first `len` bytes are in `buf`; a caller caps before
+    // reading them), or < 0 on timeout/error (fills `src` on success). The whole
+    // length is what a case grades a received datagram by, so a backend whose stack
+    // answers only the bytes copied must find the rest itself. sendToV4: byte count,
+    // or < 0 on failure.
     virtual int recvFromV4(int fd, void *buf, std::size_t len, Endpoint &src) = 0;
     virtual int sendToV4(int fd, const void *buf, std::size_t len, const Endpoint &dst) = 0;
 

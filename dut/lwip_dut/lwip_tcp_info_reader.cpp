@@ -51,6 +51,19 @@ bool LwipTcpInfoReader::queryTcpInfo(int fd, net::TcpInfo &out) {
     bool have_pcb = false;
     LOCK_TCPIP_CORE();
     struct lwip_sock *s = lwip_socket_dbg_get_socket(fd);
+    // A TCP socket whose pcb is gone is CLOSED: lwIP creates the pcb with the
+    // socket and clears `conn->pcb.tcp` only when it frees the TCB (a RST, an abort,
+    // the end of a close), while the socket itself lives until the application
+    // closes it. That is what Linux's TCP_INFO reports for such a socket (tcpi_state
+    // TCP_CLOSE), and what a case asking "did the DUT go to CLOSED" must read; the
+    // timer fields have no TCB left to describe and read 0.
+    if (s != nullptr && s->conn != nullptr && NETCONNTYPE_GROUP(s->conn->type) == NETCONN_TCP &&
+        s->conn->pcb.tcp == nullptr) {
+        out = net::TcpInfo{};
+        out.state = net::kTcpStateClose;
+        UNLOCK_TCPIP_CORE();
+        return true;
+    }
     if (s != nullptr && s->conn != nullptr &&
         NETCONNTYPE_GROUP(s->conn->type) == NETCONN_TCP && s->conn->pcb.tcp != nullptr) {
         const struct tcp_pcb *pcb = s->conn->pcb.tcp;
