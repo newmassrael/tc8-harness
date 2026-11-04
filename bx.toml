@@ -106,12 +106,20 @@ peak_gb_per_task = 5
 # server bx starts for every run took no request at all: measured 2026-11-03, a
 # `harness-remote` on an 8-core machine made 0 requests and compiled for 58 minutes at
 # the one job its memory grant allows.
-build  = "mapfile -t launcher_args < <(bash scripts/compiler-launcher-args.sh) && cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DTC8_BUILD_MOCK_DUT=OFF -DTC8_BUILD_UNIT_TESTS=ON \"${launcher_args[@]}\" && cmake --build build -j\"$(bash scripts/bx-build-jobs.sh)\""
+#
+# Every build and test command here is `rerunnable`: running it again from the start
+# means the same thing, so a run bx ended at its memory reservation is run again at once
+# with the larger request bx then makes, rather than reported as a failure. bx sizes a
+# command's reservation from that command's own runs of the last week, not from
+# peak_gb_per_task, and a warm incremental run measures small. Measured 2026-11-04: after
+# such runs `hosted-ci` was reserved 863 MB and then 2158 MB and was ended both times in
+# the case registrar units, which peak near 5 GB; the third run, given 5395 MB, passed.
+build  = { run = "mapfile -t launcher_args < <(bash scripts/compiler-launcher-args.sh) && cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DTC8_BUILD_MOCK_DUT=OFF -DTC8_BUILD_UNIT_TESTS=ON \"${launcher_args[@]}\" && cmake --build build -j\"$(bash scripts/bx-build-jobs.sh)\"", rerunnable = true }
 # The privileged neighbour test self-wraps in an unprivileged user+net namespace
 # and SKIPs (exit 77) where userns is unavailable, so this is safe on a machine
 # with no netns provisioning. `--no-tests=error` because ctest EXIT-0s an empty
 # suite, which would pass this gate vacuously.
-verify = "ctest --test-dir build --output-on-failure --no-tests=error"
+verify = { run = "ctest --test-dir build --output-on-failure --no-tests=error", rerunnable = true }
 
 # The tester built on a build machine for an on-wire run on this one. The wire
 # lanes (single-pc, lwip-tap) need this machine's namespaces and tap devices, so
@@ -138,9 +146,9 @@ verify = "ctest --test-dir build --output-on-failure --no-tests=error"
 # here called "refused by name": it printed nothing and exited 1 in 5 s on such a machine.
 # The check that stays in the command is for a run placement does not vet (`--local`),
 # and it says what is missing.
-hosted-ci = "{ command -v g++-11 >/dev/null || { echo 'hosted-ci: no g++-11 on this machine (the hosted runner compiler); bx.toml declares it as a tool' >&2; exit 2; }; } && mapfile -t launcher_args < <(bash scripts/compiler-launcher-args.sh) && CC=gcc-11 CXX=g++-11 cmake -S . -B build-gcc11 -DCMAKE_BUILD_TYPE=Release -DTC8_SCE_FIND_PACKAGE=OFF -DTC8_BUILD_MOCK_DUT=OFF \"${launcher_args[@]}\" && cmake --build build-gcc11 -j\"$(bash scripts/bx-build-jobs.sh)\" && ctest --test-dir build-gcc11 --output-on-failure --no-tests=error"
+hosted-ci = { run = "{ command -v g++-11 >/dev/null || { echo 'hosted-ci: no g++-11 on this machine (the hosted runner compiler); bx.toml declares it as a tool' >&2; exit 2; }; } && mapfile -t launcher_args < <(bash scripts/compiler-launcher-args.sh) && CC=gcc-11 CXX=g++-11 cmake -S . -B build-gcc11 -DCMAKE_BUILD_TYPE=Release -DTC8_SCE_FIND_PACKAGE=OFF -DTC8_BUILD_MOCK_DUT=OFF \"${launcher_args[@]}\" && cmake --build build-gcc11 -j\"$(bash scripts/bx-build-jobs.sh)\" && ctest --test-dir build-gcc11 --output-on-failure --no-tests=error", rerunnable = true }
 
-harness-remote = "mapfile -t launcher_args < <(bash scripts/compiler-launcher-args.sh) && cmake -S . -B build-remote -DCMAKE_BUILD_TYPE=Release -DTC8_BUILD_MOCK_DUT=OFF -DTC8_BUILD_UNIT_TESTS=ON \"${launcher_args[@]}\" && cmake --build build-remote -j\"$(bash scripts/bx-build-jobs.sh)\" && ctest --test-dir build-remote --output-on-failure --no-tests=error"
+harness-remote = { run = "mapfile -t launcher_args < <(bash scripts/compiler-launcher-args.sh) && cmake -S . -B build-remote -DCMAKE_BUILD_TYPE=Release -DTC8_BUILD_MOCK_DUT=OFF -DTC8_BUILD_UNIT_TESTS=ON \"${launcher_args[@]}\" && cmake --build build-remote -j\"$(bash scripts/bx-build-jobs.sh)\" && ctest --test-dir build-remote --output-on-failure --no-tests=error", rerunnable = true }
 
 # ⚠ NO `exclude` KEY, and that is deliberate: bx never read one, and bx.toml
 # refuses a key bx does not define. Only what git tracks is sent, so the
