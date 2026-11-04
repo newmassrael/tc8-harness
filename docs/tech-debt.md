@@ -4771,3 +4771,35 @@ fixed deadlines grade timer values the cases do not test whichever it is.
 **Done when:** each of these cases has been read against its specification. Every threshold it
 keeps is quoted from that text. Every wait goes through `nextRetransmissionBound`. Each case has
 been run against the Linux reference DUT and the lwIP DUT.
+
+## TD-71 — operator declarations are per-protocol structs, not one PICS/PIXIT register that cases select on
+
+**Status:** OPEN. **Logged:** 2026-11-05, from a consumer request: a case that grades a RST ending
+a TIME-WAIT connection (RFC 793) failed a DUT that follows RFC 1337, which the case's own source
+says is outside its scope, because nothing let the operator declare which behaviour the DUT has.
+
+**What was added.** `tcp.time_wait_rst` (`ends_connection` | `ignored`), the first enumerated
+declaration. `OPT_ENUM` is the expect-parser kind for it: an enum with a `DeclarationEnum`
+spelling table, so a misspelt value is refused rather than kept as text. A case selects on it
+with `tcpTimeWaitRstEndsConnectionMissing` from its `applicability` trait. `TcpDeclarations`
+now labels its members PIXIT (a parameter chosen inside a standard's latitude) or PICS (which
+of two allowed behaviours the implementation has).
+
+**What stays open.** That labelling is a comment. The declarations live in one struct per
+protocol (`TcpDeclarations`, `NetworkDeclarations`), and each case that selects on one writes
+the test in C++. So:
+
+- no listing says which cases a given declaration gates;
+- a run's report cannot say which cases were skipped for want of which declaration, except by
+  reading every skip reason;
+- adding a declaration in a new protocol means a new struct and a new `*Missing` function.
+
+**Done when:** there is one declaration register, ISO/IEC 9646 shaped:
+
+- every item has an identifier, a type (enum, bool, bounded integer), the standard that allows
+  its alternatives, PICS or PIXIT, and no default;
+- a case states its selection as data over those identifiers (for example
+  `tcp.time_wait_rst == ends_connection`), which the gate evaluates in one place, so an
+  undeclared item and an excluding value are distinct skip reasons;
+- the inventory tooling lists, for each item, the cases it selects, and a run's report lists the
+  items it was given and the cases each one excluded.

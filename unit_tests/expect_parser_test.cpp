@@ -539,6 +539,36 @@ TEST(ApplyExpectToken_Tcp, RefusesAValueThatDeclaresNothing) {
     EXPECT_FALSE(d.congestion_control.has_value());
 }
 
+// The RFC 1337 policy is one of two spellings; anything else, including a different
+// case or a free-text guess, is refused rather than taken for either.
+TEST(ApplyExpectToken_Tcp, TimeWaitRstTakesOnlyItsSpellings) {
+    ::tc8::TcpDeclarations d;
+    EXPECT_FALSE(d.time_wait_rst.has_value());
+    EXPECT_TRUE(applyExpectToken("tcp.time_wait_rst=ignored", d));
+    EXPECT_EQ(d.time_wait_rst, ::tc8::TimeWaitRstPolicy::kIgnored);
+    EXPECT_TRUE(applyExpectToken("tcp.time_wait_rst=ends_connection", d));
+    EXPECT_EQ(d.time_wait_rst, ::tc8::TimeWaitRstPolicy::kEndsConnection);
+    EXPECT_EQ(::tc8::declarationEnumName(*d.time_wait_rst), "ends_connection");
+
+    ::tc8::TcpDeclarations bad;
+    EXPECT_FALSE(applyExpectToken("tcp.time_wait_rst=Ignored", bad));
+    EXPECT_FALSE(applyExpectToken("tcp.time_wait_rst=rfc1337", bad));
+    EXPECT_FALSE(applyExpectToken("tcp.time_wait_rst=", bad));
+    EXPECT_FALSE(bad.time_wait_rst.has_value());
+}
+
+// A case grading "the RST ended the connection" runs only for a DUT declared to end it:
+// undeclared and RFC 1337 both skip it, each with its own reason.
+TEST(TcpTimeWaitRstSelection, RunsOnlyForADutDeclaredToEndTheConnection) {
+    ::tc8::TcpDeclarations d;
+    EXPECT_EQ(::tc8::tcpTimeWaitRstEndsConnectionMissing(d), "undeclared_tcp_time_wait_rst");
+    d.time_wait_rst = ::tc8::TimeWaitRstPolicy::kIgnored;
+    EXPECT_EQ(::tc8::tcpTimeWaitRstEndsConnectionMissing(d),
+              "dut_declared_to_ignore_rst_in_time_wait_rfc1337");
+    d.time_wait_rst = ::tc8::TimeWaitRstPolicy::kEndsConnection;
+    EXPECT_FALSE(::tc8::tcpTimeWaitRstEndsConnectionMissing(d).has_value());
+}
+
 // A network is untagged until declared, and 802.1Q reserves 0 and 4095.
 TEST(ApplyExpectToken_Network, TakesOnlyAVlanANetworkCanBeOn) {
     ::tc8::NetworkDeclarations d;

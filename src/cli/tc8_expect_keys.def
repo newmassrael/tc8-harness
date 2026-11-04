@@ -30,8 +30,9 @@
 //   TC8_EXPECT_KEY(group, kind, name)
 //       A scalar / IPv4 / MAC key. `kind` in
 //       U8 | U16 | U24 | U32 | IPV4 | MAC | OPT_U32 | OPT_U32_MIN1 | OPT_TEXT |
-//       OPT_VLAN_ID and selects parser + range; the target member is `name` (key ==
-//       member name).
+//       OPT_VLAN_ID | OPT_ENUM and selects parser + range; the target member is
+//       `name` (key == member name). OPT_ENUM targets a std::optional<enum> whose
+//       spellings its DeclarationEnum specialisation lists.
 //       U24 (SD TTL) and U32 members are both uint32; the kind only narrows the
 //       accepted range. The OPT_ kinds target a std::optional member, for a value
 //       that has no default and may stay undeclared.
@@ -229,6 +230,9 @@ TC8_EXPECT_KEY(ixit, U32, param_listen_time_ms)
 TC8_EXPECT_KEY(tcp, OPT_U32_MIN1, initial_cwnd_segments)
 TC8_EXPECT_KEY(tcp, OPT_TEXT, congestion_control)
 TC8_EXPECT_KEY(tcp, OPT_U32, tx_buffer_delay_ms)
+// A PICS item, one of the spellings TimeWaitRstPolicy's DeclarationEnum lists
+// (ends_connection | ignored).
+TC8_EXPECT_KEY(tcp, OPT_ENUM, time_wait_rst)
 
 // --- Operator's network declarations (NetworkDeclarations, "network." prefix) ---
 // Unset means an untagged network: see network_declarations.h.

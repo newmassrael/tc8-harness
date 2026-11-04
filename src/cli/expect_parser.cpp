@@ -105,7 +105,7 @@ namespace {
 
 // Value kinds. U24 (SD TTL) and U32 members are both uint32; the kind only
 // narrows the accepted numeric range.
-enum class EKind { U8, U16, U24, U32, IPV4, MAC, OPT_U32, OPT_U32_MIN1, OPT_TEXT, OPT_VLAN_ID };
+enum class EKind { U8, U16, U24, U32, IPV4, MAC, OPT_U32, OPT_U32_MIN1, OPT_TEXT, OPT_VLAN_ID, OPT_ENUM };
 
 constexpr std::uint64_t ekindMax(EKind k) {
     switch (k) {
@@ -165,6 +165,18 @@ bool applyField(std::string_view v, M &member) {
             return false;
         }
         member = std::string(v);
+        return true;
+    } else if constexpr (K == EKind::OPT_ENUM) {
+        // An enumerated declaration: one of the spellings its DeclarationEnum table
+        // lists (sce_integration/declaration_enum.h), anything else refused.
+        using E = typename M::value_type;
+        static_assert(std::is_same_v<M, std::optional<E>> && std::is_enum_v<E>,
+                      "OPT_ENUM key must target a std::optional<enum> member");
+        const std::optional<E> parsed = ::tc8::parseDeclarationEnum<E>(v);
+        if (!parsed) {
+            return false;
+        }
+        member = *parsed;
         return true;
     } else if constexpr (K == EKind::OPT_VLAN_ID) {
         static_assert(std::is_same_v<M, std::optional<std::uint16_t>>,

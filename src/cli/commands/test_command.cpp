@@ -1369,15 +1369,19 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // What the operator declared about the DUT's TCP: a graded window means nothing
     // without the algorithm behind it, so the report carries the assumption.
     if (const auto &tcp = config.tcp_declared;
-        tcp.initial_cwnd_segments || tcp.congestion_control || tcp.tx_buffer_delay_ms) {
+        tcp.initial_cwnd_segments || tcp.congestion_control || tcp.tx_buffer_delay_ms ||
+        tcp.time_wait_rst) {
         const auto number = [](const std::optional<std::uint32_t> &v) {
             return v ? std::to_string(*v) : std::string("undeclared");
         };
+        const std::string time_wait_rst =
+            tcp.time_wait_rst ? std::string(::tc8::declarationEnumName(*tcp.time_wait_rst))
+                              : std::string("undeclared");
         std::printf("tcp      : initial_cwnd_segments=%s congestion_control=%s "
-                    "tx_buffer_delay_ms=%s\n",
+                    "tx_buffer_delay_ms=%s time_wait_rst=%s\n",
                     number(tcp.initial_cwnd_segments).c_str(),
                     tcp.congestion_control ? tcp.congestion_control->c_str() : "undeclared",
-                    number(tcp.tx_buffer_delay_ms).c_str());
+                    number(tcp.tx_buffer_delay_ms).c_str(), time_wait_rst.c_str());
     }
     // On a tagged network a raw frame must carry the tag or the DUT's subinterface never
     // sees it, and the case would then grade a silence the tester caused.
