@@ -4742,3 +4742,32 @@ is left only where replacing it buys nothing (TCP stream reassembly for SOME/IP 
 RFC 791 padding adapter is then deleted. A golden-pcap corpus of boundary frames (options with
 padding, Record Route and Security options, TCP option lists ending in End of Option List) guards
 each decoder as it is moved.
+
+## TD-70 — the other retransmission-timer cases still grade with windows and thresholds tuned to a Linux sender
+
+**Status:** OPEN. **Logged:** 2026-11-05, while repairing TCP_RETRANSMISSION_TO_04 on a consumer
+request: a sender with the 3 s initial RTO of RFC 1122 ended that case without a verdict, because
+its fixed 8 s window for each retransmission graded the initial RTO, which the case does not test.
+
+**What TCP_RETRANSMISSION_TO_04 became.** It waits for each retransmission on its own capture for
+as long as the DUT's RTO says it will take (`tcp_retransmission_timing.h`,
+`nextRetransmissionBound`), and grades the specification's own criterion, growth faster than
+linear, as an increasing and convex RTO sequence
+(`TcpRetransmissionTo04Captured`). Its old check, growth alone, passed a linear backoff, and its
+first threshold, `tcpi_rto >= 350 ms`, was Linux's 200 ms floor doubled.
+
+**What is still tuned to one sender**, read from the sources on 2026-11-05 and not yet checked
+against each case's specification text:
+
+- `TCP_RETRANSMISSION_TO_03`: `tcpi_rto >= 350000` us on both snapshots, and fixed 3 s and 1 s
+  phase deadlines.
+- `TCP_RETRANSMISSION_TO_05` (SYN): `tcpi_rto >= 1500000` us after the first retransmission, and
+  fixed 2/2/4/8 s deadlines.
+- `TCP_RETRANSMISSION_TO_06`: the initial RTO graded inside [0.8, 1.5] s, and a fixed 2 s deadline.
+
+Each threshold may be what its specification asks for, or a stand-in for one stack's numbers; the
+fixed deadlines grade timer values the cases do not test whichever it is.
+
+**Done when:** each of these cases has been read against its specification. Every threshold it
+keeps is quoted from that text. Every wait goes through `nextRetransmissionBound`. Each case has
+been run against the Linux reference DUT and the lwIP DUT.

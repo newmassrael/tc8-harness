@@ -3,6 +3,7 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
+#include <optional>
 #include <string_view>
 #include <thread>
 #include <unistd.h>
@@ -14,8 +15,10 @@
 #include "sce_integration/cases/_tcp_seam.h"
 #include "sce_integration/dut_control.h"
 #include "sce_integration/ipv4_expected.h"
-#include "sce_integration/tcp_captured.h"
+#include "sce_integration/tcp_case_captured.h"
+#include "sce_integration/tcp_observation.h"
 #include "sce_integration/tcp_pilot_common.h"
+#include "sce_integration/tcp_retransmission_timing.h"
 #include "sce_integration/test_case_traits.h"
 #include "sce_integration/test_runner.h"
 
@@ -45,65 +48,94 @@ struct TestCaseTraits<cases::TcpRetransmissionTo04SM> {
     static constexpr int              kTopology     = 1;
     static constexpr ::tc8::BpfGroup  kBpfGroup     = ::tc8::BpfGroup::Tcp;
 
-    // The verdict reads the DUT's kernel RTO/retransmit counters across
-    // three retransmissions (tcpi_rto, tcpi_retransmits) — a state
-    // introspection the opcode UT exposes (OpQueryTcpInfo) but the
-    // standard AUTOSAR testability protocol does not. Declaring
-    // kCapTcpInfoProbe makes the CLI capability gate honestly SKIP this
-    // case on a testability backend (Tier 2 2b#4) instead of failing it;
-    // kCapTcpControl covers the active open + data send themselves.
+    // The verdict reads the DUT's RTO after each retransmission (tcpi_rto,
+    // tcpi_retransmits) — a state introspection the opcode UT exposes
+    // (OpQueryTcpInfo) but the standard AUTOSAR testability protocol does not.
+    // Declaring kCapTcpInfoProbe makes the CLI capability gate SKIP this case on a
+    // testability backend (Tier 2 2b#4) instead of failing it; kCapTcpControl covers
+    // the active open and the data send.
     static constexpr ::tc8::sce::DutCapabilities kRequiredCapabilities =
         ::tc8::sce::kCapTcpControl | ::tc8::sce::kCapTcpInfoProbe;
 
     using Captured = typename SM::CapturedType;
     using Expected = typename SM::ExpectedType;
 
-    // Single 8 B data segment is enough to exercise
-    // `tcp_retransmit_timer`'s exponential-backoff branch — Nagle and
-    // MSS are irrelevant at this size. Distinct first byte aids pcap
-    // visual inspection during regression diagnosis.
+    // One 8 B data segment exercises the data-retransmission backoff; Nagle and MSS
+    // play no part at this size. The distinct first byte helps when reading a pcap.
     static constexpr std::array<std::uint8_t, 8> kSegPayload = {
         'P','4','D','a','t','a','0','1'};
 
-    // Combined-poll cadence with per-phase deadline reset. Linux's
-    // data-RTO sequence on a fresh local-veth ESTABLISHED socket
-    // lands retx 1/2/3 at ~200 / 600 / 1400 ms post-seg1 (RTO_MIN=200
-    // ms doubling each fire). Under self-hosted CI workers=4 CPU
-    // saturation the kernel's high-resolution retx timer fires can
-    // drift severely — runs 25631103237 / 25629911035 saw retx 1
-    // miss a 2 s deadline (`fail:no_dut_data_retransmit_1`); run
-    // 25722823092 saw retx 2 miss a 3 s sequential deadline
-    // (`fail:no_dut_data_retransmit_2`); the earlier single-budget
-    // refactor (8 s total) saw retx 3 miss in run 25725732851
-    // (`fail:phase3_tcp_info_query_failed`). All three failures
-    // share a common shape — one retx phase stalls past the
-    // window we allotted for it. Per-phase reset gives EACH
-    // subsequent retx its own 8 s envelope measured from the prior
-    // capture, so a single slow phase doesn't burn budget allocated
-    // to later phases. The absolute cap kAbsoluteDeadline (25 s)
-    // bounds total wall-time so a wedged DUT cannot hang the case
-    // forever. Each snapshot is captured ONCE at first observation
-    // of the corresponding `retransmits` threshold; fast polling at
-    // 50 ms cadence keeps the retx 1 → 2 → 3 boundaries crisp so
-    // strict-growth on `tcpi_rto` is preserved.
-    static constexpr std::chrono::milliseconds kPollInterval{50};
-    static constexpr std::chrono::milliseconds kPerPhaseDeadline{8000};
-    static constexpr std::chrono::milliseconds kAbsoluteDeadline{25000};
+    // Three retransmissions give three RTO values, the fewest that show whether the
+    // steps between them grow (TcpRetransmissionTo04Captured).
+    static constexpr std::uint8_t kRetransmissions = 3;
+    static constexpr std::array<std::string_view, kRetransmissions> kRetransmissionWaits = {
+        "dut_data_retransmission_1", "dut_data_retransmission_2", "dut_data_retransmission_3"};
+
+    // The DUT sends the data segment as soon as the SEND reaches it.
+    static constexpr std::chrono::milliseconds kFirstSegmentBound{5000};
+    // A retransmission the wire showed is counted by the DUT a moment after it is sent
+    // (Linux sends it, then doubles the RTO and counts it); its counter is polled at this
+    // cadence, for at most this long, until it agrees.
+    static constexpr std::chrono::milliseconds kPollInterval{20};
+    static constexpr std::chrono::milliseconds kCounterSettleBound{1000};
+
+    // The DUT's TCP_INFO once it counts at least `k` retransmissions; empty when it
+    // does not within kCounterSettleBound, or cannot be read.
+    static std::optional<::tc8::sce::DutTcpInfo> snapshotAfter(::tc8::sce::StimulusContext& ctx,
+                                                               ::tc8::sce::DutSocket sock,
+                                                               std::uint8_t k) {
+        const auto until = std::chrono::steady_clock::now() + kCounterSettleBound;
+        while (true) {
+            const auto info = ctx.dut.tcpInfoProbe()->queryInfo(sock);
+            if (info && info->retransmits >= k) {
+                return info;
+            }
+            if (std::chrono::steady_clock::now() >= until) {
+                return std::nullopt;
+            }
+            std::this_thread::sleep_for(kPollInterval);
+        }
+    }
+
+    static void store(Captured& c, std::uint8_t k, const std::optional<::tc8::sce::DutTcpInfo>& s) {
+        const ::tc8::sce::DutTcpInfo v = s.value_or(::tc8::sce::DutTcpInfo{});
+        switch (k) {
+            case 1:
+                c.ut_tcpi_p1_valid = s.has_value();
+                c.ut_tcpi_p1_state = v.state;
+                c.ut_tcpi_p1_rto_us = v.rto_us;
+                c.ut_tcpi_p1_retransmits = v.retransmits;
+                c.ut_tcpi_p1_unacked = v.unacked;
+                break;
+            case 2:
+                c.ut_tcpi_p2_valid = s.has_value();
+                c.ut_tcpi_p2_state = v.state;
+                c.ut_tcpi_p2_rto_us = v.rto_us;
+                c.ut_tcpi_p2_retransmits = v.retransmits;
+                c.ut_tcpi_p2_unacked = v.unacked;
+                break;
+            default:
+                c.ut_tcpi_p3_valid = s.has_value();
+                c.ut_tcpi_p3_state = v.state;
+                c.ut_tcpi_p3_rto_us = v.rto_us;
+                c.ut_tcpi_p3_retransmits = v.retransmits;
+                c.ut_tcpi_p3_unacked = v.unacked;
+                break;
+        }
+    }
 
     static void stimulus(Captured& c,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {
         using namespace ::tc8::sce::tcp;
+        using std::chrono::microseconds;
 
         const std::uint16_t local_port  =
             kBasicsActiveLocalPort  + kTcpRetransmissionTo04LocalOffset;
         const std::uint16_t remote_port =
             kBasicsActiveRemotePort + kTcpRetransmissionTo04LocalOffset;
 
-        // Active OPEN → ESTABLISHED routed through the backend-agnostic
-        // seam (CREATE_AND_BIND + CONNECT against the tester-side
-        // listener). queryTcpSeqRange on the accepted tester fd doubles
-        // as the prelude-success gate before the SCXML first cond.
+        // Spec step 1: active OPEN to ESTABLISHED through the backend-agnostic seam.
         auto open = driveSeamActiveOpen(ctx.dut, cfg, local_port, remote_port);
         const int tester_fd = open.listener.acceptOne();
         if (tester_fd < 0) return;
@@ -115,93 +147,59 @@ struct TestCaseTraits<cases::TcpRetransmissionTo04SM> {
         }
         const ::tc8::sce::DutSocket dut_sock = open.conn->socket;
 
-        // Prelude success — the SCXML's first cond gates on this so a
-        // negative IP-flip variant lands on
-        // `inconclusive_handshake_did_not_complete` instead of the indirect
-        // `error_phase1_query_failed`.
+        // Prelude success: the SCXML's first cond gates on it, so a negative IP-flip row
+        // lands on `inconclusive_handshake_did_not_complete`.
         c.ut_handshake_completed = true;
 
-        // Tester-kernel auto-ACK suppression must outlive every retx
-        // observation; RAII over the full stimulus body keeps it
-        // active across the three poll loops. Released on stimulus
-        // return, which only happens AFTER the third snapshot lands.
+        // Spec step 4 for the whole body: the tester's kernel would acknowledge the data
+        // segment, so its ACKs are dropped on egress until the stimulus returns.
         TesterAutoAckDrop ack_drop(cfg);
 
-        // Spec step 2-3: data SEND → DUT data segment 1. With ack_drop
-        // active the tester kernel's auto-ACK is silently dropped on
-        // egress; DUT snd_una stays at seg_seq, the retransmit timer
-        // fires when icsk_rto elapses, and `tcp_retransmit_timer`
-        // takes the "Use normal (exponential) backoff" branch on every
-        // fire (state == TCP_ESTABLISHED — `tcp_syn_linear_timeouts`
-        // applies only to TCP_SYN_SENT, see
-        // [[linux-syn-data-rto-deviations]]).
+        // Spec steps 2-3: a data SEND, and the DUT's data segment.
+        const std::uint32_t seg_seq = seq_range->rcv_nxt;
+        const auto seg_len = static_cast<std::uint32_t>(kSegPayload.size());
+        const ::tc8::sce::ObservationCursor before_send = ctx.observer.mark();
         seamSendTcp(ctx.dut, dut_sock, kSegPayload);
+        const auto first = ctx.observer.awaitObservation(
+            "dut_data_segment", before_send,
+            dutDataSegmentAt(cfg.dut.ip, local_port, seg_seq, seg_len), kFirstSegmentBound);
+        if (!first) return;
+        c.segment_ts_us[0] = segmentOf(first->view()).observed_ts_us;
 
-        // Combined poll loop with per-phase deadline reset.
-        // `phase_anchor` resets to `now()` each time a new phase
-        // captures, so retx 2 has 8 s from retx 1 capture (not from
-        // poll start), and retx 3 has 8 s from retx 2 capture. This
-        // absorbs correlated CI hrtimer drift — if all three retx
-        // events are individually slow, each gets its own 8 s budget.
-        // `kAbsoluteDeadline` caps total wall-time so a wedged DUT
-        // cannot hang forever. Transient seam-probe failures
-        // (`probe == nullopt`) retry rather than abort, mirroring
-        // the _05/_06 retry-on-invalid pattern.
-        const auto poll_start = std::chrono::steady_clock::now();
-        auto phase_anchor = poll_start;
-        ::tc8::sce::DutTcpInfo p1{}, p2{}, p3{};
-        bool p1_valid = false, p2_valid = false, p3_valid = false;
-        while (true) {
-            std::this_thread::sleep_for(kPollInterval);
-            const auto probe = ctx.dut.tcpInfoProbe()->queryInfo(dut_sock);
-            const auto now = std::chrono::steady_clock::now();
-            if (probe) {
-                if (!p1_valid && probe->retransmits >= 1) {
-                    p1 = *probe;
-                    p1_valid = true;
-                    phase_anchor = now;
-                }
-                if (!p2_valid && probe->retransmits >= 2) {
-                    p2 = *probe;
-                    p2_valid = true;
-                    phase_anchor = now;
-                }
-                if (!p3_valid && probe->retransmits >= 3) {
-                    p3 = *probe;
-                    p3_valid = true;
-                    break;
-                }
+        // Spec steps 5-6: each retransmission, waited for as long as the DUT's own RTO
+        // says it will take (tcp_retransmission_timing.h), then the RTO the DUT now
+        // holds for the next one. The first wait uses the RTO read once the segment is out.
+        const auto initial = ctx.dut.tcpInfoProbe()->queryInfo(dut_sock);
+        microseconds rto{initial ? initial->rto_us : 0U};
+        microseconds last_interval{0};
+        for (std::uint8_t k = 1; k <= kRetransmissions; ++k) {
+            const auto retransmission = ctx.observer.observeWithin(
+                kRetransmissionWaits[k - 1], before_send,
+                dutDataSegmentAt(cfg.dut.ip, local_port, seg_seq, seg_len, c.segment_ts_us[k - 1]),
+                nextRetransmissionBound(rto, last_interval));
+            if (!retransmission) {
+                // The window elapsed with nothing on the wire. The DUT's counter tells a
+                // retransmission the capture missed from one the DUT never sent.
+                const auto now = ctx.dut.tcpInfoProbe()->queryInfo(dut_sock);
+                c.missed_query_valid = now.has_value();
+                c.missed_retransmits = now ? now->retransmits : std::uint8_t{0};
+                break;
             }
-            if (now - phase_anchor >= kPerPhaseDeadline) break;
-            if (now - poll_start >= kAbsoluteDeadline) break;
+            c.segment_ts_us[k] = segmentOf(retransmission->view()).observed_ts_us;
+            c.retransmissions_seen = k;
+            last_interval = microseconds(c.segment_ts_us[k] - c.segment_ts_us[k - 1]);
+            const auto snapshot = snapshotAfter(ctx, dut_sock, k);
+            store(c, k, snapshot);
+            rto = microseconds(snapshot ? snapshot->rto_us : 0U);
         }
-        c.ut_tcpi_p1_valid       = p1_valid;
-        c.ut_tcpi_p1_state       = p1.state;
-        c.ut_tcpi_p1_rto_us      = p1.rto_us;
-        c.ut_tcpi_p1_retransmits = p1.retransmits;
-        c.ut_tcpi_p1_unacked     = p1.unacked;
-
-        c.ut_tcpi_p2_valid       = p2_valid;
-        c.ut_tcpi_p2_state       = p2.state;
-        c.ut_tcpi_p2_rto_us      = p2.rto_us;
-        c.ut_tcpi_p2_retransmits = p2.retransmits;
-        c.ut_tcpi_p2_unacked     = p2.unacked;
-
-        c.ut_tcpi_p3_valid       = p3_valid;
-        c.ut_tcpi_p3_state       = p3.state;
-        c.ut_tcpi_p3_rto_us      = p3.rto_us;
-        c.ut_tcpi_p3_retransmits = p3.retransmits;
-        c.ut_tcpi_p3_unacked     = p3.unacked;
-
         (void)tester_fd;
     }
 
     static void dispatch(Captured& /*c*/, SM& /*sm*/, const ::tc8::CapturedEvent& /*ev*/) {
-        // Verdict is computed from kernel-side TCP_INFO snapshots
-        // populated synchronously in `stimulus()` — wire frames are
-        // not consulted, so frame ingress is intentionally a no-op.
-        // The SM advances purely on the `<send event="evaluate"
-        // delay="0ms"/>` raise in `<onentry>` of the initial state.
+        // The stimulus has seen every frame the verdict needs (through the observer, on
+        // the case's own capture) and left the times and RTO values in `captured`; the
+        // machine evaluates them on the `evaluate` it raises at entry, so frame ingress
+        // drives nothing.
     }
 };
 

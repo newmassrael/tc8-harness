@@ -3095,11 +3095,6 @@
         },
         {
           "class": "incorrect_emission",
-          "fail_reason": "phase1_rto_below_doubled_baseline",
-          "property": "DUT's post-retransmit RTO must be doubled (kernel tcpi_rto >= 350 ms); fail iff below the doubled baseline"
-        },
-        {
-          "class": "incorrect_emission",
           "fail_reason": "phase2_rto_not_greater_than_phase1",
           "property": "DUT's RTO must grow on each retransmit (exponential backoff); fail iff phase-2 RTO is not greater than phase-1"
         },
@@ -3107,6 +3102,11 @@
           "class": "incorrect_emission",
           "fail_reason": "phase3_rto_not_greater_than_phase2",
           "property": "DUT's RTO must grow on each retransmit (exponential backoff); fail iff phase-3 RTO is not greater than phase-2"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "rto_growth_not_more_than_linear",
+          "property": "DUT's RTO must grow more than linearly (the spec's pass criterion); fail iff the step from phase-2 to phase-3 RTO is not larger than the step from phase-1 to phase-2"
         }
       ]
     },

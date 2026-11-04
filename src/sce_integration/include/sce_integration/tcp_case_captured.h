@@ -101,6 +101,60 @@ private:
     }
 };
 
+// TCP_RETRANSMISSION_TO_04: does the DUT's retransmission timeout grow faster than
+// linearly over three retransmissions of one data segment?
+//
+// The specification passes a DUT whose retransmission interval grows faster than
+// linearly. Growth alone does not show that: a linear backoff (RTO b, 2b, 3b) grows on
+// every step. More than linear means the
+// steps themselves grow, so the property is that the RTO sequence is increasing and
+// CONVEX: (rto3 - rto2) > (rto2 - rto1). A doubling schedule clears it by a whole step,
+// a linear one has equal steps and fails it, a constant one fails the growth before it.
+//
+// The RTO values are the DUT's own (`ut_tcpi_p<k>_rto_us`, read right after the k-th
+// retransmission was seen on the wire), not intervals measured from the capture: an
+// interval carries the jitter of the DUT's timer tick (500 ms on lwIP, so a 1 s step can
+// read anywhere from 0.5 to 1.5 s), and the RTO behind it does not. The wire still
+// decides that each retransmission happened and when; its times are recorded:
+//   - segment_ts_us: capture times of the data segment and its retransmissions 1..3,
+//     0 for one not seen;
+//   - retransmissions_seen: how many retransmissions the capture showed (0..3);
+//   - missed_query_valid / missed_retransmits: the DUT's own retransmission count, read
+//     when a retransmission's window elapsed unseen. A count above what the wire showed
+//     means the capture missed it; a count at it means the DUT did not retransmit.
+struct TcpRetransmissionTo04Captured : TcpCaptured {
+    std::array<std::int64_t, 4> segment_ts_us{};
+    std::uint8_t retransmissions_seen = 0;
+    bool missed_query_valid = false;
+    std::uint8_t missed_retransmits = 0;
+
+    bool rto_increasing_2() const noexcept { return ut_tcpi_p2_rto_us > ut_tcpi_p1_rto_us; }
+    bool rto_increasing_3() const noexcept { return ut_tcpi_p3_rto_us > ut_tcpi_p2_rto_us; }
+    bool rto_growth_more_than_linear() const noexcept {
+        const auto r1 = static_cast<std::int64_t>(ut_tcpi_p1_rto_us);
+        const auto r2 = static_cast<std::int64_t>(ut_tcpi_p2_rto_us);
+        const auto r3 = static_cast<std::int64_t>(ut_tcpi_p3_rto_us);
+        return r3 - r2 > r2 - r1;
+    }
+    // The DUT's counter says it retransmitted more often than the capture showed.
+    bool retransmission_missed_by_capture() const noexcept {
+        return missed_query_valid && missed_retransmits > retransmissions_seen;
+    }
+};
+
+inline void appendCapturedJson(std::string &out, const TcpRetransmissionTo04Captured &c) {
+    out.append("{");
+    appendTcpCapturedMembersJson(out, c);
+    ::tc8::sce::appendI64Json(out, ",\"segment_ts_us\":", c.segment_ts_us[0]);
+    ::tc8::sce::appendI64Json(out, ",\"retransmission1_ts_us\":", c.segment_ts_us[1]);
+    ::tc8::sce::appendI64Json(out, ",\"retransmission2_ts_us\":", c.segment_ts_us[2]);
+    ::tc8::sce::appendI64Json(out, ",\"retransmission3_ts_us\":", c.segment_ts_us[3]);
+    ::tc8::sce::appendUintJson(out, ",\"rto1_us\":", c.ut_tcpi_p1_rto_us);
+    ::tc8::sce::appendUintJson(out, ",\"rto2_us\":", c.ut_tcpi_p2_rto_us);
+    ::tc8::sce::appendUintJson(out, ",\"rto3_us\":", c.ut_tcpi_p3_rto_us);
+    out.append("}");
+}
+
 // TCP_MSS_OPTIONS_01 / _05, the DUT liveness probe (dut_liveness.h):
 //   - liveness_dut_ip: the DUT identity address (`TestConfig::dut.ip`, network
 //     order) the probe went to, written by the stimulus, so the dispatch can tell

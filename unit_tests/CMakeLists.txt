@@ -356,6 +356,8 @@ tc8_add_unit_test(ipv4_decode_test)
 # The RFC 791 header walk the capture path reads options with (tc8/wire/ipv4_header.h).
 tc8_add_unit_test(ipv4_header_test)
 tc8_add_unit_test(tcp_segment_builder_test)
+# The retransmission window policy and the "more than linear" RTO growth property.
+tc8_add_unit_test(tcp_retransmission_timing_test)
 tc8_add_unit_test(udp_datagram_builder_test)
 # Fixed source-port UDP emit (sendUdpUnicast): loopback round-trip asserts the
 # datagram leaves from the caller-chosen source port.

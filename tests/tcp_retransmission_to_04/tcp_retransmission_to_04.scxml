@@ -1,68 +1,59 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   TC8 §4.8.6.11 TCP_RETRANSMISSION_TO_04: TCP MUST include "exponential
-  backoff" (check that it increases) for successive RTO values for
-  sending data segments (RFC 1122 §4.2.3.1 MUST — RFC 6298 §5).
+  backoff" for successive RTO values for sending data segments (RFC 1122
+  §4.2.3.1 MUST, RFC 6298 §5). The specification passes a DUT whose
+  retransmission interval grows faster than linearly.
 
   Case shape:
     the tester parks the DUT in ESTABLISHED, takes one DUT-side send
     and then never acknowledges anything. The DUT retransmits on its
-    own timer, and this case watches the gaps between those retries:
-    they have to grow faster than linearly, which is what exponential
-    backoff looks like from the wire.
+    own timer three times.
 
-  Mechanism (kernel-state TCP_INFO observation, three snapshots):
-    The earlier pcap-timing chain (observe seg1, retx1, retx2, retx3
-    inter-frame deltas in a 4-state SCXML) was deterministic at
-    workers=1 but flaked under workers=4 parallel load — pcap's
-    SOFTIRQ delivery raced the per-state deadline guards on the
-    second / third retransmit observation. Replacing the wire-timing
-    assertions with three synchronous kernel-state (TCP_INFO) reads
-    off the DUT's connected socket makes the verdict a function of
-    kernel state, not pcap delivery latency. Stimulus phases:
+  What is graded, and why it is the RTO and not the wire interval:
+    "More than linear" is a statement about the steps between RTO values:
+    a linear backoff (b, 2b, 3b) grows on every step, so growth alone does
+    not show it. The property is that the RTO sequence is increasing and
+    convex, (rto3 - rto2) > (rto2 - rto1)
+    (TcpRetransmissionTo04Captured::rto_growth_more_than_linear). The RTO
+    values are the DUT's own, read right after each retransmission was seen
+    on the wire: an interval measured from the capture carries the jitter
+    of the DUT's timer tick (500 ms on lwIP), which can turn a doubling of a
+    1 s RTO into steps that read equal, and the RTO behind it does not.
 
-    1. Active OPEN handshake on +200 port quad; snapshot tester
-       snd_nxt / rcv_nxt for 4-tuple-clean prelude.
-    2. The tester withholds its kernel's auto-ACKs (for the full
-       stimulus body) so seg1's RTO timer fires three times without
-       tester interference. RACK and TLP are disabled in dut_ns
-       (mirrors RETRANSMISSION_TO_03/_05/_06 via the smoke-test
-       sysctl override) so the DUT's retransmit timer follows the
-       canonical RTO-doubling path.
-    3. A data SEND → DUT data segment 1 (8 B). Linux's data-RTO
-       sequence on a fresh local-veth ESTABLISHED socket: retx 1 at
-       ~200 ms post-seg1 (RTO: 200 → 400 ms), retx 2 at +400 ms
-       (400 → 800 ms), retx 3 at +800 ms (800 → 1600 ms).
-    4. **Phase 1 snapshot** (post-retx 1): polled at 50 ms cadence
-       until `tcpi_retransmits >= 1`; deadline 2 s. Pass criterion:
-       `tcpi_rto >= 350 ms` (proves the DUT doubled its RTO from
-       the 200 ms baseline).
-    5. **Phase 2 snapshot** (post-retx 2): polled until
-       `tcpi_retransmits >= 2`; deadline 3 s. Pass criterion:
-       `tcpi_rto > p1.tcpi_rto` (proves the DUT doubled again).
-       A constant-RTO DUT would leave p2.rto == p1.rto.
-    6. **Phase 3 snapshot** (post-retx 3): polled until
-       `tcpi_retransmits >= 3`; deadline 5 s. Pass criterion:
-       `tcpi_rto > p2.tcpi_rto` (proves the DUT doubled a third
-       time). Three observations of strict growth across the cluster
-       pin the "more than linear" RFC 1122 §4.2.3.1 MUST.
+  What the wire decides:
+    that the data segment and each retransmission were sent, and when. The
+    stimulus waits for each retransmission on the case's own capture for as
+    long as the DUT's RTO says it will take (tcp_retransmission_timing.h),
+    instead of a window tuned to one sender: an 8 s window used to end a
+    sender with a 3 s initial RTO without a verdict, its third
+    retransmission due 10 s after the second.
 
-  SCXML shape — single state with a `<send delay="0ms"/>`-raised
-  evaluation event, multiple cond-keyed transitions; first matching
-  transition wins per W3C SCXML §3.13. Transitions are ordered fail-
-  first (handshake → query validity → retransmit-count thresholds →
-  numeric rto growth) so the most-proximal cause short-circuits to
-  its specific verdict before falling through to pass. delay=0ms is
-  the minimal scheduler tick required to flush the stimulus-mutated
-  `captured` into the cond evaluator's view; pure eventless
-  transitions are not used because the SCE codegen consumes events
-  into Event enum members and an enum-less initial state would have
-  no firing edge at all.
+  Verdict order (first matching transition wins, W3C SCXML §3.13): the
+  precondition, then the observation, then the DUT's count, then the
+  growth property.
+    - handshake not completed                       -> inconclusive
+    - the data segment was not seen                 -> inconclusive
+      (the stimulus also records it as unperformed)
+    - a retransmission window elapsed unseen while the DUT counts more
+      retransmissions than the wire showed          -> inconclusive (capture)
+    - a retransmission window elapsed unseen and the DUT's counter could
+      not be read                                   -> error
+    - fewer retransmissions than three, by the DUT's own count
+                                                    -> fail_no_retx_<k>
+    - an RTO after a retransmission seen on the wire could not be read
+                                                    -> error_phase<k>
+    - rto2 <= rto1, rto3 <= rto2                    -> fail (not increasing)
+    - (rto3 - rto2) <= (rto2 - rto1)                -> fail (not more than linear)
+    - otherwise                                     -> pass
 
-  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes the active OPEN
-  handshake fail; the stimulus returns early without setting
-  `ut_handshake_completed`, so the SCXML's first cond fires and
-  verdicts as `fail:dut_handshake_did_not_complete`.
+  The single state evaluates on a `<send delay="0ms"/>`-raised event: the
+  minimal scheduler tick that flushes the stimulus-written `captured`
+  into the cond evaluator's view.
+
+  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes the active OPEN fail;
+  the stimulus returns before setting `ut_handshake_completed`, and the
+  first cond fires.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -71,23 +62,41 @@
        name="tcp_retransmission_to_04"
        sce:transition-table="emit"
        datamodel="null"
-       initial="evaluate_kernel_observations">
+       initial="evaluate_retransmissions">
 
   <sce:context id="captured"
-               cpp:type="tc8::TcpCaptured"
-               cpp:include="sce_integration/tcp_captured.h"/>
+               cpp:type="tc8::TcpRetransmissionTo04Captured"
+               cpp:include="sce_integration/tcp_case_captured.h"/>
 
   <sce:context id="expected"
                cpp:type="tc8::Ipv4Expected"
                cpp:include="sce_integration/ipv4_expected.h"/>
 
-  <state id="evaluate_kernel_observations">
+  <state id="evaluate_retransmissions">
     <onentry>
       <send event="evaluate" delay="0ms"/>
     </onentry>
     <transition event="evaluate"
                 cond="cpp:not captured.ut_handshake_completed"
                 target="inconclusive_handshake_did_not_complete"/>
+    <transition event="evaluate"
+                cond="cpp:captured.segment_ts_us[0] == 0"
+                target="inconclusive_data_segment_unobserved"/>
+    <transition event="evaluate"
+                cond="cpp:captured.retransmissions_seen &lt; 3 and captured.retransmission_missed_by_capture()"
+                target="inconclusive_retransmission_not_captured"/>
+    <transition event="evaluate"
+                cond="cpp:captured.retransmissions_seen &lt; 3 and not captured.missed_query_valid"
+                target="error_retransmission_count_query_failed"/>
+    <transition event="evaluate"
+                cond="cpp:captured.retransmissions_seen &lt; 1"
+                target="fail_no_retx_1"/>
+    <transition event="evaluate"
+                cond="cpp:captured.retransmissions_seen &lt; 2"
+                target="fail_no_retx_2"/>
+    <transition event="evaluate"
+                cond="cpp:captured.retransmissions_seen &lt; 3"
+                target="fail_no_retx_3"/>
     <transition event="evaluate"
                 cond="cpp:not captured.ut_tcpi_p1_valid"
                 target="error_phase1_query_failed"/>
@@ -98,23 +107,14 @@
                 cond="cpp:not captured.ut_tcpi_p3_valid"
                 target="error_phase3_query_failed"/>
     <transition event="evaluate"
-                cond="cpp:captured.ut_tcpi_p1_retransmits &lt; 1"
-                target="fail_no_retx_1"/>
-    <transition event="evaluate"
-                cond="cpp:captured.ut_tcpi_p2_retransmits &lt; 2"
-                target="fail_no_retx_2"/>
-    <transition event="evaluate"
-                cond="cpp:captured.ut_tcpi_p3_retransmits &lt; 3"
-                target="fail_no_retx_3"/>
-    <transition event="evaluate"
-                cond="cpp:captured.ut_tcpi_p1_rto_us &lt; 350000"
-                target="fail_initial_rto_not_doubled"/>
-    <transition event="evaluate"
-                cond="cpp:captured.ut_tcpi_p2_rto_us &lt;= captured.ut_tcpi_p1_rto_us"
+                cond="cpp:not captured.rto_increasing_2()"
                 target="fail_retx2_not_doubled"/>
     <transition event="evaluate"
-                cond="cpp:captured.ut_tcpi_p3_rto_us &lt;= captured.ut_tcpi_p2_rto_us"
+                cond="cpp:not captured.rto_increasing_3()"
                 target="fail_retx3_not_doubled"/>
+    <transition event="evaluate"
+                cond="cpp:not captured.rto_growth_more_than_linear()"
+                target="fail_rto_growth_not_more_than_linear"/>
     <transition event="evaluate" target="pass"/>
   </state>
 
@@ -127,6 +127,24 @@
   <final id="inconclusive_handshake_did_not_complete">
     <donedata>
       <content>{"verdict":"inconclusive","reason":"dut_handshake_did_not_complete","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_data_segment_unobserved">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"dut_data_segment_unobserved","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_retransmission_not_captured">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"dut_counted_a_retransmission_the_capture_did_not_show","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="error_retransmission_count_query_failed">
+    <donedata>
+      <content>{"verdict":"error","reason":"retransmission_count_tcp_info_query_failed","role":"test_system_fault"}</content>
     </donedata>
   </final>
 
@@ -166,12 +184,6 @@
     </donedata>
   </final>
 
-  <final id="fail_initial_rto_not_doubled">
-    <donedata>
-      <content>{"verdict":"fail","reason":"phase1_rto_below_doubled_baseline","role":"observed_violation"}</content>
-    </donedata>
-  </final>
-
   <final id="fail_retx2_not_doubled">
     <donedata>
       <content>{"verdict":"fail","reason":"phase2_rto_not_greater_than_phase1","role":"observed_violation"}</content>
@@ -181,6 +193,12 @@
   <final id="fail_retx3_not_doubled">
     <donedata>
       <content>{"verdict":"fail","reason":"phase3_rto_not_greater_than_phase2","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_rto_growth_not_more_than_linear">
+    <donedata>
+      <content>{"verdict":"fail","reason":"rto_growth_not_more_than_linear","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>
