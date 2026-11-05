@@ -507,11 +507,31 @@ TEST(PacketPipelineDissection, OptionsEndingInEolAndPaddingAreRead) {
     EXPECT_EQ(replies[1].rest_of_header, 0x00010001u);
 }
 
-// An options area whose option runs past it is not one RFC 791 allows; that frame is
-// still refused, and counted.
-TEST(PacketPipelineDissection, OptionsRunningPastTheAreaStayUnreadableAndCounted) {
-    tc8::dissect::PacketPipeline pipe([](const tc8::CapturedEvent &) {});
+// An options area whose option runs past it is not one RFC 791 allows, but the header
+// around it is whole: the frame is read and its events delivered, the deviation is the
+// case's to judge. libtins refused such a frame outright.
+TEST(PacketPipelineDissection, AMalformedOptionDoesNotLoseTheFrame) {
+    std::vector<tc8::Icmpv4Frame> replies;
+    tc8::dissect::PacketPipeline pipe([&replies](const tc8::CapturedEvent &ev) {
+        if (const auto *f = std::get_if<tc8::Icmpv4Frame>(&ev)) {
+            replies.push_back(*f);
+        }
+    });
     pipe.setDutMac(kDutMacBytes);
     feed(pipe, 1000, icmpEchoReplyFrame(kDutMacBytes, 0x46, {0x07, 0x09, 0x04, 0x00}));
-    EXPECT_EQ(pipe.dissectionStats().frames_undissectable_possibly_dut, 1u);
+    EXPECT_EQ(pipe.dissectionStats().frames_undissectable, 0u);
+    EXPECT_EQ(replies.size(), 1u);
+}
+
+// A fragment carries part of its datagram's payload, not a transport header: it yields
+// its Ipv4Frame and nothing else.
+TEST(PacketPipelineDissection, AFragmentYieldsOnlyItsIpv4Frame) {
+    std::vector<std::string> kinds;
+    tc8::dissect::PacketPipeline pipe([&kinds](const tc8::CapturedEvent &ev) {
+        kinds.push_back(std::holds_alternative<tc8::Ipv4Frame>(ev) ? "ipv4" : "other");
+    });
+    auto frame = icmpEchoReplyFrame(kDutMacBytes, 0x45, {});
+    frame[14 + 6] = 0x20;  // More Fragments
+    feed(pipe, 1000, frame);
+    EXPECT_EQ(kinds, (std::vector<std::string>{"ipv4"}));
 }

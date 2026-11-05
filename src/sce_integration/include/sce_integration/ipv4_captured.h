@@ -27,8 +27,8 @@ namespace tc8 {
 // `cfg.ipv4.dut_iface_ip` do not need to byte-swap).
 //
 // Options region is intentionally not mirrored in the §4.4 HEADER /
-// CHECKSUM / TTL / VERSION pilot — libtins parses IP options into a
-// vector of `IP::option`, not a raw byte range. §4.4 has no OPTIONS
+// CHECKSUM / TTL / VERSION pilot, and Ipv4Frame leaves it unset (the
+// dissector walks the options, tc8/wire/ipv4_header.h). §4.4 has no OPTIONS
 // subsection in TC8 v3.0 (IPv4_OPTIONS_01..14 deleted V2→V3). If an
 // ICMPv4 consumer that carries IP options in the stimulus ever needs
 // byte-level observation (e.g. ICMPv4_TYPE_05 / ERROR_02/03/04 — all

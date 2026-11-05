@@ -71,6 +71,18 @@ TEST(Ipv4HeaderDecode, AZeroInsideAnOptionIsNotTheEndOfTheList) {
     EXPECT_FALSE(ip->options_malformed);
 }
 
+// RFC 791 Security (type 130, length 11): nine bytes of data, which may be zero, then
+// End of Option List at the eleventh byte past the option and zero padding.
+TEST(Ipv4HeaderDecode, ASecurityOptionIsWalkedByItsLength) {
+    const auto h = header({0x82, 0x0B, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
+    const auto ip = decodeIpv4Header(h.data(), h.size());
+    ASSERT_TRUE(ip.has_value());
+    ASSERT_TRUE(ip->end_of_list_at.has_value());
+    EXPECT_EQ(*ip->end_of_list_at, 20u + 11u);
+    EXPECT_FALSE(ip->padding_nonzero);
+    EXPECT_FALSE(ip->options_malformed);
+}
+
 TEST(Ipv4HeaderDecode, OptionsFillingTheAreaNeedNoEndOfList) {
     const auto h = header({0x01, 0x01, 0x01, 0x01});
     const auto ip = decodeIpv4Header(h.data(), h.size());
@@ -106,14 +118,21 @@ TEST(Ipv4HeaderDecode, AnOptionPastTheAreaOrShorterThanItsOwnHeaderIsMalformed) 
     EXPECT_TRUE(ip3->options_malformed);
 }
 
+// A packet typed IPv4 with another Version is a stimulus a case sends on purpose; its
+// header is read and the Version reported as it stands.
+TEST(Ipv4HeaderDecode, AnotherVersionIsReportedNotRefused) {
+    auto v6 = header({});
+    v6[0] = 0x65;
+    const auto ip = decodeIpv4Header(v6.data(), v6.size());
+    ASSERT_TRUE(ip.has_value());
+    EXPECT_EQ(ip->version, 6);
+    EXPECT_EQ(ip->ihl, 5);
+}
+
 TEST(Ipv4HeaderDecode, AHeaderThatCannotBeLocatedIsEmpty) {
     const auto h = header({});
     EXPECT_FALSE(decodeIpv4Header(h.data(), 19).has_value());     // fewer than 20 bytes
     EXPECT_FALSE(decodeIpv4Header(nullptr, 20).has_value());
-
-    auto v6 = h;
-    v6[0] = 0x65;
-    EXPECT_FALSE(decodeIpv4Header(v6.data(), v6.size()).has_value());  // version 6
 
     const auto ihl4 = header({}, 4);
     EXPECT_FALSE(decodeIpv4Header(ihl4.data(), ihl4.size()).has_value());  // IHL below 5

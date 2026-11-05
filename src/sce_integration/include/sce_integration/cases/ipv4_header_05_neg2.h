@@ -31,7 +31,7 @@ struct TestCaseTraits<cases::Ipv4Header05Neg2SM>
 
     // Arm the payload-truncate fault, then send the same 576-octet Echo Request the positive
     // uses (shared emitHeader05Stimulus SSOT). The flavor shrinks the Echo Reply's IP
-    // total_length so libtins dissects payload_len = 64 != 548 (the truncation half; the _NEG
+    // total_length so the dissector reads payload_len = 64 != 548 (the truncation half; the _NEG
     // sibling covers the wrong-bytes half). Proves the positive's payload_truncated fail-final
     // reachable.
     static void stimulus(Captured& /*c*/,

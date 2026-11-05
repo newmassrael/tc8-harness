@@ -90,8 +90,8 @@ inline void wireRouterOverloadStimulus(
     // pre-pinned permanent neigh entry.
     //
     // 1-byte payload (0xA5). It was added when the harness pipeline
-    // dropped an empty UDP datagram (libtins attaches no RawPDU to a
-    // header-only datagram). The pipeline now emits a UdpFrame with a
+    // dropped an empty UDP datagram (the libtins dissector of the time
+    // attached no RawPDU to a header-only datagram). The pipeline now emits a UdpFrame with a
     // null body for that case (packet_pipeline.cpp, for
     // UDP_FIELDS_07), so the byte is no longer required; it stays as a
     // recognisable sentinel. Pass criteria are L2/L3 shape, not data

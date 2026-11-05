@@ -28,7 +28,7 @@ namespace tc8::sce {
 
 // Self-validation of §4.8.6.9 TCP_MSS_OPTIONS_10: with no MSS option at setup, a conformant DUT
 // defaults its send MSS to 536 and segments a SEND at 536 B (RFC 1122 §4.2.2.6). kTcpFaultDataSegTruncate
-// shrinks the DUT data segment's IP total_length so libtins re-slices the dissected payload to 64 B,
+// shrinks the DUT data segment's IP total_length so the dissector bounds the payload to 64 B,
 // so the dut_data_segment_size_not_default_536 fail-final (payload_len != 536) is reachable; the case
 // passes only when that truncated segment is observed. lwIP-only (kCapEgressFault). Single fail-final,
 // so no coverage.json entry.

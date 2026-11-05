@@ -10,11 +10,10 @@
 
 #include <poll.h>
 
-#include <tins/arp.h>
-#include <tins/ethernetII.h>
-#include <tins/exceptions.h>
-#include <tins/icmp.h>
-#include <tins/ip.h>
+#include "tc8/wire/arp_packet.h"
+#include "tc8/wire/ethernet_frame.h"
+#include "tc8/wire/icmpv4_message.h"
+#include "tc8/wire/ipv4_header.h"
 
 #include "capture/pcap_source.h"
 #include "stimulus/arp_builder.h"
@@ -74,23 +73,33 @@ Probe buildProbe(sce::LivenessAnchorKind kind, const std::array<std::uint8_t, 6>
 // the network-byte-order form the config carries, as the packet pipeline does.
 bool isAnswer(sce::LivenessAnchorKind kind, const ::tc8::TestConfig &cfg, const Probe &probe,
               const u_char *data, std::uint32_t len) {
-    try {
-        Tins::EthernetII eth(data, len);
-        if (kind == sce::LivenessAnchorKind::kArpExchange) {
-            const auto *arp = eth.find_pdu<Tins::ARP>();
-            return arp != nullptr && arp->opcode() == Tins::ARP::REPLY &&
-                   static_cast<std::uint32_t>(arp->sender_ip_addr()) == cfg.dut.ip &&
-                   static_cast<std::uint32_t>(arp->target_ip_addr()) == cfg.tester.ip;
-        }
-        const auto *ip = eth.find_pdu<Tins::IP>();
-        const auto *icmp = eth.find_pdu<Tins::ICMP>();
-        return ip != nullptr && icmp != nullptr &&
-               static_cast<std::uint32_t>(ip->src_addr()) == cfg.dut.ip &&
-               icmp->type() == Tins::ICMP::ECHO_REPLY && icmp->id() == kAnchorEchoId &&
-               icmp->sequence() == probe.echo_seq;
-    } catch (const Tins::exception_base &) {
+    constexpr std::uint16_t kArpReply = 2;
+    constexpr std::uint8_t kIcmpEchoReply = 0;
+    constexpr std::uint8_t kIpProtoIcmp = 1;
+    const auto eth = ::tc8::wire::decodeEthernet(data, len);
+    if (!eth) {
         return false;
     }
+    if (kind == sce::LivenessAnchorKind::kArpExchange) {
+        if (eth->ether_type != ::tc8::wire::kEtherTypeArp) {
+            return false;
+        }
+        const auto arp = ::tc8::wire::decodeArp(eth->payload, eth->payload_len);
+        return arp && arp->opcode == kArpReply && arp->sender_proto_be == cfg.dut.ip &&
+               arp->target_proto_be == cfg.tester.ip;
+    }
+    if (eth->ether_type != ::tc8::wire::kEtherTypeIpv4) {
+        return false;
+    }
+    const auto ip = ::tc8::wire::decodeIpv4Header(eth->payload, eth->payload_len);
+    if (!ip || ip->protocol != kIpProtoIcmp || ip->src_be != cfg.dut.ip) {
+        return false;
+    }
+    const auto icmp = ::tc8::wire::decodeIcmpv4(eth->payload + ip->headerLen(),
+                                                eth->payload_len - ip->headerLen());
+    return icmp && icmp->type == kIcmpEchoReply &&
+           static_cast<std::uint16_t>(icmp->rest_of_header >> 16) == kAnchorEchoId &&
+           static_cast<std::uint16_t>(icmp->rest_of_header & 0xFFFFU) == probe.echo_seq;
 }
 
 }  // namespace

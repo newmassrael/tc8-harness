@@ -31,8 +31,8 @@ struct TestCaseTraits<cases::Ipv4Checksum05NegSM>
 
     // Arm the header-checksum fault, then send the same Echo Request the positive uses.
     // The flavor XOR-invalidates the DUT Echo Reply's IPv4 header checksum — the RFC 791
-    // violation the positive forbids; libtins still dissects the frame (it does not
-    // validate the IPv4 header checksum) so header_checksum_valid() recomputes to false.
+    // violation the positive forbids; the dissector still reads the frame (it reports the
+    // header checksum, it does not validate it) so header_checksum_valid() recomputes to false.
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,
                          ::tc8::sce::StimulusContext& ctx) {

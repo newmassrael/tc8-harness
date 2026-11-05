@@ -29,8 +29,10 @@
 // The walk records what it found rather than refusing: where the option list ended,
 // whether the padding after an End of Option List was zero, and whether an option ran
 // past the area. None of those make the header unreadable; only a header that cannot
-// be located at all is (fewer bytes than 20, a version other than 4, an IHL below 5 or
-// past the captured bytes).
+// be located at all is (fewer bytes than 20, an IHL below 5 or past the captured bytes).
+// The Version field is reported as it stands: a packet the link layer typed IPv4 with
+// another version is one a case sends on purpose (a DUT must discard it), and the case
+// can only see its own stimulus if the header is read.
 namespace tc8::wire {
 
 inline constexpr std::size_t kIpv4FixedHeaderLen = 20;
@@ -71,8 +73,8 @@ struct Ipv4Header {
 };
 
 // Read the IPv4 header at `p` (`n` bytes available from there). Empty when no header
-// can be located: fewer than 20 bytes, a version other than 4, an IHL below 5, or an
-// IHL that reaches past the `n` bytes.
+// can be located: fewer than 20 bytes, an IHL below 5, or an IHL that reaches past the
+// `n` bytes.
 inline std::optional<Ipv4Header> decodeIpv4Header(const std::uint8_t *p, std::size_t n) {
     if (p == nullptr || n < kIpv4FixedHeaderLen) {
         return std::nullopt;
@@ -80,7 +82,7 @@ inline std::optional<Ipv4Header> decodeIpv4Header(const std::uint8_t *p, std::si
     Ipv4Header h;
     h.version = static_cast<std::uint8_t>(p[0] >> 4);
     h.ihl = static_cast<std::uint8_t>(p[0] & 0x0F);
-    if (h.version != 4 || h.headerLen() < kIpv4FixedHeaderLen || h.headerLen() > n) {
+    if (h.headerLen() < kIpv4FixedHeaderLen || h.headerLen() > n) {
         return std::nullopt;
     }
     h.tos = p[1];

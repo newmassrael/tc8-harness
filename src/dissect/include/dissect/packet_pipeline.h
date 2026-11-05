@@ -10,6 +10,9 @@
 
 #include "tc8/captured_event.h"
 #include "tc8/dissection_stats.h"
+#include "tc8/wire/ethernet_frame.h"
+#include "tc8/wire/ipv4_header.h"
+#include "tc8/wire/tcp_segment.h"
 
 #include "dissect/someip_dispatcher.h"
 
@@ -18,6 +21,11 @@ namespace tc8::dissect {
 // L2 through application-protocol pipeline. Accepts raw libpcap frames
 // with the capture datalink type, decodes whichever protocol the frame
 // carries, and emits a `tc8::CapturedEvent` variant to the listener.
+//
+// Every layer through TCP is read by the harness's own decoders (tc8/wire/,
+// docs/tech-debt.md TD-69), which read every input their RFC allows. libtins
+// is kept only as the TCP stream reassembler for SOME/IP over TCP, and is
+// handed segments built from the decoded fields, not the captured bytes.
 //
 // Each test case registers which `tc8::BpfGroup` bucket it needs; the
 // CLI sets the kernel BPF accordingly so the pipeline only sees the
@@ -151,6 +159,22 @@ private:
     void onNewStream(Tins::TCPIP::Stream &stream);
     void onClientData(Tins::TCPIP::Stream &stream);
     void onServerData(Tins::TCPIP::Stream &stream);
+    // The per-layer dissection of one whole frame, by the harness's own decoders
+    // (tc8/wire/). Each emits its events to the listener, or counts the frame as
+    // undissectable where its header cannot be located.
+    void dissectFrame(const pcap_pkthdr &hdr, const std::uint8_t *bytes, std::uint64_t frame_idx,
+                      std::int64_t observed_ts_us);
+    void dissectIcmp(const pcap_pkthdr &hdr, const std::uint8_t *bytes, std::uint64_t frame_idx,
+                     const ::tc8::wire::Ipv4Header &ip, const std::uint8_t *l4, std::size_t l4_len,
+                     const ::tc8::Dot1QTag &vlan, std::int64_t observed_ts_us);
+    void dissectUdp(const pcap_pkthdr &hdr, const std::uint8_t *bytes, std::uint64_t frame_idx,
+                    const ::tc8::wire::EthernetFrame &eth, const ::tc8::wire::Ipv4Header &ip,
+                    const std::uint8_t *l4, std::size_t l4_len, const ::tc8::Dot1QTag &vlan,
+                    std::int64_t observed_ts_us);
+    void dissectTcp(const pcap_pkthdr &hdr, const std::uint8_t *bytes, std::uint64_t frame_idx,
+                    const ::tc8::wire::Ipv4Header &ip, const std::uint8_t *l4, std::size_t l4_len,
+                    const ::tc8::Dot1QTag &vlan, std::int64_t observed_ts_us);
+    void followTcp(const ::tc8::wire::Ipv4Header &ip, const ::tc8::wire::TcpSegment &tcp);
     void noteUndissectable(const pcap_pkthdr &hdr, const std::uint8_t *bytes, std::uint64_t frame_idx,
                            const char *reason);
 

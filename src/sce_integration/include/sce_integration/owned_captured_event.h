@@ -10,8 +10,9 @@ namespace tc8::sce {
 // A `tc8::CapturedEvent` that owns every byte it points at.
 //
 // A captured event is a VIEW. Six of its seven frame types carry `payload_data` /
-// `options_data` pointers into objects the packet pipeline builds on its stack for
-// one frame — the libtins PDUs of `PacketPipeline::processFrame` — so the event is
+// `options_data` pointers into the bytes the packet pipeline is dissecting for one
+// frame (and, for SOME/IP over TCP, into the stream follower's reassembly buffer) —
+// so the event is
 // valid exactly as long as the callback that delivers it. Every consumer so far
 // has read it inside that callback, and that is why the pointers could stay
 // borrowed.

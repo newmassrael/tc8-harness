@@ -75,8 +75,9 @@ inline constexpr std::uint8_t kIcmpFaultDestUnreachCodeWrong = 0x13; // RFC 1122
 // the arm timing, not the gate.
 inline constexpr std::uint8_t kTcpFaultPureAckNumWrong = 0x14;  // RFC 793 §3.9 ack num: §4.8 HEADER_02/05/06 + ACKNOWLEDGEMENT_02/03 + SEQUENCE_02
 // IPv4 header (§4.4) on a DUT Echo Reply, gated on type 0 like the ttl/checksum flavors.
-// libtins validates only IHL on parse (not version or total_length), so a mutated
-// version nibble / sub-minimum total_length is dissected and the guard reads the field.
+// The dissector needs only a locatable header (IHL), not a valid version or total_length
+// (tc8/wire/ipv4_header.h), so a mutated version nibble / sub-minimum total_length is
+// dissected and the guard reads the field.
 inline constexpr std::uint8_t kIpv4FaultTotalLenWrong = 0x15;  // RFC 791 §3.1 total length: §4.4 IPv4_HEADER_01 (sub-20 minimum)
 inline constexpr std::uint8_t kIpv4FaultVersionWrong  = 0x16;  // RFC 791 §3.1 version:      §4.4 IPv4_VERSION_03 (version nibble != 4)
 // Corrupt the first byte of a DUT Echo Reply's Data region (payload length unchanged) so
@@ -84,10 +85,10 @@ inline constexpr std::uint8_t kIpv4FaultVersionWrong  = 0x16;  // RFC 791 §3.1 
 // 576-octet echo guard, distinct from the truncation half.
 inline constexpr std::uint8_t kIcmpFaultEchoPayloadByteWrong = 0x17;  // RFC 792 echo data: §4.4 IPv4_HEADER_05 (548 B Data echoed verbatim — wrong-bytes half); also §4.4.4.7 REASSEMBLY_11/_13 (reassembled data)
 // Shrink the Echo Reply's IP total_length so the dissected payload carries fewer than the 548
-// echoed Data bytes (libtins slices the inner PDU by total_length) — the truncation half of
+// echoed Data bytes (the dissector bounds the payload by total_length) — the truncation half of
 // the same 576-octet echo guard, distinct from the wrong-bytes half above.
 inline constexpr std::uint8_t kIcmpFaultEchoPayloadTruncate = 0x18;  // RFC 791 §3.1 total length: §4.4 IPv4_HEADER_05 (data truncated)
-// Shrink a DUT TCP DATA segment's IP total_length so libtins re-slices the dissected payload
+// Shrink a DUT TCP DATA segment's IP total_length so the dissector bounds the payload
 // below the spec segment size (the same total_length-truncation as the ICMP echo truncate above,
 // gated on a TCP segment carrying payload) — the guard reads payload_len, which drops off the
 // expected MSS.

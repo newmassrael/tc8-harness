@@ -132,11 +132,10 @@ inline void fillIcmpv4CapturedFromFrame(Icmpv4Captured &c, const Icmpv4Frame &f)
     // so bits [31..24] extract the Pointer byte.
     c.icmp_pointer = static_cast<std::uint8_t>((f.rest_of_header >> 24) & 0xFFU);
     c.payload_len = f.payload_len;
-    // Timestamp slots — dissector copies from libtins's typed accessors
+    // Timestamp slots — the dissector reads them (tc8/wire/icmpv4_message.h)
     // only for type=13/14, so for any other type these remain at 0 and
     // the SCXML guards behave as if the fields didn't exist for that
-    // capture. Forward verbatim — endianness conversion already done
-    // by libtins.
+    // capture. Forward verbatim — read big-endian into host order already.
     c.originate_timestamp = f.originate_timestamp;
     c.receive_timestamp   = f.receive_timestamp;
     c.transmit_timestamp  = f.transmit_timestamp;

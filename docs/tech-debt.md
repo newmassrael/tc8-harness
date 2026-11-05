@@ -4713,7 +4713,7 @@ failure needs the environment, diff the invocations.
 
 ## TD-69 — the capture path still reads every frame through libtins, whose parsers are stricter than the RFCs a tester must accept
 
-**Status:** OPEN. **Logged:** 2026-11-05, from a consumer request: an embedded target's Echo Reply
+**Status:** RESOLVED (2026-11-05), the same day. **Logged:** 2026-11-05, from a consumer request: an embedded target's Echo Reply
 to a request whose IPv4 options end with End of Option List and zero padding was on the wire 122 us
 after the request, and three cases graded it "no reply".
 
@@ -4741,7 +4741,41 @@ every input the RFC allows and recording deviations as facts rather than refusin
 is left only where replacing it buys nothing (TCP stream reassembly for SOME/IP over TCP); the
 RFC 791 padding adapter is then deleted. A golden-pcap corpus of boundary frames (options with
 padding, Record Route and Security options, TCP option lists ending in End of Option List) guards
-each decoder as it is moved.
+each decoder as it is moved. MET as below.
+
+**How it was repaired.** Each layer has its own decoder in `include/tc8/wire/`:
+`ethernet_frame.h` (one 802.1Q tag), `arp_packet.h`, `ipv4_header.h`, `icmpv4_message.h`,
+`udp_datagram.h` and `tcp_segment.h`. Each reads every input it can locate a header in and
+records what deviates (a Version other than 4, a UDP Length that disagrees with what arrived, a
+malformed TCP option list, non-zero IPv4 padding) instead of refusing the frame; it answers
+"nothing" only where the header cannot be located. `PacketPipeline` and the liveness anchor read
+frames through them. libtins is left only for the reassembly of TCP streams carrying SOME/IP, and
+its `StreamFollower` is handed segments built from the decoded fields. The RFC 791 padding adapter
+is deleted. The boundary frames are byte-level unit tests (`wire_decoders_test.cpp`,
+`ipv4_header_test.cpp`, `packet_pipeline_test.cpp`) rather than pcap files. They are inputs
+built byte by byte, so each states the one boundary it guards.
+
+ARP is read at the fixed Ethernet/IPv4 offsets with its two length fields reported, not used to
+place the addresses: a DUT whose only fault is a wrong length field sends the 28-byte layout with
+that byte changed, and the first decoder, which read at the stated lengths, lost ARP_10_NEG,
+ARP_11_NEG and ARP_47_NEG's frames in the differential below.
+
+**Measured 2026-11-05.** `tc8-harness dissect` (one line per event the pipeline hands a case,
+every field and payload) was run over the same pcaps by the libtins pipeline and the new one:
+
+| corpus | pcaps | identical | differing |
+|---|---|---|---|
+| Linux reference DUT, every case (single-pc) | 807 | 799 | 8 |
+| lwIP DUT, the lwIP slice (lwip-tap) | 180 | 173 | 7 |
+| TD-70's retransmission runs (both DUTs) | 8 | 8 | 0 |
+
+In every differing pcap, each added line is a frame libtins could not read, and the new
+pipeline reads it: the tester's own stimuli whose malformation is the point of the case (IPv4
+options, a non-initial fragment, a short UDP Length, a TCP Data Offset or option list), and, in lwIP's
+ICMPv4_TYPE_05_NEG, the DUT's Echo Reply carrying those options back, which libtins dropped as
+malformed. No event the libtins pipeline produced is missing or changed. Those 15 cases,
+IPv4_VERSION_04 and the three ARP NEGs were then rerun with the new pipeline. All 19 ended in
+the same final state as on the libtins pipeline, with no failure and no non-conclusion.
 
 ## TD-70 — the other retransmission-timer cases still grade with windows and thresholds tuned to a Linux sender
 

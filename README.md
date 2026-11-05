@@ -30,7 +30,7 @@ flowchart LR
   subgraph Tester["tester host (Linux)"]
     direction TB
     cap["capture<br/>libpcap (in-kernel BPF)"]
-    dis["dissect<br/>libtins + direct SOME/IP parser"]
+    dis["dissect<br/>own RFC decoders + direct SOME/IP parser<br/>(libtins: TCP reassembly only)"]
     traits["per-case TestCaseTraits&lt;SM&gt;<br/>stimulus(Captured&, cfg, iface)<br/>verdictFor(State) → pass/fail/…"]
     sce["W3C SCXML interpreter (embedded SCE)<br/>cpp:-prefix conds + donedata<br/>&lt;sce:use template&gt; reuse"]
     ut["upper-tester<br/>binary opcodes over UDP:30600"]
@@ -1275,7 +1275,8 @@ an out-of-tree profile can observe and inject single-tagged (C-TAG, TPID
   `Ipv4Frame`, `Icmpv4Frame`, `UdpFrame`, `Dhcpv4Frame`, `TcpFrame`). An
   out-of-tree case's `cpp:` cond reads e.g. `frame.vlan.present` /
   `frame.vlan.vid` / `frame.vlan.pcp`. The inner protocol is decoded
-  whether or not a tag is present (libtins descends through the tag).
+  whether or not a tag is present (the Ethernet decoder reads one tag and
+  the type behind it, `include/tc8/wire/ethernet_frame.h`).
 - **Inject** — `tc8::stimulus::withDot1QTag(frame, pcp, dei, vid)` splices a
   tag into a built Ethernet frame; it composes with `sendRawEthernet`
   unchanged. The wire layout is shared with the decoder

@@ -12,7 +12,7 @@ namespace tc8 {
 //   TPID = 0x8100 (C-TAG). TCI = PCP(3) | DEI(1) | VID(12), big-endian.
 //
 // Single source of truth for the 802.1Q wire contract: BOTH the decode
-// path (`tc8::dissect::PacketPipeline`, via libtins `Dot1Q`) and the
+// path (`tc8::dissect::PacketPipeline`, via tc8/wire/ethernet_frame.h) and the
 // encode path (`tc8::stimulus::withDot1QTag`) reference the constants
 // below, and the round-trip unit test pins encode == decode so the two
 // sides cannot drift.

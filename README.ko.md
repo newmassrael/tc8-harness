@@ -29,7 +29,7 @@ flowchart LR
   subgraph Tester["tester host (Linux)"]
     direction TB
     cap["capture<br/>libpcap (커널 내 BPF)"]
-    dis["dissect<br/>libtins + SOME/IP 자체 파서"]
+    dis["dissect<br/>RFC 기반 자체 디코더 + SOME/IP 자체 파서<br/>(libtins: TCP 재조립만)"]
     traits["케이스별 TestCaseTraits&lt;SM&gt;<br/>stimulus(Captured&, cfg, iface)<br/>verdictFor(State) → pass/fail/…"]
     sce["W3C SCXML 인터프리터 (내장 SCE)<br/>cpp:- 접두 cond + donedata<br/>&lt;sce:use template&gt; 재사용"]
     ut["upper-tester<br/>UDP:30600 바이너리 opcode"]
@@ -953,7 +953,8 @@ VLAN-투명합니다:
   (`ArpFrame`/`Ipv4Frame`/`Icmpv4Frame`/`UdpFrame`/`Dhcpv4Frame`/`TcpFrame`)에
   `Dot1QTag vlan` 필드로 노출합니다. out-of-tree 케이스의 `cpp:` cond가
   `frame.vlan.present`/`frame.vlan.vid`/`frame.vlan.pcp`를 읽습니다. 내부
-  프로토콜은 태그 유무와 무관하게 디코드됩니다(libtins가 태그를 관통).
+  프로토콜은 태그 유무와 무관하게 디코드됩니다(Ethernet 디코더가 태그 하나와 그 뒤의
+  타입을 읽음, `include/tc8/wire/ethernet_frame.h`).
 - **주입** — `tc8::stimulus::withDot1QTag(frame, pcp, dei, vid)`가 빌드된
   이더넷 프레임에 태그를 splice하며 `sendRawEthernet`과 그대로 합성됩니다.
   와이어 레이아웃은 디코더와 공유되고(`include/tc8/protocol_frames/dot1q_tag.h`)

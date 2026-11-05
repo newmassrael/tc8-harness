@@ -1,20 +1,16 @@
 #include "dissect/packet_pipeline.h"
 
 #include <algorithm>
-#include <cstring>
 #include <cstddef>
+#include <cstring>
 #include <exception>
+#include <optional>
 #include <stdexcept>
-#include <vector>
+#include <string>
 
-#include <tins/arp.h>
-#include <tins/dot1q.h>
-#include <tins/ethernetII.h>
-#include <tins/icmp.h>
 #include <tins/ip.h>
 #include <tins/rawpdu.h>
 #include <tins/tcp.h>
-#include <tins/udp.h>
 
 #include "tc8/protocol_frames/arp_frame.h"
 #include "tc8/protocol_frames/dhcpv4_frame.h"
@@ -25,112 +21,100 @@
 #include "tc8/stimulus_marker.h"
 
 #include "sce_integration/dhcpv4_wire.h"
+#include "tc8/wire/arp_packet.h"
+#include "tc8/wire/ethernet_frame.h"
+#include "tc8/wire/icmpv4_message.h"
 #include "tc8/wire/ip_checksum.h"  // tc8::wire::tcpChecksumValid (RFC 793 pseudo-header SSOT)
-#include "tc8/wire/ipv4_header.h"  // tc8::wire::decodeIpv4Header (the RFC 791 options walk)
-#include "tc8/wire/wire_read.h"
+#include "tc8/wire/ipv4_header.h"
+#include "tc8/wire/tcp_segment.h"
+#include "tc8/wire/udp_datagram.h"
+
+// The frame is read by the harness's own decoders (tc8/wire/, docs/tech-debt.md TD-69):
+// Ethernet and one 802.1Q tag, ARP, IPv4 with its options, ICMPv4, UDP and TCP with its
+// options. Each reads every input its standard allows and records deviations instead of
+// refusing them; a frame is undissectable only where a header cannot be located at all.
+// Until 2026-11-05 every layer went through libtins, whose parsers are stricter than the
+// RFCs (an IPv4 options area ending in End of Option List and padding was refused), and
+// a refused frame vanished: a reply on the wire read as "no reply".
+//
+// libtins remains for one job, the reassembly of TCP streams that carry SOME/IP
+// (Tins::TCPIP::StreamFollower). It is handed a segment BUILT from the fields this file
+// decoded, never the captured bytes, so its parsers no longer decide what was observed.
 
 namespace tc8::dissect {
 
-using namespace Tins;
-
 namespace {
+
+constexpr std::uint8_t kIpProtoIcmp = 1;
+constexpr std::uint8_t kIpProtoTcp = 6;
+constexpr std::uint8_t kIpProtoUdp = 17;
 
 // The carrying IPv4 header's TOS, TTL, Identification, flags and fragment offset, read
 // once per packet and copied into every L4 frame the packet yields. The one site that
 // moves these fields, so a new L4 frame cannot carry some of them and forget the rest.
-::tc8::Ipv4Envelope ipv4EnvelopeFrom(const IP &ip) {
+::tc8::Ipv4Envelope ipv4EnvelopeFrom(const ::tc8::wire::Ipv4Header &ip) {
     ::tc8::Ipv4Envelope env{};
-    env.ip_tos = static_cast<std::uint8_t>(ip.tos());
-    env.ip_ttl = ip.ttl();
-    env.ip_identification = ip.id();
-    env.ip_flags = static_cast<std::uint8_t>(ip.flags());
-    env.ip_fragment_offset = ip.fragment_offset();
+    env.ip_tos = ip.tos;
+    env.ip_ttl = ip.ttl;
+    env.ip_identification = ip.identification;
+    env.ip_flags = ip.flags;
+    env.ip_fragment_offset = ip.fragment_offset;
     return env;
 }
 
-// Extract the IEEE 802.1Q tag from a captured Ethernet frame, if any.
-// Single decode site for the VLAN wire contract — every frame variant
-// the pipeline emits copies the result, so the tag is read exactly once
-// per frame and the meaning of each TCI field lives in one place.
-// `EthernetII::find_pdu<Dot1Q>()` returns null on untagged frames, which
-// leaves the default (`present == false`) tag. libtins recognises only
-// TPID 0x8100 as `Dot1Q`, so a present tag is always a C-TAG; QinQ
-// (0x88a8 S-TAG) is out of scope for this single-tag surface.
-::tc8::Dot1QTag dot1qTagFrom(const EthernetII &eth) {
+// The frame's IEEE 802.1Q tag, if any: the single decode site for the VLAN wire
+// contract, copied into every frame variant the pipeline emits. A present tag is always
+// a C-TAG (TPID 0x8100); QinQ (0x88a8 S-TAG) is out of scope for this single-tag surface.
+::tc8::Dot1QTag dot1qTagFrom(const ::tc8::wire::EthernetFrame &eth) {
     ::tc8::Dot1QTag tag{};
-    if (const Dot1Q *q = eth.find_pdu<Dot1Q>()) {
+    if (eth.dot1q) {
         tag.present = true;
         tag.tpid = ::tc8::kDot1QTpid;
-        tag.pcp  = static_cast<std::uint8_t>(static_cast<unsigned>(q->priority()));
-        tag.dei  = static_cast<unsigned>(q->cfi()) != 0U;
-        tag.vid  = static_cast<std::uint16_t>(static_cast<unsigned>(q->id()));
+        tag.pcp = eth.dot1q->pcp;
+        tag.dei = eth.dot1q->dei;
+        tag.vid = eth.dot1q->vid;
     }
     return tag;
 }
 
 // Does this packet belong to the harness's own DUT-control channel?
 //
-// Identity is the transport port on either end: a control exchange is a request
-// TO the DUT's control port and a response FROM it, so one comparison per
-// direction covers both halves without needing to know which side the tester is.
-// Both transports are asked because the seam's two backends are free to differ
-// (`TestabilityConfig::use_tcp`), and a backend that switches transport must not
-// silently reopen the grading hole.
+// Identity is the transport port on either end: a control exchange is a request TO the
+// DUT's control port and a response FROM it, so one comparison per direction covers both
+// halves without needing to know which side the tester is. Both transports are asked
+// because the seam's two backends are free to differ (`TestabilityConfig::use_tcp`), and a
+// backend that switches transport must not silently reopen the grading hole. A fragment
+// carries no transport header to ask.
 //
-// See `PacketPipeline::setControlPlanePort` for why the answer is taken once per
-// packet rather than per emitted event.
-bool isControlPlanePacket(const EthernetII &eth, std::uint16_t port) {
-    if (const UDP *udp = eth.find_pdu<UDP>()) {
-        return udp->sport() == port || udp->dport() == port;
+// See `PacketPipeline::setControlPlanePort` for why the answer is taken once per packet
+// rather than per emitted event.
+bool isControlPlanePacket(const ::tc8::wire::Ipv4Header &ip, const std::uint8_t *l4, std::size_t l4_len,
+                          bool fragmented, std::uint16_t port) {
+    if (fragmented) {
+        return false;
     }
-    if (const TCP *tcp = eth.find_pdu<TCP>()) {
-        return tcp->sport() == port || tcp->dport() == port;
+    if (ip.protocol == kIpProtoUdp) {
+        if (const auto udp = ::tc8::wire::decodeUdp(l4, l4_len)) {
+            return udp->src_port == port || udp->dst_port == port;
+        }
+    } else if (ip.protocol == kIpProtoTcp) {
+        if (const auto tcp = ::tc8::wire::decodeTcp(l4, l4_len)) {
+            return tcp->src_port == port || tcp->dst_port == port;
+        }
     }
     return false;
 }
 
-// The frame as libtins can read it: `bytes` itself, or a copy in `scratch` whose IPv4
-// options padding is rewritten.
-//
-// libtins refuses an IPv4 options area whose End of Option List is not its last byte
-// (it throws `malformed_packet`), which is the normal RFC 791 §3.1 shape of every
-// options area that does not fill a multiple of four bytes by itself: the list ends
-// with End of Option List and zero padding follows to the 32-bit boundary. The header
-// is read with the harness's own RFC 791 walk (tc8/wire/ipv4_header.h), which finds a
-// real End of Option List and not a zero byte inside another option's data; when it
-// finds one before the end of the area, the copy carries No-Operation options from
-// there on. RFC 791 gives both the same meaning (no further options), and nothing
-// libtins reports changes: the Total Length, IHL and header checksum fields are the
-// captured ones, and the harness reads no option out of libtins. A header the walk
-// cannot read, or whose options run past the area, is left as it is for libtins to
-// refuse, and is counted as undissectable.
-const std::uint8_t *libtinsReadableFrame(const std::uint8_t *bytes, std::size_t caplen,
-                                         std::vector<std::uint8_t> &scratch) {
-    constexpr std::size_t kEthHeaderLen = 14;
-    constexpr std::size_t kDot1QTagLen = 4;
-    constexpr std::uint16_t kEtherTypeIpv4 = 0x0800;
-    if (caplen < kEthHeaderLen) {
-        return bytes;
+// How many bytes of the datagram's payload arrived: what its Total Length says, unless
+// fewer arrived (the capture holds what the wire carried) or the field is below the
+// header (0 under segmentation offload, or a malformed value), when it is what arrived.
+std::size_t ipv4PayloadLen(const ::tc8::wire::Ipv4Header &ip, std::size_t arrived) {
+    const std::size_t header = ip.headerLen();
+    const std::size_t after_header = arrived - header;
+    if (ip.total_length < header) {
+        return after_header;
     }
-    std::size_t l3 = kEthHeaderLen;
-    auto ether_type = static_cast<std::uint16_t>(::tc8::wire::readBe(bytes + 12, 2));
-    // One 802.1Q tag, the depth libtins itself descends (dot1qTagFrom above).
-    if (ether_type == ::tc8::kDot1QTpid && caplen >= kEthHeaderLen + kDot1QTagLen) {
-        ether_type = static_cast<std::uint16_t>(::tc8::wire::readBe(bytes + 16, 2));
-        l3 += kDot1QTagLen;
-    }
-    if (ether_type != kEtherTypeIpv4) {
-        return bytes;
-    }
-    const auto ip = ::tc8::wire::decodeIpv4Header(bytes + l3, caplen - l3);
-    if (!ip || !ip->end_of_list_at || *ip->end_of_list_at + 1 == ip->headerLen()) {
-        return bytes;
-    }
-    scratch.assign(bytes, bytes + caplen);
-    std::fill(scratch.begin() + static_cast<std::ptrdiff_t>(l3 + *ip->end_of_list_at),
-              scratch.begin() + static_cast<std::ptrdiff_t>(l3 + ip->headerLen()),
-              ::tc8::wire::kIpv4OptNoOperation);
-    return scratch.data();
+    return std::min<std::size_t>(ip.total_length - header, after_header);
 }
 
 // What the listener threw, re-raised under a type of its own so `processFrame` can
@@ -156,7 +140,7 @@ PacketPipeline::PacketPipeline(Listener listener)
               throw ConsumerFault("the listener threw a non-standard exception");
           }
       }) {
-    follower_.new_stream_callback([this](TCPIP::Stream &s) { onNewStream(s); });
+    follower_.new_stream_callback([this](Tins::TCPIP::Stream &s) { onNewStream(s); });
 }
 
 void PacketPipeline::noteUndissectable(const pcap_pkthdr &hdr, const std::uint8_t *bytes,
@@ -178,12 +162,12 @@ void PacketPipeline::noteUndissectable(const pcap_pkthdr &hdr, const std::uint8_
     }
 }
 
-void PacketPipeline::onNewStream(TCPIP::Stream &s) {
-    s.client_data_callback([this](TCPIP::Stream &st) { onClientData(st); });
-    s.server_data_callback([this](TCPIP::Stream &st) { onServerData(st); });
+void PacketPipeline::onNewStream(Tins::TCPIP::Stream &s) {
+    s.client_data_callback([this](Tins::TCPIP::Stream &st) { onClientData(st); });
+    s.server_data_callback([this](Tins::TCPIP::Stream &st) { onServerData(st); });
 }
 
-void PacketPipeline::onClientData(TCPIP::Stream &s) {
+void PacketPipeline::onClientData(Tins::TCPIP::Stream &s) {
     auto &payload = s.client_payload();
     if (payload.empty()) {
         return;
@@ -199,7 +183,7 @@ void PacketPipeline::onClientData(TCPIP::Stream &s) {
     payload.clear();
 }
 
-void PacketPipeline::onServerData(TCPIP::Stream &s) {
+void PacketPipeline::onServerData(Tins::TCPIP::Stream &s) {
     auto &payload = s.server_payload();
     if (payload.empty()) {
         return;
@@ -231,393 +215,22 @@ void PacketPipeline::processFrame(const pcap_pkthdr &hdr, const std::uint8_t *by
         ++stats_.frames_truncated;
         return;
     }
-    // Wall-clock arrival timestamp normalised to microseconds for
-    // every Frame variant. Live capture path uses libpcap's default
-    // PCAP_TSTAMP_PRECISION_MICRO so `tv_usec` is already in µs;
-    // offline replay uses NANO precision and we divide by 1000. The
-    // `tstamp_precision_` member is wired by the CLI via
-    // `PacketPipeline::setTstampPrecision` once at construction.
+    // Wall-clock arrival timestamp normalised to microseconds for every Frame variant.
+    // The live capture path uses libpcap's default PCAP_TSTAMP_PRECISION_MICRO so
+    // `tv_usec` is already in µs; offline replay uses NANO precision and we divide by
+    // 1000. `tstamp_precision_` is wired by the CLI via setTstampPrecision.
     const std::int64_t ts_subsec_us =
         tstamp_precision_ == PCAP_TSTAMP_PRECISION_NANO
             ? static_cast<std::int64_t>(hdr.ts.tv_usec) / 1000LL
             : static_cast<std::int64_t>(hdr.ts.tv_usec);
     const std::int64_t observed_ts_us =
-        static_cast<std::int64_t>(hdr.ts.tv_sec) * 1'000'000LL +
-        ts_subsec_us;
-    // Make the arrival stamp reachable from the TCP follower callbacks:
-    // onClientData / onServerData fire synchronously inside the
-    // follower_.process_packet(eth) call below and read this member to stamp the
-    // reassembled Transport (the UDP path sets t.observed_ts_us inline instead).
+        static_cast<std::int64_t>(hdr.ts.tv_sec) * 1'000'000LL + ts_subsec_us;
+    // Make the arrival stamp reachable from the TCP follower callbacks: onClientData /
+    // onServerData fire synchronously inside follower_.process_packet below and read this
+    // member to stamp the reassembled Transport (the UDP path sets it inline instead).
     last_packet_ts_us_ = observed_ts_us;
     try {
-        std::vector<std::uint8_t> rfc791_view;
-        EthernetII eth(libtinsReadableFrame(bytes, hdr.caplen, rfc791_view), hdr.caplen);
-
-        // IEEE 802.1Q tag (if any), decoded once and copied into every
-        // frame variant emitted below. libtins's `find_pdu<>` descends
-        // through the Dot1Q layer transparently, so the ARP/IP/ICMP/UDP/
-        // TCP lookups already see tagged inner PDUs; this only adds the
-        // tag itself as an observable field.
-        const ::tc8::Dot1QTag vlan = dot1qTagFrom(eth);
-
-        // ARP §4.2 — no IP layer to descend into. Build the ArpFrame directly
-        // from the libtins ARP PDU and hand it to the listener as a variant.
-        if (const ARP *arp = eth.find_pdu<ARP>()) {
-            ::tc8::ArpFrame af{};
-            af.hw_type = arp->hw_addr_format();
-            af.proto_type = arp->prot_addr_format();
-            af.hw_addr_len = arp->hw_addr_length();
-            af.proto_addr_len = arp->prot_addr_length();
-            af.opcode = arp->opcode();
-            const auto sender_hw = arp->sender_hw_addr();
-            const auto target_hw = arp->target_hw_addr();
-            std::copy(sender_hw.begin(), sender_hw.end(), af.sender_hw.begin());
-            std::copy(target_hw.begin(), target_hw.end(), af.target_hw.begin());
-            af.sender_proto_ip = static_cast<std::uint32_t>(arp->sender_ip_addr());
-            af.target_proto_ip = static_cast<std::uint32_t>(arp->target_ip_addr());
-            const auto eth_src = eth.src_addr();
-            const auto eth_dst = eth.dst_addr();
-            std::copy(eth_src.begin(), eth_src.end(), af.eth_src.begin());
-            std::copy(eth_dst.begin(), eth_dst.end(), af.eth_dst.begin());
-            af.observed_ts_us = observed_ts_us;
-            af.vlan = vlan;
-            listener_(::tc8::CapturedEvent{af});
-            return;
-        }
-
-        // The harness's own control channel is not traffic under test. Decided
-        // once, here, so that EVERY alternative this packet would fan out into
-        // (Ipv4Frame, UdpFrame, TcpFrame, ...) is withheld together — see
-        // `setControlPlanePort`. Sits after the ARP branch because ARP carries no
-        // transport port and so can never be classified by this rule; the comment
-        // on the setter states what that leaves uncovered.
-        if (control_plane_port_ != 0 && isControlPlanePacket(eth, control_plane_port_)) {
-            ++control_plane_frames_;
-            // Withheld as a frame, but if it acknowledges a stimulus step, the
-            // step's name is delivered here — in capture order, which is the only
-            // place its position means anything (tc8/stimulus_marker.h).
-            if (marker_listener_) {
-                if (auto name = ::tc8::StimulusMarkers::take(bytes, hdr.caplen)) {
-                    marker_listener_(*name);
-                }
-            }
-            return;
-        }
-
-        const IP *ip = eth.find_pdu<IP>();
-        if (ip == nullptr) {
-            return;  // IPv6/etc. — ignore
-        }
-
-        // §4.4 IPv4 header — emit one Ipv4Frame event per IPv4 packet so
-        // field-level cases (HEADER, CHECKSUM, TTL, VERSION, ADDRESSING)
-        // can observe the header independently of whatever inner
-        // protocol the frame carries. Falls through to the ICMP/UDP/TCP
-        // branches below; listeners that only care about those inner
-        // variants ignore the Ipv4Frame alternative via std::get_if.
-        // Options region is left nullptr — libtins parses options into a
-        // vector of IP::option, not a raw byte range. §4.4 has no OPTIONS
-        // subsection in TC8 v3.0 (IPv4_OPTIONS_01..14 deleted V2→V3); if
-        // an ICMPv4 consumer carrying IP options in the stimulus (e.g.
-        // ICMPv4_TYPE_05 / ERROR_02/03/04) ever needs byte-level
-        // observation, serialise on demand rather than point at
-        // `ip->options()` internals.
-        {
-            ::tc8::Ipv4Frame ipf{};
-            ipf.version         = static_cast<std::uint8_t>(ip->version());
-            ipf.ihl             = static_cast<std::uint8_t>(ip->head_len());
-            ipf.tos             = static_cast<std::uint8_t>(ip->tos());
-            ipf.total_length    = ip->tot_len();
-            ipf.identification  = ip->id();
-            ipf.flags           = static_cast<std::uint8_t>(ip->flags());
-            ipf.fragment_offset = ip->fragment_offset();
-            ipf.ttl             = ip->ttl();
-            ipf.protocol        = ip->protocol();
-            ipf.header_checksum = ip->checksum();
-            ipf.src_addr        = static_cast<std::uint32_t>(ip->src_addr());
-            ipf.dst_addr        = static_cast<std::uint32_t>(ip->dst_addr());
-            ipf.observed_ts_us  = observed_ts_us;
-            ipf.vlan            = vlan;
-            listener_(::tc8::CapturedEvent{ipf});
-        }
-
-        // ICMPv4 §4.3 — emit one Icmpv4Frame event per frame so Echo /
-        // Timestamp cases can observe Type/Code/Id/Seq directly. Branch
-        // sits before UDP so the kernel's ICMP traffic never falls
-        // through to the SOME/IP port-range dispatcher. Tins's ICMP
-        // PDU already exposes `id()` / `sequence()` decoded from the
-        // rest-of-header; we pack them back into a 32-bit value so the
-        // frame struct matches the RFC 792 wire layout.
-        if (const ICMP *icmp = eth.find_pdu<ICMP>()) {
-            ::tc8::Icmpv4Frame icf{};
-            icf.src_ip   = static_cast<std::uint32_t>(ip->src_addr());
-            icf.dst_ip   = static_cast<std::uint32_t>(ip->dst_addr());
-            icf.type     = static_cast<std::uint8_t>(icmp->type());
-            icf.code     = icmp->code();
-            icf.checksum = icmp->checksum();
-            icf.rest_of_header =
-                (static_cast<std::uint32_t>(icmp->id()) << 16) |
-                 static_cast<std::uint32_t>(icmp->sequence());
-            if (const RawPDU *raw = icmp->find_pdu<RawPDU>()) {
-                const auto &body = raw->payload();
-                icf.payload_data = body.data();
-                icf.payload_len  = static_cast<std::uint32_t>(body.size());
-            }
-            // RFC 792 p17 ICMP Timestamp / Timestamp Reply (type=13/14)
-            // — libtins parses the three 32-bit timestamp slots into
-            // first-class accessors (orig_timestamp_or_address_mask_,
-            // recv_timestamp_, trans_timestamp_) rather than into a
-            // RawPDU child, so the timestamp slots are reachable only
-            // via the typed getters here. Other types reuse those bytes
-            // for unrelated semantics (Address Mask, etc.); narrow the
-            // copy to the two timestamp-bearing types so non-timestamp
-            // captures land at default 0 instead of carrying a
-            // misinterpreted slot value.
-            //
-            // Endian fixup: libtins's `ICMP(buffer, total_sz)` parser
-            // calls `original_timestamp(stream.read<uint32_t>())` which
-            // performs a native-order memcpy of the 4 wire bytes
-            // (i.e., LE interpretation on x86) and then the setter
-            // applies `host_to_be` before storing. The corresponding
-            // getter returns `be_to_host(stored)` which on LE yields
-            // the wire bytes interpreted as little-endian — NOT the
-            // RFC 792 "ms since midnight UT" semantic uint32 (which is
-            // the big-endian decoding of the wire bytes). Applying
-            // `Endian::be_to_host` once more here reverses libtins's
-            // half-conversion so the captured field carries the
-            // semantic uint32 in host order, matching the literal the
-            // tester injected via `kIcmpTimestampOriginate`. On big-
-            // endian hosts both `be_to_host` calls are no-ops and the
-            // value passes through unchanged.
-            if (icmp->type() == ICMP::TIMESTAMP_REQUEST ||
-                icmp->type() == ICMP::TIMESTAMP_REPLY) {
-                icf.originate_timestamp =
-                    Tins::Endian::be_to_host(icmp->original_timestamp());
-                icf.receive_timestamp   =
-                    Tins::Endian::be_to_host(icmp->receive_timestamp());
-                icf.transmit_timestamp  =
-                    Tins::Endian::be_to_host(icmp->transmit_timestamp());
-            }
-            icf.observed_ts_us = observed_ts_us;
-            icf.vlan = vlan;
-            listener_(::tc8::CapturedEvent{icf});
-            return;
-        }
-
-        if (const UDP *udp = eth.find_pdu<UDP>()) {
-            // RFC 768 wire-legal UDP can carry zero payload (Length=8 =
-            // header only). libtins does not attach a `RawPDU` child in
-            // that case, so the per-payload pointer/length pair must
-            // tolerate a null body — the §4.6.5.4 UDP_FIELDS_07 spec
-            // ("Total Length, no data") observes a DUT-emitted 8 B UDP,
-            // which would never reach the SCXML if we returned early.
-            // Downstream Dhcpv4/SomeIp dispatch already skips on length
-            // gates; keeping `body_data` nullable lets every consumer
-            // see the encapsulating UDP shape regardless of payload
-            // presence.
-            const RawPDU *raw = udp->find_pdu<RawPDU>();
-            const std::uint8_t *body_data = nullptr;
-            std::size_t         body_size = 0;
-            if (raw != nullptr) {
-                const auto &body = raw->payload();
-                body_data = body.data();
-                body_size = body.size();
-            }
-
-            // Emit a UdpFrame event for every UDP datagram so cross-protocol
-            // cases (e.g. §4.2 ARP_04/06 watching DUT Nack's Eth destination)
-            // can observe the encapsulating layer. The SomeIp dispatcher is
-            // invoked afterwards on the same payload — listeners that only
-            // care about SomeIp ignore the UdpFrame variant via std::get_if.
-            ::tc8::UdpFrame uf{};
-            static_cast<::tc8::Ipv4Envelope &>(uf) = ipv4EnvelopeFrom(*ip);
-            uf.src_ip = static_cast<std::uint32_t>(ip->src_addr());
-            uf.dst_ip = static_cast<std::uint32_t>(ip->dst_addr());
-            uf.src_port = udp->sport();
-            uf.dst_port = udp->dport();
-            uf.length = udp->length();
-            uf.checksum = udp->checksum();
-            const auto eth_src = eth.src_addr();
-            const auto eth_dst = eth.dst_addr();
-            std::copy(eth_src.begin(), eth_src.end(), uf.eth_src.begin());
-            std::copy(eth_dst.begin(), eth_dst.end(), uf.eth_dst.begin());
-            uf.payload_data = body_data;
-            uf.payload_len = static_cast<std::uint32_t>(body_size);
-            uf.observed_ts_us = observed_ts_us;
-            uf.vlan = vlan;
-            listener_(::tc8::CapturedEvent{uf});
-
-            // §4.7 DHCPv4 — emit one Dhcpv4Frame per BOOTP-shaped UDP
-            // datagram on the client/server port pair. The pre-flight
-            // gate is `(src_port|dst_port) ∈ {67,68}` plus a length and
-            // magic-cookie check on the payload; non-DHCP traffic on
-            // those ports (rare in practice) is silently skipped so a
-            // malformed packet never raises a Dhcpv4 event. RFC 2131
-            // fixes the BOOTP fixed-body length at 240 B — anything
-            // shorter cannot carry the magic cookie at offset 236.
-            const bool dhcp_port = ::tc8::isDhcpPortPair(uf.src_port, uf.dst_port);
-            if (dhcp_port && body_data != nullptr &&
-                body_size >= ::tc8::dhcpv4_wire::kOptionsOff) {
-                const std::uint8_t* bp = body_data;
-                ::tc8::Dhcpv4Frame df{};
-                df.eth_src = uf.eth_src;
-                df.eth_dst = uf.eth_dst;
-                df.src_ip = uf.src_ip;
-                df.dst_ip = uf.dst_ip;
-                static_cast<::tc8::Ipv4Envelope &>(df) = uf;  // the datagram's own IPv4 header
-                df.vlan = uf.vlan;  // L2 tag inherited from the carrying frame
-                df.src_port = uf.src_port;
-                df.dst_port = uf.dst_port;
-                // BOOTP fixed-header offsets (op..chaddr) + the magic cookie
-                // are owned by dhcpv4_wire.def (TD-02 SSOT); the options TLV
-                // walk below has no fixed offsets and stays hand-decoded.
-                ::tc8::dhcpv4_wire::decodeBootpFixedHeader(bp, df);
-                df.magic_cookie_valid = ::tc8::dhcpv4_wire::magicCookieValid(bp);
-                if (df.magic_cookie_valid &&
-                    body_size > ::tc8::dhcpv4_wire::kOptionsOff) {
-                    df.options_data = bp + ::tc8::dhcpv4_wire::kOptionsOff;
-                    df.options_len  = static_cast<std::uint32_t>(
-                        body_size - ::tc8::dhcpv4_wire::kOptionsOff);
-                    // Walk the TLV chain to locate option 53 (Message
-                    // Type) and detect the 0xFF END terminator. RFC 2132
-                    // RFC 2132 §9.6 fixes len=1 for option 53. Pad option (0)
-                    // and END (255) are length-less; every other code
-                    // is followed by a 1-byte length. Stop on END or
-                    // first malformed length to keep the parser safe
-                    // against truncated wire input.
-                    std::uint32_t i = 0;
-                    bool saw_end = false;
-                    while (i < df.options_len) {
-                        const std::uint8_t code = df.options_data[i];
-                        if (code == 0xFFU) {
-                            saw_end = true;
-                            break;
-                        }
-                        if (code == 0x00U) {
-                            // Pad — single byte, no length follows.
-                            ++i;
-                            continue;
-                        }
-                        if (i + 1U >= df.options_len) break;
-                        const std::uint8_t opt_len = df.options_data[i + 1];
-                        if (i + 2U + opt_len > df.options_len) break;
-                        if (code == 53U && opt_len == 1U) {
-                            df.message_type_option_present = true;
-                            df.message_type = df.options_data[i + 2];
-                        }
-                        i = i + 2U + opt_len;
-                    }
-                    df.last_option_is_end = saw_end;
-                }
-                df.observed_ts_us = observed_ts_us;
-                listener_(::tc8::CapturedEvent{df});
-            }
-
-            // The transport dispatcher (SomeIp etc.) is a no-op on a
-            // null body; skip the call rather than handing it
-            // (nullptr, 0) to keep the contract obvious.
-            if (body_data != nullptr) {
-                Transport t{};
-                t.proto = Transport::Proto::Udp;
-                t.src_ip = uf.src_ip;
-                t.dst_ip = uf.dst_ip;
-                t.src_port = uf.src_port;
-                t.dst_port = uf.dst_port;
-                t.observed_ts_us = observed_ts_us;
-                dispatcher_.deliver(t, body_data, body_size, listener_);
-            }
-            return;
-        }
-
-        // §4.8 TCP — emit one TcpFrame per segment so BASICS cases can
-        // observe RFC 793 Control Bits / SEQ / ACK directly. Runs BEFORE
-        // the stream follower so segment-level visibility is preserved;
-        // the follower still runs afterwards for SOME/IP-over-TCP
-        // dispatch that reassembles app-layer payloads. The two paths
-        // consume the same bytes but surface distinct views — §4.8.6.1
-        // BASICS traits use `std::get_if<TcpFrame>`, SOME/IP dispatches
-        // on reassembled `Transport{Tcp, ...}` via the follower
-        // callbacks. No double-listener conflict: a case watches one
-        // or the other, not both.
-        if (const TCP *tcp = eth.find_pdu<TCP>()) {
-            ::tc8::TcpFrame tf{};
-            static_cast<::tc8::Ipv4Envelope &>(tf) = ipv4EnvelopeFrom(*ip);
-            tf.src_ip      = static_cast<std::uint32_t>(ip->src_addr());
-            tf.dst_ip      = static_cast<std::uint32_t>(ip->dst_addr());
-            tf.src_port    = tcp->sport();
-            tf.dst_port    = tcp->dport();
-            tf.seq_num     = tcp->seq();
-            tf.ack_num     = tcp->ack_seq();
-            tf.data_offset = static_cast<std::uint8_t>(tcp->data_offset());
-            // libtins `flags()` returns small_uint<12> covering CWR/ECE
-            // + reserved + URG/ACK/PSH/RST/SYN/FIN. §4.8.6.1 only
-            // observes the low 6 bits (classic Control Bits); truncate
-            // to the uint8_t field — ECN bits are discarded but no
-            // current case reads them. A future ECN test would widen
-            // `TcpFrame::flags` and adjust here.
-            tf.flags       = static_cast<std::uint8_t>(tcp->flags() & 0xFFU);
-            tf.window      = tcp->window();
-            tf.checksum    = tcp->checksum();
-            tf.urgent_pointer = tcp->urg_ptr();
-            // MSS parsed if advertised (SYN segments only by convention).
-            // libtins's `TCP::mss()` returns the BE-decoded uint16 or
-            // throws `option_not_found` when the segment carries no
-            // kind=2 option. Manual `search_option(MSS).length_field()`
-            // is unreliable: PDUOption::length_field() returns the
-            // option's *data* length (2 B for MSS) not the wire length
-            // (4 B with kind+length prefix).
-            try {
-                tf.mss = tcp->mss();
-            } catch (const std::exception &) {
-                // Option absent or malformed: leave mss = 0.
-            }
-            if (const RawPDU *raw = tcp->find_pdu<RawPDU>()) {
-                const auto &body = raw->payload();
-                tf.payload_data = body.data();
-                tf.payload_len  = static_cast<std::uint32_t>(body.size());
-            }
-            // RFC 793 §3.1 pseudo-header checksum, validated through the shared
-            // tc8::wire::tcpChecksumValid SSOT (the same RFC 1071 fold the segment
-            // builder uses). Reads bytes directly from the captured frame — Eth
-            // (14 B) + IPv4 (variable) + TCP region are contiguous, pcap on veth
-            // carries no FCS, and the IPv4 Total Length bounds the TCP region so any
-            // L2 trailer padding stays out of the sum. §4.8.6.2 TCP_CHECKSUM_03
-            // reads tf.checksum_valid to verify the DUT's sender-side checksum.
-            // This is the sole checksum implementation now that the site no
-            // longer re-decodes the wire in Python. See docs/tech-debt.md TD-04
-            // (resolved by TD-05).
-            tf.checksum_valid = false;
-            const std::uint16_t ip_total_len = ip->tot_len();
-            const std::uint16_t ip_hdr_len   =
-                static_cast<std::uint16_t>(ip->head_len() * 4U);
-            constexpr std::size_t kEthHdrLen = 14U;
-            if (ip_total_len >= ip_hdr_len &&
-                static_cast<std::size_t>(kEthHdrLen) + ip_total_len <= hdr.caplen) {
-                const std::uint16_t tcp_seg_len =
-                    static_cast<std::uint16_t>(ip_total_len - ip_hdr_len);
-                const std::uint8_t *ip_hdr  = bytes + kEthHdrLen;
-                const std::uint8_t *tcp_seg = ip_hdr + ip_hdr_len;
-                // src/dst IP bytes (NBO) live at IP header offsets 12..15 / 16..19;
-                // copy them into *_be values whose memory is NBO (the convention
-                // tcpChecksumValid reads). The segment carries its checksum field
-                // in place, exactly what the verification form expects.
-                std::uint32_t src_be = 0;
-                std::uint32_t dst_be = 0;
-                std::memcpy(&src_be, ip_hdr + 12, 4);
-                std::memcpy(&dst_be, ip_hdr + 16, 4);
-                tf.checksum_valid =
-                    ::tc8::wire::tcpChecksumValid(src_be, dst_be, tcp_seg, tcp_seg_len);
-            }
-            // Wall-clock arrival timestamp normalised at function
-            // top from `hdr.ts`; same value mirrored into every
-            // emitted Frame variant for cross-protocol timing.
-            tf.observed_ts_us = observed_ts_us;
-            tf.vlan = vlan;
-            listener_(::tc8::CapturedEvent{tf});
-
-            follower_.process_packet(eth);
-            return;
-        }
+        dissectFrame(hdr, bytes, frame_idx, observed_ts_us);
     } catch (const ConsumerFault &e) {
         // The frame was read; the case's own code failed on it.
         ++stats_.consumer_faults;
@@ -626,13 +239,310 @@ void PacketPipeline::processFrame(const pcap_pkthdr &hdr, const std::uint8_t *by
             stats_.first_consumer_fault_reason = e.what();
         }
     } catch (const std::exception &e) {
-        // A decoder could not read the frame. It is not dissected further, and it is
-        // counted: a frame that vanished here without a count turned a reply on the
-        // wire into "no reply" (tc8/dissection_stats.h).
+        // The SOME/IP dispatcher or the stream follower could not handle what the
+        // decoders read. Counted like a frame no decoder could read: an event the case
+        // might have needed was not delivered.
         noteUndissectable(hdr, bytes, frame_idx, e.what());
     } catch (...) {
-        noteUndissectable(hdr, bytes, frame_idx, "a decoder threw a non-standard exception");
+        noteUndissectable(hdr, bytes, frame_idx, "a dissector threw a non-standard exception");
     }
+}
+
+void PacketPipeline::dissectFrame(const pcap_pkthdr &hdr, const std::uint8_t *bytes, std::uint64_t frame_idx,
+                                  std::int64_t observed_ts_us) {
+    const auto eth = ::tc8::wire::decodeEthernet(bytes, hdr.caplen);
+    if (!eth) {
+        noteUndissectable(hdr, bytes, frame_idx, "an Ethernet frame shorter than its header or tag");
+        return;
+    }
+    const ::tc8::Dot1QTag vlan = dot1qTagFrom(*eth);
+
+    // ARP §4.2 — no IP layer to descend into.
+    if (eth->ether_type == ::tc8::wire::kEtherTypeArp) {
+        const auto arp = ::tc8::wire::decodeArp(eth->payload, eth->payload_len);
+        if (!arp) {
+            noteUndissectable(hdr, bytes, frame_idx, "an ARP packet shorter than its address fields");
+            return;
+        }
+        ::tc8::ArpFrame af{};
+        af.hw_type = arp->hw_type;
+        af.proto_type = arp->proto_type;
+        af.hw_addr_len = arp->hw_addr_len;
+        af.proto_addr_len = arp->proto_addr_len;
+        af.opcode = arp->opcode;
+        af.sender_hw = arp->sender_hw;
+        af.sender_proto_ip = arp->sender_proto_be;
+        af.target_hw = arp->target_hw;
+        af.target_proto_ip = arp->target_proto_be;
+        af.eth_src = eth->src;
+        af.eth_dst = eth->dst;
+        af.observed_ts_us = observed_ts_us;
+        af.vlan = vlan;
+        listener_(::tc8::CapturedEvent{af});
+        return;
+    }
+    if (eth->ether_type != ::tc8::wire::kEtherTypeIpv4) {
+        return;  // IPv6 and other types — not observed
+    }
+
+    const auto ip = ::tc8::wire::decodeIpv4Header(eth->payload, eth->payload_len);
+    if (!ip) {
+        noteUndissectable(hdr, bytes, frame_idx, "an IPv4 header that cannot be located");
+        return;
+    }
+    const std::uint8_t *l4 = eth->payload + ip->headerLen();
+    const std::size_t l4_len = ipv4PayloadLen(*ip, eth->payload_len);
+    // A fragment carries a part of the datagram's payload, so no transport header is read
+    // from it: every fragment yields its Ipv4Frame and nothing else, and reassembly is a
+    // case's to observe.
+    const bool fragmented = (ip->flags & 0x1U) != 0U || ip->fragment_offset != 0U;
+
+    // The harness's own control channel is not traffic under test. Decided once, here,
+    // so that EVERY alternative this packet would fan out into (Ipv4Frame, UdpFrame,
+    // TcpFrame, ...) is withheld together — see `setControlPlanePort`. After the ARP
+    // branch because ARP carries no transport port and so can never be classified by
+    // this rule; the comment on the setter states what that leaves uncovered.
+    if (control_plane_port_ != 0 && isControlPlanePacket(*ip, l4, l4_len, fragmented, control_plane_port_)) {
+        ++control_plane_frames_;
+        // Withheld as a frame, but if it acknowledges a stimulus step, the step's name is
+        // delivered here — in capture order, which is the only place its position means
+        // anything (tc8/stimulus_marker.h).
+        if (marker_listener_) {
+            if (auto name = ::tc8::StimulusMarkers::take(bytes, hdr.caplen)) {
+                marker_listener_(*name);
+            }
+        }
+        return;
+    }
+
+    // §4.4 IPv4 header — one Ipv4Frame per IPv4 packet, so field-level cases (HEADER,
+    // CHECKSUM, TTL, VERSION, ADDRESSING) observe the header independently of whatever
+    // inner protocol the packet carries.
+    {
+        ::tc8::Ipv4Frame ipf{};
+        ipf.version = ip->version;
+        ipf.ihl = ip->ihl;
+        ipf.tos = ip->tos;
+        ipf.total_length = ip->total_length;
+        ipf.identification = ip->identification;
+        ipf.flags = ip->flags;
+        ipf.fragment_offset = ip->fragment_offset;
+        ipf.ttl = ip->ttl;
+        ipf.protocol = ip->protocol;
+        ipf.header_checksum = ip->header_checksum;
+        ipf.src_addr = ip->src_be;
+        ipf.dst_addr = ip->dst_be;
+        ipf.observed_ts_us = observed_ts_us;
+        ipf.vlan = vlan;
+        listener_(::tc8::CapturedEvent{ipf});
+    }
+    if (fragmented) {
+        return;
+    }
+
+    switch (ip->protocol) {
+        case kIpProtoIcmp:
+            dissectIcmp(hdr, bytes, frame_idx, *ip, l4, l4_len, vlan, observed_ts_us);
+            return;
+        case kIpProtoUdp:
+            dissectUdp(hdr, bytes, frame_idx, *eth, *ip, l4, l4_len, vlan, observed_ts_us);
+            return;
+        case kIpProtoTcp:
+            dissectTcp(hdr, bytes, frame_idx, *ip, l4, l4_len, vlan, observed_ts_us);
+            return;
+        default:
+            return;
+    }
+}
+
+// ICMPv4 §4.3 — one Icmpv4Frame per message, so Echo / Timestamp cases observe Type, Code,
+// the rest of the header and the payload directly.
+void PacketPipeline::dissectIcmp(const pcap_pkthdr &hdr, const std::uint8_t *bytes, std::uint64_t frame_idx,
+                                 const ::tc8::wire::Ipv4Header &ip, const std::uint8_t *l4,
+                                 std::size_t l4_len, const ::tc8::Dot1QTag &vlan,
+                                 std::int64_t observed_ts_us) {
+    const auto icmp = ::tc8::wire::decodeIcmpv4(l4, l4_len);
+    if (!icmp) {
+        noteUndissectable(hdr, bytes, frame_idx, "an ICMPv4 message shorter than its type's fixed part");
+        return;
+    }
+    ::tc8::Icmpv4Frame icf{};
+    icf.src_ip = ip.src_be;
+    icf.dst_ip = ip.dst_be;
+    icf.type = icmp->type;
+    icf.code = icmp->code;
+    icf.checksum = icmp->checksum;
+    icf.rest_of_header = icmp->rest_of_header;
+    icf.payload_data = icmp->payload;
+    icf.payload_len = static_cast<std::uint32_t>(icmp->payload_len);
+    // RFC 792 p17 Timestamp / Timestamp Reply: the three 32-bit slots, read big-endian, so
+    // each carries the "milliseconds since midnight UT" value the tester injected.
+    icf.originate_timestamp = icmp->originate_timestamp;
+    icf.receive_timestamp = icmp->receive_timestamp;
+    icf.transmit_timestamp = icmp->transmit_timestamp;
+    icf.observed_ts_us = observed_ts_us;
+    icf.vlan = vlan;
+    listener_(::tc8::CapturedEvent{icf});
+}
+
+void PacketPipeline::dissectUdp(const pcap_pkthdr &hdr, const std::uint8_t *bytes, std::uint64_t frame_idx,
+                                const ::tc8::wire::EthernetFrame &eth, const ::tc8::wire::Ipv4Header &ip,
+                                const std::uint8_t *l4, std::size_t l4_len, const ::tc8::Dot1QTag &vlan,
+                                std::int64_t observed_ts_us) {
+    const auto udp = ::tc8::wire::decodeUdp(l4, l4_len);
+    if (!udp) {
+        noteUndissectable(hdr, bytes, frame_idx, "a UDP datagram shorter than its header");
+        return;
+    }
+    // A UdpFrame for every datagram, so cross-protocol cases (e.g. §4.2 ARP_04/06 watching
+    // a DUT Nack's Ethernet destination) observe the encapsulating layer. RFC 768 allows a
+    // datagram with no data (Length 8, which §4.6.5.4 UDP_FIELDS_07 observes), so the payload pointer
+    // may be null; consumers that need data gate on its length.
+    ::tc8::UdpFrame uf{};
+    static_cast<::tc8::Ipv4Envelope &>(uf) = ipv4EnvelopeFrom(ip);
+    uf.src_ip = ip.src_be;
+    uf.dst_ip = ip.dst_be;
+    uf.src_port = udp->src_port;
+    uf.dst_port = udp->dst_port;
+    uf.length = udp->length;
+    uf.checksum = udp->checksum;
+    uf.eth_src = eth.src;
+    uf.eth_dst = eth.dst;
+    uf.payload_data = udp->payload;
+    uf.payload_len = static_cast<std::uint32_t>(udp->payload_len);
+    uf.observed_ts_us = observed_ts_us;
+    uf.vlan = vlan;
+    listener_(::tc8::CapturedEvent{uf});
+
+    // §4.7 DHCPv4 — one Dhcpv4Frame per BOOTP-shaped datagram on the client/server port
+    // pair: `(src_port|dst_port) ∈ {67,68}` plus a length and magic-cookie check, so
+    // non-DHCP traffic on those ports never raises a Dhcpv4 event. RFC 2131 fixes the
+    // BOOTP fixed body at 240 B, the magic cookie at offset 236.
+    const bool dhcp_port = ::tc8::isDhcpPortPair(uf.src_port, uf.dst_port);
+    if (dhcp_port && udp->payload != nullptr && udp->payload_len >= ::tc8::dhcpv4_wire::kOptionsOff) {
+        const std::uint8_t *bp = udp->payload;
+        ::tc8::Dhcpv4Frame df{};
+        df.eth_src = uf.eth_src;
+        df.eth_dst = uf.eth_dst;
+        df.src_ip = uf.src_ip;
+        df.dst_ip = uf.dst_ip;
+        static_cast<::tc8::Ipv4Envelope &>(df) = uf;  // the datagram's own IPv4 header
+        df.vlan = uf.vlan;  // L2 tag inherited from the carrying frame
+        df.src_port = uf.src_port;
+        df.dst_port = uf.dst_port;
+        // BOOTP fixed-header offsets (op..chaddr) + the magic cookie are owned by
+        // dhcpv4_wire.def (TD-02 SSOT); the options TLV walk below has no fixed offsets.
+        ::tc8::dhcpv4_wire::decodeBootpFixedHeader(bp, df);
+        df.magic_cookie_valid = ::tc8::dhcpv4_wire::magicCookieValid(bp);
+        if (df.magic_cookie_valid && udp->payload_len > ::tc8::dhcpv4_wire::kOptionsOff) {
+            df.options_data = bp + ::tc8::dhcpv4_wire::kOptionsOff;
+            df.options_len = static_cast<std::uint32_t>(udp->payload_len - ::tc8::dhcpv4_wire::kOptionsOff);
+            // Walk the TLV chain to locate option 53 (Message Type, RFC 2132 §9.6, len 1)
+            // and detect the 0xFF END terminator. Pad (0) and END (255) carry no length;
+            // every other code is followed by one length byte. Stop on END or on the
+            // first length that runs past the options.
+            std::uint32_t i = 0;
+            bool saw_end = false;
+            while (i < df.options_len) {
+                const std::uint8_t code = df.options_data[i];
+                if (code == 0xFFU) {
+                    saw_end = true;
+                    break;
+                }
+                if (code == 0x00U) {
+                    ++i;
+                    continue;
+                }
+                if (i + 1U >= df.options_len) break;
+                const std::uint8_t opt_len = df.options_data[i + 1];
+                if (i + 2U + opt_len > df.options_len) break;
+                if (code == 53U && opt_len == 1U) {
+                    df.message_type_option_present = true;
+                    df.message_type = df.options_data[i + 2];
+                }
+                i = i + 2U + opt_len;
+            }
+            df.last_option_is_end = saw_end;
+        }
+        df.observed_ts_us = observed_ts_us;
+        listener_(::tc8::CapturedEvent{df});
+    }
+
+    // The transport dispatcher (SOME/IP etc.) is handed only a datagram with data.
+    if (udp->payload != nullptr) {
+        Transport t{};
+        t.proto = Transport::Proto::Udp;
+        t.src_ip = uf.src_ip;
+        t.dst_ip = uf.dst_ip;
+        t.src_port = uf.src_port;
+        t.dst_port = uf.dst_port;
+        t.observed_ts_us = observed_ts_us;
+        dispatcher_.deliver(t, udp->payload, udp->payload_len, listener_);
+    }
+}
+
+// §4.8 TCP — one TcpFrame per segment so §4.8.6.1 BASICS cases observe RFC 793 Control Bits,
+// SEQ and ACK directly, BEFORE the stream follower, which reassembles the SOME/IP over
+// TCP payloads it carries. The two consume the same bytes and surface distinct views:
+// a case watches one or the other.
+void PacketPipeline::dissectTcp(const pcap_pkthdr &hdr, const std::uint8_t *bytes, std::uint64_t frame_idx,
+                                const ::tc8::wire::Ipv4Header &ip, const std::uint8_t *l4,
+                                std::size_t l4_len, const ::tc8::Dot1QTag &vlan,
+                                std::int64_t observed_ts_us) {
+    const auto tcp = ::tc8::wire::decodeTcp(l4, l4_len);
+    if (!tcp) {
+        noteUndissectable(hdr, bytes, frame_idx, "a TCP header that cannot be located");
+        return;
+    }
+    ::tc8::TcpFrame tf{};
+    static_cast<::tc8::Ipv4Envelope &>(tf) = ipv4EnvelopeFrom(ip);
+    tf.src_ip = ip.src_be;
+    tf.dst_ip = ip.dst_be;
+    tf.src_port = tcp->src_port;
+    tf.dst_port = tcp->dst_port;
+    tf.seq_num = tcp->seq;
+    tf.ack_num = tcp->ack;
+    tf.data_offset = tcp->data_offset;
+    // The classic Control Bits plus CWR / ECE; the four bits before them are not carried.
+    tf.flags = tcp->flags;
+    tf.window = tcp->window;
+    tf.checksum = tcp->checksum;
+    tf.urgent_pointer = tcp->urgent_pointer;
+    // The MSS a well-formed MSS option advertises (SYN segments by convention), else 0.
+    tf.mss = tcp->mss.value_or(0);
+    tf.payload_data = tcp->payload;
+    tf.payload_len = static_cast<std::uint32_t>(tcp->payload_len);
+    // RFC 793 §3.1 pseudo-header checksum, validated through the shared
+    // tc8::wire::tcpChecksumValid SSOT over the segment as the datagram's Total Length
+    // bounds it. §4.8.6.2 TCP_CHECKSUM_03 reads tf.checksum_valid to verify the DUT's sender-side
+    // checksum. A datagram whose Total Length is not all there cannot be summed.
+    const std::size_t segment_len = ip.total_length >= ip.headerLen()
+                                        ? static_cast<std::size_t>(ip.total_length) - ip.headerLen()
+                                        : 0U;
+    tf.checksum_valid = segment_len >= ::tc8::wire::kTcpFixedHeaderLen && segment_len <= l4_len &&
+                        ::tc8::wire::tcpChecksumValid(ip.src_be, ip.dst_be, l4,
+                                                      static_cast<std::uint16_t>(segment_len));
+    tf.observed_ts_us = observed_ts_us;
+    tf.vlan = vlan;
+    listener_(::tc8::CapturedEvent{tf});
+
+    followTcp(ip, *tcp);
+}
+
+// Hand the segment to the stream follower, BUILT from the decoded fields: the follower
+// reassembles, it does not read the wire.
+void PacketPipeline::followTcp(const ::tc8::wire::Ipv4Header &ip, const ::tc8::wire::TcpSegment &tcp) {
+    Tins::TCP segment(tcp.dst_port, tcp.src_port);
+    segment.seq(tcp.seq);
+    segment.ack_seq(tcp.ack);
+    segment.flags(static_cast<Tins::small_uint<12>>(tcp.flags));
+    segment.window(tcp.window);
+    if (tcp.payload != nullptr) {
+        segment.inner_pdu(Tins::RawPDU(tcp.payload, static_cast<std::uint32_t>(tcp.payload_len)));
+    }
+    Tins::IP packet(Tins::IPv4Address(ip.dst_be), Tins::IPv4Address(ip.src_be));
+    packet.inner_pdu(segment);
+    follower_.process_packet(packet);
 }
 
 }  // namespace tc8::dissect

@@ -33,7 +33,7 @@ struct TestCaseTraits<cases::TcpHeader01NegSM>
         "Self-validation of TCP_HEADER_01's checksum conjunct: the lwIP "
         "kTcpFaultDataChecksumWrong egress flavor invalidates the DUT data-segment "
         "checksum; a conformant DUT emits a valid one (the data_offset conjunct is "
-        "unreachable through the libtins dissector — see README)";
+        "unreachable: a Data Offset below 5 leaves no header to dissect — see README)";
 
     // Same fixed payload the positive sends — opaque to the spec (the assertion is on
     // header validity), non-empty so payload_len > 0 selects the DATA segment.

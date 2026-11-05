@@ -25,7 +25,7 @@ namespace tc8::sce {
 
 // Self-validation of §4.8.6.9 TCP_MSS_OPTIONS_06 phase 1: with an advertised MSS of 200 (< the
 // DUT MSS), a conformant DUT segments a SEND at 200 B (RFC 1122 §4.2.2.6). kTcpFaultDataSegTruncate
-// shrinks the DUT data segment's IP total_length so libtins re-slices the dissected payload to 64 B,
+// shrinks the DUT data segment's IP total_length so the dissector bounds the payload to 64 B,
 // so the phase1_segment_size_not_advertised_mss_200 fail-final (payload_len != 200) is reachable.
 // lwIP-only (kCapEgressFault). Reuses the positive's runPhase (SSOT) so the drive cannot drift; the
 // CASE 2 (MSS 2000 -> 1460) twin is the _NEG2.
