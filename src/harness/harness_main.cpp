@@ -6,6 +6,7 @@
 #include <CLI/CLI.hpp>
 
 #include "cli/decode_pcap_command.h"
+#include "cli/dissect_command.h"
 #include "cli/live_command.h"
 #include "cli/replay_command.h"
 #include "cli/sd_probe_command.h"
@@ -56,6 +57,7 @@ int main(int argc, char** argv) {
     tc8::cli::ReplayCommand replay(app);
     tc8::cli::TestCommand   test(app);
     tc8::cli::DecodePcapCommand decode_pcap(app);
+    tc8::cli::DissectCommand dissect(app);
     tc8::cli::UtPingCommand ut_ping(app);
     tc8::cli::SdProbeCommand sd_probe(app);
     tc8::cli::TestabilityProbeCommand testability_probe(app);
@@ -71,6 +73,7 @@ int main(int argc, char** argv) {
         if (replay.parsed())  return replay.run(bpf_override);
         if (test.parsed())    return test.run(bpf_override);
         if (decode_pcap.parsed()) return decode_pcap.run();
+        if (dissect.parsed()) return dissect.run();
         if (ut_ping.parsed()) return ut_ping.run();
         if (sd_probe.parsed()) return sd_probe.run();
         if (testability_probe.parsed()) return testability_probe.run();

@@ -24,6 +24,7 @@ add_executable(tc8-harness
     ${PROJECT_SOURCE_DIR}/src/cli/commands/signal_handler.cpp
     ${PROJECT_SOURCE_DIR}/src/cli/commands/capture_driver.cpp
     ${PROJECT_SOURCE_DIR}/src/cli/commands/decode_pcap_command.cpp
+    ${PROJECT_SOURCE_DIR}/src/cli/commands/dissect_command.cpp
     ${PROJECT_SOURCE_DIR}/src/cli/commands/live_command.cpp
     ${PROJECT_SOURCE_DIR}/src/cli/commands/liveness_anchor.cpp
     ${PROJECT_SOURCE_DIR}/src/cli/commands/replay_command.cpp
