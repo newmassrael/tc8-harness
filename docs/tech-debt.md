@@ -4804,7 +4804,7 @@ It is ledgered in `dut/lwip_dut/inventory_overrides.json` beside the corrected `
 
 ## TD-71 — operator declarations are per-protocol structs, not one PICS/PIXIT register that cases select on
 
-**Status:** OPEN. **Logged:** 2026-11-05, from a consumer request: a case that grades a RST ending
+**Status:** RESOLVED (2026-11-05), the same day. **Logged:** 2026-11-05, from a consumer request: a case that grades a RST ending
 a TIME-WAIT connection (RFC 793) failed a DUT that follows RFC 1337, which the case's own source
 says is outside its scope, because nothing let the operator declare which behaviour the DUT has.
 
@@ -4833,3 +4833,33 @@ the test in C++. So:
   undeclared item and an excluding value are distinct skip reasons;
 - the inventory tooling lists, for each item, the cases it selects, and a run's report lists the
   items it was given and the cases each one excluded.
+
+MET as follows.
+
+**How it was repaired.**
+
+- **The register.** Every declaration is now one `TC8_EXPECT_DECLARATION(group, kind, name,
+  PICS|PIXIT, "standard")` row of `tc8_expect_keys.def`. That is the same row that makes it an
+  `--expect` key, so an item cannot be declarable without being registered.
+  - `cli/declaration_register.h` expands the rows into the register: id, class, standard, and the
+    spellings of an enumerated item.
+  - A unit test holds the register's size equal to the number of keys in the declaration groups.
+- **Selection as data.** A case states its selection in `kDeclarationRequirements`
+  (`declaration_requirement.h`), as `{item, value}` pairs; an empty value means any declared
+  value. `CaseEntry` carries them.
+- **The gate.** `test_command` evaluates the requirements before the case's `applicability`.
+  - An undeclared item skips as `skip:not_applicable_undeclared_<item>`.
+  - An excluding value skips as `skip:not_applicable_declared_<item>_<value>`.
+  - A requirement that names no item, or a value its item cannot take, is an `error`
+    (`case_declaration_requirement_malformed`).
+- **The listing.** `tc8-harness test --list-declarations` prints each item with its class,
+  standard and values, and under it the cases that require it. It exits 1 on a malformed
+  requirement, and build-test runs it as a gate.
+- **What stays in code.** A condition beyond "declared" or "declared as this value" stays in
+  `applicability`, for example a declared window above what a case can grade. So does
+  `tcpDeclarationMissing`, which a consumer's cases use.
+- **Removed.** The one-item helper added the same morning, `tcpTimeWaitRstEndsConnectionMissing`,
+  is replaced by the requirement `{"tcp.time_wait_rst", "ends_connection"}`.
+
+**Limit, stated.** The run report names the item behind a skip in the skip reason. It does not
+print a separate per-item table; the orchestrator's summary of skip reasons is that table.

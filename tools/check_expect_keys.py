@@ -44,6 +44,10 @@ PYID = ROOT / "tools/dut_identity.py"
 _GROUP_RE = re.compile(r"^TC8_EXPECT_GROUP\(\s*(\w+)\s*,\s*\"([^\"]*)\"\s*\)$")
 _KEY_RE = re.compile(r"^TC8_EXPECT_KEY\(\s*(\w+)\s*,\s*\w+\s*,\s*(\w+)\s*\)$")
 _PAYLOAD_RE = re.compile(r"^TC8_EXPECT_PAYLOAD\(\s*(\w+)\s*,\s*(\w+)\s*\)$")
+# A key that is also a row of the declaration register: (group, kind, name, PICS|PIXIT,
+# "standard"). Only the key name matters here.
+_DECL_RE = re.compile(
+    r'^TC8_EXPECT_DECLARATION\(\s*(\w+)\s*,\s*\w+\s*,\s*(\w+)\s*,\s*(?:PICS|PIXIT)\s*,\s*"[^"]*"\s*\)$')
 
 # Producer key-literal patterns. A producer key is always written as a string
 # LITERAL somewhere, even when its value is interpolated — so these capture the
@@ -74,6 +78,10 @@ def parse_registry() -> set[str]:
             keys.append((m.group(1), m.group(2)))
             continue
         m = _PAYLOAD_RE.match(line)
+        if m is not None:
+            keys.append((m.group(1), m.group(2)))
+            continue
+        m = _DECL_RE.match(line)
         if m is not None:
             keys.append((m.group(1), m.group(2)))
             continue

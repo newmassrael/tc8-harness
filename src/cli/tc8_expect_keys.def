@@ -36,6 +36,10 @@
 //       U24 (SD TTL) and U32 members are both uint32; the kind only narrows the
 //       accepted range. The OPT_ kinds target a std::optional member, for a value
 //       that has no default and may stay undeclared.
+//   TC8_EXPECT_DECLARATION(group, kind, name, cls, standard)
+//       A TC8_EXPECT_KEY that is also an operator declaration about the DUT, and so
+//       a row of the declaration register: `cls` PICS | PIXIT, `standard` a string
+//       naming the standard that leaves the choice to the implementation.
 //   TC8_EXPECT_PAYLOAD(group, name)
 //       The colon-separated hex byte list key. Distinct macro because it fills
 //       two members (the byte array + its length), so it does not fit the
@@ -49,6 +53,21 @@
 
 #define TC8_EXPECT_KEY(group, kind, name) TC8_EK_##group(kind, name)
 #define TC8_EXPECT_PAYLOAD(group, name)   TC8_EKP_##group(name)
+// A key that is also an operator DECLARATION about the DUT: a parser key like any
+// other (TC8_EK_<group>) and a row of the declaration register (TC8_ED_<group>,
+// sce_integration/declaration_register.h). `cls` is PICS (which of two behaviours a
+// standard allows the DUT exhibits) or PIXIT (a value it chose inside a standard's
+// latitude); `standard` names the standard that leaves the choice open.
+#define TC8_EXPECT_DECLARATION(group, kind, name, cls, standard) \
+    TC8_EK_##group(kind, name) TC8_ED_##group(kind, name, cls, standard)
+#ifndef TC8_ED_tcp
+#define TC8_ED_tcp(kind, name, cls, standard)
+#define TC8_ED_tcp_DEFAULTED
+#endif
+#ifndef TC8_ED_network
+#define TC8_ED_network(kind, name, cls, standard)
+#define TC8_ED_network_DEFAULTED
+#endif
 
 #ifndef TC8_EXPECT_GROUP
 #define TC8_EXPECT_GROUP(group, prefix)
@@ -226,17 +245,18 @@ TC8_EXPECT_KEY(arp_stimulus, U16, ut_cache_conditioning_s)
 TC8_EXPECT_KEY(ixit, U32, param_listen_time_ms)
 
 // --- Operator's TCP declarations (TcpDeclarations, "tcp." prefix) ------------
-// No default: see tcp_declarations.h.
-TC8_EXPECT_KEY(tcp, OPT_U32_MIN1, initial_cwnd_segments)
-TC8_EXPECT_KEY(tcp, OPT_TEXT, congestion_control)
-TC8_EXPECT_KEY(tcp, OPT_U32, tx_buffer_delay_ms)
-// A PICS item, one of the spellings TimeWaitRstPolicy's DeclarationEnum lists
+// No default: see tcp_declarations.h. Each is a row of the declaration register
+// (TC8_EXPECT_DECLARATION, sce_integration/declaration_register.h).
+TC8_EXPECT_DECLARATION(tcp, OPT_U32_MIN1, initial_cwnd_segments, PIXIT, "RFC 5681")
+TC8_EXPECT_DECLARATION(tcp, OPT_TEXT, congestion_control, PIXIT, "RFC 5681")
+TC8_EXPECT_DECLARATION(tcp, OPT_U32, tx_buffer_delay_ms, PIXIT, "RFC 1122")
+// One of the spellings TimeWaitRstPolicy's DeclarationEnum lists
 // (ends_connection | ignored).
-TC8_EXPECT_KEY(tcp, OPT_ENUM, time_wait_rst)
+TC8_EXPECT_DECLARATION(tcp, OPT_ENUM, time_wait_rst, PICS, "RFC 793, RFC 1337")
 
 // --- Operator's network declarations (NetworkDeclarations, "network." prefix) ---
 // Unset means an untagged network: see network_declarations.h.
-TC8_EXPECT_KEY(network, OPT_VLAN_ID, vlan_id)
+TC8_EXPECT_DECLARATION(network, OPT_VLAN_ID, vlan_id, PIXIT, "IEEE 802.1Q")
 
 // --- ICMPv4 (Icmpv4Expectations, "icmpv4." prefix) --------------------------
 TC8_EXPECT_KEY(icmpv4, IPV4, tester_ip)
@@ -257,6 +277,15 @@ TC8_EXPECT_KEY(dhcpv4, MAC, dut_iface_mac)
 
 #undef TC8_EXPECT_KEY
 #undef TC8_EXPECT_PAYLOAD
+#undef TC8_EXPECT_DECLARATION
+#ifdef TC8_ED_tcp_DEFAULTED
+#undef TC8_ED_tcp_DEFAULTED
+#undef TC8_ED_tcp
+#endif
+#ifdef TC8_ED_network_DEFAULTED
+#undef TC8_ED_network_DEFAULTED
+#undef TC8_ED_network
+#endif
 #ifdef TC8_EXPECT_GROUP_DEFAULTED
 #undef TC8_EXPECT_GROUP_DEFAULTED
 #undef TC8_EXPECT_GROUP

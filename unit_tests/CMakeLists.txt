@@ -319,6 +319,8 @@ target_include_directories(lifecycle_dispatcher_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR})
 
 tc8_add_unit_test(expect_parser_test)
+# The declaration register and the evaluation of a case's declaration requirements.
+tc8_add_unit_test(declaration_register_test)
 tc8_add_unit_test(someip_sd_builder_test)
 tc8_add_unit_test(reliable_teardown_service_test)
 tc8_add_unit_test(tcp_client_test)

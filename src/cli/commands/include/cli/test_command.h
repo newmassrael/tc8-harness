@@ -31,6 +31,7 @@ private:
     int runListCases() const;
     int runListNegRows() const;
     int runListKnownFails() const;
+    int runListDeclarations() const;
     int runListVsomeipVariants() const;
     int runVsSpecReport() const;
     int runCase(std::optional<std::string> bpf_override);
@@ -113,6 +114,11 @@ private:
     // re-measures those registrations — a driver runs the set and asserts them, so a
     // registration that has gone stale reds instead of rotting unseen.
     bool list_known_fails_ = false;
+    // `--list-declarations`: print the declaration register (every item an operator can
+    // declare about the DUT, its PICS/PIXIT class and standard) and, under each item, the
+    // cases whose declaration requirements name it. Exits 1 when a case's requirement
+    // names no item or a value its item cannot take.
+    bool list_declarations_ = false;
     // `--list-vsomeip-variants`: print each case with a DUT vsomeip flavor (the
     // seventh axis) as `CASE|cfg|env1,env2`. The harness never launches the DUT;
     // both spawning drivers (single-pc / ssh-remote) read this ONE source instead

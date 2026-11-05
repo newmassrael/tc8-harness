@@ -387,6 +387,13 @@ jobs:
         # docs/spec/inventory_overrides.json.
         run: ./build/tc8-harness test --list-cases --vs-spec --strict
 
+      - name: Declaration-requirement gate (--list-declarations)
+        # Every case that requires an operator declaration names a register item
+        # (tc8_expect_keys.def) and, for an enumerated item, a value it can take. A
+        # requirement that cannot be met as written would skip its case on every run
+        # without anyone having declared anything; this exits 1 on one instead.
+        run: ./build/tc8-harness test --list-declarations
+
   container:
     name: tester container image builds + runs
     runs-on: ubuntu-22.04

@@ -17,9 +17,13 @@ namespace tc8 {
 //
 // Each stays unset until the operator sets it (`--expect tcp.<key>=<value>`, or a site's
 // `extra_expect`). There is deliberately no default, here or in a case: a guessed value
-// fails a differently configured DUT for no fault of its own. A case that needs one
-// declares that through its `applicability` trait, using tcpDeclarationMissing, so an
-// undeclared value is a skip that names it and not a guess.
+// fails a differently configured DUT for no fault of its own. Each is a row of the
+// declaration register (tc8_expect_keys.def, cli/declaration_register.h). A case that
+// needs one declared, or declared as one value, says so as data in
+// `kDeclarationRequirements` (declaration_requirement.h), which the gate evaluates and
+// the register lists; an undeclared value is a skip that names it and not a guess. A
+// condition on the value beyond that (a window above what a case can grade) stays in its
+// `applicability` trait, which can use tcpDeclarationMissing below.
 //
 // The harness never branches on `congestion_control`. It is reported with the run so the
 // assumption behind a graded window stays visible.
@@ -89,19 +93,6 @@ inline std::optional<std::string> tcpDeclarationMissing(const TcpDeclarations &d
                 return "undeclared_tcp_time_wait_rst";
             }
             break;
-    }
-    return std::nullopt;
-}
-
-// The `applicability` reason for a case that grades a RST in TIME-WAIT ending the
-// connection: undeclared, or declared as ignored (the DUT follows RFC 1337 and is outside
-// that case's scope). nullopt when the DUT is declared to end the connection.
-inline std::optional<std::string> tcpTimeWaitRstEndsConnectionMissing(const TcpDeclarations &declared) {
-    if (auto missing = tcpDeclarationMissing(declared, TcpDeclaration::kTimeWaitRst)) {
-        return missing;
-    }
-    if (*declared.time_wait_rst != TimeWaitRstPolicy::kEndsConnection) {
-        return "dut_declared_to_ignore_rst_in_time_wait_rfc1337";
     }
     return std::nullopt;
 }

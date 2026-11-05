@@ -21,6 +21,7 @@ add_library(tc8_harness_core STATIC
     ${PROJECT_SOURCE_DIR}/src/capture/passive_tap.cpp
     ${PROJECT_SOURCE_DIR}/src/capture/pcap_source.cpp
     ${PROJECT_SOURCE_DIR}/src/cli/expect_parser.cpp
+    ${PROJECT_SOURCE_DIR}/src/cli/declaration_register.cpp
     ${PROJECT_SOURCE_DIR}/src/cli/packet_summary.cpp
     ${PROJECT_SOURCE_DIR}/src/sce_integration/case_registry.cpp
     ${PROJECT_SOURCE_DIR}/src/sce_integration/case_spec.cpp

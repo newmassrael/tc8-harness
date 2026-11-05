@@ -7,12 +7,14 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <vector>
 
 #include "tc8/bpf_group.h"
 
 #include "case_alias.h"
 #include "case_applicability.h"
+#include "declaration_requirement.h"
 #include "case_id_shape.h"
 #include "case_suite.h"  // kDefaultSuite — the in-tree catalog name's SSOT
 #include "test_case_traits.h"
@@ -121,6 +123,11 @@ struct CaseEntry {
     // after construction, so a positional initialiser written before this field existed
     // keeps its meaning. An alias copies it with the rest of the entry.
     ApplicabilityFn applicability = nullptr;
+    // What the operator must have declared about the DUT for the case to run
+    // (TestCaseTraits<>::kDeclarationRequirements; declaration_requirement.h), or none.
+    // Set after construction, like `applicability`; an alias copies it.
+    const DeclarationRequirement *declaration_requirements = nullptr;
+    std::size_t declaration_requirement_count = 0;
 
     bool isAlias() const {
         return !alias_of.id.empty();
@@ -247,6 +254,8 @@ template <typename StateMachine> struct CaseRegistrar {
                       },
                       TC8_CASE_SUITE};
         entry.applicability = applicabilityOf<T>();
+        std::tie(entry.declaration_requirements, entry.declaration_requirement_count) =
+            declarationRequirementsOf<T>();
         CaseRegistry::instance().add(std::move(entry));
     }
 };

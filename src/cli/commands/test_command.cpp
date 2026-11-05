@@ -35,6 +35,7 @@
 #include "tc8/dut_config.h"  // kSdMcastGroup — the SD group's compiled-in default
 #include "stimulus/arp_builder.h"  // setRawFrameVlan
 #include "tc8/net/link_control.h"  // captureSnaplenFor
+#include "cli/declaration_register.h"
 #include "cli/expect_parser.h"
 #include "cli/liveness_anchor.h"
 #include "cli/run_capture.h"
@@ -319,6 +320,12 @@ TestCommand::TestCommand(CLI::App &app) {
                    "know which cases to run with --negative-row and which "
                    "verdict to assert; --negative-row injects the token itself, "
                    "so the driver never re-emits it.");
+    sub_->add_flag("--list-declarations", list_declarations_,
+                   "Print every declaration an operator can make about the DUT "
+                   "(--expect <group>.<name>=<value>) with its PICS/PIXIT class, the "
+                   "standard that leaves it open and its values, and under each the "
+                   "cases that require it, then exit. Exits 1 when a case requires a "
+                   "declaration that does not exist or a value it cannot take.");
     sub_->add_flag("--list-known-fails", list_known_fails_,
                    "Print every platform known-fail carrying a MEASURED landed "
                    "verdict as CASE|class:reason and exit. A driver iterates this, "
@@ -560,6 +567,59 @@ int TestCommand::runListKnownFails() const {
     return 0;
 }
 
+// The declaration register and, under each item, the cases whose requirements name it
+// (cli/declaration_register.h). One line per item, then one indented line per case:
+//
+//   tcp.time_wait_rst  PICS  RFC 793, RFC 1337  values: ends_connection ignored
+//     <suite>/<case>  requires ends_connection
+//
+// A requirement the register cannot meet as written is reported and makes the exit 1,
+// so a gate can hold every case's selection to the register.
+int TestCommand::runListDeclarations() const {
+    const auto entries = sce::CaseRegistry::instance().listSorted(/*include_deprecated=*/true,
+                                                                  /*include_iterations=*/true);
+    int status = 0;
+    for (const sce::CaseEntry *e : entries) {
+        if (!inSuiteScope(e->suite)) {
+            continue;
+        }
+        for (std::size_t i = 0; i < e->declaration_requirement_count; ++i) {
+            if (const auto bad = ::tc8::cli::malformedRequirement(e->declaration_requirements[i])) {
+                std::fprintf(stderr, "error: %s: %s\n",
+                             sce::qualifiedCaseId(e->suite, e->id).c_str(), bad->c_str());
+                status = 1;
+            }
+        }
+    }
+    for (const ::tc8::cli::DeclarationItem &item : ::tc8::cli::declarationRegister()) {
+        std::string values;
+        for (const std::string_view v : item.values) {
+            values += (values.empty() ? "" : " ") + std::string(v);
+        }
+        const std::string_view cls = ::tc8::cli::declarationClassName(item.cls);
+        std::printf("%.*s  %.*s  %.*s  values: %s\n", static_cast<int>(item.id.size()),
+                    item.id.data(), static_cast<int>(cls.size()), cls.data(),
+                    static_cast<int>(item.standard.size()), item.standard.data(),
+                    values.empty() ? "(any)" : values.c_str());
+        for (const sce::CaseEntry *e : entries) {
+            if (!inSuiteScope(e->suite)) {
+                continue;
+            }
+            for (std::size_t i = 0; i < e->declaration_requirement_count; ++i) {
+                const sce::DeclarationRequirement &req = e->declaration_requirements[i];
+                if (req.item != item.id) {
+                    continue;
+                }
+                const std::string wanted =
+                    req.value.empty() ? std::string("a declaration") : std::string(req.value);
+                std::printf("  %s  requires %s\n", sce::qualifiedCaseId(e->suite, e->id).c_str(),
+                            wanted.c_str());
+            }
+        }
+    }
+    return status;
+}
+
 // The seventh axis (vsomeip_cfg / vsomeip_env) as CASE|cfg|env1,env2 lines — the
 // harness's exposer for a driver-launched DUT flavor, mirroring runListNegRows.
 // Both smoke-test.sh and the orchestrator read this ONE source, so the flavor
@@ -637,6 +697,9 @@ int TestCommand::run(std::optional<std::string> bpf_override) {
     }
     if (list_known_fails_) {
         return runListKnownFails();
+    }
+    if (list_declarations_) {
+        return runListDeclarations();
     }
     if (list_cases_) {
         if (vs_spec_) {
@@ -1483,6 +1546,27 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // never performed. Asked before the capability check, since a case that does not apply
     // has no use for a seam. Only an affirmative answer skips; one that could not learn
     // the configuration returns empty and the case runs.
+    // What the operator must have declared about the DUT for the case to run
+    // (TestCaseTraits<>::kDeclarationRequirements, declaration_requirement.h), evaluated
+    // here for every case alike against the declaration register. An undeclared item and
+    // a value the case does not run for are skips naming the item; a requirement the
+    // register cannot meet as written is the case's defect, and an error.
+    for (std::size_t i = 0; i < entry->declaration_requirement_count; ++i) {
+        if (const auto malformed = ::tc8::cli::malformedRequirement(entry->declaration_requirements[i])) {
+            std::fprintf(stderr, "%.*s: %s\n", static_cast<int>(entry->id.size()), entry->id.data(),
+                         malformed->c_str());
+            const ::tc8::sce::Verdict v{::tc8::sce::VerdictClass::Error,
+                                        "case_declaration_requirement_malformed", "test_system_fault"};
+            std::printf("verdict  : %s\n", v.str().c_str());
+            return v.exitCode();
+        }
+    }
+    if (const std::optional<std::string> reason = ::tc8::cli::unmetRequirement(
+            entry->declaration_requirements, entry->declaration_requirement_count, config);
+        reason.has_value()) {
+        std::printf("verdict  : %s\n", ::tc8::sce::applicabilitySkipVerdict(*reason).c_str());
+        return 2;  // the same skip exit code as the applicability and capability gates
+    }
     if (entry->applicability != nullptr) {
         if (const std::optional<std::string> reason = entry->applicability(config, *dut_control);
             reason.has_value()) {
