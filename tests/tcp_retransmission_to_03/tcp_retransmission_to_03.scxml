@@ -2,73 +2,47 @@
 <!--
   TC8 §4.8.6.11 TCP_RETRANSMISSION_TO_03: Karn's algorithm — TCP MUST
   preserve RTO doubling across an ACK that acknowledges a previously
-  retransmitted segment (RFC 1122 §4.2.3.1 p95 — RFC 6298 §3 / RFC 1122 §5
-  step 5.3).
+  retransmitted segment (RFC 1122 §4.2.3.1 p95 — RFC 6298 §3 / §5).
 
   Case shape:
-    the tester parks the DUT in ESTABLISHED and takes one DUT-side
-    send, then withholds the acknowledgement so the DUT's timer fires
-    and the segment comes again — that interval is the RTO to beat.
-    The tester acknowledges just before the next expiry, takes a second
-    DUT-side send, and again withholds. The retransmission that follows
-    has to arrive on a doubled timer: backoff must survive the ACK that
-    landed in between, rather than resetting on it.
+    the tester parks the DUT in ESTABLISHED and takes one DUT-side send,
+    then withholds the acknowledgement so the DUT's timer fires and the
+    segment comes again. The tester acknowledges the retransmitted
+    segment, takes a second DUT-side send, and withholds again. The
+    specification checks that the second segment's retransmission timer
+    is twice the RTO the first segment was sent under: the acknowledgement
+    covered a retransmitted segment, so it yields no RTT sample (Karn),
+    and the backed-off value survives it.
 
-  Mechanism (kernel-side TCP_INFO observation, two snapshots):
-    The earlier pcap-timing approach (observe retx1's wall delta vs.
-    retx2's wall delta) was deterministic at workers=1 but flaked
-    under workers=4 parallel load — pcap's SOFTIRQ delivery raced
-    the SCXML's deadline guards. Replacing the wire-timing assertions
-    with two synchronous kernel-state (TCP_INFO) reads off the DUT's
-    connected socket makes the verdict a function of kernel state, not
-    pcap delivery latency. Stimulus phases:
+  What is graded (TcpKarnCaptured::backed_off_rto_kept):
+    the DUT's RTO once the second segment is in flight, against twice the
+    RTO the DUT held while the first segment was in flight, within TC8's
+    Millisec Tolerance (100 ms). Both are the DUT's own values (TCP_INFO),
+    so no capture or scheduling jitter applies to them. The earlier check,
+    both values `>= 350 ms` (Linux's 200 ms floor doubled), neither stated
+    the relation nor held for another stack's numbers.
 
-    1. Active-OPEN handshake on +156 port quad; snapshot tester
-       snd_nxt / rcv_nxt for the Karn ACK.
-    2. The tester withholds its kernel's auto-ACKs so seg1's RTO
-       timer fires without tester interference. RACK and TLP are
-       disabled in dut_ns (mirrors RETRANSMISSION_TO_04 via the
-       smoke-test sysctl override) so the DUT's retransmit timer
-       follows the canonical RTO-doubling path.
-    3. Tester causes a SEND → DUT data segment 1 (8 B).
-    4. Sleep 700 ms — the DUT fires retx1 at TCP_RTO_MIN ≈ 200 ms,
-       doubling its RTO to ≈ 400 ms; retx2 may also fire at
-       +400 ms (doubling further to ≈ 800 ms) and either is
-       acceptable.
-    5. **Phase 1 snapshot**: a kernel-state read of the DUT socket's
-       TCP info. Pass criteria: tcpi_retransmits >= 1 (proves the
-       retx fired) AND tcpi_rto >= 350 ms (proves doubling).
-    6. Raw-inject Karn-excluded ACK acknowledging seg1's 8 B.
-       RFC 6298 §3 forbids the RTT estimator from sampling this
-       round-trip; §5.3 forbids resetting the retransmit timer.
-    7. Tester causes a SEND of seg2 (8 B) → the DUT arms the new
-       retransmit timer with its *current* RTO value. A Karn-correct
-       DUT preserves the doubled value; a Karn-violating DUT collapses
-       to the TCP_RTO_MIN baseline.
-    8. Sleep 150 ms — schedule-noise headroom; the timer arming is
-       sub-millisecond.
-    9. **Phase 2 snapshot**: a kernel-state read of tcpi_rto. Pass
-       criterion: tcpi_rto >= 350 ms (Karn preserved).
+  What the wire decides:
+    that the first segment and its retransmission were sent. The
+    retransmission is waited for as long as the DUT's RTO says it will take
+    (tcp_retransmission_series.h), not for a fixed 3 s, which a sender with
+    the RFC 1122 3 s initial RTO would miss.
 
-  SCXML shape — single state with a `<send delay="0ms"/>`-raised
-  evaluation event, multiple cond-keyed transitions; first matching
-  transition wins per W3C SCXML §3.13. Transitions are ordered fail-
-  first (handshake → query validity → numeric thresholds) so the
-  most-proximal cause short-circuits to its specific verdict before
-  falling through to pass. delay=0ms is the minimal scheduler tick
-  required to flush the stimulus-mutated `captured` into the cond
-  evaluator's view; pure eventless transitions are not used because
-  the SCE codegen consumes events into Event enum members and an
-  enum-less initial state would have no firing edge at all.
+  Verdict order (first matching transition wins, W3C SCXML §3.13):
+    - handshake not completed                       -> inconclusive
+    - the first data segment was not seen           -> inconclusive
+    - the retransmission's window elapsed unseen while the DUT counts one
+                                                    -> inconclusive (capture)
+    - the window elapsed and the DUT's counter could not be read
+                                                    -> error
+    - no retransmission, by the DUT's own count     -> fail
+    - an RTO could not be read                      -> error
+    - second segment's RTO not twice the first      -> fail (Karn)
+    - otherwise                                     -> pass
 
-  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes the active-OPEN
-  handshake fail; the stimulus returns early without setting
-  `ut_handshake_completed`, so the
-  SCXML's first cond fires and verdicts as
-  `fail:dut_handshake_did_not_complete`. (The earlier indirect
-  `phase1_tcp_info_query_failed` route misattributed the cause —
-  the handshake never happened, so describing the failure in
-  TCP_INFO terms was inaccurate.)
+  Negative flip: ipv4.dut_iface_ip=10.99.99.99 makes the active OPEN fail;
+  the stimulus returns before setting `ut_handshake_completed`, and the
+  first cond fires.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -77,17 +51,17 @@
        name="tcp_retransmission_to_03"
        sce:transition-table="emit"
        datamodel="null"
-       initial="evaluate_kernel_observations">
+       initial="evaluate_karn">
 
   <sce:context id="captured"
-               cpp:type="tc8::TcpCaptured"
-               cpp:include="sce_integration/tcp_captured.h"/>
+               cpp:type="tc8::TcpKarnCaptured"
+               cpp:include="sce_integration/tcp_case_captured.h"/>
 
   <sce:context id="expected"
                cpp:type="tc8::Ipv4Expected"
                cpp:include="sce_integration/ipv4_expected.h"/>
 
-  <state id="evaluate_kernel_observations">
+  <state id="evaluate_karn">
     <onentry>
       <send event="evaluate" delay="0ms"/>
     </onentry>
@@ -95,20 +69,29 @@
                 cond="cpp:not captured.ut_handshake_completed"
                 target="inconclusive_handshake_did_not_complete"/>
     <transition event="evaluate"
+                cond="cpp:captured.segment_ts_us[0] == 0"
+                target="inconclusive_data_segment_unobserved"/>
+    <transition event="evaluate"
+                cond="cpp:captured.retransmissions_seen &lt; 1 and captured.retransmission_missed_by_capture()"
+                target="inconclusive_retransmission_not_captured"/>
+    <transition event="evaluate"
+                cond="cpp:captured.retransmissions_seen &lt; 1 and not captured.missed_query_valid"
+                target="error_retransmission_count_query_failed"/>
+    <transition event="evaluate"
+                cond="cpp:captured.retransmissions_seen &lt; 1"
+                target="fail_no_phase1_retx"/>
+    <transition event="evaluate"
+                cond="cpp:not captured.initial_rto_valid"
+                target="error_initial_rto_query_failed"/>
+    <transition event="evaluate"
                 cond="cpp:not captured.ut_tcpi_p1_valid"
                 target="error_phase1_query_failed"/>
     <transition event="evaluate"
                 cond="cpp:not captured.ut_tcpi_p2_valid"
                 target="error_phase2_query_failed"/>
     <transition event="evaluate"
-                cond="cpp:captured.ut_tcpi_p1_retransmits == 0"
-                target="fail_no_phase1_retx"/>
-    <transition event="evaluate"
-                cond="cpp:captured.ut_tcpi_p1_rto_us &lt; 350000"
-                target="fail_initial_rto_not_doubled"/>
-    <transition event="evaluate"
-                cond="cpp:captured.ut_tcpi_p2_rto_us &lt; 350000"
-                target="fail_doubling_not_preserved"/>
+                cond="cpp:not captured.backed_off_rto_kept()"
+                target="fail_phase2_rto_not_doubled"/>
     <transition event="evaluate" target="pass"/>
   </state>
 
@@ -121,6 +104,30 @@
   <final id="inconclusive_handshake_did_not_complete">
     <donedata>
       <content>{"verdict":"inconclusive","reason":"dut_handshake_did_not_complete","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_data_segment_unobserved">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"dut_data_segment_unobserved","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_retransmission_not_captured">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"dut_counted_a_retransmission_the_capture_did_not_show","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="error_retransmission_count_query_failed">
+    <donedata>
+      <content>{"verdict":"error","reason":"retransmission_count_tcp_info_query_failed","role":"test_system_fault"}</content>
+    </donedata>
+  </final>
+
+  <final id="error_initial_rto_query_failed">
+    <donedata>
+      <content>{"verdict":"error","reason":"initial_rto_tcp_info_query_failed","role":"test_system_fault"}</content>
     </donedata>
   </final>
 
@@ -142,13 +149,7 @@
     </donedata>
   </final>
 
-  <final id="fail_initial_rto_not_doubled">
-    <donedata>
-      <content>{"verdict":"fail","reason":"phase1_rto_below_doubled_baseline","role":"observed_violation"}</content>
-    </donedata>
-  </final>
-
-  <final id="fail_doubling_not_preserved">
+  <final id="fail_phase2_rto_not_doubled">
     <donedata>
       <content>{"verdict":"fail","reason":"phase2_rto_not_doubled_karns_violation","role":"observed_violation"}</content>
     </donedata>

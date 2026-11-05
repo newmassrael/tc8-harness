@@ -15,7 +15,7 @@
     a linear backoff (b, 2b, 3b) grows on every step, so growth alone does
     not show it. The property is that the RTO sequence is increasing and
     convex, (rto3 - rto2) > (rto2 - rto1)
-    (TcpRetransmissionTo04Captured::rto_growth_more_than_linear). The RTO
+    (TcpRetransmissionSeriesCaptured::rto_growth_more_than_linear). The RTO
     values are the DUT's own, read right after each retransmission was seen
     on the wire: an interval measured from the capture carries the jitter
     of the DUT's timer tick (500 ms on lwIP), which can turn a doubling of a
@@ -65,7 +65,7 @@
        initial="evaluate_retransmissions">
 
   <sce:context id="captured"
-               cpp:type="tc8::TcpRetransmissionTo04Captured"
+               cpp:type="tc8::TcpRetransmissionSeriesCaptured"
                cpp:include="sce_integration/tcp_case_captured.h"/>
 
   <sce:context id="expected"

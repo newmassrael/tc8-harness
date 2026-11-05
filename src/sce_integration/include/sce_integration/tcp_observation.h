@@ -30,12 +30,16 @@ namespace tc8::sce::tcp {
 inline constexpr std::uint8_t kSynAckMask = 0x12;  // SYN | ACK
 
 // The DUT's SYN (SYN set, ACK clear) from its local port `dut_port`: the first
-// segment of an active open the DUT was asked to make.
-inline ObservationPredicate dutSynFrom(std::uint32_t dut_ip_be, std::uint16_t dut_port) {
-    return [dut_ip_be, dut_port](const ::tc8::CapturedEvent &ev) {
+// segment of an active open the DUT was asked to make, captured after `after_ts_us`
+// (pcap microseconds; 0 for any). With the first SYN's arrival as `after_ts_us` it
+// matches that SYN's retransmission.
+inline ObservationPredicate dutSynFrom(std::uint32_t dut_ip_be, std::uint16_t dut_port,
+                                       std::int64_t after_ts_us = 0) {
+    return [dut_ip_be, dut_port, after_ts_us](const ::tc8::CapturedEvent &ev) {
         const auto *t = std::get_if<::tc8::TcpFrame>(&ev);
         return t != nullptr && dut_ip_be != 0U && t->src_ip == dut_ip_be &&
-               t->src_port == dut_port && (t->flags & kSynAckMask) == 0x02;
+               t->src_port == dut_port && (t->flags & kSynAckMask) == 0x02 &&
+               t->observed_ts_us > after_ts_us;
     };
 }
 

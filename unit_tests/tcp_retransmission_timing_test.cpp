@@ -1,5 +1,5 @@
 // The retransmission window policy (tcp_retransmission_timing.h) and the growth
-// property TCP_RETRANSMISSION_TO_04 grades (TcpRetransmissionTo04Captured).
+// property TCP_RETRANSMISSION_TO_04 grades (TcpRetransmissionSeriesCaptured).
 #include <chrono>
 #include <cstdint>
 
@@ -41,8 +41,8 @@ TEST(NextRetransmissionBound, NeverExceedsTheRfc6298Cap) {
     EXPECT_EQ(nextRetransmissionBound(microseconds(600'000'000), microseconds(0)), milliseconds(76000));
 }
 
-::tc8::TcpRetransmissionTo04Captured rtos(std::uint32_t r1, std::uint32_t r2, std::uint32_t r3) {
-    ::tc8::TcpRetransmissionTo04Captured c;
+::tc8::TcpRetransmissionSeriesCaptured rtos(std::uint32_t r1, std::uint32_t r2, std::uint32_t r3) {
+    ::tc8::TcpRetransmissionSeriesCaptured c;
     c.ut_tcpi_p1_rto_us = r1;
     c.ut_tcpi_p2_rto_us = r2;
     c.ut_tcpi_p3_rto_us = r3;
@@ -77,7 +77,7 @@ TEST(TcpRetransmissionTo04Growth, AConstantRtoDoesNotIncrease) {
 // The DUT counting more retransmissions than the capture showed is a capture miss, not
 // a DUT that stopped.
 TEST(TcpRetransmissionTo04Growth, TheDutsCountTellsACaptureMissFromSilence) {
-    ::tc8::TcpRetransmissionTo04Captured c;
+    ::tc8::TcpRetransmissionSeriesCaptured c;
     c.retransmissions_seen = 1;
     c.missed_query_valid = true;
     c.missed_retransmits = 2;
@@ -87,6 +87,43 @@ TEST(TcpRetransmissionTo04Growth, TheDutsCountTellsACaptureMissFromSilence) {
     c.missed_query_valid = false;
     c.missed_retransmits = 5;
     EXPECT_FALSE(c.retransmission_missed_by_capture());
+}
+
+// Karn: the second segment goes out under twice the RTO the first went out under,
+// within TC8's Millisec Tolerance.
+TEST(TcpKarn, TheBackedOffRtoSurvivesTheAckOfARetransmittedSegment) {
+    ::tc8::TcpKarnCaptured c;
+    c.initial_rto_us = 201'000;    // Linux after a fast handshake
+    c.ut_tcpi_p2_rto_us = 402'000;
+    EXPECT_TRUE(c.backed_off_rto_kept());
+    c.initial_rto_us = 3'000'000;  // the RFC 1122 initial RTO
+    c.ut_tcpi_p2_rto_us = 6'000'000;
+    EXPECT_TRUE(c.backed_off_rto_kept());
+}
+
+// A DUT that samples the ambiguous round-trip recomputes the RTO, and one that never
+// backed off keeps the initial value: neither is twice.
+TEST(TcpKarn, ARecomputedOrUnbackedRtoIsNot) {
+    ::tc8::TcpKarnCaptured c;
+    c.initial_rto_us = 201'000;
+    c.ut_tcpi_p2_rto_us = 230'000;
+    EXPECT_FALSE(c.backed_off_rto_kept());
+    c.initial_rto_us = 1'000'000;
+    c.ut_tcpi_p2_rto_us = 1'000'000;
+    EXPECT_FALSE(c.backed_off_rto_kept());
+}
+
+// RFC 6298 §2.1: 1 second, within TC8's Millisec Tolerance. The old band let 1.5 s pass.
+TEST(TcpInitialRto, OneSecondWithinTheMillisecTolerance) {
+    ::tc8::TcpInitialRtoCaptured c;
+    c.ut_tcpi_p1_rto_us = 1'000'000;
+    EXPECT_TRUE(c.initial_rto_per_rfc6298());
+    c.ut_tcpi_p1_rto_us = 1'100'000;
+    EXPECT_TRUE(c.initial_rto_per_rfc6298());
+    c.ut_tcpi_p1_rto_us = 1'500'000;
+    EXPECT_FALSE(c.initial_rto_per_rfc6298());
+    c.ut_tcpi_p1_rto_us = 3'000'000;  // the RFC 1122 value RFC 6298 replaced
+    EXPECT_FALSE(c.initial_rto_per_rfc6298());
 }
 
 }  // namespace

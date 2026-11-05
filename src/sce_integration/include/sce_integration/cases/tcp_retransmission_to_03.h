@@ -14,8 +14,10 @@
 #include "sce_integration/cases/_tcp_seam.h"
 #include "sce_integration/dut_control.h"
 #include "sce_integration/ipv4_expected.h"
-#include "sce_integration/tcp_captured.h"
+#include "sce_integration/tcp_case_captured.h"
+#include "sce_integration/tcp_observation.h"
 #include "sce_integration/tcp_pilot_common.h"
+#include "sce_integration/tcp_retransmission_series.h"
 #include "sce_integration/test_case_traits.h"
 #include "sce_integration/test_runner.h"
 #include "stimulus/tcp_segment_builder.h"
@@ -64,19 +66,10 @@ struct TestCaseTraits<cases::TcpRetransmissionTo03SM> {
     static constexpr std::array<std::uint8_t, 8> kPhase2Payload = {
         'P','3','S','2','d','a','t','a'};
 
-    // Phase-1 TCP_INFO poll cadence + deadline. Linux's
-    // `tcp_retransmit_timer` first fires at TCP_RTO_MIN ≈ 200 ms
-    // baseline, but under workers=4 full-suite CPU load the
-    // high-resolution timer fire can be delayed by several hundred
-    // milliseconds — observed ~700 ms drift in production
-    // reproductions. A fixed sleep had to be conservatively long
-    // enough for the worst case, which would have ballooned the
-    // case wall-time. Polling instead returns as soon as the kernel
-    // reports `tcpi_retransmits >= 1` (median: ~250 ms; 95-th
-    // percentile under stress: ~1 s; deadline 3 s as a hard safety
-    // net before the case verdicts as fail_no_phase1_retx).
-    static constexpr std::chrono::milliseconds kPhase1PollInterval{50};
-    static constexpr std::chrono::milliseconds kPhase1Deadline{3000};
+    // The DUT sends seg1 as soon as the SEND reaches it. Its retransmission is then
+    // waited for as long as the DUT's own RTO says (tcp_retransmission_series.h), not
+    // for a fixed 3 s, which a sender with the RFC 1122 3 s initial RTO would miss.
+    static constexpr std::chrono::milliseconds kFirstSegmentBound{5000};
 
     // Phase-2 TCP_INFO poll cadence + deadline. After the Karn-
     // excluded ACK + seg2 send, the kernel rearms the retx timer
@@ -123,8 +116,8 @@ struct TestCaseTraits<cases::TcpRetransmissionTo03SM> {
         c.ut_handshake_completed = true;
 
         const std::uint32_t phase1_seq = seq_range->rcv_nxt;
-        const std::uint32_t phase2_ack = phase1_seq +
-            static_cast<std::uint32_t>(kPhase1Payload.size());
+        const auto phase1_len = static_cast<std::uint32_t>(kPhase1Payload.size());
+        const std::uint32_t phase2_ack = phase1_seq + phase1_len;
         const std::uint32_t tester_snd = seq_range->snd_nxt;
 
         // Drop tester-kernel auto-ACKs throughout both phases. RAII
@@ -133,43 +126,32 @@ struct TestCaseTraits<cases::TcpRetransmissionTo03SM> {
         // TCP_INFO snapshots by then.
         TesterAutoAckDrop ack_drop(cfg);
 
-        // Phase 1: send seg1 over the seam, poll TCP_INFO until the
-        // kernel confirms retx fired.
+        // Spec steps 2-6: seg1, then its one retransmission, waited for as long as
+        // the DUT's own RTO says it will take (tcp_retransmission_series.h). The RTO
+        // the DUT held while seg1 was in flight is the one the specification notes
+        // (`initial_rto_us`); the RTO after the retransmission is the backed-off one.
+        const std::uint32_t dut_ip = cfg.dut.ip;
+        const ::tc8::sce::ObservationCursor before_send = ctx.observer.mark();
         seamSendTcp(ctx.dut, dut_sock, kPhase1Payload);
+        const auto first = ctx.observer.awaitObservation(
+            "dut_data_segment", before_send,
+            dutDataSegmentAt(dut_ip, local_port, phase1_seq, phase1_len), kFirstSegmentBound);
+        if (!first) return;
+        watchRetransmissions(
+            c, ctx, dut_sock, before_send,
+            [dut_ip, local_port, phase1_seq, phase1_len](std::int64_t after_ts_us) {
+                return dutDataSegmentAt(dut_ip, local_port, phase1_seq, phase1_len, after_ts_us);
+            },
+            segmentOf(first->view()).observed_ts_us, /*count=*/1,
+            {"dut_data_retransmission_1", "", ""});
+        if (c.retransmissions_seen < 1) return;
 
-        const auto phase1_start = std::chrono::steady_clock::now();
-        ::tc8::sce::DutTcpInfo p1{};
-        bool p1_valid = false;
-        while (true) {
-            std::this_thread::sleep_for(kPhase1PollInterval);
-            // Retry-on-invalid: a transient seam-probe failure under
-            // workers=4 CPU saturation must not collapse the verdict to
-            // phase1_query_failed when the next poll 50 ms later would
-            // have succeeded; only a persistent failure to the deadline
-            // leaves p1_valid false.
-            const auto probe = ctx.dut.tcpInfoProbe()->queryInfo(dut_sock);
-            if (probe) {
-                p1 = *probe;
-                p1_valid = true;
-                if (p1.retransmits >= 1) break;
-            }
-            if (std::chrono::steady_clock::now() - phase1_start >= kPhase1Deadline) break;
-        }
-        c.ut_tcpi_p1_valid       = p1_valid;
-        c.ut_tcpi_p1_state       = p1.state;
-        c.ut_tcpi_p1_rto_us      = p1.rto_us;
-        c.ut_tcpi_p1_retransmits = p1.retransmits;
-        c.ut_tcpi_p1_unacked     = p1.unacked;
-
-        // Phase 2: raw-inject Karn-excluded ACK acknowledging seg1
-        // (snd_una advances past seg1; RFC 6298 §3 / §5.3 forbids the
-        // RTT estimator from sampling this round-trip and forbids the
-        // retransmission timer from being reset). Then send seg2 — Linux
-        // arms the new timer with the *current* `icsk_rto`, so a
-        // Karn-correct DUT's tcpi_rto stays at the doubled value
-        // observed in phase 1 while a Karn-violating DUT collapses it
-        // back to TCP_RTO_MIN baseline (200 ms). This raw inject is
-        // tester-side and stays off the seam.
+        // Spec steps 7-9: raw-inject an ACK of the retransmitted seg1 (snd_una
+        // advances past seg1; RFC 6298 §3 / §5.3 forbid the RTT estimator from
+        // sampling this round-trip, since the ACK cannot be attributed to either
+        // copy), then send seg2. A Karn-correct DUT sends seg2 under the backed-off
+        // RTO; a DUT that samples the ambiguous round-trip recomputes it. This raw
+        // inject is tester-side and stays off the seam.
         ::tc8::stimulus::TcpSegmentSpec ack_seg{};
         ack_seg.src_port = remote_port;
         ack_seg.dst_port = local_port;

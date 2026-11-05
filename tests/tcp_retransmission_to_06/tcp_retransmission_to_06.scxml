@@ -42,9 +42,12 @@
     * ut_tcpi_p1_state == 2 (TCP_SYN_SENT) — DUT armed the SYN.
     * ut_tcpi_p1_retransmits == 0  — snapshot caught the initial-RTO
       window before retx 1 doubled the retransmit timeout.
-    * ut_tcpi_p1_rto_us in [800000, 1500000] — RFC 6298 §2.1's "RTO
-      SHOULD be set to 1 second" with tolerance for Linux's HZ
-      quantisation and scheduling jitter.
+    * ut_tcpi_p1_rto_us within TC8's Millisec Tolerance (100 ms) of
+      the 1 second RFC 6298 §2.1 gives as the initial RTO
+      (TcpInitialRtoCaptured::initial_rto_per_rfc6298). The value is the
+      DUT's own, so no capture or scheduling jitter applies to it; the
+      tolerance absorbs a timer that counts in ticks. The earlier band,
+      [0.8, 1.5] s, was stated by no text.
 
   SCXML shape — single state with a `<send delay="0ms"/>`-raised
   evaluation event, multiple cond-keyed transitions; first matching
@@ -67,8 +70,8 @@
        initial="evaluate_kernel_observations">
 
   <sce:context id="captured"
-               cpp:type="tc8::TcpCaptured"
-               cpp:include="sce_integration/tcp_captured.h"/>
+               cpp:type="tc8::TcpInitialRtoCaptured"
+               cpp:include="sce_integration/tcp_case_captured.h"/>
 
   <sce:context id="expected"
                cpp:type="tc8::Ipv4Expected"
@@ -91,7 +94,7 @@
                 cond="cpp:captured.ut_tcpi_p1_retransmits != 0U"
                 target="inconclusive_initial_window_missed"/>
     <transition event="evaluate"
-                cond="cpp:captured.ut_tcpi_p1_rto_us &lt; 800000U or captured.ut_tcpi_p1_rto_us &gt; 1500000U"
+                cond="cpp:not captured.initial_rto_per_rfc6298()"
                 target="fail_initial_rto_out_of_window"/>
     <transition event="evaluate" target="pass"/>
   </state>

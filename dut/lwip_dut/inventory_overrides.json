@@ -236,11 +236,17 @@
       "platform_known_fail_ref": "dut/lwip_dut/README.md",
       "reason": "TCP urgent/out-of-band data path not implemented (RFC 793 section 3.7 URG); the UT answers OpReceiveTcpDataOob with zero bytes by design"
     },
+    "TCP_RETRANSMISSION_TO_03": {
+      "platform_known_fail": true,
+      "platform_known_fail_verdict": "fail:phase2_rto_not_doubled_karns_violation",
+      "platform_known_fail_ref": "dut/lwip_dut/README.md",
+      "reason": "case asserts Karn's algorithm keeps the backed-off RTO across an ACK of a retransmitted segment, so the second segment goes out under twice the first's RTO (RFC 1122 section 4.2.3.1 / RFC 6298 section 5); lwIP takes no RTT sample after a retransmission (tcp_out.c: 'Don't take any RTT measurements after retransmitting') but resets the RTO to its estimator on every ACK of new data (tcp_in.c tcp_receive: 'Reset the retransmission time-out'), so the backoff collapses: measured initial 1 s, 2 s after the retransmission, 1 s again for the second segment (2026-11-05). Masked until then by the case's former check, both RTOs >= 350 ms; genuine non-conformance"
+    },
     "TCP_RETRANSMISSION_TO_05": {
       "platform_known_fail": true,
-      "platform_known_fail_verdict": "fail:phase1_rto_below_doubled_baseline",
+      "platform_known_fail_verdict": "fail:phase2_rto_not_greater_than_phase1",
       "platform_known_fail_ref": "dut/lwip_dut/README.md",
-      "reason": "case asserts the SYN-retransmission RTO grows exponentially (RFC 1122 section 4.2.3.1 / RFC 6298 section 5 'more than linear'); lwIP excludes SYN_SENT from RTO backoff (tcp.c tcp_slowtmr: 'unless we are trying to connect') so the SYN RTO stays at the fixed ~1 s seed (measured 1 s/1 s/1 s on the wire), failing phase 1's rto-doubled check deterministically (fail:phase1_rto_below_doubled_baseline, verified x4 2026-06-11). Same root deviation as RETRANSMISSION_TO_09; genuine non-conformance, not a harness window issue"
+      "reason": "case asserts the SYN-retransmission RTO grows faster than linearly (RFC 1122 section 4.2.3.1 / RFC 6298 section 5); lwIP excludes SYN_SENT from RTO backoff (tcp.c tcp_slowtmr: 'unless we are trying to connect') so the SYN RTO stays at the fixed 1 s seed (measured RTO 1 s / 1 s / 1 s after each of three retransmissions, wire gaps 0.75 / 1.0 / 1.0 s, 2026-11-05), failing the growth check at the second retransmission. Same root deviation as RETRANSMISSION_TO_09; genuine non-conformance, not a harness window issue"
     },
     "TCP_RETRANSMISSION_TO_08": {
       "platform_known_fail": true,

@@ -175,12 +175,22 @@ TCP:
   §3.7). The UT answers `OpReceiveTcpDataOob` with zero bytes by
   design, loudly logged; an answer without the urgent byte is graded
   `fail:dut_did_not_isolate_urgent_data`.
+- **`TCP_RETRANSMISSION_TO_03` — the backed-off RTO collapses on an ACK
+  of a retransmitted segment.** The case asserts Karn's algorithm keeps
+  the backoff, so the next segment goes out under twice the RTO the first
+  went out under (RFC 1122 §4.2.3.1 / RFC 6298 §5). lwIP keeps the
+  sampling half of Karn (no RTT measurement after a retransmission,
+  `tcp_out.c`) but resets the RTO to its estimator on every ACK of new
+  data (`tcp_in.c` `tcp_receive`), so the backoff is lost: measured 1 s
+  initially, 2 s after the retransmission, 1 s again for the second
+  segment. The case's former check (both RTOs at least 350 ms) passed it.
 - **`TCP_RETRANSMISSION_TO_05` — no exponential SYN-RTO backoff.** The
-  case asserts the SYN-retransmission RTO grows (RFC 1122 §4.2.3.1 /
-  RFC 6298 §5). lwIP excludes SYN_SENT from RTO doubling (`tcp.c`
-  `tcp_slowtmr`: "unless we are trying to connect"), so the SYN RTO
-  holds the fixed ~1 s seed (measured 1 s / 1 s / 1 s on the wire) and
-  phase 1's doubled-RTO check fails deterministically. Same root cause
+  case asserts the SYN-retransmission RTO grows faster than linearly
+  (RFC 1122 §4.2.3.1 / RFC 6298 §5). lwIP excludes SYN_SENT from RTO
+  doubling (`tcp.c` `tcp_slowtmr`: "unless we are trying to connect"),
+  so the SYN RTO holds the fixed 1 s seed (measured 1 s / 1 s / 1 s
+  after each of three retransmissions) and the growth check fails at
+  the second retransmission. Same root cause
   as `_09`'s missing 2*MSL SYN-RTO plateau — a genuine deviation, not a
   harness window. (`_06`, which only asserts the RFC 6298 §2.1 ~1 s
   initial RTO, passes on lwIP and is no longer ledgered here.)

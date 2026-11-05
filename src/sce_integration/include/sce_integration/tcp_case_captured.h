@@ -101,8 +101,9 @@ private:
     }
 };
 
-// TCP_RETRANSMISSION_TO_04: does the DUT's retransmission timeout grow faster than
-// linearly over three retransmissions of one data segment?
+// TCP_RETRANSMISSION_TO_04 (a data segment) and _05 (a SYN): does the DUT's
+// retransmission timeout grow faster than linearly over three retransmissions of one
+// segment? Filled by tcp::watchRetransmissions (tcp_retransmission_series.h).
 //
 // The specification passes a DUT whose retransmission interval grows faster than
 // linearly. Growth alone does not show that: a linear backoff (RTO b, 2b, 3b) grows on
@@ -122,11 +123,15 @@ private:
 //   - missed_query_valid / missed_retransmits: the DUT's own retransmission count, read
 //     when a retransmission's window elapsed unseen. A count above what the wire showed
 //     means the capture missed it; a count at it means the DUT did not retransmit.
-struct TcpRetransmissionTo04Captured : TcpCaptured {
+//   - initial_rto_valid / initial_rto_us: the DUT's RTO read once the segment was out,
+//     before any retransmission (the timer the first retransmission waits on).
+struct TcpRetransmissionSeriesCaptured : TcpCaptured {
     std::array<std::int64_t, 4> segment_ts_us{};
     std::uint8_t retransmissions_seen = 0;
     bool missed_query_valid = false;
     std::uint8_t missed_retransmits = 0;
+    bool initial_rto_valid = false;
+    std::uint32_t initial_rto_us = 0;
 
     bool rto_increasing_2() const noexcept { return ut_tcpi_p2_rto_us > ut_tcpi_p1_rto_us; }
     bool rto_increasing_3() const noexcept { return ut_tcpi_p3_rto_us > ut_tcpi_p2_rto_us; }
@@ -142,9 +147,10 @@ struct TcpRetransmissionTo04Captured : TcpCaptured {
     }
 };
 
-inline void appendCapturedJson(std::string &out, const TcpRetransmissionTo04Captured &c) {
+inline void appendCapturedJson(std::string &out, const TcpRetransmissionSeriesCaptured &c) {
     out.append("{");
     appendTcpCapturedMembersJson(out, c);
+    ::tc8::sce::appendUintJson(out, ",\"initial_rto_us\":", c.initial_rto_us);
     ::tc8::sce::appendI64Json(out, ",\"segment_ts_us\":", c.segment_ts_us[0]);
     ::tc8::sce::appendI64Json(out, ",\"retransmission1_ts_us\":", c.segment_ts_us[1]);
     ::tc8::sce::appendI64Json(out, ",\"retransmission2_ts_us\":", c.segment_ts_us[2]);
@@ -152,6 +158,70 @@ inline void appendCapturedJson(std::string &out, const TcpRetransmissionTo04Capt
     ::tc8::sce::appendUintJson(out, ",\"rto1_us\":", c.ut_tcpi_p1_rto_us);
     ::tc8::sce::appendUintJson(out, ",\"rto2_us\":", c.ut_tcpi_p2_rto_us);
     ::tc8::sce::appendUintJson(out, ",\"rto3_us\":", c.ut_tcpi_p3_rto_us);
+    out.append("}");
+}
+
+// TCP_RETRANSMISSION_TO_03: Karn's algorithm. The DUT's data segment is retransmitted once
+// (its RTO doubles), the tester acknowledges the retransmitted segment, and the DUT sends a
+// second segment. That acknowledgement covers a retransmitted segment, so it yields no RTT
+// sample (Karn), and the timer the second segment is sent under keeps the backed-off value:
+// twice the RTO the first segment was sent under, which is the relation the specification
+// checks. `initial_rto_us` (TcpRetransmissionSeriesCaptured) is the DUT's RTO while the first
+// segment was in flight; `ut_tcpi_p2_rto_us` its RTO once the second segment is in flight.
+// Both are the DUT's own values; the allowance is TC8's Millisec Tolerance
+// (tc8::defaults::kMillisecToleranceTime, 100 ms). It used to be `>= 350 ms` on both
+// snapshots, Linux's 200 ms floor doubled, which neither stated the relation nor held for
+// another stack's numbers.
+struct TcpKarnCaptured : TcpRetransmissionSeriesCaptured {
+    bool backed_off_rto_kept() const noexcept {
+        const auto twice = 2 * static_cast<std::int64_t>(initial_rto_us);
+        const auto rto2 = static_cast<std::int64_t>(ut_tcpi_p2_rto_us);
+        const auto off = rto2 > twice ? rto2 - twice : twice - rto2;
+        return off <= std::chrono::duration_cast<std::chrono::microseconds>(
+                          ::tc8::defaults::kMillisecToleranceTime)
+                          .count();
+    }
+};
+
+inline void appendCapturedJson(std::string &out, const TcpKarnCaptured &c) {
+    out.append("{");
+    appendTcpCapturedMembersJson(out, c);
+    ::tc8::sce::appendUintJson(out, ",\"initial_rto_us\":", c.initial_rto_us);
+    ::tc8::sce::appendI64Json(out, ",\"segment_ts_us\":", c.segment_ts_us[0]);
+    ::tc8::sce::appendI64Json(out, ",\"retransmission1_ts_us\":", c.segment_ts_us[1]);
+    ::tc8::sce::appendUintJson(out, ",\"rto1_us\":", c.ut_tcpi_p1_rto_us);
+    ::tc8::sce::appendUintJson(out, ",\"second_segment_rto_us\":", c.ut_tcpi_p2_rto_us);
+    out.append("}");
+}
+
+// TCP_RETRANSMISSION_TO_06: did the DUT start with the initial RTO RFC 6298 §2.1 gives
+// (1 second)? `ut_tcpi_p1_rto_us` is the DUT's RTO read in SYN-SENT before any
+// retransmission, the timer its first retransmission waits on. It is the DUT's own value,
+// so it carries no capture or scheduling jitter; the allowance is TC8's own Millisec
+// Tolerance (tc8::defaults::kMillisecToleranceTime, 100 ms), which absorbs a timer that
+// counts in ticks. It used to be [0.8, 1.5] s, a band no text states.
+struct TcpInitialRtoCaptured : TcpCaptured {
+    static constexpr std::int64_t kRfc6298InitialRtoUs = 1'000'000;
+
+    bool initial_rto_per_rfc6298() const noexcept {
+        const auto rto = static_cast<std::int64_t>(ut_tcpi_p1_rto_us);
+        const auto off = rto > kRfc6298InitialRtoUs ? rto - kRfc6298InitialRtoUs
+                                                    : kRfc6298InitialRtoUs - rto;
+        return off <= toleranceUs();
+    }
+
+private:
+    static constexpr std::int64_t toleranceUs() noexcept {
+        return std::chrono::duration_cast<std::chrono::microseconds>(
+                   ::tc8::defaults::kMillisecToleranceTime)
+            .count();
+    }
+};
+
+inline void appendCapturedJson(std::string &out, const TcpInitialRtoCaptured &c) {
+    out.append("{");
+    appendTcpCapturedMembersJson(out, c);
+    ::tc8::sce::appendUintJson(out, ",\"initial_rto_us\":", c.ut_tcpi_p1_rto_us);
     out.append("}");
 }
 

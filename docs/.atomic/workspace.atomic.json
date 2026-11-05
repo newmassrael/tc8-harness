@@ -8858,16 +8858,6 @@
           "kind": "references"
         }
       ]
-    },
-    "5.3": {
-      "parent_doc": "tc8-spec",
-      "intent": "TC8 §5.3 — auto-seeded TC8-internal sub-section (3 code citations at baseline).",
-      "bindings": [
-        {
-          "file": "tests/tcp_retransmission_to_03/tcp_retransmission_to_03.scxml",
-          "kind": "implements"
-        }
-      ]
     }
   },
   "changelog_entries": {

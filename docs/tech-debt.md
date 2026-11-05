@@ -4745,7 +4745,7 @@ each decoder as it is moved.
 
 ## TD-70 — the other retransmission-timer cases still grade with windows and thresholds tuned to a Linux sender
 
-**Status:** OPEN. **Logged:** 2026-11-05, while repairing TCP_RETRANSMISSION_TO_04 on a consumer
+**Status:** RESOLVED (2026-11-05), the same day. **Logged:** 2026-11-05, while repairing TCP_RETRANSMISSION_TO_04 on a consumer
 request: a sender with the 3 s initial RTO of RFC 1122 ended that case without a verdict, because
 its fixed 8 s window for each retransmission graded the initial RTO, which the case does not test.
 
@@ -4770,7 +4770,37 @@ fixed deadlines grade timer values the cases do not test whichever it is.
 
 **Done when:** each of these cases has been read against its specification. Every threshold it
 keeps is quoted from that text. Every wait goes through `nextRetransmissionBound`. Each case has
-been run against the Linux reference DUT and the lwIP DUT.
+been run against the Linux reference DUT and the lwIP DUT. MET as below.
+
+**How it was repaired.** Each case was read against its specification:
+
+- `_05` asks the same as `_04` of the SYN: an interval growing faster than linearly. The
+  watching of a segment and its retransmissions moved out of `_04` into
+  `tcp_retransmission_series.h` (`watchRetransmissions`), and `_05` uses it with the SYN
+  predicate. Its 1.5 s threshold is gone, its fixed 2/4/8 s windows are gone, and its 20 s
+  RST suppression is now held for the whole stimulus. A sender with a 3 s initial RTO sends its
+  third SYN retry at 21 s, past that 20 s hold.
+- `_06` asks whether the DUT used the RFC 6298 §2.1 initial RTO of 1 s. The 1 s stays, now
+  allowed TC8's own Millisec Tolerance (100 ms) instead of the unstated [0.8, 1.5] s band
+  (`TcpInitialRtoCaptured`).
+- `_03` asks that the second segment's retransmission timer be twice the RTO noted for the first
+  (Karn). It now grades exactly that relation, `TcpKarnCaptured::backed_off_rto_kept`, within the
+  same tolerance, where it used to check only that both RTOs were at least 350 ms. Its first
+  retransmission is waited for through the same watcher instead of a fixed 3 s.
+
+**Measured 2026-11-05**, one run each:
+
+| case | Linux reference DUT (single-pc) | lwIP DUT (lwip-tap) |
+|---|---|---|
+| `_03` | pass (RTO 201 → 402 → 402 ms) | **fail** (RTO 1 s → 2 s → 1 s) |
+| `_04` | pass | pass |
+| `_05` | pass | fail, as ledgered (SYN RTO 1 s / 1 s / 1 s) |
+| `_06` | pass | pass |
+
+The lwIP `_03` result is new and genuine. lwIP takes no RTT sample after a retransmission, but
+it resets the RTO to its estimator on every ACK of new data (`tcp_in.c` `tcp_receive`), so the
+backoff Karn's algorithm keeps is lost. The old `>= 350 ms` check passed lwIP's 1 s and hid it.
+It is ledgered in `dut/lwip_dut/inventory_overrides.json` beside the corrected `_05` verdict.
 
 ## TD-71 — operator declarations are per-protocol structs, not one PICS/PIXIT register that cases select on
 
