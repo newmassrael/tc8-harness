@@ -921,23 +921,35 @@ TEST(CapturedFrameTimingFiredDelta, SomeIpAdvancesEveryLandmarkAtomically) {
     c.observed_ts_us      = 1'700'000'000'000'000LL;
     c.prev_observed_ts_us = c.observed_ts_us - 400'000LL;
     c.session_id          = 0x0042;
+    c.is_tp               = true;
     c.tp_more_segments    = true;
+    c.tp_offset           = 0;
+    c.tp_segment_len      = 1392;
 
     c.snapshotFired();
 
     EXPECT_EQ(c.fired_frame_delta_us, 400'000LL);          // base: latch
     EXPECT_EQ(c.prev_observed_ts_us, c.observed_ts_us);    // base: prev
     EXPECT_EQ(c.prev_sd_session_id, 0x0042);               // SD landmark
-    EXPECT_TRUE(c.prev_tp_more_segments);                  // SD landmark
+    EXPECT_TRUE(c.prev_tp_more_segments);                  // TP landmarks
+    EXPECT_EQ(c.prev_tp_offset, 0u);
+    EXPECT_EQ(c.prev_tp_segment_len, 1392u);
 
     // A second fired frame moves every landmark again, in lock-step.
     c.observed_ts_us   = c.observed_ts_us + 250'000LL;
     c.session_id       = 0x0043;
     c.tp_more_segments = false;
+    c.tp_offset        = 1392;
+    c.tp_segment_len   = 100;
+    EXPECT_TRUE(c.tp_segment_continues_previous());  // 1392 == 0 + 1392
     c.snapshotFired();
     EXPECT_EQ(c.fired_frame_delta_us, 250'000LL);
     EXPECT_EQ(c.prev_sd_session_id, 0x0043);
     EXPECT_FALSE(c.prev_tp_more_segments);
+    EXPECT_EQ(c.prev_tp_offset, 1392u);
+    EXPECT_EQ(c.prev_tp_segment_len, 100u);
+    c.tp_offset = 1504;  // a gap after 1392 + 100 = 1492
+    EXPECT_FALSE(c.tp_segment_continues_previous());
 }
 
 TEST(CapturedFrameTimingFiredDelta, LatchIsIndependentOfListenWindowDelta) {

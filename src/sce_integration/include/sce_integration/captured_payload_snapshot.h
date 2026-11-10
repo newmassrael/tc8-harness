@@ -17,10 +17,12 @@ namespace tc8 {
 // ONCE so the ceiling value, the storage idiom, the truncation-guard
 // semantics, and the SCXML-facing verbs cannot drift across protocols.
 //
-// `kMaxPayloadSnapshot` is the RFC 894 / RFC 1122 standard Ethernet MTU:
-// the largest L4 payload observable in a single non-jumbo Ethernet
-// frame. It is a principled boundary, not a per-protocol historical
-// high-water mark. Overflow is never silent: `payload_snapshot_len`
+// `kMaxPayloadSnapshot` is 64 KiB. A payload is not bounded by one Ethernet
+// frame: a SOME/IP message reassembled from a TCP stream, or one carried in
+// a fragmented IPv4 datagram, is handed to a case whole, and a case may echo
+// a 2048-byte array. 64 KiB holds any payload one IPv4 datagram can carry
+// and a SOME/IP-over-TCP message up to that size; it is a capture budget,
+// so a longer payload is cut, never silently. Overflow is never silent: `payload_snapshot_len`
 // records how many bytes were actually captured (min(wire_len, cap)),
 // and every comparison helper rejects an assertion that reaches past
 // the captured window — so a truncated capture fails the guard instead
@@ -40,24 +42,27 @@ namespace tc8 {
 // existing `SomeIpCaptured c{};` value-initialisation and POD copy
 // semantics intact.
 struct CapturedPayloadSnapshot {
-    static constexpr std::size_t kMaxPayloadSnapshot = 1500;
+    static constexpr std::size_t kMaxPayloadSnapshot = 64U * 1024U;
     std::array<std::uint8_t, kMaxPayloadSnapshot> payload_snapshot{};
     std::uint32_t payload_snapshot_len = 0;
 
     // Bounded copy from a non-owning wire pointer (valid only during the
-    // dispatch call). Resets first so a re-used Captured never leaks a
-    // prior frame's bytes past the new length. The single copy path the
-    // four fill functions share instead of each re-implementing the
-    // reset + min() + copy + length assignment.
+    // dispatch call). Every byte past the new length is zero afterwards, so
+    // a re-used Captured never leaks a prior frame's bytes past it. Only the
+    // bytes the previous frame left past the new length are cleared (the rest
+    // are zero already), so a frame costs its own length, not the capacity.
+    // The single copy path the four fill functions share instead of each
+    // re-implementing the reset + min() + copy + length assignment.
     void fillPayloadSnapshot(const std::uint8_t *data, std::uint32_t len) {
-        payload_snapshot_len = 0;
-        payload_snapshot.fill(0);
-        if (data == nullptr || len == 0) {
-            return;
+        const std::size_t previous_len = payload_snapshot_len;
+        std::size_t copy_len = 0;
+        if (data != nullptr && len != 0) {
+            copy_len = std::min<std::size_t>(static_cast<std::size_t>(len), payload_snapshot.size());
+            std::memcpy(payload_snapshot.data(), data, copy_len);
         }
-        const std::size_t copy_len = std::min<std::size_t>(
-            static_cast<std::size_t>(len), payload_snapshot.size());
-        std::memcpy(payload_snapshot.data(), data, copy_len);
+        if (previous_len > copy_len) {
+            std::memset(payload_snapshot.data() + copy_len, 0, previous_len - copy_len);
+        }
         payload_snapshot_len = static_cast<std::uint32_t>(copy_len);
     }
 

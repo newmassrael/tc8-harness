@@ -177,6 +177,25 @@ TEST(TcpPayloadSnapshot, OversizedPayloadCappedAtSnapshotSize) {
     }
 }
 
+// A shorter frame after a longer one leaves no byte of the longer one past its length,
+// and a 2048-byte message (an echoed array over TCP) is captured whole.
+TEST(TcpPayloadSnapshot, AShorterFrameLeavesNothingOfTheLongerOne) {
+    std::vector<std::uint8_t> long_payload(2048, 0xCD);
+    TcpCaptured c{};
+    fillTcpCapturedFromFrame(c, frameWithPayload(long_payload.data(),
+                                                 static_cast<std::uint32_t>(long_payload.size())));
+    EXPECT_EQ(c.payload_snapshot_len, 2048U);
+    EXPECT_EQ(c.payload_snapshot[2047], 0xCDU);
+
+    const std::uint8_t short_payload[3] = {0x01, 0x02, 0x03};
+    fillTcpCapturedFromFrame(c, frameWithPayload(short_payload, 3));
+    EXPECT_EQ(c.payload_snapshot_len, 3U);
+    EXPECT_EQ(c.payload_snapshot[2], 0x03U);
+    for (std::size_t i = 3; i < 2048; ++i) {
+        ASSERT_EQ(c.payload_snapshot[i], 0U) << "i=" << i;
+    }
+}
+
 TEST(TcpPayloadBytesEq, MatchingPrefixAccepted) {
     const std::array<std::uint8_t, 5> body{0x02, 0xFD, 0x80, 0x01, 0xCC};
     const auto f = frameWithPayload(body.data(),

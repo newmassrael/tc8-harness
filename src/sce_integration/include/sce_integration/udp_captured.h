@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdio>
 #include <string>
+#include <vector>
 
 #include "tc8/protocol_frames/udp_frame.h"
 #include "tc8/upper_tester_protocol.h"
@@ -178,8 +179,8 @@ struct UdpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
         if (udp_len > 65535U) return false;
 
         // Reconstruct UDP region: 8 B header (with cksum field zeroed)
-        // + payload snapshot bytes.
-        std::array<std::uint8_t, 8U + kMaxPayloadSnapshot> region{};
+        // + payload snapshot bytes, sized to this datagram.
+        std::vector<std::uint8_t> region(udp_len, 0);
         region[0] = static_cast<std::uint8_t>((src_port >> 8) & 0xFFU);
         region[1] = static_cast<std::uint8_t>(src_port & 0xFFU);
         region[2] = static_cast<std::uint8_t>((dst_port >> 8) & 0xFFU);

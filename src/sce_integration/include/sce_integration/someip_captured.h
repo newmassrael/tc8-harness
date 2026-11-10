@@ -153,6 +153,18 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     // a byte-identical duplicate of it (same value, same snapshot point).
     bool          prev_tp_more_segments = false;
 
+    // The previous fired TP-segment frame's `tp_offset` and `tp_segment_len`, snapshotted
+    // with `prev_tp_more_segments`, so a case can check that each segment continues where
+    // the last one ended instead of matching a fixed layout (sentinel 0 on the first
+    // fired transition).
+    std::uint32_t prev_tp_offset = 0;
+    std::uint32_t prev_tp_segment_len = 0;
+
+    // Whether this segment starts where the previous fired segment ended.
+    bool tp_segment_continues_previous() const noexcept {
+        return is_tp && tp_offset == prev_tp_offset + prev_tp_segment_len;
+    }
+
     // The SOME/IP half of the fired-transition bookkeeping, completing the
     // `CapturedFrameTiming::snapshotFired()` contract for this context: a
     // transition fired on the current frame, so every "previous fired frame"
@@ -182,6 +194,8 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
         ::tc8::CapturedFrameTiming::snapshotFired();
         prev_sd_session_id    = session_id;
         prev_tp_more_segments = tp_more_segments;
+        prev_tp_offset        = tp_offset;
+        prev_tp_segment_len   = tp_segment_len;
     }
 
     // Transport 4-tuple (`src_ip` / `dst_ip` / `src_port` / `dst_port`)
@@ -195,8 +209,8 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     // future cases that want to assert it explicitly.
 
     // The SOME/IP payload snapshot (`payload_snapshot` /
-    // `payload_snapshot_len`, capacity `kMaxPayloadSnapshot` = Ethernet
-    // MTU) and the `payload_bytes_eq` prefix matcher are inherited from
+    // `payload_snapshot_len`, capacity `kMaxPayloadSnapshot` = 64 KiB, so a
+    // reassembled SOME/IP-over-TCP message fits) and the `payload_bytes_eq` prefix matcher are inherited from
     // `CapturedPayloadSnapshot`. §5.1.6 SOMEIP_ETS Method-Response echo
     // conds index the snapshot directly (`captured.payload_snapshot[N]`)
     // or collapse N byte-equality conjuncts into a single

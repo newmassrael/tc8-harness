@@ -69,7 +69,7 @@ struct Icmpv4Captured : CapturedPayloadSnapshot, CapturedFrameTiming,
     std::uint32_t transmit_timestamp  = 0;
 
     // The payload snapshot (`payload_snapshot` / `payload_snapshot_len`,
-    // capacity `kMaxPayloadSnapshot` = Ethernet MTU) is inherited from
+    // capacity `kMaxPayloadSnapshot` = 64 KiB) is inherited from
     // `CapturedPayloadSnapshot`. It covers the §4.4.4.1 IPv4_HEADER_05
     // spec literal — 548 B ICMP Data inside the 576 B minimum IP
     // datagram (RFC 791 §3.1) — and the §4.3.3.2 TYPE_08 27 B literal
