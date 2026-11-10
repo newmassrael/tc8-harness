@@ -7,8 +7,10 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <map>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "tc8/protocol_frames/someip_frame.h"
 
@@ -130,6 +132,23 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
     // Stamped by fillSomeIpCapturedFromFrame — only ever set, never cleared —
     // so it survives the non-SD Notification the Phase-3 guard reads it on.
     std::uint16_t cached_offer_endpoint_udp_port = 0;
+
+    // This SD message's place in its stream since the capture began: 1 for the first
+    // SD message from `src_ip` to `dst_ip`, 2 for the next, and so on (0 for a frame
+    // that is not SD). A stream is what a sender keeps one Session ID counter for
+    // (SOME/IP-SD: per destination, multicast and each unicast peer apart), so the
+    // first message of a DUT stream in a capture that began before the DUT started
+    // is the first the DUT sent on it, and carries Session ID 1 and the Reboot flag.
+    // That premise is `dut_started_after_capture`; without it an ordinal of 1 is only
+    // the first message the capture saw. Counted by fillSomeIpCapturedFromFrame,
+    // across frames; `sd_stream_message_counts` is its tally.
+    std::uint32_t sd_stream_ordinal = 0;
+    std::map<std::pair<std::uint32_t, std::uint32_t>, std::uint32_t> sd_stream_message_counts{};
+
+    // Whether the DUT was started after this capture was armed, as the launcher
+    // declared it (TestConfig::dut_started_after_capture). A run fact, not a wire
+    // field: set once by applyTestConfig and never by a frame.
+    bool dut_started_after_capture = false;
 
     // SOME/IP-TP segment header (PRS_SOMEIP §4.2.1.4), parsed when the message_type
     // carries the TP-Flag (someiptp::kMessageTypeTpFlag = 0x20). `is_tp` is false for a
@@ -376,8 +395,10 @@ struct SomeIpCaptured : CapturedPayloadSnapshot, CapturedFrameTiming,
 // call in TestRunner compiles for every Named Context type. Adding a new
 // Context type means adding a matching overload in its own header; missing
 // overloads fail at compile time rather than silently skipping configuration.
-inline void applyTestConfig(SomeIpCaptured & /*c*/, const TestConfig & /*cfg*/) {
-    // captured-from-wire fields have no CLI-driven initial values.
+inline void applyTestConfig(SomeIpCaptured &c, const TestConfig &cfg) {
+    // Captured-from-wire fields have no CLI-driven initial values; the one run fact
+    // the context carries is how the DUT's start relates to the capture.
+    c.dut_started_after_capture = cfg.dut_started_after_capture;
 }
 
 // Shared fill logic for §5.1 cases whose dispatch() copies a SOME/IP
@@ -407,6 +428,7 @@ inline void fillSomeIpCapturedFromFrame(SomeIpCaptured &c, const SomeIpFrame &f)
     c.src_port = f.src_port;
     c.dst_port = f.dst_port;
     c.observed_ts_us = f.observed_ts_us;
+    c.sd_stream_ordinal = c.headerIsSd() ? ++c.sd_stream_message_counts[{f.src_ip, f.dst_ip}] : 0U;
     if (c.headerIsSd()) {
         // Decode the SD payload into the inherited SdDecoded aspect through the
         // neutral leaf (someip/sd_decode.h), which resets that aspect per frame

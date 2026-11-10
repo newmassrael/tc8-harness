@@ -78,6 +78,14 @@ struct TestConfig {
     // ctx)` — so a deployment-varying OEM value reaches the case's Expected
     // without editing core `expect_parser`. Empty for every in-tree case.
     std::vector<std::string> expect_extra_tokens{};
+
+    // Whether the DUT was started AFTER this run's capture was armed, as the launcher
+    // declares it (`--dut-started-after-capture`, which needs `--ready-file`, the
+    // signal the launcher starts the DUT on). Only then is the first SD message of a
+    // DUT stream in the capture the first the DUT sent since it started. False, the
+    // default, is "not known": a DUT that was already running, or one started before
+    // the harness, whose first messages the capture never saw.
+    bool dut_started_after_capture = false;
 };
 
 }  // namespace tc8

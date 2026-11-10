@@ -338,6 +338,48 @@ TEST(SomeIpCapturedSdStartMarker, NonMarkerFrameDoesNotStampAnchor) {
     EXPECT_EQ(c.sd_start_ts_us, 0);
 }
 
+// The ordinal of an SD message counts per (source, destination) stream, the unit a
+// sender keeps one Session ID counter for; a non-SD frame has none.
+TEST(SomeIpCapturedSdStream, OrdinalCountsPerSourceAndDestination) {
+    const auto offer = buildSdPayload(offerServiceEntry(0xF4E7), {});
+    const auto sd = [&offer](std::uint32_t src, std::uint32_t dst) {
+        tc8::SomeIpFrame f{};
+        f.service_id = 0xFFFF;
+        f.payload_data = offer.data();
+        f.payload_len = static_cast<std::uint32_t>(offer.size());
+        f.src_ip = src;
+        f.dst_ip = dst;
+        return f;
+    };
+    constexpr std::uint32_t kDut = 0x0200A8C0;
+    constexpr std::uint32_t kGroup = 0xFFFFFFEF;
+    constexpr std::uint32_t kTester = 0x0100A8C0;
+    tc8::SomeIpCaptured c;
+    tc8::fillSomeIpCapturedFromFrame(c, sd(kDut, kGroup));
+    EXPECT_EQ(c.sd_stream_ordinal, 1u);
+    tc8::fillSomeIpCapturedFromFrame(c, sd(kDut, kTester));  // the unicast stream starts apart
+    EXPECT_EQ(c.sd_stream_ordinal, 1u);
+    tc8::fillSomeIpCapturedFromFrame(c, sd(kDut, kGroup));
+    EXPECT_EQ(c.sd_stream_ordinal, 2u);
+    tc8::SomeIpFrame nonsd{};
+    nonsd.service_id = 0xF4E7;
+    tc8::fillSomeIpCapturedFromFrame(c, nonsd);
+    EXPECT_EQ(c.sd_stream_ordinal, 0u);
+    tc8::fillSomeIpCapturedFromFrame(c, sd(kDut, kGroup));
+    EXPECT_EQ(c.sd_stream_ordinal, 3u);
+}
+
+// Whether the DUT started under the capture is a run fact the configuration carries.
+TEST(SomeIpCapturedSdStream, TheDutStartPremiseComesFromTheConfiguration) {
+    tc8::SomeIpCaptured c;
+    tc8::TestConfig cfg{};
+    applyTestConfig(c, cfg);
+    EXPECT_FALSE(c.dut_started_after_capture);
+    cfg.dut_started_after_capture = true;
+    applyTestConfig(c, cfg);
+    EXPECT_TRUE(c.dut_started_after_capture);
+}
+
 // SOME/IP-TP capture: with the TP-Flag set, fillSomeIpCapturedFromFrame surfaces the
 // segment's offset / More-Segments / payload length (decoded via the shared
 // someiptp::parseTpHeader). Non-TP frames leave the fields default.

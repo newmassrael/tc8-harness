@@ -414,6 +414,11 @@ TestCommand::TestCommand(CLI::App &app) {
                      "multicast memberships are held (before any DUT-driving "
                      "stimulus), so a launcher can start the DUT only after the "
                      "capture can observe its first frame. Empty = disabled.");
+    sub_->add_flag("--dut-started-after-capture", dut_started_after_capture_,
+                   "Declare that the launcher starts the DUT only after --ready-file "
+                   "appears, so the capture holds the first frames the DUT sent since "
+                   "it started (a case grading the first SD message of a DUT stream "
+                   "needs this). Requires --ready-file.");
     sub_->add_option("--go-file", go_file_path_,
                      "Wait for this file before sending any stimulus. The mirror of "
                      "--ready-file: the launcher creates it once it has decided "
@@ -1274,6 +1279,14 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // parsed just below. See the --ready-file write further down.
 
     ::tc8::TestConfig config{};
+    if (dut_started_after_capture_ && ready_file_path_.empty()) {
+        std::fprintf(stderr,
+                     "error: --dut-started-after-capture needs --ready-file: without the "
+                     "signal the launcher starts the DUT on, nothing orders the DUT's start "
+                     "after the capture\n");
+        return 2;
+    }
+    config.dut_started_after_capture = dut_started_after_capture_;
     // OEM passthrough tokens ride into the config verbatim — an out-of-tree
     // Context parses them in its own applyTestConfig overload. The strict
     // --expect loop below keeps owning the closed in-tree key set.

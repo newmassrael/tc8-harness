@@ -6,6 +6,13 @@
   Same shape as FORMAT_01 — the harness fills `captured` with the parsed
   SOME/IP header and raises `someip_notification`; guards compare
   session_id against the expected constant.
+
+  The first SD message the capture sees is the first the DUT sent after
+  SD init only when the DUT was started after the capture was armed
+  (`captured.dut_started_after_capture`, declared by the launcher). A run
+  that cannot say so has no premise for either verdict and ends
+  inconclusive; a DUT already running would otherwise fail a later,
+  correct Session ID.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -29,10 +36,13 @@
       <send event="deadline_exceeded" delay="5s"/>
     </onentry>
     <transition event="someip_notification"
-                cond="cpp:captured.session_id == 0x0001"
+                cond="cpp:not captured.dut_started_after_capture"
+                target="inconclusive_dut_start_not_captured"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.sd_stream_ordinal == 1 and captured.session_id == 0x0001"
                 target="pass"/>
     <transition event="someip_notification"
-                cond="cpp:captured.session_id != 0x0001"
+                cond="cpp:captured.sd_stream_ordinal == 1 and captured.session_id != 0x0001"
                 target="fail_session_id"/>
     <transition event="deadline_exceeded" target="inconclusive_timeout"/>
   </state>
@@ -46,6 +56,12 @@
   <final id="fail_session_id">
     <donedata>
       <content>{"verdict":"fail","reason":"session_id_not_0x0001","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_dut_start_not_captured">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"dut_start_not_under_capture","role":"precondition_unmet"}</content>
     </donedata>
   </final>
 

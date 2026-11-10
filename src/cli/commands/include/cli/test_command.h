@@ -196,6 +196,12 @@ private:
     // absence-asserting case cannot pass on silence it never earned. Empty = off.
     std::string go_file_path_;
 
+    // The launcher's declaration that it starts the DUT only after `--ready-file`
+    // appears, so the capture holds the DUT's first frames since it started
+    // (TestConfig::dut_started_after_capture). Meaningless without `--ready-file`,
+    // the signal that orders the two, and refused there.
+    bool dut_started_after_capture_ = false;
+
     // Hold IGMP memberships for the multicast groups the case observes
     // (`--no-multicast-membership` clears it). Default ON: without the
     // membership a snooping bridge prunes the group before it reaches the

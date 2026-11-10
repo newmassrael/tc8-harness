@@ -889,6 +889,13 @@ fn run_case_impl(
         let mut hargs = args.clone();
         hargs.push("--ready-file".to_string());
         hargs.push(ready.to_string_lossy().into_owned());
+        // A topology that spawns its DUT starts it below, only once the ready file
+        // appears, so the capture holds the DUT's first frames since it started; say
+        // so, and a case grading the first SD message of a DUT stream can rely on it.
+        // A persistent DUT was running before this case and its first frames are gone.
+        if topo.supports_dut_spawn() {
+            hargs.push("--dut-started-after-capture".to_string());
+        }
         if readiness != DutReadiness::Unknown {
             hargs.push("--go-file".to_string());
             hargs.push(go.to_string_lossy().into_owned());
