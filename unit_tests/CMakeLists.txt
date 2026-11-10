@@ -445,11 +445,24 @@ if(TARGET tc8_testability_server)
     set_tests_properties(link_state_privileged PROPERTIES SKIP_RETURN_CODE 77)
     # A live capture source across a link outage over a veth pair (CAP_NET_RAW +
     # CAP_NET_ADMIN): the same handle delivers again once the link is back, the
-    # premise RunCapture's outage handling rests on. Same gating + scaffolding as
-    # arp_responder_privileged_test.
+    # premise RunCapture's outage handling rests on; and the whole path a case takes,
+    # bounceTesterLink from a stimulus with the capture pump, the packet pipeline and
+    # a TestRunner over a test-only machine, compiled in as run_capture_test does.
+    # Same gating + scaffolding as arp_responder_privileged_test.
     tc8_add_unit_test(capture_link_outage_privileged_test)
-    target_include_directories(capture_link_outage_privileged_test PRIVATE ${PCAP_INCLUDE_DIR})
-    target_link_libraries(capture_link_outage_privileged_test PRIVATE tc8_testability_server ${PCAP_LIBRARY})
+    sce_add_state_machine(
+        TARGET     capture_link_outage_privileged_test
+        SCXML_FILE ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/link_bounce_during_capture.scxml)
+    target_sources(capture_link_outage_privileged_test PRIVATE
+        ${PROJECT_SOURCE_DIR}/src/cli/commands/run_capture.cpp
+        ${PROJECT_SOURCE_DIR}/src/cli/commands/signal_handler.cpp
+        ${PROJECT_SOURCE_DIR}/src/harness/packet_pipeline.cpp)
+    target_include_directories(capture_link_outage_privileged_test PRIVATE
+        ${PROJECT_SOURCE_DIR}/src/cli/commands/include
+        ${LIBTINS_INCLUDE_DIR}
+        ${PCAP_INCLUDE_DIR})
+    target_link_libraries(capture_link_outage_privileged_test PRIVATE
+        tc8_testability_server sce_base ${LIBTINS_LIBRARY} ${PCAP_LIBRARY})
     add_test(NAME capture_link_outage_privileged
         COMMAND ${PROJECT_SOURCE_DIR}/scripts/run-netns-test.sh
             $<TARGET_FILE:capture_link_outage_privileged_test>

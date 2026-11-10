@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Test-only machine for capture_link_outage_privileged_test: it passes on the first
+  ARP Request it is handed. The test's stimulus bounces the capture link and awaits a
+  Request sent after the link came back, so the machine has frames from both sides of
+  the outage to see. Not a conformance case and not registered as one.
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:sce="http://sce.dev/ext"
+       xmlns:cpp="urn:sce:cpp"
+       version="1.0"
+       name="link_bounce_during_capture"
+       sce:transition-table="emit"
+       datamodel="null"
+       initial="listening">
+
+  <sce:context id="captured"
+               cpp:type="tc8::ArpCaptured"
+               cpp:include="sce_integration/arp_captured.h"/>
+
+  <sce:context id="expected"
+               cpp:type="tc8::ArpExpected"
+               cpp:include="sce_integration/arp_expected.h"/>
+
+  <state id="listening">
+    <onentry>
+      <send event="deadline_exceeded" delay="5s"/>
+    </onentry>
+    <transition event="arp_observed" cond="cpp:captured.opcode == 1" target="pass"/>
+    <transition event="deadline_exceeded" target="inconclusive_no_request"/>
+  </state>
+
+  <final id="pass">
+    <donedata>
+      <content>{"verdict":"pass"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_no_request">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_arp_request_captured","role":"precondition_unmet"}</content>
+    </donedata>
+  </final>
+</scxml>
