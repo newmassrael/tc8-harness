@@ -11,8 +11,9 @@
 # stay portable. On this self-hosted fixture the "remote" host shares the
 # filesystem, so the remote paths are the repo's own build artifacts.
 #
-# Run (as root):
-#   sudo dut/env/orchestrator/target/debug/tc8-orchestrator \
+# Run (as root; run-isolated.sh keeps host network daemons such as NetworkManager
+# off the fixture's interfaces):
+#   sudo dut/env/orchestrator/run-isolated.sh dut/env/orchestrator/target/debug/tc8-orchestrator \
 #        --topology ssh-remote \
 #        --topology-conf dut/env/orchestrator/examples/ssh-remote-netns-fixture.toml \
 #        SOMEIPSRV_FORMAT_01 ICMPv4_TYPE_08

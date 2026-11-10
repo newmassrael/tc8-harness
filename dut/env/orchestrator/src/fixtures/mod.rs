@@ -53,6 +53,36 @@ const SSHFIX_PORT: &str = "2222";
 fn fix_cidr(ip: &str) -> String {
     format!("{ip}/24")
 }
+/// Bail when the fixture's tester address is gone from `veth` once the fixture has
+/// settled. The tester leg lives in the orchestrator's own network namespace, where
+/// a host network manager may take a new interface over. Measured on a runner with
+/// NetworkManager: whenever it registered the veth before the fixture had added the
+/// address, it auto-activated a DHCP profile on it and removed the address and its
+/// route within a millisecond, and every probe of the DUT then ran into its timeout
+/// with nothing to say why. Under `run-isolated.sh` the fixture lives in a private
+/// network namespace that no host daemon watches.
+fn ensure_tester_address(veth: &str) -> Result<()> {
+    let want = fix_cidr(wire::TESTER_IP);
+    let out = Command::new("ip")
+        .args(["-4", "-o", "addr", "show", "dev", veth])
+        .output()
+        .with_context(|| format!("spawning `ip -4 -o addr show dev {veth}`"))?;
+    if !out.status.success() || !addr_listing_has(&String::from_utf8_lossy(&out.stdout), &want) {
+        bail!(
+            "fixture: '{veth}' no longer carries {want}, which the fixture assigned — something on this \
+             host reconfigured the interface (NetworkManager does when it takes a new veth over); run the \
+             fixture under dut/env/orchestrator/run-isolated.sh"
+        );
+    }
+    Ok(())
+}
+
+/// Whether an `ip -4 -o addr show` listing holds the address `cidr` (e.g.
+/// `172.16.0.1/24`) as a whole token.
+fn addr_listing_has(listing: &str, cidr: &str) -> bool {
+    listing.split_whitespace().any(|token| token == cidr)
+}
+
 /// DUT boot settle before preflight probes it (external-netns-fixture.conf `sleep
 /// 1.5`); the topology preflight ut-ping is the actual readiness gate.
 const DUT_SETTLE: Duration = Duration::from_millis(1500);
@@ -178,6 +208,13 @@ fn provision_netns_dut(cfg: &Config) -> Result<Child> {
         .spawn()
         .context("spawning the netns-dut fixture DUT")?;
     sleep(DUT_SETTLE);
+    if let Err(e) = ensure_tester_address(EXTFIX_VETH_T) {
+        // The caller's teardown reaps the DUT by path; this reaps its wrapper.
+        let mut child = child;
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(e);
+    }
     Ok(child)
 }
 
@@ -231,7 +268,7 @@ fn provision_ssh_netns_dut() -> Result<()> {
         bail!("sshd failed to start in the ssh-netns-dut fixture (is openssh-server installed?)");
     }
     sleep(SSHD_SETTLE);
-    Ok(())
+    ensure_tester_address(SSHFIX_VETH_T)
 }
 
 fn teardown_ssh_netns_dut() {
@@ -287,6 +324,27 @@ fn kill_pidfile(pidfile: &str) {
         if !pid.is_empty() && pid.bytes().all(|b| b.is_ascii_digit()) {
             crate::proc::run_quiet(Command::new("kill").args(["-KILL", pid]));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::addr_listing_has;
+
+    const LISTING: &str =
+        "248: veth-sshfix-t    inet 172.16.0.1/24 scope global veth-sshfix-t\\       valid_lft forever preferred_lft forever\n";
+
+    #[test]
+    fn the_assigned_address_is_found_as_a_whole_token() {
+        assert!(addr_listing_has(LISTING, "172.16.0.1/24"));
+    }
+
+    // What NetworkManager left behind: the interface with no IPv4 address at all.
+    #[test]
+    fn an_interface_without_the_address_is_reported() {
+        assert!(!addr_listing_has("", "172.16.0.1/24"));
+        assert!(!addr_listing_has(LISTING, "172.16.0.11/24"));
+        assert!(!addr_listing_has(LISTING, "172.16.0.1/16"));
     }
 }
 

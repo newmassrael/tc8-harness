@@ -13,9 +13,14 @@
 # entirely: our netns names and veth devices live in namespaces the co-tenant
 # cannot see, and a private tmpfs over `/run/netns` keeps our name files ours alone.
 #
-# Scope: use this ONLY for netns-owning topologies (single-pc). Topologies that need
-# the host or a remote network — external, ssh-remote, lwip-tap — must NOT be
-# wrapped, since `--net` would hide the host stack / break the ssh transport.
+# Scope: use this for runs that own every interface they touch: single-pc, and the
+# external / ssh-remote topologies when a `[fixture]` stands the far side up on this
+# machine (dut/env/orchestrator/examples/*-netns-fixture.toml). A fixture's tester
+# leg in the root namespace is also fair game for host daemons: NetworkManager,
+# registering the veth before the fixture had addressed it, started DHCP on it and
+# removed the address. Runs that need the host or a remote network — external and
+# ssh-remote against a real ECU or second PC, lwip-tap — must NOT be wrapped, since
+# `--net` would hide the host stack / break the ssh transport.
 #
 # Requires root (the smoke lanes already invoke this under sudo) and an `unshare`
 # that supports `--net --mount`. `--propagation private` keeps the tmpfs mount from
@@ -38,6 +43,12 @@ exec unshare --net --mount --propagation private -- bash -c '
     # `ip netns add` would have produced anyway.
     mkdir -p /run/netns
     mount -t tmpfs tmpfs /run/netns
+    # sysfs shows the network namespace of whoever mounted it, so the inherited
+    # /sys still lists the HOST interfaces here and none of ours: a fixture run
+    # read its own tester veth as absent from /sys/class/net. Remount it for this
+    # namespace, as `ip netns exec` does for each netns it enters.
+    umount -l /sys
+    mount -t sysfs sysfs /sys
     # A fresh net namespace ships lo DOWN; bring it up so anything expecting a
     # working loopback in the run root behaves as on the host.
     ip link set lo up 2>/dev/null || true

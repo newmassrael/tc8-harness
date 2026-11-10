@@ -282,9 +282,17 @@ jobs:
       # whole profile path: preflight (iface / ICMP / UT OpPing probe /
       # SSH + remote-binary checks), per-case DUT handling, and the
       # execution-ledger summary. ~1 min combined.
+      #
+      # Both run under run-isolated.sh: the fixtures build the "remote" side on
+      # this runner, so they need nothing of the host network, and in the root
+      # namespace the runner's NetworkManager raced the fixture for its tester
+      # veth. Whenever it registered the veth before the address was set, it
+      # started DHCP on it and removed the address, and the SSH probe timed out
+      # (3 of the scheduled runs at a33338a4).
       - name: Topology profile regression — external (netns fixture)
         run: |
-          sudo -n dut/env/orchestrator/target/debug/tc8-orchestrator \
+          sudo -n dut/env/orchestrator/run-isolated.sh \
+            dut/env/orchestrator/target/debug/tc8-orchestrator \
             --topology external \
             --topology-conf dut/env/orchestrator/examples/external-netns-fixture.toml \
             --junit-xml reports/junit-smoke-topology-external.xml \
@@ -293,7 +301,8 @@ jobs:
 
       - name: Topology profile regression — ssh-remote (netns fixture)
         run: |
-          sudo -n dut/env/orchestrator/target/debug/tc8-orchestrator \
+          sudo -n dut/env/orchestrator/run-isolated.sh \
+            dut/env/orchestrator/target/debug/tc8-orchestrator \
             --topology ssh-remote \
             --topology-conf dut/env/orchestrator/examples/ssh-remote-netns-fixture.toml \
             --junit-xml reports/junit-smoke-topology-ssh-remote.xml \
