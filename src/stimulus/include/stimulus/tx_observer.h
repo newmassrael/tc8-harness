@@ -183,6 +183,8 @@ void reportTxFailed(const char *primitive);
 // spelling. A case may use any other short label for an action of its own.
 inline constexpr std::string_view kActionIgnoreSegments = "ignore_segments";
 inline constexpr std::string_view kActionResume         = "resume";
+inline constexpr std::string_view kActionLinkDown       = "link_down";
+inline constexpr std::string_view kActionLinkUp         = "link_up";
 
 // The tester did something that is a step of a procedure and puts no frame on the wire:
 // reports "tester_action" labelled `what`, with the current TxSpecStep and emitter scope.

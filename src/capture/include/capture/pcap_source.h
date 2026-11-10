@@ -51,6 +51,11 @@ public:
         return offline_;
     }
 
+    // The interface a live source captures on, or the file an offline one replays.
+    const std::string &iface() const {
+        return iface_;
+    }
+
     // Frame accounting for this source since the handle was activated — the
     // per-run answer to "did the capture underlying the verdict lose frames?".
     // Cheap (one syscall-ish read of counters libpcap already maintains), so

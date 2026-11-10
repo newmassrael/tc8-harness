@@ -1842,10 +1842,12 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     capture_stats.push_back(src->stats());
     capture_stats.back().multicast_groups = membership.requested();
     capture_stats.back().multicast_groups_failed = membership.failed();
+    capture_stats.back().link_outages = capture.linkOutages(0);
     if (src2) {
         capture_stats.push_back(src2->stats());
         capture_stats.back().multicast_groups = membership2.requested();
         capture_stats.back().multicast_groups_failed = membership2.failed();
+        capture_stats.back().link_outages = capture.linkOutages(1);
     }
     runner->setCaptureStats(capture_stats);
     runner->setDissectionStats(pipeline.dissectionStats());
@@ -1936,8 +1938,11 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
         verdict = ::tc8::sce::Verdict{::tc8::sce::VerdictClass::Error,
                                       "harness_fault_handling_a_captured_frame", "test_system_fault"};
     }
+    // An outage before the listen window opened hides nothing the window grades;
+    // one at any instant inside it does.
+    const std::int64_t window_open_us = runner->listenWindowOpenTsUs();
     const bool capture_whole =
-        ::tc8::captureProvenComplete(capture_stats) && dissection.observationComplete();
+        ::tc8::captureProvenComplete(capture_stats, window_open_us) && dissection.observationComplete();
     const char *capture_reason = dissection.frames_truncated != 0
                                      ? "capture_truncated_frames_absence_unproven"
                                  : dissection.frames_undissectable_possibly_dut != 0
@@ -1946,6 +1951,8 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
                                      ? "capture_lost_frames_absence_unproven"
                                  : ::tc8::anySourceMissingMulticastMembership(capture_stats)
                                      ? "capture_multicast_group_unheld_absence_unproven"
+                                 : ::tc8::anySourceLinkDownSince(capture_stats, window_open_us)
+                                     ? "capture_link_outage_absence_unproven"
                                      : "capture_completeness_unknown_absence_unproven";
     // H1, the liveness anchor (docs/verdict_policy.md Section 2.1): the DUT answering an
     // exchange after the window — one independent of what the case grades — is what
@@ -2053,6 +2060,18 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
                     cs.lostFrames() ? "  WARNING: frames lost — a gap-derived verdict on this "
                                       "run may be measured from a late anchor"
                                     : "");
+    }
+    for (const auto &cs : capture_stats) {
+        for (const ::tc8::LinkOutage &o : cs.link_outages) {
+            if (o.end_us == 0) {
+                std::printf("capture  : %s link down from %lld us to the end of the capture\n",
+                            cs.iface.c_str(), static_cast<long long>(o.begin_us));
+            } else {
+                std::printf("capture  : %s link down for %lld us (from %lld us)\n", cs.iface.c_str(),
+                            static_cast<long long>(o.end_us - o.begin_us),
+                            static_cast<long long>(o.begin_us));
+            }
+        }
     }
     // Surface the witnessing evidence on any non-pass verdict so a
     // value-comparison failure (e.g. a timing-window flake like

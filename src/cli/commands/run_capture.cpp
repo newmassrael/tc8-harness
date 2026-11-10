@@ -1,11 +1,15 @@
 #include "cli/run_capture.h"
 
+#include <chrono>
+#include <cstdint>
+#include <optional>
 #include <thread>
 #include <vector>
 
 #include <poll.h>
 
 #include "capture/pcap_source.h"
+#include "tc8/net/link_control.h"
 #include "cli/signal_handler.h"
 #include "dissect/packet_pipeline.h"
 #include "sce_integration/test_runner.h"
@@ -17,7 +21,7 @@ sce::ICapturePump::Drained RunCapture::drain() {
     if (SignalGuard::stopRequested()) {
         return Drained{Status::kStopped, 0};
     }
-    const int n = dispatchFrom(src_, dlt_);
+    const int n = dispatchObservingLink(src_, dlt_, link_[0]);
     if (n == -2) {
         return Drained{Status::kEndOfCapture, 0};
     }
@@ -33,7 +37,7 @@ sce::ICapturePump::Drained RunCapture::drain() {
     // quanta cleanly.
     int n2 = 0;
     if (src2_ != nullptr) {
-        n2 = dispatchFrom(*src2_, dlt2_);
+        n2 = dispatchObservingLink(*src2_, dlt2_, link_[1]);
         if (n2 == -2) {
             return Drained{Status::kEndOfCapture, static_cast<std::size_t>(n)};
         }
@@ -92,6 +96,38 @@ void RunCapture::waitForInput(std::chrono::milliseconds max) {
     // Readable, error or EINTR alike just return to the caller, which
     // re-drains; the return value needs no inspection.
     poll(pfds.data(), static_cast<nfds_t>(pfds.size()), static_cast<int>(max.count()));
+}
+
+namespace {
+
+// Whether `source`'s link carries traffic now: administratively up with a carrier.
+// An interface whose state cannot be read carries nothing.
+bool linkCarriesTraffic(const capture::PcapSource &source) {
+    const std::optional<::tc8::net::LinkState> state = ::tc8::net::readLinkState(source.iface());
+    return state.has_value() && state->admin_up && state->carrier;
+}
+
+std::int64_t realtimeNowUs() {
+    return std::chrono::duration_cast<std::chrono::microseconds>(
+               std::chrono::system_clock::now().time_since_epoch())
+        .count();
+}
+
+}  // namespace
+
+int RunCapture::dispatchObservingLink(capture::PcapSource &source, int dlt,
+                                      ::tc8::LinkOutageTracker &link) {
+    if (source.isOffline()) {
+        return dispatchFrom(source, dlt);  // a savefile has no link
+    }
+    link.observe(linkCarriesTraffic(source), realtimeNowUs());
+    const int n = dispatchFrom(source, dlt);
+    if (n >= 0 || n == -2) {
+        return n;
+    }
+    // The failure may be the first sign of the link going down; ask again.
+    link.observe(linkCarriesTraffic(source), realtimeNowUs());
+    return link.down() ? 0 : n;
 }
 
 int RunCapture::dispatchFrom(capture::PcapSource &source, int dlt) {

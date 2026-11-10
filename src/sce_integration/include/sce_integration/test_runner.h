@@ -345,6 +345,14 @@ public:
         return std::nullopt;
     }
 
+    // The instant the listen window opened, in CLOCK_REALTIME epoch microseconds
+    // (the clock of a frame's `observed_ts_us`), or 0 before start(). Not pure: a
+    // runner that opens no window reports 0, and a reader taking 0 as "the whole
+    // run" stays on the safe side.
+    virtual std::int64_t listenWindowOpenTsUs() const {
+        return 0;
+    }
+
     // Live progress stream (state_stream.h). Borrowed: the CLI owns the stream and
     // keeps it alive past the last call into the runner. Not pure: a runner with
     // nothing to stream (every test double) needs no override, and a run that never
@@ -508,9 +516,9 @@ public:
         // exposure `frame_delta_us()` already carries.) Guarded so a Captured
         // context that does not observe wire timing (no `CapturedFrameTiming`
         // base) still compiles.
+        listen_window_open_ts_us_ = stimulus_returned_ts_us_ != 0 ? stimulus_returned_ts_us_ : realtimeNowUs();
         if constexpr (std::is_base_of_v<::tc8::CapturedFrameTiming, Captured>) {
-            captured_.listen_window_open_ts_us =
-                stimulus_returned_ts_us_ != 0 ? stimulus_returned_ts_us_ : realtimeNowUs();
+            captured_.listen_window_open_ts_us = listen_window_open_ts_us_;
         }
         // Anchor the state-entry observer baseline. A transition is
         // detected when `getCurrentState()` differs from this value,
@@ -673,6 +681,10 @@ public:
                 trace_.back().step_idx == settled_step_idx_);
     }
 
+    std::int64_t listenWindowOpenTsUs() const override {
+        return listen_window_open_ts_us_;
+    }
+
     std::optional<std::int64_t> finalWindowUs() const override {
         if (trace_.empty()) {
             return std::nullopt;
@@ -741,6 +753,19 @@ public:
                     }
                     out.append("]");
                 }
+            }
+            // Link outages — emitted only when the source's link went down, so a
+            // run whose link stayed up keeps a byte-identical record. An open
+            // outage (end_us 0) was still down when the capture ended.
+            if (!cs.link_outages.empty()) {
+                out.append(",\"link_outages\":[");
+                for (std::size_t o = 0; o < cs.link_outages.size(); ++o) {
+                    if (o != 0) out.append(",");
+                    ::tc8::sce::appendI64Json(out, "{\"begin_us\":", cs.link_outages[o].begin_us);
+                    ::tc8::sce::appendI64Json(out, ",\"end_us\":", cs.link_outages[o].end_us);
+                    out.append("}");
+                }
+                out.append("]");
             }
             out.append("}");
         }
@@ -1146,6 +1171,8 @@ private:
     // CLOCK_REALTIME microseconds at which `kickStimulus` returned; 0 = it has
     // not run. `start()` publishes it as the listen-window-open reference.
     std::int64_t                       stimulus_returned_ts_us_ = 0;
+    // The listen-window-open instant start() took (listenWindowOpenTsUs); 0 before it.
+    std::int64_t                       listen_window_open_ts_us_ = 0;
 
     static std::int64_t realtimeNowUs() {
         return std::chrono::duration_cast<std::chrono::microseconds>(

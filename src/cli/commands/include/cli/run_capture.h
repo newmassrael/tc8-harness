@@ -1,11 +1,14 @@
 #pragma once
 
 #include <chrono>
+#include <cstddef>
 #include <string>
+#include <vector>
 
 #include <pcap/pcap.h>
 
 #include "sce_integration/stimulus_observation.h"
+#include "tc8/link_outage_tracker.h"
 
 namespace tc8::capture {
 class PcapSource;
@@ -48,6 +51,14 @@ public:
     const std::string &error() const {
         return error_;
     }
+    // The intervals during which the primary (`source` 0) or secondary (1) source's
+    // link carried no traffic, as each drain observed it (CaptureStats::link_outages).
+    // While a link is down its source cannot deliver anything, and a dispatch that
+    // fails then is that outage, not a failed capture: the drain goes on polling
+    // and the source delivers again once the link is back.
+    const std::vector<::tc8::LinkOutage> &linkOutages(std::size_t source) const {
+        return link_[source].outages();
+    }
 
     // Make the saved pcap followable while the run is going: flush it to disk at
     // most once per `interval`, and only when frames were appended since the last
@@ -69,6 +80,9 @@ private:
     // dumper; a transition recorded at -1 surfaces as a verdict-decider-not-
     // retained note via the site walker.
     int dispatchFrom(capture::PcapSource &source, int dlt);
+    // Dispatch `source`, observing its link before and, on a failure, after: a
+    // failure while the link is down is an outage and counts as no frames.
+    int dispatchObservingLink(capture::PcapSource &source, int dlt, ::tc8::LinkOutageTracker &link);
 
     capture::PcapSource     &src_;
     int                      dlt_;
@@ -79,6 +93,7 @@ private:
     sce::ITestRunner        &runner_;
     int                      next_pcap_frame_idx_ = 0;
     std::string              error_;
+    ::tc8::LinkOutageTracker link_[2];
     // followPcap(): 0 = off. `pcap_dirty_` is set by a dump and cleared by a flush.
     std::chrono::milliseconds             pcap_flush_interval_{0};
     std::chrono::steady_clock::time_point pcap_last_flush_{};

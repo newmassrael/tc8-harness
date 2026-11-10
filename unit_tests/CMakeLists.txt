@@ -112,6 +112,9 @@ target_link_libraries(bpf_filter_test PRIVATE ${PCAP_LIBRARY})
 # fabricated zero) plus the tri-state predicate; a live run's `capture :`
 # teardown line covers the rest.
 tc8_add_unit_test(capture_stats_test)
+# Link outages: the tracker, the window-bounded completeness claim, and the timer
+# that brings a bounced tester link back up (sce_integration/tester_link.h).
+tc8_add_unit_test(link_outage_test)
 target_include_directories(capture_stats_test PRIVATE ${PCAP_INCLUDE_DIR})
 target_compile_definitions(capture_stats_test PRIVATE
     TC8_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
@@ -440,6 +443,18 @@ if(TARGET tc8_testability_server)
             $<TARGET_FILE:link_control_test>
             --gtest_filter=SetLinkState.*)
     set_tests_properties(link_state_privileged PROPERTIES SKIP_RETURN_CODE 77)
+    # A live capture source across a link outage over a veth pair (CAP_NET_RAW +
+    # CAP_NET_ADMIN): the same handle delivers again once the link is back, the
+    # premise RunCapture's outage handling rests on. Same gating + scaffolding as
+    # arp_responder_privileged_test.
+    tc8_add_unit_test(capture_link_outage_privileged_test)
+    target_include_directories(capture_link_outage_privileged_test PRIVATE ${PCAP_INCLUDE_DIR})
+    target_link_libraries(capture_link_outage_privileged_test PRIVATE tc8_testability_server ${PCAP_LIBRARY})
+    add_test(NAME capture_link_outage_privileged
+        COMMAND ${PROJECT_SOURCE_DIR}/scripts/run-netns-test.sh
+            $<TARGET_FILE:capture_link_outage_privileged_test>
+            --gtest_filter=CaptureLinkOutage.*)
+    set_tests_properties(capture_link_outage_privileged PROPERTIES SKIP_RETURN_CODE 77)
     # Live ArpResponder over a veth pair (CAP_NET_RAW + CAP_NET_ADMIN). Links
     # tc8_testability_server for the netns_test_util veth/CAP_NET_ADMIN scaffolding
     # (LinuxSocketBackend + the dut include path). The plain run self-skips without

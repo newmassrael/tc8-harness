@@ -1,10 +1,20 @@
 #pragma once
 
 #include <cstdint>
+#include <limits>
 #include <string>
 #include <vector>
 
 namespace tc8 {
+
+// An interval during which a capture source's link carried no traffic: the
+// interface was administratively down or had no carrier. CLOCK_REALTIME epoch
+// microseconds, the clock of a frame's `observed_ts_us` and of the listen window.
+// `end_us` 0 means the link was still down when the capture ended.
+struct LinkOutage {
+    std::int64_t begin_us = 0;
+    std::int64_t end_us = 0;
+};
 
 // Per-source frame accounting for one capture run — "was the wire observation
 // underlying this verdict complete?".
@@ -88,6 +98,26 @@ struct CaptureStats {
     bool multicastMembershipHeld() const {
         return multicast_groups_failed.empty();
     }
+
+    // --- Link outages: the fourth way a capture can misrepresent the wire
+    //
+    // While this source's link is down nothing reaches it, so it drops nothing,
+    // truncates nothing and loses nothing, and every counter above stays clean
+    // for an interval in which the DUT's frames could not be seen at all. A case
+    // that takes the tester's own link down (bounceTesterLink) makes one on
+    // purpose; a DUT dropping its link makes one too. Recorded by the capture
+    // loop from the interface's own state, never inferred from what arrived.
+    std::vector<LinkOutage> link_outages;
+
+    // Whether the link was down at any instant from `since_us` on.
+    bool linkDownSince(std::int64_t since_us) const {
+        for (const LinkOutage &o : link_outages) {
+            if (o.end_us == 0 || o.end_us > since_us) {
+                return true;
+            }
+        }
+        return false;
+    }
 };
 
 // --- Run-level predicates over every source a run captured on -------------
@@ -137,16 +167,31 @@ inline bool anySourceMissingMulticastMembership(const std::vector<CaptureStats> 
     return false;
 }
 
+// True when some source's link was down at any instant from `since_us` on.
+inline bool anySourceLinkDownSince(const std::vector<CaptureStats> &sources, std::int64_t since_us) {
+    for (const CaptureStats &s : sources) {
+        if (s.linkDownSince(since_us)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // The claim an absence-based verdict needs: "the run observed the whole window
-// on every source". Three independent halves, because there are three ways the
+// on every source". Four independent halves, because there are four ways the
 // claim fails: a frame the kernel DROPPED, a frame delivered but CUT SHORT
-// (checked by the caller, which owns the dissector), and a frame the network
-// never DELIVERED because we did not hold its group. The third is the one no
-// counter can see after the fact, which is exactly why it is established up
-// front and recorded rather than inferred here.
-inline bool captureProvenComplete(const std::vector<CaptureStats> &sources) {
+// (checked by the caller, which owns the dissector), a frame the network
+// never DELIVERED because we did not hold its group, and a frame that could not
+// reach us because a source's LINK WAS DOWN at some point in the window, which
+// opens at `window_open_us` (the default, the earliest instant, counts any
+// outage of the run). The third is the one no counter can see after the fact,
+// which is exactly why it is established up front and recorded rather than
+// inferred here.
+inline bool captureProvenComplete(const std::vector<CaptureStats> &sources,
+                                  std::int64_t window_open_us = std::numeric_limits<std::int64_t>::min()) {
     return everySourceMeasured(sources) && !anySourceLostFrames(sources)
-           && !anySourceMissingMulticastMembership(sources);
+           && !anySourceMissingMulticastMembership(sources)
+           && !anySourceLinkDownSince(sources, window_open_us);
 }
 
 }  // namespace tc8
