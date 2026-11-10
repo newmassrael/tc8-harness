@@ -80,10 +80,10 @@ ServerRole::ServerRole(std::shared_ptr<CommonAPI::Runtime> runtime,
     // (never the ServerRole `this`), so the detached thread keeps them alive.
     impl_->setSuspendCallback(
         [runtime = runtime_, impl = impl_, lifecycle = std::move(lifecycle)](
-            uint32_t start_ms, uint32_t duration_ms) {
-            std::thread([runtime, impl, lifecycle, start_ms, duration_ms]() {
-                if (start_ms > 0) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(start_ms));
+            std::chrono::seconds start, std::chrono::seconds duration) {
+            std::thread([runtime, impl, lifecycle, start, duration]() {
+                if (start.count() > 0) {
+                    std::this_thread::sleep_for(start);
                 }
                 runtime->unregisterService(ets_deploy::kDomain, ets_deploy::kInterface,
                                            ets_deploy::kInstance);
@@ -93,8 +93,9 @@ ServerRole::ServerRole(std::shared_ptr<CommonAPI::Runtime> runtime,
                 if (lifecycle) {
                     lifecycle->post(LifecycleEvent::Suspend);
                 }
-                std::printf("tc8-dut: suspendInterface — service stopped for %u ms\n", duration_ms);
-                std::this_thread::sleep_for(std::chrono::milliseconds(duration_ms));
+                std::printf("tc8-dut: suspendInterface — service stopped for %lld s\n",
+                            static_cast<long long>(duration.count()));
+                std::this_thread::sleep_for(duration);
                 if (!runtime->registerService(ets_deploy::kDomain, ets_deploy::kInstance, impl)) {
                     std::fprintf(stderr, "tc8-dut: suspendInterface re-register failed\n");
                 } else {

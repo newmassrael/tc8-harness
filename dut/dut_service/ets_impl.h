@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -276,7 +277,9 @@ public:
         uint32_t _start,
         uint32_t _duration) override;
 
-    using SuspendCallback = std::function<void(uint32_t /*start_ms*/, uint32_t /*duration_ms*/)>;
+    // TC8 §5.1.4.3.2 gives both arguments in seconds; EtsImpl::suspendInterface is
+    // the one wire boundary that converts the uint32 values to these strong types.
+    using SuspendCallback = std::function<void(std::chrono::seconds start, std::chrono::seconds duration)>;
     void setSuspendCallback(SuspendCallback cb) { suspend_callback_ = std::move(cb); }
 
     // §5.1.6 SOMEIP_ETS_146 — TC8 §5.1.4.3.1 resetInterface. Fire&Forget

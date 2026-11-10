@@ -6146,6 +6146,18 @@
         {
           "file": "tests/someip_ets_089/someip_ets_089.scxml",
           "kind": "implements"
+        },
+        {
+          "file": "dut/dut_service/ets_impl.cpp",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/cases/someip_ets_089.h",
+          "kind": "implements"
+        },
+        {
+          "file": "src/sce_integration/include/sce_integration/cases/someip_ets_164.h",
+          "kind": "implements"
         }
       ]
     },

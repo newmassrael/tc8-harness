@@ -384,7 +384,8 @@ void EtsImpl::suspendInterface(
     uint32_t _start,
     uint32_t _duration) {
     if (suspend_callback_) {
-        suspend_callback_(_start, _duration);
+        // TC8 §5.1.4.3.2: Start and Duration are wait times in seconds.
+        suspend_callback_(std::chrono::seconds(_start), std::chrono::seconds(_duration));
     }
 }
 

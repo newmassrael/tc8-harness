@@ -24,7 +24,8 @@ interface EnhancedTestability {
     }
 
     <** @description: Stop offering the service, then reoffer after a delay
-      (TC8 §5.1.4.3.2). **>
+      (TC8 §5.1.4.3.2). start: seconds to wait before stopping; duration:
+      seconds between stopping and reoffering. **>
     method suspendInterface fireAndForget {
         in {
             UInt32 start

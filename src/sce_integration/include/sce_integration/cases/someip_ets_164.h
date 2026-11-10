@@ -31,10 +31,10 @@ namespace tc8::sce {
 //   - emit OfferService (ttl > 0) on resume,
 //   - keep responding to field methods after resume.
 //
-// The DUT firmware (`dut_main.cpp:61` setSuspendCallback) implements this
-// via runtime->unregisterService(...) → sleep(duration_ms) →
-// registerService(...). suspend duration = 2000 ms here so the SCXML
-// envelope stays bounded; trait re-issues getFieldA after the resume
+// The DUT firmware (ServerRole's setSuspendCallback) implements this
+// via runtime->unregisterService(...) → sleep(duration) →
+// registerService(...). Both arguments are seconds (TC8 §5.1.4.3.2); a
+// 2 s suspension keeps the SCXML envelope bounded; trait re-issues getFieldA after the resume
 // gate (Phase 4).
 //
 // Spec verdict-line reads "Value returned must not be the same as set by
@@ -72,7 +72,7 @@ struct TestCaseTraits<cases::SomeipEts164SM> : SomeIpAnyBase<cases::SomeipEts164
         set.payload   = {0x77};
         ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, set, {}, ::tc8::sce::someipUdpMethodDest(cfg));
 
-        // 2. suspendInterface(start=0, duration=2000) — Method 0x02
+        // 2. suspendInterface(start=0 s, duration=2 s) — Method 0x02
         // Fire&Forget, sent once phase 2 saw the set answered, so the
         // suspension cannot swallow a set the DUT had not answered yet.
         // Args 4-byte start + 4-byte duration BE.
@@ -83,8 +83,8 @@ struct TestCaseTraits<cases::SomeipEts164SM> : SomeIpAnyBase<cases::SomeipEts164
                 ::tc8::stimulus::SomeIpRpcMessage suspend{};
                 suspend.method_id    = 0x0002;
                 suspend.message_type = ::tc8::someip::MessageType::REQUEST_NO_RETURN;  // RequestNoReturn (Fire&Forget).
-                suspend.payload      = {0x00, 0x00, 0x00, 0x00,   // start = 0
-                                        0x00, 0x00, 0x07, 0xD0};  // duration = 2000 ms
+                suspend.payload      = {0x00, 0x00, 0x00, 0x00,   // start = 0 s
+                                        0x00, 0x00, 0x00, 0x02};  // duration = 2 s
                 ::tc8::stimulus::MethodRequestTiming now{};
                 now.pre_emit_wait = std::chrono::milliseconds(0);
                 ::tc8::stimulus::emitMethodRequestAfter(iface, suspend, now, dest);

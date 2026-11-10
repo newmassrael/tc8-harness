@@ -30,9 +30,9 @@ namespace tc8::sce {
 //   3. After the suspend duration elapses, DUT re-offers the service
 //      (Type 0x01 + ttl > 0) on the same vsomeip.json-configured ports.
 //
-// Method 0x02 payload is two big-endian UInt32 values: { start_ms,
-// duration_ms }. start_ms = 0 (immediate suspend) and duration_ms = 2000
-// (resume after 2 s) keeps the SCXML phase 3 deadline (8 s) inside its
+// Method 0x02 payload is two big-endian UInt32 values in seconds (TC8
+// §5.1.4.3.2): { start, duration }. start = 0 (immediate suspend) and
+// duration = 2 (resume after 2 s) keeps the SCXML phase 3 deadline (8 s) inside its
 // envelope while leaving headroom for the post-resume cyclic Offer.
 template <>
 struct TestCaseTraits<cases::SomeipEts089SM> : SomeIpAnyBase<cases::SomeipEts089SM> {
@@ -49,9 +49,9 @@ struct TestCaseTraits<cases::SomeipEts089SM> : SomeIpAnyBase<cases::SomeipEts089
         ::tc8::stimulus::SomeIpRpcMessage suspend{};
         suspend.method_id    = 0x0002;       // suspendInterface (ets.fdepl)
         suspend.message_type = ::tc8::someip::MessageType::REQUEST_NO_RETURN;         // Fire&Forget
-        // Two big-endian UInt32 args: start_ms = 0, duration_ms = 2000.
+        // Two big-endian UInt32 args in seconds: start = 0, duration = 2.
         suspend.payload      = {0x00, 0x00, 0x00, 0x00,
-                                0x00, 0x00, 0x07, 0xD0};
+                                0x00, 0x00, 0x00, 0x02};
         ::tc8::stimulus::emitMethodRequestAfter(ctx.iface, suspend, {}, ::tc8::sce::someipUdpMethodDest(cfg));
     }
 };
