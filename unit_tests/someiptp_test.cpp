@@ -115,7 +115,7 @@ TEST(SomeipTpSegmenter, ReservedOverrideSetsBitsYetParsesIgnored) {
     const Segmenter seg{16};
     const auto payload = ramp(40);  // -> 3 segments at offsets 0/16/32, More 1/1/0
     const auto plain = seg.segment(hdr(), payload.data(), payload.size());
-    const auto resvd = seg.segment(hdr(), payload.data(), payload.size(), /*reserved=*/0x5);
+    const auto resvd = seg.segment(hdr(), payload.data(), payload.size(), SegmentReserved::all(0x5));
     ASSERT_EQ(plain.size(), resvd.size());
     for (std::size_t i = 0; i < resvd.size(); ++i) {
         const std::uint32_t tp = be32(resvd[i], kSomeipHeaderLen);
@@ -129,8 +129,26 @@ TEST(SomeipTpSegmenter, ReservedOverrideSetsBitsYetParsesIgnored) {
         EXPECT_EQ(rh.more_segments, ph.more_segments);
     }
     // Only the low 3 bits are used (0xFF -> 0x7).
-    const auto masked = seg.segment(hdr(), payload.data(), payload.size(), /*reserved=*/0xFF);
+    const auto masked = seg.segment(hdr(), payload.data(), payload.size(), SegmentReserved::all(0xFF));
     EXPECT_EQ((be32(masked[0], kSomeipHeaderLen) >> 1) & 0x7u, 0x7u);
+}
+
+// Reserved per segment: set on the first and last segment only, the middle one keeps 0.
+TEST(SomeipTpSegmenter, ReservedIsSetPerSegmentPlace) {
+    const Segmenter seg{16};
+    const auto payload = ramp(40);  // -> 3 segments: first, middle, last
+    SegmentReserved r{};
+    r.first = 0x1;
+    r.last = 0x4;
+    const auto frames = seg.segment(hdr(), payload.data(), payload.size(), r);
+    ASSERT_EQ(frames.size(), 3u);
+    EXPECT_EQ((be32(frames[0], kSomeipHeaderLen) >> 1) & 0x7u, 0x1u);
+    EXPECT_EQ((be32(frames[1], kSomeipHeaderLen) >> 1) & 0x7u, 0x0u);
+    EXPECT_EQ((be32(frames[2], kSomeipHeaderLen) >> 1) & 0x7u, 0x4u);
+    // A message that fits in one segment is first and last at once.
+    const auto lone = seg.segment(hdr(), payload.data(), 8, r);
+    ASSERT_EQ(lone.size(), 1u);
+    EXPECT_EQ((be32(lone[0], kSomeipHeaderLen) >> 1) & 0x7u, 0x5u);
 }
 
 // ── Reassembler: round trips ────────────────────────────────────────────────

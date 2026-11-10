@@ -102,7 +102,7 @@ TEST(SomeIpTpEmit, EachSegmentTakesItsStepAndAnUnnamedOneKeepsTheCallers) {
         TxSpecStep callers(9);
         rc = emitSomeIpTpSegments("lo", 23461, hdr, payload.data(), payload.size(),
                                   htonl(INADDR_LOOPBACK), rx.port, /*max_segment_payload=*/16,
-                                  /*reserved=*/0, /*segment_steps=*/{2, 3});
+                                  /*reserved=*/{}, /*segment_steps=*/{2, 3});
     }
     setTxObserver(nullptr);
 

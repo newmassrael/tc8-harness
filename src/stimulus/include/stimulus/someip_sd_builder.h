@@ -10,6 +10,7 @@
 #include <utility>
 #include <vector>
 
+#include "tc8/someip/sd_decode.h"  // SdEntry — the entry model buildSdMessage writes
 #include "tc8/someip/sd_wire_constants.h"  // sd_flags::kRebootUnicast — SD header flags SSOT.
 #include "stimulus/boot_timing.h"
 #include "stimulus/sd_session.h"  // the per-stream SD Session counter every emitter draws from
@@ -534,6 +535,38 @@ struct MultiOfferServiceParams {
 };
 
 std::vector<std::uint8_t> buildMultiOfferService(const MultiOfferServiceParams &p);
+
+// Any SOME/IP-SD message: its entries in order and the Options Array they index into.
+// The per-shape builders above each fix one combination; this one takes the entries
+// and options as data, so a message no shape covers is written down rather than given
+// a builder of its own: several FindService entries in one message, a FindService
+// referencing an IPv4 Endpoint option, an option no entry references, each entry of a
+// multi-entry Offer referencing its own UDP and TCP endpoint options.
+//
+// An entry is the decoder's SdEntry (tc8/someip/sd_decode.h), so a case writes the
+// fields a verdict reads back. Its option runs are its own `index_first` / `num_opt1`
+// and `index_second` / `num_opt2`, indexes into `options`, written as given: a run that
+// points past the array is a message a case may mean to send. A SubscribeEventgroup or
+// SubscribeEventgroupAck entry is written with the Type 2 tail (`entry_reserved`,
+// `counter`, `eventgroup_id`); every other entry type with the Type 1 tail
+// (`minor_version`).
+struct SdMessageParams {
+    std::vector<::tc8::SdEntry> entries;
+    std::vector<SdExtraOption> options;        // Options Array order; entries index into it
+    std::optional<std::uint16_t> session_id;   // unset: kSdSessionFirst, or drawn by the emitter
+    std::uint8_t  sd_flags    = ::tc8::sd_flags::kRebootUnicast;
+    std::uint32_t sd_reserved = 0;
+};
+
+std::vector<std::uint8_t> buildSdMessage(const SdMessageParams &p);
+
+// An IPv4 Endpoint (0x04), IPv4 Multicast (0x14) or IPv4 SD Endpoint (0x24) option for
+// SdMessageParams::options, its body written by sdIpv4OptionBody.
+SdExtraOption sdIpv4Option(std::uint8_t option_type, const Ipv4Endpoint &ep);
+
+// Multicast `p` from `iface`, drawing an unset Session (and the Reboot flag with it)
+// from the tester's multicast stream like the other emitters.
+int emitSdMessageMulticast(std::string_view iface, const SdMessageParams &p);
 
 // §5.1.6 SOMEIP_ETS_088 helper: SD message carrying multiple Type 2
 // SubscribeEventgroup entries, all sharing one option run 0

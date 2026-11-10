@@ -167,19 +167,19 @@ void appendSdExtraOption(std::vector<std::uint8_t> &b, const SdExtraOption &eo) 
 // appendSdHeader (preamble SSOT) and appendIpv4EndpointOption (option SSOT), shared
 // by every Find/Offer builder. IndexFirstOptionRun is a parameter — a case may start
 // the entry's option run at a non-zero options index (e.g. an Offer whose data
-// endpoint follows an SD Endpoint option at index 0). IndexSecondOptionRun stays 0:
-// no Type-1 case needs a second option run yet (add a param the day one does).
-// `option_run` is 0 (no option referenced) or kEntryOptionRun1 (#Opt1=1); a 0 TTL
-// makes an Offer a StopOffer (SD §4.2). Type-2 entries (Subscribe/Ack) carry a
-// Counter/EventgroupID tail instead of MinorVersion, so they keep their own layout.
+// endpoint follows an SD Endpoint option at index 0). IndexSecondOptionRun is 0 unless
+// given (buildSdMessage writes an entry's own). `option_run` is the #Opt1|#Opt2 byte
+// (sdEntryOptionRun); a 0 TTL makes an Offer a StopOffer (SD §4.2). Type-2 entries
+// (Subscribe/Ack) carry a Counter/EventgroupID tail instead of MinorVersion, so they
+// keep their own layout.
 void appendSdType1Entry(std::vector<std::uint8_t> &b, std::uint8_t entry_type,
                         std::uint8_t index_first_run, std::uint8_t option_run,
                         std::uint16_t service_id, std::uint16_t instance_id,
                         std::uint8_t major_version, std::uint32_t ttl,
-                        std::uint32_t minor_version) {
+                        std::uint32_t minor_version, std::uint8_t index_second_run = 0) {
     b.push_back(entry_type);
-    b.push_back(index_first_run);  // IndexFirstOptionRun (option-run start index)
-    b.push_back(0);                // IndexSecondOptionRun (no 2nd run yet)
+    b.push_back(index_first_run);   // IndexFirstOptionRun (option-run start index)
+    b.push_back(index_second_run);  // IndexSecondOptionRun
     b.push_back(option_run);
     putBe16(b, service_id);
     putBe16(b, instance_id);
@@ -525,6 +525,60 @@ std::vector<std::uint8_t> buildMultiOfferService(const MultiOfferServiceParams &
     putBe32(b, kOptionsLen);
     appendIpv4EndpointOption(b, sd_option_type::kIpv4Endpoint, p.endpoint);
     return b;
+}
+
+std::vector<std::uint8_t> buildSdMessage(const SdMessageParams &p) {
+    std::vector<std::uint8_t> entries;
+    entries.reserve(16u * p.entries.size());
+    for (const ::tc8::SdEntry &e : p.entries) {
+        const std::uint8_t run = sdEntryOptionRun(e.num_opt1, e.num_opt2);
+        if (e.type == sd_entry_type::kSubscribeEventgroup ||
+            e.type == sd_entry_type::kSubscribeEventgroupAck) {
+            SdType2EntryFields f{};
+            f.entry_type = e.type;
+            f.index_first_run = e.index_first;
+            f.index_second_run = e.index_second;
+            f.option_run = run;
+            f.service_id = e.service_id;
+            f.instance_id = e.instance_id;
+            f.major_version = e.major_version;
+            f.ttl = e.ttl;
+            f.entry_reserved = e.entry_reserved;
+            f.counter = e.counter;
+            f.eventgroup_id = e.eventgroup_id;
+            appendSdType2Entry(entries, f);
+        } else {
+            appendSdType1Entry(entries, e.type, e.index_first, run, e.service_id, e.instance_id,
+                               e.major_version, e.ttl, e.minor_version, e.index_second);
+        }
+    }
+    std::vector<std::uint8_t> options;
+    for (const SdExtraOption &o : p.options) {
+        appendSdExtraOption(options, o);
+    }
+    const auto entries_len = static_cast<std::uint32_t>(entries.size());
+    const auto options_len = static_cast<std::uint32_t>(options.size());
+
+    std::vector<std::uint8_t> b;
+    b.reserve(16u + 8u + entries_len + 4u + options_len);
+    appendSdHeader(b, p.session_id, sdSomeIpLengthField(entries_len, options_len), p.sd_flags,
+                   entries_len, p.sd_reserved);
+    b.insert(b.end(), entries.begin(), entries.end());
+    putBe32(b, options_len);
+    b.insert(b.end(), options.begin(), options.end());
+    return b;
+}
+
+SdExtraOption sdIpv4Option(std::uint8_t option_type, const Ipv4Endpoint &ep) {
+    return SdExtraOption{option_type, sdIpv4OptionBody(ep), 0};
+}
+
+int emitSdMessageMulticast(std::string_view iface, const SdMessageParams &p) {
+    TC8_TX_SCOPE();
+    SdMessageParams stamped = p;
+    drawSdSessionIfUnset(stamped.session_id, stamped.sd_flags, ipv4OfInterface(iface),
+                         sdMulticastGroupBe());
+    return sendSdMulticast(buildSdMessage(stamped), iface);
 }
 
 int sendSdMulticast(const std::vector<std::uint8_t> &datagram, std::string_view iface_name,

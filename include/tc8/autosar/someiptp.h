@@ -56,6 +56,26 @@ inline constexpr std::size_t kMaxByteOffset = ((std::size_t{1} << 28) - 1) * kOf
 // Recommended (advisory, not mandatory) maximum segment payload (PRS_SOMEIP_00730).
 inline constexpr std::size_t kRecommendedMaxSegment = 1392;
 
+// The TP header's Reserved bits each segment of one message carries, by the segment's
+// place in the message: the first (Offset 0), a middle one, and the last (More-Segments
+// 0). A message that fits in one segment is both first and last and carries
+// `first | last`.
+struct SegmentReserved {
+    std::uint8_t first = 0;
+    std::uint8_t middle = 0;
+    std::uint8_t last = 0;
+
+    // The same value on every segment.
+    static constexpr SegmentReserved all(std::uint8_t value) { return SegmentReserved{value, value, value}; }
+
+    constexpr std::uint8_t forSegment(bool is_first, bool is_last) const {
+        if (is_first && is_last) {
+            return static_cast<std::uint8_t>(first | last);
+        }
+        return is_first ? first : (is_last ? last : middle);
+    }
+};
+
 // Splits a SOME/IP message payload into SOME/IP-TP segments (PRS_SOMEIP §4.2.1.4).
 // Stateless wire framing only; the owning module transmits each returned buffer.
 class Segmenter {
@@ -75,14 +95,14 @@ public:
     // while len != 0, or std::length_error if `len` exceeds the 28-bit Offset field
     // (kMaxByteOffset).
     //
-    // `reserved` sets the TP header's 3 Reserved bits (PRS_SOMEIP Table 4.8) on every
-    // segment — only its low 3 bits are used; 0 (the default) is the spec-conformant
-    // wire. A non-zero value drives a negative test that the receiver IGNORES Reserved
-    // (the Reassembler / parseTpHeader mask it off).
+    // `reserved` sets the TP header's 3 Reserved bits (PRS_SOMEIP Table 4.8) per
+    // segment (SegmentReserved); only the low 3 bits of each value are used, and all 0
+    // (the default) is the spec-conformant wire. A non-zero value drives a negative test
+    // that the receiver IGNORES Reserved (the Reassembler / parseTpHeader mask it off).
     std::vector<std::vector<std::uint8_t>> segment(const MessageHeader& hdr,
                                                    const std::uint8_t* payload,
                                                    std::size_t len,
-                                                   std::uint8_t reserved = 0) const;
+                                                   SegmentReserved reserved = {}) const;
 
     std::size_t maxSegmentPayload() const { return max_segment_payload_; }
 

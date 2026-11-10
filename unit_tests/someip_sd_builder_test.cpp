@@ -980,5 +980,121 @@ TEST(SubscribeDestinationDefault, SiteAddressIsWhatTheRunPublished) {
     setSiteDutIpv4(0);
 }
 
+// --- buildSdMessage (any entries, any options) ---
+
+::tc8::SdEntry findEntry(const FindServiceTarget &t) {
+    ::tc8::SdEntry e{};
+    e.type = sd_entry_type::kFindService;
+    e.service_id = t.service_id;
+    e.instance_id = t.instance_id;
+    e.major_version = t.major_version;
+    e.ttl = t.ttl;
+    e.minor_version = t.minor_version;
+    return e;
+}
+
+// The general builder writes what the per-shape builders write for their shapes.
+TEST(BuildSdMessage, MatchesTheFindServiceWithOneOptionBuilders) {
+    FindServiceParams p{};
+    p.session_id = 0x0007;
+    const Ipv4Endpoint ep{0x030010AC, 0x8765, 0x11};
+
+    SdMessageParams unreferenced{};
+    unreferenced.entries = {findEntry(p.target)};
+    unreferenced.options = {sdIpv4Option(sd_option_type::kIpv4Endpoint, ep)};
+    unreferenced.session_id = p.session_id;
+    EXPECT_EQ(buildSdMessage(unreferenced), buildFindServiceWithOption(p, ep));
+
+    SdMessageParams referenced = unreferenced;
+    referenced.entries[0].num_opt1 = 1;
+    referenced.options = {sdIpv4Option(sd_option_type::kIpv4SdEndpoint, ep)};
+    EXPECT_EQ(buildSdMessage(referenced), buildFindServiceWithReferencedSdEndpointOption(p, ep));
+}
+
+// Two FindService entries in one message, the second referencing an IPv4 Endpoint
+// option, with an IPv4 SD Endpoint option no entry references: the decoder reads back
+// every entry and option as written.
+TEST(BuildSdMessage, SeveralFindEntriesAndAnUnreferencedOptionReadBack) {
+    FindServiceTarget a{};
+    a.instance_id = 0x0001;
+    FindServiceTarget c{};
+    c.instance_id = 0x0002;
+    SdMessageParams m{};
+    m.entries = {findEntry(a), findEntry(c)};
+    m.entries[1].index_first = 0;
+    m.entries[1].num_opt1 = 1;
+    m.options = {sdIpv4Option(sd_option_type::kIpv4Endpoint, Ipv4Endpoint{0x030010AC, 30501, 0x11}),
+                 sdIpv4Option(sd_option_type::kIpv4SdEndpoint, Ipv4Endpoint{0x030010AC, 30490, 0x11})};
+    const auto b = buildSdMessage(m);
+
+    ::tc8::SdDecoded d{};
+    ::tc8::parseSdInto(d, b.data() + 16, b.size() - 16);
+    ASSERT_EQ(d.sd_entry_count, 2u);
+    EXPECT_EQ(d.sd_entries[0].instance_id, 0x0001);
+    EXPECT_EQ(d.sd_entries[0].num_opt1, 0);
+    EXPECT_EQ(d.sd_entries[1].instance_id, 0x0002);
+    EXPECT_EQ(d.sd_entries[1].num_opt1, 1);
+    ASSERT_EQ(d.sd_option_count, 2u);
+    EXPECT_EQ(d.sd_options[0].type, sd_option_type::kIpv4Endpoint);
+    EXPECT_EQ(d.sd_options[0].port, 30501);
+    EXPECT_EQ(d.sd_options[1].type, sd_option_type::kIpv4SdEndpoint);
+    EXPECT_EQ(d.sd_options[1].port, 30490);
+    // SOME/IP Length counts from the Request ID to the end of the message.
+    const std::uint32_t length = (std::uint32_t{b[4]} << 24) | (std::uint32_t{b[5]} << 16) |
+                                 (std::uint32_t{b[6]} << 8) | std::uint32_t{b[7]};
+    EXPECT_EQ(length, b.size() - 8u);
+}
+
+// Each entry of a multi-entry Offer references its own UDP and TCP endpoint options.
+TEST(BuildSdMessage, EachOfferEntryReferencesItsOwnTwoOptions) {
+    SdMessageParams m{};
+    for (std::uint8_t i = 0; i < 2; ++i) {
+        ::tc8::SdEntry e{};
+        e.type = sd_entry_type::kOfferService;
+        e.service_id = 0xF4E7;
+        e.instance_id = static_cast<std::uint16_t>(i + 1);
+        e.major_version = 1;
+        e.ttl = 3;
+        e.index_first = static_cast<std::uint8_t>(2 * i);
+        e.num_opt1 = 2;
+        m.entries.push_back(e);
+        m.options.push_back(sdIpv4Option(sd_option_type::kIpv4Endpoint,
+                                         Ipv4Endpoint{0x030010AC, static_cast<std::uint16_t>(30501 + i), 0x11}));
+        m.options.push_back(sdIpv4Option(sd_option_type::kIpv4Endpoint,
+                                         Ipv4Endpoint{0x030010AC, static_cast<std::uint16_t>(30511 + i), 0x06}));
+    }
+    const auto b = buildSdMessage(m);
+    ::tc8::SdDecoded d{};
+    ::tc8::parseSdInto(d, b.data() + 16, b.size() - 16);
+    ASSERT_EQ(d.sd_entry_count, 2u);
+    EXPECT_EQ(d.sd_entries[1].index_first, 2);
+    EXPECT_EQ(d.sd_entries[1].num_opt1, 2);
+    ASSERT_EQ(d.sd_option_count, 4u);
+    EXPECT_EQ(d.sd_options[2].l4_proto, sd_l4_proto::kUdp);
+    EXPECT_EQ(d.sd_options[2].port, 30502);
+    EXPECT_EQ(d.sd_options[3].l4_proto, sd_l4_proto::kTcp);
+    EXPECT_EQ(d.sd_options[3].port, 30512);
+}
+
+// A Subscribe entry is written with the Type 2 tail.
+TEST(BuildSdMessage, ASubscribeEntryCarriesItsEventgroupAndCounter) {
+    ::tc8::SdEntry e{};
+    e.type = sd_entry_type::kSubscribeEventgroup;
+    e.service_id = 0xF4E7;
+    e.instance_id = 0x0001;
+    e.major_version = 1;
+    e.ttl = 3;
+    e.counter = 0x5;
+    e.eventgroup_id = 0x0042;
+    SdMessageParams m{};
+    m.entries = {e};
+    const auto b = buildSdMessage(m);
+    ::tc8::SdDecoded d{};
+    ::tc8::parseSdInto(d, b.data() + 16, b.size() - 16);
+    ASSERT_EQ(d.sd_entry_count, 1u);
+    EXPECT_EQ(d.sd_entries[0].counter, 0x5);
+    EXPECT_EQ(d.sd_entries[0].eventgroup_id, 0x0042);
+}
+
 }  // namespace
 }  // namespace tc8::stimulus
