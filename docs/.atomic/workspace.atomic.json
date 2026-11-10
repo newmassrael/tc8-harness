@@ -6096,6 +6096,10 @@
         {
           "file": "src/sce_integration/include/sce_integration/cases/someip_ets_166.h",
           "kind": "implements"
+        },
+        {
+          "file": "dut/dut_service/ets_emission.h",
+          "kind": "implements"
         }
       ]
     },

@@ -35,14 +35,13 @@ ServerRole::ServerRole(std::shared_ptr<CommonAPI::Runtime> runtime,
     std::printf("tc8-dut: %s registered (domain=%s instance=%s)\n", ed::kInterface,
                 ed::kDomain, ed::kInstance);
 
-    // §5.1.6 SOMEIP_ETS_121 — seed TestFieldUINT8 (notifier 0x8006) with a
-    // non-default value so CommonAPI has a payload to send as the field's initial
-    // Notification on each SubscribeEventgroupAck. Without a set value vsomeip logs
-    // "Event payload not (yet) set" and skips the initial event, so the Explicit
-    // Initial Data Control path stays unobservable. A non-zero value is required
-    // because the setter only pushes to vsomeip when the value changes from its
-    // default-constructed 0.
-    impl_->setTestFieldUINT8Attribute(static_cast<uint8_t>(0x42));
+    // §5.1.6 SOMEIP_ETS_121 — seed TestFieldUINT8 (notifier 0x8006) so CommonAPI
+    // has a payload to send as the field's initial Notification on each
+    // SubscribeEventgroupAck. Without one vsomeip logs "Event payload not (yet)
+    // set" and skips the initial event, so the Explicit Initial Data Control path
+    // stays unobservable. The value is the extension's (0x42 by default);
+    // seedTestFieldUint8 publishes it even when it is 0.
+    impl_->seedTestFieldUint8(extension.testFieldUint8InitialValue());
 
     // Single emission engine (one producer per event). 0x8001/TestEventUINT8 is
     // CYCLIC by default — the DUT's pre-existing unconditional 250 ms cadence the
@@ -71,6 +70,9 @@ ServerRole::ServerRole(std::shared_ptr<CommonAPI::Runtime> runtime,
                                  [impl = impl_](uint8_t v) { impl->fireTestEventUINT8E2EEvent(v); });
     emission_.addTriggeredSource(std::string(ets_event::kMulticast),
                                  [impl = impl_](uint8_t v) { impl->fireTestEventUINT8MulticastEvent(v); });
+    // The extension's trigger policy, if it has one, replaces DefaultTriggerPolicy
+    // now, before startEmission() starts the tick thread.
+    emission_.installPolicy(extension.makeEmissionPolicy());
 
     // §5.1.6 SOMEIP_ETS_089 — bind suspendInterface override to a detached
     // unregister/re-register cycle. CommonAPI's unregisterService translates to

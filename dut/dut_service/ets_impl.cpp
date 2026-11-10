@@ -389,6 +389,11 @@ void EtsImpl::suspendInterface(
     }
 }
 
+void EtsImpl::seedTestFieldUint8(uint8_t value) {
+    trySetTestFieldUINT8Attribute(value);
+    fireTestFieldUINT8AttributeChanged(getTestFieldUINT8Attribute());
+}
+
 void EtsImpl::resetInterface(
     const std::shared_ptr<CommonAPI::ClientId> /*_client*/) {
     // §5.1.6 SOMEIP_ETS_146 reset-skip fault: when kEtsFaultResetSkip is armed (via UT 0x1B
@@ -408,9 +413,7 @@ void EtsImpl::resetInterface(
 void EtsImpl::armEvent(std::string_view source, uint32_t start,
                        uint32_t duration, uint32_t debounceTime) {
     if (emission_) {
-        emission_->onTrigger(source, std::chrono::seconds(start),
-                             std::chrono::seconds(duration),
-                             std::chrono::milliseconds(debounceTime));
+        emission_->onTrigger(source, TriggerArguments{start, duration, debounceTime});
     }
 }
 

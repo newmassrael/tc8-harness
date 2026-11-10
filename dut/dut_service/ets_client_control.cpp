@@ -19,6 +19,22 @@
 namespace tc8::dut {
 namespace {
 
+// The reliability the subscription's events are requested with. RT_UNKNOWN puts
+// vsomeip's eventgroup in its reliability auto mode, which takes the remote
+// Offer's type when the Subscribe is built: RT_BOTH, so both endpoint options,
+// for a service offered on UDP and TCP.
+vsomeip::reliability_type_e requestedReliability(SubscribeTransport transport) {
+    switch (transport) {
+    case SubscribeTransport::Udp:
+        return vsomeip::reliability_type_e::RT_UNRELIABLE;
+    case SubscribeTransport::Tcp:
+        return vsomeip::reliability_type_e::RT_RELIABLE;
+    case SubscribeTransport::AsOffered:
+        return vsomeip::reliability_type_e::RT_UNKNOWN;
+    }
+    return vsomeip::reliability_type_e::RT_UNKNOWN;  // unreachable: every enumerator returns
+}
+
 // IEtsClientControl over a live vsomeip::application, the SAME application the
 // CommonAPI ETS service uses (obtained by CommonAPI connection id in
 // makeEtsClientControl). request_service / request_event / subscribe /
@@ -97,8 +113,8 @@ public:
 
     void subscribeEventgroup(std::uint16_t service, std::uint16_t instance,
                              std::uint16_t eventgroup,
-                             const std::vector<std::uint16_t>& events, bool reliable,
-                             std::uint8_t major) override {
+                             const std::vector<std::uint16_t>& events,
+                             SubscribeTransport transport, std::uint8_t major) override {
         if (!app_) return;
         if (events.empty()) {
             // Precondition guard: with no requested event the eventgroup is never
@@ -110,8 +126,7 @@ public:
                          eventgroup);
             return;
         }
-        const auto reliability = reliable ? vsomeip::reliability_type_e::RT_RELIABLE
-                                          : vsomeip::reliability_type_e::RT_UNRELIABLE;
+        const auto reliability = requestedReliability(transport);
         const std::set<vsomeip::eventgroup_t> egs{eventgroup};
 
         std::lock_guard<std::mutex> lock(mutex_);
@@ -413,7 +428,7 @@ public:
     void findService(std::uint16_t, std::uint16_t, std::uint8_t) override {}
     void releaseService(std::uint16_t, std::uint16_t) override {}
     void subscribeEventgroup(std::uint16_t, std::uint16_t, std::uint16_t,
-                             const std::vector<std::uint16_t>&, bool,
+                             const std::vector<std::uint16_t>&, SubscribeTransport,
                              std::uint8_t) override {}
     void stopSubscribeEventgroup(std::uint16_t, std::uint16_t, std::uint16_t) override {}
     void onSubscriptionStatus(std::uint16_t, std::uint16_t, std::uint16_t,

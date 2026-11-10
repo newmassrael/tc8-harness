@@ -202,7 +202,10 @@ interface EnhancedTestability {
       which is what lets must-NOT-send negative cases hold. Method IDs:
       triggerEventUINT8 0x03, triggerEventUINT8Array 0x04,
       triggerEventUINT8Reliable 0x05, triggerEventUINT8E2E 0x06,
-      triggerEventUINT8Multicast 0x3A. **>
+      triggerEventUINT8Multicast 0x3A. Units: start and duration are seconds,
+      as TC8 states; TC8 gives debounceTime no unit, and the DUT's default
+      emission policy reads it as milliseconds (an IEtsExtension may install a
+      policy that reads it otherwise, see ets_emission.h). **>
     method triggerEventUINT8 fireAndForget {
         in { UInt32 start  UInt32 duration  UInt32 debounceTime }
     }

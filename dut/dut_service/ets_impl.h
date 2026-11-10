@@ -282,6 +282,15 @@ public:
     using SuspendCallback = std::function<void(std::chrono::seconds start, std::chrono::seconds duration)>;
     void setSuspendCallback(SuspendCallback cb) { suspend_callback_ = std::move(cb); }
 
+    // §5.1.6 SOMEIP_ETS_121: give TestFieldUINT8 (notifier 0x8006) its initial
+    // value and publish it, so CommonAPI has a payload to send as the field's
+    // initial Notification on each SubscribeEventgroupAck. The generated setter
+    // notifies only when the value differs from the attribute's current one (0
+    // after construction), and vsomeip sends no initial event for a field it has
+    // no payload for, so the value is published here whatever it is, 0 included.
+    // Call after the service is registered (the notifier goes through its adapter).
+    void seedTestFieldUint8(uint8_t value);
+
     // §5.1.6 SOMEIP_ETS_146 — TC8 §5.1.4.3.1 resetInterface. Fire&Forget
     // method that brings the DUT's testable surface back to its initial
     // state. For the current cluster this is fieldA_ → 0; future
@@ -325,11 +334,10 @@ public:
     }
 
 private:
-    // Single wire boundary for the trigger args. UNIT ASSUMPTION: OA TC8 p425
-    // states only `start` is in seconds; `duration`/`debounceTime` units are not
-    // defined in the test-spec PDF (the OA service catalog is authoritative and
-    // is not vendored here). We read start/duration as seconds and debounceTime
-    // as the period; an OEM whose units differ installs its own EmissionPolicy.
+    // Hands the trigger args to the EmissionController unconverted: what one count
+    // of each stands for is the installed EmissionPolicy's reading
+    // (TriggerArgumentUnits; the default is kDutTriggerUnits), since TC8 states
+    // only `start` in seconds and gives `duration` and `debounceTime` no unit.
     void armEvent(std::string_view source, uint32_t start, uint32_t duration,
                   uint32_t debounceTime);
 

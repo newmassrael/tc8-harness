@@ -54,7 +54,8 @@ struct StubClient : tc8::dut::IEtsClientControl {
     void findService(std::uint16_t, std::uint16_t, std::uint8_t) override {}
     void releaseService(std::uint16_t, std::uint16_t) override {}
     void subscribeEventgroup(std::uint16_t, std::uint16_t, std::uint16_t,
-                             const std::vector<std::uint16_t>&, bool, std::uint8_t) override {}
+                             const std::vector<std::uint16_t>&, tc8::dut::SubscribeTransport,
+                             std::uint8_t) override {}
     void stopSubscribeEventgroup(std::uint16_t, std::uint16_t, std::uint16_t) override {}
     void onSubscriptionStatus(std::uint16_t, std::uint16_t, std::uint16_t,
                               std::function<void(bool)>) override {}

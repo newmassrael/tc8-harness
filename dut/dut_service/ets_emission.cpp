@@ -5,23 +5,29 @@
 
 namespace tc8::dut {
 
-void DefaultTriggerPolicy::onTrigger(std::string_view source,
-                                     std::chrono::seconds start,
-                                     std::chrono::seconds duration,
-                                     std::chrono::milliseconds period) {
-    const auto now = std::chrono::steady_clock::now();
-    const auto fire_start = now + start;
+namespace {
+
+// `count` units of `unit`. A UInt32 count times a unit of at most a day stays far
+// inside the 64-bit millisecond range, so the product cannot overflow.
+std::chrono::milliseconds scaled(std::uint32_t count, std::chrono::milliseconds unit) {
+    return std::chrono::milliseconds(static_cast<std::int64_t>(count) * unit.count());
+}
+
+}  // namespace
+
+void DefaultTriggerPolicy::onTrigger(std::string_view source, const TriggerArguments& args,
+                                     EmissionClock::time_point now) {
+    const auto fire_start = now + scaled(args.start, units_.start);
     Arm arm;
     arm.next = fire_start;
-    arm.end = fire_start + duration;
-    arm.period = period;
+    arm.end = fire_start + scaled(args.duration, units_.duration);
+    arm.period = scaled(args.debounce_time, units_.debounce_time);
     std::lock_guard<std::mutex> lock(mutex_);
     arms_[std::string(source)] = arm;  // re-trigger replaces the prior arm
 }
 
-std::vector<std::string> DefaultTriggerPolicy::due(
-    std::chrono::steady_clock::time_point now) {
-    std::vector<std::string> ready;
+std::vector<Emission> DefaultTriggerPolicy::due(EmissionClock::time_point now) {
+    std::vector<Emission> ready;
     std::lock_guard<std::mutex> lock(mutex_);
     for (auto it = arms_.begin(); it != arms_.end();) {
         Arm& arm = it->second;
@@ -32,7 +38,7 @@ std::vector<std::string> DefaultTriggerPolicy::due(
         // At/after the scheduled beat: fire FIRST, then decide continuation.
         // Firing before the window-end test is what makes a zero-duration arm
         // (next == end) fire its single beat instead of being erased unfired.
-        ready.push_back(it->first);
+        ready.push_back(Emission{it->first, values_[it->first]++});
         if (arm.period <= std::chrono::milliseconds(0) || now >= arm.end) {
             it = arms_.erase(it);  // single shot, or emission window finished
             continue;
@@ -42,6 +48,59 @@ std::vector<std::string> DefaultTriggerPolicy::due(
             arm.next = now + arm.period;  // fell behind after a stall: drop missed beats
         }
         ++it;
+    }
+    return ready;
+}
+
+void SequentialTriggerPolicy::onTrigger(std::string_view source, const TriggerArguments& args,
+                                        EmissionClock::time_point now) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    loops_[std::string(source)].pending.push_back(Pending{args, now});
+}
+
+void SequentialTriggerPolicy::begin(Loop& loop, const Pending& trigger) const {
+    // A trigger that waited for a running loop starts when that loop ended, not when it arrived.
+    const auto from = trigger.received > loop.free_since ? trigger.received : loop.free_since;
+    loop.first_beat = from + scaled(trigger.args.start, units_.start);
+    loop.duration = scaled(trigger.args.duration, units_.duration);
+    const auto period = scaled(trigger.args.debounce_time, units_.debounce_time);
+    loop.period = period > std::chrono::milliseconds(0) ? period : zero_debounce_;
+    loop.value = 1;
+    loop.next_beat = loop.first_beat;
+    loop.running = true;
+    loop.beats_left = trigger.args.duration > 0;  // a zero duration sends nothing
+    loop.busy_until = loop.first_beat;
+}
+
+std::vector<Emission> SequentialTriggerPolicy::due(EmissionClock::time_point now) {
+    std::vector<Emission> ready;
+    std::lock_guard<std::mutex> lock(mutex_);
+    for (auto& [source, loop] : loops_) {
+        for (;;) {
+            if (!loop.running) {
+                if (loop.pending.empty()) {
+                    break;
+                }
+                begin(loop, loop.pending.front());
+                loop.pending.pop_front();
+            }
+            if (loop.beats_left && now >= loop.next_beat) {
+                ready.push_back(Emission{source, loop.value++});
+                loop.next_beat += loop.period;
+                // The elapsed time is checked after the debounce wait that follows each event.
+                if (loop.next_beat - loop.first_beat >= loop.duration) {
+                    loop.beats_left = false;
+                    loop.busy_until = loop.next_beat;
+                }
+                continue;
+            }
+            if (!loop.beats_left && now >= loop.busy_until) {
+                loop.running = false;  // this loop is over; a queued trigger starts from here
+                loop.free_since = loop.busy_until;
+                continue;
+            }
+            break;
+        }
     }
     return ready;
 }
@@ -59,7 +118,7 @@ void EmissionController::addCyclicSource(std::string name,
 
 void EmissionController::addTriggeredSource(std::string name,
                                            std::function<void(uint8_t)> emit) {
-    triggered_.emplace(std::move(name), Triggered{std::move(emit), 0});
+    triggered_.emplace(std::move(name), std::move(emit));
 }
 
 void EmissionController::installPolicy(std::unique_ptr<EmissionPolicy> policy) {
@@ -72,14 +131,11 @@ void EmissionController::installPolicy(std::unique_ptr<EmissionPolicy> policy) {
     }
 }
 
-void EmissionController::onTrigger(std::string_view source,
-                                  std::chrono::seconds start,
-                                  std::chrono::seconds duration,
-                                  std::chrono::milliseconds period) {
-    policy_->onTrigger(source, start, duration, period);
+void EmissionController::onTrigger(std::string_view source, const TriggerArguments& args) {
+    policy_->onTrigger(source, args, EmissionClock::now());
 }
 
-void EmissionController::step(std::chrono::steady_clock::time_point now) {
+void EmissionController::step(EmissionClock::time_point now) {
     for (Cyclic& c : cyclic_) {
         if (!c.primed) {  // first pass: schedule the first beat one period out
             c.next = now + c.period;
@@ -95,10 +151,10 @@ void EmissionController::step(std::chrono::steady_clock::time_point now) {
             c.next = now + c.period;  // resync after a stall
         }
     }
-    for (const std::string& name : policy_->due(now)) {
-        auto it = triggered_.find(name);
+    for (const Emission& e : policy_->due(now)) {
+        auto it = triggered_.find(e.source);
         if (it != triggered_.end()) {
-            it->second.emit(it->second.counter++);
+            it->second(e.value);
         }
     }
 }
@@ -118,7 +174,7 @@ void EmissionController::stop() {
 void EmissionController::run() {
     using namespace std::chrono_literals;
     while (!stop_.load()) {
-        step(std::chrono::steady_clock::now());
+        step(EmissionClock::now());
         // 20 ms poll: << the per-second observation windows the spec uses, so
         // emission jitter is immaterial; cheap enough to leave running idle.
         std::this_thread::sleep_for(20ms);

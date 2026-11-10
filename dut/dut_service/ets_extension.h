@@ -1,8 +1,16 @@
 #pragma once
 
+#include <cstdint>
 #include <memory>
 
+#include "ets_emission.h"  // EmissionPolicy (makeEmissionPolicy returns one by value)
+
 namespace tc8::dut {
+
+// The value TestFieldUINT8 (notifier 0x8006) holds when the service is first
+// offered, which a subscriber's initial Notification carries (SOMEIP_ETS_121).
+// TC8 fixes no value; 0x42 is this DUT's.
+inline constexpr std::uint8_t kTestFieldUint8DefaultInitialValue = 0x42;
 
 // The event-emission facade an extension offers/notifies through. Defined in
 // ets_event_sink.h; forward-declared here because the lifecycle hooks below only
@@ -63,7 +71,9 @@ struct EtsExtensionContext {
 // onRegister/onTick, never on the detached suspend thread; onSuspend is delivered before
 // onReactivate when both are observed in one loop pass. Then onTick (each DUT main-loop
 // pass — drive cyclic/duration-windowed notifies), onStop (shutdown), ets8001TriggerDriven
-// (queried once before the 0x8001 source is registered).
+// (queried once before the 0x8001 source is registered), makeEmissionPolicy (queried once,
+// before emission starts) and testFieldUint8InitialValue (queried once, when the field is
+// seeded before the service is first offered).
 class IEtsExtension {
 public:
     virtual ~IEtsExtension() = default;
@@ -81,6 +91,17 @@ public:
     // subscribe cases hold. dut_main queries this once, before it registers the
     // 0x8001 emission source, and chooses cyclic vs triggered accordingly.
     virtual bool ets8001TriggerDriven() const { return false; }
+
+    // The policy that decides when each trigger-gated ETS event fires and which value
+    // it carries (ets_emission.h): DefaultTriggerPolicy's semantics, an in-tree
+    // SequentialTriggerPolicy with the units the OEM's method descriptions state, or
+    // the OEM's own. Null (the default) keeps DefaultTriggerPolicy.
+    virtual std::unique_ptr<EmissionPolicy> makeEmissionPolicy() const { return nullptr; }
+
+    // The value TestFieldUINT8 is seeded with before the service is first offered,
+    // and so the value a subscriber's initial Notification carries. The DUT publishes
+    // it to vsomeip whatever it is, 0 included.
+    virtual std::uint8_t testFieldUint8InitialValue() const { return kTestFieldUint8DefaultInitialValue; }
 };
 
 // Default returns a no-op extension; selected via TC8_ETS_EXTENSION_SRC.

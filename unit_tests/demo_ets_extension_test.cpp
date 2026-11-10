@@ -88,7 +88,7 @@ public:
         std::uint16_t instance;
         std::uint16_t eventgroup;
         std::vector<std::uint16_t> events;
-        bool reliable;
+        tc8::dut::SubscribeTransport transport;
         std::uint8_t major;
     };
     struct Stop {
@@ -121,9 +121,9 @@ public:
 #endif
     void subscribeEventgroup(std::uint16_t service, std::uint16_t instance,
                              std::uint16_t eventgroup,
-                             const std::vector<std::uint16_t>& events, bool reliable,
-                             std::uint8_t major) override {
-        subscribes.push_back({service, instance, eventgroup, events, reliable, major});
+                             const std::vector<std::uint16_t>& events,
+                             tc8::dut::SubscribeTransport transport, std::uint8_t major) override {
+        subscribes.push_back({service, instance, eventgroup, events, transport, major});
     }
     void stopSubscribeEventgroup(std::uint16_t service, std::uint16_t instance,
                                  std::uint16_t eventgroup) override {
@@ -379,7 +379,7 @@ TEST(DemoEtsExtension, SubscribeMethodDrivesClientControl) {
     EXPECT_EQ(s.instance, tc8::dut::kDemoTargetInstance);
     EXPECT_EQ(s.eventgroup, tc8::dut::kDemoTargetEventgroup);
     EXPECT_EQ(s.events, (std::vector<std::uint16_t>{tc8::dut::kDemoTargetEvent}));
-    EXPECT_FALSE(s.reliable);
+    EXPECT_EQ(s.transport, tc8::dut::SubscribeTransport::Udp);
     EXPECT_EQ(s.major, tc8::dut::kDemoTargetMajor);
 }
 

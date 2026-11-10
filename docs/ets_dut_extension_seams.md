@@ -14,7 +14,7 @@ enforce.
  OEM repo (private)   its fidl/fdepl superset (public + proprietary)  <- TC8_ETS_FIDL / TC8_ETS_FDEPL
                       its EtsImpl subclass                              <- TC8_ETS_FACTORY_SRC
                       its IEtsExtension                                 <- TC8_ETS_EXTENSION_SRC
-                      its EmissionPolicy                                <- EmissionController::installPolicy
+                      its EmissionPolicy                                <- IEtsExtension::makeEmissionPolicy
                               | links against, never forks
  this repo (public)   public §5.1.4 ETS surface: EtsImpl, EmissionController + default
                       policy, no-op IEtsExtension, default factory
@@ -98,11 +98,31 @@ event. A source is either cyclic (free-running — `TestEventUINT8` 0x8001 at
 250 ms, which existing cases depend on) or triggered: it fires only after its
 `triggerEvent...` method, after `delay`, for `duration`, every `debounceTime`.
 Because a triggered event never fires unsolicited, every must-not-send case
-holds by construction. The timing reading sits behind `EmissionPolicy`, so an
-OEM can install a different one. TC8 p425 pins only `start` as seconds, and the
-duration and period units are not in the test specification.
-`IEtsExtension::ets8001TriggerDriven()` lets an OEM make 0x8001 triggered too;
-its default of false keeps the public cyclic cadence byte-identical.
+holds by construction.
+
+The policy (`EmissionPolicy`) decides when a triggered source fires and which
+value it carries. It receives the trigger method's three UInt32 arguments as
+they arrived, and reads them with the `TriggerArgumentUnits` it was built with:
+TC8 states only `start` in seconds and gives `duration` and `debounceTime` no
+unit. Two policies are in-tree:
+
+| | `DefaultTriggerPolicy` (the DUT's) | `SequentialTriggerPolicy` |
+|---|---|---|
+| units | `kDutTriggerUnits`: start and duration in seconds, debounceTime in milliseconds | as constructed |
+| end of `duration` | inclusive; a zero duration fires one beat | exclusive, read after the debounce wait following each event; a zero duration fires nothing |
+| values | per source, from 0, never reset | 1, 2, 3 for each trigger |
+| a trigger during a running loop | replaces it | waits for it, then starts its own `start` from there |
+| a late poll | drops the missed beats | emits the beat late, keeps the next on schedule |
+
+`IEtsExtension::makeEmissionPolicy()` returns the policy the DUT installs before
+emission starts (null keeps the default). `IEtsExtension::ets8001TriggerDriven()`
+lets an OEM make 0x8001 triggered too; its default of false keeps the public
+cyclic cadence byte-identical. `IEtsExtension::testFieldUint8InitialValue()` is
+the value `TestFieldUINT8` is seeded with, and so the value of a subscriber's
+initial Notification (0x42 by default; 0 is published too).
+
+`suspendInterface` reads its `start` and `duration` in seconds, as TC8
+§5.1.4.3.2 states them.
 
 ## Known gaps
 

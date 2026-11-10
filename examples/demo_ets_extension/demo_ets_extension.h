@@ -158,7 +158,7 @@ public:
         auto driveSubscribe = [client] {
             client->subscribeEventgroup(kDemoTargetService, kDemoTargetInstance,
                                         kDemoTargetEventgroup, {kDemoTargetEvent},
-                                        /*reliable=*/false, kDemoTargetMajor);
+                                        SubscribeTransport::Udp, kDemoTargetMajor);
         };
         sink.onMethod(kDemoSubscribeMethod,
                       [driveSubscribe](const std::vector<std::uint8_t>&) { driveSubscribe(); });

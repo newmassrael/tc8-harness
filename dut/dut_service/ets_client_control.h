@@ -7,6 +7,13 @@
 
 namespace tc8::dut {
 
+// The transport a client-role subscription requests its events on.
+enum class SubscribeTransport {
+    Udp,        // unreliable only: the Subscribe references the UDP endpoint
+    Tcp,        // reliable only: the Subscribe references the TCP endpoint
+    AsOffered,  // as the tester offers the service: both endpoints when it offers both
+};
+
 // Narrow CLIENT-role facade over the DUT's SINGLE vsomeip application — the
 // sibling of the server-role IEtsEventSink (ets_event_sink.h). Where the sink
 // lets an OEM extension OFFER an event surface (offer/notify/handle), this seam
@@ -71,10 +78,11 @@ public:
 
     // Subscribe the DUT (client role) to `eventgroup` on the tester's
     // `service`/`instance`/`major`. vsomeip requires each event of the eventgroup
-    // to be registered before subscribe (else event type/reliability are unknown
-    // and notifications are dropped), so `events` lists the eventgroup's event
-    // ids and `reliable` selects their transport (true => TCP/RT_RELIABLE, false
-    // => UDP/RT_UNRELIABLE). request_service is implied (called internally).
+    // to be registered before subscribe, so `events` lists the eventgroup's event
+    // ids and `transport` the transport they are requested on (SubscribeTransport:
+    // UDP only, TCP only, or as the service is offered, in which case a service
+    // offered on both endpoints gets a Subscribe referencing both). request_service
+    // is implied (called internally).
     // vsomeip then emits a SubscribeEventgroup SD entry once the service is
     // found. PRECONDITION: `events` MUST be non-empty — with no registered event
     // vsomeip's discovery sends NO SubscribeEventgroup entry (the implementation
@@ -87,7 +95,7 @@ public:
     virtual void subscribeEventgroup(std::uint16_t service, std::uint16_t instance,
                                      std::uint16_t eventgroup,
                                      const std::vector<std::uint16_t>& events,
-                                     bool reliable, std::uint8_t major) = 0;
+                                     SubscribeTransport transport, std::uint8_t major) = 0;
 
     // Stop the DUT's subscription to `eventgroup` on `service`/`instance`
     // (vsomeip unsubscribe → StopSubscribe, i.e. a SubscribeEventgroup entry with
