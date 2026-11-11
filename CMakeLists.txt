@@ -326,6 +326,10 @@ if(TC8_BUILD_UNIT_TESTS)
     if(TC8_PYTHON3)
         add_test(NAME nda_boundary_audit_selftest
             COMMAND ${TC8_PYTHON3} ${PROJECT_SOURCE_DIR}/tools/nda_boundary_audit.py --self-test)
+        # The TC8_ETS_EVENTGROUPS rewriter (dut/ets/CMakeLists.txt) runs only in a build that
+        # sets the variable, which public CI does not; its self-test is what exercises it here.
+        add_test(NAME ets_eventgroup_overlay_selftest
+            COMMAND ${TC8_PYTHON3} ${PROJECT_SOURCE_DIR}/tools/ets_eventgroup_overlay.py --self-test)
     endif()
 endif()
 

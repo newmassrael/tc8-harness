@@ -19,6 +19,42 @@ foreach(_f TC8_ETS_FIDL TC8_ETS_FDEPL)
     endif()
 endforeach()
 
+# Eventgroup membership seam: TC8_ETS_EVENTGROUPS is a list of
+# `<event-id>=<eventgroup>[,<eventgroup>...]` entries, e.g.
+# "0x8001=0x0002,0x0005;0x800B=0x0006". Each replaces the eventgroups the selected
+# fdepl gives that event (a broadcast's SomeIpEventID or an attribute's
+# SomeIpNotifierID), so a consumer can match its reference DUT's membership
+# without copying the whole deployment. tools/ets_eventgroup_overlay.py writes the
+# overlaid copy into this build tree and the codegen below reads it; the source
+# fdepl is never touched. Empty (the default) generates from the fdepl as it is.
+# It has to be a build-time choice: vsomeip adds eventgroups to an event already
+# registered but never removes one. See docs/ets_dut_extension_seams.md.
+if(NOT DEFINED TC8_ETS_EVENTGROUPS)
+    set(TC8_ETS_EVENTGROUPS "")
+endif()
+set(TC8_ETS_FDEPL_EFFECTIVE "${TC8_ETS_FDEPL}")
+if(TC8_ETS_EVENTGROUPS)
+    if(NOT TC8_PYTHON3)
+        message(FATAL_ERROR "TC8_ETS_EVENTGROUPS is set but no python3 was found to apply it")
+    endif()
+    get_filename_component(_tc8_fdepl_name "${TC8_ETS_FDEPL}" NAME)
+    set(TC8_ETS_FDEPL_EFFECTIVE "${CMAKE_CURRENT_BINARY_DIR}/eventgroups/${_tc8_fdepl_name}")
+    set(_tc8_overlay_tool "${CMAKE_CURRENT_LIST_DIR}/../../tools/ets_eventgroup_overlay.py")
+    set(_tc8_overlay_args "")
+    foreach(_tc8_override IN LISTS TC8_ETS_EVENTGROUPS)
+        list(APPEND _tc8_overlay_args --override "${_tc8_override}")
+    endforeach()
+    add_custom_command(
+        OUTPUT ${TC8_ETS_FDEPL_EFFECTIVE}
+        COMMAND ${TC8_PYTHON3} ${_tc8_overlay_tool}
+                --in ${TC8_ETS_FDEPL} --out ${TC8_ETS_FDEPL_EFFECTIVE} ${_tc8_overlay_args}
+        DEPENDS ${TC8_ETS_FDEPL} ${_tc8_overlay_tool}
+        COMMENT "ETS eventgroup overlay (${TC8_ETS_EVENTGROUPS})"
+        VERBATIM
+    )
+    message(STATUS "TC8: ETS eventgroup overlay: ${TC8_ETS_EVENTGROUPS}")
+endif()
+
 set(GEN_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 set(GEN_SUBDIR ${GEN_DIR}/v1/org/tc8/ets)
 
@@ -51,10 +87,10 @@ add_custom_command(
 add_custom_command(
     OUTPUT ${SOMEIP_GENERATED}
     COMMAND ${COMMONAPI_SOMEIP_GEN} -d ${GEN_DIR}
-            ${TC8_ETS_FDEPL}
-    DEPENDS ${TC8_ETS_FDEPL} ${TC8_ETS_FIDL} ${CORE_GENERATED}
+            ${TC8_ETS_FDEPL_EFFECTIVE}
+    DEPENDS ${TC8_ETS_FDEPL_EFFECTIVE} ${TC8_ETS_FIDL} ${CORE_GENERATED}
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    COMMENT "CommonAPI SOME/IP codegen (${TC8_ETS_FDEPL})"
+    COMMENT "CommonAPI SOME/IP codegen (${TC8_ETS_FDEPL_EFFECTIVE})"
     VERBATIM
 )
 
