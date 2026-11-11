@@ -156,7 +156,13 @@ using DutCapabilities = std::uint32_t;
 // correctly skips) but it cannot distinguish a DUT that implements the opcode yet ignores a
 // flavor. The only ingress-/app-fault DUT is the lwIP fixture, which implements every kind,
 // so the residual is out of scope until a DUT implements some but not all.
+//
+// The opcode each of these bits is read from is listed once, in kDutDerivedCapOpcodes
+// (dut_control.h), and a static_assert there holds that table equal to this mask. Before
+// it did, kCapEtsFault was resolved from the bitmap but missing here, so the gate answered
+// it from the backend-static set, which never has it: every ETS fault `_neg` skipped as
+// unavailable from 2026-09-18 on, on a DUT that implements OpSetEtsFlavor.
 inline constexpr DutCapabilities kDutDerivedCaps =
-    kCapEgressFault | kCapIngressFault | kCapAppFault;
+    kCapEgressFault | kCapIngressFault | kCapAppFault | kCapEtsFault;
 
 }  // namespace tc8::sce

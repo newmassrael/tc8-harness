@@ -890,6 +890,35 @@ private:
     RawTransport raw_;
 };
 
+// Each DUT-derived capability and the opcode whose bit in the DUT's OpQueryCapabilities
+// (0x16) bitmap grants it. The one list both of its readers use: resolveCaps16 below sets a
+// capability when the DUT reports its opcode, and the static_assert holds the capabilities
+// listed here equal to kDutDerivedCaps, the mask that tells the gate which requirements to
+// probe the DUT for. A capability resolved here but missing from that mask is answered from
+// the backend-static set instead, which never has it, so its `_neg` skips without a sound.
+struct DutDerivedCapOpcode {
+    std::uint8_t opcode;
+    DutCapability capability;
+};
+
+inline constexpr DutDerivedCapOpcode kDutDerivedCapOpcodes[] = {
+    {ut::OpSetEgressFlavor, kCapEgressFault},
+    {ut::OpSetIngressFlavor, kCapIngressFault},
+    {ut::OpSetAppFlavor, kCapAppFault},
+    {ut::OpSetEtsFlavor, kCapEtsFault},
+};
+
+constexpr DutCapabilities dutDerivedCapsListed() {
+    DutCapabilities caps = 0;
+    for (const auto &entry : kDutDerivedCapOpcodes) {
+        caps |= entry.capability;
+    }
+    return caps;
+}
+
+static_assert(dutDerivedCapsListed() == kDutDerivedCaps,
+              "kDutDerivedCapOpcodes and kDutDerivedCaps must list the same capabilities");
+
 // Adapter over the in-house opcode Upper Tester (upper_tester_client.h). Wraps
 // the existing builders/transport with no behaviour change. Kernel-routed
 // SOCK_DGRAM probe (matching `ut-ping`); the TCP data plane is exposed through
@@ -1008,8 +1037,7 @@ private:
     // bitmap (the SSOT for what it can fault). Caches both the derived bits and
     // whether resolution succeeded so capabilities() / faultCapsResolved() cost
     // at most one round trip per backend instance (one per case under the smoke
-    // respawn). Extend the supports()->bit mapping per DUT-derived cap added to
-    // kDutDerivedCaps.
+    // respawn). The opcode-to-capability mapping is kDutDerivedCapOpcodes.
     void resolveCaps16() const {
         if (caps16_done_) {
             return;
@@ -1027,10 +1055,11 @@ private:
             }
             caps16_resolved_ = c->supported;  // false = pre-0x16 DUT (definitive)
             if (c->supported) {
-                if (c->supports(ut::OpSetEgressFlavor))  fault_caps_ |= kCapEgressFault;
-                if (c->supports(ut::OpSetIngressFlavor)) fault_caps_ |= kCapIngressFault;
-                if (c->supports(ut::OpSetAppFlavor))     fault_caps_ |= kCapAppFault;
-                if (c->supports(ut::OpSetEtsFlavor))     fault_caps_ |= kCapEtsFault;
+                for (const auto &entry : kDutDerivedCapOpcodes) {
+                    if (c->supports(entry.opcode)) {
+                        fault_caps_ |= entry.capability;
+                    }
+                }
             }
             return;
         }
