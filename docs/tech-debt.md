@@ -4900,8 +4900,9 @@ print a separate per-item table; the orchestrator's summary of skip reasons is t
 
 ## TD-72 — SOMEIP_ETS_093 counts SubscribeEventgroupAcks and does not grade the initial events it is about
 
-**Status:** OPEN. **Logged:** 2026-11-11, when the reference DUT started deploying the OA TC8
-v3.0 Table 2 field notifiers (0x8005..0x8008), at a consumer's request.
+**Status:** RESOLVED (2026-11-11), the same day. **Logged:** 2026-11-11, when the reference DUT
+started deploying the OA TC8 v3.0 Table 2 field notifiers (0x8005..0x8008), at a consumer's
+request.
 
 **What it is.** SOMEIP_ETS_093 checks that the DUT detects a client reboot. The procedure's
 evidence is the initial event Notify of InterfaceVersion (0x8005): sent after the first
@@ -4921,3 +4922,33 @@ after a reboot, passes SOMEIP_ETS_093.
 **Done when:** SOMEIP_ETS_093 passes only on 0x8005 after the first Ack, no 0x8005 in a declared
 window after the second, and 0x8005 after the third; that absence holds the S/H1/H2/H3 gate; and
 subtest B (unicast) is graded the same way, or carries a recorded reason it is not.
+
+**What was done.**
+- **An earlier absence is a claim the gate sees.** The gate qualified only the absence that
+  decided a verdict. ETS_093's pass is reached by the last frame, after the window in which the
+  DUT must stay silent, so nothing held that window to H2 or H3. A final now names such windows
+  in its donedata (`"window"`, state ids separated by spaces) with a bound; a `pass` that names
+  one claims an absence whatever drove its last transition, and H3 is the shortest dwell among
+  the named states (`stateDwellUs` over the trace, `ITestRunner::stateWindowUs`). The donedata
+  audit checks each named state exists under that id and arms its own window timer at least the
+  bound long (WINDOW_* findings). docs/verdict_policy.md Section 2.1 states the rule.
+- **The case grades the initial event in all three subtests.** A (multicast FindService +
+  unicast Subscribe, Session IDs 4, 5, 1), B (unicast alone, after a StopSubscribe at 2 ends A's
+  subscription, which the procedure leaves unstated) and C (multicast 6, 7 against unicast 2, 3:
+  no reboot on either channel). After each first and reboot Subscribe the Ack and 0x8005 are owed
+  in either order, a missing 0x8005 is `observed_quiescence`; after each renewal an 11 s window
+  in which 0x8005 is `observed_violation`. The pass names the three windows. Subscribes carry a
+  TTL that outlasts the window, so the reboot Subscribe meets a live subscription.
+- **A renewal is judged from its own Ack.** The first wire run failed C on a frame that was not
+  C's: after B's reboot Subscribe the reference DUT sent its bundled initial events
+  (0x8005/0x8006/0x8007 in one datagram) twice, 70 us apart, and the second copy reached the
+  state waiting for C's first Ack before any C stimulus was sent. The procedure places the
+  initial event after the Ack, so the "must not resend" judgement now starts at the renewal's
+  Ack, and every Subscribe follows the previous phase by 200 ms.
+- **Coverage.** Eleven new fail finals, each a guard in tools/conformant_absence_registry.json.
+
+**Verified (2026-11-11).** On the wire against the reference DUT: 3/3 pass, each with the
+shortest named window at 11.0 s against the 10 s bound and the anchor answered; the same run with
+`ixit.param_listen_time_ms=12000` is `inconclusive:window_shorter_than_bound_absence_unproven`.
+The DUT log shows the reboot detected per channel (multicast in A, unicast in B) and none in C.
+Fail branches are not driven on the wire: no DUT fault resends or withholds the initial event.

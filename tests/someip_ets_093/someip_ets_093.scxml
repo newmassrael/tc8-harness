@@ -2,40 +2,59 @@
 <!--
   TC8 v3.0 §5.1.6 SOMEIP_ETS_093: SD_Check_Reboot_Detection_separate_multicast_and_unicast.
 
-  Lite version: subtest A (multicast) only — 19-step spec procedure
-  reduced to a 4-phase Ack-counting verdict (steps 1-12). The spec's
-  "initial event" wire signal (Notify of Field InterfaceVersion 0x8005),
-  which the DUT now sends, is not graded yet, and subtests B (unicast)
-  and C (cross-channel robustness) are deferred: see docs/tech-debt.md
-  TD-72. The lite verdict asserts: ALL three SubscribeEventgroupAcks are
-  positive (ttl > 0) including the lower-session-id "reboot" Subscribe,
-  i.e. the DUT does NOT reject a Subscribe whose session_id is lower
-  than its predecessor (vsomeip's per-channel reboot tracker correctly
-  expires + re-processes instead of Nack-ing).
+  Subtests A (multicast, steps 1-12), B (unicast, steps 13-18) and C
+  (cross-channel robustness, step 19). The evidence the procedure names is the
+  initial event (Notify of Field InterfaceVersion 0x8005) the DUT sends for a
+  NEW subscription: after the first Subscribe it must come, after the second (a
+  renewal, higher Session ID) it must not, after the third (Session ID 1, a
+  client reboot) it must come again, because a DUT that detected the reboot
+  treats that Subscribe as new. A carries the reboot on both SD channels
+  (multicast FindService and unicast Subscribe); B on the unicast channel
+  alone. C cross-sends both channels with Session IDs that only increase within
+  each but are lower on unicast: no reboot, so no initial event; a DUT that
+  mixes the channels reads one and resends it.
 
   Stimulus chain (see src/sce_integration/include/sce_integration/cases/someip_ets_093.h):
-    1. emitFindServiceBoot — SERVICE-ID-1 cyclic OfferService warm-up.
-    2. Phase 2 onentry: emit FindService(mcast, sid=0x4, rb=1) +
-       Subscribe(eg 0x5, sid=0x4, rb=1) — first Subscribe, normal cadence.
-    3. Phase 3 onentry: emit FindService(mcast, sid=0x5, rb=1) +
-       Subscribe(eg 0x5, sid=0x5, rb=1) — strict increment, no reboot.
-    4. Phase 4 onentry: emit FindService(mcast, sid=0x1, rb=1) +
-       Subscribe(eg 0x5, sid=0x1, rb=1) — both trackers fire is_reboot
-       (5 >= 1), DUT expires + re-processes Subscribe; Ack must remain
-       positive.
+    1. emitFindServiceBoot: SERVICE-ID-1 cyclic OfferService warm-up.
+    A, on entry to the state named:
+    2. awaiting_multicast_first_ack_and_initial_event: FindService(mcast,
+       sid=0x4, rb=1) + Subscribe(eg 0x5, sid=0x4, rb=1).
+    3. awaiting_multicast_second_ack: FindService(sid=0x5) + Subscribe(sid=0x5).
+    4. awaiting_multicast_reboot_ack_and_initial_event: FindService(sid=0x1) +
+       Subscribe(sid=0x1).
+    B:
+    5. awaiting_unicast_first_ack_and_initial_event: StopSubscribe(sid=0x2),
+       which ends A's subscription so that step 14 meets a new one (the
+       procedure states no step for it), then Subscribe(sid=0x4).
+    6. awaiting_unicast_second_ack: Subscribe(sid=0x5).
+    7. awaiting_unicast_reboot_ack_and_initial_event: Subscribe(sid=0x1).
+    C:
+    8. awaiting_cross_first_ack: FindService(mcast, sid=0x6) + Subscribe(sid=0x2).
+    9. awaiting_cross_second_ack: FindService(sid=0x7) + Subscribe(sid=0x3).
+  Each Subscribe's TTL outlasts the next one, so a third Subscribe meets a
+  subscription that is still live: only reboot detection makes it new.
 
-  Verdict (4-state):
-    Phase 1 (listening_phase1, 6 s): observe OfferService for
-            SERVICE-ID-1 (DUT cyclic warm-up gate).
-    Phase 2 (listening_phase2_first_ack, 6 s): scheduler emits
-            FindService #1 + Subscribe #1; expect SubscribeEventgroupAck
-            with ttl > 0 on eg 0x0005.
-    Phase 3 (listening_phase3_second_ack, 6 s): scheduler emits
-            FindService #2 + Subscribe #2; expect Ack #2 (ttl > 0).
-    Phase 4 (listening_phase4_reboot_ack, 6 s): scheduler emits
-            FindService #3 (reboot sid=1) + Subscribe #3 (sid=1);
-            expect Ack #3 (ttl > 0) — verifies DUT did not Nack the
-            lower-sid Subscribe.
+  Verdict:
+    Phase 1 (listening_phase1, 6 s): OfferService for SERVICE-ID-1; none is
+            precondition_unmet.
+    For each subtest:
+    First Subscribe: the SubscribeEventgroupAck (ttl > 0, eg 0x0005) and
+            0x8005, in either order, one flat state per set still owed, each
+            with its own 11 s window (ParamListenTime + ParamToleranceTime).
+            A Nack fails; no Ack is property_unobserved; an Ack with no 0x8005
+            is observed_quiescence.
+    Second Subscribe: its Ack, then observing_no_<subtest>_initial_event_resend,
+            an 11 s window in which 0x8005 fails the case. The window opens at
+            the renewal's Ack, where the procedure places an initial event;
+            before it, a 0x8005 can still belong to the previous Subscribe.
+    Reboot Subscribe: its Ack and 0x8005 again, as for the first; an Ack with
+            no 0x8005 means the reboot went undetected (observed_quiescence).
+    C: both Acks, then observing_no_cross_channel_initial_event (11 s); 0x8005
+            after the first Ack fails the case.
+  The pass rests on all three "must not resend" windows, so it names them
+  (`"window"`): the CLI holds it to the absence hypotheses S, H1, H2 and H3
+  (docs/verdict_policy.md Section 2.1), H3 against the shortest of their
+  dwells.
 
   Reference: PRS_SOMEIPSD_00157, SD §4.2.
 -->
@@ -62,54 +81,277 @@
     </onentry>
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x01 and captured.sd_entries[0].service_id == expected.service_id"
-                target="listening_phase2_first_ack"/>
+                target="awaiting_multicast_first_ack_and_initial_event"/>
     <transition event="phase1_deadline_exceeded" target="inconclusive_phase1_no_offer"/>
   </state>
 
-  <state id="listening_phase2_first_ack">
+  <!-- ===== Subtest A: multicast FindService + unicast Subscribe. ===== -->
+
+  <!-- Phase 2: the first Subscribe. -->
+  <state id="awaiting_multicast_first_ack_and_initial_event">
     <onentry>
-      <send event="phase2_deadline_exceeded" delay="6s"/>
+      <send event="phase2_both_window_elapsed" delay="11s"/>
     </onentry>
-    <!-- DUT-emitted SubscribeEventgroupAck (Type 0x07, ttl > 0) for
-         eventgroup 0x0005. -->
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl &gt; 0 and captured.sd_entries[0].eventgroup_id == 0x0005"
-                target="listening_phase3_second_ack"/>
+                target="awaiting_multicast_first_initial_event"/>
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl == 0 and captured.sd_entries[0].eventgroup_id == 0x0005"
                 target="fail_phase2_subscribe_nacked"/>
-    <transition event="phase2_deadline_exceeded" target="inconclusive_phase2_no_first_ack"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x02 and captured.method_id == 0x8005"
+                target="awaiting_multicast_first_ack"/>
+    <transition event="phase2_both_window_elapsed" target="inconclusive_phase2_no_first_ack"/>
   </state>
 
-  <state id="listening_phase3_second_ack">
+  <state id="awaiting_multicast_first_initial_event">
     <onentry>
-      <send event="phase3_deadline_exceeded" delay="6s"/>
+      <send event="phase2_initial_event_window_elapsed" delay="11s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x02 and captured.method_id == 0x8005"
+                target="awaiting_multicast_second_ack"/>
+    <transition event="phase2_initial_event_window_elapsed" target="fail_phase2_no_initial_event"/>
+  </state>
+
+  <state id="awaiting_multicast_first_ack">
+    <onentry>
+      <send event="phase2_ack_window_elapsed" delay="11s"/>
     </onentry>
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl &gt; 0 and captured.sd_entries[0].eventgroup_id == 0x0005"
-                target="listening_phase4_reboot_ack"/>
+                target="awaiting_multicast_second_ack"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl == 0 and captured.sd_entries[0].eventgroup_id == 0x0005"
+                target="fail_phase2_subscribe_nacked"/>
+    <transition event="phase2_ack_window_elapsed" target="inconclusive_phase2_no_first_ack"/>
+  </state>
+
+  <!-- Phase 3: the second Subscribe renews the live subscription, so the DUT
+       must not send the initial event again after its Ack (steps 4 and 8 place
+       the initial event after the Ack). Before the Ack a 0x8005 is no evidence:
+       it can still belong to the previous Subscribe, whose initial events the
+       reference DUT has been measured to send twice, 70 us apart. -->
+  <state id="awaiting_multicast_second_ack">
+    <onentry>
+      <send event="phase3_ack_window_elapsed" delay="11s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl &gt; 0 and captured.sd_entries[0].eventgroup_id == 0x0005"
+                target="observing_no_multicast_initial_event_resend"/>
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl == 0 and captured.sd_entries[0].eventgroup_id == 0x0005"
                 target="fail_phase3_subscribe_nacked"/>
-    <transition event="phase3_deadline_exceeded" target="inconclusive_phase3_no_second_ack"/>
+    <transition event="phase3_ack_window_elapsed" target="inconclusive_phase3_no_second_ack"/>
   </state>
 
-  <state id="listening_phase4_reboot_ack">
+  <state id="observing_no_multicast_initial_event_resend">
     <onentry>
-      <send event="phase4_deadline_exceeded" delay="6s"/>
+      <send event="phase3_quiet_window_elapsed" delay="11s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x02 and captured.method_id == 0x8005"
+                target="fail_phase3_initial_event_resent"/>
+    <transition event="phase3_quiet_window_elapsed" target="awaiting_multicast_reboot_ack_and_initial_event"/>
+  </state>
+
+  <!-- Phase 4: the reboot Subscribe (Session ID 1). -->
+  <state id="awaiting_multicast_reboot_ack_and_initial_event">
+    <onentry>
+      <send event="phase4_both_window_elapsed" delay="11s"/>
     </onentry>
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl &gt; 0 and captured.sd_entries[0].eventgroup_id == 0x0005"
-                target="pass"/>
+                target="awaiting_multicast_reboot_initial_event"/>
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl == 0 and captured.sd_entries[0].eventgroup_id == 0x0005"
                 target="fail_phase4_reboot_subscribe_nacked"/>
-    <transition event="phase4_deadline_exceeded" target="inconclusive_phase4_no_reboot_ack"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x02 and captured.method_id == 0x8005"
+                target="awaiting_multicast_reboot_ack"/>
+    <transition event="phase4_both_window_elapsed" target="inconclusive_phase4_no_reboot_ack"/>
+  </state>
+
+  <state id="awaiting_multicast_reboot_initial_event">
+    <onentry>
+      <send event="phase4_initial_event_window_elapsed" delay="11s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x02 and captured.method_id == 0x8005"
+                target="awaiting_unicast_first_ack_and_initial_event"/>
+    <transition event="phase4_initial_event_window_elapsed" target="fail_phase4_no_initial_event_after_reboot"/>
+  </state>
+
+  <state id="awaiting_multicast_reboot_ack">
+    <onentry>
+      <send event="phase4_ack_window_elapsed" delay="11s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl &gt; 0 and captured.sd_entries[0].eventgroup_id == 0x0005"
+                target="awaiting_unicast_first_ack_and_initial_event"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl == 0 and captured.sd_entries[0].eventgroup_id == 0x0005"
+                target="fail_phase4_reboot_subscribe_nacked"/>
+    <transition event="phase4_ack_window_elapsed" target="inconclusive_phase4_no_reboot_ack"/>
+  </state>
+
+  <!-- ===== Subtest B: unicast Subscribe only. ===== -->
+
+  <!-- Phase 5: the first unicast Subscribe, after A's subscription was stopped. -->
+  <state id="awaiting_unicast_first_ack_and_initial_event">
+    <onentry>
+      <send event="phase5_both_window_elapsed" delay="11s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl &gt; 0 and captured.sd_entries[0].eventgroup_id == 0x0005"
+                target="awaiting_unicast_first_initial_event"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl == 0 and captured.sd_entries[0].eventgroup_id == 0x0005"
+                target="fail_phase5_subscribe_nacked"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x02 and captured.method_id == 0x8005"
+                target="awaiting_unicast_first_ack"/>
+    <transition event="phase5_both_window_elapsed" target="inconclusive_phase5_no_first_ack"/>
+  </state>
+
+  <state id="awaiting_unicast_first_initial_event">
+    <onentry>
+      <send event="phase5_initial_event_window_elapsed" delay="11s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x02 and captured.method_id == 0x8005"
+                target="awaiting_unicast_second_ack"/>
+    <transition event="phase5_initial_event_window_elapsed" target="fail_phase5_no_initial_event"/>
+  </state>
+
+  <state id="awaiting_unicast_first_ack">
+    <onentry>
+      <send event="phase5_ack_window_elapsed" delay="11s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl &gt; 0 and captured.sd_entries[0].eventgroup_id == 0x0005"
+                target="awaiting_unicast_second_ack"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl == 0 and captured.sd_entries[0].eventgroup_id == 0x0005"
+                target="fail_phase5_subscribe_nacked"/>
+    <transition event="phase5_ack_window_elapsed" target="inconclusive_phase5_no_first_ack"/>
+  </state>
+
+  <!-- Phase 6: the second unicast Subscribe renews the live subscription; it
+       is judged from its Ack on, as in phase 3. -->
+  <state id="awaiting_unicast_second_ack">
+    <onentry>
+      <send event="phase6_ack_window_elapsed" delay="11s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl &gt; 0 and captured.sd_entries[0].eventgroup_id == 0x0005"
+                target="observing_no_unicast_initial_event_resend"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl == 0 and captured.sd_entries[0].eventgroup_id == 0x0005"
+                target="fail_phase6_subscribe_nacked"/>
+    <transition event="phase6_ack_window_elapsed" target="inconclusive_phase6_no_second_ack"/>
+  </state>
+
+  <state id="observing_no_unicast_initial_event_resend">
+    <onentry>
+      <send event="phase6_quiet_window_elapsed" delay="11s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x02 and captured.method_id == 0x8005"
+                target="fail_phase6_initial_event_resent"/>
+    <transition event="phase6_quiet_window_elapsed" target="awaiting_unicast_reboot_ack_and_initial_event"/>
+  </state>
+
+  <!-- Phase 7: the reboot unicast Subscribe (Session ID 1). -->
+  <state id="awaiting_unicast_reboot_ack_and_initial_event">
+    <onentry>
+      <send event="phase7_both_window_elapsed" delay="11s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl &gt; 0 and captured.sd_entries[0].eventgroup_id == 0x0005"
+                target="awaiting_unicast_reboot_initial_event"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl == 0 and captured.sd_entries[0].eventgroup_id == 0x0005"
+                target="fail_phase7_reboot_subscribe_nacked"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x02 and captured.method_id == 0x8005"
+                target="awaiting_unicast_reboot_ack"/>
+    <transition event="phase7_both_window_elapsed" target="inconclusive_phase7_no_reboot_ack"/>
+  </state>
+
+  <state id="awaiting_unicast_reboot_initial_event">
+    <onentry>
+      <send event="phase7_initial_event_window_elapsed" delay="11s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x02 and captured.method_id == 0x8005"
+                target="awaiting_cross_first_ack"/>
+    <transition event="phase7_initial_event_window_elapsed" target="fail_phase7_no_initial_event_after_reboot"/>
+  </state>
+
+  <state id="awaiting_unicast_reboot_ack">
+    <onentry>
+      <send event="phase7_ack_window_elapsed" delay="11s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl &gt; 0 and captured.sd_entries[0].eventgroup_id == 0x0005"
+                target="awaiting_cross_first_ack"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl == 0 and captured.sd_entries[0].eventgroup_id == 0x0005"
+                target="fail_phase7_reboot_subscribe_nacked"/>
+    <transition event="phase7_ack_window_elapsed" target="inconclusive_phase7_no_reboot_ack"/>
+  </state>
+
+  <!-- ===== Subtest C: both channels cross-sent, no reboot on either. ===== -->
+
+  <!-- Phase 8: two FindService(multicast) + Subscribe(unicast) pairs whose
+       Session IDs increase within each channel and are lower on unicast. Each
+       Subscribe renews the live subscription; a DUT that mixes the channels'
+       trackers reads a reboot and treats it as new, which shows as 0x8005.
+       Judged from the first Ack on, as in phase 3: before it, a 0x8005 can
+       still belong to phase 7's reboot Subscribe. -->
+  <state id="awaiting_cross_first_ack">
+    <onentry>
+      <send event="phase8_first_ack_window_elapsed" delay="11s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl &gt; 0 and captured.sd_entries[0].eventgroup_id == 0x0005"
+                target="awaiting_cross_second_ack"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl == 0 and captured.sd_entries[0].eventgroup_id == 0x0005"
+                target="fail_phase8_subscribe_nacked"/>
+    <transition event="phase8_first_ack_window_elapsed" target="inconclusive_phase8_no_cross_ack"/>
+  </state>
+
+  <state id="awaiting_cross_second_ack">
+    <onentry>
+      <send event="phase8_second_ack_window_elapsed" delay="11s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl &gt; 0 and captured.sd_entries[0].eventgroup_id == 0x0005"
+                target="observing_no_cross_channel_initial_event"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl == 0 and captured.sd_entries[0].eventgroup_id == 0x0005"
+                target="fail_phase8_subscribe_nacked"/>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x02 and captured.method_id == 0x8005"
+                target="fail_phase8_reboot_misdetected_across_channels"/>
+    <transition event="phase8_second_ack_window_elapsed" target="inconclusive_phase8_no_cross_ack"/>
+  </state>
+
+  <state id="observing_no_cross_channel_initial_event">
+    <onentry>
+      <send event="phase8_quiet_window_elapsed" delay="11s"/>
+    </onentry>
+    <transition event="someip_notification"
+                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x02 and captured.method_id == 0x8005"
+                target="fail_phase8_reboot_misdetected_across_channels"/>
+    <transition event="phase8_quiet_window_elapsed" target="pass"/>
   </state>
 
   <final id="pass">
     <donedata>
-      <content>{"verdict":"pass"}</content>
+      <content>{"verdict":"pass","bound":"ParamListenTime","window":"observing_no_multicast_initial_event_resend observing_no_unicast_initial_event_resend observing_no_cross_channel_initial_event"}</content>
     </donedata>
   </final>
 
@@ -119,6 +361,7 @@
     </donedata>
   </final>
 
+  <!-- Subtest A -->
   <final id="fail_phase2_subscribe_nacked">
     <donedata>
       <content>{"verdict":"fail","reason":"first_subscribe_eventgroup_nacked_ttl_zero","role":"observed_violation"}</content>
@@ -128,6 +371,12 @@
   <final id="inconclusive_phase2_no_first_ack">
     <donedata>
       <content>{"verdict":"inconclusive","reason":"no_first_subscribe_eventgroup_ack_within_listen_window","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase2_no_initial_event">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_initial_interface_version_event_after_first_subscribe","role":"observed_quiescence","bound":"ParamListenTime"}</content>
     </donedata>
   </final>
 
@@ -143,6 +392,12 @@
     </donedata>
   </final>
 
+  <final id="fail_phase3_initial_event_resent">
+    <donedata>
+      <content>{"verdict":"fail","reason":"initial_interface_version_event_resent_for_renewing_subscribe","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
   <final id="fail_phase4_reboot_subscribe_nacked">
     <donedata>
       <content>{"verdict":"fail","reason":"reboot_subscribe_eventgroup_nacked_ttl_zero","role":"observed_violation"}</content>
@@ -152,6 +407,86 @@
   <final id="inconclusive_phase4_no_reboot_ack">
     <donedata>
       <content>{"verdict":"inconclusive","reason":"no_reboot_subscribe_eventgroup_ack_within_listen_window","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase4_no_initial_event_after_reboot">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_initial_interface_version_event_after_client_reboot","role":"observed_quiescence","bound":"ParamListenTime"}</content>
+    </donedata>
+  </final>
+
+  <!-- Subtest B -->
+  <final id="fail_phase5_subscribe_nacked">
+    <donedata>
+      <content>{"verdict":"fail","reason":"first_unicast_subscribe_eventgroup_nacked_ttl_zero","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_phase5_no_first_ack">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_first_unicast_subscribe_eventgroup_ack_within_listen_window","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase5_no_initial_event">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_initial_interface_version_event_after_first_unicast_subscribe","role":"observed_quiescence","bound":"ParamListenTime"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase6_subscribe_nacked">
+    <donedata>
+      <content>{"verdict":"fail","reason":"second_unicast_subscribe_eventgroup_nacked_ttl_zero","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_phase6_no_second_ack">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_second_unicast_subscribe_eventgroup_ack_within_listen_window","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase6_initial_event_resent">
+    <donedata>
+      <content>{"verdict":"fail","reason":"initial_interface_version_event_resent_for_renewing_unicast_subscribe","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase7_reboot_subscribe_nacked">
+    <donedata>
+      <content>{"verdict":"fail","reason":"unicast_reboot_subscribe_eventgroup_nacked_ttl_zero","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_phase7_no_reboot_ack">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_unicast_reboot_subscribe_eventgroup_ack_within_listen_window","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase7_no_initial_event_after_reboot">
+    <donedata>
+      <content>{"verdict":"fail","reason":"no_initial_interface_version_event_after_unicast_client_reboot","role":"observed_quiescence","bound":"ParamListenTime"}</content>
+    </donedata>
+  </final>
+
+  <!-- Subtest C -->
+  <final id="fail_phase8_subscribe_nacked">
+    <donedata>
+      <content>{"verdict":"fail","reason":"cross_channel_subscribe_eventgroup_nacked_ttl_zero","role":"observed_violation"}</content>
+    </donedata>
+  </final>
+
+  <final id="inconclusive_phase8_no_cross_ack">
+    <donedata>
+      <content>{"verdict":"inconclusive","reason":"no_cross_channel_subscribe_eventgroup_ack_within_listen_window","role":"property_unobserved"}</content>
+    </donedata>
+  </final>
+
+  <final id="fail_phase8_reboot_misdetected_across_channels">
+    <donedata>
+      <content>{"verdict":"fail","reason":"initial_interface_version_event_resent_for_cross_channel_renewal","role":"observed_violation"}</content>
     </donedata>
   </final>
 </scxml>

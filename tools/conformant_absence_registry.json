@@ -444,6 +444,61 @@
           "class": "incorrect_emission",
           "fail_reason": "reboot_subscribe_eventgroup_nacked_ttl_zero",
           "property": "DUT must Ack the post-reboot valid SubscribeEventgroup, not answer with a ttl=0 NACK"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_initial_interface_version_event_after_first_subscribe",
+          "property": "DUT must send the initial event of InterfaceVersion (0x8005) for the first, new subscription"
+        },
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "initial_interface_version_event_resent_for_renewing_subscribe",
+          "property": "DUT must not resend the initial event when a higher Session ID Subscribe renews a live subscription"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_initial_interface_version_event_after_client_reboot",
+          "property": "DUT must detect the client reboot (Session ID 1 on both SD channels) and send the initial event again"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "first_unicast_subscribe_eventgroup_nacked_ttl_zero",
+          "property": "DUT must Ack the first unicast-only SubscribeEventgroup, not answer with a ttl=0 NACK"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_initial_interface_version_event_after_first_unicast_subscribe",
+          "property": "DUT must send the initial event for the first unicast-only subscription after the previous one was stopped"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "second_unicast_subscribe_eventgroup_nacked_ttl_zero",
+          "property": "DUT must Ack the second unicast-only SubscribeEventgroup, not answer with a ttl=0 NACK"
+        },
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "initial_interface_version_event_resent_for_renewing_unicast_subscribe",
+          "property": "DUT must not resend the initial event when a higher Session ID unicast Subscribe renews a live subscription"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "unicast_reboot_subscribe_eventgroup_nacked_ttl_zero",
+          "property": "DUT must Ack the post-reboot unicast-only SubscribeEventgroup, not answer with a ttl=0 NACK"
+        },
+        {
+          "class": "required_emission",
+          "fail_reason": "no_initial_interface_version_event_after_unicast_client_reboot",
+          "property": "DUT must detect a client reboot carried on the unicast SD channel alone and send the initial event again"
+        },
+        {
+          "class": "incorrect_emission",
+          "fail_reason": "cross_channel_subscribe_eventgroup_nacked_ttl_zero",
+          "property": "DUT must Ack a renewing SubscribeEventgroup sent between multicast FindServices with higher Session IDs"
+        },
+        {
+          "class": "prohibited_emission",
+          "fail_reason": "initial_interface_version_event_resent_for_cross_channel_renewal",
+          "property": "DUT must keep the multicast and unicast reboot trackers apart: a unicast Session ID below the multicast one is no reboot, so no initial event"
         }
       ]
     },
