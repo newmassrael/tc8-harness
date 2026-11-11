@@ -14,6 +14,7 @@ class Runtime;
 namespace tc8::dut {
 
 class IEtsExtension;
+class IEtsFieldAccess;
 class EtsImpl;
 class Ets2Impl;
 class LifecycleSignal;
@@ -91,12 +92,17 @@ public:
     // the teardown order of the pre-extraction dut_main.
     void unregisterAll();
 
+    // The extension's access to the fields the primary stub serves, for the
+    // EtsExtensionContext. Lives as long as this role.
+    IEtsFieldAccess& fieldAccess();
+
 private:
     std::shared_ptr<CommonAPI::Runtime> runtime_;
     std::shared_ptr<EtsImpl>  impl_;      // primary registered stub
     std::shared_ptr<EtsImpl>  impl2_;     // optional second instance (TC8_DUT_INSTANCE_2)
     std::shared_ptr<Ets2Impl> impl_si2_;  // optional second service  (TC8_DUT_SERVICE_2)
     EmissionController emission_;
+    std::unique_ptr<IEtsFieldAccess> fields_;  // over impl_
 };
 
 }  // namespace tc8::dut

@@ -4,9 +4,12 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <memory>
+#include <optional>
 #include <string>
 #include <thread>
 #include <utility>
+#include <vector>
 
 #include <CommonAPI/CommonAPI.hpp>
 
@@ -14,10 +17,34 @@
 #include "ets2_impl.h"
 #include "ets_extension.h"
 #include "ets_factory.h"
+#include "ets_field_access.h"
 #include "ets_impl.h"
 #include "lifecycle_signal.h"
 
 namespace tc8::dut {
+
+namespace {
+
+// IEtsFieldAccess over the primary registered stub. The stub outlives every
+// re-register (suspendInterface re-offers the same object), so the value an
+// extension sets is the one a re-offer publishes.
+class StubFieldAccess final : public IEtsFieldAccess {
+public:
+    explicit StubFieldAccess(std::shared_ptr<EtsImpl> impl) : impl_(std::move(impl)) {}
+
+    std::optional<std::vector<std::uint8_t>> testFieldUint8Array() const override {
+        return impl_->testFieldUint8ArrayValue();
+    }
+    bool setTestFieldUint8Array(std::vector<std::uint8_t> value) override {
+        impl_->setTestFieldUint8ArrayValue(std::move(value));
+        return true;
+    }
+
+private:
+    std::shared_ptr<EtsImpl> impl_;
+};
+
+}  // namespace
 
 ServerRole::ServerRole(std::shared_ptr<CommonAPI::Runtime> runtime,
                        const IEtsExtension& extension,
@@ -42,6 +69,7 @@ ServerRole::ServerRole(std::shared_ptr<CommonAPI::Runtime> runtime,
     // Data Control path stays unobservable. TestFieldUINT8 takes the extension's
     // value (0x42 by default); seedFields publishes every value, 0 included.
     impl_->seedFields(extension.testFieldUint8InitialValue());
+    fields_ = std::make_unique<StubFieldAccess>(impl_);
 
     // Single emission engine (one producer per event). 0x8001/TestEventUINT8 is
     // CYCLIC by default — the DUT's pre-existing unconditional 250 ms cadence the
@@ -148,6 +176,8 @@ ServerRole::ServerRole(std::shared_ptr<CommonAPI::Runtime> runtime,
 }
 
 ServerRole::~ServerRole() = default;
+
+IEtsFieldAccess& ServerRole::fieldAccess() { return *fields_; }
 
 void ServerRole::startEmission() { emission_.start(); }
 

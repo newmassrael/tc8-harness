@@ -15,6 +15,7 @@
 #include "ets_client_control.h"
 #include "ets_control_channel.h"
 #include "ets_event_sink.h"
+#include "ets_field_access.h"
 #include "ets_io_host.h"
 #include "fake_waker.h"
 #include "lifecycle_dispatcher.h"
@@ -85,10 +86,11 @@ struct Fixture {
     StubClient client;
     StubControl control;
     StubIo io;
+    tc8::dut::NoFieldAccess fields;
     RecordingExtension ext;
     std::shared_ptr<LifecycleSignal> signal =
         std::make_shared<LifecycleSignal>(std::make_unique<FakeWaker>());
-    LifecycleDispatcher dispatcher{signal, ext, EtsExtensionContext{sink, client, control, io}};
+    LifecycleDispatcher dispatcher{signal, ext, EtsExtensionContext{sink, client, control, io, fields}};
 };
 
 }  // namespace

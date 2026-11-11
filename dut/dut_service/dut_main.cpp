@@ -16,6 +16,7 @@
 #include "ets_event_sink.h"
 #include "ets_extension.h"
 #include "ets_fault.h"
+#include "ets_field_access.h"
 #include "ets_io_host.h"
 #include "pollable_host.h"
 #include "tc8/linux_socket_backend.h"
@@ -166,14 +167,21 @@ int main() {
     // the loop keeps its prior sleep cadence.
     tc8::dut::PollableHost ets_io;
 
-    // The server sink + client control + control channel + I/O host handed to every
-    // extension hook as one context (owned here for the whole run). Now that the
+    // Field access: the server role's stub in server mode; in client-only mode no field
+    // is served and every call says so. Owned here (or by `server`, declared above) so it
+    // outlives the EtsExtensionContext.
+    tc8::dut::NoFieldAccess no_fields;
+    tc8::dut::IEtsFieldAccess& ets_fields =
+        server ? server->fieldAccess() : static_cast<tc8::dut::IEtsFieldAccess&>(no_fields);
+
+    // The server sink + client control + control channel + I/O host + field access
+    // handed to every extension hook as one context (owned here for the whole run). Now that the
     // service is offered (in server mode) and the application exists (both modes),
     // let the OEM extension (O2) offer its NDA event surface and wire any client
     // subscribe/calls. No-op for the public default extension (its
     // ets8001TriggerDriven() already chose the 0x8001 source kind in the ServerRole
     // constructor above).
-    tc8::dut::EtsExtensionContext ets_ctx{*ets_sink, *ets_client, *ets_control, ets_io};
+    tc8::dut::EtsExtensionContext ets_ctx{*ets_sink, *ets_client, *ets_control, ets_io, ets_fields};
     ets_extension->onRegister(ets_ctx);
 
     // Fold the warm-suspendInterface lifecycle channel into the loop's poll set so

@@ -37,9 +37,16 @@ class IEtsControlChannel;
 // never depends on it.
 class IEtsIoHost;
 
+// The field-access facade — an extension reads and sets the value of a field the
+// DUT serves, so it keeps no second store for a field whose methods it serves too.
+// Defined in ets_field_access.h; forward-declared here for the same by-reference
+// reason.
+class IEtsFieldAccess;
+
 // The collaborators handed to every extension hook: the SERVER-role event sink,
-// the CLIENT-role outbound control, the inbound control channel, and the runtime-
-// I/O host — all owned by dut_main for the whole run. Bundling them gives every
+// the CLIENT-role outbound control, the inbound control channel, the runtime-I/O
+// host, and access to the fields the DUT serves — all owned by dut_main for the
+// whole run. Bundling them gives every
 // hook a uniform, complete context — no "param for the sink but hand-once-and-store
 // for the client" asymmetry — and lets a future seam join here without changing any
 // hook signature. Holds references (never null); the struct definition only needs
@@ -49,6 +56,7 @@ struct EtsExtensionContext {
     IEtsClientControl& client;
     IEtsControlChannel& control;
     IEtsIoHost& io;
+    IEtsFieldAccess& fields;
 };
 
 // Extend seam (O2 path) for events/methods the OEM owns but that are NOT in the

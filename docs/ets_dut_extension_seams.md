@@ -117,6 +117,38 @@ void onRegister(EtsExtensionContext& ctx) override {
 - The extension keeps the returned field, and calls `reset` from its own reset path if the
   procedure expects the default value back after `resetInterface`.
 
+## A public field the extension serves methods for
+
+The reverse case: a field the public interface carries, whose value an OEM extension also
+serves through methods of its own (a superset interface's getter override, or set methods
+on the same value). The field belongs to the DUT, so the extension cannot offer its notifier
+again (vsomeip refuses a second registration of the event). Keeping its own copy of the value
+would split the field in two: a set through the public setter would not be what the
+extension's getter returns, and a `suspendInterface` re-offer would republish the DUT's value
+over the extension's.
+
+`EtsExtensionContext::fields` (`IEtsFieldAccess`, `ets_field_access.h`) gives the extension
+the DUT's one store instead:
+
+```cpp
+void onRegister(EtsExtensionContext& ctx) override {
+    fields_ = &ctx.fields;  // the context's facades live for the whole run
+}
+// in the extension's own setter:      fields_->setTestFieldUint8Array(bytes);
+// in the extension's own getter:      auto value = fields_->testFieldUint8Array();
+```
+
+- `setTestFieldUint8Array` stores the value as a remote set through 0x29 does: 0x8007 notifies
+  when the value changed and stays quiet when it did not.
+- `testFieldUint8Array` returns the stored value. The ETS_167 getter fault, which complements
+  what a remote get through 0x28 returns, does not apply to it.
+- Both take the attribute's lock, so they are safe from a vsomeip handler thread.
+- They reach the primary instance. In the client-only topology no field is served:
+  `testFieldUint8Array` returns nullopt and `setTestFieldUint8Array` returns false. A test
+  that builds a context without a server passes `NoFieldAccess`.
+- Only TestFieldUINT8Array has accessors, because only it has been asked for. Another field
+  joins the interface the same way when an extension needs it.
+
 ## Emission
 
 `EmissionController` (`ets_emission.h`) is the one engine behind every ETS

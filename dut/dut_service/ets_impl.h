@@ -287,6 +287,12 @@ public:
     // later re-register (suspendInterface) publishes the then-current values itself.
     void seedFields(uint8_t testFieldUint8);
 
+    // The extension's access to TestFieldUINT8Array (IEtsFieldAccess): the stored
+    // value, copied under the attribute's lock and never fault-complemented, and a
+    // set that stores and notifies 0x8007 on a change, as a remote set does.
+    std::vector<uint8_t> testFieldUint8ArrayValue();
+    void setTestFieldUint8ArrayValue(std::vector<uint8_t> value);
+
     // §5.1.6 SOMEIP_ETS_146 — TC8 §5.1.4.3.1 resetInterface. Fire&Forget
     // method that brings the DUT's testable surface back to its initial
     // state. For the current cluster this is fieldA_ → 0; future

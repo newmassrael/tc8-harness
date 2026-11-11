@@ -430,6 +430,28 @@ void EtsImpl::seedFields(uint8_t testFieldUint8) {
         EnhancedTestabilityStubDefault::getTestFieldUINT8ReliableAttribute());
 }
 
+std::vector<uint8_t> EtsImpl::testFieldUint8ArrayValue() {
+    // The lock the generated trySet takes, so a remote set on a vsomeip thread cannot
+    // tear the copy.
+    const std::shared_ptr<v1::org::tc8::ets::EnhancedTestabilityStubAdapter> adapter =
+        CommonAPI::Stub<v1::org::tc8::ets::EnhancedTestabilityStubAdapter,
+                        v1::org::tc8::ets::EnhancedTestabilityStubRemoteEvent>::stubAdapter_.lock();
+    if (adapter) {
+        adapter->lockTestFieldUINT8ArrayAttribute(true);
+    }
+    std::vector<uint8_t> value = EnhancedTestabilityStubDefault::getTestFieldUINT8ArrayAttribute();
+    if (adapter) {
+        adapter->lockTestFieldUINT8ArrayAttribute(false);
+    }
+    return value;
+}
+
+void EtsImpl::setTestFieldUint8ArrayValue(std::vector<uint8_t> value) {
+    // The generated setter: trySet under the lock, then notify only on a change, which
+    // is what the SOME/IP adapter does for a remote set.
+    EnhancedTestabilityStubDefault::setTestFieldUINT8ArrayAttribute(std::move(value));
+}
+
 void EtsImpl::resetInterface(
     const std::shared_ptr<CommonAPI::ClientId> /*_client*/) {
     // §5.1.6 SOMEIP_ETS_146 reset-skip fault: when kEtsFaultResetSkip is armed (via UT 0x1B

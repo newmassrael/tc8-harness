@@ -18,6 +18,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -27,6 +28,7 @@
 #include "ets_control_channel.h"
 #include "ets_event_sink.h"
 #include "ets_extension.h"
+#include "ets_field_access.h"
 #include "ets_io_host.h"
 #include "ets_payload.h"  // payloadBytes (vsomeip-free SSOT, exercised below)
 #include "tc8/someip/protocol.h"  // someip::MessageType / ReturnCode (EtsReply fields)
@@ -241,7 +243,8 @@ TEST(DemoEtsExtension, OnRegisterOffersEventAndArmsTrigger) {
     FakeEtsClientControl client;
     FakeEtsControlChannel control;
     FakeEtsIoHost io;
-    tc8::dut::EtsExtensionContext ctx{sink, client, control, io};
+    tc8::dut::NoFieldAccess fields;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control, io, fields};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 
@@ -262,7 +265,8 @@ TEST(DemoEtsExtension, TriggerMethodNotifiesEventWithRequestPayload) {
     FakeEtsClientControl client;
     FakeEtsControlChannel control;
     FakeEtsIoHost io;
-    tc8::dut::EtsExtensionContext ctx{sink, client, control, io};
+    tc8::dut::NoFieldAccess fields;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control, io, fields};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 
@@ -283,7 +287,8 @@ TEST(DemoEtsExtension, OnTickEmitsNothing) {
     FakeEtsClientControl client;
     FakeEtsControlChannel control;
     FakeEtsIoHost io;
-    tc8::dut::EtsExtensionContext ctx{sink, client, control, io};
+    tc8::dut::NoFieldAccess fields;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control, io, fields};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
     sink.notifications.clear();
@@ -300,7 +305,8 @@ TEST(DemoEtsExtension, OnReactivateReAnchorsActivationRelativeOffset) {
     FakeEtsClientControl client;
     FakeEtsControlChannel control;
     FakeEtsIoHost io;
-    tc8::dut::EtsExtensionContext ctx{sink, client, control, io};
+    tc8::dut::NoFieldAccess fields;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control, io, fields};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 
@@ -330,7 +336,8 @@ TEST(DemoEtsExtension, OnSuspendFreezesActivationOffsetUntilReactivate) {
     FakeEtsClientControl client;
     FakeEtsControlChannel control;
     FakeEtsIoHost io;
-    tc8::dut::EtsExtensionContext ctx{sink, client, control, io};
+    tc8::dut::NoFieldAccess fields;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control, io, fields};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 
@@ -363,7 +370,8 @@ TEST(DemoEtsExtension, SubscribeMethodDrivesClientControl) {
     FakeEtsClientControl client;
     FakeEtsControlChannel control;
     FakeEtsIoHost io;
-    tc8::dut::EtsExtensionContext ctx{sink, client, control, io};
+    tc8::dut::NoFieldAccess fields;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control, io, fields};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 
@@ -388,7 +396,8 @@ TEST(DemoEtsExtension, OnStopStopsSubscription) {
     FakeEtsClientControl client;
     FakeEtsControlChannel control;
     FakeEtsIoHost io;
-    tc8::dut::EtsExtensionContext ctx{sink, client, control, io};
+    tc8::dut::NoFieldAccess fields;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control, io, fields};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 
@@ -404,7 +413,8 @@ TEST(DemoEtsExtension, ControlMethodDeliversSubscribeInClientOnly) {
     FakeEtsClientControl client;
     FakeEtsControlChannel control;
     FakeEtsIoHost io;
-    tc8::dut::EtsExtensionContext ctx{sink, client, control, io};
+    tc8::dut::NoFieldAccess fields;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control, io, fields};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 
@@ -432,7 +442,8 @@ TEST(DemoEtsExtension, SubscriptionStatusBoundsLifetimeFromEstablishment) {
     FakeEtsClientControl client;
     FakeEtsControlChannel control;
     FakeEtsIoHost io;
-    tc8::dut::EtsExtensionContext ctx{sink, client, control, io};
+    tc8::dut::NoFieldAccess fields;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control, io, fields};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 
@@ -475,7 +486,8 @@ TEST(DemoEtsExtension, CallMethodDrivesClientControl) {
     FakeEtsClientControl client;
     FakeEtsControlChannel control;
     FakeEtsIoHost io;
-    tc8::dut::EtsExtensionContext ctx{sink, client, control, io};
+    tc8::dut::NoFieldAccess fields;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control, io, fields};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 
@@ -500,7 +512,8 @@ TEST(DemoEtsExtension, FireForgetMethodDrivesClientControl) {
     FakeEtsClientControl client;
     FakeEtsControlChannel control;
     FakeEtsIoHost io;
-    tc8::dut::EtsExtensionContext ctx{sink, client, control, io};
+    tc8::dut::NoFieldAccess fields;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control, io, fields};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 
@@ -528,7 +541,8 @@ TEST(DemoEtsExtension, OnRegisterAdoptsAPollableReceiver) {
     FakeEtsClientControl client;
     FakeEtsControlChannel control;
     FakeEtsIoHost io;
-    tc8::dut::EtsExtensionContext ctx{sink, client, control, io};
+    tc8::dut::NoFieldAccess fields;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control, io, fields};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 
@@ -543,7 +557,8 @@ TEST(DemoEtsExtension, ResponseIsCapturedAndReadbackReplies) {
     FakeEtsClientControl client;
     FakeEtsControlChannel control;
     FakeEtsIoHost io;
-    tc8::dut::EtsExtensionContext ctx{sink, client, control, io};
+    tc8::dut::NoFieldAccess fields;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control, io, fields};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 
@@ -581,7 +596,8 @@ TEST(DemoEtsExtension, ValidatingMethodRejectsOutOfRangeInput) {
     FakeEtsClientControl client;
     FakeEtsControlChannel control;
     FakeEtsIoHost io;
-    tc8::dut::EtsExtensionContext ctx{sink, client, control, io};
+    tc8::dut::NoFieldAccess fields;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control, io, fields};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 
@@ -628,7 +644,8 @@ TEST(DemoEtsExtension, ControlReadbackRepliesPlainResponse) {
     FakeEtsClientControl client;
     FakeEtsControlChannel control;
     FakeEtsIoHost io;
-    tc8::dut::EtsExtensionContext ctx{sink, client, control, io};
+    tc8::dut::NoFieldAccess fields;
+    tc8::dut::EtsExtensionContext ctx{sink, client, control, io, fields};
     tc8::dut::DemoEtsExtension ext;
     ext.onRegister(ctx);
 
@@ -683,6 +700,15 @@ TEST(EtsControlChannelOfferControlRequest, ExCanReplyError) {
     const auto reply = control.control_request_handlers[0x3333]({});
     EXPECT_EQ(reply.message_type, tc8::someip::MessageType::ERROR);
     EXPECT_EQ(reply.return_code, tc8::someip::ReturnCode::E_NOT_OK);
+}
+
+// The client-only topology serves no field: an extension that reads or sets one learns so
+// from the answer rather than from a value that is not there.
+TEST(EtsFieldAccess, ADutServingNoFieldSaysSo) {
+    tc8::dut::NoFieldAccess fields;
+    tc8::dut::IEtsFieldAccess& access = fields;
+    EXPECT_EQ(access.testFieldUint8Array(), std::nullopt);
+    EXPECT_FALSE(access.setTestFieldUint8Array({0x01, 0x02}));
 }
 
 // payloadBytes() — the extracted inbound-marshaling step from
