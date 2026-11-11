@@ -18,6 +18,13 @@
                 "port": "30501",
                 "enable-magic-cookies": "false"
             },
+            "events": [
+                {
+                    "event": "0x8008",
+                    "is_field": "true",
+                    "is_reliable": "true"
+                }
+            ],
             "eventgroups": [
                 {
                     "eventgroup": "0x0008",

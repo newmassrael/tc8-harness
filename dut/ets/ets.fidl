@@ -4,8 +4,10 @@ package org.tc8.ets
   The PUBLIC OA TC8 floor: lifecycle + primitive echo + byte-order +
   client-service control + the §5.1.4 broadcast events (TestEventUINT8,
   TestEventUINT8Array, TestEventUINT8Reliable, TestEventUINT8E2E,
-  TestEventUINT8Multicast), their trigger methods, and the TestFieldUINT8
-  field. Method/event/field IDs come from TC8 §5.1.4 Table 1 and Table 2.
+  TestEventUINT8Multicast), their trigger methods, and the four Table 2
+  fields (InterfaceVersion, TestFieldUINT8, TestFieldUINT8Array,
+  TestFieldUINT8Reliable). Method/event/field IDs come from TC8 §5.1.4
+  Table 1 and Table 2.
 
   Boundary: this file carries ONLY the public §5.1.4 surface. A vendor's
   additional (NDA) ETS events/methods MUST NOT be added here. Trigger-driven or
@@ -194,6 +196,28 @@ interface EnhancedTestability {
       hand-rolled initial-data code. IDs pinned in ets.fdepl. **>
     attribute UInt8 TestFieldUINT8
 
+    <** @description: InterfaceVersion field — OA TC8 v3.0 Table 2 (p414):
+      Getter 0x25, Notifier 0x8005, eventgroups 0x0002/0x0005. Read-only: it
+      carries the offering instance's Major Interface Version (this
+      interface's `version major`), which SOMEIP_ETS_086/087/093 observe as an
+      initial event and SOMEIP_ETS_089 reads through the getter. TC8 fixes
+      no type; UInt8 matches the 8-bit Interface Version header field.
+      Named TestFieldInterfaceVersion because the CommonAPI generator renames
+      an attribute called InterfaceVersion (it collides with the stub's own
+      interface-version accessor); the name never reaches the wire. **>
+    attribute UInt8 TestFieldInterfaceVersion readonly
+
+    <** @description: TestFieldUINT8Array field — OA TC8 v3.0 Table 2
+      (p414): Getter 0x28, Setter 0x29, Notifier 0x8007, eventgroups
+      0x0002/0x0005; §5.1.6 SOMEIP_ETS_167. Starts empty. The value carries a
+      32-bit BE byte length prefix on the wire (ets.fdepl). **>
+    attribute UInt8[] TestFieldUINT8Array
+
+    <** @description: TestFieldUINT8Reliable field — OA TC8 v3.0 Table 2
+      (p414): Getter 0x2A, Setter 0x2B, Notifier 0x8008, eventgroup 0x0002;
+      §5.1.6 SOMEIP_ETS_168. Served over TCP (ets.fdepl). Starts at 0. **>
+    attribute UInt8 TestFieldUINT8Reliable
+
     <** @description: OA TC8 v3.0 Table 1 (p413) trigger methods (all
       fireAndForget, args start/duration/debounceTime per Table 3 p421-440:
       "waits start seconds and triggers a periodical event, periodically in
@@ -237,34 +261,6 @@ interface EnhancedTestability {
       value to set, Response echoes back the value that was set.
       Exercises §5.1.5.7 RPC_11's METHOD-ID-2-SI-1 (setter) shape. **>
     method setFieldA {
-        in  { UInt8 value }
-        out { UInt8 result }
-    }
-
-    <** @description: TestFieldUINT8Array getter — §5.1.6 SOMEIP_ETS_167.
-      Returns the most recently set UInt8 array (no length-prefixed input
-      payload; out-array is length-prefixed per ets.fdepl). **>
-    method getTestFieldUint8Array {
-        out { UInt8[] data }
-    }
-
-    <** @description: TestFieldUINT8Array setter — §5.1.6 SOMEIP_ETS_167.
-      Stores the input array and echoes it back on the wire. Both
-      directions carry a 32-bit BE byte length prefix per ets.fdepl. **>
-    method setTestFieldUint8Array {
-        in  { UInt8[] data }
-        out { UInt8[] result }
-    }
-
-    <** @description: TestFieldUINT8Reliable getter — §5.1.6 SOMEIP_ETS_168.
-      UInt8 field served over TCP (SomeIpReliable=true in ets.fdepl). **>
-    method getTestFieldUint8Reliable {
-        out { UInt8 value }
-    }
-
-    <** @description: TestFieldUINT8Reliable setter — §5.1.6 SOMEIP_ETS_168.
-      UInt8 field served over TCP. Stores the new value and echoes it. **>
-    method setTestFieldUint8Reliable {
         in  { UInt8 value }
         out { UInt8 result }
     }

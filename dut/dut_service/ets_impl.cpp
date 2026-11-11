@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <thread>
+#include <utility>
 
 #include "tc8/upper_tester_fault_catalog.h"
 #include "tc8/upper_tester_protocol.h"
@@ -20,8 +21,8 @@ namespace {
 // positive's post-set-readback guard fails. The setter is left untouched (its echo stays
 // correct), so the _neg mirrors the positive's get/set/get chain and only the final
 // readback flips. None (the conformant path) returns the stored value verbatim. One flavor
-// covers every field getter — scalar (getFieldA, getTestFieldUint8Reliable), array
-// (getTestFieldUint8Array), and the §5.1.6 last-value getters (103/104/105) — because the
+// covers every field getter — scalar (getFieldA, TestFieldUINT8Reliable), array
+// (TestFieldUINT8Array), and the §5.1.6 last-value getters (103/104/105) — because the
 // fault semantic is identical (getter does not echo the stored value); the array form
 // complements each byte.
 inline std::uint8_t maybeFaultFieldValue(std::uint8_t stored) {
@@ -38,6 +39,17 @@ inline std::vector<std::uint8_t> maybeFaultFieldArray(std::vector<std::uint8_t> 
     }
     return stored;
 }
+
+// Marks that the next getter call on this thread builds the Response to a remote set of
+// TestFieldUINT8Array or TestFieldUINT8Reliable, so the getter fault above leaves it alone:
+// CommonAPI's SetAttributeStubDispatcher calls onRemoteSet and then reads the getter for the
+// Response, synchronously, on one dispatch thread. A set whose payload fails to deserialize
+// never reaches onRemoteSet, so it leaves no mark behind.
+thread_local bool t_set_response_due = false;
+
+inline void markSetResponse() { t_set_response_due = true; }
+
+inline bool consumeSetResponseMark() { return std::exchange(t_set_response_due, false); }
 
 // SOMEIPSRV_RPC_11 setter-echo fault: when kEtsFaultSetterEchoWrong is armed, the field
 // SETTER's response echoes the stored value bit-flipped — the store itself is left correct,
@@ -143,34 +155,48 @@ void EtsImpl::setFieldA(
     _reply(maybeFaultSetterEcho(fieldA_));
 }
 
-// §5.1.6 SOMEIP_ETS_167 TestFieldUINT8Array.
-void EtsImpl::getTestFieldUint8Array(
-    const std::shared_ptr<CommonAPI::ClientId> /*_client*/,
-    getTestFieldUint8ArrayReply_t _reply) {
-    _reply(maybeFaultFieldArray(testFieldUint8Array_));
+// §5.1.6 SOMEIP_ETS_167 TestFieldUINT8Array (getter 0x28) and SOMEIP_ETS_168
+// TestFieldUINT8Reliable (getter 0x2A, TCP). CommonAPI serializes the returned
+// reference at once, on the calling dispatch thread, so a complemented copy kept per
+// thread outlives its use and two dispatch threads never share one.
+const std::vector<uint8_t>& EtsImpl::getTestFieldUINT8ArrayAttribute(
+    const std::shared_ptr<CommonAPI::ClientId> _client) {
+    const std::vector<uint8_t>& stored = EnhancedTestabilityStubDefault::getTestFieldUINT8ArrayAttribute(_client);
+    if (consumeSetResponseMark()) {
+        return stored;
+    }
+    thread_local std::vector<uint8_t> readback;
+    readback = maybeFaultFieldArray(stored);
+    return readback;
 }
 
-void EtsImpl::setTestFieldUint8Array(
-    const std::shared_ptr<CommonAPI::ClientId> /*_client*/,
-    std::vector<uint8_t> _data,
-    setTestFieldUint8ArrayReply_t _reply) {
-    testFieldUint8Array_ = std::move(_data);
-    _reply(testFieldUint8Array_);
+const uint8_t& EtsImpl::getTestFieldUINT8ReliableAttribute(
+    const std::shared_ptr<CommonAPI::ClientId> _client) {
+    const uint8_t& stored = EnhancedTestabilityStubDefault::getTestFieldUINT8ReliableAttribute(_client);
+    if (consumeSetResponseMark()) {
+        return stored;
+    }
+    thread_local uint8_t readback = 0;
+    readback = maybeFaultFieldValue(stored);
+    return readback;
 }
 
-// §5.1.6 SOMEIP_ETS_168 TestFieldUINT8Reliable (TCP).
-void EtsImpl::getTestFieldUint8Reliable(
-    const std::shared_ptr<CommonAPI::ClientId> /*_client*/,
-    getTestFieldUint8ReliableReply_t _reply) {
-    _reply(maybeFaultFieldValue(testFieldUint8Reliable_));
+bool EtsImpl::FieldRemoteEventHandler::onRemoteSetTestFieldUINT8ArrayAttribute(
+    const std::shared_ptr<CommonAPI::ClientId> _client, std::vector<uint8_t> _value) {
+    markSetResponse();
+    return RemoteEventHandler::onRemoteSetTestFieldUINT8ArrayAttribute(_client, std::move(_value));
 }
 
-void EtsImpl::setTestFieldUint8Reliable(
-    const std::shared_ptr<CommonAPI::ClientId> /*_client*/,
-    uint8_t _value,
-    setTestFieldUint8ReliableReply_t _reply) {
-    testFieldUint8Reliable_ = _value;
-    _reply(testFieldUint8Reliable_);
+bool EtsImpl::FieldRemoteEventHandler::onRemoteSetTestFieldUINT8ReliableAttribute(
+    const std::shared_ptr<CommonAPI::ClientId> _client, uint8_t _value) {
+    markSetResponse();
+    return RemoteEventHandler::onRemoteSetTestFieldUINT8ReliableAttribute(_client, _value);
+}
+
+v1::org::tc8::ets::EnhancedTestabilityStubRemoteEvent* EtsImpl::initStubAdapter(
+    const std::shared_ptr<v1::org::tc8::ets::EnhancedTestabilityStubAdapter>& _adapter) {
+    EnhancedTestabilityStubDefault::initStubAdapter(_adapter);
+    return &fieldRemoteEventHandler_;
 }
 
 void EtsImpl::echoFLOAT64(
@@ -389,9 +415,19 @@ void EtsImpl::suspendInterface(
     }
 }
 
-void EtsImpl::seedTestFieldUint8(uint8_t value) {
-    trySetTestFieldUINT8Attribute(value);
-    fireTestFieldUINT8AttributeChanged(getTestFieldUINT8Attribute());
+void EtsImpl::seedFields(uint8_t testFieldUint8) {
+    trySetTestFieldUINT8Attribute(testFieldUint8);
+    trySetTestFieldInterfaceVersionAttribute(
+        static_cast<uint8_t>(v1::org::tc8::ets::EnhancedTestability::getInterfaceVersion().Major));
+    trySetTestFieldUINT8ArrayAttribute({});
+    trySetTestFieldUINT8ReliableAttribute(0);
+    // The stored values (the no-client getters), never a fault-complemented readback.
+    fireTestFieldUINT8AttributeChanged(EnhancedTestabilityStubDefault::getTestFieldUINT8Attribute());
+    fireTestFieldInterfaceVersionAttributeChanged(
+        EnhancedTestabilityStubDefault::getTestFieldInterfaceVersionAttribute());
+    fireTestFieldUINT8ArrayAttributeChanged(EnhancedTestabilityStubDefault::getTestFieldUINT8ArrayAttribute());
+    fireTestFieldUINT8ReliableAttributeChanged(
+        EnhancedTestabilityStubDefault::getTestFieldUINT8ReliableAttribute());
 }
 
 void EtsImpl::resetInterface(

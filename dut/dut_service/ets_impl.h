@@ -83,29 +83,22 @@ public:
         uint8_t _value,
         setFieldAReply_t _reply) override;
 
-    // §5.1.6 SOMEIP_ETS_167 TestFieldUINT8Array — UInt8[] field with
-    // getter (Method 0x28) + setter (Method 0x29). UDP transport.
-    // Backed by `testFieldUint8Array_` (default-initialised to empty).
-    void getTestFieldUint8Array(
-        const std::shared_ptr<CommonAPI::ClientId> _client,
-        getTestFieldUint8ArrayReply_t _reply) override;
+    // §5.1.6 SOMEIP_ETS_167 / _168 field-getter fault (kEtsFaultFieldValueWrong) for the
+    // TestFieldUINT8Array (getter 0x28) and TestFieldUINT8Reliable (getter 0x2A) fields.
+    // CommonAPI answers a remote get through these overloads, and also builds a remote
+    // set's Response from them, so the fault must tell the two apart: a get returns the
+    // stored value complemented, while the Response to a set keeps echoing what was set
+    // (FieldRemoteEventHandler marks it). Without the fault both return the stored value.
+    using EnhancedTestabilityStubDefault::getTestFieldUINT8ArrayAttribute;
+    using EnhancedTestabilityStubDefault::getTestFieldUINT8ReliableAttribute;
+    const std::vector<uint8_t>& getTestFieldUINT8ArrayAttribute(
+        const std::shared_ptr<CommonAPI::ClientId> _client) override;
+    const uint8_t& getTestFieldUINT8ReliableAttribute(
+        const std::shared_ptr<CommonAPI::ClientId> _client) override;
 
-    void setTestFieldUint8Array(
-        const std::shared_ptr<CommonAPI::ClientId> _client,
-        std::vector<uint8_t> _data,
-        setTestFieldUint8ArrayReply_t _reply) override;
-
-    // §5.1.6 SOMEIP_ETS_168 TestFieldUINT8Reliable — UInt8 field over TCP
-    // (SomeIpReliable=true on Method 0x2A getter / 0x2B setter). Backed
-    // by `testFieldUint8Reliable_` (default 0).
-    void getTestFieldUint8Reliable(
-        const std::shared_ptr<CommonAPI::ClientId> _client,
-        getTestFieldUint8ReliableReply_t _reply) override;
-
-    void setTestFieldUint8Reliable(
-        const std::shared_ptr<CommonAPI::ClientId> _client,
-        uint8_t _value,
-        setTestFieldUint8ReliableReply_t _reply) override;
+    // Hands CommonAPI this stub's FieldRemoteEventHandler in place of the generated one.
+    v1::org::tc8::ets::EnhancedTestabilityStubRemoteEvent* initStubAdapter(
+        const std::shared_ptr<v1::org::tc8::ets::EnhancedTestabilityStubAdapter>& _adapter) override;
 
     // §5.1.6 SOMEIP_ETS_019 echoFLOAT64 — Double round-trip echo.
     void echoFLOAT64(
@@ -282,14 +275,17 @@ public:
     using SuspendCallback = std::function<void(std::chrono::seconds start, std::chrono::seconds duration)>;
     void setSuspendCallback(SuspendCallback cb) { suspend_callback_ = std::move(cb); }
 
-    // §5.1.6 SOMEIP_ETS_121: give TestFieldUINT8 (notifier 0x8006) its initial
-    // value and publish it, so CommonAPI has a payload to send as the field's
-    // initial Notification on each SubscribeEventgroupAck. The generated setter
-    // notifies only when the value differs from the attribute's current one (0
-    // after construction), and vsomeip sends no initial event for a field it has
-    // no payload for, so the value is published here whatever it is, 0 included.
-    // Call after the service is registered (the notifier goes through its adapter).
-    void seedTestFieldUint8(uint8_t value);
+    // Give each OA TC8 v3.0 Table 2 field its initial value and publish it, so vsomeip
+    // has a payload to send as each field's initial Notification on every
+    // SubscribeEventgroupAck (SOMEIP_ETS_086/087/093/121): TestFieldUINT8 (0x8006)
+    // gets `testFieldUint8`, TestFieldInterfaceVersion (0x8005) this interface's
+    // Major version, TestFieldUINT8Array (0x8007) an empty array and
+    // TestFieldUINT8Reliable (0x8008) 0. Registering the service publishes each
+    // field's value at that moment, but the generated setter notifies only on a
+    // change, so the seeded values are published here whatever they are. Call once,
+    // after the service is registered (the notifiers go through its adapter); a
+    // later re-register (suspendInterface) publishes the then-current values itself.
+    void seedFields(uint8_t testFieldUint8);
 
     // §5.1.6 SOMEIP_ETS_146 — TC8 §5.1.4.3.1 resetInterface. Fire&Forget
     // method that brings the DUT's testable surface back to its initial
@@ -341,9 +337,24 @@ private:
     void armEvent(std::string_view source, uint32_t start, uint32_t duration,
                   uint32_t debounceTime);
 
+    // The generated remote-event handler, plus a mark on each remote set of the two
+    // fault-capable fields: CommonAPI builds the set's Response from the getter on the
+    // same dispatch thread right after this returns, so the getter override knows the
+    // call it is answering is that Response.
+    class FieldRemoteEventHandler
+        : public v1::org::tc8::ets::EnhancedTestabilityStubDefault::RemoteEventHandler {
+    public:
+        explicit FieldRemoteEventHandler(EtsImpl* stub) : RemoteEventHandler(stub) {}
+        using RemoteEventHandler::onRemoteSetTestFieldUINT8ArrayAttribute;
+        using RemoteEventHandler::onRemoteSetTestFieldUINT8ReliableAttribute;
+        bool onRemoteSetTestFieldUINT8ArrayAttribute(
+            const std::shared_ptr<CommonAPI::ClientId> _client, std::vector<uint8_t> _value) override;
+        bool onRemoteSetTestFieldUINT8ReliableAttribute(
+            const std::shared_ptr<CommonAPI::ClientId> _client, uint8_t _value) override;
+    };
+
     uint8_t fieldA_ = 0;
-    std::vector<uint8_t> testFieldUint8Array_{};
-    uint8_t testFieldUint8Reliable_ = 0;
+    FieldRemoteEventHandler fieldRemoteEventHandler_{this};
     // §5.1.6 SOMEIP_ETS_103/_104/_105 — last-received UInt8 per
     // transport. Pre-initialised to the spec's test value (0x08) so the
     // GetLastValueOfEvent* Methods produce a wire-shape valid Response
