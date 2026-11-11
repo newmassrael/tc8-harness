@@ -132,6 +132,23 @@ does not hold, the run says nothing about the IUT.
   it is part of migrating the case (Phase Q4); until then such a pass is judged
   under S, H1 and H2 alone.
 
+**An absence observed before the deciding transition.** A procedure can forbid an
+emission in its middle and oblige one at its end: SOMEIP_ETS_093 must see no
+initial event after a renewing Subscribe and then see it again after a reboot
+Subscribe. Its pass is reached by the last frame, which carries none of the
+silence before it, so on the frame rule alone a capture hole in the middle window
+would pass unseen. Such a final names the window in its donedata,
+`"window":"<state id> [<state id> ...]"`, and declares the bound it is held to. A
+`pass` that names a window claims an absence whatever drove its last transition,
+so the CLI holds it to S, H1 and H2 as above, and to H3 against the shortest dwell
+among the named states (`ITestRunner::stateWindowUs`, measured from the trace like
+the deciding window; a named state the run never left reads as no window). H2
+already covers the whole run from the opening of the listen window, and the
+anchor runs after the run, so after every named window. The donedata audit
+requires the named states to exist under those exact ids, the final to be a `pass`
+with a bound, and each named state to arm a window timer of its own, at least that
+bound long and raised by no other state.
+
 **The anchor.** Two kinds, run by the harness after the window on a capture
 handle of their own (the case's filter often keeps their answer out, and widening
 it would change what the machine saw in the window): an ARP Request for the DUT's

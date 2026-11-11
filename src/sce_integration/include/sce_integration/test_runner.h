@@ -345,6 +345,14 @@ public:
         return std::nullopt;
     }
 
+    // How long the run stayed in `state` on its last visit, in microseconds: the
+    // window of an absence observed before the deciding transition, which a final
+    // names in its donedata (`"window"`, docs/verdict_policy.md Section 2.1).
+    // Nullopt when the run never left `state`, or the runner records no trace.
+    virtual std::optional<std::int64_t> stateWindowUs(std::string_view /*state*/) const {
+        return std::nullopt;
+    }
+
     // The instant the listen window opened, in CLOCK_REALTIME epoch microseconds
     // (the clock of a frame's `observed_ts_us`), or 0 before start(). Not pure: a
     // runner that opens no window reports 0, and a reader taking 0 as "the whole
@@ -689,11 +697,12 @@ public:
         if (trace_.empty()) {
             return std::nullopt;
         }
-        // The source state was entered by the step before, or by start() when the
-        // deciding transition is the run's first.
-        const std::int64_t entered =
-            trace_.size() >= 2 ? trace_[trace_.size() - 2].steady_us : started_steady_us_;
-        return trace_.back().steady_us - entered;
+        // The deciding transition is the last step out of its own source state.
+        return ::tc8::sce::stateDwellUs(trace_, started_steady_us_, trace_.back().from_state_name);
+    }
+
+    std::optional<std::int64_t> stateWindowUs(std::string_view state) const override {
+        return ::tc8::sce::stateDwellUs(trace_, started_steady_us_, state);
     }
 
     std::string dumpTraceJson() const override {

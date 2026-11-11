@@ -2,7 +2,9 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "sce_integration/captured_frame_timing.h"
@@ -60,6 +62,26 @@ struct TransitionStep {
     // anything, which is what the deciding window of an absence is measured from.
     std::int64_t steady_us       = 0;
 };
+
+// How long the run stayed in `state` on its last visit: from the step that entered
+// it (or `started_steady_us`, when the run began there) to the step that left it,
+// in microseconds. Nullopt when the trace never leaves `state`. It is the window an
+// absence was observed over (docs/verdict_policy.md Section 2.1, H3): the last
+// step's source state for the absence that decided the verdict, a named state for
+// one observed earlier in the run. Measured from the entering step, which is
+// stamped after the state's onentry armed its timer, so it can only read short of
+// the timer that ran: the error costs a conclusion and never forges one.
+inline std::optional<std::int64_t> stateDwellUs(const std::vector<TransitionStep> &trace,
+                                                std::int64_t started_steady_us, std::string_view state) {
+    for (std::size_t i = trace.size(); i-- > 0;) {
+        if (std::string_view(trace[i].from_state_name) != state) {
+            continue;
+        }
+        const std::int64_t entered = i > 0 ? trace[i - 1].steady_us : started_steady_us;
+        return trace[i].steady_us - entered;
+    }
+    return std::nullopt;
+}
 
 // Append ``s`` as a JSON-escaped string body (no surrounding quotes) to
 // ``out``. Mirrors the minimal subset of RFC 8259 §7 needed for the

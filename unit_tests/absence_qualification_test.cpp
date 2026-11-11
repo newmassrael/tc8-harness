@@ -4,7 +4,10 @@
 
 #include <gtest/gtest.h>
 
+#include <vector>
+
 #include "sce_integration/absence_qualification.h"
+#include "sce_integration/captured_trace.h"
 #include "sce_integration/dut_requirements.h"
 
 namespace {
@@ -144,6 +147,69 @@ TEST(QualifyAbsence, VerdictsThatClaimNoAbsenceAreUntouched) {
     EXPECT_EQ(qualifyAbsence(kInconclusive, nothing_holds).str(), "inconclusive:no_reply");
     nothing_holds.frame_decided = true;
     EXPECT_EQ(qualifyAbsence(kQuiescence, nothing_holds).str(), "fail:no_dut_arp_reply");
+}
+
+// A pass a frame reached after a "must not send" window it names: the frame does not
+// carry the silence before it, so the pass is held to every hypothesis.
+TEST(QualifyAbsence, AFrameDecidedPassNamingAnEarlierWindowIsHeldToEveryHypothesis) {
+    Verdict v = kPass;
+    v.window = "observing_no_resend";
+    v.bound = "ParamListenTime";
+    AbsenceFacts facts = holdingFacts(v, LivenessAnchorOutcome::kAnswered);
+    facts.frame_decided = true;
+    EXPECT_TRUE(claimsAbsence(v, true));
+    EXPECT_EQ(qualifyAbsence(v, facts).str(), "pass");
+    facts.window_us = 5 * kSecondUs;
+    EXPECT_EQ(qualifyAbsence(v, facts).str(), "inconclusive:window_shorter_than_bound_absence_unproven");
+    facts.window_us = std::nullopt;  // the run never closed the named window
+    EXPECT_EQ(qualifyAbsence(v, facts).str(), "inconclusive:window_shorter_than_bound_absence_unproven");
+    facts = holdingFacts(v, LivenessAnchorOutcome::kAnswered);
+    facts.frame_decided = true;
+    facts.capture_whole = false;
+    facts.capture_reason = "capture_lost_frames_absence_unproven";
+    EXPECT_EQ(qualifyAbsence(v, facts).str(), "inconclusive:capture_lost_frames_absence_unproven");
+    facts = holdingFacts(v, LivenessAnchorOutcome::kUnanswered);
+    facts.frame_decided = true;
+    EXPECT_EQ(qualifyAbsence(v, facts).str(), "inconclusive:liveness_anchor_unanswered_absence_unproven");
+    // Its only claim to an absence is the window, so it must say how long it had to be.
+    v.bound.clear();
+    facts = holdingFacts(v, LivenessAnchorOutcome::kAnswered);
+    facts.frame_decided = true;
+    EXPECT_EQ(qualifyAbsence(v, facts).str(), "inconclusive:absence_bound_undeclared_absence_unproven");
+}
+
+TEST(StateDwell, MeasuresTheLastVisitFromTheStepThatEnteredIt) {
+    using ::tc8::sce::stateDwellUs;
+    using ::tc8::sce::TransitionStep;
+    auto step = [](const char *from, const char *to, std::int64_t at) {
+        TransitionStep s;
+        s.from_state_name = from;
+        s.to_state_name = to;
+        s.steady_us = at;
+        return s;
+    };
+    const std::vector<TransitionStep> trace{step("offer", "quiet", 100), step("quiet", "ack", 11'100),
+                                            step("ack", "quiet", 11'200), step("quiet", "pass", 11'700)};
+    EXPECT_EQ(stateDwellUs(trace, 0, "offer"), 100);  // entered by start()
+    EXPECT_EQ(stateDwellUs(trace, 0, "quiet"), 500);  // the last visit, not the first
+    EXPECT_EQ(stateDwellUs(trace, 0, "ack"), 100);
+    EXPECT_EQ(stateDwellUs(trace, 0, "pass"), std::nullopt);  // never left
+    EXPECT_EQ(stateDwellUs({}, 0, "quiet"), std::nullopt);
+}
+
+TEST(ShortestNamedWindow, EveryNamedWindowMustBeClosedAndTheShortestDecides) {
+    using ::tc8::sce::shortestNamedWindowUs;
+    auto dwell = [](std::string_view state) -> std::optional<std::int64_t> {
+        if (state == "quiet_a") return 11 * kSecondUs;
+        if (state == "quiet_b") return 9 * kSecondUs;
+        return std::nullopt;
+    };
+    EXPECT_EQ(shortestNamedWindowUs("quiet_a", dwell), 11 * kSecondUs);
+    EXPECT_EQ(shortestNamedWindowUs("quiet_a quiet_b", dwell), 9 * kSecondUs);
+    EXPECT_EQ(shortestNamedWindowUs("  quiet_b \t quiet_a ", dwell), 9 * kSecondUs);
+    EXPECT_EQ(shortestNamedWindowUs("quiet_a never_left", dwell), std::nullopt);
+    EXPECT_EQ(shortestNamedWindowUs("", dwell), std::nullopt);
+    EXPECT_EQ(shortestNamedWindowUs("   ", dwell), std::nullopt);
 }
 
 TEST(NeedsLivenessAnchor, OnlyWhenTheOtherHypothesesHold) {

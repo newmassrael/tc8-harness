@@ -1973,10 +1973,15 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // only for a verdict that claims an absence over a whole capture: nothing else
     // needs it, and every exchange is traffic the DUT did not have to see. Skipped
     // on an operator stop, where the run's verdict is already an error.
-    // H3 rides along: the window the deciding transition closed, against the bound
-    // its final declares, resolved through this run's IXIT values.
+    // H3 rides along: the window the deciding transition closed, or the earlier one
+    // the final names, against the bound its final declares, resolved through this
+    // run's IXIT values.
     ::tc8::sce::AbsenceFacts absence{runner->finalTransitionWasFrameDriven(), capture_whole, capture_reason,
-                                     runner->finalWindowUs(),
+                                     verdict.window.empty()
+                                         ? runner->finalWindowUs()
+                                         : ::tc8::sce::shortestNamedWindowUs(
+                                               verdict.window,
+                                               [&](std::string_view state) { return runner->stateWindowUs(state); }),
                                      ::tc8::sce::resolveAbsenceBound(verdict.bound, config.ixit),
                                      ::tc8::sce::LivenessAnchorOutcome::kNotRun};
     LivenessAnchorRun anchor;
@@ -1995,8 +2000,9 @@ int TestCommand::runCase(std::optional<std::string> bpf_override) {
     // measured and the allowance it was held to, so a downgrade on H3 is readable
     // without the trace.
     if (absence.bound.declared && ::tc8::sce::claimsAbsence(pre_qualification, absence.frame_decided)) {
-        std::printf("window   : %.3f s against bound %s (%.3f s at this run's IXIT)\n",
+        std::printf("window   : %.3f s%s%s against bound %s (%.3f s at this run's IXIT)\n",
                     absence.window_us ? static_cast<double>(*absence.window_us) / 1e6 : 0.0,
+                    pre_qualification.window.empty() ? "" : " in ", pre_qualification.window.c_str(),
                     pre_qualification.bound.c_str(),
                     absence.bound.valid ? static_cast<double>(absence.bound.us) / 1e6 : 0.0);
     }

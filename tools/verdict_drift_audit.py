@@ -27,6 +27,13 @@ This tool guards that single source. For every registered case it checks:
                     exit and which can close the window early
   BOUND_UNPARSEABLE a final's `bound` is neither ParamListenTime nor <n>ms/<n>s
   BOUND_MISPLACED   a `bound` on a final whose verdict claims no absence
+  WINDOW_MISPLACED  a `window` (an earlier absence a verdict rests on) on a
+                    final that is not a pass
+  WINDOW_UNKNOWN    a `window` names no state of the machine (exact id)
+  WINDOW_BOUND      a final naming a `window` declares no bound
+  WINDOW_UNTIMED    a named window arms no window timer of its own
+  WINDOW_SHORT      a named window's timer is shorter than the final's bound
+                    at the default IXIT values, or unreadable
 
 Exit status is non-zero if any finding is present, so it can gate CI and the
 pre-commit hook. Run with --summary for counts only.
@@ -222,6 +229,17 @@ def resolve_bound_us(bound: str, listen_us: int) -> int | None:
 
 def extract_bounds(parts: list[tuple[ET.Element, dict[str, str]]]) -> dict[str, str]:
     """Map final id (lowercased) -> the `bound` its donedata declares, when it does."""
+    return _final_field(parts, "bound")
+
+
+def extract_windows(parts: list[tuple[ET.Element, dict[str, str]]]) -> dict[str, str]:
+    """Map final id (lowercased) -> the `window` its donedata names: the state whose
+    dwell is an absence observed before the deciding transition (Verdict::window)."""
+    return _final_field(parts, "window")
+
+
+def _final_field(parts: list[tuple[ET.Element, dict[str, str]]], key: str) -> dict[str, str]:
+    """Map final id (lowercased) -> the string its donedata gives `key`, when it does."""
     out: dict[str, str] = {}
     for root, b in parts:
         for fin in root.iter():
@@ -234,8 +252,8 @@ def extract_bounds(parts: list[tuple[ET.Element, dict[str, str]]]) -> dict[str, 
                     obj = json.loads(_subst((content.text or "").strip(), b))
                 except json.JSONDecodeError:
                     continue
-                if isinstance(obj, dict) and obj.get("bound") is not None:
-                    out[_subst(fin.get("id", ""), b).lower()] = str(obj["bound"])
+                if isinstance(obj, dict) and obj.get(key) is not None:
+                    out[_subst(fin.get("id", ""), b).lower()] = str(obj[key])
     return out
 
 
@@ -300,6 +318,93 @@ def foreign_window_timers(parts: list[tuple[ET.Element, dict[str, str]]]) -> dic
             out.setdefault(target, []).append(
                 (f"'{event}' in '{state}' is also raised by {sorted(sources - {state})}", state in sources))
     return out
+
+
+def state_window_timers(parts: list[tuple[ET.Element, dict[str, str]]]
+                        ) -> tuple[dict[str, list[tuple[str, int | None]]], dict[str, set[str]]]:
+    """For every non-final state (exact id, as the run's trace names it): the window
+    timers it arms in its own onentry AND consumes with one of its own transitions,
+    as (event, delay in us, None when unreadable). Second, every delayed event with
+    the states that raise it, so a timer shared with another state can be told
+    apart (SCXML does not cancel a delayed `<send>` on exit)."""
+    own: dict[str, list[tuple[str, int | None]]] = {}
+    raised_in: dict[str, set[str]] = {}
+    for root, b in parts:
+        for st in root.iter():
+            if _local(st.tag) not in ("state", "parallel"):
+                continue
+            sid = _subst(st.get("id", ""), b)
+            armed: dict[str, int | None] = {}
+            for oe in st:
+                if _local(oe.tag) != "onentry":
+                    continue
+                for el in oe.iter():
+                    if _local(el.tag) != "send":
+                        continue
+                    event = _subst(el.get("event", ""), b)
+                    if el.get("delayexpr") is not None:
+                        armed[event] = None
+                    elif el.get("delay") is not None and not _ZERO_DELAY_RE.match(el.get("delay", "")):
+                        armed[event] = duration_us(_subst(el.get("delay", ""), b))
+            for event in armed:
+                raised_in.setdefault(event, set()).add(sid)
+            consumed = {_subst(tr.get("event", ""), b) for tr in st if _local(tr.tag) == "transition"}
+            own.setdefault(sid, []).extend((ev, d) for ev, d in armed.items() if ev in consumed)
+    return own, raised_in
+
+
+def named_window_findings(done: dict[str, Verdict], windows: dict[str, str], bounds: dict[str, str],
+                          timers: dict[str, list[tuple[str, int | None]]], raised_in: dict[str, set[str]],
+                          listen_us: int) -> list[str]:
+    """A final that names the windows of earlier absences (`"window"`, state ids
+    separated by spaces, Verdict::window) makes those states' dwells its H3
+    evidence: only a pass may do it, the final must declare the bound the windows
+    are held to, and each state must exist under that exact id (the run's trace
+    matches it byte for byte) and arm a window timer of its own — consumed by its
+    own transition, raised by no other state — at least that long at the default
+    IXIT."""
+    findings = []
+    for fid, names in sorted(windows.items()):
+        cls = done.get(fid, ("", "", ""))[0]
+        if cls != "pass":
+            findings.append(f"WINDOW_MISPLACED: final '{fid}' names window '{names}' but is a '{cls}'; "
+                            "only a pass rests on an earlier absence")
+            continue
+        bound = bounds.get(fid)
+        if bound is None:
+            findings.append(f"WINDOW_BOUND: final '{fid}' names window '{names}' but declares no bound; "
+                            "the window is its only claim to an absence")
+            continue
+        if not names.split():
+            findings.append(f"WINDOW_UNKNOWN: final '{fid}' names an empty window list")
+        for state in names.split():
+            findings.extend(_one_named_window(fid, state, bound, timers, raised_in, listen_us))
+    return findings
+
+
+def _one_named_window(fid: str, state: str, bound: str, timers: dict[str, list[tuple[str, int | None]]],
+                      raised_in: dict[str, set[str]], listen_us: int) -> list[str]:
+    """The findings for one state a final names as an earlier absence window."""
+    if state not in timers:
+        return [f"WINDOW_UNKNOWN: final '{fid}' names window '{state}', which is no state of "
+                "this machine (ids are matched exactly)"]
+    own = timers[state]
+    if not own:
+        return [f"WINDOW_UNTIMED: window '{state}' named by final '{fid}' arms no window timer "
+                "of its own that it consumes, so nothing holds it open for its bound"]
+    findings = []
+    bound_us = resolve_bound_us(bound, listen_us)
+    for event, delay in own:
+        if bound_us is not None and (delay is None or delay < bound_us):
+            shown = "an unreadable delay" if delay is None else f"{delay // 1000} ms"
+            findings.append(f"WINDOW_SHORT: window '{state}' named by final '{fid}' is timed by "
+                            f"'{event}' at {shown}, shorter than its bound '{bound}' "
+                            f"({bound_us // 1000} ms at the default IXIT)")
+        others = raised_in.get(event, set()) - {state}
+        if others:
+            findings.append(f"STALE_TIMER: window '{state}' named by final '{fid}' is timed by "
+                            f"'{event}', also raised by {sorted(others)}; give the window its own event")
+    return findings
 
 
 # The roles whose verdict claims an absence and may therefore carry a bound
@@ -418,8 +523,12 @@ def audit_case(name: str, scxml_path: Path | None = None) -> CaseReport:
             rep.findings.append(
                 f"REASON_FORMAT: final '{state}' reason '{reason}' is not lower_snake_case"
             )
-    rep.findings.extend(quiescence_findings(done, reach_kinds(parts), extract_bounds(parts),
+    bounds = extract_bounds(parts)
+    rep.findings.extend(quiescence_findings(done, reach_kinds(parts), bounds,
                                             window_delays(parts), foreign=foreign_window_timers(parts)))
+    timers, raised_in = state_window_timers(parts)
+    rep.findings.extend(named_window_findings(done, extract_windows(parts), bounds, timers, raised_in,
+                                              param_listen_time_us()))
     return rep
 
 
@@ -481,8 +590,11 @@ def _self_test() -> int:
         done: dict[str, Verdict] = {}
         for root, b in parts:
             done.update(_finals_from_root(root, b))
-        return quiescence_findings(done, reach_kinds(parts), extract_bounds(parts), window_delays(parts),
-                                   listen_us=listen_us, foreign=foreign_window_timers(parts))
+        timers, raised_in = state_window_timers(parts)
+        return (quiescence_findings(done, reach_kinds(parts), extract_bounds(parts), window_delays(parts),
+                                    listen_us=listen_us, foreign=foreign_window_timers(parts))
+                + named_window_findings(done, extract_windows(parts), extract_bounds(parts), timers,
+                                        raised_in, listen_us))
 
     q = _self_test_final("fail_q")
     window = '<state id="s"><onentry><send event="t" delay="5s"/></onentry><transition event="t" target="fail_q"/></state>'
@@ -525,6 +637,42 @@ def _self_test() -> int:
          run('<state id="a"><onentry><send event="ta" delay="5s"/></onentry><transition event="f" target="s"/>'
              '<transition event="ta" target="fail_p"/></state>' + window + q
              + _self_test_final("fail_p", None, role="precondition_unmet", cls="inconclusive")), 0),
+    ]
+    # A frame-reached pass naming the "must not send" window it passed through.
+    def quiet(delay: str = "10s", event: str = "tq") -> str:
+        return (f'<state id="Quiet"><onentry><send event="{event}" delay="{delay}"/></onentry>'
+                f'<transition event="{event}" target="ack"/><transition event="f" target="fail_v"/></state>'
+                '<state id="ack"><transition event="a" target="pass"/></state>'
+                + _self_test_final("fail_v", None, role="observed_violation"))
+
+    def named(window_id: str | None = "Quiet", bound: str | None = "ParamListenTime", cls: str = "pass") -> str:
+        fields = [f'"verdict":"{cls}"']
+        if cls != "pass":
+            fields += ['"reason":"r"', '"role":"observed_violation"']
+        if bound is not None:
+            fields.append(f'"bound":"{bound}"')
+        if window_id is not None:
+            fields.append(f'"window":"{window_id}"')
+        fid = "pass" if cls == "pass" else "fail_w"
+        return f'<final id="{fid}"><donedata><content>{{{",".join(fields)}}}</content></donedata></final>'
+
+    cases += [
+        ("named window timed by its own timer covering its bound", run(quiet() + named()), 0),
+        ("named window shorter than its bound", run(quiet("5s") + named()), 1),
+        ("named window with no bound", run(quiet() + named(bound=None)), 1),
+        ("named window that is no state", run(quiet() + named("quiet")), 1),  # ids match exactly
+        ("named window with no timer of its own",
+         run('<state id="Quiet"><transition event="f" target="fail_v"/><transition event="g" target="ack"/></state>'
+             '<state id="ack"><transition event="a" target="pass"/></state>'
+             + _self_test_final("fail_v", None, role="observed_violation") + named()), 1),
+        ("named window whose timer another state raises too",
+         run('<state id="a"><onentry><send event="tq" delay="10s"/></onentry><transition event="o" target="Quiet"/>'
+             '</state>' + quiet() + named()), 1),
+        ("window named on a fail", run(quiet() + named(cls="fail").replace("fail_w", "fail_x")
+                                       + '<state id="z"><transition event="y" target="fail_x"/></state>'), 2),
+        ("two named windows, both timed",
+         run(quiet() + quiet(event="tr").replace('"Quiet"', '"Quiet2"') + named("Quiet Quiet2")), 0),
+        ("two named windows, one no state", run(quiet() + named("Quiet Quiet3")), 1),
     ]
     bad = 0
     for label, findings, want in cases:

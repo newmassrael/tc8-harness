@@ -1,5 +1,7 @@
 #pragma once
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string_view>
@@ -29,8 +31,14 @@ enum class LivenessAnchorOutcome {
 // same hypotheses, which can cost a conclusion but never forge one — or a `fail`
 // whose role says its evidence is a silence. A frame-decided verdict carries its
 // evidence in the trace and claims no absence; a timer-reached `observed_violation`
-// grades a value that was observed and claims none either.
+// grades a value that was observed and claims none either. The exception is a
+// `pass` that names the window of an earlier absence (`Verdict::window`): a frame
+// reached it, but only after a window in which the DUT had to stay silent, so its
+// evidence includes that silence and is held to the same hypotheses.
 inline bool claimsAbsence(const Verdict &v, bool frame_decided) {
+    if (v.cls == VerdictClass::Pass && !v.window.empty()) {
+        return true;
+    }
     if (frame_decided) {
         return false;
     }
@@ -85,6 +93,34 @@ inline AbsenceBound resolveAbsenceBound(std::string_view bound, const ::tc8::Ixi
     return b;
 }
 
+// The window a verdict naming earlier absences rests on (`Verdict::window`, state
+// ids separated by spaces, as an SCXML target list is): the shortest dwell among
+// them, each measured by `dwell(id)`, since every one of them must cover the bound.
+// Nullopt when the list is empty or any state in it was never closed, which no
+// bound is covered by.
+template <typename DwellOf>
+std::optional<std::int64_t> shortestNamedWindowUs(std::string_view names, DwellOf &&dwell) {
+    std::optional<std::int64_t> shortest;
+    std::size_t i = 0;
+    while (i < names.size()) {
+        if (names[i] == ' ' || names[i] == '\t' || names[i] == '\n') {
+            ++i;
+            continue;
+        }
+        std::size_t end = i;
+        while (end < names.size() && names[end] != ' ' && names[end] != '\t' && names[end] != '\n') {
+            ++end;
+        }
+        const std::optional<std::int64_t> us = dwell(names.substr(i, end - i));
+        if (!us) {
+            return std::nullopt;
+        }
+        shortest = shortest ? std::min(*shortest, *us) : *us;
+        i = end;
+    }
+    return shortest;
+}
+
 // How far a measured window may read short of the timer that closed it and still
 // count as covering its bound: the run loop's idle quantum (test_command.cpp
 // kIdleWait). The window is measured from the transition that entered the
@@ -101,7 +137,9 @@ struct AbsenceFacts {
     bool frame_decided = false;
     bool capture_whole = false;
     std::string_view capture_reason = {};
-    // The window the deciding transition closed (ITestRunner::finalWindowUs).
+    // The window the absence was observed over: the one the deciding transition
+    // closed (ITestRunner::finalWindowUs), or the dwell of the state the verdict
+    // names (ITestRunner::stateWindowUs). Nullopt when the run never closed it.
     std::optional<std::int64_t> window_us = std::nullopt;
     AbsenceBound bound = {};
     LivenessAnchorOutcome anchor = LivenessAnchorOutcome::kNotRun;
@@ -123,16 +161,19 @@ constexpr std::string_view livenessAnchorReason(LivenessAnchorOutcome outcome) {
 // The first of H2 and H3 that does not hold for an absence-claiming verdict, as
 // its reason; empty when both hold. H2 first: without a whole capture the window's
 // length says nothing. An `observed_quiescence` fail must declare its bound — a
-// silence graded against no stated allowance cannot tell slowness from omission;
-// a pass is held to a bound only when its final declares one.
+// silence graded against no stated allowance cannot tell slowness from omission,
+// and neither can a pass that names an earlier window, whose only claim to an
+// absence is that window; any other pass is held to a bound only when its final
+// declares one.
 inline std::string_view unestablishedBeforeAnchor(const Verdict &v, const AbsenceFacts &facts) {
     if (!facts.capture_whole) {
         return facts.capture_reason.empty() ? std::string_view{"capture_completeness_unknown_absence_unproven"}
                                             : facts.capture_reason;
     }
     if (!facts.bound.declared) {
-        return v.role == "observed_quiescence" ? std::string_view{"absence_bound_undeclared_absence_unproven"}
-                                               : std::string_view{};
+        return v.role == "observed_quiescence" || !v.window.empty()
+                   ? std::string_view{"absence_bound_undeclared_absence_unproven"}
+                   : std::string_view{};
     }
     if (!facts.bound.valid) {
         return "absence_bound_unparseable_absence_unproven";
