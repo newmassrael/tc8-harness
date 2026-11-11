@@ -28,9 +28,9 @@ namespace tc8::sce {
 // trigger vsomeip's per-channel reboot tracker (expire + reprocess) and
 // the DUT must Ack — NOT Nack — the lower-sid Subscribe (PRS_SOMEIPSD_00157).
 //
-// The "initial event" wire signal called out by the spec body (Notify of
-// Field InterfaceVersion 0x8005) is not exposed by tc8-dut, so the verdict
-// is degraded to Ack-counting: 3 SubscribeEventgroupAcks all with ttl > 0.
+// The verdict counts 3 SubscribeEventgroupAcks, all with ttl > 0. It does not
+// yet grade the "initial event" the spec body names (Notify of Field
+// InterfaceVersion 0x8005), which the DUT now sends; see docs/tech-debt.md TD-72.
 // Subtests B (unicast-only) and C (cross-channel robustness) are deferred.
 template <>
 struct TestCaseTraits<cases::SomeipEts093SM> : SomeIpAnyBase<cases::SomeipEts093SM> {

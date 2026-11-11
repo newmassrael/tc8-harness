@@ -19,15 +19,15 @@ namespace tc8::sce {
 
 // TC8 v3.0 §5.1.6 SOMEIP_ETS_087 — Eventgroup_EventsAndFieldsUnreliable_5.
 // Tester subscribes to eventgroup 0x05 on SERVICE-ID-1; DUT must Ack
-// the Subscribe and emit at least one Notification with MSB-set
-// method-ID. ETS_086 mirror with eventgroup 0x05 (the Unreliable axis
-// in the case name aligns with TestEventUINT8's is_reliable=false in
-// vsomeip.json — eg 0x05 carries the same UDP event as eg 0x02).
+// the Subscribe and send each initial event the procedure lists for
+// eg 0x05: 0x8005, 0x8006 and 0x8007, all over UDP (the "Unreliable" of
+// the case name; eg 0x05 carries no reliable field). The SCXML waits for
+// all three in any order, as ETS_086 does for eg 0x02.
 template <>
 struct TestCaseTraits<cases::SomeipEts087SM> : SomeIpAnyBase<cases::SomeipEts087SM> {
     static constexpr std::string_view kCaseId      = "SOMEIP_ETS_087";
     static constexpr std::string_view kDescription =
-        "Subscribe to eventgroup 0x05 — DUT Ack + initial event observation";
+        "Subscribe to eventgroup 0x05 — DUT Ack + initial events 0x8005..0x8007";
 
     static void stimulus(Captured& /*c*/,
                          const ::tc8::TestConfig& cfg,

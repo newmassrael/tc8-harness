@@ -4897,3 +4897,27 @@ MET as follows.
 
 **Limit, stated.** The run report names the item behind a skip in the skip reason. It does not
 print a separate per-item table; the orchestrator's summary of skip reasons is that table.
+
+## TD-72 — SOMEIP_ETS_093 counts SubscribeEventgroupAcks and does not grade the initial events it is about
+
+**Status:** OPEN. **Logged:** 2026-11-11, when the reference DUT started deploying the OA TC8
+v3.0 Table 2 field notifiers (0x8005..0x8008), at a consumer's request.
+
+**What it is.** SOMEIP_ETS_093 checks that the DUT detects a client reboot. The procedure's
+evidence is the initial event Notify of InterfaceVersion (0x8005): sent after the first
+subscription, NOT sent again after the second (higher Session ID), sent again after the third
+(Session ID 1, the reboot). The case was written when the DUT had no 0x8005, so it counts three
+positive SubscribeEventgroupAcks instead, and runs subtest A (multicast) only.
+
+**Why it stays.** The DUT now sends 0x8005 at those points (a run on 2026-11-11 shows it after
+the first and the third Ack and not after the second), so nothing in the DUT stands in the way.
+The middle step is an absence: grading it is a `conformant_absence` final with a declared bound
+and a registry entry under docs/verdict_policy.md, plus a negative row or a deferral for it. That
+is its own piece of work, not a line in the change that deployed the notifiers.
+
+**Risk.** A DUT that resends the initial event on every subscription, or never sends it again
+after a reboot, passes SOMEIP_ETS_093.
+
+**Done when:** SOMEIP_ETS_093 passes only on 0x8005 after the first Ack, no 0x8005 in a declared
+window after the second, and 0x8005 after the third; that absence holds the S/H1/H2/H3 gate; and
+subtest B (unicast) is graded the same way, or carries a recorded reason it is not.

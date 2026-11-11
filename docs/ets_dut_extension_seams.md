@@ -33,6 +33,7 @@ source file, the same idiom as `TC8_CASE_OVERRIDE_DIRS`:
 | `TC8_ETS_FIDL` / `TC8_ETS_FDEPL` | the interface definition (the O1 path below) |
 | `TC8_ETS_FACTORY_SRC` | `createEtsStub()` — whole-stub replacement with an `EtsImpl` subclass |
 | `TC8_ETS_EXTENSION_SRC` | `createEtsExtension()` — the `IEtsExtension` hooks (the O2 path) |
+| `TC8_ETS_EVENTGROUPS` | the eventgroups the selected fdepl gives chosen events (see "Eventgroup membership" below) |
 
 The defaults are plain strong functions. There are no weak symbols and no
 environment flags, so an override cannot leak into a public conformance run.
@@ -61,6 +62,31 @@ service in one of two ways:
 `IEtsClientControl` and `IEtsControlChannel` extend the same shared application
 for the client role and for a Request/Response the DUT answers. The public
 default extension uses neither.
+
+## Eventgroup membership
+
+The public fdepl places every event and field notifier in the eventgroups OA TC8 v3.0
+Table 2 gives it (plus 0x0006 and 0x0008 on `TestEventUINT8` 0x8001, which SOMEIP_ETS_088
+and the multicast SOMEIPSRV_OPTIONS cases subscribe to). A consumer whose reference DUT
+groups the events differently sets `TC8_ETS_EVENTGROUPS` instead of copying the fdepl:
+
+```
+-DTC8_ETS_EVENTGROUPS="0x8001=0x0002,0x0005;0x800B=0x0006"
+```
+
+- Each entry names an event by the ID the deployment gives it (a broadcast's
+  `SomeIpEventID`, an attribute's `SomeIpNotifierID`) and lists every eventgroup it
+  belongs to. Events the list does not name keep the fdepl's membership.
+- `tools/ets_eventgroup_overlay.py` writes the rewritten copy of the selected fdepl
+  (`TC8_ETS_FDEPL`, so an O1 superset works too) into the build tree, and the CommonAPI
+  codegen reads that copy. An ID no block deploys, a block without a `SomeIpEventGroups`
+  line, or a malformed entry stops the build.
+- The choice is made at build time because vsomeip, asked to register an event again,
+  adds the new eventgroups and keeps the old ones; nothing at run time can take an event
+  out of a group.
+- The in-tree `vsomeip.json` still declares eventgroup 0x0008 with 0x8001 for its
+  multicast endpoint. A consumer that takes 0x8001 out of 0x0008 runs the DUT with its
+  own vsomeip configuration, so the two descriptions of the group agree.
 
 ## A field the public interface does not carry
 
@@ -119,7 +145,15 @@ emission starts (null keeps the default). `IEtsExtension::ets8001TriggerDriven()
 lets an OEM make 0x8001 triggered too; its default of false keeps the public
 cyclic cadence byte-identical. `IEtsExtension::testFieldUint8InitialValue()` is
 the value `TestFieldUINT8` is seeded with, and so the value of a subscriber's
-initial Notification (0x42 by default; 0 is published too).
+initial Notification (0x42 by default; 0 is published too). The other Table 2
+fields start at fixed values: `TestFieldInterfaceVersion` (0x8005) carries the
+interface's Major version, `TestFieldUINT8Array` (0x8007) an empty array, and
+`TestFieldUINT8Reliable` (0x8008) 0.
+
+The CommonAPI generator in use ignores an attribute's reliability flags, so the
+TCP transport of the `TestFieldUINT8Reliable` notifier comes from the `events`
+entry for 0x8008 in each `dut/dut_service/vsomeip*.json`. vsomeip gives that
+entry precedence over the API.
 
 `suspendInterface` reads its `start` and `duration` in seconds, as TC8
 §5.1.4.3.2 states them.
@@ -127,8 +161,9 @@ initial Notification (0x42 by default; 0 is published too).
 ## Known gaps
 
 - No test yet proves on the wire that a trigger method produces its
-  Notification (and nothing without it), or that `TestFieldUINT8` sends initial
-  data on SubscribeEventgroupAck. The logic is unit-tested
-  (`unit_tests/ets_emission_test.cpp`).
+  Notification (and nothing without it). The logic is unit-tested
+  (`unit_tests/ets_emission_test.cpp`). The fields' initial events are graded
+  on the wire by SOMEIP_ETS_086 (eventgroup 0x0002: 0x8005..0x8008) and
+  SOMEIP_ETS_087 (0x0005: 0x8005..0x8007).
 - The event-to-eventgroup map is written in both `ets.fdepl` and
   `vsomeip.json`, and nothing asserts they agree.

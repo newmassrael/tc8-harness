@@ -4,25 +4,23 @@
 
   Tester subscribes to eventgroup 0x02 on SERVICE-ID-1; DUT must reply
   with SubscribeEventgroupAck (Type 2 entry, type=0x07, ttl > 0) and
-  emit at least one Notification with method-ID highest bit set.
-
-  The spec body lists 4 method-IDs (0x8005..0x8008 — Interface Version
-  + 3 TestField events) the DUT should emit. tc8-dut's vsomeip.json
-  exposes only TestEventUINT8 (0x8001) under eventgroup 0x02, so the
-  observable surface is reduced to a single Notification with MSB set.
-  Pass cond accepts any such Notification — the spec's PRS_SOMEIPSD
-  invariants (Ack on Subscribe + initial events on subscribed eg) are
-  preserved without requiring extra TestField events. The "TCP" axis
-  in the case name is not separately observable on this DUT (event
-  0x8001 is is_reliable=false in vsomeip.json); the lenient
-  interpretation matches BASIC_03's approach.
+  send every initial event the procedure lists for eventgroup 0x02:
+  Interface Version 0x8005, TestFieldUINT8 0x8006, TestFieldUINT8Array
+  0x8007 and TestFieldUINT8Reliable 0x8008 (the "TCP" of the case name:
+  0x8008 is the reliable one, so it reaches the tester over the TCP
+  connection the subscription holds, the others over UDP). The order is
+  not specified, so each event has its own region of a <parallel> and
+  the case passes once all four regions are done.
 
     Phase 1 (listening_phase1): OfferService observation on SERVICE-ID-1
             with sd_ipv4_endpoint_count >= 1.
     Phase 2 (listening_phase2): SubscribeEventgroupAck for eventgroup
             0x0002 (Type 2 entry, ttl > 0). ttl == 0 -> Nack -> fail.
-    Phase 3 (listening_phase3): Notification with method_id high bit
-            set (0x8000) on SERVICE-ID-1.
+    Phase 3 (listening_phase3_initial_events): one Notification
+            (message type 0x02) on SERVICE-ID-1 for each of 0x8005,
+            0x8006, 0x8007 and 0x8008. A window that closes with any of
+            them unseen is property_unobserved; the states trace names the
+            region that did not finish.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        xmlns:sce="http://sce.dev/ext"
@@ -57,22 +55,56 @@
     </onentry>
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl &gt; 0 and captured.sd_entries[0].eventgroup_id == expected.eventgroup_id"
-                target="listening_phase3"/>
+                target="listening_phase3_initial_events"/>
     <transition event="someip_notification"
                 cond="cpp:captured.service_id == 0xFFFF and captured.sd_entry_count >= 1 and captured.sd_entries[0].type == 0x07 and captured.sd_entries[0].ttl == 0"
                 target="fail_phase2_subscribe_nacked"/>
     <transition event="phase2_deadline_exceeded" target="inconclusive_phase2_no_subscribe_ack"/>
   </state>
 
-  <state id="listening_phase3">
+  <parallel id="listening_phase3_initial_events">
     <onentry>
       <send event="phase3_deadline_exceeded" delay="4s"/>
     </onentry>
-    <transition event="someip_notification"
-                cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x02 and (captured.method_id &amp; 0x8000) == 0x8000"
-                target="pass"/>
-    <transition event="phase3_deadline_exceeded" target="inconclusive_phase3_no_notification"/>
-  </state>
+    <transition event="done.state.listening_phase3_initial_events" target="pass"/>
+    <transition event="phase3_deadline_exceeded" target="inconclusive_phase3_initial_events_missing"/>
+
+    <state id="initial_8005" initial="awaiting_8005">
+      <state id="awaiting_8005">
+        <transition event="someip_notification"
+                    cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x02 and captured.method_id == 0x8005"
+                    target="seen_8005"/>
+      </state>
+      <final id="seen_8005"/>
+    </state>
+
+    <state id="initial_8006" initial="awaiting_8006">
+      <state id="awaiting_8006">
+        <transition event="someip_notification"
+                    cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x02 and captured.method_id == 0x8006"
+                    target="seen_8006"/>
+      </state>
+      <final id="seen_8006"/>
+    </state>
+
+    <state id="initial_8007" initial="awaiting_8007">
+      <state id="awaiting_8007">
+        <transition event="someip_notification"
+                    cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x02 and captured.method_id == 0x8007"
+                    target="seen_8007"/>
+      </state>
+      <final id="seen_8007"/>
+    </state>
+
+    <state id="initial_8008" initial="awaiting_8008">
+      <state id="awaiting_8008">
+        <transition event="someip_notification"
+                    cond="cpp:captured.service_id == expected.service_id and captured.message_type == 0x02 and captured.method_id == 0x8008"
+                    target="seen_8008"/>
+      </state>
+      <final id="seen_8008"/>
+    </state>
+  </parallel>
 
   <final id="pass">
     <donedata>
@@ -98,9 +130,9 @@
     </donedata>
   </final>
 
-  <final id="inconclusive_phase3_no_notification">
+  <final id="inconclusive_phase3_initial_events_missing">
     <donedata>
-      <content>{"verdict":"inconclusive","reason":"no_notification_with_event_msb_within_listen_window","role":"property_unobserved"}</content>
+      <content>{"verdict":"inconclusive","reason":"not_every_initial_event_within_listen_window","role":"property_unobserved"}</content>
     </donedata>
   </final>
 </scxml>
