@@ -94,20 +94,33 @@ TEST(CaptureLinkOutage, TheSameHandleDeliversAgainOnceTheLinkIsBack) {
 
     std::unique_ptr<tc8::capture::PcapSource> source = tc8::capture::PcapSource::openLive(kA);
     ASSERT_TRUE(source);
+    ASSERT_EQ(source->tstampPrecision(), PCAP_TSTAMP_PRECISION_MICRO);  // ts.tv_usec is microseconds below
     ASSERT_TRUE(deliversAFrame(*source, kB, 3s)) << "no frame before the outage";
 
     tc8::LinkOutageTracker tracker;
     ASSERT_TRUE(tc8::net::setLinkState(kA, /*up=*/false));
+    // Every frame captured from here on was captured with the link down. A frame the
+    // handle reads now may still be one captured before: deliversAFrame stops at the
+    // first frame it reads, and a probe it sent earlier can arrive after that and wait
+    // in the buffer (measured: 1 run in 17 read one here). So a frame is judged by its
+    // capture timestamp, which is on the clock libpcap stamps with, not by when it is read.
+    const std::chrono::microseconds down_at = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::system_clock::now().time_since_epoch());
     tracker.observe(carriesTraffic(kA), 1);
     EXPECT_TRUE(tracker.down());
     // While the link is down a dispatch delivers nothing; whether libpcap reports the
     // down link as an error or as no frames, the handle must survive it.
     int frames_while_down = 0;
+    int frames_from_before = 0;
     for (int i = 0; i < 5; ++i) {
-        source->dispatch(-1, [&frames_while_down](const pcap_pkthdr &, const u_char *) { ++frames_while_down; });
+        source->dispatch(-1, [&](const pcap_pkthdr &h, const u_char *) {
+            const std::chrono::microseconds captured_at =
+                std::chrono::seconds(h.ts.tv_sec) + std::chrono::microseconds(h.ts.tv_usec);
+            ++(captured_at >= down_at ? frames_while_down : frames_from_before);
+        });
         std::this_thread::sleep_for(10ms);
     }
-    EXPECT_EQ(frames_while_down, 0);
+    EXPECT_EQ(frames_while_down, 0) << frames_from_before << " frame(s) captured before the outage were read too";
 
     ASSERT_TRUE(tc8::net::setLinkState(kA, /*up=*/true));
     ASSERT_EQ(tc8::net::awaitCarrier(kA, true, 2s), tc8::net::CarrierWait::kReached);
