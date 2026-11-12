@@ -47,11 +47,13 @@ inline constexpr std::uint16_t kSdPort  = 30490;  // SOME/IP-SD
 inline constexpr std::uint16_t kTcpPort = 30501;  // reliable unicast
 inline constexpr std::uint16_t kUdpPort = 30502;  // unreliable unicast
 
-// SOME/IP-SD multicast group the DUT and tester exchange Find/Offer on — matches
-// vsomeip.json `service-discovery.multicast`. The single C++ source for this value
-// (the tester SD emitters default to it); same hand-sync contract as the identity
-// above. A `const char*` (not std::string_view) to keep this widely-included
-// config header free of <string_view>, mirroring kApplicationName.
+// SOME/IP-SD multicast group of the reference DUT — matches the in-tree vsomeip.json
+// `service-discovery.multicast`. A DEFAULT, not the group of every run: a site's DUT
+// may discover on another group, which its own vsomeip.json names. The tester sends to
+// the run's group (stimulus/sd_group.h, published from `someip.sd_multicast_ip`) and
+// tc8-dut's client mode reads its vsomeip.json; both fall back to this value only when
+// nothing names a group. A `const char*` (not std::string_view) to keep this
+// widely-included config header free of <string_view>, mirroring kApplicationName.
 inline constexpr const char* kSdMcastGroup = "224.244.224.245";
 
 // BPF capture window covering the ports above with headroom for extra

@@ -1,6 +1,7 @@
 #include "ets_impl.h"
 
 #include <chrono>
+#include <cstdio>
 #include <cstdlib>
 #include <thread>
 #include <utility>
@@ -10,6 +11,7 @@
 
 #include "ets_emission.h"
 #include "ets_fault.h"
+#include "vsomeip_sd_group.h"  // vsomeipSdGroup — the client-mode Finds' SD group
 
 namespace tc8::dut {
 
@@ -347,7 +349,13 @@ void EtsImpl::clientServiceActivate(
     if (clientProxyModeEnabled()) {
         client_mode_proxy_.start();
     } else {
-        client_mode_.start(_delay);
+        // The raw Finds go to the group this DUT's vsomeip discovers on, read from
+        // the configuration it was launched with, so the DUT's two SD senders share
+        // one group.
+        const VsomeipSdGroup group = vsomeipSdGroup();
+        std::fprintf(stderr, "tc8-dut: client mode sends FindService to SD group %s (from %s)\n",
+                     group.dotted.c_str(), group.source.c_str());
+        client_mode_.start(_delay, group.group_be);
     }
 }
 

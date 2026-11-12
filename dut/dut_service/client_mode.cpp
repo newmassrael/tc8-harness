@@ -2,7 +2,7 @@
 
 #include "client_mode_wire.h"
 #include "tc8/someip/wire.h"
-#include "tc8/dut_config.h"  // kSdPort / kSdMcastGroup — SD port/group SSOT
+#include "tc8/dut_config.h"  // kSdPort — SD port SSOT
 
 #include <arpa/inet.h>
 #include <cerrno>
@@ -109,7 +109,7 @@ std::uint32_t firstNonLoopbackIpv4() {
     return addr;
 }
 
-int sendFindServiceOnce(const std::vector<std::uint8_t> &wire) {
+int sendFindServiceOnce(const std::vector<std::uint8_t> &wire, std::uint32_t group_be) {
     int s = ::socket(AF_INET, SOCK_DGRAM, 0);
     if (s < 0) {
         std::fprintf(stderr, "client_mode: socket() failed: %s\n", std::strerror(errno));
@@ -144,7 +144,7 @@ int sendFindServiceOnce(const std::vector<std::uint8_t> &wire) {
 
     sockaddr_in dst{};
     dst.sin_family = AF_INET;
-    inet_pton(AF_INET, kSdMcastGroup, &dst.sin_addr);
+    dst.sin_addr.s_addr = group_be;
     dst.sin_port = htons(kSdPort);
 
     auto rc = ::sendto(s, wire.data(), wire.size(), 0,
@@ -179,12 +179,14 @@ ClientModeRunner::ClientModeRunner() = default;
 
 ClientModeRunner::~ClientModeRunner() { stop(); }
 
-void ClientModeRunner::start(std::uint8_t delay_ms) {
+void ClientModeRunner::start(std::uint8_t delay_ms, std::uint32_t sd_group_be) {
     bool expected = true;
     if (!stop_flag_.compare_exchange_strong(expected, false)) {
         // Already running — idempotent re-activation.
         return;
     }
+    // Written before the thread starts, which orders it before every read in run().
+    sd_group_be_ = sd_group_be;
     emit_thread_ = std::thread([this, delay_ms] {
         if (delay_ms > 0) {
             std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
@@ -210,14 +212,14 @@ void ClientModeRunner::run() {
     std::this_thread::sleep_for(kInitialWait);
     if (stop_flag_.load()) return;
 
-    sendFindServiceOnce(buildFindServiceWire(session_id));
+    sendFindServiceOnce(buildFindServiceWire(session_id), sd_group_be_);
     ++session_id;
 
     auto delay = kRepetitionBaseDelay;
     for (int i = 0; i < kRepetitionsMax && !stop_flag_.load(); ++i) {
         std::this_thread::sleep_for(delay);
         if (stop_flag_.load()) return;
-        sendFindServiceOnce(buildFindServiceWire(session_id));
+        sendFindServiceOnce(buildFindServiceWire(session_id), sd_group_be_);
         ++session_id;
         delay = delay * 2;
     }

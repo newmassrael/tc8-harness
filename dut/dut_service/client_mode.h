@@ -34,9 +34,12 @@ public:
     ClientModeRunner(const ClientModeRunner&) = delete;
     ClientModeRunner& operator=(const ClientModeRunner&) = delete;
 
-    // Starts the FindService emitter thread after waiting `delay_ms`. Idempotent
-    // when already running.
-    void start(std::uint8_t delay_ms);
+    // Starts the FindService emitter thread after waiting `delay_ms`, sending to the
+    // SD multicast group `sd_group_be` (network byte order). The group is the DUT's
+    // configuration, so the caller resolves it (vsomeip_sd_group.h) and this runner
+    // stays free of the vsomeip stack. Idempotent when already running: a second
+    // start keeps the running thread and its group.
+    void start(std::uint8_t delay_ms, std::uint32_t sd_group_be);
 
     // Signals stop and joins the thread. Safe to call when not running.
     void stop();
@@ -48,6 +51,7 @@ private:
     // freshly-constructed runner — start() flips it to false to mark
     // "running" and stop() flips it back to true.
     std::atomic<bool> stop_flag_{true};
+    std::uint32_t sd_group_be_ = 0;
     std::thread emit_thread_;
 };
 

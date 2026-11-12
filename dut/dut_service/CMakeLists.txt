@@ -99,6 +99,12 @@ if(NOT TC8_BUILD_MOCK_DUT)
     return()
 endif()
 
+# Boost.PropertyTree (header-only) reads the DUT's vsomeip configuration
+# (vsomeip_sd_group.cpp) with the parser vsomeip reads it with. vsomeip cannot be
+# built without Boost, so this layer adds no prerequisite; it names the one it uses
+# instead of reaching it through vsomeip's include path.
+find_package(Boost CONFIG REQUIRED)
+
 # OEM override seams (compile-time source-selection — same idiom as
 # TC8_ETS_FIDL / TC8_CASE_OVERRIDE_DIRS, so the repo has ONE injection
 # philosophy, no link-time weak-symbol tricks). An OEM points these at its own
@@ -136,6 +142,7 @@ add_executable(tc8-dut
     linklocal_autoconf.cpp
     posix_ut_extensions.cpp
     server_role.cpp
+    vsomeip_sd_group.cpp
     ${TC8_ETS_FACTORY_SRC}
     ${TC8_ETS_EXTENSION_SRC}
 )
@@ -168,7 +175,8 @@ target_compile_options(tc8-dut PRIVATE -Werror=switch)
 # excluded entirely; the -isystem demotion is what makes the gate possible here.
 tc8_enable_strict_warnings(tc8-dut)
 target_link_options(tc8-dut PRIVATE -Wl,--no-as-needed)
-target_link_libraries(tc8-dut PRIVATE ets ets2 ets3 tc8_testability_server tc8_upper_tester_server)
+target_link_libraries(tc8-dut PRIVATE ets ets2 ets3 tc8_testability_server tc8_upper_tester_server
+                                      Boost::headers)
 # OEM extension link companion of TC8_ETS_EXTENSION_SRC: lets the extension TU
 # declare its own link dependencies (e.g. tc8_e2e for an AUTOSAR E2E Profile 5/11
 # checker) without baking an extension-only library into the public DUT target.
