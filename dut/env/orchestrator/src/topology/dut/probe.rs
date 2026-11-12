@@ -75,16 +75,23 @@ const SD_PROBE_NOT_OBSERVED: i32 = 1;
 /// heard and on which group, and that is exactly the evidence an operator
 /// reading a failed preflight needs. Capturing them into a file the orchestrator
 /// then re-prints would only add a copy.
+///
+/// `sd_group` is the DUT's own SD group (`DutIdentity::sd_multicast_ip`, from its
+/// vsomeip.json). Passed rather than left to the probe's compiled default, because a
+/// DUT on another group would otherwise be listened for, and joined, on a group it
+/// never sends to, and the preflight would accuse a DUT that is discovering.
 pub(crate) fn spawn_sd_probe(
     harness: &Path,
     iface: &str,
     dut_ip: &str,
+    sd_group: &str,
     timeout_ms: u32,
     ready: &Path,
 ) -> Result<Child> {
     let _ = std::fs::remove_file(ready);
     Command::new(harness)
-        .args(["sd-probe", "--interface", iface, "--dut-ip", dut_ip, "--timeout"])
+        .args(["sd-probe", "--interface", iface, "--dut-ip", dut_ip, "--sd-group", sd_group])
+        .arg("--timeout")
         .arg(timeout_ms.to_string())
         .arg("--ready-file")
         .arg(ready)

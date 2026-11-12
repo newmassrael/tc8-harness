@@ -369,6 +369,7 @@ impl DutLifecycle for SshExecDut<'_> {
             &self.cfg.harness,
             &self.site.wire.iface,
             dut_ip,
+            &self.cfg.identity.sd_multicast_ip,
             SD_PROBE_TIMEOUT_MS,
             &sd_ready,
         )?;

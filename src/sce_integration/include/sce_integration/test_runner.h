@@ -18,6 +18,7 @@
 #include "tc8/captured_event.h"
 #include "tc8/pollable_service.h"
 
+#include "stimulus/sd_group.h"     // setSdMulticastGroup — published once in kickStimulus
 #include "stimulus/site_target.h"  // setSiteDutIpv4 — published once in kickStimulus
 
 #include "adopted_services.h"
@@ -483,6 +484,12 @@ public:
         // it at the one seam every stimulus is dispatched through leaves no
         // case, in-tree or out, able to miss it.
         ::tc8::stimulus::setSiteDutIpv4(cfg_.dut.ip);
+        // The SD group, for the same reason and at the same seam: the DUT's
+        // configuration names it (forwarded as `someip.sd_multicast_ip`), the
+        // verdicts and the capture already read it, and the SD emitters send to
+        // it and key their multicast Session stream on it. Unset (0) leaves the
+        // compiled default in force (stimulus/sd_group.h).
+        ::tc8::stimulus::setSdMulticastGroup(cfg_.someip.sd_multicast_ip);
         if constexpr (has_context_stimulus_v<Traits>) {
             // The single context signature: every capability in one argument.
             StimulusContext ctx{iface, dut_control, *this, *this, observation_};

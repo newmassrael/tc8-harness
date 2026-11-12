@@ -14,7 +14,7 @@
 #include "tc8/someip/sd_wire_constants.h"  // sd_flags::kRebootUnicast — SD header flags SSOT.
 #include "stimulus/boot_timing.h"
 #include "stimulus/sd_session.h"  // the per-stream SD Session counter every emitter draws from
-#include "tc8/dut_config.h"  // kSdPort / kSdMcastGroup — SD port/group SSOT.
+#include "tc8/dut_config.h"  // kSdPort — SD port SSOT (the group is the run's: stimulus/sd_group.h).
 
 namespace tc8::stimulus {
 
@@ -80,8 +80,13 @@ std::vector<std::uint8_t> buildFindService(const FindServiceParams &p);
 // stderr). The socket is opened, used once, and closed — stimulus is a
 // one-shot action in the current harness.
 int sendSdMulticast(const std::vector<std::uint8_t> &datagram, std::string_view iface_name,
-                    std::string_view mcast_group = tc8::dut::kSdMcastGroup,
-                    std::uint16_t mcast_port = tc8::dut::kSdPort);
+                    std::string_view mcast_group, std::uint16_t mcast_port = tc8::dut::kSdPort);
+
+// The same send to the run's SD group (stimulus/sd_group.h) on the SD port: the group
+// this run's DUT discovers on, which is the compiled `kSdMcastGroup` only when the run
+// named none. An overload rather than a default argument because the group is read at
+// the send, not fixed where the header is compiled.
+int sendSdMulticast(const std::vector<std::uint8_t> &datagram, std::string_view iface_name);
 
 // Raw-L2 sibling of sendSdMulticast for cases that must drive an SD multicast
 // (FindService / OfferService) FROM a spoofed source IP — e.g. two ECUs that the
@@ -102,10 +107,15 @@ int sendSdMulticast(const std::vector<std::uint8_t> &datagram, std::string_view 
 // needs the real tester MAC. Returns 0 on success, -5 if `mcast_group` is
 // malformed, or the negative `sendUdpFromSourceIp` / `sendRawEthernet` sentinel.
 int sendSdMulticastFromSourceIp(const std::vector<std::uint8_t> &datagram, std::string_view iface,
-                                std::uint32_t src_ip_be,
-                                const std::array<std::uint8_t, 6> &src_mac = {},
-                                std::string_view mcast_group = tc8::dut::kSdMcastGroup,
+                                std::uint32_t src_ip_be, const std::array<std::uint8_t, 6> &src_mac,
+                                std::string_view mcast_group,
                                 std::uint16_t mcast_port = tc8::dut::kSdPort);
+
+// The same send to the run's SD group on the SD port (see the two-argument
+// sendSdMulticast).
+int sendSdMulticastFromSourceIp(const std::vector<std::uint8_t> &datagram, std::string_view iface,
+                                std::uint32_t src_ip_be,
+                                const std::array<std::uint8_t, 6> &src_mac = {});
 
 // Transmits `datagram` as a UDP unicast to `dst_ip_be`:`dst_port` over
 // `iface_name`. Source port is bound to the SD port (30490) so vsomeip's

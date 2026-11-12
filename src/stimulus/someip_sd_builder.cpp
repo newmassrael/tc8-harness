@@ -14,6 +14,7 @@
 #include "tc8/someip/sd_wire_constants.h"  // sd_option_type / sd_l4_proto / sd_entry_type (wire values SSOT)
 #include "tc8/someip/wire.h"
 #include "stimulus/iface_addr.h"
+#include "stimulus/sd_group.h"  // sdMulticastGroupBe — the run's SD group and multicast stream key
 #include "stimulus/site_target.h"  // siteDutIpv4 — resolves an unset SubscribeDestination
 #include "stimulus/udp_emit.h"
 #include "tc8/dut_config.h"
@@ -74,17 +75,6 @@ void drawSdSessionIfUnset(std::optional<std::uint16_t> &session_id, std::uint8_t
     const SdSession s = nextSdSession(src_ipv4_be, dst_ipv4_be);
     session_id = s.session_id;
     sd_flags = sdFlagsWithReboot(sd_flags, s.reboot);
-}
-
-// The SD multicast group in network byte order: the destination half of the tester's
-// multicast stream key. 0 only if the SSOT literal were malformed, which the multicast
-// send would then refuse as well.
-std::uint32_t sdMulticastGroupBe() {
-    in_addr group{};
-    if (::inet_pton(AF_INET, tc8::dut::kSdMcastGroup, &group) != 1) {
-        return 0;
-    }
-    return group.s_addr;
 }
 
 // The #Opt1/#Opt2 option-run count byte of an SD entry (byte 3): #Opt1 in the high
@@ -589,6 +579,16 @@ int sendSdMulticast(const std::vector<std::uint8_t> &datagram, std::string_view 
     // port`), so the source port is the SD port (= mcast_port). The generic
     // bind / IP_MULTICAST_IF / sendto mechanics live in sendUdpMulticast.
     return sendUdpMulticast(datagram, iface_name, /*src_port=*/mcast_port, mcast_group, mcast_port);
+}
+
+int sendSdMulticast(const std::vector<std::uint8_t> &datagram, std::string_view iface_name) {
+    return sendSdMulticast(datagram, iface_name, sdMulticastGroup(), kSdPort);
+}
+
+int sendSdMulticastFromSourceIp(const std::vector<std::uint8_t> &datagram, std::string_view iface,
+                                std::uint32_t src_ip_be, const std::array<std::uint8_t, 6> &src_mac) {
+    return sendSdMulticastFromSourceIp(datagram, iface, src_ip_be, src_mac, sdMulticastGroup(),
+                                       kSdPort);
 }
 
 int sendSdMulticastFromSourceIp(const std::vector<std::uint8_t> &datagram, std::string_view iface,

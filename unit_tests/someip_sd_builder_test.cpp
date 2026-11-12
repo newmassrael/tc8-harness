@@ -6,6 +6,7 @@
 #include <gtest/gtest.h>
 
 #include "tc8/someip/sd_decode.h"
+#include "stimulus/sd_group.h"
 #include "stimulus/site_target.h"
 #include "stimulus/someip_sd_builder.h"
 #include "tc8/dut_config.h"
@@ -978,6 +979,26 @@ TEST(SubscribeDestinationDefault, SiteAddressIsWhatTheRunPublished) {
     setSiteDutIpv4(0x630200C0u);  // 192.0.2.99
     EXPECT_EQ(siteDutIpv4(), 0x630200C0u);
     setSiteDutIpv4(0);
+}
+
+TEST(SdMulticastGroup, UnpublishedIsTheCompiledDefault) {
+    setSdMulticastGroup(0);
+    EXPECT_EQ(sdMulticastGroup(), std::string(tc8::dut::kSdMcastGroup));
+    EXPECT_NE(sdMulticastGroupBe(), 0u) << "the group is never 0.0.0.0";
+}
+
+TEST(SdMulticastGroup, ARunsGroupReplacesTheDefaultUntilWithdrawn) {
+    // 224.244.24.245, network byte order: a group a deployment's own specification
+    // mandates, one digit apart from the compiled default. The emitters and the
+    // multicast Session stream read exactly this accessor.
+    constexpr std::uint32_t kSiteGroupBe = 0xF518F4E0u;
+    setSdMulticastGroup(kSiteGroupBe);
+    EXPECT_EQ(sdMulticastGroupBe(), kSiteGroupBe);
+    EXPECT_EQ(sdMulticastGroup(), "224.244.24.245");
+
+    setSdMulticastGroup(0);
+    EXPECT_EQ(sdMulticastGroup(), std::string(tc8::dut::kSdMcastGroup))
+        << "publishing 0 says the run named no group, so the default applies again";
 }
 
 // --- buildSdMessage (any entries, any options) ---
