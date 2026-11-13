@@ -4952,3 +4952,34 @@ shortest named window at 11.0 s against the 10 s bound and the anchor answered; 
 `ixit.param_listen_time_ms=12000` is `inconclusive:window_shorter_than_bound_absence_unproven`.
 The DUT log shows the reboot detected per channel (multicast in A, unicast in B) and none in C.
 Fail branches are not driven on the wire: no DUT fault resends or withholds the initial event.
+
+---
+
+## TD-73 — the reference DUT is compiled in CI only by the self-hosted smoke job
+
+**Status:** OPEN. **Logged:** 2026-11-13, after three pushes waited for a DUT build in CI.
+
+**What it is.** The hosted build-test job builds the patched vsomeip, CommonAPI and Boost into
+`/opt/someip-stack` and puts them on `CMAKE_PREFIX_PATH`, then configures with
+`-DTC8_BUILD_MOCK_DUT=OFF`. So `tc8-dut`, the `dut/ets` targets and the DUT-gated unit tests
+(`testability_server_test`, `reactor_test` and the rest listed in smoke-test.yml) are not compiled
+or run there. The only thing that keeps the option off is a missing toolchain:
+`dut/CMakeLists.txt` requires `commonapi-core-generator` and `commonapi-someip-generator` (Java
+tools), and the hosted job does not install them. The self-hosted smoke job is the only CI that
+builds the DUT.
+
+**Why it matters now.** On 2026-11-11..13 both self-hosted netns runners were offline. The smoke
+run of one push was cancelled after 24 h in the queue, and two more waited about a day. One of
+them changed the DUT build: `tc8-dut` began finding Boost itself and reading vsomeip.json, which
+nothing in hosted CI compiles. It passed smoke when a runner came back, but until then it had no
+CI build at all.
+
+**Risk.** A change that breaks the DUT build or a DUT-gated unit test passes every hosted check.
+It shows up only when a self-hosted runner is free, and by then later pushes are stacked on it.
+
+**Fix.** Install both CommonAPI generators in build-test from pinned release archives (verify
+the sha256, then cache by version like the stack itself). Then turn `TC8_BUILD_MOCK_DUT` on in its
+configure step and run the DUT-gated unit tests that need no privilege.
+
+**Done when:** a hosted CI job compiles `tc8-dut` and runs the DUT-gated unit tests on every
+push, so a DUT build break fails a job that does not depend on a self-hosted runner.

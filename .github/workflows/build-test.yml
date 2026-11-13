@@ -204,6 +204,7 @@ jobs:
         run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Configure (embed SCE)
+        # MOCK_DUT off: no CommonAPI generators here (see docs/tech-debt.md TD-73).
         run: |
           export CMAKE_PREFIX_PATH=/opt/someip-stack:$CMAKE_PREFIX_PATH
           cmake -S . -B build \
